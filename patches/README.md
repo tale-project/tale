@@ -116,3 +116,63 @@ the route.
 **Remove it when** the router packages move to a release whose loader passes the test unpatched
 (1.171's rewrite is the candidate). Bump `@tanstack/react-router` and the router plugin together,
 delete this entry and its `patchedDependencies` line, and keep the test.
+
+## `zod@4.6.6.patch`
+
+**Why.** zod 4.6.6 is the first release that fixes
+[GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) (memory exhaustion while
+validating an oversized constrained collection), which the Security workflow's audit gates refuse.
+The 4.4 and 4.5 releases on the way also changed four behaviours Tale is built on, and the patch
+keeps them as 4.3.6 had them, so the upgrade changes nothing a caller sees:
+
+- **String length.** `.min()`, `.max()` and `.length()` count Unicode code points since 4.5
+  ([colinhacks/zod#6441](https://github.com/colinhacks/zod/pull/6441)). Tale states every string cap
+  in UTF-16 code units, `String.length` ("most emoji count as 2"), in the API reference, the MCP
+  page and its own refusals, and its domain checks measure the same unit.
+- **Error precedence.** Since 4.5 a schema's own error map also phrases the issues its checks raise,
+  ahead of the map the parse call passes ([#6426](https://github.com/colinhacks/zod/pull/6426)).
+  The doors parse with `houseIssueMessage` and give a schema an error of its own for its type alone
+  (`z.int({ error: 'must be a whole number' }).min(1)`), so a range, or an issue a refinement raises
+  again, lost its house words; the repository has about 300 such schema-level errors.
+- **JSON Schema.** Since 4.5 `toJSONSchema` folds an `anyOf` of bare types into a `type` array
+  ([#6339](https://github.com/colinhacks/zod/pull/6339)). That rewrote ten nullable fields of the
+  tool schemas the MCP endpoint advertises, and with them its contract fingerprint. The OpenAPI
+  document renders for `openapi-3.0`, which Zod never folds.
+- **Absent keys.** Since 4.4 an object refuses a missing key unless its schema is optional on input
+  (`.optional()`, a default or a catch), even when the schema takes `undefined`: `z.unknown()`,
+  `z.any()`, `.or(z.undefined())` or an unchecked `z.custom()`. The issue says `nonoptional`
+  ([#5661](https://github.com/colinhacks/zod/pull/5661)). Tale reads keys like these as possibly
+  missing: the `document` of an automation save or check, the `input` and `caller` of a connector
+  action run on an automation's or a chat's behalf. The integration check's reader of a shared chat
+  refused the snapshot, whose messages leave an empty `blockedReason` and `error` out.
+
+**What.** The same change goes into each build the package ships: `v4/core/*.js` (`import`),
+`v4/core/*.cjs` (`require`) and `src/v4/core/*.ts` (the `@zod/source` condition). The hunks are
+marked `Tale:`.
+
+- `util`, `codePointLength`: returns `str.length`. Every length check, interpreted or compiled
+  (`compile`), measures a string through it.
+- `util`, `finalizeIssue`: the owning schema's map is no longer asked about a check's issue.
+- `to-json-schema`, `compactTypeUnion`: returns at once.
+- `schemas`, `handlePropertyResult` and the compiled object parser (`$ZodObjectJIT`): an absent key
+  is judged as in 4.3.6. No `nonoptional` issue is raised, an optional-out schema's issues are
+  dropped, and the key is written only when the schema made a value of it.
+
+**Proof.** `packages/shared/src/schemas/zod-patch.test.ts` states the four behaviours on plain
+schemas; on unpatched 4.6.6 each of its cases fails. In context, these failed on 4.6.6 without the
+patch: `services/platform/backend/rest/shared.test.ts` (an emoji counts 2 against a cap),
+`services/platform/backend/domains/mcp/protocol.test.ts` (a range and a version field keep their
+house words), `services/platform/lib/mcp/contract.test.ts` (the advertised schemas and their
+fingerprint), and the integration check's two share-link checks (the snapshot's messages).
+
+**Behaviour change.** None against 4.3.6, which Tale ran before. The other changes of 4.4 to 4.6 are
+taken as they come; their "potentially breaking" fixes of the release notes leave every suite green.
+The CLI's provider policy and break-glass checks say `.optional()` where a key may be absent, which
+reads the same with the patch and without it.
+
+**Remove it when** Tale decides each behaviour on purpose. That means counting caps in code points
+(the API reference, the MCP page and the domain checks change with it, in every locale), scoping its
+schema-level errors to the issues they name, advertising type arrays under a new
+`API_CONTRACT_VERSION`, and marking `.optional()` every object key that may be missing. A hunk can
+go on its own: regenerate the rest with `bun patch`, and keep the proof test's cases for the
+behaviours that stay.
