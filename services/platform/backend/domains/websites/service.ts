@@ -1008,6 +1008,7 @@ async function homepageAllowsCrawler(
       allowedHosts: [...hosts],
       allowPrivateAddresses: privateCrawlHostsAllowed(),
       httpsOnly: true,
+      outboundProxy: true,
       headers: crawlerRequestHeaders(),
     });
     if (robots.status >= 400 && robots.status < 500 && robots.status !== 429) {
@@ -1281,6 +1282,7 @@ export async function runWebsiteRegister(
           allowedHosts: hosts,
           allowPrivateAddresses: privateCrawlHostsAllowed(),
           httpsOnly: true,
+          outboundProxy: true,
         });
         if (response.status >= 200 && response.status < 300) {
           const current = await getWebsite(sql, args.websiteId);

@@ -216,6 +216,26 @@ These variables configure backend authentication, file events, and operator perm
 
 The private-crawl opt-in affects two boundaries: website registration and crawler requests, and validation of a product’s `imageUrl`. Without it, a private website target returns `400 WEBSITE_DOMAIN_NOT_CRAWLABLE`; a private product image URL returns `400 INVALID_BODY`. Product validation checks the hostname string without fetching the image or resolving DNS. Website registration and crawling also check resolved addresses. Enable the flag only for a deployment that needs these private destinations; it is separate from the private-provider flag.
 
+## Outbound proxies {#outbound-proxies}
+
+Requests to other websites can leave through HTTP proxies instead of the server's own address, for sites that slow down or refuse traffic from data-center addresses. The backend and the `sandbox-egress` service read the same list and take the proxies in turn (round robin): the backend for each request, the egress proxy for each connection a session opens, and video ingestion for each yt-dlp run. Recreate the backend roles and `sandbox-egress` after a change.
+
+| Name | Default | Description |
+| --- | --- | --- |
+| `OUTBOUND_PROXY_URLS` | unset | HTTP proxies separated by commas or spaces, each written `http://[user:password@]host[:port]`; the port defaults to `80`. In the user name and password, percent-encode every character other than letters, digits and `-._~!$&'()*+;=:`, such as `@` as `%40` and `,` as `%2C`; only printable ASCII characters can be encoded, and the user name and password hold at most 128 bytes together. A malformed entry stops the backend and `sandbox-egress` from starting, and the message names the entry by its position. Read by the backend API, the worker and the `sandbox-egress` service. |
+
+These requests go through the proxies:
+
+- the website crawler: `robots.txt`, sitemaps, page downloads and the browser that renders pages
+- the chat assistant's web fetch
+- remote images in emails
+- video ingestion, unless `VIDEO_INGEST_PROXY_URL` sets a proxy of its own
+- everything a sandbox session reaches on the internet, such as an agent's browser, downloads and package installs
+
+Requests to the services a deployment is configured with leave directly: model providers, connectors and their APIs, identity providers and object storage. So does a website that resolves to a private address, crawled with `TALE_ALLOW_PRIVATE_CRAWL_HOSTS`. Sessions on [connected devices](/platform/admin/sandbox-devices) use the device's own network. Through the proxies, a session still reaches no private network, loopback address or cloud metadata service: `sandbox-egress` refuses those destinations before it asks a proxy, and so a name it cannot resolve itself, which includes a host with IPv6 addresses only: the egress service has no IPv6.
+
+The backend sets aside a proxy that cannot be reached or refuses its credentials for a minute, and tries the request once more through the next proxy. `sandbox-egress` stops using a proxy after two failed connections and uses it again once it answers. When every proxy fails, requests fail rather than leave from the server's own address. Use proxy services at public addresses, outside your own network. `sandbox-egress` refuses connections to private networks, so a proxy on one would carry the backend's requests but not the sessions'. The proxies must accept tunnels (`CONNECT`) to ports 443 and 80: plain-HTTP traffic of containers inside a sandbox reaches them as a tunnel to port 80. On Kubernetes, the egress Deployment reads the variable from `tale-env` ([Deploy on Kubernetes](/self-hosted/install/kubernetes)); with Incus, set it on the egress instance ([Incus contract](https://github.com/tale-project/tale/blob/main/services/sandbox/docs/incus.md)).
+
 ## Deployment topology
 
 These values shape the application roles of a workspace deployment: the replica counts, which `tale deploy` reads from the project environment and clamps to the supported range with a warning, and how much work one worker replica takes on at once.
@@ -516,7 +536,7 @@ The worker uses these values for video transcript retrieval. Its image includes 
 
 | Name                             | Default                               | Description                                                                                                                                                                                                                                                                                             |
 | -------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VIDEO_INGEST_PROXY_URL` | unset | Proxy for yt-dlp requests. Supported schemes: `http`, `https`, `socks4`, `socks4a`, `socks5`, `socks5h`; the last resolves destination DNS at the proxy. Use an approved egress service. |
+| `VIDEO_INGEST_PROXY_URL` | unset | Proxy for yt-dlp requests, used instead of the [outbound proxies](#outbound-proxies) in `OUTBOUND_PROXY_URLS`. Supported schemes: `http`, `https`, `socks4`, `socks4a`, `socks5`, `socks5h`; the last resolves destination DNS at the proxy. Use an approved egress service. |
 | `VIDEO_INGEST_POT_PROVIDER_URL` | `http://bgutil-provider:4416` (baked) | PO-token provider URL. Defaults to the bundled sidecar when the image plugin is present. Tokens can help retrieval but do not grant access to private content or guarantee success. |
 | `VIDEO_INGEST_FETCH_POT` | `always` when a provider is wired | When to request provider tokens: `never`, `auto`, or `always`. The bundled provider path defaults to `always`. Use `never` only when deliberately disabling that token path. |
 | `VIDEO_INGEST_YTDLP_PLUGIN_DIRS` | `/opt/yt-dlp/plugins` (baked)         | Directory yt-dlp loads plugins from — each plugin nested one level down (`<dir>/<name>/yt_dlp_plugins/…`). Defaults to the baked-in bgutil plugin dir when present; override only to add your own plugins.                                                                                              |

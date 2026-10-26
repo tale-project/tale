@@ -4,7 +4,9 @@
 # :443 to any public host); the operator can switch to a default-deny
 # hostname allowlist via SANDBOX_EGRESS_ALLOWLIST. Sits on
 # `tale-sandbox-net` (an internal-only Docker bridge), so this proxy is
-# the sandbox runtime containers' only outbound path either way.
+# the sandbox runtime containers' only outbound path either way. When
+# OUTBOUND_PROXY_URLS lists HTTP proxies, a squid hop sends that traffic on
+# through them in turn rather than from this host's own address.
 #
 # Verified by R2.1: pip / npm / uv all honor HTTPS_PROXY and fail loud
 # when the proxy denies a host or is unreachable.
@@ -35,10 +37,15 @@ FROM alpine:3.20@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6
 #                   forwards to public resolvers it can't reach). This proxy is
 #                   dual-homed (also on a network with real egress), so it serves
 #                   resolution on :53 for the whole sandbox side.
-RUN apk add --no-cache tinyproxy gettext ca-certificates iptables curl dnsmasq && \
-    mkdir -p /etc/tinyproxy
+# - squid:          the outbound proxy hop, started only when OUTBOUND_PROXY_URLS
+#                   lists proxies: it sends what tinyproxy hands it on through
+#                   them in turn, which tinyproxy (one upstream at most) cannot.
+RUN apk add --no-cache tinyproxy gettext ca-certificates iptables curl dnsmasq squid && \
+    mkdir -p /etc/tinyproxy /etc/sandbox-egress
 
 COPY services/sandbox-egress/tinyproxy.conf.template /etc/tinyproxy/tinyproxy.conf.template
+COPY services/sandbox-egress/squid.conf.template /etc/sandbox-egress/squid.conf.template
+COPY services/sandbox-egress/outbound-proxies.awk /etc/sandbox-egress/outbound-proxies.awk
 COPY services/sandbox-egress/docker-entrypoint.sh /docker-entrypoint.sh
 COPY services/sandbox-egress/entrypoint.sh /entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh /entrypoint.sh

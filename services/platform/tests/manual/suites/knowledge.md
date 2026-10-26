@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 74 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 76 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -537,6 +537,16 @@ records and delete them after.
   `version_conflict` and the current text, then a second call answering
   `updated`; the entry keeps "Sat 9–12" and reads 8–16 for weekdays.
 
+- [ ] `KNOW-F40` · **A crawl goes out through the outbound proxies** — On a
+  test deployment, put two HTTP proxies you can read the request logs of, both
+  reachable at public addresses, in `OUTBOUND_PROXY_URLS`; recreate
+  `backend-api`, `backend-worker` and `sandbox-egress`, then add a website whose
+  access log you can read and scan it → the `sandbox-egress` log lists both
+  proxies as `http://host:port` at start, with no password; both proxies' logs
+  show the scan's `robots.txt`, sitemap and page requests (`CONNECT
+  <site>:443`) taking turns; the site's access log shows the proxies'
+  addresses only, the rendered pages' requests included, never the server's.
+
 ## Boundary & error tests
 
 - [ ] `KNOW-B1` · **Required name** — KNOW-F4/KNOW-F5/KNOW-F6 manual entry:
@@ -828,6 +838,18 @@ records and delete them after.
   `websites.refreshFailed`). An organization with none of them still shows
   the empty state. No toast in either case. In German and French the
   notice and **Try again** read in the page's language.
+
+- [ ] `KNOW-B27` · **A dead or malformed outbound proxy** — Continue
+  KNOW-F40: stop one of the two proxies and scan again → the scan completes
+  through the other, and no page fails because of the stopped proxy;
+  `backend-worker` logs `[outbound-proxy] http://<host>:<port> failed
+  (ECONNREFUSED)` at most once a minute and `sandbox-egress` logs `Detected
+  DEAD Parent: outbound-<n>`. Start the proxy again → `Detected REVIVED
+  Parent: outbound-<n>` follows. Set
+  `OUTBOUND_PROXY_URLS=https://user:secret@proxy.example:443` and recreate the
+  three services → each refuses to start with `OUTBOUND_PROXY_URLS entry 1 is
+  not an http:// proxy URL`, and no log line carries `secret`. Restore the
+  prior environment.
 
 ## Accessibility (WCAG 2.1 AA)
 

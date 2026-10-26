@@ -78,6 +78,49 @@ fairness, not a security boundary, so it fails open: a kernel without the
 `connlimit` match, or a development run without `NET_ADMIN`, starts the proxy
 without it and logs a warning.
 
+`OUTBOUND_PROXY_URLS` sends the sessions' traffic on through the deployment's
+outbound proxies instead of from this host's own address: HTTP proxies written
+`http://[user:password@]host[:port]`, separated by commas or whitespace, the
+same value the backend reads for the crawler, the chat assistant's web fetch,
+email images and video ingestion. Set, the entrypoint starts a squid hop on
+`127.0.0.1:3129` and renders tinyproxy's `Upstream http 127.0.0.1:3129`, so
+tinyproxy's filters, client ACL, `MaxClients` and the per-session cap still
+apply before a request leaves. tinyproxy then dials only the hop, so the
+firewall no longer sees where a request goes: squid refuses the same
+destinations itself before any proxy is asked (loopback, private networks,
+link-local and the metadata address, in any form a client writes them,
+`2130706433` and names that resolve to one included), as well as a name it
+cannot resolve and any IPv6 address (the container has no IPv6, and tinyproxy
+rewrites an IPv6 host before squid sees it). It answers the health probe's
+request for tinyproxy itself that way, so the probe exercises the hop and never
+leaves the container. squid's cache manager is closed: it
+would show the proxies' passwords and every session's requests in flight. squid hands each connection to the next proxy in
+turn (`round-robin`) and never to a destination directly (`never_direct`); it
+retries a connection a proxy refuses or times out through the next one, marks a
+proxy dead after two failed connections, and uses it again once a probe finds
+it answering. tinyproxy keeps one upstream at most, which is why the hop exists.
+`outbound-proxies.awk` reads the list with the backend's grammar and refusals
+(`@tale/shared/net/outbound-proxies`; the platform's
+`tests/guards/outbound-proxies.guard.test.ts` runs both over the same entries),
+so a malformed entry stops the start, naming its position and never its text.
+The rendered `/etc/sandbox-egress/squid.conf` holds the passwords: it is
+written `0600` and never printed, and the start log lists the proxies as
+`http://host:port` only. squid sends no `Via` or `X-Forwarded-For` header. Its
+`-d 1` messages reach the container log: `Detected DEAD Parent: outbound-<n>`
+and `Detected REVIVED Parent: outbound-<n>` name a proxy by its position in the
+list, and with IPv6 switched off as above, `BCP 177 violation. Detected
+non-functional IPv6 loopback.` and five `aclIpParseIpData: IPv6 has not been
+enabled.` lines (the IPv6 entries of its destination rules) appear once at
+start, as expected. A destination squid cannot resolve itself, a host with
+IPv6 addresses only included, is refused rather than handed to a proxy. Name proxies
+at public addresses: the SSRF firewall rejects private destinations for squid
+as for everything else. They must accept tunnels (`CONNECT`) to ports 443 and
+80, since nested containers' plain HTTP reaches them through redsocks as a
+tunnel to port 80. Both readers refuse a user name and password longer than
+128 bytes together once decoded, squid's limit for a parent's login
+(`MAX_LOGIN_SZ`), past which it crashes on the first request. Unset or blank, nothing changes: no hop starts, and
+tinyproxy connects to destinations itself.
+
 ```bash
 bun run --filter @tale/sandbox-egress serve         # docker compose up sandbox-egress
 bun run --filter @tale/sandbox-egress docker:build
@@ -90,13 +133,16 @@ bind port 53; `tinyproxy` drops privileges to `nobody` after binding and logs
 to stdout (the container log), so no log file grows in the container's writable
 layer. `docker-entrypoint.sh`
 (PID 1) installs the SSRF firewall, then `exec`s `entrypoint.sh`. That shell renders
-the config, supervises foreground Tinyproxy and DNS, forwards shutdown signals,
-and reaps both children. It tracks the child PIDs directly, so Tinyproxy needs no
-PID file or write access to `/tmp`. When either daemon exits on its own, the
-shell stops the other and exits non-zero, so the restart policy brings the
-container back with both: nested containers and BuildKit `RUN` steps resolve
-names only through dnsmasq, so a proxy serving without it would be a silent DNS
-outage for every session. The health check asks both: an HTTP request to
+the config, supervises foreground Tinyproxy and DNS (and the squid hop, when
+outbound proxies are listed), forwards shutdown signals, and reaps the
+children. It tracks the child PIDs directly, so Tinyproxy needs no PID file or
+write access to `/tmp`; squid keeps no PID or log file either. When a daemon
+exits on its own, the shell stops the others and exits non-zero, so the restart
+policy brings the container back whole: nested containers and BuildKit `RUN`
+steps resolve names only through dnsmasq, so a proxy serving without it would
+be a silent DNS outage for every session, and a Tinyproxy without its hop would
+fail every request. squid reads its root-only config as root and then serves as
+the `squid` user. The health check asks both: an HTTP request to
 Tinyproxy and a busybox `nslookup` against 127.0.0.1 for
 `sandbox-egress-health.invalid`, a name dnsmasq answers from its own
 `--host-record` without an upstream lookup. dnsmasq caches 4096 names (its

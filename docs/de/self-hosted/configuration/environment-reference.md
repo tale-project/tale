@@ -216,6 +216,26 @@ Diese Variablen steuern Backend-Anmeldung, Datei-Ereignisse und Betreiberrechte.
 
 Die Freigabe privater Crawl-Ziele betrifft zwei Grenzen: Website-Registrierung und Crawler-Anfragen sowie die Validierung der `imageUrl` eines Produkts. Ohne Freigabe erhält ein privates Website-Ziel `400 WEBSITE_DOMAIN_NOT_CRAWLABLE`; eine private Produktbild-URL erhält `400 INVALID_BODY`. Bei Produktbildern wird nur die Hostzeichenfolge geprüft, ohne Bildabruf oder DNS-Auflösung. Website-Registrierung und Crawler prüfen zusätzlich die aufgelösten Adressen. Aktiviere die Variable nur, wenn die Installation diese privaten Ziele braucht. Sie ist unabhängig von der Freigabe privater Modellanbieter.
 
+## Ausgehende Proxys {#outbound-proxies}
+
+Anfragen an andere Websites können über HTTP-Proxys laufen statt von der eigenen Adresse des Servers. Das hilft bei Websites, die Anfragen aus Rechenzentren drosseln oder abweisen. Das Backend und der Dienst `sandbox-egress` lesen dieselbe Liste und nehmen die Proxys reihum (Round Robin): das Backend für jede Anfrage, der Egress-Proxy für jede Verbindung, die eine Session öffnet, und die Video-Ingestion für jeden yt-dlp-Lauf. Erstelle die Backend-Rollen und `sandbox-egress` nach einer Änderung neu.
+
+| Name | Default | Beschreibung |
+| --- | --- | --- |
+| `OUTBOUND_PROXY_URLS` | nicht gesetzt | HTTP-Proxys, getrennt durch Kommas oder Leerzeichen, jeweils in der Form `http://[user:password@]host[:port]`; ohne Port gilt `80`. Prozentkodiere im Benutzernamen und im Passwort jedes Zeichen außer Buchstaben, Ziffern und `-._~!$&'()*+;=:`, etwa `@` als `%40` und `,` als `%2C`; kodieren lassen sich nur druckbare ASCII-Zeichen, und Benutzername und Passwort umfassen zusammen höchstens 128 Byte. Ein fehlerhafter Eintrag verhindert den Start des Backends und von `sandbox-egress`; die Meldung nennt den Eintrag nach seiner Position. Gelesen von Backend-API, Worker und dem Dienst `sandbox-egress`. |
+
+Diese Anfragen laufen über die Proxys:
+
+- der Website-Crawler: `robots.txt`, Sitemaps, Seiten-Downloads und der Browser, der Seiten rendert
+- der Webabruf des Chat-Assistenten
+- externe Bilder in E-Mails
+- die Video-Ingestion, sofern `VIDEO_INGEST_PROXY_URL` keinen eigenen Proxy festlegt
+- alles, was eine Sandbox-Session im Internet erreicht, etwa der Browser eines Agenten, Downloads und Paketinstallationen
+
+Anfragen an die Dienste, mit denen ein Deployment konfiguriert ist, laufen direkt: Modellanbieter, Connectors und ihre APIs, Identitätsanbieter und der Objektspeicher. Das gilt auch für eine Website, deren Name auf eine private Adresse auflöst und die mit `TALE_ALLOW_PRIVATE_CRAWL_HOSTS` gecrawlt wird. Sessions auf [verbundenen Geräten](/de/platform/admin/sandbox-devices) nutzen das Netzwerk des Geräts. Auch über die Proxys erreicht eine Session weder private Netze noch Loopback-Adressen oder den Metadatendienst der Cloud: `sandbox-egress` lehnt solche Ziele ab, bevor es einen Proxy fragt, und ebenso einen Namen, den es selbst nicht auflösen kann. Dazu zählt ein Host, der nur IPv6-Adressen hat: Der Egress-Dienst hat kein IPv6.
+
+Einen Proxy, der nicht erreichbar ist oder seine Zugangsdaten ablehnt, stellt das Backend für eine Minute zurück und versucht die Anfrage einmal über den nächsten Proxy. `sandbox-egress` verwendet einen Proxy nach zwei gescheiterten Verbindungen nicht mehr und nimmt ihn wieder auf, sobald er antwortet. Scheitern alle Proxys, scheitern auch die Anfragen; sie weichen nie auf die eigene Adresse des Servers aus. Nutze Proxy-Dienste unter öffentlichen Adressen außerhalb deines eigenen Netzes. `sandbox-egress` lehnt Verbindungen in private Netze ab; ein Proxy in einem solchen Netz trüge also die Anfragen des Backends, nicht aber die der Sessions. Die Proxys müssen Tunnel (`CONNECT`) zu den Ports 443 und 80 annehmen: Unverschlüsselter HTTP-Verkehr von Containern innerhalb einer Sandbox erreicht sie als Tunnel zu Port 80. Unter Kubernetes liest das Egress-Deployment die Variable aus `tale-env` ([Auf Kubernetes bereitstellen](/de/self-hosted/install/kubernetes)); mit Incus setzt du sie auf der Egress-Instanz ([Incus-Vertrag](https://github.com/tale-project/tale/blob/main/services/sandbox/docs/incus.md)).
+
 ## Deployment-Topologie
 
 Diese Werte prägen die Anwendungsrollen eines Workspace-Deployments: die Replikatzahlen, die `tale deploy` aus der Projektumgebung liest und mit einer Warnung auf den unterstützten Bereich begrenzt, und wie viel Arbeit ein einzelnes Worker-Replikat gleichzeitig übernimmt.
@@ -516,7 +536,7 @@ Der Worker verwendet diese Werte zum Abrufen von Videotranskripten. Sein Image e
 
 | Name                             | Standard                                     | Beschreibung                                                                                                                                                                                                                                                                                                                                                        |
 | -------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `VIDEO_INGEST_PROXY_URL` | nicht gesetzt | Proxy für yt-dlp-Anfragen. Unterstützte Protokolle: `http`, `https`, `socks4`, `socks4a`, `socks5`, `socks5h`; das letzte löst Zielnamen am Proxy auf. Nutze einen freigegebenen Egress-Dienst. |
+| `VIDEO_INGEST_PROXY_URL` | nicht gesetzt | Proxy für yt-dlp-Anfragen, statt der [ausgehenden Proxys](#outbound-proxies) aus `OUTBOUND_PROXY_URLS`. Unterstützte Protokolle: `http`, `https`, `socks4`, `socks4a`, `socks5`, `socks5h`; das letzte löst Zielnamen am Proxy auf. Nutze einen freigegebenen Egress-Dienst. |
 | `VIDEO_INGEST_POT_PROVIDER_URL` | `http://bgutil-provider:4416` (eingebacken) | URL des PO-Token-Anbieters. Bei vorhandenem Image-Plugin gilt der mitgelieferte Sidecar als Standard. Token können den Abruf unterstützen, geben aber keinen Zugriff auf private Inhalte und garantieren keinen Erfolg. |
 | `VIDEO_INGEST_FETCH_POT` | `always`, sobald ein Provider angebunden ist | Zeitpunkt des Token-Abrufs: `never`, `auto` oder `always`. Mit mitgeliefertem Anbieter gilt `always`. Verwende `never`, wenn du diesen Token-Abruf bewusst deaktivierst. |
 | `VIDEO_INGEST_YTDLP_PLUGIN_DIRS` | `/opt/yt-dlp/plugins` (eingebacken)          | Verzeichnis, aus dem yt-dlp Plugins lädt — jedes Plugin eine Ebene tiefer verschachtelt (`<dir>/<name>/yt_dlp_plugins/…`). Standardmäßig das eingebackene bgutil-Plugin-Verzeichnis, wenn vorhanden; nur überschreiben, um eigene Plugins zu ergänzen.                                                                                                              |

@@ -474,6 +474,8 @@ Der Egress-Proxy braucht den Capability-Satz aus dem Compose-Vertrag und keine S
 
 Der Proxy bedient `SANDBOX_EGRESS_MAX_CLIENTS` Verbindungen gleichzeitig (standardmäßig 2000) für alle Sessions zusammen, jede mit einem Thread und zwei offenen Dateien. Eine Pod-Spezifikation kann keine Grenzen für Prozesse oder offene Dateien setzen: Beim Start hebt der Proxy seine Grenze für offene Dateien auf das an, was seine Verbindungen brauchen, so weit die harte Grenze der Container-Runtime es erlaubt, und warnt in seinem Log, wenn sie zu niedrig ist. Seine Threads zählen gegen das `podPidsLimit` des Kubelets; setzen deine Nodes eines, halte es über der Verbindungsgrenze oder senke `SANDBOX_EGRESS_MAX_CLIENTS` passend.
 
+Der Egress-Proxy übernimmt `OUTBOUND_PROXY_URLS` aus `tale-env`, sofern der Schlüssel existiert. So erreichen Sessions das Internet über dieselben [ausgehenden Proxys](/de/self-hosted/configuration/environment-reference#outbound-proxies) wie die Backend-Rollen, die das ganze Secret laden.
+
 ```yaml
 # 40-sandbox.yaml
 apiVersion: v1
@@ -499,6 +501,8 @@ spec:
           image: ghcr.io/tale-project/tale/tale-sandbox-egress:${VERSION}
           env:
             - { name: SANDBOX_EGRESS_MAX_CLIENTS, value: '2000' }
+            - name: OUTBOUND_PROXY_URLS
+              valueFrom: { secretKeyRef: { name: tale-env, key: OUTBOUND_PROXY_URLS, optional: true } }
           securityContext:
             runAsUser: 0
             capabilities:

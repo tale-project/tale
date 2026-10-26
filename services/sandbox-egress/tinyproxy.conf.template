@@ -1,8 +1,9 @@
 # Tale Sandbox Egress — tinyproxy config
-# Rendered at startup by entrypoint.sh, which substitutes the FILTER_BLOCK
-# and MAX_CLIENTS placeholders below via envsubst (explicit SHELL-FORMAT —
-# no other variables are expanded, and this header must never spell a
-# placeholder in dollar-brace form or envsubst would expand it here too).
+# Rendered at startup by entrypoint.sh, which substitutes the FILTER_BLOCK,
+# MAX_CLIENTS and UPSTREAM_BLOCK placeholders below via envsubst (explicit
+# SHELL-FORMAT — no other variables are expanded, and this header must never
+# spell a placeholder in dollar-brace form or envsubst would expand it here
+# too).
 
 User nobody
 Group nobody
@@ -49,6 +50,12 @@ ConnectPort 80
 # Without an allowlist the IP-layer SSRF firewall from docker-entrypoint.sh
 # (REJECT IMDS + RFC1918) is the only egress fence.
 ${FILTER_BLOCK}
+
+# Upstream — rendered by entrypoint.sh: a comment when OUTBOUND_PROXY_URLS
+# lists no proxy (tinyproxy connects to destinations itself), else one line
+# handing every request, after the filter above, to the squid hop on
+# 127.0.0.1:3129, which sends it on through the listed proxies in turn.
+${UPSTREAM_BLOCK}
 
 # Client allow-list (network-layer): only loopback (healthcheck) and the
 # RFC1918 Docker network CIDRs that the sandbox runtime containers attach to.

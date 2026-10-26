@@ -28,13 +28,13 @@ Check `tale logs bgutil-provider` and whether the worker can reach the service. 
 
 ## Configure an egress proxy
 
-Use `VIDEO_INGEST_PROXY_URL` when your deployment requires video retrieval through an approved proxy. Metadata, captions, and audio requests use that configured path. Supported schemes include `http`, `https`, `socks4`, `socks4a`, `socks5`, and `socks5h`; the latter resolves DNS at the proxy.
+Video retrieval goes through the deployment's [outbound proxies](/self-hosted/configuration/environment-reference#outbound-proxies) when `OUTBOUND_PROXY_URLS` lists any: each yt-dlp run takes the next one in turn, as the website crawler does. Set `VIDEO_INGEST_PROXY_URL` when video retrieval needs an approved proxy of its own instead; it replaces the outbound proxies for video only. Metadata, captions, and audio requests use that configured path. Supported schemes include `http`, `https`, `socks4`, `socks4a`, `socks5`, and `socks5h`; the latter resolves DNS at the proxy.
 
 ```bash
 VIDEO_INGEST_PROXY_URL=socks5h://proxy.example.com:1080
 ```
 
-Add credentials through your secret-management workflow if the proxy requires them. An invalid or unsupported proxy URL is ignored with a warning, so confirm the applied configuration and a real retrieval result. Recreate the worker after changing its container environment; restarting the existing container does not import a changed `.env`.
+Add credentials through your secret-management workflow if the proxy requires them. An invalid or unsupported proxy URL is ignored with a warning, and retrieval goes through the outbound proxies, if any, as if it were unset. Confirm the applied configuration and a real retrieval result. Recreate the worker after changing its container environment; restarting the existing container does not import a changed `.env`.
 
 A different route is not a promise of access. Confirm that your proxy and the source account are authorized for the content you need. If the source remains unavailable, import a transcript you already have as a [Knowledge document](/platform/knowledge/documents).
 

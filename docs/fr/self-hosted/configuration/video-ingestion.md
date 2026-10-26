@@ -28,13 +28,13 @@ Vérifie `tale logs bgutil-provider` et son accessibilité depuis le worker. Le 
 
 ## Configurer un proxy de sortie
 
-Utilise `VIDEO_INGEST_PROXY_URL` lorsque tes récupérations vidéo doivent passer par un proxy approuvé. Métadonnées, sous-titres et audio utilisent ce chemin. Les schémas acceptés sont `http`, `https`, `socks4`, `socks4a`, `socks5` et `socks5h` ; ce dernier résout le DNS côté proxy.
+Les récupérations vidéo passent par les [proxys sortants](/fr/self-hosted/configuration/environment-reference#outbound-proxies) du déploiement dès que `OUTBOUND_PROXY_URLS` en indique : chaque exécution de yt-dlp prend le suivant à tour de rôle, comme le crawler de sites web. Définis `VIDEO_INGEST_PROXY_URL` lorsque tes récupérations vidéo doivent plutôt passer par un proxy approuvé qui leur est propre ; il remplace les proxys sortants pour la vidéo seulement. Métadonnées, sous-titres et audio utilisent ce chemin. Les schémas acceptés sont `http`, `https`, `socks4`, `socks4a`, `socks5` et `socks5h` ; ce dernier résout le DNS côté proxy.
 
 ```bash
 VIDEO_INGEST_PROXY_URL=socks5h://proxy.example.com:1080
 ```
 
-Ajoute les identifiants requis via ton gestionnaire de secrets. Une URL invalide ou un schéma non pris en charge est ignoré avec un avertissement : confirme donc la configuration appliquée et une véritable récupération. Recrée le worker après avoir modifié son environnement. Redémarrer le conteneur existant ne recharge pas un `.env` modifié.
+Ajoute les identifiants requis via ton gestionnaire de secrets. Une URL invalide ou un schéma non pris en charge est ignoré avec un avertissement, et la récupération passe alors par les proxys sortants s’il y en a, comme sans la variable : confirme donc la configuration appliquée et une véritable récupération. Recrée le worker après avoir modifié son environnement. Redémarrer le conteneur existant ne recharge pas un `.env` modifié.
 
 Changer de route ne garantit pas l’accès. Vérifie que l’usage du proxy et du compte source est autorisé pour le contenu nécessaire. Si la source reste indisponible, importe une transcription que tu possèdes déjà comme [document de connaissances](/fr/platform/knowledge/documents).
 

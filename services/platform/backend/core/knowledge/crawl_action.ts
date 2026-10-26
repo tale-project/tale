@@ -917,6 +917,7 @@ async function loadRobotsRules(
       allowedHosts: [...hosts],
       allowPrivateAddresses: privateCrawlHostsAllowed(),
       httpsOnly: true,
+      outboundProxy: true,
       headers: crawlerRequestHeaders(),
     });
     if (robots.status >= 200 && robots.status < 300) {
@@ -1056,6 +1057,7 @@ async function discoverAndRecordUrls(
         allowedHosts: [...hosts],
         allowPrivateAddresses: privateCrawlHostsAllowed(),
         httpsOnly: true,
+        outboundProxy: true,
         headers: crawlerRequestHeaders(),
       });
       if (response.status < 200 || response.status >= 300) {
@@ -1117,6 +1119,7 @@ async function discoverAndRecordUrls(
           allowedHosts: [...hosts],
           allowPrivateAddresses: privateCrawlHostsAllowed(),
           httpsOnly: true,
+          outboundProxy: true,
           headers: crawlerRequestHeaders(),
         });
         if (response.status < 200 || response.status >= 300) continue;
@@ -1463,6 +1466,7 @@ export async function fetchAndStorePage(
       allowedHosts: [...hosts],
       allowPrivateAddresses: privateCrawlHostsAllowed(),
       httpsOnly: true,
+      outboundProxy: true,
       headers: { ...crawlerRequestHeaders(), ...conditional },
     });
   } catch (error) {

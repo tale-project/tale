@@ -474,6 +474,8 @@ The egress proxy needs the capability set from the Compose contract and no sysct
 
 The proxy serves `SANDBOX_EGRESS_MAX_CLIENTS` connections at once (2000 by default) for every session together, each with a thread and two open files. A Pod spec cannot set process or open-file limits: at start the proxy raises its open-file limit to what its connections need, as far as the hard limit of the container runtime allows, and warns in its log when that is too low. Its threads count against the kubelet's `podPidsLimit`; on nodes that set one, keep it above the connection limit, or lower `SANDBOX_EGRESS_MAX_CLIENTS` to fit.
 
+The egress proxy takes `OUTBOUND_PROXY_URLS` from `tale-env` when the key exists, so sessions reach the internet through the same [outbound proxies](/self-hosted/configuration/environment-reference#outbound-proxies) as the backend roles, which load the whole Secret.
+
 ```yaml
 # 40-sandbox.yaml
 apiVersion: v1
@@ -499,6 +501,8 @@ spec:
           image: ghcr.io/tale-project/tale/tale-sandbox-egress:${VERSION}
           env:
             - { name: SANDBOX_EGRESS_MAX_CLIENTS, value: '2000' }
+            - name: OUTBOUND_PROXY_URLS
+              valueFrom: { secretKeyRef: { name: tale-env, key: OUTBOUND_PROXY_URLS, optional: true } }
           securityContext:
             runAsUser: 0
             capabilities:

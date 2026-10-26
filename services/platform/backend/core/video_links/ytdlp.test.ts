@@ -1,10 +1,21 @@
-import { readFileSync } from 'node:fs';
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { classifyBackend } from '@tale/shared/classify';
-import { describe, expect, it, vi } from 'vitest';
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  nextOutboundProxy,
+  resetOutboundProxiesForTests,
+} from '../../../lib/net/outbound-proxy';
 import {
   buildAntiBotFlags,
   buildSpawnPath,
@@ -18,6 +29,9 @@ import {
   proxyFlagsFromEnv,
   sanitizeStderr,
   youtubeExtractorArgsFromEnv,
+  proxyFailedRun,
+  ytdlpJson,
+  ytdlpProxyFromEnv,
   ytdlpVersionWarning,
 } from './ytdlp';
 import {
@@ -168,6 +182,153 @@ describe('proxyFlagsFromEnv', () => {
     );
     expect(warn).toHaveBeenCalled();
     warn.mockRestore();
+  });
+});
+
+describe('ytdlpProxyFromEnv and the outbound proxies', () => {
+  const POOL = {
+    OUTBOUND_PROXY_URLS: 'http://u:p@a.example:8080, http://b.example:3128',
+  };
+
+  afterEach(() => {
+    resetOutboundProxiesForTests();
+    vi.restoreAllMocks();
+  });
+
+  it('takes the next outbound proxy for each run when VIDEO_INGEST_PROXY_URL is unset', () => {
+    expect(proxyFlagsFromEnv(POOL)).toEqual([
+      '--proxy',
+      'http://u:p@a.example:8080',
+    ]);
+    expect(proxyFlagsFromEnv(POOL)).toEqual([
+      '--proxy',
+      'http://b.example:3128',
+    ]);
+  });
+
+  it('lets VIDEO_INGEST_PROXY_URL take video ingestion out of the rotation', () => {
+    const override = 'socks5h://user:pass@residential.example:1080';
+    expect(
+      ytdlpProxyFromEnv({ ...POOL, VIDEO_INGEST_PROXY_URL: override }),
+    ).toEqual({ url: override, pooled: null });
+    // The rotation did not move for it.
+    expect(nextOutboundProxy(POOL)?.label).toBe('http://a.example:8080');
+  });
+
+  it('reads an invalid VIDEO_INGEST_PROXY_URL as absent, so the rotation carries the run', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    expect(
+      ytdlpProxyFromEnv({ ...POOL, VIDEO_INGEST_PROXY_URL: 'not a url' })?.url,
+    ).toBe('http://u:p@a.example:8080');
+  });
+
+  it('runs without a proxy when neither is set', () => {
+    expect(ytdlpProxyFromEnv({})).toBeNull();
+    expect(buildAntiBotFlags({})).not.toContain('--proxy');
+  });
+});
+
+describe('proxyFailedRun', () => {
+  it.each([
+    "ERROR: Unable to download API page: ('Unable to connect to proxy', ConnectionRefusedError(111, 'Connection refused'))",
+    "ERROR: ('Unable to connect to proxy', OSError('Tunnel connection failed: 407 Proxy Authentication Required'))",
+    'curl: (56) CONNECT tunnel failed, response 407',
+    'curl: (5) Could not resolve proxy: p.example',
+  ])('holds the proxy to blame for %j', (stderr) => {
+    expect(proxyFailedRun(stderr)).toBe(true);
+  });
+
+  it.each([
+    "ERROR: ('Unable to connect to proxy', OSError('Tunnel connection failed: 502 Bad Gateway'))",
+    'curl: (56) CONNECT tunnel failed, response 403',
+    'ERROR: [youtube] x: Sign in to confirm you are not a bot',
+    'ERROR: HTTP Error 407: Proxy Authentication Required',
+    'ERROR: [generic] Unable to extract title: the page says unable to connect to proxy',
+  ])('does not for %j', (stderr) => {
+    expect(proxyFailedRun(stderr)).toBe(false);
+  });
+});
+
+describe('a yt-dlp run through the outbound proxies', () => {
+  // A stand-in yt-dlp on VIDEO_INGEST_BIN_DIR: it answers the version and
+  // help probes, then writes the arguments of the run into its HOME (the job
+  // dir — the spawn env carries nothing else). Through a.example it fails
+  // the way yt-dlp does when its proxy refuses the connection; through any
+  // other proxy it prints the metadata.
+  const root = mkdtempSync(join(tmpdir(), 'tale-ytdlp-proxy-'));
+  const bin = join(root, 'bin');
+  mkdirSync(bin);
+  writeFileSync(
+    join(bin, 'yt-dlp'),
+    [
+      '#!/bin/sh',
+      'case "$1" in --help) exit 0 ;; --version) echo 2099.01.01; exit 0 ;; esac',
+      'printf "%s\\n" "$@" > "$HOME/args"',
+      'case "$*" in *a.example*)',
+      `  echo "ERROR: [youtube] x: Unable to download API page: ('Unable to connect to proxy', ConnectionRefusedError(111, 'Connection refused'))" >&2`,
+      '  exit 1 ;;',
+      'esac',
+      `echo '{"id": "x"}'`,
+      '',
+    ].join('\n'),
+    { mode: 0o755 },
+  );
+  afterAll(() => rmSync(root, { recursive: true, force: true }));
+  const saved = {
+    bin: process.env.VIDEO_INGEST_BIN_DIR,
+    pool: process.env.OUTBOUND_PROXY_URLS,
+  };
+
+  afterEach(() => {
+    if (saved.bin === undefined) delete process.env.VIDEO_INGEST_BIN_DIR;
+    else process.env.VIDEO_INGEST_BIN_DIR = saved.bin;
+    if (saved.pool === undefined) delete process.env.OUTBOUND_PROXY_URLS;
+    else process.env.OUTBOUND_PROXY_URLS = saved.pool;
+    resetOutboundProxiesForTests();
+    vi.restoreAllMocks();
+  });
+
+  /** One run's `--proxy` value, or null, and whether the run failed. */
+  async function run(): Promise<{ proxy: string | null; failed: boolean }> {
+    const jobDir = mkdtempSync(join(root, 'job-'));
+    const failed = await ytdlpJson(
+      'https://www.youtube.com/watch?v=x',
+      jobDir,
+      10_000,
+    ).then(
+      () => false,
+      (error: unknown) => {
+        expect(error).toMatchObject({ name: 'YtDlpError' });
+        return true;
+      },
+    );
+    const args = readFileSync(join(jobDir, 'args'), 'utf8').split('\n');
+    const at = args.indexOf('--proxy');
+    return { proxy: at === -1 ? null : (args[at + 1] ?? null), failed };
+  }
+
+  it('hands each run the next proxy, and passes over one it could not get through', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    process.env.VIDEO_INGEST_BIN_DIR = bin;
+    process.env.OUTBOUND_PROXY_URLS =
+      'http://u:p@a.example:8080, http://b.example:3128';
+    resetOutboundProxiesForTests();
+    expect(await run()).toEqual({
+      proxy: 'http://u:p@a.example:8080',
+      failed: true,
+    });
+    expect(await run()).toEqual({
+      proxy: 'http://b.example:3128',
+      failed: false,
+    });
+    // a.example's turn, but it is passed over for its minute.
+    expect(await run()).toEqual({
+      proxy: 'http://b.example:3128',
+      failed: false,
+    });
+    const logged = warn.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(logged).toContain('http://a.example:8080 failed');
+    expect(logged).not.toContain('u:p@');
   });
 });
 

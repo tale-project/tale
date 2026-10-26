@@ -53,6 +53,8 @@ L’erreur de crawl `tls_error` indique un échec de négociation TLS : certific
 
 `network_error` indique plutôt un échec de connexion. Lis sa cause et vérifie le DNS, le routage et la disponibilité du service. [Explorer les sites web](/fr/platform/knowledge/crawling) explique les erreurs par page et les résultats des scans.
 
+Avec des [proxys sortants](/fr/self-hosted/configuration/environment-reference#outbound-proxies), une erreur survenue pendant qu’un proxy portait la requête se termine par `(through the outbound proxy http://<host>:<port>)`, et le backend journalise `[outbound-proxy] http://<host>:<port> failed` lorsqu’il met un proxy de côté. Une erreur de certificat à travers un proxy peut aussi venir d’un proxy qui intercepte TLS.
+
 ## Postgres de connaissances plante pendant l’ingestion
 
 Des erreurs répétées `PANIC: corrupted page pointers` ou `signal 6` peuvent signaler un index BM25 endommagé. Examine les journaux de la base et le résultat de la réparation automatique dans [Architecture des conteneurs](/fr/self-hosted/operate/container-architecture). Confirme la base exacte : dans le stack fourni, il s’agit de `tale_knowledge` dans `db` ; ailleurs, un service séparé ou un hôte externe peut la porter.
@@ -84,6 +86,8 @@ Examine `sandbox-egress` et l’URL cible. Une `SANDBOX_EGRESS_ALLOWLIST` config
 Un `403`, ou un nom qui ne se résout pas, pour un hôte de registre de paquets comme `pypi.org` ou `registry.npmjs.org` est la réponse voulue quand `SANDBOX_EGRESS_DENIED_HOSTS` nomme cet hôte : la session doit installer par les caches de registres (`SANDBOX_INCUS_NPM_REGISTRY` et `SANDBOX_INCUS_PYPI_INDEX`). Ne retire l’hôte de la liste que si les caches ne sont plus voulus, puis recrée le service de sortie.
 
 Un processus de sortie sain ne prouve pas la disponibilité de l’hôte distant, du DNS, du certificat ou du compte. Conserve l’erreur précise dans le rapport d’incident.
+
+Avec `OUTBOUND_PROXY_URLS`, chaque connexion qu’ouvre une session sort par ces proxys. Après deux connexions échouées vers l’un d’eux, le journal de `sandbox-egress` signale `Detected DEAD Parent: outbound-<n>`, où `<n>` est sa position dans la liste, puis `Detected REVIVED Parent` dès qu’il répond de nouveau. Quand tous les proxys sont indisponibles, les sessions ne peuvent plus ouvrir de tunnel et un scan de site s’arrête avec un message sur le proxy de sortie. Vérifie que chaque proxy accepte les connexions depuis l’adresse du serveur ainsi que ses identifiants ; le pare-feu de sortie refuse les proxys situés sur des réseaux privés.
 
 Quand de nombreuses sessions installent des paquets ou chargent des pages en même temps et que des connexions échouent sur des réinitialisations alors que le proxy reste sain, il a peut-être atteint `SANDBOX_EGRESS_MAX_CLIENTS`, les connexions qu’il sert en même temps pour toutes les sessions réunies. Son journal indique alors que le nombre maximal de connexions est atteint. Augmente la valeur, avec les limites de processus et de fichiers ouverts du conteneur de sortie, puis recrée le service de sortie.
 

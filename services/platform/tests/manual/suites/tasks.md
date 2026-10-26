@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 160 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 162 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -956,6 +956,13 @@ otherwise. Mark them **ENVIRONMENT** without a runnable harness.
   worked at once. Ask the manager to start itself on a further task → the
   answer is `self_start` and nothing starts.
 
+- [ ] `TASK-F95` · **An agent reaches the web through the outbound proxies** —
+  With KNOW-F40's proxies listed, start a project agent on a task that asks it
+  to report the address `https://api.ipify.org` answers, three times with
+  `curl` and three times with its browser → every reported address is one of
+  the proxies' exit addresses, never the server's, and the proxies' logs show
+  the session's tunnels taking turns.
+
 ## Boundary & error tests
 
 - [ ] `TASK-B1` · **Dependency cycle** — Build a chain A blocks B, B blocks C,
@@ -1404,6 +1411,15 @@ otherwise. Mark them **ENVIRONMENT** without a runnable harness.
   (`tasks.timeline.deletedAgent`); hovering a chip names why it is muted, a
   screen reader reads the reason after the name, and no id appears anywhere.
   In light and dark themes the muted chip's text keeps AA contrast.
+
+- [ ] `TASK-B55` · **The outbound proxies open nothing private to a session**
+  — With KNOW-F40's proxies listed, start a project agent on a task that asks
+  it to run `curl -s -o /dev/null -w '%{http_code}\n'` for
+  `http://sandbox-egress:3129/squid-internal-mgr/server_list`,
+  `http://127.0.0.1:3129/squid-internal-mgr/server_list`,
+  `http://169.254.169.254/latest/meta-data/` and `https://10.0.0.5/` → each
+  answers `403` (or a refused tunnel for the last), nothing the agent reports
+  names a proxy's password, and no proxy's log shows any of the four.
 
 ## Accessibility (WCAG 2.1 AA)
 

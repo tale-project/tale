@@ -1,0 +1,71 @@
+# Tale Sandbox Egress — squid, the outbound proxy hop
+# Rendered at startup by entrypoint.sh only when OUTBOUND_PROXY_URLS lists
+# proxies: envsubst fills the OUTBOUND_PEERS placeholder at the end with one
+# cache_peer line per proxy (outbound-proxies.awk) and expands nothing else.
+# The rendered file holds the proxies' passwords, so it is written readable
+# by root alone and never printed.
+#
+# tinyproxy stays the proxy sessions talk to, with its filters, client ACL
+# and connection limits, and hands every request to this hop (its single
+# `Upstream http 127.0.0.1:3129`): tinyproxy keeps one upstream at most, and
+# rotating several is what squid's parent selection does.
+
+# Only tinyproxy, in this container, reaches the hop. squid's own cache
+# manager answers nobody: through tinyproxy any session could ask it, and it
+# shows the proxies' passwords and every session's requests in flight.
+http_port 127.0.0.1:3129
+acl hop src 127.0.0.1/32
+http_access deny manager
+cachemgr_passwd disable all
+
+# The destinations the egress firewall refuses. tinyproxy dials only this hop
+# now, so the firewall no longer sees where a request goes, and squid refuses
+# them before any proxy is asked: loopback (the health probe's request for
+# tinyproxy itself is answered here, never sent out), private networks,
+# link-local and the cloud metadata address, in whatever form a client writes
+# them (`2130706433`, `127.1`, a name that resolves to one). A name is resolved
+# here to be judged, so one that does not resolve is refused too, as the
+# backend refuses it: a host with IPv6 addresses only among them, since this
+# container has no IPv6 and squid then judges IPv4 addresses alone. A name
+# that passes is resolved again by the proxy itself. An IPv6 address is
+# refused outright: tinyproxy rewrites an IPv6 host into another address
+# before squid sees it.
+acl to_private dst 0.0.0.0/8 10.0.0.0/8 127.0.0.0/8 169.254.0.0/16 172.16.0.0/12 192.168.0.0/16 ::1 fc00::/7 fe80::/10
+acl resolvable dst all
+acl ipv6_literal dstdom_regex -n :
+http_access deny ipv6_literal
+http_access deny to_private
+http_access deny !resolvable
+http_access allow hop
+http_access deny all
+
+# Every request leaves through a proxy, never straight to its destination.
+# round-robin (on each cache_peer) hands the requests to the proxies in turn.
+# A proxy that refuses or times out a connection is passed over for the next
+# one within the same request (up to four tries), and after two failed
+# connections in a row it is marked dead and left out until a probe finds
+# it answering again.
+never_direct allow all
+forward_max_tries 4
+
+# A hop, not a cache: nothing is stored, and nothing about a request is
+# logged (access_log), the way tinyproxy logs no request lines either.
+cache deny all
+cache_mem 0 MB
+access_log none
+# Operational messages (a dead or revived proxy) go to the container log via
+# `squid -d 1`; squid keeps no log file and no pid file of its own.
+cache_log /dev/null
+pid_filename none
+
+# Requests leave the way the session sent them: no Via or X-Forwarded-For
+# naming the hop or the internal client, and no squid version on error pages.
+forwarded_for delete
+request_header_access Via deny all
+visible_hostname sandbox-egress
+httpd_suppress_version_string on
+
+# The container's stop grace is short; open tunnels close with tinyproxy.
+shutdown_lifetime 3 seconds
+
+${OUTBOUND_PEERS}
