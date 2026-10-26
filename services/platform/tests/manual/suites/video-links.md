@@ -1,6 +1,6 @@
 # Video-link ingestion
 
-> **Prefix** `VID-` · **Reset** none · **Cost** 15 boxes
+> **Prefix** `VID-` · **Reset** none · **Cost** 16 boxes
 
 Pasting a supported video URL into the chat composer starts ingestion and
 shows an attachment chip. Typing the same URL leaves ordinary message text;
@@ -63,8 +63,9 @@ provider/configuration refusals from browser failures.
   attachment appears, no ingest request leaves the browser and no playlist is
   downloaded.
 - [ ] `VID-F6` · **Anti-bot configuration** — On a local test deployment where
-  VID-F2 fails with `botDetection`, configure an authorized
-  `VIDEO_INGEST_PROXY_URL`, `VIDEO_INGEST_POT_PROVIDER_URL`, or
+  VID-F2 fails with `botDetection`, configure authorized
+  `OUTBOUND_PROXY_URLS` or `VIDEO_INGEST_PROXY_URL`, a
+  `VIDEO_INGEST_POT_PROVIDER_URL`, or
   `VIDEO_INGEST_COOKIES_FILE`, restart the backend, then retry → Record whether
   the job completes. A remaining bot wall stays an environment limitation;
   configuration alone is not proof of success.
@@ -79,6 +80,14 @@ provider/configuration refusals from browser failures.
   A and paste it again → Chat A still shows one chip for the video and chat B
   its own; the third `POST /api/app/video-links/ingest` answers the `jobId` of
   the first paste in chat A. Reload chat A → still one chip.
+
+- [ ] `VID-F9` · **Video ingestion follows the outbound proxies** — With
+  KNOW-F40's proxies in `OUTBOUND_PROXY_URLS` and `VIDEO_INGEST_PROXY_URL`
+  unset, paste the captioned URL into two new chats → the proxies' logs show
+  yt-dlp's requests, the two jobs through different proxies. Set
+  `VIDEO_INGEST_PROXY_URL` to a third proxy, recreate `backend-worker` and
+  paste it into a third chat → only that proxy sees the job's requests.
+  Restore the prior environment.
 
 ## Boundary & error tests
 

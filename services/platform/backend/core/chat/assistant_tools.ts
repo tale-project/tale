@@ -2562,6 +2562,7 @@ export function createChatToolExecutor(
       response = await safeFetch(parsed.toString(), {
         timeoutMs: WEB_FETCH_TIMEOUT_MS,
         maxResponseBytes: WEB_FETCH_MAX_RESPONSE_BYTES,
+        outboundProxy: true,
         headers: {
           accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5',
           'user-agent': 'TaleAssistant/1.0 (+chat web_fetch)',

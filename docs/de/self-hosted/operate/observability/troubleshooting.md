@@ -53,6 +53,8 @@ Der Crawl-Fehler `tls_error` bezeichnet einen gescheiterten TLS-Verbindungsaufba
 
 `network_error` weist dagegen auf einen Verbindungsfehler hin. Lies die zugrunde liegende Ursache und prüfe DNS, Routing und Verfügbarkeit des Dienstes. [Websites crawlen](/de/platform/knowledge/crawling) erklärt Seitenfehler und Scan-Ergebnisse.
 
+Mit [ausgehenden Proxys](/de/self-hosted/configuration/environment-reference#outbound-proxies) endet ein Fehler, der auftrat, während ein Proxy die Anfrage trug, mit `(through the outbound proxy http://<host>:<port>)`, und das Backend protokolliert `[outbound-proxy] http://<host>:<port> failed`, wenn es einen Proxy zurückstellt. Ein Zertifikatsfehler über einen Proxy kann auch von einem Proxy stammen, der TLS aufbricht.
+
 ## Wissens-Postgres stürzt beim Import ab
 
 Wiederholte Meldungen `PANIC: corrupted page pointers` oder `signal 6` können auf einen beschädigten BM25-Index hinweisen. Prüfe Datenbankprotokolle und das Ergebnis der automatischen Reparatur unter [Container-Architektur](/de/self-hosted/operate/container-architecture). Ermittle die genaue Korpusdatenbank: Im mitgelieferten Stack ist es `tale_knowledge` in `db`; andere Bereitstellungen verwenden einen separaten Dienst oder externen Host.
@@ -84,6 +86,8 @@ Prüfe `sandbox-egress` und die Ziel-URL. Eine konfigurierte `SANDBOX_EGRESS_ALL
 Ein `403` oder ein Name, der sich nicht auflösen lässt, für einen Paketregister-Host wie `pypi.org` oder `registry.npmjs.org` ist die gewollte Antwort, wenn `SANDBOX_EGRESS_DENIED_HOSTS` diesen Host nennt: Die Session soll über die Registry-Caches installieren (`SANDBOX_INCUS_NPM_REGISTRY` und `SANDBOX_INCUS_PYPI_INDEX`). Nimm den Host nur aus der Liste, wenn die Caches nicht mehr gewünscht sind, und erstelle danach den Egress-Dienst neu.
 
 Ein gesunder Egress-Prozess belegt nicht die Verfügbarkeit von Gegenstelle, DNS, Zertifikat oder Konto. Bewahre den konkreten Anfragefehler im Störungsbericht auf.
+
+Ist `OUTBOUND_PROXY_URLS` gesetzt, läuft jede Verbindung einer Session über diese Proxys. Nach zwei gescheiterten Verbindungen zu einem von ihnen meldet das Log von `sandbox-egress` `Detected DEAD Parent: outbound-<n>`, wobei `<n>` seine Position in der Liste ist, und `Detected REVIVED Parent`, sobald er wieder antwortet. Fallen alle Proxys aus, können Sessions keine Tunnel öffnen, und ein Website-Scan bricht mit einer Meldung zum Egress-Proxy ab. Prüfe, ob jeder Proxy Verbindungen von der Adresse des Servers und seine Zugangsdaten annimmt; die Egress-Firewall lehnt Proxys in privaten Netzen ab.
 
 Wenn viele Sessions gleichzeitig Pakete installieren oder Seiten laden und Verbindungen mit Resets abbrechen, während der Proxy gesund bleibt, hat er womöglich `SANDBOX_EGRESS_MAX_CLIENTS` erreicht, die Verbindungen, die er für alle Sessions zusammen gleichzeitig bedient. Sein Log meldet dann, dass die Höchstzahl an Verbindungen erreicht ist. Erhöhe den Wert zusammen mit den Prozess- und Dateigrenzen des Egress-Containers und erstelle den Egress-Dienst neu.
 

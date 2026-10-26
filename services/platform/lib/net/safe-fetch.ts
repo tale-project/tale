@@ -21,6 +21,15 @@
  * flips between the check and the dial — is refused with `private_ip`,
  * and a second resolution never happens.
  *
+ * A request that reaches a website on someone's behalf (`outboundProxy`)
+ * leaves through the deployment's outbound proxies when it lists any
+ * (`OUTBOUND_PROXY_URLS`, taken in turn by `./outbound-proxy`). Every policy
+ * above still applies, and the name is still resolved and checked here
+ * first; the proxy then resolves it again and connects from its own
+ * network, so the pin binds only a direct dial. A destination that resolves
+ * to a private address (an intranet crawl the operator admitted) is dialed
+ * directly, since no outside proxy reaches it.
+ *
  * Extracted from images/http_actions.ts so chat-filter's moderation
  * provider and any future outbound caller share one audited implementation.
  */
@@ -29,9 +38,14 @@ import dns from 'node:dns';
 import type { LookupFunction } from 'node:net';
 
 import { isMetadataAddress, isPrivateIp } from '@tale/shared/net/private-ip';
-import { Agent } from 'undici';
+import { Agent, ProxyAgent } from 'undici';
 
 import { stripRuntimeLocations } from './error-message-hygiene';
+import {
+  nextOutboundProxy,
+  setOutboundProxyAside,
+  type OutboundProxy,
+} from './outbound-proxy';
 import type { SafeFetchErrorKind } from './safe-fetch-kinds';
 
 /** The refusal kinds, declared as a runtime list in `./safe-fetch-kinds` so
@@ -182,6 +196,13 @@ export interface SafeFetchOptions {
    * caller named itself: dropped on a hop to another host or port, like
    * `Authorization`. */
   sensitiveHeaders?: readonly string[];
+  /** The request reaches a website on someone's behalf — a crawl, a page an
+   * agent asked for, an image a message names — so it goes out through the
+   * deployment's outbound proxies (`OUTBOUND_PROXY_URLS`), the next one in
+   * turn, when it lists any. A hop to a private address is still dialed
+   * directly. Never set it on a call to a configured service (a provider, a
+   * connector's API): those leave from the deployment's own address. */
+  outboundProxy?: boolean;
 }
 
 /** Headers a credentialless request must never carry. */
@@ -312,6 +333,176 @@ function pinnedDispatcher(
     callback(null, first.address, first.family);
   };
   return new Agent({ connect: { lookup } });
+}
+
+/**
+ * The outbound proxy one request goes out through, and its dispatcher: made
+ * when a hop first needs it, and swapped once for the next proxy in turn if
+ * this one cannot carry the request.
+ */
+class ProxyRoute {
+  private agent: ProxyAgent | null = null;
+  private failedOver = false;
+
+  private constructor(private proxy: OutboundProxy) {}
+
+  /** The route for one request, or null when the deployment lists no proxy. */
+  static next(): ProxyRoute | null {
+    const proxy = nextOutboundProxy();
+    return proxy === null ? null : new ProxyRoute(proxy);
+  }
+
+  /** `http://host:port` — what an error names; never the credentials. */
+  get label(): string {
+    return this.proxy.label;
+  }
+
+  /** The proxy this route is on now. */
+  get target(): OutboundProxy {
+    return this.proxy;
+  }
+
+  dispatcher(): ProxyAgent {
+    // A plain `http:` destination goes to the proxy as an absolute-form
+    // request, the way a forward proxy serves it; an `https:` one is
+    // tunnelled with CONNECT, so the proxy sees only its host and port.
+    this.agent ??= new ProxyAgent({ uri: this.proxy.url, proxyTunnel: false });
+    return this.agent;
+  }
+
+  /** After this proxy could not carry the request (`why`): pass over it and
+   * move to the next one, once per request. False when there is none to
+   * move to. */
+  async failOver(why: string): Promise<boolean> {
+    setOutboundProxyAside(this.proxy, why);
+    if (this.failedOver) return false;
+    this.failedOver = true;
+    const next = nextOutboundProxy();
+    if (next === null || next.url === this.proxy.url) return false;
+    await this.close();
+    this.proxy = next;
+    return true;
+  }
+
+  async close(): Promise<void> {
+    const agent = this.agent;
+    this.agent = null;
+    await agent?.destroy().catch((error: unknown) => {
+      console.warn('[safe_fetch] closing the proxy dispatcher failed:', error);
+    });
+  }
+}
+
+/** Whether a hop to `hostname` leaves through the proxy: only a destination
+ * on the public internet does. One that is, or resolved to, a private
+ * address goes direct; `checkedAddresses` already decided it may be dialed. */
+function proxiedHop(
+  hostname: string,
+  pinned: ReadonlyMap<string, readonly ResolvedAddress[]>,
+): boolean {
+  const addresses = pinned.get(hostname.toLowerCase());
+  if (addresses === undefined) return !isPrivateIp(hostname);
+  return addresses.every(({ address }) => !isPrivateIp(address));
+}
+
+/** Error codes of a connection that never reached the proxy. A proxied
+ * request makes no other connection or lookup of its own, so these are the
+ * proxy's, never the destination's. */
+const UNREACHABLE_PROXY_CODES: ReadonlySet<string> = new Set([
+  'ECONNREFUSED',
+  'EHOSTUNREACH',
+  'ENETUNREACH',
+  'ETIMEDOUT',
+  'ENOTFOUND',
+  'EAI_AGAIN',
+]);
+
+/**
+ * Whether an undici connect timeout was the dial to `proxy`. The code also
+ * covers the TLS handshake with an `https:` destination inside the tunnel,
+ * and that one names the destination: a site that accepts the tunnel and then
+ * never answers says nothing against the proxy. A dial names the addresses it
+ * tried, or the proxy's own host and port.
+ */
+function proxyDialTimedOut(cause: Error, proxy: OutboundProxy): boolean {
+  return (
+    Reflect.get(cause, 'code') === 'UND_ERR_CONNECT_TIMEOUT' &&
+    (cause.message.includes('(attempted addresses: ') ||
+      cause.message.includes(
+        `(attempted address: ${proxy.host}:${proxy.port},`,
+      ))
+  );
+}
+
+/** `error` and the causes under it, outermost first. undici nests a refused
+ * tunnel two causes deep, under a bare "Request was cancelled.". */
+function causeChain(error: unknown): Error[] {
+  const chain: Error[] = [];
+  let current: unknown = error;
+  while (current instanceof Error && chain.length < 5) {
+    chain.push(current);
+    current = current.cause;
+  }
+  return chain;
+}
+
+/** How undici reports a proxy that answered a CONNECT with anything but 200. */
+const TUNNEL_REFUSED =
+  /^Proxy response \((\d{3})\) !== 200 when HTTP Tunneling$/;
+
+/** The status a proxy answered a CONNECT with, when it refused the tunnel. */
+function tunnelRefusal(error: unknown): number | null {
+  for (const cause of causeChain(error)) {
+    const status = TUNNEL_REFUSED.exec(cause.message)?.[1];
+    if (status !== undefined) return Number(status);
+  }
+  return null;
+}
+
+/**
+ * Why a failed proxied request never got past `proxy` — the proxy could not
+ * be reached, or refused its credentials when asked for a tunnel (407) — or
+ * null for any other failure, which is reported as it is: a proxy that could
+ * not reach the destination says nothing against the proxy, and a 407 to a
+ * forwarded `http:` request may be the destination's own answer.
+ */
+function proxyFailure(error: unknown, proxy: OutboundProxy): string | null {
+  for (const cause of causeChain(error)) {
+    const code: unknown = Reflect.get(cause, 'code');
+    if (typeof code === 'string' && UNREACHABLE_PROXY_CODES.has(code)) {
+      return code;
+    }
+    if (proxyDialTimedOut(cause, proxy)) return 'UND_ERR_CONNECT_TIMEOUT';
+  }
+  if (tunnelRefusal(error) === 407) return 'credentials refused (407)';
+  return null;
+}
+
+/** The refusal for a failure of a request a proxy carried, or was to carry:
+ * a refused tunnel by the status the proxy answered, anything else as
+ * `classifyFetchFailure` names it. */
+function proxiedFailure(error: unknown): SafeFetchError {
+  const status = tunnelRefusal(error);
+  if (status !== null) {
+    return new SafeFetchError(
+      'network_error',
+      `The proxy answered ${status} instead of opening a tunnel to the destination`,
+    );
+  }
+  return classifyFetchFailure(error);
+}
+
+/** A refusal raised while a proxy carried the request, naming the proxy. */
+function through(
+  refusal: SafeFetchError,
+  route: ProxyRoute | null,
+): SafeFetchError {
+  if (route === null) return refusal;
+  return new SafeFetchError(
+    refusal.kind,
+    `${refusal.message} (through the outbound proxy ${route.label})`,
+    refusal.status,
+  );
 }
 
 export interface SafeFetchResponse {
@@ -627,6 +818,10 @@ function redirectSwitchesToGet(status: number, method: string): boolean {
  * followed with GET and no body — replaying a POST body against the
  * Location would perform the mutation twice, or hand a JSON body to a read
  * endpoint with the Authorization header still attached.
+ *
+ * With a proxy `route`, each hop to a public destination goes through it,
+ * and one the proxy could not carry is tried once more through the next
+ * proxy; the route of the final hop comes back with the response.
  */
 async function fetchFollowingRedirects(
   rawUrl: string,
@@ -635,7 +830,12 @@ async function fetchFollowingRedirects(
   timeoutMs: number,
   pinned: Map<string, readonly ResolvedAddress[]>,
   dispatcher: Agent,
-): Promise<{ response: Response; finalUrl: string }> {
+  route: ProxyRoute | null,
+): Promise<{
+  response: Response;
+  finalUrl: string;
+  carried: ProxyRoute | null;
+}> {
   const {
     method = 'GET',
     headers = {},
@@ -708,6 +908,10 @@ async function fetchFollowingRedirects(
   let redirectsFollowed = 0;
 
   while (true) {
+    const hopRoute =
+      route !== null && proxiedHop(new URL(currentUrl).hostname, pinned)
+        ? route
+        : null;
     let response: Response;
     try {
       // `@types/node` augments the global RequestInit with the older
@@ -722,21 +926,27 @@ async function fetchFollowingRedirects(
         body: currentBody,
         redirect: 'manual',
         signal,
-        dispatcher,
+        dispatcher: hopRoute === null ? dispatcher : hopRoute.dispatcher(),
       } as unknown as RequestInit;
       response = await fetch(currentUrl, init);
     } catch (error) {
       if (error instanceof SafeFetchError) throw error;
-      throw (
-        abortRefusal(error, callerSignal, timeoutMs, 'headers') ??
-        classifyFetchFailure(error)
-      );
+      const aborted = abortRefusal(error, callerSignal, timeoutMs, 'headers');
+      if (aborted !== null) throw through(aborted, hopRoute);
+      if (hopRoute !== null) {
+        // The proxy never carried the request to its destination, so asking
+        // the next proxy repeats nothing the destination saw.
+        const why = proxyFailure(error, hopRoute.target);
+        if (why !== null && (await hopRoute.failOver(why))) continue;
+        throw through(proxiedFailure(error), hopRoute);
+      }
+      throw classifyFetchFailure(error);
     }
 
     if (!REDIRECT_STATUSES.has(response.status)) {
       // 304/305/306 land here too — they carry no Location header, so
       // returning them to the caller is correct.
-      return { response, finalUrl: currentUrl };
+      return { response, finalUrl: currentUrl, carried: hopRoute };
     }
 
     const location = response.headers.get('Location');
@@ -799,21 +1009,23 @@ export async function safeFetch(
   signal?.addEventListener('abort', onCallerAbort, { once: true });
   const pinned = new Map<string, readonly ResolvedAddress[]>();
   const dispatcher = pinnedDispatcher(pinned);
+  const route = options.outboundProxy === true ? ProxyRoute.next() : null;
 
   try {
-    const { response, finalUrl } = await fetchFollowingRedirects(
+    const { response, finalUrl, carried } = await fetchFollowingRedirects(
       rawUrl,
       options,
       controller.signal,
       timeoutMs,
       pinned,
       dispatcher,
+      route,
     );
     let bodyText: string;
     try {
       bodyText = await readBodyWithCap(response, maxResponseBytes);
     } catch (error) {
-      throw bodyRefusal(error, signal, timeoutMs);
+      throw through(bodyRefusal(error, signal, timeoutMs), carried);
     }
 
     return {
@@ -831,6 +1043,7 @@ export async function safeFetch(
     await dispatcher.destroy().catch((error: unknown) => {
       console.warn('[safe_fetch] closing the pinned dispatcher failed:', error);
     });
+    await route?.close();
   }
 }
 
@@ -863,15 +1076,17 @@ export async function safeFetchBinary(
   signal?.addEventListener('abort', onCallerAbort, { once: true });
   const pinned = new Map<string, readonly ResolvedAddress[]>();
   const dispatcher = pinnedDispatcher(pinned);
+  const route = options.outboundProxy === true ? ProxyRoute.next() : null;
 
   try {
-    const { response, finalUrl } = await fetchFollowingRedirects(
+    const { response, finalUrl, carried } = await fetchFollowingRedirects(
       rawUrl,
       options,
       controller.signal,
       timeoutMs,
       pinned,
       dispatcher,
+      route,
     );
     let buffer: ArrayBuffer;
     let contentType: string;
@@ -881,7 +1096,7 @@ export async function safeFetchBinary(
         maxResponseBytes,
       ));
     } catch (error) {
-      throw bodyRefusal(error, signal, timeoutMs);
+      throw through(bodyRefusal(error, signal, timeoutMs), carried);
     }
     const blobType =
       contentType || defaultContentType || 'application/octet-stream';
@@ -900,5 +1115,6 @@ export async function safeFetchBinary(
     await dispatcher.destroy().catch((error: unknown) => {
       console.warn('[safe_fetch] closing the pinned dispatcher failed:', error);
     });
+    await route?.close();
   }
 }

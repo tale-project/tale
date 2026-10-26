@@ -11,6 +11,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -22,8 +23,12 @@ import { REGISTRY_HOSTS } from './backend/incus/incus-registry-caches.ts';
 const root = mkdtempSync(join(tmpdir(), 'tale-egress-config-'));
 const bin = join(root, 'bin');
 const etc = join(root, 'etc');
+// The image's /etc/sandbox-egress: the outbound-proxy reader and the squid
+// hop's template.
+const hopEtc = join(root, 'hop');
 mkdirSync(bin);
 mkdirSync(etc);
+mkdirSync(hopEtc);
 afterAll(() => rmSync(root, { recursive: true, force: true }));
 
 const egressDir = resolve(import.meta.dir, '../../sandbox-egress');
@@ -31,23 +36,31 @@ writeFileSync(
   join(etc, 'tinyproxy.conf.template'),
   readFileSync(join(egressDir, 'tinyproxy.conf.template'), 'utf8'),
 );
+for (const name of ['outbound-proxies.awk', 'squid.conf.template']) {
+  writeFileSync(
+    join(hopEtc, name),
+    readFileSync(join(egressDir, name), 'utf8'),
+  );
+}
 // The supervised daemons run until a TERM, note it in `events` and exit 0,
-// as both real daemons do. dnsmasq first records its arguments, tinyproxy the
-// open-file limit it was started with; once dnsmasq is up, tinyproxy asks the
-// entrypoint to stop, as `docker stop` would, unless STUB_TINYPROXY_STAY is
-// set.
-// Both stubs acknowledge startup after installing their TERM traps. Controlled
-// exits and the parent stop wait for both acknowledgements, so the peer can
-// record its shutdown even when its initialization was scheduled later.
+// as the real daemons do. dnsmasq and squid first record their arguments,
+// tinyproxy the open-file limit it was started with; once the others are up,
+// tinyproxy asks the entrypoint to stop, as `docker stop` would, unless
+// STUB_TINYPROXY_STAY is set.
+// Every stub acknowledges startup after installing its TERM trap. Controlled
+// exits and the parent stop wait for every acknowledgement (squid's only when
+// STUB_SQUID_EXPECTED says the hop starts), so a peer can record its shutdown
+// even when its initialization was scheduled later.
 // STUB_<DAEMON>_EXIT makes a daemon exit on its own with that status.
 // A `tail` records that something ran it: the proxy logs to stdout, so
 // nothing should poll a log file beside it.
 const events = join(root, 'events');
 const dnsmasqArgs = join(root, 'dnsmasq-args');
+const squidArgs = join(root, 'squid-args');
 const tinyproxyFiles = join(root, 'tinyproxy-nofile');
 const untilStopped = (name: string) =>
   `trap 'trap "" TERM; kill "$nap" 2>/dev/null; echo ${name} stopped >> "${events}"; exit 0' TERM`;
-const ready = `while [ ! -e '${dnsmasqArgs}' ] || [ ! -e '${tinyproxyFiles}' ]; do sleep 0.01; done`;
+const ready = `while [ ! -e '${dnsmasqArgs}' ] || [ ! -e '${tinyproxyFiles}' ] || { [ -n "$STUB_SQUID_EXPECTED" ] && [ ! -e '${squidArgs}' ]; }; do sleep 0.01; done`;
 const idle = 'while :; do sleep 1 & nap=$!; wait "$nap"; done';
 writeFileSync(
   join(bin, 'dnsmasq'),
@@ -57,6 +70,19 @@ writeFileSync(
     `echo "$@" > '${dnsmasqArgs}'`,
     ready,
     '[ -z "$STUB_DNSMASQ_EXIT" ] || exit "$STUB_DNSMASQ_EXIT"',
+    idle,
+    '',
+  ].join('\n'),
+  { mode: 0o755 },
+);
+writeFileSync(
+  join(bin, 'squid'),
+  [
+    '#!/bin/sh',
+    untilStopped('squid'),
+    `echo "$@" > '${squidArgs}'`,
+    ready,
+    '[ -z "$STUB_SQUID_EXIT" ] || exit "$STUB_SQUID_EXIT"',
     idle,
     '',
   ].join('\n'),
@@ -93,10 +119,9 @@ process.stdout.write(text);
 `,
     { mode: 0o755 },
   );
-const entrypoint = readFileSync(
-  join(egressDir, 'entrypoint.sh'),
-  'utf8',
-).replaceAll('/etc/tinyproxy', etc);
+const entrypoint = readFileSync(join(egressDir, 'entrypoint.sh'), 'utf8')
+  .replaceAll('/etc/tinyproxy', etc)
+  .replaceAll('/etc/sandbox-egress', hopEtc);
 
 /** Run the entrypoint; `before` runs first in the same shell (a lower
  * open-file limit, say), and `stubs` steers the stand-in daemons. */
@@ -107,8 +132,10 @@ function boot(
 ) {
   for (const file of [
     join(etc, 'tinyproxy.conf'),
+    join(hopEtc, 'squid.conf'),
     tinyproxyFiles,
     dnsmasqArgs,
+    squidArgs,
     events,
     join(etc, 'allowlist'),
     join(etc, 'denylist'),
@@ -116,9 +143,11 @@ function boot(
     rmSync(file, { force: true });
   const env: Record<string, string | undefined> = {
     ...process.env,
-    // Neither list is the host's, unless a case sets one.
+    // Neither list is the host's, and no outbound proxy, unless a case sets
+    // one.
     SANDBOX_EGRESS_ALLOWLIST: '',
     SANDBOX_EGRESS_DENIED_HOSTS: '',
+    OUTBOUND_PROXY_URLS: '',
     ...stubs,
     PATH: `${bin}:/usr/bin:/bin`,
   };
@@ -177,7 +206,7 @@ describe('egress proxy supervision', () => {
     });
     expect(result.status).toBe(3);
     expect(result.stdout).toContain(
-      'FATAL: dnsmasq exited with status 3; stopping the proxy so the container restarts with both',
+      'FATAL: dnsmasq exited with status 3; stopping the proxy so the container restarts whole',
     );
     expect(stopped()).toEqual(['tinyproxy stopped']);
   });
@@ -473,5 +502,120 @@ describe('egress proxy host deny-list', () => {
     );
     expect(existsSync(join(etc, 'denylist'))).toBe(false);
     expect(dnsmasqAddresses()).toEqual([]);
+  });
+});
+
+// OUTBOUND_PROXY_URLS: the proxies sessions' traffic leaves through, in turn,
+// by way of a squid hop tinyproxy hands every request to.
+describe('egress proxy outbound proxies', () => {
+  const POOL = 'http://alice:s3cret@203.0.113.7:8080, http://P.Example';
+  const squidConfig = () => {
+    const path = join(hopEtc, 'squid.conf');
+    return existsSync(path) ? readFileSync(path, 'utf8') : null;
+  };
+
+  test('unset, tinyproxy connects to destinations itself and no hop starts', () => {
+    for (const value of ['', ' , ']) {
+      const { result, config } = boot(undefined, '', {
+        OUTBOUND_PROXY_URLS: value,
+      });
+      expect(result.status).toBe(0);
+      expect(directive(config, 'Upstream')).toEqual([]);
+      expect(config).toContain(
+        '# No upstream: OUTBOUND_PROXY_URLS lists no proxy.',
+      );
+      expect(config).not.toContain('${');
+      expect(squidConfig()).toBeNull();
+      expect(existsSync(squidArgs)).toBe(false);
+      expect(stopped().sort()).toEqual([
+        'dnsmasq stopped',
+        'tinyproxy stopped',
+      ]);
+    }
+  });
+
+  test('hands every request to the squid hop, which takes the proxies in turn', () => {
+    const { result, config } = boot(undefined, '', {
+      OUTBOUND_PROXY_URLS: POOL,
+      STUB_SQUID_EXPECTED: '1',
+    });
+    expect(result.status).toBe(0);
+    expect(directive(config, 'Upstream')).toEqual(['http 127.0.0.1:3129']);
+    expect(config).not.toContain('${');
+    const squid = squidConfig();
+    expect(squid).not.toContain('${');
+    expect(
+      squid?.split('\n').filter((line) => line.startsWith('cache_peer ')),
+    ).toEqual([
+      'cache_peer 203.0.113.7 parent 8080 0 no-query no-digest round-robin connect-timeout=10 connect-fail-limit=2 name=outbound-1 login=alice:s3cret',
+      'cache_peer p.example parent 80 0 no-query no-digest round-robin connect-timeout=10 connect-fail-limit=2 name=outbound-2',
+    ]);
+    // Never straight to a destination, and only tinyproxy on loopback.
+    expect(squid).toContain('\nnever_direct allow all\n');
+    expect(squid).toContain('\nhttp_port 127.0.0.1:3129\n');
+    expect(squid).toContain('\naccess_log none\n');
+    // The cache manager (which shows the passwords) and the destinations the
+    // egress firewall no longer sees are refused before tinyproxy is let in.
+    const access = squid
+      ?.split('\n')
+      .filter((line) => line.startsWith('http_access '));
+    expect(access).toEqual([
+      'http_access deny manager',
+      'http_access deny ipv6_literal',
+      'http_access deny to_private',
+      'http_access deny !resolvable',
+      'http_access allow hop',
+      'http_access deny all',
+    ]);
+    expect(squid).toContain('\nacl resolvable dst all\n');
+    expect(squid).toContain('\nacl ipv6_literal dstdom_regex -n :\n');
+    expect(squid).toContain('\ncachemgr_passwd disable all\n');
+    expect(squid).toMatch(
+      /\nacl to_private dst 0\.0\.0\.0\/8 10\.0\.0\.0\/8 127\.0\.0\.0\/8 169\.254\.0\.0\/16 172\.16\.0\.0\/12 192\.168\.0\.0\/16 ::1 fc00::\/7 fe80::\/10\n/,
+    );
+    // The passwords are in the squid config alone, which only root reads.
+    expect(statSync(join(hopEtc, 'squid.conf')).mode & 0o777).toBe(0o600);
+    expect(readFileSync(squidArgs, 'utf8').trim()).toBe(
+      `-N -d 1 -f ${hopEtc}/squid.conf`,
+    );
+    expect(result.stdout).toContain('  http://203.0.113.7:8080\n');
+    expect(result.stdout).toContain('  http://p.example:80\n');
+    expect(result.stdout).not.toContain('s3cret');
+    expect(result.stdout).not.toContain('alice');
+    // A stop reaches the hop too.
+    expect(stopped().sort()).toEqual([
+      'dnsmasq stopped',
+      'squid stopped',
+      'tinyproxy stopped',
+    ]);
+  });
+
+  test('squid exiting on its own stops the others and the container with its status', () => {
+    const { result } = boot(undefined, '', {
+      OUTBOUND_PROXY_URLS: POOL,
+      STUB_SQUID_EXPECTED: '1',
+      STUB_SQUID_EXIT: '4',
+      STUB_TINYPROXY_STAY: '1',
+    });
+    expect(result.status).toBe(4);
+    expect(result.stdout).toContain(
+      'FATAL: squid exited with status 4; stopping the proxy so the container restarts whole',
+    );
+    expect(stopped().sort()).toEqual(['dnsmasq stopped', 'tinyproxy stopped']);
+  });
+
+  test('stops the start on a malformed entry, naming its position and never its text', () => {
+    const { result, config } = boot(undefined, '', {
+      OUTBOUND_PROXY_URLS: 'http://p.example, https://alice:s3cret@q.example',
+    });
+    expect(result.status).toBe(1);
+    expect(result.stdout).toContain(
+      'FATAL: OUTBOUND_PROXY_URLS entry 2 is not an http:// proxy URL (expected http://[user:password@]host[:port])',
+    );
+    expect(result.stdout).not.toContain('s3cret');
+    expect(config).toBeNull();
+    expect(squidConfig()).toBeNull();
+    expect(existsSync(dnsmasqArgs)).toBe(false);
+    expect(existsSync(squidArgs)).toBe(false);
   });
 });

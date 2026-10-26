@@ -474,6 +474,8 @@ Le proxy de sortie a besoin du jeu de capabilities du contrat Compose et d’auc
 
 Le proxy sert `SANDBOX_EGRESS_MAX_CLIENTS` connexions à la fois (2000 par défaut) pour l’ensemble des sessions, chacune avec un thread et deux fichiers ouverts. Une spécification de Pod ne peut fixer ni limite de processus ni limite de fichiers ouverts : au démarrage, le proxy relève sa limite de fichiers ouverts à ce dont ses connexions ont besoin, dans la mesure où la limite stricte du runtime de conteneurs le permet, et avertit dans son journal quand elle est trop basse. Ses threads comptent dans le `podPidsLimit` du kubelet ; si tes nœuds en fixent un, garde-le au-dessus de la limite de connexions, ou abaisse `SANDBOX_EGRESS_MAX_CLIENTS` en conséquence.
 
+Le proxy de sortie reprend `OUTBOUND_PROXY_URLS` de `tale-env` lorsque la clé existe : les sessions atteignent ainsi Internet par les mêmes [proxys sortants](/fr/self-hosted/configuration/environment-reference#outbound-proxies) que les rôles backend, qui chargent tout le Secret.
+
 ```yaml
 # 40-sandbox.yaml
 apiVersion: v1
@@ -499,6 +501,8 @@ spec:
           image: ghcr.io/tale-project/tale/tale-sandbox-egress:${VERSION}
           env:
             - { name: SANDBOX_EGRESS_MAX_CLIENTS, value: '2000' }
+            - name: OUTBOUND_PROXY_URLS
+              valueFrom: { secretKeyRef: { name: tale-env, key: OUTBOUND_PROXY_URLS, optional: true } }
           securityContext:
             runAsUser: 0
             capabilities:

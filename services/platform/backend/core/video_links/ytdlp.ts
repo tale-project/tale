@@ -32,6 +32,12 @@ import { existsSync, promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve as resolvePath } from 'node:path';
 
+import {
+  nextOutboundProxy,
+  setOutboundProxyAside,
+  type OutboundProxy,
+} from '../../../lib/net/outbound-proxy';
+
 const YTDLP_BIN = 'yt-dlp';
 
 /**
@@ -175,29 +181,85 @@ const SUPPORTED_PROXY_SCHEMES = new Set([
 ]);
 
 /**
- * `--proxy` from `VIDEO_INGEST_PROXY_URL`. The single highest-leverage
- * mitigation: routing extraction through a residential/ISP egress moves it off
- * the deployment's flagged datacenter IP. Prefer `socks5h://` so DNS also
- * resolves at the proxy. Invalid values are logged (redacted) and ignored
- * rather than failing ingestion outright.
+ * `VIDEO_INGEST_PROXY_URL`, checked: the proxy video ingestion uses instead
+ * of the deployment's outbound proxies. Any scheme yt-dlp speaks; prefer
+ * `socks5h://` so DNS also resolves at the proxy. An invalid value is logged
+ * (redacted) and treated as absent rather than failing ingestion outright.
  */
-export function proxyFlagsFromEnv(env: NodeJS.ProcessEnv): string[] {
+function videoIngestProxyOverride(env: NodeJS.ProcessEnv): string | null {
   const raw = env.VIDEO_INGEST_PROXY_URL?.trim();
-  if (!raw) return [];
+  if (!raw) return null;
   let url: URL;
   try {
     url = new URL(raw);
   } catch {
     console.warn('[ytdlp] VIDEO_INGEST_PROXY_URL is not a valid URL; ignoring');
-    return [];
+    return null;
   }
   if (!SUPPORTED_PROXY_SCHEMES.has(url.protocol)) {
     console.warn(
       `[ytdlp] VIDEO_INGEST_PROXY_URL scheme "${url.protocol}" is unsupported; ignoring`,
     );
-    return [];
+    return null;
   }
-  return ['--proxy', raw];
+  return raw;
+}
+
+/** The proxy one yt-dlp run goes out through. */
+export interface YtdlpProxy {
+  /** What `--proxy` is given. */
+  url: string;
+  /** The outbound proxy the run took, or null for `VIDEO_INGEST_PROXY_URL`. */
+  pooled: OutboundProxy | null;
+}
+
+/**
+ * The proxy for one yt-dlp run — the single highest-leverage mitigation:
+ * routing extraction through a residential/ISP egress moves it off the
+ * deployment's flagged datacenter IP. `VIDEO_INGEST_PROXY_URL` wins; without
+ * it the run takes the next of the deployment's outbound proxies
+ * (`OUTBOUND_PROXY_URLS`, in turn with every other request to a website);
+ * with neither, none. yt-dlp extracts and downloads through the one proxy of
+ * its run, so a media URL signed for that address is fetched from it.
+ */
+export function ytdlpProxyFromEnv(
+  env: NodeJS.ProcessEnv,
+  nextPooled: () => OutboundProxy | null = () => nextOutboundProxy(env),
+): YtdlpProxy | null {
+  const override = videoIngestProxyOverride(env);
+  if (override !== null) return { url: override, pooled: null };
+  const pooled = nextPooled();
+  return pooled === null ? null : { url: pooled.url, pooled };
+}
+
+/** `--proxy` for one run, its proxy chosen by {@link ytdlpProxyFromEnv}. */
+export function proxyFlagsFromEnv(
+  env: NodeJS.ProcessEnv,
+  proxy: YtdlpProxy | null = ytdlpProxyFromEnv(env),
+): string[] {
+  return proxy === null ? [] : ['--proxy', proxy.url];
+}
+
+/** The status a proxy answered yt-dlp's tunnel request with, when it
+ * refused it (urllib3, and curl under `--impersonate`). */
+const TUNNEL_STATUS_STDERR =
+  /(?:tunnel connection failed:|connect tunnel failed, response)\s*(\d{3})/i;
+
+/** yt-dlp's words for a proxy it could not reach at all, as urllib3 and curl
+ * phrase them (not a bare mention, which a page's own text could carry). */
+const PROXY_UNREACHABLE_STDERR =
+  /\('Unable to connect to proxy'|Could not resolve proxy: /;
+
+/**
+ * Whether a failed run's stderr holds its proxy to blame, as `safeFetch`
+ * does: the proxy could not be reached, or refused its credentials for the
+ * tunnel (407). A tunnel refused with another status (a 502 for a
+ * destination the proxy could not reach) says nothing against the proxy.
+ */
+export function proxyFailedRun(stderr: string): boolean {
+  const status = TUNNEL_STATUS_STDERR.exec(stderr)?.[1];
+  if (status !== undefined) return status === '407';
+  return PROXY_UNREACHABLE_STDERR.test(stderr);
 }
 
 /** Default YouTube player clients when no PO-token provider is wired.
@@ -354,9 +416,10 @@ const STEALTH_FLAGS: ReadonlyArray<string> = ['--sleep-requests', '1'];
 export function buildAntiBotFlags(
   env: NodeJS.ProcessEnv,
   session?: YtdlpSession,
+  proxy: YtdlpProxy | null = ytdlpProxyFromEnv(env),
 ): string[] {
   return [
-    ...proxyFlagsFromEnv(env),
+    ...proxyFlagsFromEnv(env, proxy),
     ...pluginDirFlagsFromEnv(env),
     ...cookiesFlagsFromEnv(env, session),
     ...impersonateFlagsFromEnv(env),
@@ -725,11 +788,11 @@ async function runYtdlp(
   // call probes `--help` and caches; subsequent calls are free.
   const commonFlags = await resolveSupportedFlags();
   await warnIfYtdlpBelowFloor();
-  // Anti-bot flags are rebuilt per call (cheap) so an operator can change
-  // proxy / provider / cookies config without restarting — env is re-read
-  // from `process.env`, which the deployment env-sync keeps current. A pooled
-  // session (if provided) supplies its own cookie jar + visitor data.
-  const antiBotFlags = buildAntiBotFlags(process.env, session);
+  // Anti-bot flags are rebuilt per call (cheap), and each call takes the next
+  // outbound proxy in turn. A pooled session (if provided) supplies its own
+  // cookie jar + visitor data.
+  const proxy = ytdlpProxyFromEnv(process.env);
+  const antiBotFlags = buildAntiBotFlags(process.env, session, proxy);
   return new Promise((resolve, reject) => {
     // `detached: true` puts the child in its own process group so we can
     // signal the whole group with `process.kill(-pid, ...)` on timeout.
@@ -909,6 +972,11 @@ async function runYtdlp(
       }
       if (code !== 0) {
         const reason = classifyYtDlpStderr(sanitized);
+        // The next run takes another proxy anyway; a pooled one that could
+        // not carry this one is also passed over for a while.
+        if (proxy?.pooled && proxyFailedRun(sanitized)) {
+          setOutboundProxyAside(proxy.pooled, 'yt-dlp could not get through');
+        }
         settleReject(
           new YtDlpError(
             reason,

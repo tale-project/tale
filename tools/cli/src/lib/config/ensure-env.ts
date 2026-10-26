@@ -785,6 +785,12 @@ function generateEnvContent(config: EnvConfig): string {
     '# default-deny; restart sandbox-egress to apply. Suggested registry-only',
     '# lockdown (pip/npm/uv + git-over-HTTPS/gh):',
     '# SANDBOX_EGRESS_ALLOWLIST=^pypi\\.org$|^files\\.pythonhosted\\.org$|^registry\\.npmjs\\.org$|^objects\\.githubusercontent\\.com$|^codeload\\.github\\.com$|^github\\.com$|^api\\.github\\.com$',
+    '# Optional HTTP proxies for requests to other websites: the crawler, the',
+    "# chat assistant's web fetch, email images, video ingestion and every",
+    '# sandbox connection to the internet take them in turn instead of leaving',
+    '# from this host. Comma-separated http://[user:password@]host[:port]',
+    '# entries; recreate the backend and sandbox-egress to apply.',
+    '# OUTBOUND_PROXY_URLS=http://user:password@proxy.example:8080',
     '',
   );
 

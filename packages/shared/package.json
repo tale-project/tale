@@ -41,6 +41,7 @@
     "./utils/org-session-cutover": "./src/utils/org-session-cutover.ts",
     "./utils/model-ref": "./src/utils/model-ref.ts",
     "./utils/project-key": "./src/utils/project-key.ts",
+    "./net/outbound-proxies": "./src/net/outbound-proxies.ts",
     "./net/private-ip": "./src/net/private-ip.ts",
     "./http/entity-tag": "./src/http/entity-tag.ts",
     "./http/range": "./src/http/range.ts",

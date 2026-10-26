@@ -28,13 +28,13 @@ Prüfe `tale logs bgutil-provider` und die Erreichbarkeit vom Worker. Der Sideca
 
 ## Einen Egress-Proxy konfigurieren
 
-Nutze `VIDEO_INGEST_PROXY_URL`, wenn Videoabrufe über einen freigegebenen Proxy laufen sollen. Metadaten, Untertitel und Audio verwenden diesen Weg. Unterstützt werden `http`, `https`, `socks4`, `socks4a`, `socks5` und `socks5h`; die letzte Variante löst DNS am Proxy auf.
+Videoabrufe laufen über die [ausgehenden Proxys](/de/self-hosted/configuration/environment-reference#outbound-proxies) des Deployments, sobald `OUTBOUND_PROXY_URLS` Proxys nennt: Jeder yt-dlp-Lauf nimmt reihum den nächsten, wie der Website-Crawler. Setze `VIDEO_INGEST_PROXY_URL`, wenn Videoabrufe stattdessen über einen eigenen freigegebenen Proxy laufen sollen; er ersetzt die ausgehenden Proxys nur für Videos. Metadaten, Untertitel und Audio verwenden diesen Weg. Unterstützt werden `http`, `https`, `socks4`, `socks4a`, `socks5` und `socks5h`; die letzte Variante löst DNS am Proxy auf.
 
 ```bash
 VIDEO_INGEST_PROXY_URL=socks5h://proxy.example.com:1080
 ```
 
-Ergänze erforderliche Zugangsdaten über deine Geheimnisverwaltung. Eine ungültige URL oder ein nicht unterstütztes Schema wird mit Warnung ignoriert. Prüfe deshalb die übernommene Konfiguration und einen echten Abruf. Erstelle den Worker nach Änderungen seiner Umgebung neu. Ein Neustart des bestehenden Containers liest eine geänderte `.env` nicht ein.
+Ergänze erforderliche Zugangsdaten über deine Geheimnisverwaltung. Eine ungültige URL oder ein nicht unterstütztes Schema wird mit Warnung ignoriert, und der Abruf läuft wie ohne die Variable über die ausgehenden Proxys, falls es welche gibt. Prüfe deshalb die übernommene Konfiguration und einen echten Abruf. Erstelle den Worker nach Änderungen seiner Umgebung neu. Ein Neustart des bestehenden Containers liest eine geänderte `.env` nicht ein.
 
 Ein anderer Netzwerkweg garantiert keinen Zugriff. Prüfe, ob Proxy und Quellkonto für die benötigten Inhalte verwendet werden dürfen. Bleibt die Quelle unerreichbar, importiere ein bereits vorliegendes Transkript als [Wissensdokument](/de/platform/knowledge/documents).
 

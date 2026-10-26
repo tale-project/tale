@@ -1,3 +1,4 @@
+import { parseOutboundProxyUrls } from '@tale/shared/net/outbound-proxies';
 import { parseOrgSessionCutoverAt } from '@tale/shared/utils/org-session-cutover';
 import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 import { z } from 'zod';
@@ -153,6 +154,28 @@ const envSchema = z.object({
     .superRefine((value, ctx) => {
       try {
         parseAdditionalSiteUrls(value);
+      } catch (error) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }),
+  /**
+   * The HTTP proxies requests to other websites go out through, in turn —
+   * the crawler, the chat assistant's web fetch, email images and video
+   * ingestion here; every session connection in the sandbox egress service,
+   * which reads the same value. Validated here so a malformed entry fails
+   * boot instead of sending that traffic out unproxied — see
+   * `@tale/shared/net/outbound-proxies`; read per request by
+   * `lib/net/outbound-proxy.ts`.
+   */
+  OUTBOUND_PROXY_URLS: z
+    .string()
+    .optional()
+    .superRefine((value, ctx) => {
+      try {
+        parseOutboundProxyUrls(value);
       } catch (error) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,

@@ -603,6 +603,29 @@ egress proxy and resolve through the same forwarder, so with
 session's `docker build` cannot install from the four registry hosts either.
 Other package managers (apt, go, gem, git) keep going through the egress proxy.
 
+## Outbound proxies
+
+The egress proxy can send the sessions' traffic on through the deployment's
+outbound proxies instead of from the node's own address: `OUTBOUND_PROXY_URLS`,
+the list of HTTP proxies the backend also reads for its own requests to other
+websites (the environment reference's *Outbound proxies* section describes the
+format and what goes through them). Like the other egress settings it belongs
+in the egress instance's environment, not the spawner's:
+
+```
+incus config set <egress-instance> environment.OUTBOUND_PROXY_URLS='http://user:password@203.0.113.7:8080,http://user:password@203.0.113.8:8080'
+incus restart <egress-instance>
+```
+
+The proxy then hands every connection a session opens to the next of them in
+turn, through a squid hop inside the instance (see
+[`services/sandbox-egress`](../../sandbox-egress/README.md)), and refuses to
+start on a malformed entry. The proxies must answer at public addresses, which
+the bridge NATs to: the egress firewall refuses private destinations, the
+registry caches' networks included. The caches are unaffected: sessions reach
+them directly (`NO_PROXY`), and the hosts `SANDBOX_EGRESS_DENIED_HOSTS` lists
+are refused before any outbound proxy is asked.
+
 ## The warm pool
 
 `SANDBOX_INCUS_POOL_SIZE` keeps that many **started standby instances** of the

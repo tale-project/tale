@@ -58,6 +58,21 @@ describe('loadEnv', () => {
       loadEnv({ ...BASE, TALE_MCP_ORIGIN_ENFORCE: 'yes' }),
     ).toThrow();
   });
+  it('refuses an outbound proxy list with a malformed entry, without repeating its password', () => {
+    const list = 'http://alice:s3cret@203.0.113.7:8080, http://p.example';
+    expect(
+      loadEnv({ ...BASE, OUTBOUND_PROXY_URLS: list }).OUTBOUND_PROXY_URLS,
+    ).toBe(list);
+    expect(() =>
+      loadEnv({
+        ...BASE,
+        OUTBOUND_PROXY_URLS: 'http://p.example, https://alice:s3cret@q.example',
+      }),
+    ).toThrow(/OUTBOUND_PROXY_URLS entry 2 is not an http:\/\/ proxy URL/);
+    expect(() =>
+      loadEnv({ ...BASE, OUTBOUND_PROXY_URLS: 'socks5://alice:s3cret@q:1080' }),
+    ).toThrow(/^(?![\s\S]*s3cret)/);
+  });
   it('refuses a coding-agent sign-in host list that holds something other than host names', () => {
     const env = loadEnv({
       ...BASE,

@@ -25,6 +25,8 @@
         "$TURBO_ROOT$/services/sandbox-buildkitd/docker-entrypoint.sh",
         "$TURBO_ROOT$/services/sandbox-egress/docker-entrypoint.sh",
         "$TURBO_ROOT$/services/sandbox-egress/entrypoint.sh",
+        "$TURBO_ROOT$/services/sandbox-egress/outbound-proxies.awk",
+        "$TURBO_ROOT$/services/sandbox-egress/squid.conf.template",
         "$TURBO_ROOT$/services/sandbox-egress/tinyproxy.conf.template",
         "$TURBO_ROOT$/services/sandbox-egress/README.md",
         "$TURBO_ROOT$/services/sandbox-runtime/entrypoint.sh",

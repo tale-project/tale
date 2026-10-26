@@ -128,6 +128,11 @@ const OUTSIDE_READS = [
       'tests/docs-screenshots/manifest.test.ts selects native marketing capture readiness',
   },
   {
+    // The environment references, which must name OUTBOUND_PROXY_URLS.
+    path: 'docs/*/self-hosted/configuration/environment-reference.md',
+    readers: 'tests/guards/outbound-proxies.guard.test.ts',
+  },
+  {
     path: 'knip.config.ts',
     readers: 'tests/guards/frontend-entry-discovery.guard.test.ts',
   },
@@ -167,6 +172,12 @@ const OUTSIDE_READS = [
   {
     path: 'services/db/migrations/knowledge-db',
     readers: 'backend/core/knowledge/ddl.test.ts',
+  },
+  {
+    // Run under awk, not imported: the egress service's reader of
+    // OUTBOUND_PROXY_URLS, held to the backend's.
+    path: 'services/sandbox-egress/outbound-proxies.awk',
+    readers: 'tests/guards/outbound-proxies.guard.test.ts',
   },
   {
     // Run under /bin/sh, not imported: the setup token the gateway image

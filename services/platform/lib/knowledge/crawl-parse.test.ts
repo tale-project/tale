@@ -793,7 +793,7 @@ describe('renderLaneHaltMessage', () => {
       'docs.example',
     );
     expect(message).toBe(
-      'The render sandbox could not reach docs.example through the sandbox egress proxy (page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://docs.example/a). The proxy refused or failed the connection — check the sandbox-egress service and SANDBOX_EGRESS_ALLOWLIST; no page was charged, and the next scan retries.',
+      'The render sandbox could not reach docs.example through the sandbox egress proxy (page.goto: net::ERR_TUNNEL_CONNECTION_FAILED at https://docs.example/a). The proxy refused or failed the connection — check the sandbox-egress service, SANDBOX_EGRESS_ALLOWLIST and the outbound proxies in OUTBOUND_PROXY_URLS; no page was charged, and the next scan retries.',
     );
   });
 

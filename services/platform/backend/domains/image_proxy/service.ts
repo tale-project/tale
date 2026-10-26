@@ -16,8 +16,10 @@ import {
  * the https app.
  *
  * It fetches with no credential of any kind, through the SSRF-safe client:
- * every hop is resolved, checked and pinned, and nothing private or cloud
- * metadata is reachable, however the URL or its redirects are spelled. What
+ * every hop is resolved and checked, and nothing private or cloud metadata is
+ * reachable, however the URL or its redirects are spelled. It goes out through
+ * the deployment's outbound proxies when it lists any, so the sender's server
+ * sees a proxy's address rather than this deployment's. What
  * it hands back is only a raster image, judged by its bytes rather than by
  * the label the host put on them. SVG is refused: it can carry script, and
  * mail clients do not draw it inside a message either.
@@ -155,6 +157,7 @@ async function fetchAndCheck(
   try {
     response = await fetchBinary(target.href, {
       credentialless: true,
+      outboundProxy: true,
       timeoutMs: IMAGE_PROXY_TIMEOUT_MS,
       maxResponseBytes: IMAGE_PROXY_MAX_BYTES,
       headers: {

@@ -116,10 +116,38 @@ if [ "$_open_files" != unlimited ] && [ "$_need_files" -gt "$_open_files" ]; the
   echo "[sandbox-egress] WARN: ${MAX_CLIENTS} connections need about ${_need_files} open files, more than this container's limit of ${_open_files} allows; raise its nofile ulimit or lower SANDBOX_EGRESS_MAX_CLIENTS"
 fi
 
-# Explicit SHELL-FORMAT so envsubst only ever substitutes ${FILTER_BLOCK}
-# and ${MAX_CLIENTS}; a future literal `$` in the template can't be silently
-# eaten.
-envsubst '${FILTER_BLOCK} ${MAX_CLIENTS}' \
+# Outbound proxies. OUTBOUND_PROXY_URLS lists the HTTP proxies the platform
+# sends its requests to other websites through (the backend reads the same
+# value); unset or blank, tinyproxy connects to destinations itself. Set, a
+# squid hop on 127.0.0.1:3129 takes every request tinyproxy has admitted and
+# sends it on through the next proxy in turn, passing over one that stops
+# answering. outbound-proxies.awk reads the list with the backend's grammar
+# and refusals: a malformed entry stops the start rather than letting
+# sessions out unproxied, and no message repeats an entry, which may hold a
+# password.
+if ! OUTBOUND_PEERS="$(printf '%s\n' "${OUTBOUND_PROXY_URLS:-}" | LC_ALL=C awk -f /etc/sandbox-egress/outbound-proxies.awk)"; then
+  echo "[sandbox-egress] FATAL: ${OUTBOUND_PEERS}"
+  exit 1
+fi
+if [ -n "$OUTBOUND_PEERS" ]; then
+  export OUTBOUND_PEERS
+  # The rendered config holds the proxies' passwords: readable by root, which
+  # starts squid, and by nobody else; it is never printed.
+  (
+    umask 077
+    envsubst '${OUTBOUND_PEERS}' \
+      < /etc/sandbox-egress/squid.conf.template > /etc/sandbox-egress/squid.conf
+  )
+  UPSTREAM_BLOCK='Upstream http 127.0.0.1:3129'
+else
+  UPSTREAM_BLOCK='# No upstream: OUTBOUND_PROXY_URLS lists no proxy.'
+fi
+export UPSTREAM_BLOCK
+
+# Explicit SHELL-FORMAT so envsubst only ever substitutes ${FILTER_BLOCK},
+# ${MAX_CLIENTS} and ${UPSTREAM_BLOCK}; a future literal `$` in the template
+# can't be silently eaten.
+envsubst '${FILTER_BLOCK} ${MAX_CLIENTS} ${UPSTREAM_BLOCK}' \
   < /etc/tinyproxy/tinyproxy.conf.template > /etc/tinyproxy/tinyproxy.conf
 
 echo "[sandbox-egress] starting tinyproxy on :3128 (egress mode: ${EGRESS_MODE}, at most ${MAX_CLIENTS} connections)"
@@ -132,21 +160,28 @@ elif [ "$EGRESS_MODE" = denylist ]; then
 else
   echo "[sandbox-egress] open egress: CONNECT to any public host on :443 (IP-layer SSRF firewall still blocks IMDS/RFC1918; set SANDBOX_EGRESS_ALLOWLIST to restrict)"
 fi
+if [ -n "$OUTBOUND_PEERS" ]; then
+  # Host and port only: the credentials stay in the squid config.
+  echo "[sandbox-egress] outbound proxies, used in turn through the squid hop on 127.0.0.1:3129 (OUTBOUND_PROXY_URLS):"
+  printf '%s\n' "$OUTBOUND_PEERS" | awk '{ print "  http://" $2 ":" $4 }'
+fi
 echo "[sandbox-egress] config:"
 sed 's/^/  /' /etc/tinyproxy/tinyproxy.conf
 
-# Supervision. This shell (PID 1) runs dnsmasq and tinyproxy in the
-# background and watches both. Either one exiting on its own stops the other
-# and exits non-zero, so the restart policy brings the container back whole:
-# nested containers and BuildKit RUN steps resolve names only through this
-# dnsmasq, so a proxy left serving without it is a silent DNS outage for every
-# session. A trap forwards INT/TERM to both, so `docker stop` gives them a
-# clean shutdown (drained CONNECT tunnels) instead of the SIGKILL that follows
-# the grace period, and the shell then exits with tinyproxy's status. The
-# trap is set before either starts, and the stop path signals both again, so
-# a stop that arrives while they are starting still reaches both. (Not `exec
-# tinyproxy`: that replaces the shell and with it the trap — shell traps do
-# not survive exec — so dnsmasq would never be watched or stopped.)
+# Supervision. This shell (PID 1) runs dnsmasq, tinyproxy and, when outbound
+# proxies are listed, the squid hop in the background and watches them. Any
+# one exiting on its own stops the others and exits non-zero, so the restart
+# policy brings the container back whole: nested containers and BuildKit RUN
+# steps resolve names only through this dnsmasq, so a proxy left serving
+# without it is a silent DNS outage for every session, and a tinyproxy left
+# serving without its hop fails every request. A trap forwards INT/TERM to
+# them all, so `docker stop` gives them a clean shutdown (drained CONNECT
+# tunnels) instead of the SIGKILL that follows the grace period, and the shell
+# then exits with tinyproxy's status. The trap is set before any starts, and
+# the stop path signals them all again, so a stop that arrives while they are
+# starting still reaches each. (Not `exec tinyproxy`: that replaces the shell
+# and with it the trap — shell traps do not survive exec — so dnsmasq would
+# never be watched or stopped.)
 #
 # errexit is switched off from here on: when the trap fires mid-`wait`, POSIX
 # `wait` returns 128+signal (143) and `set -e` would exit PID 1 right there —
@@ -156,8 +191,9 @@ set +e
 STOPPING=
 DNSMASQ_PID=
 TINYPROXY_PID=
+SQUID_PID=
 NAP_PID=
-trap 'STOPPING=1; kill -TERM $TINYPROXY_PID $DNSMASQ_PID $NAP_PID 2>/dev/null' INT TERM
+trap 'STOPPING=1; kill -TERM $TINYPROXY_PID $DNSMASQ_PID $SQUID_PID $NAP_PID 2>/dev/null' INT TERM
 
 # Whether a child still runs. /proc answers without signalling it: tinyproxy
 # runs as nobody, and root may signal it only while it holds KILL. `kill -0`
@@ -204,14 +240,24 @@ dnsmasq --keep-in-foreground --bind-dynamic --no-hosts -u root \
   $_refuse &
 DNSMASQ_PID=$!
 
+# The squid hop starts before tinyproxy, which hands it every request. It
+# runs in the foreground (-N) as a single process with no helper, reads its
+# config as root and then serves as the `squid` user; `-d 1` sends its
+# operational messages (a proxy marked dead or revived) to the container log.
+if [ -n "$OUTBOUND_PEERS" ]; then
+  squid -N -d 1 -f /etc/sandbox-egress/squid.conf &
+  SQUID_PID=$!
+fi
+
 # tinyproxy logs to its stdout, which is the container log, so nothing else
 # needs to run beside it.
 tinyproxy -d -c /etc/tinyproxy/tinyproxy.conf &
 TINYPROXY_PID=$!
 
-# Check on both every two seconds. The `wait` on the nap is what reaps a child
+# Check on them every two seconds. The `wait` on the nap is what reaps a child
 # that exited, and a signal interrupts it at once.
-while [ -z "$STOPPING" ] && running "$TINYPROXY_PID" && running "$DNSMASQ_PID"; do
+while [ -z "$STOPPING" ] && running "$TINYPROXY_PID" && running "$DNSMASQ_PID" \
+  && { [ -z "$SQUID_PID" ] || running "$SQUID_PID"; }; do
   sleep 2 &
   NAP_PID=$!
   wait "$NAP_PID"
@@ -219,7 +265,8 @@ while [ -z "$STOPPING" ] && running "$TINYPROXY_PID" && running "$DNSMASQ_PID"; 
 done
 
 if [ -n "$STOPPING" ]; then
-  kill -TERM "$TINYPROXY_PID" "$DNSMASQ_PID" 2>/dev/null
+  # shellcheck disable=SC2086 # SQUID_PID is empty when no hop runs
+  kill -TERM "$TINYPROXY_PID" "$DNSMASQ_PID" $SQUID_PID 2>/dev/null
   wait "$TINYPROXY_PID"
   rc=$?
   # A second signal interrupts `wait` before tinyproxy has exited; wait on it
@@ -229,17 +276,21 @@ if [ -n "$STOPPING" ]; then
   exit "$rc"
 fi
 
-if running "$TINYPROXY_PID"; then
+if ! running "$TINYPROXY_PID"; then
+  DEAD=tinyproxy
+  DEAD_PID=$TINYPROXY_PID
+elif ! running "$DNSMASQ_PID"; then
   DEAD=dnsmasq
   DEAD_PID=$DNSMASQ_PID
 else
-  DEAD=tinyproxy
-  DEAD_PID=$TINYPROXY_PID
+  DEAD=squid
+  DEAD_PID=$SQUID_PID
 fi
 wait "$DEAD_PID"
 rc=$?
-echo "[sandbox-egress] FATAL: ${DEAD} exited with status ${rc}; stopping the proxy so the container restarts with both"
-kill -TERM "$TINYPROXY_PID" "$DNSMASQ_PID" 2>/dev/null
+echo "[sandbox-egress] FATAL: ${DEAD} exited with status ${rc}; stopping the proxy so the container restarts whole"
+# shellcheck disable=SC2086 # SQUID_PID is empty when no hop runs
+kill -TERM "$TINYPROXY_PID" "$DNSMASQ_PID" $SQUID_PID 2>/dev/null
 wait
 if [ "$rc" -eq 0 ]; then
   rc=1

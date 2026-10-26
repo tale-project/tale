@@ -774,9 +774,10 @@ export function classifyRenderReason(reason: string): {
  *
  * `proxy`: Chromium got no tunnel through the sandbox egress proxy — the
  * proxy answered the CONNECT with an error (a default-deny allowlist that
- * omits the host, a client it does not admit, no route out) or was not
- * reachable at all. The probe leg fetched this very page over the host's own
- * network seconds earlier, so a refused CONNECT is the lane, not the site.
+ * omits the host, a client it does not admit, no route out, no outbound proxy
+ * of `OUTBOUND_PROXY_URLS` answering) or was not reachable at all. The probe
+ * leg fetched this very page from the backend seconds earlier, so a refused
+ * CONNECT is the lane, not the site.
  * Charging it benched every page of a site whose host an operator's
  * `SANDBOX_EGRESS_ALLOWLIST` omitted (2026-09-30).
  *
@@ -820,7 +821,7 @@ export function renderLaneHaltMessage(
 ): string {
   const cause = publicPageError(halt.error);
   if (halt.reason === 'egress_proxy') {
-    return `The render sandbox could not reach ${domain} through the sandbox egress proxy (${cause}). The proxy refused or failed the connection — check the sandbox-egress service and SANDBOX_EGRESS_ALLOWLIST; no page was charged, and the next scan retries.`;
+    return `The render sandbox could not reach ${domain} through the sandbox egress proxy (${cause}). The proxy refused or failed the connection — check the sandbox-egress service, SANDBOX_EGRESS_ALLOWLIST and the outbound proxies in OUTBOUND_PROXY_URLS; no page was charged, and the next scan retries.`;
   }
   return `The render sandbox's browser stopped answering (${cause}); no page was charged, and the next scan retries.`;
 }
