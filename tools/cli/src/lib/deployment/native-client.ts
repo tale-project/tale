@@ -652,9 +652,9 @@ function providerOptions(auth: NativeAuth): ProviderOptions {
         codeExpiresIn: z.literal(300),
         accessTokenExpiresIn: z.literal(300),
         idTokenExpiresIn: z.literal(300),
-        prefix: z.undefined(),
-        generateClientId: z.undefined(),
-        generateClientSecret: z.undefined(),
+        prefix: z.undefined().optional(),
+        generateClientId: z.undefined().optional(),
+        generateClientSecret: z.undefined().optional(),
         clientReference: z.custom((value) => typeof value === 'function'),
         clientPrivileges: z.custom((value) => typeof value === 'function'),
       })

@@ -93,7 +93,7 @@ const passwordOptions = z
     password: z
       .object({ hash: callable, verify: callable })
       .passthrough()
-      .or(z.undefined()),
+      .optional(),
   })
   .passthrough();
 const sessionSchema = z.object({

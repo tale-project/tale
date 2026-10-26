@@ -116,3 +116,52 @@ the route.
 **Remove it when** the router packages move to a release whose loader passes the test unpatched
 (1.171's rewrite is the candidate). Bump `@tanstack/react-router` and the router plugin together,
 delete this entry and its `patchedDependencies` line, and keep the test.
+
+## `zod@4.6.6.patch`
+
+**Why.** zod 4.6.6 is the first release that fixes
+[GHSA-mrhx-c7xc-m3w5](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5) (memory exhaustion while
+validating an oversized constrained collection), which the Security workflow's audit gates refuse.
+The 4.5 releases on the way also changed three behaviours Tale's doors are built on, and the patch
+keeps them as 4.3.6 had them, so the upgrade changes nothing a caller sees:
+
+- **String length.** `.min()`, `.max()` and `.length()` count Unicode code points since 4.5
+  ([colinhacks/zod#6441](https://github.com/colinhacks/zod/pull/6441)). Tale states every string cap
+  in UTF-16 code units, `String.length` ("most emoji count as 2"), in the API reference, the MCP
+  page and its own refusals, and its domain checks measure the same unit.
+- **Error precedence.** Since 4.5 a schema's own error map also phrases the issues its checks raise,
+  ahead of the map the parse call passes ([#6426](https://github.com/colinhacks/zod/pull/6426)).
+  The doors parse with `houseIssueMessage` and give a schema an error of its own for its type alone
+  (`z.int({ error: 'must be a whole number' }).min(1)`), so a range, or an issue a refinement raises
+  again, lost its house words; the repository has about 300 such schema-level errors.
+- **JSON Schema.** Since 4.5 `toJSONSchema` folds an `anyOf` of bare types into a `type` array
+  ([#6339](https://github.com/colinhacks/zod/pull/6339)). That rewrote ten nullable fields of the
+  tool schemas the MCP endpoint advertises, and with them its contract fingerprint. The OpenAPI
+  document renders for `openapi-3.0`, which Zod never folds.
+
+**What.** The same change goes into each build the package ships: `v4/core/*.js` (`import`),
+`v4/core/*.cjs` (`require`) and `src/v4/core/*.ts` (the `@zod/source` condition). The hunks are
+marked `Tale:`.
+
+- `util`, `codePointLength`: returns `str.length`. Every length check, interpreted or compiled
+  (`compile`), measures a string through it.
+- `util`, `finalizeIssue`: the owning schema's map is no longer asked about a check's issue.
+- `to-json-schema`, `compactTypeUnion`: returns at once.
+
+**Proof.** `packages/shared/src/schemas/zod-patch.test.ts` states the three behaviours on plain
+schemas; on unpatched 4.6.6 each of its cases fails. In context, these failed on 4.6.6 without the
+patch: `services/platform/backend/rest/shared.test.ts` (an emoji counts 2 against a cap),
+`services/platform/backend/domains/mcp/protocol.test.ts` (a range and a version field keep their
+house words) and `services/platform/lib/mcp/contract.test.ts` (the advertised schemas and their
+fingerprint).
+
+**Behaviour change.** None against 4.3.6, which Tale ran before. The other changes of 4.4 to 4.6 are
+taken as they come. An object key typed `z.undefined()` is required unless it is `.optional()`, so
+the CLI's provider policy and break-glass checks now say `.optional()` where the key may be absent.
+The remaining "potentially breaking" fixes of the release notes leave every suite green.
+
+**Remove it when** Tale decides each behaviour on purpose. That means counting caps in code points
+(the API reference, the MCP page and the domain checks change with it, in every locale), scoping its
+schema-level errors to the issues they name, and advertising type arrays under a new
+`API_CONTRACT_VERSION`. A hunk can go on its own: regenerate the rest with `bun patch`, and keep the
+proof test's cases for the behaviours that stay.

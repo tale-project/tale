@@ -1,0 +1,149 @@
+diff --git a/src/v4/core/to-json-schema.ts b/src/v4/core/to-json-schema.ts
+index 855c0c7f2d424bddd8bcf900dbe244d7151994e5..afdd630f9f0e400839835e90f8d1d21220c42232 100644
+--- a/src/v4/core/to-json-schema.ts
++++ b/src/v4/core/to-json-schema.ts
+@@ -442,6 +442,9 @@ export function extractDefs<T extends schemas.$ZodType>(
+ 
+ /** Rewrites `anyOf: [{type: "a"}, {type: "b"}]` to `type: ["a", "b"]`, which every JSON Schema draft treats as equivalent and most consumers render far better for the nullable case. Only branches that are a bare type assertion qualify — anything carrying a constraint, `$ref`, `const` or metadata is left alone. Runs after `flattenRef`, so a branch an override decorated or `$defs` extraction turned into a `$ref` is no longer bare and correctly stays in `anyOf`. `oneOf` is excluded: `integer` and `number` overlap, so "exactly one" and "at least one" are not the same there. OpenAPI 3.0 is excluded: its `type` must be a single string. */
+ function compactTypeUnion(schema: JSONSchema.BaseSchema): void {
++  // Tale: keep `anyOf` of bare types as Zod rendered it before 4.5, so an advertised
++  // schema does not change with the dependency (patches/README.md).
++  return;
+   const options = schema.anyOf;
+   if (!Array.isArray(options) || options.length === 0 || schema.type !== undefined) return;
+ 
+diff --git a/src/v4/core/util.ts b/src/v4/core/util.ts
+index 8835801dcdfa643331a0ad1c93f13c66f6b278c9..9a4530dfa4411c81ff665497e99c4279f85a47d8 100644
+--- a/src/v4/core/util.ts
++++ b/src/v4/core/util.ts
+@@ -967,7 +967,9 @@ export function finalizeIssue(
+   }
+ 
+   // Decreasing specificity, first map to return a message wins. `inst` is whatever raised the issue, so a check's own map outranks the owning schema's.
+-  const schemaError = iss.schema !== iss.inst ? iss.schema?._zod.def?.error : undefined;
++  // Tale: the owning schema's map does not cover its checks' issues, as before 4.5;
++  // the parse call's map phrases them (patches/README.md).
++  const schemaError: undefined = undefined;
+   const message = iss.message
+     ? iss.message
+     : (unwrapMessage(iss.inst?._zod.def?.error?.(iss as never)) ??
+@@ -1003,16 +1005,9 @@ const highSurrogate = /[\uD800-\uDBFF]/;
+ 
+ // Code points in `str`: a surrogate pair counts once, a lone surrogate as itself. Hand-rolled because the string iterator allocates and runs ~250x slower on this path; the regex probe exits ~50x quicker for a string with no astral characters.
+ export function codePointLength(str: string): number {
+-  const units = str.length;
+-  if (!highSurrogate.test(str)) return units;
+-  let count = units;
+-  for (let i = 0; i < units - 1; i++) {
+-    if ((str.charCodeAt(i) & 0xfc00) === 0xd800 && (str.charCodeAt(i + 1) & 0xfc00) === 0xdc00) {
+-      count--;
+-      i++;
+-    }
+-  }
+-  return count;
++  // Tale: count UTF-16 code units (String.length), as Zod did before 4.5; Tale's
++  // documented string caps are in those units (patches/README.md).
++  return str.length;
+ }
+ 
+ export function getLengthableOrigin(input: any): "array" | "string" | "unknown" {
+diff --git a/v4/core/to-json-schema.cjs b/v4/core/to-json-schema.cjs
+index c2db7a55afd652408925c24bba4103d3b3351857..5a0bc06e678023cc84814058cea5580c0456af2a 100644
+--- a/v4/core/to-json-schema.cjs
++++ b/v4/core/to-json-schema.cjs
+@@ -262,6 +262,9 @@ function extractDefs(ctx, schema
+ }
+ /** Rewrites `anyOf: [{type: "a"}, {type: "b"}]` to `type: ["a", "b"]`, which every JSON Schema draft treats as equivalent and most consumers render far better for the nullable case. Only branches that are a bare type assertion qualify — anything carrying a constraint, `$ref`, `const` or metadata is left alone. Runs after `flattenRef`, so a branch an override decorated or `$defs` extraction turned into a `$ref` is no longer bare and correctly stays in `anyOf`. `oneOf` is excluded: `integer` and `number` overlap, so "exactly one" and "at least one" are not the same there. OpenAPI 3.0 is excluded: its `type` must be a single string. */
+ function compactTypeUnion(schema) {
++    // Tale: keep `anyOf` of bare types as Zod rendered it before 4.5, so an advertised
++    // schema does not change with the dependency (patches/README.md).
++    return;
+     const options = schema.anyOf;
+     if (!Array.isArray(options) || options.length === 0 || schema.type !== undefined)
+         return;
+diff --git a/v4/core/to-json-schema.js b/v4/core/to-json-schema.js
+index c0ae14b7326566650a389c86c367c64341e7edcb..99fa43b759baeaf8265e42d20d29386b758dbc58 100644
+--- a/v4/core/to-json-schema.js
++++ b/v4/core/to-json-schema.js
+@@ -253,6 +253,9 @@ export function extractDefs(ctx, schema
+ }
+ /** Rewrites `anyOf: [{type: "a"}, {type: "b"}]` to `type: ["a", "b"]`, which every JSON Schema draft treats as equivalent and most consumers render far better for the nullable case. Only branches that are a bare type assertion qualify — anything carrying a constraint, `$ref`, `const` or metadata is left alone. Runs after `flattenRef`, so a branch an override decorated or `$defs` extraction turned into a `$ref` is no longer bare and correctly stays in `anyOf`. `oneOf` is excluded: `integer` and `number` overlap, so "exactly one" and "at least one" are not the same there. OpenAPI 3.0 is excluded: its `type` must be a single string. */
+ function compactTypeUnion(schema) {
++    // Tale: keep `anyOf` of bare types as Zod rendered it before 4.5, so an advertised
++    // schema does not change with the dependency (patches/README.md).
++    return;
+     const options = schema.anyOf;
+     if (!Array.isArray(options) || options.length === 0 || schema.type !== undefined)
+         return;
+diff --git a/v4/core/util.cjs b/v4/core/util.cjs
+index 7db65e0cada986f911868d1c0464fe2adee1fb66..96bc31a27dd6172fc406ecb3c44b1d0a6199a453 100644
+--- a/v4/core/util.cjs
++++ b/v4/core/util.cjs
+@@ -652,7 +652,9 @@ function finalizeIssue(iss, ctx, config) {
+             iss.schema = iss.inst;
+     }
+     // Decreasing specificity, first map to return a message wins. `inst` is whatever raised the issue, so a check's own map outranks the owning schema's.
+-    const schemaError = iss.schema !== iss.inst ? iss.schema?._zod.def?.error : undefined;
++    // Tale: the owning schema's map does not cover its checks' issues, as before 4.5;
++    // the parse call's map phrases them (patches/README.md).
++    const schemaError = undefined;
+     const message = iss.message
+         ? iss.message
+         : (unwrapMessage(iss.inst?._zod.def?.error?.(iss)) ??
+@@ -688,17 +690,9 @@ function getSizableOrigin(input) {
+ const highSurrogate = /[\uD800-\uDBFF]/;
+ // Code points in `str`: a surrogate pair counts once, a lone surrogate as itself. Hand-rolled because the string iterator allocates and runs ~250x slower on this path; the regex probe exits ~50x quicker for a string with no astral characters.
+ function codePointLength(str) {
+-    const units = str.length;
+-    if (!highSurrogate.test(str))
+-        return units;
+-    let count = units;
+-    for (let i = 0; i < units - 1; i++) {
+-        if ((str.charCodeAt(i) & 0xfc00) === 0xd800 && (str.charCodeAt(i + 1) & 0xfc00) === 0xdc00) {
+-            count--;
+-            i++;
+-        }
+-    }
+-    return count;
++    // Tale: count UTF-16 code units (String.length), as Zod did before 4.5; Tale's
++    // documented string caps are in those units (patches/README.md).
++    return str.length;
+ }
+ function getLengthableOrigin(input) {
+     if (Array.isArray(input))
+diff --git a/v4/core/util.js b/v4/core/util.js
+index b53c7a0ae51b9ad0e49f7262f282b01c67671681..ce021868a83e0f11e7dd7443d79036244d6ba968 100644
+--- a/v4/core/util.js
++++ b/v4/core/util.js
+@@ -581,7 +581,9 @@ export function finalizeIssue(iss, ctx, config) {
+             iss.schema = iss.inst;
+     }
+     // Decreasing specificity, first map to return a message wins. `inst` is whatever raised the issue, so a check's own map outranks the owning schema's.
+-    const schemaError = iss.schema !== iss.inst ? iss.schema?._zod.def?.error : undefined;
++    // Tale: the owning schema's map does not cover its checks' issues, as before 4.5;
++    // the parse call's map phrases them (patches/README.md).
++    const schemaError = undefined;
+     const message = iss.message
+         ? iss.message
+         : (unwrapMessage(iss.inst?._zod.def?.error?.(iss)) ??
+@@ -617,17 +619,9 @@ export function getSizableOrigin(input) {
+ const highSurrogate = /[\uD800-\uDBFF]/;
+ // Code points in `str`: a surrogate pair counts once, a lone surrogate as itself. Hand-rolled because the string iterator allocates and runs ~250x slower on this path; the regex probe exits ~50x quicker for a string with no astral characters.
+ export function codePointLength(str) {
+-    const units = str.length;
+-    if (!highSurrogate.test(str))
+-        return units;
+-    let count = units;
+-    for (let i = 0; i < units - 1; i++) {
+-        if ((str.charCodeAt(i) & 0xfc00) === 0xd800 && (str.charCodeAt(i + 1) & 0xfc00) === 0xdc00) {
+-            count--;
+-            i++;
+-        }
+-    }
+-    return count;
++    // Tale: count UTF-16 code units (String.length), as Zod did before 4.5; Tale's
++    // documented string caps are in those units (patches/README.md).
++    return str.length;
+ }
+ export function getLengthableOrigin(input) {
+     if (Array.isArray(input))
