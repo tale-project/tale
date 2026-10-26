@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
 /**
- * The three behaviours `patches/zod@4.6.6.patch` keeps as Zod had them
- * before 4.5, on plain schemas. Every door, the CLI and the MCP endpoint
- * build on them; patches/README.md says why each is kept and when it goes.
+ * The four behaviours `patches/zod@4.6.6.patch` keeps as Zod had them
+ * before 4.4 and 4.5, on plain schemas. Every door, the CLI and the MCP
+ * endpoint build on them; patches/README.md says why each is kept and when
+ * it goes.
  */
 describe('zod as Tale patches it', () => {
   it('measures a string cap in UTF-16 code units, where an emoji counts 2', () => {
@@ -24,6 +25,16 @@ describe('zod as Tale patches it', () => {
       }).error?.issues[0]?.message;
     expect(phrase(1.5)).toBe('must be a whole number');
     expect(phrase(0)).toBe('must be at least 1');
+  });
+
+  it('lets an object leave out a key whose schema takes undefined', async () => {
+    const row = z.object({ id: z.string(), error: z.unknown() });
+    expect(row.safeParse({ id: 'm1' }).data).toEqual({ id: 'm1' });
+    expect((await row.safeParseAsync({ id: 'm1' })).data).toEqual({ id: 'm1' });
+    expect(Object.keys(row.parse({ id: 'm1' }))).toEqual(['id']);
+    const note = z.object({ note: z.string().or(z.undefined()) });
+    expect(note.safeParse({}).success).toBe(true);
+    expect(note.safeParse({ note: 1 }).success).toBe(false);
   });
 
   it('renders a nullable field as anyOf, not as a type array', () => {
