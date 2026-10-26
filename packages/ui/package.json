@@ -531,7 +531,7 @@
     "date-fns": "4.1.0",
     "dayjs": "1.11.20",
     "diff": "8.0.4",
-    "dompurify": "3.4.16",
+    "dompurify": "3.4.17",
     "elkjs": "0.11.1",
     "framer-motion": "12.38.0",
     "i18next": "26.0.4",
@@ -567,12 +567,12 @@
     "unist-util-visit": "5.1.0",
     "vaul": "1.1.2",
     "yaml": "2.8.3",
-    "zod": "4.3.6"
+    "zod": "4.6.6"
   },
   "devDependencies": {
-    "@storybook/addon-vitest": "10.3.5",
-    "@storybook/react": "10.3.5",
-    "@storybook/react-vite": "10.3.5",
+    "@storybook/addon-vitest": "10.6.2",
+    "@storybook/react": "10.6.2",
+    "@storybook/react-vite": "10.6.2",
     "@testing-library/jest-dom": "6.9.1",
     "@testing-library/react": "16.3.2",
     "@testing-library/user-event": "14.6.1",
@@ -581,7 +581,7 @@
     "@vitejs/plugin-react": "6.0.1",
     "@vitest/browser-playwright": "4.1.10",
     "axe-core": "4.13.0",
-    "storybook": "10.3.5",
+    "storybook": "10.6.2",
     "vite-plugin-pwa": "1.3.0",
     "vitest": "4.1.11",
     "vitest-axe": "1.0.0-pre.5"
