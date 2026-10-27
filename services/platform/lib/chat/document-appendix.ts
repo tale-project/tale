@@ -78,5 +78,8 @@ export function buildImageAppendix(
   const lines = entries.map(
     (entry) => `- "${entry.fileName}" (ref: ${entry.fileId})`,
   );
-  return `\n\n---\n**Attached images** (pass a ref to a tool that takes files, such as generate_image's inputImages)\n${lines.join('\n')}\n---\n`;
+  // No tool is named: the appendix rides every turn, also one that is
+  // offered no tool taking files, and a model is never told about a tool
+  // it was not offered (CHAT-R18).
+  return `\n\n---\n**Attached images** (pass a ref to a tool that takes files)\n${lines.join('\n')}\n---\n`;
 }

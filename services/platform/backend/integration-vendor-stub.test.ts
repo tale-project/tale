@@ -164,6 +164,10 @@ describe('the vendor stub behind the routed fetch', () => {
     expect(tagsOf('itest-vendor/chat')).toContain('chat');
     expect(tagsOf('itest-vendor/embed')).toContain('embedding');
     expect(tagsOf('itest-vendor/image')).toContain('image-generation');
+    expect(
+      openrouter.find((entry) => entry.id === 'itest-vendor/image')
+        ?.imageGeneration,
+    ).toEqual({ aspectRatios: ['1:1', '4:3', '3:4'] });
     expect(tagsOf('itest-vendor/transcribe')).toEqual(['transcription']);
     expect(
       gateway.find((entry) => entry.id === 'itest-vendor/gateway-chat')?.tags,
@@ -172,6 +176,7 @@ describe('the vendor stub behind the routed fetch', () => {
       stub.requests.map((request) => `${request.host}${request.path}`).sort(),
     ).toEqual([
       'ai-gateway.vercel.sh/v1/models',
+      'openrouter.ai/api/v1/images/models',
       'openrouter.ai/api/v1/models',
       'openrouter.ai/api/v1/models?output_modalities=embeddings',
       'openrouter.ai/api/v1/models?output_modalities=image',

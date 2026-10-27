@@ -63,7 +63,8 @@ describe('buildImageAppendix', () => {
     expect(appendix).toContain('Attached images');
     expect(appendix).toContain('"photo.png" (ref: s3:acme/photo)');
     expect(appendix).toContain('"logo.jpg" (ref: s3:acme/logo)');
-    expect(appendix).toContain('inputImages');
+    // It rides turns offered no tool that takes files too, so it names none.
+    expect(appendix).not.toMatch(/generate_image|run_code|inputImages/);
     expect(appendix.indexOf('photo.png')).toBeLessThan(
       appendix.indexOf('logo.jpg'),
     );

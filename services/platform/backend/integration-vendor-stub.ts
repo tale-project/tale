@@ -125,6 +125,22 @@ const OPENROUTER_LISTINGS: Readonly<Record<string, readonly unknown[]>> = {
   ],
 };
 
+/** OpenRouter's image API listing (`/api/v1/images/models`): what each image
+ * model accepts, as parameter descriptors. Shaped as the live API answers. */
+const OPENROUTER_IMAGE_MODELS: readonly unknown[] = [
+  {
+    id: 'itest-vendor/image',
+    name: 'Itest vendor image',
+    architecture: { input_modalities: ['text'], output_modalities: ['image'] },
+    supported_parameters: {
+      aspect_ratio: { type: 'enum', values: ['1:1', '4:3', '3:4', 'auto'] },
+      n: { type: 'range', min: 1, max: 1 },
+    },
+    supports_streaming: false,
+    endpoints: '/api/v1/images/models/itest-vendor/image/endpoints',
+  },
+];
+
 /** The Vercel AI Gateway's `/models`, in its OpenAI-compatible dialect. */
 const VERCEL_LISTING: readonly unknown[] = [
   {
@@ -168,6 +184,13 @@ export function vendorAnswer(
     return listing === undefined
       ? null
       : { status: 200, body: { data: listing } };
+  }
+  if (
+    host === 'openrouter.ai' &&
+    method === 'GET' &&
+    path === '/api/v1/images/models'
+  ) {
+    return { status: 200, body: { data: OPENROUTER_IMAGE_MODELS } };
   }
   if (
     host === 'ai-gateway.vercel.sh' &&

@@ -221,7 +221,7 @@ function drawsFromPrompt(entry: ModelCatalogEntry): boolean {
   const formats = facts?.outputFormats;
   return (
     formats === undefined ||
-    formats.some((format) => RASTER_OUTPUT_FORMATS.has(format))
+    formats.some((format) => RASTER_OUTPUT_FORMATS.has(format.toLowerCase()))
   );
 }
 
