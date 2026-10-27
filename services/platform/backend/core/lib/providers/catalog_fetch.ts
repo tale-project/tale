@@ -44,7 +44,9 @@ import {
 import { safeFetch, SafeFetchError } from '../../../../lib/net/safe-fetch';
 import { ALLOWLIST_CATALOG_CONTEXT_WINDOW } from '../../../../lib/shared/providers/allowlist_catalog';
 import {
+  IMAGE_GENERATION_TAG,
   normalizeCatalogPayload,
+  readImageGenerationFactsListing,
   type NormalizeCatalogOptions,
 } from '../../../../lib/shared/providers/catalog_normalize';
 import {
@@ -67,6 +69,15 @@ const OPENROUTER_EMBEDDINGS_CATALOG_URL =
  * narrows image coverage, never the chat catalog. */
 const OPENROUTER_IMAGE_CATALOG_URL =
   'https://openrouter.ai/api/v1/models?output_modalities=image';
+/** What each image model accepts — the aspect ratios it draws, how many
+ * reference images it takes, the formats it returns — is published only in
+ * OpenRouter's image API listing (verified against the live API,
+ * 2026-10-27: Recraft refuses the 3:2 every other model draws, and five
+ * edit models refuse a request without a reference image). A FACTS listing:
+ * merged into the image entries the listings above name, never a source of
+ * entries; without it the facts stay unknown and the image wire keeps its
+ * defaults. */
+const OPENROUTER_IMAGE_FACTS_URL = 'https://openrouter.ai/api/v1/images/models';
 /** STT is another separately published population. Keep its cache/failure
  * state separate so audio discovery outages neither blank chat nor become
  * a successful chat-only catalog that claims no transcription is configured. */
@@ -201,6 +212,20 @@ async function fetchListingPayload(
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
 }
 
+/** The facts of an image model listing, set on the image entries it names
+ * (in place). An entry that already carries facts keeps them. */
+function mergeImageFacts(entries: ModelCatalogEntry[], payload: unknown): void {
+  const facts = readImageGenerationFactsListing(payload);
+  for (const [index, entry] of entries.entries()) {
+    if (!entry.tags.includes(IMAGE_GENERATION_TAG)) continue;
+    if (entry.imageGeneration !== undefined) continue;
+    const published = facts.get(entry.id);
+    if (published !== undefined) {
+      entries[index] = { ...entry, imageGeneration: published };
+    }
+  }
+}
+
 /** Fetch → normalize → validate one live catalog; an empty usable set is a
  * failure (never cached — a blank catalog would silently empty the model
  * picker while the stale one is strictly better).
@@ -261,6 +286,10 @@ async function fetchLiveCatalog(
         allowedHosts,
         bearerToken,
       );
+      if (url === OPENROUTER_IMAGE_FACTS_URL) {
+        mergeImageFacts(entries, supplementPayload);
+        continue;
+      }
       const supplement = normalizeCatalogPayload(
         supplementPayload,
         provider,
@@ -285,8 +314,9 @@ async function fetchLiveCatalog(
  * listing doesn't carry (curated flagships pinned even when a listing drops
  * or renames them). CURATED BLOCKS are the exception: `tts` and `embedding`
  * facts exist only in the shipped files (no live listing publishes voices or
- * vector widths), so when a live entry shadows a default of the same id
- * those blocks are carried over — otherwise every refresh would erase the
+ * vector widths), and `imageGeneration` facts may be curated there too, so
+ * when a live entry shadows a default of the same id those blocks are
+ * carried over — otherwise every refresh would erase the
  * very facts the one-click setup depends on. `reasoning.off` is curated the
  * same way (it is probe-verified per model, and no listing publishes it),
  * but rides over ONLY while the live entry still declares the same knob — a
@@ -307,6 +337,10 @@ function mergeWithDefaults(
         : {}),
       ...(entry.embedding === undefined && fallback.embedding !== undefined
         ? { embedding: fallback.embedding }
+        : {}),
+      ...(entry.imageGeneration === undefined &&
+      fallback.imageGeneration !== undefined
+        ? { imageGeneration: fallback.imageGeneration }
         : {}),
       ...(entry.reasoning !== undefined &&
       entry.reasoning.off === undefined &&
@@ -495,6 +529,8 @@ export async function getProviderCatalog(
             OPENROUTER_CATALOG_URL,
             OPENROUTER_EMBEDDINGS_CATALOG_URL,
             OPENROUTER_IMAGE_CATALOG_URL,
+            // Last: its facts land on the entries every listing above named.
+            OPENROUTER_IMAGE_FACTS_URL,
           ],
           options,
         ),

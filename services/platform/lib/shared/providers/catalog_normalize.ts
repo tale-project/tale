@@ -32,14 +32,22 @@
  * dropped the user's pick from the body.
  *
  * Chat and embedding entries require a positive context window. Pure STT
- * listings may publish zero or no token window; 0 preserves that absence
- * without inventing a conversational budget. STT pricing may be per audio
- * duration, so its generic prompt/completion fields are not token prices.
+ * listings and image generators that write no text may publish zero or no
+ * token window; 0 preserves that absence without inventing a conversational
+ * budget. STT pricing may be per audio duration, so its generic
+ * prompt/completion fields are not token prices.
+ *
+ * OpenRouter publishes what each image model accepts in a listing of its own
+ * (`/api/v1/images/models`), whose `supported_parameters` is an object of
+ * descriptors rather than a list of names: {@link readImageGenerationFacts}
+ * reads it into the entry's `imageGeneration` facts.
  */
 
 import {
   modelCatalogEntrySchema,
+  modelCatalogImageGenerationSchema,
   type ModelCatalogEntry,
+  type ModelCatalogImageGeneration,
 } from '@tale/shared/schemas/providers';
 
 /**
@@ -230,13 +238,22 @@ export function normalizeCatalogModel(
     publishedWindow === undefined &&
     absentTokenWindow &&
     options.defaultContextWindow !== undefined;
+  // An image generator that writes no text reads a prompt and nothing else,
+  // so a listing may publish no window for it (OpenRouter lists Seedream 5.0
+  // with 0): kept with 0, like transcription, instead of being dropped.
+  const drawsOnly =
+    outputModalities.includes('image') &&
+    !outputModalities.includes('text') &&
+    entryType !== 'language';
   const contextWindow =
     publishedWindow ??
     (isTranscription && absentTokenWindow
       ? 0
       : bareEntry
         ? options.defaultContextWindow
-        : undefined);
+        : drawsOnly && absentTokenWindow
+          ? 0
+          : undefined);
   if (contextWindow === undefined) return null;
   const supportsVision = !isTranscription && inputModalities.includes('image');
 
@@ -364,4 +381,78 @@ export function normalizeCatalogPayload(
     entries.push(entry);
   }
   return { entries, droppedCount };
+}
+
+/** `width:height` as image APIs spell an aspect ratio (`3:2`, `9:19.5`). */
+const ASPECT_RATIO_PATTERN = /^\d{1,3}(?:\.\d{1,2})?:\d{1,3}(?:\.\d{1,2})?$/;
+
+function nonNegativeInt(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+/**
+ * The image facts one entry of OpenRouter's image model listing
+ * (`/api/v1/images/models`) publishes, or `null` when it names no model. Its
+ * `supported_parameters` maps each request parameter to a descriptor —
+ * `{type: 'enum', values}`, `{type: 'range', min, max}` or
+ * `{type: 'boolean'}`. Only the facts the image wire acts on are read, and a
+ * fact the entry leaves out stays unknown rather than read as "unsupported":
+ * the listing omits parameters some models still take (Meta's Muse Image
+ * lists none and draws every aspect ratio asked of it).
+ */
+export function readImageGenerationFacts(
+  raw: unknown,
+): { id: string; facts: ModelCatalogImageGeneration } | null {
+  const m = asRecord(raw);
+  if (!m || typeof m.id !== 'string' || m.id.length === 0) return null;
+  const parameters = asRecord(m.supported_parameters);
+  const facts: ModelCatalogImageGeneration = {};
+  const ratios = asRecord(parameters?.aspect_ratio);
+  if (ratios?.type === 'enum') {
+    const values = asStringArray(ratios.values).filter((value) =>
+      ASPECT_RATIO_PATTERN.test(value),
+    );
+    if (values.length > 0) facts.aspectRatios = [...new Set(values)];
+  }
+  const references = asRecord(parameters?.input_references);
+  if (references?.type === 'range') {
+    const min = nonNegativeInt(references.min) ?? 0;
+    const max = nonNegativeInt(references.max);
+    if (max !== undefined && min <= max) facts.referenceImages = { min, max };
+  }
+  const formats = asRecord(parameters?.output_format);
+  if (formats?.type === 'enum') {
+    const values = asStringArray(formats.values)
+      .map((value) => value.trim().toLowerCase())
+      .filter((value) => value !== '');
+    if (values.length > 0) facts.outputFormats = [...new Set(values)];
+  }
+  // A descriptor out of every bound the schema knows is not a fact to act
+  // on: the model keeps the wire's defaults rather than half its facts.
+  const parsed = modelCatalogImageGenerationSchema.safeParse(facts);
+  return { id: m.id, facts: parsed.success ? parsed.data : {} };
+}
+
+/** Every model's image facts in one OpenRouter image model listing
+ * (`{ data: [...] }`), keyed by model id, first entry winning; a model that
+ * publishes none is left out. */
+export function readImageGenerationFactsListing(
+  payload: unknown,
+): Map<string, ModelCatalogImageGeneration> {
+  const root = asRecord(payload);
+  const list = Array.isArray(payload)
+    ? payload
+    : Array.isArray(root?.data)
+      ? root.data
+      : [];
+  const facts = new Map<string, ModelCatalogImageGeneration>();
+  for (const raw of list) {
+    const read = readImageGenerationFacts(raw);
+    if (read === null || facts.has(read.id)) continue;
+    if (Object.keys(read.facts).length === 0) continue;
+    facts.set(read.id, read.facts);
+  }
+  return facts;
 }
