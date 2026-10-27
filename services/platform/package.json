@@ -64,7 +64,7 @@
     "acorn": "8.18.0",
     "ajv": "8.20.0",
     "aws4fetch": "^1.0.20",
-    "better-auth": "1.7.5",
+    "better-auth": "1.7.7",
     "chokidar": "5.0.0",
     "class-variance-authority": "0.7.1",
     "dayjs": "1.11.20",
