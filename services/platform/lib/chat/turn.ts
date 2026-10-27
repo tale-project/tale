@@ -517,12 +517,13 @@ export interface TurnRequest {
    */
   readonly audioTranscriptAppendix?: string;
   /**
-   * Document retrieval appendix for the MODEL-facing newest user turn:
-   * names each attached document and the knowledge-tool ref that reads it.
-   * Same contract as `audioTranscriptAppendix` — context assembly only,
-   * never stored.
+   * Attachment appendix for the MODEL-facing newest user turn: names each
+   * attached document and the knowledge-tool ref that reads it, and each
+   * attached image and the ref a tool that takes files is handed. Same
+   * contract as `audioTranscriptAppendix` — context assembly only, never
+   * stored.
    */
-  readonly documentAppendix?: string;
+  readonly attachmentAppendix?: string;
   /** Requested harness for sandbox mode; a subscription credential brings its
    * own and refuses any other. */
   readonly harness?: string;
@@ -663,7 +664,7 @@ function assembleTurnContext(
 ): AssembledContext {
   const appendix =
     (request.audioTranscriptAppendix ?? '') +
-    (request.documentAppendix ?? '') +
+    (request.attachmentAppendix ?? '') +
     (request.localeFixed === true ? fixedLocaleNotice(request.locale) : '');
   const modelFacingText =
     appendix.length > 0 ? filteredUserText + appendix : filteredUserText;

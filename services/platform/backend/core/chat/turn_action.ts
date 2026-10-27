@@ -16,7 +16,10 @@ import {
 } from '../../../lib/chat/audio-transcript';
 import { resolveEffectiveWindow } from '../../../lib/chat/budget';
 import type { ToolDoc } from '../../../lib/chat/context';
-import { buildDocumentAppendix } from '../../../lib/chat/document-appendix';
+import {
+  buildDocumentAppendix,
+  buildImageAppendix,
+} from '../../../lib/chat/document-appendix';
 import {
   fitSamplingToWindow,
   resolveTurnSampling,
@@ -958,22 +961,29 @@ async function loadAudioTranscriptAppendix(
 }
 
 /**
- * Load the model-only appendix for document / text attachments: where the
- * content lives (the knowledge tools) and the `ref` to fetch it by. Empty
- * when the message carries no documents. Like the audio appendix it is
- * NEVER persisted on the user bubble — only injected into the model-facing
- * turn (and re-hydrated onto prior history turns the same way).
+ * Load the model-only appendix for document / text and image attachments:
+ * where a document's content lives (the knowledge tools) and the `ref` to
+ * fetch it by, and the `ref` of each image — which reaches the model as
+ * pixels that name no file — for a tool that starts from it. Empty when the
+ * message carries neither. Like the audio appendix it is NEVER persisted on
+ * the user bubble — only injected into the model-facing turn (and
+ * re-hydrated onto prior history turns the same way).
  */
-async function loadDocumentAppendix(
+async function loadAttachmentAppendix(
   ctx: Pick<ActionCtx, 'runQuery' | 'runMutation'>,
   organizationId: string,
   userId: string,
   attachments: readonly TurnAttachment[],
 ): Promise<string> {
+  const images = buildImageAppendix(
+    attachments
+      .filter((attachment) => isImage(attachment.fileType))
+      .map(({ fileName, fileId }) => ({ fileName, fileId })),
+  );
   const documents = attachments.filter((attachment) =>
     isDocument(attachment.fileType),
   );
-  if (documents.length === 0) return '';
+  if (documents.length === 0) return images;
 
   const entries = await Promise.all(
     documents.map(async (attachment) => {
@@ -1002,7 +1012,9 @@ async function loadDocumentAppendix(
       };
     }),
   );
-  return buildDocumentAppendix(entries.filter((entry) => entry !== null));
+  return (
+    buildDocumentAppendix(entries.filter((entry) => entry !== null)) + images
+  );
 }
 
 /** Typed text on a stored user row — strips a legacy baked-in appendix so
@@ -1037,7 +1049,7 @@ export async function modelFacingUserMessage(
     userId,
     attachments,
   );
-  const documentAppendix = await loadDocumentAppendix(
+  const attachmentAppendix = await loadAttachmentAppendix(
     ctx,
     organizationId,
     userId,
@@ -1045,7 +1057,7 @@ export async function modelFacingUserMessage(
   );
   return {
     role: 'user',
-    parts: userTurnParts(typed + appendix + documentAppendix, attachments),
+    parts: userTurnParts(typed + appendix + attachmentAppendix, attachments),
   };
 }
 
@@ -1448,7 +1460,7 @@ export async function executeTurn(
     args.userId,
     attachments,
   );
-  const documentAppendix = await loadDocumentAppendix(
+  const attachmentAppendix = await loadAttachmentAppendix(
     ctx,
     args.organizationId,
     args.userId,
@@ -1544,7 +1556,7 @@ export async function executeTurn(
     ...(threadProjectId !== null ? { projectId: threadProjectId } : {}),
     userText,
     ...(audioTranscriptAppendix.length > 0 ? { audioTranscriptAppendix } : {}),
-    ...(documentAppendix.length > 0 ? { documentAppendix } : {}),
+    ...(attachmentAppendix.length > 0 ? { attachmentAppendix } : {}),
     ...(attachments.length > 0 ? { attachments } : {}),
     history,
     // The one persona the chat page talks to — hardcoded, never a config
