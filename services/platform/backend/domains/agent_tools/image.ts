@@ -8,6 +8,7 @@ import {
   generateOneImage,
   ImageProviderError,
   prepareImageRequest,
+  referenceImagesRefusal,
 } from '../../core/lib/providers/image_generation.ts';
 import {
   isReferenceMediaType,
@@ -147,6 +148,11 @@ export async function runGenerateImage(
         `The image model ${image.model.modelId} cannot start from an image. Describe the picture in the prompt instead.`,
       );
     }
+    const tooMany = referenceImagesRefusal(
+      image.model,
+      args.inputImages.length,
+    );
+    if (tooMany !== undefined) return failure('invalid_args', tooMany);
     const files = await scope.inputs.resolve(args.inputImages);
     let total = 0;
     for (const ref of args.inputImages) {

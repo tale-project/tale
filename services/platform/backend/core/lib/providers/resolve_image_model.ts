@@ -24,7 +24,9 @@
  * credential is active and API-servable (`api-key`/`env` — a subscription
  * flavor is bound to its own harness); its models are the servable catalog
  * entries tagged `image-generation` that the credential's allowlist admits
- * — the same admission the transcription lane applies.
+ * — the same admission the transcription lane applies — and that draw a
+ * raster image from a prompt alone: the tool's every call is a prompt, and
+ * the platform stores no SVG.
  *
  * The wire follows the provider: OpenRouter's dedicated Image API for an
  * OpenRouter connector, the OpenAI images API for every other. The latter
@@ -65,17 +67,19 @@ import { getServableCatalog } from './servable_catalog';
 /**
  * Curated image models, best first. Matched with {@link modelIdsEquivalent},
  * so one entry covers every provider's spelling of the same model
- * (`gpt-image-1` on OpenAI is `openai/gpt-image-1` on OpenRouter).
+ * (`gpt-image-2.5-flare` on OpenAI is `openai/gpt-image-2.5-flare` on
+ * OpenRouter).
  *
  * Gemini 2.5 Flash Image leads: fast, cheap per image and good at edits from
- * reference images. The GPT image models follow for an organization that
- * only holds an OpenAI key (the mini first, at a fifth of the price), and
- * FLUX.2 Pro closes the list as a strong text-to-image model.
+ * reference images. GPT Image 2.5 Flare follows for an organization that
+ * only holds an OpenAI key — OpenAI's fast everyday image model, and the
+ * successor it names for GPT Image 1, shut down on 2026-10-23, and for GPT
+ * Image 1 Mini, which it shuts down on 2026-12-01 — and FLUX.2 Pro closes
+ * the list as a strong text-to-image model.
  */
 const PREFERRED_IMAGE_MODELS: readonly string[] = [
   'google/gemini-2.5-flash-image',
-  'gpt-image-1-mini',
-  'gpt-image-1',
+  'gpt-image-2.5-flare',
   'black-forest-labs/flux.2-pro',
 ];
 
@@ -103,6 +107,12 @@ export interface ResolvedImageModel extends ImageModelPick {
   attribution: Record<string, string>;
   /** The model takes reference images (an edit, a variation). */
   acceptsImageInput: boolean;
+  /** The most reference images one request may carry, when the catalog
+   * entry says. */
+  maxReferenceImages?: number;
+  /** The aspect ratios the model draws, when the catalog entry lists them:
+   * a request asks for the one closest to the shape the agent wants. */
+  aspectRatios?: readonly string[];
   /** Catalog prices, for a provider that reports no cost of its own. */
   pricing?: ModelCatalogEntry['pricing'];
 }
@@ -197,6 +207,24 @@ function imageWireFor(
   return { wire: 'openai-images', verified: host === 'api.openai.com' };
 }
 
+/** The file formats a stored image may come back in (the raster formats
+ * `image_wire.ts` keeps), as image APIs name them. */
+const RASTER_OUTPUT_FORMATS = new Set(['png', 'jpeg', 'jpg', 'webp', 'gif']);
+
+/** Whether the entry draws a raster image from a prompt alone, as far as
+ * its catalog facts say: an edit model needs a reference image in every
+ * request (Krea K3 Edit, Recraft's style models), and a vector model returns
+ * only SVG, which the platform refuses to store. Unknown facts admit. */
+function drawsFromPrompt(entry: ModelCatalogEntry): boolean {
+  const facts = entry.imageGeneration;
+  if ((facts?.referenceImages?.min ?? 0) > 0) return false;
+  const formats = facts?.outputFormats;
+  return (
+    formats === undefined ||
+    formats.some((format) => RASTER_OUTPUT_FORMATS.has(format))
+  );
+}
+
 /** A catalog entry this provider can generate images with. */
 function isImageEntry(
   entry: ModelCatalogEntry,
@@ -210,6 +238,7 @@ function isImageEntry(
   if (wire === 'openrouter-images' && entry.id.startsWith('openrouter/')) {
     return false;
   }
+  if (!drawsFromPrompt(entry)) return false;
   return modelAllowlistPermits(allowlist, entry.id);
 }
 
@@ -301,6 +330,8 @@ async function imageCandidates(
       });
       for (const entry of entries) {
         if (!isImageEntry(entry, wire, direct.modelAllowlist)) continue;
+        const maxReferenceImages = entry.imageGeneration?.referenceImages?.max;
+        const aspectRatios = entry.imageGeneration?.aspectRatios;
         candidates.push({
           providerSlug: provider.name,
           providerDisplayName: provider.displayName,
@@ -314,7 +345,9 @@ async function imageCandidates(
             baseUrl,
             apiKey: credential.secret,
             attribution,
-            acceptsImageInput: entry.supportsVision,
+            acceptsImageInput: entry.supportsVision && maxReferenceImages !== 0,
+            ...(maxReferenceImages !== undefined ? { maxReferenceImages } : {}),
+            ...(aspectRatios !== undefined ? { aspectRatios } : {}),
             ...(entry.pricing !== undefined ? { pricing: entry.pricing } : {}),
           },
         });

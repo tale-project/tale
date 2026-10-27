@@ -679,6 +679,23 @@ describe('generate_image — reference images', () => {
     ).toHaveLength(0);
   });
 
+  it('refuses more references than the model takes, before any spend', async () => {
+    readFileMock.mockResolvedValue(file(PNG));
+    resolveModelMock.mockResolvedValue({ ...MODEL, maxReferenceImages: 1 });
+    const result = await call({
+      prompt: 'a cat',
+      inputImages: ['logo.png', 'photo.png'],
+    });
+    expect(result).toMatchObject({
+      status: 'invalid_args',
+      message: expect.stringContaining('at most 1 reference image'),
+    });
+    expect(
+      callsOf(runMutation, 'sandbox/image_generation:admitImageGeneration'),
+    ).toHaveLength(0);
+    expect(generateMock).not.toHaveBeenCalled();
+  });
+
   it.each([
     ['a missing file', null, 'not_found'],
     ['a PDF', file(new TextEncoder().encode('%PDF-1.7')), 'invalid_args'],

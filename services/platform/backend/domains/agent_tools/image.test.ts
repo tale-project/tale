@@ -13,20 +13,31 @@ import { runGenerateImage } from './image.ts';
 import type { ImageBilling } from './scope.ts';
 import { testScope } from './test-helpers.ts';
 
-vi.mock('../../core/lib/providers/image_generation.ts', () => {
-  class MockImageProviderError extends Error {
-    readonly charge?: { costCents: number };
-    constructor(message: string, options?: { charge?: { costCents: number } }) {
-      super(message);
-      if (options?.charge !== undefined) this.charge = options.charge;
+vi.mock(
+  '../../core/lib/providers/image_generation.ts',
+  async (importOriginal) => {
+    const actual =
+      await importOriginal<
+        typeof import('../../core/lib/providers/image_generation.ts')
+      >();
+    class MockImageProviderError extends Error {
+      readonly charge?: { costCents: number };
+      constructor(
+        message: string,
+        options?: { charge?: { costCents: number } },
+      ) {
+        super(message);
+        if (options?.charge !== undefined) this.charge = options.charge;
+      }
     }
-  }
-  return {
-    ImageProviderError: MockImageProviderError,
-    generateOneImage: vi.fn(),
-    prepareImageRequest: vi.fn(() => ({ url: 'u', headers: {}, body: '' })),
-  };
-});
+    return {
+      ImageProviderError: MockImageProviderError,
+      generateOneImage: vi.fn(),
+      prepareImageRequest: vi.fn(() => ({ url: 'u', headers: {}, body: '' })),
+      referenceImagesRefusal: actual.referenceImagesRefusal,
+    };
+  },
+);
 vi.mock('../files/service.ts', () => ({ getOrgBlobBytes: vi.fn() }));
 
 const PNG = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -205,6 +216,33 @@ describe('generate_image', () => {
         inputImages: ['s3:acme/photo'],
       }),
     ).resolves.toMatchObject({ status: 'invalid_args' });
+    expect(generateOneImage).not.toHaveBeenCalled();
+  });
+
+  it('refuses more reference images than the model takes, before any spend', async () => {
+    const admitting = billing();
+    const { scope } = testScope({
+      image: {
+        model: { ...MODEL, maxReferenceImages: 1 },
+        billing: admitting,
+      },
+      files: ['s3:acme/a', 's3:acme/b'].map((ref) => ({
+        ref,
+        name: 'p.png',
+        mediaType: 'image/png',
+        sizeBytes: 8,
+      })),
+    });
+    await expect(
+      runGenerateImage(scope, {
+        prompt: 'x',
+        inputImages: ['s3:acme/a', 's3:acme/b'],
+      }),
+    ).resolves.toMatchObject({
+      status: 'invalid_args',
+      message: expect.stringContaining('at most 1 reference image'),
+    });
+    expect(admitting.admit).not.toHaveBeenCalled();
     expect(generateOneImage).not.toHaveBeenCalled();
   });
 

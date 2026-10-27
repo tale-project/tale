@@ -9,10 +9,13 @@
  *  - `openrouter-images` — OpenRouter's dedicated Image API
  *    (https://openrouter.ai/docs/guides/overview/multimodal/image-generation):
  *    `POST {base}/images` with JSON `{model, prompt, n, aspect_ratio?,
- *    input_references?}`; the reply carries `data: [{b64_json, media_type}]`
- *    and a `usage.cost` in USD. OpenRouter documents this API, not chat
- *    completions, as the way to generate images, and it serves image-only
- *    models (FLUX, the GPT image models) that write no chat message at all.
+ *    quality?, input_references?}`; the reply carries `data: [{b64_json,
+ *    media_type}]` and a `usage.cost` in USD. OpenRouter documents this API,
+ *    not chat completions, as the way to generate images, and it serves
+ *    image-only models (FLUX, the GPT image models) that write no chat
+ *    message at all. Each model draws its own set of aspect ratios, which
+ *    OpenRouter lists per model (`/api/v1/images/models`); a request for one
+ *    it does not draw is refused.
  *  - `openai-images` — OpenAI's images API
  *    (https://developers.openai.com/api/reference/resources/images):
  *    `POST {base}/images/generations` with JSON `{model, prompt, n, size,
@@ -97,15 +100,59 @@ const OPENAI_SIZES: Record<ImageSize, string> = {
   portrait: '1024x1536',
 };
 
-/** OpenRouter aspect ratios every curated image model supports. */
+/** The aspect ratio each size asks OpenRouter for. A model whose catalog
+ * entry lists the ratios it draws, and not this one, is asked for its
+ * closest ({@link openRouterAspectRatio}). */
 const OPENROUTER_ASPECT_RATIOS: Record<ImageSize, string> = {
   square: '1:1',
   landscape: '3:2',
   portrait: '2:3',
 };
 
-/** The quality a GPT image model is asked for: its default, `auto`, may
- * pick `high`, which costs about four times as much an image. */
+/** Width over height of a `width:height` ratio, or `undefined`. */
+function ratioValue(spelled: string): number | undefined {
+  const match = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/.exec(spelled);
+  if (match === null) return undefined;
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  return width > 0 && height > 0 ? width / height : undefined;
+}
+
+/**
+ * The aspect ratio an OpenRouter request asks for: the size's own (1:1, 3:2,
+ * 2:3) when the model draws it or its catalog entry does not say which it
+ * draws, else the listed ratio closest to it — 4:3 for a landscape on
+ * Recraft, which draws no 3:2. Closest by the logarithm of the ratio, so a
+ * shape is as far from 3:2 when it is twice as wide as when it is half: a
+ * landscape never turns into a portrait while the model draws any shape
+ * nearer.
+ */
+export function openRouterAspectRatio(
+  size: ImageSize,
+  aspectRatios: readonly string[] | undefined,
+): string {
+  const preferred = OPENROUTER_ASPECT_RATIOS[size];
+  if (aspectRatios === undefined || aspectRatios.includes(preferred)) {
+    return preferred;
+  }
+  const target = Math.log(ratioValue(preferred) ?? 1);
+  let best: { ratio: string; distance: number } | undefined;
+  for (const ratio of aspectRatios) {
+    const value = ratioValue(ratio);
+    if (value === undefined) continue;
+    const distance = Math.abs(Math.log(value) - target);
+    if (best === undefined || distance < best.distance) {
+      best = { ratio, distance };
+    }
+  }
+  return best?.ratio ?? preferred;
+}
+
+/** The quality a GPT image model is asked for, on OpenAI and through
+ * OpenRouter alike: its default, `auto`, may pick `high`, which costs about
+ * four times as much an image (through OpenRouter, GPT Image 1 Mini on
+ * `auto` cost 3.3 and 5.0 cents a square and a portrait image where
+ * `medium` cost 0.8 and 1.3, 2026-10-27). */
 const OPENAI_IMAGE_QUALITY = 'medium';
 
 /** Whether `modelId` is one of OpenAI's GPT image models — the models that
@@ -131,6 +178,9 @@ export interface ImageRequestArgs {
   prompt: string;
   size: ImageSize;
   references: readonly ReferenceImage[];
+  /** The aspect ratios the model draws, when its catalog entry lists them
+   * (OpenRouter). */
+  aspectRatios?: readonly string[];
   /** Provider attribution headers the platform sends where they apply. */
   extraHeaders?: Record<string, string>;
 }
@@ -206,6 +256,9 @@ function dataUrl(image: ReferenceImage): string {
 export function buildImageRequest(args: ImageRequestArgs): ImageWireRequest {
   const base = stripTrailingSlash(args.baseUrl);
   const auth = { authorization: `Bearer ${args.apiKey}` };
+  const quality = takesGptImageQuality(args.modelId)
+    ? OPENAI_IMAGE_QUALITY
+    : undefined;
   if (args.wire === 'openrouter-images') {
     return {
       url: `${base}/images`,
@@ -218,7 +271,8 @@ export function buildImageRequest(args: ImageRequestArgs): ImageWireRequest {
         model: args.modelId,
         prompt: args.prompt,
         n: 1,
-        aspect_ratio: OPENROUTER_ASPECT_RATIOS[args.size],
+        aspect_ratio: openRouterAspectRatio(args.size, args.aspectRatios),
+        ...(quality !== undefined ? { quality } : {}),
         ...(args.references.length > 0
           ? {
               input_references: args.references.map((image) => ({
@@ -230,9 +284,6 @@ export function buildImageRequest(args: ImageRequestArgs): ImageWireRequest {
       }),
     };
   }
-  const quality = takesGptImageQuality(args.modelId)
-    ? OPENAI_IMAGE_QUALITY
-    : undefined;
   if (args.references.length === 0) {
     return {
       url: `${base}/images/generations`,

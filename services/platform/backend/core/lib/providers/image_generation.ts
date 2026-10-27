@@ -121,8 +121,24 @@ export function prepareImageRequest(
     prompt: args.prompt,
     size: args.size,
     references: args.references,
+    ...(model.aspectRatios !== undefined
+      ? { aspectRatios: model.aspectRatios }
+      : {}),
     extraHeaders: model.attribution,
   });
+}
+
+/** Why `model` would refuse a request with `count` reference images — more
+ * than its catalog entry says it takes — or `undefined` when it would not.
+ * Asked before anything is spent: the provider refuses such a request
+ * outright (Gemini 2.5 Flash Image takes three). */
+export function referenceImagesRefusal(
+  model: Pick<ResolvedImageModel, 'modelId' | 'maxReferenceImages'>,
+  count: number,
+): string | undefined {
+  const max = model.maxReferenceImages;
+  if (max === undefined || count <= max) return undefined;
+  return `The image model ${model.modelId} takes at most ${max} reference ${max === 1 ? 'image' : 'images'} in one call; pass at most ${max} "inputImages".`;
 }
 
 /** Send one prepared request: ONE image. */
