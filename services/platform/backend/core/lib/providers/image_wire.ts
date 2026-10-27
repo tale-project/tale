@@ -28,6 +28,7 @@
  * caller that wants more runs several requests.
  */
 
+import { IMAGE_ASPECT_RATIO_PATTERN } from '@tale/shared/schemas/providers';
 import { imageSize } from 'image-size';
 
 /** How a request reaches the provider's image API. */
@@ -111,7 +112,7 @@ const OPENROUTER_ASPECT_RATIOS: Record<ImageSize, string> = {
 
 /** Width over height of a `width:height` ratio, or `undefined`. */
 function ratioValue(spelled: string): number | undefined {
-  const match = /^(\d+(?:\.\d+)?):(\d+(?:\.\d+)?)$/.exec(spelled);
+  const match = IMAGE_ASPECT_RATIO_PATTERN.exec(spelled);
   if (match === null) return undefined;
   const width = Number(match[1]);
   const height = Number(match[2]);

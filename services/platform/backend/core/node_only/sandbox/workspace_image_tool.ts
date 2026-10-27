@@ -686,9 +686,9 @@ async function generateForTurn(
       message: `The organization's image model (${model.modelId}) does not take reference images. Describe the image in the prompt instead, without "inputImages".`,
     };
   }
-  const tooMany = referenceImagesRefusal(model, args.references.length);
-  if (tooMany !== undefined) {
-    return { status: 'invalid_args', message: tooMany };
+  const refusal = referenceImagesRefusal(model, args.references.length);
+  if (refusal !== undefined) {
+    return { status: 'invalid_args', message: refusal };
   }
 
   const admission: ImageAdmission = await ctx.runMutation(

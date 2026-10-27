@@ -363,6 +363,112 @@ describe('getProviderCatalog — live sources', () => {
     warn.mockRestore();
   });
 
+  it('keeps the last facts when the facts listing fails, and asks again soon', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockOpenRouterListings();
+    const fluxOf = async () =>
+      (await getProviderCatalog(OPENROUTER, { maxAttempts: 1 })).find(
+        (e) => e.id === 'black-forest-labs/flux.2-pro',
+      );
+    const facts = (await fluxOf())?.imageGeneration;
+    expect(facts?.aspectRatios).toEqual(['1:1', '3:2', '2:3']);
+
+    // The daily refresh finds the facts listing down: the facts the last
+    // fetch read keep serving, rather than a day of requests the model
+    // refuses.
+    mockedFetch.mockImplementation(async (url: string) => {
+      if (url === IMAGE_FACTS_URL) {
+        throw new SafeFetchError('network_error', 'connect refused');
+      }
+      return url === IMAGE_URL
+        ? listingResponse(IMAGE_PAYLOAD)
+        : listingResponse(USABLE_PAYLOAD);
+    });
+    vi.setSystemTime(Date.now() + CATALOG_TTL_MS + 1);
+    expect((await fluxOf())?.imageGeneration).toEqual(facts);
+
+    // Incomplete, the catalog is asked for again once the back-off lapses.
+    const calls = mockedFetch.mock.calls.length;
+    await fluxOf();
+    expect(mockedFetch.mock.calls.length).toBe(calls);
+    mockOpenRouterListings();
+    vi.setSystemTime(Date.now() + CATALOG_FAILURE_BACKOFF_MS + 1);
+    expect((await fluxOf())?.imageGeneration).toEqual(facts);
+    expect(mockedFetch.mock.calls.length).toBeGreaterThan(calls);
+    warn.mockRestore();
+  });
+
+  it('reads a facts listing it cannot parse as a failure, not as no facts', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockedFetch.mockImplementation(async (url: string) =>
+      url === IMAGE_FACTS_URL
+        ? // A shape the reader no longer knows: descriptors as plain names.
+          listingResponse({
+            data: [
+              {
+                id: 'black-forest-labs/flux.2-pro',
+                supported_parameters: ['aspect_ratio', 'input_references'],
+              },
+            ],
+          })
+        : url === IMAGE_URL
+          ? listingResponse(IMAGE_PAYLOAD)
+          : listingResponse(USABLE_PAYLOAD),
+    );
+    await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('held no facts it could read'),
+    );
+    warn.mockRestore();
+  });
+
+  it('asks for every supplement at once, so a slow one holds up none', async () => {
+    const pending = new Map<string, () => void>();
+    mockedFetch.mockImplementation(async (url: string) => {
+      const answer = url.includes('output_modalities=embeddings')
+        ? listingResponse(EMBEDDINGS_PAYLOAD)
+        : url === TRANSCRIPTION_URL
+          ? listingResponse(TRANSCRIPTION_PAYLOAD)
+          : url === IMAGE_URL
+            ? listingResponse(IMAGE_PAYLOAD)
+            : url === IMAGE_FACTS_URL
+              ? listingResponse(IMAGE_FACTS_PAYLOAD)
+              : listingResponse(USABLE_PAYLOAD);
+      if (
+        url === 'https://openrouter.ai/api/v1/models' ||
+        url === TRANSCRIPTION_URL
+      ) {
+        return answer;
+      }
+      return await new Promise((resolve) => {
+        pending.set(url, () => resolve(answer));
+      });
+    });
+    const catalog = getProviderCatalog(OPENROUTER);
+    await vi.advanceTimersByTimeAsync(0);
+    // All three supplements are in flight before any of them answered.
+    expect([...pending.keys()].sort()).toEqual(
+      [
+        'https://openrouter.ai/api/v1/models?output_modalities=embeddings',
+        IMAGE_URL,
+        IMAGE_FACTS_URL,
+      ].sort(),
+    );
+    for (const answer of pending.values()) answer();
+    const entries = await catalog;
+    expect(entries.map((e) => e.id)).toEqual(
+      expect.arrayContaining([
+        'anthropic/claude-sonnet-5',
+        'qwen/qwen3-embedding-8b',
+        'black-forest-labs/flux.2-pro',
+      ]),
+    );
+    expect(
+      entries.find((e) => e.id === 'black-forest-labs/flux.2-pro')
+        ?.imageGeneration,
+    ).toBeDefined();
+  });
+
   it('keeps the primary catalog when the image supplement fails', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockedFetch.mockImplementation(async (url: string) => {

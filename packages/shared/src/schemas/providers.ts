@@ -487,35 +487,42 @@ const modelCatalogTtsSchema = z
   })
   .strict();
 
-/** The tag an image generator carries — the image-generation resolver and
- * its settings picker select on it. */
-const IMAGE_GENERATION_TAG = 'image-generation';
+/** The catalog tag of a model that GENERATES images — derived from a live
+ * listing's output modalities, declared by hand in a static catalog. The
+ * image-generation resolver and its settings picker select on it. */
+export const IMAGE_GENERATION_TAG = 'image-generation';
+
+/** An aspect ratio as image APIs spell it, `width:height` (`3:2`,
+ * `9:19.5`); the two groups capture the width and the height. */
+export const IMAGE_ASPECT_RATIO_PATTERN =
+  /^(\d{1,3}(?:\.\d{1,2})?):(\d{1,3}(?:\.\d{1,2})?)$/;
 
 /**
  * What an image generator accepts, where its source publishes it (OpenRouter
  * lists it per model at `/api/v1/images/models`). The image wire asks for a
- * shape the model draws, a call is refused before anything is spent when the
- * model would refuse it, and the image-model admission skips a model that
- * cannot draw from a prompt alone. Every fact is optional: an absent one is
- * unknown, and the wire keeps its defaults.
+ * shape the model draws, a call the model would refuse is refused before
+ * anything is spent, and the image-model admission skips a model that
+ * returns no image the platform stores. Every fact is optional: an absent
+ * one is unknown, and the wire keeps its defaults.
  */
 export const modelCatalogImageGenerationSchema = z
   .object({
     /** The aspect ratios the model draws, as `width:height` (`3:2`). */
     aspectRatios: z
-      .array(z.string().regex(/^\d{1,3}(?:\.\d{1,2})?:\d{1,3}(?:\.\d{1,2})?$/))
+      .array(z.string().regex(IMAGE_ASPECT_RATIO_PATTERN))
       .min(1)
       .max(64)
       .optional(),
     /** How many reference images one request may carry. A `min` above 0
-     * marks an edit model, which cannot draw from a prompt alone. */
+     * marks an edit model, which cannot draw from a prompt alone; an absent
+     * `max` is unknown. */
     referenceImages: z
       .object({
         min: z.number().int().nonnegative().max(1000),
-        max: z.number().int().nonnegative().max(1000),
+        max: z.number().int().nonnegative().max(1000).optional(),
       })
       .strict()
-      .refine((range) => range.min <= range.max, {
+      .refine((range) => range.max === undefined || range.min <= range.max, {
         message: 'referenceImages.min must not exceed referenceImages.max',
       })
       .optional(),

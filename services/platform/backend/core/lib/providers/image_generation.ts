@@ -129,16 +129,28 @@ export function prepareImageRequest(
 }
 
 /** Why `model` would refuse a request with `count` reference images — more
- * than its catalog entry says it takes — or `undefined` when it would not.
- * Asked before anything is spent: the provider refuses such a request
- * outright (Gemini 2.5 Flash Image takes three). */
+ * than its catalog entry says it takes, or fewer than an edit model needs —
+ * or `undefined` when it would not. Asked before anything is spent: the
+ * provider refuses such a request outright (Gemini 2.5 Flash Image takes
+ * three; Krea K3 Edit needs one). */
 export function referenceImagesRefusal(
-  model: Pick<ResolvedImageModel, 'modelId' | 'maxReferenceImages'>,
+  model: Pick<
+    ResolvedImageModel,
+    'modelId' | 'minReferenceImages' | 'maxReferenceImages'
+  >,
   count: number,
 ): string | undefined {
+  const images = (n: number) =>
+    `${n} reference ${n === 1 ? 'image' : 'images'}`;
   const max = model.maxReferenceImages;
-  if (max === undefined || count <= max) return undefined;
-  return `The image model ${model.modelId} takes at most ${max} reference ${max === 1 ? 'image' : 'images'} in one call; pass at most ${max} "inputImages".`;
+  if (max !== undefined && count > max) {
+    return `The image model ${model.modelId} takes at most ${images(max)} in one call; pass at most ${max} "inputImages".`;
+  }
+  const min = model.minReferenceImages;
+  if (min !== undefined && count < min) {
+    return `The image model ${model.modelId} edits pictures and needs at least ${images(min)} in every call: pass the picture to start from in "inputImages". It cannot draw from a description alone; if there is no picture to start from, tell the user an administrator would choose another image model.`;
+  }
+  return undefined;
 }
 
 /** Send one prepared request: ONE image. */

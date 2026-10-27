@@ -246,6 +246,29 @@ describe('generate_image', () => {
     expect(generateOneImage).not.toHaveBeenCalled();
   });
 
+  it("refuses an edit model's call without a picture, before any spend", async () => {
+    const admitting = billing();
+    const { scope } = testScope({
+      image: {
+        model: {
+          ...MODEL,
+          modelId: 'krea/k3-edit',
+          minReferenceImages: 1,
+          maxReferenceImages: 8,
+        },
+        billing: admitting,
+      },
+    });
+    await expect(
+      runGenerateImage(scope, { prompt: 'A lighthouse at dusk' }),
+    ).resolves.toMatchObject({
+      status: 'invalid_args',
+      message: expect.stringContaining('needs at least 1 reference image'),
+    });
+    expect(admitting.admit).not.toHaveBeenCalled();
+    expect(generateOneImage).not.toHaveBeenCalled();
+  });
+
   it('is unavailable without an image model', async () => {
     const { scope } = testScope();
     await expect(

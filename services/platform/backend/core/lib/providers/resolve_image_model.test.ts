@@ -312,15 +312,16 @@ describe('resolveImageGenerationModel — automatic', () => {
     });
   });
 
-  it('no longer picks GPT Image 1 Mini, which OpenAI shuts down', async () => {
+  it('keeps GPT Image 1 Mini behind its successor until OpenAI shuts it down', async () => {
     policy = { enabled: true };
     defaultRows = {
       openai: { ...ACTIVE_API_KEY_ROW, modelAllowlist: ['gpt-image-1-mini'] },
     };
     resolveProvidersMock.mockResolvedValue([OPENAI]);
-    expect(await codeOf(resolveImageGenerationModel(ctx, ORG))).toBe(
-      'NO_IMAGE_GENERATION_MODEL',
-    );
+    await expect(resolveImageGenerationModel(ctx, ORG)).resolves.toMatchObject({
+      modelId: 'gpt-image-1-mini',
+      source: 'preferred',
+    });
   });
 
   it('honours the credential allowlist', async () => {
@@ -421,15 +422,16 @@ describe('resolveImageGenerationModel — what a model draws from', () => {
     }),
   ];
 
-  it('offers no model that cannot draw a raster image from a prompt alone', async () => {
+  it('offers no model that returns only SVG, and an edit model only by pin', async () => {
     policy = { enabled: true };
     resolveProvidersMock.mockResolvedValue([OPENROUTER]);
     catalogMock.mockResolvedValue(FACT_CATALOG);
     const status = await inspectImageGenerationModels(ctx, ORG);
-    // An edit model needs a reference image in every request, and a vector
-    // model returns SVG, which the platform does not store.
+    // A vector model returns SVG, which the platform does not store; an edit
+    // model may be chosen, and draws from the pictures an agent passes.
     expect(status.models.map((model) => model.modelId)).toEqual([
       'black-forest-labs/flux.2-pro',
+      'krea/k3-edit',
       'qwen/qwen-image-3',
       'recraft/recraft-v4.1',
       'recraft/recraft-v4.1-flash',
@@ -437,11 +439,21 @@ describe('resolveImageGenerationModel — what a model draws from', () => {
     policy = {
       enabled: true,
       providerSlug: 'openrouter',
-      modelId: 'krea/k3-edit',
+      modelId: 'recraft/recraft-v4-vector',
     };
     expect(await codeOf(resolveImageGenerationModel(ctx, ORG))).toBe(
       'IMAGE_GENERATION_MODEL_UNAVAILABLE',
     );
+    policy = {
+      enabled: true,
+      providerSlug: 'openrouter',
+      modelId: 'krea/k3-edit',
+    };
+    await expect(resolveImageGenerationModel(ctx, ORG)).resolves.toMatchObject({
+      modelId: 'krea/k3-edit',
+      minReferenceImages: 1,
+      maxReferenceImages: 8,
+    });
   });
 
   it('carries the shapes a model draws and how many reference images it takes', async () => {
@@ -452,11 +464,14 @@ describe('resolveImageGenerationModel — what a model draws from', () => {
       providerSlug: 'openrouter',
       modelId: 'recraft/recraft-v4.1',
     };
-    await expect(resolveImageGenerationModel(ctx, ORG)).resolves.toMatchObject({
+    const recraft = await resolveImageGenerationModel(ctx, ORG);
+    expect(recraft).toMatchObject({
       aspectRatios: ['1:1', '4:3', '3:4', '16:9', '9:16'],
       maxReferenceImages: 1,
       acceptsImageInput: true,
     });
+    // A minimum of 0 marks no edit model.
+    expect(recraft?.minReferenceImages).toBeUndefined();
     // A model that reads images but takes none to draw from takes no
     // reference image; a model with no published facts keeps the defaults.
     policy = {

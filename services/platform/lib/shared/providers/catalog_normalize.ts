@@ -44,18 +44,13 @@
  */
 
 import {
+  IMAGE_ASPECT_RATIO_PATTERN,
+  IMAGE_GENERATION_TAG,
   modelCatalogEntrySchema,
   modelCatalogImageGenerationSchema,
   type ModelCatalogEntry,
   type ModelCatalogImageGeneration,
 } from '@tale/shared/schemas/providers';
-
-/**
- * The catalog tag of a model that GENERATES images — derived here from a
- * live listing's output modalities, declared by hand in a static catalog
- * (`configs/platform/system/models/<provider>/models.yml`).
- */
-export const IMAGE_GENERATION_TAG = 'image-generation';
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -383,9 +378,6 @@ export function normalizeCatalogPayload(
   return { entries, droppedCount };
 }
 
-/** `width:height` as image APIs spell an aspect ratio (`3:2`, `9:19.5`). */
-const ASPECT_RATIO_PATTERN = /^\d{1,3}(?:\.\d{1,2})?:\d{1,3}(?:\.\d{1,2})?$/;
-
 function nonNegativeInt(value: unknown): number | undefined {
   return typeof value === 'number' && Number.isInteger(value) && value >= 0
     ? value
@@ -408,36 +400,52 @@ export function readImageGenerationFacts(
   const m = asRecord(raw);
   if (!m || typeof m.id !== 'string' || m.id.length === 0) return null;
   const parameters = asRecord(m.supported_parameters);
+  // Each fact stands on its own: one out of the bounds the schema knows is
+  // left unknown, and never takes the others with it — the formats that
+  // mark a vector model, say, whatever its list of shapes looks like.
+  const shape = modelCatalogImageGenerationSchema.shape;
   const facts: ModelCatalogImageGeneration = {};
   const ratios = asRecord(parameters?.aspect_ratio);
   if (ratios?.type === 'enum') {
-    const values = asStringArray(ratios.values).filter((value) =>
-      ASPECT_RATIO_PATTERN.test(value),
-    );
-    if (values.length > 0) facts.aspectRatios = [...new Set(values)];
+    const read = shape.aspectRatios.safeParse([
+      ...new Set(
+        asStringArray(ratios.values).filter((value) =>
+          IMAGE_ASPECT_RATIO_PATTERN.test(value),
+        ),
+      ),
+    ]);
+    if (read.success && read.data !== undefined) facts.aspectRatios = read.data;
   }
   const references = asRecord(parameters?.input_references);
   if (references?.type === 'range') {
     const min = nonNegativeInt(references.min) ?? 0;
     const max = nonNegativeInt(references.max);
-    if (max !== undefined && min <= max) facts.referenceImages = { min, max };
+    const read = shape.referenceImages.safeParse(
+      max === undefined ? { min } : { min, max },
+    );
+    if (read.success && read.data !== undefined) {
+      facts.referenceImages = read.data;
+    }
   }
   const formats = asRecord(parameters?.output_format);
   if (formats?.type === 'enum') {
-    const values = asStringArray(formats.values)
-      .map((value) => value.trim().toLowerCase())
-      .filter((value) => value !== '');
-    if (values.length > 0) facts.outputFormats = [...new Set(values)];
+    const read = shape.outputFormats.safeParse([
+      ...new Set(
+        asStringArray(formats.values)
+          .map((value) => value.trim().toLowerCase())
+          .filter((value) => value !== ''),
+      ),
+    ]);
+    if (read.success && read.data !== undefined) {
+      facts.outputFormats = read.data;
+    }
   }
-  // A descriptor out of every bound the schema knows is not a fact to act
-  // on: the model keeps the wire's defaults rather than half its facts.
-  const parsed = modelCatalogImageGenerationSchema.safeParse(facts);
-  return { id: m.id, facts: parsed.success ? parsed.data : {} };
+  return { id: m.id, facts };
 }
 
 /** Every model's image facts in one OpenRouter image model listing
- * (`{ data: [...] }`), keyed by model id, first entry winning; a model that
- * publishes none is left out. */
+ * (`{ data: [...] }`), keyed by model id; the first entry of an id decides
+ * it, and a model that publishes none is left out. */
 export function readImageGenerationFactsListing(
   payload: unknown,
 ): Map<string, ModelCatalogImageGeneration> {
@@ -448,9 +456,11 @@ export function readImageGenerationFactsListing(
       ? root.data
       : [];
   const facts = new Map<string, ModelCatalogImageGeneration>();
+  const seen = new Set<string>();
   for (const raw of list) {
     const read = readImageGenerationFacts(raw);
-    if (read === null || facts.has(read.id)) continue;
+    if (read === null || seen.has(read.id)) continue;
+    seen.add(read.id);
     if (Object.keys(read.facts).length === 0) continue;
     facts.set(read.id, read.facts);
   }

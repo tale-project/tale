@@ -1,7 +1,7 @@
+import { IMAGE_GENERATION_TAG } from '@tale/shared/schemas/providers';
 import { describe, expect, it } from 'vitest';
 
 import {
-  IMAGE_GENERATION_TAG,
   normalizeCatalogModel,
   normalizeCatalogPayload,
   readImageGenerationFacts,
@@ -551,6 +551,35 @@ describe('readImageGenerationFacts', () => {
       })?.facts,
     ).toEqual({});
     expect(readImageGenerationFacts({ supported_parameters: {} })).toBeNull();
+  });
+
+  it('keeps each fact on its own when another is out of bounds', () => {
+    // Seventy shapes is more than the catalog keeps; the formats that mark a
+    // vector model must survive it.
+    const many = Array.from({ length: 70 }, (_, index) => `${index + 1}:1`);
+    expect(
+      readImageGenerationFacts({
+        id: 'example/vector',
+        supported_parameters: {
+          aspect_ratio: { type: 'enum', values: many },
+          output_format: { type: 'enum', values: ['svg'] },
+        },
+      })?.facts,
+    ).toEqual({ outputFormats: ['svg'] });
+    // An edit model that publishes its minimum but no maximum stays one.
+    expect(
+      readImageGenerationFacts({
+        id: 'example/edit',
+        supported_parameters: { input_references: { type: 'range', min: 1 } },
+      })?.facts,
+    ).toEqual({ referenceImages: { min: 1 } });
+  });
+
+  it('lets the first entry of an id decide it, even one that publishes nothing', () => {
+    const facts = readImageGenerationFactsListing({
+      data: [{ ...RECRAFT, supported_parameters: {} }, RECRAFT],
+    });
+    expect(facts.has('recraft/recraft-v4.1')).toBe(false);
   });
 
   it('keys a listing by model id and skips models that publish nothing', () => {

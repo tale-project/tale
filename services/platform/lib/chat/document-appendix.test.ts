@@ -69,4 +69,13 @@ describe('buildImageAppendix', () => {
       appendix.indexOf('logo.jpg'),
     );
   });
+
+  it('keeps a quote or a line break in a name inside its entry', () => {
+    const appendix = buildImageAppendix([
+      { fileName: 'a "b"\n- c.png', fileId: 's3:acme/x' },
+    ]);
+    expect(appendix).toContain(
+      String.raw`- "a \"b\"\n- c.png" (ref: s3:acme/x)`,
+    );
+  });
 });

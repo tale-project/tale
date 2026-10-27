@@ -2269,6 +2269,46 @@ describe('runTurn — image attachments', () => {
     ]);
   });
 
+  it("keeps an image's ref appendix off the stored bubble and on the model wire [CHAT-R31]", async () => {
+    const { buildImageAppendix } = await import('./document-appendix');
+    const appendix = buildImageAppendix([
+      { fileName: 'beach.jpg', fileId: 's3:acme/beach' },
+    ]);
+    const photo = {
+      fileId: 's3:acme/beach',
+      fileName: 'beach.jpg',
+      fileType: 'image/jpeg',
+      fileSize: 4096,
+    };
+    const seen: ModelCallRequest[] = [];
+    const recorder: ModelCall = async function* recorder(call) {
+      seen.push(call);
+      yield { text: 'Done.' };
+    };
+    const d = deps({ model: recorder });
+    await runTurn(
+      request({
+        userText: 'make it a watercolor',
+        attachments: [photo],
+        attachmentAppendix: appendix,
+      }),
+      d.deps,
+    );
+
+    expect(d.store.appended[0]).toMatchObject({
+      role: 'user',
+      parts: [
+        { type: 'text', text: 'make it a watercolor' },
+        { type: 'attachment', name: 'beach.jpg', fileId: 's3:acme/beach' },
+      ],
+    });
+    const newest = seen[0]?.messages.at(-1);
+    expect(newest?.parts[0]).toEqual({
+      type: 'text',
+      text: `make it a watercolor${appendix}`,
+    });
+  });
+
   it('hands the model call the catalog vision flag, both ways', async () => {
     const seen: ModelCallRequest[] = [];
     const recorder: ModelCall = async function* recorder(call) {

@@ -4,10 +4,11 @@
  * attachments. The stored bubble keeps the typed text only; the host loads
  * `fileMetadata` and hands the rows here. This module never touches Convex.
  *
- * An image rides the wire as pixels (or, for a model without vision, as a
- * placeholder), which name neither the file nor its ref; the image appendix
- * names both, so a tool that starts from a file — `generate_image`'s
- * `inputImages`, `run_code`'s `files` — can be handed the upload.
+ * An image rides the wire as pixels, which name neither the file nor its
+ * ref (a model without vision gets a placeholder naming only the file); the
+ * image appendix names both, so a tool that starts from a file —
+ * `generate_image`'s `inputImages`, `run_code`'s `files` — can be handed the
+ * upload.
  *
  * The 0.3 lane enriched every attachment marker with a retrieval hint; the
  * 0.4 equivalent is this appendix. Chat-uploaded documents are RAG-indexed
@@ -75,8 +76,10 @@ export function buildImageAppendix(
   entries: readonly ImageAppendixEntry[],
 ): string {
   if (entries.length === 0) return '';
+  // The name in JSON's quoting: a quote or a line break in it stays inside
+  // the entry instead of ending it.
   const lines = entries.map(
-    (entry) => `- "${entry.fileName}" (ref: ${entry.fileId})`,
+    (entry) => `- ${JSON.stringify(entry.fileName)} (ref: ${entry.fileId})`,
   );
   // No tool is named: the appendix rides every turn, also one that is
   // offered no tool taking files, and a model is never told about a tool

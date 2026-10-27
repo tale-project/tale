@@ -753,8 +753,8 @@ agent.
   **Image model** (`governance.imageGeneration.label`), pick a listed model
   (e.g. `OpenAI · gpt-image-2.5-flare`), **Save** (`common.actions.save`) and
   reload → The list offers only image models the organization's credentials
-  reach, never a chat model, an edit model (`krea/k3-edit`) or a vector model
-  (`recraft/recraft-v4-vector`); the pin survives the reload and
+  reach, never a chat model or a vector model (`recraft/recraft-v4-vector`);
+  the pin survives the reload and
   `governance.imageGeneration.currentModel.pinned` names it. Switch image
   generation off and on again → the same pin is still selected. Restore: pick
   **Automatic**, **Save**, and switch image generation off.

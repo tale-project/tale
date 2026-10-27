@@ -32,9 +32,10 @@
  */
 
 import { isPrivateIp } from '@tale/shared/net/private-ip';
-import type {
-  ModelCatalogEntry,
-  ProviderDefinition,
+import {
+  IMAGE_GENERATION_TAG,
+  type ModelCatalogEntry,
+  type ProviderDefinition,
 } from '@tale/shared/schemas/providers';
 
 import {
@@ -44,7 +45,6 @@ import {
 import { safeFetch, SafeFetchError } from '../../../../lib/net/safe-fetch';
 import { ALLOWLIST_CATALOG_CONTEXT_WINDOW } from '../../../../lib/shared/providers/allowlist_catalog';
 import {
-  IMAGE_GENERATION_TAG,
   normalizeCatalogPayload,
   readImageGenerationFactsListing,
   type NormalizeCatalogOptions,
@@ -75,8 +75,8 @@ const OPENROUTER_IMAGE_CATALOG_URL =
  * 2026-10-27: Recraft refuses the 3:2 every other model draws, and five
  * edit models refuse a request without a reference image). A FACTS listing:
  * merged into the image entries the listings above name, never a source of
- * entries; without it the facts stay unknown and the image wire keeps its
- * defaults. */
+ * entries. When it fails, the previous fetch's facts keep serving, and with
+ * none the facts stay unknown and the image wire keeps its defaults. */
 const OPENROUTER_IMAGE_FACTS_URL = 'https://openrouter.ai/api/v1/images/models';
 /** STT is another separately published population. Keep its cache/failure
  * state separate so audio discovery outages neither blank chat nor become
@@ -213,8 +213,13 @@ async function fetchListingPayload(
 }
 
 /** The facts of an image model listing, set on the image entries it names
- * (in place). An entry that already carries facts keeps them. */
-function mergeImageFacts(entries: ModelCatalogEntry[], payload: unknown): void {
+ * (in place). An entry that already carries facts keeps them. Answers
+ * whether the listing held any facts at all: one that held none was read
+ * in a shape the reader no longer knows, not as "no model takes anything". */
+function mergeImageFacts(
+  entries: ModelCatalogEntry[],
+  payload: unknown,
+): boolean {
   const facts = readImageGenerationFactsListing(payload);
   for (const [index, entry] of entries.entries()) {
     if (!entry.tags.includes(IMAGE_GENERATION_TAG)) continue;
@@ -224,6 +229,38 @@ function mergeImageFacts(entries: ModelCatalogEntry[], payload: unknown): void {
       entries[index] = { ...entry, imageGeneration: published };
     }
   }
+  return facts.size > 0;
+}
+
+/** `entries` with the image facts of `previous` — the last catalog that was
+ * served — on every image entry this fetch left without any: a facts
+ * listing that failed once must not ask a model again for a shape it
+ * refuses. */
+function withPreviousImageFacts(
+  entries: readonly ModelCatalogEntry[],
+  previous: readonly ModelCatalogEntry[] | undefined,
+): ModelCatalogEntry[] {
+  const facts = new Map(
+    (previous ?? []).flatMap((entry) =>
+      entry.imageGeneration !== undefined
+        ? [[entry.id, entry.imageGeneration] as const]
+        : [],
+    ),
+  );
+  return entries.map((entry) => {
+    if (entry.imageGeneration !== undefined) return entry;
+    const kept = facts.get(entry.id);
+    return kept !== undefined ? { ...entry, imageGeneration: kept } : entry;
+  });
+}
+
+/** One live catalog as fetched, and whether every supplement answered. */
+interface LiveCatalogFetch {
+  entries: ModelCatalogEntry[];
+  /** False when a supplement failed or the image facts listing held no
+   * facts: the catalog is then served only until the failure back-off
+   * lapses, not for the whole day. */
+  complete: boolean;
 }
 
 /** Fetch → normalize → validate one live catalog; an empty usable set is a
@@ -232,9 +269,10 @@ function mergeImageFacts(entries: ModelCatalogEntry[], payload: unknown): void {
  *
  * The FIRST listing is the primary population and must yield; any further
  * listings are supplements (a source that segregates model kinds behind
- * filters, like OpenRouter's embeddings listing) fetched best-effort — a
- * missing supplement degrades coverage with a warning, never the catalog.
- * Duplicate ids resolve primary-first. */
+ * filters, like OpenRouter's embeddings listing) fetched best-effort and at
+ * once, so a slow one holds up none of the others — a missing supplement
+ * degrades coverage with a warning, never the catalog, and marks the fetch
+ * incomplete. Duplicate ids resolve primary-first, then in listing order. */
 async function fetchLiveCatalog(
   urls: readonly [string, ...string[]],
   provider: string,
@@ -242,7 +280,7 @@ async function fetchLiveCatalog(
   allowedHosts?: readonly string[],
   bearerToken?: string,
   normalizeOptions: NormalizeCatalogOptions = {},
-): Promise<ModelCatalogEntry[]> {
+): Promise<LiveCatalogFetch> {
   const [primaryUrl, ...supplementUrls] = urls;
   const payload = await fetchListingPayload(
     primaryUrl,
@@ -277,46 +315,59 @@ async function fetchLiveCatalog(
   }
 
   const seen = new Set(entries.map((entry) => entry.id));
-  for (const url of supplementUrls) {
-    try {
-      const supplementPayload = await fetchListingPayload(
+  const supplements = await Promise.allSettled(
+    supplementUrls.map((url) =>
+      fetchListingPayload(
         url,
         provider,
         maxAttempts,
         allowedHosts,
         bearerToken,
-      );
-      if (url === OPENROUTER_IMAGE_FACTS_URL) {
-        mergeImageFacts(entries, supplementPayload);
-        continue;
-      }
-      const supplement = normalizeCatalogPayload(
-        supplementPayload,
-        provider,
-        normalizeOptions,
-      );
-      for (const entry of supplement.entries) {
-        if (seen.has(entry.id)) continue;
-        seen.add(entry.id);
-        entries.push(entry);
-      }
-    } catch (err) {
+      ),
+    ),
+  );
+  let complete = true;
+  for (const [index, url] of supplementUrls.entries()) {
+    const outcome = supplements[index];
+    if (outcome === undefined) continue;
+    if (outcome.status === 'rejected') {
+      complete = false;
+      const reason: unknown = outcome.reason;
       console.warn(
         `[catalog] ${provider}: supplementary listing ${url} failed; serving the primary listing without it:`,
-        err instanceof Error ? err.message : err,
+        reason instanceof Error ? reason.message : reason,
       );
+      continue;
+    }
+    if (url === OPENROUTER_IMAGE_FACTS_URL) {
+      if (!mergeImageFacts(entries, outcome.value)) {
+        complete = false;
+        console.warn(
+          `[catalog] ${provider}: the image model listing ${url} held no facts it could read; image requests keep their defaults`,
+        );
+      }
+      continue;
+    }
+    const supplement = normalizeCatalogPayload(
+      outcome.value,
+      provider,
+      normalizeOptions,
+    );
+    for (const entry of supplement.entries) {
+      if (seen.has(entry.id)) continue;
+      seen.add(entry.id);
+      entries.push(entry);
     }
   }
-  return entries;
+  return { entries, complete };
 }
 
 /** Fetched entries win by id; shipped defaults fill in whatever the live
  * listing doesn't carry (curated flagships pinned even when a listing drops
  * or renames them). CURATED BLOCKS are the exception: `tts` and `embedding`
  * facts exist only in the shipped files (no live listing publishes voices or
- * vector widths), and `imageGeneration` facts may be curated there too, so
- * when a live entry shadows a default of the same id those blocks are
- * carried over — otherwise every refresh would erase the
+ * vector widths), so when a live entry shadows a default of the same id
+ * those blocks are carried over — otherwise every refresh would erase the
  * very facts the one-click setup depends on. `reasoning.off` is curated the
  * same way (it is probe-verified per model, and no listing publishes it),
  * but rides over ONLY while the live entry still declares the same knob — a
@@ -337,10 +388,6 @@ function mergeWithDefaults(
         : {}),
       ...(entry.embedding === undefined && fallback.embedding !== undefined
         ? { embedding: fallback.embedding }
-        : {}),
-      ...(entry.imageGeneration === undefined &&
-      fallback.imageGeneration !== undefined
-        ? { imageGeneration: fallback.imageGeneration }
         : {}),
       ...(entry.reasoning !== undefined &&
       entry.reasoning.off === undefined &&
@@ -406,8 +453,18 @@ async function cachedLiveCatalog(
       options.bearerToken,
       normalizeOptions,
     )
-      .then((entries) => {
-        liveCatalogCache.set(cacheKey, { fetchedAt: Date.now(), entries });
+      .then(({ entries: fetched, complete }) => {
+        const entries = complete
+          ? fetched
+          : withPreviousImageFacts(fetched, cached?.entries);
+        liveCatalogCache.set(cacheKey, {
+          // An incomplete catalog is fetched again once the failure
+          // back-off lapses, not a day later.
+          fetchedAt: complete
+            ? Date.now()
+            : Date.now() - CATALOG_TTL_MS + CATALOG_FAILURE_BACKOFF_MS,
+          entries,
+        });
         liveCatalogFailures.delete(cacheKey);
         return entries;
       })

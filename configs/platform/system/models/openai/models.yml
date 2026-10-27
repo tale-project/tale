@@ -289,9 +289,11 @@
     outputCentsPerMillion: 3000
     imageInputCentsPerMillion: 800
 # OpenAI shuts GPT Image 1 Mini down on 2026-12-01: until then it keeps
-# serving an organization that pinned it, and automatic selection no longer
-# picks it. Remove it on that date. Prices read from
-# developers.openai.com/api/docs/pricing on 2026-09-29 (Standard).
+# serving an organization that pinned it, and automatic selection falls back
+# to it only behind GPT Image 2.5 Flare. Remove it on that date, here and
+# from PREFERRED_IMAGE_MODELS in
+# services/platform/backend/core/lib/providers/resolve_image_model.ts. Prices
+# read from developers.openai.com/api/docs/pricing on 2026-09-29 (Standard).
 - id: gpt-image-1-mini
   provider: openai
   tags:
