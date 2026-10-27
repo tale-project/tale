@@ -41,6 +41,8 @@ Files belong to the conversation: whoever can open the conversation can open its
 
 [Attach the file](/platform/chat/attachments) and say what should change: “Add a chart of the totals to the attached spreadsheet,” or “Convert the attached Word document to PDF.” The assistant copies the file into the light sandbox and returns the result as a new file. The file you attached stays as it was.
 
+A picture you attach can also be the starting point for a new image when your organization allows [image generation](/platform/admin/governance/content-models#let-agents-generate-images). Ask, for example, “Turn the attached photo into a watercolor.” The assistant hands the photo to the image model, and the new image appears below the reply.
+
 ## Use a skill
 
 A skill is a tested procedure for a kind of work, such as a document format or a house style. Your skill library holds the skills shared with the whole organization and with your teams; the built-in skills `docx`, `xlsx`, `pptx` and `pdf` cover the Office and PDF formats.
@@ -60,7 +62,7 @@ A skill guides the assistant; it does not change what the assistant is allowed t
 - A light sandbox belongs to one conversation. It keeps its files between the assistant’s steps and your follow-up messages, and after about five minutes without use it is removed; the next request starts a fresh one. When your organization’s light sandboxes are all in use, an idle one gives way; when none is idle, the assistant tells you to try again in a minute.
 - One run of code may take up to three minutes, and the tools of one step may run for at most five minutes together. At most 16 tools run in one step. Press **Stop generating** and a running program is cut off within seconds. A run attaches up to 10 files, each up to 20 MB; when a program writes many more, the reply names a few and counts the rest.
 - A file the assistant writes itself holds up to 1 MB of text.
-- One request creates up to 4 images, and one reply up to 16. Images are billed to your organization and count against you, like the reply itself.
+- One request creates up to 4 images, and one reply up to 16. A request can start from up to 4 images of the conversation, or fewer if the image model takes fewer. Images are billed to your organization and count against you, like the reply itself.
 - When the tools for making files cannot be set up for a reply, for example because your organization’s Chat tools policy cannot be read, the reply says so under it. Ask again later, or ask an administrator to check the policy.
 
 An administrator decides what chat can make under [Chat tools](/platform/admin/governance/policies-and-limits#chat-tools), whether it can create images under [Image generation](/platform/admin/governance/content-models#let-agents-generate-images), and how many light sandboxes your organization runs at once under [Sandboxes](/platform/admin/sandboxes#light-sandboxes). A tool that is switched off is gone from every chat; the assistant then answers in the reply or suggests a task instead.

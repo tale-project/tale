@@ -120,7 +120,7 @@ describe('attachment model boundary', () => {
     expect(queue).not.toHaveBeenCalled();
   });
 
-  it('names a readable image and its ref, which its pixels do not carry', async () => {
+  it('names a readable image and its ref, which its pixels do not carry [CHAT-R31]', async () => {
     const ctx = createCtxShim({
       'file_metadata/internal_queries:filterStorageIdsReadable': async () => [
         'foreign',
@@ -141,7 +141,7 @@ describe('attachment model boundary', () => {
     );
   });
 
-  it('never names the ref of an image the reader may not read', async () => {
+  it('never names the ref of an image the reader may not read [CHAT-R31]', async () => {
     const ctx = createCtxShim({
       'file_metadata/internal_queries:filterStorageIdsReadable': async () => [],
     });

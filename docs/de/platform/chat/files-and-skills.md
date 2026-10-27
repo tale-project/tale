@@ -41,6 +41,8 @@ Die Dateien gehören zum Gespräch: Wer das Gespräch öffnen kann, kann auch se
 
 [Hänge die Datei an](/de/platform/chat/attachments) und sag, was sich ändern soll: „Füge der angehängten Tabelle ein Diagramm der Summen hinzu“ oder „Wandle das angehängte Word-Dokument in ein PDF um.“ Der Assistent kopiert die Datei in die leichte Sandbox und liefert das Ergebnis als neue Datei. Die angehängte Datei bleibt unverändert.
 
+Ein angehängtes Bild kann auch der Ausgangspunkt für ein neues Bild sein, wenn deine Organisation die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) erlaubt. Schreib zum Beispiel: „Mach aus dem angehängten Foto ein Aquarell.“ Der Assistent gibt das Foto an das Bildmodell weiter, und das neue Bild erscheint unter der Antwort.
+
 ## Einen Skill nutzen
 
 Ein Skill ist ein erprobtes Vorgehen für eine bestimmte Arbeit, etwa ein Dokumentformat oder einen Hausstil. Deine Skill-Bibliothek enthält die Skills, die mit der ganzen Organisation oder mit deinen Teams geteilt sind; die eingebauten Skills `docx`, `xlsx`, `pptx` und `pdf` decken die Office-Formate und PDF ab.
@@ -60,7 +62,7 @@ Ein Skill leitet den Assistenten an; er ändert nicht, was der Assistent darf. D
 - Eine leichte Sandbox gehört zu einem Gespräch. Sie behält ihre Dateien zwischen den Schritten des Assistenten und deinen Folgenachrichten; nach etwa fünf Minuten ohne Nutzung wird sie entfernt, und die nächste Anfrage startet eine neue. Sind alle leichten Sandboxes deiner Organisation belegt, macht eine unbenutzte Platz; ist keine unbenutzt, bittet dich der Assistent, es in einer Minute noch einmal zu versuchen.
 - Ein Code-Lauf darf bis zu drei Minuten dauern, und die Tools eines Schritts dürfen zusammen höchstens fünf Minuten laufen. In einem Schritt laufen höchstens 16 Tools. Klickst du auf **Generierung stoppen**, wird ein laufendes Programm innerhalb weniger Sekunden abgebrochen. Ein Lauf hängt bis zu 10 Dateien an, jede bis zu 20 MB groß; schreibt ein Programm sehr viel mehr, nennt die Antwort einige und zählt den Rest.
 - Eine Datei, die der Assistent selbst schreibt, fasst bis zu 1 MB Text.
-- Eine Anfrage erstellt bis zu 4 Bilder, eine Antwort bis zu 16. Bilder werden deiner Organisation berechnet und zählen wie die Antwort selbst für dich.
+- Eine Anfrage erstellt bis zu 4 Bilder, eine Antwort bis zu 16. Eine Anfrage kann von bis zu 4 Bildern der Unterhaltung ausgehen, oder von weniger, wenn das Bildmodell weniger annimmt. Bilder werden deiner Organisation berechnet und zählen wie die Antwort selbst für dich.
 - Lassen sich die Tools zum Erstellen von Dateien für eine Antwort nicht einrichten, etwa weil die Chat-Tools-Richtlinie deiner Organisation nicht lesbar ist, sagt die Antwort das darunter. Frag später noch einmal oder bitte einen Admin, die Richtlinie zu prüfen.
 
 Was der Chat erstellen darf, legt ein Admin unter [Chat-Tools](/de/platform/admin/governance/policies-and-limits#chat-tools) fest, ob er Bilder erzeugen darf, unter [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images), und wie viele leichte Sandboxes deine Organisation gleichzeitig betreibt, unter [Sandboxes](/de/platform/admin/sandboxes#light-sandboxes). Ein ausgeschaltetes Tool fehlt in jedem Chat; der Assistent antwortet dann direkt oder schlägt stattdessen eine Aufgabe vor.
