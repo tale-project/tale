@@ -14,6 +14,7 @@ import type {
 } from '@tale/shared/schemas/providers';
 
 import { AppError } from '../../../../lib/shared/errors/app-error';
+import { answersChatTurns } from '../../../../lib/shared/providers/chat_turn_models';
 import type { ActionCtx } from '../ctx';
 import { internal } from '../handler_names';
 import { directActiveCredential } from './direct_credential';
@@ -90,10 +91,10 @@ export async function resolveModel(
       continue;
     }
     // Explicit references cross the same conversational capability boundary
-    // as the picker: an STT/embedding entry is not a chat token budget.
+    // as the picker: an STT/embedding entry is not a chat token budget, and
+    // an image generator that takes no tools cannot answer a turn.
     const entry = catalog.find(
-      (candidate) =>
-        candidate.id === modelId && candidate.tags.includes('chat'),
+      (candidate) => candidate.id === modelId && answersChatTurns(candidate),
     );
     if (entry) return { entry, connector };
   }

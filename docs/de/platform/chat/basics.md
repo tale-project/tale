@@ -27,6 +27,8 @@ Sind mehrere nutzbare Modelle verfügbar, startet die Auswahl mit **Auto**. Auto
 
 Wähle ein bestimmtes Modell, wenn du Antworten vergleichen möchtest oder weißt, welches Modell zur Arbeit passt. Die Auswahl bleibt bestehen, bis du sie änderst – auch der Anbieter, der das Modell bereitstellt, wenn zwei Anbieter dasselbe Modell anbieten. Unterstützt das Modell einen einstellbaren Denkaufwand, erscheint auch diese Einstellung. Mehr Denkaufwand kann länger dauern und ersetzt keine Prüfung der Antwort.
 
+Bildmodelle, die keine Tools verwenden können, etwa Gemini 2.5 Flash Image, fehlen in der Auswahl, denn jede Antwort kann Tools aufrufen, etwa eine Dokumentsuche. Für ein Bild schreib im Gespräch, was du brauchst: Der Assistent erstellt es mit dem [Bildmodell](/de/platform/admin/governance/content-models#let-agents-generate-images) deiner Organisation.
+
 <Frame caption="Die Modellauswahl steht neben dem Anhangsmenü und den Sprachfunktionen.">
 
 ![Das Nachrichtenfeld zeigt das Plus-Menü, die Modellauswahl Auto, ein Mikrofon und die Sende-Schaltfläche.](/images/platform/chat-composer.webp)

@@ -71,7 +71,21 @@ vi.mock('../hooks/model-catalog', () => ({
         name: 'openai',
         displayName: 'OpenAI',
         models: [
-          { id: 'openai/gpt-4o', displayName: 'GPT-4o', tags: ['chat'] },
+          {
+            id: 'openai/gpt-4o',
+            displayName: 'GPT-4o',
+            tags: ['chat'],
+            supportsTools: true,
+          },
+          // An image generator that writes text but takes no tools: every
+          // chat turn offers tools, so it could answer none.
+          {
+            id: 'openai/gpt-5-image-mini',
+            displayName: 'GPT-5 Image Mini',
+            tags: ['chat', 'vision', 'image-generation'],
+            supportsTools: false,
+            outputsMedia: true,
+          },
         ],
       },
     ],
@@ -216,6 +230,21 @@ describe('DefaultModelEditor', () => {
     const { user } = render(<DefaultModelEditor organizationId="org-1" />);
     await user.click(screen.getByRole('button', { name: /edit rule 1/i }));
     expect(screen.getByText('Model is blocked')).toBeInTheDocument();
+  });
+
+  it('offers no image generator that takes no tools as a default chat model', async () => {
+    setLoaded();
+    const { user } = render(<DefaultModelEditor organizationId="org-1" />);
+    await user.click(screen.getByRole('button', { name: /edit rule 1/i }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Model',
+      }),
+    );
+    expect(screen.getByRole('option', { name: 'GPT-4o' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('option', { name: 'GPT-5 Image Mini' }),
+    ).not.toBeInTheDocument();
   });
 
   describe('loaded state', () => {

@@ -350,6 +350,29 @@ describe('non-chat catalog entries never serve agent turns', () => {
     },
   );
 
+  it('refuses an image generator that takes no tools', async () => {
+    credentials = { openrouter: DIRECT };
+    getProviderCatalog.mockResolvedValue([
+      {
+        id: 'google/gemini-2.5-flash-image',
+        provider: 'openrouter',
+        tags: ['chat', 'vision', 'image-generation'],
+        contextWindow: 32_768,
+        supportsTools: false,
+        supportsVision: true,
+        outputsMedia: true,
+      },
+    ]);
+    await expect(
+      resolveWorkflowAgentServing(ctx, {
+        organizationId: ORG,
+        model: 'google/gemini-2.5-flash-image',
+        modelProvider: 'openrouter',
+        harness: 'claude-code',
+      }),
+    ).rejects.toThrow(/cannot serve/);
+  });
+
   it('does not replace an exact STT reference with an equivalent chat model', async () => {
     credentials = { openrouter: DIRECT };
     getProviderCatalog.mockResolvedValue([

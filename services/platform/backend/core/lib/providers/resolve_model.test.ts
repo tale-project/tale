@@ -116,6 +116,36 @@ describe('resolveModel', () => {
     },
   );
 
+  it('refuses an image generator that takes no tools in both explicit chat paths', async () => {
+    connectors({
+      name: 'openrouter',
+      models: ['google/gemini-2.5-flash-image'],
+    });
+    vi.mocked(getServableCatalog).mockResolvedValue([
+      {
+        id: 'google/gemini-2.5-flash-image',
+        provider: 'openrouter',
+        tags: ['chat', 'vision', 'image-generation'],
+        supportsTools: false,
+        supportsVision: true,
+        outputsMedia: true,
+        contextWindow: 32_768,
+      },
+    ]);
+    await expect(
+      resolveModel(
+        ctx,
+        'org-1',
+        'google/gemini-2.5-flash-image',
+        'openrouter',
+        true,
+      ),
+    ).rejects.toMatchObject({ data: { code: 'CHAT_PROVIDER_UNAVAILABLE' } });
+    await expect(
+      resolveModel(ctx, 'org-1', 'google/gemini-2.5-flash-image'),
+    ).rejects.toMatchObject({ data: { code: 'CHAT_MODEL_UNKNOWN' } });
+  });
+
   it('keeps serving chat deployment names from a catalog-less credential', async () => {
     const actual =
       await vi.importActual<typeof import('./servable_catalog')>(

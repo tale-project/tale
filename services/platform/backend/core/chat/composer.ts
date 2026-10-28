@@ -20,6 +20,7 @@
  * custom connectors is filesystem work.
  */
 
+import { answersChatTurns } from '../../../lib/shared/providers/chat_turn_models';
 import { walkChatCatalog } from '../lib/providers/chat_catalog';
 
 /** The vendor names a model id spells in lower case. */
@@ -147,8 +148,9 @@ export function collectComposerOptions(
       ttsAvailable = true;
     }
     // The picker lists conversational models only — a TTS or embedding
-    // entry is a capability, not something a turn can be sent to.
-    if (!entry.tags.includes('chat')) continue;
+    // entry is a capability, not something a turn can be sent to, and nor
+    // is an image generator that takes no tools.
+    if (!answersChatTurns(entry)) continue;
     const key = `${connector.name} ${entry.id}`;
     if (byId.has(key)) continue;
     byId.set(key, {
