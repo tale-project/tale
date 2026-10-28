@@ -11,6 +11,7 @@ import {
   buildImageRequest,
   ImageReplyError,
   isReferenceMediaType,
+  openRouterAspectRatio,
   parseImageReply,
   providerErrorMessage,
   rasterPixelSize,
@@ -197,6 +198,70 @@ describe('buildImageRequest — OpenRouter Image API', () => {
     expect(jsonBody(portrait)).toMatchObject({
       aspect_ratio: '2:3',
     });
+  });
+
+  it('asks a model for the shape it draws closest to the one wanted', () => {
+    // Recraft draws no 3:2 and refuses a request for one (live, 2026-10-27).
+    const request = buildImageRequest({
+      wire: 'openrouter-images',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      apiKey: 'sk-or',
+      modelId: 'recraft/recraft-v4.1',
+      prompt: 'A lighthouse at dawn',
+      size: 'landscape',
+      references: [],
+      aspectRatios: ['1:1', '4:3', '3:4', '16:9', '9:16'],
+    });
+    expect(jsonBody(request)).toMatchObject({ aspect_ratio: '4:3' });
+  });
+
+  it('asks a GPT image model for medium quality, as on OpenAI', () => {
+    const gpt = buildImageRequest({
+      wire: 'openrouter-images',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      apiKey: 'sk-or',
+      modelId: 'openai/gpt-image-2.5-flare',
+      prompt: 'A lighthouse at dawn',
+      size: 'square',
+      references: [],
+    });
+    expect(jsonBody(gpt)).toMatchObject({ quality: 'medium' });
+    const gemini = buildImageRequest({
+      wire: 'openrouter-images',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      apiKey: 'sk-or',
+      modelId: 'google/gemini-2.5-flash-image',
+      prompt: 'A lighthouse at dawn',
+      size: 'square',
+      references: [],
+    });
+    expect(jsonBody(gemini)).not.toHaveProperty('quality');
+  });
+});
+
+describe('openRouterAspectRatio', () => {
+  it('keeps the shape of the size when the model draws it, or says nothing', () => {
+    expect(openRouterAspectRatio('square', undefined)).toBe('1:1');
+    expect(openRouterAspectRatio('landscape', undefined)).toBe('3:2');
+    expect(openRouterAspectRatio('portrait', ['1:1', '3:2', '2:3'])).toBe(
+      '2:3',
+    );
+  });
+
+  it('takes the closest shape the model draws instead', () => {
+    const recraft = ['1:1', '4:3', '3:4', '16:9', '9:16'];
+    expect(openRouterAspectRatio('landscape', recraft)).toBe('4:3');
+    expect(openRouterAspectRatio('portrait', recraft)).toBe('3:4');
+    expect(openRouterAspectRatio('landscape', ['1:1', '16:9', '21:9'])).toBe(
+      '16:9',
+    );
+    expect(openRouterAspectRatio('portrait', ['9:19.5', '1:1'])).toBe('9:19.5');
+  });
+
+  it('never turns a landscape into a portrait while a nearer shape exists', () => {
+    expect(openRouterAspectRatio('landscape', ['3:4', '1:1'])).toBe('1:1');
+    expect(openRouterAspectRatio('portrait', ['4:3', '1:1'])).toBe('1:1');
+    expect(openRouterAspectRatio('square', ['4:3', '3:4'])).toBe('4:3');
   });
 });
 

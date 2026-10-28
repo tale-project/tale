@@ -32,22 +32,25 @@
  * dropped the user's pick from the body.
  *
  * Chat and embedding entries require a positive context window. Pure STT
- * listings may publish zero or no token window; 0 preserves that absence
- * without inventing a conversational budget. STT pricing may be per audio
- * duration, so its generic prompt/completion fields are not token prices.
+ * listings and image generators that write no text may publish zero or no
+ * token window; 0 preserves that absence without inventing a conversational
+ * budget. STT pricing may be per audio duration, so its generic
+ * prompt/completion fields are not token prices.
+ *
+ * OpenRouter publishes what each image model accepts in a listing of its own
+ * (`/api/v1/images/models`), whose `supported_parameters` is an object of
+ * descriptors rather than a list of names: {@link readImageGenerationFacts}
+ * reads it into the entry's `imageGeneration` facts.
  */
 
 import {
+  IMAGE_ASPECT_RATIO_PATTERN,
+  IMAGE_GENERATION_TAG,
   modelCatalogEntrySchema,
+  modelCatalogImageGenerationSchema,
   type ModelCatalogEntry,
+  type ModelCatalogImageGeneration,
 } from '@tale/shared/schemas/providers';
-
-/**
- * The catalog tag of a model that GENERATES images — derived here from a
- * live listing's output modalities, declared by hand in a static catalog
- * (`configs/platform/system/models/<provider>/models.yml`).
- */
-export const IMAGE_GENERATION_TAG = 'image-generation';
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
@@ -230,13 +233,22 @@ export function normalizeCatalogModel(
     publishedWindow === undefined &&
     absentTokenWindow &&
     options.defaultContextWindow !== undefined;
+  // An image generator that writes no text reads a prompt and nothing else,
+  // so a listing may publish no window for it (OpenRouter lists Seedream 5.0
+  // with 0): kept with 0, like transcription, instead of being dropped.
+  const drawsOnly =
+    outputModalities.includes('image') &&
+    !outputModalities.includes('text') &&
+    entryType !== 'language';
   const contextWindow =
     publishedWindow ??
     (isTranscription && absentTokenWindow
       ? 0
       : bareEntry
         ? options.defaultContextWindow
-        : undefined);
+        : drawsOnly && absentTokenWindow
+          ? 0
+          : undefined);
   if (contextWindow === undefined) return null;
   const supportsVision = !isTranscription && inputModalities.includes('image');
 
@@ -364,4 +376,93 @@ export function normalizeCatalogPayload(
     entries.push(entry);
   }
   return { entries, droppedCount };
+}
+
+function nonNegativeInt(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+/**
+ * The image facts one entry of OpenRouter's image model listing
+ * (`/api/v1/images/models`) publishes, or `null` when it names no model. Its
+ * `supported_parameters` maps each request parameter to a descriptor —
+ * `{type: 'enum', values}`, `{type: 'range', min, max}` or
+ * `{type: 'boolean'}`. Only the facts the image wire acts on are read, and a
+ * fact the entry leaves out stays unknown rather than read as "unsupported":
+ * the listing omits parameters some models still take (Meta's Muse Image
+ * lists none and draws every aspect ratio asked of it).
+ */
+export function readImageGenerationFacts(
+  raw: unknown,
+): { id: string; facts: ModelCatalogImageGeneration } | null {
+  const m = asRecord(raw);
+  if (!m || typeof m.id !== 'string' || m.id.length === 0) return null;
+  const parameters = asRecord(m.supported_parameters);
+  // Each fact stands on its own: one out of the bounds the schema knows is
+  // left unknown, and never takes the others with it — the formats that
+  // mark a vector model, say, whatever its list of shapes looks like.
+  const shape = modelCatalogImageGenerationSchema.shape;
+  const facts: ModelCatalogImageGeneration = {};
+  const ratios = asRecord(parameters?.aspect_ratio);
+  if (ratios?.type === 'enum') {
+    const read = shape.aspectRatios.safeParse([
+      ...new Set(
+        asStringArray(ratios.values).filter((value) =>
+          IMAGE_ASPECT_RATIO_PATTERN.test(value),
+        ),
+      ),
+    ]);
+    if (read.success && read.data !== undefined) facts.aspectRatios = read.data;
+  }
+  const references = asRecord(parameters?.input_references);
+  if (references?.type === 'range') {
+    const min = nonNegativeInt(references.min) ?? 0;
+    const max = nonNegativeInt(references.max);
+    const read = shape.referenceImages.safeParse(
+      max === undefined ? { min } : { min, max },
+    );
+    if (read.success && read.data !== undefined) {
+      facts.referenceImages = read.data;
+    }
+  }
+  const formats = asRecord(parameters?.output_format);
+  if (formats?.type === 'enum') {
+    const read = shape.outputFormats.safeParse([
+      ...new Set(
+        asStringArray(formats.values)
+          .map((value) => value.trim().toLowerCase())
+          .filter((value) => value !== ''),
+      ),
+    ]);
+    if (read.success && read.data !== undefined) {
+      facts.outputFormats = read.data;
+    }
+  }
+  return { id: m.id, facts };
+}
+
+/** Every model's image facts in one OpenRouter image model listing
+ * (`{ data: [...] }`), keyed by model id; the first entry of an id decides
+ * it, and a model that publishes none is left out. */
+export function readImageGenerationFactsListing(
+  payload: unknown,
+): Map<string, ModelCatalogImageGeneration> {
+  const root = asRecord(payload);
+  const list = Array.isArray(payload)
+    ? payload
+    : Array.isArray(root?.data)
+      ? root.data
+      : [];
+  const facts = new Map<string, ModelCatalogImageGeneration>();
+  const seen = new Set<string>();
+  for (const raw of list) {
+    const read = readImageGenerationFacts(raw);
+    if (read === null || seen.has(read.id)) continue;
+    seen.add(read.id);
+    if (Object.keys(read.facts).length === 0) continue;
+    facts.set(read.id, read.facts);
+  }
+  return facts;
 }

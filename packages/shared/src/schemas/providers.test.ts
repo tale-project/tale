@@ -507,6 +507,79 @@ describe('modelCatalogEntrySchema', () => {
     },
   );
 
+  it.each([
+    { tags: ['image-generation'], supportsVision: false },
+    { tags: ['vision', 'image-generation'], supportsVision: true },
+  ])(
+    'accepts an image generator that writes no text without a token window (%j)',
+    (shape) => {
+      // OpenRouter lists Seedream 5.0 with `context_length: 0`.
+      for (const contextWindow of [undefined, 0]) {
+        const entry = modelCatalogEntrySchema.parse({
+          id: 'bytedance-seed/seedream-5-0-lite',
+          provider: 'openrouter',
+          supportsTools: false,
+          outputsMedia: true,
+          contextWindow,
+          ...shape,
+        });
+        expect(entry.contextWindow).toBe(0);
+      }
+    },
+  );
+
+  it.each([
+    { tags: ['chat', 'vision', 'image-generation'] },
+    { tags: ['vision'] },
+    { supportsTools: true },
+    { outputsMedia: undefined },
+  ])(
+    'keeps requiring a window from an image generator that is more than one (%j)',
+    (override) => {
+      for (const contextWindow of [undefined, 0]) {
+        expect(
+          modelCatalogEntrySchema.safeParse({
+            id: 'example/image',
+            provider: 'openrouter',
+            tags: ['vision', 'image-generation'],
+            supportsTools: false,
+            supportsVision: true,
+            outputsMedia: true,
+            contextWindow,
+            ...override,
+          }).success,
+        ).toBe(false);
+      }
+    },
+  );
+
+  it('takes the image facts a listing publishes', () => {
+    const entry = modelCatalogEntrySchema.parse({
+      ...VALID_MODEL,
+      imageGeneration: {
+        aspectRatios: ['1:1', '4:3', '16:9', '9:19.5'],
+        referenceImages: { min: 0, max: 3 },
+        outputFormats: ['png', 'jpeg'],
+      },
+    });
+    expect(entry.imageGeneration?.aspectRatios).toContain('9:19.5');
+    expect(entry.imageGeneration?.referenceImages).toEqual({ min: 0, max: 3 });
+  });
+
+  it.each([
+    { aspectRatios: ['auto'] },
+    { aspectRatios: [] },
+    { referenceImages: { min: 2, max: 1 } },
+    { referenceImages: { min: -1, max: 1 } },
+    { outputFormats: [] },
+    { quality: ['high'] },
+  ])('refuses image facts it cannot use (%j)', (imageGeneration) => {
+    expect(
+      modelCatalogEntrySchema.safeParse({ ...VALID_MODEL, imageGeneration })
+        .success,
+    ).toBe(false);
+  });
+
   it('rejects negative or partial pricing', () => {
     expect(
       modelCatalogEntrySchema.safeParse({

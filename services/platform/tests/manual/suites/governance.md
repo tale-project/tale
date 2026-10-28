@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 98 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 99 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -751,9 +751,10 @@ agent.
   **ENVIRONMENT** without a runnable harness.
 - [ ] `GOV-F39` · **Pin an image model** — With **Image generation** on, open
   **Image model** (`governance.imageGeneration.label`), pick a listed model
-  (e.g. `OpenAI · gpt-image-1`), **Save** (`common.actions.save`) and reload →
-  The list offers only image models the organization's credentials reach,
-  never a chat model; the pin survives the reload and
+  (e.g. `OpenAI · gpt-image-2.5-flare`), **Save** (`common.actions.save`) and
+  reload → The list offers only image models the organization's credentials
+  reach, never a chat model or a vector model (`recraft/recraft-v4-vector`);
+  the pin survives the reload and
   `governance.imageGeneration.currentModel.pinned` names it. Switch image
   generation off and on again → the same pin is still selected. Restore: pick
   **Automatic**, **Save**, and switch image generation off.
@@ -769,6 +770,13 @@ agent.
   **Generating an image** (`chat.thinking.generatingImages`), the picture
   appears under the reply, and within a minute it counts against you in
   `usage` (GOV-F45). Restore: switch image generation off.
+- [ ] `GOV-F68` · **A model that draws no 3:2 gets its closest shape** — Mode
+  B with an OpenRouter credential: pin `OpenRouter · recraft/recraft-v4.1-flash`
+  (GOV-F39), then give a project agent a task "Create one landscape banner of a
+  lake at sunrise; call generate_image with size landscape" → its
+  `generate_image` call answers `ok`, and the delivered image is 1216 × 896
+  (4:3, the closest shape Recraft draws), never a refusal of 3:2. Restore: pick
+  **Automatic**, **Save**, and switch image generation off.
 - [ ] `GOV-F49` · **An erasure deletes the subject's workspaces** — With a
   Member whose own run of a project agent is listed on Sandboxes
   (`SET-F71`'s setup), file and run an erasure for them (`GOV-F8`) → the

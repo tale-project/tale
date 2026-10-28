@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { buildDocumentAppendix } from './document-appendix';
+import { buildDocumentAppendix, buildImageAppendix } from './document-appendix';
 
 describe('buildDocumentAppendix', () => {
   it('returns an empty string for no entries', () => {
@@ -45,5 +45,37 @@ describe('buildDocumentAppendix', () => {
     ]);
     expect(appendix.indexOf('a.pdf')).toBeLessThan(appendix.indexOf('b.csv'));
     expect(appendix.match(/a\.pdf/g)).toHaveLength(1);
+  });
+});
+
+describe('buildImageAppendix', () => {
+  it('returns an empty string for no entries', () => {
+    expect(buildImageAppendix([])).toBe('');
+  });
+
+  it('names every attached image with the ref a tool takes it by', () => {
+    // The pixels ride the wire without their file: a model asked to edit an
+    // upload once passed "image1.jpg" for want of the ref (2026-10-27).
+    const appendix = buildImageAppendix([
+      { fileName: 'photo.png', fileId: 's3:acme/photo' },
+      { fileName: 'logo.jpg', fileId: 's3:acme/logo' },
+    ]);
+    expect(appendix).toContain('Attached images');
+    expect(appendix).toContain('"photo.png" (ref: s3:acme/photo)');
+    expect(appendix).toContain('"logo.jpg" (ref: s3:acme/logo)');
+    // It rides turns offered no tool that takes files too, so it names none.
+    expect(appendix).not.toMatch(/generate_image|run_code|inputImages/);
+    expect(appendix.indexOf('photo.png')).toBeLessThan(
+      appendix.indexOf('logo.jpg'),
+    );
+  });
+
+  it('keeps a quote or a line break in a name inside its entry', () => {
+    const appendix = buildImageAppendix([
+      { fileName: 'a "b"\n- c.png', fileId: 's3:acme/x' },
+    ]);
+    expect(appendix).toContain(
+      String.raw`- "a \"b\"\n- c.png" (ref: s3:acme/x)`,
+    );
   });
 });

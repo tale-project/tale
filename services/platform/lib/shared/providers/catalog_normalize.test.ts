@@ -1,9 +1,11 @@
+import { IMAGE_GENERATION_TAG } from '@tale/shared/schemas/providers';
 import { describe, expect, it } from 'vitest';
 
 import {
-  IMAGE_GENERATION_TAG,
   normalizeCatalogModel,
   normalizeCatalogPayload,
+  readImageGenerationFacts,
+  readImageGenerationFactsListing,
 } from './catalog_normalize';
 
 /** Abridged real entry from OpenRouter `/api/v1/models` (2026-07-21). */
@@ -456,6 +458,148 @@ describe('normalizeCatalogModel', () => {
       'openrouter',
     );
     expect(music?.tags).not.toContain(IMAGE_GENERATION_TAG);
+  });
+
+  it('keeps an image generator that publishes no window, and no other model', () => {
+    // Abridged live entry from `/api/v1/models?output_modalities=image`
+    // (2026-10-27): the Seedream 5.0 family lists a window of 0.
+    const seedream = {
+      id: 'bytedance-seed/seedream-5-0-lite',
+      context_length: 0,
+      architecture: {
+        input_modalities: ['text', 'image'],
+        output_modalities: ['image'],
+      },
+      pricing: { prompt: '0', completion: '0' },
+      supported_parameters: ['max_tokens', 'temperature', 'top_p'],
+    };
+    const entry = normalizeCatalogModel(seedream, 'openrouter');
+    expect(entry?.contextWindow).toBe(0);
+    expect(entry?.tags).toEqual(['vision', IMAGE_GENERATION_TAG]);
+    expect(entry?.outputsMedia).toBe(true);
+    // A model that also writes text is read as chat, which needs a window.
+    expect(
+      normalizeCatalogModel(
+        {
+          ...seedream,
+          architecture: {
+            input_modalities: ['text', 'image'],
+            output_modalities: ['image', 'text'],
+          },
+        },
+        'openrouter',
+      ),
+    ).toBeNull();
+  });
+});
+
+describe('readImageGenerationFacts', () => {
+  /** Abridged live entries from OpenRouter `/api/v1/images/models`
+   * (2026-10-27). */
+  const RECRAFT = {
+    id: 'recraft/recraft-v4.1',
+    supported_parameters: {
+      aspect_ratio: {
+        type: 'enum',
+        values: ['1:1', '4:3', '3:4', '16:9', '9:16', 'auto'],
+      },
+      n: { type: 'range', min: 1, max: 6 },
+      input_references: { type: 'range', min: 0, max: 1 },
+    },
+  };
+  const RECRAFT_STYLES_VECTOR = {
+    id: 'recraft/recraft-v4-styles-vector',
+    supported_parameters: {
+      aspect_ratio: { type: 'enum', values: ['1:1', '3:2', '2:3'] },
+      input_references: { type: 'range', min: 1, max: 10 },
+      output_format: { type: 'enum', values: ['svg'] },
+    },
+  };
+
+  it('reads the aspect ratios, the reference range and the formats a model takes', () => {
+    expect(readImageGenerationFacts(RECRAFT)).toEqual({
+      id: 'recraft/recraft-v4.1',
+      // `auto` lets the provider pick; it names no shape to ask for.
+      facts: {
+        aspectRatios: ['1:1', '4:3', '3:4', '16:9', '9:16'],
+        referenceImages: { min: 0, max: 1 },
+      },
+    });
+    expect(readImageGenerationFacts(RECRAFT_STYLES_VECTOR)?.facts).toEqual({
+      aspectRatios: ['1:1', '3:2', '2:3'],
+      referenceImages: { min: 1, max: 10 },
+      outputFormats: ['svg'],
+    });
+  });
+
+  it('leaves out what a model does not publish, and what is out of bounds', () => {
+    // Meta's Muse Image lists no parameter at all, yet draws every shape.
+    expect(
+      readImageGenerationFacts({
+        id: 'meta/muse-image',
+        supported_parameters: {},
+      }),
+    ).toEqual({ id: 'meta/muse-image', facts: {} });
+    expect(
+      readImageGenerationFacts({
+        id: 'example/odd',
+        supported_parameters: {
+          aspect_ratio: { type: 'range', min: 1, max: 2 },
+          input_references: { type: 'range', min: 3, max: 1 },
+          output_format: { type: 'enum', values: [] },
+        },
+      })?.facts,
+    ).toEqual({});
+    expect(readImageGenerationFacts({ supported_parameters: {} })).toBeNull();
+  });
+
+  it('keeps each fact on its own when another is out of bounds', () => {
+    // Seventy shapes is more than the catalog keeps; the formats that mark a
+    // vector model must survive it.
+    const many = Array.from({ length: 70 }, (_, index) => `${index + 1}:1`);
+    expect(
+      readImageGenerationFacts({
+        id: 'example/vector',
+        supported_parameters: {
+          aspect_ratio: { type: 'enum', values: many },
+          output_format: { type: 'enum', values: ['svg'] },
+        },
+      })?.facts,
+    ).toEqual({ outputFormats: ['svg'] });
+    // An edit model that publishes its minimum but no maximum stays one.
+    expect(
+      readImageGenerationFacts({
+        id: 'example/edit',
+        supported_parameters: { input_references: { type: 'range', min: 1 } },
+      })?.facts,
+    ).toEqual({ referenceImages: { min: 1 } });
+  });
+
+  it('lets the first entry of an id decide it, even one that publishes nothing', () => {
+    const facts = readImageGenerationFactsListing({
+      data: [{ ...RECRAFT, supported_parameters: {} }, RECRAFT],
+    });
+    expect(facts.has('recraft/recraft-v4.1')).toBe(false);
+  });
+
+  it('keys a listing by model id and skips models that publish nothing', () => {
+    const facts = readImageGenerationFactsListing({
+      data: [
+        RECRAFT,
+        { ...RECRAFT, supported_parameters: {} },
+        { id: 'meta/muse-image', supported_parameters: {} },
+        RECRAFT_STYLES_VECTOR,
+        'junk',
+      ],
+    });
+    expect([...facts.keys()]).toEqual([
+      'recraft/recraft-v4.1',
+      'recraft/recraft-v4-styles-vector',
+    ]);
+    expect(facts.get('recraft/recraft-v4.1')?.referenceImages).toEqual({
+      min: 0,
+      max: 1,
+    });
   });
 });
 

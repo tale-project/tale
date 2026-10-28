@@ -1,8 +1,14 @@
 /**
- * Pure formatting for the document appendix the chat turn injects into the
- * MODEL-facing user turn when the message carries document / text
+ * Pure formatting for the attachment appendix the chat turn injects into the
+ * MODEL-facing user turn when the message carries document / text or image
  * attachments. The stored bubble keeps the typed text only; the host loads
  * `fileMetadata` and hands the rows here. This module never touches Convex.
+ *
+ * An image rides the wire as pixels, which name neither the file nor its
+ * ref (a model without vision gets a placeholder naming only the file); the
+ * image appendix names both, so a tool that starts from a file —
+ * `generate_image`'s `inputImages`, `run_code`'s `files` — can be handed the
+ * upload.
  *
  * The 0.3 lane enriched every attachment marker with a retrieval hint; the
  * 0.4 equivalent is this appendix. Chat-uploaded documents are RAG-indexed
@@ -54,4 +60,29 @@ export function buildDocumentAppendix(
     }
   }
   return `\n\n---\n**Attached documents** (read with rag_fetch)\n${lines.join('\n')}\n---\n`;
+}
+
+export interface ImageAppendixEntry {
+  readonly fileName: string;
+  /** Blob reference — the `ref` a tool that takes files is handed. */
+  readonly fileId: string;
+}
+
+/**
+ * Build the markdown appendix naming each attached image and its ref.
+ * Empty input → empty string (caller leaves `userText` untouched).
+ */
+export function buildImageAppendix(
+  entries: readonly ImageAppendixEntry[],
+): string {
+  if (entries.length === 0) return '';
+  // The name in JSON's quoting: a quote or a line break in it stays inside
+  // the entry instead of ending it.
+  const lines = entries.map(
+    (entry) => `- ${JSON.stringify(entry.fileName)} (ref: ${entry.fileId})`,
+  );
+  // No tool is named: the appendix rides every turn, also one that is
+  // offered no tool taking files, and a model is never told about a tool
+  // it was not offered (CHAT-R18).
+  return `\n\n---\n**Attached images** (pass a ref to a tool that takes files)\n${lines.join('\n')}\n---\n`;
 }

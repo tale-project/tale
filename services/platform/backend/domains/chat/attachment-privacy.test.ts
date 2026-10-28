@@ -120,6 +120,38 @@ describe('attachment model boundary', () => {
     expect(queue).not.toHaveBeenCalled();
   });
 
+  it('names a readable image and its ref, which its pixels do not carry [CHAT-R31]', async () => {
+    const ctx = createCtxShim({
+      'file_metadata/internal_queries:filterStorageIdsReadable': async () => [
+        'foreign',
+      ],
+    });
+    const message = await modelFacingUserMessage(ctx, 'org_1', 'reader', [
+      parts[0],
+      { ...parts[1], name: 'photo.png', mediaType: 'image/png' },
+    ]);
+    // A tool that starts from a file (generate_image's inputImages) takes it
+    // by this ref; without it a model guessed "image1.jpg" (2026-10-27).
+    expect(message.parts).toContainEqual({
+      type: 'text',
+      text: expect.stringContaining('"photo.png" (ref: foreign)'),
+    });
+    expect(message.parts).toContainEqual(
+      expect.objectContaining({ type: 'attachment', fileId: 'foreign' }),
+    );
+  });
+
+  it('never names the ref of an image the reader may not read [CHAT-R31]', async () => {
+    const ctx = createCtxShim({
+      'file_metadata/internal_queries:filterStorageIdsReadable': async () => [],
+    });
+    const message = await modelFacingUserMessage(ctx, 'org_1', 'reader', [
+      parts[0],
+      { ...parts[1], name: 'photo.png', mediaType: 'image/png' },
+    ]);
+    expect(JSON.stringify(message)).not.toContain('foreign');
+  });
+
   it('never queues indexing for an unreadable document in history', async () => {
     const queue = vi.fn();
     const ctx = createCtxShim({

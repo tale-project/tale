@@ -44,6 +44,7 @@ import {
   generateOneImage,
   ImageProviderError,
   prepareImageRequest,
+  referenceImagesRefusal,
   type ImageCallResult,
 } from '../../lib/providers/image_generation';
 import {
@@ -117,13 +118,15 @@ export const IMAGE_GENERATION_TOOL_DESCRIPTION =
   'file anywhere under /agent/workspace/; the extension follows the ' +
   'format the model returns; default: a timestamped name in the delivery ' +
   'box), size?: "square"|"landscape"|"portrait" (default square; ' +
-  'landscape is 3:2 and portrait 2:3, in pixels the model picks; another ' +
-  'shape such as "16:9" or "1920x1080" is read by its orientation), ' +
+  'landscape is 3:2 and portrait 2:3, or the closest shape the model ' +
+  'draws, in pixels the model picks; another shape such as "16:9" or ' +
+  '"1920x1080" is read by its orientation), ' +
   `count?: 1-${IMAGE_COUNT_MAX} (default 1; several are saved as ` +
   '<name>-1, <name>-2, …), inputImages?: string[] (up to ' +
   `${REFERENCE_IMAGES_MAX} workspace PNG, JPEG or WebP images of at most ` +
   `${REFERENCE_IMAGE_MAX_BYTES / MIB} MB each, to edit or take as ` +
-  'reference, when the model accepts images)}. Answers with the saved ' +
+  'reference, when the model accepts images and as many as it takes)}. ' +
+  'Answers with the saved ' +
   "paths, each image's width and height in pixels, and the model used — " +
   'report those, not the size you asked for. One call at a time, and at most ' +
   `${SANDBOX_TURN_MAX_GENERATED_IMAGES} images a turn, within the turn's ` +
@@ -682,6 +685,10 @@ async function generateForTurn(
       status: 'invalid_args',
       message: `The organization's image model (${model.modelId}) does not take reference images. Describe the image in the prompt instead, without "inputImages".`,
     };
+  }
+  const refusal = referenceImagesRefusal(model, args.references.length);
+  if (refusal !== undefined) {
+    return { status: 'invalid_args', message: refusal };
   }
 
   const admission: ImageAdmission = await ctx.runMutation(

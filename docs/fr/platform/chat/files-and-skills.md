@@ -41,6 +41,8 @@ Les fichiers appartiennent à la conversation : quiconque peut ouvrir la conver
 
 [Joins le fichier](/fr/platform/chat/attachments) et indique ce qui doit changer : « Ajoute un graphique des totaux au tableur joint » ou « Convertis le document Word joint en PDF ». L’assistant copie le fichier dans la sandbox légère et renvoie le résultat sous forme de nouveau fichier. Le fichier joint reste tel quel.
 
+Une image jointe peut aussi servir de point de départ à une nouvelle image quand ton organisation autorise la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images). Demande par exemple : « Transforme la photo jointe en aquarelle ». L’assistant transmet la photo au modèle d’images, et la nouvelle image apparaît sous la réponse.
+
 ## Utiliser un skill
 
 Un skill est une méthode éprouvée pour un type de travail, comme un format de document ou une charte rédactionnelle. Ta bibliothèque de skills contient ceux qui sont partagés avec toute l’organisation ou avec tes équipes ; les skills intégrés `docx`, `xlsx`, `pptx` et `pdf` couvrent les formats Office et PDF.
@@ -60,7 +62,7 @@ Un skill guide l’assistant ; il ne change pas ce que l’assistant a le droit
 - Une sandbox légère appartient à une seule conversation. Elle garde ses fichiers entre les étapes de l’assistant et tes messages de suivi ; après environ cinq minutes sans utilisation, elle est supprimée et la demande suivante en démarre une nouvelle. Quand toutes les sandboxes légères de ton organisation sont occupées, une sandbox inutilisée cède sa place ; si aucune n’est inutilisée, l’assistant t’invite à réessayer dans une minute.
 - Une exécution de code dure au plus trois minutes, et les outils d’une étape disposent ensemble de cinq minutes au plus. Au plus 16 outils s’exécutent dans une étape. Si tu appuies sur **Arrêter la génération**, un programme en cours est interrompu en quelques secondes. Une exécution joint jusqu’à 10 fichiers, de 20 Mo chacun au plus ; quand un programme en écrit beaucoup plus, la réponse en nomme quelques-uns et compte les autres.
 - Un fichier que l’assistant rédige lui-même contient au plus 1 Mo de texte.
-- Une demande crée jusqu’à 4 images, et une réponse jusqu’à 16. Les images sont facturées à ton organisation et comptent pour toi, comme la réponse elle-même.
+- Une demande crée jusqu’à 4 images, et une réponse jusqu’à 16. Une demande peut partir de 4 images de la conversation au plus, ou de moins si le modèle d’images en accepte moins. Les images sont facturées à ton organisation et comptent pour toi, comme la réponse elle-même.
 - Quand les outils de création de fichiers ne peuvent pas être mis en place pour une réponse, par exemple parce que la politique Outils du chat de ton organisation est illisible, la réponse l’indique en dessous. Redemande plus tard, ou demande à un admin de vérifier la politique.
 
 Un admin décide de ce que le chat peut créer sous [Outils du chat](/fr/platform/admin/governance/policies-and-limits#chat-tools), s’il peut créer des images sous [Génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images), et du nombre de sandboxes légères que ton organisation exécute en même temps sous [Sandboxes](/fr/platform/admin/sandboxes#light-sandboxes). Un outil désactivé disparaît de tous les chats ; l’assistant répond alors directement ou propose une tâche à la place.

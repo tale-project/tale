@@ -14,6 +14,7 @@ import {
   generateOneImage,
   ImageProviderError,
   prepareImageRequest,
+  referenceImagesRefusal,
 } from './image_generation';
 import type { ResolvedImageModel } from './resolve_image_model';
 
@@ -102,6 +103,56 @@ describe('prepareImageRequest', () => {
       authorization: 'Bearer sk-or-secret',
       'X-Title': 'Tale',
     });
+  });
+
+  it("asks the model's closest shape when its catalog lists the shapes it draws", () => {
+    const request = prepareImageRequest(
+      {
+        ...OPENROUTER_MODEL,
+        modelId: 'recraft/recraft-v4.1',
+        aspectRatios: ['1:1', '4:3', '3:4'],
+      },
+      { ...ARGS, size: 'landscape' },
+    );
+    if (typeof request.body !== 'string') {
+      throw new Error('expected a JSON request body');
+    }
+    expect(JSON.parse(request.body)).toMatchObject({ aspect_ratio: '4:3' });
+  });
+});
+
+describe('referenceImagesRefusal', () => {
+  it('says the most reference images a model takes, and nothing within it', () => {
+    const gemini = {
+      modelId: 'google/gemini-2.5-flash-image',
+      maxReferenceImages: 3,
+    };
+    expect(referenceImagesRefusal(gemini, 3)).toBeUndefined();
+    expect(referenceImagesRefusal(gemini, 4)).toContain(
+      'takes at most 3 reference images',
+    );
+    expect(
+      referenceImagesRefusal(
+        { modelId: 'krea/krea-2-large', maxReferenceImages: 1 },
+        2,
+      ),
+    ).toContain('at most 1 reference image in one call');
+  });
+
+  it("tells an edit model's call without a picture what it needs", () => {
+    const edit = {
+      modelId: 'krea/k3-edit',
+      minReferenceImages: 1,
+      maxReferenceImages: 8,
+    };
+    expect(referenceImagesRefusal(edit, 0)).toContain(
+      'needs at least 1 reference image in every call',
+    );
+    expect(referenceImagesRefusal(edit, 1)).toBeUndefined();
+    // Facts nobody published refuse nothing.
+    expect(
+      referenceImagesRefusal({ modelId: 'meta/muse-image' }, 9),
+    ).toBeUndefined();
   });
 });
 

@@ -487,6 +487,54 @@ const modelCatalogTtsSchema = z
   })
   .strict();
 
+/** The catalog tag of a model that GENERATES images — derived from a live
+ * listing's output modalities, declared by hand in a static catalog. The
+ * image-generation resolver and its settings picker select on it. */
+export const IMAGE_GENERATION_TAG = 'image-generation';
+
+/** An aspect ratio as image APIs spell it, `width:height` (`3:2`,
+ * `9:19.5`); the two groups capture the width and the height. */
+export const IMAGE_ASPECT_RATIO_PATTERN =
+  /^(\d{1,3}(?:\.\d{1,2})?):(\d{1,3}(?:\.\d{1,2})?)$/;
+
+/**
+ * What an image generator accepts, where its source publishes it (OpenRouter
+ * lists it per model at `/api/v1/images/models`). The image wire asks for a
+ * shape the model draws, a call the model would refuse is refused before
+ * anything is spent, and the image-model admission skips a model that
+ * returns no image the platform stores. Every fact is optional: an absent
+ * one is unknown, and the wire keeps its defaults.
+ */
+export const modelCatalogImageGenerationSchema = z
+  .object({
+    /** The aspect ratios the model draws, as `width:height` (`3:2`). */
+    aspectRatios: z
+      .array(z.string().regex(IMAGE_ASPECT_RATIO_PATTERN))
+      .min(1)
+      .max(64)
+      .optional(),
+    /** How many reference images one request may carry. A `min` above 0
+     * marks an edit model, which cannot draw from a prompt alone; an absent
+     * `max` is unknown. */
+    referenceImages: z
+      .object({
+        min: z.number().int().nonnegative().max(1000),
+        max: z.number().int().nonnegative().max(1000).optional(),
+      })
+      .strict()
+      .refine((range) => range.max === undefined || range.min <= range.max, {
+        message: 'referenceImages.min must not exceed referenceImages.max',
+      })
+      .optional(),
+    /** The file formats the model can return (`png`, `jpeg`, `webp`,
+     * `svg`); a model that returns only `svg` draws vectors. */
+    outputFormats: z.array(z.string().min(1).max(32)).min(1).max(16).optional(),
+  })
+  .strict();
+export type ModelCatalogImageGeneration = z.infer<
+  typeof modelCatalogImageGenerationSchema
+>;
+
 export const modelCatalogEntrySchema = z
   .object({
     /** The id requested on the wire, in the CONNECTOR's own dialect (an
@@ -538,9 +586,10 @@ export const modelCatalogEntrySchema = z
           'reasoning.toolsRequireOff needs a declared reasoning.off value to send',
       })
       .optional(),
-    /** Total context window in tokens. Pure transcription may publish none:
-     * 0 records that absence, never an invented token budget. Other model
-     * kinds still require a positive window (validated below). */
+    /** Total context window in tokens. Pure transcription and pure image
+     * generation may publish none: 0 records that absence, never an invented
+     * token budget. Other model kinds still require a positive window
+     * (validated below). */
     contextWindow: z.number().int().nonnegative().default(0),
     maxOutputTokens: z.number().int().positive().optional(),
     /** Omitted when the source publishes no reliable price. The cache pair
@@ -590,6 +639,8 @@ export const modelCatalogEntrySchema = z
       })
       .strict()
       .optional(),
+    /** Image-generation facts for an `image-generation`-tagged entry. */
+    imageGeneration: modelCatalogImageGenerationSchema.optional(),
   })
   .strict()
   .refine(
@@ -599,10 +650,19 @@ export const modelCatalogEntrySchema = z
         entry.tags[0] === 'transcription' &&
         !entry.supportsTools &&
         !entry.supportsVision &&
-        entry.outputsMedia !== true),
+        entry.outputsMedia !== true) ||
+      // An image generator that writes no text: the prompt is all it reads,
+      // and a listing may publish no token window for it (OpenRouter lists
+      // Seedream 5.0 with a window of 0).
+      (entry.tags.includes(IMAGE_GENERATION_TAG) &&
+        entry.tags.every(
+          (tag) => tag === IMAGE_GENERATION_TAG || tag === 'vision',
+        ) &&
+        !entry.supportsTools &&
+        entry.outputsMedia === true),
     {
       message:
-        'only pure transcription models may omit a positive contextWindow',
+        'only pure transcription and pure image generation models may omit a positive contextWindow',
     },
   )
   .refine(

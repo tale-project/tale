@@ -116,13 +116,14 @@ const CATALOGS: Record<string, unknown[]> = {
   ],
   openai: [
     CHAT,
-    image('gpt-image-1', {
+    image('gpt-image-2.5-sunburst', {
       pricing: {
         inputCentsPerMillion: 500,
-        outputCentsPerMillion: 4000,
-        imageInputCentsPerMillion: 1000,
+        outputCentsPerMillion: 3000,
+        imageInputCentsPerMillion: 800,
       },
     }),
+    image('gpt-image-2.5-flare'),
     image('gpt-image-1-mini'),
   ],
   'local-images': [image('google/gemini-2.5-flash-image')],
@@ -157,7 +158,11 @@ describe('resolveImageGenerationModel — the policy is the switch', () => {
     ['enabled: false', { enabled: false }],
     [
       'a parked pin while off',
-      { enabled: false, providerSlug: 'openai', modelId: 'gpt-image-1' },
+      {
+        enabled: false,
+        providerSlug: 'openai',
+        modelId: 'gpt-image-2.5-sunburst',
+      },
     ],
   ])('is off with %s, walking no provider', async (_label, config) => {
     policy = config;
@@ -191,12 +196,16 @@ describe('resolveImageGenerationModel — the policy is the switch', () => {
 
 describe('resolveImageGenerationModel — pinned', () => {
   it('serves the pinned model through its own provider wire', async () => {
-    policy = { enabled: true, providerSlug: 'openai', modelId: 'gpt-image-1' };
+    policy = {
+      enabled: true,
+      providerSlug: 'openai',
+      modelId: 'gpt-image-2.5-sunburst',
+    };
     resolveProvidersMock.mockResolvedValue([OPENROUTER, OPENAI]);
     const resolved = await resolveImageGenerationModel(ctx, ORG);
     expect(resolved).toMatchObject({
       providerSlug: 'openai',
-      modelId: 'gpt-image-1',
+      modelId: 'gpt-image-2.5-sunburst',
       source: 'pinned',
       wire: 'openai-images',
       baseUrl: 'https://api.openai.com/v1',
@@ -204,8 +213,8 @@ describe('resolveImageGenerationModel — pinned', () => {
       acceptsImageInput: true,
       pricing: {
         inputCentsPerMillion: 500,
-        outputCentsPerMillion: 4000,
-        imageInputCentsPerMillion: 1000,
+        outputCentsPerMillion: 3000,
+        imageInputCentsPerMillion: 800,
       },
     });
     // Only the pinned provider is walked.
@@ -254,7 +263,7 @@ describe('resolveImageGenerationModel — pinned', () => {
       policy = {
         enabled: true,
         providerSlug: 'openai',
-        modelId: 'gpt-image-1',
+        modelId: 'gpt-image-2.5-sunburst',
         ...pinOverride,
       };
       defaultRows = rows;
@@ -267,7 +276,11 @@ describe('resolveImageGenerationModel — pinned', () => {
 
   it('says the pin could not be checked when its provider failed', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
-    policy = { enabled: true, providerSlug: 'openai', modelId: 'gpt-image-1' };
+    policy = {
+      enabled: true,
+      providerSlug: 'openai',
+      modelId: 'gpt-image-2.5-sunburst',
+    };
     resolveProvidersMock.mockResolvedValue([OPENAI]);
     catalogMock.mockRejectedValue(new Error('catalog down'));
     expect(await codeOf(resolveImageGenerationModel(ctx, ORG))).toBe(
@@ -294,6 +307,18 @@ describe('resolveImageGenerationModel — automatic', () => {
     resolveProvidersMock.mockResolvedValue([OPENAI]);
     await expect(resolveImageGenerationModel(ctx, ORG)).resolves.toMatchObject({
       providerSlug: 'openai',
+      modelId: 'gpt-image-2.5-flare',
+      source: 'preferred',
+    });
+  });
+
+  it('keeps GPT Image 1 Mini behind its successor until OpenAI shuts it down', async () => {
+    policy = { enabled: true };
+    defaultRows = {
+      openai: { ...ACTIVE_API_KEY_ROW, modelAllowlist: ['gpt-image-1-mini'] },
+    };
+    resolveProvidersMock.mockResolvedValue([OPENAI]);
+    await expect(resolveImageGenerationModel(ctx, ORG)).resolves.toMatchObject({
       modelId: 'gpt-image-1-mini',
       source: 'preferred',
     });
@@ -302,11 +327,14 @@ describe('resolveImageGenerationModel — automatic', () => {
   it('honours the credential allowlist', async () => {
     policy = { enabled: true };
     defaultRows = {
-      openai: { ...ACTIVE_API_KEY_ROW, modelAllowlist: ['gpt-image-1'] },
+      openrouter: {
+        ...ACTIVE_API_KEY_ROW,
+        modelAllowlist: ['black-forest-labs/flux.2-pro'],
+      },
     };
-    resolveProvidersMock.mockResolvedValue([OPENAI]);
+    resolveProvidersMock.mockResolvedValue([OPENROUTER]);
     await expect(resolveImageGenerationModel(ctx, ORG)).resolves.toMatchObject({
-      modelId: 'gpt-image-1',
+      modelId: 'black-forest-labs/flux.2-pro',
     });
   });
 
@@ -366,6 +394,107 @@ describe('resolveTurnImageGeneration', () => {
   });
 });
 
+describe('resolveImageGenerationModel — what a model draws from', () => {
+  /** Abridged facts from OpenRouter's image model listing (2026-10-27). */
+  const FACT_CATALOG = [
+    image('krea/k3-edit', {
+      imageGeneration: { referenceImages: { min: 1, max: 8 } },
+    }),
+    image('recraft/recraft-v4-vector', {
+      imageGeneration: { outputFormats: ['svg'] },
+    }),
+    image('recraft/recraft-v4.1', {
+      imageGeneration: {
+        aspectRatios: ['1:1', '4:3', '3:4', '16:9', '9:16'],
+        referenceImages: { min: 0, max: 1 },
+      },
+    }),
+    image('recraft/recraft-v4.1-flash', {
+      supportsVision: false,
+      tags: ['image-generation'],
+      imageGeneration: { aspectRatios: ['1:1', '4:3', '3:4'] },
+    }),
+    image('qwen/qwen-image-3', {
+      imageGeneration: { referenceImages: { min: 0, max: 0 } },
+    }),
+    image('black-forest-labs/flux.2-pro', {
+      imageGeneration: { outputFormats: ['png', 'jpeg'] },
+    }),
+  ];
+
+  it('offers no model that returns only SVG, and an edit model only by pin', async () => {
+    policy = { enabled: true };
+    resolveProvidersMock.mockResolvedValue([OPENROUTER]);
+    catalogMock.mockResolvedValue(FACT_CATALOG);
+    const status = await inspectImageGenerationModels(ctx, ORG);
+    // A vector model returns SVG, which the platform does not store; an edit
+    // model may be chosen, and draws from the pictures an agent passes.
+    expect(status.models.map((model) => model.modelId)).toEqual([
+      'black-forest-labs/flux.2-pro',
+      'krea/k3-edit',
+      'qwen/qwen-image-3',
+      'recraft/recraft-v4.1',
+      'recraft/recraft-v4.1-flash',
+    ]);
+    policy = {
+      enabled: true,
+      providerSlug: 'openrouter',
+      modelId: 'recraft/recraft-v4-vector',
+    };
+    expect(await codeOf(resolveImageGenerationModel(ctx, ORG))).toBe(
+      'IMAGE_GENERATION_MODEL_UNAVAILABLE',
+    );
+    policy = {
+      enabled: true,
+      providerSlug: 'openrouter',
+      modelId: 'krea/k3-edit',
+    };
+    await expect(resolveImageGenerationModel(ctx, ORG)).resolves.toMatchObject({
+      modelId: 'krea/k3-edit',
+      minReferenceImages: 1,
+      maxReferenceImages: 8,
+    });
+  });
+
+  it('carries the shapes a model draws and how many reference images it takes', async () => {
+    resolveProvidersMock.mockResolvedValue([OPENROUTER]);
+    catalogMock.mockResolvedValue(FACT_CATALOG);
+    policy = {
+      enabled: true,
+      providerSlug: 'openrouter',
+      modelId: 'recraft/recraft-v4.1',
+    };
+    const recraft = await resolveImageGenerationModel(ctx, ORG);
+    expect(recraft).toMatchObject({
+      aspectRatios: ['1:1', '4:3', '3:4', '16:9', '9:16'],
+      maxReferenceImages: 1,
+      acceptsImageInput: true,
+    });
+    // A minimum of 0 marks no edit model.
+    expect(recraft?.minReferenceImages).toBeUndefined();
+    // A model that reads images but takes none to draw from takes no
+    // reference image; a model with no published facts keeps the defaults.
+    policy = {
+      enabled: true,
+      providerSlug: 'openrouter',
+      modelId: 'qwen/qwen-image-3',
+    };
+    await expect(resolveImageGenerationModel(ctx, ORG)).resolves.toMatchObject({
+      maxReferenceImages: 0,
+      acceptsImageInput: false,
+    });
+    policy = {
+      enabled: true,
+      providerSlug: 'openrouter',
+      modelId: 'black-forest-labs/flux.2-pro',
+    };
+    const flux = await resolveImageGenerationModel(ctx, ORG);
+    expect(flux?.aspectRatios).toBeUndefined();
+    expect(flux?.maxReferenceImages).toBeUndefined();
+    expect(flux?.acceptsImageInput).toBe(true);
+  });
+});
+
 describe('inspectImageGenerationModels', () => {
   it('lists every admitted model and the current pick, without secrets', async () => {
     policy = { enabled: true };
@@ -382,12 +511,17 @@ describe('inspectImageGenerationModels', () => {
         {
           providerSlug: 'openai',
           providerDisplayName: 'OpenAI',
-          modelId: 'gpt-image-1',
+          modelId: 'gpt-image-1-mini',
         },
         {
           providerSlug: 'openai',
           providerDisplayName: 'OpenAI',
-          modelId: 'gpt-image-1-mini',
+          modelId: 'gpt-image-2.5-flare',
+        },
+        {
+          providerSlug: 'openai',
+          providerDisplayName: 'OpenAI',
+          modelId: 'gpt-image-2.5-sunburst',
         },
         {
           providerSlug: 'openrouter',
@@ -414,7 +548,7 @@ describe('inspectImageGenerationModels', () => {
     await expect(inspectImageGenerationModels(ctx, ORG)).resolves.toMatchObject(
       {
         enabled: false,
-        pick: { modelId: 'gpt-image-1-mini', source: 'preferred' },
+        pick: { modelId: 'gpt-image-2.5-flare', source: 'preferred' },
       },
     );
   });

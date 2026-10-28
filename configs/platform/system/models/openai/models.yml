@@ -241,13 +241,18 @@
 # Image generation: the models agents call through the generate_image tool,
 # over /v1/images/generations (and /v1/images/edits when the agent passes
 # reference images). They write images, never text, so they carry no chat
-# tag and every chat list skips them. Prices read from
-# developers.openai.com/api/docs/pricing on 2026-09-29 (Standard): `input` is
-# the text-input price, `imageInput` the reference-image input price and
-# `output` the image-output price, per million tokens — the ledger costs a
-# call from the token counts the response reports. The context window is
-# nominal: generation takes a prompt of at most 32,000 characters.
-- id: gpt-image-1
+# tag and every chat list skips them. `input` is the text-input price,
+# `imageInput` the reference-image input price and `output` the image-output
+# price, per million tokens — the ledger costs a call from the token counts
+# the response reports. The context window is nominal: generation takes a
+# prompt of at most 32,000 characters.
+#
+# GPT Image 2.5 Flare (fast, everyday) and Sunburst (most capable) are the
+# successors OpenAI names for GPT Image 1, which it shut down on 2026-10-23,
+# and for GPT Image 1 Mini. GPT Image 2 has no shutdown date. All three share
+# one price, read from their pages on developers.openai.com on 2026-10-27
+# (Standard).
+- id: gpt-image-2.5-flare
   provider: openai
   tags:
     - image-generation
@@ -257,8 +262,38 @@
   contextWindow: 32000
   pricing:
     inputCentsPerMillion: 500
-    outputCentsPerMillion: 4000
-    imageInputCentsPerMillion: 1000
+    outputCentsPerMillion: 3000
+    imageInputCentsPerMillion: 800
+- id: gpt-image-2.5-sunburst
+  provider: openai
+  tags:
+    - image-generation
+  supportsTools: false
+  supportsVision: true
+  outputsMedia: true
+  contextWindow: 32000
+  pricing:
+    inputCentsPerMillion: 500
+    outputCentsPerMillion: 3000
+    imageInputCentsPerMillion: 800
+- id: gpt-image-2
+  provider: openai
+  tags:
+    - image-generation
+  supportsTools: false
+  supportsVision: true
+  outputsMedia: true
+  contextWindow: 32000
+  pricing:
+    inputCentsPerMillion: 500
+    outputCentsPerMillion: 3000
+    imageInputCentsPerMillion: 800
+# OpenAI shuts GPT Image 1 Mini down on 2026-12-01: until then it keeps
+# serving an organization that pinned it, and automatic selection falls back
+# to it only behind GPT Image 2.5 Flare. Remove it on that date, here and
+# from PREFERRED_IMAGE_MODELS in
+# services/platform/backend/core/lib/providers/resolve_image_model.ts. Prices
+# read from developers.openai.com/api/docs/pricing on 2026-09-29 (Standard).
 - id: gpt-image-1-mini
   provider: openai
   tags:

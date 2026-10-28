@@ -24,7 +24,9 @@
  * credential is active and API-servable (`api-key`/`env` — a subscription
  * flavor is bound to its own harness); its models are the servable catalog
  * entries tagged `image-generation` that the credential's allowlist admits
- * — the same admission the transcription lane applies.
+ * — the same admission the transcription lane applies — and that return
+ * raster images: the platform stores no SVG, so a vector model could serve
+ * no call.
  *
  * The wire follows the provider: OpenRouter's dedicated Image API for an
  * OpenRouter connector, the OpenAI images API for every other. The latter
@@ -34,9 +36,10 @@
  */
 
 import { imageGenerationConfigSchema } from '@tale/shared/schemas/governance';
-import type {
-  ModelCatalogEntry,
-  ProviderDefinition,
+import {
+  IMAGE_GENERATION_TAG,
+  type ModelCatalogEntry,
+  type ProviderDefinition,
 } from '@tale/shared/schemas/providers';
 import {
   modelAllowlistPermits,
@@ -49,7 +52,6 @@ import {
   isOpenRouterProvider,
   providerAttributionHeaders,
 } from '../../../../lib/shared/providers/attribution';
-import { IMAGE_GENERATION_TAG } from '../../../../lib/shared/providers/catalog_normalize';
 import {
   isTerminalCredentialRefusal,
   resolveProviderCredential,
@@ -58,24 +60,30 @@ import { ConfigurationError } from '../config_store/precondition';
 import type { ActionCtx } from '../ctx';
 import { internal } from '../handler_names';
 import { directActiveCredential } from './direct_credential';
-import type { ImageGenerationWire } from './image_wire';
+import { RASTER_MEDIA_TYPES, type ImageGenerationWire } from './image_wire';
 import { resolveProvidersForOrgId } from './org_providers';
 import { getServableCatalog } from './servable_catalog';
 
 /**
  * Curated image models, best first. Matched with {@link modelIdsEquivalent},
  * so one entry covers every provider's spelling of the same model
- * (`gpt-image-1` on OpenAI is `openai/gpt-image-1` on OpenRouter).
+ * (`gpt-image-2.5-flare` on OpenAI is `openai/gpt-image-2.5-flare` on
+ * OpenRouter).
  *
  * Gemini 2.5 Flash Image leads: fast, cheap per image and good at edits from
- * reference images. The GPT image models follow for an organization that
- * only holds an OpenAI key (the mini first, at a fifth of the price), and
- * FLUX.2 Pro closes the list as a strong text-to-image model.
+ * reference images. GPT Image 2.5 Flare follows for an organization that
+ * only holds an OpenAI key — OpenAI's fast everyday image model, and the
+ * successor it names for GPT Image 1, shut down on 2026-10-23, and for GPT
+ * Image 1 Mini. The Mini stays behind it for a credential whose allowlist
+ * admits only the Mini, until OpenAI shuts it down on 2026-12-01: remove it
+ * here and from the OpenAI catalog then. FLUX.2 Pro closes the list as a
+ * strong text-to-image model. No edit model is curated: it cannot draw from
+ * a description alone.
  */
 const PREFERRED_IMAGE_MODELS: readonly string[] = [
   'google/gemini-2.5-flash-image',
+  'gpt-image-2.5-flare',
   'gpt-image-1-mini',
-  'gpt-image-1',
   'black-forest-labs/flux.2-pro',
 ];
 
@@ -103,6 +111,16 @@ export interface ResolvedImageModel extends ImageModelPick {
   attribution: Record<string, string>;
   /** The model takes reference images (an edit, a variation). */
   acceptsImageInput: boolean;
+  /** The fewest reference images one request may carry, when the catalog
+   * entry says: above 0, an edit model that cannot draw from a prompt
+   * alone. */
+  minReferenceImages?: number;
+  /** The most reference images one request may carry, when the catalog
+   * entry says. */
+  maxReferenceImages?: number;
+  /** The aspect ratios the model draws, when the catalog entry lists them:
+   * a request asks for the one closest to the shape the agent wants. */
+  aspectRatios?: readonly string[];
   /** Catalog prices, for a provider that reports no cost of its own. */
   pricing?: ModelCatalogEntry['pricing'];
 }
@@ -197,6 +215,26 @@ function imageWireFor(
   return { wire: 'openai-images', verified: host === 'api.openai.com' };
 }
 
+/** The output formats, as image APIs name them, of the raster images the
+ * platform stores (`image_wire.ts`): `png`, `jpeg`, `webp`, `gif`. */
+const RASTER_OUTPUT_FORMATS = new Set<string>(
+  RASTER_MEDIA_TYPES.map((mediaType) => mediaType.slice('image/'.length)),
+);
+
+/** Whether the entry returns an image the platform stores, as far as its
+ * catalog facts say: a vector model returns only SVG, which is refused
+ * (Recraft's vector models). Unknown facts admit. */
+function returnsRaster(entry: ModelCatalogEntry): boolean {
+  const formats = entry.imageGeneration?.outputFormats;
+  return (
+    formats === undefined ||
+    formats.some((format) => {
+      const name = format.toLowerCase();
+      return RASTER_OUTPUT_FORMATS.has(name === 'jpg' ? 'jpeg' : name);
+    })
+  );
+}
+
 /** A catalog entry this provider can generate images with. */
 function isImageEntry(
   entry: ModelCatalogEntry,
@@ -210,6 +248,7 @@ function isImageEntry(
   if (wire === 'openrouter-images' && entry.id.startsWith('openrouter/')) {
     return false;
   }
+  if (!returnsRaster(entry)) return false;
   return modelAllowlistPermits(allowlist, entry.id);
 }
 
@@ -301,6 +340,13 @@ async function imageCandidates(
       });
       for (const entry of entries) {
         if (!isImageEntry(entry, wire, direct.modelAllowlist)) continue;
+        const references = entry.imageGeneration?.referenceImages;
+        const minReferenceImages =
+          references !== undefined && references.min > 0
+            ? references.min
+            : undefined;
+        const maxReferenceImages = references?.max;
+        const aspectRatios = entry.imageGeneration?.aspectRatios;
         candidates.push({
           providerSlug: provider.name,
           providerDisplayName: provider.displayName,
@@ -314,7 +360,10 @@ async function imageCandidates(
             baseUrl,
             apiKey: credential.secret,
             attribution,
-            acceptsImageInput: entry.supportsVision,
+            acceptsImageInput: entry.supportsVision && maxReferenceImages !== 0,
+            ...(minReferenceImages !== undefined ? { minReferenceImages } : {}),
+            ...(maxReferenceImages !== undefined ? { maxReferenceImages } : {}),
+            ...(aspectRatios !== undefined ? { aspectRatios } : {}),
             ...(entry.pricing !== undefined ? { pricing: entry.pricing } : {}),
           },
         });

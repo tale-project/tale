@@ -168,8 +168,10 @@ const GENERATE_IMAGE_SCHEMA = object(
     size: {
       type: 'string',
       description:
-        '"square" (default), "landscape" (3:2) or "portrait" (2:3); a ' +
-        'shape such as "16:9" is read by its orientation.',
+        '"square" (default), "landscape" (3:2) or "portrait" (2:3), or the ' +
+        "image model's closest shape when it draws no such one; a shape " +
+        'such as "16:9" is read by its orientation. The result gives each ' +
+        "image's size in pixels.",
     },
     count: {
       type: 'integer',
@@ -179,7 +181,8 @@ const GENERATE_IMAGE_SCHEMA = object(
     },
     inputImages: refList(
       'Refs of images already in this conversation — an uploaded image or ' +
-        'one created earlier — to edit or take as reference.',
+        'one created earlier — to edit or take as reference, as many as ' +
+        'the image model takes.',
       GENERATE_IMAGE_INPUTS_MAX,
     ),
   },

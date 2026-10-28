@@ -374,13 +374,25 @@ stopped. The model reads the same cause, and whether trying again can help.
   code → the step reads that all light sandboxes are in use, and the reply tells her to try again
   in a minute.
 
+### CHAT-R31 · The assistant can start from a picture the person attached
+
+A picture attached to a message reaches the model with its name and the reference a tool takes
+it by, not only as pixels, so the image tool can start from it and code can read it. A picture
+the person chatting can no longer read is named to no model.
+
+- **Example**: Mia attaches `beach.jpg` and asks for a watercolor of it → the model hands
+  `beach.jpg` to the image tool, and the image model starts from her photo.
+- **Example**: A photo in Mia's earlier message was deleted since → her next reply's model is
+  told of no such photo.
+
 ## Not yet
 
 - **Attachments on a message**: the gate that holds a message to at most 10 files of the
   supported kinds, each one readable by the sender in this organization
   (`validateTurnAttachments` in `../../core/chat/turn_action.ts`); no test holds it. The
-  upload side is files' (`FILE-R5`). What the model receives of an image, a document or a
-  recording (`../../../lib/chat/wire-parts.ts`, `../../../lib/chat/audio-transcript.ts`).
+  upload side is files' (`FILE-R5`). What the model receives of an image beyond its name and
+  reference (`CHAT-R31`), of a document or of a recording (`../../../lib/chat/wire-parts.ts`,
+  `../../../lib/chat/audio-transcript.ts`).
 - **Messages that wait for their attachments** (`deferred-sends.ts`,
   `deferred-sends.watchdog.ts`): what makes a message wait, when it sends, and its bounds of 10
   waiting messages per chat and 20 attachments per message (`QUEUE_FULL`,

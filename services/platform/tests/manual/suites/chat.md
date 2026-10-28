@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 126 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 127 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -782,6 +782,15 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   **Try again** (`chat.tryAgain`) on the reply → the new reply shows its own
   **planets.xlsx** card; switch back to the first version → its card is still
   there.
+- [ ] `CHAT-F78` · **Start an image from an attached photo** — Mode B with
+  **Image generation** on (GOV-F38) and **Image model** on **Automatic**:
+  attach a photo and ask "Turn the attached photo into a watercolor painting"
+  → **Generating an image** (`chat.thinking.generatingImages`); the picture
+  under the reply shows the photo's subject as a watercolor, and the
+  attachment chip above your message still opens the original. Attach four
+  photos and ask for one collage from all four → the reply says the image
+  model takes at most three reference images and delivers a collage made from
+  three.
 
 ## Boundary & error tests
 

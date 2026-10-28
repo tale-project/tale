@@ -84,6 +84,29 @@ const IMAGE_PAYLOAD = {
 };
 const IMAGE_URL = 'https://openrouter.ai/api/v1/models?output_modalities=image';
 
+/** OpenRouter's image API listing: what each image model accepts, as
+ * parameter descriptors (abridged live entries, 2026-10-27). */
+const IMAGE_FACTS_PAYLOAD = {
+  data: [
+    {
+      id: 'black-forest-labs/flux.2-pro',
+      supported_parameters: {
+        aspect_ratio: { type: 'enum', values: ['1:1', '3:2', '2:3', 'auto'] },
+        input_references: { type: 'range', min: 0, max: 8 },
+        output_format: { type: 'enum', values: ['png', 'jpeg'] },
+      },
+    },
+    // Facts for a model no catalog listing names never become an entry.
+    {
+      id: 'example/unlisted-image-model',
+      supported_parameters: {
+        aspect_ratio: { type: 'enum', values: ['1:1'] },
+      },
+    },
+  ],
+};
+const IMAGE_FACTS_URL = 'https://openrouter.ai/api/v1/images/models';
+
 /** Route the mock per URL: default listing vs the modality supplements. */
 function mockOpenRouterListings() {
   mockedFetch.mockImplementation(async (url: string) =>
@@ -93,7 +116,9 @@ function mockOpenRouterListings() {
         ? listingResponse(TRANSCRIPTION_PAYLOAD)
         : url === IMAGE_URL
           ? listingResponse(IMAGE_PAYLOAD)
-          : listingResponse(USABLE_PAYLOAD),
+          : url === IMAGE_FACTS_URL
+            ? listingResponse(IMAGE_FACTS_PAYLOAD)
+            : listingResponse(USABLE_PAYLOAD),
   );
 }
 
@@ -264,10 +289,10 @@ describe('getProviderCatalog — live sources', () => {
     ).toHaveLength(1);
     expect(first.map((e) => e.id)).toContain('anthropic/claude-fable-5');
     expect(first.every((e) => e.provider === 'openrouter')).toBe(true);
-    // One request per listing: the default population and the embeddings,
+    // One request per listing: the default population, the embeddings,
     // image and transcription supplements OpenRouter hides behind their
-    // modality filters.
-    expect(mockedFetch).toHaveBeenCalledTimes(4);
+    // modality filters, and the image API's own listing of image facts.
+    expect(mockedFetch).toHaveBeenCalledTimes(5);
     expect(mockedFetch).toHaveBeenCalledWith(
       'https://openrouter.ai/api/v1/models',
       expect.objectContaining({ method: 'GET' }),
@@ -284,10 +309,14 @@ describe('getProviderCatalog — live sources', () => {
       TRANSCRIPTION_URL,
       expect.objectContaining({ method: 'GET' }),
     );
+    expect(mockedFetch).toHaveBeenCalledWith(
+      IMAGE_FACTS_URL,
+      expect.objectContaining({ method: 'GET' }),
+    );
 
     const second = await getProviderCatalog(OPENROUTER);
     expect(second).toEqual(first);
-    expect(mockedFetch).toHaveBeenCalledTimes(4);
+    expect(mockedFetch).toHaveBeenCalledTimes(5);
   });
 
   it('merges the image listing in, so a generator that writes no text is offered', async () => {
@@ -297,6 +326,147 @@ describe('getProviderCatalog — live sources', () => {
     expect(flux?.tags).toContain('image-generation');
     expect(flux?.tags).not.toContain('chat');
     expect(flux?.outputsMedia).toBe(true);
+  });
+
+  it('sets the image facts on the image entries the listings name', async () => {
+    mockOpenRouterListings();
+    const entries = await getProviderCatalog(OPENROUTER);
+    const flux = entries.find((e) => e.id === 'black-forest-labs/flux.2-pro');
+    expect(flux?.imageGeneration).toEqual({
+      aspectRatios: ['1:1', '3:2', '2:3'],
+      referenceImages: { min: 0, max: 8 },
+      outputFormats: ['png', 'jpeg'],
+    });
+    expect(entries.map((e) => e.id)).not.toContain(
+      'example/unlisted-image-model',
+    );
+    expect(
+      entries.find((e) => e.id === 'anthropic/claude-sonnet-5')
+        ?.imageGeneration,
+    ).toBeUndefined();
+  });
+
+  it('keeps the image entries, without facts, when the facts listing fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockedFetch.mockImplementation(async (url: string) => {
+      if (url === IMAGE_FACTS_URL) {
+        throw new SafeFetchError('network_error', 'connect refused');
+      }
+      return url === IMAGE_URL
+        ? listingResponse(IMAGE_PAYLOAD)
+        : listingResponse(USABLE_PAYLOAD);
+    });
+    const entries = await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+    const flux = entries.find((e) => e.id === 'black-forest-labs/flux.2-pro');
+    expect(flux?.tags).toContain('image-generation');
+    expect(flux?.imageGeneration).toBeUndefined();
+    warn.mockRestore();
+  });
+
+  it('keeps the last facts when the facts listing fails, and asks again soon', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockOpenRouterListings();
+    const fluxOf = async () =>
+      (await getProviderCatalog(OPENROUTER, { maxAttempts: 1 })).find(
+        (e) => e.id === 'black-forest-labs/flux.2-pro',
+      );
+    const facts = (await fluxOf())?.imageGeneration;
+    expect(facts?.aspectRatios).toEqual(['1:1', '3:2', '2:3']);
+
+    // The daily refresh finds the facts listing down: the facts the last
+    // fetch read keep serving, rather than a day of requests the model
+    // refuses.
+    mockedFetch.mockImplementation(async (url: string) => {
+      if (url === IMAGE_FACTS_URL) {
+        throw new SafeFetchError('network_error', 'connect refused');
+      }
+      return url === IMAGE_URL
+        ? listingResponse(IMAGE_PAYLOAD)
+        : listingResponse(USABLE_PAYLOAD);
+    });
+    vi.setSystemTime(Date.now() + CATALOG_TTL_MS + 1);
+    expect((await fluxOf())?.imageGeneration).toEqual(facts);
+
+    // Incomplete, the catalog is asked for again once the back-off lapses.
+    const calls = mockedFetch.mock.calls.length;
+    await fluxOf();
+    expect(mockedFetch.mock.calls.length).toBe(calls);
+    mockOpenRouterListings();
+    vi.setSystemTime(Date.now() + CATALOG_FAILURE_BACKOFF_MS + 1);
+    expect((await fluxOf())?.imageGeneration).toEqual(facts);
+    expect(mockedFetch.mock.calls.length).toBeGreaterThan(calls);
+    warn.mockRestore();
+  });
+
+  it('reads a facts listing it cannot parse as a failure, not as no facts', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockedFetch.mockImplementation(async (url: string) =>
+      url === IMAGE_FACTS_URL
+        ? // A shape the reader no longer knows: descriptors as plain names.
+          listingResponse({
+            data: [
+              {
+                id: 'black-forest-labs/flux.2-pro',
+                supported_parameters: ['aspect_ratio', 'input_references'],
+              },
+            ],
+          })
+        : url === IMAGE_URL
+          ? listingResponse(IMAGE_PAYLOAD)
+          : listingResponse(USABLE_PAYLOAD),
+    );
+    await getProviderCatalog(OPENROUTER, { maxAttempts: 1 });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('held no facts it could read'),
+    );
+    warn.mockRestore();
+  });
+
+  it('asks for every supplement at once, so a slow one holds up none', async () => {
+    const pending = new Map<string, () => void>();
+    mockedFetch.mockImplementation(async (url: string) => {
+      const answer = url.includes('output_modalities=embeddings')
+        ? listingResponse(EMBEDDINGS_PAYLOAD)
+        : url === TRANSCRIPTION_URL
+          ? listingResponse(TRANSCRIPTION_PAYLOAD)
+          : url === IMAGE_URL
+            ? listingResponse(IMAGE_PAYLOAD)
+            : url === IMAGE_FACTS_URL
+              ? listingResponse(IMAGE_FACTS_PAYLOAD)
+              : listingResponse(USABLE_PAYLOAD);
+      if (
+        url === 'https://openrouter.ai/api/v1/models' ||
+        url === TRANSCRIPTION_URL
+      ) {
+        return answer;
+      }
+      return await new Promise((resolve) => {
+        pending.set(url, () => resolve(answer));
+      });
+    });
+    const catalog = getProviderCatalog(OPENROUTER);
+    await vi.advanceTimersByTimeAsync(0);
+    // All three supplements are in flight before any of them answered.
+    expect([...pending.keys()].sort()).toEqual(
+      [
+        'https://openrouter.ai/api/v1/models?output_modalities=embeddings',
+        IMAGE_URL,
+        IMAGE_FACTS_URL,
+      ].sort(),
+    );
+    for (const answer of pending.values()) answer();
+    const entries = await catalog;
+    expect(entries.map((e) => e.id)).toEqual(
+      expect.arrayContaining([
+        'anthropic/claude-sonnet-5',
+        'qwen/qwen3-embedding-8b',
+        'black-forest-labs/flux.2-pro',
+      ]),
+    );
+    expect(
+      entries.find((e) => e.id === 'black-forest-labs/flux.2-pro')
+        ?.imageGeneration,
+    ).toBeDefined();
   });
 
   it('keeps the primary catalog when the image supplement fails', async () => {
@@ -383,14 +553,14 @@ describe('getProviderCatalog — live sources', () => {
     await getProviderCatalog(OPENROUTER);
     vi.setSystemTime(Date.now() + CATALOG_TTL_MS + 1);
     await getProviderCatalog(OPENROUTER);
-    expect(mockedFetch).toHaveBeenCalledTimes(8);
+    expect(mockedFetch).toHaveBeenCalledTimes(10);
   });
 
   it('forceRefresh bypasses a fresh cache', async () => {
     mockOpenRouterListings();
     await getProviderCatalog(OPENROUTER);
     await getProviderCatalog(OPENROUTER, { forceRefresh: true });
-    expect(mockedFetch).toHaveBeenCalledTimes(8);
+    expect(mockedFetch).toHaveBeenCalledTimes(10);
   });
 
   it('joins the models endpoint onto the provider base URL', async () => {
