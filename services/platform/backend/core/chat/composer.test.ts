@@ -29,6 +29,16 @@ describe('humaniseModelId', () => {
     ['kimi-k2', 'Kimi K2'],
     ['z-ai/glm-5.3', 'GLM 5.3'],
     ['o3-mini', 'O3 Mini'],
+    // A version spelled with dashes reads with a dot …
+    ['claude-sonnet-5-5', 'Claude Sonnet 5.5'],
+    ['anthropic/claude-sonnet-5-5', 'Claude Sonnet 5.5'],
+    ['claude-3-5-haiku', 'Claude 3.5 Haiku'],
+    ['llama-3-1-405b', 'Llama 3.1 405b'],
+    // … while a date stamp or a longer number stays apart.
+    ['claude-haiku-4-5-20251001', 'Claude Haiku 4.5 20251001'],
+    ['o1-2024-12-17', 'O1 2024 12 17'],
+    ['gpt-4-0613', 'GPT 4 0613'],
+    ['kimi-k2-0905-preview', 'Kimi K2 0905 Preview'],
   ])('reads %s as "%s"', (id, label) => {
     expect(humaniseModelId(id)).toBe(label);
   });
