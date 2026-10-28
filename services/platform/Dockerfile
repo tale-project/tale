@@ -317,7 +317,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 #                   datacenter IPs. MUST match the `bgutil-provider` sidecar
 #                   image tag in compose.yml — bump both together.
 # Resolved versions land in /etc/yt-dlp-version + /etc/deno-version.
-ARG YTDLP_VERSION=2026.07.04
+ARG YTDLP_VERSION=2026.10.26
 ARG DENO_VERSION=v2.5.4
 ARG BGUTIL_POT_VERSION=1.3.1
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \

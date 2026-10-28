@@ -263,8 +263,9 @@ export function proxyFailedRun(stderr: string): boolean {
 }
 
 /** Default YouTube player clients when no PO-token provider is wired.
- * `default` (= android_vr, web_safari) needs no PO token; `tv_simply` is a
- * lightweight fallback that may skip formats without a GVS token. */
+ * `default` is yt-dlp's own set of clients that need no PO token (tv_samsung
+ * and visionos in 2026.10.26); `tv_simply` is a lightweight fallback that may
+ * skip formats without a GVS token. */
 const DEFAULT_YOUTUBE_PLAYER_CLIENT = 'default,tv_simply';
 
 /**
@@ -442,9 +443,12 @@ export function buildAntiBotFlags(
  * signed requests) on a video the pinned 2026.07.04 fetched fine from the
  * same IP in the same minute. That failure is indistinguishable, in the UI
  * and in the row, from the platform blocking us — which is exactly the wrong
- * thing for a developer to conclude about their own stale binary.
+ * thing for a developer to conclude about their own stale binary. Pinned
+ * images rot the same way: by 2026-10-28 YouTube answered 2026.07.04's audio
+ * downloads with HTTP 403 from every network, so every video without
+ * captions failed, while 2026.10.26 fetched the same audio.
  */
-export const MIN_YTDLP_VERSION = '2026.07.04';
+export const MIN_YTDLP_VERSION = '2026.10.26';
 
 /**
  * Compare two yt-dlp versions. They are dates (`2026.07.04`), sometimes with
