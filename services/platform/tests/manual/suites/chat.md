@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 127 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 128 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -791,6 +791,14 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   photos and ask for one collage from all four → the reply says the image
   model takes at most three reference images and delivers a collage made from
   three.
+- [ ] `CHAT-F79` · **Image models left out of the model list** — Mode B with
+  an OpenRouter credential: open the composer picker (`chat.picker.ariaLabel`)
+  → **Model** (`chat.picker.sectionModel`) and search "image" → No image model
+  that can't use tools is listed (on OpenRouter: Gemini 2.5 Flash Image, GPT-5
+  Image Mini); **Settings → Governance → Models → Default models → Add rule**
+  leaves the same models out of its model list. With **Image generation** on
+  (GOV-F38), keep **Auto** and ask for a picture → it appears under the reply,
+  made by the image model the Models page names.
 
 ## Boundary & error tests
 

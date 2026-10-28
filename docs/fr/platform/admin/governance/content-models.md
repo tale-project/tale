@@ -14,6 +14,8 @@ En tant qu’admin ou propriétaire, utilise **Paramètres > Gouvernance > Modè
 
 Le modèle par défaut s’applique lorsqu’aucun modèle n’a été choisi explicitement. Une règle d’équipe passe avant une règle de rôle, puis vient la valeur par défaut générale ; si une personne appartient à plusieurs équipes dotées d’une règle, la première règle d’équipe correspondante du tableau l’emporte (voir [Comment les règles se combinent](/fr/platform/admin/governance/policies-and-limits#how-rules-combine)). Elle n’empêche pas de sélectionner un autre modèle autorisé.
 
+La liste propose les modèles capables de répondre dans le chat. Un modèle d’images qui ne peut pas utiliser d’outils, comme Gemini 2.5 Flash Image, n’y figure pas, pas plus que dans le sélecteur de modèle du chat : le chat envoie chaque message avec des outils, par exemple une recherche dans les documents. Choisis un tel modèle sous [génération d’images](#let-agents-generate-images), et l’assistant crée des images avec lui.
+
 ## Limiter l’accès aux modèles
 
 Sous **Accès aux modèles**, choisis le mode et ajoute des règles pour les personnes, équipes, rôles ou la portée par défaut à couvrir.

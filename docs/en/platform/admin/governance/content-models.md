@@ -14,6 +14,8 @@ Use **Settings > Governance > Models** as an Admin or Owner to choose the models
 
 The default is used when there is no explicit model choice. A team rule takes precedence over a role rule, followed by the baseline default; when someone belongs to several teams with a rule, the first matching team rule in the table wins (see [How rules combine](/platform/admin/governance/policies-and-limits#how-rules-combine)). A default does not prevent someone from selecting another permitted model.
 
+The model list offers the models that can answer in chat. An image model that can't use tools, such as Gemini 2.5 Flash Image, is not among them, nor in the chat's model picker: chat sends every message with tools, such as a document search. Choose such a model under [image generation](#let-agents-generate-images), and the assistant creates pictures with it.
+
 ## Restrict model access
 
 Under **Model access**, choose the mode and add rules for the users, teams, roles, or default scope you want to cover.

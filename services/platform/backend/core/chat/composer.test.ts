@@ -89,4 +89,32 @@ describe('collectComposerOptions', () => {
       toolCallingApi: 'responses',
     });
   });
+
+  it('leaves out an image generator that takes no tools, which every turn would send it', () => {
+    const hit = (id: string, supportsTools: boolean) => ({
+      connector: {
+        name: 'openrouter',
+        displayName: 'OpenRouter',
+        apiFormat: 'openai',
+      },
+      credential: { authMethod: 'api-key' },
+      credentialAuth: { authMethod: 'api-key' as const },
+      entry: {
+        id,
+        provider: 'openrouter',
+        tags: ['chat', 'vision', 'image-generation'],
+        supportsTools,
+        supportsVision: true,
+        outputsMedia: true,
+        contextWindow: 32_768,
+      },
+    });
+    const { byId } = collectComposerOptions([
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the walk's hit shape, narrowed to what the projection reads
+      hit('google/gemini-2.5-flash-image', false) as never,
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the walk's hit shape, narrowed to what the projection reads
+      hit('openrouter/auto', true) as never,
+    ]);
+    expect([...byId.keys()]).toEqual(['openrouter openrouter/auto']);
+  });
 });

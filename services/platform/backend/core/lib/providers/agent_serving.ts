@@ -38,6 +38,7 @@ import {
   modelIdsEquivalent,
 } from '@tale/shared/utils/model-ref';
 
+import { answersChatTurns } from '../../../../lib/shared/providers/chat_turn_models';
 import { isStandardGatewayProvider } from '../../../../lib/shared/providers/gateway_standard_providers';
 import {
   buildHarnessTable,
@@ -233,18 +234,18 @@ function describe(error: unknown): string {
 }
 
 /** Keep an exact non-chat reference a refusal; dialect matching must not
- * silently replace an STT model with a similarly named conversational one. */
+ * silently replace an STT model with a similarly named conversational one.
+ * An image generator that takes no tools is no chat model to an agent
+ * either: its turns offer tools. */
 function findChatModel(
   catalog: readonly ModelCatalogEntry[],
   modelId: string,
 ): ModelCatalogEntry | undefined {
   const exact = catalog.find((candidate) => candidate.id === modelId);
-  if (exact !== undefined)
-    return exact.tags.includes('chat') ? exact : undefined;
+  if (exact !== undefined) return answersChatTurns(exact) ? exact : undefined;
   return catalog.find(
     (candidate) =>
-      candidate.tags.includes('chat') &&
-      modelIdsEquivalent(candidate.id, modelId),
+      answersChatTurns(candidate) && modelIdsEquivalent(candidate.id, modelId),
   );
 }
 

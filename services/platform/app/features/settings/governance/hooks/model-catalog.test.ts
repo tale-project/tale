@@ -32,7 +32,9 @@ beforeEach(() => {
 describe('useListProviders', () => {
   it('lists only the providers the organization has an active credential for', () => {
     catalogs = [
-      catalog('deepseek', [{ id: 'deepseek-v4', tags: ['chat'] }]),
+      catalog('deepseek', [
+        { id: 'deepseek-v4', tags: ['chat'], supportsTools: true },
+      ]),
       catalog('zai', [{ id: 'glm-5', tags: ['chat'] }]),
       // A shipped provider with no credential must not be offered.
       catalog('anthropic', [{ id: 'claude-fable-5', tags: ['chat'] }]),
@@ -46,8 +48,15 @@ describe('useListProviders', () => {
     ]);
     const [deepseek] = result.current.providers;
     expect(deepseek?.displayName).toBe('DEEPSEEK');
+    // The facts the default-model picker screens on ride along.
     expect(deepseek?.models).toEqual([
-      { id: 'deepseek-v4', displayName: 'deepseek-v4', tags: ['chat'] },
+      {
+        id: 'deepseek-v4',
+        displayName: 'deepseek-v4',
+        tags: ['chat'],
+        supportsTools: true,
+        outputsMedia: false,
+      },
     ]);
   });
 

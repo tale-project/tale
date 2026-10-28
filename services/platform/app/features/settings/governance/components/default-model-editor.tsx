@@ -39,6 +39,7 @@ import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { ModelInfoPopover } from '@/app/features/shared/models/model-info-popover';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
+import { answersChatTurns } from '@/lib/shared/providers/chat_turn_models';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import { mapGovernanceSaveError } from '../governance-save-errors';
@@ -131,6 +132,8 @@ interface ProviderModel {
   id: string;
   displayName: string;
   tags: string[];
+  supportsTools: boolean;
+  outputsMedia?: boolean;
 }
 
 interface ProviderInfo {
@@ -228,9 +231,10 @@ function RuleDialog({
     [providerList],
   );
 
+  // The models a chat turn can be sent to — the chat picker's own set.
   const chatModels = useMemo(() => {
     const provider = providerList.find((p) => p.name === draft.providerName);
-    return provider?.models.filter((m) => m.tags.includes('chat')) ?? [];
+    return provider?.models.filter(answersChatTurns) ?? [];
   }, [providerList, draft.providerName]);
 
   const modelOptions = useMemo(
@@ -426,10 +430,20 @@ function DefaultModelEditorContent({
         name: provider.name,
         displayName: provider.displayName ?? provider.name,
         models: provider.models.map(
-          (m: { id: string; displayName: string; tags?: string[] }) => ({
+          (m: {
+            id: string;
+            displayName: string;
+            tags?: string[];
+            supportsTools?: boolean;
+            outputsMedia?: boolean;
+          }) => ({
             id: m.id,
             displayName: m.displayName,
             tags: m.tags ?? [],
+            // An unknown fact reads as tool-capable, as a catalog-less entry
+            // does: only a declared tool-less image generator is left out.
+            supportsTools: m.supportsTools !== false,
+            outputsMedia: m.outputsMedia === true,
           }),
         ),
       });

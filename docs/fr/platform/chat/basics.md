@@ -27,6 +27,8 @@ Le sélecteur démarre sur **Auto** lorsque plusieurs modèles utilisables sont 
 
 Choisis un modèle précis pour comparer des réponses dans les mêmes conditions ou lorsque tu sais lequel convient au travail. Il reste sélectionné jusqu’à ce que tu changes ce choix, y compris le fournisseur qui sert le modèle lorsque deux fournisseurs proposent le même. S’il permet de régler l’effort de raisonnement, le sélecteur propose aussi ce réglage. Un effort plus élevé peut prendre plus de temps ; il ne remplace pas la vérification du résultat.
 
+Le sélecteur n’affiche pas les modèles d’images qui ne peuvent pas utiliser d’outils, comme Gemini 2.5 Flash Image, car chaque réponse peut faire appel à des outils, par exemple une recherche dans les documents. Pour obtenir une image, demande-la dans la conversation : l’assistant la crée avec le [modèle d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images) de ton organisation.
+
 <Frame caption="Le sélecteur de modèle se trouve à côté du menu des pièces jointes et des commandes vocales.">
 
 ![Le champ de message affiche le menu plus, le modèle Auto, un microphone et le bouton d’envoi.](/images/platform/chat-composer.webp)

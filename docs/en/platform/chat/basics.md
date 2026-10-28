@@ -27,6 +27,8 @@ The model picker starts on **Auto** when several usable models are available. Au
 
 Pick a named model when you need consistent comparisons or know which model the work requires. Your choice stays selected until you change it, including which provider serves the model when two providers offer the same one. If that model supports adjustable reasoning, the picker also offers an effort setting. More reasoning can take longer; it is not a substitute for checking the answer.
 
+The picker leaves out image models that can't use tools, such as Gemini 2.5 Flash Image, because every reply can call tools such as a document search. To get a picture, ask for one in the conversation: the assistant creates it with your organization's [image model](/platform/admin/governance/content-models#let-agents-generate-images).
+
 <Frame caption="The model picker sits beside the attachment menu and voice controls.">
 
 ![The chat composer contains the plus menu, an Auto model picker, a microphone, and the send button.](/images/platform/chat-composer.webp)

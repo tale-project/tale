@@ -14,6 +14,8 @@ Als Admin oder Inhaber legst du unter **Einstellungen > Richtlinien > Modelle** 
 
 Der Standard greift, wenn kein Modell ausdrücklich gewählt wurde. Eine Teamregel hat Vorrang vor einer Rollenregel, danach gilt der allgemeine Standard; gehört jemand mehreren Teams mit einer Regel an, gewinnt die erste passende Teamregel in der Tabelle (siehe [So werden Regeln kombiniert](/de/platform/admin/governance/policies-and-limits#how-rules-combine)). Ein Standard verhindert nicht, dass jemand ein anderes erlaubtes Modell wählt.
 
+Die Modellliste bietet die Modelle an, die im Chat antworten können. Ein Bildmodell, das keine Tools verwenden kann, etwa Gemini 2.5 Flash Image, fehlt darin wie auch in der Modellauswahl des Chats: Der Chat sendet jede Nachricht mit Tools, etwa einer Dokumentsuche. Wähle ein solches Modell unter [Bildgenerierung](#let-agents-generate-images), dann erstellt der Assistent Bilder damit.
+
 ## Den Modellzugriff begrenzen
 
 Wähle unter **Modellzugriff** den Modus und ergänze Regeln für Personen, Teams, Rollen oder den Standardbereich.

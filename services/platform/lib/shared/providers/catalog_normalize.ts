@@ -131,7 +131,8 @@ function deriveTags(args: {
   if (args.isTranscription) return ['transcription'];
   // An image GENERATOR — the fact the image-generation resolver and its
   // settings picker select on. Additive: a model that also writes text keeps
-  // its chat tag below, and the chat lists still skip it on `outputsMedia`.
+  // its chat tag below; the chat Auto pick skips it on `outputsMedia`, and
+  // the chat lists skip it when it takes no tools (`answersChatTurns`).
   const generatesImages = args.outputModalities.includes('image');
   const tags: string[] = [];
   // OpenRouter spells the output modality PLURAL ('embeddings'); other

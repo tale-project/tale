@@ -68,6 +68,8 @@ export function useListProviders(organizationId: string): {
           id: model.id,
           displayName: model.id,
           tags: model.tags,
+          supportsTools: model.supportsTools,
+          outputsMedia: model.outputsMedia === true,
         })),
       }));
     return list.length === 0 ? EMPTY_PROVIDERS : list;
