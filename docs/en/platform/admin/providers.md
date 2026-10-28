@@ -93,11 +93,13 @@ Use the provider's documented endpoint and model identifiers. A display name fro
 An organization can connect an endpoint the shipped catalog does not list: a self-hosted model server such as vLLM or Ollama, or an internal gateway that speaks the OpenAI or Anthropic API. Select **Add credential** and choose **Custom provider**, the entry pinned under the catalog:
 
 1. Enter a **Provider name**. It names the provider and this credential, and the provider's identifier is derived from it.
-2. Choose the **API format** the endpoint speaks and enter its **Base URL**, the API root the platform appends its paths to. A public host needs `https`.
+2. Choose the **API format** the endpoint speaks and enter its **Base URL**, the API root the platform appends its paths to. A public host needs `https`. For a gateway such as Bifrost or LiteLLM, the API root usually ends in `/v1` (`https://gateway.example.com/v1`); the address of its dashboard is a web page, not the API.
 3. Under **Models**, keep **Discover from the endpoint** to read the server's `/models` listing with this key, or choose **Enter model IDs** and list the exact IDs in the **Model allowlist** for an endpoint that cannot list them.
 4. Fill in the **API key** (or the environment variable) and select **Add credential**.
 
 The credential row now shows the provider with a **Custom** badge, and the provider appears in the **Add credential** catalog with the same badge; choosing it there adds another credential for it. A private or loopback address also needs the deployment's private-host opt-in, which an operator sets; saving the credential does not grant it. Ask your operator to prepare endpoint access and deployment policy, then follow [Connect a local model server](/tutorials/admin/connect-local-provider). If coding agents will use the provider, test an agent session too: their model traffic passes through a separate gateway, which also needs network access and certificate trust.
+
+A gateway often lists the vendor models it routes without saying what each one supports. For such a model, Tale uses what its own model catalog knows about it: whether it reads images, takes tools and lets you set a reasoning effort. A model Tale doesn't know is offered with tools and without image input: it is told an image is attached but doesn't see it. An embedding, speech or image model that Tale recognizes isn't offered in chat.
 
 From the row's menu, **Check models** reads the endpoint's model list again with this key, **Edit credential** changes the base URL, API format and model source beside the credential's name, and **Delete** removes the credential. In the edit, **Save** changes the provider and the credential together: a duplicate name or a stale version is refused before either changes. If someone saved the provider or this credential after you opened the dialog, your save is refused instead of overwriting their change; reopen the dialog to load the current settings. Deleting a provider's last credential removes the provider itself, and the dialog says so beforehand. Every saved version of the definition stays in the organization's configuration history. Facts the form does not cover, such as a coding-agent endpoint, are set in the definition file the [provider configuration guide](/self-hosted/configuration/providers) describes.
 
@@ -115,6 +117,7 @@ The **Agent runtimes** section below the credentials is read-only. It shows avai
 
 - If a provider has no default, select the intended active credential and make it the default.
 - If the catalog failed to load, use **Refresh catalogs** and inspect the provider's result. Live catalogs are cached; built-in catalogs change with the platform.
+- If a custom provider's row reads **Model catalog unavailable** because the base URL answered with a web page or has no model list, the base URL isn't the API root. Correct it with **Edit credential**; for most gateways it ends in `/v1`.
 - If a model is missing, check both the credential's allowlist and organization model-access rules. For a catalog-free provider, check the exact model IDs.
 - If a request is rejected, verify the credential's enable state, provider account access, endpoint, and provider-side quota before changing model rules.
 
