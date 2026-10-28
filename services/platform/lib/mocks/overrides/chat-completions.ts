@@ -182,7 +182,13 @@ const MOCK_TITLE_KEPT_PREFIX = 40;
  */
 function mockTitleFor(body: ChatCompletionRequest): string {
   const users = (body.messages ?? []).filter((m) => m.role === 'user');
-  const text = users[users.length - 1]?.text.trim() ?? '';
+  // The title call hands the first message over between <message> tags, as
+  // data to name; the title is made from the message, not the tags.
+  const text = (users[users.length - 1]?.text ?? '')
+    .trim()
+    .replace(/^<message>\s*/, '')
+    .replace(/\s*<\/message>$/, '')
+    .trim();
   if (text.length === 0) return 'New chat';
   let title = text.slice(0, MOCK_TITLE_MAX);
   const cutMidWord =
