@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 142 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 143 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -1069,6 +1069,17 @@ Restore any toggled setting after the run.
   dialog and gives focus back to the button. A member whose competence lets
   them create a key, with no developer role, sees the same button and dialog
   (SET-B38); a member who holds an agent but may not connect one does not.
+- [ ] `SET-F90` · **A gateway's models carry what Tale knows about them** —
+  Add a **Custom provider** whose endpoint lists its models by id alone, such
+  as **Base URL** `https://api.openai.com/v1` with an OpenAI key and
+  **Discover from the endpoint** → On **Governance › Models** the details
+  (`chat.modelSelector.viewInfo`) of a GPT model Tale's OpenAI catalog lists,
+  under the custom provider, show **Tools** and **Vision** as
+  `chat.modelSelector.info.supported` and **Reasoning** as
+  `chat.modelSelector.info.reasoningEffort`; in a new chat the model menu
+  offers it with **Effort** (`chat.effort.label`), and neither **Text
+  Embedding 3 Small** nor **Whisper 1** is offered there. A listed model no
+  Tale catalog knows shows **Tools** supported and **Vision** not supported.
 
 ## Boundary & error tests
 

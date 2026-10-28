@@ -22,12 +22,13 @@
  * Eligibility carries the hazard list the vision auto-pick already paid for:
  * media generators and free-tier lanes both list a token price of ~0 and
  * would otherwise always win a price sort, and both refuse or throttle real
- * chat calls. Tool support is a SOFT filter — the chat assistant ships tools,
- * so tool-capable models are preferred, but an all-`supportsTools: false`
- * catalog (every plain OpenAI-compatible `/models` listing: the field can't
- * be derived, so normalization writes `false` across the board) must not
- * make Auto unresolvable. Vision, by contrast, is HARD when the message
- * carries images: picking a blind model would silently drop the attachment.
+ * chat calls; so does a model that bills its input only (an embedding model
+ * a listing does not describe reads as chat). Tool support is a SOFT filter —
+ * the chat assistant ships tools, so tool-capable models are preferred, but
+ * an all-`supportsTools: false` catalog (a listing that states parameters and
+ * names tools for none of its models) must not make Auto unresolvable.
+ * Vision, by contrast, is HARD when the message carries images: picking a
+ * blind model would silently drop the attachment.
  *
  * Pure by design — candidates in, choice out — so the whole policy is
  * unit-testable without a Convex world.
@@ -116,9 +117,12 @@ function isServableChatEntry(entry: ChatChoiceEntry): boolean {
   // Free-tier lanes sit behind per-account data-policy gates and hard rate
   // caps — the "cheapest" pick would turn into a 401/429 storm.
   if (entry.id.endsWith(':free')) return false;
+  // Nothing charged for what it writes: a free tier as above, or no chat
+  // model at all — an embedding model or a text compressor bills its input
+  // only, and a listing that does not describe one reads it as chat. Either
+  // would win the price fallback by writing for free.
   if (
     entry.pricing !== undefined &&
-    entry.pricing.inputCentsPerMillion === 0 &&
     entry.pricing.outputCentsPerMillion === 0
   ) {
     return false;

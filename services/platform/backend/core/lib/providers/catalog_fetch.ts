@@ -37,6 +37,7 @@ import {
   type ModelCatalogEntry,
   type ProviderDefinition,
 } from '@tale/shared/schemas/providers';
+import { modelIdMatchKey } from '@tale/shared/utils/model-ref';
 
 import {
   checkProviderHostPolicy,
@@ -47,9 +48,11 @@ import { ALLOWLIST_CATALOG_CONTEXT_WINDOW } from '../../../../lib/shared/provide
 import {
   normalizeCatalogPayload,
   readImageGenerationFactsListing,
+  type KnownModel,
   type NormalizeCatalogOptions,
 } from '../../../../lib/shared/providers/catalog_normalize';
 import {
+  loadProviderDefinitions,
   loadStaticCatalogs,
   type LoadSystemConfigOptions,
 } from './load_system_config';
@@ -607,6 +610,43 @@ function modelsEndpointUrl(baseUrl: string): string {
 }
 
 /**
+ * Tale's shipped catalogs as one lookup by model: what Tale knows about a
+ * model a custom provider's listing names without describing it. The id
+ * dialects meet through `modelIdMatchKey` (a gateway's `openai/gpt-5.6-luna`
+ * is the vendor's `gpt-5.6-luna`, `claude-haiku-4-5` is `claude-haiku-4.5`),
+ * and a vendor's own catalog answers before an aggregator's shipped
+ * defaults. Built on first use, so a catalog read from the cache never pays
+ * for it.
+ */
+function knownModelLookup(
+  options: LoadSystemConfigOptions,
+): (id: string) => KnownModel | undefined {
+  let index: Map<string, ModelCatalogEntry> | undefined;
+  return (id) => {
+    if (index === undefined) {
+      const vendorOwn = new Set(
+        loadProviderDefinitions(options)
+          .filter((provider) => provider.catalog.source === 'static')
+          .map((provider) => provider.name),
+      );
+      const rank = (name: string) => (vendorOwn.has(name) ? 0 : 1);
+      const catalogs = [...loadStaticCatalogs(options).entries()].sort(
+        ([a], [b]) => rank(a) - rank(b) || a.localeCompare(b),
+      );
+      const built = new Map<string, ModelCatalogEntry>();
+      for (const [, entries] of catalogs) {
+        for (const entry of entries) {
+          const key = modelIdMatchKey(entry.id);
+          if (!built.has(key)) built.set(key, entry);
+        }
+      }
+      index = built;
+    }
+    return index.get(modelIdMatchKey(id));
+  };
+}
+
+/**
  * The catalog for one provider, per its declared source. The exhaustive
  * switch is the case list: static file, OpenRouter API, own models endpoint,
  * or no shippable catalog at all.
@@ -682,12 +722,17 @@ export async function getProviderCatalog(
         [modelsEndpointUrl(provider.baseUrl)],
         options,
         isPrivateIp(endpointHost) ? [endpointHost] : undefined,
-        // An OpenAI-style `/v1/models` names its models and nothing else
-        // (api.openai.com, DashScope, DeepSeek, vLLM, Ollama): such an entry
-        // gets the same assumed window an allowlist entry carries instead of
-        // being dropped — otherwise a custom provider's whole listing would
-        // normalize to nothing.
-        { defaultContextWindow: ALLOWLIST_CATALOG_CONTEXT_WINDOW },
+        {
+          // An OpenAI-style `/v1/models` names its models and nothing else
+          // (api.openai.com, DashScope, DeepSeek, vLLM, Ollama): such an
+          // entry gets the same assumed window an allowlist entry carries
+          // instead of being dropped — otherwise a custom provider's whole
+          // listing would normalize to nothing.
+          defaultContextWindow: ALLOWLIST_CATALOG_CONTEXT_WINDOW,
+          // A gateway names the vendor models it routes without describing
+          // them; what Tale's own catalogs know about each fills the gap.
+          knownModel: knownModelLookup(options),
+        },
       );
     }
     case 'none':
