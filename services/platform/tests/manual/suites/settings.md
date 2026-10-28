@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 141 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 142 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -1398,6 +1398,22 @@ Restore any toggled setting after the run.
   both `false`) the owner's rail has no **Connected agents** while they hold no agent,
   and a person who still holds one keeps the page, without **Connect a coding
   agent**.
+
+- [ ] `SET-B40` · **A base URL that is not the API root says so** — **Add
+  credential** → **Custom provider** with **Base URL** `https://openrouter.ai`
+  (it answers the model listing with a web page), **Discover from the
+  endpoint** and any **API key** → submit → The row reads
+  `settings.providers.card.catalogUnavailable` with
+  `settings.providers.custom.errors.catalogNotJson`, never page markup or a
+  parser message; **Check models** (`settings.providers.custom.check`) toasts
+  `settings.providers.custom.checkFailed` with the same sentence at once,
+  without a retry pause; **Refresh catalogs**
+  (`settings.providers.catalogs.refresh`) reports it with that sentence.
+  **Edit credential** → **Base URL** `https://api.openai.com` (without /v1) →
+  **Save** → the row and **Check models** show
+  `settings.providers.custom.errors.catalogNotFound`; with
+  `https://openrouter.ai/api/v1` **Check models** toasts
+  `settings.providers.custom.checkOk`.
 
 ## Accessibility (WCAG 2.1 AA)
 

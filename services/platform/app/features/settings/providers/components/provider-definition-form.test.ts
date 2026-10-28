@@ -1,10 +1,12 @@
 import type { ProviderDefinition } from '@tale/shared/schemas/providers';
 import { describe, expect, it } from 'vitest';
 
+import { BackendApiError } from '@/app/lib/backend/api-client';
 import { AppError } from '@/lib/shared/errors/app-error';
 
 import {
   buildCustomProviderDefinition,
+  catalogFailureText,
   mapProviderDefinitionError,
   slugifyProviderName,
   uniqueProviderSlug,
@@ -168,5 +170,37 @@ describe('mapProviderDefinitionError', () => {
       'server says CONFIG_UNREADABLE',
     );
     expect(mapProviderDefinitionError(t, new Error('boom'))).toBe('boom');
+  });
+
+  it('reads the code of a failed listing check, which answers 502', () => {
+    const failed = (code: string) =>
+      new BackendApiError(
+        502,
+        'The selected provider catalog is unavailable.',
+        code,
+      );
+    expect(
+      mapProviderDefinitionError(t, failed('PROVIDER_CATALOG_NOT_JSON')),
+    ).toBe('providers.custom.errors.catalogNotJson');
+    expect(
+      mapProviderDefinitionError(t, failed('PROVIDER_CATALOG_NOT_FOUND')),
+    ).toBe('providers.custom.errors.catalogNotFound');
+    expect(
+      mapProviderDefinitionError(t, failed('PROVIDER_CATALOG_UNAVAILABLE')),
+    ).toBe('providers.custom.errors.catalogUnavailable');
+  });
+});
+
+describe('catalogFailureText', () => {
+  it('names the fix for a listing that answered without a model list, and keeps any other reason', () => {
+    expect(
+      catalogFailureText(t, 'got text/html', 'PROVIDER_CATALOG_NOT_JSON'),
+    ).toBe('providers.custom.errors.catalogNotJson');
+    expect(
+      catalogFailureText(t, 'HTTP 404', 'PROVIDER_CATALOG_NOT_FOUND'),
+    ).toBe('providers.custom.errors.catalogNotFound');
+    expect(
+      catalogFailureText(t, 'catalog fetch returned HTTP 401', undefined),
+    ).toBe('catalog fetch returned HTTP 401');
   });
 });

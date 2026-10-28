@@ -31,6 +31,7 @@ import {
   sameList,
 } from './components/model-allowlist-field';
 import {
+  catalogFailureText,
   CUSTOM_VENDOR_KEY,
   emptyCustomProviderFacts,
   mapProviderDefinitionError,
@@ -520,7 +521,11 @@ export const providerCredentialAdapter: CredentialAdapter<
   detailLine: (t, credential, vendor) =>
     vendor?.catalog.catalogError !== undefined
       ? t('providers.card.catalogUnavailable', {
-          error: vendor.catalog.catalogError,
+          error: catalogFailureText(
+            t,
+            vendor.catalog.catalogError,
+            vendor.catalog.catalogErrorCode,
+          ),
         })
       : credential.authMethod === 'subscription-key' ||
           credential.authMethod === 'subscription-broker'

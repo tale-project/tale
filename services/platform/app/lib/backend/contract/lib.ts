@@ -9,6 +9,12 @@
 
 import type { ProviderDefinition } from '@tale/shared/schemas/providers';
 
+/** Why a provider's model listing reached a server that answered without a
+ * model list: a body that is not JSON, or HTTP 404. */
+export type ProviderCatalogFailureCode =
+  | 'PROVIDER_CATALOG_NOT_JSON'
+  | 'PROVIDER_CATALOG_NOT_FOUND';
+
 /** One normalized model entry of a provider catalog. */
 export interface ProviderCatalogModel {
   embedding?: { recommended?: boolean; dimensions: number };
@@ -55,6 +61,8 @@ export interface LibContract {
     args: { organizationId: string };
     returns: Array<{
       catalogError?: string;
+      /** Present when the listing answered without a model list. */
+      catalogErrorCode?: ProviderCatalogFailureCode;
       catalogSource: 'none' | 'static' | 'openrouter-api' | 'models-endpoint';
       authMethods: Array<
         'api-key' | 'env' | 'subscription-key' | 'subscription-broker'
@@ -106,7 +114,12 @@ export interface LibContract {
     args: { organizationId: string };
     returns: Array<
       | { name: string; modelCount: number; error?: undefined }
-      | { name: string; modelCount: number; error: string }
+      | {
+          name: string;
+          modelCount: number;
+          error: string;
+          errorCode?: ProviderCatalogFailureCode;
+        }
     >;
   };
   'lib/providers/harness_status:listHarnessStatus': {

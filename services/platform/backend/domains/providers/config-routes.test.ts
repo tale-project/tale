@@ -8,6 +8,7 @@ import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org';
+import { CatalogListingError } from '../../core/lib/providers/catalog_fetch';
 import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers';
 import { createProviderSettingRoutes } from './routes';
 
@@ -412,6 +413,73 @@ describe('native custom provider definition HTTP door', () => {
     caller.role = 'member';
     expect((await refresh()).status).toBe(403);
     expect(catalog).not.toHaveBeenCalled();
+  });
+
+  it('passes on the code of a listing that answered without a model list, on the row, the refresh and the check', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(
+        (await put({ config: definition, expectedHash: null })).status,
+      ).toBe(200);
+      const page = new CatalogListingError(
+        'PROVIDER_CATALOG_NOT_JSON',
+        'catalog fetch got text/html instead of JSON',
+      );
+      catalog.mockImplementation(async (provider: { name: string }) => {
+        if (provider.name === 'local-chat') throw page;
+        return [];
+      });
+      const listing = (await (
+        await app().request('/catalogs?orgId=org-a')
+      ).json()) as {
+        catalogs: Array<{
+          name: string;
+          catalogError?: string;
+          catalogErrorCode?: string;
+        }>;
+      };
+      expect(
+        listing.catalogs.find((entry) => entry.name === 'local-chat'),
+      ).toMatchObject({
+        catalogError: page.message,
+        catalogErrorCode: 'PROVIDER_CATALOG_NOT_JSON',
+      });
+
+      const refreshed = (await (
+        await app().request(`/catalogs/refresh?orgId=${caller.orgId}`, {
+          method: 'POST',
+        })
+      ).json()) as { results: Array<{ name: string; errorCode?: string }> };
+      expect(
+        refreshed.results.find((entry) => entry.name === 'local-chat'),
+      ).toMatchObject({ errorCode: 'PROVIDER_CATALOG_NOT_JSON' });
+
+      const checked = await app().request(
+        '/definitions/local-chat/catalog?orgId=org-a',
+      );
+      expect(checked.status).toBe(502);
+      expect(await checked.json()).toMatchObject({
+        error: 'PROVIDER_CATALOG_NOT_JSON',
+      });
+
+      // A failure that says nothing about the URL stays the catalog being
+      // unavailable, with no code on the row.
+      catalog.mockRejectedValue(new Error('connect ECONNREFUSED'));
+      const down = await app().request(
+        '/definitions/local-chat/catalog?orgId=org-a',
+      );
+      expect(await down.json()).toMatchObject({
+        error: 'PROVIDER_CATALOG_UNAVAILABLE',
+      });
+      const row = (
+        (await (await app().request('/catalogs?orgId=org-a')).json()) as {
+          catalogs: Array<{ name: string; catalogErrorCode?: string }>;
+        }
+      ).catalogs.find((entry) => entry.name === 'local-chat');
+      expect(row).not.toHaveProperty('catalogErrorCode');
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('marks organization-defined providers in the catalog listing', async () => {

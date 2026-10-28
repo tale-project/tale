@@ -7,6 +7,8 @@ import {
 import type { Translator } from '@/app/features/settings/credentials/adapter';
 import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import { backendErrorCode } from '@/app/hooks/use-action-query';
+import { BackendApiError } from '@/app/lib/backend/api-client';
+import type { ProviderCatalogFailureCode } from '@/app/lib/backend/contract/lib';
 import { formatZodError } from '@/lib/shared/schemas/format-error';
 
 /**
@@ -116,15 +118,48 @@ export function buildCustomProviderDefinition(
 }
 
 /**
+ * Why a provider's model listing could not be read, for the row, the refresh
+ * report and the listing check: a listing that answered without a model list
+ * names the fix in the reader's language; anything else keeps its message.
+ */
+export function catalogFailureText(
+  t: Translator,
+  error: string,
+  code: ProviderCatalogFailureCode | undefined,
+): string {
+  return listingFailureSentence(t, code) ?? error;
+}
+
+/** The localized fix for a listing that answered without a model list —
+ * `undefined` for any other code. */
+function listingFailureSentence(
+  t: Translator,
+  code: string | undefined,
+): string | undefined {
+  switch (code) {
+    case 'PROVIDER_CATALOG_NOT_JSON':
+      return t('providers.custom.errors.catalogNotJson');
+    case 'PROVIDER_CATALOG_NOT_FOUND':
+      return t('providers.custom.errors.catalogNotFound');
+    default:
+      return undefined;
+  }
+}
+
+/**
  * Admin-facing copy for a failed provider write or listing. The backend's
  * refusals are coded, and each code has a localized sentence naming the fix;
  * anything else keeps the server's own sentence via `mapCredentialError`.
+ * A failed listing answers 502, which reaches here as the transport's own
+ * error rather than an `AppError`, so its code is read off that.
  */
 export function mapProviderDefinitionError(
   t: Translator,
   err: unknown,
 ): string {
-  switch (backendErrorCode(err)) {
+  const code =
+    err instanceof BackendApiError ? err.code : backendErrorCode(err);
+  switch (code) {
     case 'PROVIDER_NAME_RESERVED':
       return t('providers.custom.errors.nameReserved');
     case 'PROVIDER_ENDPOINT_INVALID':
@@ -142,6 +177,6 @@ export function mapProviderDefinitionError(
     case 'PROVIDER_CATALOG_UNAVAILABLE':
       return t('providers.custom.errors.catalogUnavailable');
     default:
-      return mapCredentialError(err);
+      return listingFailureSentence(t, code) ?? mapCredentialError(err);
   }
 }

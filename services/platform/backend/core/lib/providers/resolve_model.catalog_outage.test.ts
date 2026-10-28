@@ -195,7 +195,8 @@ describe('resolveModel past an unreadable catalog', () => {
       baseUrl: 'https://gateway.remote.test/v1',
       body: 'TOKEN_X9 not valid JSON',
       marker: 'TOKEN_X9',
-      attempts: 3,
+      // A body that is not JSON answers the same way again: asked once.
+      attempts: 1,
     },
     {
       source: 'an empty catalog at a URL with a query',
@@ -215,10 +216,10 @@ describe('resolveModel past an unreadable catalog', () => {
         throw new Error(`unexpected request to ${url}`);
       });
 
-      // Run the real parser, normalizer and failure cache. The parser error
+      // Run the real parser, normalizer and failure cache. A parser error
       // can quote response bytes; an empty-catalog error names its full URL.
       // Inspect only this resolver's diagnostics: shared catalog logging is
-      // a separate boundary, and neither it nor its retry ladder is changed.
+      // a separate boundary.
       const warnings: unknown[][][] = [];
       for (const round of ['cold', 'remembered']) {
         const start = vi.mocked(console.warn).mock.calls.length;

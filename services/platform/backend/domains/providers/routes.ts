@@ -15,7 +15,10 @@ import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { ConfigurationError } from '../../core/lib/config_store/precondition';
-import { getProviderCatalog } from '../../core/lib/providers/catalog_fetch.ts';
+import {
+  catalogFailureCode,
+  getProviderCatalog,
+} from '../../core/lib/providers/catalog_fetch.ts';
 import { credentialAuthFor } from '../../core/lib/providers/credential_auth.ts';
 import {
   deriveHarnessStatus,
@@ -188,10 +191,17 @@ export function createProviderSettingRoutes(deps: {
           ...(bearerToken !== undefined ? { bearerToken } : {}),
         }),
       });
-    } catch {
+    } catch (error) {
+      console.warn(
+        `[catalog] check of ${config.name}'s listing failed:`,
+        error instanceof Error ? error.message : error,
+      );
+      // A listing that answered with something other than a model list says
+      // so by its code, which settings turns into the fix; anything else is
+      // the catalog being unavailable.
       return c.json(
         {
-          error: 'PROVIDER_CATALOG_UNAVAILABLE',
+          error: catalogFailureCode(error) ?? 'PROVIDER_CATALOG_UNAVAILABLE',
           message: 'The selected provider catalog is unavailable.',
         },
         502,
@@ -228,6 +238,7 @@ export function createProviderSettingRoutes(deps: {
       for (const { provider, hash } of providers) {
         let models: unknown[] = [];
         let catalogError: string | undefined;
+        let catalogErrorCode: string | undefined;
         try {
           const bearerToken = await resolveCatalogBearer(
             deps.sql,
@@ -242,6 +253,7 @@ export function createProviderSettingRoutes(deps: {
           ];
         } catch (error) {
           catalogError = error instanceof Error ? error.message : String(error);
+          catalogErrorCode = catalogFailureCode(error);
           console.warn(
             `[catalog] listing for ${provider.name} unavailable:`,
             error,
@@ -274,6 +286,7 @@ export function createProviderSettingRoutes(deps: {
           authMethods: provider.auth.map((entry) => entry.method),
           models,
           ...(catalogError !== undefined ? { catalogError } : {}),
+          ...(catalogErrorCode !== undefined ? { catalogErrorCode } : {}),
           ...(hash !== undefined ? { definitionHash: hash } : {}),
         });
       }

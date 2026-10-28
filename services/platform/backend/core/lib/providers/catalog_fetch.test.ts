@@ -5,6 +5,8 @@ import { safeFetch, SafeFetchError } from '../../../../lib/net/safe-fetch';
 import {
   CATALOG_FAILURE_BACKOFF_MS,
   CATALOG_TTL_MS,
+  catalogFailureCode,
+  CatalogListingError,
   getProviderCatalog,
   invalidateCatalogFetchCache,
 } from './catalog_fetch';
@@ -754,6 +756,59 @@ describe('getProviderCatalog — live sources', () => {
     await expect(
       getProviderCatalog(VERCEL, { maxAttempts: 1 }),
     ).rejects.toThrow('HTTP 503');
+  });
+
+  it('names a listing that answers with a web page, asks once and never quotes the page', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      // A gateway's dashboard answers its root path, so a base URL without
+      // the API's /v1 gets this page back with a 200.
+      mockedFetch.mockResolvedValue({
+        ...listingResponse({}),
+        headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+        body: '<!doctype html><html><title>Gateway dashboard</title></html>',
+      });
+      const failure: unknown = await getProviderCatalog(VERCEL, {
+        maxAttempts: 3,
+      }).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(CatalogListingError);
+      expect(catalogFailureCode(failure)).toBe('PROVIDER_CATALOG_NOT_JSON');
+      expect((failure as Error).message).toContain('text/html');
+      expect((failure as Error).message).not.toContain('<!doctype');
+      expect(mockedFetch).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('names a listing URL that answers 404, asking once', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      mockedFetch.mockResolvedValue({
+        ...listingResponse({ detail: 'Not Found' }),
+        status: 404,
+        statusText: 'Not Found',
+      });
+      const failure: unknown = await getProviderCatalog(VERCEL, {
+        maxAttempts: 3,
+      }).catch((error: unknown) => error);
+      expect(catalogFailureCode(failure)).toBe('PROVIDER_CATALOG_NOT_FOUND');
+      expect(mockedFetch).toHaveBeenCalledTimes(1);
+      // Any other refusal keeps no code: it says nothing about the URL.
+      invalidateCatalogFetchCache();
+      mockedFetch.mockResolvedValue({
+        ...listingResponse({}),
+        status: 401,
+        statusText: 'Unauthorized',
+      });
+      const refused: unknown = await getProviderCatalog(VERCEL, {
+        maxAttempts: 1,
+      }).catch((error: unknown) => error);
+      expect(refused).toBeInstanceOf(Error);
+      expect(catalogFailureCode(refused)).toBeUndefined();
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   it('treats a listing with no usable models as a failure and caches nothing', async () => {
