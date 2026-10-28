@@ -31,7 +31,7 @@ Check `tale logs bgutil-provider` and whether the worker can reach the service. 
 
 Video retrieval goes through the deployment's [outbound proxies](/self-hosted/configuration/environment-reference#outbound-proxies) when `OUTBOUND_PROXY_URLS` lists any. A video keeps one proxy for its metadata, captions, and audio. It starts on the proxy through which its platform last served a video, or else on the next one in turn, because a proxy the platform has just served is the likeliest to serve it again.
 
-When the platform turns the video away through that proxy, with a bot check, a rate limit, or a refused request, or when the proxy cannot carry the request, the worker moves the video to the next proxy in turn that has not failed it. Each step of the video (metadata, captions, audio) makes at most five attempts and starts none after 90 seconds. The worker log names each move by the proxy's position in the list, never by its credentials:
+When the platform turns the video away through that proxy, with a bot check, a rate limit, or a refused request, or when the proxy cannot carry the request, the worker moves the video to the next proxy in turn that has not failed it. Fetching the metadata, the captions, or the audio makes at most five attempts, and retries only within the first 90 seconds of that step. When fetching a Vimeo video from its page fails, the metadata step also tries Vimeo's embedded player, which makes up to five attempts of its own. The worker log names each move by the proxy's position in the list, never by its credentials:
 
 ```text
 [ytdlp] outbound proxy entry 3 (http://gateway.example:80) failed (botDetection); the video goes on through entry 7 (http://gateway.example:80)

@@ -53,9 +53,10 @@ at the same moment cannot both slip past it.
 Through the deployment's outbound proxies, a video's metadata, captions and sound go out
 through one proxy. When the platform refuses the video there (a bot check, a rate limit, a
 refused request), or the proxy cannot carry it, the video moves to the next proxy that has not
-failed it. Each step makes at most five attempts and starts none after 90 seconds, and a single
-proxy is not tried again within a step. The platform's next video starts on the proxy it last
-served.
+failed it. Each fetch (metadata, captions, sound) makes at most five attempts and retries only
+within the first 90 seconds of its step; when a Vimeo video's page fails, the metadata step also
+tries Vimeo's embedded player, with attempts of its own. A fetch through a single proxy is not
+retried. The platform's next video starts on the proxy it last served.
 
 - **Example**: Mia's deployment lists three proxies and YouTube asks the first for a bot check
   → her video is fetched through the second, captions and sound included, and the next video
