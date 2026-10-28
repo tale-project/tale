@@ -13,6 +13,7 @@ Ce guide d’exploitation concerne la récupération des transcriptions. Commenc
 | --- | --- |
 | Une seule vidéo échoue | URL prise en charge, contenu toujours disponible et transcription ou source audio utilisable. |
 | Beaucoup de vidéos échouent depuis un hôte | Erreurs de l’extracteur dans le worker, réponses de la plateforme source et chemin réseau de l’hôte. |
+| Les vidéos se heurtent à une vérification anti-robot via tes proxys | Les lignes `[ytdlp] outbound proxy entry` du journal du worker, et si chaque proxy de la liste garde une adresse fixe ([proxy de sortie](#egress-proxy)). |
 | Récupération réussie, recherche de connaissances en échec | Configuration d’embedding de l’organisation et statut d’indexation. |
 | Échecs après une session fonctionnelle | Expiration, état du compte source et refroidissement ou retrait de la session. |
 
@@ -26,9 +27,27 @@ Vérifie `tale logs bgutil-provider` et son accessibilité depuis le worker. Le 
 
 `VIDEO_INGEST_POT_PROVIDER_URL` choisit un autre fournisseur. `VIDEO_INGEST_PO_TOKEN` fournit un jeton obtenu manuellement. Garde ces valeurs dans ta configuration de secrets. La [référence d’environnement](/fr/self-hosted/configuration/environment-reference) décrit aussi les options de client d’extraction et de plugin ; modifie-les selon l’erreur observée.
 
-## Configurer un proxy de sortie
+## Configurer un proxy de sortie {#egress-proxy}
 
-Les récupérations vidéo passent par les [proxys sortants](/fr/self-hosted/configuration/environment-reference#outbound-proxies) du déploiement dès que `OUTBOUND_PROXY_URLS` en indique : chaque exécution de yt-dlp prend le suivant à tour de rôle, comme le crawler de sites web. Définis `VIDEO_INGEST_PROXY_URL` lorsque tes récupérations vidéo doivent plutôt passer par un proxy approuvé qui leur est propre ; il remplace les proxys sortants pour la vidéo seulement. Métadonnées, sous-titres et audio utilisent ce chemin. Les schémas acceptés sont `http`, `https`, `socks4`, `socks4a`, `socks5` et `socks5h` ; ce dernier résout le DNS côté proxy.
+Les récupérations vidéo passent par les [proxys sortants](/fr/self-hosted/configuration/environment-reference#outbound-proxies) du déploiement dès que `OUTBOUND_PROXY_URLS` en indique. Une vidéo garde le même proxy pour ses métadonnées, ses sous-titres et son audio. Elle commence sur le proxy par lequel sa plateforme a servi la dernière vidéo, sinon sur le suivant à tour de rôle, car la plateforme acceptera le plus probablement de nouveau un proxy par lequel elle vient de servir une vidéo.
+
+Quand la plateforme refuse la vidéo par ce proxy, par exemple avec une vérification anti-robot, une limite de requêtes ou une requête rejetée, ou quand le proxy ne peut pas transmettre la requête, le worker fait passer la vidéo au proxy suivant à tour de rôle par lequel elle n’a pas encore échoué. Chaque étape de la vidéo (métadonnées, sous-titres, audio) fait au plus cinq tentatives et n’en lance plus après 90 secondes. Le journal du worker désigne chaque changement par la position du proxy dans la liste, jamais par ses identifiants :
+
+```text
+[ytdlp] outbound proxy entry 3 (http://gateway.example:80) failed (botDetection); the video goes on through entry 7 (http://gateway.example:80)
+```
+
+Quand les tentatives sont épuisées, l’étape se termine comme sans proxy, avec le motif donné par la plateforme. Avec un seul proxy dans la liste, le worker ne répète pas une tentative refusée.
+
+Chaque proxy de la liste doit garder une adresse publique fixe. YouTube signe ses médias pour l’adresse qui les a demandés et peut refuser le téléchargement depuis une autre : un point d’accès rotatif, qui attribue une nouvelle adresse à chaque connexion, n’est donc pas fiable pour la vidéo. Indique plutôt les points d’accès à adresse fixe de ton fournisseur. Beaucoup de fournisseurs les servent depuis une même passerelle, numérotés dans le nom d’utilisateur :
+
+```bash
+OUTBOUND_PROXY_URLS=http://user-1:password@gateway.example:80,http://user-2:password@gateway.example:80,http://user-3:password@gateway.example:80
+```
+
+Les requêtes vers les sites web prennent toujours ces proxys à tour de rôle. Les plateformes refusent beaucoup d’adresses de centres de données. Si le journal montre des changements pour la plupart des vidéos, des proxys sur des réseaux résidentiels ou de fournisseurs d’accès sont moins souvent refusés.
+
+Définis `VIDEO_INGEST_PROXY_URL` lorsque tes récupérations vidéo doivent plutôt passer par un proxy approuvé qui leur est propre. Il remplace les proxys sortants pour la vidéo seulement ; la liste sortante peut alors garder un point d’accès rotatif. Comme proxy unique, il ne répète pas une tentative refusée. Les schémas acceptés sont `http`, `https`, `socks4`, `socks4a`, `socks5` et `socks5h` ; ce dernier résout le DNS côté proxy.
 
 ```bash
 VIDEO_INGEST_PROXY_URL=socks5h://proxy.example.com:1080

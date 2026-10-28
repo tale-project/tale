@@ -4,8 +4,9 @@
 
 Pasting a link to a video into the chat message field turns the video into an attachment: its
 captions are read, or its sound is transcribed. These rules cover which links are accepted,
-what pasting the same link again does, how many videos are prepared at once, and what removing
-a link does. How a video is fetched and read is not covered; see Not yet.
+what pasting the same link again does, how many videos are prepared at once, which proxy a
+video is fetched through, and what removing a link does. How a video is read is not covered;
+see Not yet.
 
 ## Which links are accepted
 
@@ -45,6 +46,21 @@ at the same moment cannot both slip past it.
 - **Example**: Three videos are being prepared in Mia's organization. She pastes a fourth link
   → refused, and she can paste it again once one of them is done.
 
+## Fetching through proxies
+
+### VID-R7 · A video keeps one proxy and moves on when the platform refuses it
+
+Through the deployment's outbound proxies, a video's metadata, captions and sound go out
+through one proxy. When the platform refuses the video there (a bot check, a rate limit, a
+refused request), or the proxy cannot carry it, the video moves to the next proxy that has not
+failed it. Each step makes at most five attempts and starts none after 90 seconds, and a single
+proxy is not tried again within a step. The platform's next video starts on the proxy it last
+served.
+
+- **Example**: Mia's deployment lists three proxies and YouTube asks the first for a bot check
+  → her video is fetched through the second, captions and sound included, and the next video
+  starts on the second.
+
 ## Removing a link
 
 ### VID-R5 · Removing a video link stops its preparation and deletes what it produced
@@ -65,8 +81,8 @@ with its transcript, unless a document took it over.
 
 ## Not yet
 
-- **How a video is fetched and read**: captions before sound, the languages preferred, and
-  the tools that fetch it (`core/video_links/`).
+- **How a video is read**: captions before sound, the languages preferred, and the tools that
+  fetch it (`core/video_links/`).
 - **Which failures can be retried**, and what a failed link shows (`service.ts`).
 - **Reusing a transcript** that was made for the same video before.
 - **Spending**: what preparing a video costs and the budget check before it starts.

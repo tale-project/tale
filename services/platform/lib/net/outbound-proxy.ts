@@ -11,8 +11,9 @@
  * a request never leaves unproxied because the proxies are failing.
  *
  * Callers: `safeFetch` (the crawler, the chat assistant's web fetch, email
- * images) and the yt-dlp runner. The sandbox egress service reads the same
- * list and rotates it with squid.
+ * images) and the yt-dlp runner, which starts a video on the proxy the
+ * platform last served. The sandbox egress service reads the same list and
+ * rotates it with squid.
  */
 
 import {
@@ -42,26 +43,62 @@ function outboundProxies(
   return parsed.proxies;
 }
 
+/** What a caller may ask of {@link nextOutboundProxy} beyond the turn. */
+export interface OutboundProxyPick {
+  /** The one to take when it is still listed, not passed over and not
+   * skipped; the rotation does not move for it. */
+  prefer?: OutboundProxy | null;
+  /** Proxies (by URL) never to take, every entry that lists them. */
+  skip?: ReadonlySet<string>;
+}
+
 /** The proxy the next request goes out through, or null when none is
- * configured. Skips a proxy that is passed over unless all of them are. */
+ * configured or every one is skipped. Passes over a proxy that is set aside,
+ * unless every proxy it may take is. */
 export function nextOutboundProxy(
   env: NodeJS.ProcessEnv = process.env,
   now: number = Date.now(),
+  { prefer = null, skip }: OutboundProxyPick = {},
 ): OutboundProxy | null {
   const proxies = outboundProxies(env);
   if (proxies.length === 0) return null;
+  const usable = (proxy: OutboundProxy): boolean => !skip?.has(proxy.url);
+  if (
+    prefer !== null &&
+    usable(prefer) &&
+    (setAside.get(prefer.url) ?? 0) <= now
+  ) {
+    const listed = proxies.find((proxy) => proxy.url === prefer.url);
+    if (listed !== undefined) return listed;
+  }
   const start = cursor % proxies.length;
+  let passedOver: number | null = null;
   for (let offset = 0; offset < proxies.length; offset += 1) {
     const index = (start + offset) % proxies.length;
     const proxy = proxies[index];
-    if (proxy !== undefined && (setAside.get(proxy.url) ?? 0) <= now) {
+    if (proxy === undefined || !usable(proxy)) continue;
+    if ((setAside.get(proxy.url) ?? 0) <= now) {
       cursor = (index + 1) % proxies.length;
       return proxy;
     }
+    passedOver ??= index;
   }
-  // Every proxy is passed over: the rotation goes on through all of them.
-  cursor = (start + 1) % proxies.length;
-  return proxies[start] ?? null;
+  if (passedOver === null) return null;
+  // Every proxy left is passed over: the rotation goes on through all of them.
+  cursor = (passedOver + 1) % proxies.length;
+  return proxies[passedOver] ?? null;
+}
+
+/** Where `proxy` stands in the list, counted from 1 as the boot check counts
+ * entries (0 when it is not listed): what tells apart entries that share a
+ * host and port, as a provider's per-address user names on one gateway do. */
+export function outboundProxyEntry(
+  proxy: OutboundProxy,
+  env: NodeJS.ProcessEnv = process.env,
+): number {
+  return (
+    outboundProxies(env).findIndex((listed) => listed.url === proxy.url) + 1
+  );
 }
 
 /** Pass over `proxy` for {@link OUTBOUND_PROXY_SET_ASIDE_MS}, after it could

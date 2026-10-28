@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { ingestVideoLinkImpl } from './ingest_video_link';
-import { YtDlpError, type YtDlpMetadata } from './ytdlp';
+import { YtDlpError, YtdlpRoute, type YtDlpMetadata } from './ytdlp';
 
 const WATCH_URL =
   'https://vimeo.com/1206142064?fl=wc&source_section=316&source_position=2';
@@ -31,6 +31,8 @@ function loginWall(): YtDlpError {
 const ytdlpJson = vi.fn<(url: string) => Promise<YtDlpMetadata>>();
 const ytdlpWriteSubs = vi.fn<(url: string) => Promise<string | null>>();
 const ytdlpExtractAudio = vi.fn<(url: string) => Promise<string>>();
+/** The proxy route each yt-dlp call was given, in call order. */
+const routes: unknown[] = [];
 
 vi.mock('./ytdlp', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./ytdlp')>();
@@ -42,10 +44,18 @@ vi.mock('./ytdlp', async (importOriginal) => {
         cleanup: () => Promise.resolve(),
       }),
     ),
-    ytdlpJson: (...args: unknown[]) => ytdlpJson(args[0] as string),
-    ytdlpWriteSubs: (...args: unknown[]) => ytdlpWriteSubs(args[0] as string),
-    ytdlpExtractAudio: (...args: unknown[]) =>
-      ytdlpExtractAudio(args[0] as string),
+    ytdlpJson: (...args: unknown[]) => {
+      routes.push(args[4]);
+      return ytdlpJson(args[0] as string);
+    },
+    ytdlpWriteSubs: (...args: unknown[]) => {
+      routes.push((args[3] as { route?: unknown } | undefined)?.route);
+      return ytdlpWriteSubs(args[0] as string);
+    },
+    ytdlpExtractAudio: (...args: unknown[]) => {
+      routes.push(args[4]);
+      return ytdlpExtractAudio(args[0] as string);
+    },
   };
 });
 vi.mock('./url_safety', async (importOriginal) => {
@@ -125,6 +135,7 @@ function harness(sourceUrl = WATCH_URL): {
 afterEach(() => {
   vi.clearAllMocks();
   vi.restoreAllMocks();
+  routes.length = 0;
 });
 
 describe('the Vimeo embed fallback', () => {
@@ -154,6 +165,7 @@ describe('the Vimeo embed fallback', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.spyOn(console, 'info').mockImplementation(() => {});
     vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const nextStep = vi.spyOn(YtdlpRoute.prototype, 'nextStep');
     const h = harness();
     ytdlpJson.mockRejectedValueOnce(loginWall());
     ytdlpJson.mockResolvedValueOnce({
@@ -174,6 +186,14 @@ describe('the Vimeo embed fallback', () => {
 
     expect(ytdlpWriteSubs).toHaveBeenCalledWith(EMBED_URL);
     expect(ytdlpExtractAudio).toHaveBeenCalledWith(EMBED_URL);
+    // All four calls, the watch page's and the embed's alike, go through one
+    // proxy route: the platform sees one address for the video.
+    expect(routes).toHaveLength(4);
+    expect(routes[0]).toBeInstanceOf(YtdlpRoute);
+    expect(new Set(routes).size).toBe(1);
+    // The embed fallback stays in the metadata step; the captions and the
+    // sound each begin one.
+    expect(nextStep).toHaveBeenCalledTimes(2);
   });
 
   it("reports the watch page's own failure when the embed fails too", async () => {

@@ -34,6 +34,7 @@ import { join, resolve as resolvePath } from 'node:path';
 
 import {
   nextOutboundProxy,
+  outboundProxyEntry,
   setOutboundProxyAside,
   type OutboundProxy,
 } from '../../../lib/net/outbound-proxy';
@@ -80,6 +81,10 @@ const BASE_FLAGS: ReadonlyArray<string> = [
   // when it spawns. Restricting to IPv4 narrows the TOCTOU rebind window.
   '--force-ipv4',
   '--restrict-filenames',
+  // A run that moves to another proxy runs again in the same job dir: start
+  // every download over instead of resuming the last run's partial file,
+  // which may hold another format.
+  '--no-continue',
   '--downloader',
   'native',
   // NOTE: `--ffmpeg-location` used to live here, hard-pinned to
@@ -214,13 +219,13 @@ export interface YtdlpProxy {
 }
 
 /**
- * The proxy for one yt-dlp run — the single highest-leverage mitigation:
- * routing extraction through a residential/ISP egress moves it off the
- * deployment's flagged datacenter IP. `VIDEO_INGEST_PROXY_URL` wins; without
- * it the run takes the next of the deployment's outbound proxies
- * (`OUTBOUND_PROXY_URLS`, in turn with every other request to a website);
- * with neither, none. yt-dlp extracts and downloads through the one proxy of
- * its run, so a media URL signed for that address is fetched from it.
+ * The proxy a video's yt-dlp runs start on — the single highest-leverage
+ * mitigation: routing extraction through a residential/ISP egress moves it
+ * off the deployment's flagged datacenter IP. `VIDEO_INGEST_PROXY_URL` wins;
+ * without it `nextPooled` picks one of the deployment's outbound proxies
+ * (`OUTBOUND_PROXY_URLS`, by default the next in turn with every other
+ * request to a website); with neither, none. {@link YtdlpRoute} keeps it for
+ * the video.
  */
 export function ytdlpProxyFromEnv(
   env: NodeJS.ProcessEnv,
@@ -260,6 +265,165 @@ export function proxyFailedRun(stderr: string): boolean {
   const status = TUNNEL_STATUS_STDERR.exec(stderr)?.[1];
   if (status !== undefined) return status === '407';
   return PROXY_UNREACHABLE_STDERR.test(stderr);
+}
+
+/**
+ * What a platform answers an address it will not serve: a bot check, a rate
+ * limit, a refused request. The same video may well come through from
+ * another address, so a run that ends this way through the outbound proxies
+ * goes on through another one (see {@link YtdlpRoute}).
+ */
+const TURNED_AWAY: ReadonlySet<YtDlpErrorReason> = new Set([
+  'botDetection',
+  'rateLimited',
+  'forbidden',
+]);
+
+/**
+ * The most runs one yt-dlp call makes through the outbound proxies, each
+ * through another one, when the platform turns them away or a proxy cannot
+ * carry them. No further run starts once the video's step — its metadata
+ * (the Vimeo embed fallback included), its captions or its sound — has spent
+ * {@link PROXY_FAILOVER_WINDOW_MS}: with a last run's 90 s and its kill
+ * grace, and the embed's own run, the metadata step stays inside the
+ * watchdog's five minutes.
+ */
+export const MAX_PROXY_RUNS = 5;
+const PROXY_FAILOVER_WINDOW_MS = 90_000;
+
+/**
+ * The outbound proxy each platform last served a video through, where its
+ * next video starts. A platform that blocks some of the proxies' addresses
+ * (YouTube refused about two thirds of a 100-address datacenter list on
+ * 2026-10-28) then keeps serving its videos through one it accepts, instead
+ * of each video meeting the blocked ones again in turn. Per process, like
+ * the rotation, and per platform: Vimeo serving an address says nothing about
+ * YouTube.
+ */
+const servingProxies = new Map<string, OutboundProxy>();
+
+/**
+ * The proxy one video's yt-dlp runs go out through. A video keeps it for
+ * every run — metadata, captions, sound — because the proxy its platform has
+ * just served is the likeliest to serve it again. Within one run the address
+ * matters too: YouTube signs its media for the address that asked and can
+ * refuse the download from another (HTTP 403), so a proxy that gives every
+ * connection a new address (a provider's rotating endpoint) cannot be relied
+ * on for video.
+ *
+ * `VIDEO_INGEST_PROXY_URL` is a route of one proxy. Through the outbound
+ * proxies a video starts on the one its platform last served, else the next
+ * in turn; a run the platform turns away there, or that its proxy cannot
+ * carry, moves the route on to the next proxy in turn that has not failed
+ * the video (see `runYtdlp`).
+ */
+export class YtdlpRoute {
+  /** The outbound proxies (by URL) that failed this video. */
+  private readonly failed = new Set<string>();
+  /** When the video's current step began: the start of its failover window. */
+  private stepStartedAt: number | null = null;
+
+  private constructor(
+    private readonly platform: string,
+    private current: YtdlpProxy | null,
+  ) {}
+
+  /** The route for one video on `platform` (the job's `sourcePlatform`). */
+  static forVideo(
+    platform = '',
+    env: NodeJS.ProcessEnv = process.env,
+  ): YtdlpRoute {
+    return new YtdlpRoute(
+      platform,
+      ytdlpProxyFromEnv(env, () =>
+        nextOutboundProxy(env, Date.now(), {
+          prefer: servingProxies.get(platform) ?? null,
+        }),
+      ),
+    );
+  }
+
+  /** The proxy the next run goes out through, or null for none. */
+  get proxy(): YtdlpProxy | null {
+    return this.current;
+  }
+
+  /** The video's next step (captions, sound) begins, with its own failover
+   * window. */
+  nextStep(): void {
+    this.stepStartedAt = null;
+  }
+
+  /** Before a call's first run: the step's window opens with its first call,
+   * and a route still on a proxy that failed the video moves on, when there
+   * is another to move to. */
+  beginCall(
+    now: number = Date.now(),
+    env: NodeJS.ProcessEnv = process.env,
+  ): void {
+    this.stepStartedAt ??= now;
+    const pooled = this.current?.pooled;
+    if (pooled && this.failed.has(pooled.url)) {
+      this.moveOn('failed this video earlier', env);
+    }
+  }
+
+  /** Whether the step's window still lets another run start. */
+  windowOpen(now: number = Date.now()): boolean {
+    return now - (this.stepStartedAt ?? now) < PROXY_FAILOVER_WINDOW_MS;
+  }
+
+  /** A run through this route succeeded. */
+  served(): void {
+    if (this.current?.pooled) {
+      servingProxies.set(this.platform, this.current.pooled);
+    }
+  }
+
+  /**
+   * Whether the address of an outbound proxy explains `error`, a failed run
+   * through this route: the proxy could not carry the run (passed over for a
+   * while, as for any request), or the platform turned the address away (no
+   * longer where the platform's next video starts).
+   */
+  blame(error: YtDlpError): boolean {
+    const pooled = this.current?.pooled;
+    if (!pooled) return false;
+    if (proxyFailedRun(error.sanitizedStderr)) {
+      setOutboundProxyAside(pooled, 'yt-dlp could not get through');
+    } else if (TURNED_AWAY.has(error.reason)) {
+      if (servingProxies.get(this.platform)?.url === pooled.url) {
+        servingProxies.delete(this.platform);
+      }
+    } else {
+      return false;
+    }
+    this.failed.add(pooled.url);
+    return true;
+  }
+
+  /** Move on to the next outbound proxy in turn that has not failed this
+   * video, after the one it is on `failed` (logged by list entry and label,
+   * never credentials); false when every proxy has. */
+  moveOn(failed: string, env: NodeJS.ProcessEnv = process.env): boolean {
+    const from = this.current?.pooled;
+    if (!from) return false;
+    this.failed.add(from.url);
+    const next = nextOutboundProxy(env, Date.now(), { skip: this.failed });
+    if (next === null) return false;
+    this.current = { url: next.url, pooled: next };
+    const entry = (proxy: OutboundProxy): string =>
+      `entry ${outboundProxyEntry(proxy, env)} (${proxy.label})`;
+    console.warn(
+      `[ytdlp] outbound proxy ${entry(from)} ${failed}; the video goes on through ${entry(next)}`,
+    );
+    return true;
+  }
+}
+
+/** Test seam: forget the outbound proxy each platform last served. */
+export function resetServingProxiesForTests(): void {
+  servingProxies.clear();
 }
 
 /** Default YouTube player clients when no PO-token provider is wired.
@@ -713,7 +877,10 @@ export function classifyYtDlpStderr(stderr: string): YtDlpErrorReason {
   ) {
     return 'botDetection';
   }
-  if (s.includes('429') || s.includes('too many requests'))
+  // The HTTP status, never a bare `429`: the line names the video, and an ID
+  // such as Vimeo's `1042987654` would read as a rate limit, which sends the
+  // video on through the other proxies instead of reporting its own wall.
+  if (s.includes('http error 429') || s.includes('too many requests'))
     return 'rateLimited';
   if (
     s.includes('private video') ||
@@ -782,21 +949,65 @@ interface YtDlpSpawnResult {
   stderr: string;
 }
 
+/**
+ * One yt-dlp call: `args` run through `route`, the video's proxy (a route of
+ * its own when the caller has none). A run that fails because of its outbound
+ * proxy's address — the platform turned it away, or the proxy could not carry
+ * it — runs again through another proxy, at most {@link MAX_PROXY_RUNS} runs,
+ * none started once the step's {@link PROXY_FAILOVER_WINDOW_MS} is spent; any
+ * other failure is the video's own answer, and so is the last one.
+ */
 async function runYtdlp(
   args: string[],
   jobDir: string,
   timeoutMs: number,
   session?: YtdlpSession,
+  route: YtdlpRoute = YtdlpRoute.forVideo(),
 ): Promise<YtDlpSpawnResult> {
   // Resolve the flag set the installed yt-dlp actually accepts. First
   // call probes `--help` and caches; subsequent calls are free.
   const commonFlags = await resolveSupportedFlags();
   await warnIfYtdlpBelowFloor();
-  // Anti-bot flags are rebuilt per call (cheap), and each call takes the next
-  // outbound proxy in turn. A pooled session (if provided) supplies its own
-  // cookie jar + visitor data.
-  const proxy = ytdlpProxyFromEnv(process.env);
-  const antiBotFlags = buildAntiBotFlags(process.env, session, proxy);
+  route.beginCall();
+  for (let run = 1; ; run += 1) {
+    try {
+      // Anti-bot flags are rebuilt per run (cheap), for the proxy the route
+      // is on. A pooled session (if provided) supplies its own cookie jar +
+      // visitor data. `ffmpegLocationFlags` is merged in per-invocation
+      // (read from `process.env`, NOT the cached `commonFlags`) so the live
+      // test's self-provisioned ffmpeg path takes effect after module load.
+      const result = await spawnYtdlp(
+        [
+          ...commonFlags,
+          ...ffmpegLocationFlags(process.env),
+          ...buildAntiBotFlags(process.env, session, route.proxy),
+          ...args,
+        ],
+        jobDir,
+        timeoutMs,
+      );
+      route.served();
+      return result;
+    } catch (error) {
+      if (
+        !(error instanceof YtDlpError) ||
+        !route.blame(error) ||
+        run >= MAX_PROXY_RUNS ||
+        !route.windowOpen() ||
+        !route.moveOn(`failed (${error.reason})`)
+      ) {
+        throw error;
+      }
+    }
+  }
+}
+
+/** One yt-dlp child in `jobDir`, stopped after `timeoutMs`. */
+function spawnYtdlp(
+  argv: string[],
+  jobDir: string,
+  timeoutMs: number,
+): Promise<YtDlpSpawnResult> {
   return new Promise((resolve, reject) => {
     // `detached: true` puts the child in its own process group so we can
     // signal the whole group with `process.kill(-pid, ...)` on timeout.
@@ -804,32 +1015,20 @@ async function runYtdlp(
     // action is hard-killed — the wrapper Node process terminates but
     // ffmpeg continues to its natural exit, leaving disk/CPU usage that
     // the entrypoint's 60-min tmpdir sweep can only partially reclaim.
-    // `ffmpegLocationFlags` is merged in per-invocation (read from
-    // `process.env`, NOT the cached `commonFlags`) so the live test's
-    // self-provisioned ffmpeg path takes effect after module load.
-    const proc = spawn(
-      YTDLP_BIN,
-      [
-        ...commonFlags,
-        ...ffmpegLocationFlags(process.env),
-        ...antiBotFlags,
-        ...args,
-      ],
-      {
-        stdio: ['ignore', 'pipe', 'pipe'],
-        cwd: jobDir,
-        detached: true,
-        // env stripped to the minimum yt-dlp + ffmpeg need. NEVER pass
-        // process.env — Convex secrets (SOPS_AGE_KEY, db creds, provider
-        // tokens) would land in the child's environment. `buildSpawnPath`
-        // keeps the pinned production PATH unless `VIDEO_INGEST_BIN_DIR` is set.
-        env: {
-          PATH: buildSpawnPath(process.env),
-          HOME: jobDir,
-          LANG: 'C.UTF-8',
-        },
+    const proc = spawn(YTDLP_BIN, argv, {
+      stdio: ['ignore', 'pipe', 'pipe'],
+      cwd: jobDir,
+      detached: true,
+      // env stripped to the minimum yt-dlp + ffmpeg need. NEVER pass
+      // process.env — Convex secrets (SOPS_AGE_KEY, db creds, provider
+      // tokens) would land in the child's environment. `buildSpawnPath`
+      // keeps the pinned production PATH unless `VIDEO_INGEST_BIN_DIR` is set.
+      env: {
+        PATH: buildSpawnPath(process.env),
+        HOME: jobDir,
+        LANG: 'C.UTF-8',
       },
-    );
+    });
     let stdout = '';
     let stderr = '';
     // Cap accumulated output to prevent OOM on chatty errors. yt-dlp
@@ -976,11 +1175,6 @@ async function runYtdlp(
       }
       if (code !== 0) {
         const reason = classifyYtDlpStderr(sanitized);
-        // The next run takes another proxy anyway; a pooled one that could
-        // not carry this one is also passed over for a while.
-        if (proxy?.pooled && proxyFailedRun(sanitized)) {
-          setOutboundProxyAside(proxy.pooled, 'yt-dlp could not get through');
-        }
         settleReject(
           new YtDlpError(
             reason,
@@ -1101,12 +1295,14 @@ export async function ytdlpJson(
   jobDir: string,
   timeoutMs = 90_000,
   session?: YtdlpSession,
+  route?: YtdlpRoute,
 ): Promise<YtDlpMetadata> {
   const { stdout } = await runYtdlp(
     ['-J', '--', url],
     jobDir,
     timeoutMs,
     session,
+    route,
   );
   // `-J` produces a single JSON object on stdout. For non-playlist URLs
   // we asked for, it's the video info_dict directly.
@@ -1161,6 +1357,7 @@ export async function ytdlpWriteSubs(
     includeAutoGenerated?: boolean;
     timeoutMs?: number;
     session?: YtdlpSession;
+    route?: YtdlpRoute;
   } = {},
 ): Promise<string | null> {
   if (!LANG_TOKEN_RE.test(lang)) {
@@ -1208,7 +1405,13 @@ export async function ytdlpWriteSubs(
     '--',
     url,
   ];
-  await runYtdlp(args, jobDir, opts.timeoutMs ?? 90_000, opts.session);
+  await runYtdlp(
+    args,
+    jobDir,
+    opts.timeoutMs ?? 90_000,
+    opts.session,
+    opts.route,
+  );
 
   // Find the .vtt file yt-dlp wrote. It uses the video id + lang code
   // suffix, e.g. `<id>.en.vtt`.
@@ -1243,6 +1446,7 @@ export async function ytdlpExtractAudio(
   jobDir: string,
   timeoutMs = 15 * 60_000,
   session?: YtdlpSession,
+  route?: YtdlpRoute,
 ): Promise<string> {
   const args = [
     '-x',
@@ -1266,7 +1470,7 @@ export async function ytdlpExtractAudio(
     '--',
     url,
   ];
-  await runYtdlp(args, jobDir, timeoutMs, session);
+  await runYtdlp(args, jobDir, timeoutMs, session, route);
 
   const entries = await fs.readdir(jobDir);
   const audio = entries.find((e) => e.endsWith('.mp3'));
