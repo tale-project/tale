@@ -13,6 +13,7 @@ This operator guide covers transcript retrieval configuration. Start with a publ
 | --- | --- |
 | One video fails | Whether the URL is supported, the content is still available, and a usable transcript or audio path exists. |
 | Many videos fail from one host | Worker extractor errors, source-platform responses, and that host's network path. |
+| Videos meet a bot check through your proxies | The worker's `[ytdlp] outbound proxy entry` lines, and whether each listed proxy keeps one address ([egress proxy](#egress-proxy)). |
 | Retrieval works but knowledge search does not | The organization's embedding configuration and indexing status. |
 | Failures begin after a session worked | Session expiry, source-account state, and cooling or retirement in the pool. |
 
@@ -26,9 +27,27 @@ Check `tale logs bgutil-provider` and whether the worker can reach the service. 
 
 `VIDEO_INGEST_POT_PROVIDER_URL` selects another provider endpoint. `VIDEO_INGEST_PO_TOKEN` supplies a manually obtained token. Keep token material in your secret configuration. The [environment reference](/self-hosted/configuration/environment-reference) also lists extractor-client and plugin options; change them only when the observed error calls for it.
 
-## Configure an egress proxy
+## Configure an egress proxy {#egress-proxy}
 
-Video retrieval goes through the deployment's [outbound proxies](/self-hosted/configuration/environment-reference#outbound-proxies) when `OUTBOUND_PROXY_URLS` lists any: each yt-dlp run takes the next one in turn, as the website crawler does. Set `VIDEO_INGEST_PROXY_URL` when video retrieval needs an approved proxy of its own instead; it replaces the outbound proxies for video only. Metadata, captions, and audio requests use that configured path. Supported schemes include `http`, `https`, `socks4`, `socks4a`, `socks5`, and `socks5h`; the latter resolves DNS at the proxy.
+Video retrieval goes through the deployment's [outbound proxies](/self-hosted/configuration/environment-reference#outbound-proxies) when `OUTBOUND_PROXY_URLS` lists any. A video keeps one proxy for its metadata, captions, and audio. It starts on the proxy through which its platform last served a video, or else on the next one in turn, because a proxy the platform has just served is the likeliest to serve it again.
+
+When the platform turns the video away through that proxy, with a bot check, a rate limit, or a refused request, or when the proxy cannot carry the request, the worker moves the video to the next proxy in turn that has not failed it. Each step of the video (metadata, captions, audio) makes at most five attempts and starts none after 90 seconds. The worker log names each move by the proxy's position in the list, never by its credentials:
+
+```text
+[ytdlp] outbound proxy entry 3 (http://gateway.example:80) failed (botDetection); the video goes on through entry 7 (http://gateway.example:80)
+```
+
+When the attempts run out, the step ends as it would without proxies, with the platform's reason. With a single listed proxy, the worker does not repeat a refused attempt.
+
+Each listed proxy must keep one public address. YouTube signs its media for the address that requested it and can refuse the download from another, so a rotating endpoint, which gives every connection a new address, cannot be relied on for video. List the provider's fixed-address endpoints instead. Many providers serve them from one gateway, numbered in the user name:
+
+```bash
+OUTBOUND_PROXY_URLS=http://user-1:password@gateway.example:80,http://user-2:password@gateway.example:80,http://user-3:password@gateway.example:80
+```
+
+Requests to websites still take these proxies in turn. Platforms refuse many data-center addresses; if the log shows moves for most videos, proxies on residential or ISP networks are refused less often.
+
+Set `VIDEO_INGEST_PROXY_URL` when video retrieval needs an approved proxy of its own instead. It replaces the outbound proxies for video only, so the outbound list can then keep a rotating endpoint. As a single proxy, it does not repeat a refused attempt. Supported schemes include `http`, `https`, `socks4`, `socks4a`, `socks5`, and `socks5h`; the latter resolves DNS at the proxy.
 
 ```bash
 VIDEO_INGEST_PROXY_URL=socks5h://proxy.example.com:1080

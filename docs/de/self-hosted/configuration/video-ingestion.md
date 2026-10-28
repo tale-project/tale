@@ -13,6 +13,7 @@ Diese Betriebsanleitung behandelt den Transkriptabruf. Beginne mit einem öffent
 | --- | --- |
 | Ein Video scheitert | Unterstützung der URL, Verfügbarkeit des Inhalts und brauchbare Transkript- oder Audioquelle. |
 | Viele Videos scheitern von einem Host | Extraktionsfehler im Worker, Antworten der Quellplattform und Netzwerkweg dieses Hosts. |
+| Videos stoßen über deine Proxys auf eine Bot-Prüfung | Die Zeilen `[ytdlp] outbound proxy entry` im Worker-Log und ob jeder gelistete Proxy eine feste Adresse behält ([Egress-Proxy](#egress-proxy)). |
 | Abruf gelingt, Wissenssuche scheitert | Embedding-Konfiguration der Organisation und Indexierungsstatus. |
 | Fehler nach einer zunächst funktionierenden Sitzung | Ablauf, Zustand des Quellkontos und Abkühlung oder Stilllegung im Pool. |
 
@@ -26,9 +27,27 @@ Prüfe `tale logs bgutil-provider` und die Erreichbarkeit vom Worker. Der Sideca
 
 `VIDEO_INGEST_POT_PROVIDER_URL` wählt einen anderen Anbieterendpunkt. `VIDEO_INGEST_PO_TOKEN` übergibt ein manuell beschafftes Token. Bewahre Tokens in deiner Geheimniskonfiguration auf. Die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference) beschreibt auch Extraktions-Client und Plugin-Optionen. Ändere sie passend zum beobachteten Fehler.
 
-## Einen Egress-Proxy konfigurieren
+## Einen Egress-Proxy konfigurieren {#egress-proxy}
 
-Videoabrufe laufen über die [ausgehenden Proxys](/de/self-hosted/configuration/environment-reference#outbound-proxies) des Deployments, sobald `OUTBOUND_PROXY_URLS` Proxys nennt: Jeder yt-dlp-Lauf nimmt reihum den nächsten, wie der Website-Crawler. Setze `VIDEO_INGEST_PROXY_URL`, wenn Videoabrufe stattdessen über einen eigenen freigegebenen Proxy laufen sollen; er ersetzt die ausgehenden Proxys nur für Videos. Metadaten, Untertitel und Audio verwenden diesen Weg. Unterstützt werden `http`, `https`, `socks4`, `socks4a`, `socks5` und `socks5h`; die letzte Variante löst DNS am Proxy auf.
+Videoabrufe laufen über die [ausgehenden Proxys](/de/self-hosted/configuration/environment-reference#outbound-proxies) des Deployments, sobald `OUTBOUND_PROXY_URLS` Proxys nennt. Ein Video behält für Metadaten, Untertitel und Audio denselben Proxy. Es beginnt auf dem Proxy, über den seine Plattform zuletzt ein Video ausgeliefert hat, sonst auf dem nächsten in der Reihe. Einen Proxy, über den die Plattform gerade ein Video ausgeliefert hat, lässt sie am ehesten wieder durch.
+
+Weist die Plattform das Video über diesen Proxy ab, etwa mit einer Bot-Prüfung, einem Rate-Limit oder einer verweigerten Anfrage, oder kann der Proxy die Anfrage nicht weiterleiten, wechselt der Worker zum nächsten Proxy in der Reihe, an dem das Video noch nicht gescheitert ist. Jeder Schritt des Videos (Metadaten, Untertitel, Audio) unternimmt höchstens fünf Versuche und beginnt nach 90 Sekunden keinen weiteren. Das Worker-Log nennt jeden Wechsel mit der Position des Proxys in der Liste, nie mit seinen Zugangsdaten:
+
+```text
+[ytdlp] outbound proxy entry 3 (http://gateway.example:80) failed (botDetection); the video goes on through entry 7 (http://gateway.example:80)
+```
+
+Sind die Versuche aufgebraucht, endet der Schritt wie ohne Proxys, mit dem Grund der Plattform. Steht nur ein Proxy in der Liste, wiederholt der Worker keinen abgewiesenen Versuch.
+
+Jeder gelistete Proxy muss eine feste öffentliche Adresse behalten. YouTube signiert seine Medien für die anfragende Adresse und kann den Download von einer anderen verweigern. Auf einen rotierenden Endpunkt, der jeder Verbindung eine neue Adresse gibt, ist für Videos deshalb kein Verlass. Liste stattdessen die Endpunkte deines Anbieters mit fester Adresse. Viele Anbieter stellen sie über ein gemeinsames Gateway bereit und nummerieren sie im Benutzernamen:
+
+```bash
+OUTBOUND_PROXY_URLS=http://user-1:password@gateway.example:80,http://user-2:password@gateway.example:80,http://user-3:password@gateway.example:80
+```
+
+Anfragen an Websites nehmen diese Proxys weiterhin reihum. Plattformen weisen viele Adressen aus Rechenzentren ab. Zeigt das Log bei den meisten Videos Wechsel, helfen Proxys aus Privatkunden- oder ISP-Netzen: Sie werden seltener abgewiesen.
+
+Setze `VIDEO_INGEST_PROXY_URL`, wenn Videoabrufe stattdessen über einen eigenen freigegebenen Proxy laufen sollen. Er ersetzt die ausgehenden Proxys nur für Videos, sodass die ausgehende Liste dann einen rotierenden Endpunkt behalten kann. Als einzelner Proxy wiederholt er keinen abgewiesenen Versuch. Unterstützt werden `http`, `https`, `socks4`, `socks4a`, `socks5` und `socks5h`; die letzte Variante löst DNS am Proxy auf.
 
 ```bash
 VIDEO_INGEST_PROXY_URL=socks5h://proxy.example.com:1080

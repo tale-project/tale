@@ -1,4 +1,5 @@
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -21,6 +22,7 @@ import {
   buildSpawnPath,
   classifyYtDlpStderr,
   compareYtdlpVersions,
+  MAX_PROXY_RUNS,
   MIN_YTDLP_VERSION,
   cookiesFlagsFromEnv,
   ffmpegLocationFlags,
@@ -30,9 +32,14 @@ import {
   sanitizeStderr,
   youtubeExtractorArgsFromEnv,
   proxyFailedRun,
+  resetServingProxiesForTests,
+  YtDlpError,
+  ytdlpExtractAudio,
   ytdlpJson,
   ytdlpProxyFromEnv,
+  YtdlpRoute,
   ytdlpVersionWarning,
+  ytdlpWriteSubs,
 } from './ytdlp';
 import {
   BGUTIL_PLUGIN_NEST_DIR,
@@ -136,6 +143,17 @@ describe('classifyYtDlpStderr', () => {
     // A bare "not found" is ours to fix, not a gone video — it must NOT
     // borrow the terminal reason and hide a broken image from the operator.
     expect(classifyYtDlpStderr('ERROR: ffmpeg not found')).toBe('transient');
+  });
+
+  it('reads a 429 in the video ID as nothing', () => {
+    expect(
+      classifyYtDlpStderr(
+        'ERROR: [vimeo] 1042987654: The web client only works when logged-in. Use --cookies, --cookies-from-browser, --username and --password, --netrc-cmd, or --netrc (vimeo) to provide account credentials.',
+      ),
+    ).toBe('authRequired');
+    expect(
+      classifyYtDlpStderr('ERROR: [youtube] x429yz0AbCd: Private video'),
+    ).toBe('privateOrAgeGated');
   });
 
   it('falls back to transient for anything unrecognized', () => {
@@ -249,12 +267,13 @@ describe('proxyFailedRun', () => {
   });
 });
 
-describe('a yt-dlp run through the outbound proxies', () => {
+describe('a video through the outbound proxies [VID-R7]', () => {
   // A stand-in yt-dlp on VIDEO_INGEST_BIN_DIR: it answers the version and
-  // help probes, then writes the arguments of the run into its HOME (the job
-  // dir — the spawn env carries nothing else). Through a.example it fails
-  // the way yt-dlp does when its proxy refuses the connection; through any
-  // other proxy it prints the metadata.
+  // help probes, then adds the `--proxy` of each run to `proxies` in its HOME
+  // (the job dir — the spawn env carries nothing else). A host listed in
+  // `refused` fails the way yt-dlp does when its proxy refuses the
+  // connection, one listed in `walled` meets YouTube's bot check, and a
+  // private video fails through any proxy; otherwise it prints the metadata.
   const root = mkdtempSync(join(tmpdir(), 'tale-ytdlp-proxy-'));
   const bin = join(root, 'bin');
   mkdirSync(bin);
@@ -263,11 +282,23 @@ describe('a yt-dlp run through the outbound proxies', () => {
     [
       '#!/bin/sh',
       'case "$1" in --help) exit 0 ;; --version) echo 2099.01.01; exit 0 ;; esac',
+      'proxy=direct; prev=',
+      'for arg in "$@"; do [ "$prev" = --proxy ] && proxy=$arg; prev=$arg; done',
+      'echo "$proxy" >> "$HOME/proxies"',
       'printf "%s\\n" "$@" > "$HOME/args"',
-      'case "$*" in *a.example*)',
-      `  echo "ERROR: [youtube] x: Unable to download API page: ('Unable to connect to proxy', ConnectionRefusedError(111, 'Connection refused'))" >&2`,
+      'host=${proxy##*@}; host=${host#http://}; host=${host%%:*}',
+      'case "$*" in *v=private*)',
+      `  echo "ERROR: [youtube] private: Private video. Sign in if you've been granted access to this video" >&2`,
       '  exit 1 ;;',
       'esac',
+      `if grep -qx "$host" "${root}/refused" 2>/dev/null; then`,
+      `  echo "ERROR: [youtube] x: Unable to download API page: ('Unable to connect to proxy', ConnectionRefusedError(111, 'Connection refused'))" >&2`,
+      '  exit 1',
+      'fi',
+      `if grep -qx "$host" "${root}/walled" 2>/dev/null; then`,
+      `  echo "ERROR: [youtube] x: Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies for the authentication." >&2`,
+      '  exit 1',
+      'fi',
       `echo '{"id": "x"}'`,
       '',
     ].join('\n'),
@@ -277,58 +308,331 @@ describe('a yt-dlp run through the outbound proxies', () => {
   const saved = {
     bin: process.env.VIDEO_INGEST_BIN_DIR,
     pool: process.env.OUTBOUND_PROXY_URLS,
+    override: process.env.VIDEO_INGEST_PROXY_URL,
   };
 
   afterEach(() => {
-    if (saved.bin === undefined) delete process.env.VIDEO_INGEST_BIN_DIR;
-    else process.env.VIDEO_INGEST_BIN_DIR = saved.bin;
-    if (saved.pool === undefined) delete process.env.OUTBOUND_PROXY_URLS;
-    else process.env.OUTBOUND_PROXY_URLS = saved.pool;
+    for (const [name, value] of [
+      ['VIDEO_INGEST_BIN_DIR', saved.bin],
+      ['OUTBOUND_PROXY_URLS', saved.pool],
+      ['VIDEO_INGEST_PROXY_URL', saved.override],
+    ] as const) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    rmSync(join(root, 'refused'), { force: true });
+    rmSync(join(root, 'walled'), { force: true });
     resetOutboundProxiesForTests();
+    resetServingProxiesForTests();
     vi.restoreAllMocks();
   });
 
-  /** One run's `--proxy` value, or null, and whether the run failed. */
-  async function run(): Promise<{ proxy: string | null; failed: boolean }> {
-    const jobDir = mkdtempSync(join(root, 'job-'));
-    const failed = await ytdlpJson(
-      'https://www.youtube.com/watch?v=x',
-      jobDir,
-      10_000,
-    ).then(
-      () => false,
-      (error: unknown) => {
-        expect(error).toMatchObject({ name: 'YtDlpError' });
-        return true;
-      },
-    );
-    const args = readFileSync(join(jobDir, 'args'), 'utf8').split('\n');
-    const at = args.indexOf('--proxy');
-    return { proxy: at === -1 ? null : (args[at + 1] ?? null), failed };
+  /** Proxies from `urls`, the hosts in `walled` meeting the bot check and
+   * those in `refused` refusing the connection. */
+  function deployment(
+    urls: string,
+    { walled = [], refused = [] }: { walled?: string[]; refused?: string[] },
+  ): void {
+    process.env.VIDEO_INGEST_BIN_DIR = bin;
+    process.env.OUTBOUND_PROXY_URLS = urls;
+    delete process.env.VIDEO_INGEST_PROXY_URL;
+    writeFileSync(join(root, 'walled'), walled.map((h) => `${h}\n`).join(''));
+    writeFileSync(join(root, 'refused'), refused.map((h) => `${h}\n`).join(''));
+    resetOutboundProxiesForTests();
+    resetServingProxiesForTests();
   }
 
-  it('hands each run the next proxy, and passes over one it could not get through', async () => {
+  /** A video's metadata through `route`: how the call ended, and the
+   * `--proxy` of every run it made. */
+  async function metadata(
+    route?: YtdlpRoute,
+    url = 'https://www.youtube.com/watch?v=x',
+  ): Promise<{ outcome: string; proxies: string[] }> {
+    const jobDir = mkdtempSync(join(root, 'job-'));
+    const outcome = await ytdlpJson(url, jobDir, 10_000, undefined, route).then(
+      () => 'served',
+      (error: unknown) =>
+        error instanceof YtDlpError ? error.reason : String(error),
+    );
+    return { outcome, proxies: runProxies(jobDir) };
+  }
+
+  function runProxies(jobDir: string): string[] {
+    const path = join(jobDir, 'proxies');
+    return existsSync(path)
+      ? readFileSync(path, 'utf8').trim().split('\n')
+      : [];
+  }
+
+  function warnings(warn: { mock: { calls: unknown[][] } }): string {
+    return warn.mock.calls.map((call) => String(call[0])).join('\n');
+  }
+
+  it('keeps a video on one proxy, and moves it on when the platform turns a run away', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-    process.env.VIDEO_INGEST_BIN_DIR = bin;
-    process.env.OUTBOUND_PROXY_URLS =
-      'http://u:p@a.example:8080, http://b.example:3128';
-    resetOutboundProxiesForTests();
-    expect(await run()).toEqual({
-      proxy: 'http://u:p@a.example:8080',
-      failed: true,
+    deployment(
+      'http://u:p@a.example:8080, http://b.example:3128, http://c.example:3128',
+      { walled: ['a.example'] },
+    );
+    const route = YtdlpRoute.forVideo();
+    const jobDir = mkdtempSync(join(root, 'job-'));
+
+    await expect(
+      ytdlpJson(
+        'https://www.youtube.com/watch?v=x',
+        jobDir,
+        10_000,
+        undefined,
+        route,
+      ),
+    ).resolves.toEqual({ id: 'x' });
+    // The captions and the sound go through the proxy that served the
+    // metadata; the stand-in writes neither file, which is not an address's
+    // failure and moves nothing.
+    await expect(
+      ytdlpWriteSubs('https://www.youtube.com/watch?v=x', 'en', jobDir, {
+        route,
+        timeoutMs: 10_000,
+      }),
+    ).resolves.toBeNull();
+    await expect(
+      ytdlpExtractAudio(
+        'https://www.youtube.com/watch?v=x',
+        jobDir,
+        10_000,
+        undefined,
+        route,
+      ),
+    ).rejects.toMatchObject({ reason: 'outputValidationFailed' });
+
+    expect(runProxies(jobDir)).toEqual([
+      'http://u:p@a.example:8080',
+      'http://b.example:3128',
+      'http://b.example:3128',
+      'http://b.example:3128',
+    ]);
+    expect(warnings(warn)).toContain(
+      '[ytdlp] outbound proxy entry 1 (http://a.example:8080) failed (botDetection); the video goes on through entry 2 (http://b.example:3128)',
+    );
+    expect(warnings(warn)).not.toContain('u:p@');
+  });
+
+  it('starts the next video on the proxy the platform last served, until it turns that one away', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    deployment(
+      'http://a.example:3128, http://b.example:3128, http://c.example:3128',
+      {},
+    );
+    expect(await metadata(YtdlpRoute.forVideo())).toEqual({
+      outcome: 'served',
+      proxies: ['http://a.example:3128'],
     });
-    expect(await run()).toEqual({
-      proxy: 'http://b.example:3128',
-      failed: false,
+    // Other requests to websites go on in turn…
+    expect(nextOutboundProxy()?.label).toBe('http://b.example:3128');
+    // …while the next video starts where the last one was served.
+    expect(await metadata(YtdlpRoute.forVideo())).toEqual({
+      outcome: 'served',
+      proxies: ['http://a.example:3128'],
+    });
+
+    writeFileSync(join(root, 'walled'), 'a.example\n');
+    expect(await metadata(YtdlpRoute.forVideo())).toEqual({
+      outcome: 'served',
+      proxies: ['http://a.example:3128', 'http://c.example:3128'],
+    });
+    expect(await metadata(YtdlpRoute.forVideo())).toEqual({
+      outcome: 'served',
+      proxies: ['http://c.example:3128'],
+    });
+  });
+
+  it('passes over a proxy that cannot carry a run, and the run goes on through the next', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    deployment('http://u:p@a.example:8080, http://b.example:3128', {
+      refused: ['a.example'],
+    });
+    expect(await metadata()).toEqual({
+      outcome: 'served',
+      proxies: ['http://u:p@a.example:8080', 'http://b.example:3128'],
     });
     // a.example's turn, but it is passed over for its minute.
-    expect(await run()).toEqual({
-      proxy: 'http://b.example:3128',
-      failed: false,
+    expect(nextOutboundProxy()?.label).toBe('http://b.example:3128');
+    expect(warnings(warn)).toContain('http://a.example:8080 failed');
+    expect(warnings(warn)).not.toContain('u:p@');
+  });
+
+  it("does not run again for the video's own answer", async () => {
+    deployment('http://a.example:3128, http://b.example:3128', {});
+    expect(
+      await metadata(undefined, 'https://www.youtube.com/watch?v=private'),
+    ).toEqual({
+      outcome: 'privateOrAgeGated',
+      proxies: ['http://a.example:3128'],
     });
-    const logged = warn.mock.calls.map((call) => String(call[0])).join('\n');
-    expect(logged).toContain('http://a.example:8080 failed');
-    expect(logged).not.toContain('u:p@');
+  });
+
+  it('does not run again through a lone proxy or VIDEO_INGEST_PROXY_URL', async () => {
+    deployment('http://a.example:3128', { walled: ['a.example', 'v.example'] });
+    expect(await metadata()).toEqual({
+      outcome: 'botDetection',
+      proxies: ['http://a.example:3128'],
+    });
+
+    process.env.OUTBOUND_PROXY_URLS =
+      'http://b.example:3128, http://c.example:3128';
+    process.env.VIDEO_INGEST_PROXY_URL = 'http://v.example:3128';
+    expect(await metadata()).toEqual({
+      outcome: 'botDetection',
+      proxies: ['http://v.example:3128'],
+    });
+  });
+
+  it(`stops after ${MAX_PROXY_RUNS} runs`, async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const hosts = ['a', 'b', 'c', 'd', 'e', 'f', 'g'].map(
+      (name) => `${name}.example`,
+    );
+    deployment(hosts.map((host) => `http://${host}:3128`).join(', '), {
+      walled: hosts,
+    });
+    expect(await metadata()).toEqual({
+      outcome: 'botDetection',
+      proxies: hosts
+        .slice(0, MAX_PROXY_RUNS)
+        .map((host) => `http://${host}:3128`),
+    });
+  });
+
+  it('moves a video only to a proxy that has not failed it', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    deployment('http://a.example:3128, http://b.example:3128', {
+      walled: ['a.example', 'b.example'],
+    });
+    const route = YtdlpRoute.forVideo();
+    expect(await metadata(route)).toEqual({
+      outcome: 'botDetection',
+      proxies: ['http://a.example:3128', 'http://b.example:3128'],
+    });
+    // Another call for the video stays where the route is: a.example has
+    // failed it too, so there is no proxy left to move to.
+    expect(await metadata(route)).toEqual({
+      outcome: 'botDetection',
+      proxies: ['http://b.example:3128'],
+    });
+  });
+
+  it('takes a proxy listed twice once per video', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    deployment(
+      'http://a.example:3128, http://a.example:3128, http://b.example:3128',
+      { walled: ['a.example'] },
+    );
+    expect(await metadata(YtdlpRoute.forVideo())).toEqual({
+      outcome: 'served',
+      proxies: ['http://a.example:3128', 'http://b.example:3128'],
+    });
+  });
+
+  it("keeps each platform's serving proxy to itself", async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    deployment(
+      'http://a.example:3128, http://b.example:3128, http://c.example:3128',
+      {},
+    );
+    expect(await metadata(YtdlpRoute.forVideo('youtube'))).toEqual({
+      outcome: 'served',
+      proxies: ['http://a.example:3128'],
+    });
+    // Vimeo starts in turn, not where YouTube was served…
+    expect(await metadata(YtdlpRoute.forVideo('vimeo'))).toEqual({
+      outcome: 'served',
+      proxies: ['http://b.example:3128'],
+    });
+    // …and Vimeo turning that address away leaves YouTube's start alone.
+    writeFileSync(join(root, 'walled'), 'b.example\n');
+    await metadata(YtdlpRoute.forVideo('vimeo'));
+    expect(YtdlpRoute.forVideo('youtube').proxy?.url).toBe(
+      'http://a.example:3128',
+    );
+  });
+
+  it('no longer starts videos on a serving proxy the platform turned away', async () => {
+    deployment(
+      'http://a.example:3128, http://b.example:3128, http://c.example:3128',
+      {},
+    );
+    expect((await metadata(YtdlpRoute.forVideo())).proxies).toEqual([
+      'http://a.example:3128',
+    ]);
+    writeFileSync(join(root, 'walled'), 'a.example\n');
+    const route = YtdlpRoute.forVideo();
+    expect(route.proxy?.url).toBe('http://a.example:3128');
+    // The window is spent after the first run, so the call ends on a.
+    let reads = 0;
+    vi.spyOn(Date, 'now').mockImplementation(() =>
+      reads++ === 0 ? 1_000 : 601_000,
+    );
+    expect(await metadata(route)).toEqual({
+      outcome: 'botDetection',
+      proxies: ['http://a.example:3128'],
+    });
+    vi.restoreAllMocks();
+    expect(YtdlpRoute.forVideo().proxy?.url).toBe('http://b.example:3128');
+  });
+
+  it("opens each step's window once, and starts a step off a proxy that failed the video", async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    deployment(
+      'http://a.example:3128, http://b.example:3128, http://c.example:3128',
+      { walled: ['a.example', 'b.example'] },
+    );
+    const route = YtdlpRoute.forVideo();
+    // The step opens at 1 s; by its first failed run the clock reads 101 s.
+    vi.spyOn(Date, 'now').mockReturnValueOnce(1_000).mockReturnValue(101_000);
+    expect(await metadata(route)).toEqual({
+      outcome: 'botDetection',
+      proxies: ['http://a.example:3128'],
+    });
+    // A second call of the same step (the Vimeo embed fallback) leaves the
+    // failed proxy but gets no further run.
+    expect(await metadata(route)).toEqual({
+      outcome: 'botDetection',
+      proxies: ['http://b.example:3128'],
+    });
+    route.nextStep();
+    expect(await metadata(route)).toEqual({
+      outcome: 'served',
+      proxies: ['http://c.example:3128'],
+    });
+    expect(warnings(warn)).toContain(
+      'entry 1 (http://a.example:3128) failed this video earlier; the video goes on through entry 2 (http://b.example:3128)',
+    );
+  });
+
+  it('starts every download over when a run goes again', async () => {
+    deployment('http://a.example:3128', {});
+    const jobDir = mkdtempSync(join(root, 'job-'));
+    await ytdlpJson('https://www.youtube.com/watch?v=x', jobDir, 10_000);
+    expect(readFileSync(join(jobDir, 'args'), 'utf8').split('\n')).toContain(
+      '--no-continue',
+    );
+  });
+
+  it('starts no further run once the step has spent its window', async () => {
+    deployment('http://a.example:3128, http://b.example:3128', {
+      walled: ['a.example'],
+    });
+    const route = YtdlpRoute.forVideo();
+    // The call starts at 1 s; by the time the first run has failed, the
+    // clock reads ten minutes later.
+    let reads = 0;
+    vi.spyOn(Date, 'now').mockImplementation(() =>
+      reads++ === 0 ? 1_000 : 601_000,
+    );
+    expect(await metadata(route)).toEqual({
+      outcome: 'botDetection',
+      proxies: ['http://a.example:3128'],
+    });
   });
 });
 
