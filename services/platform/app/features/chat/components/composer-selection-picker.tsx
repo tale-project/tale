@@ -100,8 +100,9 @@ export function ComposerSelectionPicker({
 
   /** Model rows — provider-qualified (the provider's display name, so an
    * org-defined provider reads by the name its admin gave it) so the same id
-   * under two providers is distinguishable, and searchable by the model, the
-   * provider's name or its slug. Auto leads the list when the
+   * under two providers is distinguishable, and searchable by the model's
+   * name or id (`gpt-5.6` finds "GPT 5.6 Luna"), the provider's name or its
+   * slug. Auto leads the list when the
    * catalog offers a real choice; picking it clears the pinned model AND the
    * effort (the pick that paired with the old model must not silently steer
    * whatever Auto resolves). Picking a model drops the Auto mode likewise —
@@ -109,7 +110,7 @@ export function ComposerSelectionPicker({
   const modelChoices = useMemo<PickerSearchOption[]>(() => {
     const rows: PickerSearchOption[] = models.map((model) => ({
       key: `${model.providerSlug}:${model.id}`,
-      search: `${model.label} ${model.providerSlug} ${model.providerLabel ?? ''}`,
+      search: `${model.label} ${model.id} ${model.providerSlug} ${model.providerLabel ?? ''}`,
       label: (
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate">{model.label}</span>

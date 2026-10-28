@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 141 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 143 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -1069,6 +1069,17 @@ Restore any toggled setting after the run.
   dialog and gives focus back to the button. A member whose competence lets
   them create a key, with no developer role, sees the same button and dialog
   (SET-B38); a member who holds an agent but may not connect one does not.
+- [ ] `SET-F90` · **A gateway's models carry what Tale knows about them** —
+  Add a **Custom provider** whose endpoint lists its models by id alone, such
+  as **Base URL** `https://api.openai.com/v1` with an OpenAI key and
+  **Discover from the endpoint** → On **Governance › Models** the details
+  (`chat.modelSelector.viewInfo`) of a GPT model Tale's OpenAI catalog lists,
+  under the custom provider, show **Tools** and **Vision** as
+  `chat.modelSelector.info.supported` and **Reasoning** as
+  `chat.modelSelector.info.reasoningEffort`; in a new chat the model menu
+  offers it with **Effort** (`chat.effort.label`), and neither **Text
+  Embedding 3 Small** nor **Whisper 1** is offered there. A listed model no
+  Tale catalog knows shows **Tools** supported and **Vision** not supported.
 
 ## Boundary & error tests
 
@@ -1398,6 +1409,22 @@ Restore any toggled setting after the run.
   both `false`) the owner's rail has no **Connected agents** while they hold no agent,
   and a person who still holds one keeps the page, without **Connect a coding
   agent**.
+
+- [ ] `SET-B40` · **A base URL that is not the API root says so** — **Add
+  credential** → **Custom provider** with **Base URL** `https://openrouter.ai`
+  (it answers the model listing with a web page), **Discover from the
+  endpoint** and any **API key** → submit → The row reads
+  `settings.providers.card.catalogUnavailable` with
+  `settings.providers.custom.errors.catalogNotJson`, never page markup or a
+  parser message; **Check models** (`settings.providers.custom.check`) toasts
+  `settings.providers.custom.checkFailed` with the same sentence at once,
+  without a retry pause; **Refresh catalogs**
+  (`settings.providers.catalogs.refresh`) reports it with that sentence.
+  **Edit credential** → **Base URL** `https://api.openai.com` (without /v1) →
+  **Save** → the row and **Check models** show
+  `settings.providers.custom.errors.catalogNotFound`; with
+  `https://openrouter.ai/api/v1` **Check models** toasts
+  `settings.providers.custom.checkOk`.
 
 ## Accessibility (WCAG 2.1 AA)
 

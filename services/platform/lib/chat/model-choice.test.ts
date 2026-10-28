@@ -63,6 +63,19 @@ describe('eligibleChatCandidates — hazard screen', () => {
     expect(result.map((e) => e.id)).toEqual(['m-real']);
   });
 
+  it('drops a model that charges for its input only, which no chat model does', () => {
+    // An embedding model a gateway lists without describing it reads as a
+    // chat model that takes tools, and would win the price fallback.
+    const result = pool([
+      priced('m-real', 100),
+      entry({
+        id: 'text-embedding-3-small',
+        pricing: { inputCentsPerMillion: 2, outputCentsPerMillion: 0 },
+      }),
+    ]);
+    expect(result.map((e) => e.id)).toEqual(['m-real']);
+  });
+
   it('refuses an empty pool as no-chat-model', () => {
     expect(
       eligibleChatCandidates([entry({ id: 'x', tags: ['embedding'] })], {

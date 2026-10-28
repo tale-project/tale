@@ -934,6 +934,14 @@ providers:
       invalid: Die Anbieterdefinition wurde abgelehnt. Prüfe Basis-URL und API-Format.
       notFound: Diesen Anbieter gibt es nicht mehr.
       catalogUnavailable: Die Modell-Liste des Endpunkts ist nicht erreichbar.
+      catalogNotJson: >-
+        Die Basis-URL hat mit einer Webseite geantwortet, nicht mit einer
+        Modell-Liste. Prüfe, ob sie die API-Wurzel ist — bei den meisten
+        Gateways endet sie auf /v1.
+      catalogNotFound: >-
+        Unter der Basis-URL gibt es keine Modell-Liste. Prüfe, ob sie die
+        API-Wurzel ist — bei den meisten Gateways endet sie auf /v1. Kann der
+        Endpunkt seine Modelle nicht auflisten, gib stattdessen ihre IDs ein.
   catalogs:
     emptyBody: >-
       Dieses Deployment liefert keine Anbieter-Dateien. Prüfe, ob das

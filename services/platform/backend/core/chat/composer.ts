@@ -41,22 +41,37 @@ const BRANDS: Readonly<Record<string, string>> = {
  * tokens spaced, a brand token spelled the way its vendor spells it, a
  * version token like `v4` upper-cased, a number kept as it is, and any
  * other word capitalised — `deepseek-v4-flash` reads "DeepSeek V4 Flash",
- * `glm-5v-turbo` "GLM 5v Turbo", `gpt-4o-mini` "GPT 4o Mini". A fallback
- * every integrator's picker was hand-rolling; a catalog `label` will
- * replace it where a source declares one.
+ * `glm-5v-turbo` "GLM 5v Turbo", `gpt-4o-mini` "GPT 4o Mini". A version a
+ * vendor spells with dashes reads with a dot, the way it is said:
+ * `claude-sonnet-5-5` is "Claude Sonnet 5.5", `claude-3-5-haiku` "Claude
+ * 3.5 Haiku" — a number of one or two digits takes the one-digit numbers
+ * after it, while a longer number (a date stamp like `20250514`) stays
+ * apart. A fallback every integrator's picker was hand-rolling; a catalog
+ * `label` will replace it where a source declares one.
  */
 export function humaniseModelId(id: string): string {
   const bare = id.includes('/') ? id.slice(id.lastIndexOf('/') + 1) : id;
-  const words = bare
-    .split(/[-_\s]+/)
-    .filter((token) => token.length > 0)
-    .map((token) => {
-      const brand = BRANDS[token.toLowerCase()];
-      if (brand !== undefined) return brand;
-      if (/^v\d+(?:\.\d+)*$/i.test(token)) return token.toUpperCase();
-      if (/^\d/.test(token)) return token;
-      return token.charAt(0).toUpperCase() + token.slice(1);
-    });
+  const tokens: string[] = [];
+  for (const token of bare.split(/[-_\s]+/)) {
+    if (token.length === 0) continue;
+    const previous = tokens.at(-1);
+    if (
+      previous !== undefined &&
+      /^\d{1,2}(?:\.\d)*$/.test(previous) &&
+      /^\d$/.test(token)
+    ) {
+      tokens[tokens.length - 1] = `${previous}.${token}`;
+    } else {
+      tokens.push(token);
+    }
+  }
+  const words = tokens.map((token) => {
+    const brand = BRANDS[token.toLowerCase()];
+    if (brand !== undefined) return brand;
+    if (/^v\d+(?:\.\d+)*$/i.test(token)) return token.toUpperCase();
+    if (/^\d/.test(token)) return token;
+    return token.charAt(0).toUpperCase() + token.slice(1);
+  });
   return words.length > 0 ? words.join(' ') : id;
 }
 

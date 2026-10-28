@@ -2,7 +2,11 @@ import type { ProviderDefinition } from '@tale/shared/schemas/providers';
 import type { Sql } from 'postgres';
 
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
-import { getProviderCatalog } from '../../core/lib/providers/catalog_fetch.ts';
+import {
+  catalogFailureCode,
+  getProviderCatalog,
+  type CatalogListingFailureCode,
+} from '../../core/lib/providers/catalog_fetch.ts';
 import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers.ts';
 import { resolveCatalogBearer } from '../provider_credentials/service.ts';
 
@@ -20,11 +24,13 @@ export function mayManageProviders(role: string): boolean {
 }
 
 /** One provider's refreshed catalog: how many models it lists now, or why
- * it could not be read. */
+ * it could not be read — with the failure's code when the listing answered
+ * with something other than a model list. */
 export interface CatalogRefreshResult {
   readonly name: string;
   readonly modelCount: number;
   readonly error?: string;
+  readonly errorCode?: CatalogListingFailureCode;
 }
 
 /**
@@ -77,10 +83,12 @@ export async function refreshProviderCatalog(
     });
     return { name: provider.name, modelCount: entries.length };
   } catch (error) {
+    const errorCode = catalogFailureCode(error);
     return {
       name: provider.name,
       modelCount: 0,
       error: error instanceof Error ? error.message : String(error),
+      ...(errorCode !== undefined ? { errorCode } : {}),
     };
   }
 }

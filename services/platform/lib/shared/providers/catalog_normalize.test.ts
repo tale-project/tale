@@ -6,6 +6,7 @@ import {
   normalizeCatalogPayload,
   readImageGenerationFacts,
   readImageGenerationFactsListing,
+  type KnownModel,
 } from './catalog_normalize';
 
 /** Abridged real entry from OpenRouter `/api/v1/models` (2026-07-21). */
@@ -686,5 +687,117 @@ describe('normalizeCatalogModel — bare listing entries', () => {
         defaultContextWindow: 128_000,
       })?.contextWindow,
     ).toBe(128_000);
+  });
+});
+
+describe('normalizeCatalogModel — undescribed gateway entries', () => {
+  /** Abridged real row from a Bifrost gateway's `/v1/models` (2026-10-28):
+   * a vendor model it routes, with a window and a price and nothing about
+   * what the model takes. */
+  const GATEWAY_GPT = {
+    id: 'openai/gpt-5.6-luna',
+    normalized_name: 'Gpt 5.6 Luna',
+    created: 1780876800,
+    context_length: 1_050_000,
+    max_input_tokens: 1_050_000,
+    max_output_tokens: 128_000,
+    pricing: { prompt: '0.0000002000', completion: '0.0000012000' },
+    owned_by: 'openai',
+  };
+  const CUSTOM = { defaultContextWindow: 128_000 };
+  const knownGpt: KnownModel = {
+    tags: ['chat'],
+    supportsTools: true,
+    supportsVision: true,
+    reasoning: { knob: 'effort', off: 'none', toolsRequireOff: true },
+  };
+
+  it('reads an entry nothing describes as tool-capable and unable to see images', () => {
+    expect(normalizeCatalogModel(GATEWAY_GPT, 'bifrost', CUSTOM)).toEqual({
+      id: 'openai/gpt-5.6-luna',
+      provider: 'bifrost',
+      tags: ['chat'],
+      supportsTools: true,
+      supportsVision: false,
+      contextWindow: 1_050_000,
+      maxOutputTokens: 128_000,
+      pricing: { inputCentsPerMillion: 20, outputCentsPerMillion: 120 },
+    });
+    // Outside a custom provider's listing nothing is assumed.
+    expect(normalizeCatalogModel(GATEWAY_GPT, 'p')?.supportsTools).toBe(false);
+  });
+
+  it("takes what Tale's catalogs know about the model, but never a wire's spelling", () => {
+    const asked: string[] = [];
+    const entry = normalizeCatalogModel(GATEWAY_GPT, 'bifrost', {
+      ...CUSTOM,
+      knownModel: (id) => {
+        asked.push(id);
+        return knownGpt;
+      },
+    });
+    expect(asked).toEqual(['openai/gpt-5.6-luna']);
+    expect(entry).toMatchObject({
+      tags: ['chat', 'vision'],
+      supportsTools: true,
+      supportsVision: true,
+      // The effort knob, without the off value or the tools rule one vendor's
+      // wire needs: a gateway translates its own way.
+      reasoning: { knob: 'effort' },
+    });
+    // Nor a thinking-token budget, which only one wire can spell.
+    const budget = normalizeCatalogModel(GATEWAY_GPT, 'bifrost', {
+      ...CUSTOM,
+      knownModel: () => ({ ...knownGpt, reasoning: { knob: 'budget-tokens' } }),
+    });
+    expect(budget).not.toHaveProperty('reasoning');
+    // A model Tale knows takes no tools keeps that fact.
+    expect(
+      normalizeCatalogModel(GATEWAY_GPT, 'bifrost', {
+        ...CUSTOM,
+        knownModel: () => ({ ...knownGpt, supportsTools: false }),
+      })?.supportsTools,
+    ).toBe(false);
+  });
+
+  it('offers no model Tale knows is not a chat model as one', () => {
+    const entry = normalizeCatalogModel(
+      { ...GATEWAY_GPT, id: 'openai/text-embedding-3-small' },
+      'bifrost',
+      {
+        ...CUSTOM,
+        knownModel: () => ({
+          tags: ['embedding'],
+          supportsTools: false,
+          supportsVision: false,
+        }),
+      },
+    );
+    expect(entry).toMatchObject({
+      tags: [],
+      supportsTools: false,
+      supportsVision: false,
+    });
+    expect(entry).not.toHaveProperty('reasoning');
+  });
+
+  it('leaves an entry the listing describes to the listing', () => {
+    const knownModel = () => knownGpt;
+    // Parameters stated, tools not among them.
+    expect(
+      normalizeCatalogModel(
+        { ...GATEWAY_GPT, supported_parameters: ['temperature'] },
+        'bifrost',
+        { ...CUSTOM, knownModel },
+      ),
+    ).toMatchObject({ supportsTools: false, supportsVision: false });
+    // A type is a description too: a reranker is not read as a chat model
+    // that takes tools.
+    expect(
+      normalizeCatalogModel({ ...GATEWAY_GPT, type: 'reranking' }, 'bifrost', {
+        ...CUSTOM,
+        knownModel,
+      })?.supportsTools,
+    ).toBe(false);
   });
 });

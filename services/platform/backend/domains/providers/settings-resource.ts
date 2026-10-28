@@ -220,7 +220,12 @@ export const providerSettings: SettingsKindHandler = {
             `the model catalog of ${name} could not be read`,
             {
               status: 409,
-              hint: "check the provider's endpoint and its credential, then refresh again",
+              // A listing that answered with something other than a model
+              // list points at the base URL, not at the key.
+              hint:
+                result.errorCode === undefined
+                  ? "check the provider's endpoint and its credential, then refresh again"
+                  : "the provider's base URL answered without a model list: set it to the API root (for most gateways it ends in /v1), then refresh again",
             },
           );
         }

@@ -34,6 +34,7 @@ vi.mock('../../core/lib/providers/catalog_fetch.ts', async (original) => ({
   getProviderCatalog: catalog,
 }));
 
+import { CatalogListingError } from '../../core/lib/providers/catalog_fetch.ts';
 import type { McpCaller } from '../mcp/caller.ts';
 import { applySettings } from '../mcp/settings/apply.ts';
 import { getSettings } from '../mcp/settings/get.ts';
@@ -276,6 +277,21 @@ describe('refreshing a provider’s catalog', () => {
     });
     expect(failed).toMatchObject({ code: 'CATALOG_REFRESH_FAILED' });
     expect(JSON.stringify(failed)).not.toContain('private upstream');
+
+    // A listing that answered without a model list points at the base URL.
+    catalog.mockRejectedValue(
+      new CatalogListingError(
+        'PROVIDER_CATALOG_NOT_JSON',
+        'catalog fetch got text/html instead of JSON',
+      ),
+    );
+    const notAnApi = await applySettings(contextOf('admin'), registry, [act], {
+      'provider/local-chat': hash,
+    });
+    expect(notAnApi).toMatchObject({
+      code: 'CATALOG_REFRESH_FAILED',
+      hint: expect.stringContaining('API root'),
+    });
     warn.mockRestore();
   });
 });

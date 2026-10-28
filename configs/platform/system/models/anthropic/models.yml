@@ -3,13 +3,14 @@
 # Anthropic's API directly). `contextWindow` is the window a request gets
 # without opting in to anything. The older entries carry the standard 200K
 # tier (an opt-in 1M window is a per-session concern, not a catalog fact);
-# Claude Opus 5.5 and Claude Fable 5.1 carry 1M, which for them is both the
-# default and the maximum (platform.claude.com/docs, read 2026-09-27).
+# Claude Opus 5.5, Claude Fable 5.1 and Claude Sonnet 5.5 carry 1M, which for
+# them is both the default and the maximum (platform.claude.com/docs, read
+# 2026-09-27; Sonnet 5.5 on 2026-10-28).
 # Pricing is cents per million tokens and omitted where not reliably known.
 #
 # `reasoning.knob: effort` is `output_config.effort` on this wire, which the
-# vendor documents for the 5-series, Opus 4.5+ and Sonnet 4.6+ — never for
-# Haiku (platform.claude.com/docs/en/build-with-claude/effort). The guard in
+# vendor documents for the 5-series, Opus 4.5+ and Sonnet 4.6+ — not for
+# Haiku 4.5 (platform.claude.com/docs/en/build-with-claude/effort). The guard in
 # backend/core/lib/providers/load_system_config.test.ts holds this file to
 # that list: a model with no parameter for the knob refuses the whole
 # request, not just the pick.
@@ -17,12 +18,13 @@
 # writes; cents per million) and the Sonnet 5 pair ($2/$10, "now the standard
 # price") read from platform.claude.com/docs/en/about-claude/pricing on
 # 2026-09-20; the Opus 5.5 and Fable 5.1 rows on 2026-09-27 (their hits are
-# 0.05x and 0.025x input, not the usual 0.1x). The 1-hour write tier is not
-# carried.
-# Opus 5.5 and Fable 5.1 cannot turn thinking off (a disabled or budgeted
-# `thinking` is a 400), so they declare no `reasoning.off`: the Default step
+# 0.05x and 0.025x input, not the usual 0.1x), the Sonnet 5.5 row on
+# 2026-10-28 (hits 0.05x). The 1-hour write tier is not carried.
+# Opus 5.5, Fable 5.1 and Sonnet 5.5 cannot turn thinking off (a disabled or
+# budgeted `thinking` is a 400; Sonnet 5.5's lowest setting is
+# `between_tools`), so they declare no `reasoning.off`: the Default step
 # leaves the parameter off the wire and the model answers at its own default
-# effort (`medium` on Opus 5.5).
+# effort (`medium` on Opus 5.5, `high` on Sonnet 5.5).
 - id: claude-fable-5-1
   provider: anthropic
   tags:
@@ -83,6 +85,21 @@
     outputCentsPerMillion: 2500
     cacheReadCentsPerMillion: 50
     cacheWriteCentsPerMillion: 625
+- id: claude-sonnet-5-5
+  provider: anthropic
+  tags:
+    - chat
+  supportsTools: true
+  supportsVision: true
+  reasoning:
+    knob: effort
+  contextWindow: 1000000
+  maxOutputTokens: 128000
+  pricing:
+    inputCentsPerMillion: 200
+    outputCentsPerMillion: 1000
+    cacheReadCentsPerMillion: 10
+    cacheWriteCentsPerMillion: 250
 - id: claude-sonnet-5
   provider: anthropic
   tags:

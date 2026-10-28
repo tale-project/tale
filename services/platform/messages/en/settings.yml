@@ -888,6 +888,13 @@ providers:
       invalid: The provider definition was refused. Check the base URL and API format.
       notFound: This provider no longer exists.
       catalogUnavailable: The endpoint's model listing is unavailable.
+      catalogNotJson: >-
+        The base URL answered with a web page, not a model list. Check that it
+        is the API root; for most gateways it ends in /v1.
+      catalogNotFound: >-
+        The base URL has no model list. Check that it is the API root; for most
+        gateways it ends in /v1. If the endpoint cannot list its models, enter
+        their IDs instead.
   catalogs:
     emptyBody: >-
       This deployment ships no provider files. Check that the config root

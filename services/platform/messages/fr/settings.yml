@@ -958,6 +958,15 @@ providers:
       invalid: La définition du fournisseur a été refusée. Vérifie l'URL de base et le format d'API.
       notFound: Ce fournisseur n'existe plus.
       catalogUnavailable: La liste des modèles de l'endpoint est indisponible.
+      catalogNotJson: >-
+        L'URL de base a répondu par une page web, pas par une liste de modèles.
+        Vérifie qu'il s'agit bien de la racine de l'API ; pour la plupart des
+        passerelles, elle se termine par /v1.
+      catalogNotFound: >-
+        L'URL de base ne fournit aucune liste de modèles. Vérifie qu'il s'agit
+        bien de la racine de l'API ; pour la plupart des passerelles, elle se
+        termine par /v1. Si l'endpoint ne sait pas lister ses modèles, saisis
+        plutôt leurs identifiants.
   catalogs:
     emptyBody: >-
       Ce déploiement ne fournit aucun fichier de fournisseur. Vérifie que la

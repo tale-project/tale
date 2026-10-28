@@ -350,6 +350,7 @@ describe('shipped static model catalogs', () => {
       'claude-fable-5',
       'claude-opus-5-5',
       'claude-opus-4-8',
+      'claude-sonnet-5-5',
       'claude-sonnet-5',
       'claude-haiku-4-5',
     ]);
@@ -364,15 +365,19 @@ describe('shipped static model catalogs', () => {
     }
   });
 
-  // Opus 5.5 and Fable 5.1 serve 1M by default (no opt-in exists), bill
-  // cache hits below the usual 0.1x of input (0.05x and 0.025x), and cannot
-  // turn thinking off — so they must never declare an off literal: the
-  // Default step then leaves the parameter off the wire instead of sending a
-  // value the endpoint refuses. Prices read from the vendor's pricing page
-  // on 2026-09-27.
-  it('ships Opus 5.5 and Fable 5.1 with their 1M window, prices and no off switch', () => {
+  // Opus 5.5, Fable 5.1 and Sonnet 5.5 serve 1M by default (no opt-in
+  // exists), bill cache hits below the usual 0.1x of input (0.05x, 0.025x
+  // and 0.05x), and cannot turn thinking off — so they must never declare an
+  // off literal: the Default step then leaves the parameter off the wire
+  // instead of sending a value the endpoint refuses. Prices read from the
+  // vendor's pricing page on 2026-09-27 (Sonnet 5.5 on 2026-10-28).
+  it('ships Opus 5.5, Fable 5.1 and Sonnet 5.5 with their 1M window, prices and no off switch', () => {
     const anthropic = loadStaticCatalogs().get('anthropic') ?? [];
-    const facts = ['claude-opus-5-5', 'claude-fable-5-1'].map((id) => {
+    const facts = [
+      'claude-opus-5-5',
+      'claude-fable-5-1',
+      'claude-sonnet-5-5',
+    ].map((id) => {
       const entry = anthropic.find((m) => m.id === id);
       return {
         id,
@@ -407,12 +412,25 @@ describe('shipped static model catalogs', () => {
           cacheWriteCentsPerMillion: 1250,
         },
       },
+      {
+        id: 'claude-sonnet-5-5',
+        contextWindow: 1_000_000,
+        maxOutputTokens: 128_000,
+        reasoning: { knob: 'effort' },
+        pricing: {
+          inputCentsPerMillion: 200,
+          outputCentsPerMillion: 1000,
+          cacheReadCentsPerMillion: 10,
+          cacheWriteCentsPerMillion: 250,
+        },
+      },
     ]);
   });
 
   // `output_config.effort` exists on a documented set of models
   // (platform.claude.com/docs/en/build-with-claude/effort, read 2026-09-11,
-  // Opus 5.5 added 2026-09-27): the 5-series, Opus 4.5+ and Sonnet 4.6+.
+  // Opus 5.5 added 2026-09-27, Sonnet 5.5 and Haiku 5.5 on 2026-10-28): the
+  // 5-series, Opus 4.5+ and Sonnet 4.6+.
   // The wire sends it for every `effort`-knob entry on this connector, and
   // a model outside the set refuses the whole request — Haiku 4.5, which
   // reasons only through a manual thinking budget, was the shipped case.
@@ -431,8 +449,10 @@ describe('shipped static model catalogs', () => {
       'claude-opus-4-7',
       'claude-opus-4-6',
       'claude-opus-4-5-20251101',
+      'claude-sonnet-5-5',
       'claude-sonnet-5',
       'claude-sonnet-4-6',
+      'claude-haiku-5-5',
     ]);
     const undocumented: string[] = [];
     for (const entry of loadStaticCatalogs().get('anthropic') ?? []) {

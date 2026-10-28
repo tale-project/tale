@@ -1,3 +1,7 @@
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+
 import { providerDefinitionSchema } from '@tale/shared/schemas/providers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -5,6 +9,8 @@ import { safeFetch, SafeFetchError } from '../../../../lib/net/safe-fetch';
 import {
   CATALOG_FAILURE_BACKOFF_MS,
   CATALOG_TTL_MS,
+  catalogFailureCode,
+  CatalogListingError,
   getProviderCatalog,
   invalidateCatalogFetchCache,
 } from './catalog_fetch';
@@ -756,6 +762,59 @@ describe('getProviderCatalog — live sources', () => {
     ).rejects.toThrow('HTTP 503');
   });
 
+  it('names a listing that answers with a web page, asks once and never quotes the page', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      // A gateway's dashboard answers its root path, so a base URL without
+      // the API's /v1 gets this page back with a 200.
+      mockedFetch.mockResolvedValue({
+        ...listingResponse({}),
+        headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+        body: '<!doctype html><html><title>Gateway dashboard</title></html>',
+      });
+      const failure: unknown = await getProviderCatalog(VERCEL, {
+        maxAttempts: 3,
+      }).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(CatalogListingError);
+      expect(catalogFailureCode(failure)).toBe('PROVIDER_CATALOG_NOT_JSON');
+      expect((failure as Error).message).toContain('text/html');
+      expect((failure as Error).message).not.toContain('<!doctype');
+      expect(mockedFetch).toHaveBeenCalledTimes(1);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('names a listing URL that answers 404, asking once', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      mockedFetch.mockResolvedValue({
+        ...listingResponse({ detail: 'Not Found' }),
+        status: 404,
+        statusText: 'Not Found',
+      });
+      const failure: unknown = await getProviderCatalog(VERCEL, {
+        maxAttempts: 3,
+      }).catch((error: unknown) => error);
+      expect(catalogFailureCode(failure)).toBe('PROVIDER_CATALOG_NOT_FOUND');
+      expect(mockedFetch).toHaveBeenCalledTimes(1);
+      // Any other refusal keeps no code: it says nothing about the URL.
+      invalidateCatalogFetchCache();
+      mockedFetch.mockResolvedValue({
+        ...listingResponse({}),
+        status: 401,
+        statusText: 'Unauthorized',
+      });
+      const refused: unknown = await getProviderCatalog(VERCEL, {
+        maxAttempts: 1,
+      }).catch((error: unknown) => error);
+      expect(refused).toBeInstanceOf(Error);
+      expect(catalogFailureCode(refused)).toBeUndefined();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it('treats a listing with no usable models as a failure and caches nothing', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     // No id at all: a bare entry WITH an id would be served under the assumed
@@ -940,5 +999,138 @@ describe('getProviderCatalog — bare models endpoint listing', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe('getProviderCatalog — a gateway listing that does not describe its models', () => {
+  /** A custom provider in front of a gateway that lists the vendor models it
+   * routes by id, window and price only (Bifrost's rows, 2026-10-28). */
+  const GATEWAY = providerDefinitionSchema.parse({
+    name: 'bifrost',
+    displayName: 'Bifrost',
+    apiFormat: 'openai',
+    baseUrl: 'https://gateway.example.test/v1',
+    catalog: { source: 'models-endpoint' },
+    auth: [{ method: 'api-key' }],
+  });
+  const row = (id: string) => ({
+    id,
+    created: 1780876800,
+    context_length: 400_000,
+    max_output_tokens: 128_000,
+    pricing: { prompt: '0.000002', completion: '0.00001' },
+  });
+
+  it("gives each row what Tale's shipped catalogs know about its model", async () => {
+    mockedFetch.mockResolvedValue(
+      listingResponse({
+        data: [
+          row('openai/gpt-5.6-luna'),
+          row('anthropic/claude-opus-5-5'),
+          row('anthropic/claude-example-9-9'),
+          row('openai/text-embedding-3-small'),
+        ],
+      }),
+    );
+    const entries = await getProviderCatalog(GATEWAY, { maxAttempts: 1 });
+    const byId = new Map(entries.map((entry) => [entry.id, entry]));
+    // Known to the shipped OpenAI catalog: it sees images and its effort can
+    // be set — but the off value and tools rule of OpenAI's own wire stay
+    // there.
+    expect(byId.get('openai/gpt-5.6-luna')).toMatchObject({
+      tags: ['chat', 'vision'],
+      supportsTools: true,
+      supportsVision: true,
+      reasoning: { knob: 'effort' },
+    });
+    expect(byId.get('openai/gpt-5.6-luna')?.reasoning).toEqual({
+      knob: 'effort',
+    });
+    // Known in the vendor's own spelling (`claude-opus-5-5`).
+    expect(byId.get('anthropic/claude-opus-5-5')).toMatchObject({
+      supportsVision: true,
+      reasoning: { knob: 'effort' },
+    });
+    // Unknown: takes tools, sees no images, no effort control.
+    const unknown = byId.get('anthropic/claude-example-9-9');
+    expect(unknown).toMatchObject({
+      tags: ['chat'],
+      supportsTools: true,
+      supportsVision: false,
+    });
+    expect(unknown).not.toHaveProperty('reasoning');
+    // Known as an embedding model: never offered as a chat model.
+    expect(byId.get('openai/text-embedding-3-small')?.tags).toEqual([]);
+  });
+
+  describe("with a vendor's catalog and an aggregator's defaults that disagree", () => {
+    let root: string;
+
+    beforeEach(async () => {
+      root = await mkdtemp(path.join(tmpdir(), 'known-models-'));
+      const write = async (relative: string, lines: string[]) => {
+        await mkdir(path.dirname(path.join(root, relative)), {
+          recursive: true,
+        });
+        await writeFile(path.join(root, relative), [...lines, ''].join('\n'));
+      };
+      await mkdir(path.join(root, 'harnesses'), { recursive: true });
+      await write('providers/acme/provider.yml', [
+        'name: acme',
+        'displayName: Acme',
+        'apiFormat: openai',
+        'baseUrl: https://api.acme.example.test/v1',
+        'catalog:',
+        '  source: static',
+        'auth:',
+        '  - method: api-key',
+      ]);
+      await write('models/acme/models.yml', [
+        '- id: acme-1',
+        '  provider: acme',
+        '  tags: [chat]',
+        '  supportsTools: true',
+        '  supportsVision: false',
+        '  contextWindow: 100000',
+      ]);
+      // An aggregator whose shipped defaults say otherwise about the model,
+      // and sort first by name.
+      await write('providers/aaa-aggregator/provider.yml', [
+        'name: aaa-aggregator',
+        'displayName: Aggregator',
+        'apiFormat: openai',
+        'baseUrl: https://aggregator.example.test/v1',
+        'catalog:',
+        '  source: models-endpoint',
+        'auth:',
+        '  - method: api-key',
+      ]);
+      await write('models/aaa-aggregator/models.yml', [
+        '- id: acme/acme-1',
+        '  provider: aaa-aggregator',
+        '  tags: [chat]',
+        '  supportsTools: true',
+        '  supportsVision: true',
+        '  contextWindow: 100000',
+      ]);
+    });
+
+    afterEach(async () => {
+      await rm(root, { recursive: true, force: true });
+    });
+
+    it("asks the vendor's own catalog first", async () => {
+      mockedFetch.mockResolvedValue(
+        listingResponse({ data: [row('gateway/acme-1')] }),
+      );
+      const [entry] = await getProviderCatalog(GATEWAY, {
+        maxAttempts: 1,
+        root,
+      });
+      expect(entry).toMatchObject({
+        id: 'gateway/acme-1',
+        supportsVision: false,
+      });
+    });
   });
 });

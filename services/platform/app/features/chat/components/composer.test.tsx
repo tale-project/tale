@@ -308,6 +308,45 @@ describe('Composer model picker', () => {
     });
   });
 
+  it('finds a model by its id as well as by its name', async () => {
+    const extra = (id: string, label: string): ComposerModelOption => ({
+      id,
+      label,
+      providerSlug: 'gateway',
+      credential: { authMethod: 'api-key' },
+    });
+    const { user } = renderComposer({
+      models: [
+        MODEL,
+        SECOND_MODEL,
+        extra('openai/gpt-5.6-luna', 'GPT 5.6 Luna'),
+        extra('openai/gpt-5.6-sol', 'GPT 5.6 Sol'),
+        extra('anthropic/claude-sonnet-5-5', 'Claude Sonnet 5.5'),
+        extra('google/gemini-2.5-pro', 'Gemini 2.5 Pro'),
+      ],
+    });
+
+    await openSection(user, /^Model/);
+    const search = await screen.findByRole('textbox', { name: 'Search' });
+    fireEvent.change(search, { target: { value: 'gpt-5.6' } });
+    expect(
+      await screen.findByRole('menuitemradio', { name: /^GPT 5\.6 Luna/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitemradio', { name: /^GPT 5\.6 Sol/ }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('menuitemradio', { name: /^Claude/ }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.change(search, { target: { value: 'sonnet 5.5' } });
+    expect(
+      await screen.findByRole('menuitemradio', {
+        name: /^Claude Sonnet 5\.5/,
+      }),
+    ).toBeInTheDocument();
+  });
+
   it('shows Auto on the trigger while the selection is the Auto mode', () => {
     renderComposer({
       models: [MODEL, SECOND_MODEL],

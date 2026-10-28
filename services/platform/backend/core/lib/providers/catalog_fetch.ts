@@ -37,6 +37,7 @@ import {
   type ModelCatalogEntry,
   type ProviderDefinition,
 } from '@tale/shared/schemas/providers';
+import { modelIdMatchKey } from '@tale/shared/utils/model-ref';
 
 import {
   checkProviderHostPolicy,
@@ -47,9 +48,11 @@ import { ALLOWLIST_CATALOG_CONTEXT_WINDOW } from '../../../../lib/shared/provide
 import {
   normalizeCatalogPayload,
   readImageGenerationFactsListing,
+  type KnownModel,
   type NormalizeCatalogOptions,
 } from '../../../../lib/shared/providers/catalog_normalize';
 import {
+  loadProviderDefinitions,
   loadStaticCatalogs,
   type LoadSystemConfigOptions,
 } from './load_system_config';
@@ -162,10 +165,41 @@ const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
+ * Why a listing URL reached a server that answered, but not with a model
+ * list: a body that is not JSON (most often a web page — a gateway's
+ * dashboard answers its root path) or HTTP 404. Both usually mean the base
+ * URL is not the API root, so each code names that fix to whoever reads it
+ * (settings shows a localized sentence per code). The server answers the
+ * same way every time, so neither is retried.
+ */
+export type CatalogListingFailureCode =
+  | 'PROVIDER_CATALOG_NOT_JSON'
+  | 'PROVIDER_CATALOG_NOT_FOUND';
+
+export class CatalogListingError extends Error {
+  readonly code: CatalogListingFailureCode;
+  constructor(code: CatalogListingFailureCode, message: string) {
+    super(message);
+    this.name = 'CatalogListingError';
+    this.code = code;
+  }
+}
+
+/** The code of a listing failure that has one, for the readers that pass a
+ * failure on to settings beside its message. */
+export function catalogFailureCode(
+  error: unknown,
+): CatalogListingFailureCode | undefined {
+  return error instanceof CatalogListingError ? error.code : undefined;
+}
+
+/**
  * Fetch + parse one live listing with bounded linear-backoff retries.
  * Self-hosted instances can sit behind flaky egress, so a transient failure
  * gets a couple of retries with each attempt logged (including an explicit
- * offline hint) before the last error propagates.
+ * offline hint) before the last error propagates. An answer that is not a
+ * model list ({@link CatalogListingError}) is not transient and propagates
+ * at once.
  */
 async function fetchListingPayload(
   url: string,
@@ -192,10 +226,16 @@ async function fetchListingPayload(
           ? { allowedHosts: [...allowedHosts] }
           : {}),
       });
+      if (response.status === 404) {
+        throw new CatalogListingError(
+          'PROVIDER_CATALOG_NOT_FOUND',
+          `catalog fetch returned HTTP 404: ${url} lists no models`,
+        );
+      }
       if (response.status < 200 || response.status >= 300) {
         throw new Error(`catalog fetch returned HTTP ${response.status}`);
       }
-      return JSON.parse(response.body);
+      return parseListingBody(response.body, response.headers, url);
     } catch (err) {
       lastErr = err;
       const message = err instanceof Error ? err.message : String(err);
@@ -206,10 +246,31 @@ async function fetchListingPayload(
       console.warn(
         `[catalog] ${provider} fetch attempt ${attempt}/${maxAttempts} failed: ${message}${offlineHint}`,
       );
+      if (err instanceof CatalogListingError) break;
       if (attempt < maxAttempts) await sleep(RETRY_BASE_DELAY_MS * attempt);
     }
   }
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
+
+/** A listing body as JSON, or the {@link CatalogListingError} that says the
+ * URL answered with something else — what it answered with is named by its
+ * content type, never by its contents. */
+function parseListingBody(
+  body: string,
+  headers: Headers,
+  url: string,
+): unknown {
+  try {
+    return JSON.parse(body);
+  } catch {
+    // The parser's own message quotes the body, so it is not passed on.
+    const contentType = headers.get('content-type') ?? 'no content type';
+    throw new CatalogListingError(
+      'PROVIDER_CATALOG_NOT_JSON',
+      `catalog fetch got ${contentType} instead of JSON from ${url}`,
+    );
+  }
 }
 
 /** The facts of an image model listing, set on the image entries it names
@@ -549,6 +610,43 @@ function modelsEndpointUrl(baseUrl: string): string {
 }
 
 /**
+ * Tale's shipped catalogs as one lookup by model: what Tale knows about a
+ * model a custom provider's listing names without describing it. The id
+ * dialects meet through `modelIdMatchKey` (a gateway's `openai/gpt-5.6-luna`
+ * is the vendor's `gpt-5.6-luna`, `claude-haiku-4-5` is `claude-haiku-4.5`),
+ * and a vendor's own catalog answers before an aggregator's shipped
+ * defaults. Built on first use, so a catalog read from the cache never pays
+ * for it.
+ */
+function knownModelLookup(
+  options: LoadSystemConfigOptions,
+): (id: string) => KnownModel | undefined {
+  let index: Map<string, ModelCatalogEntry> | undefined;
+  return (id) => {
+    if (index === undefined) {
+      const vendorOwn = new Set(
+        loadProviderDefinitions(options)
+          .filter((provider) => provider.catalog.source === 'static')
+          .map((provider) => provider.name),
+      );
+      const rank = (name: string) => (vendorOwn.has(name) ? 0 : 1);
+      const catalogs = [...loadStaticCatalogs(options).entries()].sort(
+        ([a], [b]) => rank(a) - rank(b) || a.localeCompare(b),
+      );
+      const built = new Map<string, ModelCatalogEntry>();
+      for (const [, entries] of catalogs) {
+        for (const entry of entries) {
+          const key = modelIdMatchKey(entry.id);
+          if (!built.has(key)) built.set(key, entry);
+        }
+      }
+      index = built;
+    }
+    return index.get(modelIdMatchKey(id));
+  };
+}
+
+/**
  * The catalog for one provider, per its declared source. The exhaustive
  * switch is the case list: static file, OpenRouter API, own models endpoint,
  * or no shippable catalog at all.
@@ -624,12 +722,17 @@ export async function getProviderCatalog(
         [modelsEndpointUrl(provider.baseUrl)],
         options,
         isPrivateIp(endpointHost) ? [endpointHost] : undefined,
-        // An OpenAI-style `/v1/models` names its models and nothing else
-        // (api.openai.com, DashScope, DeepSeek, vLLM, Ollama): such an entry
-        // gets the same assumed window an allowlist entry carries instead of
-        // being dropped — otherwise a custom provider's whole listing would
-        // normalize to nothing.
-        { defaultContextWindow: ALLOWLIST_CATALOG_CONTEXT_WINDOW },
+        {
+          // An OpenAI-style `/v1/models` names its models and nothing else
+          // (api.openai.com, DashScope, DeepSeek, vLLM, Ollama): such an
+          // entry gets the same assumed window an allowlist entry carries
+          // instead of being dropped — otherwise a custom provider's whole
+          // listing would normalize to nothing.
+          defaultContextWindow: ALLOWLIST_CATALOG_CONTEXT_WINDOW,
+          // A gateway names the vendor models it routes without describing
+          // them; what Tale's own catalogs know about each fills the gap.
+          knownModel: knownModelLookup(options),
+        },
       );
     }
     case 'none':

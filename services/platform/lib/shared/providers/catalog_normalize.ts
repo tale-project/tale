@@ -18,9 +18,12 @@
  *    `cacheRead` / `cacheWrite` cents so the gateway bills a cache hit at
  *    the vendor's hit price instead of the plain input rate.
  *
- * The capability facts come from the source. The only local inference is the
- * reasoning KNOB — sources report reasoning yes/no but not which wire
- * parameter the model accepts — and it is always `effort`: a named level is
+ * The capability facts come from the source — or, for an entry the source
+ * names without describing (a gateway's row for a vendor model), from what
+ * Tale's own catalogs know about that model (`knownModel`), and otherwise
+ * from neutral assumptions. The only local inference is the reasoning KNOB
+ * — sources report reasoning yes/no but not which wire parameter the model
+ * accepts — and it is always `effort`: a named level is
  * what every wire spells (`reasoning_effort` on an OpenAI-compatible body,
  * `output_config.effort` on the Anthropic one), whatever the model family.
  * The thinking-token budget is the Anthropic wire's legacy manual mode — the
@@ -165,6 +168,13 @@ export interface NormalizedCatalog {
   droppedCount: number;
 }
 
+/** What Tale's own catalogs say about a model, by id — the facts a listing
+ * that names the model without describing it leaves out. */
+export type KnownModel = Pick<
+  ModelCatalogEntry,
+  'tags' | 'supportsTools' | 'supportsVision' | 'reasoning'
+>;
+
 export interface NormalizeCatalogOptions {
   /**
    * The context window for a BARE entry — one the listing describes by id
@@ -173,12 +183,20 @@ export interface NormalizeCatalogOptions {
    * servers (DashScope, DeepSeek, vLLM, Ollama): `id`, `object`, `created`,
    * `owned_by`. Without this option such an entry is dropped, which is right
    * for a catalog that always publishes the window (OpenRouter) and wrong for
-   * a custom provider's own listing, whose every model would vanish. A bare
-   * entry also reads as tool-capable, the same neutral assumption an
-   * allowlist entry carries: a server that refuses tools fails loudly on the
-   * wire, never silently.
+   * a custom provider's own listing, whose every model would vanish. It is
+   * offered for such a listing only, and also lets an undescribed entry read
+   * as tool-capable (see {@link normalizeCatalogModel}).
    */
   readonly defaultContextWindow?: number;
+  /**
+   * What Tale knows about a model the listing names without describing it
+   * (see {@link normalizeCatalogModel}): a gateway lists the vendor models it
+   * routes by id, window and price only. Only facts of the MODEL are taken —
+   * whether it sees images, takes tools, and whether its reasoning effort can
+   * be set — never how one vendor's wire spells them (a reasoning-off value,
+   * a Responses-only tool API): a gateway translates the wire its own way.
+   */
+  readonly knownModel?: (id: string) => KnownModel | undefined;
 }
 
 /**
@@ -251,19 +269,47 @@ export function normalizeCatalogModel(
           ? 0
           : undefined);
   if (contextWindow === undefined) return null;
-  const supportsVision = !isTranscription && inputModalities.includes('image');
+
+  // An UNDESCRIBED entry: no type, no modalities, no parameters — the listing
+  // names the model and says nothing about what it is or takes. A server's
+  // bare `/v1/models` row looks like this, and so does a gateway's row for a
+  // vendor model it routes (Bifrost publishes a window and a price only).
+  // In a custom provider's listing such an entry reads as tool-capable, the
+  // same neutral assumption an allowlist entry carries (a server that refuses
+  // tools fails loudly on the wire, never silently), and as unable to see
+  // images (unknown must read as "cannot", so images reach it as text). Where
+  // Tale's own catalogs know the model, their facts replace both assumptions
+  // — and a model they know is not a chat model (an embedding, speech or
+  // image model) is not offered as one, nor assumed to be anything else.
+  const undescribed =
+    entryType === undefined &&
+    architecture === null &&
+    modalities === null &&
+    m.supported_parameters === undefined;
+  const customListing = options.defaultContextWindow !== undefined;
+  const known = undescribed ? options.knownModel?.(m.id) : undefined;
+  const knownNotChat = known !== undefined && !known.tags.includes('chat');
+
+  const supportsVision =
+    !isTranscription &&
+    !knownNotChat &&
+    (inputModalities.includes('image') || known?.supportsVision === true);
 
   const supportedParameters = asStringArray(m.supported_parameters);
   const supportsTools =
     !isTranscription &&
+    !knownNotChat &&
     (supportedParameters.includes('tools') ||
       supportedParameters.includes('tool_choice') ||
-      (bareEntry && m.supported_parameters === undefined));
+      (undescribed && (known?.supportsTools ?? customListing)));
   const reportsReasoning =
     !isTranscription &&
+    !knownNotChat &&
     (supportedParameters.includes('reasoning') ||
       supportedParameters.includes('reasoning_effort') ||
-      supportedParameters.includes('include_reasoning'));
+      supportedParameters.includes('include_reasoning') ||
+      // Effort is spelled on every wire; a thinking-token budget is not.
+      known?.reasoning?.knob === 'effort');
 
   const topProvider = asRecord(m.top_provider);
   const rawMaxOutput =
@@ -309,13 +355,15 @@ export function normalizeCatalogModel(
   const candidate: ModelCatalogEntry = {
     id: m.id,
     provider,
-    tags: deriveTags({
-      inputModalities,
-      outputModalities,
-      entryType,
-      supportsVision,
-      isTranscription,
-    }),
+    tags: knownNotChat
+      ? []
+      : deriveTags({
+          inputModalities,
+          outputModalities,
+          entryType,
+          supportsVision,
+          isTranscription,
+        }),
     supportsTools,
     supportsVision,
     ...(outputsMedia && { outputsMedia }),

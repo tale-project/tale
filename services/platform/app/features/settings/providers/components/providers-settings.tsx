@@ -13,6 +13,7 @@ import { CredentialTable } from '@/app/features/settings/credentials/credential-
 import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useUrlState } from '@/app/hooks/use-url-state';
+import type { ProviderCatalogFailureCode } from '@/app/lib/backend/contract/lib';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -22,12 +23,14 @@ import {
 import { useRefreshProviderCatalogs } from '../hooks/mutations';
 import { useProviderCatalogs, useProviderCredentials } from '../hooks/queries';
 import { HarnessStatusSection } from './harness-status-section';
+import { catalogFailureText } from './provider-definition-form';
 
 /** One line of the per-provider refresh report. */
 interface RefreshOutcome {
   name: string;
   modelCount: number;
   error?: string;
+  errorCode?: ProviderCatalogFailureCode;
 }
 
 /**
@@ -164,7 +167,11 @@ export function ProvidersSettings({
                           ? t('providers.catalogs.resultError', {
                               name:
                                 displayNames.get(outcome.name) ?? outcome.name,
-                              error: outcome.error,
+                              error: catalogFailureText(
+                                t,
+                                outcome.error,
+                                outcome.errorCode,
+                              ),
                             })
                           : t('providers.catalogs.resultOk', {
                               name:

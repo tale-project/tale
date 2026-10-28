@@ -25,7 +25,7 @@ While the reply streams, the send control becomes a stop control. Stopping keeps
 
 The model picker starts on **Auto** when several usable models are available. Auto selects a model for each message from your organization’s available models; organization rules can set a default or restrict the choices. The [details under a reply](#reply-details) identify the model that actually answered.
 
-Pick a named model when you need consistent comparisons or know which model the work requires. Your choice stays selected until you change it, including which provider serves the model when two providers offer the same one. If that model supports adjustable reasoning, the picker also offers an effort setting. More reasoning can take longer; it is not a substitute for checking the answer.
+Pick a named model when you need consistent comparisons or know which model the work requires. When the list is long, search it by a model's name or ID, such as `gpt-5.6`. Your choice stays selected until you change it, including which provider serves the model when two providers offer the same one. If that model supports adjustable reasoning, the picker also offers an effort setting. More reasoning can take longer; it is not a substitute for checking the answer.
 
 The picker leaves out image models that can't use tools, such as Gemini 2.5 Flash Image, because every reply can call tools such as a document search. To get a picture, ask for one in the conversation: the assistant creates it with your organization's [image model](/platform/admin/governance/content-models#let-agents-generate-images).
 
