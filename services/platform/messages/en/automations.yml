@@ -748,6 +748,8 @@ allowances:
   policyRequires: Your organization's approval policy requires a person for it, whatever is allowed here.
   policyAllows: Your organization's approval policy already lets it run without approval.
   none: This automation makes no write that waits for approval.
+  loadFailed: Couldn't load the writes that wait for approval.
+  refreshFailed: Couldn't refresh the writes that wait for approval. What's shown may be out of date.
   readOnly: Only an owner or an admin can change these.
 bindings:
   title: Projects

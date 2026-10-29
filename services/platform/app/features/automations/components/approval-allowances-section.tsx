@@ -1,5 +1,6 @@
 'use client';
 
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import {
   useRegisterDirtySource,
   useRegisterGroupedEditor,
@@ -9,10 +10,11 @@ import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
 import { mergeNodeTypes } from '../hooks/backend';
@@ -42,6 +44,10 @@ function sameSet(a: ReadonlySet<string>, b: ReadonlySet<string>): boolean {
  * A section of the automation's General tab: its edits join the page's one
  * Save/Discard cluster, and leaving the tab with unsaved switches asks
  * first.
+ *
+ * A failed read says so, with **Try again**, and never reads as "no write
+ * that waits for approval" (#4766): that sentence is a read that answered
+ * with none.
  */
 export function ApprovalAllowancesSection({
   organizationId,
@@ -54,6 +60,8 @@ export function ApprovalAllowancesSection({
   const { locale } = useLocale();
   const { formatDate } = useFormatDate();
   const query = useApprovalAllowances(organizationId, name);
+  const { refetch } = query;
+  const read = readStateOf(query);
   const catalogQuery = useNodeTypeCatalog(organizationId);
   const setAllowances = useSetApprovalAllowances();
   const canGrant = query.data?.canGrant === true;
@@ -117,6 +125,14 @@ export function ApprovalAllowancesSection({
   useRegisterGroupedEditor(controller, { enabled: canGrant });
   useRegisterDirtySource(canGrant && dirty);
 
+  // A retry that works takes the notice away, and with it a Try again that
+  // held the focus: the focus goes to the section, which keeps its name,
+  // instead of dropping to the page.
+  const sectionRef = useRef<HTMLElement>(null);
+  const focusSection = useCallback(() => {
+    sectionRef.current?.focus();
+  }, []);
+
   const label = (type: string): string => {
     const dot = type.indexOf('.');
     return t('allowances.action', {
@@ -146,12 +162,35 @@ export function ApprovalAllowancesSection({
   };
 
   return (
-    <Skeletonize loading={query.isPending} label={t('allowances.title')}>
+    // Masks the first read only: a failed read is pending again while its
+    // retry runs, and its notice and Try again must not turn into a busy,
+    // masked region then.
+    <Skeletonize
+      loading={query.isPending && !read.unavailable}
+      label={t('allowances.title')}
+    >
       <SettingsSection
+        ref={sectionRef}
+        tabIndex={-1}
+        className="outline-none"
         title={t('allowances.title')}
         description={t('allowances.hint')}
       >
-        {actions.length === 0 ? (
+        {(read.unavailable || read.stale) && (
+          <CatalogLoadError
+            // Each failure is announced again; Try again keeps its node, and
+            // the focus on it, while a retry runs and when it fails again.
+            failureKey={read.failureCount}
+            onFocusLost={focusSection}
+            message={t(
+              read.stale ? 'allowances.refreshFailed' : 'allowances.loadFailed',
+            )}
+            onRetry={() => void refetch()}
+            isRetrying={read.retrying}
+          />
+        )}
+        {/* Nothing is said of the writes until a read has answered. */}
+        {query.data === undefined ? null : actions.length === 0 ? (
           <Text as="p" variant="muted" className="text-sm italic">
             {t('allowances.none')}
           </Text>
