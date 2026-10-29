@@ -588,3 +588,4 @@ history:
   baseSelected: Base
   compareSelectedBadge: Comparer
   notFound: Ce fichier n’a pas encore d’historique de versions.
+  linkLoadFailed: Impossible d’ouvrir l’historique des versions vers lequel pointe ce lien.

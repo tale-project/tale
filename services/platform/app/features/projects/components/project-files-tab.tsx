@@ -65,6 +65,7 @@ import {
   backendRefusalDetail,
   failureDetail,
 } from '@/app/lib/backend/adapters';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 import { isAuthoredSourceProvider } from '@/lib/shared/document-source-providers';
 import { AppError } from '@/lib/shared/errors/app-error';
@@ -369,6 +370,17 @@ export function ProjectFilesTab({
     projectId: projectId,
     enabled: Boolean(historyExternalItemId),
   });
+  const { refetch: refetchHistoryLookup } = historyLookup;
+  // A lookup that failed is not a file without history (#4577): the link
+  // stays in the address, and the tab names the failure and looks it up
+  // again.
+  const historyLookupRead = readStateOf(historyLookup);
+  const retryHistoryLookup = useCallback(() => {
+    // Onto the tree first: the notice that held focus goes once the lookup
+    // answers.
+    focusTreeArea();
+    void refetchHistoryLookup();
+  }, [focusTreeArea, refetchHistoryLookup]);
 
   const syncFolderSearch = useCallback(
     (folderId: string | null) => {
@@ -434,11 +446,13 @@ export function ProjectFilesTab({
   }, [openCreateFolder, navigate, organizationId, projectId, initialFolderId]);
 
   // One-shot deep-link: open History for a document resolved by externalItemId
-  // (Case Setup transform.py), then strip the search param.
+  // (Case Setup transform.py), then strip the search param. Only an answer
+  // uses the link up: while the lookup has none, failed included, the param
+  // stays for the retry.
   useEffect(() => {
     if (!historyExternalItemId) return;
     if (hydratedHistoryRef.current === historyExternalItemId) return;
-    if (historyLookup.isLoading) return;
+    if (historyLookup.data === undefined) return;
 
     hydratedHistoryRef.current = historyExternalItemId;
     const resolved = historyLookup.data;
@@ -474,7 +488,6 @@ export function ProjectFilesTab({
     });
   }, [
     historyExternalItemId,
-    historyLookup.isLoading,
     historyLookup.data,
     navigate,
     organizationId,
@@ -1234,6 +1247,16 @@ export function ProjectFilesTab({
           tabIndex={-1}
           className="flex flex-col gap-3 outline-none empty:hidden"
         >
+          {historyLookupRead.unavailable ? (
+            <CatalogLoadError
+              // Each failure is announced again; Try again keeps its node.
+              failureKey={historyLookupRead.failureCount}
+              onFocusLost={focusTreeArea}
+              message={tDocuments('history.linkLoadFailed')}
+              onRetry={retryHistoryLookup}
+              isRetrying={historyLookupRead.retrying}
+            />
+          ) : null}
           {readFailed ? (
             <CatalogLoadError
               // Each failure is announced again; Try again keeps its node.

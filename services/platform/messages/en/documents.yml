@@ -545,3 +545,4 @@ history:
   baseSelected: Base
   compareSelectedBadge: Compare
   notFound: That file has no version history yet.
+  linkLoadFailed: Couldn't open the version history this link points to.

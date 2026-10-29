@@ -571,3 +571,4 @@ history:
   baseSelected: Basis
   compareSelectedBadge: Vergleich
   notFound: Für diese Datei gibt es noch keinen Versionsverlauf.
+  linkLoadFailed: Der Versionsverlauf, auf den dieser Link verweist, konnte nicht geöffnet werden.
