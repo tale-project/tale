@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -72,6 +72,7 @@ const compose = parse(readFileSync(composePath, 'utf8')) as {
       sysctls?: Record<string, string>;
       stop_grace_period?: string;
       stop_signal?: string;
+      mem_limit?: string;
       image?: string;
       platform?: string;
       build?: unknown;
@@ -496,6 +497,36 @@ describe('graceful-shutdown parity — compose.yml meets the floor', () => {
     const generated = createSandboxLlmGatewayService(config).stop_grace_period;
     expect(graceSeconds(fromCompose)).toBe(90);
     expect(graceSeconds(generated)).toBe(graceSeconds(fromCompose));
+  });
+});
+
+describe('model gateway memory parity', () => {
+  // The gateway's memory grows with the sessions that run at once. `tale
+  // deploy` derives its limit from SANDBOX_MAX_SESSIONS; compose.yml cannot
+  // derive one variable from another, so its default must be the limit the
+  // CLI gives an unset capacity, and both take SANDBOX_LLM_GATEWAY_MEMORY
+  // first.
+  const original = {
+    memory: process.env.SANDBOX_LLM_GATEWAY_MEMORY,
+    sessions: process.env.SANDBOX_MAX_SESSIONS,
+  };
+
+  afterEach(() => {
+    if (original.memory === undefined) {
+      delete process.env.SANDBOX_LLM_GATEWAY_MEMORY;
+    } else process.env.SANDBOX_LLM_GATEWAY_MEMORY = original.memory;
+    if (original.sessions === undefined)
+      delete process.env.SANDBOX_MAX_SESSIONS;
+    else process.env.SANDBOX_MAX_SESSIONS = original.sessions;
+  });
+
+  test('compose.yml defaults to the limit the CLI gives an unset capacity', () => {
+    delete process.env.SANDBOX_LLM_GATEWAY_MEMORY;
+    delete process.env.SANDBOX_MAX_SESSIONS;
+    const generated = createSandboxLlmGatewayService(config).mem_limit;
+    expect(compose.services['sandbox-llm-gateway']?.mem_limit).toBe(
+      `\${SANDBOX_LLM_GATEWAY_MEMORY:-${generated}}`,
+    );
   });
 });
 
