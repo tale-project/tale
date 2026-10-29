@@ -110,8 +110,9 @@ export type NotificationTarget =
       params: { id: string; _splat: string };
       search: Record<string, string>;
     }
-  // An automation run — the landing for an escalation with no task and no
-  // project, whose row carries the run id and its automation's name.
+  // An automation run — where an agent's question on a run that works no
+  // task is answered, whether or not the run belongs to a project. The row
+  // carries the run id and its automation's name.
   | {
       to: '/dashboard/$id/automations/$automationSlug/runs/$runId';
       params: { id: string; automationSlug: string; runId: string };
@@ -156,10 +157,11 @@ export type { OrgNotificationLink };
 /**
  * Deep-link target for a PERSONAL notification (`userNotifications`). Task-bound
  * types route to the task inside its project; chat mentions route to their
- * thread; a row that names a project but no task opens the project (including
- * legacy discussion-mention rows — their route is gone); anything else falls
- * back to the org home. Always returns a target — a personal row is never a
- * dead, unclickable line (#2377).
+ * thread; an agent's question on a run that works no task opens the run, where
+ * it is answered; a row that names a project but no task or run opens the
+ * project (including legacy discussion-mention rows — their route is gone);
+ * anything else falls back to the org home. Always returns a target — a
+ * personal row is never a dead, unclickable line (#2377).
  */
 export function personalNotificationTarget(args: {
   organizationId: string;
@@ -291,16 +293,12 @@ export function personalNotificationTarget(args: {
       search: { task: args.taskId },
     };
   }
-  if (projectId) {
-    return {
-      to: '/dashboard/$id/projects/$projectId/tasks',
-      params: { id, projectId },
-    };
-  }
 
-  // An agent escalation on an org-scoped run has no task and no project, but
-  // it does name the run. Needs BOTH keys — neither appears in any other
-  // personal row's params, so this cannot swallow another type's row.
+  // An agent's question on a run that works no task is answered on the run,
+  // whether or not the run belongs to a project: the project's board has no
+  // answer card. Needs BOTH keys — no other personal row carries the pair, so
+  // this cannot swallow another type's row. Mirrors
+  // `buildPersonalNotificationUrl`.
   const runId = typeof params?.runId === 'string' ? params.runId : undefined;
   const automationName =
     typeof params?.name === 'string' ? params.name : undefined;
@@ -312,6 +310,13 @@ export function personalNotificationTarget(args: {
         automationSlug: automationSlugToParam(automationName),
         runId,
       },
+    };
+  }
+
+  if (projectId) {
+    return {
+      to: '/dashboard/$id/projects/$projectId/tasks',
+      params: { id, projectId },
     };
   }
 

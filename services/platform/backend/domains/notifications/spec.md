@@ -39,13 +39,15 @@ Both the HTML part and the plain-text part carry it.
 | a document in a project | the project's **Files** tab, in the document's folder |
 | a document in the library | the organization's document list |
 | a request for credits | the budget rules |
-| a run with no task and no project | the run |
+| a run with no task, in a project or not | the run |
 | nothing in particular | the organization's dashboard |
 
 The link starts with the deployment's own address, including the path it is served under.
 
 - **Example**: An agent asks Noah a question on a task → the link in his notification opens
   that task in its project.
+- **Example**: An agent asks Noah a question on a project's run that works no task → the link in
+  the notification opens the run, where Noah answers it, not the project's board.
 
 ## Exporting notifications
 
