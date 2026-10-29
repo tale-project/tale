@@ -95,8 +95,15 @@ vi.mock('../hooks/actions', () => ({
 }));
 
 // Whether the CURRENT folder's listing was cut at the bound — the picker's
-// notice keys on it.
-const listingState = vi.hoisted(() => ({ truncated: false }));
+// notice keys on it. `pair` lists PAIR instead.
+const listingState = vi.hoisted(() => ({ truncated: false, pair: false }));
+
+// Two files for the search test: one selected before a search, one the
+// search shows.
+const PAIR = [
+  { id: 'alpha', name: 'Alpha.txt', size: 10, isFolder: false },
+  { id: 'bravo', name: 'Bravo.txt', size: 10, isFolder: false },
+];
 
 vi.mock('../hooks/queries', () => ({
   useCloudImportAuthorizationStatus: () => ({
@@ -106,7 +113,9 @@ vi.mock('../hooks/queries', () => ({
   }),
   useGoogleDriveFiles: () => ({
     data: {
-      items: [{ id: 'folder-1', name: 'Meetings', size: 0, isFolder: true }],
+      items: listingState.pair
+        ? PAIR
+        : [{ id: 'folder-1', name: 'Meetings', size: 0, isFolder: true }],
       truncated: listingState.truncated,
     },
     isLoading: false,
@@ -154,6 +163,7 @@ describe('GoogleDriveImportDialog', () => {
     mockImportFiles.mockClear();
     vi.mocked(toast).mockClear();
     listingState.truncated = false;
+    listingState.pair = false;
   });
 
   // Regression: the Drive walk was unbounded and the dialog imported
@@ -313,6 +323,54 @@ describe('GoogleDriveImportDialog', () => {
     expect(toast).not.toHaveBeenCalledWith(
       expect.objectContaining({ variant: 'destructive' }),
     );
+  });
+
+  // The header box speaks for the rows the search shows: clearing it removes
+  // those rows alone, so a file selected before the search stays selected —
+  // the posture the Microsoft tabs share with this picker.
+  it('keeps a file selected before a search when the header box is cleared', async () => {
+    listingState.pair = true;
+    const user = userEvent.setup();
+    render(<GoogleDriveImportDialog {...defaultProps} />);
+    const fileBox = (name: string) =>
+      screen.getByRole('checkbox', {
+        name: `documents.aria.selectFile ${name}`,
+      });
+    const headerBox = () =>
+      screen.getByRole('checkbox', { name: 'common.aria.selectAll' });
+    const search = screen.getByRole('textbox', {
+      name: 'documents.searchFilesAndFolders',
+    });
+
+    await user.click(fileBox('Alpha.txt'));
+    await user.type(search, 'Bravo');
+    expect(screen.queryByText('Alpha.txt')).not.toBeInTheDocument();
+    expect(headerBox()).not.toBeChecked();
+    await user.click(headerBox());
+    expect(fileBox('Bravo.txt')).toBeChecked();
+    await user.click(headerBox());
+    expect(fileBox('Bravo.txt')).not.toBeChecked();
+    // The search box is readonly until focused (anti-autofill), and the
+    // header click took focus from it — click to focus it first.
+    await user.click(search);
+    await user.clear(search);
+
+    expect(fileBox('Alpha.txt')).toBeChecked();
+    expect(fileBox('Bravo.txt')).not.toBeChecked();
+    const importButton = screen.getByRole('button', {
+      name: 'documents.googledrive.importCount',
+    });
+    expect(importButton).toBeEnabled();
+    await user.click(importButton);
+    await user.click(
+      screen.getByRole('button', {
+        name: /documents\.googledrive\.importItems/,
+      }),
+    );
+    await waitFor(() => expect(mockImportFiles).toHaveBeenCalledTimes(1));
+    expect(mockImportFiles.mock.calls[0][0].items).toEqual([
+      expect.objectContaining({ id: 'alpha', relativePath: 'Alpha.txt' }),
+    ]);
   });
 
   // The refusal's own `message` is its serialized payload; the import toast

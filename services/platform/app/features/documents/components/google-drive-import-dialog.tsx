@@ -44,6 +44,10 @@ import type {
   Stage,
 } from './onedrive-import/types';
 import { isFile, isFolder } from './onedrive-import/types';
+import {
+  toggleVisibleSelection,
+  visibleSelectionState,
+} from './onedrive-import/visible-selection';
 
 /** A lapsed grant, in the words the doors answer it with — on a listing's
  *  error, or on an import's answer, which stopped where access ended. */
@@ -249,32 +253,18 @@ export function GoogleDriveImportDialog({
     setSelectedItems(next);
   };
 
-  const getSelectAllState = (): boolean | 'indeterminate' => {
-    if (filteredItems.length === 0) return false;
-    const selectedCount = filteredItems.filter((i) =>
-      selectedItems.has(i.id),
-    ).length;
-    if (selectedCount === 0) return false;
-    if (selectedCount === filteredItems.length) return true;
-    return 'indeterminate';
-  };
+  const getSelectAllState = (): boolean | 'indeterminate' =>
+    visibleSelectionState(filteredItems, selectedItems);
 
   const handleSelectAllChange = (checked: boolean | 'indeterminate') => {
-    const next = new Map(selectedItems);
-    if (checked === true) {
-      for (const item of filteredItems) {
-        next.set(item.id, {
-          id: item.id,
-          name: item.name,
-          path: buildItemPath(item),
-          type: isFolder(item) ? 'folder' : 'file',
-          size: item.size,
-        });
-      }
-    } else {
-      for (const item of filteredItems) next.delete(item.id);
-    }
-    setSelectedItems(next);
+    setSelectedItems(
+      toggleVisibleSelection(
+        selectedItems,
+        filteredItems,
+        checked,
+        buildItemPath,
+      ),
+    );
   };
 
   const handleFolderClick = (folder: OneDriveApiItem) => {
