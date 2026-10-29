@@ -97,6 +97,8 @@ export interface DropdownMenuCustomItem {
 export interface DropdownMenuCheckboxItem {
   type: 'checkbox';
   label: ReactNode;
+  /** A caption under the label (e.g. "Writes data"): the row's accessible
+   * description, announced after its name, which is the label alone. */
   description?: ReactNode;
   icon?: ComponentType<{ className?: string }>;
   checked: boolean;
@@ -197,6 +199,71 @@ function RadioIndicator() {
   );
 }
 
+/** A checkbox row, named by its label alone and described by its caption.
+ * Named from its whole content, a grant read "Create tasksWrites data" and
+ * its write badge was never announced as its description (#3658). */
+function CheckboxRow({ item }: { item: DropdownMenuCheckboxItem }) {
+  const id = useId();
+  const labelId = `${id}-label`;
+  const descriptionId = `${id}-description`;
+  const CheckboxIcon = item.icon;
+  return (
+    <DropdownMenuPrimitive.CheckboxItem
+      checked={item.locked === true ? true : item.checked}
+      onCheckedChange={item.onCheckedChange}
+      disabled={item.disabled === true || item.locked === true}
+      aria-labelledby={labelId}
+      aria-describedby={item.description != null ? descriptionId : undefined}
+      // Prevent default suppresses the close-on-select behaviour so
+      // toggling stays inside the menu — matches the OS conventions
+      // for grouped settings dropdowns.
+      onSelect={(e) => e.preventDefault()}
+      className={cn(
+        'focus:bg-accent focus:text-accent-foreground relative flex min-h-11 cursor-default items-center gap-2 rounded-md px-2 py-2 text-base outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
+        item.locked === true && 'data-disabled:opacity-100',
+        item.className,
+      )}
+    >
+      {CheckboxIcon ? <CheckboxIcon /> : null}
+      <span className="flex flex-1 flex-col">
+        <span id={labelId} className="text-sm">
+          {item.label}
+        </span>
+        {item.description != null && (
+          <span id={descriptionId} className="text-muted-foreground text-xs">
+            {item.description}
+          </span>
+        )}
+      </span>
+      <DropdownMenuPrimitive.ItemIndicator
+        forceMount
+        className="ml-auto inline-flex"
+      >
+        <span
+          aria-hidden
+          className={cn(
+            'inline-block h-4 w-7 rounded-full transition-colors',
+            item.locked === true
+              ? 'bg-primary/60'
+              : item.checked
+                ? 'bg-primary'
+                : 'bg-muted',
+          )}
+        >
+          <span
+            className={cn(
+              'block h-3 w-3 translate-y-0.5 rounded-full bg-white shadow transition-transform',
+              item.checked || item.locked === true
+                ? 'translate-x-3.5'
+                : 'translate-x-0.5',
+            )}
+          />
+        </span>
+      </DropdownMenuPrimitive.ItemIndicator>
+    </DropdownMenuPrimitive.CheckboxItem>
+  );
+}
+
 function renderItem(item: DropdownMenuItem, key: number) {
   switch (item.type) {
     case 'label':
@@ -212,61 +279,8 @@ function renderItem(item: DropdownMenuItem, key: number) {
     case 'custom':
       return <Fragment key={key}>{item.content}</Fragment>;
 
-    case 'checkbox': {
-      const CheckboxIcon = item.icon;
-      return (
-        <DropdownMenuPrimitive.CheckboxItem
-          key={key}
-          checked={item.locked === true ? true : item.checked}
-          onCheckedChange={item.onCheckedChange}
-          disabled={item.disabled === true || item.locked === true}
-          // Prevent default suppresses the close-on-select behaviour so
-          // toggling stays inside the menu — matches the OS conventions
-          // for grouped settings dropdowns.
-          onSelect={(e) => e.preventDefault()}
-          className={cn(
-            'focus:bg-accent focus:text-accent-foreground relative flex min-h-11 cursor-default items-center gap-2 rounded-md px-2 py-2 text-base outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0',
-            item.locked === true && 'data-disabled:opacity-100',
-            item.className,
-          )}
-        >
-          {CheckboxIcon ? <CheckboxIcon /> : null}
-          <span className="flex flex-1 flex-col">
-            <span className="text-sm">{item.label}</span>
-            {item.description != null && (
-              <span className="text-muted-foreground text-xs">
-                {item.description}
-              </span>
-            )}
-          </span>
-          <DropdownMenuPrimitive.ItemIndicator
-            forceMount
-            className="ml-auto inline-flex"
-          >
-            <span
-              aria-hidden
-              className={cn(
-                'inline-block h-4 w-7 rounded-full transition-colors',
-                item.locked === true
-                  ? 'bg-primary/60'
-                  : item.checked
-                    ? 'bg-primary'
-                    : 'bg-muted',
-              )}
-            >
-              <span
-                className={cn(
-                  'block h-3 w-3 translate-y-0.5 rounded-full bg-white shadow transition-transform',
-                  item.checked || item.locked === true
-                    ? 'translate-x-3.5'
-                    : 'translate-x-0.5',
-                )}
-              />
-            </span>
-          </DropdownMenuPrimitive.ItemIndicator>
-        </DropdownMenuPrimitive.CheckboxItem>
-      );
-    }
+    case 'checkbox':
+      return <CheckboxRow key={key} item={item} />;
 
     case 'sub': {
       const SubIcon = item.icon;
