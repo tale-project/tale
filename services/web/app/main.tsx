@@ -46,8 +46,17 @@ if (!root) throw new Error('Missing #root element');
 // Mounting an unresolved router first clears the document, clamps scrollY to
 // zero, then grows it again — a visible jump if the reader has started scrolling.
 // This is the same cold-load contract as docs and ui-docs.
+//
+// Resolves whether to mount. An alias of the UI guide (`/ui`, `/de/ui`, …)
+// redirects off-site: router-core marks that redirect `reloadDocument` and has
+// already called `location.replace` when the load resolves. Any further load —
+// the hash replay below, or the router's Transitioner on mount — would start a
+// second navigation to the same address while the first commits, and Chromium
+// can leave one of them unsettled (#4553). The prerendered page stays until the
+// browser leaves.
 async function loadInitialRoute() {
   await router.load();
+  if (router.state.redirect?.options.reloadDocument) return false;
   if (window.location.hash && window.scrollY > 0) {
     // The reader (or native fragment navigation) has already positioned the
     // prerendered page. Transitioner also handles hashes independently of
@@ -60,14 +69,17 @@ async function loadInitialRoute() {
     });
     await router.load();
   }
+  return true;
 }
 
 void loadInitialRoute()
   .catch((error: unknown) => {
     console.error('[web] initial route load failed', error);
     reportBrowserError(error);
+    return true;
   })
-  .then(() => {
+  .then((mount) => {
+    if (!mount) return;
     // The browser already positioned this prerendered document, and the reader
     // may have scrolled while chunks loaded. Consume only TanStack's initial
     // reset; subsequent navigation sets resetNextScroll normally.

@@ -218,8 +218,11 @@ Contact and demo submission successes emit `contact-submitted` and
 
 `/ui` redirects permanently to `https://ui.tale.dev`; locale-prefixed aliases do
 so too. The server, client routes and static redirect stubs agree, and the
-aliases stay out of the sitemap. The footer’s Tale UI link opens that guide.
-The copyright and licence footnote comes from `@tale/ui/use-site-copyright`,
+aliases stay out of the sitemap. A cold load the client answers (`vite preview`,
+a static host) navigates there once: `app/main.tsx` does not mount the router
+after its initial load has redirected off-site, because the mount would load the
+route and start the same navigation again. The footer’s Tale UI link opens that
+guide. The copyright and licence footnote comes from `@tale/ui/use-site-copyright`,
 shared with both documentation sites in EN/DE/FR.
 
 Both the client and SSR router set `NotFoundPage` as the default, including
