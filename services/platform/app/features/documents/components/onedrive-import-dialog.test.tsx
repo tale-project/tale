@@ -98,8 +98,19 @@ vi.mock('../hooks/actions', () => ({
 }));
 
 // Whether the CURRENT folder's listing was cut at the bound — the picker's
-// notice keys on it.
-const listingState = vi.hoisted(() => ({ truncated: false, browse: false }));
+// notice keys on it. `pair` lists PAIR on either tab instead.
+const listingState = vi.hoisted(() => ({
+  truncated: false,
+  browse: false,
+  pair: false,
+}));
+
+// Two files for the search tests: one selected before a search, one the
+// search shows.
+const PAIR = [
+  { id: 'alpha', name: 'Alpha.txt', size: 10, isFolder: false },
+  { id: 'bravo', name: 'Bravo.txt', size: 10, isFolder: false },
+];
 
 vi.mock('../hooks/queries', () => ({
   useCloudImportAuthorizationStatus: () => ({
@@ -109,8 +120,9 @@ vi.mock('../hooks/queries', () => ({
   }),
   useOneDriveFiles: (_org: string, folderId?: string) => ({
     data: {
-      items:
-        listingState.browse && folderId
+      items: listingState.pair
+        ? PAIR
+        : listingState.browse && folderId
           ? [
               {
                 id: 'personal-file',
@@ -141,12 +153,21 @@ vi.mock('../hooks/queries', () => ({
   }),
   useSharePointFiles: () => ({
     data: {
-      items: [
-        { id: 'report', name: 'Report.txt', size: 10, isFolder: false },
-        ...(listingState.browse
-          ? [{ id: 'audit-folder', name: 'Audits', size: 0, isFolder: true }]
-          : []),
-      ],
+      items: listingState.pair
+        ? PAIR
+        : [
+            { id: 'report', name: 'Report.txt', size: 10, isFolder: false },
+            ...(listingState.browse
+              ? [
+                  {
+                    id: 'audit-folder',
+                    name: 'Audits',
+                    size: 0,
+                    isFolder: true,
+                  },
+                ]
+              : []),
+          ],
       truncated: false,
     },
     isLoading: false,
@@ -218,6 +239,7 @@ describe('OneDriveImportDialog', () => {
     vi.mocked(toast).mockClear();
     listingState.truncated = false;
     listingState.browse = false;
+    listingState.pair = false;
   });
 
   it('imports a SharePoint root file into the hub after browsing OneDrive', async () => {
@@ -415,6 +437,66 @@ describe('OneDriveImportDialog', () => {
           }),
         ),
       );
+    },
+  );
+
+  // Regression: the header box added only the rows a search shows, but
+  // clearing it emptied the whole selection — a file selected before the
+  // search was dropped unseen, and Import fell to 0.
+  it.each(['onedrive', 'sharepoint'] as const)(
+    'keeps a %s file selected before a search when the header box is cleared',
+    async (source) => {
+      listingState.pair = true;
+      const user = userEvent.setup();
+      render(<OneDriveImportDialog {...defaultProps} />);
+      if (source === 'sharepoint') {
+        await user.click(
+          screen.getByRole('tab', {
+            name: 'documents.microsoft365.sharePointSites',
+          }),
+        );
+        await user.click(screen.getByText('Test site'));
+        await user.click(screen.getByText('Documents'));
+      }
+      const fileBox = (name: string) =>
+        screen.getByRole('checkbox', {
+          name: `documents.aria.selectFile ${name}`,
+        });
+      const headerBox = () =>
+        screen.getByRole('checkbox', { name: 'common.aria.selectAll' });
+      const search = screen.getByRole('textbox', {
+        name: 'documents.searchFilesAndFolders',
+      });
+
+      await user.click(fileBox('Alpha.txt'));
+      await user.type(search, 'Bravo');
+      expect(screen.queryByText('Alpha.txt')).not.toBeInTheDocument();
+      expect(headerBox()).not.toBeChecked();
+      await user.click(headerBox());
+      expect(fileBox('Bravo.txt')).toBeChecked();
+      await user.click(headerBox());
+      expect(fileBox('Bravo.txt')).not.toBeChecked();
+      // The search box is readonly until focused (anti-autofill), and the
+      // header click took focus from it — click to focus it first.
+      await user.click(search);
+      await user.clear(search);
+
+      expect(fileBox('Alpha.txt')).toBeChecked();
+      expect(fileBox('Bravo.txt')).not.toBeChecked();
+      const importButton = screen.getByRole('button', {
+        name: 'documents.onedrive.importCount',
+      });
+      expect(importButton).toBeEnabled();
+      await user.click(importButton);
+      await user.click(
+        screen.getByRole('button', {
+          name: /documents\.onedrive\.importItems/,
+        }),
+      );
+      await waitFor(() => expect(mockImportFiles).toHaveBeenCalledTimes(1));
+      expect(mockImportFiles.mock.calls[0][0].items).toEqual([
+        expect.objectContaining({ id: 'alpha', relativePath: 'Alpha.txt' }),
+      ]);
     },
   );
 
