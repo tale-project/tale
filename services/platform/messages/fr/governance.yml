@@ -726,6 +726,8 @@ guardrailsOverview:
     on: Actif
     off: Inactif
     notConfigured: Non configuré
+    unknown: Inconnu
+    readFailed: "L'état d'au moins une couche de filtrage n'a pas pu être chargé. Une couche marquée « Inconnu » peut être active ou inactive."
     contentSafety:
       title: Sécurité du contenu
       description: Listes de mots et motifs regex fournis par l'admin.

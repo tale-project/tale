@@ -6,14 +6,15 @@ import {
 } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { act, render, screen, waitFor } from '@/tests/utils/render';
+import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { GuardrailsOverview } from './guardrails-overview';
 
-const { toastSpy, refetchSpy, readSpy } = vi.hoisted(() => ({
+const { toastSpy, refetchSpy, readSpy, policySpy } = vi.hoisted(() => ({
   toastSpy: vi.fn(),
   readSpy: vi.fn<() => Promise<unknown[]>>(),
   refetchSpy: vi.fn(),
+  policySpy: vi.fn<(policyType: string) => Promise<unknown>>(),
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({
@@ -29,10 +30,12 @@ vi.mock('@tale/ui/use-format-date', () => ({
 // (table), since the overview's loading state covers all of them. A source or
 // kind filter narrows the events on the server, so a filtered read answers
 // `filteredEvents` instead; `eventsLoading` holds the events read alone, and
-// `eventsFailed` fails it.
+// `eventsFailed` fails it. `realPolicies` sends the three policy reads through
+// a real react-query observer, answered by `policySpy`.
 const { state } = vi.hoisted(() => ({
   state: {
     realQuery: false,
+    realPolicies: false,
     isLoading: false,
     policy: { key: 'pii_config', config: { enabled: false } } as
       | Record<string, unknown>
@@ -48,10 +51,25 @@ const { state } = vi.hoisted(() => ({
 
 vi.mock('../hooks/queries', () => ({
   // Same shape for every policyType — the cards just read `enabled`.
-  useGovernancePolicy: () => ({
-    data: state.isLoading ? undefined : state.policy,
-    isLoading: state.isLoading,
-  }),
+  useGovernancePolicy: (_organizationId: string, policyType: string) => {
+    // oxlint-disable-next-line react-hooks/rules-of-hooks
+    if (state.realPolicies) {
+      // oxlint-disable-next-line react-hooks/rules-of-hooks
+      return useQuery({
+        queryKey: ['governance-policy', policyType],
+        queryFn: () => policySpy(policyType),
+        retry: false,
+      });
+    }
+    return {
+      data: state.isLoading ? undefined : state.policy,
+      isLoading: state.isLoading,
+      isError: false,
+      isFetching: state.isLoading,
+      errorUpdateCount: 0,
+      refetch: vi.fn(),
+    };
+  },
 }));
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
@@ -113,7 +131,9 @@ function setLoading() {
 
 beforeEach(() => {
   state.realQuery = false;
+  state.realPolicies = false;
   readSpy.mockReset();
+  policySpy.mockReset();
   state.filteredEvents = [];
   state.eventsLoading = false;
   state.eventsFailed = false;
@@ -302,6 +322,146 @@ describe('GuardrailsOverview', () => {
       expect(
         screen.queryByRole('row', { name: /view event/i }),
       ).not.toBeInTheDocument();
+      client.clear();
+    });
+  });
+
+  // A card that showed Off over a policy it could not read contradicted the
+  // read-failure alerts of the sections below it (#4834).
+  describe('policy status read failure', () => {
+    const readFailed =
+      "Couldn't load the status of every filter layer. A layer marked Unknown may be on or off.";
+    const policy = (key: string, config: Record<string, unknown>) => ({
+      key,
+      config,
+    });
+    const card = (name: RegExp) => screen.getByRole('link', { name });
+
+    function renderWithPolicies() {
+      setLoaded();
+      state.realPolicies = true;
+      const client = new QueryClient();
+      const view = render(
+        <QueryClientProvider client={client}>
+          <GuardrailsOverview organizationId="org-1" />
+        </QueryClientProvider>,
+      );
+      return { client, ...view };
+    }
+
+    it('marks a card Unknown, never Off, while its policy cannot be read, and Try again recovers it', async () => {
+      // Content safety and moderation answer as never set up; PII fails.
+      policySpy.mockImplementation((type) =>
+        type === 'pii_config'
+          ? Promise.reject(new Error('policy unavailable'))
+          : Promise.resolve(policy(type, { enabled: false })),
+      );
+      const { client, user } = renderWithPolicies();
+      expect(await screen.findByRole('alert')).toHaveTextContent(readFailed);
+      expect(within(card(/pii detection/i)).getByText('Unknown')).toBeVisible();
+      expect(within(card(/pii detection/i)).queryByText('Off')).toBeNull();
+      expect(
+        within(card(/content safety/i)).getByText('Not configured'),
+      ).toBeInTheDocument();
+      expect(
+        within(card(/moderation provider/i)).getByText('Not configured'),
+      ).toBeInTheDocument();
+
+      // Try again reads the failed policy again, and only that one. While
+      // it runs — react-query starts it from pending — the card stays
+      // Unknown and Try again stays put, busy: no skeleton, no Off.
+      let answerRetry: (answer: unknown) => void = () => {};
+      policySpy.mockClear();
+      policySpy.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            answerRetry = resolve;
+          }),
+      );
+      const retry = screen.getByRole('button', { name: 'Try again' });
+      await user.click(retry);
+      expect(policySpy).toHaveBeenCalledTimes(1);
+      expect(policySpy).toHaveBeenCalledWith('pii_config');
+      await waitFor(() => expect(retry).toHaveAttribute('aria-busy', 'true'));
+      expect(screen.getByRole('button', { name: 'Try again' })).toBe(retry);
+      expect(within(card(/pii detection/i)).getByText('Unknown')).toBeVisible();
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+
+      await act(async () =>
+        answerRetry(policy('pii_config', { enabled: true })),
+      );
+      await waitFor(() =>
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument(),
+      );
+      expect(within(card(/pii detection/i)).getByText('On')).toBeVisible();
+      expect(screen.queryByText('Unknown')).not.toBeInTheDocument();
+      client.clear();
+    });
+
+    it('names a failed policy once the others have answered, never under the skeleton', async () => {
+      let answerChatFilter: (answer: unknown) => void = () => {};
+      policySpy.mockImplementation((type) =>
+        type === 'pii_config'
+          ? Promise.reject(new Error('policy unavailable'))
+          : type === 'chat_filter'
+            ? new Promise((resolve) => {
+                answerChatFilter = resolve;
+              })
+            : Promise.resolve(policy(type, { enabled: false })),
+      );
+      const { client } = renderWithPolicies();
+      await waitFor(() =>
+        expect(
+          client.getQueryState(['governance-policy', 'pii_config']),
+        ).toMatchObject({ status: 'error' }),
+      );
+      // PII has failed, but content safety has not answered yet: the overview
+      // is still loading, and no Try again sits masked inside it.
+      expect(screen.getAllByRole('status')[0]).toHaveAttribute(
+        'aria-busy',
+        'true',
+      );
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      await act(async () =>
+        answerChatFilter(policy('chat_filter', { enabled: true })),
+      );
+      expect(await screen.findByRole('alert')).toHaveTextContent(readFailed);
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeVisible();
+      expect(within(card(/pii detection/i)).getByText('Unknown')).toBeVisible();
+      expect(within(card(/content safety/i)).getByText('On')).toBeVisible();
+      client.clear();
+    });
+
+    it('marks every card Unknown when no policy can be read', async () => {
+      policySpy.mockRejectedValue(new Error('policies unavailable'));
+      const { client } = renderWithPolicies();
+      expect(await screen.findByRole('alert')).toHaveTextContent(readFailed);
+      expect(screen.getAllByText('Unknown')).toHaveLength(3);
+      expect(screen.queryByText('Off')).not.toBeInTheDocument();
+      expect(screen.queryByText('Not configured')).not.toBeInTheDocument();
+      expect(screen.queryByText('On')).not.toBeInTheDocument();
+      client.clear();
+    });
+
+    it('marks a card Unknown when a refresh of its policy fails, as the section below it does', async () => {
+      policySpy.mockImplementation((type) =>
+        Promise.resolve(policy(type, { enabled: true })),
+      );
+      const { client } = renderWithPolicies();
+      await waitFor(() => expect(screen.getAllByText('On')).toHaveLength(3));
+      policySpy.mockImplementation((type) =>
+        type === 'moderation_provider'
+          ? Promise.reject(new Error('refresh unavailable'))
+          : Promise.resolve(policy(type, { enabled: true })),
+      );
+      await act(async () => {
+        await client.refetchQueries({ queryKey: ['governance-policy'] });
+      });
+      expect(await screen.findByRole('alert')).toHaveTextContent(readFailed);
+      expect(
+        within(card(/moderation provider/i)).getByText('Unknown'),
+      ).toBeVisible();
+      expect(screen.getAllByText('On')).toHaveLength(2);
       client.clear();
     });
   });
