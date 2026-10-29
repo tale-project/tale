@@ -9,6 +9,7 @@ import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { Card } from '@tale/ui/card';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
 import { EmptyState } from '@tale/ui/empty-state';
 import { isFilterAffordanceDisabled } from '@tale/ui/filters/filter-panel';
@@ -29,10 +30,11 @@ import { useFormatDate } from '@tale/ui/use-format-date';
 import { useToast } from '@tale/ui/use-toast';
 import { Copy, Fingerprint, ListFilter, Shield } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
 import { useGovernancePolicy } from '../hooks/queries';
@@ -69,6 +71,8 @@ interface StatusCardProps {
   title: string;
   description: string;
   enabled: boolean;
+  /** The policy could not be read: the card claims neither on nor off. */
+  unknown?: boolean;
   /** One short summary when on. Omitted when off — sections below explain why. */
   summary?: string;
   offKind: OffKind;
@@ -81,6 +85,7 @@ function StatusCard({
   title,
   description,
   enabled,
+  unknown = false,
   summary,
   offKind,
   href,
@@ -88,11 +93,13 @@ function StatusCard({
 }: StatusCardProps) {
   const { t } = useT('governance');
   const loading = useSkeleton();
-  const statusLabel = enabled
-    ? t('guardrailsOverview.statusCards.on')
-    : offKind === 'not_configured'
-      ? t('guardrailsOverview.statusCards.notConfigured')
-      : t('guardrailsOverview.statusCards.off');
+  const statusLabel = unknown
+    ? t('guardrailsOverview.statusCards.unknown')
+    : enabled
+      ? t('guardrailsOverview.statusCards.on')
+      : offKind === 'not_configured'
+        ? t('guardrailsOverview.statusCards.notConfigured')
+        : t('guardrailsOverview.statusCards.off');
 
   return (
     <Card padding="md" asChild interactive>
@@ -124,16 +131,52 @@ export function GuardrailsOverview({
   organizationId,
 }: GuardrailsOverviewProps) {
   const { t } = useT('governance');
-  const { data: piiPolicy, isLoading: piiLoading } = useGovernancePolicy(
+  const piiQuery = useGovernancePolicy(organizationId, 'pii_config');
+  const chatFilterQuery = useGovernancePolicy(organizationId, 'chat_filter');
+  const moderationQuery = useGovernancePolicy(
     organizationId,
-    'pii_config',
+    'moderation_provider',
   );
-  const { data: chatFilterPolicy, isLoading: chatFilterLoading } =
-    useGovernancePolicy(organizationId, 'chat_filter');
-  const { data: moderationPolicy, isLoading: moderationLoading } =
-    useGovernancePolicy(organizationId, 'moderation_provider');
+  const piiPolicy = piiQuery.data;
+  const chatFilterPolicy = chatFilterQuery.data;
+  const moderationPolicy = moderationQuery.data;
 
-  const chatFilterEnabled = policyEnabled(chatFilterPolicy);
+  // A policy the overview cannot read is Unknown on its card, never Off
+  // (#4834): its section below names the same failure, and hides its editor,
+  // whether the read never answered or a refresh failed. The flags hold
+  // through a retry, which react-query starts from `pending` for a read that
+  // never answered.
+  const piiRead = readStateOf(piiQuery);
+  const chatFilterRead = readStateOf(chatFilterQuery);
+  const moderationRead = readStateOf(moderationQuery);
+  const piiUnknown = piiRead.unavailable || piiRead.stale;
+  const chatFilterUnknown = chatFilterRead.unavailable || chatFilterRead.stale;
+  const moderationUnknown = moderationRead.unavailable || moderationRead.stale;
+  const policyReadFailed = piiUnknown || chatFilterUnknown || moderationUnknown;
+
+  // Try again reads the failed policies again — the same cache entries the
+  // sections below read, so either retry heals both.
+  const { refetch: refetchPii } = piiQuery;
+  const { refetch: refetchChatFilter } = chatFilterQuery;
+  const { refetch: refetchModeration } = moderationQuery;
+  const retryPolicies = useCallback(() => {
+    if (piiUnknown) void refetchPii();
+    if (chatFilterUnknown) void refetchChatFilter();
+    if (moderationUnknown) void refetchModeration();
+  }, [
+    piiUnknown,
+    chatFilterUnknown,
+    moderationUnknown,
+    refetchPii,
+    refetchChatFilter,
+    refetchModeration,
+  ]);
+  // Where the focus goes when a Try again that worked takes its notice away.
+  const sectionRef = useRef<HTMLElement>(null);
+  const focusSection = useCallback(() => sectionRef.current?.focus(), []);
+
+  const chatFilterEnabled =
+    !chatFilterUnknown && policyEnabled(chatFilterPolicy);
   const chatFilterParsed = chatFilterPolicy
     ? chatFilterConfigSchema.safeParse(chatFilterPolicy.config)
     : null;
@@ -153,7 +196,12 @@ export function GuardrailsOverview({
     return map;
   }, [chatFilterConfig]);
 
-  const isLoading = piiLoading || chatFilterLoading || moderationLoading;
+  // A read retried after it failed stays named, its card Unknown, rather than
+  // turning the overview back into its skeleton.
+  const isLoading =
+    (piiQuery.isLoading && !piiRead.unavailable) ||
+    (chatFilterQuery.isLoading && !chatFilterRead.unavailable) ||
+    (moderationQuery.isLoading && !moderationRead.unavailable);
 
   const chatFilterSummary = chatFilterEnabled
     ? t('guardrailsOverview.statusCards.contentSafety.summary', {
@@ -162,7 +210,7 @@ export function GuardrailsOverview({
       })
     : undefined;
 
-  const piiEnabled = policyEnabled(piiPolicy);
+  const piiEnabled = !piiUnknown && policyEnabled(piiPolicy);
   const piiParsed = piiPolicy
     ? piiConfigSchema.safeParse(piiPolicy.config)
     : null;
@@ -173,7 +221,8 @@ export function GuardrailsOverview({
       })
     : undefined;
 
-  const moderationEnabled = policyEnabled(moderationPolicy);
+  const moderationEnabled =
+    !moderationUnknown && policyEnabled(moderationPolicy);
   const moderationParsed = moderationPolicy
     ? moderationProviderConfigSchema.safeParse(moderationPolicy.config)
     : null;
@@ -189,8 +238,11 @@ export function GuardrailsOverview({
   return (
     <Skeletonize loading={isLoading} label={t('guardrailsOverview.title')}>
       <SettingsSection
+        ref={sectionRef}
+        tabIndex={-1}
         title={t('guardrailsOverview.title')}
         description={t('guardrailsOverview.description')}
+        className="outline-none"
       >
         {/* Marked so the shared divider rule separates the two sub-blocks
             of this section (cards, then the events table) with the same
@@ -198,7 +250,31 @@ export function GuardrailsOverview({
             the settings column is 36rem wide — the column, not the viewport:
             at a 768px window it is ~400px, where three cards squeezed their
             copy to a word per line. */}
-        <div className="@container" data-settings-section="">
+        <div
+          className="@container flex flex-col gap-4"
+          data-settings-section=""
+        >
+          {/* Once the overview settles: under its skeleton, Try again would
+              be a masked block while another policy is still loading. */}
+          {policyReadFailed && !isLoading && (
+            <CatalogLoadError
+              // Each failure is announced again; Try again keeps its node, and
+              // the focus on it, through a retry that fails again.
+              failureKey={
+                piiRead.failureCount +
+                chatFilterRead.failureCount +
+                moderationRead.failureCount
+              }
+              message={t('guardrailsOverview.statusCards.readFailed')}
+              onRetry={retryPolicies}
+              isRetrying={
+                piiRead.retrying ||
+                chatFilterRead.retrying ||
+                moderationRead.retrying
+              }
+              onFocusLost={focusSection}
+            />
+          )}
           <Grid className="@xl:grid-cols-3">
             <StatusCard
               title={t('guardrailsOverview.statusCards.contentSafety.title')}
@@ -206,6 +282,7 @@ export function GuardrailsOverview({
                 'guardrailsOverview.statusCards.contentSafety.description',
               )}
               enabled={chatFilterEnabled}
+              unknown={chatFilterUnknown}
               summary={chatFilterSummary}
               offKind={
                 (chatFilterConfig?.categories?.length ?? 0) === 0
@@ -219,6 +296,7 @@ export function GuardrailsOverview({
               title={t('guardrailsOverview.statusCards.pii.title')}
               description={t('guardrailsOverview.statusCards.pii.description')}
               enabled={piiEnabled}
+              unknown={piiUnknown}
               summary={piiSummary}
               offKind="off"
               href="#guardrails-pii"
@@ -230,6 +308,7 @@ export function GuardrailsOverview({
                 'guardrailsOverview.statusCards.moderation.description',
               )}
               enabled={moderationEnabled}
+              unknown={moderationUnknown}
               summary={moderationSummary}
               offKind={
                 moderationConfig?.endpoint?.url ? 'off' : 'not_configured'

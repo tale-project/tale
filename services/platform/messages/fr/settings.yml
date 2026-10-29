@@ -1226,6 +1226,8 @@ logs:
   integrity:
     title: Intégrité de la chaîne
     neverChecked: Aucune vérification d'intégrité automatique n'a encore été exécutée.
+    loadFailed: "Impossible de charger l'état d'intégrité. Ce panneau ne peut donc pas indiquer si une alerte d'intégrité est active."
+    refreshFailed: "Impossible de charger le dernier état d'intégrité. Ce qui est affiché est peut-être obsolète."
     lastCheck: 'Dernière vérification automatique : {date}'
     alertedAt: Alerte déclenchée le {date}
     statusUnchecked: Pas encore vérifié
@@ -1284,6 +1286,7 @@ logs:
     tableCaption: Tableau des journaux d'erreurs
     emptyTitle: Aucun journal d'erreurs
     emptyDescription: Les actions échouées ou refusées apparaîtront ici.
+    refreshFailed: "Impossible de charger les derniers journaux d'erreurs. La liste est peut-être incomplète ou obsolète."
   blockCounters:
     tabLabel: Blocages de connexion
     tableCaption: Activité des blocages de connexion
@@ -1307,6 +1310,7 @@ logs:
     emptyDescription:
       Les journaux d'audit apparaîtront ici à mesure que des actions
       sont effectuées dans ton organisation.
+    refreshFailed: "Impossible de charger les derniers journaux d'audit. La liste est peut-être incomplète ou obsolète."
     detailTitle: Détails du journal d'audit
     viaLabel: Source
     viaLabels:
