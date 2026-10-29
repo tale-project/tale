@@ -38,28 +38,36 @@ export async function readCronClock(sql: Sql): Promise<CronClock> {
 
 /**
  * Fails when a cron pass ran, or a tick was forwarded, since `boot`: a lane
- * may then have leaned on that tick, or been raced by it.
+ * may then have leaned on that tick, or been raced by it. The forwards are
+ * counted, and their queues only named: one whose data names no queue still
+ * fails the check.
  */
 export async function checkNoCronTick(
   sql: Sql,
   boot: CronClock,
   record: RecordCheck,
 ): Promise<void> {
-  const [now] = await sql<{ lastPass: string | null; forwarded: string }[]>`
+  const [now] = await sql<
+    { lastPass: string | null; forwarded: string; queues: string }[]
+  >`
+    WITH forwards AS (
+      SELECT coalesce(data->>'name', '(no queue named)') AS queue
+      FROM pgboss.job
+      WHERE name = '__pgboss__send-it'
+        AND created_on >= ${boot.readAt}::timestamptz
+    )
     SELECT
       (SELECT max(cron_on)::text FROM pgboss.version) AS "lastPass",
-      (SELECT coalesce(
-                string_agg(DISTINCT data->>'name', ', ' ORDER BY data->>'name'),
-                '')
-         FROM pgboss.job
-        WHERE name = '__pgboss__send-it'
-          AND created_on >= ${boot.readAt}::timestamptz) AS forwarded
+      (SELECT count(*)::text FROM forwards) AS forwarded,
+      (SELECT coalesce(string_agg(DISTINCT queue, ', ' ORDER BY queue), '')
+         FROM forwards) AS queues
   `;
   const lastPass = now === undefined ? 'unread' : now.lastPass;
   const forwarded = now === undefined ? 'unread' : now.forwarded;
+  const queues = now === undefined || now.queues === '' ? 'none' : now.queues;
   record(
     'harness: pg-boss ran no cron pass and forwarded no scheduled tick while the lanes ran',
-    lastPass === boot.lastPass && forwarded === '',
-    `last cron pass=${lastPass ?? 'never'} (want ${boot.lastPass ?? 'never'}, as at boot), ticks forwarded since boot=${forwarded === '' ? 'none' : forwarded} (want none) — pg-boss runs here with schedule: false, and a lane drives a recurring job's work itself`,
+    lastPass === boot.lastPass && forwarded === '0',
+    `last cron pass=${lastPass ?? 'never'} (want ${boot.lastPass ?? 'never'}, as at boot), ticks forwarded since boot=${forwarded} to ${queues} (want 0) — pg-boss runs here with schedule: false, and a lane drives a recurring job's work itself`,
   );
 }
