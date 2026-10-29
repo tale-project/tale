@@ -464,10 +464,14 @@ describe('WebsiteViewDialog', () => {
         name: 'Website pages',
       });
       expect(section).toHaveFocus();
-      // The failure stays up while the search runs again, its retry busy.
+      // The failure stays up while the search runs again, its busy retry the
+      // only progress shown: no spinner beside it.
       expect(
         within(dialog).getByRole('button', { name: 'Try again' }),
       ).toHaveAttribute('aria-busy', 'true');
+      expect(
+        within(dialog).queryByRole('status', { name: 'Loading' }),
+      ).not.toBeInTheDocument();
 
       await act(async () => {
         searchRequests[1]?.onSuccess?.(hit('broken'));
@@ -489,22 +493,31 @@ describe('WebsiteViewDialog', () => {
         'broken{Enter}',
       );
       await failSearch(0);
-
-      await user.click(
-        within(dialog).getByRole('button', { name: 'Try again' }),
+      const firstMessage = within(dialog).getByText(
+        "Couldn't search the website's content.",
       );
+      const retry = within(dialog).getByRole('button', { name: 'Try again' });
+
+      await user.click(retry);
       const section = within(dialog).getByRole('region', {
         name: 'Website pages',
       });
       expect(section).toHaveFocus();
       await failSearch(1);
 
-      expect(within(dialog).getByRole('alert')).toHaveTextContent(
+      // Announced again: the message is written afresh inside the same
+      // alert, beside the same Try again.
+      const failure = within(dialog).getByRole('alert');
+      expect(failure).toHaveTextContent(
         "Couldn't search the website's content.",
       );
       expect(
-        within(dialog).getByRole('button', { name: 'Try again' }),
-      ).not.toHaveAttribute('aria-busy');
+        within(failure).getByText("Couldn't search the website's content."),
+      ).not.toBe(firstMessage);
+      expect(within(failure).getByRole('button', { name: 'Try again' })).toBe(
+        retry,
+      );
+      expect(retry).not.toHaveAttribute('aria-busy');
       expect(
         within(dialog).queryByText('No results found'),
       ).not.toBeInTheDocument();
