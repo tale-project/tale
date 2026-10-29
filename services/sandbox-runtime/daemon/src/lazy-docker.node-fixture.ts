@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -11,6 +12,7 @@ import {
   createLazyDockerProxy,
   type EngineHandle,
   engineIsIdle,
+  handOverToken,
   trimIdleEngineStore,
 } from './lazy-docker';
 
@@ -394,5 +396,29 @@ void describe('idle store trim', () => {
       /no image total/,
     );
     assert.equal(e.requests.length, 2);
+  });
+});
+
+// runnerd reads its token to the end of its descriptor 3 (runnerd-token.ts),
+// with the same call as this stand-in, so the supervisor must end it there.
+void describe("runnerd's token", () => {
+  void test('runnerd gets its token on descriptor 3, ended', async () => {
+    const runner = spawn(
+      process.execPath,
+      [
+        '--input-type=module',
+        '--eval',
+        "import { readFileSync } from 'node:fs'; process.stdout.write(JSON.stringify(readFileSync(3, 'utf8')));",
+      ],
+      { stdio: ['ignore', 'pipe', 'inherit', 'pipe'] },
+    );
+    let out = '';
+    runner.stdout?.on('data', (data: Buffer) => {
+      out += data.toString();
+    });
+    handOverToken(runner, 'runnerd-token');
+    const [code] = await once(runner, 'close');
+    assert.equal(code, 0);
+    assert.equal(JSON.parse(out), 'runnerd-token\n');
   });
 });

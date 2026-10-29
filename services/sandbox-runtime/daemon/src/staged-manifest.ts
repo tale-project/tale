@@ -17,14 +17,16 @@
 // clean" when it changed in the second the index was written.
 //
 // The file is the agent's to write like the rest of the workspace, so it is
-// signed with runnerd's token (HMAC-SHA256): one that does not verify — edited,
-// truncated, from another session or an older format — is not used, and the
-// stage falls back to fetching and hashing as before. The token no longer
-// reaches an exec's environment; a process of the session's uid that reads it
-// from runnerd's own /proc environ could still sign a manifest, and then only
-// fool the session about its own staged inputs.
+// signed (HMAC-SHA256) under a key derived from runnerd's token (HKDF-SHA256,
+// labelled with the format): one that does not verify — edited, truncated,
+// from another session or an older format — is not used, and the stage falls
+// back to fetching and hashing as before. No process of the session's uid can
+// learn the token: it is in no exec's environment, nor in runnerd's, which
+// reads it from a descriptor and is not dumpable (runnerd-token.ts). The first
+// format was signed with the token itself while runnerd's /proc environ still
+// held it, so a manifest of that format is never read.
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac, hkdfSync, timingSafeEqual } from 'node:crypto';
 
 /** A staged file's identity when its hash was last verified, as decimal
  * strings: bigint stats do not survive JSON as numbers. */
@@ -44,7 +46,7 @@ export interface StagedSource {
   stat?: StagedStat;
 }
 
-const FORMAT = 'tale-staged-sources-v1';
+const FORMAT = 'tale-staged-sources-v2';
 
 /** A manifest larger than this is not read: at its entry cap it stays near
  * one megabyte. */
@@ -59,14 +61,23 @@ type Entry =
   | [string, string, string]
   | [string, string, string, string, string, string, string, string];
 
-function signature(key: string, entries: string): Buffer {
-  return createHmac('sha256', key).update(`${FORMAT}\n${entries}`).digest();
+/** The manifest's signing key: its own, derived from `secret` (runnerd's
+ * token), never the token itself. */
+function manifestKey(secret: string): Buffer {
+  return Buffer.from(hkdfSync('sha256', secret, '', FORMAT, 32));
 }
 
-/** The manifest as the bytes to write, keyed by workspace-relative path. */
+function signature(secret: string, entries: string): Buffer {
+  return createHmac('sha256', manifestKey(secret))
+    .update(`${FORMAT}\n${entries}`)
+    .digest();
+}
+
+/** The manifest as the bytes to write, keyed by workspace-relative path and
+ * signed under the key `secret` derives. */
 export function encodeStagedManifest(
   sources: Iterable<[string, StagedSource]>,
-  key: string,
+  secret: string,
 ): string {
   const entries: Entry[] = [];
   for (const [path, source] of sources) {
@@ -90,7 +101,7 @@ export function encodeStagedManifest(
   return JSON.stringify({
     format: FORMAT,
     entries,
-    mac: signature(key, body).toString('hex'),
+    mac: signature(secret, body).toString('hex'),
   });
 }
 
@@ -103,13 +114,14 @@ function isStringArray(value: unknown): value is string[] {
 /**
  * The manifest `text` holds, keyed by workspace-relative path, or null when
  * it is not one this runnerd wrote: not JSON, another format, or a signature
- * that does not verify under `key`. An entry out of shape is dropped alone —
- * the signature already vouches for the file, so one odd entry must not cost
- * every other — as is one whose path `accept` says may not be staged.
+ * that does not verify under the key `secret` derives. An entry out of shape
+ * is dropped alone — the signature already vouches for the file, so one odd
+ * entry must not cost every other — as is one whose path `accept` says may
+ * not be staged.
  */
 export function decodeStagedManifest(
   text: string,
-  key: string,
+  secret: string,
   accept: (path: string) => boolean,
 ): Map<string, StagedSource> | null {
   let parsed: unknown;
@@ -132,7 +144,7 @@ export function decodeStagedManifest(
   )
     return null;
   const entries: unknown[] = parsed.entries;
-  const expected = signature(key, JSON.stringify(entries));
+  const expected = signature(secret, JSON.stringify(entries));
   if (!timingSafeEqual(expected, Buffer.from(parsed.mac, 'hex'))) return null;
   const sources = new Map<string, StagedSource>();
   for (const entry of entries) {

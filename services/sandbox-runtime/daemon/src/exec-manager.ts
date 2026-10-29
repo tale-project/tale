@@ -61,12 +61,19 @@ import { Utf8FrameBoundary } from './utf8-frame-boundary.ts';
  * entries, never the blob. */
 const SESSION_ENV_SEED = 'TALE_SESSION_ENV';
 
+/** Where the session's V8 compile cache is (entrypoint.sh), for the execs
+ * alone: runnerd starts without NODE_COMPILE_CACHE, since a process of the
+ * session's uid can write that directory, and compiled code planted there
+ * would run as runnerd, with its token, at runnerd's next start. */
+const EXEC_COMPILE_CACHE = 'TALE_RUNNER_NODE_COMPILE_CACHE';
+
 /**
  * The environment an exec starts from: runnerd's own, less what is runnerd's
- * alone — its auth token and incarnation (`TALE_RUNNERD_*`, names no env
- * patch may set either) and the raw env seed. A harness that prints its
- * environment would otherwise carry the token into the agent's transcript,
- * which the platform stores and the model's provider reads.
+ * alone — its auth token, or the descriptor it came on, and its incarnation
+ * (`TALE_RUNNERD_*`, names no env patch may set either) and the raw env seed —
+ * and with the session's compile cache as NODE_COMPILE_CACHE. A harness that
+ * prints its environment would otherwise carry the token into the agent's
+ * transcript, which the platform stores and the model's provider reads.
  */
 export function execBaseEnv(
   env: NodeJS.ProcessEnv = process.env,
@@ -76,11 +83,14 @@ export function execBaseEnv(
     const upper = name.toUpperCase();
     if (
       upper === SESSION_ENV_SEED ||
+      upper === EXEC_COMPILE_CACHE ||
       RUNNERD_ENV_DENY_PREFIXES.some((prefix) => upper.startsWith(prefix))
     )
       continue;
     base[name] = value;
   }
+  if (env.TALE_RUNNER_NODE_COMPILE_CACHE)
+    base.NODE_COMPILE_CACHE = env.TALE_RUNNER_NODE_COMPILE_CACHE;
   return base;
 }
 

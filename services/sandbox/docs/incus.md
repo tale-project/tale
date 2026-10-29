@@ -165,7 +165,9 @@ client.crt --restricted --projects <project>`. A restricted certificate has
   the node's administrators, are the only readers of the instance config, and
   both can derive or read it anyway; the seed environment, which can carry
   secrets, never touches the config. A standby receives its token in a file
-  (mode 0600, removed on claim) instead.
+  (mode 0600, removed on claim) instead. Inside the instance, the entrypoint
+  moves the token off the environment before anything starts, as on every
+  backend ([sessions.md](sessions.md)).
 - **The network containment is the profile's NIC.** An instance device of the
   profile's NIC name would replace it wholesale (ACL and port isolation with
   it), so the backend never adds a NIC to an instance. Boot refuses a profile

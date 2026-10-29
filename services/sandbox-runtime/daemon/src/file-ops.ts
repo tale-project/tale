@@ -21,6 +21,7 @@ import { basename, join, normalize } from 'node:path';
 import { Readable } from 'node:stream';
 
 import { WORKSPACE_ROOT } from './protocol.ts';
+import { runnerdToken } from './runnerd-token.ts';
 import {
   decodeStagedManifest,
   encodeStagedManifest,
@@ -99,8 +100,10 @@ const STAGED_MANIFEST_PATH = '.runtime/staged-sources.json';
  * when its hash is verified (staged-manifest.ts). */
 const STAGED_STAT_SETTLE_MS = 2_000;
 
-function stagedManifestKey(): string {
-  return process.env.TALE_RUNNERD_TOKEN ?? '';
+/** What the manifest's signing key derives from (staged-manifest.ts):
+ * runnerd's token, empty in the unsigned dev mode, which keeps no manifest. */
+function stagedManifestSecret(): string {
+  return runnerdToken().token;
 }
 
 function sameStat(a: StagedStat | undefined, b: StagedStat | undefined) {
@@ -221,8 +224,8 @@ let stagedManifestLoad: Promise<void> | null = null;
  * is ignored, and staging fetches and hashes as before. */
 function loadStagedManifest(): Promise<void> {
   stagedManifestLoad ??= (async () => {
-    const key = stagedManifestKey();
-    if (key === '') return;
+    const secret = stagedManifestSecret();
+    if (secret === '') return;
     const file = await openWorkspaceFile(STAGED_MANIFEST_PATH);
     if (file === null) return;
     let text: string;
@@ -238,7 +241,7 @@ function loadStagedManifest(): Promise<void> {
       await file.close();
     }
     const root = workspaceRoot();
-    const loaded = decodeStagedManifest(text, key, (path) => {
+    const loaded = decodeStagedManifest(text, secret, (path) => {
       const abs = resolveUnderWorkspace(path);
       return abs !== null && abs === join(root, path);
     });
@@ -269,8 +272,8 @@ function persistStagedManifest(): Promise<void> {
 }
 
 async function writeStagedManifest(): Promise<void> {
-  const key = stagedManifestKey();
-  if (!stagedSourcesDirty || key === '') return;
+  const secret = stagedManifestSecret();
+  if (!stagedSourcesDirty || secret === '') return;
   stagedSourcesDirty = false;
   const root = workspaceRoot();
   const text = encodeStagedManifest(
@@ -278,7 +281,7 @@ async function writeStagedManifest(): Promise<void> {
       abs.slice(root.length + 1),
       source,
     ]),
-    key,
+    secret,
   );
   const abs = join(root, STAGED_MANIFEST_PATH);
   let parent: { handle: FileHandle; path: string } | undefined;
