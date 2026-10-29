@@ -22,3 +22,6 @@ dataResidency: Tu dois disposer des permissions Admin pour accéder aux
 providers:
   Tu dois disposer des permissions Admin ou Développeur pour gérer les
   fournisseurs IA.
+refreshFailed:
+  title: Impossible d’actualiser tes droits d’accès
+  body: Ce que tu vois dépend de ton rôle tel qu’il a été chargé la dernière fois.

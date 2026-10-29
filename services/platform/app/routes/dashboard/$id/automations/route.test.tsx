@@ -74,9 +74,9 @@ describe.each([
     expect(document.title).toBe(documentTitle('automations'));
   });
 
-  // Lowered while the page is open, then a membership refetch fails: the
-  // Member data stays but counts as loading, so the page is held empty.
-  it('keeps the section title from a lowered role through a failed refetch', () => {
+  // Lowered while the page is open, then the membership loads again over the
+  // Member role: that counts as loading, so the page is held empty.
+  it('keeps the section title while a lowered role loads again', () => {
     document.title = 'Private ledger - Acme';
     const { rerender } = render(layoutAs('developer'));
     expect(document.title).toBe('Private ledger - Acme');
