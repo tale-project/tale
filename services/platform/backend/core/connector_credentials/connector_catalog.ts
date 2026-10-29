@@ -62,12 +62,22 @@ interface ConnectorSummary {
     /** What a string value must look like: `email`, a mail address. */
     format?: 'email';
     enum?: string[];
+    /** The select's English label for each `enum` value. */
+    optionLabels?: Record<string, string>;
     integer?: boolean;
     min?: number;
     max?: number;
     default?: string | number | boolean;
-    /** Per-locale label and description, resolved by the form's locale. */
-    i18n?: Record<string, { label?: string; description?: string }>;
+    /** Per-locale label, description and option labels, resolved by the
+     * form's locale. */
+    i18n?: Record<
+      string,
+      {
+        label?: string;
+        description?: string;
+        optionLabels?: Record<string, string>;
+      }
+    >;
   }>;
   actionCount: number;
   iconUrl?: string;
@@ -158,6 +168,9 @@ export function listConnectorSummaries(): ConnectorSummary[] {
           description: field.description,
         }),
         ...(field.enum !== undefined && { enum: field.enum }),
+        ...(field.optionLabels !== undefined && {
+          optionLabels: field.optionLabels,
+        }),
         ...(field.integer !== undefined && { integer: field.integer }),
         ...(field.min !== undefined && { min: field.min }),
         ...(field.max !== undefined && { max: field.max }),
