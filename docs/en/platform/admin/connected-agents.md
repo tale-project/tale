@@ -57,7 +57,7 @@ Allowing anything beyond **Read and test** and **Read settings** needs a sign-in
 
 ## See and disconnect agents
 
-Open **Settings > API > Connected agents**. The page is there once agent sign-in is on and you may connect an agent in this organization, and it stays for anyone who still holds a live connection, so they can end it. The list shows each agent with its name, where it comes from (the domain it proved, or **Unverified**), the access you gave it, when it connected and when it last called, **Never** before the first call. Tale keeps its own record of the calls it answered with that connection, and the time of the last call comes from it, never from what the agent says.
+Open **Settings > API > Connected agents**. The page is there once agent sign-in is on and you may connect an agent in this organization, and it stays for anyone who still holds a live connection, so they can end it. If Tale cannot check this, the page says so and offers **Try again** instead of closing. The list shows each agent with its name, where it comes from (the domain it proved, or **Unverified**), the access you gave it, when it connected and when it last called, **Never** before the first call. Tale keeps its own record of the calls it answered with that connection, and the time of the last call comes from it, never from what the agent says.
 
 <Frame caption="Settings > API > Connected agents — each agent with its access, the day it connected, and when it last called.">
 
