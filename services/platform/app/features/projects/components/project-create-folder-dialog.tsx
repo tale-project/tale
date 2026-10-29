@@ -12,6 +12,10 @@ import { useCreateFolder } from '@/app/features/documents/hooks/mutations';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
+import {
+  FOLDER_NAME_MAX,
+  folderNameSchemaByReason,
+} from '@/lib/shared/utils/folder-name';
 
 interface ProjectCreateFolderDialogProps {
   organizationId: string;
@@ -39,16 +43,39 @@ export function ProjectCreateFolderDialog({
   onOpenChange,
 }: ProjectCreateFolderDialogProps) {
   const { t: tDocuments } = useT('documents');
+  const { t: tCommon } = useT('common');
   const { toast } = useToast();
   const { mutateAsync: createFolder } = useCreateFolder();
 
+  // The server's folder-name rule, checked here so a refused name is named
+  // at the field, by the rule it broke, before any request.
   const nameRequiredError = tDocuments('folder.nameRequired');
+  const nameTooLongError = tCommon('validation.maxLength', {
+    field: tDocuments('folder.folderName'),
+    max: FOLDER_NAME_MAX,
+  });
+  const nameSeparatorError = tDocuments('folder.nameSeparator');
+  const nameControlError = tDocuments('folder.nameControl');
+  const nameDotError = tDocuments('folder.nameDot');
+  const invalidNameError = tDocuments('folder.invalidName');
   const schema = useMemo(
     () =>
       z.object({
-        name: z.string().trim().min(1, nameRequiredError),
+        name: folderNameSchemaByReason({
+          blank: nameRequiredError,
+          too_long: nameTooLongError,
+          separator: nameSeparatorError,
+          control: nameControlError,
+          dot: nameDotError,
+        }),
       }),
-    [nameRequiredError],
+    [
+      nameRequiredError,
+      nameTooLongError,
+      nameSeparatorError,
+      nameControlError,
+      nameDotError,
+    ],
   );
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -58,7 +85,7 @@ export function ProjectCreateFolderDialog({
     defaultValues: { name: '' },
   });
 
-  const { handleSubmit, register, reset, formState } = form;
+  const { handleSubmit, register, reset, setError, formState } = form;
 
   const onSubmit = async (data: FolderFormData) => {
     setIsSubmitting(true);
@@ -75,6 +102,12 @@ export function ProjectCreateFolderDialog({
       reset();
       onOpenChange(false);
     } catch (error) {
+      // The server refuses with a rule, not a reason code: name the whole
+      // rule at the field.
+      if (extractErrorCode(error) === 'FOLDER_NAME_INVALID') {
+        setError('name', { message: invalidNameError });
+        return;
+      }
       console.error('Failed to create project folder:', error);
       const isDuplicate = extractErrorCode(error) === 'FOLDER_NAME_TAKEN';
       toast({

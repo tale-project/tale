@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { validateFolderName } from '../../../backend/domains/folders/paths.ts';
-import { folderNameSchema } from './folder-name.ts';
+import { folderNameSchema, folderNameSchemaByReason } from './folder-name.ts';
 
 const schema = folderNameSchema('Name required', 'Invalid folder name');
 
@@ -40,5 +40,41 @@ describe('folderNameSchema', () => {
     '...',
   ])('shares the server canonical name for %j', (name) => {
     expect(schema.parse(name)).toBe(validateFolderName(name));
+  });
+});
+
+// A dialog that names the rule a name broke (the project's create-folder
+// dialog) reads it from here: one message, for the reason the server
+// refuses the name for.
+describe('folderNameSchemaByReason', () => {
+  const byReason = folderNameSchemaByReason({
+    blank: 'blank',
+    too_long: 'too_long',
+    separator: 'separator',
+    control: 'control',
+    dot: 'dot',
+  });
+
+  it.each([
+    ['  ', 'blank'],
+    ['x'.repeat(129), 'too_long'],
+    ['Reports/2026', 'separator'],
+    ['Reports\\2026', 'separator'],
+    ['Reports\u00002026', 'control'],
+    ['Reports\t2026', 'control'],
+    ['Reports\u007f2026', 'control'],
+    ['.', 'dot'],
+    [' .. ', 'dot'],
+  ])('names the reason the server refuses %j for', (name, reason) => {
+    const result = byReason.safeParse(name);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.map((issue) => issue.message)).toEqual([
+        reason,
+      ]);
+    }
+    expect(() => validateFolderName(name)).toThrow(
+      expect.objectContaining({ reason }),
+    );
   });
 });

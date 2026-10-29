@@ -168,6 +168,9 @@ folder:
   folderName: Ordnername
   folderNamePlaceholder: Ordnername eingeben
   nameRequired: Ordnername ist erforderlich
+  nameSeparator: Ein Ordnername darf keine Schrägstriche enthalten (/ oder \)
+  nameControl: Ein Ordnername darf keine Steuerzeichen wie Tabulatoren enthalten
+  nameDot: Ein Ordnername darf nicht nur aus einem oder zwei Punkten bestehen
   creating: Erstelle...
   created: Ordner erstellt
   createFailed: Ordner konnte nicht erstellt werden

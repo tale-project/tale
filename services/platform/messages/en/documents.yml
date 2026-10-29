@@ -161,6 +161,9 @@ folder:
   folderName: Folder name
   folderNamePlaceholder: Enter folder name
   nameRequired: Folder name is required
+  nameSeparator: A folder name can't contain slashes (/ or \)
+  nameControl: A folder name can't contain control characters, such as a tab
+  nameDot: A folder name can't be just one or two dots
   creating: Creating...
   created: Folder created
   createFailed: Couldn't create folder
