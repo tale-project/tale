@@ -1498,6 +1498,7 @@ dataSubjectRequests:
   sections:
     requestsList:
       title: Demandes
+      refreshFailed: "Impossible de charger les dernières demandes d'effacement. La liste est peut-être incomplète ou obsolète."
       empty:
         title: Aucune demande d'effacement
         description:

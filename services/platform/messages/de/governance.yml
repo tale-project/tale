@@ -1456,6 +1456,7 @@ dataSubjectRequests:
   sections:
     requestsList:
       title: Anfragen
+      refreshFailed: Die neuesten Löschungsanfragen konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
       empty:
         title: Noch keine Löschungsanfragen
         description: Reiche oben eine Anfrage ein, um einen Art.-17-Beleg zu erfassen.

@@ -1411,6 +1411,7 @@ dataSubjectRequests:
   sections:
     requestsList:
       title: Requests
+      refreshFailed: "Couldn't load the latest erasure requests. What's listed may be incomplete or out of date."
       empty:
         title: No erasure requests yet
         description: File a request from the action above to record an Art. 17 receipt.
