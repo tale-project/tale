@@ -156,6 +156,26 @@ describe('buildPersonalNotificationUrl — routing [NOTIF-R3]', () => {
     );
   });
 
+  // The run is where the question is answered; the project the row also
+  // names has no answer card.
+  it('opens the run for a question on a project run with no task', () => {
+    expect(
+      buildPersonalNotificationUrl({
+        organizationId: ORG,
+        params: {
+          name: 'billing/dunning-reminder',
+          question: 'Which invoice should I resend?',
+          askId: 'ask_1',
+          runId: 'run_1',
+          projectId: 'proj_1',
+        },
+        siteUrl: SITE,
+      }),
+    ).toBe(
+      `${SITE}/dashboard/${ORG}/automations/billing__dunning-reminder/runs/run_1`,
+    );
+  });
+
   // Never null: an email that names something the reader cannot reach is
   // the defect. A row with no entity context still gets a way in.
   it('lands on the org dashboard when there is no entity context', () => {

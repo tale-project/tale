@@ -94,11 +94,20 @@ export const PERSONAL_LINK_CASES: Record<
     row: { params: { documentId: 'doc_1' } },
     path: `/dashboard/${ORG}/documents?doc=doc_1`,
   },
-  // The org-scoped shape: no task and no project, so the run is what the
-  // row names. A task-bound or project-bound ask resolves earlier, on the
-  // task and project rows above.
+  // A question on a project's run that works no task: the run, where it is
+  // answered — not the project's board, though the row names the project.
+  // An org-scoped run's row is the same without `projectId`; a task-bound
+  // ask opens its task, like the task rows above.
   agent_escalation: {
-    row: { params: { name: 'billing/dunning-reminder', runId: 'run_1' } },
+    row: {
+      params: {
+        name: 'billing/dunning-reminder',
+        question: 'Which invoice should I resend?',
+        askId: 'ask_1',
+        runId: 'run_1',
+        projectId: 'proj_1',
+      },
+    },
     path: `/dashboard/${ORG}/automations/billing__dunning-reminder/runs/run_1`,
   },
   // The task whose run failed: its run strip says why and offers Retry.

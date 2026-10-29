@@ -118,8 +118,10 @@ export function buildPersonalNotificationUrl(args: {
   if (typeof threadId === 'string' && typeof projectId === 'string') {
     return `${base}/dashboard/${args.organizationId}/projects/${projectId}/tasks`;
   }
-  // An agent escalation on an org-scoped run: no task, no project, but the
-  // row names the run and its automation. Needs BOTH keys.
+  // An agent's question on a run that works no task, in a project or not:
+  // the row names the run and its automation, and the run is where the
+  // question is answered — parity with `personalNotificationTarget`. Needs
+  // BOTH keys.
   const runId = args.params?.runId;
   const automationName = args.params?.name;
   if (typeof runId === 'string' && typeof automationName === 'string') {

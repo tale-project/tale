@@ -221,6 +221,52 @@ describe('personalNotificationTarget', () => {
     });
   });
 
+  // The defect: a question on a project's run with no task opened the
+  // project's board, where no answer card is, while its email opened the run.
+  it('opens the run for a question on a project run with no task [NOTIF-R3]', () => {
+    expect(
+      personalNotificationTarget({
+        organizationId: ORG,
+        taskId: undefined,
+        params: {
+          name: 'billing/dunning-reminder',
+          question: 'Which invoice should I resend?',
+          askId: 'ask_1',
+          runId: 'run_1',
+          projectId: 'proj_xyz',
+        },
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/automations/$automationSlug/runs/$runId',
+      params: {
+        id: ORG,
+        automationSlug: 'billing__dunning-reminder',
+        runId: 'run_1',
+      },
+    });
+  });
+
+  it('opens the task for a question on a run that works one [NOTIF-R3]', () => {
+    expect(
+      personalNotificationTarget({
+        organizationId: ORG,
+        taskId: 'task_abc',
+        params: {
+          name: 'billing/dunning-reminder',
+          question: 'Which invoice should I resend?',
+          askId: 'ask_1',
+          runId: 'run_1',
+          title: 'Resend the March invoice',
+          projectId: 'proj_xyz',
+        },
+      }),
+    ).toEqual({
+      to: '/dashboard/$id/projects/$projectId/tasks',
+      params: { id: ORG, projectId: 'proj_xyz' },
+      search: { task: 'task_abc' },
+    });
+  });
+
   it('opens the General tab of an automation whose schedule paused itself', () => {
     expect(
       personalNotificationTarget({
