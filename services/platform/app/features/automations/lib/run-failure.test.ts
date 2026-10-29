@@ -30,6 +30,7 @@ const SAMPLE: StepFailure['params'] = {
   name: 'nodez',
   callee: 'nodes.fetch.output.items.mapp',
   errorName: 'TypeError',
+  errorCode: '40001',
   detail: 'ENGINE ENGLISH',
   limitMs: 5000,
   kind: 'object',

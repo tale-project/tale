@@ -196,6 +196,67 @@ describe('the connector action seam', () => {
     },
   );
 
+  it('keeps the class of what a native threw, which the door hands on as its cause', async () => {
+    const thrown = Object.assign(
+      new Error(
+        'could not serialize access due to read/write dependencies among transactions',
+      ),
+      { name: 'PostgresError', code: '40001' },
+    );
+    const door = new ConnectorError(
+      'LIVE_BODY_FAILED',
+      `the live task.start_agent call failed: ${thrown.message}`,
+      { connector: 'task', action: 'start_agent', cause: thrown },
+    );
+    runConnectorAction.mockRejectedValueOnce(door);
+    const handler = handlers['connectors/execute_action:runConnectorAction'];
+    if (!handler) throw new Error('no connector handler');
+    const caught = await handler({
+      connector: 'task',
+      action: 'start_agent',
+    }).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(caught).toBeInstanceOf(NodeFailure);
+    const failure = caught as NodeFailure;
+    expect(failure.code).toBe('connector_error');
+    expect(failure.failure).toEqual({
+      reason: 'CONNECTOR_FAILED',
+      params: {
+        connector: 'task',
+        action: 'task.start_agent',
+        errorName: 'PostgresError',
+        errorCode: '40001',
+        detail: door.message,
+      },
+    });
+  });
+
+  it('names the door itself when it refused with nothing thrown beneath', async () => {
+    runConnectorAction.mockRejectedValueOnce(
+      new ConnectorError(
+        'INTERRUPTED',
+        'the call was interrupted because its server is shutting down',
+        { connector: 'task', action: 'start_agent' },
+      ),
+    );
+    const handler = handlers['connectors/execute_action:runConnectorAction'];
+    if (!handler) throw new Error('no connector handler');
+    const caught = await handler({
+      connector: 'task',
+      action: 'start_agent',
+    }).then(
+      () => null,
+      (error: unknown) => error,
+    );
+    expect(caught).toBeInstanceOf(NodeFailure);
+    expect((caught as NodeFailure).failure).toMatchObject({
+      reason: 'CONNECTOR_FAILED',
+      params: { errorName: 'ConnectorError', errorCode: 'INTERRUPTED' },
+    });
+  });
+
   it('lets any other failure through untouched', async () => {
     runConnectorAction.mockRejectedValueOnce(new Error('connection reset'));
     const handler = handlers['connectors/execute_action:runConnectorAction'];

@@ -360,7 +360,11 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         // cause: a usage limit stays `budget_exceeded`, as an llm step's
         // does, and a service that did not answer or was busy is
         // `connector_unavailable` — both may pass at the next occurrence,
-        // where `connector_error` counts toward pausing a schedule.
+        // where `connector_error` counts toward pausing a schedule. A cause
+        // no reason names keeps the class of what the connector's own code
+        // threw, which the dispatcher hands on as the refusal's `cause`: a
+        // native whose transaction lost to another one and a native that
+        // refused the call otherwise read alike without it.
         if (error instanceof ConnectorError) {
           const cause =
             failureCauseOf(error) ??
@@ -368,6 +372,7 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
               error,
               args.connector,
               nodeTypeFor(args.connector, args.action),
+              error.cause ?? error,
             );
           const family = reasonFamily(cause.reason, cause.params);
           throw new NodeFailure(
