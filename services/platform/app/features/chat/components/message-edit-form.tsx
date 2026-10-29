@@ -21,8 +21,9 @@
 
 import { Button } from '@tale/ui/button';
 import { Row, Stack } from '@tale/ui/layout';
+import { useAutoGrow } from '@tale/ui/use-auto-grow';
 import { useImeComposition } from '@tale/ui/use-ime-composition';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 import { hasVisibleText } from '@/lib/shared/utils/visible-text';
@@ -43,15 +44,8 @@ export function MessageEditForm({
   const [submitting, setSubmitting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const { isComposing, compositionProps } = useImeComposition();
-
-  // Grow with the content: height resets so a deleted line shrinks the box
-  // back instead of leaving dead space.
-  const autoResize = useCallback(() => {
-    const el = textareaRef.current;
-    if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${el.scrollHeight}px`;
-  }, []);
+  // Grow with the content, and shrink back when a line is deleted.
+  useAutoGrow(textareaRef, text);
 
   useEffect(() => {
     const el = textareaRef.current;
@@ -60,8 +54,7 @@ export function MessageEditForm({
     // start, or all-selected) invites accidentally retyping the message.
     el.focus();
     el.setSelectionRange(el.value.length, el.value.length);
-    autoResize();
-  }, [autoResize]);
+  }, []);
 
   const trimmed = text.trim();
   const canSend =
@@ -91,10 +84,7 @@ export function MessageEditForm({
         ref={textareaRef}
         {...compositionProps}
         value={text}
-        onChange={(event) => {
-          setText(event.target.value);
-          autoResize();
-        }}
+        onChange={(event) => setText(event.target.value)}
         aria-label={t('editMessage')}
         rows={1}
         onKeyDown={(event) => {
