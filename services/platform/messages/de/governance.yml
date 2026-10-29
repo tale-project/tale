@@ -59,18 +59,22 @@ budgets:
   selectTeam: Team auswählen...
   searchTeams: Teams suchen
   noTeamsFound: Keine Teams gefunden
+  teamsLoadFailed: Teams konnten nicht geladen werden.
   selectTeamAriaLabel: Team auswählen
   project: Projekt
   selectProject: Projekt auswählen...
   searchProjects: Projekte suchen
   noProjectsFound: Keine Projekte gefunden
+  projectsLoadFailed: Projekte konnten nicht geladen werden.
   selectProjectAriaLabel: Projekt auswählen
   projectDeleted: Gelöschtes Projekt
   projectDeletedHint: Dieses Projekt gibt es nicht mehr, darum begrenzt die Regel nichts. Wähle ein Projekt oder entferne die Regel.
+  projectNotLoaded: Projekt nicht geladen
   apiKey: API-Schlüssel
   selectApiKey: API-Schlüssel auswählen...
   searchApiKeys: API-Schlüssel suchen
   noApiKeysFound: Keine API-Schlüssel gefunden
+  apiKeysLoadFailed: API-Schlüssel konnten nicht geladen werden.
   selectApiKeyAriaLabel: API-Schlüssel auswählen
   saved: Budgetregeln aktualisiert
   saveFailed: Budgetregeln konnten nicht gespeichert werden
