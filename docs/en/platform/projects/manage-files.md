@@ -45,6 +45,8 @@ When the tab cannot load the project's files or folders, a notice above the tree
 
 **Try again** repeats only the read that failed, and the tree keeps its expanded and selected folders. If it keeps failing, ask an administrator to check that Tale's services are running.
 
+A file's **Version history** works the same way. If its versions cannot be loaded, the dialog says so and offers **Try again**; versions it already listed stay listed, and the notice says they may be out of date. A link that opens a file's version history directly is kept when the file cannot be looked up: it stays in the address, and the notice above the tree offers **Try again**. Tale says that the file has no version history yet only when the lookup finds no such file.
+
 ## Ask about the files from a project chat
 
 Open **Chats** in this project, start a chat, and ask about the file by name or topic. The assistant can retrieve this project’s files and the organization’s Knowledge documents that you can access. It cannot retrieve another project’s files from here.

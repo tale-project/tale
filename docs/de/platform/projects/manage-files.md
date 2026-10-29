@@ -45,6 +45,8 @@ Kann der Tab die Dateien oder Ordner des Projekts nicht laden, sagt ein Hinweis 
 
 **Erneut versuchen** wiederholt nur den fehlgeschlagenen Abruf; aufgeklappte und ausgewählte Ordner bleiben erhalten. Scheitert es immer wieder, bitte einen Administrator zu prüfen, ob die Dienste von Tale laufen.
 
+Für den **Versionsverlauf** einer Datei gilt dasselbe. Lassen sich ihre Versionen nicht laden, sagt der Dialog das und bietet **Erneut versuchen** an; bereits angezeigte Versionen bleiben aufgeführt, und der Hinweis sagt, dass sie veraltet sein können. Ein Link, der den Versionsverlauf einer Datei direkt öffnet, geht nicht verloren, wenn Tale die Datei nicht abrufen kann: Er bleibt in der Adresse, und der Hinweis über dem Dateibaum bietet **Erneut versuchen** an. Dass es für die Datei noch keinen Versionsverlauf gibt, meldet Tale nur, wenn der Abruf keine solche Datei findet.
+
 ## Im Projektchat nach Dateien fragen
 
 Öffne **Chats** in diesem Projekt, starte ein Gespräch und frage nach Dateiname oder Thema. Der Assistent kann Dateien dieses Projekts und zugängliche Dokumente der Wissensbibliothek abrufen. Dateien anderer Projekte erreicht er von hier aus nicht.
