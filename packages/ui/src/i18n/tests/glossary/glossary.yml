@@ -508,8 +508,9 @@ terms:
     en: Canvas
     fr: Canevas
     _note:
-      Capitalised when naming the feature; lowercase in prose. Matches UI label
-      `chat.canvas.title`. Loanword in DE; calqued in FR.
+      Capitalised when naming the feature; lowercase in prose. Matches the
+      automation view label `automations.canvas.view.canvas` (FR `Canevas`).
+      Loanword in DE; calqued in FR.
   - key: feature_composer
     category: feature
     en: Composer

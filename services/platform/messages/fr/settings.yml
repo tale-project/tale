@@ -872,7 +872,7 @@ enterpriseSso:
       groupsNote: "Remarque : l'OIDC standard de Google ne renvoie pas les
         appartenances aux groupes — la synchronisation groupe→équipe
         nécessite l'Admin SDK / l'API Cloud Identity avec un administrateur
-        Workspace. Les autres fournisseurs OIDC (Okta, Auth0, Keycloak)
+        Google Workspace. Les autres fournisseurs OIDC (Okta, Auth0, Keycloak)
         fonctionnent de la même manière : saisissez l'URL de l'émetteur et
         les identifiants client."
     oauth2:
