@@ -1,8 +1,11 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { loadDayjsLocale } from '@tale/ui/date';
 import type { MouseEventHandler, ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { i18n } from '@/lib/i18n/i18n';
+import { forgetSavedLocale, saveLocale } from '@/tests/utils/lapsed-session';
 import { act, render, screen } from '@/tests/utils/render';
 
 import { NotificationListPanel } from './notification-list-panel';
@@ -40,6 +43,7 @@ interface MockNotification {
   _id: string;
   createdAt: number;
   read: boolean;
+  taskId?: string;
   titleKey: string;
   bodyKey: string;
   params?: Record<string, unknown>;
@@ -545,6 +549,80 @@ describe('NotificationListPanel', () => {
         screen.queryByRole('link', { name: /^Open / }),
       ).not.toBeInTheDocument();
     });
+  });
+
+  describe('a task status change (#3634)', () => {
+    // The row stores the board's status ids; the reader sees the labels the
+    // task controls show, in their own language — never `in_progress`.
+    const statusChange = (
+      id: string,
+      extra: Record<string, unknown>,
+    ): MockNotification => ({
+      _id: id,
+      createdAt: 1000,
+      read: false,
+      taskId: 'task-1',
+      titleKey: 'taskStatusChanged',
+      bodyKey:
+        'actor' in extra ? 'taskStatusChangedByBody' : 'taskStatusChangedBody',
+      params: {
+        title: 'Proof task',
+        projectId: 'project-1',
+        from: 'in_progress',
+        to: 'in_review',
+        ...extra,
+      },
+    });
+
+    // The panel is still mounted when the language goes back to English.
+    afterEach(() => act(forgetSavedLocale));
+
+    it.each([
+      {
+        locale: 'en',
+        title: 'Task status changed',
+        byActor: 'Robin moved "Proof task" from In progress to In review.',
+        impersonal: '"Proof task" moved from In progress to In review.',
+      },
+      {
+        locale: 'de',
+        title: 'Aufgabenstatus geändert',
+        byActor:
+          'Robin hat "Proof task" von In Bearbeitung nach In Prüfung verschoben.',
+        impersonal: '"Proof task" wechselte von In Bearbeitung zu In Prüfung.',
+      },
+      {
+        locale: 'fr',
+        title: 'Statut de tâche modifié',
+        byActor:
+          'Robin a fait passer «\u00a0Proof task\u00a0» de En cours à En revue.',
+        impersonal:
+          '«\u00a0Proof task\u00a0» est passée de En cours à En revue.',
+      },
+    ] as const)(
+      'names both statuses by their task labels ($locale)',
+      async ({ locale, title, byActor, impersonal }) => {
+        saveLocale(locale);
+        await i18n.changeLanguage(locale);
+        // The app's shell loads the language's dates on mount (`onChange:
+        // loadDayjsLocale` in `main.tsx`); the test shell does not.
+        await loadDayjsLocale(locale);
+        streamState.myResults = [
+          statusChange('by-actor', { actor: 'Robin' }),
+          statusChange('impersonal', {}),
+        ];
+        renderPanel();
+        expect(screen.getAllByText(title)).toHaveLength(2);
+        for (const body of [byActor, impersonal]) {
+          expect(
+            screen.getByText(
+              (_content, element) => element?.textContent === body,
+            ),
+          ).toBeInTheDocument();
+        }
+        expect(document.body).not.toHaveTextContent(/in_progress|in_review/);
+      },
+    );
   });
 
   describe('combined load-more', () => {
