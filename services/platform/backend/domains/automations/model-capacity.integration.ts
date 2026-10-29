@@ -85,16 +85,18 @@ export async function checkWorkflowModelCapacityRetry(
     if (handler === undefined) throw new Error(`no handler for ${queue}`);
     return handler;
   };
-  for (const queue of QUEUES) {
-    await boss.offWork(physicalTaskQueue(queue), { wait: true });
-  }
-  setAutomationAgentHostFactory((hostCtx, organizationId) =>
-    automationAgentHost(hostCtx, organizationId, {
-      resolveServing: async () => SERVING,
-    }),
-  );
+  const fenced: Array<(typeof QUEUES)[number]> = [];
   const runIds: string[] = [];
   try {
+    for (const queue of QUEUES) {
+      await boss.offWork(physicalTaskQueue(queue), { wait: true });
+      fenced.push(queue);
+    }
+    setAutomationAgentHostFactory((hostCtx, organizationId) =>
+      automationAgentHost(hostCtx, organizationId, {
+        resolveServing: async () => SERVING,
+      }),
+    );
     await checkRows(sql, ctx, record, runIds, {
       step: handlerOf('automation.step'),
       start: handlerOf('automation.agent_turn'),
@@ -127,7 +129,7 @@ export async function checkWorkflowModelCapacityRetry(
         `;
       });
     } finally {
-      for (const queue of QUEUES) {
+      for (const queue of fenced) {
         await startWorker({
           boss,
           concurrency: 4,
