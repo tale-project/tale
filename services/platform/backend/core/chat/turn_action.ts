@@ -202,6 +202,16 @@ function settleToolCalls(
   });
 }
 
+/** Whether the drafts hold anything the model wrote: a tool's name, or bytes
+ * of its arguments. A fragment that carries only the provider's id or index,
+ * or nothing at all, is bookkeeping, not an answer. */
+function toolCallBegun(drafts: ReadonlyMap<number, ToolCallDraft>): boolean {
+  for (const draft of drafts.values()) {
+    if (draft.name.length > 0 || draft.argumentsJson.length > 0) return true;
+  }
+  return false;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -261,7 +271,10 @@ function streamFailureError(failure: StreamFailure): Error {
  * every read races it, so a provider that stops sending ends the round with
  * the guard's error even where the runtime would leave the read pending. A
  * failure the provider reports on the stream itself ends the round with its
- * words ({@link streamFailureError}), whatever had streamed before it. */
+ * words ({@link streamFailureError}), whatever had streamed before it. A tool
+ * call is handed on whole, on the settle chunk; that the model began one is
+ * said once, as soon as it shows (`toolCallStarted`), so a round that fails
+ * before its settle still reads as answered. */
 export async function* streamSse(
   response: Response,
   dialect: StreamDialect,
@@ -281,6 +294,8 @@ export async function* streamSse(
   /** Where the answer is served, as the body has said so far — reported
    * when it changes, not on every chunk that repeats it. */
   let served: ServedBy | undefined;
+  /** The model began a tool call on this stream, and a chunk said so. */
+  let toolCallStarted = false;
   const stalled = stall === undefined ? undefined : rejectOnAbort(stall.signal);
 
   while (true) {
@@ -357,6 +372,13 @@ export async function* streamSse(
       const said = mergeServedBy(served, readServedBy(dialect, event));
       const serving = sameServedBy(said, served) ? undefined : said;
       served = said;
+      // The first event that gives a tool call its name or argument bytes
+      // says so at once: the call runs only from the settle chunk, whole,
+      // and a failure before then would otherwise leave the round looking
+      // unanswered. The failure event's own fragments never count — it is
+      // read for its usage alone.
+      const startsToolCall = !toolCallStarted && toolCallBegun(state.drafts);
+      if (startsToolCall) toolCallStarted = true;
       // A usage frame is yielded the moment it arrives, not only on the
       // settle chunk below: a stream cut by a cancel never reaches the
       // settle, and the counts it had already reported must survive.
@@ -364,13 +386,15 @@ export async function* streamSse(
         text.length > 0 ||
         reasoning !== undefined ||
         usage !== undefined ||
-        serving !== undefined
+        serving !== undefined ||
+        startsToolCall
       ) {
         yield {
           text,
           ...(reasoning !== undefined ? { reasoning } : {}),
           ...(usage !== undefined ? { usage } : {}),
           ...(serving !== undefined ? { serving } : {}),
+          ...(startsToolCall ? { toolCallStarted: true } : {}),
         };
       }
     }
