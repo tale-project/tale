@@ -530,7 +530,8 @@ history:
   versionsLabel: Versions
   currentBadge: Current
   loading: Loading versions…
-  loadFailed: Couldn't load version history
+  loadFailed: Couldn't load the version history.
+  refreshFailed: Couldn't refresh the version history. The versions shown may be out of date.
   empty: No stored versions for this file.
   singleVersion: Only the current version is stored — revise the file to build history.
   selectTwo: Select two versions
