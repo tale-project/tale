@@ -68,6 +68,13 @@ export interface Term {
    * reports them case-insensitively wherever it enforces the term.
    */
   readonly _avoid?: Partial<Record<string, ReadonlyArray<string>>>;
+  /**
+   * Names that contain the term's `en` form, or an `_avoid` name, yet name
+   * something else, such as another vendor's product (`Google Workspace`).
+   * `terminology-ui-label` skips a match that lies inside one of them, and
+   * still reports the same word anywhere else in that locale's text.
+   */
+  readonly _allow?: Partial<Record<string, ReadonlyArray<string>>>;
   readonly _note?: string;
 }
 

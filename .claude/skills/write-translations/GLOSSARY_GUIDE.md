@@ -23,7 +23,10 @@ A walkthrough must name the control the reader sees. If the glossary disagrees w
 label, verify the intended owner and correct the catalog/glossary/docs together where authorized.
 Use `_lintExclude` only for a specific locale and documented mismatch that cannot be resolved in
 the current change. Explain why and what would remove the exception in `_note`; do not invent a
-future date or promise a follow-up that has no owner.
+future date or promise a follow-up that has no owner. When a locale uses the English word only
+inside another name, such as Google's product `Google Workspace`, list that name under the term's
+`_allow` for that locale instead: `terminology-ui-label` then still reports the word everywhere
+else in the locale.
 
 A glossary exception does not exempt untranslated prose, missing ICU arguments, or factual drift.
 Run the relevant terminology tests and inspect affected uses in context. Patterns for shared

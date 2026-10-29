@@ -489,7 +489,20 @@ terms:
     en: Workspace
     de: Arbeitsbereich
     fr: Espace de travail
-    _note: One word in EN.
+    _allow:
+      de:
+        - Google Workspace
+        - Google-Workspace
+        - Chat-Workspace
+      fr:
+        - Google Workspace
+    _note: 'One word in EN. A Tale workspace is `Arbeitsbereich` in DE and
+      `Espace de travail` in FR, in every UI string. `_allow` lists the names
+      that only contain the word: Google''s product (`Google Workspace`,
+      hyphenated in a DE compound such as the `Google-Workspace-Administrator`
+      of `settings.enterpriseSso.guide.google.groupsNote`) and the workspace
+      of an outside chat app (DE `Chat-Workspace`,
+      `emptyStates.connectors.description`).'
   - key: feature_canvas
     category: feature
     en: Canvas

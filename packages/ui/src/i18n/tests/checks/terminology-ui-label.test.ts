@@ -425,4 +425,93 @@ describe('terminology UI labels', () => {
       }),
     ).toEqual([]);
   });
+
+  // #4484: Google's product and a chat app's workspace keep the English
+  // word, while a Tale workspace is an `Arbeitsbereich`.
+  it('skips a match inside an allowed name of its locale only', () => {
+    const findings = terminologyUiLabel.run(
+      context(
+        [
+          {
+            key: 'workspace',
+            category: 'feature',
+            en: 'Workspace',
+            de: 'Arbeitsbereich',
+            fr: 'Espace de travail',
+            _allow: { de: ['Google Workspace', 'Chat-Workspace'] },
+          },
+        ],
+        {
+          de: [
+            'Melde dich bei Google Workspace an und verbinde einen Chat-Workspace.',
+            'Der Workspace-Administrator verwaltet Google Workspace und den Workspace.',
+          ].join('\n'),
+          fr: 'Un administrateur Google Workspace.',
+        },
+      ),
+    );
+    expect(
+      findings.map(({ locale, line, column }) => ({ locale, line, column })),
+    ).toEqual([
+      { locale: 'de', line: 2, column: 5 },
+      { locale: 'de', line: 2, column: 64 },
+      { locale: 'fr', line: 1, column: 26 },
+    ]);
+  });
+
+  it('skips a non-shipped name inside an allowed name', () => {
+    const findings = terminologyUiLabel.run(
+      context(
+        [
+          {
+            key: 'workspace',
+            category: 'feature',
+            en: 'Workspace',
+            de: 'Arbeitsbereich',
+            _avoid: { de: ['workspace'] },
+            _allow: { de: ['Google Workspace'] },
+          },
+        ],
+        { de: 'Ein Google Workspace ist kein workspace.' },
+      ),
+    );
+    expect(findings.map(({ column, rule }) => ({ column, rule }))).toEqual([
+      { column: 31, rule: 'ui-label-non-shipped' },
+    ]);
+  });
+
+  const shippedWorkspace = (texts: Record<string, string>) =>
+    terminologyUiLabel
+      .run(context(null, texts))
+      .filter(({ detail }) => detail.includes('UI-label term "Workspace"'))
+      .map(({ locale, line, column }) => ({ locale, line, column }));
+
+  it('keeps the Google Workspace and chat workspace names that ship', () => {
+    expect(
+      shippedWorkspace({
+        de: [
+          'Die Synchronisierung benötigt einen Google-Workspace-Administrator.',
+          'Melde dich mit deinem Konto bei Google Workspace an.',
+          'Verbinde ein Postfach, ein Repository oder einen Chat-Workspace.',
+        ].join('\n'),
+        fr: 'Elle nécessite un administrateur Google Workspace.',
+      }),
+    ).toEqual([]);
+  });
+
+  it('rejects a Tale workspace under its English name', () => {
+    expect(
+      shippedWorkspace({
+        de: [
+          'Dieser Workspace existiert nicht.',
+          'Bitte einen Workspace-Administrator um Zugriff.',
+        ].join('\n'),
+        fr: 'Ce Workspace n’existe pas.',
+      }),
+    ).toEqual([
+      { locale: 'de', line: 1, column: 8 },
+      { locale: 'de', line: 2, column: 13 },
+      { locale: 'fr', line: 1, column: 4 },
+    ]);
+  });
 });
