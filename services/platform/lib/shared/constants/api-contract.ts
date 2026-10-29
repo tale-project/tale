@@ -870,5 +870,14 @@
  * connector calls through the sandbox bridge act as it too; a pin whose
  * credential is gone hands it nothing and fails those calls. The MCP
  * `list_connectors` tool names that host as `gitHost`.
+ *
+ * 3.50.0 — 2026-10-29: the MCP endpoint answers `DATABASE_UNAVAILABLE`, as
+ * the REST API has since 2.2.0, while the platform's database restarts or
+ * cannot be reached: a tool call is a tool result with that code and
+ * `data.retryAfterMs` (5000, the REST API's `Retry-After`) — `apply_settings`
+ * beside what landed, failed and was skipped — and a resource read or a
+ * prompt is a JSON-RPC -32603 with `data.code` and `data.retryAfterMs`.
+ * Such a call used to answer `INTERNAL_ERROR` (a read, -32603 with that
+ * code); it now counts as a refusal, not a failure. Wait and call again.
  */
-export const API_CONTRACT_VERSION = '3.49.0';
+export const API_CONTRACT_VERSION = '3.50.0';

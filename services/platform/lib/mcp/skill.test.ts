@@ -101,6 +101,7 @@ describe('the Tale skill', () => {
     const sources = [
       '../engine/api/dispatch.ts',
       '../../backend/domains/mcp/tools.ts',
+      '../../backend/domains/mcp/refusals.ts',
       '../../backend/domains/automations/store.ts',
       '../../backend/domains/mcp/settings/apply.ts',
       '../../backend/domains/mcp/settings/secrets.ts',

@@ -740,8 +740,9 @@ function notSupported(what: string): {
  * Anything that is not a refusal (`refusal.ts`) is a FAULT and is thrown
  * on: a store whose database is unreachable must not answer the socket's
  * sentence as a refusal. The host answers a fault its own way — the MCP
- * endpoint as `INTERNAL_ERROR` with the request id, logged and reported;
- * the app's routes as their 500.
+ * endpoint as `INTERNAL_ERROR` with the request id, logged and reported, or
+ * as `DATABASE_UNAVAILABLE` with the wait when the database is not
+ * answering; the app's routes as their 500, or their 503.
  */
 function refusalFrom(error: unknown): {
   error: string;

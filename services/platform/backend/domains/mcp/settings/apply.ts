@@ -17,6 +17,7 @@
 import { reportError } from '../../../error-reporting.ts';
 import { currentRequestChannel } from '../../../lib/request-channel.ts';
 import {
+  databaseUnavailableRefusal,
   MAX_ARGUMENT_ISSUES,
   type McpRefusal,
   refusalFromThrown,
@@ -119,16 +120,19 @@ function stopped(
   };
 }
 
+/** The id of the request this call came in, for the agent to quote. */
+function requestIdOf(ctx: SettingsContext): string | null {
+  return currentRequestChannel()?.requestId ?? ctx.caller.requestId ?? null;
+}
+
 /** What an agent hears of a writer that failed unexpectedly: that it did,
  * and the request id to quote — nothing of the error itself. */
 function fault(ctx: SettingsContext, at: PreparedChange): McpRefusal {
-  const requestId =
-    currentRequestChannel()?.requestId ?? ctx.caller.requestId ?? null;
   return {
     error: `changing ${at.planned.key} failed unexpectedly`,
     code: 'INTERNAL_ERROR',
     hint: 'read what landed with get_settings before trying again; if it keeps failing, give data.requestId to whoever runs this Tale',
-    data: { requestId },
+    data: { requestId: requestIdOf(ctx) },
   };
 }
 
@@ -232,7 +236,16 @@ export async function applySettings(
       applied.push({ ...entryOf(entry), action: planned.action, hash });
     } catch (error) {
       const rest = ordered.slice(position + 1);
-      const refusal = refusalFromThrown(error);
+      // A database that is not answering stops here too, after what landed:
+      // a wait, never a fault.
+      const refusal =
+        refusalFromThrown(error) ??
+        databaseUnavailableRefusal(
+          error,
+          `changing ${planned.key}`,
+          'read what landed with get_settings before applying again',
+          requestIdOf(ctx),
+        );
       if (refusal === null) {
         console.error(
           `[mcp] settings: writing ${planned.key} failed unexpectedly:`,

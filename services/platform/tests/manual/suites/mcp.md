@@ -1,6 +1,6 @@
 # MCP
 
-> **Prefix** `MCP-` · **Reset** none · **Cost** 16 boxes
+> **Prefix** `MCP-` · **Reset** none · **Cost** 18 boxes
 
 Exercise Tale's MCP endpoint, `/api/v1/mcp`, from a real coding agent: connecting a client with an
 API key and working in the organization through it. A person drives the agent in a terminal beside
@@ -188,6 +188,21 @@ password policy; put both back by hand afterwards if the organization is shared.
   carries a secret, naming the field and never repeating the key; a reload of the Guardrails page
   shows the system prompt unchanged, and searching **Settings > Governance > Logs** for `sk-test`
   finds nothing.
+
+## While the database restarts
+
+- [ ] `MCP-B3` · **A database restart is a wait the agent can read** — With `MCP-F1`'s key, start
+  a loop that calls `list_automations` four times a second (`while true; do curl -s -H
+  'Authorization: Bearer <key>' -H 'Content-Type: application/json' -H 'Accept: application/json,
+  text/event-stream' -d
+  '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"list_automations","arguments":{}}}'
+  {SITE_URL}/api/v1/mcp; echo; sleep 0.25; done`), then run `docker compose restart db` and wait
+  until it reports healthy → no answer carries `INTERNAL_ERROR`: a call the restart caught answers
+  either the door's `503` `DATABASE_UNAVAILABLE` or a tool result flagged `isError` whose code is
+  `DATABASE_UNAVAILABLE` with a `retryAfterMs` of 5000, and the loop lists the automations again
+  once the database is back; the `backend-api` log has `[mcp] database unavailable —
+  list_automations …` warnings and no `[mcp] list_automations failed` line, and with `SENTRY_DSN`
+  set no event arrives for the restart.
 
 ## What the organization sees
 

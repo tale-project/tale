@@ -370,4 +370,51 @@ describe('resources/read [MCP-R24]', () => {
     // The record never holds the address it read.
     expect(JSON.stringify(observe.mock.calls)).not.toContain('tale://runs/r');
   });
+
+  it('answers a read while the database restarts -32603 with the wait, never as not found [MCP-R43]', async () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const observe = vi.fn<NonNullable<McpRequestOptions['observe']>>(
+        async () => {},
+      );
+      const engine = vi.fn<Engine>(async () => {
+        throw Object.assign(
+          new Error('terminating connection due to administrator command'),
+          { code: '57P01' },
+        );
+      });
+      const { error } = await rpc(
+        engine,
+        'resources/read',
+        { uri: 'tale://runs/run_1' },
+        { observe },
+      );
+      expect(error).toEqual({
+        code: -32603,
+        message:
+          'Internal error: get_run could not reach the platform’s database, which is not answering right now — it may be restarting; retry in 5 s',
+        data: {
+          uri: 'tale://runs/run_1',
+          code: 'DATABASE_UNAVAILABLE',
+          hint: 'wait data.retryAfterMs, then call again',
+          retryAfterMs: 5000,
+          requestId: 'req_res_1',
+        },
+      });
+      expect(observe).toHaveBeenCalledWith(
+        expect.objectContaining({
+          method: 'resources/read',
+          outcome: 'refused',
+          code: '-32603',
+        }),
+      );
+      const listed = await rpc(engine, 'resources/list');
+      expect(listed.error).toMatchObject({
+        code: -32603,
+        data: { code: 'DATABASE_UNAVAILABLE', retryAfterMs: 5000 },
+      });
+    } finally {
+      warned.mockRestore();
+    }
+  });
 });
