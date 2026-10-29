@@ -12,6 +12,10 @@ describe('mirrorMessage', () => {
   it.each([
     ['en', '"Compare the offers" moved from In progress to In review.'],
     ['de', '"Compare the offers" wechselte von In Bearbeitung zu In Prüfung.'],
+    [
+      'fr',
+      '«\u00a0Compare the offers\u00a0» est passée de En cours à En revue.',
+    ],
   ])(
     'names a status change’s columns as the board does (%s)',
     (locale, text) => {
