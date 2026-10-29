@@ -133,9 +133,6 @@ export interface TaskBoardDnd {
   columns: TaskColumns;
   byId: Map<string, TaskRow>;
   activeId: string | null;
-  /** Keep the source mounted until dnd-kit restores keyboard focus after a
-   * drop or cancel, including when a lane change remounted its title. */
-  pinnedTaskId: string | null;
   activeTask: TaskRow | null;
   sensors: ReturnType<typeof useSensors>;
   collisionDetection: CollisionDetection;
@@ -186,19 +183,6 @@ export function useTaskBoardDnd(
     options,
   );
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [pinnedTaskId, setPinnedTaskId] = useState<string | null>(null);
-  const [pendingChoreographies, setPendingChoreographies] = useState(0);
-  useEffect(() => {
-    if (activeId !== null || pinnedTaskId === null || pendingChoreographies > 0)
-      return undefined;
-    // dnd-kit's focus restoration runs on the next animation frame. Retain
-    // the newly registered source until the following frame; its focus pin
-    // then takes over in the windowed list.
-    let frame = requestAnimationFrame(() => {
-      frame = requestAnimationFrame(() => setPinnedTaskId(null));
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [activeId, pinnedTaskId, pendingChoreographies]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, POINTER_SENSOR_OPTIONS),
@@ -234,7 +218,6 @@ export function useTaskBoardDnd(
   const onDragStart = useCallback((event: DragStartEvent) => {
     draggingRef.current = true;
     setActiveId(String(event.active.id));
-    setPinnedTaskId(String(event.active.id));
   }, []);
 
   const onDragOver = useCallback(
@@ -331,13 +314,10 @@ export function useTaskBoardDnd(
       // 'handled' → the stop already landed it at this placement, or the
       // workflow drives the status (keep the optimistic placement);
       // 'blocked' → snap the card back where it came from.
-      setPendingChoreographies((count) => count + 1);
-      void choreograph(row, container, placement)
-        .then((outcome) => {
-          if (outcome === 'move') move();
-          else if (outcome === 'blocked') setColumns(columnsFromProps);
-        })
-        .finally(() => setPendingChoreographies((count) => count - 1));
+      void choreograph(row, container, placement).then((outcome) => {
+        if (outcome === 'move') move();
+        else if (outcome === 'blocked') setColumns(columnsFromProps);
+      });
     },
     [byId, choreograph, columnsFromProps, moveTask, setColumns],
   );
@@ -433,7 +413,6 @@ export function useTaskBoardDnd(
     columns,
     byId,
     activeId,
-    pinnedTaskId,
     activeTask,
     sensors,
     collisionDetection,
