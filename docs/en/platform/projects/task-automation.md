@@ -20,7 +20,7 @@ A project agent works on a task and returns a result for review. Choose its assi
 
 Assignment alone does not start execution. A task may remain assigned in **Backlog** while the team decides whether to proceed; until someone starts it, whoever can start the agent sees **Start agent** on the task with the note **The agent waits until you start it.** When started, the agent uses the task description, comments, and input files in its sandbox. Its run card shows whether it is queued or working. A run a Member starts keeps to its task and goes without the agent's secrets; [Agent runs a Member starts](/platform/projects/tasks#agent-runs-a-member-starts) lists what changes.
 
-Agents are instructed to keep task updates, reports, related tasks and questions in the language of the task's title and description. If those do not establish a language, they use the organization's default agent language. An identifier, quarter or generated title template does not choose a language. Changing your interface language does not change the task's language; an explicit request to the agent can.
+Agents are instructed to keep task updates, reports, related tasks and questions in the language of the task's title and description. If those do not establish a language, they use the organization's [default agent language](/platform/admin/organization#default-language). An identifier, quarter or generated title template does not choose a language. Changing your interface language does not change the task's language; an explicit request to the agent can.
 
 Workflow progress comments can carry translations for each supported interface language. The same saved comment then follows the reader's language selection. Comments without translations retain their original text.
 

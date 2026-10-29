@@ -1,6 +1,6 @@
 # Organizations — who is offered a new organization, and what deleting one does
 
-> **Prefix** `ORG-`
+> **Prefix** `ORG-` · **Docs** [`admin/organization`](../../../../../docs/en/platform/admin/organization.md)
 
 An organization is the space a team works in: its members, projects, knowledge and settings.
 These rules cover who is offered a new organization, who can delete one and what a delete
