@@ -22,6 +22,15 @@ const launcher = resolve(import.meta.dir, '../../tale-playwright-mcp');
 const python = Bun.which('python3') ?? 'python3';
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
+// The runner's environment, less the launcher's and the server's own settings:
+// a developer who exports one (TALE_PLAYWRIGHT_MCP_EAGER=1, PLAYWRIGHT_MCP_CAPS,
+// a PLAYWRIGHT_BROWSERS_PATH of their own) would otherwise see these tests fail.
+const runnerEnv = Object.fromEntries(
+  Object.entries(process.env).filter(
+    ([key]) => !/^(TALE_)?PLAYWRIGHT_MCP_|^PLAYWRIGHT_BROWSERS_PATH$/.test(key),
+  ),
+);
+
 describe('headless Playwright MCP launcher', () => {
   const bin = join(dir, 'echo-bin');
   mkdirSync(bin);
@@ -37,7 +46,7 @@ describe('headless Playwright MCP launcher', () => {
       ['-Es', launcher, '--headless', '--browser', 'chromium'],
       {
         env: {
-          ...process.env,
+          ...runnerEnv,
           PATH: bin,
           HTTPS_PROXY: proxy,
           NO_PROXY: bypass,
@@ -77,7 +86,7 @@ describe('headless Playwright MCP launcher', () => {
   test('runs through its own interpreter line', () => {
     const result = spawnSync(launcher, ['--headless'], {
       env: {
-        ...process.env,
+        ...runnerEnv,
         PATH: `${bin}:${process.env.PATH ?? ''}`,
         HTTPS_PROXY: '',
         NO_PROXY: '',
@@ -151,7 +160,7 @@ describe('the start of a turn without the server', () => {
     mode: 0o755,
   });
   const baseEnv = {
-    ...process.env,
+    ...runnerEnv,
     PATH: `${bin}:${process.env.PATH ?? ''}`,
     TALE_PLAYWRIGHT_MCP_MANIFESTS: manifests,
     STAND_IN_LOG: standInLog,
