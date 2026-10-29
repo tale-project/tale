@@ -310,6 +310,106 @@ describe('StallWatch', () => {
     expect(stalled).toEqual([]);
   });
 
+  test('a host that slept is no quiet time: the window starts again when it wakes', async () => {
+    const { watch, stalled, advance } = harness({
+      stallMs: DEFAULT_EXEC_STALL_MS,
+    });
+    using _ = watch;
+    watch.watch('e1', () => ({ groupId: 10 }));
+    // Ten quiet minutes, sampled once a minute; then the host sleeps for an
+    // hour, and the first round after it comes an hour after the one before.
+    for (let round = 0; round < 10; round += 1) {
+      advance(60_000);
+      await watch.sample();
+    }
+    advance(60 * 60_000);
+    await watch.sample();
+    expect(stalled).toEqual([]);
+    // Awake, quiet and idle, it is ended once a whole window has been
+    // watched since.
+    for (let round = 0; round < 44; round += 1) {
+      advance(60_000);
+      await watch.sample();
+    }
+    expect(stalled).toEqual([]);
+    advance(60_000);
+    await watch.sample();
+    expect(stalled).toEqual(['e1']);
+  });
+
+  test('measures on the monotonic clock: a step of the wall clock is no quiet time', async () => {
+    let wall = Date.now();
+    let monotonic = 0;
+    const clocks = [
+      spyOn(Date, 'now').mockImplementation(() => wall),
+      spyOn(performance, 'now').mockImplementation(() => monotonic),
+    ];
+    try {
+      const stalled: string[] = [];
+      // On the watch's own clock and interval, as runnerd runs it.
+      using watch = new StallWatch(
+        DEFAULT_EXEC_STALL_MS,
+        (execId) => stalled.push(execId),
+        {
+          readTable: async () => [proc(10, 1, 10)],
+          readEngineUsec: async () => null,
+        },
+      );
+      watch.watch('e1', () => ({ groupId: 10 }));
+      for (let minute = 1; minute <= 45; minute += 1) {
+        // The wall clock steps an hour ahead after the first minute.
+        if (minute === 2) wall += 60 * 60_000;
+        monotonic += 60_000;
+        await watch.sample();
+      }
+      expect(stalled).toEqual([]);
+      monotonic += 60_000;
+      await watch.sample();
+      expect(stalled).toEqual(['e1']);
+    } finally {
+      for (const clock of clocks) clock.mockRestore();
+    }
+  });
+
+  test('a round three intervals after the one before is no sleep', async () => {
+    const { watch, stalled, advance } = harness({
+      stallMs: DEFAULT_EXEC_STALL_MS,
+    });
+    using _ = watch;
+    watch.watch('e1', () => ({ groupId: 10 }));
+    // Once a minute, but no round at minutes 20 and 21: the window keeps
+    // its samples, and the exec ends when it would have anyway.
+    for (let minute = 1; minute <= 45; minute += 1) {
+      advance(60_000);
+      if (minute !== 20 && minute !== 21) await watch.sample();
+    }
+    expect(stalled).toEqual([]);
+    advance(60_000);
+    await watch.sample();
+    expect(stalled).toEqual(['e1']);
+  });
+
+  test('rounds that cannot read the process table are no sleep', async () => {
+    let readable = true;
+    const { watch, stalled, advance } = harness({
+      stallMs: DEFAULT_EXEC_STALL_MS,
+      table: () => (readable ? [proc(10, 1, 10)] : null),
+    });
+    using _ = watch;
+    watch.watch('e1', () => ({ groupId: 10 }));
+    // Ten rounds read no table; the next one reads the CPU counters whole,
+    // so the window keeps its samples.
+    for (let minute = 1; minute <= 45; minute += 1) {
+      advance(60_000);
+      readable = minute < 20 || minute >= 30;
+      await watch.sample();
+    }
+    expect(stalled).toEqual([]);
+    advance(60_000);
+    await watch.sample();
+    expect(stalled).toEqual(['e1']);
+  });
+
   test('an ended exec and a window of 0 are not watched', async () => {
     const off = harness({ stallMs: 0 });
     using _off = off.watch;

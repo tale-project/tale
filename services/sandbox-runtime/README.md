@@ -557,7 +557,10 @@ them. The exec ends through the cancel path (SIGTERM, then SIGKILL after the
 grace), and its `exit` event carries `failure: "EXEC_STALLED"`; the spawner
 reports it as the `EXEC_STALLED` error code and sets the window from
 `SANDBOX_EXEC_STALL_MINUTES`. The process table is read once a minute at most,
-and a table that cannot be read judges nothing.
+and a table that cannot be read judges nothing. Time is read from a monotonic
+clock, so a step of the wall clock never counts as quiet time, and a round more
+than three sampling intervals after the one before it (the host slept, or its
+VM was paused) starts every exec's window again.
 
 runnerd refuses to start an exec in a session about to run out of memory: when
 the session cgroup's working set (`memory.current` minus the `inactive_file`

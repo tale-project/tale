@@ -26,6 +26,13 @@
 // engine's container cgroup used counts as work of each live exec. Where the
 // process table cannot be read (no /proc, a scan past its deadline), nothing
 // is judged: an exec is never ended on CPU it could not account.
+//
+// Time is read from a monotonic clock, which a step of the wall clock does
+// not move and a Linux host's sleep does not advance. A paused VM's guest
+// clock can still jump when it resumes, so a round that comes far later than
+// the sampling interval — the watch was not running in between — starts
+// every exec's window again: an exec is never ended for time it could not
+// run in.
 
 import { readdir, readFile } from 'node:fs/promises';
 
@@ -37,6 +44,10 @@ export const DEFAULT_EXEC_STALL_MS = 45 * 60_000;
 const STALL_CPU_SHARE = 0.01;
 /** The longest pause between two samples of the process table. */
 const MAX_SAMPLE_MS = 60_000;
+/** A round more than this many sampling intervals after the one before it
+ * means the watch was not running in between: the host slept, or its VM was
+ * paused. */
+const GAP_INTERVALS = 3;
 /** How long one scan of the process table may take before its sample is
  * dropped. */
 const SCAN_DEADLINE_MS = 5_000;
@@ -271,6 +282,8 @@ export interface StallWatchOptions {
   /** How often the process table is sampled; a tenth of the window, between
    * one second and a minute, unless set. */
   sampleMs?: number;
+  /** The clock rounds and output are stamped with, in milliseconds;
+   * `performance.now()` unless set. */
   now?: () => number;
   /** Reads the process table; {@link readProcCpu} on `/proc` unless set. */
   readTable?: () => Promise<readonly ProcCpu[] | null>;
@@ -287,6 +300,8 @@ export class StallWatch {
   private sampling = false;
   /** The engine's container CPU at the last sample, while it has one. */
   private engineUsec: number | null = null;
+  /** When the last round read the clock, while the watch samples. */
+  private lastRoundAt: number | undefined;
   private readonly sampleMs: number;
   private readonly now: () => number;
   private readonly readTable: () => Promise<readonly ProcCpu[] | null>;
@@ -300,7 +315,7 @@ export class StallWatch {
     this.sampleMs =
       options.sampleMs ??
       Math.min(MAX_SAMPLE_MS, Math.max(1_000, Math.floor(stallMs / 10)));
-    this.now = options.now ?? Date.now;
+    this.now = options.now ?? (() => performance.now());
     this.readTable = options.readTable ?? (() => readProcCpu());
     this.readEngineUsec = options.readEngineUsec ?? (() => readEngineCpuUsec());
   }
@@ -343,6 +358,7 @@ export class StallWatch {
       clearInterval(this.timer);
       this.timer = undefined;
       this.engineUsec = null;
+      this.lastRoundAt = undefined;
     }
   }
 
@@ -357,6 +373,17 @@ export class StallWatch {
         this.readTable(),
         this.readEngineUsec(),
       ]);
+      const now = this.now();
+      // A round this late means the watch was not running since the last
+      // one — the host slept, its VM was paused — and that time is no quiet
+      // time: every exec's window starts again here. A round that read no
+      // table still counts, since the next one reads the CPU counters whole.
+      if (
+        this.lastRoundAt !== undefined &&
+        now - this.lastRoundAt > GAP_INTERVALS * this.sampleMs
+      )
+        for (const watched of this.watched.values()) watched.samples = [];
+      this.lastRoundAt = now;
       if (table === null) return;
       // What the engine's containers used since the last round is work of
       // every exec live now; the first reading only sets the base.
@@ -365,7 +392,6 @@ export class StallWatch {
           ? Math.max(0, engineUsec - this.engineUsec) / USEC_PER_TICK
           : 0;
       this.engineUsec = engineUsec;
-      const now = this.now();
       for (const [execId, watched] of this.watched) {
         const seen = new Map<number, { startTime: string; ticks: number }>();
         watched.ticks += engineTicks;
