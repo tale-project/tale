@@ -174,6 +174,11 @@ export interface ModelStreamChunk {
    * by the host. Yielded at most once, at the end of the stream — a chunk
    * carrying these carries no new text. */
   readonly toolCalls?: readonly ToolCallRequest[];
+  /** The model began writing a tool call: its name or the first bytes of
+   * its arguments arrived. Evidence that the round answered, so a failure
+   * before the settle chunk still books the round — never a call to run,
+   * which only `toolCalls` carries. Yielded at most once per stream. */
+  readonly toolCallStarted?: true;
   /** Why the model stopped, when the dialect said — on the settle chunk. */
   readonly finishReason?: TurnFinishReason;
   /** Where the answer is served, when the response said: its headers before
@@ -765,7 +770,8 @@ interface StreamRoundOptions {
 interface RoundObservation {
   /** The provider accepted the request (`onAccepted`), or a chunk arrived. */
   accepted: boolean;
-  /** Nonempty answer data or positive reported usage arrived. */
+  /** Nonempty answer data (text, reasoning, a tool call begun or settled)
+   * or positive reported usage arrived. */
   answered: boolean;
   /** The model's text as it arrived, before the output guardrails. */
   text: string;
@@ -969,12 +975,14 @@ async function streamWithOutputGuardrails(
       // A chunk proves the stream opened. Empty metadata (including a
       // zero-count usage frame) does not prove the request consumed tokens:
       // a provider can still refuse it before any answer. Once some answer
-      // or positive usage arrived, later metadata cannot undo that evidence.
+      // — a tool call the model only began included — or positive usage
+      // arrived, later metadata cannot undo that evidence.
       observed.accepted = true;
       if (
         chunk.text.length > 0 ||
         (chunk.reasoning?.length ?? 0) > 0 ||
         (chunk.toolCalls?.length ?? 0) > 0 ||
+        chunk.toolCallStarted === true ||
         (chunk.usage?.inputTokens ?? 0) > 0 ||
         (chunk.usage?.outputTokens ?? 0) > 0
       ) {
@@ -1171,8 +1179,12 @@ export function estimateCostCents(
  * OpenAI usage frame (sent last) and after an Anthropic `message_start`
  * (input only), so each side is taken from the provider where it reported
  * a count and estimated where it did not. A round that failed inside its
- * stream is cut the same way. `estimated` marks any round that carries an
- * estimate, so the stamp never passes one off as a fact.
+ * stream is cut the same way. The estimated output is the text and
+ * reasoning the round streamed, never a tool call's name or arguments — one
+ * boundary for a finished round and a cut one, so a round that failed while
+ * the model wrote a tool call is estimated at its prompt alone. `estimated`
+ * marks any round that carries an estimate, so the stamp never passes one
+ * off as a fact.
  */
 function roundUsage(
   streamed: {
@@ -2142,9 +2154,10 @@ export async function runTurn(
     // nothing: one refused before its stream opened (an HTTP status, an
     // unreachable provider), and one whose stream reports a refusal — a
     // 4xx status or documented code: a rate limit, a refused key or payment, a request too
-    // large — before any of the answer, which is the same refusal from a
-    // provider that commits its 200 early (OpenRouter, while it waits on the
-    // upstream). A turn with no consumed round books no row at all. Booked
+    // large — before any of the answer (text, reasoning, a tool call the
+    // model began), which is the same refusal from a provider that commits
+    // its 200 early (OpenRouter, while it waits on the upstream). A turn
+    // with no consumed round books no row at all. Booked
     // once, and stamped on the failed reply so the message and the ledger
     // tell one story.
     let consumed: TurnUsage | undefined;
