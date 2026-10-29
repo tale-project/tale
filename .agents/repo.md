@@ -167,13 +167,23 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   not as a rule.
 - **Pencil**: `design/docs/comments.md` is strictly designer↔developer UI communication. Put
   code-level bug analysis in a GitHub issue, never there.
-- **Git**: branch off `main`, never commit to it; PRs squash-merge (linear history), so the PR
-  title must itself be commitlint-shaped. **Each PR lands on its own** — no merge queue:
-  `gh pr merge --squash --auto` merges it once its checks and review pass, and its own CI runs every
-  suite its paths owe. A branch does not have to be up to date with `main` — never rebase, merge
-  `main` in or `gh pr update-branch` just because a PR reads *behind*; rebase only for a real
-  conflict (`git merge-tree --write-tree --name-only origin/main HEAD`), and never admin-merge past
-  a red or pending check ([CI guide](../.github/CI.md#landing-on-main)).
+- **Git**: never commit to `main`; two lanes land on it, both linear
+  ([CI guide](../.github/CI.md#landing-on-main)):
+  - **The merge train** carries the autonomous development cycle's work. A task branch starts
+    from `train` (the open train) and opens no pull request: once reviewed, it is squashed into
+    one commit on `train` and pushed only if the fast gate passes on that commit (`oxfmt --check`,
+    the ruff format check, `bunx turbo run typecheck build`). Every 4 hours `train` departs as
+    `train-<YYYYMMDD-HHMM>` (UTC) with one pull request into `main` (label `merge-train`) that runs
+    the full CI and rebase-merges once green, one commit per task, while `train` collects the
+    next. One train pull request is open at a time. `train` and `train-*` belong to the train.
+  - **A pull request of its own** (a person's, Renovate's): branch off `main`; it squash-merges,
+    so its title must itself be commitlint-shaped, with `gh pr merge --squash --auto` once its
+    checks and review pass; its own CI runs every suite its paths owe.
+
+  No branch has to be up to date with `main` — never rebase, merge `main` in or
+  `gh pr update-branch` just because a PR reads *behind*; rebase only for a real conflict
+  (`git merge-tree --write-tree --name-only origin/main HEAD`), and never admin-merge past a red
+  or pending check.
 - **A release tags one validated candidate** — a version tag goes only on the full `main` SHA
   whose `build.yml` candidate run and release gate
   (`tools/cli/scripts/release-candidate-gate.ts`) passed, and merging never freezes for it:
