@@ -102,5 +102,6 @@ error receipt and zero report traffic when disabled.
 | Area | Automated coverage | Manual scope |
 | --- | --- | --- |
 | Unknown localized and nested URLs retain the marketing 404, localized recovery, site chrome and noindex metadata at phone/desktop widths | `tests/e2e/specs/smoke.spec.ts`, `tests/prerender/seo.test.ts` | visual treatment in both themes |
+| A page whose content or chunk fails to load shows the localized error page (EN/DE/FR) inside the site chrome, on the client and in SSR, without the error; **Try again** re-runs the loader, or reloads after a chunk failure; a navigation that misses a chunk reloads once per chunk and session, a preload never | `app/pages/error-page.test.tsx`, `app/entry-server.test.tsx`, `app/main.test.tsx`, `lib/stale-bundle-reload.test.ts`, `packages/ui/src/lib/stale-bundle.test.ts` | `NAV-B5`, `NAV-B6`: real network failures, visual treatment in both themes |
 | `/ui` opens Tale UI through HTTP 301, client navigation and static hosting; footer link and shared footnote appear in EN/DE/FR | `lib/redirects.test.ts`, `tests/e2e/specs/smoke.spec.ts`, `tests/prerender/seo.test.ts` | footer spacing |
 | The Agents & connectors sandbox geometry stays fixed throughout normal playback at 390/1280px | `tests/e2e/specs/motion-and-connectors.spec.ts` | illustration readability and motion feel |

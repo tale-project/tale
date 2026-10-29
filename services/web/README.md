@@ -226,6 +226,16 @@ Both the client and SSR router set `NotFoundPage` as the default, including
 unknown localized and nested URLs. The recovery page keeps site chrome,
 localized links and noindex metadata.
 
+Both routers also set `ErrorPage` as the default error component. A page whose
+content does not arrive, or whose code a deploy replaced, shows it inside the
+site chrome in the page's language, with **Try again** and a link home; the
+error itself goes only to error reporting. **Try again** re-runs the page's
+loaders, or reloads the page after a chunk the browser could not fetch.
+`lib/stale-bundle-reload.ts` reloads a tab when a navigation misses a chunk a
+deploy removed, once per chunk for the tab's session, so a reload that lands
+on the old build again ends on the error page instead of looping. A miss while
+the router only preloads a hovered link reloads nothing.
+
 `ConnectAgents` reserves all agent rows, status dots and aligned column widths
 before playback starts. Rows reveal through opacity, so the Agents & connectors
 illustration and its scenario variants keep their geometry as each beat appears.

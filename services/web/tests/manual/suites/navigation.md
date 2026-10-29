@@ -1,10 +1,11 @@
 # Navigation & pages
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 20 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 22 boxes
 
 Exercise the page inventory and every way to move between pages — the header
 nav, the footer columns, the legal-document pages (tabs, print), in-page hash
-links, browser history, and the 404 paths. The mobile hamburger drawer lives
+links, browser history, the 404 paths, and the error page a page that fails to
+load shows. The mobile hamburger drawer lives
 in [responsive.md](responsive.md); the footer's language/theme switchers live
 in [locale.md](locale.md) / [theme.md](theme.md).
 
@@ -114,6 +115,22 @@ routes render without a backend.
 - [ ] `NAV-B4` · **Bad search params** — Open
   `/pricing?billing=zzz&region=XX&users=abc` → The page renders with defaults
   (no crash, no NaN price); the invalid params are ignored or normalized.
+- [ ] `NAV-B5` · **Content that does not arrive** — Mode B; in DevTools →
+  Network, block the request pattern `*.md`; on `/`, `/de` and `/fr`, open
+  **Resources** → **Use cases**; then unblock and click **Try again**
+  (`pageError.retry`) → Blocked: the error page in the page's language
+  (`pageError.title`, `pageError.body`) between the site header and footer,
+  no error text, and **Try again** plus **Back to the homepage**
+  (`notFound.backHome`), both reachable with Tab, in light and dark.
+  Unblocked: **Try again** shows the guide without reloading the page.
+- [ ] `NAV-B6` · **A chunk the tab cannot fetch** — Mode B; on `/`, block the
+  request pattern `*pricing*.js` in DevTools → Network, open **Pricing** from
+  the header; then unblock and click **Try again** → The tab reloads by
+  itself, then stops and shows the error page instead of reloading again
+  (sessionStorage keeps a `tale:stale-bundle-reload:` entry for the chunk);
+  unblocked, **Try again** reloads onto Pricing. A tab left open across a
+  deploy meets the same miss on its next navigation, and its first reload
+  already lands on the new build.
 
 ## Accessibility (WCAG 2.1 AA)
 
