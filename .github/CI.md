@@ -917,15 +917,31 @@ review remains a separate obligation; a CI readiness result does not certify it.
 
 ### Landing on main
 
-`main` lands each pull request on its own (ruleset **Tale required CI**, no merge queue since
-2026-10-29): a squash merge once the seven `CI ready (…)` contexts pass on its head and its
-review approves, with `gh pr merge <n> --squash --auto`. A pull request runs every suite its
-paths owe, the heavy ones included, so a red shows on the pull request where its author is. The
-ruleset does not require a branch to be up to date before merging: with dozens of merges a day,
-"up to date" would force every other open PR to rebase and re-run CI after each merge. Two pull
-requests that pass on their own can still conflict in meaning; the full validation of each push
-to `main` catches that. Each PR gets its own squash commit on `main`, so the release gate's
-one-PR-per-merge-commit rule holds.
+Two lanes land on `main`, both linear (ruleset **Tale required CI**, no merge queue since
+2026-10-29; the repository allows squash and rebase merges).
+
+**The merge train** (since 2026-10-30) carries the autonomous development cycle's work. A task
+branch starts from `train` and opens no pull request: once reviewed, it is squashed into one
+commit on top of `train`, and that commit is pushed only if the fast gate passes on it
+(formatting, `bunx turbo run typecheck build`). Every four hours `train`'s head departs as
+`train-<YYYYMMDD-HHMM>` (UTC) with one pull request into `main` (label `merge-train`,
+`gh pr merge --rebase --auto`). The full CI runs once for the whole train instead of once per
+task, and the pull request rebase-merges when the seven `CI ready (…)` contexts pass, so each
+task stays one commit on `main`. One train pull request is open at a time: a red one is repaired
+on its own branch (a fix, or a task's commit taken out) while `train` collects the next, which
+departs only after it merges. After the merge, `train` is rebased onto `main`, keeping only the
+commits that landed after the departure.
+
+**A pull request of its own** (a person's, Renovate's) squash-merges once the seven
+`CI ready (…)` contexts pass on its head and its review approves, with
+`gh pr merge <n> --squash --auto`. It runs every suite its paths owe, the heavy ones included,
+so a red shows on the pull request where its author is.
+
+The ruleset does not require a branch to be up to date before merging. Two changes that pass on
+their own can still conflict in meaning; the full validation of each push to `main` catches
+that. The release gate binds a candidate to the one pull request whose merge commit it is: a
+squash merge's commit, or a train's last commit, which GitHub records as the rebase merge's
+merge commit. A commit inside a train is not a release candidate.
 
 The workflows still list `merge_group` among their triggers; without a queue GitHub never sends
 that event.
