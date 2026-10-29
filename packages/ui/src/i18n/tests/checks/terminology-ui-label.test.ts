@@ -494,6 +494,8 @@ describe('terminology UI labels', () => {
           'Melde dich mit deinem Konto bei Google Workspace an.',
           'Verbinde ein Postfach, ein Repository oder einen Chat-Workspace.',
         ].join('\n'),
+        'de-CH':
+          'Die Synchronisierung benötigt einen Google-Workspace-Administrator.',
         fr: 'Elle nécessite un administrateur Google Workspace.',
       }),
     ).toEqual([]);
@@ -513,5 +515,69 @@ describe('terminology UI labels', () => {
       { locale: 'de', line: 2, column: 13 },
       { locale: 'fr', line: 1, column: 4 },
     ]);
+  });
+
+  // Every German string with `ß` needs a Swiss copy, so the Swiss copy of a
+  // string German may write must pass as well.
+  it('judges Swiss German by the German settings unless it has its own', () => {
+    const findings = terminologyUiLabel.run(
+      context(
+        [
+          {
+            key: 'editor',
+            category: 'role',
+            en: 'Editor',
+            de: 'Redakteur',
+            _lintExclude: { de: true },
+          },
+          {
+            key: 'source',
+            category: 'feature',
+            en: 'Source',
+            de: 'Quelltext',
+            _lintExclude: { de: true, 'de-CH': false },
+          },
+          {
+            key: 'workspace',
+            category: 'feature',
+            en: 'Workspace',
+            de: 'Arbeitsbereich',
+            _avoid: { de: ['Arbeitsfläche'] },
+            _allow: { de: ['Google-Workspace'] },
+          },
+        ],
+        {
+          'de-CH': [
+            'Schalte sie im Editor live.',
+            'Ein Google-Workspace-Administrator verwaltet die Arbeitsfläche.',
+            'Öffne die Source.',
+          ].join('\n'),
+        },
+      ),
+    );
+    expect(
+      findings.map(({ locale, line, column, rule }) => ({
+        locale,
+        line,
+        column,
+        rule,
+      })),
+    ).toEqual([
+      { locale: 'de-CH', line: 2, column: 50, rule: 'ui-label-non-shipped' },
+      { locale: 'de-CH', line: 3, column: 11, rule: 'ui-label-mismatch' },
+    ]);
+  });
+
+  it('keeps the Swiss sentence that names the automation editor', () => {
+    expect(
+      terminologyUiLabel
+        .run(
+          context(null, {
+            'de-CH':
+              'Die Automatisierung wurde angelegt, aber v1 liess sich nicht live schalten. Schalte sie im Editor live.',
+          }),
+        )
+        .filter(({ detail }) => detail.includes('UI-label term "Editor"')),
+    ).toEqual([]);
   });
 });

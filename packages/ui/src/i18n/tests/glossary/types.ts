@@ -8,7 +8,9 @@
  * English, which match the shipped UI label, etc.
  *
  * The handle is the consumer-facing interface: `byCategory`, `resolveForm`
- * (locale-fallback aware), and `shouldEnforce` (honors `_lintExclude`).
+ * (locale-fallback aware), `forLocale` (the same fallback for the
+ * per-locale settings `_lintExclude`, `_avoid` and `_allow`), and
+ * `shouldEnforce` (honors `_lintExclude`).
  */
 
 /**
@@ -44,6 +46,11 @@ export type Category =
   | 'translateBucket'
   | 'abbreviation';
 
+/**
+ * One glossary entry. The settings `_lintExclude`, `_avoid` and `_allow` are
+ * keyed by locale id, and `de-CH` follows `de` unless it has an entry of its
+ * own (`GlossaryHandle.forLocale`).
+ */
 export interface Term {
   /** Stable identifier, used for cross-references in `_note` and tests. */
   readonly key: string;
@@ -59,7 +66,8 @@ export interface Term {
   /**
    * Locales for which the terminology checks should NOT flag the EN form.
    * Use sparingly — every `true` is a deliberate decision and should be
-   * accompanied by a `_note` explaining why.
+   * accompanied by a `_note` explaining why. `'de-CH': false` enforces a
+   * term in Swiss German that `de: true` excludes.
    */
   readonly _lintExclude?: Partial<Record<string, boolean>>;
   /**
@@ -91,9 +99,19 @@ export interface GlossaryHandle {
   /** Resolve `term.<locale>` walking the fallback chain (de-CH → de → en). */
   resolveForm(term: Term, locale: string): string;
   /**
+   * Resolve a per-locale setting (`_lintExclude`, `_avoid`, `_allow`) along
+   * the same chain: `de-CH` reads the `de` entry unless it has its own. A
+   * Swiss string copies a German one (every German string with `ß` needs
+   * one), so the German decisions apply to it.
+   */
+  forLocale<T>(
+    setting: Partial<Record<string, T>> | undefined,
+    locale: string,
+  ): T | undefined;
+  /**
    * Returns true if a terminology check should reject the EN form for this
-   * locale: the locale form differs from `en` AND `_lintExclude[locale]`
-   * isn't set to `true`.
+   * locale: the locale form differs from `en` AND the locale's
+   * `_lintExclude` entry (through `forLocale`) isn't `true`.
    */
   shouldEnforce(term: Term, locale: string): boolean;
 }

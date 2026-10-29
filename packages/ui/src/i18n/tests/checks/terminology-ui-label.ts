@@ -5,7 +5,7 @@
  * uses in any case (a lowercase loanword, a retired translation). A match
  * inside a name from the term's `_allow` list for the locale (another
  * vendor's product, such as `Google Workspace`) names something else and
- * is skipped.
+ * is skipped. Swiss German reads the German lists unless it has its own.
  *
  * Distinct from `terminology-loanword`: this check is scoped to UI-label
  * categories (the noun shows up as a button/menu/panel label) and produces
@@ -83,10 +83,10 @@ export const terminologyUiLabel = createCheck({
           term,
           re: wordBoundary(term.en, 'g'),
           // An empty name would match everywhere, without advancing.
-          avoided: (term._avoid?.[locale.id] ?? [])
+          avoided: (glossary.forLocale(term._avoid, locale.id) ?? [])
             .filter((name) => name !== '')
             .map(listedName),
-          allowed: (term._allow?.[locale.id] ?? [])
+          allowed: (glossary.forLocale(term._allow, locale.id) ?? [])
             .filter((name) => name !== '')
             .map(listedName),
           native: glossary.resolveForm(term, locale.id),

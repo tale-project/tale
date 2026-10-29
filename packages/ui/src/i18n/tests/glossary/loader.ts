@@ -1,7 +1,7 @@
 /**
  * Glossary loader. Reads `glossary.yml` once per process and exposes a
  * `GlossaryHandle` with category filters and locale-fallback-aware
- * `resolveForm` / `shouldEnforce`.
+ * `resolveForm` / `forLocale` / `shouldEnforce`.
  *
  * The default `glossary.yml` ships alongside this loader; consumers can
  * pass a different path (used by `defineDocsTests` if a future repo
@@ -77,8 +77,14 @@ function buildHandle(glossary: Glossary): GlossaryHandle {
       if (locale === 'de-CH' && typeof term.de === 'string') return term.de;
       return term.en;
     },
+    forLocale(setting, locale) {
+      const own = setting?.[locale];
+      if (own !== undefined) return own;
+      // The chain `resolveForm` walks: a Swiss string copies a German one.
+      return locale === 'de-CH' ? setting?.de : undefined;
+    },
     shouldEnforce(term, locale) {
-      if (term._lintExclude?.[locale] === true) return false;
+      if (this.forLocale(term._lintExclude, locale) === true) return false;
       const form = this.resolveForm(term, locale);
       return form !== term.en;
     },
