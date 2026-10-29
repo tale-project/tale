@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
@@ -12,17 +12,26 @@ vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({ can: () => true, cannot: () => false }),
 }));
 
+const NOTHING_UNDECIDED = { apiKeys: false, modelApi: false, agents: false };
+const DEVELOPER = {
+  developer: true,
+  apiKeys: true,
+  modelApi: true,
+  agents: false,
+  undecided: NOTHING_UNDECIDED,
+  loading: false,
+};
+const apiAccess = vi.hoisted(() => ({ current: {} }));
 vi.mock(
   '@/app/features/settings/model-endpoints/hooks/use-api-settings-access',
   () => ({
-    useApiSettingsAccess: () => ({
-      developer: true,
-      apiKeys: true,
-      modelApi: true,
-      loading: false,
-    }),
+    useApiSettingsAccess: () => apiAccess.current,
   }),
 );
+
+beforeEach(() => {
+  apiAccess.current = DEVELOPER;
+});
 
 function Probe({ scope }: { scope: SettingsMenuScope }) {
   const groups = useSettingsMenuGroups('org-1', scope);
@@ -57,4 +66,29 @@ describe('useSettingsMenuGroups', () => {
       }
     },
   );
+
+  // #4767: a failed access read used to drop the entry, so a member who may
+  // use the API could not reach the page that says so.
+  it('keeps the API entry for a member while a read that decides an API tab has failed', () => {
+    apiAccess.current = {
+      ...DEVELOPER,
+      developer: false,
+      apiKeys: false,
+      modelApi: false,
+      undecided: { apiKeys: true, modelApi: true, agents: false },
+    };
+    const { container } = render(<Probe scope="workspace" />);
+    expect(container.querySelector('[data-key="api"]')).not.toBeNull();
+  });
+
+  it('leaves the API entry out for a member whose reads open no API tab', () => {
+    apiAccess.current = {
+      ...DEVELOPER,
+      developer: false,
+      apiKeys: false,
+      modelApi: false,
+    };
+    const { container } = render(<Probe scope="workspace" />);
+    expect(container.querySelector('[data-key="api"]')).toBeNull();
+  });
 });

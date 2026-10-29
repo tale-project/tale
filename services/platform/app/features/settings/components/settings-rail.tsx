@@ -39,7 +39,10 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { useApiSettingsAccess } from '@/app/features/settings/model-endpoints/hooks/use-api-settings-access';
 import { useAbility } from '@/app/hooks/use-ability';
-import { visibleApiNavItems } from '@/app/routes/dashboard/$id/settings/api/-nav-items';
+import {
+  listedApiAccess,
+  visibleApiNavItems,
+} from '@/app/routes/dashboard/$id/settings/api/-nav-items';
 import { GOVERNANCE_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/governance/-nav-items';
 import { METRICS_NAV_ITEMS } from '@/app/routes/dashboard/$id/settings/metrics/-nav-items';
 import { useT } from '@/lib/i18n/client';
@@ -105,7 +108,9 @@ function useSettingsSections(
   const { t: tGov } = useT('governance');
   const { t: tMetrics } = useT('metrics');
   const ability = useAbility();
-  const apiAccess = useApiSettingsAccess(organizationId);
+  // A tab a failed read left undecided stays listed: opened, it says the
+  // access didn't load, where a missing row would read as a refusal.
+  const apiAccess = listedApiAccess(useApiSettingsAccess(organizationId));
   const apiDeveloper = apiAccess.developer;
   const apiKeys = apiAccess.apiKeys;
   const apiModelApi = apiAccess.modelApi;

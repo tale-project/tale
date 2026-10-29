@@ -1039,6 +1039,12 @@ form:
   passwordPlaceholder: Enter password
   role: Role
   forgotPassword: Users who forget their password should contact an admin.
+# The reads that decide which API pages are the member's (Settings › API)
+# failed: never a refusal (#4767). Try again (common.actions.tryAgain)
+# asks them again.
+apiAccess:
+  readFailed: Your API access didn't load.
+  partialReadFailed: Some of your API access didn't load.
 apiKeys:
   entityLabel: keys
   entityLabelOne: key

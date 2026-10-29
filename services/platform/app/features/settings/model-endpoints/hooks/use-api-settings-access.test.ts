@@ -2,6 +2,7 @@ import { renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  listedApiAccess,
   tabDeniedMessageKey,
   visibleApiNavItems,
 } from '@/app/routes/dashboard/$id/settings/api/-nav-items';
@@ -18,24 +19,36 @@ import { useApiSettingsAccess } from './use-api-settings-access';
  * anyone else none.
  */
 
-const state = vi.hoisted(() => ({
-  developer: false,
-  abilityLoading: false,
-  standing: {
-    isLoading: false,
-    data: undefined as undefined | { allowed: boolean },
-  },
-  keys: {
-    isLoading: false,
-    data: undefined as undefined | { mayCreate: boolean; holdsKeys: boolean },
-  },
-  agentAccess: {
-    isLoading: false,
-    data: undefined as
-      | undefined
-      | { mayConnect: boolean; holdsConnection: boolean; signInOn: boolean },
-  },
-}));
+/** The part of a read's result the hook reads; a test sets what it needs. */
+interface Read<T> {
+  isLoading: boolean;
+  data: T | undefined;
+  isError?: boolean;
+  isFetching?: boolean;
+  errorUpdateCount?: number;
+  error?: Error | null;
+  refetch?: () => Promise<unknown>;
+}
+
+const state = vi.hoisted(
+  (): {
+    developer: boolean;
+    abilityLoading: boolean;
+    standing: Read<{ allowed: boolean }>;
+    keys: Read<{ mayCreate: boolean; holdsKeys: boolean }>;
+    agentAccess: Read<{
+      mayConnect: boolean;
+      holdsConnection: boolean;
+      signInOn: boolean;
+    }>;
+  } => ({
+    developer: false,
+    abilityLoading: false,
+    standing: { isLoading: false, data: undefined },
+    keys: { isLoading: false, data: undefined },
+    agentAccess: { isLoading: false, data: undefined },
+  }),
+);
 
 vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({ can: () => state.developer }),
@@ -58,6 +71,39 @@ beforeEach(() => {
   state.keys = { isLoading: false, data: undefined };
   state.agentAccess = { isLoading: false, data: undefined };
 });
+
+const NOTHING_UNDECIDED = { apiKeys: false, modelApi: false, agents: false };
+
+/** A read that answered. */
+function answered<T>(data: T): Read<T> {
+  return { isLoading: false, data, errorUpdateCount: 0, refetch: vi.fn() };
+}
+
+/** A read whose retry policy gave up before it ever answered. */
+function failed<T>(failures = 1): Read<T> {
+  return {
+    isLoading: false,
+    data: undefined,
+    isError: true,
+    isFetching: false,
+    errorUpdateCount: failures,
+    error: new Error('Service unavailable'),
+    refetch: vi.fn(),
+  };
+}
+
+/** That read asked again: react-query puts it back to pending meanwhile. */
+function askedAgain<T>(): Read<T> {
+  return {
+    isLoading: true,
+    data: undefined,
+    isError: false,
+    isFetching: true,
+    errorUpdateCount: 1,
+    error: null,
+    refetch: vi.fn(),
+  };
+}
 
 /** What the connections answer, the deployment letting agents sign in unless
  * said otherwise. */
@@ -86,7 +132,8 @@ describe('useApiSettingsAccess', () => {
     state.keys = { isLoading: true, data: undefined };
     state.agentAccess = connections({ mayConnect: true });
     const { result } = renderHook(() => useApiSettingsAccess('org-1'));
-    expect(result.current).toEqual({
+    expect(result.current).toMatchObject({
+      undecided: NOTHING_UNDECIDED,
       developer: true,
       apiKeys: true,
       createApiKeys: true,
@@ -105,7 +152,8 @@ describe('useApiSettingsAccess', () => {
     };
     state.agentAccess = connections({});
     const { result } = renderHook(() => useApiSettingsAccess('org-1'));
-    expect(result.current).toEqual({
+    expect(result.current).toMatchObject({
+      undecided: NOTHING_UNDECIDED,
       developer: false,
       apiKeys: true,
       createApiKeys: true,
@@ -124,7 +172,8 @@ describe('useApiSettingsAccess', () => {
     };
     state.agentAccess = connections({});
     const { result } = renderHook(() => useApiSettingsAccess('org-1'));
-    expect(result.current).toEqual({
+    expect(result.current).toMatchObject({
+      undecided: NOTHING_UNDECIDED,
       developer: false,
       apiKeys: true,
       createApiKeys: true,
@@ -143,7 +192,8 @@ describe('useApiSettingsAccess', () => {
     };
     state.agentAccess = connections({});
     const { result } = renderHook(() => useApiSettingsAccess('org-1'));
-    expect(result.current).toEqual({
+    expect(result.current).toMatchObject({
+      undecided: NOTHING_UNDECIDED,
       developer: false,
       apiKeys: true,
       createApiKeys: false,
@@ -157,7 +207,8 @@ describe('useApiSettingsAccess', () => {
   it('opens Connected agents to a member who may connect a coding agent here [AGCONN-R23]', () => {
     state.agentAccess = connections({ mayConnect: true });
     const { result } = renderHook(() => useApiSettingsAccess('org-1'));
-    expect(result.current).toEqual({
+    expect(result.current).toMatchObject({
+      undecided: NOTHING_UNDECIDED,
       developer: false,
       apiKeys: false,
       createApiKeys: false,
@@ -226,6 +277,170 @@ describe('useApiSettingsAccess', () => {
     expect(result.current.apiKeys).toBe(false);
     expect(result.current.modelApi).toBe(false);
     expect(result.current.agents).toBe(false);
+  });
+});
+
+// #4767: a read that failed used to read as "no access" — the section, or a
+// tab the member may open, refused them with nothing to try again.
+describe('useApiSettingsAccess when a read fails', () => {
+  it('leaves REST and Models undecided for a member whose model grant read failed, never closed', () => {
+    state.standing = failed();
+    state.keys = answered({ mayCreate: false, holdsKeys: false });
+    state.agentAccess = connections({});
+    const { result } = renderHook(() => useApiSettingsAccess('org-1'));
+    expect(result.current).toMatchObject({
+      apiKeys: false,
+      createApiKeys: false,
+      modelApi: false,
+      undecided: { apiKeys: true, modelApi: true, agents: false },
+      error: state.standing.error,
+      retrying: false,
+      loading: false,
+    });
+  });
+
+  it('keeps REST open on the key rule while the model grant read fails, Models alone undecided', () => {
+    state.standing = failed();
+    state.keys = answered({ mayCreate: true, holdsKeys: false });
+    state.agentAccess = connections({});
+    const { result } = renderHook(() => useApiSettingsAccess('org-1'));
+    expect(result.current).toMatchObject({
+      apiKeys: true,
+      createApiKeys: true,
+      modelApi: false,
+      undecided: { apiKeys: false, modelApi: true, agents: false },
+    });
+  });
+
+  it('leaves REST undecided while the key rule read fails and the model grant does not open it', () => {
+    state.standing = answered({ allowed: false });
+    state.keys = failed();
+    state.agentAccess = connections({});
+    const { result } = renderHook(() => useApiSettingsAccess('org-1'));
+    expect(result.current).toMatchObject({
+      apiKeys: false,
+      modelApi: false,
+      undecided: { apiKeys: true, modelApi: false, agents: false },
+      error: state.keys.error,
+    });
+  });
+
+  it('opens REST and Models on the model grant, whatever the key rule read did', () => {
+    state.standing = answered({ allowed: true });
+    state.keys = failed();
+    state.agentAccess = connections({});
+    const { result } = renderHook(() => useApiSettingsAccess('org-1'));
+    expect(result.current).toMatchObject({
+      apiKeys: true,
+      createApiKeys: true,
+      modelApi: true,
+      undecided: NOTHING_UNDECIDED,
+      error: null,
+    });
+  });
+
+  it('decides nothing on a developer role’s failed grant reads', () => {
+    state.developer = true;
+    state.standing = failed();
+    state.keys = failed();
+    state.agentAccess = connections({ mayConnect: true });
+    const { result } = renderHook(() => useApiSettingsAccess('org-1'));
+    expect(result.current).toMatchObject({
+      apiKeys: true,
+      modelApi: true,
+      agents: true,
+      undecided: NOTHING_UNDECIDED,
+      error: null,
+      loading: false,
+    });
+    result.current.retry();
+    expect(state.standing.refetch).not.toHaveBeenCalled();
+    expect(state.keys.refetch).not.toHaveBeenCalled();
+  });
+
+  it('leaves Connected agents undecided while the connections read fails, a developer role included', () => {
+    state.developer = true;
+    state.agentAccess = failed();
+    const { result } = renderHook(() => useApiSettingsAccess('org-1'));
+    expect(result.current).toMatchObject({
+      agents: false,
+      connectAgents: false,
+      undecided: { apiKeys: false, modelApi: false, agents: true },
+      error: state.agentAccess.error,
+      loading: false,
+    });
+  });
+
+  it('stays undecided, not loading, while a failed read is asked again', () => {
+    state.standing = askedAgain();
+    state.keys = answered({ mayCreate: false, holdsKeys: false });
+    state.agentAccess = connections({});
+    const { result } = renderHook(() => useApiSettingsAccess('org-1'));
+    expect(result.current).toMatchObject({
+      undecided: { apiKeys: true, modelApi: true, agents: false },
+      retrying: true,
+      loading: false,
+    });
+  });
+
+  it('asks only the reads that failed again', () => {
+    state.standing = failed();
+    state.keys = answered({ mayCreate: false, holdsKeys: false });
+    state.agentAccess = failed(2);
+    const { result } = renderHook(() => useApiSettingsAccess('org-1'));
+    // Every settled failure counts, so a notice keyed on it is announced
+    // afresh each time.
+    expect(result.current.failureCount).toBe(3);
+    result.current.retry();
+    expect(state.standing.refetch).toHaveBeenCalledTimes(1);
+    expect(state.keys.refetch).not.toHaveBeenCalled();
+    expect(state.agentAccess.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps deciding by the last answer when a refresh fails', () => {
+    state.standing = { ...answered({ allowed: true }), isError: true };
+    state.keys = answered({ mayCreate: true, holdsKeys: false });
+    state.agentAccess = connections({});
+    const { result } = renderHook(() => useApiSettingsAccess('org-1'));
+    expect(result.current).toMatchObject({
+      modelApi: true,
+      undecided: NOTHING_UNDECIDED,
+      error: null,
+    });
+  });
+});
+
+describe('listedApiAccess', () => {
+  it('lists the tabs a failed read left undecided beside the open ones', () => {
+    const slugs = (access: Parameters<typeof listedApiAccess>[0]) =>
+      visibleApiNavItems(listedApiAccess(access)).map((item) => item.slug);
+    expect(
+      slugs({
+        developer: false,
+        apiKeys: true,
+        modelApi: false,
+        agents: false,
+        undecided: { apiKeys: false, modelApi: true, agents: false },
+      }),
+    ).toEqual(['rest', 'models']);
+    expect(
+      slugs({
+        developer: true,
+        apiKeys: true,
+        modelApi: true,
+        agents: false,
+        undecided: { apiKeys: false, modelApi: false, agents: true },
+      }),
+    ).toEqual(['rest', 'models', 'mcp', 'agents', 'webdav']);
+    expect(
+      slugs({
+        developer: false,
+        apiKeys: false,
+        modelApi: false,
+        agents: false,
+        undecided: NOTHING_UNDECIDED,
+      }),
+    ).toEqual([]);
   });
 });
 

@@ -57,7 +57,7 @@ Tout accès qui va plus loin que **Lire et tester** et **Lire les paramètres** 
 
 ## Consulter et déconnecter les agents
 
-Ouvre **Paramètres > API > Agents connectés**. La page existe dès que la connexion des agents est activée et que tu as le droit de connecter un agent dans cette organisation, et elle reste pour toute personne qui a encore une connexion active, afin qu’elle puisse y mettre fin. La liste montre chaque agent avec son nom, son origine (le domaine qu’il a prouvé, ou **Non vérifiée**), l’accès que tu lui as donné, le moment où il s’est connecté et celui de son dernier appel, **Jamais** avant le premier. Tale tient lui-même le compte des appels qu’il a traités avec cette connexion, et c’est de là que vient l’heure du dernier appel, jamais de ce que l’agent affirme.
+Ouvre **Paramètres > API > Agents connectés**. La page existe dès que la connexion des agents est activée et que tu as le droit de connecter un agent dans cette organisation, et elle reste pour toute personne qui a encore une connexion active, afin qu’elle puisse y mettre fin. Si Tale ne peut pas le vérifier, la page le signale et propose **Réessayer** au lieu de se fermer. La liste montre chaque agent avec son nom, son origine (le domaine qu’il a prouvé, ou **Non vérifiée**), l’accès que tu lui as donné, le moment où il s’est connecté et celui de son dernier appel, **Jamais** avant le premier. Tale tient lui-même le compte des appels qu’il a traités avec cette connexion, et c’est de là que vient l’heure du dernier appel, jamais de ce que l’agent affirme.
 
 <Frame caption="Paramètres > API > Agents connectés — chaque agent avec son accès, le jour de sa connexion et celui de sa dernière utilisation.">
 
