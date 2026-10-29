@@ -2951,6 +2951,89 @@ describe('runTurn — a failed turn books what it consumed', () => {
     ]);
   });
 
+  /** An executor that records every call it is asked to run. */
+  function recordingTools(): {
+    tools: ChatToolExecutor;
+    executed: ToolCallRequest[];
+  } {
+    const executed: ToolCallRequest[] = [];
+    return {
+      executed,
+      tools: {
+        wireTools: [
+          {
+            name: 'rag_search',
+            description: 'Search the knowledge.',
+            parameters: { type: 'object' },
+          },
+        ],
+        execute(call) {
+          executed.push(call);
+          return Promise.resolve({ status: 'ok', results: [] });
+        },
+      },
+    };
+  }
+
+  it('books a refusal that came after the model began a tool call, and runs no call', async () => {
+    /** Accepted, then refused on the stream, before or after the model
+     * began writing a tool call. */
+    const refusedOnStream = (began: boolean): ModelCall =>
+      async function* stream(call) {
+        call.onAccepted?.();
+        if (began) yield { text: '', toolCallStarted: true };
+        throw Object.assign(
+          new Error(
+            'The model provider ended the reply with an error: Rate limit exceeded upstream (429)',
+          ),
+          { status: 429 },
+        );
+      };
+    const refused = deps({
+      tools: recordingTools().tools,
+      model: refusedOnStream(false),
+    });
+    await runTurn(request(), refused.deps);
+    expect(refused.usage).toEqual([]);
+
+    const after = recordingTools();
+    const d = deps({ tools: after.tools, model: refusedOnStream(true) });
+    const outcome = await runTurn(request(), d.deps);
+    expect(outcome).toMatchObject({ status: 'refused', step: 'stream' });
+    expect(d.usage).toHaveLength(1);
+    const [booked] = d.usage;
+    expect(booked?.inputTokens).toBeGreaterThan(0);
+    expect(booked?.outputTokens).toBe(0);
+    expect(d.store.finalized.at(-1)?.usage).toMatchObject({
+      inputTokens: booked?.inputTokens,
+      outputTokens: 0,
+      estimated: true,
+    });
+    expect(after.executed).toEqual([]);
+  });
+
+  it('runs no call the model only began', async () => {
+    const { tools, executed } = recordingTools();
+    const d = deps({
+      tools,
+      model: async function* stream(call) {
+        call.onAccepted?.();
+        yield { text: '', toolCallStarted: true };
+        yield {
+          text: '',
+          usage: { inputTokens: 100, outputTokens: 5, totalTokens: 105 },
+          finishReason: 'tool-calls',
+        };
+      },
+    });
+    const outcome = await runTurn(request(), d.deps);
+    expect(outcome.status).toBe('completed');
+    expect(executed).toEqual([]);
+    expect(d.usage).toMatchObject([
+      { inputTokens: 100, outputTokens: 5, totalTokens: 105 },
+    ]);
+  });
+
   it('books nothing for a request refused before its stream opened', async () => {
     // An HTTP status refusal (a 429 before the stream) never accepts.
     const refused: ModelCall = (call) => {

@@ -3,6 +3,10 @@
 import { modelCatalogEntrySchema } from '@tale/shared/schemas/providers';
 import { describe, expect, it, vi } from 'vitest';
 
+import type {
+  ChatToolExecutor,
+  ToolCallRequest,
+} from '../../../lib/chat/tools';
 import {
   runTurn,
   type ModelCall,
@@ -21,6 +25,7 @@ import {
   readServedByHeaders,
   readStreamFailure,
   type StreamDecodeState,
+  type StreamDialect,
 } from './stream_decode';
 import { createStallGuard, type StallGuard } from './stream_stall';
 import {
@@ -534,6 +539,299 @@ describe('streamSse — a failure reported on the stream ends the round', () => 
   });
 });
 
+/** A whole tool call in one OpenAI-compatible frame, the turn ending on it:
+ * the provider's id, the tool's name, its arguments. */
+const TOOL_CALL = {
+  choices: [
+    {
+      index: 0,
+      delta: {
+        tool_calls: [
+          {
+            index: 0,
+            id: 'call_1',
+            type: 'function',
+            function: { name: 'lookup', arguments: '{"query":"returns"}' },
+          },
+        ],
+      },
+      finish_reason: 'tool_calls',
+    },
+  ],
+};
+
+/** The rate limit each dialect reports on a stream it already opened. */
+const RATE_LIMIT_ON_STREAM = {
+  openai: { error: { code: 429, message: 'Rate limit exceeded upstream' } },
+  anthropic: {
+    type: 'error',
+    error: { type: 'rate_limit_error', message: 'Rate limit exceeded' },
+  },
+  'openai-responses': {
+    type: 'error',
+    code: 'rate_limit_exceeded',
+    message: 'Rate limit exceeded',
+  },
+} as const;
+
+/** Frames that carry nothing the model wrote: control events, and tool-call
+ * fragments with only the provider's bookkeeping in them. */
+const NO_ANSWER_FRAMES = [
+  [
+    'an empty role',
+    'openai',
+    {
+      choices: [
+        {
+          index: 0,
+          delta: { role: 'assistant', content: '' },
+          finish_reason: null,
+        },
+      ],
+    },
+  ],
+  [
+    'empty metadata',
+    'openai',
+    { id: 'gen-1', object: 'chat.completion.chunk', choices: [] },
+  ],
+  [
+    'a finish reason alone',
+    'openai',
+    { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] },
+  ],
+  [
+    'a call fragment with only its id',
+    'openai',
+    {
+      choices: [
+        {
+          index: 0,
+          delta: { tool_calls: [{ index: 0, id: 'call_1', type: 'function' }] },
+        },
+      ],
+    },
+  ],
+  [
+    'an empty call fragment',
+    'openai',
+    {
+      choices: [
+        {
+          index: 0,
+          delta: {
+            tool_calls: [{ index: 0, function: { name: '', arguments: '' } }],
+          },
+        },
+      ],
+    },
+  ],
+  [
+    'call fragments that are no objects',
+    'openai',
+    { choices: [{ index: 0, delta: { tool_calls: ['lookup', null, 7] } }] },
+  ],
+  [
+    'a tool_use block with no name',
+    'anthropic',
+    {
+      type: 'content_block_start',
+      index: 0,
+      content_block: { type: 'tool_use', id: 'toolu_1', name: '', input: {} },
+    },
+  ],
+  [
+    'an empty text block',
+    'anthropic',
+    {
+      type: 'content_block_start',
+      index: 0,
+      content_block: { type: 'text', text: '' },
+    },
+  ],
+  [
+    'a function call item with no name',
+    'openai-responses',
+    {
+      type: 'response.output_item.added',
+      output_index: 0,
+      item: {
+        type: 'function_call',
+        id: 'fc_1',
+        call_id: 'call_1',
+        arguments: '',
+      },
+    },
+  ],
+] as const;
+
+/**
+ * A tool call reaches the turn whole, on the settle chunk. That the model
+ * began one is said at once — on the event that gave it a name or argument
+ * bytes, and only once — so a failure that ends the stream before its settle
+ * cannot leave the round looking unanswered.
+ */
+describe('streamSse — a tool call the model began', () => {
+  it('says so once, and hands the call on only at the settle', async () => {
+    const chunks = await chunksOf(
+      sseResponse([
+        {
+          choices: [
+            {
+              index: 0,
+              delta: {
+                role: 'assistant',
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call_1',
+                    type: 'function',
+                    function: { name: 'lookup', arguments: '' },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ],
+        },
+        {
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  { index: 0, function: { arguments: '{"query":' } },
+                ],
+              },
+              finish_reason: null,
+            },
+          ],
+        },
+        {
+          choices: [
+            {
+              index: 0,
+              delta: {
+                tool_calls: [
+                  { index: 0, function: { arguments: '"returns"}' } },
+                ],
+              },
+              finish_reason: 'tool_calls',
+            },
+          ],
+        },
+      ]),
+      'openai',
+    );
+    expect(chunks).toEqual([
+      { text: '', toolCallStarted: true },
+      {
+        text: '',
+        finishReason: 'tool-calls',
+        toolCalls: [
+          { id: 'call_1', name: 'lookup', input: { query: 'returns' } },
+        ],
+      },
+    ]);
+  });
+
+  it('says so on the Anthropic block that names the tool', async () => {
+    const chunks = await chunksOf(
+      sseResponse([
+        { type: 'message_start', message: { usage: { input_tokens: 100 } } },
+        {
+          type: 'content_block_start',
+          index: 0,
+          content_block: {
+            type: 'tool_use',
+            id: 'toolu_1',
+            name: 'lookup',
+            input: {},
+          },
+        },
+        {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'input_json_delta', partial_json: '{"query":' },
+        },
+        {
+          type: 'content_block_delta',
+          index: 0,
+          delta: { type: 'input_json_delta', partial_json: '"returns"}' },
+        },
+        { type: 'content_block_stop', index: 0 },
+        {
+          type: 'message_delta',
+          delta: { stop_reason: 'tool_use' },
+          usage: { output_tokens: 12 },
+        },
+      ]),
+      'anthropic',
+    );
+    const usage = { inputTokens: 100, outputTokens: 12, totalTokens: 112 };
+    expect(chunks).toEqual([
+      {
+        text: '',
+        usage: { inputTokens: 100, outputTokens: 0, totalTokens: 100 },
+      },
+      { text: '', toolCallStarted: true },
+      { text: '', usage },
+      {
+        text: '',
+        usage,
+        finishReason: 'tool-calls',
+        toolCalls: [
+          { id: 'toolu_1', name: 'lookup', input: { query: 'returns' } },
+        ],
+      },
+    ]);
+  });
+
+  it('hands on no call when the stream fails after the call began', async () => {
+    const chunks: ModelStreamChunk[] = [];
+    const read = async (): Promise<void> => {
+      for await (const chunk of streamSse(
+        sseResponse([TOOL_CALL, RATE_LIMIT_ON_STREAM.openai]),
+        'openai',
+      )) {
+        chunks.push(chunk);
+      }
+    };
+    await expect(read()).rejects.toMatchObject({ status: 429 });
+    expect(chunks).toEqual([{ text: '', toolCallStarted: true }]);
+  });
+
+  it('counts no fragment the failure event itself carries', async () => {
+    const chunks: ModelStreamChunk[] = [];
+    const read = async (): Promise<void> => {
+      for await (const chunk of streamSse(
+        sseResponse([{ ...TOOL_CALL, ...RATE_LIMIT_ON_STREAM.openai }]),
+        'openai',
+      )) {
+        chunks.push(chunk);
+      }
+    };
+    await expect(read()).rejects.toMatchObject({ status: 429 });
+    expect(chunks).toEqual([]);
+  });
+
+  it.each(NO_ANSWER_FRAMES)(
+    'says nothing of %s',
+    async (_name, dialect, noAnswer) => {
+      const chunks: ModelStreamChunk[] = [];
+      for await (const chunk of streamSse(sseResponse([noAnswer]), dialect)) {
+        chunks.push(chunk);
+      }
+      expect(chunks.filter((chunk) => chunk.toolCallStarted === true)).toEqual(
+        [],
+      );
+      expect(chunks.filter((chunk) => chunk.toolCalls !== undefined)).toEqual(
+        [],
+      );
+    },
+  );
+});
+
 /**
  * What a failed reply books, with the real wire under the real turn: the
  * provider is a synthetic `Response` (no network, no store, no money), read
@@ -555,17 +853,21 @@ describe('a failed reply books what it consumed — the wire under the turn', ()
     contextWindow: 32_768,
   });
 
-  /** The direct model call's read of a provider answer, minus the fetch. */
+  /** The direct model call's read of a provider answer, minus the fetch:
+   * `respond` answers round `round` (counted from 1) and is handed the
+   * round's abort signal, which a real fetch ends its body on. */
   function providerModel(
-    respond: () => Response,
-    apiFormat: 'openai' | 'anthropic',
+    respond: (round: number, signal?: AbortSignal) => Response,
+    dialect: StreamDialect,
   ): ModelCall {
+    let round = 0;
     return async function* stream(call) {
+      round += 1;
       const stall = createStallGuard();
       try {
         yield* streamProviderAnswer(
-          respond(),
-          apiFormat,
+          respond(round, call.signal),
+          dialect,
           stall,
           call.onAccepted,
         );
@@ -582,6 +884,24 @@ describe('a failed reply books what it consumed — the wire under the turn', ()
     });
   }
 
+  /** An SSE body that sends `body`, then stays open — a provider between
+   * two bytes — until the request is aborted. */
+  function openSse(body: string, signal?: AbortSignal): Response {
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode(body));
+        signal?.addEventListener(
+          'abort',
+          () => controller.error(signal.reason),
+          { once: true },
+        );
+      },
+    });
+    return new Response(stream, {
+      headers: { 'content-type': 'text/event-stream' },
+    });
+  }
+
   function frames(...payloads: readonly unknown[]): string {
     return payloads
       .map((payload) => `data: ${JSON.stringify(payload)}\n\n`)
@@ -590,13 +910,29 @@ describe('a failed reply books what it consumed — the wire under the turn', ()
 
   async function turnOver(
     model: ModelCall,
-    options: { cancelOnProgress?: boolean } = {},
+    options: { cancelOnProgress?: boolean; tools?: boolean } = {},
   ) {
     const booked: UsageLedgerEntry[] = [];
     const settled: Array<Record<string, unknown>> = [];
+    /** Every call the turn asked its tools to run. */
+    const executed: ToolCallRequest[] = [];
+    const tools: ChatToolExecutor = {
+      wireTools: [
+        {
+          name: 'lookup',
+          description: 'Look up a fact.',
+          parameters: { type: 'object' },
+        },
+      ],
+      execute(call) {
+        executed.push(call);
+        return Promise.resolve({ status: 'ok', results: [] });
+      },
+    };
     const deps: TurnDeps = {
       harnesses: buildHarnessTable([]),
       model,
+      ...(options.tools === true ? { tools } : {}),
       store: {
         beginTurn: () =>
           Promise.resolve({ assistantMessage: { id: 'msg_2', sequence: 2 } }),
@@ -634,7 +970,7 @@ describe('a failed reply books what it consumed — the wire under the turn', ()
       },
       deps,
     );
-    return { outcome, booked, settled: settled.at(-1) };
+    return { outcome, booked, settled: settled.at(-1), executed };
   }
 
   const TEXT = {
@@ -936,6 +1272,420 @@ describe('a failed reply books what it consumed — the wire under the turn', ()
     expect(booked).toEqual([]);
     expect(settled).not.toHaveProperty('usage');
     expect(decodeChatError(settled?.error as string).code).toBe('rate_limited');
+  });
+
+  /**
+   * A tool call reaches the turn only when its stream settles, whole. A
+   * refusal the provider reported while the model was writing one used to
+   * read as a refusal before any answer and booked nothing, although the
+   * provider had read the prompt and the model had written. The round is
+   * booked the way every failed round is; the call it began never runs.
+   */
+  describe('after the model began a tool call', () => {
+    it('books the round of a later refusal as a provider fault there books it, and runs no call', async () => {
+      const refused = await turnOver(
+        providerModel(
+          () => rawSse(frames(TOOL_CALL, RATE_LIMIT_ON_STREAM.openai)),
+          'openai',
+        ),
+        { tools: true },
+      );
+      expect(refused.outcome).toMatchObject({
+        status: 'refused',
+        step: 'stream',
+      });
+      expect(refused.booked).toHaveLength(1);
+      const [booked] = refused.booked;
+      expect(booked?.inputTokens).toBeGreaterThan(0);
+      expect(booked?.outputTokens).toBe(0);
+      expect(refused.settled?.usage).toEqual({
+        inputTokens: booked?.inputTokens,
+        outputTokens: 0,
+        totalTokens: booked?.inputTokens,
+        estimated: true,
+      });
+      expect(decodeChatError(refused.settled?.error as string).code).toBe(
+        'rate_limited',
+      );
+      expect(refused.executed).toEqual([]);
+
+      // The failed-round accounting every round shares: a provider fault at
+      // the same point books the same round.
+      const fault = await turnOver(
+        providerModel(
+          () => rawSse(frames(TOOL_CALL, OPENROUTER_ERROR)),
+          'openai',
+        ),
+        { tools: true },
+      );
+      expect(refused.booked).toEqual(fault.booked);
+      expect(refused.settled?.usage).toEqual(fault.settled?.usage);
+      expect(fault.executed).toEqual([]);
+    });
+
+    it.each([
+      [
+        'an OpenAI-compatible call whose arguments follow its name',
+        'openai',
+        [
+          {
+            choices: [
+              {
+                index: 0,
+                delta: {
+                  role: 'assistant',
+                  tool_calls: [
+                    {
+                      index: 0,
+                      id: 'call_1',
+                      type: 'function',
+                      function: { name: 'lookup', arguments: '' },
+                    },
+                  ],
+                },
+              },
+            ],
+          },
+          {
+            choices: [
+              {
+                index: 0,
+                delta: {
+                  tool_calls: [
+                    { index: 0, function: { arguments: '{"query":' } },
+                  ],
+                },
+              },
+            ],
+          },
+        ],
+      ],
+      [
+        'an Anthropic tool_use block after a message_start of nothing',
+        'anthropic',
+        [
+          {
+            type: 'message_start',
+            message: { usage: { input_tokens: 0, output_tokens: 0 } },
+          },
+          {
+            type: 'content_block_start',
+            index: 0,
+            content_block: {
+              type: 'tool_use',
+              id: 'toolu_1',
+              name: 'lookup',
+              input: {},
+            },
+          },
+          {
+            type: 'content_block_delta',
+            index: 0,
+            delta: { type: 'input_json_delta', partial_json: '{"query":' },
+          },
+        ],
+      ],
+      [
+        'a Responses API function call',
+        'openai-responses',
+        [
+          {
+            type: 'response.output_item.added',
+            output_index: 0,
+            item: {
+              type: 'function_call',
+              id: 'fc_1',
+              call_id: 'call_1',
+              name: 'lookup',
+              arguments: '',
+            },
+          },
+          {
+            type: 'response.function_call_arguments.delta',
+            output_index: 0,
+            item_id: 'fc_1',
+            delta: '{"query":',
+          },
+        ],
+      ],
+    ] as const)(
+      'books the round once when a refusal cuts %s',
+      async (_name, dialect, events) => {
+        const { outcome, booked, settled, executed } = await turnOver(
+          providerModel(
+            () => rawSse(frames(...events, RATE_LIMIT_ON_STREAM[dialect])),
+            dialect,
+          ),
+          { tools: true },
+        );
+        expect(outcome).toMatchObject({ status: 'refused', step: 'stream' });
+        expect(booked).toHaveLength(1);
+        expect(booked[0]?.inputTokens).toBeGreaterThan(0);
+        expect(booked[0]?.outputTokens).toBe(0);
+        expect(settled?.usage).toMatchObject({
+          inputTokens: booked[0]?.inputTokens,
+          estimated: true,
+        });
+        expect(executed).toEqual([]);
+      },
+    );
+
+    it('takes the call, not a zero-count frame before it, for the answer', async () => {
+      const afterZero = await turnOver(
+        providerModel(
+          () =>
+            rawSse(frames(ZERO_USAGE, TOOL_CALL, RATE_LIMIT_ON_STREAM.openai)),
+          'openai',
+        ),
+        { tools: true },
+      );
+      const alone = await turnOver(
+        providerModel(
+          () => rawSse(frames(TOOL_CALL, RATE_LIMIT_ON_STREAM.openai)),
+          'openai',
+        ),
+        { tools: true },
+      );
+      expect(afterZero.booked).toHaveLength(1);
+      expect(afterZero.booked).toEqual(alone.booked);
+      expect(afterZero.settled?.usage).toEqual(alone.settled?.usage);
+      expect(afterZero.executed).toEqual([]);
+    });
+
+    it.each(NO_ANSWER_FRAMES)(
+      'books nothing for a refusal after %s',
+      async (_name, dialect, noAnswer) => {
+        // A keep-alive comment and a frame cut mid-JSON ride along: neither
+        // is an answer either.
+        const { outcome, booked, settled, executed } = await turnOver(
+          providerModel(
+            () =>
+              rawSse(
+                `: keep-alive\n\ndata: {"choices":[{"delta":{"tool_calls":[\n\n${frames(noAnswer, RATE_LIMIT_ON_STREAM[dialect])}`,
+              ),
+            dialect,
+          ),
+          { tools: true },
+        );
+        expect(outcome).toMatchObject({ status: 'refused', step: 'stream' });
+        expect(booked).toEqual([]);
+        expect(settled).not.toHaveProperty('usage');
+        expect(executed).toEqual([]);
+      },
+    );
+
+    it('books the usage the failure reports itself, once, as reported', async () => {
+      const { booked, settled, executed } = await turnOver(
+        providerModel(
+          () =>
+            rawSse(
+              frames(TOOL_CALL, {
+                ...RATE_LIMITED,
+                usage: { prompt_tokens: 100, completion_tokens: 5 },
+              }),
+            ),
+          'openai',
+        ),
+        { tools: true },
+      );
+      expect(booked).toMatchObject([
+        { inputTokens: 100, outputTokens: 5, totalTokens: 105 },
+      ]);
+      expect(settled?.usage).toEqual({
+        inputTokens: 100,
+        outputTokens: 5,
+        totalTokens: 105,
+      });
+      expect(executed).toEqual([]);
+    });
+
+    it('keeps the input an Anthropic message_start reported, and estimates the rest', async () => {
+      const { booked, settled } = await turnOver(
+        providerModel(
+          () =>
+            rawSse(
+              frames(
+                {
+                  type: 'message_start',
+                  message: { usage: { input_tokens: 100 } },
+                },
+                {
+                  type: 'content_block_start',
+                  index: 0,
+                  content_block: {
+                    type: 'tool_use',
+                    id: 'toolu_1',
+                    name: 'lookup',
+                    input: {},
+                  },
+                },
+                RATE_LIMIT_ON_STREAM.anthropic,
+              ),
+            ),
+          'anthropic',
+        ),
+        { tools: true },
+      );
+      expect(booked).toMatchObject([
+        { inputTokens: 100, outputTokens: 0, totalTokens: 100 },
+      ]);
+      expect(settled?.usage).toMatchObject({
+        inputTokens: 100,
+        outputTokens: 0,
+        estimated: true,
+      });
+    });
+
+    it('counts the text before the call as the output, and the call as nothing', async () => {
+      const withCall = await turnOver(
+        providerModel(
+          () => rawSse(frames(TEXT, TOOL_CALL, RATE_LIMIT_ON_STREAM.openai)),
+          'openai',
+        ),
+        { tools: true },
+      );
+      const textOnly = await turnOver(
+        providerModel(
+          () => rawSse(frames(TEXT, RATE_LIMIT_ON_STREAM.openai)),
+          'openai',
+        ),
+        { tools: true },
+      );
+      expect(withCall.booked).toHaveLength(1);
+      expect(withCall.booked[0]?.outputTokens).toBeGreaterThan(0);
+      expect(withCall.booked).toEqual(textOnly.booked);
+      expect(withCall.executed).toEqual([]);
+    });
+
+    it('books a call the user stopped mid-arguments once, and never runs it', async () => {
+      // The model is still writing the call when the user stops the reply:
+      // the store reports the Stop on its next poll, and the abort ends the
+      // body the way it ends a real fetch.
+      const partial = {
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: 'call_1',
+                  type: 'function',
+                  function: { name: 'lookup', arguments: '{"query":"ret' },
+                },
+              ],
+            },
+          },
+        ],
+      };
+      const { outcome, booked, settled, executed } = await turnOver(
+        providerModel(
+          (_round, signal) => openSse(frames(partial), signal),
+          'openai',
+        ),
+        { tools: true, cancelOnProgress: true },
+      );
+      expect(outcome).toMatchObject({ status: 'completed', cancelled: true });
+      expect(booked).toHaveLength(1);
+      expect(booked[0]?.inputTokens).toBeGreaterThan(0);
+      expect(booked[0]?.outputTokens).toBe(0);
+      expect(settled?.usage).toMatchObject({
+        finishReason: 'cancelled',
+        estimated: true,
+      });
+      expect(settled?.parts).toEqual([]);
+      expect(executed).toEqual([]);
+    }, 10_000);
+
+    describe('after a finished tool round', () => {
+      /** Round 1 calls the tool and reports 80 in, 20 out; its call runs. */
+      const FINISHED_ROUND = `${frames(TOOL_CALL, {
+        choices: [],
+        usage: { prompt_tokens: 80, completion_tokens: 20 },
+      })}data: [DONE]\n\n`;
+      const NEXT_CALL = {
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                {
+                  index: 0,
+                  id: 'call_2',
+                  type: 'function',
+                  function: {
+                    name: 'lookup',
+                    arguments: '{"query":"refunds"}',
+                  },
+                },
+              ],
+            },
+            finish_reason: 'tool_calls',
+          },
+        ],
+      };
+
+      it('keeps the finished round alone when the next is refused before any answer', async () => {
+        const { booked, settled, executed } = await turnOver(
+          providerModel(
+            (round) =>
+              rawSse(
+                round === 1
+                  ? FINISHED_ROUND
+                  : frames(RATE_LIMIT_ON_STREAM.openai),
+              ),
+            'openai',
+          ),
+          { tools: true },
+        );
+        expect(executed).toMatchObject([{ id: 'call_1' }]);
+        expect(booked).toMatchObject([
+          { inputTokens: 80, outputTokens: 20, totalTokens: 100 },
+        ]);
+        expect(settled?.usage).toEqual({
+          inputTokens: 80,
+          outputTokens: 20,
+          totalTokens: 100,
+        });
+      });
+
+      it('adds the next round once when it is refused after the model began another call', async () => {
+        const refused = await turnOver(
+          providerModel(
+            (round) =>
+              rawSse(
+                round === 1
+                  ? FINISHED_ROUND
+                  : frames(NEXT_CALL, RATE_LIMIT_ON_STREAM.openai),
+              ),
+            'openai',
+          ),
+          { tools: true },
+        );
+        // The finished round's call ran; the one the refusal cut never does.
+        expect(refused.executed).toMatchObject([{ id: 'call_1' }]);
+        expect(refused.booked).toHaveLength(1);
+        expect(refused.booked[0]?.inputTokens).toBeGreaterThan(80);
+        expect(refused.booked[0]?.outputTokens).toBe(20);
+        expect(refused.settled?.usage).toMatchObject({ estimated: true });
+
+        // Both rounds in one row, as a provider fault there books them.
+        const fault = await turnOver(
+          providerModel(
+            (round) =>
+              rawSse(
+                round === 1
+                  ? FINISHED_ROUND
+                  : frames(NEXT_CALL, OPENROUTER_ERROR),
+              ),
+            'openai',
+          ),
+          { tools: true },
+        );
+        expect(refused.booked).toEqual(fault.booked);
+        expect(refused.settled?.usage).toEqual(fault.settled?.usage);
+      });
+    });
   });
 });
 
