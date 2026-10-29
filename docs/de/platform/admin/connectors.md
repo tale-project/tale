@@ -36,6 +36,8 @@ Ein Connector mit mehreren Einträgen, aber ohne Standard funktioniert weiterhin
 
 Postfachsynchronisation und Eingangssichtung können alle aktiven Zugangsdaten eines Postfach-Connectors prüfen; eine E-Mail-Synchronisierung, die auf ein Postfach eingestellt ist, liest nur dieses. Ein zweites Postfach muss dafür nicht zuerst Standard werden. Beim Verfassen einer neuen E-Mail listet das Feld **Postfach** jedes Postfach mit seinem Namen auf; die E-Mail wird über das gewählte Postfach versendet. Auch Antworten in dieser Konversation werden über dieses Postfach versendet, ebenso ein erneuter Versuch nach einem fehlgeschlagenen Versand.
 
+Auch Benachrichtigungs-E-Mails an Mitglieder, die [**Handlungsrelevante Alerts per E-Mail**](/de/platform/member/preferences#notification-email) eingeschaltet lassen, werden über ein verbundenes Postfach versendet. Tale nimmt zuerst aktive Zugangsdaten für das IMAP-/SMTP-Postfach, dann für Gmail, dann für Microsoft Outlook, und innerhalb eines Connectors jeweils den Standard. Über IMAP/SMTP kommen die E-Mails von `notification@` unter der Domain des Postfachs: Ein Postfach, das sich als `support@example.com` anmeldet, versendet sie als `notification@example.com`. Ohne aktive Zugangsdaten für ein Postfach erhalten Mitglieder ihre Benachrichtigungen nur in Tale. Ein fehlgeschlagener Versand wird nicht wiederholt; die Benachrichtigung in Tale bleibt.
+
 ## Ein Geheimnis rotieren oder Zugriff pausieren
 
 Nutze die Ersetzen-Aktion der jeweiligen Methode, etwa **API-Schlüssel ersetzen** oder **Token ersetzen**. Der neue Wert ersetzt das gespeicherte Geheimnis. Name, Standardauswahl und Verweise bleiben erhalten. Prüfe anschließend eine passende Dienstaktion.
