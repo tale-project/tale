@@ -68,14 +68,52 @@ async function expectReadablePoster(figure: Locator): Promise<void> {
 async function expectPlaying(figure: Locator): Promise<void> {
   const video = videoIn(figure);
   await expect(video).toHaveCount(1);
-  await expect
-    .poll(() =>
-      video.evaluate(
-        (element: HTMLVideoElement) =>
-          !element.paused && element.readyState >= 2 && element.videoWidth > 0,
-      ),
-    )
-    .toBe(true);
+  // Media events do not bubble: capture them on the figure, which also hears a
+  // <video> that replaces the current one. A healthy clip starts within
+  // seconds; the deadline leaves a slow CI runner room and reports the media
+  // state, so a clip that never starts explains itself without a trace.
+  await figure.evaluate(
+    (element: HTMLElement) =>
+      new Promise<void>((resolve, reject) => {
+        const listening = new AbortController();
+        const media = () => {
+          const videos = element.querySelectorAll('video');
+          return videos.length === 1 ? videos[0] : undefined;
+        };
+        const playing = (clip?: HTMLVideoElement) =>
+          !!clip && !clip.paused && clip.readyState >= 2 && clip.videoWidth > 0;
+        const timer = window.setTimeout(() => {
+          listening.abort();
+          const clip = media();
+          reject(
+            new Error(
+              `Media did not start playing: ${JSON.stringify({
+                state: element.getAttribute('data-product-motion-state'),
+                videos: element.querySelectorAll('video').length,
+                src: clip?.currentSrc,
+                paused: clip?.paused,
+                readyState: clip?.readyState,
+                networkState: clip?.networkState,
+                error: clip?.error?.code,
+              })}`,
+            ),
+          );
+        }, 30_000);
+        const finish = () => {
+          if (!playing(media())) return;
+          window.clearTimeout(timer);
+          listening.abort();
+          resolve();
+        };
+        for (const type of ['playing', 'timeupdate']) {
+          element.addEventListener(type, finish, {
+            capture: true,
+            signal: listening.signal,
+          });
+        }
+        finish();
+      }),
+  );
   const started = await video.evaluate(
     (element: HTMLVideoElement) => element.currentTime,
   );
@@ -308,6 +346,15 @@ async function decodedAction(
 
 test.describe('real product hero playback', () => {
   test.use({ contextOptions: { reducedMotion: 'no-preference' } });
+
+  // gotoClientPage removes its route as hydration requests the in-view clip.
+  // Removing a page's last route switches Playwright's request interception
+  // off, and a clip request that starts during the switch can stall or lose
+  // its request event. This route keeps interception on for the whole test;
+  // a route a test adds later still runs first.
+  test.beforeEach(async ({ page }) => {
+    await page.route(mediaRequest, (route) => route.fallback());
+  });
 
   for (const locale of locales) {
     for (const width of [320, 1440]) {
