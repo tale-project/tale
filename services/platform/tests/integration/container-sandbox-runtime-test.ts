@@ -934,9 +934,9 @@ console.log('--- playwright MCP starts only when a turn uses the browser ---');
 // recorded for the platform's argument sets (playwright-mcp-args.json): for
 // each set, the real server, a Node process holding ~100 MB, must not run
 // until the first tool call, even after Qwen Code's discovery (the prompt and
-// resource lists, asked whatever the server advertised), and the tool list and
-// those lists must be answered as the server's own; a tool call must reach a
-// server started then.
+// resource lists, asked whatever the server advertised), and the start, the
+// tool list and those lists must be answered as the server's own; a tool call
+// must reach a server started then.
 {
   const nodeScript = `const { spawn, execFileSync } = require('child_process');
 const argSets = JSON.parse(require('fs').readFileSync('/opt/tale/playwright-mcp/args.json', 'utf8'));
@@ -973,19 +973,20 @@ const ended = (srv) => new Promise((done) => { srv.on('exit', done); srv.kill();
   let listed;
   for (const [n, args] of argSets.entries()) {
     const turn = session('tale-playwright-mcp', args);
-    await turn.ask(1, 'initialize', init);
+    const started = await turn.ask(1, 'initialize', init);
     turn.tell('notifications/initialized');
     const turnListed = await turn.ask(2, 'tools/list');
     const unlisted = [];
     for (const [i, method] of lists.entries()) unlisted.push(await turn.ask(10 + i, method, {}));
     if (serverRunning()) { console.error('LAZY_SERVER_STARTED_EARLY ' + n); process.exit(1); }
     const direct = session('mcp-server-playwright', args);
-    await direct.ask(1, 'initialize', init);
+    const ownStart = await direct.ask(1, 'initialize', init);
     direct.tell('notifications/initialized');
     const own = await direct.ask(2, 'tools/list');
     const ownUnlisted = [];
     for (const [i, method] of lists.entries()) ownUnlisted.push(await direct.ask(10 + i, method, {}));
     await ended(direct.srv);
+    if (JSON.stringify(started.result) !== JSON.stringify(ownStart.result)) { console.error('LAZY_INITIALIZE_DIFFERS ' + n + ' ' + JSON.stringify(started) + ' ' + JSON.stringify(ownStart)); process.exit(1); }
     if (JSON.stringify(turnListed.result) !== JSON.stringify(own.result)) { console.error('LAZY_TOOLS_DIFFER ' + n); process.exit(1); }
     if (JSON.stringify(unlisted) !== JSON.stringify(ownUnlisted)) { console.error('LAZY_LISTS_DIFFER ' + n + ' ' + JSON.stringify(unlisted) + ' ' + JSON.stringify(ownUnlisted)); process.exit(1); }
     if (n === 0) { lazy = turn; listed = turnListed; } else await ended(turn.srv);
