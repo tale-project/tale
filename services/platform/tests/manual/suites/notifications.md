@@ -143,6 +143,14 @@ their own action, so a single account cannot generate those rows.
   stacking); once anyone answers — or the ask expires/cancels — the unread
   rows flip to read **without** manual mark-read and a still-pending email is
   cancelled.
+- [ ] `NOTIF-F13a` · **A project run's question opens the run** — Park an
+  automation run of a project on `ask_human` with **no** task subject
+  ([approvals.md](approvals.md) APV-F5); as an Owner/Admin/Developer who can
+  **see the project**, click the bell's **Agent needs your answer** row
+  (body `inbox.agentQuestionAskedNoTaskBody`) → The run's detail opens with
+  the card **The agent needs your answer to continue**
+  (`automations.runs.ask.title`), not the project's board, which has no
+  answer card; the email's link opens the same run.
 - [ ] `NOTIF-F14` · **Org alerts open their subject** — Env-gated
   documentation row (these are admin/system-driven). As an owner/admin, on
   any org row observed in the bell: a **Website scan paused**
