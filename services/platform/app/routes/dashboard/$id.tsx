@@ -53,6 +53,7 @@ import { EmbeddingSetupBanner } from '@/app/features/settings/data-residency/com
 import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useAuth } from '@/app/hooks/use-session-user';
+import { useSignInAgain } from '@/app/hooks/use-sign-in-again';
 import { setActiveOrganizationId } from '@/app/lib/active-organization';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
 import {
@@ -251,7 +252,8 @@ function DashboardLayout() {
   // (persistedStillMember) that prevents looping back to the deleted org.
   // 'not_member' intentionally not redirected — preserve the AccessDenied
   // "you've been removed" message; the early-bailout below already prevents
-  // its layout-chrome subscription leak.
+  // its layout-chrome subscription leak. Nor is 'session_restricted': its page
+  // says what limits the session and offers to sign in to this workspace.
   const navigate = useNavigate();
   const redirectedRef = useRef(false);
   useEffect(() => {
@@ -287,6 +289,8 @@ function DashboardLayout() {
             title={tNotFound('notFound.title')}
             message={t('workspaceNotFound')}
           />
+        ) : status === 'session_restricted' ? (
+          <SessionRestricted />
         ) : (
           <AccessDenied message={t(isDisabled ? 'disabled' : 'noMembership')} />
         )}
@@ -417,6 +421,30 @@ function DashboardLayout() {
         </AbilityLoadingContext.Provider>
       </AbilityContext.Provider>
     </ErrorScopeProvider>
+  );
+}
+
+/**
+ * A session single sign-on or an authenticating proxy bound to another
+ * organization, opened on this one. The person may well be a member here, so
+ * the page names the session as what stops them, not their membership, and
+ * offers to sign in to this workspace: sign-in brings them back to this page.
+ */
+function SessionRestricted() {
+  const { t } = useT('accessDenied');
+  const { t: tCommon } = useT('common');
+  const { offered, leaving, signInAgain } = useSignInAgain();
+  return (
+    <AccessDenied
+      message={tCommon('errors.organizationSessionRestricted')}
+      action={
+        offered && (
+          <Button isLoading={leaving} onClick={() => void signInAgain()}>
+            {t('signInToWorkspace')}
+          </Button>
+        )
+      }
+    />
   );
 }
 

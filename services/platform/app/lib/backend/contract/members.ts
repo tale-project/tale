@@ -71,6 +71,18 @@ export interface MembersContract {
           createdAt?: undefined;
           displayName?: undefined;
           isAdmin?: undefined;
+        }
+      | {
+          /** The session is bound to another organization: the member door's
+           * refusal (`requireOrgMember`) as the app reads it, never a body. */
+          status: 'session_restricted';
+          memberId?: undefined;
+          organizationId?: undefined;
+          userId?: undefined;
+          role?: undefined;
+          createdAt?: undefined;
+          displayName?: undefined;
+          isAdmin?: undefined;
         };
   };
   'members/queries:getMyTeams': {

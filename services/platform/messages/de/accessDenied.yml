@@ -14,6 +14,7 @@ automations: Automatisierungen sind Inhabern, Admins und Entwicklern vorbehalten
 workspaceNotFound: Dieser Arbeitsbereich existiert nicht oder wurde entfernt.
 disabled: Dein Konto ist deaktiviert. Kontaktiere den Support.
 noMembership: Du bist kein Mitglied dieses Arbeitsbereichs. Wende dich an einen Administrator.
+signInToWorkspace: Bei diesem Arbeitsbereich anmelden
 enterpriseSso: Sie benötigen Administratorrechte, um auf die
   Enterprise-SSO-Einstellungen zuzugreifen.
 dataResidency: Du benötigst Admin-Berechtigungen, um auf die
