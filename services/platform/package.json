@@ -126,7 +126,7 @@
     "zod": "4.6.6"
   },
   "devDependencies": {
-    "@playwright/test": "1.58.2",
+    "@playwright/test": "1.62.1",
     "@stoplight/prism-core": "5.15.11",
     "@stoplight/prism-http": "5.15.11",
     "@stoplight/types": "14.1.1",
