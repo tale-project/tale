@@ -1093,6 +1093,9 @@ form:
   passwordPlaceholder: Passwort eingeben
   role: Rolle
   forgotPassword: Benutzer, die ihr Passwort vergessen, sollten sich an einen Admin wenden.
+apiAccess:
+  readFailed: Dein API-Zugriff konnte nicht geladen werden.
+  partialReadFailed: Ein Teil deines API-Zugriffs konnte nicht geladen werden.
 apiKeys:
   entityLabel: Schlüssel
   entityLabelOne: Schlüssel
