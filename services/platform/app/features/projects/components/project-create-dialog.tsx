@@ -6,8 +6,10 @@ import {
   isValidProjectKey,
   normalizeProjectKey,
 } from '@tale/shared/utils/project-key';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Input } from '@tale/ui/input';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Textarea } from '@tale/ui/textarea';
 import { useForm } from '@tale/ui/use-form';
 import { toast } from '@tale/ui/use-toast';
@@ -63,8 +65,20 @@ export function ProjectCreateDialog({
   const navigate = useNavigate();
   const { mutateAsync: createProject } = useCreateProject();
   // The audience: the teams the creator may assign (their own; every team
-  // for an admin). Empty = organization-wide, the default.
-  const { teams: assignableTeams } = useOrgTeams();
+  // for an admin). Empty = organization-wide, the default — so Create waits
+  // for this read: one that has not answered, or failed, is never an org
+  // without teams, and creating then would open the project to everyone
+  // without the creator ever seeing the choice.
+  const {
+    teams: assignableTeams,
+    unavailable: teamsUnavailable,
+    stale: teamsStale,
+    retrying: teamsRetrying,
+    failureCount: teamsFailures,
+    retry: retryTeams,
+  } = useOrgTeams();
+  const teamsFailed = teamsUnavailable || teamsStale;
+  const audienceReady = assignableTeams !== undefined && !teamsFailed;
   const [teamIds, setTeamIds] = useState<string[]>([]);
   // The icon/color pair lives beside the form like the audience does: it has
   // no native input, and `null` (the default folder / gray) sends nothing.
@@ -131,7 +145,18 @@ export function ProjectCreateDialog({
 
   const keyField = register('key');
 
+  // Try again hands the focus to the picker once it is back — or to the
+  // field above it when the answer leaves no team to pick.
+  const focusAudience = () =>
+    (
+      document.getElementById('project-audience') ??
+      document.getElementById('project-description')
+    )?.focus();
+
   const onSubmit = async (data: FormData) => {
+    // Create is disabled until the audience read answers; this also holds a
+    // submit that reaches the form some other way.
+    if (!audienceReady) return;
     try {
       const projectId = await createProject({
         organizationId,
@@ -206,6 +231,7 @@ export function ProjectCreateDialog({
       submitText={t('create.submit')}
       submittingText={t('create.submitting')}
       isSubmitting={isSubmitting}
+      isValid={audienceReady}
       onSubmit={handleSubmit(onSubmit)}
     >
       <Input
@@ -256,17 +282,40 @@ export function ProjectCreateDialog({
         {...register('description')}
         errorMessage={errors.description?.message}
       />
-      {assignableTeams && assignableTeams.length > 0 ? (
-        <TeamMultiSelect
-          id="project-audience"
-          label={t('create.audienceLabel')}
-          description={t('create.audienceHelp')}
-          teams={assignableTeams}
-          selectedTeamIds={teamIds}
-          onSelectionChange={setTeamIds}
-          orgWideLabel={t('list.sharingOrgWide')}
-          disabled={isSubmitting}
-        />
+      {/* A settled failed read, also while its retry runs, and a refresh that
+          failed are named in the field's place; a pending read holds the
+          field's place. Only an answered, empty list leaves the field out:
+          organization-wide is then the creator's only choice. */}
+      {teamsFailed ? (
+        <div
+          role="group"
+          aria-labelledby="project-audience-label"
+          className="flex flex-col gap-1.5"
+        >
+          <p id="project-audience-label" className="text-sm font-medium">
+            {t('create.audienceLabel')}
+          </p>
+          <CatalogLoadError
+            message={t('sharing.teamsLoadError')}
+            failureKey={teamsFailures}
+            isRetrying={teamsRetrying}
+            onRetry={retryTeams}
+            onFocusLost={focusAudience}
+          />
+        </div>
+      ) : assignableTeams === undefined || assignableTeams.length > 0 ? (
+        <Skeletonize loading={assignableTeams === undefined}>
+          <TeamMultiSelect
+            id="project-audience"
+            label={t('create.audienceLabel')}
+            description={t('create.audienceHelp')}
+            teams={assignableTeams ?? []}
+            selectedTeamIds={teamIds}
+            onSelectionChange={setTeamIds}
+            orgWideLabel={t('list.sharingOrgWide')}
+            disabled={isSubmitting}
+          />
+        </Skeletonize>
       ) : null}
     </FormDialog>
   );
