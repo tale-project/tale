@@ -365,7 +365,7 @@ export async function checkStandingRoleWake(
     );
 
     // ---- W17: an opted-out target keeps the generation; opting in fires it
-    // Opt out first, so no in-process scan tick can fire in between.
+    // Opt out first, so the wake made due below can only fire opted out.
     await optIn(false);
     await sql`
       UPDATE app.project_wakes SET not_before_ms = NULL

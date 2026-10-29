@@ -249,6 +249,15 @@ it fails: every later `/api/v1` call on that user's keys would answer
 `ORG_SLUG_REQUIRED`. A probe that needs another organization gives it an owner of
 its own.
 
+The harness starts pg-boss with its cron clock off (`startBoss` with
+`schedule: false`): every schedule production registers is registered and reads
+back, and none of them ticks. A lane that needs a recurring job's work drives it,
+calling the sweep or sending the job, and never waits for a tick: a tick beside a
+lane made its outcome hang on the host's minute boundary (#4113). After the lanes,
+`harness: pg-boss ran no cron pass and forwarded no scheduled tick while the lanes
+ran` fails if a clock ran against the database all the same
+([`jobs/cron-clock.integration.ts`](jobs/cron-clock.integration.ts)).
+
 A lane that does not settle within 10 minutes truncates the run the same way, and
 a truncated run still prints its tally and exits: the teardown closes the backend
 the way the deployment does (ending every live `/events` stream, then any
