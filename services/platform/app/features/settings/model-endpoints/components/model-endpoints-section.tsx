@@ -1,5 +1,6 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { CodeBlock } from '@tale/ui/code-block';
 import { CopyableField } from '@tale/ui/copyable-field';
@@ -188,20 +189,31 @@ export function ModelEndpointsSection({
     );
   }
 
-  const orgSlug = organization.data?.slug ?? '<org-slug>';
+  const openaiBaseUrl = `${siteOrigin}/api/v1/openai`;
+  const anthropicBaseUrl = `${siteOrigin}/api/v1/anthropic`;
+  // Every snippet sends the organization's slug, so the snippets wait for
+  // it: a failed read says so, with Try again, the way the MCP tab does —
+  // never a copyable placeholder header value (#4832).
+  const orgSlug = organization.isError ? undefined : organization.data?.slug;
   const firstModel = standing.models[0];
-  const facts: SnippetFacts = {
-    openaiBaseUrl: `${siteOrigin}/api/v1/openai`,
-    anthropicBaseUrl: `${siteOrigin}/api/v1/anthropic`,
-    orgSlug,
-    model: firstModel?.id ?? MODEL_PLACEHOLDER,
-    modelLabel: firstModel?.label ?? MODEL_PLACEHOLDER,
-  };
-  const snippets = [
-    { key: 'opencode', value: openCodeSnippet(facts) },
-    { key: 'claudeCode', value: claudeCodeSnippet(facts) },
-    { key: 'openaiSdk', value: openAiSdkSnippet(facts) },
-  ] as const;
+  const facts: SnippetFacts | undefined =
+    orgSlug === undefined
+      ? undefined
+      : {
+          openaiBaseUrl,
+          anthropicBaseUrl,
+          orgSlug,
+          model: firstModel?.id ?? MODEL_PLACEHOLDER,
+          modelLabel: firstModel?.label ?? MODEL_PLACEHOLDER,
+        };
+  const snippets =
+    facts === undefined
+      ? []
+      : ([
+          { key: 'opencode', value: openCodeSnippet(facts) },
+          { key: 'claudeCode', value: claudeCodeSnippet(facts) },
+          { key: 'openaiSdk', value: openAiSdkSnippet(facts) },
+        ] as const);
 
   return (
     <>
@@ -214,6 +226,14 @@ export function ModelEndpointsSection({
           </>
         }
       >
+        {organization.isError && (
+          <Alert variant="destructive">
+            <p>{t('modelEndpoints.organizationReadFailed')}</p>
+            <Button type="button" onClick={() => void organization.refetch()}>
+              {tCommon('actions.tryAgain')}
+            </Button>
+          </Alert>
+        )}
         {/* Same divided rows as every settings section — label + hint left,
             the value pinned right. */}
         <SettingsFieldList>
@@ -222,7 +242,7 @@ export function ModelEndpointsSection({
             description={t('modelEndpoints.openaiUrl.description')}
           >
             <CopyableField
-              value={facts.openaiBaseUrl}
+              value={openaiBaseUrl}
               mono
               copyAriaLabel={t('modelEndpoints.openaiUrl.copy')}
             />
@@ -232,7 +252,7 @@ export function ModelEndpointsSection({
             description={t('modelEndpoints.anthropicUrl.description')}
           >
             <CopyableField
-              value={facts.anthropicBaseUrl}
+              value={anthropicBaseUrl}
               mono
               copyAriaLabel={t('modelEndpoints.anthropicUrl.copy')}
             />
@@ -256,13 +276,13 @@ export function ModelEndpointsSection({
               Authorization: Bearer &lt;api-key&gt;
             </Text>
           </SettingsFieldRow>
-          {organization.data?.slug !== undefined && (
+          {orgSlug !== undefined && (
             <SettingsFieldRow
               label={t('modelEndpoints.orgSlug.label')}
               description={t('modelEndpoints.orgSlug.description')}
             >
               <CopyableField
-                value={organization.data.slug}
+                value={orgSlug}
                 mono
                 copyAriaLabel={t('modelEndpoints.orgSlug.copy')}
               />

@@ -114,6 +114,7 @@ modelEndpoints:
     outils — opencode, Claude Code, les SDK OpenAI et Anthropic — avec une
     clé API personnelle.
   loadFailed: Impossible de charger l'état des endpoints de modèles.
+  organizationReadFailed: Les informations de l'organisation n'ont pas pu être chargées ; le slug de l'organisation et les exemples de configuration ne sont pas disponibles.
   governanceNote: Chaque appel est décompté de tes budgets et passe par les
     garde-fous d'entrée de l'organisation ; les réponses des modèles ne sont
     pas filtrées.
@@ -249,6 +250,8 @@ usage:
       la limite atteinte, les nouveaux téléversements de documents sont refusés.
     label: Fichiers téléversés
     unlimited: Aucune limite de stockage ne s'applique à toi.
+    loadFailed: Impossible de charger ton utilisation du stockage.
+    refreshFailed: Impossible d'actualiser ton utilisation du stockage. L'affichage n'est peut-être plus à jour.
 organization:
   title: Nom de l'organisation
   loadFailed: Les informations de l'organisation n'ont pas pu être chargées.

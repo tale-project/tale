@@ -14,6 +14,7 @@ import { useMemo, useState } from 'react';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import type {
@@ -73,6 +74,13 @@ export function SandboxDevicesSection({
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<SandboxDeviceView | null>(null);
   const devices = view?.devices ?? [];
+  // Try again in the table's error state re-reads the devices; the section
+  // takes the focus the button held while the table loads again.
+  const recovery = useListReadRecovery<HTMLElement>({
+    error,
+    results: devices,
+    retry: onRefresh,
+  });
 
   const columns = useMemo<ColumnDef<SandboxDeviceView>[]>(
     () => [
@@ -248,6 +256,8 @@ export function SandboxDevicesSection({
 
   return (
     <SettingsSection
+      ref={recovery.regionRef}
+      tabIndex={-1}
       title={t('devices.title')}
       description={t('devices.description')}
       action={
@@ -273,6 +283,8 @@ export function SandboxDevicesSection({
         data={devices}
         isLoading={isLoading}
         error={error}
+        onRetry={recovery.retryRead}
+        onErrorFocusLost={recovery.focusRegion}
         approxRowCount={devices.length}
         getRowId={(row) => row.id}
         emptyState={{
