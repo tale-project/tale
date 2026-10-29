@@ -1192,6 +1192,8 @@ logs:
   integrity:
     title: Ketten-Integrität
     neverChecked: Es wurde noch keine automatische Integritätsprüfung ausgeführt.
+    loadFailed: Der Integritätsstatus konnte nicht geladen werden. Ob eine Integritätswarnung aktiv ist, lässt sich hier deshalb nicht erkennen.
+    refreshFailed: Der neueste Integritätsstatus konnte nicht geladen werden. Die Anzeige ist womöglich veraltet.
     lastCheck: 'Letzte automatische Prüfung: {date}'
     alertedAt: Warnung ausgelöst am {date}
     statusUnchecked: Noch nicht geprüft
@@ -1252,6 +1254,7 @@ logs:
     tableCaption: Fehlerprotokoll-Datentabelle
     emptyTitle: Keine Fehlerprotokolle
     emptyDescription: Fehlgeschlagene und abgelehnte Aktionen werden hier angezeigt.
+    refreshFailed: Die neuesten Fehlerprotokolle konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
   blockCounters:
     tabLabel: Anmeldeblockaden
     tableCaption: Anmeldeblockaden
@@ -1275,6 +1278,7 @@ logs:
     emptyDescription:
       Audit-Protokolle werden hier angezeigt, sobald Aktionen in
       deiner Organisation durchgeführt werden.
+    refreshFailed: Die neuesten Audit-Protokolle konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
     detailTitle: Audit-Protokoll-Details
     viaLabel: Quelle
     viaLabels:

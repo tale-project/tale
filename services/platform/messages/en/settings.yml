@@ -1138,6 +1138,8 @@ logs:
   integrity:
     title: Chain integrity
     neverChecked: No automated integrity check has run yet.
+    loadFailed: "Couldn't load the integrity status, so this panel can't tell whether an integrity alert is active."
+    refreshFailed: "Couldn't load the latest integrity status. What's shown may be out of date."
     lastCheck: 'Last automated check: {date}'
     alertedAt: Alert raised {date}
     statusUnchecked: Not yet checked
@@ -1195,6 +1197,7 @@ logs:
     tableCaption: Error logs data table
     emptyTitle: No error logs
     emptyDescription: Failed and denied actions will appear here.
+    refreshFailed: "Couldn't load the latest error logs. What's listed may be incomplete or out of date."
   blockCounters:
     tabLabel: Sign-in blocks
     tableCaption: Sign-in block activity
@@ -1218,6 +1221,7 @@ logs:
     emptyDescription:
       Audit logs will appear here as actions are performed in your
       organization.
+    refreshFailed: "Couldn't load the latest audit logs. What's listed may be incomplete or out of date."
     detailTitle: Audit log details
     viaLabel: Source
     viaLabels:

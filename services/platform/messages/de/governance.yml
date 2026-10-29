@@ -690,6 +690,8 @@ guardrailsOverview:
     on: An
     off: Aus
     notConfigured: Nicht konfiguriert
+    unknown: Unbekannt
+    readFailed: Der Status konnte nicht für alle Filterschichten geladen werden. Eine Schicht mit „Unbekannt“ kann an- oder ausgeschaltet sein.
     contentSafety:
       title: Inhaltssicherheit
       description: Wortlisten und vom Admin bereitgestellte Regex-Muster.
@@ -1456,6 +1458,7 @@ dataSubjectRequests:
   sections:
     requestsList:
       title: Anfragen
+      refreshFailed: Die neuesten Löschungsanfragen konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
       empty:
         title: Noch keine Löschungsanfragen
         description: Reiche oben eine Anfrage ein, um einen Art.-17-Beleg zu erfassen.

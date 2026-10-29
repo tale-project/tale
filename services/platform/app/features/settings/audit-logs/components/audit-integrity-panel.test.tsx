@@ -8,7 +8,14 @@ import { AuditIntegrityPanel } from './audit-integrity-panel';
 // The panel's data hooks are the unit under test's collaborators — drive them
 // from a mutable holder so each test sets the exact status / verify result.
 const state = vi.hoisted(() => ({
-  status: { data: null as unknown, isLoading: false },
+  status: {
+    data: null as unknown,
+    isLoading: false,
+    isError: false,
+    isFetching: false,
+    errorUpdateCount: 0,
+    refetch: vi.fn() as unknown,
+  },
   verify: {
     data: undefined as unknown,
     isPending: false,
@@ -38,8 +45,21 @@ function renderPanel(onOpenRow = vi.fn()) {
   return { onOpenRow, ...result };
 }
 
+/** The status read: answered with `data`, unless the test fails it. */
+function statusRead(overrides: Partial<typeof state.status> = {}) {
+  return {
+    data: null as unknown,
+    isLoading: false,
+    isError: false,
+    isFetching: false,
+    errorUpdateCount: 0,
+    refetch: vi.fn() as unknown,
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
-  state.status = { data: null, isLoading: false };
+  state.status = statusRead();
   state.verify = {
     data: undefined,
     isPending: false,
@@ -51,7 +71,7 @@ beforeEach(() => {
 
 describe('AuditIntegrityPanel', () => {
   it('claims nothing about past checks while the status is loading', () => {
-    state.status = { data: undefined, isLoading: true };
+    state.status = statusRead({ data: undefined, isLoading: true });
     renderPanel();
     expect(screen.getByText('Chain integrity')).toBeInTheDocument();
     expect(screen.queryByText('Not yet checked')).toBeNull();
@@ -73,17 +93,16 @@ describe('AuditIntegrityPanel', () => {
   });
 
   it('shows a verified badge + last-check time when a clean check has run', () => {
-    state.status = {
+    state.status = statusRead({
       data: { headReached: true, updatedAt: NOW, alertActive: false },
-      isLoading: false,
-    };
+    });
     renderPanel();
     expect(screen.getByText('Verified')).toBeInTheDocument();
     expect(screen.getByText(/Last automated check:/)).toBeInTheDocument();
   });
 
   it('shows an active integrity alert badge with the alert time', () => {
-    state.status = {
+    state.status = statusRead({
       data: {
         headReached: false,
         updatedAt: NOW,
@@ -91,8 +110,7 @@ describe('AuditIntegrityPanel', () => {
         lastAlertedAt: NOW + 500,
         lastAlertedFingerprint: 'fp',
       },
-      isLoading: false,
-    };
+    });
     renderPanel();
     expect(screen.getByText('Integrity alert active')).toBeInTheDocument();
     expect(screen.getByText(/Alert raised/)).toBeInTheDocument();
@@ -237,15 +255,14 @@ describe('AuditIntegrityPanel', () => {
   });
 
   it('passes an axe audit in the alert-active + broken state', async () => {
-    state.status = {
+    state.status = statusRead({
       data: {
         headReached: false,
         updatedAt: NOW,
         alertActive: true,
         lastAlertedAt: NOW + 500,
       },
-      isLoading: false,
-    };
+    });
     state.verify = {
       data: {
         valid: false,
@@ -265,6 +282,92 @@ describe('AuditIntegrityPanel', () => {
       isError: false,
       mutate: vi.fn(),
     };
+    const { container } = renderPanel();
+    await checkAccessibility(container);
+  });
+});
+
+// "No automated integrity check has run yet" over a status that never
+// loaded hid whatever alert that status carries (#4834).
+describe('AuditIntegrityPanel status read failures', () => {
+  it('names a status that failed to load instead of claiming no check has run, and Try again recovers it', async () => {
+    const refetch = vi.fn();
+    state.status = statusRead({
+      data: undefined,
+      isError: true,
+      errorUpdateCount: 1,
+      refetch,
+    });
+    const { user, rerender } = renderPanel();
+    expect(screen.queryByText('Not yet checked')).toBeNull();
+    expect(
+      screen.queryByText('No automated integrity check has run yet.'),
+    ).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load the integrity status, so this panel can't tell whether an integrity alert is active.",
+    );
+    const retry = screen.getByRole('button', { name: 'Try again' });
+    await user.click(retry);
+    expect(refetch).toHaveBeenCalledTimes(1);
+    // react-query starts the retry of a read that never answered from
+    // pending: the failure stays named, its Try again busy, not a skeleton.
+    state.status = statusRead({
+      data: undefined,
+      isLoading: true,
+      isFetching: true,
+      errorUpdateCount: 1,
+      refetch,
+    });
+    rerender(
+      <AuditIntegrityPanel organizationId="org-1" onOpenRow={vi.fn()} />,
+    );
+    expect(screen.getByRole('button', { name: 'Try again' })).toBe(retry);
+    expect(retry).toHaveAttribute('aria-busy', 'true');
+    expect(
+      screen.queryByText('No automated integrity check has run yet.'),
+    ).toBeNull();
+    state.status = statusRead({
+      data: {
+        headReached: false,
+        updatedAt: NOW,
+        alertActive: true,
+        lastAlertedAt: NOW + 500,
+      },
+      errorUpdateCount: 1,
+      refetch,
+    });
+    rerender(
+      <AuditIntegrityPanel organizationId="org-1" onOpenRow={vi.fn()} />,
+    );
+    expect(screen.getByText('Integrity alert active')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('keeps the last status beside a failed refresh and says it may be out of date', async () => {
+    const refetch = vi.fn();
+    state.status = statusRead({
+      data: { headReached: true, updatedAt: NOW, alertActive: false },
+      isError: true,
+      errorUpdateCount: 1,
+      refetch,
+    });
+    const { user } = renderPanel();
+    expect(screen.getByText('Verified')).toBeInTheDocument();
+    expect(screen.getByText(/Last automated check:/)).toBeInTheDocument();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load the latest integrity status. What's shown may be out of date.",
+    );
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('passes an axe audit while the status cannot be loaded', async () => {
+    state.status = statusRead({
+      data: undefined,
+      isError: true,
+      errorUpdateCount: 1,
+    });
     const { container } = renderPanel();
     await checkAccessibility(container);
   });

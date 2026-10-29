@@ -671,6 +671,8 @@ guardrailsOverview:
     on: On
     off: Off
     notConfigured: Not configured
+    unknown: Unknown
+    readFailed: "Couldn't load the status of every filter layer. A layer marked Unknown may be on or off."
     contentSafety:
       title: Content safety
       description: Word lists and admin-supplied regex patterns.
@@ -1411,6 +1413,7 @@ dataSubjectRequests:
   sections:
     requestsList:
       title: Requests
+      refreshFailed: "Couldn't load the latest erasure requests. What's listed may be incomplete or out of date."
       empty:
         title: No erasure requests yet
         description: File a request from the action above to record an Art. 17 receipt.

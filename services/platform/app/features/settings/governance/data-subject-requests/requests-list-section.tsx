@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import {
   DataTableFilters,
@@ -19,6 +20,7 @@ import { useMemo, useState } from 'react';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import {
   ERASURE_STATUSES,
   type ErasureStatus,
@@ -52,10 +54,16 @@ export function RequestsListSection({
   // AccessDenied below regardless. The hook treats `undefined`
   // organizationId as `'skip'`.
   const canRead = ability.can('write', 'orgSettings');
-  const { results, status, loadMore, error } = useListErasureRequests({
+  const requests = useListErasureRequests({
     organizationId: canRead ? organizationId : undefined,
     statuses: statusFilter,
   });
+  const { results, status, loadMore, error } = requests;
+  // A failed read is named with its retry, never "No erasure requests yet",
+  // which invites filing a duplicate erasure (#4834): the table shows a
+  // failed first page; requests a later page left on screen stay, and the
+  // failure is named above them.
+  const recovery = useListReadRecovery(requests);
   // H9-1: derive load-states from `status` so DataTable doesn't replace
   // existing rows with skeleton placeholders every time the user clicks
   // "Load more" (matches release-history-section.tsx pattern).
@@ -213,45 +221,77 @@ export function RequestsListSection({
             </Button>
           }
         />
-        <DataTable<ErasureRow>
-          columns={columns}
-          data={results ?? []}
-          // H9-1: only mark loading on the initial fetch — `Load more`
-          // fetches keep the existing rows visible.
-          isLoading={isInitialLoading}
-          approxRowCount={results?.length}
-          getRowId={(row) => row._id}
-          onRowClick={(row) => {
-            void navigate({
-              to: '/dashboard/$id/settings/governance/data-subject-requests/$requestId',
-              params: {
-                id: organizationId,
-                requestId: row.original._id,
+        <div
+          ref={recovery.regionRef}
+          role="region"
+          aria-label={t('dataSubjectRequests.sections.requestsList.title')}
+          tabIndex={-1}
+          className="flex flex-col gap-4 outline-none"
+        >
+          {recovery.failedWithRows && (
+            <CatalogLoadError
+              // Each failure is announced again; Try again keeps its node.
+              failureKey={requests.errorCount}
+              onFocusLost={recovery.focusRegion}
+              message={t(
+                'dataSubjectRequests.sections.requestsList.refreshFailed',
+              )}
+              onRetry={recovery.retryRead}
+              isRetrying={requests.isRetrying}
+            />
+          )}
+          <DataTable<ErasureRow>
+            columns={columns}
+            data={results ?? []}
+            // H9-1: only mark loading on the initial fetch — `Load more`
+            // fetches keep the existing rows visible.
+            isLoading={isInitialLoading}
+            error={results.length > 0 ? null : error}
+            onRetry={recovery.retryRead}
+            // A refresh the reader did not start takes the error state away
+            // while it runs; a focused Try again hands its focus to the list.
+            onErrorFocusLost={recovery.focusRegion}
+            // `undefined` while the first page is in flight — a first read or
+            // its retry — so the table shows its skeleton: a count of 0 would
+            // claim "No erasure requests yet" before the read answered.
+            approxRowCount={isInitialLoading ? undefined : results.length}
+            getRowId={(row) => row._id}
+            onRowClick={(row) => {
+              void navigate({
+                to: '/dashboard/$id/settings/governance/data-subject-requests/$requestId',
+                params: {
+                  id: organizationId,
+                  requestId: row.original._id,
+                },
+              });
+            }}
+            // H9-2: use DataTable's built-in infiniteScroll (auto IntersectionObserver
+            // + accessible loading/end-of-list affordances) instead of a hand-rolled
+            // button outside the table border.
+            infiniteScroll={{
+              hasMore: status === 'CanLoadMore',
+              onLoadMore: () => loadMore(DEFAULT_LIST_PAGE_SIZE),
+              isLoadingMore,
+              isInitialLoading,
+              // A failed read with more pages to come: scrolling asks for
+              // nothing until Try again, and the footer says the rest could
+              // not be loaded instead of "Showing all" — `useListPage`'s rule.
+              loadFailed: error !== null && status === 'CanLoadMore',
+              entityLabel: {
+                one: t('dataSubjectRequests.entityLabelOne'),
+                other: t('dataSubjectRequests.entityLabel'),
               },
-            });
-          }}
-          // H9-2: use DataTable's built-in infiniteScroll (auto IntersectionObserver
-          // + accessible loading/end-of-list affordances) instead of a hand-rolled
-          // button outside the table border.
-          infiniteScroll={{
-            hasMore: status === 'CanLoadMore',
-            onLoadMore: () => loadMore(DEFAULT_LIST_PAGE_SIZE),
-            isLoadingMore,
-            isInitialLoading,
-            entityLabel: {
-              one: t('dataSubjectRequests.entityLabelOne'),
-              other: t('dataSubjectRequests.entityLabel'),
-            },
-          }}
-          emptyState={{
-            icon: FileText,
-            title: t('dataSubjectRequests.sections.requestsList.empty.title'),
-            description: t(
-              'dataSubjectRequests.sections.requestsList.empty.description',
-            ),
-          }}
-          caption={t('dataSubjectRequests.sections.requestsList.title')}
-        />
+            }}
+            emptyState={{
+              icon: FileText,
+              title: t('dataSubjectRequests.sections.requestsList.empty.title'),
+              description: t(
+                'dataSubjectRequests.sections.requestsList.empty.description',
+              ),
+            }}
+            caption={t('dataSubjectRequests.sections.requestsList.title')}
+          />
+        </div>
       </SettingsSection>
 
       <FileRequestDialog
