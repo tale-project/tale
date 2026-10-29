@@ -22,8 +22,8 @@
     "test:watch": "bunx vitest",
     "test:coverage": "bunx vitest --coverage --passWithNoTests",
     "test:prerender": "bunx vitest --run --config vitest.prerender.config.ts",
-    "test:e2e": "bunx playwright test",
-    "test:e2e:ui": "bunx playwright test --ui",
+    "test:e2e": "PLAYWRIGHT_FORCE_ASYNC_LOADER=1 bunx playwright test",
+    "test:e2e:ui": "PLAYWRIGHT_FORCE_ASYNC_LOADER=1 bunx playwright test --ui",
     "storybook": "bunx --bun storybook dev -p 6010",
     "storybook:build": "bunx --bun storybook build -o storybook-static"
   },
