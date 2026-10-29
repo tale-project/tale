@@ -2,6 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { onSessionLapsed } from '@/app/lib/auth/session-lapse';
+import { SESSION_ORGANIZATION_MESSAGE } from '@/lib/shared/constants/session-authority';
 import { LAPSED_SESSION_ANSWER } from '@/tests/utils/lapsed-session';
 
 import {
@@ -358,6 +359,36 @@ describe('backendApiErrorFromBody', () => {
       code,
       message,
     });
+  });
+
+  // The member read words this refusal itself (`requireOrgMember`), the
+  // organization door puts it in `error`; the message is localized on the way
+  // in, so the error keeps which refusal it was.
+  it.each([
+    {
+      error: 'ORG_FORBIDDEN',
+      code: 'ORG_FORBIDDEN',
+      message: SESSION_ORGANIZATION_MESSAGE,
+    },
+    { code: 'ORG_FORBIDDEN', error: SESSION_ORGANIZATION_MESSAGE },
+  ])('names %j a session bound to another organization', (body) => {
+    expect(backendApiErrorFromBody(403, body)).toMatchObject({
+      status: 403,
+      code: 'ORG_FORBIDDEN',
+      sessionRefusal: 'organization',
+    });
+  });
+
+  it('names no session refusal for any other ORG_FORBIDDEN', () => {
+    expect(
+      backendApiErrorFromBody(403, { error: 'ORG_FORBIDDEN' }).sessionRefusal,
+    ).toBeUndefined();
+    expect(
+      backendApiErrorFromBody(404, {
+        code: 'ORG_FORBIDDEN',
+        error: SESSION_ORGANIZATION_MESSAGE,
+      }).sessionRefusal,
+    ).toBeUndefined();
   });
 });
 

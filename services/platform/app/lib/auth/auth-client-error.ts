@@ -20,30 +20,50 @@ export interface AuthClientRefusal {
   message?: string;
 }
 
-/** These same codes also name other refusals. Localize only the authority
+/** A refusal's status, code and words, as either the Better Auth client or
+ * the backend's fetch seam reads them. */
+interface SessionRefusalAnswer {
+  status: number;
+  code?: string | undefined;
+  message?: string | undefined;
+}
+
+/** The session-authority refusals this server words itself: the session is
+ * bound to another organization (`organization`), or the action needs a
+ * session the account itself authenticated (`account`). */
+export type AuthSessionRefusal = 'organization' | 'account';
+
+/** These same codes also name other refusals. Recognize only the authority
  * sentence this server owns; never relabel another resource or stale-age
  * refusal merely because it used ORG_FORBIDDEN or SESSION_NOT_FRESH. */
-export function authSessionRefusalMessage(
-  error:
-    | {
-        status: number;
-        code?: string | undefined;
-        message?: string | undefined;
-      }
-    | null
-    | undefined,
-): string | undefined {
+export function authSessionRefusal(
+  error: SessionRefusalAnswer | null | undefined,
+): AuthSessionRefusal | undefined {
   if (error?.status !== 403) return undefined;
   if (
     error.code === 'ORG_FORBIDDEN' &&
     error.message === SESSION_ORGANIZATION_MESSAGE
   ) {
-    return i18n.t('errors.organizationSessionRestricted', { ns: 'common' });
+    return 'organization';
   }
   if (
     error.code === 'SESSION_NOT_FRESH' &&
     error.message === ACCOUNT_AUTHENTICATION_MESSAGE
   ) {
+    return 'account';
+  }
+  return undefined;
+}
+
+/** {@link authSessionRefusal}'s refusals in the reader's language. */
+export function authSessionRefusalMessage(
+  error: SessionRefusalAnswer | null | undefined,
+): string | undefined {
+  const refusal = authSessionRefusal(error);
+  if (refusal === 'organization') {
+    return i18n.t('errors.organizationSessionRestricted', { ns: 'common' });
+  }
+  if (refusal === 'account') {
     return i18n.t('errors.accountIdentityRequired', { ns: 'common' });
   }
   return undefined;

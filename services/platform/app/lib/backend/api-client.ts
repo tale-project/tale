@@ -11,7 +11,11 @@
  * (`app/hooks/use-session-lapse-redirect.ts`).
  */
 
-import { authSessionRefusalMessage } from '@/app/lib/auth/auth-client-error';
+import {
+  authSessionRefusal,
+  authSessionRefusalMessage,
+  type AuthSessionRefusal,
+} from '@/app/lib/auth/auth-client-error';
 import {
   isLapsedSessionAnswer,
   reportSessionLapsed,
@@ -46,6 +50,9 @@ export class BackendApiError extends Error {
   /** Structured payload beside the code (`body.data`, e.g. the bound
    * automation names on a refused project delete), when the body carried one. */
   readonly data?: Record<string, unknown>;
+  /** Which session-authority refusal this is, when it is one: read from the
+   * server's own sentence, which the localized message no longer carries. */
+  readonly sessionRefusal?: AuthSessionRefusal;
 
   constructor(
     status: number,
@@ -61,6 +68,10 @@ export class BackendApiError extends Error {
     }
     if (data !== undefined) {
       this.data = data;
+    }
+    const sessionRefusal = authSessionRefusal({ status, code, message });
+    if (sessionRefusal !== undefined) {
+      this.sessionRefusal = sessionRefusal;
     }
   }
 }
