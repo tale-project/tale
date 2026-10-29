@@ -10,12 +10,13 @@ import {
   fullCoverageBlockers,
   isSkippedCheck,
   itestObjectStore,
+  recordOpenStreams,
   recordSkip,
   requestedLanes,
   settleTeardown,
   withCleanup,
 } from './integration-lane-helpers';
-import { createEventsHandler } from './realtime/sse';
+import { createEventsHandler, liveStreamCount } from './realtime/sse';
 
 const store = {
   ITEST_S3_ENDPOINT: 'http://127.0.0.1:9000',
@@ -433,5 +434,51 @@ describe('withCleanup', () => {
       ),
     ).resolves.toBe('passed');
     expect(ran).toEqual(['delete']);
+  });
+});
+
+describe('recordOpenStreams', () => {
+  it('fails a lane that passed with an /events tail still open, naming it, and ends the stream', async () => {
+    // Since #4133 the teardown's graceful close ended such a tail without a
+    // word, and the run exited 0 (#4152).
+    const { server, origin } = await serveEvents();
+    try {
+      const tail = connectSse(`${origin}/events?orgId=org1`, {});
+      while (tail.events.length === 0) await sleep(10);
+      const { checks, record } = recorder();
+      await recordOpenStreams('checkLeakyLane', record, 200);
+
+      expect(checks).toEqual([
+        {
+          name: 'harness: checkLeakyLane leaves no SSE stream open',
+          ok: false,
+          detail: expect.stringMatching(
+            /^1 SSE stream\(s\) still open on the backend 0\.2 s after it returned/,
+          ),
+        },
+      ]);
+      expect(liveStreamCount()).toBe(0);
+      // The harness ended the stream: the tail is over, not stuck.
+      await tail.close();
+    } finally {
+      await closeServerGracefully(server, { forceAfterMs: 3_000 });
+    }
+  });
+
+  it('records nothing for a lane that closed its tail', async () => {
+    const { server, origin } = await serveEvents();
+    try {
+      const tail = connectSse(`${origin}/events?orgId=org1`, {});
+      while (tail.events.length === 0) await sleep(10);
+      await tail.close();
+      const { checks, record } = recorder();
+      // At once: the stream may not have left the backend yet.
+      await recordOpenStreams('checkTidyLane', record);
+
+      expect(checks).toEqual([]);
+      expect(liveStreamCount()).toBe(0);
+    } finally {
+      await closeServerGracefully(server, { forceAfterMs: 3_000 });
+    }
   });
 });

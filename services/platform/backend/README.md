@@ -258,9 +258,11 @@ connection a stuck lane still holds), and bounds each of its steps. A lane reads
 ends the tail within seconds or fails the lane naming it. The harness's outbound
 boundary hands fetch the caller's own abort signal: a signal that only followed it
 through an intermediate `Request` was lost to garbage collection, and a closed
-tail then read on forever (#4112). A lane's own cleanup runs through
-`withCleanup`, which runs every step and never lets a cleanup failure replace
-the lane's error (#4152).
+tail then read on forever (#4112). A lane that returns with an SSE stream still
+open on the backend fails `harness: <lane> leaves no SSE stream open`, and the
+harness ends the stream before the next lane starts: the teardown would end it
+without a word. A lane's own cleanup runs through `withCleanup`, which runs
+every step and never lets a cleanup failure replace the lane's error (#4152).
 
 ## Measure backend work
 

@@ -90,6 +90,14 @@ export function unregisterLiveStream(stream: SSEStreamingApi): void {
   liveStreams.delete(stream);
 }
 
+/** How many streams {@link endAllEventStreams} would end now. The
+ * integration harness asks after every lane, so a lane that leaves a stream
+ * open fails under its own name instead of being ended silently at
+ * shutdown. */
+export function liveStreamCount(): number {
+  return liveStreams.size;
+}
+
 /**
  * Proactively end every live SSE stream (shutdown path). `abort()` cancels
  * the response readable — the connection goes idle immediately, so

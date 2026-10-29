@@ -3,7 +3,11 @@
  * in modules of their own (`*.integration.ts`), so a lane never carries a
  * second copy of the suite's cookie handling or its throwaway sign-up.
  */
+import { setTimeout as sleep } from 'node:timers/promises';
+
 import { z } from 'zod';
+
+import { endAllEventStreams, liveStreamCount } from './realtime/sse.ts';
 
 /** The password every throwaway `itest-` user signs up with. */
 export const ITEST_PASSWORD = 'itest-password-1';
@@ -427,4 +431,40 @@ function warnCleanupFailures(failures: readonly Error[]): void {
       `[itest] ${failure.message} (logged only: the lane fails with the error before it)`,
     );
   }
+}
+
+/** How long the streams a lane closed get to leave the backend: a close
+ * reaches the stream's `finally` within a few ticks. */
+const OPEN_STREAM_SETTLE_MS = 5_000;
+
+/**
+ * Fails `subject` (a lane, or the run before its lanes) for the SSE streams
+ * it left open on the backend, and ends them. The harness's teardown ends
+ * every stream the way a deployment's shutdown does (#4112), so a tail a
+ * lane leaked on its passing path was ended without a word: the run logged
+ * `ended N open SSE stream(s)` and exited 0 (#4152). Asked after each lane,
+ * the count names the lane, and the next lane starts with no stream open. A
+ * stream whose client has just closed it leaves a few ticks later, so the
+ * count gets `settleMs` to reach zero first. Records nothing when it does.
+ */
+export async function recordOpenStreams(
+  subject: string,
+  record: RecordCheck,
+  settleMs: number = OPEN_STREAM_SETTLE_MS,
+): Promise<void> {
+  const settleBy = Date.now() + settleMs;
+  while (liveStreamCount() > 0 && Date.now() < settleBy) {
+    await sleep(20);
+  }
+  const open = endAllEventStreams();
+  if (open === 0) return;
+  record(
+    `harness: ${subject} leaves no SSE stream open`,
+    false,
+    `${open} SSE stream(s) still open on the backend ${deadlineText(settleMs)} ` +
+      `after it returned: a tail it did not close on this path, or a close ` +
+      `that never reached the backend. Shutdown would have ended them ` +
+      `without a word; the harness ended them, so later lanes start with ` +
+      `none. Close every tail on every path (withCleanup()).`,
+  );
 }

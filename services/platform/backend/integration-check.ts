@@ -224,6 +224,7 @@ import {
   isSkippedCheck,
   ITEST_VECTOR_WIDTH,
   itestObjectStore,
+  recordOpenStreams,
   recordSkip,
   requestedLanes,
   settleTeardown,
@@ -64654,6 +64655,9 @@ async function runLanes(
       );
       globalThis.fetch = boundary;
     }
+    // The teardown's graceful close would end a tail the lane left open
+    // without a word; counted here, the leak names the lane.
+    await recordOpenStreams(name, record);
     const membershipsAfter = await withinDeadline(
       sharedMemberships(sql, ctx.userId),
       PROBE_DEADLINE_MS,
@@ -65070,6 +65074,10 @@ async function main(): Promise<void> {
       scaffoldDrained,
       `org-create scaffold job consumed=${scaffoldDrained}`,
     );
+
+    // The checks above open `/events` tails of their own (checkAuthAndSse);
+    // one they left open would otherwise be charged to the first lane.
+    await recordOpenStreams('the run before its lanes', record);
 
     // Every lane from here on rides the shared session. `runLanes` makes a
     // truncation LOUD: a lane that throws, or one that leaves the shared
