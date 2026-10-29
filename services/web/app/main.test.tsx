@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { load, render, createRoot, report, replaceHistory } = vi.hoisted(() => {
+const {
+  load,
+  render,
+  createRoot,
+  report,
+  replaceHistory,
+  installStaleBundleReload,
+} = vi.hoisted(() => {
   const renderRoot = vi.fn();
   return {
     load: vi.fn(),
@@ -8,6 +15,7 @@ const { load, render, createRoot, report, replaceHistory } = vi.hoisted(() => {
     createRoot: vi.fn(() => ({ render: renderRoot })),
     report: vi.fn(),
     replaceHistory: vi.fn(),
+    installStaleBundleReload: vi.fn(),
   };
 });
 
@@ -22,10 +30,12 @@ vi.mock('@tale/ui/monitoring/browser', () => ({
 vi.mock('@tanstack/react-router', () => ({ RouterProvider: () => null }));
 vi.mock('react-dom/client', () => ({ createRoot }));
 vi.mock('@/lib/i18n/i18n', () => ({ i18n: {} }));
+vi.mock('@/lib/stale-bundle-reload', () => ({ installStaleBundleReload }));
 vi.mock('./router', () => ({
   router: {
     load,
     resetNextScroll: true,
+    state: { isLoading: true },
     history: {
       location: {
         href: '/#features',
@@ -99,6 +109,24 @@ describe('marketing cold start', () => {
     expect(createRoot).toHaveBeenCalledWith(document.getElementById('root'), {
       onUncaughtError: report,
     });
+  });
+
+  it('listens for chunks a deploy removed before the first route loads', async () => {
+    load.mockResolvedValue(undefined);
+    await import('./main');
+
+    expect(installStaleBundleReload).toHaveBeenCalledOnce();
+    expect(installStaleBundleReload.mock.invocationCallOrder[0]).toBeLessThan(
+      load.mock.invocationCallOrder[0],
+    );
+    // A miss counts while the router loads a page, not while it preloads one.
+    const [{ navigating }] = installStaleBundleReload.mock.calls[0] as [
+      { navigating: () => boolean },
+    ];
+    const { router } = await import('./router');
+    expect(navigating()).toBe(true);
+    router.state.isLoading = false;
+    expect(navigating()).toBe(false);
   });
 
   it('reports an initial load error and still mounts the router error surface', async () => {
