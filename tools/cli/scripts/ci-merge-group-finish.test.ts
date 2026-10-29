@@ -445,7 +445,7 @@ test('current CLI path scope preserves the retained graph and every finishing re
         return [id, rest];
       }),
     );
-  expect(withoutRunner(current[path])).toEqual(withoutRunner(historic[path]!));
+  expect(withoutRunner(current[path]!)).toEqual(withoutRunner(historic[path]!));
   expect(finishJobsSafe(historic, jobs)).toBe(true);
   expect(finishJobsSafe(current, jobs)).toBe(true);
   for (const file of Object.keys(current)) {
