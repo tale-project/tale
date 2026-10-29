@@ -52,6 +52,14 @@ left for the next run as a whole.
 - **Example**: A file's record is locked by another operation during the cleanup → that file
   is skipped this time, and the other stuck files are still marked as failed.
 
+### FMETA-R6 · A retry started while the cleanup runs is never undone by it
+
+The cleanup changes a file only while the file still reads as the cleanup found it. A file
+queued for indexing again in the meantime keeps its new state.
+
+- **Example**: Mia uses **Retry indexing** on a stuck file just as the cleanup checks it → the
+  file stays queued and is indexed again, instead of showing as failed.
+
 ## Email attachments
 
 ### FMETA-R5 · Attachments are listed only for a conversation that is live and not spam
