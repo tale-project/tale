@@ -14,3 +14,6 @@ noMembership: You're not a member of this workspace. Contact an administrator fo
 enterpriseSso: You need Admin permissions to access Enterprise SSO settings.
 dataResidency: You need Admin permissions to access data residency settings.
 providers: You need Admin or Developer permissions to manage AI providers.
+refreshFailed:
+  title: Couldn't refresh your access
+  body: What you see follows your role as it was last loaded.

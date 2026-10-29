@@ -1,9 +1,21 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from '@testing-library/react';
+import { createContext, useContext } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { SessionLapseRecovery } from '@/app/components/session-lapse-recovery';
+import { useAbilityLoading } from '@/app/hooks/use-ability';
+import {
+  cacheMemberContext,
+  clearMemberContextCache,
+} from '@/app/lib/member-context-cache';
 
 // jsdom doesn't ship ResizeObserver; Radix primitives (popovers, sheets,
 // tooltips) pulled in by the layout's children depend on it. Stub before any
@@ -21,6 +33,29 @@ globalThis.ResizeObserver =
 const mockUseParams = vi.fn(() => ({ id: 'test-org-id' }));
 const mockNavigate = vi.fn();
 
+// The shell's outlet holds a probe that reports what a page under it reads
+// from the shell, unless a test mounts a real child layout there; that
+// layout's own outlet is then the probe.
+const outletLayout = vi.hoisted(() => ({
+  current: null as React.ComponentType | null,
+}));
+const OutletDepth = createContext(0);
+function OutletProbe() {
+  const depth = useContext(OutletDepth);
+  const abilityLoading = useAbilityLoading();
+  const Layout = depth === 0 ? outletLayout.current : null;
+  if (Layout) {
+    return (
+      <OutletDepth.Provider value={depth + 1}>
+        <Layout />
+      </OutletDepth.Provider>
+    );
+  }
+  return (
+    <div data-testid="outlet" data-ability-loading={String(abilityLoading)} />
+  );
+}
+
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => ({
     useParams: mockUseParams,
@@ -31,7 +66,7 @@ vi.mock('@tanstack/react-router', () => ({
     }),
     ...config,
   }),
-  Outlet: () => <div data-testid="outlet" />,
+  Outlet: () => <OutletProbe />,
   useNavigate: () => mockNavigate,
   useLocation: () => ({ pathname: '/dashboard/test-org-id' }),
   useParams: () => mockUseParams(),
@@ -62,9 +97,11 @@ vi.mock('@/app/lib/backend/use-backend-hints', () => ({
   useBackendHints: vi.fn(),
 }));
 
+// The layout's one plain query is the session probe.
+const mockUseQuery = vi.fn((): { data: unknown } => ({ data: undefined }));
 vi.mock('@tanstack/react-query', () => ({
   queryOptions: (options: unknown) => options,
-  useQuery: () => ({ data: undefined }),
+  useQuery: () => mockUseQuery(),
   useQueryClient: () => ({ invalidateQueries: vi.fn() }),
   useMutation: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
@@ -82,6 +119,9 @@ const mockUseCurrentMemberContext = vi.fn(
       data: Record<string, unknown> | null | undefined;
       isLoading: boolean;
       isError: boolean;
+      isFetching?: boolean;
+      errorUpdateCount?: number;
+      refetch?: () => Promise<unknown>;
     },
 );
 vi.mock('@/app/hooks/use-current-member-context', () => ({
@@ -95,8 +135,13 @@ vi.mock('@tale/ui/i18n/client', () => ({
   }),
 }));
 
+// The ability grants nothing unless a test names the subjects it grants.
+const grantedSubjects = vi.hoisted(() => new Set<string>());
 vi.mock('@/lib/permissions/ability', () => ({
-  defineAbilityFor: () => ({ can: () => false, cannot: () => true }),
+  defineAbilityFor: () => ({
+    can: (_action: string, subject: string) => grantedSubjects.has(subject),
+    cannot: (_action: string, subject: string) => !grantedSubjects.has(subject),
+  }),
 }));
 
 vi.mock('@/app/features/auth/components/two-factor-grace-banner', () => ({
@@ -126,6 +171,17 @@ vi.mock('@tale/ui/adaptive-header', () => ({
     <>{children}</>
   ),
   AdaptiveHeaderSlot: () => null,
+  AdaptiveHeaderRoot: ({ children }: { children: React.ReactNode }) => (
+    <>{children}</>
+  ),
+  AdaptiveHeaderTitle: ({ children }: { children: React.ReactNode }) => (
+    <h1>{children}</h1>
+  ),
+}));
+
+// The Knowledge layout's tab strip links into the router.
+vi.mock('@/app/features/knowledge/components/knowledge-navigation', () => ({
+  KnowledgeNavigation: () => <nav aria-label="knowledge tabs" />,
 }));
 
 vi.mock('@/app/components/layout/app-sidebar/sidebar-context', () => ({
@@ -160,6 +216,7 @@ beforeEach(
   async () => {
     vi.clearAllMocks();
     mockUseParams.mockReturnValue({ id: 'test-org-id' });
+    mockUseQuery.mockReturnValue({ data: undefined });
 
     const mod = await import('@/app/routes/dashboard/$id');
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -172,7 +229,66 @@ beforeEach(
 
 afterEach(() => {
   cleanup();
+  outletLayout.current = null;
+  grantedSubjects.clear();
+  clearMemberContextCache();
 });
+
+/** A member context that loaded once and whose refresh then failed. */
+function failedRefresh(
+  refetch: () => Promise<unknown> = vi.fn().mockResolvedValue(undefined),
+  isFetching = false,
+) {
+  return {
+    data: {
+      status: 'ok',
+      role: 'admin',
+      memberId: 'm1',
+      organizationId: 'org-1',
+    },
+    isLoading: false,
+    isError: true,
+    isFetching,
+    errorUpdateCount: 1,
+    refetch,
+  };
+}
+
+/**
+ * A first load: the shell hydrates from the role this tab saw last, while
+ * the live member context is still on its way.
+ */
+function firstLoadFromLastRole() {
+  cacheMemberContext({
+    userId: 'user-1',
+    organizationId: 'test-org-id',
+    role: 'admin',
+  });
+  mockUseQuery.mockReturnValue({
+    data: {
+      data: {
+        user: { id: 'user-1' },
+        session: { activeOrganizationId: 'test-org-id' },
+      },
+    },
+  });
+  mockUseConvexAuth.mockReturnValue({
+    isLoading: false,
+    isAuthenticated: true,
+  });
+  mockUseCurrentMemberContext.mockReturnValue({
+    data: undefined,
+    isLoading: true,
+    isError: false,
+  });
+}
+
+/** Mounts the real Knowledge layout under the shell's outlet. */
+async function mountKnowledgeLayout() {
+  const mod = await import('@/app/routes/dashboard/$id/_knowledge');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  outletLayout.current = (mod.Route as any).component as React.ComponentType;
+}
 
 describe('DashboardLayout', () => {
   it('shows skeleton (not outlet) while Convex auth is loading', () => {
@@ -362,6 +478,7 @@ describe('DashboardLayout', () => {
   });
 
   it('shows recoverable failure when query errors without prior data', () => {
+    const refetch = vi.fn().mockResolvedValue(undefined);
     mockUseConvexAuth.mockReturnValue({
       isLoading: false,
       isAuthenticated: true,
@@ -370,6 +487,7 @@ describe('DashboardLayout', () => {
       data: null,
       isLoading: false,
       isError: true,
+      refetch,
     });
 
     render(<DashboardLayout />);
@@ -378,32 +496,95 @@ describe('DashboardLayout', () => {
     expect(
       screen.getByText('common.errors.errorLoadingPage'),
     ).toBeInTheDocument();
-    expect(
+    fireEvent.click(
       screen.getByRole('button', { name: 'common.actions.tryAgain' }),
-    ).toBeInTheDocument();
+    );
+    expect(refetch).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('accessDenied.refreshFailed.title'),
+    ).not.toBeInTheDocument();
   });
 
+  // A refresh that fails keeps the last answer: the pages under the outlet go
+  // on with the last known role instead of waiting for access that a failed
+  // read never delivers (#4859), and the shell says so with a retry.
   it('keeps outlet visible when query errors but has previous data', () => {
+    const refetch = vi.fn().mockResolvedValue(undefined);
     mockUseConvexAuth.mockReturnValue({
       isLoading: false,
       isAuthenticated: true,
     });
-    mockUseCurrentMemberContext.mockReturnValue({
-      data: {
-        status: 'ok',
-        role: 'admin',
-        memberId: 'm1',
-        organizationId: 'org-1',
-      },
-      isLoading: false,
-      isError: true,
+    mockUseCurrentMemberContext.mockReturnValue(failedRefresh(refetch));
+
+    const { rerender } = render(<DashboardLayout />);
+
+    expect(screen.getByTestId('outlet')).toHaveAttribute(
+      'data-ability-loading',
+      'false',
+    );
+    // No placeholder masks the shell: its one status is the notice.
+    const notice = screen.getByRole('status');
+    expect(notice).toHaveTextContent('accessDenied.refreshFailed.title');
+    const retry = within(notice).getByRole('button', {
+      name: 'common.actions.tryAgain',
     });
+    fireEvent.click(retry);
+    expect(refetch).toHaveBeenCalledTimes(1);
+
+    // While the retry runs, the notice stays and Try again is busy.
+    mockUseCurrentMemberContext.mockReturnValue(failedRefresh(refetch, true));
+    rerender(<DashboardLayout />);
+    expect(retry).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByTestId('outlet')).toHaveAttribute(
+      'data-ability-loading',
+      'false',
+    );
+  });
+
+  it("renders a Knowledge tab's content through a failed refresh", async () => {
+    grantedSubjects.add('knowledgeRead');
+    await mountKnowledgeLayout();
+    mockUseConvexAuth.mockReturnValue({
+      isLoading: false,
+      isAuthenticated: true,
+    });
+    mockUseCurrentMemberContext.mockReturnValue(failedRefresh());
 
     render(<DashboardLayout />);
 
+    expect(
+      screen.getByRole('heading', { name: 'knowledge.title' }),
+    ).toBeInTheDocument();
+    // The Knowledge layout holds its tab back only while access loads.
     expect(screen.getByTestId('outlet')).toBeInTheDocument();
-    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('reports access as loading under the outlet on a first load from the last role', () => {
+    firstLoadFromLastRole();
+
+    render(<DashboardLayout />);
+
+    expect(screen.getByTestId('outlet')).toHaveAttribute(
+      'data-ability-loading',
+      'true',
+    );
+    expect(
+      screen.queryByText('accessDenied.refreshFailed.title'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('holds a Knowledge tab back while access is still loading', async () => {
+    grantedSubjects.add('knowledgeRead');
+    await mountKnowledgeLayout();
+    firstLoadFromLastRole();
+
+    render(<DashboardLayout />);
+
+    expect(
+      screen.getByRole('heading', { name: 'knowledge.title' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
   });
 
   it('keeps the live nav rail during a membership refetch with no placeholder flash', () => {
@@ -435,6 +616,11 @@ describe('DashboardLayout', () => {
 
     expect(screen.getByTestId('outlet')).toBeInTheDocument();
     expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    // The last role keeps the rail, but access is still being loaded.
+    expect(screen.getByTestId('outlet')).toHaveAttribute(
+      'data-ability-loading',
+      'true',
+    );
   });
 
   // A notice floating over the page covered a phone's header — its

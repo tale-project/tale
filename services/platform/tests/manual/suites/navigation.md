@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 72 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 73 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -626,6 +626,19 @@ loaded, and reads **No teams** for an account in none.
   "not found" for the other organization's project. From the project's own
   **Automations** tab (`/dashboard/{org}/projects/{projectId}/automations`)
   you land on its **Projects** list instead.
+- [ ] `NAV-B20` · **A failed access refresh keeps every page** — Signed in
+  as an admin, open Knowledge (`/dashboard/{org}/documents`) and block
+  `/api/app/members/me` in devtools. From a second session in the same
+  organization, change another member's role, which makes the first tab
+  refresh its membership → Once the retries give up, the shell's alert
+  stack shows **Couldn't refresh your access**
+  (`accessDenied.refreshFailed.title`) with **Try again**
+  (`common.actions.tryAgain`). The Knowledge tab keeps its table, and
+  Governance, Metrics and Organization settings open with their content,
+  never a skeleton that stays. **Try again** while still blocked turns busy,
+  and the notice stays. Unblock and choose **Try again**: the notice goes,
+  the keyboard focus lands on the page (not on the document body), and the
+  navigation never changes.
 
 ## Accessibility (WCAG 2.1 AA)
 
