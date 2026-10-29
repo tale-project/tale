@@ -392,6 +392,46 @@ describe('the start of a turn without the server', () => {
     expect(received()).toEqual([]);
   });
 
+  test('Codex’s start is answered as the server would, still without it', async () => {
+    // Codex 0.160.0 (its MCP client is rmcp 3.2.0) asks for 2025-06-18 with
+    // capabilities of its own, then lists the tools once, with a progress
+    // token in the request's metadata, and sends nothing else before a tool
+    // call.
+    const mcp = client();
+    mcp.send({
+      jsonrpc: '2.0',
+      id: 0,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-06-18',
+        capabilities: {
+          experimental: { 'codex/auth-change': {} },
+          elicitation: { form: {}, url: {} },
+        },
+        clientInfo: {
+          name: 'codex-mcp-client',
+          title: 'Codex',
+          version: '0.160.0',
+        },
+      },
+    });
+    expect(await mcp.answer(0)).toMatchObject({
+      result: { protocolVersion: '2025-06-18' },
+    });
+    mcp.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+    mcp.send({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/list',
+      params: { _meta: { progressToken: 0 } },
+    });
+    expect(await mcp.answer(1)).toMatchObject({
+      result: { tools: [{ name: 'browser_navigate' }] },
+    });
+    expect(await mcp.close()).toBe(0);
+    expect(received()).toEqual([]);
+  });
+
   test('a list the server advertises is the server’s to answer', async () => {
     const advertised = join(dir, 'manifests-advertised');
     mkdirSync(advertised, { recursive: true });
