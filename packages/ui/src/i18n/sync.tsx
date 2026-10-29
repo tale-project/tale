@@ -46,14 +46,14 @@ export function LocaleSync({ locale, htmlLang }: LocaleSyncProps): null {
         document.documentElement.lang = htmlLang ?? locale;
       }
     };
-    if (isLocaleLoaded(i18n, locale)) {
-      show();
-      return undefined;
-    }
+    const loaded = isLocaleLoaded(i18n, locale);
     let current = true;
+    // Asked for even when its messages are in: a switch still fetching
+    // another language is then given up, and the pages loaded next no
+    // longer fetch or wait for it.
     loadLocale(i18n, locale).then(
       () => {
-        if (current) show();
+        if (current && !loaded) show();
       },
       (error: unknown) => {
         console.warn(
@@ -62,6 +62,7 @@ export function LocaleSync({ locale, htmlLang }: LocaleSyncProps): null {
         );
       },
     );
+    if (loaded) show();
     return () => {
       current = false;
     };
