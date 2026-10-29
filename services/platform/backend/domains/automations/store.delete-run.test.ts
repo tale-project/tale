@@ -207,13 +207,19 @@ describe('automationTombstone', () => {
  * is removed.
  */
 describe('deleteAutomationCascade [AUTO-R15]', () => {
-  function fakeAutomation(unfinishedRun: string | null) {
+  /** An automation with one run in `runStatus`, or none. The read for a run
+   * in the way finds it only when its `status IN (…)` names that status, as
+   * the database would. */
+  function fakeAutomation(runStatus: string | null) {
     const statements: Statement[] = [];
     const tag = async (strings: TemplateStringsArray, ...values: unknown[]) => {
       const text = strings.join('?').replace(/\s+/g, ' ').trim();
       statements.push({ text, values });
       if (text.startsWith('SELECT status FROM app.automation_runs')) {
-        return unfinishedRun === null ? [] : [{ status: unfinishedRun }];
+        const named = /status IN \(([^)]*)\)/.exec(text)?.[1] ?? '';
+        return runStatus !== null && named.includes(`'${runStatus}'`)
+          ? [{ status: runStatus }]
+          : [];
       }
       return [];
     };
@@ -242,6 +248,19 @@ describe('deleteAutomationCascade [AUTO-R15]', () => {
       expect(statements.some((s) => /^(DELETE|INSERT)/.test(s.text))).toBe(
         false,
       );
+    },
+  );
+
+  it.each(['success', 'failed', 'cancelled'])(
+    'deletes past a run that ended in %s',
+    async (status) => {
+      const { sql, statements } = fakeAutomation(status);
+      await deleteAutomationCascade(sql, automation);
+      expect(
+        statements.some((s) =>
+          s.text.startsWith('DELETE FROM app.automations '),
+        ),
+      ).toBe(true);
     },
   );
 
