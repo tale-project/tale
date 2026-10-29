@@ -363,6 +363,10 @@ export function WebsiteViewDialog({
   const [activeQuery, setActiveQuery] = useState('');
   const [searchResults, setSearchResults] = useState<CrawlerSearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  // Failed searches for the active query, kept until one answers or the
+  // query changes: the results say the search failed, not that nothing
+  // matched, and offer to run it again (each failure is announced again).
+  const [searchFailures, setSearchFailures] = useState(0);
   const searchRequestId = useRef(0);
   // The list narrowed to the failed or the skipped pages: a reader reaches
   // the five that failed without walking the five hundred that did not.
@@ -437,6 +441,7 @@ export function WebsiteViewDialog({
       setSearchQuery('');
       setActiveQuery('');
       setSearchResults([]);
+      setSearchFailures(0);
       setPageState('all');
       pageStateRef.current = 'all';
       setPageCounts(null);
@@ -469,25 +474,34 @@ export function WebsiteViewDialog({
     });
   }, [isOpen, scanProgress, offset, pageState, website._id, fetchPages]);
 
+  const searchFor = useCallback(
+    (query: string) => {
+      const requestId = ++searchRequestId.current;
+      setIsSearching(true);
+      void searchContent({ websiteId: website._id, query, limit: 20 }).then(
+        (data) => {
+          if (requestId !== searchRequestId.current) return;
+          setSearchResults(data.results);
+          setSearchFailures(0);
+          setIsSearching(false);
+        },
+        () => {
+          if (requestId !== searchRequestId.current) return;
+          setSearchFailures((count) => count + 1);
+          setIsSearching(false);
+          toast({ title: t('toast.searchError'), variant: 'destructive' });
+        },
+      );
+    },
+    [t, website._id, searchContent],
+  );
+
   const triggerSearch = useCallback(() => {
     const query = searchQuery.trim();
     if (!query) return;
-    const requestId = ++searchRequestId.current;
     setActiveQuery(query);
-    setIsSearching(true);
-    void searchContent({ websiteId: website._id, query, limit: 20 }).then(
-      (data) => {
-        if (requestId !== searchRequestId.current) return;
-        setSearchResults(data.results);
-        setIsSearching(false);
-      },
-      () => {
-        if (requestId !== searchRequestId.current) return;
-        setIsSearching(false);
-        toast({ title: t('toast.searchError'), variant: 'destructive' });
-      },
-    );
-  }, [searchQuery, t, website._id, searchContent]);
+    searchFor(query);
+  }, [searchQuery, searchFor]);
 
   // The window after the rows on screen: a "Load more" that failed is asked
   // for again, not skipped — its successor's answer did not continue the
@@ -504,9 +518,9 @@ export function WebsiteViewDialog({
     });
   }, [isPending, pageState, website._id, fetchPages]);
 
-  // A retry replaces the control that ran it (with the pages once they are
-  // back), so focus moves onto the section first instead of falling back to
-  // the dialog.
+  // A retry replaces the control that ran it (with the pages or the results
+  // once they are back), so focus moves onto the section first instead of
+  // falling back to the dialog.
   const pagesSectionRef = useRef<HTMLElement>(null);
   const focusPagesSection = useCallback(() => {
     pagesSectionRef.current?.focus();
@@ -520,6 +534,10 @@ export function WebsiteViewDialog({
       ...pageStateArg(pageState),
     });
   }, [focusPagesSection, pageState, website._id, fetchPages]);
+  const retrySearch = useCallback(() => {
+    focusPagesSection();
+    searchFor(activeQuery);
+  }, [focusPagesSection, searchFor, activeQuery]);
 
   // Another state: the list starts over from its first window.
   const selectPageState = useCallback(
@@ -551,6 +569,7 @@ export function WebsiteViewDialog({
         searchRequestId.current += 1;
         setActiveQuery('');
         setSearchResults([]);
+        setSearchFailures(0);
         setIsSearching(false);
       }
     },
@@ -822,19 +841,33 @@ export function WebsiteViewDialog({
 
           {isSearchMode ? (
             <Stack gap={2}>
-              {isSearching && (
+              {/* A failed search is not an empty one: the failure stays up,
+                  its retry busy, while the same search runs again, above
+                  the answer it could not replace. */}
+              {searchFailures > 0 ? (
+                <CatalogLoadError
+                  failureKey={searchFailures}
+                  onFocusLost={focusPagesSection}
+                  message={t('pagesDialog.searchFailed')}
+                  onRetry={retrySearch}
+                  isRetrying={isSearching}
+                />
+              ) : null}
+              {isSearching && searchFailures === 0 && (
                 <Row gap={0} justify="center" className="py-4">
                   <Spinner size="sm" />
                 </Row>
               )}
 
-              {!isSearching && searchResults.length === 0 && (
-                <EmptyState
-                  icon={SearchIcon}
-                  title={t('pagesDialog.noSearchResults')}
-                  description={t('pagesDialog.noSearchResultsDescription')}
-                />
-              )}
+              {!isSearching &&
+                searchFailures === 0 &&
+                searchResults.length === 0 && (
+                  <EmptyState
+                    icon={SearchIcon}
+                    title={t('pagesDialog.noSearchResults')}
+                    description={t('pagesDialog.noSearchResultsDescription')}
+                  />
+                )}
 
               {searchResults.map((result, idx) => (
                 <SearchResultItem

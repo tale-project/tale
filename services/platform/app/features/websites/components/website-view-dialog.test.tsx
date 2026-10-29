@@ -400,6 +400,283 @@ describe('WebsiteViewDialog', () => {
     });
   });
 
+  // A failed search kept the query in the box and said "No results found",
+  // as if the site held no match, with only a toast to tell otherwise and no
+  // way to run it again short of submitting it anew (#3860).
+  describe('a search that failed', () => {
+    const hit = (query: string) => ({
+      results: [
+        {
+          url: `https://docs.example.com/${query}`,
+          title: query,
+          chunk_index: 0,
+          chunk_content: `${query} excerpt`,
+        },
+      ],
+    });
+    /** Fails the search that is out, as its request rejects. */
+    const failSearch = async (index: number) => {
+      await act(async () => {
+        searchRequests[index]?.onError?.();
+      });
+    };
+
+    it('says the search failed, not that nothing matched, and runs it again on Try again', async () => {
+      const { mutateAsync: searchContent } = useBackendAction(
+        'websites/actions:searchContent',
+      );
+      vi.mocked(searchContent).mockClear();
+      const { user } = render(
+        <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Website details' });
+      const search = screen.getByPlaceholderText('Search website content');
+      await user.type(search, 'broken{Enter}');
+
+      await failSearch(0);
+
+      const failure = within(dialog).getByRole('alert');
+      expect(failure).toHaveTextContent(
+        "Couldn't search the website's content.",
+      );
+      expect(search).toHaveValue('broken');
+      expect(
+        within(dialog).queryByText('No results found'),
+      ).not.toBeInTheDocument();
+      expect(
+        within(dialog).queryByRole('status', { name: 'Loading' }),
+      ).not.toBeInTheDocument();
+      // The toast stays, beside the failure the section shows.
+      expect(toastSpy).toHaveBeenCalledExactlyOnceWith({
+        title: 'Search failed',
+        variant: 'destructive',
+      });
+
+      await user.click(
+        within(failure).getByRole('button', { name: 'Try again' }),
+      );
+
+      const args = { websiteId: 'w-1', query: 'broken', limit: 20 };
+      expect(searchContent).toHaveBeenCalledTimes(2);
+      expect(searchContent).toHaveBeenNthCalledWith(1, args);
+      expect(searchContent).toHaveBeenNthCalledWith(2, args);
+      const section = within(dialog).getByRole('region', {
+        name: 'Website pages',
+      });
+      expect(section).toHaveFocus();
+      // The failure stays up while the search runs again, its retry busy.
+      expect(
+        within(dialog).getByRole('button', { name: 'Try again' }),
+      ).toHaveAttribute('aria-busy', 'true');
+
+      await act(async () => {
+        searchRequests[1]?.onSuccess?.(hit('broken'));
+      });
+
+      expect(within(dialog).getByText('broken excerpt')).toBeInTheDocument();
+      expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+      expect(search).toHaveValue('broken');
+      expect(section).toHaveFocus();
+    });
+
+    it('keeps the failure and the focus on the section through a retry that fails again', async () => {
+      const { user } = render(
+        <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Website details' });
+      await user.type(
+        screen.getByPlaceholderText('Search website content'),
+        'broken{Enter}',
+      );
+      await failSearch(0);
+
+      await user.click(
+        within(dialog).getByRole('button', { name: 'Try again' }),
+      );
+      const section = within(dialog).getByRole('region', {
+        name: 'Website pages',
+      });
+      expect(section).toHaveFocus();
+      await failSearch(1);
+
+      expect(within(dialog).getByRole('alert')).toHaveTextContent(
+        "Couldn't search the website's content.",
+      );
+      expect(
+        within(dialog).getByRole('button', { name: 'Try again' }),
+      ).not.toHaveAttribute('aria-busy');
+      expect(
+        within(dialog).queryByText('No results found'),
+      ).not.toBeInTheDocument();
+      expect(section).toHaveFocus();
+      expect(toastSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('hands the focus on Try again to the section when the search run from the box answers', async () => {
+      const { user } = render(
+        <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Website details' });
+      const search = screen.getByPlaceholderText('Search website content');
+      await user.type(search, 'broken{Enter}');
+      await failSearch(0);
+
+      await user.type(search, '{Enter}');
+      expect(searchRequests).toHaveLength(2);
+      const retry = within(dialog).getByRole('button', { name: 'Try again' });
+      act(() => retry.focus());
+      expect(retry).toHaveFocus();
+
+      await act(async () => {
+        searchRequests[1]?.onSuccess?.(hit('broken'));
+      });
+
+      expect(within(dialog).getByText('broken excerpt')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(
+          within(dialog).getByRole('region', { name: 'Website pages' }),
+        ).toHaveFocus();
+      });
+    });
+
+    it('keeps the answer on screen when the same search fails again', async () => {
+      const { user } = render(
+        <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Website details' });
+      const search = screen.getByPlaceholderText('Search website content');
+      await user.type(search, 'alpha{Enter}');
+      await act(async () => {
+        searchRequests[0]?.onSuccess?.(hit('alpha'));
+      });
+
+      await user.type(search, '{Enter}');
+      await failSearch(1);
+
+      expect(within(dialog).getByRole('alert')).toHaveTextContent(
+        "Couldn't search the website's content.",
+      );
+      expect(within(dialog).getByText('alpha excerpt')).toBeInTheDocument();
+    });
+
+    it('still says nothing matched when the search finds nothing', async () => {
+      const { user } = render(
+        <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
+      );
+      const dialog = screen.getByRole('dialog', { name: 'Website details' });
+      await user.type(
+        screen.getByPlaceholderText('Search website content'),
+        'nothing{Enter}',
+      );
+
+      await act(async () => {
+        searchRequests[0]?.onSuccess?.({ results: [] });
+      });
+
+      expect(within(dialog).getByText('No results found')).toBeVisible();
+      expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+      expect(
+        within(dialog).queryByRole('button', { name: 'Try again' }),
+      ).not.toBeInTheDocument();
+      expect(toastSpy).not.toHaveBeenCalled();
+    });
+
+    it.each(['clear', 'edit', 'site change'] as const)(
+      'drops the failure on a search %s',
+      async (invalidation) => {
+        const onClose = vi.fn();
+        const { user, rerender } = render(
+          <WebsiteViewDialog isOpen onClose={onClose} website={WEBSITE} />,
+        );
+        const dialog = screen.getByRole('dialog', { name: 'Website details' });
+        const search = screen.getByPlaceholderText('Search website content');
+        await user.type(search, 'broken{Enter}');
+        await failSearch(0);
+        expect(within(dialog).getByRole('alert')).toBeInTheDocument();
+
+        if (invalidation === 'clear') {
+          await user.clear(search);
+        } else if (invalidation === 'edit') {
+          fireEvent.change(search, { target: { value: 'second' } });
+        } else {
+          rerender(
+            <WebsiteViewDialog
+              isOpen
+              onClose={onClose}
+              website={{ ...WEBSITE, _id: 'w-2', domain: 'other.example.com' }}
+            />,
+          );
+        }
+        expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+
+        await user.clear(search);
+        await user.type(search, 'second{Enter}');
+        expect(
+          within(dialog).getByRole('status', { name: 'Loading' }),
+        ).toBeInTheDocument();
+        expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+
+        await act(async () => {
+          searchRequests[1]?.onSuccess?.({ results: [] });
+        });
+        expect(within(dialog).getByText('No results found')).toBeVisible();
+        expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument();
+      },
+    );
+
+    it('passes axe audit with the failure shown', async () => {
+      const { user } = render(
+        <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
+      );
+      await user.type(
+        screen.getByPlaceholderText('Search website content'),
+        'broken{Enter}',
+      );
+      await failSearch(0);
+      const dialog = screen.getByRole('dialog', { name: 'Website details' });
+      expect(within(dialog).getByRole('alert')).toBeInTheDocument();
+
+      await checkAccessibility(dialog);
+    });
+
+    describe.each(SHIPPED_LOCALES)('in %s', (locale) => {
+      afterEach(async () => {
+        await forgetSavedLocale();
+      });
+
+      it('names the failed search and its retry in the reader language', async () => {
+        saveLocale(locale);
+        await i18n.changeLanguage(locale);
+        const t = (key: string) => i18n.t(key, { ns: 'websites' });
+        const { user } = render(
+          <WebsiteViewDialog isOpen onClose={vi.fn()} website={WEBSITE} />,
+        );
+        await user.type(
+          screen.getByPlaceholderText(t('pagesDialog.searchPlaceholder')),
+          'broken{Enter}',
+        );
+        await failSearch(0);
+
+        const section = screen.getByRole('region', {
+          name: t('pagesDialog.title'),
+        });
+        const failure = within(section).getByRole('alert');
+        expect(failure).toHaveTextContent(t('pagesDialog.searchFailed'));
+        expect(
+          within(failure).getByRole('button', {
+            name: i18n.t('actions.tryAgain', { ns: 'common' }),
+          }),
+        ).toBeInTheDocument();
+        expect(
+          within(section).queryByText(t('pagesDialog.noSearchResults')),
+        ).not.toBeInTheDocument();
+        expect(t('pagesDialog.searchFailed')).not.toBe(
+          'pagesDialog.searchFailed',
+        );
+      });
+    });
+  });
+
   /** Fails the pages read that is out, as the hook reports it: the error,
    * then the arguments the read was sent with. */
   const failPagesRead = (args: PagesArgs = { offset: 0, limit: 20 }) => {
