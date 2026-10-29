@@ -84,7 +84,7 @@ jobs:
   pr-scope:
     name: PR scope
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 3
     permissions:
       contents: read
@@ -135,7 +135,7 @@ jobs:
       (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
     needs: [candidate-source, pr-scope]
     name: Prepare
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 3
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -535,7 +535,7 @@ jobs:
       needs.prepare.result == 'success' &&
       needs.build.result == 'success' &&
       (github.event_name == 'workflow_dispatch')
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 10
     permissions:
       contents: write
@@ -638,7 +638,7 @@ jobs:
     name: CI ready (CLI)
     if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
     needs: [pr-scope, candidate-source, prepare, build, release, candidate-gate]
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 3
     permissions:
       contents: read
