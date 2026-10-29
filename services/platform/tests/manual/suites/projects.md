@@ -467,12 +467,14 @@ projects-list row ⋯ menu.
 - [ ] `PROJ-B5` · **Mixed upload names the skipped file** — Files tab →
   **Add file** → select three supported files plus one unsupported (e.g.
   `.bin`) in ONE pick → No error toast flashes before the upload; once it
-  settles a single toast reads **3 of 4 files added**
+  settles a single toast reads **3 files of 4 added**
   (`projects.files.attachPartial`) with **Skipped: ‹name› — ‹reason›**
   (`projects.files.skippedList`, the unsupported-format sentence) and stays
   until dismissed; the three files appear in the tree. Picking the `.bin`
-  alone still shows the destructive **Unsupported file type** toast; a pick
-  with no refusal reads **Document added to project · 4 / 4**.
+  alone still shows the destructive **Unsupported file type** toast; picking
+  four `.bin` files shows one destructive toast, **0 files of 4 added**, that
+  names each file beside its reason; a pick with no refusal reads **Document
+  added to project · 4 / 4**.
 - [ ] `PROJ-B6` · **Archived project is read-only everywhere** — Open a
   project's Agents, Tasks and Files tabs in a second tab, then on
   **General** → **Archive** → confirm → In the fresh tabs every write

@@ -171,7 +171,6 @@ files:
   addToFolder: Ajouter un fichier à « {folder} »
   addFolderButton: Importer un dossier
   batchTooLarge: Un téléversement de dossier est limité à {maxFiles} fichiers / {maxSize} Mo — divise le dossier et réessaie.
-  moreSkipped: +{count} autre(s) fichier(s) ont été ignorés.
   attachPartial: '{ok, plural, one {# fichier ajouté} other {# fichiers ajoutés}} sur {total}'
   skippedList: 'Ignorés : {names}{more, plural, =0 {} other { (+#)}} — {reason}'
   failedList: 'Non ajoutés : {names}{more, plural, =0 {} other { (+#)}} — {reason}'

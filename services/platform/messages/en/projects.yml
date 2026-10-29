@@ -170,7 +170,6 @@ files:
   addToFolder: Add file to "{folder}"
   addFolderButton: Upload folder
   batchTooLarge: A folder upload is capped at {maxFiles} files / {maxSize} MB — split the folder and retry.
-  moreSkipped: +{count} more file(s) were skipped.
   attachPartial: '{ok, plural, one {# file} other {# files}} of {total} added'
   skippedList: 'Skipped: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
   failedList: 'Not added: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
