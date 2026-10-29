@@ -8,7 +8,11 @@
  * run inactive so they do not fetch).
  */
 
-import type { SearchResult, SearchSource } from '@tale/ui/search';
+import type {
+  SearchResult,
+  SearchSource,
+  SearchSourceState,
+} from '@tale/ui/search';
 import { useMemo } from 'react';
 
 import { createChatSearchSource } from '@/app/features/chat/data/chat-search-source';
@@ -34,6 +38,12 @@ export type PlatformSearchHitData =
 
 const NO_RESULTS: SearchResult<PlatformSearchHitData>[] = [];
 
+/** How one child source's search stands, whatever rows it carries. */
+type ChildSearch = Pick<
+  SearchSourceState,
+  'status' | 'error' | 'retry' | 'retrying'
+>;
+
 export interface PlatformSearchSourceOptions {
   organizationId: string;
   include?: {
@@ -49,19 +59,22 @@ export function createPlatformSearchSource(
   options: PlatformSearchSourceOptions,
 ): SearchSource<PlatformSearchHitData> {
   const { organizationId, include, scope = 'everything' } = options;
+  const askProjects = include?.projects !== false;
+  const askDocuments = include?.documents !== false;
+  const askContacts = include?.contacts !== false;
   const projectsSource = createProjectsSearchSource({
     organizationId,
-    enabled: include?.projects !== false,
+    enabled: askProjects,
   });
   const tasksSource = createTasksSearchSource({ organizationId });
   const chatSource = createChatSearchSource({ organizationId });
   const documentsSource = createDocumentsSearchSource({
     organizationId,
-    enabled: include?.documents !== false,
+    enabled: askDocuments,
   });
   const contactsSource = createContactsSearchSource({
     organizationId,
-    enabled: include?.contacts !== false,
+    enabled: askContacts,
   });
 
   return (query, ctx) => {
@@ -134,16 +147,47 @@ export function createPlatformSearchSource(
       return { results: NO_RESULTS, status: 'ready' };
     }
 
-    const loading = chatsOnly
-      ? chats.status === 'loading'
-      : projects.status === 'loading' ||
-        tasks.status === 'loading' ||
-        chats.status === 'loading' ||
-        documents.status === 'loading' ||
-        contacts.status === 'loading';
+    // The sources this scope asks. One left out (`include`) neither answers
+    // nor fails, so it does not count toward "every source failed".
+    const asked: ChildSearch[] = chatsOnly
+      ? [chats]
+      : [
+          ...(askProjects ? [projects] : []),
+          tasks,
+          chats,
+          ...(askDocuments ? [documents] : []),
+          ...(askContacts ? [contacts] : []),
+        ];
+    // A failed source is the palette's to name and retry, never a group
+    // that quietly went missing (#4890): every source failing is the
+    // palette's error; some failing keeps what the others found, with one
+    // line saying the rest could not load. Try again asks again only what
+    // failed, and not what is already being asked again.
+    const failed = asked.filter((source) => source.status === 'error');
+    const retrying = failed.some((source) => source.retrying === true);
+    const retry =
+      failed.length === 0
+        ? undefined
+        : () => {
+            for (const source of failed) {
+              if (source.retrying !== true) source.retry?.();
+            }
+          };
+    if (failed.length > 0 && failed.length === asked.length) {
+      return {
+        results: NO_RESULTS,
+        status: 'error',
+        error: failed[0]?.error ?? null,
+        retry,
+        retrying,
+      };
+    }
     return {
       results,
-      status: loading ? 'loading' : 'ready',
+      status: asked.some((source) => source.status === 'loading')
+        ? 'loading'
+        : 'ready',
+      ...(failed.length > 0 ? { partialFailure: true, retry, retrying } : {}),
     };
   };
 }

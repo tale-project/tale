@@ -10,13 +10,20 @@ import { createTasksSearchSource } from './tasks-search-source';
 
 const backend = vi.hoisted(() => ({
   data: [] as unknown[],
+  /** The read's retry policy gave up: it never answered. */
+  failed: false,
+  refetch: vi.fn(() => Promise.resolve()),
 }));
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: () => ({
-    data: backend.data,
+    data: backend.failed ? undefined : backend.data,
     isLoading: false,
     isFetching: false,
+    isError: backend.failed,
+    errorUpdateCount: backend.failed ? 1 : 0,
+    error: backend.failed ? new Error('unreachable') : null,
+    refetch: backend.refetch,
   }),
 }));
 
@@ -32,6 +39,8 @@ const OPEN = { active: true, open: true };
 
 beforeEach(() => {
   backend.data = [];
+  backend.failed = false;
+  backend.refetch.mockClear();
 });
 
 describe('the palette task source', () => {
@@ -125,5 +134,40 @@ describe('the palette project source', () => {
       ['WEB · Website relaunch', 'New marketing site for Q4'],
       ['PRC · Pricing review', ''],
     ]);
+  });
+});
+
+// #4890: a failed read reached the palette as `ready` with no rows, which it
+// shows as "No results".
+describe('a palette search whose read failed', () => {
+  it('reads a failed task search as the error, with a retry of it', () => {
+    backend.failed = true;
+    const source = createTasksSearchSource({ organizationId: 'org-1' });
+    const { result } = renderHook(() => source('review', OPEN), { wrapper });
+
+    expect(result.current).toMatchObject({ status: 'error', results: [] });
+    result.current.retry?.();
+    expect(backend.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads a failed project search as the error, with a retry of it', () => {
+    backend.failed = true;
+    const source = createProjectsSearchSource({ organizationId: 'org-1' });
+    const { result } = renderHook(() => source('re', OPEN), { wrapper });
+
+    expect(result.current).toMatchObject({ status: 'error', results: [] });
+    result.current.retry?.();
+    expect(backend.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('asks nothing while the palette is closed', () => {
+    backend.failed = true;
+    const source = createTasksSearchSource({ organizationId: 'org-1' });
+    const { result } = renderHook(
+      () => source('review', { active: false, open: false }),
+      { wrapper },
+    );
+
+    expect(result.current).toEqual({ results: [], status: 'ready' });
   });
 });

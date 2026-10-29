@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 72 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 73 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -626,6 +626,24 @@ loaded, and reads **No teams** for an account in none.
   "not found" for the other organization's project. From the project's own
   **Automations** tab (`/dashboard/{org}/projects/{projectId}/automations`)
   you land on its **Projects** list instead.
+- [ ] `NAV-B20` · **A palette search that fails is not "No results"** — Block
+  `*/api/app/*search*` in DevTools (Network → request blocking), press ⌘K on
+  **Everything** (`dialogs.search.scopeEverything`) and type a term that
+  matches a chat and a project → after the retries (a few seconds) the palette
+  reads **Something went wrong** (`search.errorTitle`) with **Check your
+  connection and try again.** (`search.errorHint`) and **Try again**
+  (`common.actions.tryAgain`), never **No results**
+  (`dialogs.search.noResults`); a screen reader announces it, and **Try
+  again** pressed while still blocked stays focused (busy) and announces the
+  failure again. Unblock → **Try again** → the matches appear in place and the
+  focus returns to the **Search** field. Block only
+  `*/api/app/chat/threads/search*` → the project and task matches stay, with
+  one line under the list, **Some results couldn't load.**
+  (`search.partialFailure`), and its **Try again**; on **Chats**
+  (`dialogs.search.scopeChats`) the same block shows the error, never
+  `chat.searchPalette.noResults`. A term that matches nothing still reads
+  **No results**, with no **Try again**. In German and French the error, the
+  line and **Try again** read in the page's language.
 
 ## Accessibility (WCAG 2.1 AA)
 

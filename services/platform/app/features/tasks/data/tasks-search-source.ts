@@ -17,6 +17,7 @@ import type { SearchResult, SearchSource } from '@tale/ui/search';
 import { useMemo } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { searchStateOf } from '@/app/lib/backend/search-read-state';
 import { useT } from '@/lib/i18n/client';
 
 import { isTaskStatus, type TaskStatus } from '../lib/display';
@@ -89,9 +90,6 @@ export function createTasksSearchSource(options: {
     if (!active || trimmed.length === 0) {
       return { results: NO_RESULTS, status: 'ready' };
     }
-    return {
-      results,
-      status: hits.isLoading || hits.isFetching ? 'loading' : 'ready',
-    };
+    return searchStateOf(hits, results);
   };
 }
