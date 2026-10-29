@@ -387,6 +387,7 @@
     "./slider": "./src/components/forms/slider.tsx",
     "./sparkline": "./src/components/data-display/sparkline.tsx",
     "./spinner": "./src/components/feedback/spinner.tsx",
+    "./stale-bundle": "./src/lib/stale-bundle.ts",
     "./stat-card-grid": "./src/components/data-display/stat-card-grid.tsx",
     "./stat-grid": "./src/components/data-display/stat-grid.tsx",
     "./stat-item": "./src/components/data-display/stat-item.tsx",

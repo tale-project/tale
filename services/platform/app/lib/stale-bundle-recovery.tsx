@@ -19,7 +19,9 @@
  * tab's session, keyed by the page's `TALE_VERSION` and the chunk's URL:
  * when the same chunk fails again at the same version — the reload landed on
  * the old build again mid-rollout, or the chunk really is gone — a
- * destructive toast asks for the reload instead of looping.
+ * destructive toast asks for the reload instead of looping. Which failures
+ * are a missing chunk, and the session's record of the reload, come from
+ * `@tale/ui/stale-bundle`, which the marketing site's reload shares.
  *
  * Installed once from app/main.tsx, before the first render; the error
  * reporter consults `isStaleBundleFallout` (app/router.tsx).
@@ -27,6 +29,12 @@
 
 import * as ToastPrimitives from '@radix-ui/react-toast';
 import { Button } from '@tale/ui/button';
+import {
+  claimReload,
+  failedChunkUrl,
+  isChunkLoadFailure,
+  releaseReload,
+} from '@tale/ui/stale-bundle';
 import { toastActionGroupClassName } from '@tale/ui/toast';
 import { toast } from '@tale/ui/use-toast';
 
@@ -66,64 +74,6 @@ let falloutUntil = 0;
  */
 export function isStaleBundleFallout(): boolean {
   return Date.now() < falloutUntil;
-}
-
-/**
- * How each engine words a dynamic import whose module (or one of its static
- * imports) could not be fetched — a missing chunk answered with the SPA
- * shell fails the module MIME check the same way — and Vite's own wording
- * for a stylesheet the chunk needs. A module that loaded and then threw
- * rejects with its own error instead: a bug, not a stale build, so it is
- * left to its caller.
- */
-const CHUNK_LOAD_FAILURES = [
-  'Failed to fetch dynamically imported module', // Chromium
-  'error loading dynamically imported module', // Firefox
-  'Importing a module script failed', // WebKit — names no URL
-  'Unable to preload CSS for', // Vite's CSS preload
-];
-
-function isChunkLoadFailure(error: unknown): error is Error {
-  return (
-    error instanceof Error &&
-    CHUNK_LOAD_FAILURES.some((message) => error.message.includes(message))
-  );
-}
-
-/** The chunk the message names; one shared slot for engines that name none. */
-function failedChunkUrl(error: Error): string {
-  return /https?:\/\/\S+/.exec(error.message)?.[0] ?? 'unknown';
-}
-
-/**
- * Claims this chunk's one reload at this version. `false` once it was
- * claimed — and when sessionStorage is unusable, since without the record
- * nothing would stop the reloaded page from reloading again.
- */
-function claimReload(key: string): boolean {
-  try {
-    if (window.sessionStorage.getItem(key) !== null) return false;
-    window.sessionStorage.setItem(key, '1');
-    return true;
-  } catch (error) {
-    console.warn(
-      '[stale-bundle-recovery] sessionStorage is unavailable; asking for the reload instead',
-      error,
-    );
-    return false;
-  }
-}
-
-/** Hands the reload back when the deployment did not answer. */
-function releaseReload(key: string): void {
-  try {
-    window.sessionStorage.removeItem(key);
-  } catch (error) {
-    console.warn(
-      '[stale-bundle-recovery] could not hand the reload back',
-      error,
-    );
-  }
 }
 
 function showNewVersionToast(reload: () => void): void {
