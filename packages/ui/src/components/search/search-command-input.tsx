@@ -1,6 +1,6 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { Loader2, Search, X } from 'lucide-react';
-import type { KeyboardEvent } from 'react';
+import type { KeyboardEvent, Ref } from 'react';
 
 import { cn } from '../../lib/cn';
 import type { SearchStatus } from './types';
@@ -17,6 +17,8 @@ interface SearchCommandInputProps {
   activeIndex: number;
   resultCount: number;
   onKeyDown: (event: KeyboardEvent<HTMLInputElement>) => void;
+  /** The query input, for a body that hands the focus back to it. */
+  inputRef?: Ref<HTMLInputElement>;
 }
 
 /** The command header: a combobox-wired search input with a search⇄spinner
@@ -33,6 +35,7 @@ export function SearchCommandInput({
   activeIndex,
   resultCount,
   onKeyDown,
+  inputRef,
 }: SearchCommandInputProps) {
   return (
     <div className="border-border-base flex items-center gap-2 border-b px-4">
@@ -55,6 +58,7 @@ export function SearchCommandInput({
         />
       </span>
       <input
+        ref={inputRef}
         type="text"
         value={query}
         onChange={(e) => setQuery(e.target.value)}

@@ -49,6 +49,7 @@ search:
   noResultsHint: Probiere andere Begriffe.
   errorTitle: Etwas ist schiefgelaufen
   errorHint: Prüfe deine Verbindung und versuche es erneut.
+  partialFailure: Einige Ergebnisse konnten nicht geladen werden.
   resultsGroup: Ergebnisse
   loading: Suche läuft…
   close: Suche schließen

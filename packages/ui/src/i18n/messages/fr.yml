@@ -49,6 +49,7 @@ search:
   noResultsHint: Essaie d'autres mots-clés.
   errorTitle: Une erreur s'est produite
   errorHint: Vérifie ta connexion et réessaie.
+  partialFailure: Certains résultats n'ont pas pu être chargés.
   resultsGroup: Résultats
   loading: Recherche en cours…
   close: Fermer la recherche
