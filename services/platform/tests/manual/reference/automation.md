@@ -124,10 +124,14 @@ Live backend failures and screen-reader announcements remain manual.
 
 Availability regressions cover validated API/database readiness, HTML proxy
 errors, bounded and idle probes, recovery of failed reads without replaying
-writes, and deferred recovery of memoized chunk failures in
+writes, one refresh per read when the hint stream's reopen ends an outage the
+recovery saw (the stream leaves the refresh to the recovery, which stays
+pending until it is issued; a reopen after it ran still refreshes), and
+deferred recovery of memoized chunk failures in
 `backend/app.readiness.test.ts`, `app/hooks/use-backend-connection-state.test.ts`,
-`app/lib/backend/api-client.test.ts`, `app/lib/backend/use-availability-recovery.test.tsx`
-and `app/lib/stale-bundle-recovery.test.tsx`. `lib/static-assets.test.ts` and
+`app/lib/backend/api-client.test.ts`, `app/lib/backend/use-availability-recovery.test.tsx`,
+`app/lib/backend/use-backend-hints.test.tsx` and
+`app/lib/stale-bundle-recovery.test.tsx`. `lib/static-assets.test.ts` and
 `server.test.ts` cover both colours sharing complete hashed artifacts while
 missing modules remain HTTP 404. The shared `packages/ui/src/pwa/` tests build
 real workers for code-only releases, verify recovery-file integrity and exercise
