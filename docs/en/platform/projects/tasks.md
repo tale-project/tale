@@ -100,7 +100,7 @@ If the organization’s review policy cannot be read or is invalid, human approv
 
 ### Set a project review default {#review-default}
 
-On the project's **General** tab, open **Task reviews** and choose **Default reviewer**, then save the project changes. The initial **Person** choice uses the task creator, then the project creator, if they can edit the project. Choose an independent project agent to route new reviews to it. This setting neither starts the agent nor grants its review permission; [Set up an independent reviewer](/platform/projects/task-automation#agent-review) covers those steps.
+On the project's **General** tab, open **Task reviews** and choose **Default reviewer**, then save the project changes. The initial **Person** choice uses the task creator, then the project creator, if they can edit the project. Choose an independent project agent to route new reviews to it. This setting neither starts the agent nor grants its review permission; [Set up an independent reviewer](/platform/projects/task-automation#agent-review) covers those steps. If the project's agents can't be loaded, **Default reviewer** keeps the saved choice, says so and offers **Try again**; you can change the choice once the agents load.
 
 Tasks with **Project default** follow this choice when a new review starts. A task with an explicitly named person or agent keeps that choice. Reviews already waiting retain their recorded reviewer even if the project default changes. If someone changes the default while you are editing, discard the stale draft and choose again.
 

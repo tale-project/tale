@@ -4,6 +4,7 @@ import {
   projectTaskReviewerFromId,
   type ProjectTaskReviewer,
 } from '@tale/shared/schemas/task-review';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
 import { Stack } from '@tale/ui/layout';
 import {
@@ -28,7 +29,12 @@ interface ReviewerForm {
 }
 
 /** The baseline stays with the editable draft, so a second editor cannot
- * silently overwrite a default changed while this form was open. */
+ * silently overwrite a default changed while this form was open.
+ *
+ * Only an agent list that answered can tell that the saved agent is gone.
+ * While the list loads, or after it failed to load, the saved choice stays
+ * as it is and cannot be changed; a failed list says so with **Try again**
+ * (#4644). */
 export function ProjectTaskReviewerSection({
   projectId,
 }: {
@@ -37,7 +43,23 @@ export function ProjectTaskReviewerSection({
   const { t } = useT('projects');
   const { t: tCommon } = useT('common');
   const { project } = useProject(projectId);
-  const { agents, isLoading: agentsLoading } = useProjectAgents(projectId);
+  const {
+    agents,
+    hasAnswer: agentsAnswered,
+    unavailable: agentsUnavailable,
+    retrying: agentsRetrying,
+    failureCount: agentsFailures,
+    retry: retryAgents,
+  } = useProjectAgents(projectId);
+  const fieldRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // Once Try again brings the list back, its focus goes to the picker — or,
+  // where the picker stays read-only, to the field around it.
+  const focusField = useCallback(() => {
+    const trigger = triggerRef.current;
+    if (trigger !== null && !trigger.disabled) trigger.focus();
+    else fieldRef.current?.focus();
+  }, []);
   const { mutateAsync: setReviewer } = useSetProjectTaskReviewer();
   const expectedRef = useRef<ProjectTaskReviewer | undefined>(undefined);
   const data = useMemo<ReviewerForm | undefined>(() => {
@@ -82,7 +104,7 @@ export function ProjectTaskReviewerSection({
       ? agents.find((agent) => agent._id === reviewer.agentId)
       : undefined;
   const unavailable =
-    reviewer.kind === 'agent' && !agentsLoading && !selectedAgent;
+    reviewer.kind === 'agent' && agentsAnswered && !selectedAgent;
   const missingPermission =
     selectedAgent !== undefined &&
     !selectedAgent.tools?.includes('task_review');
@@ -93,41 +115,56 @@ export function ProjectTaskReviewerSection({
         label: t('taskReview.humanDefault'),
         description: t('taskReview.humanDefaultHint'),
       },
-      ...(!agentsLoading
-        ? agents.map((agent) => ({
-            value: 'agent:' + agent._id,
-            label: agent.name,
-            description: agent.tools?.includes('task_review')
-              ? t('taskReview.agentHint')
-              : t('taskReview.permissionRequired'),
-          }))
-        : []),
+      ...agents.map((agent) => ({
+        value: 'agent:' + agent._id,
+        label: agent.name,
+        description: agent.tools?.includes('task_review')
+          ? t('taskReview.agentHint')
+          : t('taskReview.permissionRequired'),
+      })),
     ],
-    [agents, agentsLoading, t],
+    [agents, t],
   );
   if (!project) return null;
 
+  const readOnly =
+    !project.canEdit ||
+    project.archivedAt !== undefined ||
+    editor.isLoading ||
+    editor.isSaving;
+  // The saved agent by name, or why there is none: it is gone from the list
+  // that answered, or the list is loading, or it failed to load (the notice
+  // below says so).
+  const agentLabel =
+    selectedAgent?.name ??
+    (unavailable
+      ? t('taskReview.unavailable')
+      : agentsUnavailable
+        ? t('taskReview.agentNotLoaded')
+        : tCommon('actions.loading'));
+
   return (
     <form onSubmit={editor.submit}>
-      <fieldset
-        disabled={
-          !project.canEdit ||
-          project.archivedAt !== undefined ||
-          editor.isLoading ||
-          editor.isSaving
-        }
-        className="contents"
+      <SettingsSection
+        title={t('taskReview.title')}
+        description={t('taskReview.description')}
       >
-        <SettingsSection
-          title={t('taskReview.title')}
-          description={t('taskReview.description')}
+        <SettingsFieldRow
+          label={t('taskReview.defaultReviewer')}
+          description={t('taskReview.existingReviews')}
         >
-          <SettingsFieldRow
-            label={t('taskReview.defaultReviewer')}
-            description={t('taskReview.existingReviews')}
-          >
-            {({ labelId, descriptionId }) => (
-              <Stack gap={2}>
+          {({ labelId, descriptionId }) => (
+            // A named group the focus can return to when the picker cannot
+            // take it.
+            <Stack
+              ref={fieldRef}
+              gap={2}
+              role="group"
+              aria-labelledby={labelId}
+              tabIndex={-1}
+              className="outline-none"
+            >
+              <fieldset disabled={readOnly} className="contents">
                 <SearchableSelect
                   value={
                     reviewer.kind === 'agent'
@@ -136,21 +173,18 @@ export function ProjectTaskReviewerSection({
                   }
                   trigger={
                     <button
+                      ref={triggerRef}
                       type="button"
                       className={selectTriggerClasses({})}
-                      disabled={
-                        agentsLoading ||
-                        !project.canEdit ||
-                        project.archivedAt !== undefined ||
-                        editor.isLoading ||
-                        editor.isSaving
-                      }
+                      // No choice is offered from a list that has not
+                      // answered: the saved one stays until it does.
+                      disabled={!agentsAnswered || readOnly}
                       aria-labelledby={labelId}
                       aria-describedby={descriptionId}
                     >
                       <span>
                         {reviewer.kind === 'agent'
-                          ? (selectedAgent?.name ?? t('taskReview.unavailable'))
+                          ? agentLabel
                           : t('taskReview.humanDefault')}
                       </span>
                       <ChevronDown
@@ -182,20 +216,10 @@ export function ProjectTaskReviewerSection({
                       );
                     }
                   }}
-                  disabled={
-                    agentsLoading ||
-                    !project.canEdit ||
-                    project.archivedAt !== undefined ||
-                    editor.isLoading ||
-                    editor.isSaving
-                  }
+                  disabled={!agentsAnswered || readOnly}
                   aria-label={t('taskReview.defaultReviewer')}
                   searchPlaceholder={t('taskReview.search')}
-                  emptyText={
-                    agentsLoading
-                      ? tCommon('actions.loading')
-                      : tCommon('search.noResults')
-                  }
+                  emptyText={tCommon('search.noResults')}
                 />
                 {unavailable && (
                   <Text variant="caption">{t('taskReview.unavailable')}</Text>
@@ -205,11 +229,23 @@ export function ProjectTaskReviewerSection({
                     {t('taskReview.permissionRequired')}
                   </Text>
                 )}
-              </Stack>
-            )}
-          </SettingsFieldRow>
-        </SettingsSection>
-      </fieldset>
+              </fieldset>
+              {/* Outside the fieldset, so Try again works where the picker is
+                  read-only too: for a reader, on an archived project. */}
+              {agentsUnavailable && (
+                <CatalogLoadError
+                  message={t('agents.loadFailed')}
+                  // Each failure is announced again; Try again keeps its node.
+                  failureKey={agentsFailures}
+                  isRetrying={agentsRetrying}
+                  onRetry={retryAgents}
+                  onFocusLost={focusField}
+                />
+              )}
+            </Stack>
+          )}
+        </SettingsFieldRow>
+      </SettingsSection>
     </form>
   );
 }

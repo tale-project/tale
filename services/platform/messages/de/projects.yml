@@ -8,6 +8,7 @@ taskReview:
   existingReviews: "Gilt für neue Reviews. Bereits ausstehende Reviews behalten ihren gespeicherten Reviewer."
   permissionRequired: "Dieser Agent braucht die Berechtigung für Aufgabenreviews, bevor er entscheiden kann."
   unavailable: "Der gewählte Reviewer-Agent ist nicht verfügbar. Wähle einen anderen Reviewer."
+  agentNotLoaded: "Agent nicht geladen"
   stale: "Der Projekt-Reviewer hat sich während deiner Bearbeitung geändert. Verwirf den Entwurf und wähle erneut."
   search: "Reviewer-Agenten suchen"
 

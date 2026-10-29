@@ -8,6 +8,7 @@ taskReview:
   existingReviews: "S’applique aux nouvelles relectures. Les relectures déjà en attente conservent leur relecteur enregistré."
   permissionRequired: "Cet agent doit avoir la permission de relire les tâches avant de pouvoir décider."
   unavailable: "L’agent relecteur sélectionné est indisponible. Choisis un autre relecteur."
+  agentNotLoaded: "Agent non chargé"
   stale: "Le relecteur par défaut du projet a changé pendant ta modification. Abandonne ce brouillon et choisis à nouveau."
   search: "Rechercher des agents relecteurs"
 title: Projets
