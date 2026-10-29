@@ -114,6 +114,7 @@ pagesDialog:
   searchPlaceholder: Search website content
   noSearchResults: No results found
   noSearchResultsDescription: Try another term, or clear the search to browse all pages.
+  searchFailed: Couldn't search the website's content.
   noChunks: No chunks indexed for this page
   chunkIndex: Chunk {index}
   lastError: '{count, plural, one {{count} failed attempt} other {{count} failed attempts in a row}} — {message}'

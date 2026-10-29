@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 76 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 78 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -850,6 +850,22 @@ records and delete them after.
   three services → each refuses to start with `OUTBOUND_PROXY_URLS entry 1 is
   not an http:// proxy URL`, and no log line carries `secret`. Restore the
   prior environment.
+
+- [ ] `KNOW-B28` · **A website search that fails says so** — Open **View**
+  (`common.actions.view`) on a site with indexed pages, block
+  `*/api/app/websites/*/search`, type a term in **Search website content**
+  (`websites.pagesDialog.searchPlaceholder`) and press Enter → the **Website
+  pages** section reads **Couldn't search the website's content.**
+  (`websites.pagesDialog.searchFailed`) with **Try again** and the term stays
+  in the box, never **No results found**
+  (`websites.pagesDialog.noSearchResults`); the `websites.toast.searchError`
+  toast shows as well. Unblock → **Try again** → the matching pages appear and
+  focus rests on the section. Block the route again and press Enter in the box
+  → the notice returns above the results, which stay; clear the box → the
+  notice goes with the search and the pages list returns. A term that matches
+  nothing still reads `websites.pagesDialog.noSearchResults`, with no **Try
+  again**. In German and French the notice and **Try again** read in the
+  page's language.
 
 ## Accessibility (WCAG 2.1 AA)
 

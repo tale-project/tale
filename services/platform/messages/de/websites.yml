@@ -119,6 +119,7 @@ pagesDialog:
   searchPlaceholder: Website-Inhalt durchsuchen
   noSearchResults: Keine Ergebnisse gefunden
   noSearchResultsDescription: Versuch einen anderen Begriff, oder leere die Suche, um alle Seiten zu sehen.
+  searchFailed: Der Inhalt der Website konnte nicht durchsucht werden.
   noChunks: Keine Chunks für diese Seite indexiert
   chunkIndex: Chunk {index}
   lastError: '{count, plural, one {{count} fehlgeschlagener Versuch} other {{count} fehlgeschlagene Versuche in Folge}} — {message}'
