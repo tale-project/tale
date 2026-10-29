@@ -275,8 +275,8 @@ loaded, and reads **No teams** for an account in none.
   open state survive each move; it has no header naming it — it opens on the
   view switcher (NAV-F26) with a **New chat** icon link (`home.newChat`,
   tooltip shortcut ⌥⌘N) beside it that opens `/chat?new=true`, and the
-  switcher keeps every option's full label beside it in German and French
-  (**Aufgaben**, **Réception**). Knowledge, Automations, Settings, a shared
+  switcher names the open view beside its icon in every language (NAV-F26a).
+  Knowledge, Automations, Settings, a shared
   chat (`/dashboard/{org}/chat/shared/{shareToken}`) and a project's
   automation workbench
   (`/dashboard/{org}/projects/{projectId}/automations/{slug}/…`, full width
@@ -291,18 +291,31 @@ loaded, and reads **No teams** for an account in none.
   `getBoundingClientRect().bottom` are equal.
 - [ ] `NAV-F26` · **View switcher** — In the panel's **Show** radiogroup
   (`home.views.label`) pick **All**, **Chats**, **Tasks** and **Inbox**
-  (`home.views.all` / `.chats` / `.tasks` / `.inbox`), then move with ←/→;
-  reload; switch to another organization and back → Each view narrows the list
-  to its kind — All holds your chats, your open tasks and the OPEN inbox
-  conversations; **Inbox** is offered only while the org has an inbox — and
-  the new list fades in; the selected pill glides between options; the arrow
-  keys move the selection and focus together; the choice survives the reload
-  and is remembered per organization. **All** keeps listing the OPEN
-  conversations whichever status the Inbox view was last left on (pick
+  (`home.views.all` / `.chats` / `.tasks` / `.inbox`; each view is an icon
+  whose tooltip names it), then move with ←/→; reload; switch to another
+  organization and back → Each view narrows the list to its kind — All holds
+  your chats, your open tasks and the OPEN inbox conversations; **Inbox** is
+  offered only while the org has an inbox — and the new list fades in; the
+  open view shows its name beside its icon and the others only their icons;
+  the selected pill glides between options while the open view's name opens;
+  the arrow keys move the selection and focus together; the choice survives
+  the reload and is remembered per organization. **All** keeps listing the
+  OPEN conversations whichever status the Inbox view was last left on (pick
   **Closed** in the Inbox view's status menu, then **All** again). A view
   holding something that needs you (an unread chat, a task waiting for your
-  review, an unread conversation) carries a small accent dot announced as
-  `home.aria.attention`.
+  review, an unread conversation) carries a small accent dot on its icon,
+  announced as `home.aria.attention`.
+- [ ] `NAV-F26a` · **Every view's name fits** — In an organization with an
+  inbox, switch the language to Deutsch, then Français (user menu →
+  Language); in each, drag the Home panel's edge from its widest to its
+  narrowest (280 px), pick every view at both widths, then open `/home` at
+  360 px wide → The open view's name shows whole beside its icon
+  (**Aufgaben** and **Réception** included), never with an ellipsis; every
+  other view is a single icon whose tooltip names it on hover; **New chat**
+  keeps its place at the row's end. As you switch views, the pill and the
+  opening name arrive together: once the pill stops, no letter stands outside
+  it, and nothing else in the row jumps. With `prefers-reduced-motion` set,
+  the pill and the name change in place.
 - [ ] `NAV-F27` · **Time bands and ages** — With chats, a task assigned to you
   and an open conversation whose last activity is today, yesterday, three days
   ago and two weeks ago, plus one pinned chat, read the **All** view → Rows sort
@@ -641,7 +654,9 @@ loaded, and reads **No teams** for an account in none.
 - [ ] `NAV-A5` · **Home panel by keyboard** → The panel is a `nav` named
   **Home** (`home.aria.panel`); the switcher is a `radiogroup` named **Show**
   (`home.views.label`) with one tab stop and a `radio` per view
-  (`aria-checked`); the **Projects** section is a `region`
+  (`aria-checked`), each named in full (`home.views.*`) though only the open
+  one shows its name, a view's waiting count read after it
+  (`home.aria.attention`); the **Projects** section is a `region`
   (`home.projects.title`) whose header toggle exposes `aria-expanded`; the
   list is named `home.aria.stream` (the Inbox view's `home.aria.inbox`) with
   band headings; every row is a link, the open one `aria-current="page"`.
