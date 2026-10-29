@@ -535,6 +535,19 @@ projects-list row ⋯ menu.
   (`projects.sharing.teamNamesLoadError`) and **Try again**; unblock and press
   it → both names return and the focus stays on the row. Repeat the first
   state in German and French.
+- [ ] `PROJ-B32` · **New project waits for the teams it can be limited to** —
+  As an Editor in a team, block `*/api/app/teams?*` in DevTools and open
+  **New project** (`home.projects.newProject`) → while the read retries
+  **Who can see it** (`projects.create.audienceLabel`) holds its place as a
+  skeleton and **Create project** (`projects.create.submit`) stays disabled;
+  type a name and press Enter → nothing is created. After the retries one
+  notice (`projects.sharing.teamsLoadError`) with **Try again** stands in the
+  field's place, never a form without the field, and still nothing can be
+  created; unblock, Tab to **Try again** and press Enter → the picker
+  returns with the focus on it; pick your team and create → the project's
+  General tab lists that team under **Audience**
+  (`projects.settings.audience`). Repeat the failed state in German and
+  French.
 - [ ] `PROJ-B11` · **A Member is offered no project create** — Sign in as a
   Member and open the Home panel, then `/dashboard/{org}/projects` → the
   **Projects** section header offers **All projects** but no **New project**

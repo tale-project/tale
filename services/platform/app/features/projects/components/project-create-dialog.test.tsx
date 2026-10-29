@@ -7,9 +7,10 @@ import { ProjectCreateDialog } from './project-create-dialog';
 
 // Migrated from the `validation` E2E "rejects a whitespace-only name on submit;
 // cancels without creating". The dialog's name schema is `.trim().min(1)`, and
-// the FormDialog submit button is NOT validity-gated (the component passes
-// neither `isValid` nor `isDirty`, so both default to `true`) — RHF only runs
-// the zod resolver on submit. So a whitespace-only name leaves the button
+// the FormDialog submit button is NOT gated on the form's validity (its
+// `isValid` says only whether the audience's teams read has answered — stubbed
+// answered here — and no `isDirty` is passed) — RHF only runs the zod
+// resolver on submit. So a whitespace-only name leaves the button
 // enabled; clicking it surfaces the required error and BLOCKS the create
 // (`createProject` is never called, no navigation happens). That is pure
 // client-side validation gating + a client-side mutation guard — no router
@@ -34,9 +35,19 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 }));
 
 // The "Who can see it" picker lists the teams the caller may assign (their
-// own; every team for an admin) — a backend read, stubbed empty here.
+// own; every team for an admin) — a backend read, stubbed answered and empty
+// here. How the dialog holds a pending or failed read is covered in
+// `project-create-dialog.team-reads.test.tsx`.
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
-  useOrgTeams: () => ({ teams: [], isLoading: false }),
+  useOrgTeams: () => ({
+    teams: [],
+    isLoading: false,
+    unavailable: false,
+    stale: false,
+    retrying: false,
+    failureCount: 0,
+    retry: vi.fn(),
+  }),
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({
@@ -79,8 +90,8 @@ describe('ProjectCreateDialog', () => {
     // title; scope the lookup to the dialog's button role.
     const submit = screen.getByRole('button', { name: 'Create project' });
 
-    // The submit button is NOT validity-gated — a whitespace-only name leaves
-    // it enabled (RHF validates on submit, not onChange).
+    // The name does not gate the submit button — a whitespace-only name
+    // leaves it enabled (RHF validates on submit, not onChange).
     await user.type(nameField, '   ');
     expect(submit).toBeEnabled();
 
