@@ -33,7 +33,7 @@ Der PII-Schutz erkennt konfigurierte Muster wie E-Mail-Adressen, Telefonnummern 
 
 Maskieren entfernt erkannte Werte aus dem weitergegebenen Text. Im Chat speichert und zeigt Tale auch den maskierten Text als Nachricht; der ursprüngliche Wortlaut bleibt nicht erhalten. Blockieren lehnt einen Treffer ab. Tokenisierung ersetzt die Werte für das Modell durch nummerierte Tokens und stellt sie in der Antwort wieder her. Sie kann die Verarbeitung mit weniger offengelegten Daten unterstützen, verspricht aber keine Antwort ohne personenbezogene Daten.
 
-Eine eingebaute Kennung, die nur aus Ziffern besteht, etwa eine schwedische Passnummer oder eine ukrainische Steuernummer, wird nur neben einem Wort erkannt, das sie benennt, zum Beispiel `passnummer` oder `ІПН`. Bestellnummern, kompakte Datumsangaben und Build-Nummern bleiben unverändert. Jede Erkennung unter **Aktuelle Ereignisse** nennt das ausgelöste Muster, etwa `se-passport`.
+Eine eingebaute Kennung, die nur aus Ziffern besteht, etwa eine schwedische Passnummer oder eine ukrainische Steuernummer, wird nur neben einem Wort erkannt, das sie benennt, zum Beispiel `passnummer` oder `ІПН`. Bestellnummern, kompakte Datumsangaben und Build-Nummern bleiben unverändert. Ebenso wird ein Geburtsdatum mit zweistelliger Jahreszahl wie `15.03.87` nur direkt nach einem Wort erkannt, das es benennt, zum Beispiel `DOB` oder `Geburtsdatum`; mit vierstelliger Jahreszahl auch ohne ein solches Wort. Jede Erkennung unter **Aktuelle Ereignisse** nennt das ausgelöste Muster, etwa `se-passport`.
 
 Teste die tatsächlich verwendeten Formate mit erfundenen Werten. Muster können ungewöhnliche Formate übersehen oder normalen Text fälschlich markieren. Prüfe Eingabe und Ausgabe getrennt.
 
