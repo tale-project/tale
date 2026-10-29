@@ -71,6 +71,23 @@ export function visibleApiNavItems(
   );
 }
 
+/** The access the navigation lists tabs by: a tab the member may open, and
+ * one a failed read left undecided — opened, it says the access didn't load
+ * and offers to try again, where hiding it would read as a refusal. */
+export function listedApiAccess(
+  access: Pick<
+    ApiSettingsAccess,
+    'developer' | 'apiKeys' | 'modelApi' | 'agents' | 'undecided'
+  >,
+): Pick<ApiSettingsAccess, 'developer' | 'apiKeys' | 'modelApi' | 'agents'> {
+  return {
+    developer: access.developer,
+    apiKeys: access.apiKeys || access.undecided.apiKeys,
+    modelApi: access.modelApi || access.undecided.modelApi,
+    agents: access.agents || access.undecided.agents,
+  };
+}
+
 /** Which sentence says why a tab is closed to a member: the one naming what
  * opens it, or — for a tab only the developer roles open — the roles. */
 const TAB_DENIED_MESSAGE_KEY = {

@@ -26,6 +26,7 @@ import type {
 } from '@/app/features/settings/components/settings-section-list';
 import { useApiSettingsAccess } from '@/app/features/settings/model-endpoints/hooks/use-api-settings-access';
 import { useAbility } from '@/app/hooks/use-ability';
+import { listedApiAccess } from '@/app/routes/dashboard/$id/settings/api/-nav-items';
 import { useT } from '@/lib/i18n/client';
 import type { AppAction, AppSubject } from '@/lib/permissions/ability';
 
@@ -55,7 +56,9 @@ export function useSettingsMenuGroups(
   const ability = useAbility();
   const { t: tNav } = useT('navigation');
   const { t: tSettings } = useT('settings');
-  const apiAccess = useApiSettingsAccess(organizationId);
+  // Kept while a read that decides an API tab has failed: the section then
+  // says the access didn't load, where a missing row would read as a refusal.
+  const apiAccess = listedApiAccess(useApiSettingsAccess(organizationId));
   const apiVisible =
     apiAccess.developer ||
     apiAccess.apiKeys ||

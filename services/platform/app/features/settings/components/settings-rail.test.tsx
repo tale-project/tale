@@ -48,6 +48,8 @@ const apiAccess = vi.hoisted(() => ({
   apiKeys: false,
   modelApi: false,
   agents: false,
+  // The tabs a failed read leaves undecided (#4767).
+  undecided: { apiKeys: false, modelApi: false, agents: false },
 }));
 vi.mock(
   '@/app/features/settings/model-endpoints/hooks/use-api-settings-access',
@@ -57,6 +59,7 @@ vi.mock(
       apiKeys: ability.canEverything || apiAccess.apiKeys || apiAccess.modelApi,
       modelApi: ability.canEverything || apiAccess.modelApi,
       agents: apiAccess.agents,
+      undecided: apiAccess.undecided,
       loading: false,
     }),
   }),
@@ -68,6 +71,7 @@ describe('SettingsRail', () => {
     apiAccess.apiKeys = false;
     apiAccess.modelApi = false;
     apiAccess.agents = false;
+    apiAccess.undecided = { apiKeys: false, modelApi: false, agents: false };
   });
 
   describe('accessibility', () => {
@@ -197,5 +201,23 @@ describe('SettingsRail', () => {
     );
     expect(nav.queryByRole('link', { name: 'Models' })).not.toBeInTheDocument();
     expect(nav.queryByRole('link', { name: 'MCP' })).not.toBeInTheDocument();
+  });
+
+  it('keeps the API group, with the tabs a failed read left undecided, for a member whose access read failed', async () => {
+    ability.canEverything = false;
+    apiAccess.undecided = { apiKeys: true, modelApi: true, agents: false };
+
+    const { user } = render(<SettingsRail organizationId="org-1" />);
+
+    // Opened, each says the access didn't load (the API layout's suite).
+    await user.click(screen.getByRole('button', { name: 'API' }));
+    const hrefs = within(screen.getByRole('navigation'))
+      .getAllByRole('link')
+      .map((link) => link.getAttribute('href'))
+      .filter((href) => href?.includes('/settings/api/'));
+    expect(hrefs).toEqual([
+      '/dashboard/org-1/settings/api/rest',
+      '/dashboard/org-1/settings/api/models',
+    ]);
   });
 });

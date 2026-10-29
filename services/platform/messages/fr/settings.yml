@@ -1123,6 +1123,9 @@ form:
   role: Rôle
   forgotPassword: Les utilisateurs qui oublient leur mot de passe doivent
     contacter un administrateur.
+apiAccess:
+  readFailed: Ton accès à l’API n’a pas pu être chargé.
+  partialReadFailed: Une partie de ton accès à l’API n’a pas pu être chargée.
 apiKeys:
   entityLabel: clés
   entityLabelOne: clé
