@@ -57,9 +57,9 @@ function fakeScrubber(
  * unbroken word, so the only separators in range are the identifier's own.
  * A single-line CSV export or minified text has exactly this shape. The
  * filler is a character outside every enabled pattern's classes: on a
- * letter run the email regex backtracks quadratically (hundreds of
- * milliseconds per scan here, past the test timeout on a saturated CI
- * worker) without changing any verdict.
+ * letter run the email regex retries at every position, reading up to 64
+ * characters ahead each time, which costs scan time without changing any
+ * verdict.
  */
 const STRADDLE_HEAD = '#'.repeat(WINDOW_CHARS - 10);
 const STRADDLE_CARD = `${STRADDLE_HEAD} 4111 1111 1111 1111 rest of the line`;
@@ -67,8 +67,7 @@ const STRADDLE_IBAN = `${STRADDLE_HEAD} DE89 3704 0044 0532 0130 00 rest`;
 const STRADDLE_PHONE = `${STRADDLE_HEAD} +49 30 12345678 rest of the line`;
 /**
  * No separator at all: the hard cut lands inside the address. A letter head
- * would also be swallowed into the local part and make the whole text one
- * match.
+ * would also be read into the local part, up to its 64-character bound.
  */
 const STRADDLE_EMAIL = `${STRADDLE_HEAD}ada.lovelace@example.com${'#'.repeat(50)}`;
 
