@@ -13,6 +13,7 @@ import {
   recordSkip,
   requestedLanes,
   settleTeardown,
+  withCleanup,
 } from './integration-lane-helpers';
 import { createEventsHandler } from './realtime/sse';
 
@@ -362,5 +363,75 @@ describe('settleTeardown', () => {
       }
       await tail.close();
     }
+  });
+});
+
+describe('withCleanup', () => {
+  it("reports the body's error when a cleanup step fails too, and runs every step", async () => {
+    // The bell-wire lane's shape (#4152): the lane fails, then a tail will
+    // not close. A plain `finally` reported the tail; the lane's error won.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const lane = new Error('the recipient never heard the hint');
+      const ran: string[] = [];
+      await expect(
+        withCleanup(
+          [
+            [
+              "closes the owner's tail",
+              () => Promise.reject(new Error('the tail did not settle')),
+            ],
+            ['deletes the project', () => Promise.resolve(ran.push('delete'))],
+          ],
+          () => Promise.reject(lane),
+        ),
+      ).rejects.toBe(lane);
+      expect(ran).toEqual(['delete']);
+      expect(warn.mock.calls).toEqual([
+        [
+          "[itest] the cleanup step that closes the owner's tail failed: Error: the tail did not settle (logged only: the lane fails with the error before it)",
+        ],
+      ]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('fails a passing body with its first cleanup failure, naming the step', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const ran: string[] = [];
+      await expect(
+        withCleanup(
+          [
+            ["closes the owner's tail", () => Promise.reject(new Error('one'))],
+            ["closes the mate's tail", () => Promise.reject(new Error('two'))],
+            ['deletes the project', () => Promise.resolve(ran.push('delete'))],
+          ],
+          () => Promise.resolve('passed'),
+        ),
+      ).rejects.toThrow(
+        "the cleanup step that closes the owner's tail failed: Error: one",
+      );
+      expect(ran).toEqual(['delete']);
+      expect(warn.mock.calls).toEqual([
+        [
+          "[itest] the cleanup step that closes the mate's tail failed: Error: two (logged only: the lane fails with the error before it)",
+        ],
+      ]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("returns the body's value once every step has run", async () => {
+    const ran: string[] = [];
+    await expect(
+      withCleanup(
+        [['deletes the project', () => Promise.resolve(ran.push('delete'))]],
+        () => Promise.resolve('passed'),
+      ),
+    ).resolves.toBe('passed');
+    expect(ran).toEqual(['delete']);
   });
 });

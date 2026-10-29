@@ -258,7 +258,9 @@ connection a stuck lane still holds), and bounds each of its steps. A lane reads
 ends the tail within seconds or fails the lane naming it. The harness's outbound
 boundary hands fetch the caller's own abort signal: a signal that only followed it
 through an intermediate `Request` was lost to garbage collection, and a closed
-tail then read on forever (#4112).
+tail then read on forever (#4112). A lane's own cleanup runs through
+`withCleanup`, which runs every step and never lets a cleanup failure replace
+the lane's error (#4152).
 
 ## Measure backend work
 

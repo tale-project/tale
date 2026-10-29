@@ -342,7 +342,8 @@ export function connectSse(
   return { events, done, close };
 }
 
-/** One step of the harness's teardown: what it does, and the work. */
+/** One step of a teardown, the harness's ({@link settleTeardown}) or a
+ * lane's own ({@link withCleanup}): what it does, and the work. */
 export type TeardownStep = readonly [what: string, run: () => Promise<unknown>];
 
 /** The longest one teardown step may take. Each is a close or one query. */
@@ -370,5 +371,60 @@ export async function settleTeardown(
         `${errorText(error)} — the harness went on to its tally regardless`,
       );
     }
+  }
+}
+
+/**
+ * Runs `body`, then every step of `cleanup` in order, on every path: a
+ * lane's `try`/`finally`, without the way a `finally` that throws replaces
+ * the error in flight. A lane that failed and whose cleanup then failed too
+ * (an SSE tail that would not close, a DELETE) truncated the run under the
+ * cleanup's error, and the lane's own failure was lost (#4152). A step that
+ * throws never stops the next one. When the body threw, its error is the one
+ * that propagates and each cleanup failure is only logged; when the body
+ * passed, the first cleanup failure fails the lane. Either way a failure
+ * names its step.
+ */
+export async function withCleanup<T>(
+  cleanup: readonly TeardownStep[],
+  body: () => Promise<T>,
+): Promise<T> {
+  let value: T;
+  try {
+    value = await body();
+  } catch (error) {
+    warnCleanupFailures(await runCleanup(cleanup));
+    throw error;
+  }
+  const [first, ...rest] = await runCleanup(cleanup);
+  warnCleanupFailures(rest);
+  if (first !== undefined) throw first;
+  return value;
+}
+
+/** Runs every step in order; each failure comes back as an error naming its
+ * step. */
+async function runCleanup(cleanup: readonly TeardownStep[]): Promise<Error[]> {
+  const failures: Error[] = [];
+  for (const [what, run] of cleanup) {
+    try {
+      await run();
+    } catch (error) {
+      failures.push(
+        new Error(`the cleanup step that ${what} failed: ${errorText(error)}`, {
+          cause: error,
+        }),
+      );
+    }
+  }
+  return failures;
+}
+
+/** Logs the cleanup failures an earlier error outranks. */
+function warnCleanupFailures(failures: readonly Error[]): void {
+  for (const failure of failures) {
+    console.warn(
+      `[itest] ${failure.message} (logged only: the lane fails with the error before it)`,
+    );
   }
 }
