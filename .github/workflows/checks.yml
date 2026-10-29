@@ -296,7 +296,7 @@ jobs:
       needs.candidate-source.result == 'success') ||
       ((github.event_name != 'repository_dispatch') &&
       needs.candidate-source.result == 'skipped'))
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     permissions:
       contents: read
@@ -372,7 +372,7 @@ jobs:
       needs.candidate-source.result == 'success') ||
       ((github.event_name != 'repository_dispatch') &&
       needs.candidate-source.result == 'skipped'))
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     permissions:
       contents: read
@@ -460,7 +460,7 @@ jobs:
       ((github.event_name != 'repository_dispatch') &&
       needs.candidate-source.result == 'skipped')) &&
       (github.event.pull_request.draft != true)
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -524,7 +524,7 @@ jobs:
       needs.candidate-source.result == 'skipped'))
     needs: candidate-source
     name: Performance
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     permissions:
       contents: read
@@ -626,7 +626,7 @@ jobs:
       ((github.event_name != 'repository_dispatch') &&
       needs.candidate-source.result == 'skipped')) &&
       (github.event.pull_request.draft != true)
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 15
     permissions:
       contents: read

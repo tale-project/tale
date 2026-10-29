@@ -302,11 +302,12 @@ export const FINISH_PROFILES: readonly FinishProfile[] = [
     currentClosure,
   ),
   // Current sources take each Linux job's runner from the repository variable
-  // LINUX_RUNNER (a fork's pull request keeps ubuntu-latest); jobs, conditions,
-  // matrices and the ready-check closure match the profiles just above.
+  // LINUX_RUNNER, or LINUX_TEST_RUNNER for the timed test suites (a fork's pull
+  // request keeps ubuntu-latest); jobs, conditions, matrices and the ready-check
+  // closure match the profiles just above.
   profile(
     'Checks',
-    '3d46d79c3c5f69b8e6377956acebdffc23f5198e63461b786efd3b00f36063f4',
+    '46e0b29ccf7c4d8f723b969c4acffd86885a2703319bc0803f8126bcf91beb7a',
     shards,
     currentClosure,
   ),
@@ -330,7 +331,7 @@ export const FINISH_PROFILES: readonly FinishProfile[] = [
   ),
   profile(
     'E2E',
-    '4888a6907da211adf83de60a78125124b6b250f620e626d35412e2b024d18bdb',
+    'a9f57127d38f3a9b60dc38ad0851a904a5e2fbd60f51caf66ee5728134662bd6',
     {
       e2e: {
         variable: 'shard',

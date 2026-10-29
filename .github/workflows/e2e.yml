@@ -209,7 +209,7 @@ jobs:
       needs.build.result == 'success' &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
     needs: [candidate-source, build]
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     # Keep one worker per independent stack: more workers starve the backend.
     # Each stack authenticates through the worker-scoped org fixture. Four
@@ -402,7 +402,7 @@ jobs:
       needs.candidate-source.result == 'skipped')) &&
       needs.scope.result == 'success' && needs.scope.outputs.static_services != '[]' &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
-    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     permissions:
       contents: read

@@ -1416,7 +1416,7 @@
         {
           "path": ["jobs", "performance", "runs-on"],
           "kind": "value",
-          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "performance", "timeout-minutes"],
@@ -1646,7 +1646,7 @@
         {
           "path": ["jobs", "test-browser", "runs-on"],
           "kind": "value",
-          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "test-browser", "timeout-minutes"],
@@ -1900,7 +1900,7 @@
         {
           "path": ["jobs", "test-platform-shards", "runs-on"],
           "kind": "value",
-          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "test-platform-shards", "services"],
@@ -2108,7 +2108,7 @@
         {
           "path": ["jobs", "test-ui-shards", "runs-on"],
           "kind": "value",
-          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "test-ui-shards", "strategy"],
@@ -2260,7 +2260,7 @@
         {
           "path": ["jobs", "test-workspaces", "runs-on"],
           "kind": "value",
-          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "test-workspaces", "timeout-minutes"],
@@ -3734,7 +3734,7 @@
         {
           "path": ["jobs", "e2e", "runs-on"],
           "kind": "value",
-          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "e2e", "services"],
@@ -4198,7 +4198,7 @@
         {
           "path": ["jobs", "static-sites", "runs-on"],
           "kind": "value",
-          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "static-sites", "strategy"],
