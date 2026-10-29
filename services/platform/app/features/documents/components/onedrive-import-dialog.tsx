@@ -43,6 +43,10 @@ import type {
   SourceTab,
 } from './onedrive-import/types';
 import { isFolder, isFile } from './onedrive-import/types';
+import {
+  toggleVisibleSelection,
+  visibleSelectionState,
+} from './onedrive-import/visible-selection';
 
 /** A lapsed grant, in the words the doors answer it with — on a listing's
  *  error, or on an import's answer, which stopped where access ended. */
@@ -441,40 +445,18 @@ export function OneDriveImportDialog({
 
   const filteredItems = currentItems;
 
-  const selectAllVisible = () => {
-    const newSelectedItems = new Map(selectedItems);
-    filteredItems.forEach((item: OneDriveApiItem) => {
-      newSelectedItems.set(item.id, {
-        id: item.id,
-        name: item.name,
-        path: buildItemPath(item),
-        type: isFolder(item) ? 'folder' : 'file',
-        size: item.size,
-      });
-    });
-    setSelectedItems(newSelectedItems);
-  };
-
-  const deselectAll = () => {
-    setSelectedItems(new Map());
-  };
-
-  const getSelectAllState = (): boolean | 'indeterminate' => {
-    if (filteredItems.length === 0) return false;
-    const selectedCount = filteredItems.filter((item: OneDriveApiItem) =>
-      selectedItems.has(item.id),
-    ).length;
-    if (selectedCount === 0) return false;
-    if (selectedCount === filteredItems.length) return true;
-    return 'indeterminate';
-  };
+  const getSelectAllState = (): boolean | 'indeterminate' =>
+    visibleSelectionState(filteredItems, selectedItems);
 
   const handleSelectAllChange = (checked: boolean | 'indeterminate') => {
-    if (checked === true || checked === 'indeterminate') {
-      selectAllVisible();
-    } else {
-      deselectAll();
-    }
+    setSelectedItems(
+      toggleVisibleSelection(
+        selectedItems,
+        filteredItems,
+        checked,
+        buildItemPath,
+      ),
+    );
   };
 
   const handleFolderClick = (folder: OneDriveApiItem) => {
