@@ -1,6 +1,7 @@
 import type { Sql } from 'postgres';
 
 import {
+  errorClassOf,
   STEP_FAILURE_REASONS,
   type StepFailureReason,
 } from '../../../lib/engine/core/record/failure.ts';
@@ -15,10 +16,16 @@ interface WakeAdmissionFailure {
   stepFailed: boolean;
   stepFailureCode: RunFailureCode | null;
   stepFailureReason: StepFailureReason | null;
+  /** The class of what the step's connector threw: its name and its code. */
+  stepErrorName: string | null;
+  stepErrorCode: string | null;
 }
 
-/** Only finite stored codes leave the fixture. No detail, params, trace or
- * values are read: even a saved engine failure can contain service text. */
+/** Only finite stored codes leave the fixture: the run's and the step's
+ * failure codes, the step's reason, and the class of what it threw, each
+ * part only in its shape (`errorClassOf`). No detail, other params, trace
+ * or values are read: even a saved engine failure can contain service
+ * text. */
 export async function readWakeAdmissionFailure(
   sql: Sql,
   organizationId: string,
@@ -30,11 +37,15 @@ export async function readWakeAdmissionFailure(
       stepStatus: unknown;
       stepFailureCode: unknown;
       stepFailureReason: unknown;
+      stepErrorName: unknown;
+      stepErrorCode: unknown;
     }[]
   >`
     SELECT r.failure_code AS "failureCode", n.status AS "stepStatus",
            n.failure_code AS "stepFailureCode",
-           n.record #>> '{failure,reason}' AS "stepFailureReason"
+           n.record #>> '{failure,reason}' AS "stepFailureReason",
+           n.record #>> '{failure,params,errorName}' AS "stepErrorName",
+           n.record #>> '{failure,params,errorCode}' AS "stepErrorCode"
     FROM app.automation_runs r
     LEFT JOIN app.automation_node_runs n
       ON n.org_id = r.org_id AND n.run_id = r.id
@@ -46,6 +57,10 @@ export async function readWakeAdmissionFailure(
   `;
   const row = rows[0];
   if (row === undefined) return null;
+  const thrown = errorClassOf({
+    name: row.stepErrorName,
+    code: row.stepErrorCode,
+  });
   return {
     failureCode: isRunFailureCode(row.failureCode) ? row.failureCode : null,
     stepRecorded:
@@ -61,6 +76,8 @@ export async function readWakeAdmissionFailure(
     stepFailureReason:
       STEP_FAILURE_REASONS.find((reason) => reason === row.stepFailureReason) ??
       null,
+    stepErrorName: thrown.errorName ?? null,
+    stepErrorCode: thrown.errorCode ?? null,
   };
 }
 

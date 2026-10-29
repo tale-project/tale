@@ -13,6 +13,8 @@ const FAILURE = {
   stepFailed: true,
   stepFailureCode: 'node_error',
   stepFailureReason: 'TASK_PROJECT_NOT_BOUND',
+  stepErrorName: null,
+  stepErrorCode: null,
 } as const;
 
 function lane(
@@ -241,6 +243,8 @@ describe('W18 stored failure boundary [AUTO-R33]', () => {
       stepStatus: 'failed',
       stepFailureCode: 'node_error',
       stepFailureReason: 'TASK_PROJECT_NOT_BOUND',
+      stepErrorName: null,
+      stepErrorCode: null,
     });
     await expect(
       readWakeAdmissionFailure(sql, 'fixture-org', FAILED_RUN),
@@ -260,9 +264,46 @@ describe('W18 stored failure boundary [AUTO-R33]', () => {
     );
     expect(text).toContain("AND r.status = 'failed'");
     expect(text).toContain('LIMIT 1');
+    expect(text).toContain(
+      `n.record #>> '{failure,params,errorName}' AS "stepErrorName"`,
+    );
+    expect(text).toContain(
+      `n.record #>> '{failure,params,errorCode}' AS "stepErrorCode"`,
+    );
     expect(text).not.toMatch(/\b(detail|trace|input|output)\b/);
     expect(text).not.toContain('n.record,');
   });
+
+  it.each([
+    ['a transaction that lost to another one', 'PostgresError', '40001'],
+    ['a write the database refused', 'PostgresError', '23505'],
+    ['a refusal of the task domain', 'TaskError', 'AGENT_START_FORBIDDEN'],
+    ['the connector door itself', 'ConnectorError', 'INTERRUPTED'],
+    ['a defect', 'TypeError', null],
+  ])(
+    'reports the class of %s that the start step threw',
+    async (_case, name, code) => {
+      const { sql } = database({
+        failureCode: 'connector_error',
+        stepStatus: 'failed',
+        stepFailureCode: 'connector_error',
+        stepFailureReason: 'CONNECTOR_FAILED',
+        stepErrorName: name,
+        stepErrorCode: code,
+      });
+      await expect(
+        readWakeAdmissionFailure(sql, 'fixture-org', FAILED_RUN),
+      ).resolves.toEqual({
+        failureCode: 'connector_error',
+        stepRecorded: true,
+        stepFailed: true,
+        stepFailureCode: 'connector_error',
+        stepFailureReason: 'CONNECTOR_FAILED',
+        stepErrorName: name,
+        stepErrorCode: code,
+      });
+    },
+  );
 
   it('never logs unknown codes, service text, tokens, trace, values or failure params', async () => {
     const privateText =
@@ -273,6 +314,8 @@ describe('W18 stored failure boundary [AUTO-R33]', () => {
       stepStatus: privateText,
       stepFailureCode: privateText,
       stepFailureReason: privateText,
+      stepErrorName: privateText,
+      stepErrorCode: privateText,
       detail: privateText,
       output: { token: privateText },
       trace: [{ error: privateText }],
@@ -289,6 +332,8 @@ describe('W18 stored failure boundary [AUTO-R33]', () => {
       stepFailed: false,
       stepFailureCode: null,
       stepFailureReason: null,
+      stepErrorName: null,
+      stepErrorCode: null,
     });
     expect(JSON.stringify(trace)).not.toContain('fixture-private-token');
     expect(JSON.stringify(trace)).not.toContain('private.example.invalid');
@@ -310,6 +355,8 @@ describe('W18 stored failure boundary [AUTO-R33]', () => {
       stepFailed: false,
       stepFailureCode: null,
       stepFailureReason: null,
+      stepErrorName: null,
+      stepErrorCode: null,
     });
     await expect(
       readWakeAdmissionFailure(
