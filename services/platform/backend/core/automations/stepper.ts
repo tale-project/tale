@@ -447,6 +447,10 @@ interface RunContext {
   /** The agent door for this run's organization; live agent nodes kick, poll
    * and cancel their sandbox turns through it. */
   agent: AutomationAgentHost;
+  /** The claim this walker holds the run under (`claimRun`): a start its
+   * kick holds runs only while the run is parked on it or this claim still
+   * holds the run. */
+  claimEpoch: number;
   /** The approval gate for this run's organization; live connector nodes ask
    * it before they act. Held per run, so runs of two organizations stepped
    * at once never ask each other's. */
@@ -2198,6 +2202,7 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
         // re-kick's start waits for the first one back instead of meeting
         // the same refusal at once and spending the budget in seconds.
         ...(notBefore !== undefined ? { notBefore } : {}),
+        claimEpoch: run.claimEpoch,
       });
       const agent: AgentCursor = {
         execId: kicked.execId,
@@ -2529,6 +2534,7 @@ async function stepClaimedRun(
         ctx,
         args.organizationId,
       ),
+      claimEpoch: epoch,
       gate:
         approvalGateOverride ??
         automationApprovalGate(ctx, args.organizationId),

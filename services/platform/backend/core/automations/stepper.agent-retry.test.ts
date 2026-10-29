@@ -120,6 +120,10 @@ function harness(parked: AgentCursor, executions = 1) {
 
 const RUN = { organizationId: 'org-1', runId: 'run-1' } as never;
 
+/** Codex's terminal `turn.failed` when the selected model is overloaded
+ * (pinned CLI 0.160.0). */
+const CAPACITY = 'Selected model is at capacity. Please try a different model.';
+
 /** The cursor the re-kick parked under. */
 function parkedCursor(suspended: Array<Record<string, unknown>>) {
   const cursor = suspended[0]?.cursor as { agent?: AgentCursor } | undefined;
@@ -323,6 +327,131 @@ describe('the stepper re-kicking a failed agent attempt', () => {
     expect(kicks).toHaveLength(1);
     expect(kicks[0]?.notBefore).toBeGreaterThanOrEqual(
       before + MODEL_CAPACITY_REKICK_DELAY_MS,
+    );
+  });
+
+  it('holds the re-kick a minute after the model was at capacity, resuming the conversation on the same account', async () => {
+    const { ctx, kicks, suspended } = harness(
+      parkedAttempt({
+        attempt: 1,
+        credentialRotations: 1,
+        result: {
+          errored: true,
+          reason: CAPACITY,
+          failureCode: 'model_capacity',
+          agentSessionId: 'conv-1',
+          text: '',
+          files: [],
+        },
+      }),
+    );
+    const before = Date.now();
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toHaveLength(1);
+    expect(kicks[0]?.notBefore).toBeGreaterThanOrEqual(
+      before + MODEL_CAPACITY_REKICK_DELAY_MS,
+    );
+    expect(kicks[0]?.notBefore).toBeLessThanOrEqual(
+      Date.now() + MODEL_CAPACITY_REKICK_DELAY_MS,
+    );
+    // Only the account an earlier failure burned is stepped past: the one
+    // the model refused stays in the pool.
+    expect(kicks[0]).toMatchObject({
+      excludeBrokerTokenHashes: ['account-a'],
+      resume: { agentSessionId: 'conv-1', reason: CAPACITY },
+    });
+    const cursor = parkedCursor(suspended);
+    expect(cursor).toMatchObject({
+      execId: 'exec-2',
+      attempt: 2,
+      burnedBrokerTokenHashes: ['account-a'],
+      resumedFrom: 'conv-1',
+    });
+    // It counts like any failure and ends a streak of rotations; no 429
+    // was invented for it.
+    expect(cursor).not.toHaveProperty('credentialRotations');
+    expect(cursor).not.toHaveProperty('retriedRateLimit');
+  });
+
+  it('keeps a resumed conversation and its account when the model refuses the resume too', async () => {
+    // The retry that resumed `conv-1` met the same refusal: no fresh
+    // conversation and no burned account, only the next counted retry.
+    const { ctx, kicks, suspended } = harness(
+      parkedAttempt({
+        attempt: 2,
+        burnedBrokerTokenHashes: undefined,
+        resumedFrom: 'conv-1',
+        resumeReason: CAPACITY,
+        result: {
+          errored: true,
+          reason: CAPACITY,
+          failureCode: 'model_capacity',
+          agentSessionId: 'conv-1',
+          text: '',
+          files: [],
+        },
+      }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toHaveLength(1);
+    expect(kicks[0]).toMatchObject({
+      resume: { agentSessionId: 'conv-1', reason: CAPACITY },
+    });
+    expect(kicks[0]).not.toHaveProperty('excludeBrokerTokenHashes');
+    const cursor = parkedCursor(suspended);
+    expect(cursor).toMatchObject({ attempt: 3, resumedFrom: 'conv-1' });
+    expect(cursor).not.toHaveProperty('burnedBrokerTokenHashes');
+  });
+
+  it('hands its claim to the start it holds, so a walker that lost the run cannot launch it once the hold ends', async () => {
+    const { ctx, kicks } = harness(
+      parkedAttempt({
+        attempt: 1,
+        result: {
+          errored: true,
+          reason: CAPACITY,
+          failureCode: 'model_capacity',
+          agentSessionId: 'conv-1',
+          text: '',
+          files: [],
+        },
+      }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks[0]).toMatchObject({ claimEpoch: 1 });
+  });
+
+  it('fails the step once the budget is spent on capacity refusals, with the refusal as its reason', async () => {
+    const { ctx, kicks, finished } = harness(
+      parkedAttempt({
+        attempt: AUTO_RETRY_MAX_ATTEMPTS,
+        result: {
+          errored: true,
+          reason: CAPACITY,
+          failureCode: 'model_capacity',
+          agentSessionId: 'conv-1',
+          text: '',
+          files: [],
+        },
+      }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toEqual([]);
+    // The wire code it always read; the run says what refused it.
+    expect(finished[0]).toMatchObject({
+      status: 'failed',
+      failureCode: 'harness_error',
+    });
+    expect(String(finished[0]?.detail)).toContain(
+      `${CAPACITY} (after ${AUTO_RETRY_MAX_ATTEMPTS + 1} attempts)`,
     );
   });
 

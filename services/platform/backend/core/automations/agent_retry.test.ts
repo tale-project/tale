@@ -197,6 +197,63 @@ describe('planWorkflowAgentRetry', () => {
     ).toMatchObject({ retry: true, attempt: 1 });
   });
 
+  it('counts a model-capacity failure but keeps the account the model refused in the pool', () => {
+    // Codex's terminal "Selected model is at capacity": the model refused
+    // everyone, which says nothing about this account — task-lane parity
+    // (`kick-plan.ts` never excludes a `model_capacity` run's account).
+    expect(isWorkflowAgentRetryable('model_capacity')).toBe(true);
+    expect(
+      planWorkflowAgentRetry(
+        {
+          attempt: 1,
+          launchedAt: SHORT,
+          brokerTokenHash: 'account-b',
+          burnedBrokerTokenHashes: ['account-a'],
+          credentialRotations: 1,
+        },
+        'model_capacity',
+        NOW,
+      ),
+    ).toEqual({
+      retry: true,
+      attempt: 2,
+      burnedBrokerTokenHashes: ['account-a'],
+      credentialRotations: 0,
+    });
+    // Refusal after refusal spends the budget as any failure does, and
+    // never burns the account on the way.
+    let parked: WorkflowAgentAttempt = {
+      launchedAt: SHORT,
+      brokerTokenHash: 'account-b',
+    };
+    const plans = [];
+    for (;;) {
+      const plan = planWorkflowAgentRetry(parked, 'model_capacity', NOW);
+      plans.push(plan);
+      if (!plan.retry) break;
+      parked = {
+        ...parked,
+        attempt: plan.attempt,
+        burnedBrokerTokenHashes: plan.burnedBrokerTokenHashes,
+      };
+    }
+    expect(plans.map((plan) => plan.attempt)).toEqual([1, 2, 3, 4]);
+    expect(plans.map((plan) => plan.burnedBrokerTokenHashes)).toEqual([
+      [],
+      [],
+      [],
+      [],
+    ]);
+    // Work past the progress threshold refreshes the budget, as ever.
+    expect(
+      planWorkflowAgentRetry(
+        { attempt: AUTO_RETRY_MAX_ATTEMPTS, launchedAt: LONG },
+        'model_capacity',
+        NOW,
+      ),
+    ).toMatchObject({ retry: true, attempt: 1 });
+  });
+
   it('resumes a credential rotation for free: same attempt, account kept in the pool', () => {
     // Observed live (2026-09-28): the broker refreshed every account at
     // once and the turn's token was revoked mid-work.
