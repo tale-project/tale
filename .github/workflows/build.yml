@@ -81,7 +81,7 @@ jobs:
   pr-scope:
     name: PR scope
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 3
     permissions:
       contents: read
@@ -135,7 +135,7 @@ jobs:
       (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
     needs: [candidate-source, pr-scope]
     name: Detect changes
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 3
     permissions:
       contents: read
@@ -283,7 +283,7 @@ jobs:
       !cancelled() &&
       needs.changes.result == 'success' &&
       (needs.changes.outputs.stack == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true)
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     permissions:
       actions: read
@@ -586,7 +586,7 @@ jobs:
       needs.changes.result == 'success' &&
       needs.build.result == 'success' &&
       (needs.changes.outputs.stack == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true)
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
       packages: read
@@ -709,7 +709,7 @@ jobs:
       !cancelled() &&
       needs.changes.result == 'success' &&
       (needs.changes.outputs.stack == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork == true)
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
     timeout-minutes: 30
@@ -781,7 +781,7 @@ jobs:
       !cancelled() &&
       needs.changes.result == 'success' &&
       (contains(fromJson(needs.changes.outputs.services), 'web') && github.event.pull_request.draft != true)
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     permissions:
       actions: read
       contents: read
@@ -853,7 +853,7 @@ jobs:
       !cancelled() &&
       needs.changes.result == 'success' &&
       (contains(fromJson(needs.changes.outputs.services), 'docs') && github.event.pull_request.draft != true)
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     permissions:
       actions: read
       contents: read
@@ -924,7 +924,7 @@ jobs:
       !cancelled() &&
       needs.changes.result == 'success' &&
       (contains(fromJson(needs.changes.outputs.services), 'ui-docs') && github.event.pull_request.draft != true)
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     permissions:
       actions: read
       contents: read
@@ -1001,7 +1001,7 @@ jobs:
       needs.changes.result == 'success' &&
       needs.build.result == 'success' &&
       (needs.changes.outputs.stack == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true)
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
       packages: read
@@ -1114,7 +1114,7 @@ jobs:
       !cancelled() &&
       needs.changes.result == 'success' &&
       (needs.changes.outputs.stack == 'true' && github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork == true)
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
     timeout-minutes: 25
@@ -1173,7 +1173,7 @@ jobs:
       needs.changes.result == 'success' &&
       needs.build.result == 'success' &&
       (needs.changes.outputs.scannable_services != '[]' && github.event.pull_request.head.repo.fork != true)
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     permissions:
       contents: read
       security-events: write
@@ -1308,7 +1308,7 @@ jobs:
       !cancelled() &&
       needs.changes.result == 'success' &&
       (needs.changes.outputs.storybook == 'true' && github.event.pull_request.draft != true)
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     # A cold build of all four Storybooks (web/marketing-ui/ui/platform) on a 2vCPU
     # runner lands right at 5m, so any packages/ui change that misses the Turbo
     # cache flakily times out. Give the cold path headroom.
@@ -1353,7 +1353,7 @@ jobs:
       - ui-docs-test
       - storybook
     if: always() && needs.changes.outputs.candidate_sha != ''
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 5
     permissions: {}
 
@@ -1437,7 +1437,7 @@ jobs:
     name: CI ready (Build)
     if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
     needs: [pr-scope, candidate-source, changes, build, smoke-test, smoke-test-fork, web-test, docs-test, ui-docs-test, image-validate, image-validate-fork, vulnerability-scan, storybook, candidate-gate]
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 3
     permissions:
       contents: read

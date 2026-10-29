@@ -172,6 +172,8 @@ function expectRunbookPrinted(): void {
 }
 
 beforeEach(() => {
+  // Start without a global `-y` another test file may have left active.
+  setActiveOutputMode(resolveOutputMode({}, {}));
   protocolFloor = 1;
   installedWriterProtocol = 1;
   ledgerOverride = undefined;

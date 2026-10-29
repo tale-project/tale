@@ -34,7 +34,7 @@ jobs:
   pr-scope:
     name: PR scope
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 3
     permissions:
       contents: read
@@ -89,7 +89,7 @@ jobs:
       (github.event_name != 'pull_request' || github.event.pull_request.draft != true) &&
       (github.event_name != 'pull_request' ||
       (needs.pr-scope.result == 'success' && needs.pr-scope.outputs.run == 'true'))
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 3
     permissions:
       contents: read
@@ -145,7 +145,7 @@ jobs:
       needs.candidate-source.result == 'skipped')) &&
       needs.scope.result == 'success' && needs.scope.outputs.platform == 'true' &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     # Sized for the COLD path: a lockfile bump invalidates the toolchain and
     # dist caches at once, and the uncached install + prod build exceeds 15
     # minutes on the 4-vCPU runner (observed: a one-line dependency override
@@ -209,7 +209,7 @@ jobs:
       needs.build.result == 'success' &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
     needs: [candidate-source, build]
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 30
     # Keep one worker per independent stack: more workers starve the backend.
     # Each stack authenticates through the worker-scoped org fixture. Four
@@ -402,7 +402,7 @@ jobs:
       needs.candidate-source.result == 'skipped')) &&
       needs.scope.result == 'success' && needs.scope.outputs.static_services != '[]' &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft != true)
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 20
     permissions:
       contents: read
@@ -563,7 +563,7 @@ jobs:
     name: CI ready (E2E)
     if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
     needs: [pr-scope, candidate-source, scope, build, e2e, static-sites, candidate-gate]
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 3
     permissions:
       contents: read

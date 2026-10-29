@@ -144,6 +144,21 @@ scheduling, exact-run selection and receipt retention; this command
 does not start a second scheduler or change queue settings. Use the existing
 authorized credential as described above.
 
+## Where Linux jobs run
+
+The Linux x64 jobs of `checks`, `build`, `e2e`, `cli`, `security`, `sast` and `commitlint` run on
+the runner the repository variable `LINUX_RUNNER` names, and on `ubuntu-latest` while it is unset.
+Set it to `tale-hetzner` to use the organization's self-hosted runners of that label; delete it to
+go back to GitHub-hosted runners without a code change. The suites that hold time budgets — the platform's
+and the workspaces' unit lanes, the UI shards, `Performance`, `Browser` and the Playwright jobs of
+`e2e` — take their runner from `LINUX_TEST_RUNNER` instead, so they keep the dedicated CPUs of
+`ubuntu-latest` while self-hosted machines are shared by many jobs at once. A pull request from a
+fork always runs on `ubuntu-latest`, so code from outside never reaches a self-hosted machine. Each self-hosted runner
+has a Docker daemon of its own that is emptied after every job, so jobs keep the fixed ports,
+container names and prune steps they use on hosted runners. The release, the Incus end-to-end
+suite, the load test, the workspace upgrade check and the macOS, Windows and arm64 legs stay on
+GitHub-hosted runners.
+
 ## Current execution graph
 
 - **Checks / Unit** is the stable required aggregate. Two platform Vitest shards run

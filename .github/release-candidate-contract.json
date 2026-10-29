@@ -265,7 +265,7 @@
         {
           "path": ["jobs", "backend-integration", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "backend-integration", "timeout-minutes"],
@@ -636,7 +636,7 @@
         {
           "path": ["jobs", "build", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "build", "timeout-minutes"],
@@ -873,7 +873,7 @@
         {
           "path": ["jobs", "ci-ready", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "ci-ready", "timeout-minutes"],
@@ -960,7 +960,7 @@
         {
           "path": ["jobs", "format", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "format", "timeout-minutes"],
@@ -1089,7 +1089,7 @@
         {
           "path": ["jobs", "integration-scope", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "integration-scope", "timeout-minutes"],
@@ -1207,7 +1207,7 @@
         {
           "path": ["jobs", "knip", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "knip", "timeout-minutes"],
@@ -1299,7 +1299,7 @@
         {
           "path": ["jobs", "lint", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "lint", "timeout-minutes"],
@@ -1416,7 +1416,7 @@
         {
           "path": ["jobs", "performance", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "performance", "timeout-minutes"],
@@ -1583,7 +1583,7 @@
         {
           "path": ["jobs", "test", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "test", "timeout-minutes"],
@@ -1646,7 +1646,7 @@
         {
           "path": ["jobs", "test-browser", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "test-browser", "timeout-minutes"],
@@ -1900,7 +1900,7 @@
         {
           "path": ["jobs", "test-platform-shards", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "test-platform-shards", "services"],
@@ -2045,7 +2045,7 @@
         {
           "path": ["jobs", "test-ui", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "test-ui", "timeout-minutes"],
@@ -2108,7 +2108,7 @@
         {
           "path": ["jobs", "test-ui-shards", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "test-ui-shards", "strategy"],
@@ -2260,7 +2260,7 @@
         {
           "path": ["jobs", "test-workspaces", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "test-workspaces", "timeout-minutes"],
@@ -2393,7 +2393,7 @@
         {
           "path": ["jobs", "typecheck", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "typecheck", "timeout-minutes"],
@@ -2679,7 +2679,7 @@
         {
           "path": ["jobs", "ci-ready", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "ci-ready", "timeout-minutes"],
@@ -2767,7 +2767,7 @@
         {
           "path": ["jobs", "sast", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "sast", "timeout-minutes"],
@@ -3154,7 +3154,7 @@
         {
           "path": ["jobs", "ci-ready", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "ci-ready", "timeout-minutes"],
@@ -3241,7 +3241,7 @@
         {
           "path": ["jobs", "commitlint", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "commitlint", "timeout-minutes"],
@@ -3430,7 +3430,7 @@
         {
           "path": ["jobs", "build", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "build", "timeout-minutes"],
@@ -3636,7 +3636,7 @@
         {
           "path": ["jobs", "ci-ready", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "ci-ready", "timeout-minutes"],
@@ -3734,7 +3734,7 @@
         {
           "path": ["jobs", "e2e", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "e2e", "services"],
@@ -4026,7 +4026,7 @@
         {
           "path": ["jobs", "pr-scope", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "pr-scope", "timeout-minutes"],
@@ -4127,7 +4127,7 @@
         {
           "path": ["jobs", "scope", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "scope", "timeout-minutes"],
@@ -4198,7 +4198,7 @@
         {
           "path": ["jobs", "static-sites", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "static-sites", "strategy"],
@@ -5115,7 +5115,7 @@
         {
           "path": ["jobs", "ci-ready", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "ci-ready", "timeout-minutes"],
@@ -5206,7 +5206,7 @@
         {
           "path": ["jobs", "pr-scope", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "pr-scope", "timeout-minutes"],
@@ -5299,7 +5299,7 @@
         {
           "path": ["jobs", "prepare", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "prepare", "timeout-minutes"],
@@ -5369,7 +5369,7 @@
         {
           "path": ["jobs", "release", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "release", "timeout-minutes"],
@@ -5587,7 +5587,7 @@
         {
           "path": ["jobs", "bun-audit", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "bun-audit", "timeout-minutes"],
@@ -5792,7 +5792,7 @@
         {
           "path": ["jobs", "ci-ready", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "ci-ready", "timeout-minutes"],
@@ -5883,7 +5883,7 @@
         {
           "path": ["jobs", "pr-scope", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "pr-scope", "timeout-minutes"],
@@ -5975,7 +5975,7 @@
         {
           "path": ["jobs", "trivy-fs", "runs-on"],
           "kind": "value",
-          "expected": "ubuntu-latest"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "trivy-fs", "timeout-minutes"],

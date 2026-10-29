@@ -429,14 +429,23 @@ test('profile paths and helper combinations are fixed; current Build remains gra
 test('current CLI path scope preserves the retained graph and every finishing refusal', () => {
   const { source: historic, jobs } = sample('CLI');
   const path = FINISH_WORKFLOWS.CLI;
-  const current = {
-    ...historic,
-    [path]: readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8'),
-  };
+  // The current workflow with the current ready-check closure it runs with.
+  const current = Object.fromEntries(
+    Object.keys(historic).map((file) => [
+      file,
+      readFileSync(new URL(`../../../${file}`, import.meta.url), 'utf8'),
+    ]),
+  ) as typeof historic;
   const graph = z.object({ jobs: z.record(z.string(), z.unknown()) });
-  expect(graph.parse(parse(current[path])).jobs).toEqual(
-    graph.parse(parse(historic[path]!)).jobs,
-  );
+  // Only the runner differs: LINUX_RUNNER names it now, so compare without it.
+  const withoutRunner = (text: string) =>
+    Object.fromEntries(
+      Object.entries(graph.parse(parse(text)).jobs).map(([id, node]) => {
+        const { 'runs-on': _runner, ...rest } = node as Record<string, unknown>;
+        return [id, rest];
+      }),
+    );
+  expect(withoutRunner(current[path]!)).toEqual(withoutRunner(historic[path]!));
   expect(finishJobsSafe(historic, jobs)).toBe(true);
   expect(finishJobsSafe(current, jobs)).toBe(true);
   for (const file of Object.keys(current)) {

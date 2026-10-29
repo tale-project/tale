@@ -22,6 +22,8 @@ beforeEach(() => {
 afterEach(() => {
   process.stdin.isTTY = realStdinTty;
   process.stdout.isTTY = realStdoutTty;
+  // Bun runs every test file in one process: leave no `-y` mode behind.
+  setActiveOutputMode(resolveOutputMode());
 });
 
 /** Resolve to the error a rejecting promise threw (or undefined if it resolved). */

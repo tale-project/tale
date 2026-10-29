@@ -301,6 +301,69 @@ export const FINISH_PROFILES: readonly FinishProfile[] = [
     {},
     currentClosure,
   ),
+  // Current sources take each Linux job's runner from the repository variable
+  // LINUX_RUNNER, or LINUX_TEST_RUNNER for the timed test suites (a fork's pull
+  // request keeps ubuntu-latest); jobs, conditions, matrices and the ready-check
+  // closure match the profiles just above.
+  profile(
+    'Checks',
+    '46e0b29ccf7c4d8f723b969c4acffd86885a2703319bc0803f8126bcf91beb7a',
+    shards,
+    currentClosure,
+  ),
+  profile(
+    'CLI',
+    '83c653ab5335505fc9b9a47ac4f429cad5cb0d298ef7c50098b2d2ef2fb4b92c',
+    {
+      build: {
+        variable: 'platform',
+        values: ['linux', 'linux-arm64', 'macos', 'macos-x64', 'windows'],
+        requiresSuccess: 'prepare',
+      },
+    },
+    currentClosure,
+  ),
+  profile(
+    'Build',
+    'e7f7b25729bf407f0cf390249fe2b253ac19c0034bf7764515701b4175182eab',
+    buildMatrices,
+    currentClosure,
+  ),
+  profile(
+    'E2E',
+    'a9f57127d38f3a9b60dc38ad0851a904a5e2fbd60f51caf66ee5728134662bd6',
+    {
+      e2e: {
+        variable: 'shard',
+        values: [1, 2, 3, 4],
+        requiresSuccess: 'build',
+      },
+      'static-sites': {
+        variable: 'service',
+        values: ['web', 'docs'],
+        requiresSuccess: 'scope',
+      },
+    },
+    currentClosure,
+  ),
+  profile(
+    'SAST',
+    'f62591457ac9fe96d2669b48b66e4c633eecd63063fa2281327ca61655042a0c',
+    {},
+    currentClosure,
+  ),
+  profile(
+    'Security',
+    '9553d2534fa73de035cd4b0ea0c86a8781db64a914811faaa7102130f13ec710',
+    {},
+    currentClosure,
+  ),
+  profile(
+    'Commitlint',
+    '31f337b6432f4fa437205f0cc8a9cec683d2eeca9c1bbfe4964759a4e65f7f59',
+    {},
+    currentClosure,
+  ),
 ];
 
 export function finishPaths(name: string, path: string): readonly FinishPath[] {

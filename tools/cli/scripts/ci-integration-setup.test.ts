@@ -33,7 +33,11 @@ test('integration teardown is skipped only on an ephemeral runner while the from
     parse(await readFile(workflow, 'utf8')),
   );
   const integration = jobs['backend-integration'];
-  expect(integration['runs-on']).toBe('ubuntu-latest');
+  // The repository variable LINUX_RUNNER picks the runner; a fork's pull request
+  // and an unset variable keep GitHub's ephemeral ubuntu-latest.
+  expect(integration['runs-on']).toBe(
+    "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}",
+  );
   const builders = integration.steps.filter((step) =>
     step.uses?.startsWith('docker/setup-buildx-action@'),
   );
