@@ -2210,6 +2210,18 @@ output:
       Create automation is busy** → the dialog stays, with no Close button
       while it creates, and shows the webhook address
       (`automations.templates.webhookTitle`) once the create answers.
+- [ ] `AUTO-B46` · **As an owner, block
+      `*/api/app/automations/*/approval-allowances*` in DevTools (Network →
+      request blocking) and open the General tab of an automation whose step
+      sends a Slack message** → once the read's retries give up (a few
+      seconds; a blocked request reads as a lost connection, so the offline
+      notice may cover the page meanwhile) Runs without approval
+      (`automations.allowances.title`) keeps its hint and shows
+      `automations.allowances.loadFailed` with Try again
+      (`common.actions.tryAgain`), never `automations.allowances.none` and no
+      switch. Unblock, Tab to Try again and press Enter → the Slack · Send
+      message switch appears without a reload, and the focus is on the
+      section, not lost to the page.
 - [ ] `AUTO-B34` · **With two Gmail connections in the sync, revoke the
       second one's access in its Google account and select Run now; then
       revoke the first one too and run again** → the first run succeeds: the

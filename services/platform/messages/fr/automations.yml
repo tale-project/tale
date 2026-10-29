@@ -758,6 +758,8 @@ allowances:
   policyRequires: La politique d’approbation de ton organisation exige une personne pour cette écriture, quoi qu’il soit autorisé ici.
   policyAllows: La politique d’approbation de ton organisation laisse déjà cette écriture s’exécuter sans approbation.
   none: Cette automatisation ne fait aucune écriture qui attend une approbation.
+  loadFailed: Impossible de charger les écritures qui attendent une approbation.
+  refreshFailed: Impossible d’actualiser les écritures qui attendent une approbation. L’affichage n’est peut-être plus à jour.
   readOnly: Seuls les propriétaires et les admins peuvent modifier cela.
 bindings:
   title: Projets
