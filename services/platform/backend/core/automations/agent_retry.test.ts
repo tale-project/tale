@@ -232,8 +232,9 @@ describe('planWorkflowAgentRetry', () => {
       plans.push(plan);
       if (!plan.retry) break;
       parked = {
-        ...parked,
         attempt: plan.attempt,
+        launchedAt: SHORT,
+        brokerTokenHash: 'account-b',
         burnedBrokerTokenHashes: plan.burnedBrokerTokenHashes,
       };
     }
