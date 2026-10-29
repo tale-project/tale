@@ -735,7 +735,7 @@ Avec `--json`, le rapport liste chaque vérification avec son statut (`pass`, `f
 
 `tale restore [snapshot-id]` — restaurer un snapshot ; sans id, la liste des snapshots disponibles s'affiche.
 
-- `--stop` — arrêter les conteneurs du projet avant la restauration.
+- `--stop` — avant la restauration, arrêter les conteneurs du projet en cours d’exécution, en redémarrage ou en pause. Sans cette option, la CLI refuse la restauration et nomme ces conteneurs.
 - `-y, --yes` — ignorer l'invite de confirmation.
 
 `tale rollback` — revenir à la version patch précédente (niveau patch uniquement). Demande confirmation au préalable.
