@@ -986,7 +986,13 @@ services:
     # running 10s into a deploy's stop.
     # Mirrors the CLI generator (create-sandbox-llm-gateway-service.ts: 90s).
     stop_grace_period: 90s
-    mem_limit: 512m
+    # Its memory grows with the agent sessions that run at once (a fixed 512m
+    # was OOM-killed at about 80). The CLI generator derives the limit from
+    # SANDBOX_MAX_SESSIONS (256 MiB and 12 MiB a session, at least 512m);
+    # compose cannot derive one variable from another, so this default is the
+    # CLI's for an unset capacity, which sizes itself to at most 256 sessions.
+    # Set SANDBOX_LLM_GATEWAY_MEMORY for a larger capacity.
+    mem_limit: ${SANDBOX_LLM_GATEWAY_MEMORY:-3328m}
     healthcheck:
       # The gateway image ships busybox wget but no curl.
       test:

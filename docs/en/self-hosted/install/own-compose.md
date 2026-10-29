@@ -168,6 +168,7 @@ Configure `BACKEND_UPSTREAM=backend-api:3005` on the proxy. For bundled file sto
 | Postgres shutdown | `stop_signal: SIGINT`, `stop_grace_period: 60s`, `shm_size: 256mb` in the reference stack. |
 | Web, backend and spawner shutdown | Allow the stop grace: 45 seconds for the web tier, 30 for `backend-api`, 120 for `backend-worker` and 30 for the spawner. A stopping worker hands its automation runs on within it (`SHUTDOWN_DRAIN_MS`); coordinate other active work before stopping. |
 | Gateway shutdown | `stop_grace_period: 90s`. A stopping gateway takes no new model call, lets the calls in flight finish, streamed answers included, and saves its spend counters at the end only when that drain ends within 30 seconds of the stop. Docker's 10-second default cuts longer answers. |
+| Gateway memory | `mem_limit` from `SANDBOX_LLM_GATEWAY_MEMORY` in the shipped stack, `3328m` when it is unset. The gateway's memory grows with the agent sessions that run at once: size its limit by the rule [`SANDBOX_LLM_GATEWAY_MEMORY`](/self-hosted/configuration/environment-reference#sandbox-agent-turns) describes, `4096m` for 320 sessions. A gateway at its limit is killed and restarts, and its health probe passes between the restarts. |
 
 Keep `db-backup` if your database tooling writes to `/var/lib/postgresql/backup`; mounting it alone does not create a backup schedule. Older `convex-data` configuration volumes need a deliberate transfer into `config-data`, not deletion. Preserve the old copy until verified.
 
