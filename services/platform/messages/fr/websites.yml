@@ -119,6 +119,7 @@ pagesDialog:
   searchPlaceholder: Rechercher dans le contenu du site web
   noSearchResults: Aucun résultat trouvé
   noSearchResultsDescription: Essaie un autre terme, ou efface la recherche pour parcourir toutes les pages.
+  searchFailed: Impossible de rechercher dans le contenu du site web.
   noChunks: Aucun fragment indexé pour cette page
   chunkIndex: Fragment {index}
   lastError: '{count, plural, one {{count} tentative échouée} other {{count} tentatives échouées de suite}} — {message}'
