@@ -147,9 +147,15 @@ vi.mock('@/app/hooks/use-backend-mutation', () => ({
   useBackendMutation: () => ({ mutateAsync: vi.fn().mockResolvedValue({}) }),
 }));
 
+// The indexing retry answers what each test sets; any other action resolves
+// empty.
+const retryRagIndexingMutateAsync = vi.fn();
 vi.mock('@/app/hooks/use-backend-action', () => ({
-  useBackendAction: () => ({
-    mutateAsync: vi.fn().mockResolvedValue(undefined),
+  useBackendAction: (name: string) => ({
+    mutateAsync:
+      name === 'documents/actions:retryRagIndexing'
+        ? retryRagIndexingMutateAsync
+        : vi.fn().mockResolvedValue(undefined),
   }),
 }));
 
@@ -326,6 +332,85 @@ describe('ProjectFilesTab', () => {
     expect(
       screen.getByRole('button', { name: 'Preview file' }),
     ).toBeInTheDocument();
+  });
+
+  // The retry door answers a refusal (its rate limit, a row with no file)
+  // with 200, `success: false` and its own sentence, not a thrown error
+  // (#4837): the tab read past it and toasted that indexing was queued.
+  describe.each([
+    {
+      action: 'Index now',
+      ragStatus: null,
+      queued: 'Indexing queued',
+      refused: "Couldn't start indexing",
+    },
+    {
+      action: 'Retry indexing',
+      ragStatus: 'failed',
+      queued: 'Indexing retry queued',
+      refused: "Couldn't retry indexing",
+    },
+  ] as const)('$action', ({ action, ragStatus, queued, refused }) => {
+    const rateLimited =
+      'Rate limit exceeded for file:rag-retry. Try again in 42 seconds.';
+
+    it('names a refusal in the words the server gave, never as queued', async () => {
+      documentsFixture = [makeDoc({ ragStatus })];
+      retryRagIndexingMutateAsync.mockResolvedValue({
+        success: false,
+        error: rateLimited,
+      });
+      const { user } = renderTab();
+
+      await user.click(screen.getByRole('button', { name: action }));
+
+      await waitFor(() => {
+        expect(toast).toHaveBeenCalledWith({
+          title: refused,
+          description: rateLimited,
+          variant: 'destructive',
+        });
+      });
+      expect(retryRagIndexingMutateAsync).toHaveBeenCalledWith({
+        documentId: 'doc-1',
+      });
+      expect(toast).not.toHaveBeenCalledWith(
+        expect.objectContaining({ title: queued }),
+      );
+      expect(vi.mocked(toast).mock.calls).toHaveLength(1);
+    });
+
+    it('names a refusal that gives no reason by its title alone', async () => {
+      documentsFixture = [makeDoc({ ragStatus })];
+      retryRagIndexingMutateAsync.mockResolvedValue({ success: false });
+      const { user } = renderTab();
+
+      await user.click(screen.getByRole('button', { name: action }));
+
+      await waitFor(() => {
+        expect(toast).toHaveBeenCalledWith({
+          title: refused,
+          variant: 'destructive',
+        });
+      });
+      expect(vi.mocked(toast).mock.calls).toHaveLength(1);
+    });
+
+    it('reports a queued run as queued', async () => {
+      documentsFixture = [makeDoc({ ragStatus })];
+      retryRagIndexingMutateAsync.mockResolvedValue({ success: true });
+      const { user } = renderTab();
+
+      await user.click(screen.getByRole('button', { name: action }));
+
+      await waitFor(() => {
+        expect(toast).toHaveBeenCalledWith({
+          title: queued,
+          variant: 'success',
+        });
+      });
+      expect(vi.mocked(toast).mock.calls).toHaveLength(1);
+    });
   });
 
   it('shows no preview affordance for a row without a stored file', async () => {

@@ -927,15 +927,29 @@ export function ProjectFilesTab({
       if (retryingIds.has(documentId)) return;
       setRetryingIds((prev) => new Set(prev).add(documentId));
       try {
-        await retryRagIndexing({ documentId });
-        toast({
-          title: t(
-            firstIndex
-              ? 'files.indexingStartQueued'
-              : 'files.indexingRetryQueued',
-          ),
-          variant: 'success',
-        });
+        // A refusal (the rate limit, a row with no file) answers 200 with
+        // `success: false` and the server's reason, not a thrown error.
+        const result = await retryRagIndexing({ documentId });
+        if (result.success) {
+          toast({
+            title: t(
+              firstIndex
+                ? 'files.indexingStartQueued'
+                : 'files.indexingRetryQueued',
+            ),
+            variant: 'success',
+          });
+        } else {
+          toast({
+            title: t(
+              firstIndex
+                ? 'files.indexingStartFailed'
+                : 'files.indexingRetryFailed',
+            ),
+            description: result.error,
+            variant: 'destructive',
+          });
+        }
       } catch (error) {
         console.error('retryRagIndexing failed', error);
         toast({
