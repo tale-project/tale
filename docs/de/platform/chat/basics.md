@@ -13,11 +13,11 @@ Nutze den Chat, um Fragen zu stellen, ein Dokument zu verstehen oder Information
 
 ## Die erste Nachricht senden
 
-Öffne **Start**. Am Computer öffnet sich ein neuer Chat, und die Seitenleiste von **Start** daneben listet deine bisherigen Chats; auf dem Smartphone wählst du **Chats** und dann **Neuer Chat**. Für ein weiteres Thema wählst du später **Neuer Chat** oder, am Computer, erneut **Start**. Schreibe in das Nachrichtenfeld. Mit **Enter** sendest du, mit **Shift+Enter** fügst du einen Zeilenumbruch ein. Ein vorgeschlagener Gesprächseinstieg funktioniert wie eine eigene erste Frage. Ergänze Quelle, Thema und die Art der Antwort, die du brauchst.
+Öffne **Start**. Am Computer öffnet sich ein neuer Chat, und die Seitenleiste von **Start** daneben listet deine bisherigen Chats; auf dem Smartphone wählst du **Chats** und dann **Neuer Chat**. Für ein weiteres Thema wählst du später **Neuer Chat** oder, am Computer, erneut **Start**. Schreibe in das Nachrichtenfeld. Mit **Enter** sendest du, mit **Shift+Enter** fügst du einen Zeilenumbruch ein. Das Feld wächst mit deinem Text, bis es zwei Fünftel des Fensters füllt; längeren Text scrollst du im Feld. Ein vorgeschlagener Gesprächseinstieg funktioniert wie eine eigene erste Frage. Ergänze Quelle, Thema und die Art der Antwort, die du brauchst.
 
 Zum Beispiel: „Finde die Onboarding-Rückmeldungen und fasse die drei häufigsten Probleme zusammen. Nenne die Dokumente als Quellen und trenne gemeldete Probleme von deinen Vorschlägen.“
 
-Hat deine Organisation einen Vertraulichkeitshinweis eingeschaltet, steht er unter dem Nachrichtenfeld und erinnert dich daran, was du im Chat nicht teilen solltest.
+Hat deine Organisation einen Vertraulichkeitshinweis eingeschaltet, steht er unter dem Nachrichtenfeld und erinnert dich daran, was du im Chat nicht teilen solltest. In einem niedrigen Fenster, etwa auf einem Laptop, bleibt der Hinweis auf einer Zeile. Ist er gekürzt, wähle den Pfeil daneben, um ihn ganz zu lesen.
 
 Während die Antwort erscheint, wird aus der Sende- eine Stopp-Schaltfläche. Beim Stoppen bleibt der bereits empfangene Text erhalten, auch wenn er mitten im Satz endet. Stelle eine Rückfrage, um dein Anliegen zu präzisieren oder fehlende Details anzufordern.
 

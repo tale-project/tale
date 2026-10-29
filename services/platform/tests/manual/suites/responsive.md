@@ -255,7 +255,7 @@ if you want to keep a write.
   box; then open a chat → The reply box grows to about a third of the
   window and no further: its **Send** and its attachment controls stay in
   view with the conversation's header above, and a long reply scrolls
-  inside the box. The chat's empty composer is two lines tall and the
+  inside the box. The chat's empty composer is one line tall and the
   thread shows above it.
 
 - [ ] `RESP-B8` · **Document preview reading width** — Store a short plain-text
@@ -268,6 +268,21 @@ if you want to keep a write.
   is again a **260 px** right-hand column with its own scroll area. Capture
   mobile and desktop screenshots in real Chrome; also check a long filename
   and a loading preview before closing with Escape.
+- [ ] `RESP-B9` · **The chat composer on a laptop screen** — In an
+  organization with the confidentiality notice on, open a chat at
+  **1280×720** and **1366×768** (browser zoom 100 %), then on a 1920×1080
+  laptop at 150 % display scaling → The empty composer is one line tall and,
+  with the notice under it, takes about a seventh of the window; the thread
+  shows above it. Type a draft of thirty lines (Shift+Enter) → The field
+  grows a line at a time to about two-fifths of the window, then scrolls
+  inside with the line being typed in view; sending empties it back to one
+  line. On a phone at **390×844**, with the keyboard open, the empty field is
+  two lines and a long draft grows the same way, **Send** in view. Give the
+  notice a text longer than its line (Settings > Governance > Policies &
+  Limits) → At 1280×720 it reads one line ending in an ellipsis, with an
+  arrow beside it: the arrow (`dataNotice.footer.expand`) unfolds the whole
+  notice and, choosing it again (`dataNotice.footer.collapse`), folds it
+  back; in a window taller than 800 px the notice wraps whole with no arrow.
 
 ## Accessibility (WCAG 2.1 AA)
 
