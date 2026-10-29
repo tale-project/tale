@@ -58,8 +58,9 @@ import { ENSURE_SANDBOX_RUNTIME_SCRIPT } from '../../scripts/dev-sandbox-runtime
  * import. The capture manifest suite imports the marketing screenshot registry;
  * other suites import the sandbox runtime's `build-gemini-settings.ts` and
  * daemon `file-ops.ts` and `exec-replay.ts`; the daemon modules both import
- * `protocol.ts`. An edit to any of these files alone can turn both verdicts:
- * both tasks list them (`STATIC_IMPORTS`) after the same two-entry prefix.
+ * `protocol.ts`, and `file-ops.ts` imports `runnerd-token.ts`. An edit to any
+ * of these files alone can turn both verdicts: both tasks list them
+ * (`STATIC_IMPORTS`) after the same two-entry prefix.
  */
 
 const PLATFORM_ROOT = path.resolve(
@@ -221,6 +222,11 @@ const OUTSIDE_READS = [
     readers:
       'tests/guards/integration-scope.guard.test.ts follows the native review file transfer proof; backend/core/chat/external_turn_shared.test.ts imports the journal protocol',
   },
+  {
+    path: 'services/sandbox-runtime/daemon/src/runnerd-token.ts',
+    readers:
+      'tests/guards/integration-scope.guard.test.ts follows the native review file transfer proof; backend/domains/files/sandbox-blob-routes.test.ts runs it through file-ops.ts',
+  },
 ];
 
 /** Every outside repo module the platform's sources import, and who imports it. */
@@ -269,6 +275,11 @@ const STATIC_IMPORTS = [
     path: 'services/sandbox-runtime/daemon/src/protocol.ts',
     importers:
       'file-ops.ts imports its WORKSPACE_ROOT; exec-replay.ts imports its exec-event validator and wire types',
+  },
+  {
+    path: 'services/sandbox-runtime/daemon/src/runnerd-token.ts',
+    importers:
+      'file-ops.ts imports its runnerdToken, the secret the staged-files manifest key derives from',
   },
 ];
 

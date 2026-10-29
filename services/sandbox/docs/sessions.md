@@ -213,7 +213,11 @@ the exec-free K8s constraint holds. runnerd auth is the per-session token
 `x-tale-runnerd-token` header — derivable by any spawner replica, stored
 nowhere. `SANDBOX_TOKEN` is required (the spawner refuses to boot without it —
 `loadConfig` fails closed), so every session carries a real token and runnerd
-always verifies; there is no unsigned mode.
+always verifies; there is no unsigned mode. Inside the container the token
+stays out of every process's environment: the entrypoint moves it onto a
+descriptor before anything starts, and runnerd, which shares its uid with every
+exec, makes itself non-dumpable before it reads it, so no exec reads it from
+`/proc` (`services/sandbox-runtime/README.md`).
 
 The Docker backend also launches each session container with
 `TALE_RUNNERD_INCARNATION` set to its creation stamp, the value of its
@@ -482,8 +486,9 @@ without waiting for a writer. A source-only entry probes that cache: a
 verified hit is `staged`; a miss reports `no_source` and requires the bytes or
 URL. The entries persist across runnerd restarts in
 `/agent/.runtime/staged-sources.json`, written atomically through the
-link-free workspace path and signed with runnerd's token (HMAC-SHA256); a
-manifest that is edited, from another session or unreadable is ignored, and
+link-free workspace path and signed (HMAC-SHA256) under a key derived from
+runnerd's token (HKDF-SHA256); a manifest that is edited, from another session,
+of an older format or unreadable is ignored, and
 staging fetches and hashes as before.
 This does not cache grants, credentials or source authorization: callers must
 resolve those for the current turn.

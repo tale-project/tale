@@ -47,13 +47,20 @@ RUN bun services/sandbox-runtime/build-gemini-settings.ts /gemini-settings
 # Everything an exec starts stays the shim's descendant, so runnerd ends what
 # the exec left even after it moved to a session of its own and dropped the
 # exec's tag (daemon/exec-shim/tale-exec-shim.c). Built on the runtime's own
-# Debian release, so it links against the same glibc.
+# Debian release, so it links against the same glibc. The stage also builds
+# the Node addon runnerd makes itself non-dumpable with before it reads its
+# token (daemon/nondumpable/tale-nondumpable.c), against the headers of the
+# runtime's own Node.
 FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS exec-shim-build
 RUN apt-get update \
     && apt-get install -y --no-install-recommends gcc libc6-dev \
     && rm -rf /var/lib/apt/lists/*
 COPY services/sandbox-runtime/daemon/exec-shim/tale-exec-shim.c /build/tale-exec-shim.c
 RUN gcc -O2 -Wall -Wextra -Werror -o /tale-exec-shim /build/tale-exec-shim.c
+COPY --from=node:24.21.0-bookworm-slim@sha256:d6aa754f16b3197301076f047b5def2f02ea1dbbc2ca920407d46d7ec7f87b20 /usr/local/include/node /build/node-include
+COPY services/sandbox-runtime/daemon/nondumpable/tale-nondumpable.c /build/tale-nondumpable.c
+RUN gcc -O2 -Wall -Wextra -Werror -shared -fPIC -I/build/node-include \
+      -o /tale-nondumpable.node /build/tale-nondumpable.c
 
 # --- harness build base -----------------------------------------------------
 # The stages that install a harness, the browser or the document Node
@@ -633,10 +640,12 @@ COPY --chmod=755 services/sandbox-runtime/tale-openclaw-run /usr/local/bin/tale-
 COPY --chmod=755 services/sandbox-runtime/tale-qwen-run /usr/local/bin/tale-qwen-run
 
 # runnerd — the session control daemon, bundled to a single file in the
-# daemon-build stage and run by the image's Node 24 (session mode only) — and
-# the subreaper shim it runs every exec under.
+# daemon-build stage and run by the image's Node 24 (session mode only) — the
+# addon it makes itself non-dumpable with, and the subreaper shim it runs
+# every exec under.
 COPY --from=daemon-build /runnerd.mjs /usr/local/lib/tale/runnerd.mjs
 COPY --from=daemon-build /lazy-docker.mjs /usr/local/lib/tale/lazy-docker.mjs
+COPY --from=exec-shim-build /tale-nondumpable.node /usr/local/lib/tale/tale-nondumpable.node
 COPY --from=exec-shim-build /tale-exec-shim /usr/local/bin/tale-exec-shim
 
 # Claude Code managed settings (highest precedence on Linux): disable

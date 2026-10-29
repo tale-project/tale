@@ -16,6 +16,7 @@
 //   SKIP_BUILD=true     reuse an existing tale-sandbox-runtime:contest image
 //   IMAGE=<ref>         test a prebuilt image instead of building
 // =============================================================================
+import { randomBytes } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -1181,6 +1182,118 @@ console.log('--- runnerd runs every exec under its subreaper shim ---');
           fail(`process ${pid} outlived the exec that started it`);
           await inSession(`kill -KILL ${pid}`);
         }
+      }
+    }
+  } finally {
+    if (cid) await ok(['docker', 'rm', '-f', cid]);
+  }
+}
+
+console.log('');
+console.log("--- runnerd's token is out of its execs' reach ---");
+// The spawner's token authenticates every call to runnerd and keys its
+// staged-files manifest. The entrypoint hands it to runnerd on a descriptor,
+// never in an environment, and runnerd makes itself non-dumpable before it
+// reads it (daemon/src/runnerd-token.ts), so a process at runnerd's uid, the
+// uid every exec runs at, reads it neither from /proc/<pid>/environ nor from
+// runnerd's memory or descriptors. The probes run at that uid; `docker exec`
+// would hand them the container's configured environment, token included, so
+// they start with the variable emptied, and the token is only ever in their
+// arguments, which /proc shows as the command line, never as the environment.
+{
+  const token = randomBytes(32).toString('hex');
+  const cid = await stdoutOf([
+    'docker',
+    'run',
+    '-d',
+    '--user',
+    '10001',
+    '--tmpfs',
+    '/agent:uid=10001,gid=10001',
+    '--env',
+    `TALE_RUNNERD_TOKEN=${token}`,
+    IMAGE,
+    'daemon',
+  ]);
+  const atExecUid = (cmd: string) =>
+    capture([
+      'docker',
+      'exec',
+      '--user',
+      '10001',
+      '--env',
+      'TALE_RUNNERD_TOKEN=',
+      cid,
+      'sh',
+      '-c',
+      cmd,
+    ]);
+  try {
+    let ready = false;
+    for (let i = 0; i < 20 && !ready; i++) {
+      ready =
+        (await atExecUid('curl -fsS http://127.0.0.1:8200/readyz')).exitCode ===
+        0;
+      if (!ready) await sleep(500);
+    }
+    if (!ready) {
+      fail('runnerd did not become ready for the token check');
+    } else {
+      const { combined: logs } = await capture(['docker', 'logs', cid]);
+      if (logs.includes('token=descriptor; dumpable=false')) {
+        pass('runnerd read its token from a descriptor and is not dumpable');
+      } else {
+        fail(
+          `runnerd names no descriptor token or is dumpable (got: ${logs.slice(0, 400)})`,
+        );
+      }
+      // runnerd's node, not tini's command line that names it too; the
+      // bracket keeps the probe's own command line out of the match.
+      const { stdout: reach } = await atExecUid(
+        `pid=$(pgrep -f '^[^ ]*node --disable-sigusr1 /usr/local/lib/tale/runnerd[.]mjs' | head -n 1)
+         test -n "$pid" || { echo NO_RUNNERD; exit 0; }
+         cat "/proc/$pid/environ" >/dev/null 2>&1 && echo ENVIRON
+         (exec 3<"/proc/$pid/mem") 2>/dev/null && echo MEMORY
+         ls "/proc/$pid/fd" >/dev/null 2>&1 && echo DESCRIPTORS
+         echo CHECKED`,
+      );
+      if (reach.trim() === 'CHECKED') {
+        pass(
+          "runnerd's environment, memory and descriptors are closed to its uid",
+        );
+      } else {
+        fail(`runnerd is open to its uid: ${reach.trim().replace(/\n/g, ' ')}`);
+      }
+      const { stdout: holders } = await atExecUid(
+        `grep -l -F -- '${token}' /proc/[0-9]*/environ 2>/dev/null; echo CHECKED`,
+      );
+      if (holders.trim() === 'CHECKED') {
+        pass('no process of the session holds the token in its environment');
+      } else {
+        fail(`the token is in ${holders.trim().replace(/\n/g, ' ')}`);
+      }
+      // runnerd got the token intact and still asks for it. The header is
+      // made from the container's environment by a root process (its own
+      // environment out of the probes' reach) into a file only root reads.
+      const { stdout: without } = await atExecUid(
+        "curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8200/healthz",
+      );
+      const { stdout: withToken } = await capture([
+        'docker',
+        'exec',
+        '--user',
+        '0:0',
+        cid,
+        'sh',
+        '-c',
+        `umask 077 && printf 'x-tale-runnerd-token: %s\n' "$TALE_RUNNERD_TOKEN" > /tmp/runnerd-token-header && curl -s -o /dev/null -w '%{http_code}' -H @/tmp/runnerd-token-header http://127.0.0.1:8200/healthz; rm -f /tmp/runnerd-token-header`,
+      ]);
+      if (without === '401' && withToken === '200') {
+        pass('runnerd answers with its token and refuses without it');
+      } else {
+        fail(
+          `runnerd's auth: ${without} without the token, ${withToken} with it`,
+        );
       }
     }
   } finally {

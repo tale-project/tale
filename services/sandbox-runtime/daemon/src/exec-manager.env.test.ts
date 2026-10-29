@@ -45,12 +45,22 @@ describe("an exec's environment", () => {
       execBaseEnv({
         TALE_RUNNERD_TOKEN: 'x',
         tale_runnerd_token: 'x',
+        TALE_RUNNERD_TOKEN_FD: '9',
         TALE_RUNNERD_INCARNATION: '1',
         TALE_SESSION_ENV: '{}',
         TALE_EXEC_STALL_MS: '0',
         PATH: '/usr/bin',
       }),
     ).toEqual({ TALE_EXEC_STALL_MS: '0', PATH: '/usr/bin' });
+  });
+
+  test("gets the session's compile cache, which runnerd itself starts without", () => {
+    const cache = '/agent/.runtime/home/.cache/node-compile-cache';
+    expect(
+      execBaseEnv({ TALE_RUNNER_NODE_COMPILE_CACHE: cache, PATH: '/usr/bin' }),
+    ).toEqual({ NODE_COMPILE_CACHE: cache, PATH: '/usr/bin' });
+    // Where the entrypoint named none, an exec gets none either.
+    expect(execBaseEnv({ PATH: '/usr/bin' })).toEqual({ PATH: '/usr/bin' });
   });
 
   test('a command printing its environment never sees the token', async () => {

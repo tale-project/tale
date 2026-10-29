@@ -6,7 +6,10 @@
 // on :8200 inside tale-sandbox-net; the spawner is its only client and proxies
 // in-session operations here over HTTP. Auth is the per-session token in
 // x-tale-runnerd-token (derived spawner-side as HMAC(SANDBOX_TOKEN,
-// "runnerd-v1:"+sessionId); empty disables the check in unsigned dev mode).
+// "runnerd-v1:"+sessionId); empty disables the check in unsigned dev mode). It
+// reaches runnerd on a descriptor, never in its environment, and runnerd makes
+// itself non-dumpable before it reads it, so the execs it starts at its own uid
+// can read it from neither (runnerd-token.ts).
 //
 // Bundled to a single dist/runnerd.mjs with `bun build --target=node` and run
 // by the image's Node 24 — so this file uses only node: built-ins, no deps.
@@ -58,6 +61,7 @@ import {
   type RunnerdMemoryBusy,
   type RunnerdStdinWriteRequest,
 } from './protocol.ts';
+import { runnerdToken } from './runnerd-token.ts';
 import {
   admissionMemoryPercentFromEnv,
   MEMORY_BUSY_RETRY_AFTER_SECONDS,
@@ -72,7 +76,10 @@ const FILE_READ_MAX_BYTES = 20 * 1024 * 1024;
 const MAX_STAGING_OPERATIONS = 2;
 let stagingOperations = 0;
 
-const TOKEN = process.env.TALE_RUNNERD_TOKEN ?? '';
+// Read before anything here can start a process: the descriptor it comes on
+// must be closed before a process could inherit it (runnerd-token.ts).
+const RUNNERD_TOKEN = runnerdToken();
+const TOKEN = RUNNERD_TOKEN.token;
 // The share of the session's memory limit past which a new exec is refused
 // (session-memory.ts); the spawner sets it.
 const ADMISSION_MEMORY_PERCENT = admissionMemoryPercentFromEnv();
@@ -894,9 +901,17 @@ if (
   // session's first moment, not only after its first exec.
   reconcileBakedSkills();
 
+  if (RUNNERD_TOKEN.source === 'environment')
+    console.warn(
+      '[runnerd] the token came from the environment, where every process of this uid can read it; the entrypoint hands it over on a descriptor',
+    );
+  const dumpable =
+    RUNNERD_TOKEN.dumpable === undefined
+      ? 'unchecked'
+      : String(RUNNERD_TOKEN.dumpable);
   server.listen(RUNNERD_PORT, '0.0.0.0', () => {
     console.log(
-      `[runnerd] listening on :${RUNNERD_PORT}; tokenAuth=${TOKEN === '' ? 'OFF (dev)' : 'on'}; execShim=${execManager.execShim ?? 'off'}`,
+      `[runnerd] listening on :${RUNNERD_PORT}; tokenAuth=${TOKEN === '' ? 'OFF (dev)' : 'on'}; token=${RUNNERD_TOKEN.source}; dumpable=${dumpable}; execShim=${execManager.execShim ?? 'off'}`,
     );
   });
 }

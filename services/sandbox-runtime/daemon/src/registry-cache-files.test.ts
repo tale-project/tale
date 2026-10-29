@@ -119,7 +119,8 @@ function start(
   }
 }
 
-const RUNNERD = 'tini -g -- node /usr/local/lib/tale/runnerd.mjs\n';
+const RUNNERD =
+  'tini -g -- node --disable-sigusr1 /usr/local/lib/tale/runnerd.mjs\n';
 
 describe('with no cache named', () => {
   test('nothing is written, said or asked of the session user, and runnerd starts as before', () => {

@@ -1,5 +1,5 @@
 import { describe, expect, spyOn, test } from 'bun:test';
-import { createHmac } from 'node:crypto';
+import { createHmac, hkdfSync } from 'node:crypto';
 
 import {
   decodeStagedManifest,
@@ -21,6 +21,34 @@ const SOURCES: Array<[string, StagedSource]> = [
 ];
 const anyPath = () => true;
 
+/** A manifest of `format` over `entries`, its MAC made with `key` as is. */
+function signedWith(format: string, entries: unknown[], key: Buffer | string) {
+  const mac = createHmac('sha256', key)
+    .update(`${format}\n${JSON.stringify(entries)}`)
+    .digest('hex');
+  return JSON.stringify({ format, entries, mac });
+}
+
+/** The key the current format signs with for the token `token`. */
+const keyOf = (token: string) =>
+  Buffer.from(hkdfSync('sha256', token, '', 'tale-staged-sources-v2', 32));
+
+/** SOURCES as the manifest's entries. */
+const ENTRIES = SOURCES.map(([path, { sourceId, digest, stat }]) =>
+  stat === undefined
+    ? [path, sourceId, digest]
+    : [
+        path,
+        sourceId,
+        digest,
+        stat.dev,
+        stat.ino,
+        stat.size,
+        stat.mtimeNs,
+        stat.ctimeNs,
+      ],
+);
+
 describe('the staged-files manifest', () => {
   test('reads back what it wrote, with and without a stat', () => {
     const text = encodeStagedManifest(SOURCES, 'token');
@@ -32,6 +60,27 @@ describe('the staged-files manifest', () => {
   test('is ignored when signed with another key: another session, a rotated token', () => {
     const text = encodeStagedManifest(SOURCES, 'token');
     expect(decodeStagedManifest(text, 'other', anyPath)).toBeNull();
+  });
+
+  test('is signed under a key derived from the token, never with the token itself', () => {
+    const text = encodeStagedManifest(SOURCES, 'token');
+    expect(text).toBe(
+      signedWith('tale-staged-sources-v2', ENTRIES, keyOf('token')),
+    );
+    // One a process could sign knowing only the token's bytes as a key is
+    // not read.
+    expect(
+      decodeStagedManifest(
+        signedWith('tale-staged-sources-v2', ENTRIES, 'token'),
+        'token',
+        anyPath,
+      ),
+    ).toBeNull();
+  });
+
+  test('is never read in the first format, which the token itself signed', () => {
+    const first = signedWith('tale-staged-sources-v1', ENTRIES, 'token');
+    expect(decodeStagedManifest(first, 'token', anyPath)).toBeNull();
   });
 
   test('is ignored when edited, even with its signature kept', () => {
@@ -46,7 +95,7 @@ describe('the staged-files manifest', () => {
     ['another format', JSON.stringify({ format: 'v0', entries: [], mac: '' })],
     [
       'no signature',
-      JSON.stringify({ format: 'tale-staged-sources-v1', entries: [] }),
+      JSON.stringify({ format: 'tale-staged-sources-v2', entries: [] }),
     ],
   ])('is ignored when it is %s', (_, text) => {
     const warn = spyOn(console, 'warn').mockImplementation(() => {});
@@ -81,10 +130,11 @@ describe('the staged-files manifest', () => {
       !Array.isArray(parsed.entries)
     )
       throw new Error('the encoded manifest has no entries');
-    const mac = createHmac('sha256', 'token')
-      .update(`tale-staged-sources-v1\n${JSON.stringify(parsed.entries)}`)
-      .digest('hex');
-    const signed = JSON.stringify({ ...parsed, mac });
+    const signed = signedWith(
+      'tale-staged-sources-v2',
+      parsed.entries,
+      keyOf('token'),
+    );
     expect(decodeStagedManifest(signed, 'token', anyPath)).toEqual(
       new Map([['q', { sourceId: 'blob:good', digest: DIGEST }]]),
     );
