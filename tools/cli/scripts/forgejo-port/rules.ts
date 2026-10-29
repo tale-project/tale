@@ -16,7 +16,7 @@ import {
   type Rule,
   type Tier,
 } from './context';
-import { ciScope, queueOnlyJobs } from './scope';
+import { ciScope } from './scope';
 import { jobIds, jobOf, stepsOf, stringOf } from './workflow';
 
 // --- services -----------------------------------------------------------------
@@ -267,13 +267,7 @@ export function learnEmptyOutputs(
 
 /** The rules every workflow goes through, in order. */
 export function defaultRules(tier: Tier): Rule[] {
-  return [
-    ciScope(tier),
-    queueOnlyJobs(tier),
-    servicesToDockerRun,
-    matrixTotals,
-    dropEnvironments,
-  ];
+  return [ciScope(tier), servicesToDockerRun, matrixTotals, dropEnvironments];
 }
 
 /** What a pull request owes unless a manifest says otherwise. */

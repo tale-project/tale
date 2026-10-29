@@ -131,9 +131,7 @@ validation workflows do, in one change:
    `./.github/actions/ci-ready` with `workflow: sandbox-incus-e2e`).
 2. Register the workflow in `tools/cli/scripts/ci-ready.ts`: its job ids in
    `CI_JOBS` and its context in `CI_CONTEXTS` (the tests next to it hold every id
-   to the YAML). Consider listing it with the heavy suites that run only in the
-   merge queue (`MERGE_QUEUE_ONLY_SCOPES`), so that a pull request does not spend a
-   runner on it and the queue's run is the gate.
+   to the YAML).
 3. Add `CI ready (Sandbox Incus E2E)` to the repository's required checks (the
    branch protection or ruleset of `main`).
 

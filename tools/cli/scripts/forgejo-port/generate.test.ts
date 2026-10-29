@@ -132,21 +132,6 @@ jobs:
       - run: echo suite
 `,
   },
-  queueOnlyJobs: {
-    rules: ['queue-only'],
-    file: 'checks.yml',
-    source: `name: Checks
-on:
-  merge_group:
-  pull_request:
-jobs:
-  build:
-    if: github.event_name != 'pull_request' && !cancelled()
-    runs-on: ubuntu-latest
-    steps:
-      - run: echo build
-`,
-  },
   dropForeignRows: {
     rules: ['matrix-row'],
     source: workflow(`

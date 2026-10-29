@@ -2,17 +2,17 @@
  * The scope of a run: which suites a pull request owes and which only a batch of the
  * merge train does.
  *
- * On GitHub a `ci-scope` step answers that. The heavy suites (Build, E2E, CLI, the
- * backend integration check) pass `queue-only: 'true'`: a pull request owes nothing
- * and reports so without looking at its files, the merge queue's group owes everything.
- * Security passes nothing and decides from the pull request's paths. The answers are
- * a function of the event, so the port does not run the step: it teaches the folder
- * what each output is for a pull request and for anything else, and the conditions that
- * read it fold into conditions on the event.
+ * On GitHub a `ci-scope` step answers that: a pull request owes the suites its paths
+ * touch, every other event owes everything. A step that passes `queue-only: 'true'`
+ * holds its suite back from pull requests: one then owes nothing and reports so without
+ * looking at its files. Tale's workflows hold nothing back since `main` lands each pull
+ * request on its own. The answers are a function of the event, so the port does not run
+ * the step: it teaches the folder what each output is for a pull request and for
+ * anything else, and the conditions that read it fold into conditions on the event.
  *
- * What a pull request owes is the tier. `fast` keeps GitHub's: the fast lanes, and the
- * heavy suites held for the batch. `full` makes a pull request owe what a batch owes, so
- * that a failure shows on the pull request and not in the train.
+ * What a pull request owes is the tier. `fast` keeps what the workflow says. `full` makes
+ * a pull request owe what a batch owes, so that a failure shows on the pull request and
+ * not in the train.
  *
  * The one thing it does not carry over is Security's path filter: Security runs on
  * every pull request, which costs a few runner-minutes for two lockfile scans.
@@ -20,13 +20,7 @@
 
 import { isMap, isScalar } from 'yaml';
 
-import {
-  BUILD_FILTERS,
-  CHECKS_MERGE_QUEUE_ONLY,
-  E2E_SERVICES,
-  buildScope,
-  e2eScope,
-} from '../ci-ready';
+import { BUILD_FILTERS, E2E_SERVICES, buildScope, e2eScope } from '../ci-ready';
 import {
   jobKnowledge,
   type EventResults,
@@ -37,16 +31,12 @@ import {
 } from './context';
 import {
   ExpressionError,
-  allOf,
-  conjuncts,
   contextPath,
   parseExpression,
   parseTemplate,
-  sameExpression,
 } from './expression';
 import {
   conditionOf,
-  editCondition,
   foldCondition,
   jobIds,
   jobOf,
@@ -321,39 +311,6 @@ export function ciScope(tier: Tier): Rule {
         detail:
           'removed: a pull request owes only what is not held for the merge train, a batch owes everything',
       });
-    }
-  };
-}
-
-const NOT_PULL_REQUEST = parseExpression("github.event_name != 'pull_request'");
-
-/**
- * GitHub keeps the heavy suites of Checks for the merge queue: their jobs carry
- * `github.event_name != 'pull_request'`. When a pull request owes what a batch owes, that
- * condition goes. The jobs are the ones Tale's own readiness policy lists
- * (`CHECKS_MERGE_QUEUE_ONLY`), which its tests already hold to the workflow.
- */
-export function queueOnlyJobs(tier: Tier): Rule {
-  return (doc, context) => {
-    if (tier !== 'full' || context.file !== 'checks.yml') return;
-    for (const id of CHECKS_MERGE_QUEUE_ONLY) {
-      const job = jobOf(doc, id);
-      if (!job) continue;
-      const changed = editCondition(job, (expression) =>
-        allOf(
-          conjuncts(expression).filter(
-            (part) => !sameExpression(part, NOT_PULL_REQUEST),
-          ),
-        ),
-      );
-      if (changed)
-        context.report.changes.push({
-          file: context.file,
-          at: `jobs.${id}`,
-          rule: 'queue-only',
-          detail:
-            'no longer held back for pull requests: they owe what a batch owes',
-        });
     }
   };
 }

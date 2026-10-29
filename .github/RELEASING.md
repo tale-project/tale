@@ -337,11 +337,10 @@ fails the candidate. Work in this order.
    ```
 
    The scheduled E2E run is where a browser regression shows first: pull request
-   checks skip the browser E2E and the suites that run only in the queue, and a direct
-   merge skips the queue, so a defect can sit on `main` for hours.
+   checks skip the browser E2E, so a defect can sit on `main` for hours.
 2. **A failure every run of the same source shows is a defect of `main`.** Never
    re-dispatch a candidate hoping it clears and never waive a job: repair it through
-   the queue, then choose a candidate that contains the repair. A failure that the
+   a pull request, then choose a candidate that contains the repair. A failure that the
    same source also passes (a `Backend integration` check that failed on one run and
    passed on the next, tracked in #4921) is a flake: re-run all jobs of that single
    run, put the check's name on the issue that tracks it, and let a green attempt be
@@ -351,11 +350,6 @@ fails the candidate. Work in this order.
      `.github/ci-scope.yml`, `.github/workflows/cli.yml` and `tools/cli/turbo.json`.
      Refresh the descriptor with `bun tools/cli/scripts/release-candidate-contract.ts --write`
      and format it with the repository's `oxfmt`.
-   - `Unit (workspaces)` refusing "an explicit reviewed profile on every source
-     change": a source workflow's bytes changed, so add its SHA-256
-     (`shasum -a 256 .github/workflows/<file>`) to
-     `tools/cli/scripts/ci-merge-group-profiles.ts`. A change to `cli.yml` needs both
-     this and the descriptor.
    - `UI (platform N/4)` failing one test: run that file alone from `services/platform`
      (`bunx vitest --run --config vitest.ui.config.ts <file>` takes seconds) and bisect
      it across the recent commits.

@@ -168,14 +168,12 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 - **Pencil**: `design/docs/comments.md` is strictly designer↔developer UI communication. Put
   code-level bug analysis in a GitHub issue, never there.
 - **Git**: branch off `main`, never commit to it; PRs squash-merge (linear history), so the PR
-  title must itself be commitlint-shaped. **Land through the merge queue**: `gh pr merge --auto`
-  (the queue sets squash) queues a PR once its checks and review pass, and the queue re-runs CI on the PR stacked
-  on `main` plus the PRs ahead of it. A branch does not have to be up to date with `main` — never
-  rebase, merge `main` in or `gh pr update-branch` just because a PR reads *behind*; rebase only for
-  a real conflict (`git merge-tree --write-tree --name-only origin/main HEAD`), and never bypass
-  the queue with an admin merge. A PR's own CI is the fast tier (format, lint, types, knip, unit,
-  commitlint, SAST); E2E, Build, CLI, UI, Browser and backend integration run only in the queue —
-  run the ones your change touches locally before queueing ([CI guide](../.github/CI.md#merge-queue)).
+  title must itself be commitlint-shaped. **Each PR lands on its own** — no merge queue:
+  `gh pr merge --squash --auto` merges it once its checks and review pass, and its own CI runs every
+  suite its paths owe. A branch does not have to be up to date with `main` — never rebase, merge
+  `main` in or `gh pr update-branch` just because a PR reads *behind*; rebase only for a real
+  conflict (`git merge-tree --write-tree --name-only origin/main HEAD`), and never admin-merge past
+  a red or pending check ([CI guide](../.github/CI.md#landing-on-main)).
 - **A release tags one validated candidate** — a version tag goes only on the full `main` SHA
   whose `build.yml` candidate run and release gate
   (`tools/cli/scripts/release-candidate-gate.ts`) passed, and merging never freezes for it:

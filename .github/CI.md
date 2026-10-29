@@ -59,91 +59,6 @@ authorized credential as `GH_TOKEN` for this command's process, following its
 provisioned instructions; an operator may use their existing `gh` authentication.
 The shared command does not look up agent secrets or change global authentication.
 
-## Retiring a deleted merge-group revision
-
-Rebuilding the merge queue gives its temporary branches new names. Workflow
-concurrency is keyed by the complete ref, so an old revision can keep running
-after GitHub deletes its branch. A run marked `queued` can still contain allocated
-jobs: use the organization's **Settings → Actions → Runners → Standard
-GitHub-hosted runners** view or complete native job inventories to measure occupancy.
-
-Inspect one exact run with the maintained CLI workspace command:
-
-```sh
-bun tools/cli/scripts/ci-retire-merge-group.ts --run 1000
-```
-
-The default prints a read-only decision. Eligibility requires a Tale `merge_group`
-run from one of the seven validation workflows, older than one minute, on the
-recognized temporary `main` queue ref. Its exact ref must return HTTP 404 and its
-head must be absent from a complete native merge-queue inventory. The current
-default-branch head and queued PR source heads are also protected. Authentication
-errors, unreadable queue/default-branch data, more than 100 queue entries, current
-refs, incomplete responses and unknown workflows preserve the run. PR validation,
-main pushes, release candidates and publication workflows are never eligible.
-
-After reviewing the decision, add `--apply --receipt /absolute/private/run-attempt.jsonl`.
-The command repeats its run, queue and deleted-ref observations, creates and flushes
-the same exclusive owner-only journal used by tail recovery, then sends at most one
-ordinary cancellation. This can stop live validation jobs for that obsolete revision;
-it does not escalate to force cancellation. Cancellation does not establish a passed
-check. The receipt distinguishes confirmed cancellation, an accepted request still pending readback and
-unknown outcomes. Never replay an uncertain request or replace its receipt. Ordinary
-cancellation may leave an `always()` aggregate queued; the explicit finishing mode
-below is a separate decision.
-
-To inspect an orphan that still has queued verdict jobs at least five minutes after an
-accepted ordinary cancellation, supply that command's retained journal:
-
-```sh
-bun tools/cli/scripts/ci-retire-merge-group.ts --run 1000 --finish \
-  --ordinary-receipt /absolute/private/ordinary-run-attempt.jsonl
-```
-
-This remains read-only. Finishing recognizes the reviewed source profiles for all seven
-validation workflows, including the retained older Checks profile. Each profile pins the
-whole workflow and its verdict action/script. Every substantive job must have a terminal
-native row. Only the reviewed `CI ready` jobs, plus Checks' `Unit` and `UI` aggregates,
-may remain queued and unassigned; event-inapplicable jobs cannot start in a merge group.
-
-A matrix normally requires every exact child. GitHub can instead record one cancelled or
-skipped literal matrix placeholder before expansion. That representation is accepted only
-when the pinned node requires a named predecessor to succeed, that predecessor is terminal
-without success, and no expanded child exists. Missing or mixed children, an unknown matrix
-value or a successful predecessor preserve the run. This is a fixed source-reviewed rule,
-not a general interpretation of workflow expressions.
-
-Different source, a missing real job, an assigned verdict, incomplete pagination or changed
-run identity preserves the workflow. The five-minute interval permits normal cancellation
-to settle; elapsed time alone does not prove work has stopped. The current-source guard in
-`ci-merge-group-finish.test.ts` requires each workflow and its verdict closure to match a
-profile. When these files change, review the complete future graph and add its profile;
-retain historical profiles for obsolete runs. Never update a digest merely to silence the
-guard or add an arbitrary job-name override.
-
-After reviewing that manifest, add `--apply --receipt /absolute/private/finish-run-attempt.jsonl`
-with a **new** receipt path. This repeats the complete source, queue, deleted-ref and
-job observations before one force-cancel request. The separate journal records the
-ordinary receipt's hash, reviewed source profile and actual job conclusions, including
-failures. Confirmation requires both a cancelled run and every returned job terminal;
-otherwise the result stays pending or unknown. Never replay a force intent, replace
-its receipt, or treat cancelled checks as passed. GitHub provides no atomic comparison:
-a verdict can allocate between the final observation and the request, but the exact
-closed graph excludes any remaining test, build or deployment work from that race.
-
-Ordinary reads and writes share a 60-second, 20-request budget; explicit finishing uses
-at most 40 requests within the same deadline. HTTP Date/Age and the local observations
-must be fresh within 30 seconds. The command requests uncached metadata, and refuses
-missing, ambiguous or stale response dates. Caller-selected `GH_TOKEN` or existing
-`gh` authentication remains responsible for authorization; no secret is acquired.
-Actual Actions response rate-limit headers govern its available REST budget: a
-contradictory `/rate_limit` overview does not authorize spending a reserved balance.
-
-A later run attempt or changed source is refused. The existing CI manager owns
-scheduling, exact-run selection and receipt retention; this command
-does not start a second scheduler or change queue settings. Use the existing
-authorized credential as described above.
-
 ## Where Linux jobs run
 
 The Linux x64 jobs of `checks`, `build`, `e2e`, `cli`, `security`, `sast` and `commitlint` run on
@@ -993,45 +908,27 @@ scope policy and passed, failed and incomplete readiness evidence.
 
 Source alone does not activate branch protection. Before requiring these contexts, observe
 their exact live names and GitHub Actions application identity (15368), positive and negative
-PR cases, and failed/latest rerun behavior. The merge queue is configured (see
-[Merge queue](#merge-queue)); observe positive and negative `merge_group` runs and record them
-here. Retain the source guards for that event and its full scope. Bind the seven contexts to that app; generic candidate or skipped execution
+PR cases, and failed/latest rerun behavior. `main` has no merge queue (see
+[Landing on main](#landing-on-main)); the source guards for the `merge_group` event and its
+full scope stay until its triggers are removed. Bind the seven contexts to that app; generic candidate or skipped execution
 jobs cannot substitute for them. Keep the coordinator's
 exact-head checks and independent review until enforcement is active and observed. Independent
 review remains a separate obligation; a CI readiness result does not certify it.
 
-### Merge queue
+### Landing on main
 
-`main` lands through a GitHub merge queue (ruleset **Tale required CI**, since 2026-10-09):
-squash merges, groups of up to five PRs, up to five PRs building at once, all-green grouping
-(a group merges only when every PR in it passes) and a 360-minute check timeout. The build cap
-and timeout follow from the runner budget: the public repository's free plan runs about 20 jobs at
-once across every PR and queue run, a full merge-group run needs dozens, so speculative builds
-beyond one group only starve PR runs, and a queued run can wait hours for a runner. Build's full
-merge-group run takes up to about 90 minutes. The ruleset no longer requires a branch to be up to
-date before merging; the queue checks the result that will actually land. With about 75 merges a
-day, "up to date" forced every other open PR to rebase and re-run CI after each merge.
-Each queued PR still gets its own squash commit on `main`, so the release gate's
+`main` lands each pull request on its own (ruleset **Tale required CI**, no merge queue since
+2026-10-29): a squash merge once the seven `CI ready (…)` contexts pass on its head and its
+review approves, with `gh pr merge <n> --squash --auto`. A pull request runs every suite its
+paths owe, the heavy ones included, so a red shows on the pull request where its author is. The
+ruleset does not require a branch to be up to date before merging: with dozens of merges a day,
+"up to date" would force every other open PR to rebase and re-run CI after each merge. Two pull
+requests that pass on their own can still conflict in meaning; the full validation of each push
+to `main` catches that. Each PR gets its own squash commit on `main`, so the release gate's
 one-PR-per-merge-commit rule holds.
 
-**Most validation runs only in the queue.** A pull request's run is the fast tier: Commitlint,
-SAST, Security (path-scoped) and the Checks lanes Format, Lint, Type check, Knip and Unit. E2E,
-Build, CLI and Backend integration pass `queue-only: 'true'` to the scope action, so on a pull
-request their scope reports not applicable and every job skips; the Checks suites in
-`CHECKS_MERGE_QUEUE_ONLY` (`tools/cli/scripts/ci-ready.ts`: Build, UI and its shards, Performance,
-Browser) carry `github.event_name != 'pull_request'` and readiness requires them skipped there.
-Each workflow still reports its `CI ready (…)` context on the PR, so the PR can enter the queue,
-and the merge group runs everything at full scope before it lands. Run the heavy suites a change
-touches locally before queueing it; a red there ejects the PR from the queue. To bring a suite
-back to pull requests, drop the scope's `queue-only` input or the job from
-`CHECKS_MERGE_QUEUE_ONLY`; `ci-ready-workflows.test.ts` pins both lists to the YAML.
-
-The seven `CI ready (…)` contexts are what the queue waits for. Every workflow listens for
-`merge_group` and runs full scope there, and each concurrency group keys on the ref; a
-merge-group ref (`gh-readonly-queue/main/pr-<n>-<sha>`) is unique, so queued runs never cancel
-each other or a PR run. A PR that fails in its group leaves the queue, and the PRs behind it are
-rebuilt without it. Live proof is recorded under
-[Activation and observation](#activation-and-observation) as it is observed.
+The workflows still list `merge_group` among their triggers; without a queue GitHub never sends
+that event.
 
 The complete [release-candidate gate](RELEASING.md) remains required before tagging a release.
 

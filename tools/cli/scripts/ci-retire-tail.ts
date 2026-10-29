@@ -84,7 +84,7 @@ export function boundedGithub(): Api {
   };
 }
 
-export function readNativeJobs(
+function readNativeJobs(
   run: Pick<NativeRun, 'id' | 'run_attempt' | 'head_sha'>,
   api: Api,
 ): NativeJob[] {

@@ -72,22 +72,13 @@ request owes is the tier, set for all workflows by `tier` in `manifest.ts` and f
 | Tier | A pull request owes | Why |
 | --- | --- | --- |
 | `full` (the manifest's) | what a batch owes | a failure shows on the pull request, where its author is, and not in the train, where it costs a rebuild of the batch |
-| `fast` | Checks' fast lanes, Commitlint, SAST and Security; Build, E2E, CLI and the backend integration check read as skipped | GitHub's pull request tier, which CI.md describes |
+| `fast` | what the workflow says: since `main` lands each pull request on its own, every suite | GitHub's pull request tier, which CI.md describes |
 
 Both tiers hand each `CI ready (…)` job to Tale's own policy; `full` as a merge group, `fast` as
 a pull request.
 
-| Per day | `full` | `fast` |
-| --- | --- | --- |
-| Pull request pushes (about 108; 122 or 28 runner-minutes each) | 220 runner-hours | 50 runner-hours |
-| Batches (about 40; 122 runner-minutes each) | 81 runner-hours | 81 runner-hours |
-| Runners busy on average | 12.5 | 5.5 |
-
-The minutes are medians of GitHub's runs without the CLI's macOS and Windows legs (19
-runner-minutes, which stay on GitHub), and they include Turbo cache hits that a runner on the
-node does not get (the cache is per instance). A node of 48 threads runs 12 four-CPU runners
-at full speed. Measure on the soak before the tier is chosen for the repository, and move a
-workflow to `fast` with its own `tier` when the pool saturates.
+Since GitHub's workflows hold no suite back from a pull request, the two tiers run the same
+jobs on one; they differ only in that readiness.
 
 ## What the node must hold
 

@@ -1,11 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import {
-  BUILD_SERVICES,
-  CHECKS_MERGE_QUEUE_ONLY,
-  CI_JOBS,
-  COMPOSE_SERVICES,
-} from '../ci-ready';
+import { BUILD_SERVICES, CI_JOBS, COMPOSE_SERVICES } from '../ci-ready';
 import {
   judgeReadiness,
   parseRemoved,
@@ -27,8 +22,8 @@ const wasSkipped: JobResult = { result: 'skipped', outputs: {} };
 /** A job the port took out that neither kind of run would have run. */
 const neverRan: RemovedJob = { pull_request: wasSkipped, push: wasSkipped };
 
-/** The workflows whose heavy suites only a batch runs: a pull request's scope says so and nothing else runs. */
-const QUEUE_ONLY = new Set<Workflow>(['build', 'e2e', 'cli']);
+/** The workflows whose scope job a pull request answers from its paths; this one touches them all. */
+const SCOPED = new Set<Workflow>(['build', 'e2e', 'cli', 'security']);
 
 /** What the port took out of each workflow, and what each job would have said. */
 function removedFor(workflow: Workflow): Record<string, RemovedJob> {
@@ -37,15 +32,7 @@ function removedFor(workflow: Workflow): Record<string, RemovedJob> {
     'candidate-gate': neverRan,
   };
   if (workflow === 'cli') gone.release = neverRan;
-  if (QUEUE_ONLY.has(workflow))
-    gone['pr-scope'] = {
-      pull_request: {
-        result: 'success',
-        outputs: { run: 'false', full: 'false' },
-      },
-      push: wasSkipped,
-    };
-  if (workflow === 'security')
+  if (SCOPED.has(workflow))
     gone['pr-scope'] = {
       pull_request: {
         result: 'success',
@@ -87,26 +74,6 @@ function greenBatch(workflow: Workflow): Record<string, Job> {
   return needs;
 }
 
-/** A pull request's tier: the fast lanes ran, and the heavy suites are held for the batch. */
-function greenPullRequest(workflow: Workflow): Record<string, Job> {
-  const needs: Record<string, Job> = {};
-  for (const id of CI_JOBS[workflow]) {
-    if (id in removedFor(workflow)) continue;
-    needs[id] = QUEUE_ONLY.has(workflow)
-      ? skipped
-      : { result: 'success', outputs: {} };
-  }
-  if (workflow === 'checks') {
-    for (const id of [...CHECKS_MERGE_QUEUE_ONLY, 'backend-integration'])
-      needs[id] = skipped;
-    needs['integration-scope'] = {
-      result: 'success',
-      outputs: { run: 'false' },
-    };
-  }
-  return needs;
-}
-
 function pullRequest(overrides: Record<string, unknown> = {}) {
   return {
     pull_request: {
@@ -125,7 +92,7 @@ function onPullRequest(
 ): ReadyInput {
   return {
     workflow,
-    needs: greenPullRequest(workflow),
+    needs: greenBatch(workflow),
     tier: 'fast',
     removed: removedFor(workflow),
     event: 'pull_request',
@@ -225,35 +192,19 @@ describe('judgeReadiness', () => {
     });
   }
 
-  test('a pull request of the fast tier is held for a suite it ran, and one of the full tier for a suite it skipped', () => {
-    const fast = judgeReadiness(
-      onPullRequest('checks', { needs: greenBatch('checks') }),
-    );
-    expect(fast.passed).toBe(false);
-    const full = judgeReadiness(
-      onPullRequest('checks', {
-        tier: 'full',
-        needs: greenPullRequest('checks'),
-      }),
-    );
-    expect(full.passed).toBe(false);
-  });
-
-  test('a pull request that ran a suite held for the batch is held', () => {
-    const needs = greenPullRequest('checks');
-    needs.build = { result: 'success', outputs: {} };
-    expect(judgeReadiness(onPullRequest('checks', { needs })).passed).toBe(
-      false,
-    );
-    const queued = greenPullRequest('e2e');
-    queued.e2e = { result: 'success', outputs: {} };
-    expect(judgeReadiness(onPullRequest('e2e', { needs: queued })).passed).toBe(
-      false,
-    );
+  test('a pull request of either tier is held for a suite it skipped', () => {
+    for (const tier of ['fast', 'full'] as const) {
+      const needs = greenBatch('checks');
+      needs.build = skipped;
+      expect(
+        judgeReadiness(onPullRequest('checks', { tier, needs })).passed,
+        tier,
+      ).toBe(false);
+    }
   });
 
   test('a pull request that failed a lane it owes is held', () => {
-    const needs = greenPullRequest('checks');
+    const needs = greenBatch('checks');
     needs.lint = { result: 'failure', outputs: {} };
     expect(judgeReadiness(onPullRequest('checks', { needs })).passed).toBe(
       false,

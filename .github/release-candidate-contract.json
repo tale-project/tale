@@ -614,7 +614,7 @@
         {
           "path": ["jobs", "build", "if"],
           "kind": "value",
-          "expected": "github.event_name != 'pull_request' && !cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
         },
         {
           "path": ["jobs", "build", "name"],
@@ -1160,8 +1160,7 @@
           "path": ["jobs", "integration-scope", "steps", 2, "with"],
           "kind": "value",
           "expected": {
-            "filter": "integration",
-            "queue-only": "true"
+            "filter": "integration"
           }
         },
         {
@@ -1394,7 +1393,7 @@
         {
           "path": ["jobs", "performance", "if"],
           "kind": "value",
-          "expected": "github.event_name != 'pull_request' && !cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))"
         },
         {
           "path": ["jobs", "performance", "name"],
@@ -1624,7 +1623,7 @@
         {
           "path": ["jobs", "test-browser", "if"],
           "kind": "value",
-          "expected": "github.event_name != 'pull_request' && !cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)"
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)"
         },
         {
           "path": ["jobs", "test-browser", "name"],
@@ -2025,7 +2024,7 @@
         {
           "path": ["jobs", "test-ui", "if"],
           "kind": "value",
-          "expected": "github.event_name != 'pull_request' && always() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)"
+          "expected": "always() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)"
         },
         {
           "path": ["jobs", "test-ui", "name"],
@@ -2086,7 +2085,7 @@
         {
           "path": ["jobs", "test-ui-shards", "if"],
           "kind": "value",
-          "expected": "github.event_name != 'pull_request' && !cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)"
+          "expected": "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped')) && (github.event.pull_request.draft != true)"
         },
         {
           "path": ["jobs", "test-ui-shards", "name"],
@@ -4071,8 +4070,7 @@
           "path": ["jobs", "pr-scope", "steps", 1, "with"],
           "kind": "value",
           "expected": {
-            "filter": "e2e",
-            "queue-only": "true"
+            "filter": "e2e"
           }
         },
         {
@@ -5251,8 +5249,7 @@
           "path": ["jobs", "pr-scope", "steps", 1, "with"],
           "kind": "value",
           "expected": {
-            "filter": "cli",
-            "queue-only": "true"
+            "filter": "cli"
           }
         },
         {

@@ -23,7 +23,6 @@ import {
 
 import {
   ExpressionError,
-  type Expr,
   foldTemplate,
   hasExpression,
   hasStatusFunction,
@@ -559,41 +558,6 @@ function sameTemplate(a: string, b: string): boolean {
 
 function oneLine(text: string): string {
   return text.replace(/\s+/g, ' ').trim();
-}
-
-/**
- * Change one `if:` with a function of its expression. The function returns the new
- * expression, or `undefined` when nothing is left of the condition (it always holds).
- * Returns whether the condition changed.
- */
-export function editCondition(
-  owner: YAMLMap,
-  edit: (expression: Expr) => Expr | undefined,
-): boolean {
-  const source = stringOf(owner.get('if'));
-  if (source === undefined) return false;
-  const wrapped = hasExpression(source);
-  let expression: Expr;
-  if (wrapped) {
-    const parts = parseTemplate(source);
-    const only = parts.length === 1 ? parts[0] : undefined;
-    if (only?.kind !== 'expr')
-      throw new ExpressionError(
-        'A condition must be one expression',
-        source,
-        0,
-      );
-    expression = only.expr;
-  } else expression = parseExpression(source);
-  const edited = edit(expression);
-  if (edited === undefined) {
-    owner.delete('if');
-    return true;
-  }
-  if (printExpression(edited) === printExpression(expression)) return false;
-  const text = printExpression(edited);
-  owner.set('if', new Scalar(wrapped ? `\${{ ${text} }}` : text));
-  return true;
 }
 
 /** The text of a step's or job's `if:`, as written. */
