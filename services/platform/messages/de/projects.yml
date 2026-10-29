@@ -411,6 +411,7 @@ rowActions:
   renameDialogTitle: Projekt umbenennen
   renameSubmit: Speichern
   renameSubmitting: Wird gespeichert…
+  renameSuccess: Projekt umbenannt
 readOnlyBanner:
   title: Du siehst dieses Projekt nur an
   description: Kontaktiere einen Projekt-Editor, um Änderungen vorzunehmen.

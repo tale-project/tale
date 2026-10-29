@@ -395,6 +395,7 @@ rowActions:
   renameDialogTitle: Rename project
   renameSubmit: Save
   renameSubmitting: Saving…
+  renameSuccess: Project renamed
 readOnlyBanner:
   title: You're viewing this project
   description: Contact a project editor to make changes.

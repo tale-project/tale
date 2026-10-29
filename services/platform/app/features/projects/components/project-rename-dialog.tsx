@@ -86,7 +86,7 @@ export function ProjectRenameDialog({
     }
     try {
       await updateIdentity({ projectId, name: data.name });
-      toast({ title: t('create.successToast'), variant: 'success' });
+      toast({ title: t('rowActions.renameSuccess'), variant: 'success' });
       onOpenChange(false);
     } catch (error) {
       if (error instanceof AppError) {
