@@ -107,9 +107,9 @@ describe('AutomationsAccessGate and the browser tab', () => {
     expect(document.title).toBe(SECTION);
   });
 
-  // A rejected membership refetch keeps the Member data but counts as
+  // A membership read still loading over the lowered Member role counts as
   // loading: the page stays empty, and the tab must keep the section's name.
-  it('keeps the section title through a failed refetch after the role is lowered', () => {
+  it('keeps the section title while a lowered role loads again', () => {
     document.title = NAMED;
     const { rerender, container } = renderGate('developer');
     rerender(gate('member'));

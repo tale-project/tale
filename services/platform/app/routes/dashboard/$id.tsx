@@ -20,9 +20,10 @@ import {
   useLocation,
   useNavigate,
 } from '@tanstack/react-router';
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, type ReactNode } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
+import { AccessRefreshNotice } from '@/app/components/layout/access-refresh-notice';
 import { AppSidebar } from '@/app/components/layout/app-sidebar/app-sidebar';
 import { AppSidebarPlaceholder } from '@/app/components/layout/app-sidebar/app-sidebar-placeholder';
 import { SidebarProvider } from '@/app/components/layout/app-sidebar/sidebar-context';
@@ -124,6 +125,8 @@ function DashboardLayout() {
     data: memberContext,
     isLoading: isQueryLoading,
     isError,
+    isFetching,
+    errorUpdateCount,
     refetch,
   } = useCurrentMemberContext(organizationId, isAuthLoading);
   useEffect(() => {
@@ -223,7 +226,18 @@ function DashboardLayout() {
   const { role, ability } = abilityRef.current;
   const isDisabled = role === 'disabled';
   const hasRole = role !== null && !isDisabled;
-  const isLoading = isAuthLoading || isQueryLoading || isError;
+  const isLoading = isAuthLoading || isQueryLoading;
+  // A failed read with nothing cached is the full-page error below. A failed
+  // refresh keeps the last answer (react-query keeps `data`), so the role
+  // above stands and every page goes on with it, under a notice that offers
+  // the retry. Counting this failure as loading held Knowledge and most
+  // settings pages on skeletons that nothing lifted until a later read
+  // succeeded (#4859).
+  const refreshFailed = isError && memberContext != null;
+  // A retry that works takes the notice, and the focus on its Try again,
+  // away: the page region gets the focus instead of the document body.
+  const mainRef = useRef<HTMLDivElement>(null);
+  const focusMain = useCallback(() => mainRef.current?.focus(), []);
 
   // "Switching" state: the route changed but the session/member-context is
   // still catching up. Without this, the previous org's cached Outlet would
@@ -321,6 +335,14 @@ function DashboardLayout() {
                     <div className="mobile-nav-shell flex h-full w-full flex-col overflow-hidden">
                       <ShellNotch />
                       <SessionLapseNotice />
+                      {refreshFailed && (
+                        <AccessRefreshNotice
+                          retrying={isFetching}
+                          onRetry={() => void refetch()}
+                          failureKey={errorUpdateCount}
+                          onFocusLost={focusMain}
+                        />
+                      )}
                       {hasRole && (
                         <TwoFactorGraceBanner organizationId={organizationId} />
                       )}
@@ -354,6 +376,7 @@ function DashboardLayout() {
                         )}
 
                         <Stack
+                          ref={mainRef}
                           id="main-content"
                           as="main"
                           tabIndex={-1}

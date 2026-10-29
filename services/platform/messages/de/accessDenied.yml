@@ -21,3 +21,6 @@ dataResidency: Du benötigst Admin-Berechtigungen, um auf die
 providers:
   Du benötigst Admin- oder Entwickler-Berechtigungen, um KI-Anbieter zu
   verwalten.
+refreshFailed:
+  title: Deine Zugriffsrechte konnten nicht aktualisiert werden
+  body: Was du siehst, richtet sich nach deiner Rolle, wie sie zuletzt geladen wurde.
