@@ -29,6 +29,7 @@ Legend: ✅ fully automated · 🔶 partially automated · ⛔ manual-only (no s
 | [locale](../suites/locale.md) | `LOC-F2` (render only) | 🔶 partial | `smoke.spec.ts` (`/de`, `/de/platform`, `/de/pricing` render) |
 | [locale](../suites/locale.md) | `LOC-F3` (render only) | 🔶 partial | `smoke.spec.ts` (`/fr/changelog`, `/fr/contact` render) |
 | [locale](../suites/locale.md) | — | ✅ automated | vitest `lib/i18n/messages.test.ts` (locale files stay key-compatible) |
+| [locale](../suites/locale.md) | — | ✅ automated | vitest `app/components/blocks/pricing-tiers.test.tsx` (pricing amounts and user counts follow the page language; the currency follows the region) |
 | [locale](../suites/locale.md) | `LOC-F1`, `LOC-F4`–`LOC-F8`, `LOC-B1`–`LOC-B2` | ⛔ manual-only | — |
 | [navigation](../suites/navigation.md) | `NAV-F1` | 🔶 partial | `smoke.spec.ts` (home renders; Platform / Resources triggers + Pricing link; Platform menu opens and lists **Chat**) |
 | [navigation](../suites/navigation.md) | Desktop Platform/Resources keyboard open, Tab into a link, Escape focus return, and preservation of focus outside the disclosure | ✅ automated | `smoke.spec.ts` (desktop disclosure Escape regressions) |
