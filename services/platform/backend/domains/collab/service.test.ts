@@ -2,7 +2,13 @@ import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NOTIFICATION_HINT_ENTITY } from '../../../lib/shared/hint-entities.ts';
+import {
+  notificationTargetPath,
+  personalNotificationTarget,
+} from '../../../lib/shared/notifications/target.ts';
+import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { coalesceKeyFor } from '../../core/collab/coalesce.ts';
+import { buildPersonalNotificationUrl } from '../../core/notifications/personal_notification_url.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import type { CollabNotificationInput } from './service.ts';
@@ -1004,6 +1010,44 @@ describe('the agent-question bell (agent_escalation)', () => {
     });
 
     expect(audience(fake.calls)?.values).toContain(true);
+  });
+
+  // The row a project's run with no task writes is the one both links read:
+  // the bell and the email open the run, where the question is answered —
+  // not the project's board, which has no answer card (#3632).
+  it('links a question on a project run with no task to the run, in the bell and the email [NOTIF-R3]', async () => {
+    const fake = fakeAskDb([]);
+
+    await notifyAgentQuestionAsked(fake.db, {
+      ...ASK,
+      task: null,
+      projectId: 'proj-1',
+    });
+
+    // The writer's columns: params is the sixth value, task_id the ninth.
+    const insert = fake.calls.find((c) =>
+      c.text.startsWith('INSERT INTO app.user_notifications'),
+    );
+    const params = insert?.values[5];
+    if (!isRecord(params)) throw new Error('The question wrote no params');
+    expect(insert?.values[8]).toBeNull();
+    const run = '/dashboard/org-1/automations/ops__ledger/runs/run-1';
+    expect(
+      notificationTargetPath(
+        personalNotificationTarget({
+          organizationId: 'org-1',
+          taskId: undefined,
+          params,
+        }),
+      ),
+    ).toBe(run);
+    expect(
+      buildPersonalNotificationUrl({
+        organizationId: 'org-1',
+        params,
+        siteUrl: 'https://app.example.com',
+      }),
+    ).toBe(`https://app.example.com${run}`);
   });
 });
 

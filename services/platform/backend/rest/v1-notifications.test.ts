@@ -198,6 +198,43 @@ describe('read-only native notification export', () => {
       expect.objectContaining({ cursor: 42 }),
     );
   });
+
+  // The run is where the question is answered; the project the row also
+  // names has no answer card.
+  it('exports a question on a project run with no task with the run as its path [NOTIF-R3]', async () => {
+    vi.mocked(listMyNotifications).mockResolvedValue({
+      rows: [
+        {
+          ...personal,
+          type: 'agent_escalation',
+          bodyKey: 'agentQuestionAskedNoTaskBody',
+          params: {
+            name: 'billing/dunning-reminder',
+            question: 'Which period?',
+            askId: 'ask_1',
+            runId: 'run_1',
+            projectId: 'project/one',
+          },
+          taskId: null,
+          resourceType: 'dashboard',
+          resourceId: 'project/one',
+        },
+      ],
+      nextCursor: null,
+    });
+    const { get } = fixture();
+    const response = await get();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      page: [
+        {
+          id: 'org:personal:question',
+          body: 'billing/dunning-reminder paused with a question: Which period?',
+          path: '/dashboard/org/automations/billing__dunning-reminder/runs/run_1',
+        },
+      ],
+    });
+  });
   it('uses the recipient role for organization/security visibility and links to the right audit row [NOTIF-R5]', async () => {
     vi.mocked(listNotifications).mockResolvedValue({
       items: [
