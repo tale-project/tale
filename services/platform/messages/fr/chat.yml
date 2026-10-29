@@ -395,6 +395,10 @@ dictation:
   permissionDenied: Accès au microphone refusé. Autorise-le dans les paramètres de ton navigateur.
   serviceUnavailable: La dictée est indisponible pour le moment. Le navigateur ne parvient pas à joindre son service vocal ; vérifie la connexion et réessaie.
   limitReached: Limite d'utilisation atteinte. Réessaie l'enregistrement une fois la limite réinitialisée ou relevée.
+  finishing: Finalisation de la transcription…
+  notSent: Message non envoyé
+  finishFailed: Le reste de ta dictée n'a pas pu être transcrit. Tout ce qui a été transcrit jusqu'ici est toujours dans le champ de message.
+  finishTimedOut: La transcription du reste de ta dictée prend trop de temps. Tout ce qui a été transcrit jusqu'ici est toujours dans le champ de message, et le reste y sera ajouté dès son arrivée.
 citations:
   source: Source {number}
   page: Page {page}

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import React from 'react';
+import React, { createRef } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -41,6 +41,7 @@ const speechState = vi.hoisted(() => ({
   errorNonce: 0,
   startListening: vi.fn(),
   stopListening: vi.fn(),
+  finishListening: vi.fn((): Promise<void> | null => null),
 }));
 
 const toastMock = vi.hoisted(() => vi.fn());
@@ -66,6 +67,7 @@ const recorderState = vi.hoisted(() => ({
   hasFailedRecording: false,
   retryTranscription: vi.fn(),
   discardFailedRecording: vi.fn(),
+  finishListening: vi.fn((): Promise<void> | null => null),
 }));
 
 vi.mock('../hooks/use-media-recorder-dictation', () => ({
@@ -82,7 +84,10 @@ vi.mock('../utils/dictation-sounds', () => ({
   playDictationStopSound: vi.fn(),
 }));
 
-import { DictationButton } from './dictation-button';
+import {
+  DictationButton,
+  type DictationButtonHandle,
+} from './dictation-button';
 
 afterEach(() => {
   speechState.isListening = false;
@@ -101,6 +106,8 @@ afterEach(() => {
   recorderState.stopListening.mockReset();
   recorderState.retryTranscription.mockReset();
   recorderState.discardFailedRecording.mockReset();
+  speechState.finishListening.mockClear();
+  recorderState.finishListening.mockClear();
 });
 
 const ORG_ID = 'org_test';
@@ -442,6 +449,71 @@ describe('DictationButton', () => {
           title: 'Dictation is unavailable right now',
         }),
       );
+    });
+  });
+
+  describe('finishing for a send', () => {
+    it('reports whether a dictation is under way', () => {
+      const onActiveChange = vi.fn();
+      const { rerender } = render(
+        <DictationButton
+          onTranscript={vi.fn()}
+          onActiveChange={onActiveChange}
+        />,
+      );
+      expect(onActiveChange).toHaveBeenLastCalledWith(false);
+
+      speechState.isListening = true;
+      rerender(
+        <DictationButton
+          onTranscript={vi.fn()}
+          onActiveChange={onActiveChange}
+        />,
+      );
+      expect(onActiveChange).toHaveBeenLastCalledWith(true);
+    });
+
+    it('counts the fallback transcribing what it heard as under way', () => {
+      armFallback();
+      recorderState.isTranscribing = true;
+      const onActiveChange = vi.fn();
+      render(
+        <DictationButton
+          onTranscript={vi.fn()}
+          organizationId={ORG_ID}
+          transcriptionAvailable
+          onActiveChange={onActiveChange}
+        />,
+      );
+      expect(onActiveChange).toHaveBeenLastCalledWith(true);
+    });
+
+    it('finishes through Web Speech where the browser recognizes speech', () => {
+      const finished = Promise.resolve();
+      speechState.finishListening.mockReturnValueOnce(finished);
+      const handle = createRef<DictationButtonHandle>();
+      render(<DictationButton ref={handle} onTranscript={vi.fn()} />);
+
+      expect(handle.current?.finish()).toBe(finished);
+      expect(recorderState.finishListening).not.toHaveBeenCalled();
+    });
+
+    it('finishes the recording where the fallback transcribes', () => {
+      armFallback();
+      const finished = Promise.resolve();
+      recorderState.finishListening.mockReturnValueOnce(finished);
+      const handle = createRef<DictationButtonHandle>();
+      render(
+        <DictationButton
+          ref={handle}
+          onTranscript={vi.fn()}
+          organizationId={ORG_ID}
+          transcriptionAvailable
+        />,
+      );
+
+      expect(handle.current?.finish()).toBe(finished);
+      expect(speechState.finishListening).not.toHaveBeenCalled();
     });
   });
 

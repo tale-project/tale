@@ -53,6 +53,7 @@ import {
   type ClipboardEvent,
   type KeyboardEvent,
 } from 'react';
+import { flushSync } from 'react-dom';
 import { useTranslation } from 'react-i18next';
 
 import type { FileIndexingInfo } from '@/app/features/chat/hooks/use-file-indexing-status';
@@ -98,6 +99,33 @@ const BASE_LOCALE_DEFAULTS: Record<string, string> = {
 function toBcp47(locale: string): string | undefined {
   if (locale.includes('-')) return locale;
   return BASE_LOCALE_DEFAULTS[locale];
+}
+
+/** How long a send waits for dictation's last words before it gives up.
+ * The browser's recognizer finalizes within a second or two; the server
+ * fallback's transcription call may take up to a minute, but a wait that
+ * long is no longer a brief pause before a send. */
+export const DICTATION_FINISH_TIMEOUT_MS = 30_000;
+
+/** Wait for a dictation to finish, at most `timeoutMs`; never rejects. */
+function finishWithin(
+  finished: Promise<void>,
+  timeoutMs: number,
+): Promise<'finished' | 'failed' | 'timedOut'> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve('timedOut'), timeoutMs);
+    finished.then(
+      () => {
+        clearTimeout(timer);
+        resolve('finished');
+      },
+      (error: unknown) => {
+        clearTimeout(timer);
+        console.warn('[dictation] the last words were not transcribed', error);
+        resolve('failed');
+      },
+    );
+  });
 }
 
 export interface ComposerHandle {
@@ -247,6 +275,12 @@ export const Composer = memo(
     const { i18n } = useTranslation();
     const [text, setText] = usePersistedState(draftKey, '');
     const dictationRef = useRef<DictationButtonHandle>(null);
+    // A dictation is under way: its words will join the message.
+    const [dictating, setDictating] = useState(false);
+    // The draft whose send waits for dictation's last words. Another
+    // conversation opened meanwhile has a field of its own to use.
+    const [finishingDraft, setFinishingDraft] = useState<string | null>(null);
+    const finishing = finishingDraft === draftKey;
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     // Names pasted images `pasted-image-N.<ext>` — monotonic for the
@@ -346,28 +380,21 @@ export const Composer = memo(
     // the send — the turn must never race its own attachment bytes. Text
     // counts only when a reader would see it — the REST door's blank rule,
     // so a pasted run of zero-width characters is not a message.
-    const hasContent =
+    const hasMessage =
       hasVisibleText(text) ||
       attachments.length > 0 ||
       videoLinkJobs.length > 0;
-    const canSend =
-      hasContent &&
+    // A dictation under way counts too: the send waits for its words.
+    const hasContent = hasMessage || dictating;
+    const sendReady =
       uploadingAttachments.length === 0 &&
       !disabled &&
       !sendDisabled &&
       !blocked;
+    const canSend = hasContent && sendReady && !finishing;
 
-    const submit = () => {
-      // The user clearly meant to send but a stated reason blocks it: say it.
-      // The disabled button shows the reason on hover, but a keyboard Enter
-      // would otherwise be a silent no-op that reads as "Enter doesn't work".
-      if (hasContent && blocked && !generating) {
-        toast({ title: sendBlockedReason, variant: 'destructive' });
-        return;
-      }
-      if (!canSend) return;
-      // The mic stops on send — it must not keep listening into the next turn.
-      dictationRef.current?.stop();
+    /** Send the field as it stands and clear it. */
+    const sendDraft = () => {
       // Prepend any staged quote as a markdown blockquote so the model sees
       // the referenced passage above the user's message, then clear it.
       const trimmed = text.trim();
@@ -379,8 +406,78 @@ export const Composer = memo(
       onSend(message);
       setText('');
     };
+    // The newest render's view of the draft, for a send that resumes after
+    // waiting on dictation: by then its own render's `text` lacks the words
+    // that arrived meanwhile.
+    const latest = {
+      draftKey,
+      hasMessage,
+      sendReady,
+      blocked,
+      sendBlockedReason,
+      sendDraft,
+    };
+    const latestRef = useRef(latest);
+    latestRef.current = latest;
+
+    const sendOnceTranscribed = async (finished: Promise<void>) => {
+      const sentFrom = draftKey;
+      setFinishingDraft(sentFrom);
+      const outcome = await finishWithin(finished, DICTATION_FINISH_TIMEOUT_MS);
+      // The composer is gone (its field ref was released on unmount).
+      if (textareaRef.current === null) return;
+      setFinishingDraft((current) => (current === sentFrom ? null : current));
+      const now = latestRef.current;
+      // Another conversation is open now; its send would land there.
+      if (now.draftKey !== sentFrom) return;
+      if (outcome !== 'finished') {
+        // The field keeps every word that did arrive; nothing goes out
+        // without the rest.
+        toast({
+          title: t('dictation.notSent'),
+          description: t(
+            outcome === 'timedOut'
+              ? 'dictation.finishTimedOut'
+              : 'dictation.finishFailed',
+          ),
+          variant: 'destructive',
+        });
+        return;
+      }
+      if (!now.hasMessage) return;
+      // A block that arose while it waited (a reached limit) is said, and
+      // the field keeps the message for later.
+      if (now.blocked) {
+        toast({ title: now.sendBlockedReason, variant: 'destructive' });
+        return;
+      }
+      if (!now.sendReady) return;
+      now.sendDraft();
+    };
+
+    const submit = () => {
+      // The user clearly meant to send but a stated reason blocks it: say it.
+      // The disabled button shows the reason on hover, but a keyboard Enter
+      // would otherwise be a silent no-op that reads as "Enter doesn't work".
+      if (hasContent && blocked && !generating) {
+        toast({ title: sendBlockedReason, variant: 'destructive' });
+        return;
+      }
+      if (!canSend) return;
+      // The mic stops on send — it must not keep listening into the next
+      // turn — and whatever it still owes (the recognizer's pending results,
+      // the server fallback's transcription) belongs to this message.
+      const finished = dictationRef.current?.finish() ?? null;
+      if (finished !== null) {
+        void sendOnceTranscribed(finished);
+        return;
+      }
+      if (hasMessage) sendDraft();
+    };
 
     const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      // The field is read-only while its send waits for dictation.
+      if (finishing) return;
       // While the skills typeahead is open it takes the keys a listbox
       // needs: Up/Down move, Enter or Tab pick, Escape closes. With nothing
       // matching, Enter sends the message as written.
@@ -426,8 +523,9 @@ export const Composer = memo(
 
     const onPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
       // Mid-composition a rewrite would corrupt the IME commit — let the
-      // native paste land untouched.
-      if (isComposing()) return;
+      // native paste land untouched. A field waiting on dictation to send
+      // is read-only, and takes no paste either.
+      if (isComposing() || finishing) return;
       // Images first: a clipboard carrying image bytes (a screenshot, a
       // copied image) attaches them instead of pasting the text/alt fallback
       // many clipboards ship alongside — that fallback would double the
@@ -467,10 +565,14 @@ export const Composer = memo(
     };
 
     const handleTranscript = (transcript: string) => {
-      setText((previous) => {
-        const separator =
-          previous.length > 0 && !previous.endsWith(' ') ? ' ' : '';
-        return previous + separator + transcript;
+      // Committed at once, not on React's next pass: a send waiting for the
+      // dictation reads the field the moment the dictation says it is done.
+      flushSync(() => {
+        setText((previous) => {
+          const separator =
+            previous.length > 0 && !previous.endsWith(' ') ? ' ' : '';
+          return previous + separator + transcript;
+        });
       });
     };
 
@@ -496,7 +598,12 @@ export const Composer = memo(
           : undefined;
 
     const sendButton = (
-      <SendButton label={t('send')} onClick={submit} disabled={!canSend} />
+      <SendButton
+        label={finishing ? t('dictation.finishing') : t('send')}
+        onClick={submit}
+        disabled={!canSend}
+        sending={finishing}
+      />
     );
 
     return (
@@ -621,6 +728,9 @@ export const Composer = memo(
                 // Enter-to-send hint; the attribute stays empty.
                 placeholder=""
                 disabled={disabled}
+                // What the field shows when Send is pressed, plus the words
+                // dictation still owes, is what goes out.
+                readOnly={finishing}
                 // Chromeless inside the composer's own frame: the field must not
                 // draw its own border or focus ring — ring-0 alone still paints the
                 // ring OFFSET shadow as a faint outline, so the offset goes to 0
@@ -687,12 +797,16 @@ export const Composer = memo(
                   onHighlight={setSkillHighlight}
                 />
               )}
-              {/* How many skills the typed name finds, for a screen reader:
-              the list itself is reached through the field. */}
+              {/* The field's news for a screen reader: how many skills the
+              typed name finds (the list itself is reached through the field),
+              or the wait while a send finishes its dictation — focus stays
+              here while the send button turns busy. */}
               <span role="status" aria-live="polite" className="sr-only">
-                {skillPickerOpen
-                  ? t('skillPicker.count', { count: skillMatches.length })
-                  : ''}
+                {finishing
+                  ? t('dictation.finishing')
+                  : skillPickerOpen
+                    ? t('skillPicker.count', { count: skillMatches.length })
+                    : ''}
               </span>
             </div>
 
@@ -743,6 +857,7 @@ export const Composer = memo(
                   lang={speechLang}
                   disabled={disabled}
                   onTranscript={handleTranscript}
+                  onActiveChange={setDictating}
                   onTranscriptionUnavailable={onTranscriptionUnavailable}
                   {...(organizationId !== undefined ? { organizationId } : {})}
                   {...(transcriptionAvailable !== undefined

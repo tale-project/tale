@@ -394,6 +394,10 @@ dictation:
   permissionDenied: Microphone access denied. Allow it in your browser settings.
   serviceUnavailable: Dictation is unavailable right now. The browser could not reach its speech service; check the connection and try again.
   limitReached: Usage limit reached. Try the recording again once the limit resets or is raised.
+  finishing: Finishing transcription…
+  notSent: Message not sent
+  finishFailed: The rest of your dictation could not be transcribed. Everything transcribed so far is still in the message field.
+  finishTimedOut: Transcribing the rest of your dictation is taking too long. Everything transcribed so far is still in the message field, and the rest is added when it arrives.
 citations:
   source: Source {number}
   page: Page {page}

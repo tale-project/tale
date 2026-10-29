@@ -23,6 +23,7 @@ const { presign, save, setup, speechState } = vi.hoisted(() => ({
     error: null,
     startListening: vi.fn(),
     stopListening: vi.fn(),
+    finishListening: () => null,
   },
 }));
 vi.mock('@/app/hooks/use-backend-action', () => ({

@@ -27,6 +27,7 @@ vi.mock('../hooks/use-speech-to-text', () => ({
     errorNonce: 0,
     startListening: vi.fn(),
     stopListening,
+    finishListening: () => null,
   }),
 }));
 vi.mock('../hooks/use-media-recorder-dictation', () => ({
@@ -40,6 +41,7 @@ vi.mock('../hooks/use-media-recorder-dictation', () => ({
     hasFailedRecording: false,
     retryTranscription: vi.fn(),
     discardFailedRecording: vi.fn(),
+    finishListening: () => null,
   }),
 }));
 vi.mock('../hooks/use-microphone-level', () => ({

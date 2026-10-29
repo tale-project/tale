@@ -396,6 +396,10 @@ dictation:
   permissionDenied: Mikrofonzugriff verweigert. Erlaube ihn in den Browsereinstellungen.
   serviceUnavailable: Diktat ist gerade nicht verfügbar. Der Browser erreicht seinen Sprachdienst nicht; prüfe die Verbindung und versuche es erneut.
   limitReached: Nutzungslimit erreicht. Versuche die Aufnahme erneut, sobald das Limit zurückgesetzt oder erhöht wurde.
+  finishing: Transkription wird abgeschlossen…
+  notSent: Nachricht nicht gesendet
+  finishFailed: Der Rest deines Diktats konnte nicht transkribiert werden. Alles bisher Transkribierte steht weiterhin im Nachrichtenfeld.
+  finishTimedOut: Die Transkription vom Rest deines Diktats dauert zu lange. Alles bisher Transkribierte steht weiterhin im Nachrichtenfeld, und der Rest wird ergänzt, sobald er da ist.
 citations:
   source: Quelle {number}
   page: Seite {page}
