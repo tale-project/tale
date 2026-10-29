@@ -1192,6 +1192,8 @@ logs:
   integrity:
     title: Ketten-Integrität
     neverChecked: Es wurde noch keine automatische Integritätsprüfung ausgeführt.
+    loadFailed: Der Integritätsstatus konnte nicht geladen werden. Ob eine Integritätswarnung aktiv ist, lässt sich hier deshalb nicht erkennen.
+    refreshFailed: Der neueste Integritätsstatus konnte nicht geladen werden. Die Anzeige ist womöglich veraltet.
     lastCheck: 'Letzte automatische Prüfung: {date}'
     alertedAt: Warnung ausgelöst am {date}
     statusUnchecked: Noch nicht geprüft

@@ -4,6 +4,7 @@ import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { BorderedSection } from '@tale/ui/bordered-section';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { InlineCode } from '@tale/ui/inline-code';
 import { Row, Stack } from '@tale/ui/layout';
 import { SkeletonText } from '@tale/ui/skeleton';
@@ -16,8 +17,9 @@ import {
   ShieldCheck,
   ShieldQuestion,
 } from 'lucide-react';
-import { useCallback, type ReactNode } from 'react';
+import { useCallback, useRef, type ReactNode } from 'react';
 
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -54,6 +56,17 @@ export function AuditIntegrityPanel({
   const status = useIntegrityStatus(organizationId);
   const verify = useVerifyIntegrity();
 
+  // A status that failed to load is named, with Try again — never passed off
+  // as "no check has run", which would hide an alert the status carries
+  // (#4834). The flags hold through a retry, which react-query starts from
+  // `pending` for a status that never answered.
+  const read = readStateOf(status);
+  const { refetch: refetchStatus } = status;
+  const retryStatus = useCallback(() => void refetchStatus(), [refetchStatus]);
+  // Where the focus goes when a Try again that worked takes its notice away.
+  const panelRef = useRef<HTMLDivElement>(null);
+  const focusPanel = useCallback(() => panelRef.current?.focus(), []);
+
   const handleVerify = useCallback(() => {
     verify.mutate(
       { organizationId },
@@ -75,31 +88,42 @@ export function AuditIntegrityPanel({
   const brokenAt = result && !result.valid ? result.firstBrokenAt : undefined;
 
   return (
-    <BorderedSection aria-label={t('logs.integrity.title')}>
+    <BorderedSection
+      ref={panelRef}
+      role="region"
+      aria-label={t('logs.integrity.title')}
+      tabIndex={-1}
+      className="outline-none"
+    >
       <Row className="items-start justify-between gap-3">
         <Stack gap={1} className="min-w-0">
           <Row gap={2} className="flex-wrap items-center">
             <Text as="span" className="text-foreground text-sm font-medium">
               {t('logs.integrity.title')}
             </Text>
-            <StatusBadge status={s} loading={status.isLoading} t={t} />
+            <StatusBadge status={s} t={t} />
           </Row>
           <Stack gap={1}>
-            <Text as="span" variant="muted" className="text-xs">
-              {/* Like the badge: while the first read is in flight the line
-                  masks rather than claim no check has ever run. */}
-              {status.isLoading ? (
-                <span className="block w-56 max-w-full">
-                  <SkeletonText />
-                </span>
-              ) : s == null ? (
-                t('logs.integrity.neverChecked')
-              ) : (
-                t('logs.integrity.lastCheck', {
-                  date: formatDate(new Date(s.updatedAt), 'long'),
-                })
-              )}
-            </Text>
+            {/* Like the badge: until the status answers the line masks
+                rather than claim no check has ever run, and a status that
+                failed to load is named below instead. */}
+            {s === undefined ? (
+              read.unavailable ? null : (
+                <Text as="span" variant="muted" className="text-xs">
+                  <span className="block w-56 max-w-full">
+                    <SkeletonText />
+                  </span>
+                </Text>
+              )
+            ) : (
+              <Text as="span" variant="muted" className="text-xs">
+                {s === null
+                  ? t('logs.integrity.neverChecked')
+                  : t('logs.integrity.lastCheck', {
+                      date: formatDate(new Date(s.updatedAt), 'long'),
+                    })}
+              </Text>
+            )}
             {s?.alertActive && s.lastAlertedAt !== undefined && (
               <Text as="span" variant="muted" className="text-xs">
                 {t('logs.integrity.alertedAt', {
@@ -118,6 +142,22 @@ export function AuditIntegrityPanel({
           {t('logs.integrity.verifyNow')}
         </Button>
       </Row>
+
+      {(read.unavailable || read.stale) && (
+        <CatalogLoadError
+          // Each failure is announced again; Try again keeps its node, and the
+          // focus on it, through a retry that fails again.
+          failureKey={read.failureCount}
+          message={
+            read.unavailable
+              ? t('logs.integrity.loadFailed')
+              : t('logs.integrity.refreshFailed')
+          }
+          onRetry={retryStatus}
+          isRetrying={read.retrying}
+          onFocusLost={focusPanel}
+        />
+      )}
 
       {result?.valid && (
         <Alert
@@ -201,22 +241,15 @@ export function AuditIntegrityPanel({
 
 function StatusBadge({
   status,
-  loading,
   t,
 }: {
   status: IntegrityStatus | undefined;
-  loading: boolean;
   t: (key: string) => string;
 }) {
-  // While the first read is in flight, render nothing rather than flashing a
-  // misleading "not yet checked".
-  if (status === undefined) {
-    return loading ? null : (
-      <Badge variant="slate" icon={ShieldQuestion} dot>
-        {t('logs.integrity.statusUnchecked')}
-      </Badge>
-    );
-  }
+  // No answer yet — the read is in flight, or it failed — claims nothing: a
+  // "not yet checked" badge over a status that never arrived would hide an
+  // alert it may carry. Only the server's `null` means no check has run.
+  if (status === undefined) return null;
   if (status === null) {
     return (
       <Badge variant="slate" icon={ShieldQuestion} dot>

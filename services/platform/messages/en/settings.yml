@@ -1138,6 +1138,8 @@ logs:
   integrity:
     title: Chain integrity
     neverChecked: No automated integrity check has run yet.
+    loadFailed: "Couldn't load the integrity status, so this panel can't tell whether an integrity alert is active."
+    refreshFailed: "Couldn't load the latest integrity status. What's shown may be out of date."
     lastCheck: 'Last automated check: {date}'
     alertedAt: Alert raised {date}
     statusUnchecked: Not yet checked
