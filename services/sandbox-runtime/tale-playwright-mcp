@@ -397,7 +397,11 @@ class LazyServer:
                     deadline.cancel()
                     result = msg.get('result')
                     spoken = result.get('protocolVersion') if isinstance(result, dict) else None
-                    if spoken != self.told:
+                    if 'error' in msg:
+                        # The client was told the start succeeded: the turn
+                        # goes on, and each request gets the server's answer.
+                        log(f'the server refused its start: {json.dumps(msg["error"])}')
+                    elif spoken != self.told:
                         log(f'the server speaks {spoken}, the client was told {self.told}')
                     break
                 self.write(line)

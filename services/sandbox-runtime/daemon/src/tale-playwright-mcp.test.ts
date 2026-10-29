@@ -101,10 +101,11 @@ describe('headless Playwright MCP launcher', () => {
 
 // A stand-in MCP server: it speaks two protocol versions (others when
 // STAND_IN_VERSIONS names them), answers `initialize` after
-// STAND_IN_INIT_DELAY seconds, lists one tool, asks the client for its roots
-// on a tool call when the client offered them, answers any other request as
-// the real server's SDK does, and writes every message it receives to its
-// log, behind a `started` line.
+// STAND_IN_INIT_DELAY seconds (refuses it under STAND_IN_INIT_REFUSED),
+// lists one tool, asks the client for its roots on a tool call when the
+// client offered them, answers any other request as the real server's SDK
+// does, and writes every message it receives to its log, behind a `started`
+// line.
 const STAND_IN = String.raw`#!/usr/bin/env python3
 import json, os, sys, time
 log = open(os.environ['STAND_IN_LOG'], 'a')
@@ -125,6 +126,9 @@ for line in sys.stdin:
     method, id_ = msg.get('method'), msg.get('id')
     if method == 'initialize':
         time.sleep(float(os.environ.get('STAND_IN_INIT_DELAY', '0')))
+        if os.environ.get('STAND_IN_INIT_REFUSED'):
+            send({'jsonrpc': '2.0', 'id': id_, 'error': {'code': -32602, 'message': 'Invalid params'}})
+            continue
         asked = msg['params']['protocolVersion']
         roots = 'roots' in msg['params'].get('capabilities', {})
         send({'jsonrpc': '2.0', 'id': id_, 'result': {
@@ -556,6 +560,21 @@ describe('the start of a turn without the server', () => {
     expect(await mcp.close()).toBe(0);
     expect(await mcp.stderr()).toBe(
       '[tale-playwright-mcp] the server speaks 2025-11-25, the client was told 2025-06-18\n',
+    );
+  });
+
+  test('a started server refusing the replayed start is logged, and the turn goes on', async () => {
+    const mcp = client({ STAND_IN_INIT_REFUSED: '1' });
+    mcp.send(initialize('2025-06-18'));
+    await mcp.answer(1);
+    mcp.send(toolCall(2));
+    // The client was told the start succeeded: the server answers the call.
+    expect(await mcp.answer(2)).toMatchObject({
+      result: { content: [{ text: 'navigated' }] },
+    });
+    expect(await mcp.close()).toBe(0);
+    expect(await mcp.stderr()).toBe(
+      '[tale-playwright-mcp] the server refused its start: {"code": -32602, "message": "Invalid params"}\n',
     );
   });
 
