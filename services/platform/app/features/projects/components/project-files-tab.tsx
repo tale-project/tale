@@ -419,19 +419,31 @@ export function ProjectFilesTab({
     });
   }, [folders, initialFolderId]);
 
-  // One-shot deep-link: open the create-folder dialog at project root, then
-  // strip `createFolder` from the URL so refresh does not re-open it.
+  // One-shot deep-link: once the project has loaded, open the create-folder
+  // dialog at project root for someone who can edit it (`canEdit` is false
+  // on an archived project too), then strip `createFolder` from the URL so
+  // refresh does not re-open it. Anyone else gets no dialog, as the tab
+  // shows them no create-folder control.
+  const canEditProject = project?.canEdit;
   useEffect(() => {
     if (!openCreateFolder || hydratedCreateFolderRef.current) return;
+    if (canEditProject === undefined) return;
     hydratedCreateFolderRef.current = true;
-    setCreateFolderParent({});
+    if (canEditProject) setCreateFolderParent({});
     void navigate({
       to: '/dashboard/$id/projects/$projectId/files',
       params: { id: organizationId, projectId: projectId },
       search: initialFolderId ? { folderId: initialFolderId } : {},
       replace: true,
     });
-  }, [openCreateFolder, navigate, organizationId, projectId, initialFolderId]);
+  }, [
+    openCreateFolder,
+    canEditProject,
+    navigate,
+    organizationId,
+    projectId,
+    initialFolderId,
+  ]);
 
   // One-shot deep-link: open History for a document resolved by externalItemId
   // (Case Setup transform.py), then strip the search param.

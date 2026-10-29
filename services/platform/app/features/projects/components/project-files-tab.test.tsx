@@ -568,6 +568,45 @@ describe('ProjectFilesTab', () => {
     );
   });
 
+  // The tab shows a reader no create-folder control, and an archived
+  // project reads `canEdit: false` for everyone (#4837): the link opened a
+  // dialog whose every submit was refused.
+  it('opens no create-folder dialog from the deep link for a reader, and drops the link', async () => {
+    projectFixture = { canEdit: false };
+    renderTab(undefined, true);
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: '/dashboard/$id/projects/$projectId/files',
+          search: {},
+          replace: true,
+        }),
+      );
+    });
+    expect(screen.queryByRole('dialog', { name: 'Create folder' })).toBeNull();
+  });
+
+  it('keeps the create-folder deep link until the project has loaded', async () => {
+    projectFixture = null;
+    const { rerender } = renderTab(undefined, true);
+    expect(mockNavigate).not.toHaveBeenCalled();
+
+    projectFixture = { canEdit: true };
+    rerender(
+      <ProjectFilesTab
+        organizationId="org-1"
+        projectId={PROJECT_ID}
+        openCreateFolder
+      />,
+    );
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Create folder' }),
+    ).toBeInTheDocument();
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
+  });
+
   it('creates the folder scoped to the project', async () => {
     const { user } = renderTab();
 
