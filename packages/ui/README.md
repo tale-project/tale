@@ -103,9 +103,10 @@ name it literally where it is read. `LocaleSync` loads a language before switchi
 in the person’s language from the first frame, load and switch to `detectPreferredLocale()` before
 rendering, as the platform does (`services/platform/lib/i18n/i18n.ts`). A screen that reads
 languages other than the session’s (`i18n.getFixedT(locale)`) waits for them with
-`useLocalesLoaded` from `@tale/ui/i18n/load-locale`. `theme` enables the shared
-provider with its system preference default. Routing, authentication, and query providers
-remain the host’s responsibility.
+`useLocalesLoaded(locales, namespaces)` from `@tale/ui/i18n/load-locale`, which fetches those
+namespaces alone and leaves what the session’s pages fetch and wait for as it was. `theme`
+enables the shared provider with its system preference default. Routing, authentication, and
+query providers remain the host’s responsibility.
 
 ## Install from another repository
 

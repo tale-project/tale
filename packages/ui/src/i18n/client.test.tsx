@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react';
 import { createInstance, type i18n as I18nInstance } from 'i18next';
-import type { ReactNode } from 'react';
+import { type ReactNode, useMemo } from 'react';
 import { I18nextProvider } from 'react-i18next';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -55,7 +55,7 @@ describe('useT', () => {
     expect(screen.getByText('Unterhaltung')).toBeInTheDocument();
   });
 
-  it('hands every reader of a namespace the same `t`, across renders', async () => {
+  it('hands every reader of a namespace the same `t` across renders, and a new one when its words change', async () => {
     const i18n = await instance();
     const seen: unknown[] = [];
     function Reader() {
@@ -86,11 +86,85 @@ describe('useT', () => {
     expect(seen.length).toBeGreaterThanOrEqual(6);
     expect(new Set(seen).size).toBe(1);
 
+    // Messages of the namespace landing are a new `t` — one, shared again.
+    act(() => {
+      i18n.addResourceBundle('en', 'home', { subtitle: 'Welcome' }, true, true);
+    });
+    expect(new Set(seen).size).toBe(2);
+    expect(new Set(seen.slice(-2)).size).toBe(1);
+
+    // So is a new language.
     await act(async () => {
       await i18n.changeLanguage('de');
     });
-    // A new language is a new `t` — one, shared again.
-    expect(new Set(seen).size).toBe(2);
+    expect(new Set(seen).size).toBe(3);
+    expect(new Set(seen.slice(-2)).size).toBe(1);
+  });
+
+  // A topic that lands after its chunk stopped waiting (`ready`) or was
+  // fetched again after a failure: a label worked out once from `t` read the
+  // fallback, and must read the words that landed.
+  it('works a memoised label out again when its namespace lands after it rendered', async () => {
+    const i18n = createInstance();
+    await i18n.init({
+      lng: 'de',
+      fallbackLng: 'en',
+      resources: { en: { tasks: { heading: 'Tasks' } } },
+    });
+    function Heading() {
+      const { t } = useT('tasks');
+      const heading = useMemo(() => t('heading'), [t]);
+      return <h1>{heading}</h1>;
+    }
+    render(
+      <Provider i18n={i18n}>
+        <Heading />
+      </Provider>,
+    );
+    expect(screen.getByRole('heading')).toHaveTextContent('Tasks');
+
+    act(() => {
+      i18n.addResourceBundle(
+        'de',
+        'tasks',
+        { heading: 'Aufgaben' },
+        true,
+        true,
+      );
+    });
+
+    expect(screen.getByRole('heading')).toHaveTextContent('Aufgaben');
+  });
+
+  // A language loaded before the session switches to it, or read beside the
+  // session's (`useLocalesLoaded`), changes no word a reader shows.
+  it('re-renders no reader when messages land in a language the session does not read', async () => {
+    const i18n = await instance();
+    await i18n.changeLanguage('de');
+    const seen: unknown[] = [];
+    function Reader() {
+      const { t } = useT('home');
+      seen.push(t);
+      return <span>{t('title')}</span>;
+    }
+    render(
+      <Provider i18n={i18n}>
+        <Reader />
+      </Provider>,
+    );
+    const rendered = seen.length;
+
+    act(() => {
+      i18n.addResourceBundle('fr', 'home', { title: 'Accueil' }, true, true);
+    });
+    expect(seen).toHaveLength(rendered);
+
+    // The language it falls back to is one it reads.
+    act(() => {
+      i18n.addResourceBundle('en', 'home', { subtitle: 'Welcome' }, true, true);
+    });
+    expect(seen.length).toBeGreaterThan(rendered);
+    expect(screen.getByText('Startseite')).toBeInTheDocument();
   });
 
   // react-i18next's `useTranslation` re-subscribed to the instance on every

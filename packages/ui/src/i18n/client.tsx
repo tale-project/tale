@@ -10,12 +10,16 @@ interface InstanceReaders {
   /** One function per namespace, so React subscribes each reader once. */
   readonly subscribeTo: (namespace: string) => Subscribe;
   /**
-   * The language and how often the namespace's messages landed: a reader
-   * re-renders when the language changes or its own namespace lands.
+   * The language and how often the namespace's messages landed in a language
+   * it reads: a reader re-renders when the language changes or its own
+   * namespace lands.
    */
   readonly snapshot: (namespace: string) => string;
-  /** The bound `t` per language and namespace. */
-  readonly fixed: Map<string, TFunction>;
+  /** The bound `t` per namespace, and the snapshot it was bound at. */
+  readonly fixed: Map<
+    string,
+    { readonly snapshot: string; readonly t: TFunction }
+  >;
 }
 
 const readersByInstance = new WeakMap<I18nInstance, InstanceReaders>();
@@ -35,8 +39,12 @@ function readersFor(i18n: I18nInstance): InstanceReaders {
     for (const set of listeners.values()) notify(set);
   });
   // A namespace whose messages land after its readers rendered (a topic
-  // fetched on first use) re-renders those readers alone.
-  i18n.store?.on('added', (_language: string, namespace: string) => {
+  // fetched on first use) re-renders those readers alone. Messages of a
+  // language the session does not read — one loaded before switching to it,
+  // or read beside it — change no word they show.
+  i18n.store?.on('added', (language: string, namespace: string) => {
+    const read: readonly string[] | undefined = i18n.languages;
+    if (read !== undefined && !read.includes(language)) return;
     landings.set(namespace, (landings.get(namespace) ?? 0) + 1);
     snapshots.delete(namespace);
     notify(listeners.get(namespace));
@@ -95,9 +103,11 @@ const keyAsText = ((key: unknown) =>
  * per-render work: `useTranslation` re-spreads its options and re-subscribes
  * to the instance on every render, and copies the instance into a wrapper for
  * every mount, which a screen of thousands of labels paid thousands of times.
- * Here a reader subscribes once and `t` is one function per language and
- * namespace. When the service loads its messages per topic (`attachTopics`),
- * a namespace not yet in for the language is fetched, and its readers
+ * Here a reader subscribes once, and every reader of a namespace shares one
+ * `t` until the language changes or messages of the namespace land: then a
+ * new one, so a label worked out from it (`useMemo(…, [t])`) is worked out
+ * again. When the service loads its messages per topic (`attachTopics`), a
+ * namespace not yet in for the language is fetched, and its readers
  * re-render once it lands.
  */
 export function useT(namespace: string): { t: TFunction } {
@@ -107,21 +117,20 @@ export function useT(namespace: string): { t: TFunction } {
   const registered: I18nInstance | undefined = getI18n();
   const i18n = provided?.i18n ?? registered;
   const readers = i18n === undefined ? undefined : readersFor(i18n);
-  const snapshot =
+  const getSnapshot =
     readers === undefined ? noSnapshot : () => readers.snapshot(namespace);
-  useSyncExternalStore(
+  const snapshot = useSyncExternalStore(
     readers?.subscribeTo(namespace) ?? noSubscription,
-    snapshot,
-    snapshot,
+    getSnapshot,
+    getSnapshot,
   );
   if (i18n === undefined || readers === undefined) return { t: keyAsText };
   const language: string | undefined = i18n.language;
   ensureTopic(i18n, language ?? '', namespace);
-  const key = `${language ?? ''}\u0000${namespace}`;
-  let t = readers.fixed.get(key);
-  if (t === undefined) {
-    t = i18n.getFixedT(language ?? null, namespace);
-    readers.fixed.set(key, t);
+  let fixed = readers.fixed.get(namespace);
+  if (fixed?.snapshot !== snapshot) {
+    fixed = { snapshot, t: i18n.getFixedT(language ?? null, namespace) };
+    readers.fixed.set(namespace, fixed);
   }
-  return { t };
+  return { t: fixed.t };
 }

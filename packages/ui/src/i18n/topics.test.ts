@@ -1,4 +1,7 @@
+import { render, renderHook } from '@testing-library/react';
 import { createInstance, type i18n as I18nInstance } from 'i18next';
+import { createElement, type ReactNode } from 'react';
+import { I18nextProvider } from 'react-i18next';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type Messages = Record<string, unknown>;
@@ -116,6 +119,81 @@ describe('loadLocale on a per-topic instance', () => {
     expect(chatDe).not.toHaveBeenCalled();
   });
 
+  it('follows the language the session starts in', async () => {
+    const i18n = createInstance();
+    await i18n.init({ lng: 'de', fallbackLng: 'en', resources: {} });
+    const chatDe = vi.fn(async () => ({ send: 'Senden' }));
+    topics.attachTopics(i18n, { lazy: { de: { chat: chatDe } } });
+
+    topics.registerTopic('chat', { send: 'Send' });
+
+    expect(chatDe).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops following a language whose switch was given up for the one the session shows', async () => {
+    const i18n = await instance();
+    const homeFr = deferred({ title: 'Accueil' });
+    const chatDe = vi.fn(async () => ({ send: 'Senden' }));
+    const chatFr = vi.fn(async () => ({ send: 'Envoyer' }));
+    topics.attachTopics(i18n, {
+      lazy: {
+        de: { home: async () => ({ title: 'Startseite' }), chat: chatDe },
+        fr: { home: homeFr.load, chat: chatFr },
+      },
+    });
+    topics.registerTopic('home', { title: 'Home' });
+    await locales.loadLocale(i18n, 'de');
+    await i18n.changeLanguage('de');
+
+    // Language → Français, then back to Deutsch before French has loaded.
+    const { LocaleSync } = await import('./sync');
+    const view = render(
+      createElement(
+        I18nextProvider,
+        { i18n },
+        createElement(LocaleSync, { locale: 'fr' }),
+      ),
+    );
+    expect(homeFr.load).toHaveBeenCalledTimes(1);
+    view.rerender(
+      createElement(
+        I18nextProvider,
+        { i18n },
+        createElement(LocaleSync, { locale: 'de' }),
+      ),
+    );
+
+    topics.registerTopic('chat', { send: 'Send' });
+    expect(chatDe).toHaveBeenCalledTimes(1);
+    expect(chatFr).not.toHaveBeenCalled();
+    await expect(
+      globalThis.__taleMessageTopics?.ready(['chat']),
+    ).resolves.toBeUndefined();
+
+    homeFr.deliver();
+    await vi.waitFor(() =>
+      expect(i18n.getFixedT('fr', 'home')('title')).toBe('Accueil'),
+    );
+    expect(i18n.language).toBe('de');
+  });
+
+  it('stops following a language whose topics did not load', async () => {
+    const i18n = await instance();
+    const homeFr = vi
+      .fn<() => Promise<Messages>>()
+      .mockRejectedValueOnce(new Error('offline'));
+    const chatFr = vi.fn(async () => ({ send: 'Envoyer' }));
+    topics.attachTopics(i18n, {
+      lazy: { fr: { home: homeFr, chat: chatFr } },
+    });
+    topics.registerTopic('home', { title: 'Home' });
+
+    await expect(locales.loadLocale(i18n, 'fr')).rejects.toThrow('offline');
+    topics.registerTopic('chat', { send: 'Send' });
+
+    expect(chatFr).not.toHaveBeenCalled();
+  });
+
   it('answers at once for English, which comes with the code', async () => {
     const i18n = await instance();
     topics.attachTopics(i18n, { lazy: { de: {} } });
@@ -155,6 +233,50 @@ describe('loadLocale on a per-topic instance', () => {
 
     expect(homeFr).toHaveBeenCalledTimes(2);
     expect(i18n.getFixedT('fr', 'home')('title')).toBe('Accueil');
+  });
+});
+
+describe('useLocalesLoaded on a per-topic instance', () => {
+  // The data-notice editor reads its default in every language beside an
+  // English session.
+  it('fetches the namespaces a screen reads in other languages, and the pages after it fetch and wait for none of them', async () => {
+    const i18n = await instance();
+    const noticeDe = vi.fn(async () => ({ default: 'Hinweis' }));
+    const noticeFr = vi.fn(async () => ({ default: 'Avis' }));
+    const homeDe = vi.fn(async () => ({ title: 'Startseite' }));
+    const tasksDe = vi.fn(async () => ({ title: 'Aufgaben' }));
+    const tasksFr = vi.fn(async () => ({ title: 'Tâches' }));
+    topics.attachTopics(i18n, {
+      lazy: {
+        de: { notice: noticeDe, home: homeDe, tasks: tasksDe },
+        fr: { notice: noticeFr, tasks: tasksFr },
+      },
+    });
+    topics.registerTopic('home', { title: 'Home' });
+    topics.registerTopic('notice', { default: 'Notice' });
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(I18nextProvider, { i18n }, children);
+
+    const { result } = renderHook(
+      () => locales.useLocalesLoaded(['en', 'de', 'fr'], ['notice']),
+      { wrapper },
+    );
+    await vi.waitFor(() => expect(result.current).toBe(true));
+    expect(i18n.getFixedT('de', 'notice')('default')).toBe('Hinweis');
+    expect(i18n.getFixedT('fr', 'notice')('default')).toBe('Avis');
+    expect(homeDe).not.toHaveBeenCalled();
+
+    // A page loaded afterwards brings the tasks topic.
+    topics.registerTopic('tasks', { title: 'Tasks' });
+    await expect(
+      globalThis.__taleMessageTopics?.ready(['tasks']),
+    ).resolves.toBeUndefined();
+    expect(tasksDe).not.toHaveBeenCalled();
+    expect(tasksFr).not.toHaveBeenCalled();
+
+    // Its words stay in: the screen mounted again reads them at once.
+    expect(locales.isLocaleLoaded(i18n, 'de', ['notice'])).toBe(true);
+    expect(locales.isLocaleLoaded(i18n, 'de')).toBe(false);
   });
 });
 
