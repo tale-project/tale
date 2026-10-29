@@ -87,9 +87,9 @@ function DataNoticePolicyEditorContent({
   const [editingLocale, setEditingLocale] = useState<NoticeLocale>('en');
   // The platform default in each language, for the placeholders: a
   // fixed-language `t` reads its language's messages, which load on first
-  // use, so the placeholders wait for them.
+  // use, so the placeholders wait for them — for that one topic alone.
   const { i18n } = useTranslation();
-  const noticeLocalesLoaded = useLocalesLoaded(NOTICE_LOCALES);
+  const noticeLocalesLoaded = useLocalesLoaded(NOTICE_LOCALES, ['dataNotice']);
   const ability = useAbility();
 
   const { data: policy, isLoading } = useGovernancePolicy(

@@ -10,10 +10,11 @@ import { registerLocaleSource } from './load-locale';
  * With the `messageTopics` vite plugin (`@tale/ui/vite/message-topics`), every
  * module that names a topic imports it: the English file comes with the
  * module and lands here through `registerTopic`, and each other locale's file
- * is fetched when the language the session shows first needs that topic. A
- * chunk the app loads on demand waits for the topics it brings (`ready`, which
- * the plugin calls at the chunk's end), so a page renders with its words in
- * place.
+ * is fetched when the language the session shows, or switches to, first needs
+ * that topic. A chunk the app loads on demand waits for the topics it brings
+ * (`ready`, which the plugin calls at the chunk's end), so a page renders with
+ * its words in place. A screen that reads another language beside the
+ * session's (`useLocalesLoaded`) fetches what it reads and no more.
  */
 
 type Messages = Record<string, unknown>;
@@ -57,7 +58,8 @@ function baseOf(locale: string): string {
 const filesReadBy = new Map<string, readonly string[]>();
 
 /** The locales whose files `locale` reads, most specific first, English aside. */
-function filesRead(locale: string): readonly string[] {
+function filesRead(locale: string | undefined): readonly string[] {
+  if (locale === undefined) return [];
   let files = filesReadBy.get(locale);
   if (files === undefined) {
     const base = baseOf(locale);
@@ -73,8 +75,13 @@ function warn(error: unknown): void {
 
 class TopicRegistry {
   private readonly registered = new Set<string>();
-  /** Locales whose files a newly registered topic fetches at once. */
-  private following = new Set<string>();
+  /** The language the session shows; none before the instance is initialised. */
+  private shown: string | undefined;
+  /**
+   * The language `load` fetches for the session to switch to, until the
+   * session shows a language, the fetch fails or a later `load` replaces it.
+   */
+  private switching: { readonly locale: string } | undefined;
   private readonly loads = new Map<string, Map<string, Load>>();
   private readonly unnamed = new Set<string>();
   /** When a topic file last failed to load, so readers do not refetch it per render. */
@@ -83,12 +90,25 @@ class TopicRegistry {
   constructor(
     readonly i18n: I18nInstance,
     private readonly sources: TopicSources,
-  ) {}
+  ) {
+    this.shown = i18n.language;
+  }
+
+  /**
+   * Locales whose files a newly registered topic fetches at once, and a chunk
+   * waits for: those of the language the session shows and of its switch.
+   */
+  private following(): Set<string> {
+    return new Set([
+      ...filesRead(this.shown),
+      ...filesRead(this.switching?.locale),
+    ]);
+  }
 
   register(topic: string, messages: Messages): void {
     this.i18n.addResourceBundle(ENGLISH, topic, messages, true, true);
     this.registered.add(topic);
-    for (const locale of this.following) {
+    for (const locale of this.following()) {
       this.fetch(locale, topic).catch(warn);
     }
   }
@@ -139,34 +159,55 @@ class TopicRegistry {
     return this.loads.get(locale)?.get(topic)?.landed === true;
   }
 
-  isLoaded(locale: string): boolean {
+  isLoaded(locale: string, topics?: readonly string[]): boolean {
     return filesRead(locale).every((file) =>
-      this.topicsOf(file).every((topic) => this.landed(file, topic)),
+      (topics ?? this.topicsOf(file)).every((topic) =>
+        this.landed(file, topic),
+      ),
     );
   }
 
-  /**
-   * Fetch the topics `locale` needs, and keep fetching each topic that
-   * registers later in it, until the language changes.
-   */
-  load(locale: string): Promise<void> {
-    const files = filesRead(locale);
-    for (const file of files) this.following.add(file);
+  /** Fetch `topics`, else the ones its session needs, in the files `locale` reads. */
+  private fetchAll(locale: string, topics?: readonly string[]): Promise<void> {
     return Promise.all(
-      files.flatMap((file) =>
-        this.topicsOf(file).map((topic) => this.fetch(file, topic)),
+      filesRead(locale).flatMap((file) =>
+        (topics ?? this.topicsOf(file)).map((topic) => this.fetch(file, topic)),
       ),
     ).then(() => undefined);
   }
 
+  /**
+   * The session switches to `locale`: fetch the topics it needs, and keep
+   * fetching each topic that registers later in it, which chunks then wait
+   * for, while the switch lasts (`switching`).
+   */
+  load(locale: string): Promise<void> {
+    const switching = { locale };
+    this.switching = switching;
+    return this.fetchAll(locale).catch((error: unknown) => {
+      // The session stays in the language it shows.
+      if (this.switching === switching) this.switching = undefined;
+      throw error;
+    });
+  }
+
+  /**
+   * A screen reads `locale` beside the session's language: fetch `topics`,
+   * else what `load` fetches, and nothing that registers later.
+   */
+  read(locale: string, topics?: readonly string[]): Promise<void> {
+    return this.fetchAll(locale, topics);
+  }
+
   /** The language the session shows changed: new topics fetch in it alone. */
   follow(language: string): void {
-    this.following = new Set(filesRead(language));
+    this.shown = language;
+    this.switching = undefined;
   }
 
   /** Resolves once the given topics are in for the followed locales; never rejects. */
   ready(topics: readonly string[]): Promise<void> {
-    const pending = [...this.following].flatMap((locale) =>
+    const pending = [...this.following()].flatMap((locale) =>
       topics.map((topic) => this.fetch(locale, topic)),
     );
     if (pending.length === 0) return Promise.resolve();
