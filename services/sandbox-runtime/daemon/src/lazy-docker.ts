@@ -633,7 +633,7 @@ export function engineEnvironment(boot: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
 
 /** The descriptor runnerd reads its token from when this supervisor starts
  * it (runnerd-token.ts). */
-export const RUNNER_TOKEN_FD = 3;
+const RUNNER_TOKEN_FD = 3;
 
 /** runnerd's environment: the boot environment with the dependency path the
  * entrypoint withheld from this root process handed back, since the agent uid
