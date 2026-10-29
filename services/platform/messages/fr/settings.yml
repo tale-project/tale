@@ -1284,6 +1284,7 @@ logs:
     tableCaption: Tableau des journaux d'erreurs
     emptyTitle: Aucun journal d'erreurs
     emptyDescription: Les actions échouées ou refusées apparaîtront ici.
+    refreshFailed: "Impossible de charger les derniers journaux d'erreurs. La liste est peut-être incomplète ou obsolète."
   blockCounters:
     tabLabel: Blocages de connexion
     tableCaption: Activité des blocages de connexion
@@ -1307,6 +1308,7 @@ logs:
     emptyDescription:
       Les journaux d'audit apparaîtront ici à mesure que des actions
       sont effectuées dans ton organisation.
+    refreshFailed: "Impossible de charger les derniers journaux d'audit. La liste est peut-être incomplète ou obsolète."
     detailTitle: Détails du journal d'audit
     viaLabel: Source
     viaLabels:

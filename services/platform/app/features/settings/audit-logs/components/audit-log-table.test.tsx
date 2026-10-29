@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
 import type { AuditLogDoc } from '@/app/lib/backend/contract/docs';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, within } from '@/tests/utils/render';
@@ -309,3 +310,139 @@ describe('AuditLogTable rows a coding agent wrote', () => {
     expect(within(dialog).queryByText('Metadata')).not.toBeInTheDocument();
   });
 });
+
+/** The listing the tab hands the table, settled in the state a test names. */
+function listing(
+  overrides: Partial<UsePaginatedQueryReturnType<AuditLogDoc>> = {},
+): UsePaginatedQueryReturnType<AuditLogDoc> {
+  return {
+    results: [],
+    status: 'Exhausted',
+    isLoading: false,
+    loadMore: vi.fn(),
+    error: null,
+    retry: vi.fn(),
+    isRetrying: false,
+    unavailable: false,
+    errorCount: 0,
+    ...overrides,
+  };
+}
+
+// Ada's sign-in, as one row of either trail.
+const loggedRow: AuditLogDoc = {
+  _id: 'log-sign-in',
+  _creationTime: 1_700_000_000_000,
+  organizationId: 'org-1',
+  actorId: 'user-ada',
+  actorEmail: 'ada@example.com',
+  actorType: 'user',
+  action: 'auth.sign_in',
+  category: 'auth',
+  resourceType: 'session',
+  timestamp: 1_700_000_000_000,
+  status: 'failure',
+  errorMessage: 'Invalid password',
+};
+
+// A compliance reviewer reads an empty trail as "nothing happened", so a
+// read that failed must never pass for one (#4834).
+describe.each([
+  {
+    variant: 'audit',
+    emptyTitle: 'No audit logs',
+    listName: 'Audit logs',
+    refreshFailed:
+      "Couldn't load the latest audit logs. What's listed may be incomplete or out of date.",
+  },
+  {
+    variant: 'errors',
+    emptyTitle: 'No error logs',
+    listName: 'Error logs',
+    refreshFailed:
+      "Couldn't load the latest error logs. What's listed may be incomplete or out of date.",
+  },
+] as const)(
+  'AuditLogTable $variant read failures',
+  ({ variant, emptyTitle, listName, refreshFailed }) => {
+    it('names a failed first page instead of an empty trail, and Try again recovers it', async () => {
+      const retry = vi.fn();
+      const { user, rerender } = render(
+        <AuditLogTable
+          variant={variant}
+          paginatedResult={listing({
+            error: new Error('synthetic 503'),
+            unavailable: true,
+            errorCount: 1,
+            retry,
+          })}
+        />,
+      );
+      expect(screen.queryByText(emptyTitle)).not.toBeInTheDocument();
+      expect(
+        screen.getByRole('heading', { name: /^Something went wrong/ }),
+      ).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(retry).toHaveBeenCalledTimes(1);
+      // The retry asks for the first page again: the table loads, and the
+      // focus Try again held waits on the list, not on the page.
+      rerender(
+        <AuditLogTable
+          variant={variant}
+          paginatedResult={listing({
+            status: 'LoadingFirstPage',
+            isLoading: true,
+            isRetrying: true,
+            unavailable: true,
+            errorCount: 1,
+            retry,
+          })}
+        />,
+      );
+      expect(document.activeElement).toHaveAccessibleName(listName);
+      expect(screen.queryByText(emptyTitle)).not.toBeInTheDocument();
+      rerender(
+        <AuditLogTable
+          variant={variant}
+          paginatedResult={listing({ results: [loggedRow], errorCount: 1 })}
+        />,
+      );
+      expect(screen.getByText('ada@example.com')).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Try again' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('still says the trail is empty when the read answered with no rows', () => {
+      render(<AuditLogTable variant={variant} paginatedResult={listing()} />);
+      expect(screen.getByText(emptyTitle)).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Try again' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('keeps the loaded rows when a later page fails, names the failure and retries that page', async () => {
+      const retry = vi.fn();
+      const { user } = render(
+        <AuditLogTable
+          variant={variant}
+          paginatedResult={listing({
+            results: [loggedRow],
+            status: 'CanLoadMore',
+            error: new Error('next page 503'),
+            errorCount: 1,
+            retry,
+          })}
+        />,
+      );
+      expect(screen.getByText('ada@example.com')).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent(refreshFailed);
+      expect(
+        screen.getByText(/the rest couldn't be loaded/),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(emptyTitle)).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Try again' }));
+      expect(retry).toHaveBeenCalledTimes(1);
+    });
+  },
+);

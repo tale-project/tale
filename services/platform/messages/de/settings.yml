@@ -1252,6 +1252,7 @@ logs:
     tableCaption: Fehlerprotokoll-Datentabelle
     emptyTitle: Keine Fehlerprotokolle
     emptyDescription: Fehlgeschlagene und abgelehnte Aktionen werden hier angezeigt.
+    refreshFailed: Die neuesten Fehlerprotokolle konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
   blockCounters:
     tabLabel: Anmeldeblockaden
     tableCaption: Anmeldeblockaden
@@ -1275,6 +1276,7 @@ logs:
     emptyDescription:
       Audit-Protokolle werden hier angezeigt, sobald Aktionen in
       deiner Organisation durchgeführt werden.
+    refreshFailed: Die neuesten Audit-Protokolle konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
     detailTitle: Audit-Protokoll-Details
     viaLabel: Quelle
     viaLabels:

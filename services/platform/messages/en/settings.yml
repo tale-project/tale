@@ -1195,6 +1195,7 @@ logs:
     tableCaption: Error logs data table
     emptyTitle: No error logs
     emptyDescription: Failed and denied actions will appear here.
+    refreshFailed: "Couldn't load the latest error logs. What's listed may be incomplete or out of date."
   blockCounters:
     tabLabel: Sign-in blocks
     tableCaption: Sign-in block activity
@@ -1218,6 +1219,7 @@ logs:
     emptyDescription:
       Audit logs will appear here as actions are performed in your
       organization.
+    refreshFailed: "Couldn't load the latest audit logs. What's listed may be incomplete or out of date."
     detailTitle: Audit log details
     viaLabel: Source
     viaLabels:

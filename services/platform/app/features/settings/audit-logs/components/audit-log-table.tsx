@@ -1,5 +1,6 @@
 'use client';
 
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { Dialog } from '@tale/ui/dialog/dialog';
@@ -21,6 +22,7 @@ import {
 import { useRoleLabel } from '@/app/features/settings/organization/components/role-badge';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import type { AuditLogDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
 import { redactSensitiveFields } from '@/lib/shared/audit-redaction';
@@ -142,6 +144,7 @@ export function AuditLogTable({
   const copy =
     variant === 'errors'
       ? {
+          listName: t('logs.errorLogs'),
           entityLabel: {
             one: t('logs.errors.entityLabelOne'),
             other: t('logs.errors.entityLabel'),
@@ -149,8 +152,10 @@ export function AuditLogTable({
           tableCaption: t('logs.errors.tableCaption'),
           emptyTitle: t('logs.errors.emptyTitle'),
           emptyDescription: t('logs.errors.emptyDescription'),
+          refreshFailed: t('logs.errors.refreshFailed'),
         }
       : {
+          listName: t('logs.auditLogs'),
           entityLabel: {
             one: t('logs.audit.entityLabelOne'),
             other: t('logs.audit.entityLabel'),
@@ -158,7 +163,11 @@ export function AuditLogTable({
           tableCaption: t('logs.audit.tableCaption'),
           emptyTitle: t('logs.audit.emptyTitle'),
           emptyDescription: t('logs.audit.emptyDescription'),
+          refreshFailed: t('logs.audit.refreshFailed'),
         };
+
+  const { regionRef, retryRead, focusRegion, failedWithRows } =
+    useListReadRecovery(paginatedResult);
 
   const list = useListPage<AuditLog>({
     dataSource: {
@@ -167,6 +176,11 @@ export function AuditLogTable({
       status: paginatedResult.status,
       loadMore: paginatedResult.loadMore,
       isLoading: paginatedResult.isLoading,
+      // A failed first page is the table's error state with its retry,
+      // never an empty trail a compliance reviewer would take at its word
+      // (#4834).
+      error: paginatedResult.error,
+      retry: retryRead,
     },
     pageSize,
     entityLabel: copy.entityLabel,
@@ -174,19 +188,44 @@ export function AuditLogTable({
 
   return (
     <>
-      <DataTable
-        columns={columns}
-        caption={copy.tableCaption}
-        stickyLayout={stickyLayout}
-        emptyState={{
-          icon: ScrollText,
-          title: copy.emptyTitle,
-          description: copy.emptyDescription,
-        }}
-        onRowClick={(row) => setSelectedLog(row.original)}
-        clickableRows
-        {...list.tableProps}
-      />
+      {/* The list's region: either Try again hands its focus here as the
+          control goes, and rows a later read left on screen stay — the
+          failure is named above them. */}
+      <div
+        ref={regionRef}
+        role="region"
+        aria-label={copy.listName}
+        tabIndex={-1}
+        className="flex min-h-0 flex-1 flex-col gap-6 outline-none"
+      >
+        {failedWithRows && (
+          <CatalogLoadError
+            // Each failure is announced again; Try again keeps its node.
+            failureKey={paginatedResult.errorCount}
+            onFocusLost={focusRegion}
+            message={copy.refreshFailed}
+            onRetry={retryRead}
+            isRetrying={paginatedResult.isRetrying}
+          />
+        )}
+        <DataTable
+          columns={columns}
+          caption={copy.tableCaption}
+          stickyLayout={stickyLayout}
+          emptyState={{
+            icon: ScrollText,
+            title: copy.emptyTitle,
+            description: copy.emptyDescription,
+          }}
+          onRowClick={(row) => setSelectedLog(row.original)}
+          clickableRows
+          // A refresh the reader did not start takes the table's error state
+          // away while it runs; a focused Try again hands its focus to the
+          // list, not to the page.
+          onErrorFocusLost={focusRegion}
+          {...list.tableProps}
+        />
+      </div>
 
       <Dialog
         open={!!selectedLog}
