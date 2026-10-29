@@ -811,6 +811,7 @@ versions:
     former: A former member
     unknown: Not recorded
     someone: Someone
+    namesFailed: Couldn't load member names
   actions:
     menu: 'Actions for v{version}'
     openInEditor: Open in editor
@@ -883,6 +884,7 @@ compare:
   title: 'Changes from v{from} to v{to}'
   missing: 'There is no v{version} of this automation.'
   removed: 'v{version} was removed by the retention policy.'
+  fromFailed: "Couldn't load v{version} to compare with"
   backToVersions: Back to the versions
   moreActions: 'More actions for v{version}'
   from:
@@ -1215,6 +1217,7 @@ tests:
     draft: Run on your draft
     checked: '{via, select, save {Checked when version {version} was saved} deploy {Checked when deploying version {version}} manual {Checked by hand} other {Checked}} · {date}'
   runFailed: "Couldn't run the tests."
+  reportFailed: Couldn't load the test results
   invalid: "{count, plural, one {The tests run once the automation passes its checks. Problems lists the # problem to fix.} other {The tests run once the automation passes its checks. Problems lists the # problems to fix.}}"
   rateLimited: '{seconds, plural, one {Many tests ran just now. Try again in # second.} other {Many tests ran just now. Try again in # seconds.}}'
   retry: Try again

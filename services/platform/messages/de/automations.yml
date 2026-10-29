@@ -820,6 +820,7 @@ versions:
     former: Ein ehemaliges Mitglied
     unknown: Nicht erfasst
     someone: Jemand
+    namesFailed: Die Namen der Mitglieder konnten nicht geladen werden
   actions:
     menu: 'Aktionen für v{version}'
     openInEditor: Im Editor öffnen
@@ -892,6 +893,7 @@ compare:
   title: 'Änderungen von v{from} zu v{to}'
   missing: 'Diese Automatisierung hat keine v{version}.'
   removed: 'v{version} wurde durch die Aufbewahrungsrichtlinie entfernt.'
+  fromFailed: 'v{version} konnte für den Vergleich nicht geladen werden'
   backToVersions: Zurück zu den Versionen
   moreActions: 'Weitere Aktionen für v{version}'
   from:
@@ -1224,6 +1226,7 @@ tests:
     draft: Auf deinem Entwurf ausgeführt
     checked: '{via, select, save {Geprüft beim Speichern von Version {version}} deploy {Geprüft beim Live-Schalten von Version {version}} manual {Von Hand geprüft} other {Geprüft}} · {date}'
   runFailed: Die Tests konnten nicht ausgeführt werden.
+  reportFailed: Die Testergebnisse konnten nicht geladen werden
   invalid: '{count, plural, one {Die Tests laufen, sobald die Automatisierung ihre Prüfungen besteht. Unter Probleme findest du das # Problem, das du beheben musst.} other {Die Tests laufen, sobald die Automatisierung ihre Prüfungen besteht. Unter Probleme findest du die # Probleme, die du beheben musst.}}'
   rateLimited: '{seconds, plural, one {Gerade liefen viele Tests. Versuche es in # Sekunde erneut.} other {Gerade liefen viele Tests. Versuche es in # Sekunden erneut.}}'
   retry: Erneut versuchen

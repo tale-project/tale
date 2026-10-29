@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { BackendApiError } from '@/app/lib/backend/api-client';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
@@ -12,9 +13,17 @@ type Detail = Record<string, unknown> | null;
 const store = vi.hoisted(() => ({
   versions: {} as Record<number, Detail>,
   latest: { version: 4, latestVersion: 4, deployedVersion: 2 } as Detail,
+  /** Versions whose read fails with a fault after its retries. */
+  failing: new Set<number>(),
+  /** The automation's own read fails the same way. */
+  latestFails: false,
+  /** The member directory's read fails the same way. */
+  membersFail: false,
 }));
 const navigate = vi.hoisted(() => vi.fn());
 const deploy = vi.hoisted(() => vi.fn());
+const refetch = vi.hoisted(() => vi.fn());
+const retryMembers = vi.hoisted(() => vi.fn());
 
 function detail(
   version: number,
@@ -55,8 +64,20 @@ const read = (data: Detail | undefined) => ({
   refetch: vi.fn(),
 });
 
+/** A read that never answered: a 500 the retry policy gave up on, which
+ * carries no code, so it is no "missing". */
+const failed = () => ({
+  data: undefined,
+  isPending: false,
+  isError: true,
+  error: new BackendApiError(500, 'Internal Server Error'),
+  isFetching: false,
+  errorUpdateCount: 1,
+  refetch,
+});
+
 vi.mock('../../hooks/queries', () => ({
-  useAutomation: () => read(store.latest),
+  useAutomation: () => (store.latestFails ? failed() : read(store.latest)),
   useAutomationAtVersion: (_org: string, _name: string, version?: number) =>
     version === undefined
       ? {
@@ -66,7 +87,9 @@ vi.mock('../../hooks/queries', () => ({
           error: null,
           refetch: vi.fn(),
         }
-      : read(version in store.versions ? store.versions[version] : null),
+      : store.failing.has(version)
+        ? failed()
+        : read(version in store.versions ? store.versions[version] : null),
   useAutomationVersions: () => ({
     data: Object.keys(store.versions).map((version) => ({
       version: Number(version),
@@ -111,7 +134,16 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   useNavigate: () => navigate,
 }));
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({ members: [] }),
+  useMembers: () =>
+    store.membersFail
+      ? {
+          members: undefined,
+          unavailable: true,
+          retrying: false,
+          failureCount: 1,
+          retry: retryMembers,
+        }
+      : { members: [] },
 }));
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { userId: 'user-me' } }),
@@ -142,8 +174,13 @@ beforeEach(() => {
     4: detail(4, ['collect', 'summarize', 'post'], { message: '' }),
   };
   store.latest = { version: 4, latestVersion: 4, deployedVersion: 2 };
+  store.failing = new Set();
+  store.latestFails = false;
+  store.membersFail = false;
   onSearchChange.mockReset();
   deploy.mockReset();
+  refetch.mockReset();
+  retryMembers.mockReset();
 });
 
 describe('VersionComparePage', () => {
@@ -270,6 +307,80 @@ describe('VersionComparePage', () => {
     expect(
       screen.getByText('v2 was removed by the retention policy.'),
     ).toBeVisible();
+    // Compared with nothing, every node would count as added.
+    expect(screen.queryByRole('list', { name: 'What changed' })).toBeNull();
+  });
+
+  it('says the version before could not be loaded, with Try again, and shows no diff against nothing', async () => {
+    // v2 is there, but its read fails with a fault after its retries.
+    store.failing = new Set([2]);
+    const { user } = renderPage(3);
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'v3 · Change 3' }),
+    ).toBeVisible();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load v2 to compare with",
+    );
+    expect(screen.queryByRole('list', { name: 'What changed' })).toBeNull();
+    expect(screen.queryByText(/added/)).toBeNull();
+    expect(screen.queryByTestId('graph')).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+
+  it('shows no diff on Changes or YAML either while the version before could not be loaded', () => {
+    store.failing = new Set([2]);
+    const { unmount } = renderPage(3, { view: 'changes' });
+    expect(screen.queryAllByRole('region', { name: /^Nodes/ })).toHaveLength(0);
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeVisible();
+    unmount();
+    renderPage(3, { view: 'yaml' });
+    expect(screen.queryByText(/collect/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeVisible();
+  });
+
+  it('offers no deploy or restore while the automation read has failed, and says so with Try again', async () => {
+    store.latestFails = true;
+    const { user } = renderPage(2);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load the automation",
+    );
+    expect(screen.queryByRole('button', { name: 'Deploy v2' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /Roll back/ })).toBeNull();
+    await user.click(
+      screen.getByRole('button', { name: 'More actions for v2' }),
+    );
+    expect(
+      screen.getByRole('menuitem', { name: 'Download YAML' }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole('menuitem', { name: 'Restore as new version' }),
+    ).toBeNull();
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(refetch).toHaveBeenCalledOnce();
+  });
+
+  it('names who saved the version as Someone, and says why with Try again, while the member directory read has failed', async () => {
+    store.membersFail = true;
+    store.versions[3] = detail(3, ['collect', 'summarize', 'post'], {
+      createdBy: 'user-ada',
+    });
+    const { container, user } = renderPage(3);
+    expect(screen.getByText('Someone')).toBeVisible();
+    expect(container.querySelector('[data-slot="author-pending"]')).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load member names",
+    );
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(retryMembers).toHaveBeenCalledOnce();
+  });
+
+  it('says nothing about member names when the version needs none of them', () => {
+    store.membersFail = true;
+    renderPage(3);
+    expect(screen.getByText('You')).toBeVisible();
+    expect(screen.queryByText("Couldn't load member names")).toBeNull();
   });
 
   it('opens against the nearest older version left when the one just before was removed', () => {

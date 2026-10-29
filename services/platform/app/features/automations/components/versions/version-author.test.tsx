@@ -4,14 +4,23 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
-import { VersionAuthor } from './version-author';
+import { AuthorNamesLoadError, VersionAuthor } from './version-author';
 
 const state = vi.hoisted(() => ({
   members: undefined as { userId: string; displayName: string }[] | undefined,
+  /** The directory's read failed after its retries (`readStateOf`). */
+  unavailable: false,
+  retry: vi.fn(),
 }));
 
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({ members: state.members }),
+  useMembers: () => ({
+    members: state.members,
+    unavailable: state.unavailable,
+    retrying: false,
+    failureCount: state.unavailable ? 1 : 0,
+    retry: state.retry,
+  }),
 }));
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { userId: 'user-me' } }),
@@ -19,6 +28,8 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
 
 beforeEach(() => {
   state.members = [{ userId: 'user-noah', displayName: 'Noah Weber' }];
+  state.unavailable = false;
+  state.retry.mockReset();
 });
 
 function renderAuthor(facts: Parameters<typeof VersionAuthor>[0]['facts']) {
@@ -86,5 +97,40 @@ describe('VersionAuthor', () => {
   it('says an actor that names nobody is not recorded', () => {
     renderAuthor({ actor: '', via: null, clientName: null });
     expect(screen.getByText('Not recorded')).toBeVisible();
+  });
+
+  it('says Someone, with no placeholder that waits forever, once the directory read has failed', () => {
+    state.members = undefined;
+    state.unavailable = true;
+    const { container } = renderAuthor({
+      actor: 'user-noah',
+      via: 'mcp',
+      clientName: 'Claude Code',
+    });
+    expect(screen.getByText('Someone')).toBeVisible();
+    expect(screen.getByText('with Claude Code through MCP')).toBeVisible();
+    expect(container.querySelector('[data-slot="author-pending"]')).toBeNull();
+    expect(screen.queryByText('A former member')).toBeNull();
+  });
+});
+
+describe('AuthorNamesLoadError', () => {
+  it('says the names could not be loaded, with Try again, only once the directory read has failed', async () => {
+    const { container, unmount } = render(
+      <AuthorNamesLoadError organizationId="org-1" />,
+    );
+    expect(container).toBeEmptyDOMElement();
+    unmount();
+    state.members = undefined;
+    expect(
+      render(<AuthorNamesLoadError organizationId="org-1" />).container,
+    ).toBeEmptyDOMElement();
+    state.unavailable = true;
+    const { user } = render(<AuthorNamesLoadError organizationId="org-1" />);
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load member names",
+    );
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(state.retry).toHaveBeenCalledOnce();
   });
 });

@@ -41,7 +41,15 @@ const meta: Meta<typeof FeatureFlagsEditor> = {
       mutateAsync: fn().mockResolvedValue(null),
       isPending: false,
     });
-    mocked(useMembers).mockReturnValue({ members: [], isLoading: false });
+    mocked(useMembers).mockReturnValue({
+      members: [],
+      isLoading: false,
+      unavailable: false,
+      stale: false,
+      retrying: false,
+      failureCount: 0,
+      retry: fn<ReturnType<typeof useMembers>['retry']>(),
+    });
     mocked(useOrgTeams).mockReturnValue({
       teams: [],
       isLoading: false,

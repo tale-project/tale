@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type AnchorHTMLAttributes } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { BackendApiError } from '@/app/lib/backend/api-client';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
@@ -60,6 +61,8 @@ const {
     realDetailRead: false,
     /** The version's kept test check, when the test wants one. */
     testReport: undefined as unknown,
+    /** The kept check's read fails this way after its retries. */
+    testReportError: undefined as Error | undefined,
     /** The workbench is below `lg`: its panels are sheets. */
     compact: false,
   },
@@ -327,7 +330,18 @@ vi.mock('../hooks/queries', async (importOriginal) => {
     }),
     useNodeTypeCatalog: () => ({ data: undefined, isError: false }),
     // No version has a kept test report unless a test says so.
-    useAutomationTestReport: () => ({ data: state.testReport }),
+    useAutomationTestReport: () =>
+      state.testReportError === undefined
+        ? { data: state.testReport }
+        : {
+            data: undefined,
+            isPending: false,
+            isError: true,
+            error: state.testReportError,
+            isFetching: false,
+            errorUpdateCount: 1,
+            refetch,
+          },
     // The stored trigger the deploy notice turns on: a weekday schedule.
     useAutomationTriggers: () => ({
       data: [
@@ -432,6 +446,7 @@ vi.mock('./automation-canvas', () => ({
     topEnd,
     toolbar,
     allowedWrites,
+    pathCoverage,
   }: {
     automation: { nodes: readonly { id: string; when?: string }[] };
     layoutKey: string;
@@ -444,12 +459,14 @@ vi.mock('./automation-canvas', () => ({
     topEnd?: React.ReactNode;
     toolbar?: React.ReactNode;
     allowedWrites?: ReadonlySet<string>;
+    pathCoverage?: ReadonlyMap<string, readonly string[]>;
   }) => (
     <div
       data-testid="canvas"
       data-inspector-id={inspectorId}
       data-layout-key={layoutKey}
       data-view={view}
+      data-path-coverage={pathCoverage === undefined ? 'none' : 'given'}
       data-changed={
         changed === undefined ? undefined : [...changed.ids].sort().join(',')
       }
@@ -638,6 +655,7 @@ beforeEach(() => {
   state.deployedDetailError = undefined;
   state.realDetailRead = false;
   state.testReport = undefined;
+  state.testReportError = undefined;
   state.compact = false;
   refetch.mockClear();
   validationMock.status = 'ready';
@@ -3470,6 +3488,43 @@ describe('AutomationEditor tests', () => {
     await user.click(screen.getByRole('button', { name: 'Hide problems' }));
     expect(screen.queryByRole('region', { name: 'Problems' })).toBeNull();
     expect(onSearchChange).toHaveBeenLastCalledWith({ panel: null });
+  });
+
+  it("says the version's results could not be loaded, with Try again, instead of calling its tests not run", async () => {
+    state.document = withTests;
+    state.testReportError = new BackendApiError(500, 'Internal Server Error');
+    const props = { organizationId: 'org-tests-report-failed' };
+    const { user, rerender } = renderPage(props);
+    // Not known to be not run yet: the button counts the test, no more.
+    expect(testsButton()).toHaveAccessibleName('Tests: 1 test');
+    await user.click(testsButton());
+    const dock = screen.getByRole('region', { name: 'Tests' });
+    expect(within(dock).getByRole('alert')).toHaveTextContent(
+      "Couldn't load the test results",
+    );
+    expect(within(dock).queryByText(/Not run yet/)).toBeNull();
+    // No path is called tested or untested either.
+    expect(screen.getByTestId('canvas')).toHaveAttribute(
+      'data-path-coverage',
+      'none',
+    );
+    await user.click(within(dock).getByRole('button', { name: 'Try again' }));
+    expect(refetch).toHaveBeenCalled();
+
+    // The read answers, and the version kept no result: now it has not run.
+    state.testReportError = undefined;
+    rerender(page(props));
+    expect(
+      within(screen.getByRole('region', { name: 'Tests' })).getByRole(
+        'button',
+        { name: /^Not run yet: smoke/ },
+      ),
+    ).toBeVisible();
+    expect(testsButton()).toHaveAccessibleName('Tests: 1 not run yet');
+    expect(screen.getByTestId('canvas')).toHaveAttribute(
+      'data-path-coverage',
+      'given',
+    );
   });
 
   it("runs the saved version's tests on that version and counts what they found", async () => {

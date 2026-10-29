@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { act, useLayoutEffect, useState } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { BackendApiError } from '@/app/lib/backend/api-client';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { cleanup, render } from '@/tests/utils/render';
 
@@ -16,6 +17,9 @@ import {
 const io = vi.hoisted(() => ({
   mutateAsync: vi.fn(),
   report: undefined as unknown,
+  /** The report's read failed with a fault after its retries. */
+  reportFails: false,
+  refetch: vi.fn(),
 }));
 
 vi.mock('./mutations', () => ({
@@ -25,7 +29,17 @@ vi.mock('./mutations', () => ({
   }),
 }));
 vi.mock('./queries', () => ({
-  useAutomationTestReport: () => ({ data: io.report }),
+  useAutomationTestReport: () =>
+    io.reportFails
+      ? {
+          data: undefined,
+          isError: true,
+          error: new BackendApiError(500, 'Internal Server Error'),
+          isFetching: false,
+          errorUpdateCount: 1,
+          refetch: io.refetch,
+        }
+      : { data: io.report },
 }));
 
 const STORED: RawDocument = {
@@ -83,6 +97,8 @@ beforeEach(() => {
   cleanup();
   io.mutateAsync.mockReset();
   io.report = undefined;
+  io.reportFails = false;
+  io.refetch.mockReset();
   // Each test its own automation: the page keeps results per automation.
   slug += 1;
   render(<Harness slug={`ops/double-${slug}`} />);
@@ -281,5 +297,42 @@ describe('useAutomationTests', () => {
     render(<Harness slug="ops/with-report" />);
     expect(api.rows.map((row) => row.status)).toEqual(['passed', 'not-run']);
     expect(api.source).toMatch(/^Checked when deploying version 4 · /);
+    expect(api.reportFailure).toBeNull();
+  });
+
+  it("says the version's results could not be read, never that its tests did not run", async () => {
+    cleanup();
+    io.reportFails = true;
+    render(<Harness slug="ops/report-failed" />);
+    expect(api.reportFailure).toMatchObject({
+      failureCount: 1,
+      retrying: false,
+    });
+    // Neither test is known to be not run yet: both count in the total only.
+    expect(api.counts).toMatchObject({ notRun: 0, total: 2 });
+    api.reportFailure?.retry();
+    expect(io.refetch).toHaveBeenCalledOnce();
+
+    // A run here tells what the report could not.
+    io.mutateAsync.mockResolvedValueOnce(ANSWER);
+    await act(async () => {
+      api.runAll();
+      await Promise.resolve();
+    });
+    expect(api.reportFailure).toBeNull();
+    expect(api.counts).toMatchObject({ passed: 1, failed: 1, total: 2 });
+  });
+
+  it('still counts a test only the draft has as not run yet while the report could not be read', () => {
+    cleanup();
+    io.reportFails = true;
+    render(<Harness slug="ops/report-failed-draft" />);
+    let added: number | null = null;
+    act(() => {
+      added = api.add();
+    });
+    expect(added).toBe(2);
+    expect(api.counts).toMatchObject({ notRun: 1, total: 3 });
+    expect(api.reportFailure).not.toBeNull();
   });
 });

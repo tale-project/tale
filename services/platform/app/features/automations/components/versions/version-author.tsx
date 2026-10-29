@@ -1,10 +1,12 @@
 'use client';
 
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
 import { SKELETON_PULSE } from '@tale/ui/skeleton';
 import { Text } from '@tale/ui/text';
 import { useCallback } from 'react';
 
+import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 import type { AutomationWriteVia } from '@/lib/shared/schemas/automation-versions';
 
@@ -25,8 +27,9 @@ export interface AuthorFacts {
   clientName: string | null;
 }
 
-/** An author in words: `name` is null while the member directory has not
- * answered; `caption` says through which door and client, when known. */
+/** An author in words: `name` is null while the member directory loads,
+ * and "Someone" once its read has failed; `caption` says through which door
+ * and client, when known. */
 export interface AuthorText {
   actor: ActorLabel;
   name: string | null;
@@ -47,9 +50,9 @@ const VIA_KEY: Readonly<Record<AutomationWriteVia, string>> = {
 
 /**
  * The words for an author: the member's name, "You", "Tale", a former
- * member, or "Not recorded"; and how they acted — "with Claude Code
- * through MCP", "in the app". The platform's own writes need no caption:
- * "Tale" says it.
+ * member, "Not recorded", or "Someone" when the member directory could not
+ * be read; and how they acted — "with Claude Code through MCP", "in the
+ * app". The platform's own writes need no caption: "Tale" says it.
  */
 export function useAuthorText(
   organizationId: string,
@@ -70,7 +73,9 @@ export function useAuthorText(
                 ? t('versions.author.tale')
                 : actor.kind === 'unknown'
                   ? t('versions.author.unknown')
-                  : null;
+                  : actor.kind === 'unavailable'
+                    ? t('versions.author.someone')
+                    : null;
       const caption =
         actor.kind === 'system' || facts.via === null || facts.via === 'system'
           ? null
@@ -101,7 +106,8 @@ export function useAuthorText(
  * Who saved a version or put one live, and how: the name over the door and
  * client (`stacked`, a table cell) or after it on one line (`inline`, a
  * byline). While the member directory loads the name is a placeholder,
- * never a guess.
+ * never a guess; a directory that could not be read leaves "Someone", and
+ * the page says why with {@link AuthorNamesLoadError}.
  */
 export function VersionAuthor({
   organizationId,
@@ -157,5 +163,32 @@ export function VersionAuthor({
         </Text>
       )}
     </span>
+  );
+}
+
+/**
+ * Says the member directory could not be read, with **Try again**: until
+ * it is, the authors a page names read "Someone". Nothing while the
+ * directory loads or once it has answered.
+ */
+export function AuthorNamesLoadError({
+  organizationId,
+  onFocusLost,
+}: {
+  organizationId: string;
+  /** Takes the focus **Try again** held once the names arrive. */
+  onFocusLost?: () => void;
+}) {
+  const { t } = useT('automations');
+  const directory = useMembers(organizationId);
+  if (!directory.unavailable) return null;
+  return (
+    <CatalogLoadError
+      message={t('versions.author.namesFailed')}
+      failureKey={directory.failureCount}
+      isRetrying={directory.retrying}
+      onRetry={directory.retry}
+      {...(onFocusLost !== undefined && { onFocusLost })}
+    />
   );
 }

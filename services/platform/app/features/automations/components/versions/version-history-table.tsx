@@ -75,6 +75,8 @@ export function VersionHistoryTable({
   projectId?: string | undefined;
   /** May deploy, roll back and restore. */
   canAuthor: boolean;
+  /** The newest version; undefined until the automation's read answers,
+   * and no version offers a restore meanwhile. */
   latestVersion: number | undefined;
   /** The version the page shows as live; null when none is. */
   liveVersion: number | null;
@@ -333,7 +335,12 @@ export function VersionHistoryTable({
                   key: 'restore',
                   label: t('versions.actions.restore'),
                   icon: RotateCcw,
-                  visible: canAuthor && version !== latestVersion,
+                  // A restore saves on top of the latest version, so it waits
+                  // until the automation's read has named it.
+                  visible:
+                    canAuthor &&
+                    latestVersion !== undefined &&
+                    version !== latestVersion,
                   onClick: () => onRestore(version),
                 },
                 {

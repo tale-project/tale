@@ -9,6 +9,7 @@ import { useFormatDate } from '@tale/ui/use-format-date';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -67,6 +68,16 @@ export interface TestRunFailure {
   retryAt?: number;
 }
 
+/** The version's kept report could not be read (`readStateOf`). */
+export interface TestReportFailure {
+  /** Changes with each failed read, so the notice is said again. */
+  failureCount: number;
+  /** Try again is reading the report. */
+  retrying: boolean;
+  /** Reads the report again. */
+  retry: () => void;
+}
+
 export interface AutomationTests {
   /** The tests of the document on screen, as written. */
   tests: readonly unknown[];
@@ -76,6 +87,14 @@ export interface AutomationTests {
   /** The places running now. */
   running: ReadonlySet<number>;
   failure: TestRunFailure | null;
+  /**
+   * The version's kept report could not be read, so what its tests last
+   * found is unknown — never "not run yet": those tests count in the
+   * total alone, and the panel says so with Try again in place of the
+   * results. Null while the report loads or has answered, and once every
+   * test has a result of this page's runs.
+   */
+  reportFailure: TestReportFailure | null;
   /** Where the results come from: "Not run yet", "Run on your draft",
    * "Checked when deploying version 7 · Today, 14:02". */
   source: string;
@@ -141,13 +160,18 @@ export function useAutomationTests(args: {
     organizationId,
     automationSlug,
   );
+  const storedCount = testsOf(storedRaw).length;
   const reportQuery = useAutomationTestReport(
     organizationId,
     automationSlug,
     version,
-    enabled && testsOf(storedRaw).length > 0,
+    enabled && storedCount > 0,
   );
   const report = reportQuery.data ?? null;
+  // A report that could not be read is not a report of nothing: until it
+  // is read, what the version's tests last found is unknown.
+  const reportRead = readStateOf(reportQuery);
+  const { refetch: refetchReport } = reportQuery;
   const reportSource = useMemo<ReportSource | null>(
     () =>
       report?.report === null ||
@@ -222,9 +246,32 @@ export function useAutomationTests(args: {
       }),
     [tests, subjectHash, kept, reportSource, running, cutShort, ctx, t],
   );
-  const counts = useMemo(
-    () => countTestStatuses(rows.map((row) => row.status)),
-    [rows],
+  // The version's tests with no result of this page's runs: the report
+  // that failed to load is all that could have told how they went.
+  const unknown = reportRead.unavailable
+    ? rows.filter((row) => row.status === 'not-run' && row.index < storedCount)
+        .length
+    : 0;
+  const counts = useMemo(() => {
+    const counted = countTestStatuses(rows.map((row) => row.status));
+    // Such a test is not known to be "not run yet": it counts in the
+    // total alone, as one that waits does.
+    return unknown === 0
+      ? counted
+      : { ...counted, notRun: counted.notRun - unknown };
+  }, [rows, unknown]);
+  const reportFailureCount = reportRead.failureCount;
+  const reportRetrying = reportRead.retrying;
+  const reportFailure = useMemo<TestReportFailure | null>(
+    () =>
+      unknown === 0
+        ? null
+        : {
+            failureCount: reportFailureCount,
+            retrying: reportRetrying,
+            retry: () => void refetchReport(),
+          },
+    [unknown, reportFailureCount, reportRetrying, refetchReport],
   );
 
   const source = useMemo(() => {
@@ -376,6 +423,7 @@ export function useAutomationTests(args: {
     status: busy ? 'running' : failure !== null ? 'failed' : 'idle',
     running,
     failure,
+    reportFailure,
     source,
     announceKey,
     runDisabledReason,

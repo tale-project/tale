@@ -15,6 +15,9 @@ import { parseRunStarter } from '@/lib/shared/run-starter';
  * - `system`: the platform itself (`system:<what>`), "Tale";
  * - `pending`: a person the directory has not answered about yet — never a
  *   verdict on someone the page has not looked up;
+ * - `unavailable`: a person the directory could not be asked about, since
+ *   its read failed — no verdict either, and no placeholder that waits for
+ *   an answer that will not come;
  * - `unknown`: a value that names nobody (none recorded, or a form this
  *   build does not read).
  *
@@ -26,6 +29,7 @@ export type ActorLabel =
   | { kind: 'member'; name: string; api: boolean }
   | { kind: 'former'; api: boolean }
   | { kind: 'pending'; api: boolean }
+  | { kind: 'unavailable'; api: boolean }
   | { kind: 'system' }
   | { kind: 'unknown' };
 
@@ -42,7 +46,7 @@ const SYSTEM_PREFIX = 'system:';
 export function useActorLabel(
   organizationId: string,
 ): (actor: string) => ActorLabel {
-  const { members } = useMembers(organizationId);
+  const { members, unavailable } = useMembers(organizationId);
   const { data: me } = useCurrentMemberContext(organizationId);
   const currentUserId = me?.userId;
 
@@ -55,15 +59,18 @@ export function useActorLabel(
       }
       const api = parsed.kind === 'api-key';
       if (parsed.userId === currentUserId) return { kind: 'you', api };
-      // Until the directory has answered (loading, or failed) nobody is a
-      // former member yet.
-      if (members === undefined) return { kind: 'pending', api };
+      // Until the directory has answered nobody is a former member yet: the
+      // name is pending while it loads, and unavailable once its read has
+      // failed (a retry may still bring it).
+      if (members === undefined) {
+        return { kind: unavailable ? 'unavailable' : 'pending', api };
+      }
       const member = members.find((m) => m.userId === parsed.userId);
       const name = member?.displayName || member?.email;
       return name === undefined || name === ''
         ? { kind: 'former', api }
         : { kind: 'member', name, api };
     },
-    [currentUserId, members],
+    [currentUserId, members, unavailable],
   );
 }

@@ -6,12 +6,15 @@ const state = vi.hoisted(() => ({
   members: undefined as
     | { userId: string; displayName?: string; email?: string }[]
     | undefined,
+  /** The directory's read failed after its retries (`readStateOf`). */
+  unavailable: false,
 }));
 
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
   useMembers: () => ({
     members: state.members,
-    isLoading: state.members === undefined,
+    isLoading: state.members === undefined && !state.unavailable,
+    unavailable: state.unavailable,
   }),
 }));
 vi.mock('@/app/hooks/use-current-member-context', () => ({
@@ -30,6 +33,7 @@ beforeEach(() => {
     { userId: 'user-ada', displayName: 'Ada Lovelace', email: 'ada@x.test' },
     { userId: 'user-noname', displayName: '', email: 'noname@x.test' },
   ];
+  state.unavailable = false;
 });
 
 describe('useActorLabel', () => {
@@ -60,6 +64,19 @@ describe('useActorLabel', () => {
     expect(label('user-gone')).toEqual({ kind: 'former', api: false });
     // The pseudonym erasure leaves behind reads as a former member too.
     expect(label('erased-user')).toEqual({ kind: 'former', api: false });
+  });
+
+  it('says a name is unavailable, not pending, once the directory read has failed', () => {
+    state.members = undefined;
+    state.unavailable = true;
+    expect(label('user-ada')).toEqual({ kind: 'unavailable', api: false });
+    expect(label('api-key:user-gone')).toEqual({
+      kind: 'unavailable',
+      api: true,
+    });
+    // Neither the reader nor the platform needs the directory.
+    expect(label('user-me')).toEqual({ kind: 'you', api: false });
+    expect(label('system:provisioning')).toEqual({ kind: 'system' });
   });
 
   it('names the platform as Tale, and an actor that names nobody as unknown', () => {

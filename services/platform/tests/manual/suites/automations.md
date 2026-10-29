@@ -2153,6 +2153,24 @@ output:
       shows an announced error with **Try again** in its place, never an
       empty list or "No version is live yet."; retrying with Enter reloads
       only that part.
+- [ ] `AUTO-B46` · **Failed reads behind versions and tests** — Fail one
+      read at a time until its retries are exhausted, the others answering:
+      the version a comparison is made with
+      (`/dashboard/{org}/automations/{slug}/versions/{n}`), the automation's
+      own read there and on the Versions tab, the member directory, and a
+      saved version's kept test report under the editor's **Tests** → each
+      says what could not load, with **Try again**
+      (`common.actions.tryAgain`), and never a false result:
+      `automations.compare.fromFailed` with no chips, graph, changes or
+      YAML; `automations.detail.loadFailed.title` with no **Deploy**,
+      **Roll back** or **Restore as new version** offered;
+      `automations.versions.author.namesFailed` while authors read
+      `automations.versions.author.someone`, no placeholder pulsing; and
+      `automations.tests.reportFailed` in place of the list, the **Tests**
+      button counting the tests with none "not run yet", and no path called
+      tested or untested. Restore the read and retry with Enter → only that
+      part reloads, and focus lands on the page's heading (in the Tests
+      panel, on the list), not on the page body.
 
 - [ ] `AUTO-B30` · **Point one of two sources of a sync at a repository that
       does not exist, and run it; then point both at missing repositories and
