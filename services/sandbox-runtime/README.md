@@ -14,13 +14,15 @@ Tale sandbox runtime image — the Python/Node/coding-agent environment that
 other argument exits 65 (there is no per-call language lane).
 
 A session's HOME is `/agent/.runtime/home` on the persistent workspace, and
-`NODE_COMPILE_CACHE` names `.cache/node-compile-cache` under it, created at the
-session's user. Node programs a session starts again (a harness CLI, the
-per-turn helpers, runnerd itself) reuse V8's compiled code across turns and
-resumes instead of compiling their bundles again; the cache is never under the
-exec temp that every container start wipes. The root Docker supervisor starts
-without it, because the agent user can write that directory; runnerd and its
-execs get it back.
+every exec's `NODE_COMPILE_CACHE` names `.cache/node-compile-cache` under it,
+created at the session's user. Node programs a session starts again (a harness
+CLI, the per-turn helpers) reuse V8's compiled code across turns and resumes
+instead of compiling their bundles again; the cache is never under the exec
+temp that every container start wipes. Neither runnerd nor the root Docker
+supervisor loads it, because the agent user can write that directory, and
+compiled code planted there would run as runnerd, which holds the session's
+token: the entrypoint names it `TALE_RUNNER_NODE_COMPILE_CACHE`, and runnerd
+hands it to each exec as `NODE_COMPILE_CACHE`.
 
 The image sets `PATH` with `ENV`, and `entrypoint.sh` puts the session's pip and
 npm prefixes (`/agent/.runtime/deps/python/bin`, `/agent/.runtime/deps/node/bin`)
@@ -143,7 +145,7 @@ names the same unchanged file, or, after one such rehash, by an unchanged stat
 (device, inode, size, nanosecond mtime and ctime, read through the path twice)
 without reading the bytes again; a changed file is repaired. The source
 manifest survives runnerd restarts in `/agent/.runtime/staged-sources.json`,
-signed with runnerd's token, so a session resumed after an idle stop reuses
+signed under a key derived from runnerd's token, so a session resumed after an idle stop reuses
 its staged inputs instead of fetching them again; a manifest that does not
 verify is ignored. Reads and cache probes
 reject symlinks and named pipes without blocking filesystem workers. Explicit final
@@ -547,6 +549,22 @@ its auth token and incarnation (`TALE_RUNNERD_*`, which no env patch may set
 either) and the raw `TALE_SESSION_ENV` seed, whose entries reach the exec
 through the env store. A harness that prints its environment no longer puts
 the token into the agent's transcript.
+
+Every exec runs at runnerd's own uid, and a process may read the `/proc`
+entries (environment, memory, open descriptors) of any dumpable process of its
+uid, so runnerd's token is in no environment of the session at all. Before
+anything else runs, the entrypoint moves `TALE_RUNNERD_TOKEN` onto fd 9, a pipe,
+and runs itself again with `TALE_RUNNERD_TOKEN_FD=9` instead; with Docker in
+the session, the root supervisor reads it and hands it to runnerd on fd 3.
+runnerd makes itself non-dumpable (`prctl(PR_SET_DUMPABLE, 0)`, through the
+addon built from [`daemon/nondumpable/tale-nondumpable.c`](daemon/nondumpable/tale-nondumpable.c)),
+then reads the descriptor to its end and closes it before it starts anything
+([`runnerd-token.ts`](daemon/src/runnerd-token.ts)); a descriptor it cannot
+read, or a kernel that will not clear the flag, stops it. Node runs runnerd with
+`--disable-sigusr1`, so a signal from its uid cannot open the inspector inside
+it. Its log line `token=descriptor; dumpable=false` says both held. The
+staged-files manifest is signed under a key derived from the token (HKDF), not
+with the token itself.
 
 runnerd ends an exec that has stalled: no output for `TALE_EXEC_STALL_MS`
 (45 minutes unless the spawner sets it, `0` turns the watch off) and, over that

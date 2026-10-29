@@ -1,5 +1,5 @@
 /** Root supervisor for automatic Docker socket activation; runnerd stays uid 10001. */
-import { spawn } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 import {
   chmod,
   chown,
@@ -19,6 +19,7 @@ import {
   InnerDockerHealth,
   LAZY_DOCKER_HEALTH_SOCKET,
 } from './inner-docker-health.ts';
+import { runnerdToken } from './runnerd-token.ts';
 
 export interface EngineHandle {
   exited: Promise<void>;
@@ -630,20 +631,45 @@ export function engineEnvironment(boot: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   return env;
 }
 
-/** runnerd's environment: the boot environment with the Node settings the
- * entrypoint withheld from this root process handed back. The agent uid can
- * write both the dependency path and the compile cache, so only runnerd (and
- * the execs it starts at that uid) may load from them. */
-export function runnerEnvironment(boot: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+/** The descriptor runnerd reads its token from when this supervisor starts
+ * it (runnerd-token.ts). */
+export const RUNNER_TOKEN_FD = 3;
+
+/** runnerd's environment: the boot environment with the dependency path the
+ * entrypoint withheld from this root process handed back, since the agent uid
+ * can write it, and without the token, which runnerd reads from its
+ * descriptor 3 when there is one. The compile cache, which the agent uid can
+ * write too, stays out of runnerd's environment as well as this one: compiled
+ * code planted there would run as runnerd, which holds the token, so it
+ * travels as TALE_RUNNER_NODE_COMPILE_CACHE, for the execs alone
+ * (exec-manager.ts). */
+export function runnerEnvironment(
+  boot: NodeJS.ProcessEnv,
+  token: string,
+): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {
     ...boot,
     NODE_PATH: boot.TALE_RUNNER_NODE_PATH ?? '',
   };
-  if (boot.TALE_RUNNER_NODE_COMPILE_CACHE)
-    env.NODE_COMPILE_CACHE = boot.TALE_RUNNER_NODE_COMPILE_CACHE;
   delete env.TALE_RUNNER_NODE_PATH;
-  delete env.TALE_RUNNER_NODE_COMPILE_CACHE;
+  delete env.NODE_COMPILE_CACHE;
+  delete env.TALE_RUNNERD_TOKEN;
+  if (token === '') delete env.TALE_RUNNERD_TOKEN_FD;
+  else env.TALE_RUNNERD_TOKEN_FD = String(RUNNER_TOKEN_FD);
   return env;
+}
+
+/** Write the token to runnerd's descriptor 3 and end it there, so runnerd's
+ * read of it ends. A runnerd that is gone before it read fails the write,
+ * which is logged: its exit ends this supervisor anyway. */
+export function handOverToken(runner: ChildProcess, token: string): void {
+  const descriptor = runner.stdio[RUNNER_TOKEN_FD];
+  if (!descriptor || !('end' in descriptor))
+    throw new Error('runnerd was started without its token descriptor');
+  descriptor.on('error', (error: unknown) => {
+    console.warn('[lazy-docker] handing runnerd its token failed:', error);
+  });
+  descriptor.end(`${token}\n`);
 }
 
 function startEngineProcess(
@@ -749,6 +775,10 @@ async function removeStaleSocket(path: string) {
 export async function runLazyDockerSupervisor() {
   if (process.getuid?.() !== 0)
     throw new Error('Docker supervisor requires root');
+  // runnerd's token, off the descriptor the entrypoint put it on before
+  // anything here starts a process that would inherit that descriptor (the
+  // engine below, then runnerd, which gets it on a descriptor of its own).
+  const { token } = runnerdToken();
   const boot = Object.freeze({ ...process.env });
   const groups = await readFile('/etc/group', 'utf8');
   const group = groups
@@ -802,7 +832,9 @@ export async function runLazyDockerSupervisor() {
     if (hasExistingContainers) await proxy.ensureReady();
     else if (await storeHoldsImages()) proxy.markStoreUsed();
     if (shuttingDown) return;
-    const runnerEnv = runnerEnvironment(boot);
+    const runnerEnv = runnerEnvironment(boot, token);
+    // --disable-sigusr1: a process of runnerd's uid must not open its
+    // inspector by sending it SIGUSR1, which would run code inside it.
     runner = spawn(
       '/usr/bin/setpriv',
       [
@@ -813,10 +845,20 @@ export async function runLazyDockerSupervisor() {
         '--init-groups',
         '--',
         NODE,
+        '--disable-sigusr1',
         '/usr/local/lib/tale/runnerd.mjs',
       ],
-      { env: runnerEnv, stdio: 'inherit' },
+      {
+        env: runnerEnv,
+        stdio: [
+          'inherit',
+          'inherit',
+          'inherit',
+          token === '' ? 'ignore' : 'pipe',
+        ],
+      },
     );
+    if (token !== '') handOverToken(runner, token);
     await new Promise<void>((resolve, reject) => {
       runner?.once('error', reject);
       runner?.once('exit', (code, signal) => {

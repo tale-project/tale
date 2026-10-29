@@ -36,8 +36,8 @@ test('Docker activation lifecycle and streams under Node', async () => {
       },
     );
     expect(result.stderr).toBe('');
-    expect(result.stdout).toContain('# tests 12');
-    expect(result.stdout).toContain('# pass 12');
+    expect(result.stdout).toContain('# tests 13');
+    expect(result.stdout).toContain('# pass 13');
     expect(result.status).toBe(0);
   } finally {
     await rm(dir, { recursive: true, force: true });
@@ -75,20 +75,42 @@ test('the production bundle explicitly starts the root supervisor', async () => 
   }
 });
 
-test('runnerd gets back the workspace Node settings the root supervisor never loads', () => {
-  const env = runnerEnvironment({
-    PATH: '/usr/bin',
-    TALE_RUNNER_NODE_PATH: '/agent/.runtime/deps/node/lib/node_modules',
-    TALE_RUNNER_NODE_COMPILE_CACHE:
-      '/agent/.runtime/home/.cache/node-compile-cache',
-  });
+test('runnerd gets back the dependency path, and the compile cache only to hand to its execs', () => {
+  const cache = '/agent/.runtime/home/.cache/node-compile-cache';
+  const env = runnerEnvironment(
+    {
+      PATH: '/usr/bin',
+      TALE_RUNNER_NODE_PATH: '/agent/.runtime/deps/node/lib/node_modules',
+      TALE_RUNNER_NODE_COMPILE_CACHE: cache,
+    },
+    '',
+  );
   expect(env).toEqual({
     PATH: '/usr/bin',
     NODE_PATH: '/agent/.runtime/deps/node/lib/node_modules',
-    NODE_COMPILE_CACHE: '/agent/.runtime/home/.cache/node-compile-cache',
+    TALE_RUNNER_NODE_COMPILE_CACHE: cache,
   });
   // An entrypoint from before the compile cache leaves runnerd without one.
-  expect(runnerEnvironment({ PATH: '/usr/bin' })).toEqual({
+  expect(runnerEnvironment({ PATH: '/usr/bin' }, '')).toEqual({
+    PATH: '/usr/bin',
+    NODE_PATH: '',
+  });
+});
+
+test("runnerd's token is never in its environment: runnerd reads it from its descriptor 3", () => {
+  const boot = {
+    PATH: '/usr/bin',
+    TALE_RUNNERD_TOKEN: 'runnerd-token',
+    TALE_RUNNERD_TOKEN_FD: '9',
+    NODE_COMPILE_CACHE: '/agent/.runtime/home/.cache/node-compile-cache',
+  };
+  expect(runnerEnvironment(boot, 'runnerd-token')).toEqual({
+    PATH: '/usr/bin',
+    NODE_PATH: '',
+    TALE_RUNNERD_TOKEN_FD: '3',
+  });
+  // Without a token runnerd starts unsigned, and no descriptor is named.
+  expect(runnerEnvironment(boot, '')).toEqual({
     PATH: '/usr/bin',
     NODE_PATH: '',
   });

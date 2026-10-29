@@ -8,7 +8,7 @@
 #   daemon          — a persistent SESSION container: brings up the workspace
 #                     skeleton, optionally the inner dockerd (TALE_DIND=1), the
 #                     transparent-egress redirect (TALE_TRANSPARENT_EGRESS=1), then
-#                     execs `tini -g -- node runnerd.mjs` (see
+#                     execs `tini -g -- node --disable-sigusr1 runnerd.mjs` (see
 #                     services/sandbox/src/session/docker-session-args.ts and
 #                     backend/kubernetes/k8s-session-pod-spec.ts).
 #   egress-sidecar  — the K8s native sidecar: installs the OUTPUT REDIRECT into
@@ -27,7 +27,10 @@
 #   TALE_REGISTRY_CACHE_NPM / TALE_REGISTRY_CACHE_PYPI  -> the node's package
 #                     registry caches (Incus): written into the home as the
 #                     package managers' config files (write_registry_cache_files)
-#   TALE_RUNNERD_TOKEN / TALE_SESSION_ENV  -> runnerd auth + seed env
+#   TALE_RUNNERD_TOKEN / TALE_SESSION_ENV  -> runnerd auth + seed env; the
+#                     token is moved off the environment onto fd 9 before
+#                     anything runs (TALE_RUNNERD_TOKEN_FD, see the daemon
+#                     dispatch)
 #   TALE_RUNNERD_INCARNATION  -> creation stamp runnerd names in its answers
 #
 # Conventions:
@@ -595,9 +598,10 @@ _launch_session_redsocks() {
   # redsocks, so a redsocks that died left the session without transparent
   # egress until the container was recreated. It is kept running: the loop
   # restarts it with a growing delay (back to 1 s after a minute's good run),
-  # and runs as the redsocks uid itself, so no root process stays behind.
+  # and runs as the redsocks uid itself, so no root process stays behind. It
+  # does not keep runnerd's token pipe (fd 9, see the daemon dispatch) open.
   setpriv --reuid "${TALE_REDSOCKS_UID}" --regid "${TALE_REDSOCKS_UID}" --init-groups -- \
-    /bin/sh -c "${_REDSOCKS_SUPERVISOR}" redsocks-supervisor "${_REDSOCKS}" "${TALE_REDSOCKS_CONF}" >&2 &
+    /bin/sh -c "${_REDSOCKS_SUPERVISOR}" redsocks-supervisor "${_REDSOCKS}" "${TALE_REDSOCKS_CONF}" >&2 9<&- &
   TALE_REDSOCKS_STARTED=1
 }
 
@@ -1014,11 +1018,12 @@ purge_old_exec_temp() {
   _delay="${2:-2}"
   _idle=""
   command -v ionice >/dev/null 2>&1 && _idle="ionice -c 3 -t"
-  # Word splitting of $DROP and $_idle is intended.
+  # Word splitting of $DROP and $_idle is intended. The job does not keep
+  # runnerd's token pipe (fd 9, see the daemon dispatch) open.
   (
     sleep "$_delay"
     $DROP nice -n 19 $_idle rm -rf "$_rt"/tmp.old.*
-  ) >/dev/null 2>&1 &
+  ) >/dev/null 2>&1 9<&- &
 }
 
 # ---------------------------------------------------------------------------
@@ -1208,6 +1213,28 @@ mount_session_shm() {
 # process group; runnerd passes it on to every live exec (each runs in a
 # group of its own) before it exits.
 # ---------------------------------------------------------------------------
+# runnerd's token never stays in an environment a session process can read. A
+# process's /proc/<pid>/environ shows the environment it was started with,
+# whatever it unsets later, and every exec runs at runnerd's own uid: one that
+# read the token there could call runnerd as the spawner and sign a
+# staged-files manifest. So, before anything else runs (and before the wrapper
+# below, whose shell lives as long as runnerd), this script runs again with the
+# token moved out of the environment onto fd 9, a pipe that runnerd (or the
+# Docker supervisor, which hands it on the same way) reads once and closes
+# (daemon/src/runnerd-token.ts). runnerd makes itself non-dumpable before it
+# reads, so its memory is no more readable than its environment. The jobs left
+# in the background below close fd 9; tini, and the wrapper's shell, keep it
+# open, but the pipe has no writer left and nothing in it once runnerd has read.
+if [ "$1" = "daemon" ] && [ -n "${TALE_RUNNERD_TOKEN:-}" ]; then
+  _runnerd_token=$TALE_RUNNERD_TOKEN
+  unset TALE_RUNNERD_TOKEN
+  export TALE_RUNNERD_TOKEN_FD=9
+  # By the shell, not by the file: it needs no execute bit to be run again.
+  exec /bin/sh "$0" "$@" 9<<EOF
+$_runnerd_token
+EOF
+fi
+
 # The container ends with runnerd. On Docker and Kubernetes the process this
 # script finally execs (tini) is the container's PID 1, so when runnerd goes the
 # container goes, and the kernel ends everything else with it. Incus runs a
@@ -1300,12 +1327,17 @@ if [ "$1" = "daemon" ]; then
   # /tmp any install set past ~128 MB died with ENOSPC (e.g. markitdown[pptx]'s
   # 223 MB). /tmp itself stays for small control files such as redsocks.conf.
   export TMPDIR=/agent/.runtime/tmp
-  # V8's compile cache for every Node program the session runs (gemini's
-  # bundled CLI, the per-turn node helpers, runnerd itself), kept in the
-  # persistent HOME and created above at the session uid, so a resume or a
-  # later turn reuses compiled code instead of parsing and compiling again.
-  # Never under TMPDIR, which every container start wipes.
-  export NODE_COMPILE_CACHE=/agent/.runtime/home/.cache/node-compile-cache
+  # V8's compile cache for the Node programs the execs run (gemini's bundled
+  # CLI, the per-turn node helpers), kept in the persistent HOME and created
+  # above at the session uid, so a resume or a later turn reuses compiled code
+  # instead of parsing and compiling again. Never under TMPDIR, which every
+  # container start wipes. Neither runnerd nor the root Docker supervisor
+  # loads it: a process of the session's uid can write that directory, and
+  # compiled code planted there would run as runnerd, with its token, at its
+  # next start. So it is not NODE_COMPILE_CACHE here; runnerd hands it to each
+  # exec under that name (daemon/src/exec-manager.ts).
+  unset NODE_COMPILE_CACHE
+  export TALE_RUNNER_NODE_COMPILE_CACHE=/agent/.runtime/home/.cache/node-compile-cache
   export PIP_TARGET=/agent/.runtime/deps/python
   export PYTHONPATH=/agent/.runtime/deps/python${PYTHONPATH:+:$PYTHONPATH}
   export PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -1348,7 +1380,6 @@ if [ "$1" = "daemon" ]; then
     export TALE_REDSOCKS_STARTED
     setup_shared_buildx_builder
     export TALE_RUNNER_NODE_PATH="$NODE_PATH"
-    export TALE_RUNNER_NODE_COMPILE_CACHE="$NODE_COMPILE_CACHE"
     export PATH="$_runner_path"
     # The supervisor is root: workspace Node loaders must never run in it, and
     # neither may compiled code from the agent-writable compile cache.
@@ -1360,13 +1391,16 @@ if [ "$1" = "daemon" ]; then
   # as root to install the OUTPUT REDIRECT, so setpriv drops to the profile uid
   # for runnerd (tini itself stays root, exactly as on the DinD path: it only
   # reaps and forwards signals). Without transparent egress the container is
-  # already at its --user, so tini runs unprivileged too.
+  # already at its --user, so tini runs unprivileged too. On every path node
+  # runs runnerd with --disable-sigusr1: a process of runnerd's uid may signal
+  # it, and SIGUSR1 would otherwise open its inspector, and code run there
+  # reads the token.
   if [ "${TALE_TRANSPARENT_EGRESS:-}" = "1" ] || [ -n "${TALE_SHM_SIZE:-}" ]; then
     exec tini -g -- \
       setpriv --reuid "${TALE_DROP_UID:-10001}" --regid "${TALE_DROP_GID:-10001}" --init-groups -- \
-      node /usr/local/lib/tale/runnerd.mjs
+      node --disable-sigusr1 /usr/local/lib/tale/runnerd.mjs
   fi
-  exec tini -g -- node /usr/local/lib/tale/runnerd.mjs
+  exec tini -g -- node --disable-sigusr1 /usr/local/lib/tale/runnerd.mjs
 fi
 
 # ---------------------------------------------------------------------------
