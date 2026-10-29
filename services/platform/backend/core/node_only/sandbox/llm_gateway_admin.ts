@@ -304,8 +304,9 @@ function managementHeaders(): Record<string, string> {
  * turned away for a moment — about three seconds in all. */
 const STORE_BUSY_RETRY_DELAYS_MS = [250, 750, 2_000] as const;
 
-/** How the gateway names its SQLite store refusing a write that collided
- * with another one; the write's transaction rolled back, nothing changed. */
+/** How the gateway names its SQLite store turning a statement away while
+ * another write holds it. That alone does not say whether a write was
+ * stored: a create can commit, then meet the lock on the read that follows. */
 const STORE_BUSY = /database is locked/i;
 
 type ManagementMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -325,12 +326,16 @@ const MANAGEMENT_TIMEOUT_MS = 15_000;
  * beside a budget move). It answers those with a 500 that names the locked
  * store, except a virtual key's DELETE, which says only that it failed. So a
  * call answered with a 5xx is sent again after a short wait, up to three
- * times, when that is safe: always when the answer names the locked store,
- * and for the idempotent methods whatever it says. A POST answered otherwise
- * comes back at once — it may have created what it asked for. The last
- * answer is returned either way, for the caller to read as before. A caller
- * that must look at the gateway before a write goes out again passes
- * `resend: false` and gets the first answer.
+ * times, when that is safe: for the idempotent methods whatever the answer
+ * says, and for a POST only when it matches `storedNothing`, the answer its
+ * endpoint gives only when it stored nothing. Naming the locked store is not
+ * proof of that — a provider key's create commits, then re-reads the key,
+ * and a lock on that read leaves the key stored, so a second POST only
+ * collides with it. Any other answer to a POST, and every answer to one with
+ * no `storedNothing`, comes back at once: it may have created what it asked
+ * for. The last answer is returned either way, for the caller to read as
+ * before. A caller that must look at the gateway before a write goes out
+ * again passes `resend: false` and gets the first answer.
  */
 async function managementFetch(
   path: string,
@@ -339,6 +344,7 @@ async function managementFetch(
     json?: unknown;
     timeoutMs?: number;
     resend?: boolean;
+    storedNothing?: RegExp;
   } = {},
 ): Promise<Response> {
   const method = init.method ?? 'GET';
@@ -360,7 +366,7 @@ async function managementFetch(
       );
       return '';
     });
-    if (method === 'POST' && !STORE_BUSY.test(text)) {
+    if (method === 'POST' && !(init.storedNothing?.test(text) ?? false)) {
       return new Response(text, { status: res.status, headers: res.headers });
     }
     const said = sanitizeError(text).replace(/\s+/g, ' ').trim().slice(0, 200);
@@ -676,6 +682,11 @@ async function postVirtualKey(
   const res = await managementFetch('/api/governance/virtual-keys', {
     method: 'POST',
     json: body,
+    // The gateway meets its locked store here only reading the providers
+    // before it writes, or inside the one transaction that writes the key,
+    // which rolls back; once that commits it answers 200, a failed reload
+    // only logged. So any locked answer stored nothing.
+    storedNothing: STORE_BUSY,
   });
   if (!res.ok) {
     // The gateway names what it refused (a field it did not accept, a
@@ -1056,6 +1067,9 @@ export async function ensureModelPricingOverride(
     request_types: requestTypes,
     patch,
   };
+  // A create carries no `storedNothing`: the gateway's 5xx to it never names
+  // the store's error, and one of them ("Failed to upsert pricing override")
+  // comes after the override was stored, so it comes back at once.
   const res = await managementFetch(
     existing
       ? `/api/governance/pricing-overrides/${encodeURIComponent(existing.id)}`
@@ -1571,6 +1585,15 @@ async function ensureProviderConfig(
   );
 }
 
+/** The one locked-store answer to a provider key's create that stored
+ * nothing: the gateway's own insert, whose transaction rolled back. The same
+ * lock met on the read after that insert commits answers "failed to re-read
+ * provider key after create" — the key is stored, and a second POST only
+ * meets its unique name (409). `[^"]*` keeps both phrases in the one JSON
+ * string the gateway's message is. */
+const PROVIDER_KEY_STORE_BUSY =
+  /failed to create provider key in store: [^"]*database is locked/i;
+
 /**
  * POST (create) / PUT (rotate) THIS org's upstream key as a sub-resource of
  * the provider. `existing` is the already-resolved key row (or null) so the
@@ -1593,10 +1616,16 @@ async function writeProviderKey(
   const path = existing
     ? `/api/providers/${encodeURIComponent(p.name)}/keys/${encodeURIComponent(existing.id)}`
     : `/api/providers/${encodeURIComponent(p.name)}/keys`;
-  const res = await managementFetch(path, {
-    method: existing ? 'PUT' : 'POST',
-    json: keyBody,
-  });
+  const res = await managementFetch(
+    path,
+    existing
+      ? { method: 'PUT', json: keyBody }
+      : {
+          method: 'POST',
+          json: keyBody,
+          storedNothing: PROVIDER_KEY_STORE_BUSY,
+        },
+  );
   if (!res.ok) {
     throw new Error(
       `llm-gateway ${existing ? 'update' : 'create'} key for ${p.name}/org ${organizationId} failed (${res.status}): ${sanitizeError(await res.text())}`,

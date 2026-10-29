@@ -1755,6 +1755,15 @@ describe('provisionProviders — management-plane auth', () => {
  */
 describe('management calls the gateway store turned away for a moment', () => {
   const LOCKED = '{"error":{"message":"failed to update: database is locked"}}';
+  /** The gateway's answers to a provider key's create: its insert turned
+   * away (rolled back), the read after that insert committed turned away (the
+   * key stored), and a create whose name a stored key already holds. */
+  const INSERT_LOCKED =
+    '{"error":{"message":"Failed to create provider key: failed to create provider key in store: database is locked"}}';
+  const READ_LOCKED =
+    '{"error":{"message":"Failed to create provider key: failed to re-read provider key after create: database is locked"}}';
+  const NAME_TAKEN =
+    '{"error":{"message":"API key names must be unique across providers. Choose a different name"}}';
 
   /** Stub fetch: `answer` decides each call's reply from its method and URL
    * and how often that method+URL was called before. */
@@ -1776,6 +1785,40 @@ describe('management calls the gateway store turned away for a moment', () => {
       }),
     );
     return calls;
+  }
+
+  /** Stub fetch with a gateway whose first key create for openrouter stores
+   * the key, meets the locked store in its insert and stores nothing, or
+   * stores the key and meets the locked store reading it back. Once the key
+   * is stored, a create meets its name. Counts the creates sent and the keys
+   * stored. */
+  function stubKeyCreate(first: 'stores' | 'insert locked' | 'read locked') {
+    let stored = 0;
+    const calls = stubAnswers((method, url, seen) => {
+      if (method === 'GET') {
+        return Response.json({ keys: [] });
+      }
+      if (
+        method !== 'POST' ||
+        !url.endsWith('/api/providers/openrouter/keys')
+      ) {
+        return Response.json({});
+      }
+      if (stored > 0) {
+        return new Response(NAME_TAKEN, { status: 409 });
+      }
+      if (seen === 0 && first === 'insert locked') {
+        return new Response(INSERT_LOCKED, { status: 500 });
+      }
+      stored += 1;
+      return seen === 0 && first === 'read locked'
+        ? new Response(READ_LOCKED, { status: 500 })
+        : Response.json({ id: 'kid-new' });
+    });
+    return {
+      creates: () => calls.filter((c) => c.method === 'POST').length,
+      stored: () => stored,
+    };
   }
 
   it('sends a write again after a locked store, and the provision lands', async () => {
@@ -1850,6 +1893,72 @@ describe('management calls the gateway store turned away for a moment', () => {
       withRetryWaitsElapsed(() => mod.mintVirtualKey(args)),
     ).rejects.toThrow(
       'llm-gateway mint key failed (500): {"error":{"message":"governance data is not available"}}',
+    );
+    expect(calls.filter((c) => c.method === 'POST')).toHaveLength(1);
+  });
+
+  it('answers a key create whose read-back met the locked store with that refusal, not the 409 a second create meets', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const gateway = stubKeyCreate('read locked');
+    const mod = await loadModule();
+    const failures = await withRetryWaitsElapsed(() =>
+      mod.provisionProviders(ORG, [PROVIDER]),
+    );
+    expect(gateway.creates()).toBe(1);
+    expect(gateway.stored()).toBe(1);
+    expect(failures.map((f) => String(f.error))).toEqual([
+      `Error: llm-gateway create key for openrouter/org ${ORG} failed (500): ${READ_LOCKED}`,
+    ]);
+  });
+
+  it('sends a key create again when its insert met the locked store, which stored nothing, and the provision lands', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const gateway = stubKeyCreate('insert locked');
+    const mod = await loadModule();
+    const keyIds: string[] = [];
+    const failures = await withRetryWaitsElapsed(() =>
+      mod.provisionProviders(ORG, [PROVIDER], {
+        onProviderKey: (_name: string, keyId: string) => keyIds.push(keyId),
+      }),
+    );
+    expect(failures).toEqual([]);
+    expect(gateway.creates()).toBe(2);
+    expect(gateway.stored()).toBe(1);
+    expect(keyIds).toEqual(['kid-new']);
+  });
+
+  it('sends a key create the gateway stores once', async () => {
+    const gateway = stubKeyCreate('stores');
+    const mod = await loadModule();
+    const keyIds: string[] = [];
+    const failures = await withRetryWaitsElapsed(() =>
+      mod.provisionProviders(ORG, [PROVIDER], {
+        onProviderKey: (_name: string, keyId: string) => keyIds.push(keyId),
+      }),
+    );
+    expect(failures).toEqual([]);
+    expect(gateway.creates()).toBe(1);
+    expect(keyIds).toEqual(['kid-new']);
+  });
+
+  it('never repeats a pricing override create, even one answered with the locked store, since the gateway may have stored it', async () => {
+    const calls = stubAnswers((method) =>
+      method === 'GET'
+        ? Response.json({ pricing_overrides: [] })
+        : new Response(LOCKED, { status: 500 }),
+    );
+    const mod = await loadModule();
+    await expect(
+      withRetryWaitsElapsed(() =>
+        mod.ensureModelPricingOverride({
+          gatewayProvider: 'org_1__zai__glm-5.3-flash',
+          modelId: 'glm-5.3-flash',
+          inputCentsPerMillion: 15,
+          outputCentsPerMillion: 50,
+        }),
+      ),
+    ).rejects.toThrow(
+      `llm-gateway create pricing override tale-pricing-org_1__zai__glm-5.3-flash-glm-5.3-flash failed (500): ${LOCKED}`,
     );
     expect(calls.filter((c) => c.method === 'POST')).toHaveLength(1);
   });
