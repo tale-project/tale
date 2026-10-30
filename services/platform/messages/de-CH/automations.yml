@@ -31,7 +31,7 @@ templates:
   loadTemplateFailed: 'Die Vorlage liess sich nicht laden: {error}'
   numberOutOfRange: '«{label}» braucht eine ganze Zahl von {min} bis {max}.'
   preview:
-    needsPartner: 'Hier ist nichts zu verbinden: Sie arbeitet mit dem, was eine der Vorlagen unter «Passt zu» hereinholt.'
+    needsPartner: 'Hier ist nichts zu verbinden: Die Automatisierung arbeitet mit dem, was eine der Vorlagen unter «Passt zu» hereinholt.'
   createFailed: 'Die Automatisierung liess sich nicht anlegen: {error}'
 tests:
   fromRun:

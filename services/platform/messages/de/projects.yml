@@ -594,7 +594,7 @@ dispatch:
     unknownAgent: Ein Agent, der nicht mehr in diesem Projekt ist
   servedBy:
     title: '{count, plural, one {Die Arbeitsverteilung eines anderen Projekts bedient dieses Board} other {Die Arbeitsverteilungen von # anderen Projekten bedienen dieses Board}}'
-    body: Ihre Agenten dürfen den bereiten Aufgaben dieses Projekts zugewiesen, darauf gestartet werden und daran arbeiten.
+    body: Deren Agenten dürfen den bereiten Aufgaben dieses Projekts zugewiesen, darauf gestartet werden und daran arbeiten.
     item: 'Bedient von der Arbeitsverteilung von {project}'
     hiddenItem: Bedient von der Arbeitsverteilung eines anderen Projekts
     off: ausgeschaltet

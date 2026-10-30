@@ -78,8 +78,8 @@ budgets:
   selectApiKeyAriaLabel: API-Schlüssel auswählen
   saved: Budgetregeln aktualisiert
   saveFailed: Budgetregeln konnten nicht gespeichert werden
-  targetRequired: Wählen Sie ein Ziel für diesen Geltungsbereich, sonst greift die Regel nie.
-  limitRequired: Legen Sie mindestens ein Limit (Tokens, Kosten oder Anfragen)
+  targetRequired: Wähle ein Ziel für diesen Geltungsbereich, sonst greift die Regel nie.
+  limitRequired: Lege mindestens ein Limit (Tokens, Kosten oder Anfragen)
     fest, damit die Regel greifen kann.
   invalidTokenLimit: Das Token-Limit muss größer als null sein.
   invalidCostLimit: Das Kostenlimit muss größer als null sein.
@@ -1770,7 +1770,7 @@ dsarPolicy:
       abbrechen.
     cancel: Vorgemerkte Änderung abbrechen
 errors:
-  saveForbidden: Sie haben keine Berechtigung, diese Einstellung zu ändern.
+  saveForbidden: Du hast keine Berechtigung, diese Einstellung zu ändern.
 conversationRouting:
   title: Konversations-Routing
   description: 'Leite neue Konversationen anhand ihres Eingangs an ein Team oder eine Person weiter: über ein Postfach, die Adresse, an die sie gesendet wurden, oder eine API-App. Die Regeln greifen automatisch, sobald eine Konversation eingeht.'

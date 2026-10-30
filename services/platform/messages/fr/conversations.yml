@@ -218,7 +218,7 @@ list:
   loadFailedDescription: Une erreur s'est produite lors du chargement de ces conversations.
 activate:
   title: Aucune conversation pour le moment
-  description: Les conversations entrantes de vos canaux connectés apparaîtront ici.
+  description: Les conversations entrantes de tes canaux connectés apparaîtront ici.
   noAutomationTitle: Configure ta boîte de réception
   noAutomationDescription:
     Installe une automatisation e-mail (Gmail, Outlook ou

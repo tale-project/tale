@@ -582,7 +582,7 @@ enterpriseSso:
   copy: Copier
   protocolLabel: Protocole
   protocolHelp:
-    Choisissez le mode de connexion des utilisateurs. Les points de
+    Choisis le mode de connexion des utilisateurs. Les points de
     terminaison OIDC sont détectés automatiquement.
   displayNameLabel: Nom affiché
   signInSection: Connexion
@@ -678,11 +678,11 @@ enterpriseSso:
   scim:
     section: Provisionnement SCIM
     help:
-      Laissez votre IdP transmettre automatiquement les utilisateurs et les
+      Laisse ton IdP transmettre automatiquement les utilisateurs et les
       groupes (création, mise à jour, désactivation).
     enabled: Activé
     disabled: Désactivé
-    tokenCreatedHelp: Copiez ce jeton maintenant — il ne sera plus affiché.
+    tokenCreatedHelp: Copie ce jeton maintenant — il ne sera plus affiché.
     regenerate: Régénérer le jeton
     generate: Générer un jeton
     disable: Désactiver
@@ -777,11 +777,11 @@ enterpriseSso:
   saveFailed: Échec de l'enregistrement
   testOk: La connexion semble correcte
   testFailed: Échec du test de connexion
-  testMissingFields: Renseignez les champs requis avant de tester.
+  testMissingFields: Renseigne les champs requis avant de tester.
   formHint: Configure la façon dont les membres se connectent à cette organisation.
   validation:
     required: Ce champ est requis.
-    url: Saisissez une URL valide (avec https://).
+    url: Saisis une URL valide (avec https://).
     clientSecretRequired: Un secret client est requis.
     spKeyRequired: Exiger des assertions chiffrées demande une clé privée SP.
   roleMapping:
@@ -805,12 +805,12 @@ enterpriseSso:
     claimHelp: Chemin pointé dans les claims du jeton, p. ex. realm_access.roles.
   redirectUrlLabel: URL de redirection à enregistrer dans Entra
   redirectUrlHelp:
-    Enregistrez exactement cette URL comme URI de redirection « Web
-    » dans votre inscription d'application — elle doit correspondre au
+    Enregistre exactement cette URL comme URI de redirection « Web
+    » dans ton inscription d'application — elle doit correspondre au
     caractère près (schéma, hôte, chemin, sans barre oblique finale), sinon
     la connexion échoue avec AADSTS50011.
   additionalDomainsHint:
-    Ce déploiement répond aussi sur d'autres domaines. Enregistrez
+    Ce déploiement répond aussi sur d'autres domaines. Enregistre
     également cette URL — la personne qui se connecte là-bas y est
     ramenée, et non sur le domaine canonique.
   deploymentWarning:
@@ -825,89 +825,89 @@ enterpriseSso:
   guide:
     title: Guide de configuration
     redirectLabel: URL de redirection / de rappel
-    samlIntro: Créez une application SAML dans votre IdP à l'aide de l'URL des
+    samlIntro: Crée une application SAML dans ton IdP à l'aide de l'URL des
       métadonnées SP et de l'URL ACS affichées dans la section Connexion
       ci-dessus.
     entra:
       intro:
-        Enregistrez une application dans le centre d'administration Microsoft
-        Entra, puis saisissez ses informations ci-dessous.
-      s1: Connectez-vous au centre d'administration Microsoft Entra
+        Enregistre une application dans le centre d'administration Microsoft
+        Entra, puis saisis ses informations ci-dessous.
+      s1: Connecte-toi au centre d'administration Microsoft Entra
         (entra.microsoft.com) en tant que développeur d'applications au
         minimum.
       s2:
-        Allez dans Entra ID › Inscriptions d'applications › Nouvelle inscription ;
-        nommez-la et choisissez « Locataire unique ».
+        Va dans Entra ID › Inscriptions d'applications › Nouvelle inscription ;
+        nomme-la et choisis « Locataire unique ».
       s3:
-        Sous URI de redirection, sélectionnez la plateforme « Web », collez l'URL de
-        redirection affichée ci-dessus, puis cliquez sur Inscrire.
+        Sous URI de redirection, sélectionne la plateforme « Web », colle l'URL de
+        redirection affichée ci-dessus, puis clique sur Inscrire.
       s4:
-        Sur la page Vue d'ensemble, copiez l'ID d'application (client) et l'ID de
+        Sur la page Vue d'ensemble, copie l'ID d'application (client) et l'ID de
         répertoire (locataire). L'URL de l'émetteur est
         https://login.microsoftonline.com/{tenant-id}/v2.0.
       s5:
-        Allez dans Certificats et secrets › Nouveau secret client et copiez la
+        Va dans Certificats et secrets › Nouveau secret client et copie la
         Valeur du secret (pas son ID).
       s6:
-        Saisissez l'ID client, le secret client et l'URL de l'émetteur dans les
+        Saisis l'ID client, le secret client et l'URL de l'émetteur dans les
         champs ci-dessus.
       s7:
-        Pour la synchronisation groupe→équipe, ajoutez l'autorisation Microsoft
-        Graph GroupMember.Read.All sous Autorisations d'API et accordez le
+        Pour la synchronisation groupe→équipe, ajoute l'autorisation Microsoft
+        Graph GroupMember.Read.All sous Autorisations d'API et accorde le
         consentement administrateur.
       s8: L’import de fichiers Microsoft 365 possède son propre parcours de consentement dans les connaissances. N’ajoute pas Files.Read ou Sites.Read.All aux scopes SSO pour la connexion. Configure l’accès à l’import dans les paramètres des apps OAuth des connecteurs.
     google:
       intro:
-        Créez un client OAuth dans la console Google Cloud, puis saisissez ses
+        Crée un client OAuth dans la console Google Cloud, puis saisis ses
         informations ci-dessous.
       s1:
-        Dans la console Google Cloud, ouvrez API et services › Identifiants › Créer
+        Dans la console Google Cloud, ouvre API et services › Identifiants › Créer
         des identifiants › ID client OAuth.
-      s2: Choisissez le type d'application « Application Web ».
+      s2: Choisis le type d'application « Application Web ».
       s3:
-        Sous URI de redirection autorisés, ajoutez l'URL de redirection affichée
-        ci-dessus et enregistrez.
+        Sous URI de redirection autorisés, ajoute l'URL de redirection affichée
+        ci-dessus et enregistre.
       s4:
-        Copiez l'ID client et le secret client affichés en haut de la page du
+        Copie l'ID client et le secret client affichés en haut de la page du
         client.
       s5:
-        Saisissez-les ci-dessus avec l'URL de l'émetteur https://accounts.google.com
+        Saisis-les ci-dessus avec l'URL de l'émetteur https://accounts.google.com
         — les points de terminaison sont détectés automatiquement.
       groupsNote: "Remarque : l'OIDC standard de Google ne renvoie pas les
         appartenances aux groupes — la synchronisation groupe→équipe
         nécessite l'Admin SDK / l'API Cloud Identity avec un administrateur
         Google Workspace. Les autres fournisseurs OIDC (Okta, Auth0, Keycloak)
-        fonctionnent de la même manière : saisissez l'URL de l'émetteur et
+        fonctionnent de la même manière : saisis l'URL de l'émetteur et
         les identifiants client."
     oauth2:
       intro:
-        Pour les fournisseurs sans découverte OIDC, configurez les points de
+        Pour les fournisseurs sans découverte OIDC, configure les points de
         terminaison manuellement.
       s1:
-        Enregistrez une application Web/OAuth2 chez votre fournisseur et ajoutez
+        Enregistre une application Web/OAuth2 chez ton fournisseur et ajoute
         l'URL de redirection affichée ci-dessus.
-      s2: Copiez l'ID client et le secret client.
+      s2: Copie l'ID client et le secret client.
       s3:
-        Saisissez les URL des points de terminaison d'autorisation, de jeton et
-        userinfo depuis la documentation de votre fournisseur.
-      s4: Si votre fournisseur utilise des noms de claims non standard, mappez
+        Saisis les URL des points de terminaison d'autorisation, de jeton et
+        userinfo depuis la documentation de ton fournisseur.
+      s4: Si ton fournisseur utilise des noms de claims non standard, mappe
         e-mail/nom/groupes sous « Avancé ».
     saml:
       intro:
-        Configurez une application SAML 2.0 dans votre IdP, puis saisissez ses
+        Configure une application SAML 2.0 dans ton IdP, puis saisis ses
         informations ci-dessous.
-      s1: Dans votre IdP, créez une nouvelle application SAML 2.0.
+      s1: Dans ton IdP, crée une nouvelle application SAML 2.0.
       s2:
-        Définissez l'URL ACS (Assertion Consumer Service) et l'Entity ID / Audience
-        avec les valeurs SP affichées ci-dessus, ou importez l'URL des
+        Définis l'URL ACS (Assertion Consumer Service) et l'Entity ID / Audience
+        avec les valeurs SP affichées ci-dessus, ou importe l'URL des
         métadonnées SP.
-      s3: Définissez le format du Name ID sur adresse e-mail.
+      s3: Définis le format du Name ID sur adresse e-mail.
       s4:
-        Copiez l'Entity ID de l'IdP, l'URL de connexion de l'IdP et le certificat de
+        Copie l'Entity ID de l'IdP, l'URL de connexion de l'IdP et le certificat de
         signature de l'IdP (PEM) dans les champs ci-dessus.
       s5:
-        Mappez les attributs e-mail, nom et groupe dans votre IdP ; si leurs noms
-        diffèrent, indiquez les noms d'attributs correspondants sous «
+        Mappe les attributs e-mail, nom et groupe dans ton IdP ; si leurs noms
+        diffèrent, indique les noms d'attributs correspondants sous «
         Avancé ».
   disableConfirmTitle: Désactiver la connexion SSO ?
   disableConfirmDescription: Les membres ne pourront plus se connecter via SSO

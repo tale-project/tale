@@ -300,7 +300,7 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       '« {documentTitle} » (v{version}) attend ta revue.',
     taskReviewReminder: 'Rappel de revue',
     taskReviewReminderBody:
-      "Le travail de l'agent sur « {title} » attend toujours votre revue.",
+      "Le travail de l'agent sur « {title} » attend toujours ta revue.",
     taskReviewEscalated: 'Revue en retard',
     taskReviewEscalatedBody:
       "Une revue sur « {title} » attend depuis plus d'un jour.",
@@ -315,7 +315,7 @@ export const INBOX_I18N: Record<NotificationLocale, LocaleStrings> = {
       'Une automatisation attend une saisie humaine depuis {ageHours} heures.',
     taskSlaEscalated: 'Tâche en retard escaladée',
     taskSlaEscalatedBody:
-      '« {title} » est nettement en retard et demande votre attention.',
+      '« {title} » est nettement en retard et demande ton attention.',
     taskDueSoon: 'Échéance proche',
     taskDueSoonBody: '« {title} » arrive bientôt à échéance.',
     taskStartReached: 'Date de début atteinte',

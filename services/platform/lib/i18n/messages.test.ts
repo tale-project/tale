@@ -37,7 +37,11 @@ defineI18nTests({
     // (the `common.upload.*` subtree) — a `t('literal')` without a catalog
     // key now fails the suite instead of shipping a raw key.
     'usage-missing': 'enforce',
-    'pronouns-formal': 'report',
+    // A reader addressed as `Sie`/`vous` where the app says `du`/`tu` (#4430).
+    // Enforced once the catalogs agreed. A capitalised `Sie` that opens a
+    // sentence still passes as third person; a possessive that opens one
+    // (`Ihre Eingaben …`) does not, so name the owner (`Die Eingaben der …`).
+    'pronouns-formal': 'enforce',
     'terminology-loanword': 'report',
     'terminology-half-compound': 'report',
     // A feature, role or entity named unlike the label its locale ships

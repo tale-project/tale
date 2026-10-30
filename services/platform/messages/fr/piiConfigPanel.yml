@@ -9,10 +9,10 @@ modeMaskDesc: Remplace les DCP par des espaces réservés génériques.
 modeBlockDesc: Rejette le message dès qu'une DCP est détectée. L'utilisateur
   voit une notice de blocage à la place d'une réponse.
 patternsTitle: Motifs de détection
-patternsDescription: Choisissez les types de données personnelles que le
+patternsDescription: Choisis les types de données personnelles que le
   détecteur doit rechercher.
 customPatternsTitle: Règles regex personnalisées
-customPatternsDescription: Ajoutez des motifs que les règles intégrées ne
+customPatternsDescription: Ajoute des motifs que les règles intégrées ne
   couvrent pas. Chaque règle nécessite un nom, une expression régulière et le
   texte de remplacement utilisé en mode masque.
 customPatternNameLabel: Nom
