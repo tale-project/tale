@@ -2,32 +2,56 @@ import type { PgBoss } from 'pg-boss';
 import type { TransactionSql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
-import { addJobInTx, setEnqueueBoss } from './enqueue.ts';
+import { addJobInTx, addJobsInTx, setEnqueueBoss } from './enqueue.ts';
 import { TASK_QUEUE_OPTIONS } from './tasks.ts';
+
+type CapturedOptions = Record<string, unknown> & {
+  db?: { executeSql: (text: string, values?: unknown[]) => Promise<unknown> };
+};
 
 interface CapturedSend {
   name: string;
   data: object | null | undefined;
-  options: Record<string, unknown> & {
-    db?: { executeSql: (text: string, values?: unknown[]) => Promise<unknown> };
-  };
+  options: CapturedOptions;
+}
+
+interface CapturedInsert {
+  name: string;
+  jobs: (Record<string, unknown> & { data?: object })[];
+  options: CapturedOptions;
 }
 
 function installFakeBoss(): CapturedSend[] {
-  const calls: CapturedSend[] = [];
+  return installCapturingBoss().sends;
+}
+
+function installCapturingBoss(): {
+  sends: CapturedSend[];
+  inserts: CapturedInsert[];
+} {
+  const sends: CapturedSend[] = [];
+  const inserts: CapturedInsert[] = [];
   const fake = {
     send: (
       name: string,
       data: object | null | undefined,
-      options: CapturedSend['options'],
+      options: CapturedOptions,
     ) => {
-      calls.push({ name, data, options });
+      sends.push({ name, data, options });
       return Promise.resolve('job-id');
     },
+    insert: (
+      name: string,
+      jobs: CapturedInsert['jobs'],
+      options: CapturedOptions,
+    ) => {
+      inserts.push({ name, jobs, options });
+      return Promise.resolve(null);
+    },
   };
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- capture stub; addJobInTx only calls send()
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- capture stub; the façade only calls send() and insert()
   setEnqueueBoss(fake as unknown as PgBoss);
-  return calls;
+  return { sends, inserts };
 }
 
 function createFakeTx(): {
@@ -150,5 +174,61 @@ describe('addJobInTx', () => {
     expect(calls[1]?.options).not.toHaveProperty('group');
     // A caller's own group wins over the derived one.
     expect(calls[2]?.options.group).toEqual({ id: 'org-2' });
+  });
+});
+
+describe('addJobsInTx', () => {
+  it('queues every job of one queue in one insert, through a tx-bound db adapter', async () => {
+    const { sends, inserts } = installCapturingBoss();
+    const { tx, unsafeCalls } = createFakeTx();
+    const startAfter = new Date('2026-10-30T06:00:00Z');
+    await addJobsInTx(tx, 'notification.email', [
+      { payload: { notificationId: 'n-1', epoch: 1 }, options: { startAfter } },
+      { payload: { notificationId: 'n-2', epoch: 3 }, options: { startAfter } },
+    ]);
+
+    expect(sends).toEqual([]);
+    expect(inserts).toHaveLength(1);
+    expect(inserts[0]?.name).toBe('notification.email');
+    expect(inserts[0]?.jobs).toEqual([
+      { data: { notificationId: 'n-1', epoch: 1 }, startAfter },
+      { data: { notificationId: 'n-2', epoch: 3 }, startAfter },
+    ]);
+    // The jobs commit or roll back with the caller's own writes.
+    await inserts[0]?.options.db?.executeSql('INSERT INTO pgboss.job …', ['x']);
+    expect(unsafeCalls).toEqual([
+      { text: 'INSERT INTO pgboss.job …', values: ['x'] },
+    ]);
+  });
+
+  // pg-boss's `insert` builds each row with the SQL `send` runs, so a job
+  // queued in a batch carries what the same job sent alone would.
+  it('gives each job the options addJobInTx sends it with', async () => {
+    const { sends, inserts } = installCapturingBoss();
+    const { tx } = createFakeTx();
+    const payload = { organizationId: 'org-1', runId: 'run-1' };
+    const options = {
+      startAfter: new Date('2026-10-30T06:00:00Z'),
+      singletonKey: 'run-1',
+      priority: 7,
+    };
+    await addJobInTx(tx, 'automation.step', payload, options);
+    await addJobsInTx(tx, 'automation.step', [{ payload, options }]);
+
+    const { db: _db, ...sent } = sends[0]?.options ?? {};
+    expect(inserts[0]?.name).toBe(sends[0]?.name);
+    expect(inserts[0]?.name).toBe('automation.v2.step');
+    expect(inserts[0]?.jobs).toEqual([{ data: payload, ...sent }]);
+    expect(sent).toMatchObject({
+      group: { id: 'org-1' },
+      heartbeatSeconds: TASK_QUEUE_OPTIONS['automation.step'].heartbeatSeconds,
+    });
+  });
+
+  it('queues nothing, and asks pg-boss nothing, for no jobs', async () => {
+    const { inserts } = installCapturingBoss();
+    const { tx } = createFakeTx();
+    await addJobsInTx(tx, 'notification.email', []);
+    expect(inserts).toEqual([]);
   });
 });

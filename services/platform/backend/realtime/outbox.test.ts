@@ -1,6 +1,11 @@
+import type { Sql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createOutboxReclaimer, reclaimablePrefix } from './outbox.ts';
+import {
+  createOutboxReclaimer,
+  emitHintsInTx,
+  reclaimablePrefix,
+} from './outbox.ts';
 
 const row = (id: string, createdAtMs: number) => ({ id, createdAtMs });
 
@@ -106,5 +111,62 @@ describe('createOutboxReclaimer', () => {
     await reclaimer.tick();
     expect(reclaim).toHaveBeenCalledTimes(3);
     error.mockRestore();
+  });
+});
+
+describe('emitHintsInTx', () => {
+  /** A postgres.js tagged-template stand-in that records each statement. */
+  function recordingTx(): {
+    tx: Sql;
+    calls: { text: string; values: unknown[] }[];
+  } {
+    const calls: { text: string; values: unknown[] }[] = [];
+    const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      calls.push({
+        text: strings.join('?').replaceAll(/\s+/g, ' ').trim(),
+        values,
+      });
+      return Promise.resolve([]);
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a one-member stand-in for the postgres.js template function
+    return { tx: tag as unknown as Sql, calls };
+  }
+
+  it('writes every hint as its own row, in one statement', async () => {
+    const { tx, calls } = recordingTx();
+    await emitHintsInTx(tx, [
+      {
+        orgId: 'org-1',
+        userId: 'u-ada',
+        entity: 'notification',
+        entityId: null,
+      },
+      {
+        orgId: 'org-1',
+        userId: 'u-noah',
+        entity: 'notification',
+        entityId: null,
+      },
+      { orgId: 'org-1', entity: 'task', entityId: 'task-1' },
+    ]);
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.text).toBe(
+      'INSERT INTO app_realtime.outbox (org_id, user_id, entity, entity_id) SELECT * FROM unnest( ?::text[], ?::text[], ?::text[], ?::text[] )',
+    );
+    // Column by column, one entry per hint: an org-wide hint keeps its NULL
+    // user, so it still reaches every stream of the organization.
+    expect(calls[0]?.values).toEqual([
+      ['org-1', 'org-1', 'org-1'],
+      ['u-ada', 'u-noah', null],
+      ['notification', 'notification', 'task'],
+      [null, null, 'task-1'],
+    ]);
+  });
+
+  it('writes nothing for no hints', async () => {
+    const { tx, calls } = recordingTx();
+    await emitHintsInTx(tx, []);
+    expect(calls).toEqual([]);
   });
 });

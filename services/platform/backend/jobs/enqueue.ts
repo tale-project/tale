@@ -81,8 +81,8 @@ function requireBoss(): PgBoss {
  * pg-boss's `db` option over postgres.js: pg-boss runs its statements on
  * the caller's connection, so a send or a completion commits or rolls back
  * with the caller's own writes. The one adapter for every pg-boss call that
- * rides a transaction — `addJobInTx` and the draining worker's hand-over
- * (`runner.ts`).
+ * rides a transaction — `addJobInTx`, `addJobsInTx` and the draining
+ * worker's hand-over (`runner.ts`).
  */
 export function bossDbInTx(tx: TransactionSql | Sql): Db {
   return {
@@ -112,14 +112,50 @@ export async function addJobInTx<TName extends TaskIdentifier>(
   payload: TaskPayloads[TName],
   options: EnqueueOptions = {},
 ): Promise<string | null> {
+  return requireBoss().send(physicalTaskQueue(identifier), payload, {
+    db: bossDbInTx(tx),
+    ...jobOptions(identifier, payload, options),
+  });
+}
+
+/**
+ * {@link addJobInTx} for many jobs of one queue, in one statement: pg-boss's
+ * `insert` builds every row with the SQL `send` runs, the queue's own
+ * defaults included, so a fan-out's jobs cost the caller's transaction one
+ * round trip instead of one per job. Each job keeps its own options.
+ */
+export async function addJobsInTx<TName extends TaskIdentifier>(
+  tx: TransactionSql | Sql,
+  identifier: TName,
+  jobs: readonly {
+    payload: TaskPayloads[TName];
+    options?: EnqueueOptions;
+  }[],
+): Promise<void> {
+  if (jobs.length === 0) return;
+  await requireBoss().insert(
+    physicalTaskQueue(identifier),
+    jobs.map(({ payload, options = {} }) => ({
+      data: payload,
+      ...jobOptions(identifier, payload, options),
+    })),
+    { db: bossDbInTx(tx) },
+  );
+}
+
+/** One job's pg-boss options: the caller's, and what its queue adds. */
+function jobOptions<TName extends TaskIdentifier>(
+  identifier: TName,
+  payload: TaskPayloads[TName],
+  options: EnqueueOptions,
+) {
   // Per job, not only on the queue: a queue created before its heartbeat
   // was declared keeps none (`createQueue` inserts, it never updates).
   const heartbeatSeconds = TASK_QUEUE_OPTIONS[identifier].heartbeatSeconds;
   // Derived here, not at each call site, so no enqueue of a grouped queue
   // can leave it out and slip past its group's limit.
   const group = options.group ?? TASK_JOB_GROUP[identifier]?.(payload);
-  return requireBoss().send(physicalTaskQueue(identifier), payload, {
-    db: bossDbInTx(tx),
+  return {
     ...(options.startAfter !== undefined
       ? { startAfter: options.startAfter }
       : {}),
@@ -129,5 +165,5 @@ export async function addJobInTx<TName extends TaskIdentifier>(
     ...(options.priority !== undefined ? { priority: options.priority } : {}),
     ...(heartbeatSeconds !== undefined ? { heartbeatSeconds } : {}),
     ...(group !== undefined && group !== '' ? { group: { id: group } } : {}),
-  });
+  };
 }

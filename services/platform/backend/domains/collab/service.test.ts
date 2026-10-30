@@ -9,8 +9,12 @@ import {
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { coalesceKeyFor } from '../../core/collab/coalesce.ts';
 import { buildPersonalNotificationUrl } from '../../core/notifications/personal_notification_url.ts';
-import { addJobInTx } from '../../jobs/enqueue.ts';
-import { emitHintInTx } from '../../realtime/outbox.ts';
+import { addJobInTx, addJobsInTx } from '../../jobs/enqueue.ts';
+import {
+  emitHintInTx,
+  emitHintsInTx,
+  type Hint,
+} from '../../realtime/outbox.ts';
 import type { CollabNotificationInput } from './service.ts';
 import {
   dismissAgentRunFailedNotifications,
@@ -21,6 +25,7 @@ import {
   notifyAgentQuestionAsked,
   notifyAgentRunFailed,
   notifyAutomationMessage,
+  notifyConversationAssignedTeam,
   notifyTaskAssigned,
   notifyTaskComment,
   notifyTaskMentions,
@@ -29,16 +34,81 @@ import {
   notifyTaskStatusChanged,
   notifyTriggerPaused,
   writeCoalescedNotification,
+  writeCoalescedNotifications,
 } from './service.ts';
 
-vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
-vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
+vi.mock('../../realtime/outbox.ts', () => ({
+  emitHintInTx: vi.fn(),
+  emitHintsInTx: vi.fn(),
+}));
+vi.mock('../../jobs/enqueue.ts', () => ({
+  addJobInTx: vi.fn(),
+  addJobsInTx: vi.fn(),
+}));
 
 type Row = Record<string, unknown>;
 
 /** The writer's "who can open this task now" read (`taskReadersAmong`). */
 const isReaderCheck = (text: string): boolean =>
   text.startsWith('WITH audience AS');
+
+/** The writer's one look for its recipients' unread twins. */
+const isTwinScan = (text: string): boolean =>
+  text.startsWith('SELECT DISTINCT ON (recipient.user_id)');
+
+/** The list a batched statement works through, its last value: the people
+ * an insert writes for, the rows a rewrite or a delete names. */
+function batchOf(call: { values: unknown[] } | undefined): unknown[] {
+  const list = call?.values.at(-1);
+  return Array.isArray(list) ? list : [];
+}
+
+/** Every hint the code under test emitted, alone or in a batch. */
+function hintsEmitted(): Hint[] {
+  return [
+    ...vi.mocked(emitHintInTx).mock.calls.map(([, hint]) => hint),
+    ...vi.mocked(emitHintsInTx).mock.calls.flatMap(([, hints]) => hints),
+  ];
+}
+
+/** The payload of every email the code under test queued. */
+function emailsQueued(): unknown[] {
+  return [
+    ...vi
+      .mocked(addJobInTx)
+      .mock.calls.filter(
+        ([, identifier]) => identifier === 'notification.email',
+      )
+      .map(([, , payload]) => payload),
+    ...vi
+      .mocked(addJobsInTx)
+      .mock.calls.filter(
+        ([, identifier]) => identifier === 'notification.email',
+      )
+      .flatMap(([, , jobs]) => jobs.map((job) => job.payload)),
+  ];
+}
+
+/** The preference read's answer: of the people it asks about (the list its
+ * `= ANY` names), those in `off`, with `column` switched off. */
+function preferencesOff(
+  values: unknown[],
+  off: readonly string[] | undefined,
+  column: string,
+): Row[] {
+  const asked = values.find((value) => Array.isArray(value));
+  return (Array.isArray(asked) ? asked : [])
+    .filter((userId) => off?.includes(String(userId)) === true)
+    .map((userId) => ({ userId, [column]: false }));
+}
+
+/** The bell hint for one person (`NOTIFICATION_HINT_ENTITY`, to them only). */
+const bellHintFor = (userId: string): Hint => ({
+  orgId: 'org-1',
+  userId,
+  entity: NOTIFICATION_HINT_ENTITY,
+  entityId: null,
+});
 
 /** The reader check's answer: of the ids it was asked about (the `db(list)`
  * value), those in `readers` — everyone asked when the test names nobody. */
@@ -123,6 +193,9 @@ const twinKey = coalesceKeyFor(
 
 beforeEach(() => {
   vi.mocked(emitHintInTx).mockReset();
+  vi.mocked(emitHintsInTx).mockReset();
+  vi.mocked(addJobInTx).mockReset();
+  vi.mocked(addJobsInTx).mockReset();
 });
 
 /**
@@ -143,7 +216,6 @@ describe('a task-bound row always carries its project', () => {
       if (text.startsWith('SELECT project_id')) {
         return [{ projectId: 'proj-resolved' }];
       }
-      if (text.startsWith('SELECT id, coalesce_key')) return [];
       if (text.startsWith('INSERT INTO app.user_notifications')) {
         return [{ id: 'n-new' }];
       }
@@ -161,7 +233,6 @@ describe('a task-bound row always carries its project', () => {
 
   it('does not look the project up when the caller supplied one', async () => {
     const { db, statements } = fakeDb((text) => {
-      if (text.startsWith('SELECT id, coalesce_key')) return [];
       if (text.startsWith('INSERT INTO app.user_notifications')) {
         return [{ id: 'n-new' }];
       }
@@ -196,10 +267,6 @@ describe('a task-bound row always carries its project', () => {
 });
 
 describe('a task-bound row is written only for someone who can open the task now (#3631) [COLLAB-R1]', () => {
-  beforeEach(() => {
-    vi.mocked(addJobInTx).mockReset();
-  });
-
   it('withholds the row from a recipient outside the task’s project: no row, no email, no hint', async () => {
     const { db, statements } = fakeDb(() => [], ['someone-else']);
 
@@ -213,16 +280,14 @@ describe('a task-bound row is written only for someone who can open the task now
     ).resolves.toBe('withheld');
     expect(statements).toHaveLength(1);
     expect(isReaderCheck(statements[0] ?? '')).toBe(true);
-    expect(addJobInTx).not.toHaveBeenCalled();
-    expect(vi.mocked(emitHintInTx)).not.toHaveBeenCalled();
+    expect(emailsQueued()).toEqual([]);
+    expect(hintsEmitted()).toEqual([]);
   });
 
   it('withholds an undo too: a former reader’s history is left as it was', async () => {
     const { db, statements } = fakeDb(
       (text) =>
-        text.startsWith('SELECT id, coalesce_key')
-          ? [{ id: 'n-twin', coalesceKey: twinKey }]
-          : [],
+        isTwinScan(text) ? [{ userId: 'u-recipient', id: 'n-twin' }] : [],
       [],
     );
 
@@ -292,12 +357,16 @@ describe('a task-bound row is written only for someone who can open the task now
     projectId: 'proj-1',
     title: 'Acquisition of Contoso',
   };
+  /** `[recipient, type]` of every row written (an insert's type is its
+   * second value, after the organization). */
   const written = (calls: { text: string; values: unknown[] }[]) =>
     calls
       .filter((call) =>
         call.text.startsWith('INSERT INTO app.user_notifications'),
       )
-      .map((call) => [call.values[0], call.values[2]]);
+      .flatMap((call) =>
+        batchOf(call).map((userId) => [userId, call.values[1]]),
+      );
   const answer = (text: string): Row[] => {
     if (text.includes('FROM app.task_subscriptions')) {
       return [{ subscriberId: 'u-watcher' }, { subscriberId: 'u-departed' }];
@@ -325,26 +394,31 @@ describe('a task-bound row is written only for someone who can open the task now
     const readers = ['u-departed', 'u-watcher'];
     const rows: Row[] = [];
     const { db, calls } = fakeDb((text) => {
-      if (text.startsWith('SELECT id, coalesce_key')) {
-        return rows.filter((row) => row.userId === calls.at(-1)?.values[0]);
-      }
-      if (text.startsWith('UPDATE app.user_notifications SET email_epoch')) {
-        return [{ emailEpoch: 1 }];
+      const call = calls.at(-1);
+      if (isTwinScan(text)) {
+        // Asked about `values[0]`, for the key it names last.
+        const asked = call?.values[0];
+        return rows
+          .filter(
+            (row) =>
+              Array.isArray(asked) &&
+              asked.includes(row.userId) &&
+              row.coalesceKey === call?.values.at(-1),
+          )
+          .map((row) => ({ userId: row.userId, id: row.id }));
       }
       if (text.startsWith('INSERT INTO app.user_notifications')) {
-        const call = calls.at(-1);
-        const key = call?.values.find(
-          (value) => typeof value === 'string' && value.endsWith(':assignment'),
-        );
-        const id = `n-${rows.length}`;
-        rows.push({
-          id,
-          userId: call?.values[0],
-          read: false,
-          coalesceKey: key,
-          params: call?.values[5],
+        return batchOf(call).map((userId) => {
+          const id = `n-${rows.length}`;
+          rows.push({
+            id,
+            userId,
+            read: false,
+            coalesceKey: call?.values[11],
+            params: call?.values[4],
+          });
+          return { id, emailEpoch: 1 };
         });
-        return [{ id }];
       }
       return [];
     }, readers);
@@ -360,8 +434,8 @@ describe('a task-bound row is written only for someone who can open the task now
     expect(rows[0]?.coalesceKey).toBe('task:task-1:assignment');
     const original = structuredClone(rows);
     const before = calls.length;
-    vi.mocked(addJobInTx).mockClear();
-    vi.mocked(emitHintInTx).mockClear();
+    vi.mocked(addJobsInTx).mockClear();
+    vi.mocked(emitHintsInTx).mockClear();
     readers.splice(readers.indexOf('u-departed'), 1);
 
     await notifyTaskAssigned(db, {
@@ -382,9 +456,8 @@ describe('a task-bound row is written only for someone who can open the task now
       ),
     ).toBe(false);
     expect(written(reassignment)).toEqual([['u-watcher', 'task_assigned']]);
-    expect(emitHintInTx).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(emitHintInTx).mock.calls[0]?.[1].userId).toBe('u-watcher');
-    expect(addJobInTx).toHaveBeenCalledTimes(1);
+    expect(hintsEmitted()).toEqual([bellHintFor('u-watcher')]);
+    expect(emailsQueued()).toHaveLength(1);
   });
 
   it('tells a former assignee who lost access nothing; the new assignee is told', async () => {
@@ -413,7 +486,6 @@ describe('the personal bell hint (wire contract with the web app)', () => {
 
   it('a fresh bell row emits one hint, to the recipient only', async () => {
     const { db } = fakeDb((text) => {
-      if (text.startsWith('SELECT id, coalesce_key')) return [];
       if (text.startsWith('INSERT INTO app.user_notifications')) {
         return [{ id: 'n-new' }];
       }
@@ -422,46 +494,36 @@ describe('the personal bell hint (wire contract with the web app)', () => {
     await expect(writeCoalescedNotification(db, statusBell)).resolves.toBe(
       'inserted',
     );
-    expect(vi.mocked(emitHintInTx)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(emitHintInTx)).toHaveBeenCalledWith(db, {
-      orgId: 'org-1',
-      userId: 'u-recipient',
-      entity: NOTIFICATION_HINT_ENTITY,
-      entityId: null,
-    });
+    expect(vi.mocked(emitHintsInTx)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(emitHintsInTx)).toHaveBeenCalledWith(db, [
+      bellHintFor('u-recipient'),
+    ]);
+    expect(vi.mocked(emitHintInTx)).not.toHaveBeenCalled();
   });
 
   it('a rewrite of the unread twin emits the same recipient-scoped hint', async () => {
-    const { db, statements } = fakeDb((text) => {
-      if (text.startsWith('SELECT id, coalesce_key')) {
-        return [{ id: 'n-twin', coalesceKey: twinKey }];
-      }
-      return [];
-    });
+    const { db, calls, statements } = fakeDb((text) =>
+      isTwinScan(text) ? [{ userId: 'u-recipient', id: 'n-twin' }] : [],
+    );
     await expect(writeCoalescedNotification(db, statusBell)).resolves.toBe(
       'rewritten',
+    );
+    // The twin is looked for on the status dimension of this task.
+    expect(calls.find((call) => isTwinScan(call.text))?.values.at(-1)).toBe(
+      twinKey,
     );
     expect(
       statements.some((s) =>
         s.startsWith('UPDATE app.user_notifications SET type'),
       ),
     ).toBe(true);
-    expect(vi.mocked(emitHintInTx)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(emitHintInTx)).toHaveBeenCalledWith(db, {
-      orgId: 'org-1',
-      userId: 'u-recipient',
-      entity: NOTIFICATION_HINT_ENTITY,
-      entityId: null,
-    });
+    expect(hintsEmitted()).toEqual([bellHintFor('u-recipient')]);
   });
 
   it('an undo that drops the unread twin still tells the recipient', async () => {
-    const { db, statements } = fakeDb((text) => {
-      if (text.startsWith('SELECT id, coalesce_key')) {
-        return [{ id: 'n-twin', coalesceKey: twinKey }];
-      }
-      return [];
-    });
+    const { db, statements } = fakeDb((text) =>
+      isTwinScan(text) ? [{ userId: 'u-recipient', id: 'n-twin' }] : [],
+    );
     await expect(
       writeCoalescedNotification(db, { ...statusBell, undoes: true }),
     ).resolves.toBe('cancelled');
@@ -470,12 +532,7 @@ describe('the personal bell hint (wire contract with the web app)', () => {
         s.startsWith('DELETE FROM app.user_notifications'),
       ),
     ).toBe(true);
-    expect(vi.mocked(emitHintInTx)).toHaveBeenCalledWith(db, {
-      orgId: 'org-1',
-      userId: 'u-recipient',
-      entity: NOTIFICATION_HINT_ENTITY,
-      entityId: null,
-    });
+    expect(hintsEmitted()).toEqual([bellHintFor('u-recipient')]);
   });
 
   it('mark-all-read hints the reader (other tabs drop the badge), never on a no-op', async () => {
@@ -511,26 +568,20 @@ describe('the personal bell hint (wire contract with the web app)', () => {
         approvalId: 'approval-1',
       }),
     ).resolves.toBe(3);
-    const recipients = vi
-      .mocked(emitHintInTx)
-      .mock.calls.map(([, hint]) => hint.userId ?? '')
-      .sort((a, b) => a.localeCompare(b));
-    expect(recipients).toEqual(['u-a', 'u-b']);
-    for (const [, hint] of vi.mocked(emitHintInTx).mock.calls) {
-      expect(hint.entity).toBe(NOTIFICATION_HINT_ENTITY);
-      expect(hint.orgId).toBe('org-1');
-    }
+    // All of them in one statement.
+    expect(vi.mocked(emitHintsInTx)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(emitHintsInTx)).toHaveBeenCalledWith(db, [
+      bellHintFor('u-a'),
+      bellHintFor('u-b'),
+    ]);
   });
 });
 
 describe('a rewritten row leads the first page of the bell (#3630)', () => {
   it('takes a fresh seq with its new createdAt, in place of the old row', async () => {
-    const { db, calls, statements } = fakeDb((text) => {
-      if (text.startsWith('SELECT id, coalesce_key')) {
-        return [{ id: 'n-twin', coalesceKey: twinKey }];
-      }
-      return [];
-    });
+    const { db, calls, statements } = fakeDb((text) =>
+      isTwinScan(text) ? [{ userId: 'u-recipient', id: 'n-twin' }] : [],
+    );
     await expect(
       writeCoalescedNotification(db, {
         ...statusBell,
@@ -543,7 +594,7 @@ describe('a rewritten row leads the first page of the bell (#3630)', () => {
     // `listMyNotifications` orders and cursors by `seq`: moving only
     // `created_at_ms` left the row behind every row written since.
     expect(rewrite?.text).toContain('seq = DEFAULT');
-    expect(rewrite?.values.at(-1)).toBe('n-twin');
+    expect(batchOf(rewrite)).toEqual(['n-twin']);
     expect(
       statements.some((s) =>
         s.startsWith('INSERT INTO app.user_notifications'),
@@ -604,9 +655,9 @@ describe('the reviewer-designation heads-up (task_reviewer_assigned) [COLLAB-R6]
       call.text.startsWith('INSERT INTO app.user_notifications'),
     );
     expect(insert).toBeDefined();
+    expect(batchOf(insert)).toEqual(['u-recipient']);
     expect(insert?.values).toEqual(
       expect.arrayContaining([
-        'u-recipient',
         'org-1',
         'task_reviewer_assigned',
         'taskReviewerAssigned',
@@ -624,13 +675,7 @@ describe('the reviewer-designation heads-up (task_reviewer_assigned) [COLLAB-R6]
       actor: 'Ada',
     });
     expect(calls.some((call) => call.text.includes('preferences'))).toBe(false);
-    expect(vi.mocked(emitHintInTx)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(emitHintInTx)).toHaveBeenCalledWith(db, {
-      orgId: 'org-1',
-      userId: 'u-recipient',
-      entity: NOTIFICATION_HINT_ENTITY,
-      entityId: null,
-    });
+    expect(hintsEmitted()).toEqual([bellHintFor('u-recipient')]);
   });
 
   it('designating yourself rings nothing', async () => {
@@ -640,7 +685,7 @@ describe('the reviewer-designation heads-up (task_reviewer_assigned) [COLLAB-R6]
       reviewerUserId: 'u-actor',
     });
     expect(calls).toEqual([]);
-    expect(vi.mocked(emitHintInTx)).not.toHaveBeenCalled();
+    expect(hintsEmitted()).toEqual([]);
   });
 
   it('a moved designation marks only the former designee’s unread heads-up on this task read, and hints them', async () => {
@@ -704,9 +749,9 @@ describe('the reviewer-designation heads-up (task_reviewer_assigned) [COLLAB-R6]
     const insert = calls.find((call) =>
       call.text.startsWith('INSERT INTO app.user_notifications'),
     );
+    expect(batchOf(insert)).toEqual(['u-recipient']);
     expect(insert?.values).toEqual(
       expect.arrayContaining([
-        'u-recipient',
         'task_review_requested',
         'taskReviewRequested',
         'taskReviewRequestedBodyHuman',
@@ -762,17 +807,17 @@ describe('the mention bell, per surface [COLLAB-R3]', () => {
 
     // The named teammate starts following the task, as a comment mention
     // would make them.
-    expect(
-      inserts(calls, 'app.task_subscriptions').map((call) =>
-        call.values.slice(0, 5),
-      ),
-    ).toEqual([['org-1', 'task-1', 'user', 'u-recipient', 'mention']]);
+    const subscriptions = inserts(calls, 'app.task_subscriptions');
+    expect(subscriptions.map((call) => call.values.slice(0, 4))).toEqual([
+      ['org-1', 'task-1', 'user', 'mention'],
+    ]);
+    expect(subscriptions.map(batchOf)).toEqual([['u-recipient']]);
     const bells = inserts(calls, 'app.user_notifications');
     expect(bells).toHaveLength(1);
+    expect(batchOf(bells[0])).toEqual(['u-recipient']);
     // No comment carries the mention, so the row points at the task.
     expect(bells[0]?.values).toEqual(
       expect.arrayContaining([
-        'u-recipient',
         'mention',
         'mentionByBody',
         'task',
@@ -800,7 +845,7 @@ describe('the mention bell, per surface [COLLAB-R3]', () => {
       actorId: 'u-actor',
     });
     expect(calls).toEqual([]);
-    expect(vi.mocked(emitHintInTx)).not.toHaveBeenCalled();
+    expect(hintsEmitted()).toEqual([]);
   });
 
   it('a comment still points its mention row at the comment', async () => {
@@ -815,8 +860,9 @@ describe('the mention bell, per surface [COLLAB-R3]', () => {
     });
     const bells = inserts(calls, 'app.user_notifications');
     expect(bells).toHaveLength(1);
+    expect(batchOf(bells[0])).toEqual(['u-recipient']);
     expect(bells[0]?.values).toEqual(
-      expect.arrayContaining(['u-recipient', 'mention', 'comment', 'msg-1']),
+      expect.arrayContaining(['mention', 'comment', 'msg-1']),
     );
   });
 });
@@ -849,25 +895,16 @@ describe('the paused-schedule notice (automation_failed) [COLLAB-R9]', () => {
     code: 'connector_error',
   };
 
-  beforeEach(() => {
-    vi.mocked(addJobInTx).mockReset();
-  });
-
   it('writes one actionable row per owner and admin who has not muted automation alerts', async () => {
     const fake = fakeDbWithValues((text, values) => {
       if (text.startsWith('SELECT "userId" FROM "member"')) {
         return [{ userId: 'owner-1' }, { userId: 'admin-muted' }];
       }
       if (text.includes('FROM app.notification_preferences')) {
-        return values[0] === 'admin-muted'
-          ? [{ automation_alerts: false }]
-          : [];
+        return preferencesOff(values, ['admin-muted'], 'automation_alerts');
       }
       if (text.startsWith('INSERT INTO app.user_notifications')) {
-        return [{ id: 'n-1' }];
-      }
-      if (text.startsWith('UPDATE app.user_notifications SET email_epoch')) {
-        return [{ emailEpoch: 1 }];
+        return [{ id: 'n-1', emailEpoch: 1 }];
       }
       return [];
     });
@@ -890,9 +927,9 @@ describe('the paused-schedule notice (automation_failed) [COLLAB-R9]', () => {
       c.text.startsWith('INSERT INTO app.user_notifications'),
     );
     expect(inserts).toHaveLength(1);
+    expect(batchOf(inserts[0])).toEqual(['owner-1']);
     expect(inserts[0]?.values).toEqual(
       expect.arrayContaining([
-        'owner-1',
         'org-1',
         'automation_failed',
         'automationTriggerPaused',
@@ -911,12 +948,12 @@ describe('the paused-schedule notice (automation_failed) [COLLAB-R9]', () => {
       ]),
     );
     // Actionable: it leaves the app by email too.
-    expect(addJobInTx).toHaveBeenCalledWith(
-      fake.db,
-      'notification.email',
-      { notificationId: 'n-1', epoch: 1 },
-      expect.anything(),
-    );
+    expect(addJobsInTx).toHaveBeenCalledWith(fake.db, 'notification.email', [
+      {
+        payload: { notificationId: 'n-1', epoch: 1 },
+        options: { startAfter: expect.any(Date) },
+      },
+    ]);
   });
 
   it('marks every unread notice of the trigger read and hints each recipient', async () => {
@@ -938,19 +975,8 @@ describe('the paused-schedule notice (automation_failed) [COLLAB-R9]', () => {
       "type = 'automation_failed' AND read = false",
     );
     expect(dismissal?.values).toEqual([expect.any(Number), 'org-1', 'trg-1']);
-    expect(vi.mocked(emitHintInTx).mock.calls.map((call) => call[1])).toEqual([
-      {
-        orgId: 'org-1',
-        userId: 'owner-1',
-        entity: NOTIFICATION_HINT_ENTITY,
-        entityId: null,
-      },
-      {
-        orgId: 'org-1',
-        userId: 'admin-1',
-        entity: NOTIFICATION_HINT_ENTITY,
-        entityId: null,
-      },
+    expect(vi.mocked(emitHintsInTx).mock.calls.map((call) => call[1])).toEqual([
+      [bellHintFor('owner-1'), bellHintFor('admin-1')],
     ]);
   });
 });
@@ -1053,13 +1079,14 @@ describe('the agent-question bell (agent_escalation)', () => {
       projectId: 'proj-1',
     });
 
-    // The writer's columns: params is the sixth value, task_id the ninth.
+    // The writer's columns, after the organization: params is the fifth
+    // value, task_id the eighth.
     const insert = fake.calls.find((c) =>
       c.text.startsWith('INSERT INTO app.user_notifications'),
     );
-    const params = insert?.values[5];
+    const params = insert?.values[4];
     if (!isRecord(params)) throw new Error('The question wrote no params');
-    expect(insert?.values[8]).toBeNull();
+    expect(insert?.values[7]).toBeNull();
     const run = '/dashboard/org-1/automations/ops__ledger/runs/run-1';
     expect(
       notificationTargetPath(
@@ -1115,17 +1142,16 @@ describe('the failed-run notice (agent_run_failed) [COLLAB-R8]', () => {
       }
       if (text.includes('FROM app.notification_preferences')) {
         return Promise.resolve(
-          world.muted?.includes(String(values[0])) === true
-            ? [{ escalation: false }]
-            : [],
+          preferencesOff(values, world.muted, 'escalation'),
         );
       }
       if (text.startsWith('INSERT INTO app.user_notifications')) {
-        nextId += 1;
-        return Promise.resolve([{ id: `n-${nextId}` }]);
-      }
-      if (text.startsWith('UPDATE app.user_notifications SET email_epoch')) {
-        return Promise.resolve([{ emailEpoch: 1 }]);
+        return Promise.resolve(
+          batchOf({ values }).map(() => {
+            nextId += 1;
+            return { id: `n-${nextId}`, emailEpoch: 1 };
+          }),
+        );
       }
       return Promise.resolve([]);
     };
@@ -1149,11 +1175,6 @@ describe('the failed-run notice (agent_run_failed) [COLLAB-R8]', () => {
       c.text.startsWith('INSERT INTO app.user_notifications'),
     );
 
-  beforeEach(() => {
-    vi.mocked(addJobInTx).mockReset();
-    vi.mocked(emitHintInTx).mockReset();
-  });
-
   it('tells the starter and the watchers who can still open the project, by email too', async () => {
     const fake = fakeRunDb({
       subscribers: ['watcher-1', 'left-org'],
@@ -1170,7 +1191,8 @@ describe('the failed-run notice (agent_run_failed) [COLLAB-R8]', () => {
     ).resolves.toBe(2);
 
     // One reader check over the whole candidate list for the project, then
-    // the writer's own check per row.
+    // the writer's own, once for every row it writes.
+    expect(fake.calls.filter((c) => isReaderCheck(c.text))).toHaveLength(2);
     const members = fake.calls.find((c) => isReaderCheck(c.text));
     expect(members?.text).toContain(`lower(m."role") <> 'disabled'`);
     expect(members?.values).toEqual(
@@ -1181,10 +1203,7 @@ describe('the failed-run notice (agent_run_failed) [COLLAB-R8]', () => {
       ]),
     );
     const rows = inserts(fake.calls);
-    expect(rows.map((row) => row.values[0])).toEqual([
-      'watcher-1',
-      'member-starter',
-    ]);
+    expect(rows.map(batchOf)).toEqual([['watcher-1', 'member-starter']]);
     expect(rows[0]?.values).toEqual(
       expect.arrayContaining([
         'org-1',
@@ -1199,8 +1218,10 @@ describe('the failed-run notice (agent_run_failed) [COLLAB-R8]', () => {
       ]),
     );
     // Actionable: each row leaves the app as an email.
-    expect(addJobInTx).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(addJobInTx).mock.calls[0]?.[1]).toBe('notification.email');
+    expect(emailsQueued()).toEqual([
+      { notificationId: 'n-1', epoch: 1 },
+      { notificationId: 'n-2', epoch: 1 },
+    ]);
   });
 
   it('reads a team project’s audience through its teams, admins always', async () => {
@@ -1264,9 +1285,7 @@ describe('the failed-run notice (agent_run_failed) [COLLAB-R8]', () => {
         c.text.includes('FROM app.notification_preferences'),
       )?.text,
     ).toContain('escalation');
-    expect(inserts(fake.calls).map((row) => row.values[0])).toEqual([
-      'member-starter',
-    ]);
+    expect(inserts(fake.calls).flatMap(batchOf)).toEqual(['member-starter']);
   });
 
   it('asks nobody about membership when nobody is left to tell', async () => {
@@ -1302,14 +1321,7 @@ describe('the failed-run notice (agent_run_failed) [COLLAB-R8]', () => {
     expect(dismiss.statements[0]).toContain(
       "type = 'agent_run_failed' AND read = false AND task_id = ?",
     );
-    expect(vi.mocked(emitHintInTx).mock.calls.map((call) => call[1])).toEqual([
-      {
-        orgId: 'org-1',
-        userId: 'member-starter',
-        entity: NOTIFICATION_HINT_ENTITY,
-        entityId: null,
-      },
-    ]);
+    expect(hintsEmitted()).toEqual([bellHintFor('member-starter')]);
   });
 });
 
@@ -1333,17 +1345,16 @@ describe('the message an automation step sends (automation_message) [COLLAB-R13]
       }
       if (text.includes('FROM app.notification_preferences')) {
         return Promise.resolve(
-          args.muted?.includes(String(values[0]))
-            ? [{ automation_messages: false }]
-            : [],
+          preferencesOff(values, args.muted, 'automation_messages'),
         );
       }
       if (text.startsWith('INSERT INTO app.user_notifications')) {
-        inserted += 1;
-        return Promise.resolve([{ id: `n-${inserted}` }]);
-      }
-      if (text.startsWith('UPDATE app.user_notifications SET email_epoch')) {
-        return Promise.resolve([{ emailEpoch: 1 }]);
+        return Promise.resolve(
+          batchOf({ values }).map(() => {
+            inserted += 1;
+            return { id: `n-${inserted}`, emailEpoch: 1 };
+          }),
+        );
       }
       return Promise.resolve([]);
     };
@@ -1368,10 +1379,6 @@ describe('the message an automation step sends (automation_message) [COLLAB-R13]
       call.text.startsWith('INSERT INTO app.user_notifications'),
     );
 
-  beforeEach(() => {
-    vi.mocked(addJobInTx).mockReset();
-  });
-
   it('writes one actionable row per recipient who has not muted automation messages', async () => {
     const { tx, calls } = fakeTx({ muted: ['u-noah'] });
     await expect(notifyAutomationMessage(tx, SEND)).resolves.toEqual({
@@ -1388,7 +1395,7 @@ describe('the message an automation step sends (automation_message) [COLLAB-R13]
         ?.text,
     ).toContain('automation_messages');
     const rows = inserts(calls);
-    expect(rows.map((row) => row.values[0])).toEqual(['u-ada', 'u-mia']);
+    expect(rows.map(batchOf)).toEqual([['u-ada', 'u-mia']]);
     expect(rows[0]?.values).toEqual(
       expect.arrayContaining([
         'org-1',
@@ -1408,10 +1415,11 @@ describe('the message an automation step sends (automation_message) [COLLAB-R13]
         'system',
       ]),
     );
-    // Each message is news: it never collapses into another row.
-    expect(rows[0]?.values.at(-1)).toBeNull();
+    // Each message is news: it never collapses into another row (its
+    // coalesce key, the twelfth value, is NULL).
+    expect(rows[0]?.values[11]).toBeNull();
     // Actionable: it leaves the app by email too.
-    expect(addJobInTx).toHaveBeenCalledTimes(2);
+    expect(emailsQueued()).toHaveLength(2);
   });
 
   it('a retry of the same step execution writes nothing twice', async () => {
@@ -1458,5 +1466,557 @@ describe('the message an automation step sends (automation_message) [COLLAB-R13]
       title: 'Weekly report ready',
       deliveryKey: 'run-1/tell/0/0',
     });
+  });
+});
+
+describe('a fan-out costs the same round trips for one person as for many (#4712)', () => {
+  /** One row of the stand-in's `app.user_notifications`. */
+  interface StoredRow {
+    id: string;
+    seq: number;
+    userId: string;
+    organizationId: string;
+    type: string;
+    params: unknown;
+    resourceId: string;
+    coalesceKey: string | null;
+    read: boolean;
+    emailEpoch: number;
+  }
+
+  interface World {
+    /** Who can open the task now; everyone asked when left out. */
+    readers?: readonly string[];
+    /** Who switched every kind of notification off. */
+    muted?: readonly string[];
+    /** The task's unmuted watchers. */
+    watchers?: readonly string[];
+    /** The members the audience reads list (owners, a team, a project). */
+    members?: readonly string[];
+    /** The bell's rows before the fan-out, oldest first. */
+    rows?: readonly Omit<StoredRow, 'seq'>[];
+  }
+
+  /** Every switch the preference read selects, switched off. */
+  const ALL_OFF = Object.fromEntries(
+    [
+      'task_assigned',
+      'task_status_changed',
+      'task_commented',
+      'mention',
+      'task_deadlines',
+      'escalation',
+      'automation_alerts',
+      'conversation_messages',
+      'automation_messages',
+    ].map((column) => [column, false]),
+  );
+
+  /**
+   * A stand-in that keeps `app.user_notifications` the way the writer's
+   * statements change it — the twin scan over each person's 100 newest
+   * unread rows, the rewrite's fresh `seq` and epoch step, the insert's
+   * first epoch, the delete — and answers the fan-outs' other reads from
+   * `world`.
+   */
+  function bellStore(world: World): {
+    db: TransactionSql;
+    rows: StoredRow[];
+    calls: { text: string; values: unknown[] }[];
+  } {
+    let seq = 0;
+    let nextId = 0;
+    // Copies: two stores of one world must not share their rows.
+    const rows: StoredRow[] = (world.rows ?? []).map((row) =>
+      Object.assign({ seq: ++seq }, row),
+    );
+    const calls: { text: string; values: unknown[] }[] = [];
+    const text = (value: unknown): string => String(value);
+    const list = (value: unknown): string[] =>
+      Array.isArray(value) ? value.map(text) : [];
+    const answer = (sql: string, values: unknown[]): Row[] => {
+      if (isReaderCheck(sql)) return readersAsked(values, world.readers);
+      if (sql.includes('FROM app.notification_preferences')) {
+        return list(values.find(Array.isArray))
+          .filter((userId) => world.muted?.includes(userId) === true)
+          .map((userId) => Object.assign({ userId }, ALL_OFF));
+      }
+      if (isTwinScan(sql)) {
+        // unnest(asked), org, LIMIT, key — in that order.
+        const [asked, organizationId, cap, key] = values;
+        return list(asked).flatMap((userId) => {
+          const twin = rows
+            .filter(
+              (row) =>
+                row.userId === userId &&
+                row.organizationId === organizationId &&
+                !row.read,
+            )
+            .sort((a, b) => b.seq - a.seq)
+            .slice(0, Number(cap))
+            .find((row) => row.coalesceKey === key);
+          return twin === undefined ? [] : [{ userId, id: twin.id }];
+        });
+      }
+      if (sql.startsWith('DELETE FROM app.user_notifications')) {
+        const gone = list(values[0]);
+        rows.splice(
+          0,
+          rows.length,
+          ...rows.filter((row) => !gone.includes(row.id)),
+        );
+        return [];
+      }
+      if (sql.startsWith('UPDATE app.user_notifications SET type')) {
+        // type, keys, params, resource, task, actor, now, epoch step, ids.
+        const ids = list(values.at(-1));
+        return rows
+          .filter((row) => ids.includes(row.id))
+          .map((row) => {
+            row.type = text(values[0]);
+            row.params = values[3];
+            row.resourceId = text(values[5]);
+            row.seq = ++seq;
+            row.emailEpoch += Number(values[10]);
+            return { id: row.id, emailEpoch: row.emailEpoch };
+          });
+      }
+      if (sql.startsWith('INSERT INTO app.user_notifications')) {
+        // org, type, keys, params, resource, task, actor, now, key, epoch,
+        // recipients.
+        return list(values.at(-1)).map((userId) => {
+          const row: StoredRow = {
+            id: `n-${++nextId}`,
+            seq: ++seq,
+            userId,
+            organizationId: text(values[0]),
+            type: text(values[1]),
+            params: values[4],
+            resourceId: text(values[6]),
+            coalesceKey: values[11] === null ? null : text(values[11]),
+            read: false,
+            emailEpoch: Number(values[12]),
+          };
+          rows.push(row);
+          return { id: row.id, emailEpoch: row.emailEpoch };
+        });
+      }
+      if (sql.includes('FROM app.task_subscriptions')) {
+        return (world.watchers ?? []).map((subscriberId) => ({
+          subscriberId,
+        }));
+      }
+      if (sql.startsWith('SELECT "name", "email" FROM "user"')) {
+        return [{ name: 'Ada', email: 'ada@example.com' }];
+      }
+      if (sql.includes('FROM app.projects')) return [{ teamIds: [] }];
+      if (sql.includes('FROM "member"') || sql.includes('FROM "teamMember"')) {
+        return (world.members ?? []).map((userId) => ({ userId }));
+      }
+      return [];
+    };
+    const tag = (
+      strings: TemplateStringsArray | readonly string[],
+      ...values: unknown[]
+    ): unknown => {
+      if (!('raw' in strings)) return strings;
+      const sql = strings.join('?').replaceAll(/\s+/g, ' ').trim();
+      calls.push({ text: sql, values });
+      return Promise.resolve(answer(sql, values));
+    };
+    const db = Object.assign(tag, {
+      json: (value: unknown) => value,
+      unsafe: (value: string) => value,
+    });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a three-member stand-in for the postgres.js transaction
+    return { db: db as unknown as TransactionSql, rows, calls };
+  }
+
+  /** Statements, and the hint and email batches the writes handed over:
+   * every round trip the writer's transaction waits on. */
+  function roundTrips(calls: readonly unknown[]): number {
+    return (
+      calls.length +
+      vi.mocked(emitHintInTx).mock.calls.length +
+      vi.mocked(emitHintsInTx).mock.calls.length +
+      vi.mocked(addJobInTx).mock.calls.length +
+      vi.mocked(addJobsInTx).mock.calls.length
+    );
+  }
+
+  function clearHandOvers(): void {
+    vi.mocked(emitHintInTx).mockClear();
+    vi.mocked(emitHintsInTx).mockClear();
+    vi.mocked(addJobInTx).mockClear();
+    vi.mocked(addJobsInTx).mockClear();
+  }
+
+  const TASK = {
+    id: 'task-1',
+    organizationId: 'org-1',
+    projectId: 'proj-1',
+    title: 'Compare the two offers',
+  };
+
+  /** Every emitter that tells several people at once, telling `people`. */
+  const FAN_OUTS: [
+    string,
+    (people: string[]) => World,
+    (db: TransactionSql, people: string[]) => Promise<unknown>,
+  ][] = [
+    [
+      'a comment, to its watchers and to the people it names',
+      (people) => ({ watchers: people }),
+      (db, people) =>
+        notifyTaskComment(db, {
+          task: TASK,
+          commentId: 'msg-1',
+          mentions: people.map((id) => ({ type: 'user', id: `${id}-named` })),
+          actorType: 'user',
+          actorId: 'u-actor',
+        }),
+    ],
+    [
+      'a description that names people',
+      () => ({}),
+      (db, people) =>
+        notifyTaskMentions(db, {
+          task: TASK,
+          mentions: people.map((id) => ({ type: 'user', id })),
+          actorType: 'user',
+          actorId: 'u-actor',
+        }),
+    ],
+    [
+      'a status change, to the watchers',
+      (people) => ({ watchers: people }),
+      (db) =>
+        notifyTaskStatusChanged(db, {
+          task: TASK,
+          fromStatus: 'todo',
+          toStatus: 'done',
+          actorType: 'user',
+          actorId: 'u-actor',
+        }),
+    ],
+    [
+      'a failed agent run, to the watchers',
+      (people) => ({ watchers: people }),
+      (db) =>
+        notifyAgentRunFailed(db, {
+          task: TASK,
+          agentId: 'agent-1',
+          starterUserId: null,
+          failureCode: 'deadline',
+        }),
+    ],
+    [
+      'an agent’s question on a task, to the project’s people',
+      (people) => ({ members: people }),
+      (db) =>
+        notifyAgentQuestionAsked(db, {
+          organizationId: 'org-1',
+          askId: 'ask-1',
+          runId: 'run-1',
+          question: 'Which ledger account applies?',
+          automationLabel: 'ops/ledger',
+          task: { id: 'task-1', title: TASK.title, projectId: 'proj-1' },
+        }),
+    ],
+    [
+      'a schedule that paused itself, to the owners and admins',
+      (people) => ({ members: people }),
+      (db) =>
+        notifyTriggerPaused(db, {
+          organizationId: 'org-1',
+          triggerId: 'trg-1',
+          name: 'ops/nightly',
+          failures: 5,
+          code: 'connector_error',
+        }),
+    ],
+    [
+      'an automation’s message, to the members it names',
+      () => ({}),
+      (db, people) =>
+        notifyAutomationMessage(db, {
+          organizationId: 'org-1',
+          runId: 'run-1',
+          deliveryKey: 'run-1/tell/0/0',
+          userIds: people,
+          automation: 'reports/weekly',
+          title: 'Weekly report ready',
+          runCap: 100,
+        }),
+    ],
+    [
+      'a conversation queued to a team, to its members',
+      (people) => ({ members: people }),
+      (db) =>
+        notifyConversationAssignedTeam(db, {
+          conversation: {
+            id: 'conv-1',
+            organizationId: 'org-1',
+            subject: 'Invoice',
+            status: 'open',
+          },
+          teamId: 'team-1',
+          actorUserId: 'u-actor',
+        }),
+    ],
+  ];
+
+  it.each(FAN_OUTS)(
+    '%s costs as many round trips for 25 people as for one',
+    async (_label, worldOf, notify) => {
+      const told = async (count: number) => {
+        clearHandOvers();
+        const people = Array.from({ length: count }, (_, at) => `p-${at}`);
+        const store = bellStore(worldOf(people));
+        await notify(store.db, people);
+        return { trips: roundTrips(store.calls), rows: store.rows.length };
+      };
+      const one = await told(1);
+      const many = await told(25);
+
+      expect(one.rows).toBeGreaterThan(0);
+      expect(many.rows).toBe(25 * one.rows);
+      expect(many.trips).toBe(one.trips);
+    },
+  );
+
+  it('gives everyone a comment concerns a row of their own, their email and their hint', async () => {
+    const watchers = Array.from({ length: 25 }, (_, at) => `w-${at}`);
+    const named = Array.from({ length: 5 }, (_, at) => `m-${at}`);
+    const store = bellStore({ watchers: [...watchers, 'u-actor'] });
+
+    await notifyTaskComment(store.db, {
+      task: TASK,
+      commentId: 'msg-1',
+      mentions: named.map((id) => ({ type: 'user', id })),
+      actorType: 'user',
+      actorId: 'u-actor',
+    });
+
+    const told = (type: string) =>
+      store.rows
+        .filter((row) => row.type === type && row.resourceId === 'msg-1')
+        .map((row) => row.userId);
+    // The commenter is told nothing; the people named get the mention, not
+    // the comment as well.
+    expect(told('task_commented')).toEqual(watchers);
+    expect(told('mention')).toEqual(named);
+    // A mention is actionable: each named person's own row is emailed.
+    expect(emailsQueued()).toEqual(
+      store.rows
+        .filter((row) => row.type === 'mention')
+        .map((row) => ({ notificationId: row.id, epoch: 1 })),
+    );
+    // Each bell hint is narrowed to its own person.
+    expect(hintsEmitted()).toEqual(
+      [...named, ...watchers].map((userId) => bellHintFor(userId)),
+    );
+  });
+
+  it('leaves out only the people who switched the kind off', async () => {
+    const watchers = ['w-1', 'w-2', 'w-3', 'w-4', 'w-5'];
+    const store = bellStore({ watchers, muted: ['w-2', 'w-4'] });
+
+    await notifyTaskStatusChanged(store.db, {
+      task: TASK,
+      fromStatus: 'todo',
+      toStatus: 'done',
+      actorType: 'agent',
+      actorId: 'agent-1',
+    });
+
+    const preferences = store.calls.filter((call) =>
+      call.text.includes('FROM app.notification_preferences'),
+    );
+    expect(preferences).toHaveLength(1);
+    expect(preferences[0]?.text).toContain('user_id = ANY(?::text[])');
+    expect(store.rows.map((row) => row.userId)).toEqual(['w-1', 'w-3', 'w-5']);
+    expect(hintsEmitted().map((hint) => hint.userId)).toEqual([
+      'w-1',
+      'w-3',
+      'w-5',
+    ]);
+  });
+
+  /** A row as the bell shows it, whatever its id and place. */
+  const shown = (rows: readonly StoredRow[]) =>
+    rows
+      .map(({ id: _id, seq: _seq, ...row }) => row)
+      .sort((a, b) =>
+        `${a.userId}/${a.type}`.localeCompare(`${b.userId}/${b.type}`),
+      );
+
+  /** Each queued email, by whose row it carries. */
+  const emailedTo = (rows: readonly StoredRow[]) =>
+    Object.fromEntries(
+      emailsQueued().map((payload) => {
+        const job = isRecord(payload) ? payload : undefined;
+        const row = rows.find(
+          (candidate) => candidate.id === job?.notificationId,
+        );
+        return [row?.userId ?? 'nobody', job?.epoch];
+      }),
+    );
+
+  const unread = (
+    userId: string,
+    id: string,
+    type: string,
+    coalesceKey: string | null,
+  ): Omit<StoredRow, 'seq'> => ({
+    id,
+    userId,
+    organizationId: 'org-1',
+    type,
+    params: { title: TASK.title, projectId: 'proj-1' },
+    resourceId: 'task-1',
+    coalesceKey,
+    read: false,
+    emailEpoch: 1,
+  });
+
+  it('writes, rewrites and withholds for many at once exactly as one at a time', async () => {
+    const failure = {
+      organizationId: 'org-1',
+      type: 'agent_run_failed',
+      titleKey: 'agentRunFailed',
+      bodyKey: 'agentRunFailedBody',
+      params: { title: TASK.title, projectId: 'proj-1' },
+      resourceType: 'task',
+      resourceId: 'task-1',
+      taskId: 'task-1',
+      actorType: 'agent',
+      actorId: 'agent-1',
+    } as const;
+    const key = 'task:task-1:agent_run';
+    const world: World = {
+      readers: ['u-rewrite', 'u-read', 'u-deep', 'u-fresh'],
+      rows: [
+        // An unread twin: rewritten in place.
+        unread('u-rewrite', 'n-twin', 'agent_run_failed', key),
+        // A twin already read is history: a new row.
+        { ...unread('u-read', 'n-read', 'agent_run_failed', key), read: true },
+        // A twin behind 100 newer unread rows is out of reach: a new row.
+        unread('u-deep', 'n-deep', 'agent_run_failed', key),
+        ...Array.from({ length: 100 }, (_, at) =>
+          unread('u-deep', `n-later-${at}`, 'task_commented', null),
+        ),
+      ],
+    };
+    const people = ['u-rewrite', 'u-read', 'u-deep', 'u-fresh', 'u-gone'];
+
+    clearHandOvers();
+    const batch = bellStore(world);
+    const outcomes = await writeCoalescedNotifications(
+      batch.db,
+      failure,
+      people,
+    );
+    const batchEmails = emailedTo(batch.rows);
+    const batchHints = hintsEmitted();
+    const batchTrips = roundTrips(batch.calls);
+
+    clearHandOvers();
+    const single = bellStore(world);
+    const oneByOne = new Map<string, string>();
+    for (const userId of people) {
+      oneByOne.set(
+        userId,
+        await writeCoalescedNotification(single.db, { ...failure, userId }),
+      );
+    }
+
+    expect(Object.fromEntries(outcomes)).toEqual({
+      'u-rewrite': 'rewritten',
+      'u-read': 'inserted',
+      'u-deep': 'inserted',
+      'u-fresh': 'inserted',
+      'u-gone': 'withheld',
+    });
+    expect(outcomes).toEqual(oneByOne);
+    expect(shown(batch.rows)).toEqual(shown(single.rows));
+    // The twin keeps its id and takes a place newer than every row there
+    // was before (the seeded rows hold the first places).
+    const twin = batch.rows.find((row) => row.id === 'n-twin');
+    expect(twin?.seq).toBeGreaterThan(world.rows?.length ?? Infinity);
+    // Its email epoch moved past the queued one; new rows start at 1.
+    expect(batchEmails).toEqual({
+      'u-rewrite': 2,
+      'u-read': 1,
+      'u-deep': 1,
+      'u-fresh': 1,
+    });
+    expect(emailedTo(single.rows)).toEqual(batchEmails);
+    expect(batchHints).toEqual(hintsEmitted());
+    expect(batchHints.map((hint) => hint.userId)).toEqual([
+      'u-rewrite',
+      'u-read',
+      'u-deep',
+      'u-fresh',
+    ]);
+    expect(batchTrips).toBeLessThan(roundTrips(single.calls));
+  });
+
+  it('cancels for many at once exactly as one at a time', async () => {
+    const unassignment = {
+      organizationId: 'org-1',
+      type: 'task_unassigned',
+      titleKey: 'taskUnassigned',
+      bodyKey: 'taskUnassignedBody',
+      params: { title: TASK.title, projectId: 'proj-1' },
+      resourceType: 'task',
+      resourceId: 'task-1',
+      taskId: 'task-1',
+      actorType: 'user',
+      actorId: 'u-actor',
+      undoes: true,
+    } as const;
+    const world: World = {
+      rows: [
+        unread(
+          'u-assigned',
+          'n-assigned',
+          'task_assigned',
+          'task:task-1:assignment',
+        ),
+      ],
+    };
+    const people = ['u-assigned', 'u-never'];
+
+    const batch = bellStore(world);
+    const outcomes = await writeCoalescedNotifications(
+      batch.db,
+      unassignment,
+      people,
+    );
+    const batchHints = hintsEmitted();
+    clearHandOvers();
+    const single = bellStore(world);
+    for (const userId of people) {
+      await writeCoalescedNotification(single.db, { ...unassignment, userId });
+    }
+
+    // The unread assignment and its undo drop together; with no twin left
+    // to undo, the undo is news of its own.
+    expect(Object.fromEntries(outcomes)).toEqual({
+      'u-assigned': 'cancelled',
+      'u-never': 'inserted',
+    });
+    expect(batch.rows.map((row) => [row.userId, row.type])).toEqual([
+      ['u-never', 'task_unassigned'],
+    ]);
+    expect(shown(batch.rows)).toEqual(shown(single.rows));
+    // Losing work needs no action: no email either way.
+    expect(emailsQueued()).toEqual([]);
+    expect(batchHints).toEqual(hintsEmitted());
+    expect(batchHints.map((hint) => hint.userId)).toEqual([
+      'u-assigned',
+      'u-never',
+    ]);
   });
 });

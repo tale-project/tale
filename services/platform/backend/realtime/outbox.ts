@@ -81,6 +81,28 @@ export async function emitHintInTx(
   `;
 }
 
+/**
+ * {@link emitHintInTx} for many hints in one statement: a change that
+ * concerns many people (a comment's watchers, a dismissal's recipients)
+ * costs its transaction one insert, not one per hint. Each hint is still its
+ * own row, so a hint narrowed to a user reaches that user's streams alone.
+ */
+export async function emitHintsInTx(
+  tx: TransactionSql | Sql,
+  hints: readonly Hint[],
+): Promise<void> {
+  if (hints.length === 0) return;
+  await tx`
+    INSERT INTO app_realtime.outbox (org_id, user_id, entity, entity_id)
+    SELECT * FROM unnest(
+      ${hints.map((hint) => hint.orgId)}::text[],
+      ${hints.map((hint) => hint.userId ?? null)}::text[],
+      ${hints.map((hint) => hint.entity)}::text[],
+      ${hints.map((hint) => hint.entityId)}::text[]
+    )
+  `;
+}
+
 /** Newest outbox id, or '0' when empty — the "start at tail" cursor. */
 export async function latestOutboxId(sql: Sql): Promise<string> {
   const rows = await sql<{ max: string | null }[]>`

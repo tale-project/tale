@@ -14,10 +14,10 @@
  * This module is the pure half: the key. The write path that applies it (the
  * rewrite-in-place, the `undoes` drop, the debounced email through the
  * `notification.email` job with its epoch fence) is
- * `domains/collab/service.ts` (`writeCoalescedNotification`) and the sink is
- * `domains/collab/email-sink.ts`. Read rows are never touched — once someone
- * has seen a notification it is part of their history, so the next event
- * starts a fresh row.
+ * `domains/collab/service.ts` (`writeCoalescedNotifications`, for everyone a
+ * change concerns at once) and the sink is `domains/collab/email-sink.ts`.
+ * Read rows are never touched — once someone has seen a notification it is
+ * part of their history, so the next event starts a fresh row.
  */
 
 import type { Doc, Id } from '../lib/rows';

@@ -249,12 +249,17 @@ describe('removing a schedule its failures paused reads the admins’ notices of
     expect(dismissals(paused)).toEqual([
       { values: [expect.any(Number), 'org_1', 'trg_1'], inTx: true },
     ]);
-    // The recipients' bells refresh.
+    // The recipients' bells refresh: a hint for each, alone or in a batch
+    // (whose values are its columns, one entry per hint).
     expect(
       paused.statements.some(
         (statement) =>
           statement.text.includes('INSERT INTO app_realtime.outbox') &&
-          statement.values.includes('admin_1'),
+          statement.values.some((value) =>
+            Array.isArray(value)
+              ? value.includes('admin_1')
+              : value === 'admin_1',
+          ),
       ),
     ).toBe(true);
   });
