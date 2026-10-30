@@ -28,6 +28,18 @@ interface UseMediaRecorderDictationReturn {
   retryTranscription: () => void;
   /** Drop the retained recording and clear the failed state. */
   discardFailedRecording: () => void;
+  /** Stop recording and wait for the transcript. `null` when nothing is
+   * being recorded or transcribed; otherwise settles once the round trip
+   * has handed its text to `onTranscript` (or found nothing to transcribe),
+   * and rejects when it fails — the recording then stays for a retry. */
+  finishListening: () => Promise<void> | null;
+}
+
+/** A send waiting for the transcript: resolved once the words reached
+ * `onTranscript`, rejected with the failure that kept them out. */
+interface FinishWaiter {
+  resolve: () => void;
+  reject: (reason: unknown) => void;
 }
 
 /**
@@ -66,8 +78,22 @@ export function useMediaRecorderDictation({
   // button stays clickable until isListening flips to true, so without
   // this we can race ourselves and end up with two live streams.
   const startingRef = useRef(false);
+  // `isTranscribing` for `finishListening`, which must know at once.
+  const transcribingRef = useRef(false);
+  // The sends waiting for the recording in progress, or for the round trip
+  // in flight, to deliver its transcript.
+  const finishWaitersRef = useRef<FinishWaiter[]>([]);
   const onTranscriptRef = useRef(onTranscript);
   onTranscriptRef.current = onTranscript;
+
+  const resolveFinish = useCallback(() => {
+    for (const waiter of finishWaitersRef.current.splice(0)) waiter.resolve();
+  }, []);
+  const rejectFinish = useCallback((reason: unknown) => {
+    for (const waiter of finishWaitersRef.current.splice(0)) {
+      waiter.reject(reason);
+    }
+  }, []);
 
   // The live client, not the query-client wrapper: chat components render
   // outside the provider tree in tests and degraded surfaces, where
@@ -104,6 +130,7 @@ export function useMediaRecorderDictation({
   // failure retains the blob so the user can fix the provider and retry.
   const runTranscription = useCallback(
     async (blob: Blob, mimeType: string) => {
+      transcribingRef.current = true;
       setIsTranscribing(true);
       setError(null);
       try {
@@ -119,9 +146,11 @@ export function useMediaRecorderDictation({
         }
         failedRecordingRef.current = null;
         if (isMountedRef.current) setHasFailedRecording(false);
+        resolveFinish();
       } catch (err) {
         console.warn('[dictation] transcription failed:', err);
         failedRecordingRef.current = { blob, mimeType };
+        rejectFinish(err);
         if (isMountedRef.current) {
           setHasFailedRecording(true);
           // A reached usage limit says so; the recording stays for a retry
@@ -139,10 +168,17 @@ export function useMediaRecorderDictation({
           }
         }
       } finally {
+        transcribingRef.current = false;
         if (isMountedRef.current) setIsTranscribing(false);
       }
     },
-    [transcribeDictation, organizationId, onTranscriptionUnavailable],
+    [
+      transcribeDictation,
+      organizationId,
+      onTranscriptionUnavailable,
+      resolveFinish,
+      rejectFinish,
+    ],
   );
 
   const startListening = useCallback(async () => {
@@ -200,6 +236,7 @@ export function useMediaRecorderDictation({
       setError('recorder-error');
       cleanup();
       setIsListening(false);
+      rejectFinish(new Error('The recorder failed; the recording is lost.'));
     });
 
     recorder.addEventListener('stop', () => {
@@ -211,17 +248,20 @@ export function useMediaRecorderDictation({
       setIsListening(false);
 
       if (recordedChunks.length === 0) {
+        resolveFinish();
         return;
       }
 
       const audioBlob = new Blob(recordedChunks, { type: mimeType });
       if (audioBlob.size === 0) {
+        resolveFinish();
         return;
       }
 
       // Component unmounted between start and stop — drop the recording
       // rather than transcribing audio the user can no longer see results for.
       if (!isMountedRef.current) {
+        rejectFinish(new Error('The recording was dropped on unmount.'));
         return;
       }
 
@@ -239,13 +279,25 @@ export function useMediaRecorderDictation({
     } finally {
       startingRef.current = false;
     }
-  }, [isSupported, cleanup, runTranscription]);
+  }, [isSupported, cleanup, runTranscription, resolveFinish, rejectFinish]);
 
   const stopListening = useCallback(() => {
     const recorder = recorderRef.current;
     if (recorder && recorder.state !== 'inactive') {
       recorder.stop();
     }
+  }, []);
+
+  const finishListening = useCallback(() => {
+    // A recorder stays referenced until its `stop` event has handed the
+    // recording over, so a stop already asked for is still waited on.
+    const recorder = recorderRef.current;
+    if (recorder === null && !transcribingRef.current) return null;
+    const finished = new Promise<void>((resolve, reject) => {
+      finishWaitersRef.current.push({ resolve, reject });
+    });
+    if (recorder !== null && recorder.state !== 'inactive') recorder.stop();
+    return finished;
   }, []);
 
   const retryTranscription = useCallback(() => {
@@ -277,8 +329,9 @@ export function useMediaRecorderDictation({
         }
       }
       cleanup();
+      rejectFinish(new Error('Dictation ended on unmount.'));
     };
-  }, [cleanup]);
+  }, [cleanup, rejectFinish]);
 
   return {
     isListening,
@@ -292,5 +345,6 @@ export function useMediaRecorderDictation({
     hasFailedRecording,
     retryTranscription,
     discardFailedRecording,
+    finishListening,
   };
 }

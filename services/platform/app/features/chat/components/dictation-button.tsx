@@ -42,11 +42,19 @@ interface DictationButtonProps {
   transcriptionAvailable?: boolean;
   transcriptionUnavailableReason?: string;
   onTranscriptionUnavailable?: (reason?: string) => void;
+  /** Whether a dictation is under way — listening, or transcribing what it
+   * heard — so the composer can offer to send the words it will add. */
+  onActiveChange?: (active: boolean) => void;
 }
 
 export interface DictationButtonHandle {
-  /** Stop an in-progress dictation, if any (e.g. when the message is sent). */
-  stop: () => void;
+  /**
+   * Stop an in-progress dictation and wait for its last words (the message
+   * is being sent). `null` when nothing is in progress; otherwise settles
+   * once every transcript the dictation owes has reached `onTranscript`,
+   * and rejects when those words are lost.
+   */
+  finish: () => Promise<void> | null;
 }
 
 /**
@@ -74,6 +82,7 @@ const DictationButtonComponent = forwardRef<
     transcriptionAvailable,
     transcriptionUnavailableReason,
     onTranscriptionUnavailable,
+    onActiveChange,
   },
   ref,
 ) {
@@ -112,6 +121,9 @@ const DictationButtonComponent = forwardRef<
   const stopListening = useFallback
     ? recorder.stopListening
     : speech.stopListening;
+  const finishListening = useFallback
+    ? recorder.finishListening
+    : speech.finishListening;
 
   // Failed-recording recovery only exists on the MediaRecorder fallback
   // (the Web Speech path has no server round-trip to fail or retry).
@@ -175,17 +187,17 @@ const DictationButtonComponent = forwardRef<
     prevListeningRef.current = isListening;
   }, [isListening]);
 
-  // Let the parent (the composer) stop an active dictation when the message
-  // is sent, so the mic doesn't keep listening after send.
-  useImperativeHandle(
-    ref,
-    () => ({
-      stop: () => {
-        if (isListening) stopListening();
-      },
-    }),
-    [isListening, stopListening],
-  );
+  const active = isListening || isTranscribing;
+  useEffect(() => {
+    onActiveChange?.(active);
+  }, [active, onActiveChange]);
+
+  // Let the parent (the composer) finish an active dictation when the
+  // message is sent: the mic must not keep listening into the next turn,
+  // and the words it still owes belong to this message.
+  useImperativeHandle(ref, () => ({ finish: finishListening }), [
+    finishListening,
+  ]);
 
   // A known refusal keeps an actionable mic: clicking it explains recovery
   // without capturing audio. An unknown capability or unsupported recorder

@@ -72,6 +72,38 @@ interface UseSpeechToTextReturn {
   errorNonce: number;
   startListening: () => void;
   stopListening: () => void;
+  /**
+   * Stop listening and wait for the last words. `null` when no session is
+   * running; otherwise settles once the recognizer has handed every final
+   * result to `onTranscript` (at its `end`), and rejects when an error cut
+   * the session short — the words it still held are lost.
+   */
+  finishListening: () => Promise<void> | null;
+}
+
+/**
+ * One recognition, from its start to its `end`. Its events speak for it
+ * alone: a session that was replaced or aborted must not end the one after
+ * it.
+ */
+interface RecognitionSession {
+  recognition: SpeechRecognitionInstance;
+  /** The error that cut the session short, once one has. */
+  failure: string | null;
+  /** The sends waiting for its last words. */
+  waiters: Array<(failure: string | null) => void>;
+}
+
+function settleWaiters(session: RecognitionSession) {
+  for (const settle of session.waiters.splice(0)) settle(session.failure);
+}
+
+/** Abort a session: the words it still held are lost, whatever events the
+ * browser sends after. */
+function abortSession(session: RecognitionSession) {
+  session.failure ??= 'aborted';
+  settleWaiters(session);
+  session.recognition.abort();
 }
 
 /**
@@ -110,16 +142,30 @@ export function useSpeechToText({
     setErrorCode(code);
     setErrorNonce((nonce) => nonce + 1);
   }, []);
-  const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+  const sessionRef = useRef<RecognitionSession | null>(null);
   const onTranscriptRef = useRef(onTranscript);
   onTranscriptRef.current = onTranscript;
 
   const isSupported = typeof window !== 'undefined' && !!getSpeechRecognition();
 
   const stopListening = useCallback(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
+    sessionRef.current?.recognition.stop();
+  }, []);
+
+  const finishListening = useCallback(() => {
+    const session = sessionRef.current;
+    if (session === null) return null;
+    const finished = new Promise<void>((resolve, reject) => {
+      session.waiters.push((failure) => {
+        if (failure === null) resolve();
+        else reject(new Error(`Speech recognition failed: ${failure}`));
+      });
+    });
+    // `stop` (never `abort`) asks the recognizer for a final result on the
+    // audio it already heard; the `end` after it settles the wait.
+    if (session.failure === null) session.recognition.stop();
+    else settleWaiters(session);
+    return finished;
   }, []);
 
   const startListening = useCallback(() => {
@@ -127,9 +173,9 @@ export function useSpeechToText({
     if (!Recognition) return;
 
     // Stop any existing session
-    if (recognitionRef.current) {
-      recognitionRef.current.abort();
-      recognitionRef.current = null;
+    if (sessionRef.current) {
+      abortSession(sessionRef.current);
+      sessionRef.current = null;
     }
 
     setErrorCode(null);
@@ -138,9 +184,15 @@ export function useSpeechToText({
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = lang;
-    recognitionRef.current = recognition;
+    const session: RecognitionSession = {
+      recognition,
+      failure: null,
+      waiters: [],
+    };
+    sessionRef.current = session;
 
     recognition.addEventListener('start', () => {
+      if (sessionRef.current !== session) return;
       setIsListening(true);
     });
 
@@ -164,6 +216,14 @@ export function useSpeechToText({
     recognition.addEventListener('error', (event: Event) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- SpeechRecognition 'error' event is typed as SpeechRecognitionErrorEvent
       const e = event as unknown as SpeechRecognitionErrorEvent;
+      // Silence lost no words; any other error (an abort included) lost
+      // whatever the recognizer still held, so a send waiting for it must
+      // not go out without them.
+      if (e.error !== 'no-speech') {
+        session.failure ??= e.error;
+        settleWaiters(session);
+      }
+      if (sessionRef.current !== session) return;
       // "aborted" is expected when we call stop/abort. "no-speech" is the
       // recognition timing out on silence — surfacing it would lead the
       // button to show a misleading "not supported" toast, when the API
@@ -177,8 +237,12 @@ export function useSpeechToText({
     });
 
     recognition.addEventListener('end', () => {
+      // Every final result arrives before `end`: the session has said all
+      // it will.
+      settleWaiters(session);
+      if (sessionRef.current !== session) return;
       setIsListening(false);
-      recognitionRef.current = null;
+      sessionRef.current = null;
     });
 
     // Start INSIDE the click: iOS Safari starts recognition only from a
@@ -193,17 +257,17 @@ export function useSpeechToText({
         '[dictation] speech recognition failed to start',
         startError,
       );
-      recognitionRef.current = null;
+      sessionRef.current = null;
       setError('not-allowed');
       setIsListening(false);
       return;
     }
     void queryMicrophonePermission().then((state) => {
       // A newer click replaced this session while the query was pending.
-      if (recognitionRef.current !== recognition) return;
+      if (sessionRef.current !== session) return;
       if (state !== 'denied') return;
-      recognitionRef.current = null;
-      recognition.abort();
+      sessionRef.current = null;
+      abortSession(session);
       setError('not-allowed');
       setIsListening(false);
     });
@@ -212,9 +276,9 @@ export function useSpeechToText({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-        recognitionRef.current = null;
+      if (sessionRef.current) {
+        abortSession(sessionRef.current);
+        sessionRef.current = null;
       }
     };
   }, []);
@@ -226,5 +290,6 @@ export function useSpeechToText({
     errorNonce,
     startListening,
     stopListening,
+    finishListening,
   };
 }

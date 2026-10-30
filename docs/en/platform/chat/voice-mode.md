@@ -12,7 +12,7 @@ Dictation lets you speak a message instead of typing it. Voice output reads an a
 3. Click **Stop dictation**. Where server transcription is used, wait for it to finish.
 4. Read and correct the text in the message field, especially names, numbers, and dates. Send when it is ready.
 
-Dictation adds text to the composer; it does not automatically send the message. Sending stops an active dictation. The chat model receives the text you submit.
+Dictation adds text to the composer; it does not automatically send the message. You can also send while you are still dictating: sending stops the microphone, and the send button turns into a spinner labelled **Finishing transcription…** until the last words you said are in the message field. The whole message then goes out. If those last words cannot be transcribed, or transcribing them takes too long, nothing is sent: the message field keeps everything transcribed so far, and a **Message not sent** notice says why. The chat model receives the text you submit.
 
 Tale first uses the browser's speech-recognition capability when available. Otherwise, it can record and transcribe through your organization's configured transcription model. Browser speech recognition may use a browser-vendor service; do not assume dictation works offline.
 
@@ -36,6 +36,7 @@ The voice setting on an existing chat applies to that chat. Setting it on a new 
 | A message says dictation is unavailable | The browser's speech service could not be reached: check the connection, a proxy or a content blocker, then try again. |
 | Words are missing or wrong | Reduce background noise and correct the transcript before sending. |
 | Server transcription failed | Use the retry control while the failed recording remains available, or discard it and type. |
+| **Message not sent** after sending during dictation | The last words could not be transcribed, or not in time. Check the message field, retry a failed server transcription, then send again. |
 | A reply is ready but silent | Check device volume and browser playback permission, then use the reply's play control. |
 | Voice reports a configuration error | Ask an administrator to check the speech model and credential. |
 

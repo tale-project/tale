@@ -12,7 +12,7 @@ La dictée permet de parler au lieu de taper un message. La sortie vocale lit un
 3. Clique sur **Arrêter la dictée**. Si la transcription passe par le serveur, attends qu’elle se termine.
 4. Relis et corrige le texte, surtout les noms, nombres et dates. Envoie-le lorsqu’il est prêt.
 
-La dictée ajoute du texte au champ de saisie ; elle n’envoie pas automatiquement le message. L’envoi arrête une dictée en cours. Le modèle de chat reçoit le texte que tu soumets.
+La dictée ajoute du texte au champ de saisie ; elle n’envoie pas automatiquement le message. Tu peux aussi envoyer pendant que tu dictes encore : l’envoi coupe le microphone, et le bouton d’envoi devient un indicateur de chargement intitulé **Finalisation de la transcription…** jusqu’à ce que tes derniers mots soient dans le champ de message. Le message complet part ensuite. Si ces derniers mots ne peuvent pas être transcrits, ou si leur transcription prend trop de temps, rien n’est envoyé : le champ de message garde tout ce qui a été transcrit jusqu’ici, et une notification **Message non envoyé** en indique la raison. Le modèle de chat reçoit le texte que tu soumets.
 
 Tale utilise d’abord la reconnaissance vocale du navigateur lorsqu’elle est disponible. Sinon, il peut enregistrer et transcrire via le modèle configuré par l’organisation. La reconnaissance du navigateur peut utiliser un service de son fournisseur : ne suppose pas qu’elle fonctionne hors ligne.
 
@@ -36,6 +36,7 @@ Le réglage dans un chat existant s’applique à ce chat. Sur un nouveau chat, 
 | Un message indique que la dictée est indisponible | Le navigateur ne joint pas son service vocal : vérifier la connexion, un proxy ou un bloqueur de contenu, puis réessayer. |
 | Des mots manquent ou sont incorrects | Réduire le bruit ambiant et corriger le texte avant l’envoi. |
 | La transcription serveur échoue | Réessayer tant que l’enregistrement reste disponible, ou le supprimer et taper le message. |
+| **Message non envoyé** après un envoi pendant la dictée | Les derniers mots n’ont pas pu être transcrits, ou pas à temps. Vérifier le champ de message, relancer une transcription serveur échouée, puis renvoyer le message. |
 | La réponse est prête mais silencieuse | Vérifier le volume et l’autorisation de lecture du navigateur, puis lancer la lecture de la réponse. |
 | Une erreur de configuration apparaît | Demander à un administrateur de vérifier le modèle vocal et ses identifiants. |
 
