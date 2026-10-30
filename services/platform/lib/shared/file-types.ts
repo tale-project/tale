@@ -79,6 +79,23 @@ export function isImage(mimeType: string): boolean {
   return mimeType.startsWith('image/');
 }
 
+const RASTER_IMAGE_TYPES: ReadonlySet<string> = new Set([
+  MIME_TYPES.JPEG,
+  MIME_TYPES.PNG,
+  MIME_TYPES.GIF,
+  MIME_TYPES.WEBP,
+]);
+
+/**
+ * An image made of pixels, the kinds the platform takes as pictures: it
+ * draws at its own size. An SVG is an image too, but it is markup: it has
+ * no size unless the markup names one, and it can fail to parse, so it is
+ * not drawn as a picture of a known shape.
+ */
+export function isRasterImage(mimeType: string): boolean {
+  return RASTER_IMAGE_TYPES.has(mimeType);
+}
+
 function isAudio(mimeType: string): boolean {
   return mimeType.startsWith('audio/');
 }

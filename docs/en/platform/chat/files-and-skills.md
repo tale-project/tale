@@ -25,7 +25,7 @@ While it works, the steps above the reply say what it is doing, such as **Writin
 
 ## Open and download the files
 
-The files appear under the reply, in the order they were made. Images show as pictures; select one to open it full size and page through the others. Every other file shows as a card with its name, type and size. Select the card to preview the file; PDF, Word, spreadsheet, Markdown and text files open in place. The download button beside the card saves the file under its own name.
+The files appear under the reply, in the order they were made. PNG, JPEG, GIF and WebP images show as pictures; select one to open it full size and page through the others. Every other file, SVG files included, shows as a card with its name, type and size, and so does a picture that cannot be displayed. Select the card to preview the file; PDF, Word, spreadsheet, Markdown, text and SVG files open in place. The download button beside the card saves the file under its own name.
 
 <Frame caption="The file the assistant wrote appears as a card under its reply, with a download button beside it.">
 

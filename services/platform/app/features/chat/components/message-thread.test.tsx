@@ -9,7 +9,12 @@ import {
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
-import { toSettledItems } from '../lib/thread-view-core';
+import {
+  createThreadViewState,
+  reduceThreadView,
+  resolveHeldItems,
+  toSettledItems,
+} from '../lib/thread-view-core';
 
 // Image-attachment parts resolve display URLs through a Convex query; this
 // harness renders without a provider, so the seam answers inert.
@@ -33,7 +38,7 @@ vi.mock('./message-toolbar', async (importOriginal) => {
     },
   };
 });
-import type { ChatMessageView } from '../types';
+import type { ChatMessageView, MessagePart } from '../types';
 import { MessageThread } from './message-thread';
 
 const CONVERSATION: ChatMessageView[] = [
@@ -852,5 +857,187 @@ describe('MessageThread long threads', () => {
     // The rows are in place once the thread renders: one audit, not a
     // retry loop that a slow machine's single audit outlasts.
     await checkAccessibility(container);
+  });
+});
+
+describe('MessageThread files a reply made', () => {
+  const PROMPT: ChatMessageView = {
+    id: 'u1',
+    role: 'user',
+    sequence: 1,
+    createdAt: 1,
+    parts: [
+      {
+        type: 'text',
+        text: 'Make a photorealistic image of a superhero in a dark alley.',
+      },
+    ],
+  };
+
+  /** The reply of #5028: one `create_file` step that stored an SVG. */
+  function svgReplyParts(fileId: string): MessagePart[] {
+    return [
+      {
+        type: 'tool-call',
+        callId: 'call_svg',
+        capabilityId: 'create_file',
+        input: { name: 'superheld-dunkle-gasse.svg' },
+      },
+      {
+        type: 'tool-result',
+        callId: 'call_svg',
+        capabilityId: 'create_file',
+        output: {},
+        structured: true,
+      },
+      {
+        type: 'artifact',
+        fileId,
+        name: 'superheld-dunkle-gasse.svg',
+        mediaType: 'image/svg+xml',
+        sizeBytes: 2_048,
+        callId: 'call_svg',
+      },
+      { type: 'text', text: 'The image is attached as SVG.' },
+    ];
+  }
+
+  function reply(
+    id: string,
+    parts: MessagePart[],
+    createdAt = 2,
+  ): ChatMessageView {
+    return { id, role: 'assistant', sequence: 2, createdAt, parts };
+  }
+
+  /** The file the card of the last reply downloads; it opens, too. */
+  function cardFile(): string | null {
+    const last = screen.getAllByTestId('chat-message').at(-1);
+    if (!last) throw new Error('expected a reply');
+    const files = within(last).getByRole('region', {
+      name: 'Files from this reply',
+    });
+    expect(
+      within(files).getByRole('button', {
+        name: 'Open superheld-dunkle-gasse.svg',
+      }),
+    ).toBeVisible();
+    const download = within(files).getByRole('link', {
+      name: 'Download superheld-dunkle-gasse.svg',
+    });
+    return new URL(
+      download.getAttribute('href') ?? '',
+      'http://tale.test',
+    ).searchParams.get('ref');
+  }
+
+  it('shows the SVG a reply made as a card while it streams and once it settled [CHAT-R33]', () => {
+    const state = createThreadViewState();
+    const streaming = reduceThreadView(state, {
+      messages: [PROMPT, reply('a1', [])],
+      generation: { status: 'streaming', messageId: 'a1' },
+      generationText: {
+        messageId: 'a1',
+        text: '',
+        parts: svgReplyParts('s3:acme/gasse'),
+      },
+    });
+    const { rerender } = render(
+      <MessageThread
+        messages={streaming.items}
+        generation={streaming.generation}
+        organizationId="org-1"
+      />,
+    );
+    expect(cardFile()).toBe('s3:acme/gasse');
+
+    const settled = reduceThreadView(state, {
+      messages: [PROMPT, reply('a1', svgReplyParts('s3:acme/gasse'))],
+      generation: null,
+      generationText: null,
+    });
+    rerender(
+      <MessageThread
+        messages={settled.items}
+        generation={settled.generation}
+        organizationId="org-1"
+      />,
+    );
+    expect(cardFile()).toBe('s3:acme/gasse');
+  });
+
+  it('shows the SVG a reply made as a card after a reload [CHAT-R33]', () => {
+    render(
+      <MessageThread
+        messages={toSettledItems([
+          PROMPT,
+          reply('a1', svgReplyParts('s3:acme/gasse')),
+        ])}
+        organizationId="org-1"
+      />,
+    );
+    expect(cardFile()).toBe('s3:acme/gasse');
+  });
+
+  it('shows the SVG a reply tried again made as its own card [CHAT-R33]', () => {
+    // Trying again answers in a sibling chat that copies the prompt; while
+    // the sibling loads, the reply tried again stays on screen.
+    const original = toSettledItems([
+      PROMPT,
+      reply('a1', svgReplyParts('s3:acme/gasse')),
+    ]);
+    const { rerender } = render(
+      <MessageThread messages={original} organizationId="org-1" />,
+    );
+    expect(cardFile()).toBe('s3:acme/gasse');
+
+    const state = createThreadViewState();
+    const loading = reduceThreadView(state, {
+      messages: undefined,
+      generation: undefined,
+      generationText: undefined,
+    });
+    const held = resolveHeldItems({
+      loading: true,
+      currentItems: loading.items,
+      heldItems: original,
+    });
+    rerender(
+      <MessageThread messages={held ?? loading.items} organizationId="org-1" />,
+    );
+    expect(cardFile()).toBe('s3:acme/gasse');
+
+    const copied: ChatMessageView = { ...PROMPT, id: 'u1-again' };
+    const streaming = reduceThreadView(state, {
+      messages: [copied, reply('b2', [], 3)],
+      generation: { status: 'streaming', messageId: 'b2' },
+      generationText: {
+        messageId: 'b2',
+        text: '',
+        parts: svgReplyParts('s3:acme/gasse-2'),
+      },
+    });
+    rerender(
+      <MessageThread
+        messages={streaming.items}
+        generation={streaming.generation}
+        organizationId="org-1"
+      />,
+    );
+    expect(cardFile()).toBe('s3:acme/gasse-2');
+
+    const settled = reduceThreadView(state, {
+      messages: [copied, reply('b2', svgReplyParts('s3:acme/gasse-2'), 3)],
+      generation: null,
+      generationText: null,
+    });
+    rerender(
+      <MessageThread
+        messages={settled.items}
+        generation={settled.generation}
+        organizationId="org-1"
+      />,
+    );
+    expect(cardFile()).toBe('s3:acme/gasse-2');
   });
 });
