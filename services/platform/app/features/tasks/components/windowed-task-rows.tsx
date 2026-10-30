@@ -92,6 +92,9 @@ export function WindowedTaskRows({
   useEffect(() => () => clearTimeout(release.current), []);
   const pinned = useMemo(() => {
     const indexes = new Set<number>();
+    // A focused task dragged into another lane leaves this one inside a
+    // React commit, which reports no blur: its slot stays pinned, so a
+    // cancelled drag brings it back mounted for dnd-kit to refocus.
     const focusedIndex = tasks.findIndex((task) => task._id === focusedId);
     if (focusedIndex >= 0) {
       // Native Tab follows the complete order even at a window boundary.

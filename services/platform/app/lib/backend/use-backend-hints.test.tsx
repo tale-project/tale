@@ -8,9 +8,17 @@ import { renderHook } from '@testing-library/react';
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { isBackendReachable, reportBackendReachable } from './connection-state';
+import {
+  isBackendReachable,
+  reportBackendReachable,
+  reportBackendUnreachable,
+} from './connection-state';
 import { backendKey } from './query-keys';
 import { settingsReadAdapters } from './settings';
+import {
+  hasPendingAvailabilityRecovery,
+  useAvailabilityRecovery,
+} from './use-availability-recovery';
 import {
   HINT_BATCH_MS,
   reconnectDelayMs,
@@ -714,6 +722,121 @@ describe('useBackendHints', () => {
       FakeEventSource.instances[1]?.emit('open', '');
     });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ['backend', 'org1'] });
+  });
+
+  describe('after an outage the availability recovery saw', () => {
+    /** An active read of the org, and how often it was sent. */
+    function observeRead() {
+      const read = vi.fn(async () => ({ version: 1 }));
+      const observer = new QueryObserver(queryClient, {
+        queryKey: backendKey('org1', 'task', 'by-project', 'p1'),
+        queryFn: read,
+        initialData: { version: 0 },
+        staleTime: Infinity,
+      });
+      return { read, unsubscribe: observer.subscribe(() => {}) };
+    }
+
+    /** A failed request reports the outage; the stream's handshake is
+     * refused, so it reopens without a cursor a second later. */
+    function goDownAndReopen(): void {
+      act(() => {
+        reportBackendUnreachable();
+      });
+      abandon(FakeEventSource.instances[0]);
+      act(() => {
+        vi.advanceTimersByTime(1_000);
+      });
+    }
+
+    async function settle(): Promise<void> {
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(HINT_BATCH_MS);
+      });
+    }
+
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      vi.spyOn(window, 'fetch').mockRejectedValue(
+        new TypeError('Failed to fetch'),
+      );
+    });
+
+    it('leaves the refresh to the recovery when the reopened stream is its verdict, so each read runs once', async () => {
+      const { read, unsubscribe } = observeRead();
+      const { unmount } = renderHook(
+        () => {
+          useAvailabilityRecovery();
+          useBackendHints('org1');
+        },
+        { wrapper },
+      );
+      goDownAndReopen();
+      expect(hasPendingAvailabilityRecovery(queryClient)).toBe(true);
+
+      act(() => {
+        FakeEventSource.instances[1]?.emit('open', '');
+      });
+      await settle();
+      expect(read).toHaveBeenCalledTimes(1);
+      expect(hasPendingAvailabilityRecovery(queryClient)).toBe(false);
+      expect(isBackendReachable()).toBe(true);
+      unmount();
+      unsubscribe();
+    });
+
+    it('still refreshes on a reopen after the recovery ran: hints sent in between are lost', async () => {
+      const { read, unsubscribe } = observeRead();
+      const { unmount } = renderHook(
+        () => {
+          useAvailabilityRecovery();
+          useBackendHints('org1');
+        },
+        { wrapper },
+      );
+      act(() => {
+        reportBackendUnreachable();
+      });
+      abandon(FakeEventSource.instances[0]);
+      // The health probe answers before the stream reopens.
+      act(() => {
+        reportBackendReachable();
+      });
+      await settle();
+      expect(read).toHaveBeenCalledTimes(1);
+      expect(hasPendingAvailabilityRecovery(queryClient)).toBe(false);
+
+      act(() => {
+        vi.advanceTimersByTime(1_000);
+      });
+      act(() => {
+        FakeEventSource.instances[1]?.emit('open', '');
+      });
+      await settle();
+      expect(read).toHaveBeenCalledTimes(2);
+      unmount();
+      unsubscribe();
+    });
+
+    it('refreshes on its own once the recovery that saw the outage has unmounted', async () => {
+      const { read, unsubscribe } = observeRead();
+      const recovery = renderHook(() => useAvailabilityRecovery(), {
+        wrapper,
+      });
+      const hints = renderHook(() => useBackendHints('org1'), { wrapper });
+      goDownAndReopen();
+      recovery.unmount();
+      expect(hasPendingAvailabilityRecovery(queryClient)).toBe(false);
+
+      act(() => {
+        FakeEventSource.instances[1]?.emit('open', '');
+      });
+      await settle();
+      expect(read).toHaveBeenCalledTimes(1);
+      hints.unmount();
+      unsubscribe();
+    });
   });
 
   it('backs off between reopen attempts and resets after one opens', () => {

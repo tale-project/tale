@@ -197,6 +197,9 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   },
   useNavigate: () => backend.navigate,
   useLocation: () => backend.location,
+  useParams: () => ({
+    threadId: /\/chat\/([^/]+)$/.exec(backend.location.pathname)?.[1],
+  }),
 }));
 
 vi.mock('@/app/hooks/use-current-user', () => ({
@@ -932,6 +935,43 @@ describe('a long Home stream in Chromium', () => {
       .not.toBeNull();
     expect(document.querySelector('[data-thread-id="chat-5"]')).not.toBeNull();
     expect(document.activeElement).toBe(link);
+  });
+
+  it('keeps a row, its open menu and its delete confirmation while the stream scrolls away', async () => {
+    renderHome({ threads: chatList(400) });
+    await expect.poll(() => rowLink('chat-5')).not.toBeNull();
+    const row = chatRow('chat-5');
+    const stream = streamRows();
+    const scrollAway = async () => {
+      stream.scrollTop = stream.scrollHeight;
+      // The first and last rows are always mounted: a row from the middle
+      // of the far end, and none from the near end, says the window moved.
+      await expect
+        .poll(() => document.querySelector('[data-thread-id="chat-390"]'))
+        .not.toBeNull();
+      await expect
+        .poll(() => document.querySelector('[data-thread-id="chat-10"]'))
+        .toBeNull();
+      expect(row.isConnected).toBe(true);
+    };
+
+    // Both live in portals; their focus events still reach the row.
+    await page
+      .elementLocator(within(row).getByRole('button', { name: 'More actions' }))
+      .click();
+    await expect.element(page.getByRole('menu')).toBeInTheDocument();
+    await scrollAway();
+    expect(screen.getByRole('menu')).toBeInTheDocument();
+
+    stream.scrollTop = 0;
+    await page.getByRole('menuitem', { name: 'Delete' }).click();
+    await expect
+      .element(page.getByRole('button', { name: 'Delete chat' }))
+      .toBeVisible();
+    await scrollAway();
+    expect(
+      screen.getByRole('button', { name: 'Delete chat' }),
+    ).toBeInTheDocument();
   });
 
   it("hands each row the same placement while a fresh chat's draft row leads", async () => {
