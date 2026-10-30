@@ -148,6 +148,129 @@ describe('useFormEditor', () => {
     expect(result.current.isDirty).toBe(false);
   });
 
+  // Regression (#4049): a remote change that lands while the form is dirty is
+  // only flagged, so it is Discard that loads it. The baseline later refetches
+  // compare against has to move with it, or the next refetch of that same data
+  // (a page's own instant save re-reading it) flags the next draft as changed
+  // in another session.
+  describe('after a discard loads a remote change', () => {
+    function discardRemoteChange() {
+      const hook = mount({ name: 'A', color: '#FF0000' });
+      act(() =>
+        hook.result.current.form.setValue('name', 'draft', {
+          shouldDirty: true,
+        }),
+      );
+      hook.rerender({ data: { name: 'remote', color: '#FF0000' } });
+      expect(hook.result.current.hasRemoteUpdate).toBe(true);
+
+      act(() => hook.result.current.reset());
+      expect(hook.result.current.form.getValues('name')).toBe('remote');
+      expect(hook.result.current.hasRemoteUpdate).toBe(false);
+
+      act(() =>
+        hook.result.current.form.setValue('name', 'next draft', {
+          shouldDirty: true,
+        }),
+      );
+      return hook;
+    }
+
+    it('does not flag a refetch of the same data while the next draft is open', () => {
+      const { result, rerender } = discardRemoteChange();
+
+      // Equal content in a new object, as a refetch returns it.
+      rerender({ data: { name: 'remote', color: '#FF0000' } });
+
+      expect(result.current.hasRemoteUpdate).toBe(false);
+      expect(result.current.form.getValues('name')).toBe('next draft');
+      expect(result.current.isDirty).toBe(true);
+    });
+
+    it('still flags a real change from another session', () => {
+      const { result, rerender } = discardRemoteChange();
+
+      rerender({ data: { name: 'remote 2', color: '#FF0000' } });
+
+      expect(result.current.hasRemoteUpdate).toBe(true);
+      expect(result.current.form.getValues('name')).toBe('next draft');
+    });
+  });
+
+  // Regression (#4049): a save adopts the values it saved as the form's
+  // baseline. The refetch of those values has to compare against them too,
+  // or it flags the next draft as changed in another session.
+  describe('after a save', () => {
+    async function saveThenDraft() {
+      const hook = mount({ name: 'A', color: '#FF0000' });
+      act(() =>
+        hook.result.current.form.setValue('name', 'B', { shouldDirty: true }),
+      );
+      await act(async () => {
+        await hook.result.current.save();
+      });
+      expect(hook.result.current.isDirty).toBe(false);
+
+      act(() =>
+        hook.result.current.form.setValue('name', 'next draft', {
+          shouldDirty: true,
+        }),
+      );
+      return hook;
+    }
+
+    it('does not flag the refetch of the saved values while the next draft is open', async () => {
+      const { result, rerender } = await saveThenDraft();
+
+      rerender({ data: { name: 'B', color: '#FF0000' } });
+
+      expect(result.current.hasRemoteUpdate).toBe(false);
+      expect(result.current.form.getValues('name')).toBe('next draft');
+      expect(result.current.isDirty).toBe(true);
+    });
+
+    it('does not flag that refetch once more after it landed during the save', async () => {
+      const pending = Promise.withResolvers<void>();
+      const save = vi.fn(() => pending.promise);
+      const { result, rerender } = mount({ name: 'A', color: '#FF0000' }, save);
+      act(() =>
+        result.current.form.setValue('name', 'B', { shouldDirty: true }),
+      );
+
+      let saving = Promise.resolve();
+      await act(async () => {
+        saving = result.current.save();
+        await vi.waitFor(() => expect(save).toHaveBeenCalled());
+      });
+      // Skipped while the save runs.
+      rerender({ data: { name: 'B', color: '#FF0000' } });
+      await act(async () => {
+        pending.resolve();
+        await saving;
+      });
+      act(() =>
+        result.current.form.setValue('name', 'next draft', {
+          shouldDirty: true,
+        }),
+      );
+
+      // Equal content in a new object, as the next refetch returns it.
+      rerender({ data: { name: 'B', color: '#FF0000' } });
+
+      expect(result.current.hasRemoteUpdate).toBe(false);
+      expect(result.current.form.getValues('name')).toBe('next draft');
+    });
+
+    it('still flags a real change from another session', async () => {
+      const { result, rerender } = await saveThenDraft();
+
+      rerender({ data: { name: 'remote', color: '#FF0000' } });
+
+      expect(result.current.hasRemoteUpdate).toBe(true);
+      expect(result.current.form.getValues('name')).toBe('next draft');
+    });
+  });
+
   it('keeps stable save/reset identities across data churn (active-editor staleness fix)', () => {
     const { result, rerender } = mount({ name: 'A', color: '#FF0000' });
     const save0 = result.current.save;
