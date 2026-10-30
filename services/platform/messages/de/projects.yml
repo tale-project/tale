@@ -74,9 +74,8 @@ create:
     immer.
 overview:
   newChatCta: Neuer Chat
-  projectSection: Projekt
-  projectSectionDescription: Name, Beschreibung und feste Anweisungen für
-    dieses Projekt.
+  projectSection: Projektdetails
+  projectSectionDescription: Grundlegende Informationen zu diesem Projekt.
   sharingHeading: Freigabe
 identity:
   label: Icon und Farbe

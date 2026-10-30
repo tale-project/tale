@@ -268,10 +268,11 @@ describe('ProjectSharingSection accessibility', () => {
 });
 
 /**
- * The Sharing section sits under the Project section on the project's General
- * page, so it takes the same chrome: a settings field row — label and help on
- * the left, the control pinned in the shared control column on the right —
- * inside the divided field list, not a free-standing (and unnamed) form group.
+ * The Sharing section sits under the Project details section on the project's
+ * General page, so it takes the same chrome: a settings field row — label and
+ * help on the left, the control pinned in the shared control column on the
+ * right — inside the divided field list, not a free-standing (and unnamed) form
+ * group.
  */
 describe('ProjectSharingSection chrome', () => {
   /** The settings field row around `content`, by the row's own marker. */
