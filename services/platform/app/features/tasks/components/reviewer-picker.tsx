@@ -43,7 +43,9 @@ interface ReviewerPickerProps {
 }
 
 /** Who reviews, in words: the effective reviewer (an inherited agent
- *  default counts) and the label the trigger and its tooltip read. */
+ *  default counts), the label the trigger and its tooltip read, and the
+ *  trigger's name: the field, then that label, so the name holds what the
+ *  trigger shows (WCAG 2.5.3 Label in Name). */
 function describeReviewer(
   reviewer: TaskReviewer,
   projectReviewer: ProjectTaskReviewer,
@@ -69,7 +71,8 @@ function describeReviewer(
         })
       : t('reviewer.projectDefaultHuman');
   const label = resolved?.name ?? t('reviewer.none');
-  return { effective, actorId, resolved, inheritLabel, label };
+  const triggerName = `${t('fields.reviewer')}: ${label}`;
+  return { effective, actorId, resolved, inheritLabel, label, triggerName };
 }
 
 /** Reviewer routing is separate from implementation ownership. Selecting an
@@ -123,7 +126,7 @@ function ReviewerPickerTrigger(props: ReviewerPickerProps) {
     disabled = false,
     busy = false,
   } = props;
-  const { effective, actorId, resolved, label } = describeReviewer(
+  const { effective, actorId, resolved, label, triggerName } = describeReviewer(
     reviewer,
     projectReviewer,
     directory.resolveActor,
@@ -160,7 +163,7 @@ function ReviewerPickerTrigger(props: ReviewerPickerProps) {
           type="button"
           variant="ghost"
           size="sm"
-          aria-label={t('fields.reviewer')}
+          aria-label={triggerName}
           // What the list's popover trigger says while it is shut.
           aria-haspopup="dialog"
           aria-expanded={false}
@@ -219,7 +222,7 @@ function ReviewerPickerList({
     agentsLoading,
   } = useSharedAssignableActors(organizationId, projectId);
   const [open, setOpen] = useState(defaultOpen);
-  const { effective, actorId, resolved, inheritLabel, label } =
+  const { effective, actorId, resolved, inheritLabel, label, triggerName } =
     describeReviewer(
       reviewer,
       projectReviewer,
@@ -363,7 +366,7 @@ function ReviewerPickerList({
             type="button"
             variant="ghost"
             size="sm"
-            aria-label={t('fields.reviewer')}
+            aria-label={triggerName}
             aria-disabled={busy || undefined}
             aria-busy={busy || undefined}
             className="h-auto max-w-full min-w-0 gap-1.5 p-1 text-left whitespace-normal"

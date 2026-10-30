@@ -87,6 +87,8 @@ const base = {
   reviewer: inherited,
   projectReviewer: humanDefault,
 };
+/** The trigger's name: the field, then the reviewer it shows. */
+const triggerName = (label: string) => `tasks.fields.reviewer: ${label}`;
 
 describe('ReviewerPicker', () => {
   beforeEach(() => {
@@ -111,7 +113,7 @@ describe('ReviewerPicker', () => {
     expect(screen.queryByRole('option')).toBeNull();
 
     await user.click(
-      screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
+      screen.getByRole('button', { name: triggerName('tasks.reviewer.none') }),
     );
     expect(candidateReads).toBeGreaterThan(0);
     expect(screen.getByRole('option', { name: /Alex/ })).toBeInTheDocument();
@@ -122,7 +124,7 @@ describe('ReviewerPicker', () => {
   it('offers scoped editors and agents, with a separate inherited choice', async () => {
     const { user } = render(<ReviewerPicker {...base} onChange={vi.fn()} />);
     await user.click(
-      screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
+      screen.getByRole('button', { name: triggerName('tasks.reviewer.none') }),
     );
     expect(screen.getByRole('option', { name: /Alex/ })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /Bea/ })).toBeInTheDocument();
@@ -138,7 +140,7 @@ describe('ReviewerPicker', () => {
     scopeReady = false;
     const { user } = render(<ReviewerPicker {...base} onChange={vi.fn()} />);
     await user.click(
-      screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
+      screen.getByRole('button', { name: triggerName('tasks.reviewer.none') }),
     );
     expect(screen.queryByText('Alex')).not.toBeInTheDocument();
     expect(screen.queryByText('Independent reviewer')).not.toBeInTheDocument();
@@ -149,7 +151,7 @@ describe('ReviewerPicker', () => {
     agentsLoading = true;
     const { user } = render(<ReviewerPicker {...base} onChange={vi.fn()} />);
     await user.click(
-      screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
+      screen.getByRole('button', { name: triggerName('tasks.reviewer.none') }),
     );
     expect(screen.getByRole('option', { name: /Alex/ })).toBeInTheDocument();
     expect(
@@ -166,7 +168,9 @@ describe('ReviewerPicker', () => {
       [/tasks.reviewer.projectDefaultHuman/, { kind: 'inherit' }],
     ] as const) {
       await user.click(
-        screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
+        screen.getByRole('button', {
+          name: triggerName('tasks.reviewer.none'),
+        }),
       );
       await user.click(screen.getByRole('option', { name }));
       expect(onChange).toHaveBeenLastCalledWith(expected);
@@ -184,7 +188,7 @@ describe('ReviewerPicker', () => {
       />,
     );
     await user.click(
-      screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
+      screen.getByRole('button', { name: triggerName('Worker') }),
     );
     expect(screen.getByRole('option', { name: /^Worker/ })).toHaveAttribute(
       'aria-disabled',
@@ -210,7 +214,7 @@ describe('ReviewerPicker', () => {
       />,
     );
     await user.click(
-      screen.getByRole('button', { name: 'tasks.fields.reviewer' }),
+      screen.getByRole('button', { name: triggerName('Drafting agent') }),
     );
     expect(
       screen.getByRole('option', { name: /^Drafting agent/ }),
@@ -236,8 +240,52 @@ describe('ReviewerPicker', () => {
       />,
     );
     expect(
-      screen.queryByRole('button', { name: 'tasks.fields.reviewer' }),
+      screen.queryByRole('button', { name: /^tasks\.fields\.reviewer/ }),
     ).not.toBeInTheDocument();
     expect(screen.getByText('Independent reviewer')).toBeInTheDocument();
   });
+
+  // The trigger shows who reviews, so its name says it too, after the field
+  // (WCAG 2.5.3 Label in Name): shut, and as the list's trigger once used.
+  it.each([
+    ['a member', { reviewer: { kind: 'user', userId: 'user-1' } }, 'Alex'],
+    [
+      'an agent',
+      { reviewer: { kind: 'agent', agentId: 'reviewer' } },
+      'Independent reviewer',
+    ],
+    [
+      'the inherited project agent',
+      { projectReviewer: { kind: 'agent', agentId: 'worker' } },
+      'Worker',
+    ],
+    [
+      'the inherited person the server resolved',
+      { currentReviewer: { kind: 'user', userId: 'user-2' } },
+      'Bea',
+    ],
+    ['nobody', {}, 'tasks.reviewer.none'],
+  ] as const)(
+    'names the reviewer it shows (%s) before and after its first use',
+    async (_who, props, label) => {
+      const name = triggerName(label);
+      const { user } = render(
+        <ReviewerPicker {...base} {...props} onChange={vi.fn()} />,
+      );
+      const closed = screen.getByRole('button', { name });
+      expect(closed).toHaveTextContent(label);
+
+      await user.click(closed);
+      // The list it opens keeps the field's name.
+      expect(
+        screen.getByRole('listbox', { name: 'tasks.fields.reviewer' }),
+      ).toBeInTheDocument();
+      await user.keyboard('{Escape}');
+      // Its first use mounted the list, whose trigger stands in its place.
+      expect(candidateReads).toBeGreaterThan(0);
+      const trigger = screen.getByRole('button', { name });
+      expect(trigger).not.toBe(closed);
+      expect(trigger).toHaveTextContent(label);
+    },
+  );
 });

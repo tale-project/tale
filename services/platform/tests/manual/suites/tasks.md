@@ -1606,6 +1606,12 @@ otherwise. Mark them **ENVIRONMENT** without a runnable harness.
   on the fold icon. Pick up a card in **In review** with **Space**, press **→**
   and **Space** → the card drops into the folded **Done**, and a screen reader
   hears where it landed.
+- [ ] `TASK-A22` · **The Reviewer trigger says who reviews** — With a screen
+  reader, Tab to a task's **Reviewer** (`tasks.fields.reviewer`) while it shows
+  a member, an agent and the project default → each time it is a button named
+  **Reviewer**, then the name it shows, before its first use and after **Esc**
+  closes its list. With speech input, say "click" and the name it shows → its
+  list opens.
 
 ## Performance
 

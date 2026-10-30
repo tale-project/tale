@@ -118,7 +118,7 @@ describe('TaskReviewerField', () => {
       const pending = Promise.withResolvers<null>();
       mocks.mutate.mockReturnValueOnce(pending.promise);
       const { user } = render(<TaskReviewerField task={task} canEdit />);
-      const closed = screen.getByRole('button', { name: 'Reviewer' });
+      const closed = screen.getByRole('button', { name: 'Reviewer: Alice' });
       await user.tab();
       expect(closed).toHaveFocus();
       await user.keyboard('{Enter}');
@@ -128,7 +128,7 @@ describe('TaskReviewerField', () => {
 
       // Its first use mounted the list in place of the closed trigger; from
       // there on the list's trigger is the one focus target, through the save.
-      const trigger = screen.getByRole('button', { name: 'Reviewer' });
+      const trigger = screen.getByRole('button', { name: 'Reviewer: Alice' });
       expect(trigger).toHaveAttribute('aria-disabled', 'true');
       expect(trigger).toHaveAttribute('aria-busy', 'true');
       expect(trigger).not.toBeDisabled();
@@ -145,7 +145,9 @@ describe('TaskReviewerField', () => {
       await waitFor(() =>
         expect(trigger).not.toHaveAttribute('aria-disabled', 'true'),
       );
-      expect(screen.getByRole('button', { name: 'Reviewer' })).toBe(trigger);
+      expect(screen.getByRole('button', { name: 'Reviewer: Alice' })).toBe(
+        trigger,
+      );
       expect(trigger).toHaveFocus();
       expect(mocks.mutate).toHaveBeenCalledTimes(1);
       expect(mocks.refetch).toHaveBeenCalledTimes(
@@ -163,7 +165,7 @@ describe('TaskReviewerField', () => {
     const { user, rerender } = render(
       <TaskReviewerField task={task} canEdit />,
     );
-    await user.click(screen.getByRole('button', { name: 'Reviewer' }));
+    await user.click(screen.getByRole('button', { name: 'Reviewer: Alice' }));
     if (!mocks.data?.pendingReview) throw new Error('Missing review fixture');
     mocks.data = {
       ...mocks.data,
@@ -212,7 +214,7 @@ describe('TaskReviewerField', () => {
       render(<TaskReviewerField task={task} canEdit />);
       expect(screen.getByRole('status')).toHaveTextContent(message);
       expect(
-        screen.getByRole('button', { name: 'Reviewer' }),
+        screen.getByRole('button', { name: 'Reviewer: Review agent' }),
       ).toHaveTextContent('Review agent');
       expect(
         screen.queryByText(
@@ -225,9 +227,9 @@ describe('TaskReviewerField', () => {
 
   it('does not describe a future agent permission as a block on the captured human review', () => {
     render(<TaskReviewerField task={task} canEdit />);
-    expect(screen.getByRole('button', { name: 'Reviewer' })).toHaveTextContent(
-      'Alice',
-    );
+    expect(
+      screen.getByRole('button', { name: 'Reviewer: Alice' }),
+    ).toHaveTextContent('Alice');
     expect(
       screen.queryByText(
         'This agent needs the task review permission before it can decide.',
@@ -236,13 +238,13 @@ describe('TaskReviewerField', () => {
   });
   it('keeps the current review distinct from the project default and transfers its exact identity', async () => {
     const { user } = render(<TaskReviewerField task={task} canEdit />);
-    expect(screen.getByRole('button', { name: 'Reviewer' })).toHaveTextContent(
-      'Alice',
-    );
+    expect(
+      screen.getByRole('button', { name: 'Reviewer: Alice' }),
+    ).toHaveTextContent('Alice');
     expect(
       screen.queryByText('Project default · Review agent'),
     ).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Reviewer' }));
+    await user.click(screen.getByRole('button', { name: 'Reviewer: Alice' }));
     await user.click(screen.getByRole('option', { name: /^Review agent/ }));
     await waitFor(() =>
       expect(mocks.mutate).toHaveBeenCalledWith({
@@ -264,9 +266,9 @@ describe('TaskReviewerField', () => {
     if (!mocks.data) throw new Error('Missing reviewer fixture');
     mocks.data.projectReviewer = { kind: 'human_default' };
     const { user } = render(<TaskReviewerField task={task} canEdit />);
-    expect(screen.getByRole('button', { name: 'Reviewer' })).toHaveTextContent(
-      'Alice',
-    );
+    expect(
+      screen.getByRole('button', { name: 'Reviewer: Alice' }),
+    ).toHaveTextContent('Alice');
     expect(
       screen.queryByText('Project default · person'),
     ).not.toBeInTheDocument();
@@ -300,7 +302,7 @@ describe('TaskReviewerField', () => {
         screen.queryByText('Project default · person'),
       ).not.toBeInTheDocument();
       if (canEdit) {
-        const trigger = screen.getByRole('button', { name: 'Reviewer' });
+        const trigger = screen.getByRole('button', { name: 'Reviewer: Alice' });
         await user.click(trigger);
         expect(trigger).toHaveTextContent('Alice');
         expect(
@@ -308,11 +310,11 @@ describe('TaskReviewerField', () => {
         ).toBeInTheDocument();
         await user.keyboard('{Escape}');
         expect(
-          screen.getByRole('button', { name: 'Reviewer' }),
+          screen.getByRole('button', { name: 'Reviewer: Alice' }),
         ).toHaveTextContent('Alice');
       } else {
         expect(
-          screen.queryByRole('button', { name: 'Reviewer' }),
+          screen.queryByRole('button', { name: /^Reviewer/ }),
         ).not.toBeInTheDocument();
       }
     },
@@ -326,9 +328,9 @@ describe('TaskReviewerField', () => {
       pendingReview: null,
     };
     render(<TaskReviewerField task={task} canEdit />);
-    expect(screen.getByRole('button', { name: 'Reviewer' })).toHaveTextContent(
-      'No reviewer',
-    );
+    expect(
+      screen.getByRole('button', { name: 'Reviewer: No reviewer' }),
+    ).toHaveTextContent('No reviewer');
   });
 
   it('reports a stale decision once and reloads instead of retrying a handoff automatically', async () => {
@@ -336,7 +338,7 @@ describe('TaskReviewerField', () => {
       new AppError({ code: 'TASK_REVIEWER_STALE' }),
     );
     const { user } = render(<TaskReviewerField task={task} canEdit />);
-    await user.click(screen.getByRole('button', { name: 'Reviewer' }));
+    await user.click(screen.getByRole('button', { name: 'Reviewer: Alice' }));
     await user.click(screen.getByRole('option', { name: /^Review agent/ }));
     await waitFor(() => expect(mocks.refetch).toHaveBeenCalledTimes(1));
     expect(mocks.mutate).toHaveBeenCalledTimes(1);
@@ -351,7 +353,7 @@ describe('TaskReviewerField', () => {
     const { user } = render(
       <TaskReviewerField task={{ ...task, assigneeId: 'reviewer' }} canEdit />,
     );
-    await user.click(screen.getByRole('button', { name: 'Reviewer' }));
+    await user.click(screen.getByRole('button', { name: 'Reviewer: Alice' }));
     expect(screen.getByRole('option', { name: /^Worker/ })).toHaveAttribute(
       'aria-disabled',
       'true',
@@ -366,7 +368,7 @@ describe('TaskReviewerField', () => {
     mocks.isError = true;
     const { user } = render(<TaskReviewerField task={task} canEdit />);
     expect(
-      screen.queryByRole('button', { name: 'Reviewer' }),
+      screen.queryByRole('button', { name: /^Reviewer/ }),
     ).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(mocks.refetch).toHaveBeenCalledTimes(1);
@@ -387,7 +389,7 @@ describe('TaskReviewerField', () => {
       ),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole('button', { name: 'Reviewer' }),
+      screen.queryByRole('button', { name: /^Reviewer/ }),
     ).not.toBeInTheDocument();
     expect(mocks.mutate).not.toHaveBeenCalled();
   });
