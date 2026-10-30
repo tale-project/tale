@@ -61,6 +61,17 @@ export interface SearchSourceState<TData = object> {
   canLoadMore?: boolean;
   isLoadingMore?: boolean;
   loadMore?: () => void;
+  /** Asks again for what failed — the palette's **Try again**, on its error
+   *  state and on its partial-failure line. Omit when nothing can be asked
+   *  again. */
+  retry?: () => void;
+  /** What failed is being asked again: the failure stays on screen, its
+   *  **Try again** busy, until the retry settles. */
+  retrying?: boolean;
+  /** Part of the search failed and the rest answered: the results that
+   *  loaded stay, with one line saying the others could not load. When
+   *  every part failed, report `status: 'error'` instead. */
+  partialFailure?: boolean;
 }
 
 export interface SearchSourceContext {
@@ -116,6 +127,10 @@ export interface SearchCommandLabels {
   errorTitle: string;
   /** Secondary line under the error title. */
   errorHint: string;
+  /** The control that asks a failed search again. */
+  retry: string;
+  /** The line under results when some of them could not load. */
+  partialFailure: string;
   /** Header for the catch-all group when a result has no `group`. */
   resultsGroup: string;
   loading: string;

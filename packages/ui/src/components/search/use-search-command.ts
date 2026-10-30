@@ -63,12 +63,22 @@ export interface SearchCommandController {
   canLoadMore: boolean;
   isLoadingMore: boolean;
   loadMore?: () => void;
+  /** Asks the source again for what failed; absent when it cannot. */
+  retry?: () => void;
+  /** The source is asking again: the failure holds, its retry busy. */
+  retrying: boolean;
+  /** Changes each time a retry settles: key the failure's text on it, so a
+   *  failure that outlives the retry is announced again. */
+  failureKey: number;
   // Derived view flags ------------------------------------------------------
   isShortQuery: boolean;
   showEmptyState: boolean;
   showSkeleton: boolean;
   showNoResults: boolean;
   showError: boolean;
+  /** Part of the search failed: the results (or "no results") stand for
+   *  the part that answered, and one line says the rest could not load. */
+  showPartialFailure: boolean;
   showResults: boolean;
 }
 
@@ -132,6 +142,17 @@ export function useSearchCommand({
       ? 'loading'
       : sourceState.status;
   const error = sourceState.error ?? null;
+  const retrying = sourceState.retrying === true;
+
+  // A retry that settles with the failure still standing leaves the same
+  // words on screen, and a live region reads out only what changes: count
+  // the settled retries, so the failure's text is written afresh each time.
+  const [settledRetries, setSettledRetries] = useState(0);
+  const [wasRetrying, setWasRetrying] = useState(retrying);
+  if (wasRetrying !== retrying) {
+    setWasRetrying(retrying);
+    if (!retrying) setSettledRetries((count) => count + 1);
+  }
 
   const terms = useMemo(() => {
     const fromSource = sourceState.terms;
@@ -228,6 +249,10 @@ export function useSearchCommand({
   // stale results worth keeping on screen (a transient error mid-typing
   // shouldn't wipe the last good page).
   const showError = showResults && status === 'error' && results.length === 0;
+  // A failed part of the search must not pass for a part with nothing in it:
+  // what answered stays on screen, and the line beside it says what did not.
+  const showPartialFailure =
+    showResults && !showError && sourceState.partialFailure === true;
   // Skeleton only when loading AND there's nothing stale to keep visible —
   // otherwise we keep the previous results on screen so the list doesn't
   // blink between keystrokes.
@@ -254,11 +279,15 @@ export function useSearchCommand({
     canLoadMore: sourceState.canLoadMore ?? false,
     isLoadingMore: sourceState.isLoadingMore ?? false,
     loadMore: sourceState.loadMore,
+    retry: sourceState.retry,
+    retrying,
+    failureKey: settledRetries,
     isShortQuery,
     showEmptyState,
     showSkeleton,
     showNoResults,
     showError,
+    showPartialFailure,
     showResults,
   };
 }

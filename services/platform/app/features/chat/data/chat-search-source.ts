@@ -14,11 +14,11 @@
 
 import type { SearchResult, SearchSource } from '@tale/ui/search';
 import { stripMarkdown } from '@tale/ui/search/strip-markdown';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
-import { useChatQuery } from './chat-backend';
+import { useChatQuery, useChatSearchRetry } from './chat-backend';
 
 const NO_RESULTS: SearchResult[] = [];
 
@@ -36,6 +36,12 @@ export function createChatSearchSource(options: {
         : 'skip',
       { cache: false },
     );
+    const retrySearch = useChatSearchRetry(organizationId);
+    // Asked again, a search that never answered starts over as `loading`,
+    // or shows another query's last answer while it runs, so its failure
+    // is held here until that retry settles: the palette keeps its busy
+    // Try again instead of a skeleton or rows this query never found.
+    const [retryingQuery, setRetryingQuery] = useState<string | null>(null);
 
     const results = useMemo<SearchResult[]>(() => {
       if (hits.status !== 'ready') return NO_RESULTS;
@@ -52,10 +58,26 @@ export function createChatSearchSource(options: {
     if (!active || trimmed.length === 0) {
       return { results: NO_RESULTS, status: 'ready' };
     }
+    const retrying = retryingQuery === trimmed;
+    // A failed search is the palette's to name and retry, never "no
+    // results" (#4890): a chat that exists must not read as missing.
+    if (retrying || hits.status === 'unavailable') {
+      return {
+        results: NO_RESULTS,
+        status: 'error',
+        retrying,
+        retry: () => {
+          setRetryingQuery(trimmed);
+          void retrySearch(trimmed).finally(() => {
+            setRetryingQuery((current) =>
+              current === trimmed ? null : current,
+            );
+          });
+        },
+      };
+    }
     return {
       results,
-      // An unavailable backend reads as "no results" rather than an error
-      // banner — the palette is a navigation aid, not a health surface.
       status: hits.status === 'loading' ? 'loading' : 'ready',
     };
   };

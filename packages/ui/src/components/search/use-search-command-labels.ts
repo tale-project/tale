@@ -18,6 +18,7 @@ export function useSearchCommandLabels(
   overrides?: Partial<SearchCommandLabels>,
 ): SearchCommandLabels {
   const { t } = useT('search');
+  const { t: tCommon } = useT('common');
   return useMemo<SearchCommandLabels>(
     () => ({
       title: overrides?.title ?? t('title'),
@@ -29,6 +30,8 @@ export function useSearchCommandLabels(
       noResultsHint: overrides?.noResultsHint ?? t('noResultsHint'),
       errorTitle: overrides?.errorTitle ?? t('errorTitle'),
       errorHint: overrides?.errorHint ?? t('errorHint'),
+      retry: overrides?.retry ?? tCommon('actions.tryAgain'),
+      partialFailure: overrides?.partialFailure ?? t('partialFailure'),
       resultsGroup: overrides?.resultsGroup ?? t('resultsGroup'),
       loading: overrides?.loading ?? t('loading'),
       close: overrides?.close ?? t('close'),
@@ -41,6 +44,6 @@ export function useSearchCommandLabels(
       resultCount:
         overrides?.resultCount ?? ((count: number) => t('results', { count })),
     }),
-    [t, overrides],
+    [t, tCommon, overrides],
   );
 }

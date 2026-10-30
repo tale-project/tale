@@ -49,6 +49,7 @@ search:
   noResultsHint: Try different keywords.
   errorTitle: Something went wrong
   errorHint: Check your connection and try again.
+  partialFailure: Some results couldn't load.
   resultsGroup: Results
   loading: Searching…
   close: Close search

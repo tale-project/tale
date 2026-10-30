@@ -27,6 +27,7 @@ import type {
   BreadcrumbResolver,
   ResultIconResolver,
 } from './search-result-row';
+import { SearchRetry } from './search-retry';
 import { SearchSkeleton } from './search-skeleton';
 import type { SearchCommandLabels, SearchResult, SearchSource } from './types';
 import { useSearchCommand } from './use-search-command';
@@ -242,6 +243,10 @@ function SearchCommandBody({
     showSkeleton,
     showNoResults,
     showError,
+    showPartialFailure,
+    retry,
+    retrying,
+    failureKey,
   } = controller;
 
   const listboxId = useId();
@@ -249,6 +254,10 @@ function SearchCommandBody({
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const listboxRef = useRef<HTMLDivElement | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  // An answer that replaces a focused Try again hands the focus back to the
+  // query, where typing and the arrow keys carry on.
+  const focusInput = useCallback(() => inputRef.current?.focus(), []);
 
   // Reset scroll to the top when the result *set* changes (new query). Done
   // explicitly on the container — NOT via scrollIntoView on activeIndex —
@@ -328,6 +337,7 @@ function SearchCommandBody({
         activeIndex={activeIndex}
         resultCount={results.length}
         onKeyDown={onKeyDown}
+        inputRef={inputRef}
       />
 
       {toolbar}
@@ -338,6 +348,9 @@ function SearchCommandBody({
         role="listbox"
         aria-label={labels.title}
         aria-busy={status === 'loading'}
+        // A failed search has no options to list: its alert stands in the
+        // listbox's place, outside it, so its Try again is not read as one.
+        hidden={showError}
         className="max-h-[58vh] min-h-72 overflow-y-auto"
       >
         {showEmptyState ? (
@@ -371,21 +384,7 @@ function SearchCommandBody({
               showBreadcrumb={getBreadcrumb !== undefined}
             />
           </motion.div>
-        ) : showError ? (
-          <motion.div
-            key="error"
-            initial={reduceMotion ? false : { opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: reduceMotion ? 0 : 0.18 }}
-            className="text-fg-muted flex min-h-72 flex-col items-center justify-center px-6 text-center"
-            role="alert"
-          >
-            <p className="text-fg-base text-sm font-medium">
-              {labels.errorTitle}
-            </p>
-            <p className="text-fg-subtle mt-1 text-xs">{labels.errorHint}</p>
-          </motion.div>
-        ) : showNoResults ? (
+        ) : showError ? null : showNoResults ? (
           <motion.div
             key="no-results"
             initial={reduceMotion ? false : { opacity: 0, y: 4 }}
@@ -425,6 +424,58 @@ function SearchCommandBody({
             ) : null}
           </motion.div>
         )}
+      </div>
+
+      {showError ? (
+        <motion.div
+          key="error"
+          initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: reduceMotion ? 0 : 0.18 }}
+          className="text-fg-muted flex min-h-72 flex-col items-center justify-center px-6 text-center"
+          role="alert"
+        >
+          {/* Written afresh when a retry settles still failing, so the
+              alert is read out again rather than falling silent. */}
+          <p key={failureKey} className="text-fg-base text-sm font-medium">
+            {labels.errorTitle}
+          </p>
+          <p className="text-fg-subtle mt-1 text-xs">{labels.errorHint}</p>
+          {retry ? (
+            <div className="mt-3">
+              <SearchRetry
+                label={labels.retry}
+                retrying={retrying}
+                onRetry={retry}
+                onFocusLost={focusInput}
+              />
+            </div>
+          ) : null}
+        </motion.div>
+      ) : null}
+
+      {/* Mounted throughout, so the line is announced when it appears. It
+          sits outside the listbox: it is about the results, not one. */}
+      <div
+        role="status"
+        className={cn(
+          showPartialFailure &&
+            'border-border-base text-fg-muted flex items-center gap-3 border-t px-4 py-2 text-xs',
+        )}
+      >
+        {showPartialFailure ? (
+          <>
+            <span key={failureKey}>{labels.partialFailure}</span>
+            {retry ? (
+              <SearchRetry
+                label={labels.retry}
+                retrying={retrying}
+                onRetry={retry}
+                onFocusLost={focusInput}
+              />
+            ) : null}
+          </>
+        ) : null}
       </div>
 
       {footerAccessory}

@@ -1,7 +1,7 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
 import i18next from 'i18next';
 import ICU from 'i18next-icu';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { initReactI18next } from 'react-i18next';
 import {
   afterEach,
@@ -24,6 +24,7 @@ import type { SearchResult, SearchSource, SearchSourceState } from './types';
 // copy, so a copy tweak or locale-wiring change can't break these tests for the
 // wrong reason (project rule: never compare against an English literal).
 const L = enMessages.search;
+const TRY_AGAIN = enMessages.common.actions.tryAgain;
 
 // --- a controllable mock source ------------------------------------------
 type MockMode =
@@ -418,5 +419,196 @@ describe('SearchCommand', () => {
       ).toBeInTheDocument(),
     );
     expect(screen.queryByText('Archived')).not.toBeInTheDocument();
+  });
+});
+
+/**
+ * A source whose state the test sets, as a backend read moves from failed
+ * to retrying to answered under a query that stays the same.
+ */
+function createControlledSource(initial: SearchSourceState) {
+  let state = initial;
+  const listeners = new Set<() => void>();
+  const subscribe = (onChange: () => void) => {
+    listeners.add(onChange);
+    return () => {
+      listeners.delete(onChange);
+    };
+  };
+  function useControlledSource(query: string): SearchSourceState {
+    const current = useSyncExternalStore(subscribe, () => state);
+    return query ? current : { results: [], status: 'idle' };
+  }
+  return {
+    source: useControlledSource as SearchSource,
+    set: (next: SearchSourceState) => {
+      act(() => {
+        state = next;
+        for (const listener of listeners) listener();
+      });
+    },
+  };
+}
+
+// #4890: a failed search said "No results", so a chat that exists looked
+// missing, and nothing offered to ask again.
+describe('a search that fails', () => {
+  it('offers Try again on the error, outside the listbox, and asks the source again', async () => {
+    const retry = vi.fn();
+    const { source } = createControlledSource({
+      results: [],
+      status: 'error',
+      error: new Error('boom'),
+      retry,
+    });
+    const { user } = renderCommand({ source });
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'config');
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(L.errorTitle);
+    expect(alert).toHaveTextContent(L.errorHint);
+    // Never the payload: the alert carries the fixed words only.
+    expect(alert).not.toHaveTextContent('boom');
+    expect(alert.closest('[role="listbox"]')).toBeNull();
+    expect(screen.queryByText(L.noResultsTitle)).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: TRY_AGAIN }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the failure up while the retry runs, its Try again busy and inert', async () => {
+    const retry = vi.fn();
+    const { source } = createControlledSource({
+      results: [],
+      status: 'error',
+      retry,
+      retrying: true,
+    });
+    const { user } = renderCommand({ source });
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'config');
+
+    const tryAgain = await screen.findByRole('button', { name: TRY_AGAIN });
+    expect(tryAgain).toHaveAttribute('aria-busy', 'true');
+    expect(tryAgain).toHaveAttribute('aria-disabled', 'true');
+    // Busy, not disabled: it keeps the focus of the reader who pressed it.
+    expect(tryAgain).not.toBeDisabled();
+    await user.click(tryAgain);
+    expect(retry).not.toHaveBeenCalled();
+    expect(screen.getByRole('alert')).toHaveTextContent(L.errorTitle);
+    expect(screen.queryByTestId('search-skeleton')).not.toBeInTheDocument();
+  });
+
+  it('writes the failure afresh when a retry settles still failing', async () => {
+    const retry = vi.fn();
+    const failed: SearchSourceState = { results: [], status: 'error', retry };
+    const { source, set } = createControlledSource(failed);
+    const { user } = renderCommand({ source });
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'config');
+    const before = await screen.findByText(L.errorTitle);
+
+    set({ ...failed, retrying: true });
+    expect(screen.getByText(L.errorTitle)).toBe(before);
+    set(failed);
+    // A new node in the alert: read out again, not left silent.
+    expect(screen.getByText(L.errorTitle)).not.toBe(before);
+  });
+
+  it('hands the focus to the query when the answer replaces a focused Try again', async () => {
+    const retry = vi.fn();
+    const { source, set } = createControlledSource({
+      results: [],
+      status: 'error',
+      retry,
+    });
+    const { user } = renderCommand({ source });
+    const input = screen.getByPlaceholderText(L.placeholder);
+    await user.type(input, 'config');
+    await user.click(await screen.findByRole('button', { name: TRY_AGAIN }));
+
+    set({ results: [result({ id: '1' })], status: 'ready' });
+    await waitFor(() => expect(input).toHaveFocus());
+    expect(screen.getByRole('option')).toBeInTheDocument();
+  });
+
+  it('offers no Try again when the source cannot ask again', async () => {
+    const { source } = createControlledSource({ results: [], status: 'error' });
+    const { user } = renderCommand({ source });
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'config');
+    await screen.findByRole('alert');
+    expect(
+      screen.queryByRole('button', { name: TRY_AGAIN }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('keeps the results that loaded and says the rest could not load', async () => {
+    const retry = vi.fn();
+    const { source } = createControlledSource({
+      results: [result({ id: '1' })],
+      status: 'ready',
+      partialFailure: true,
+      retry,
+    });
+    const { user } = renderCommand({ source });
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'config');
+
+    await screen.findByRole('option', { name: /Configuration/ });
+    const line = screen.getByText(L.partialFailure).closest('[role="status"]');
+    expect(line).not.toBeNull();
+    // About the results, not one of them.
+    expect(line?.closest('[role="listbox"]')).toBeNull();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: TRY_AGAIN }));
+    expect(retry).toHaveBeenCalledTimes(1);
+  });
+
+  it('says part of the search failed beside "No results"', async () => {
+    const { source } = createControlledSource({
+      results: [],
+      status: 'ready',
+      partialFailure: true,
+      retry: vi.fn(),
+    });
+    const { user } = renderCommand({ source });
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'config');
+
+    expect(await screen.findByText(L.noResultsTitle)).toBeInTheDocument();
+    expect(screen.getByText(L.partialFailure)).toBeInTheDocument();
+  });
+
+  it('shows no partial-failure line when the whole search answered', async () => {
+    const { source } = createControlledSource({
+      results: [result({ id: '1' })],
+      status: 'ready',
+    });
+    const { user } = renderCommand({ source });
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'config');
+    await screen.findByRole('option', { name: /Configuration/ });
+    expect(screen.queryByText(L.partialFailure)).not.toBeInTheDocument();
+  });
+
+  it('passes axe audit on the error and on the partial failure', async () => {
+    const { source, set } = createControlledSource({
+      results: [],
+      status: 'error',
+      retry: vi.fn(),
+    });
+    const { user } = renderCommand({ source });
+    await user.type(screen.getByPlaceholderText(L.placeholder), 'config');
+    await screen.findByRole('alert');
+    await checkAccessibility(screen.getByRole('dialog'));
+
+    set({
+      results: [result({ id: '1' })],
+      status: 'ready',
+      partialFailure: true,
+      retry: vi.fn(),
+    });
+    const line = (await screen.findByText(L.partialFailure)).closest(
+      '[role="status"]',
+    );
+    if (line === null) throw new Error('the partial-failure line is missing');
+    // The line alone: the result rows' own markup is not this audit's.
+    await checkAccessibility(line);
   });
 });
