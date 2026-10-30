@@ -14,8 +14,9 @@ import { DocumentPreviewText } from './document-preview-text';
 
 import '@/app/globals.css';
 
-// An editor's rhythm: mono 12px type on a 20px row, in every path.
-const ROW_PX = 20;
+// An editor's rhythm: mono 12px type on an 18px row (`leading-code`, 1.5), in
+// every path.
+const ROW_PX = 18;
 const FONT_PX = '12px';
 // 2rem of numbers + 1rem of gap before the text column.
 const GUTTER_PX = 48;
@@ -100,7 +101,7 @@ function rowPitch(block: HTMLElement, rows: number) {
 }
 
 describe('DocumentPreviewText typography', () => {
-  it('lays highlighted source out one 20px row per line, numbered', async () => {
+  it('lays highlighted source out one 18px row per line, numbered', async () => {
     preview.text = SOURCE;
     const container = renderPreview('answer.ts');
     const rows = await highlightedRows(container);
@@ -115,6 +116,8 @@ describe('DocumentPreviewText typography', () => {
       // one ends, the blank source line included.
       if (i > 0) expect(tops[i] - tops[i - 1]).toBe(ROW_PX);
       expect(getComputedStyle(row, '::before').content).toBe('counter(line)');
+      // The number shares its row's line height: it sits on its line.
+      expect(getComputedStyle(row, '::before').lineHeight).toBe(`${ROW_PX}px`);
     }
   });
 
