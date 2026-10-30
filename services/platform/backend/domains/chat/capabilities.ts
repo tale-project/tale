@@ -12,6 +12,7 @@ import {
 import type { KnowledgeCorpus } from '../../../lib/knowledge/types.ts';
 import { EMBEDDING_SLUG } from '../../../lib/shared/constants/usage.ts';
 import { findActingMember } from '../../auth/membership.ts';
+import { isAnyDatabaseUnavailable } from '../../db/unavailable.ts';
 import type { WriteOrigin } from '../../lib/write-origin.ts';
 import { pgAutomationStore } from '../automations/dispatch-store.ts';
 import { KnowledgeError, searchKnowledgeForOrg } from '../knowledge/service.ts';
@@ -144,6 +145,11 @@ function buildKnowledgeBackend(
         }
         return { status: 'ok', passages };
       } catch (error) {
+        // A database that is not answering — the platform's, or the
+        // knowledge database the search reads — is the door's to answer, as
+        // the wait it asks for (`domains/mcp/refusals.ts`): never a search
+        // that "could not" run in the driver's words, which name its host.
+        if (isAnyDatabaseUnavailable(error)) throw error;
         // A budget refusal's sentence is its `data.message`; its `message`
         // is the serialized payload.
         const reason =

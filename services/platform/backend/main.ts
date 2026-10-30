@@ -17,6 +17,7 @@ import { settleLiveTurns } from './core/automations/stepper.ts';
 import {
   closeKnowledgePools,
   knowledgePoolMax,
+  setKnowledgeOutageReporter,
 } from './core/knowledge/pool.ts';
 import { createBootDatabaseWait } from './db/boot-wait.ts';
 import { runBootMigrations } from './db/migrate.ts';
@@ -38,6 +39,7 @@ import {
   flushErrorReporting,
   initErrorReporting,
   reportError,
+  reportKnowledgeDatabaseOutage,
 } from './error-reporting.ts';
 import { closeServerGracefully } from './http-shutdown.ts';
 import { alignQueuePolicies, startBoss } from './jobs/boss.ts';
@@ -67,6 +69,10 @@ async function main(): Promise<void> {
     role: env.ROLE,
     tracesSampleRate: env.BACKEND_SENTRY_TRACES_SAMPLE_RATE,
   });
+  // A knowledge database that stays unavailable past a routine restart is
+  // reported once per outage; the pool router cannot import the reporter
+  // itself (`core/knowledge/pool.ts`).
+  setKnowledgeOutageReporter(reportKnowledgeDatabaseOutage);
   configureCodeRunner({
     role: env.ROLE,
     processes: env.AUTOMATION_RUNNER_PROCESSES,

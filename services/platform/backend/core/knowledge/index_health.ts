@@ -54,7 +54,7 @@ import { logger } from '../../../lib/knowledge/logger';
 import type { BootDatabaseWait } from '../../db/boot-wait';
 import {
   describeDatabaseError,
-  isDatabaseUnavailable,
+  isAnyDatabaseUnavailable,
 } from '../../db/unavailable';
 import {
   isInternalOrCorruptionError,
@@ -353,7 +353,7 @@ export async function healBm25Indexes(
     return await (options.wait === undefined ? scan() : options.wait(scan));
   } catch (error) {
     // Every statement the scan runs is the knowledge database's own.
-    if (isDatabaseUnavailable(error, { fromDatabase: true })) {
+    if (isAnyDatabaseUnavailable(error, { fromDatabase: true })) {
       logger.warn(
         `${label}: BM25 index verification skipped — the database is unavailable: ${describeDatabaseError(error)}`,
       );

@@ -13,7 +13,8 @@
  * (a store's `AutomationError`, an `AppError`), the agent reads its code and
  * its own sentence — never an error's serialized payload. A database that is
  * not answering — a restart — is a wait, answered as `DATABASE_UNAVAILABLE`
- * with the time to wait, logged once and never reported. Anything else that
+ * with the time to wait (`KNOWLEDGE_DATABASE_UNAVAILABLE` when it is a
+ * knowledge database), logged once and never reported. Anything else that
  * throws is a fault, answered as `INTERNAL_ERROR` with the request id and
  * reported server-side.
  */

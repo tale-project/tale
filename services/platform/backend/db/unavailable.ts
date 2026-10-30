@@ -21,6 +21,17 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * (`core/knowledge/pool.ts`) judges reachability and counts rejected
  * credentials (28xxx) and a missing database (3D000). Those need an operator,
  * not a retry, so they stay out of this one and keep being reported.
+ *
+ * A knowledge database is not the platform's. The knowledge pools
+ * (`core/knowledge/pool.ts`) are postgres.js clients too — the deployment's
+ * default corpus database and each organization's own — and an error says
+ * nothing of which client raised it, so they mark what they reject a query
+ * with ({@link markKnowledgeDatabaseError}). A marked error never reads as
+ * the platform's database going away: {@link knowledgeDatabaseUnavailable}
+ * judges it by the same rule, and the doors answer it with a code of its own,
+ * `KNOWLEDGE_DATABASE_UNAVAILABLE`. What waits either out alike — a boot
+ * step, the scan of a corpus's indexes, a job — asks
+ * {@link isAnyDatabaseUnavailable}.
  */
 
 /**
@@ -86,26 +97,118 @@ export interface DatabaseErrorOrigin {
   fromDatabase?: boolean;
 }
 
+/** Which knowledge database raised an error: the deployment's default corpus
+ * database, or one an organization brought itself. */
+export type KnowledgeDatabase = 'deployment' | 'organization';
+
+/** The errors a knowledge pool rejected a query with, and whose database it
+ * was. Weak, so a mark lives exactly as long as its error. */
+const knowledgeErrors = new WeakMap<object, KnowledgeDatabase>();
+
 /**
- * Whether `error` — or an error in its `cause` chain — says the database is
- * unavailable: SQLSTATE 57P01/57P02/57P03 or class 08 (either driver), one
- * of postgres.js's connection-lifecycle codes, node-postgres's closed-socket
- * or connect-timeout error, or a refused, reset, unreachable, unresolved or
- * timed-out socket on a database client's query.
+ * Mark `error` as raised by a knowledge database — `core/knowledge/pool.ts`
+ * marks every rejection as it leaves the client; the error itself is not
+ * touched. The first mark wins. Answers whether this call made it: every
+ * query queued on a connection that fails is rejected with the same error,
+ * so a caller counts that failure once.
+ */
+export function markKnowledgeDatabaseError(
+  error: unknown,
+  database: KnowledgeDatabase,
+): boolean {
+  if (error === null || typeof error !== 'object') return false;
+  if (knowledgeErrors.has(error)) return false;
+  knowledgeErrors.set(error, database);
+  return true;
+}
+
+/**
+ * Whether `error` — or an error in its `cause` chain — says the platform's
+ * database is unavailable: SQLSTATE 57P01/57P02/57P03 or class 08 (either
+ * driver), one of postgres.js's connection-lifecycle codes, node-postgres's
+ * closed-socket or connect-timeout error, or a refused, reset, unreachable,
+ * unresolved or timed-out socket on a database client's query. Never one a
+ * knowledge database raised: that is {@link knowledgeDatabaseUnavailable}'s.
  */
 export function isDatabaseUnavailable(
   error: unknown,
   origin: DatabaseErrorOrigin = {},
 ): boolean {
+  const found = unavailableLink(error, origin.fromDatabase === true);
+  return found !== undefined && found.knowledge === undefined;
+}
+
+/** postgres.js raises these only for a client its owner ended
+ * (`CONNECTION_ENDED`) or destroyed (`CONNECTION_DESTROYED`): the app's pool
+ * as the process shuts down, a knowledge pool the platform retired while a
+ * query still held it — a defect, never the database's outage. */
+const SELF_ENDED_CODES: ReadonlySet<string> = new Set([
+  'CONNECTION_ENDED',
+  'CONNECTION_DESTROYED',
+]);
+
+/**
+ * Which knowledge database `error` says is unavailable, or null: the rule
+ * {@link isDatabaseUnavailable} applies to the platform's, for an error a
+ * knowledge pool marked ({@link markKnowledgeDatabaseError}) — except a pool
+ * the platform ended or destroyed itself, a defect to report. Rejected
+ * credentials (28xxx) and a missing database (3D000) stay out as well: an
+ * organization's own database answering them needs its operator.
+ */
+export function knowledgeDatabaseUnavailable(
+  error: unknown,
+): KnowledgeDatabase | null {
+  const found = unavailableLink(error, false);
+  if (found?.knowledge === undefined) return null;
+  const code: unknown = Reflect.get(found.link, 'code');
+  return typeof code === 'string' && SELF_ENDED_CODES.has(code)
+    ? null
+    : found.knowledge;
+}
+
+/**
+ * Whether `error` says a database is unavailable, whichever it is: the
+ * platform's ({@link isDatabaseUnavailable}) or a knowledge database
+ * ({@link knowledgeDatabaseUnavailable}). For what waits either out alike: a
+ * boot step's wait (`db/boot-wait.ts`), whose clock is the one database its
+ * steps run on, the knowledge database's boot steps
+ * (`domains/knowledge/boot.ts`) and its index scan
+ * (`core/knowledge/index_health.ts`), a log line ({@link logDetail}). What
+ * answers, reports or names the two apart asks each.
+ */
+export function isAnyDatabaseUnavailable(
+  error: unknown,
+  origin: DatabaseErrorOrigin = {},
+): boolean {
+  return (
+    isDatabaseUnavailable(error, origin) ||
+    knowledgeDatabaseUnavailable(error) !== null
+  );
+}
+
+/** The first link of `error`'s cause chain that says a database is
+ * unavailable, with the knowledge database that raised it when one did: the
+ * mark on that link or on an error that wraps it. A marked error came from a
+ * database client, so a bare socket error counts under it. */
+function unavailableLink(
+  error: unknown,
+  fromDatabase: boolean,
+):
+  | { readonly link: object; readonly knowledge: KnowledgeDatabase | undefined }
+  | undefined {
+  let knowledge: KnowledgeDatabase | undefined;
   let current = error;
   for (let depth = 0; depth < MAX_CAUSE_DEPTH; depth++) {
-    if (current === null || typeof current !== 'object') return false;
-    if (signalsUnavailability(current, origin.fromDatabase === true)) {
-      return true;
+    if (current === null || typeof current !== 'object') return undefined;
+    knowledge ??= knowledgeErrors.get(current);
+    if (
+      signalsUnavailability(current, fromDatabase || knowledge !== undefined)
+    ) {
+      return { link: current, knowledge };
     }
     current = Reflect.get(current, 'cause');
   }
-  return false;
+  return undefined;
 }
 
 function signalsUnavailability(error: object, fromDatabase: boolean): boolean {
@@ -142,11 +245,12 @@ export function describeDatabaseError(error: unknown): string {
 }
 
 /**
- * What to hand `console` for a failure that may be the database going away:
- * the one line {@link describeDatabaseError} writes when it is, the error
- * itself, stack and all, when it is not. A restart fails every query in
- * flight, and a log that printed each one's stack buried the lines around it;
- * a defect still prints the evidence it needs.
+ * What to hand `console` for a failure that may be a database going away —
+ * the platform's or a knowledge database: the one line
+ * {@link describeDatabaseError} writes when it is, the error itself, stack
+ * and all, when it is not. A restart fails every query in flight, and a log
+ * that printed each one's stack buried the lines around it; a defect still
+ * prints the evidence it needs.
  *
  * Every statement postgres.js rejects is stamped as its own, so a refused
  * socket on the app's pool counts without help. Say `fromDatabase` only for a
@@ -157,7 +261,7 @@ export function logDetail(
   error: unknown,
   origin: DatabaseErrorOrigin = {},
 ): unknown {
-  return isDatabaseUnavailable(error, origin)
+  return isAnyDatabaseUnavailable(error, origin)
     ? describeDatabaseError(error)
     : error;
 }

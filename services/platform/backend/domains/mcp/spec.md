@@ -524,11 +524,17 @@ REST API's `Retry-After` names for the same outage), never `INTERNAL_ERROR`, so 
 calls again without asking a person. A settings change stops there and says what landed before it
 (MCP-R11). A resource or a prompt read meanwhile is refused with the same code, as `-32603`, never
 as "resource not found". The server logs one warning line and reports nothing to the error tracker,
-as the REST API does for its `503`; any other failure stays a fault (MCP-R8).
+as the REST API does for its `503`; any other failure stays a fault (MCP-R8). A knowledge database
+that is not answering — the deployment's or the organization's own (KNOW-R20) — is answered the
+same way under a code of its own, `KNOWLEDGE_DATABASE_UNAVAILABLE`, never as the platform's
+database restarting.
 
 - **Example**: Ada's agent reads a run while Tale's database restarts for an upgrade → the answer is
   `DATABASE_UNAVAILABLE` with a five-second wait; the agent waits, reads the run, and the
   operator's error tracker shows nothing for it.
+- **Example**: Ada's agent retrieves knowledge while the knowledge database of Ada's organization
+  restarts → the answer is `KNOWLEDGE_DATABASE_UNAVAILABLE` with the same five-second wait, never
+  `DATABASE_UNAVAILABLE`; the agent waits and retrieves again.
 
 ## Requests and batches
 

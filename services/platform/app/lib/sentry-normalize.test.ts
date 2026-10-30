@@ -503,6 +503,40 @@ describe('prepareSentryEvent', () => {
     });
   });
 
+  describe('an unavailable knowledge database', () => {
+    // The server reports a knowledge database's outage itself, once it lasts
+    // and once per database and outage; the browser adds none of its own.
+    const KNOWLEDGE =
+      'The knowledge database is not answering right now; retry with backoff';
+
+    it("drops the platform's KNOWLEDGE_DATABASE_UNAVAILABLE", () => {
+      expect(
+        prepareSentryEvent(thrown('BackendApiError', KNOWLEDGE, APP_SCRIPT), {
+          originalException: backendApiErrorFromBody(503, {
+            error: KNOWLEDGE,
+            code: 'KNOWLEDGE_DATABASE_UNAVAILABLE',
+            requestId: 'req-2',
+          }),
+        }),
+      ).toBeNull();
+    });
+
+    it('keeps the code at another status, and the text alone', () => {
+      expect(
+        prepareSentryEvent(thrown('BackendApiError', KNOWLEDGE, APP_SCRIPT), {
+          originalException: new BackendApiError(
+            500,
+            KNOWLEDGE,
+            'KNOWLEDGE_DATABASE_UNAVAILABLE',
+          ),
+        }),
+      ).not.toBeNull();
+      expect(
+        prepareSentryEvent(thrown('BackendApiError', KNOWLEDGE, APP_SCRIPT)),
+      ).not.toBeNull();
+    });
+  });
+
   it('normalizes the events it keeps', () => {
     const event = prepareSentryEvent({ message: RAW_ACTION_FAILURE });
     expect(event?.message).toBe(

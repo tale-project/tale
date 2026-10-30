@@ -40,6 +40,7 @@ vi.mock('../../auth/membership.ts', async (importOriginal) => ({
   findActingMember,
 }));
 
+import { markKnowledgeDatabaseError } from '../../db/unavailable.ts';
 import { KnowledgeError } from '../knowledge/service.ts';
 import {
   buildCapabilitySurface,
@@ -266,6 +267,43 @@ describe('get_knowledge on the capability surface', () => {
       code: 'KNOWLEDGE_QUERY_TOO_LONG',
       reason: expect.stringContaining('query too long'),
     });
+  });
+
+  it.each(['organization', 'deployment'] as const)(
+    'leaves a search the %s knowledge database could not serve to the door, which answers the wait [KNOW-R20]',
+    async (database) => {
+      // What a knowledge pool rejects a query with while its host is down.
+      const refused = Object.assign(
+        new Error('connect ECONNREFUSED 10.0.0.9:5432'),
+        { code: 'ECONNREFUSED', query: 'select 1', parameters: [] },
+      );
+      markKnowledgeDatabaseError(refused, database);
+      searchKnowledgeForOrg.mockRejectedValue(refused);
+      const surface = await buildCapabilitySurface(sql, {
+        organizationId: 'org_1',
+        userId: 'user_1',
+      });
+
+      await expect(
+        surface.dispatch('get_knowledge', { query: 'x' }),
+      ).rejects.toBe(refused);
+    },
+  );
+
+  it('leaves a search the platform’s database could not serve to the door as well [MCP-R43]', async () => {
+    const restart = Object.assign(
+      new Error('terminating connection due to administrator command'),
+      { code: '57P01' },
+    );
+    resolveAccessScope.mockRejectedValue(restart);
+    const surface = await buildCapabilitySurface(sql, {
+      organizationId: 'org_1',
+      userId: 'user_1',
+    });
+
+    await expect(
+      surface.dispatch('get_knowledge', { query: 'x' }),
+    ).rejects.toBe(restart);
   });
 });
 

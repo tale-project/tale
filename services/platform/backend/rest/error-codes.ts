@@ -118,6 +118,9 @@ export const REST_ERROR_CODES = [
   'INVALID_SKILL',
   'INVALID_SKILL_SLUG',
   'INVALID_URL',
+  // Answered by the same handlers when a knowledge database — the
+  // deployment's default or an organization's own — cannot be reached.
+  'KNOWLEDGE_DATABASE_UNAVAILABLE',
   'KNOWLEDGE_ENTRY_DUPLICATE',
   'KNOWLEDGE_ENTRY_FORBIDDEN',
   'KNOWLEDGE_ENTRY_NOT_FOUND',

@@ -186,10 +186,11 @@ export function createRestV1Routes(deps: {
   // the error is still reported the same way, and the response carries the
   // request id a caller can quote. A thrown HTTPException (a body-size
   // middleware's 413, say) keeps its status but speaks the envelope too,
-  // and an unavailable database answers its unreported 503
-  // `DATABASE_UNAVAILABLE` with `Retry-After`, as on the app doors. The one
-  // answer without the envelope is the unreported 499 of a caller that hung
-  // up mid-body: nobody is left to read it.
+  // and an unavailable database answers its unreported 503 with
+  // `Retry-After`, as on the app doors: `DATABASE_UNAVAILABLE` for the
+  // platform's, `KNOWLEDGE_DATABASE_UNAVAILABLE` for a knowledge database.
+  // The one answer without the envelope is the unreported 499 of a caller
+  // that hung up mid-body: nobody is left to read it.
   app.onError((err, c) => {
     const requestId = requestIdOf(c);
     if ('getResponse' in err) {

@@ -15,6 +15,7 @@ import {
   MCP_RESOURCE_TEMPLATES,
   MCP_STATIC_RESOURCES,
 } from '../../../lib/mcp/resources';
+import { markKnowledgeDatabaseError } from '../../db/unavailable';
 import type { McpCaller } from './caller';
 import { handleMcpRequest, type McpRequestOptions } from './protocol';
 import { RESOURCES_PAGE_SIZE } from './resources';
@@ -413,6 +414,38 @@ describe('resources/read [MCP-R24]', () => {
         code: -32603,
         data: { code: 'DATABASE_UNAVAILABLE', retryAfterMs: 5000 },
       });
+    } finally {
+      warned.mockRestore();
+    }
+  });
+
+  it('answers a read a knowledge database could not serve -32603 with its own code, never as not found [MCP-R43]', async () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const engine = vi.fn<Engine>(async () => {
+        const failure = Object.assign(
+          new Error('connect ECONNREFUSED 10.0.0.9:5432'),
+          { code: 'ECONNREFUSED', query: 'select 1', parameters: [] },
+        );
+        markKnowledgeDatabaseError(failure, 'organization');
+        throw failure;
+      });
+      const { error } = await rpc(engine, 'resources/read', {
+        uri: 'tale://runs/run_1',
+      });
+      expect(error).toEqual({
+        code: -32603,
+        message:
+          'Internal error: get_run could not reach the knowledge database, which is not answering right now; retry in 5 s',
+        data: {
+          uri: 'tale://runs/run_1',
+          code: 'KNOWLEDGE_DATABASE_UNAVAILABLE',
+          hint: 'wait data.retryAfterMs, then call again',
+          retryAfterMs: 5000,
+          requestId: 'req_res_1',
+        },
+      });
+      expect(JSON.stringify(error)).not.toContain('10.0.0.9');
     } finally {
       warned.mockRestore();
     }

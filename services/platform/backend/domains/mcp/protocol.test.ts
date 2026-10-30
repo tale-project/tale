@@ -26,6 +26,7 @@ import { MCP_SERVER_INFO } from '../../../lib/mcp/server';
 import { MCP_TOOLS } from '../../../lib/mcp/tools';
 import { API_CONTRACT_VERSION } from '../../../lib/shared/constants/api-contract';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { markKnowledgeDatabaseError } from '../../db/unavailable';
 import { reportError } from '../../error-reporting';
 import { currentRequestChannel } from '../../lib/request-channel';
 import type { McpCaller } from './caller';
@@ -835,6 +836,106 @@ describe('tools/call — a database that is not answering [MCP-R43]', () => {
     expect(reportError).not.toHaveBeenCalled();
     warned.mockRestore();
     failed.mockRestore();
+  });
+
+  /** What a knowledge pool rejects a query with when its database's host
+   * refuses the connection — or, as `code`, when the database refuses its
+   * credentials. */
+  const knowledgeFailure = (
+    database: 'deployment' | 'organization',
+    code = 'ECONNREFUSED',
+  ) => {
+    const failure = Object.assign(
+      new Error(
+        code === 'ECONNREFUSED'
+          ? 'connect ECONNREFUSED 10.0.0.9:5432'
+          : 'password authentication failed for user "acme_kb"',
+      ),
+      { code, query: 'select 1', parameters: [] },
+    );
+    markKnowledgeDatabaseError(failure, database);
+    return failure;
+  };
+
+  /** One `get_knowledge` call whose search failed with `failure`. */
+  const searchFailing = async (failure: Error) => {
+    const recorded: unknown[] = [];
+    const response = await handleMcpRequest(
+      { ...keyCaller(), requestId: 'req-knowledge' },
+      rpc({
+        jsonrpc: '2.0',
+        id: 13,
+        method: 'tools/call',
+        params: { name: 'get_knowledge', arguments: { query: 'refunds' } },
+      }),
+      {
+        host: {
+          engine: vi.fn(),
+          platform: vi.fn(),
+          capability: vi.fn().mockRejectedValue(failure),
+        },
+        observe: async (record) => {
+          recorded.push(record);
+        },
+      },
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every JSON-RPC body is an object
+    const payload = (await response.json()) as Record<string, unknown>;
+    return { payload, recorded };
+  };
+
+  it.each(['organization', 'deployment'] as const)(
+    'answers a search the %s knowledge database could not serve as its own wait, never the platform’s [KNOW-R20]',
+    async (database) => {
+      const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const failed = vi.spyOn(console, 'error');
+      vi.mocked(reportError).mockClear();
+      const { payload, recorded } = await searchFailing(
+        knowledgeFailure(database),
+      );
+      expect(isErrorFlag(payload)).toBe(true);
+      expect(refusalOf(payload)).toEqual({
+        error:
+          'get_knowledge could not reach the knowledge database, which is not answering right now; retry in 5 s',
+        code: 'KNOWLEDGE_DATABASE_UNAVAILABLE',
+        hint: 'wait data.retryAfterMs, then call again',
+        data: { retryAfterMs: 5000, requestId: 'req-knowledge' },
+      });
+      for (const leaked of ['ECONNREFUSED', '10.0.0.9', 'select 1']) {
+        expect(JSON.stringify(payload)).not.toContain(leaked);
+      }
+      expect(recorded).toEqual([
+        expect.objectContaining({
+          tool: 'get_knowledge',
+          outcome: 'refused',
+          code: 'KNOWLEDGE_DATABASE_UNAVAILABLE',
+        }),
+      ]);
+      // Its pool reports an outage that outlasts a restart, once; the call
+      // reports nothing.
+      expect(warned).toHaveBeenCalledExactlyOnceWith(
+        `[mcp] knowledge database unavailable (${database}) — get_knowledge (request req-knowledge): connect ECONNREFUSED 10.0.0.9:5432`,
+      );
+      expect(failed).not.toHaveBeenCalled();
+      expect(reportError).not.toHaveBeenCalled();
+      warned.mockRestore();
+      failed.mockRestore();
+    },
+  );
+
+  it('keeps a knowledge database that refuses its credentials a fault, reported [KNOW-R20]', async () => {
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(reportError).mockClear();
+    const { payload } = await searchFailing(
+      knowledgeFailure('organization', '28P01'),
+    );
+    expect(refusalOf(payload)).toMatchObject({
+      code: 'INTERNAL_ERROR',
+      data: { requestId: 'req-knowledge' },
+    });
+    expect(JSON.stringify(payload)).not.toContain('acme_kb');
+    expect(reportError).toHaveBeenCalledOnce();
+    quiet.mockRestore();
   });
 
   it("answers Ada's cancel through the real dispatch when the database refuses the store's connection", async () => {

@@ -2,6 +2,7 @@
 import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
 
+import { markKnowledgeDatabaseError } from '@/backend/db/unavailable';
 import { appErrorHandler } from '@/backend/error-reporting';
 
 import {
@@ -9,7 +10,10 @@ import {
   backendApiErrorFromBody,
   readBackendApiError,
 } from './api-client';
-import { isPlatformUnavailable } from './platform-unavailable';
+import {
+  isKnowledgeDatabaseUnavailable,
+  isPlatformUnavailable,
+} from './platform-unavailable';
 
 /** The edge's envelope as `services/proxy/Caddyfile` writes it for a machine
  * door while the platform does not answer, with the status of the error it
@@ -31,6 +35,23 @@ async function databaseRestartAnswer(): Promise<Response> {
     });
   });
   return app.request('http://localhost/api/app/tasks');
+}
+
+/** What a real app door answers while an organization's own knowledge
+ * database refuses its connections, as its pool marks the failure. */
+async function knowledgeOutageAnswer(): Promise<Response> {
+  const app = new Hono();
+  app.onError(appErrorHandler);
+  app.post('/api/app/knowledge/search', () => {
+    const refused = Object.assign(new Error('connect ECONNREFUSED'), {
+      code: 'ECONNREFUSED',
+    });
+    markKnowledgeDatabaseError(refused, 'organization');
+    throw refused;
+  });
+  return app.request('http://localhost/api/app/knowledge/search', {
+    method: 'POST',
+  });
 }
 
 describe('isPlatformUnavailable', () => {
@@ -104,5 +125,51 @@ describe('isPlatformUnavailable', () => {
       false,
     );
     expect(isPlatformUnavailable(undefined)).toBe(false);
+  });
+});
+
+describe('isKnowledgeDatabaseUnavailable', () => {
+  it("reads the platform's own answer while a knowledge database does not answer", async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const error = await readBackendApiError(await knowledgeOutageAnswer());
+      expect(error.status).toBe(503);
+      expect(error.code).toBe('KNOWLEDGE_DATABASE_UNAVAILABLE');
+      expect(isKnowledgeDatabaseUnavailable(error)).toBe(true);
+      // The platform answered: it is not the platform that is gone.
+      expect(isPlatformUnavailable(error)).toBe(false);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('is false for every other failure', () => {
+    expect(
+      isKnowledgeDatabaseUnavailable(
+        new BackendApiError(
+          500,
+          'Knowledge database unavailable',
+          'KNOWLEDGE_DATABASE_UNAVAILABLE',
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      isKnowledgeDatabaseUnavailable(
+        new BackendApiError(
+          503,
+          'Database unavailable',
+          'DATABASE_UNAVAILABLE',
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      isKnowledgeDatabaseUnavailable(backendApiErrorFromBody(503, null)),
+    ).toBe(false);
+    expect(
+      isKnowledgeDatabaseUnavailable(
+        new Error('KNOWLEDGE_DATABASE_UNAVAILABLE'),
+      ),
+    ).toBe(false);
+    expect(isKnowledgeDatabaseUnavailable(undefined)).toBe(false);
   });
 });

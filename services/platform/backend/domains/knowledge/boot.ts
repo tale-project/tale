@@ -7,7 +7,7 @@ import {
 } from '../../db/boot-wait.ts';
 import {
   describeDatabaseError,
-  isDatabaseUnavailable,
+  isAnyDatabaseUnavailable,
   ROUTINE_RESTART_MS,
 } from '../../db/unavailable.ts';
 import { reportError } from '../../error-reporting.ts';
@@ -75,7 +75,7 @@ export async function bootDefaultKnowledge(
     } catch (error: unknown) {
       // The wait gives up on an unavailable database only past its minute;
       // any other failure it hands back at once.
-      if (isDatabaseUnavailable(error, { fromDatabase: true })) {
+      if (isAnyDatabaseUnavailable(error, { fromDatabase: true })) {
         console.warn(
           `[backend] default corpus bootstrap skipped: ${OUTAGE} (${describeDatabaseError(error)}); its schema is not brought up to date until this process restarts`,
         );

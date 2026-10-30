@@ -5,7 +5,7 @@ license: MIT
 compatibility: "Needs Tale's MCP server connected (https://<your Tale>/api/v1/mcp); works with any MCP client that reads skills."
 metadata:
   publisher: tale
-  contract: "3.50.0"
+  contract: "3.51.0"
 ---
 
 # Tale
@@ -91,6 +91,7 @@ A refusal is data, never a crash: {error, code, hint, data}. Branch on code and 
 | USE_SUBSCRIPTION_FLOW | A subscription is connected through Tale, never by a change: tell the person to connect it under Settings > AI providers. |
 | RATE_LIMITED | Wait data.retryAfterMs, then call again. |
 | DATABASE_UNAVAILABLE | Tale's database is restarting: wait data.retryAfterMs, then call again. |
+| KNOWLEDGE_DATABASE_UNAVAILABLE | The knowledge database is not answering: wait data.retryAfterMs, then call again. |
 | INTERNAL_ERROR | Tell the person data.requestId; whoever runs Tale can look it up. |
 
 ## Rules

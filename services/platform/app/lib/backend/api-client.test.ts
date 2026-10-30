@@ -232,6 +232,29 @@ describe('backendFetch', () => {
     expect(isBackendReachable()).toBe(true);
   });
 
+  // The platform answers for its knowledge database: the platform is there
+  // (`isKnowledgeDatabaseUnavailable`).
+  it("keeps the backend reachable on the knowledge database's 503", async () => {
+    reportBackendUnreachable();
+    vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(503, {
+        error:
+          'The knowledge database is not answering right now; retry with backoff',
+        code: 'KNOWLEDGE_DATABASE_UNAVAILABLE',
+      }),
+    );
+    const error = await backendFetch('/websites/w1', {
+      orgId: 'org1',
+      method: 'PATCH',
+      body: { scanInterval: '1d' },
+    }).catch((caught: unknown) => caught);
+    expect(error).toMatchObject({
+      status: 503,
+      code: 'KNOWLEDGE_DATABASE_UNAVAILABLE',
+    });
+    expect(isBackendReachable()).toBe(true);
+  });
+
   it('marks the backend unreachable when fetch never gets a response', async () => {
     vi.spyOn(window, 'fetch').mockRejectedValue(
       new TypeError('Failed to fetch'),

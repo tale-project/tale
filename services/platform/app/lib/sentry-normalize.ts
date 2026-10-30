@@ -2,7 +2,7 @@
  * Prepare browser events before they leave for Sentry/GlitchTip: drop what is
  * not ours to fix, and normalize what is.
  *
- * `prepareSentryEvent`, the app's `beforeSend`, drops five kinds of event:
+ * `prepareSentryEvent`, the app's `beforeSend`, drops six kinds of event:
  * - a cancelled request (`isAbortErrorEvent`), which reports no failure at
  *   all;
  * - an error a browser extension threw, told by its innermost frame. One
@@ -17,7 +17,11 @@
  *   rolls, the platform's `DATABASE_UNAVAILABLE` while its database
  *   restarts. Every open tab meets one at once, and the failed write's toast
  *   or the list's error state already tells the person; one restart used to
- *   open an error event per failed request.
+ *   open an error event per failed request;
+ * - a request the knowledge database did not answer
+ *   (`isKnowledgeDatabaseUnavailable`): the server reports that outage itself
+ *   once it lasts, once per database and outage (`backend/error-reporting.ts`),
+ *   and the surface tells the person to try again.
  *
  * What stays is normalized. Convex composes every client-visible failure as
  * `[CONVEX A(agents/actions:listAgents)] [Request ID: 018f2a…] Server Error
@@ -31,7 +35,10 @@
  */
 
 import { isBackendRefusal } from '@/app/lib/backend/adapters';
-import { isPlatformUnavailable } from '@/app/lib/backend/platform-unavailable';
+import {
+  isKnowledgeDatabaseUnavailable,
+  isPlatformUnavailable,
+} from '@/app/lib/backend/platform-unavailable';
 import { TRANSPORT_FAILURE_RE } from '@/app/lib/backend/transport-failure';
 import { isAbortError } from '@/lib/utils/abort-error';
 
@@ -208,11 +215,12 @@ function isTransportFailure(event: NormalizableSentryEvent): boolean {
 
 /**
  * The app's `beforeSend`: drop a cancelled request, an extension's error, an
- * expected refusal, a transport failure and a request the platform was
- * briefly gone for (`null` tells the SDK not to send), and normalize every
- * event that stays. A refusal and an unavailable platform are judged on the
- * thrown value itself, which the SDK hands over as `hint.originalException`:
- * a `BackendApiError` keeps its status and code there, so every other 5xx
+ * expected refusal, a transport failure, a request the platform was briefly
+ * gone for and one the knowledge database did not answer (`null` tells the
+ * SDK not to send), and normalize every event that stays. A refusal and an
+ * unavailable platform or knowledge database are judged on the thrown value
+ * itself, which the SDK hands over as `hint.originalException`: a
+ * `BackendApiError` keeps its status and code there, so every other 5xx
  * still reports.
  */
 export function prepareSentryEvent<Event extends NormalizableSentryEvent>(
@@ -224,7 +232,8 @@ export function prepareSentryEvent<Event extends NormalizableSentryEvent>(
     isFromBrowserExtension(event) ||
     isBackendRefusal(hint?.originalException) ||
     isTransportFailure(event) ||
-    isPlatformUnavailable(hint?.originalException)
+    isPlatformUnavailable(hint?.originalException) ||
+    isKnowledgeDatabaseUnavailable(hint?.originalException)
   ) {
     return null;
   }

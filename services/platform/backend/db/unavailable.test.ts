@@ -9,8 +9,11 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import {
   databaseUnavailableCause,
   describeDatabaseError,
+  isAnyDatabaseUnavailable,
   isDatabaseUnavailable,
+  knowledgeDatabaseUnavailable,
   logDetail,
+  markKnowledgeDatabaseError,
   noteSwallowedDatabaseError,
   runWithSwallowedDatabaseErrors,
 } from './unavailable.ts';
@@ -181,6 +184,150 @@ describe('isDatabaseUnavailable', () => {
         await pool.end();
       }
     });
+  });
+});
+
+describe('an error a knowledge database raised [KNOW-R20]', () => {
+  it('is the knowledge database’s outage, never the platform’s', () => {
+    // What postgres.js rejects a query with when an organization's own
+    // database refuses the connection: stamped, code and all.
+    const refused = Object.assign(
+      coded('ECONNREFUSED', 'connect ECONNREFUSED 10.0.0.7:5432'),
+      { query: 'select 1', parameters: [] },
+    );
+    const restart = coded(
+      '57P01',
+      'terminating connection due to administrator command',
+    );
+    markKnowledgeDatabaseError(refused, 'organization');
+    markKnowledgeDatabaseError(restart, 'deployment');
+
+    expect(isDatabaseUnavailable(refused)).toBe(false);
+    expect(knowledgeDatabaseUnavailable(refused)).toBe('organization');
+    expect(isDatabaseUnavailable(restart)).toBe(false);
+    expect(knowledgeDatabaseUnavailable(restart)).toBe('deployment');
+  });
+
+  it('counts a bare socket error under the mark: a database client raised it', () => {
+    const reset = coded('ECONNRESET', 'read ECONNRESET');
+    markKnowledgeDatabaseError(reset, 'organization');
+
+    expect(knowledgeDatabaseUnavailable(reset)).toBe('organization');
+  });
+
+  it('is marked once — the first mark wins, and a repeat says it was not the first', () => {
+    // Every query queued on a connection that fails is rejected with the
+    // same error object.
+    const shared = coded('CONNECTION_CLOSED', 'write CONNECTION_CLOSED');
+
+    expect(markKnowledgeDatabaseError(shared, 'organization')).toBe(true);
+    expect(markKnowledgeDatabaseError(shared, 'deployment')).toBe(false);
+    expect(knowledgeDatabaseUnavailable(shared)).toBe('organization');
+    expect(markKnowledgeDatabaseError('a thrown string', 'deployment')).toBe(
+      false,
+    );
+    expect(markKnowledgeDatabaseError(null, 'deployment')).toBe(false);
+  });
+
+  it('follows the mark through the cause chain, either way round', () => {
+    const lost = coded('08006', 'connection failure');
+    markKnowledgeDatabaseError(lost, 'organization');
+    const wrapped = new Error('knowledge search failed', { cause: lost });
+
+    expect(knowledgeDatabaseUnavailable(wrapped)).toBe('organization');
+    expect(isDatabaseUnavailable(wrapped)).toBe(false);
+
+    // A marked error that wraps the driver's.
+    const marked = new Error('transaction failed', { cause: coded('57P01') });
+    markKnowledgeDatabaseError(marked, 'deployment');
+
+    expect(knowledgeDatabaseUnavailable(marked)).toBe('deployment');
+    expect(isDatabaseUnavailable(marked)).toBe(false);
+  });
+
+  it.each(['CONNECTION_ENDED', 'CONNECTION_DESTROYED'])(
+    'is a defect, not an outage, for a pool the platform itself ended (%s)',
+    (code) => {
+      const ended = coded(code, `write ${code} 10.0.0.7:5432`);
+      markKnowledgeDatabaseError(ended, 'organization');
+
+      expect(knowledgeDatabaseUnavailable(ended)).toBeNull();
+      expect(isDatabaseUnavailable(ended)).toBe(false);
+      expect(logDetail(ended)).toBe(ended);
+    },
+  );
+
+  it('keeps rejected credentials, a missing database and a defect actionable', () => {
+    const errors = [
+      coded('28P01', 'password authentication failed for user "tale"'),
+      coded('3D000', 'database "corpus" does not exist'),
+      coded('42P01', 'relation "documents" does not exist'),
+      new TypeError('cannot read properties of undefined'),
+    ];
+    for (const error of errors) {
+      markKnowledgeDatabaseError(error, 'organization');
+
+      expect(knowledgeDatabaseUnavailable(error)).toBeNull();
+      expect(isDatabaseUnavailable(error)).toBe(false);
+      expect(logDetail(error)).toBe(error);
+    }
+  });
+
+  it('leaves an unmarked error to the platform’s rule', () => {
+    const restart = coded('57P01');
+
+    expect(knowledgeDatabaseUnavailable(restart)).toBeNull();
+    expect(isDatabaseUnavailable(restart)).toBe(true);
+    expect(knowledgeDatabaseUnavailable(undefined)).toBeNull();
+  });
+
+  it('is waited out like the platform’s by what waits either out alike', () => {
+    // A boot step, the scan of a corpus's indexes: an outage of either
+    // database is one to wait out, and a pool the platform ended is not.
+    const restart = coded('57P03', 'the database system is starting up');
+    markKnowledgeDatabaseError(restart, 'deployment');
+    const ended = coded('CONNECTION_ENDED', 'write CONNECTION_ENDED');
+    markKnowledgeDatabaseError(ended, 'deployment');
+    const rejected = coded('28P01', 'password authentication failed');
+    markKnowledgeDatabaseError(rejected, 'organization');
+
+    expect(isAnyDatabaseUnavailable(restart)).toBe(true);
+    expect(isAnyDatabaseUnavailable(coded('57P01'))).toBe(true);
+    expect(isAnyDatabaseUnavailable(ended)).toBe(false);
+    expect(isAnyDatabaseUnavailable(rejected)).toBe(false);
+    // A bare socket error counts only when the caller vouches for it.
+    const reset = coded('ECONNRESET', 'read ECONNRESET');
+    expect(isAnyDatabaseUnavailable(reset)).toBe(false);
+    expect(isAnyDatabaseUnavailable(reset, { fromDatabase: true })).toBe(true);
+  });
+
+  it('logs as the one line the platform’s outage logs as', () => {
+    const refused = coded('ECONNREFUSED', 'connect ECONNREFUSED 10.0.0.7:5432');
+    markKnowledgeDatabaseError(refused, 'organization');
+
+    expect(logDetail(refused)).toBe('connect ECONNREFUSED 10.0.0.7:5432');
+  });
+
+  it('reads a real postgres.js refusal, once marked, as the knowledge database’s', async () => {
+    const port = await closedPort();
+    const sql = postgres(`postgres://tale:pw@127.0.0.1:${port}/corpus`, {
+      connect_timeout: 2,
+      max: 1,
+    });
+    try {
+      const error: unknown = await sql`SELECT 1`.then(
+        () => null,
+        (thrown: unknown) => thrown,
+      );
+      expect(isDatabaseUnavailable(error)).toBe(true);
+
+      markKnowledgeDatabaseError(error, 'organization');
+
+      expect(isDatabaseUnavailable(error)).toBe(false);
+      expect(knowledgeDatabaseUnavailable(error)).toBe('organization');
+    } finally {
+      await sql.end({ timeout: 0 });
+    }
   });
 });
 

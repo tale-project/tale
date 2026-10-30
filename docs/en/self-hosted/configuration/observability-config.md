@@ -77,6 +77,8 @@ A database restart is not reported as an error; a managed upgrade recreates the 
 
 A backend process waits for the knowledge database at start too. While it is unreachable, the process waits up to about a minute for it, and logs a warning line for each new attempt, before it updates the knowledge schema and checks the search indexes there. If it is still unreachable after that, the process starts without those steps instead of failing: it logs a warning line for each step it skipped and reports the outage once as an error. A skipped index check runs only at the next start, so restart the backend once the knowledge database answers.
 
+A knowledge database that stops answering while the backend runs — the deployment's own or one an organization brought, while it restarts or its host is down or refuses the connection — is not reported as the platform's database restarting. Requests that needed it answer `503 KNOWLEDGE_DATABASE_UNAVAILABLE` with `Retry-After`, a coding agent's MCP calls answer `KNOWLEDGE_DATABASE_UNAVAILABLE` with the same wait, and indexing jobs fail and retry under their queue's policy. None of them is reported on its own: each logs a warning line, and so does the backend when the outage begins, naming the deployment's knowledge database or the organization's. When the outage lasts more than about a minute, the backend sends one warning-level event for it, `KnowledgeDatabaseUnavailableError`, tagged `tale.reason: knowledge_database_unavailable` and `tale.knowledge_database` (`deployment` or `organization`). The event carries how long the outage has lasted and, for an organization's own database, the organization's slug; never the database's address, user, password, statements or values. The first query that succeeds again ends the outage and logs an info line with its duration; only a later outage is reported again. A knowledge database that refuses its credentials or does not exist is not an outage: its requests fail with a server error, and each is reported.
+
 The backend does not report a request its client abandoned either, for example when you close a tab or cancel an upload while its body is still arriving. The request is answered with status `499`, counted among the client errors in the request metrics, and logged as a single debug line. Any other error in a request whose client has disconnected is still reported. An app request whose JSON body is empty or cut short is answered with `400 INVALID_JSON` and is not reported.
 
 The browser leaves out errors that do not indicate a defect in Tale:
@@ -86,6 +88,7 @@ The browser leaves out errors that do not indicate a defect in Tale:
 - requests the backend refused with a status below 500, such as a missing permission or a name that is already taken
 - requests that got no response at all, for example while the device was offline
 - requests that fail while the platform or its database restarts: the proxy's `UPSTREAM_UNAVAILABLE` during a deployment or restart, and the platform's `503 DATABASE_UNAVAILABLE`
+- requests that fail while a knowledge database does not answer, the platform's `503 KNOWLEDGE_DATABASE_UNAVAILABLE`: the backend itself reports an outage that lasts
 
 Other server errors, with a status of 500 or above, are still reported.
 

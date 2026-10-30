@@ -240,9 +240,40 @@ describe('failureDetail', () => {
     },
   );
 
+  // The platform answered for its knowledge database: the person reads that
+  // the database is not answering, in their language, and to try again.
+  it.each(SHIPPED_LOCALES)(
+    "reads the knowledge database's 503 as the localized retry sentence (%s)",
+    async (locale) => {
+      await i18n.changeLanguage(locale);
+      const notAnswering = i18n.t('errors.knowledgeDatabaseUnavailable', {
+        ns: 'common',
+      });
+      expect(notAnswering).not.toBe('errors.knowledgeDatabaseUnavailable');
+      expect(
+        failureDetail(
+          backendApiErrorFromBody(503, {
+            error:
+              'The knowledge database is not answering right now; retry with backoff',
+            code: 'KNOWLEDGE_DATABASE_UNAVAILABLE',
+          }),
+        ),
+      ).toBe(notAnswering);
+    },
+  );
+
   it('says nothing for a fault, a structured error without a code, or a non-error', () => {
     expect(
       failureDetail(new BackendApiError(502, 'Bad gateway', 'UPSTREAM')),
+    ).toBeUndefined();
+    expect(
+      failureDetail(
+        new BackendApiError(
+          500,
+          'Knowledge database unavailable',
+          'KNOWLEDGE_DATABASE_UNAVAILABLE',
+        ),
+      ),
     ).toBeUndefined();
     expect(failureDetail(new AppError({ reason: 'x' }))).toBeUndefined();
     expect(failureDetail(new Error(''))).toBeUndefined();

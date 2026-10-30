@@ -110,6 +110,7 @@ errors:
   organizationSessionRestricted: Diese Sitzung ist auf die Organisation beschränkt, die dich angemeldet hat.
   accountIdentityRequired: Bestätige dein Passwort oder einen Passkey für dein Konto, bevor du dein Konto änderst.
   connectionLost: Tale ist nicht erreichbar. Prüfe deine Verbindung und versuch es erneut.
+  knowledgeDatabaseUnavailable: Die Wissensdatenbank antwortet gerade nicht. Versuch es gleich noch einmal.
 notFound:
   title: Seite nicht gefunden
   description: Die gesuchte Seite existiert nicht oder wurde möglicherweise verschoben.

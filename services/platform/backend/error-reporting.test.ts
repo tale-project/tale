@@ -1,6 +1,14 @@
 import { once } from 'node:events';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import { connect } from 'node:net';
+import {
+  connect,
+  createServer as createNetServer,
+  type Server as NetServer,
+  type Socket,
+} from 'node:net';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { gunzipSync } from 'node:zlib';
 
 import { serve, type ServerType } from '@hono/node-server';
@@ -8,9 +16,25 @@ import * as Sentry from '@sentry/node';
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { requestId } from 'hono/request-id';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 
 import { safeFetch } from '../lib/net/safe-fetch.ts';
+import {
+  closeKnowledgePools,
+  getKnowledgePoolForOrg,
+  openKnowledgeSession,
+  setKnowledgeOutageReporter,
+} from './core/knowledge/pool.ts';
+import { createSql } from './db/sql.ts';
 import {
   noteSwallowedDatabaseError,
   runWithSwallowedDatabaseErrors,
@@ -21,6 +45,7 @@ import {
   flushErrorReporting,
   initErrorReporting,
   reportError,
+  reportKnowledgeDatabaseOutage,
   scrubEvent,
   scrubUrl,
 } from './error-reporting.ts';
@@ -124,6 +149,93 @@ function handledApp(): { app: Hono; handled: Promise<number> } {
     return res;
   });
   return { app, handled: handled.promise };
+}
+
+/** The type and message of an event's exception. */
+function exceptionOf(
+  event: Record<string, unknown> | undefined,
+): { type?: unknown; value?: unknown } | undefined {
+  const exception = event?.exception as
+    | { values?: { type?: unknown; value?: unknown }[] }
+    | undefined;
+  const first = exception?.values?.[0];
+  return first === undefined
+    ? undefined
+    : { type: first.type, value: first.value };
+}
+
+function restoreEnv(name: string, value: string | undefined): void {
+  if (value === undefined) delete process.env[name];
+  else process.env[name] = value;
+}
+
+/** A port nothing listens on: a connection to it is refused at once. */
+async function closedPort(): Promise<number> {
+  const server = createNetServer();
+  const port = await listening(server);
+  await new Promise<void>((resolve) => {
+    server.close(() => resolve());
+  });
+  return port;
+}
+
+async function listening(server: NetServer): Promise<number> {
+  await new Promise<void>((resolve) => {
+    server.listen(0, '127.0.0.1', resolve);
+  });
+  const address = server.address();
+  if (address === null || typeof address === 'string') {
+    throw new Error('the server has no port');
+  }
+  return address.port;
+}
+
+interface FakePostgres {
+  readonly port: number;
+  close(): Promise<void>;
+}
+
+/** PostgreSQL's FATAL ErrorResponse message. */
+function fatal(code: string, message: string): Buffer {
+  const fields = Buffer.concat([
+    ...[
+      ['S', 'FATAL'],
+      ['V', 'FATAL'],
+      ['C', code],
+      ['M', message],
+    ].map(([key, value]) => Buffer.from(`${key}${value}\0`)),
+    Buffer.from([0]),
+  ]);
+  const header = Buffer.alloc(5);
+  header.write('E', 0);
+  header.writeInt32BE(fields.length + 4, 1);
+  return Buffer.concat([header, fields]);
+}
+
+/** A server that answers every client's startup with a FATAL `code` and
+ * hangs up, as PostgreSQL refuses a client it will not serve. */
+async function refusingPostgres(
+  code: string,
+  message: string,
+): Promise<FakePostgres> {
+  const sockets = new Set<Socket>();
+  const server = createNetServer((socket) => {
+    sockets.add(socket);
+    socket.on('close', () => sockets.delete(socket));
+    socket.on('error', (error) => {
+      console.warn(`[test] fake PostgreSQL socket: ${error.message}`);
+    });
+    socket.once('data', () => socket.end(fatal(code, message)));
+  });
+  const port = await listening(server);
+  return {
+    port,
+    close: () =>
+      new Promise<void>((resolve) => {
+        for (const socket of sockets) socket.destroy();
+        server.close(() => resolve());
+      }),
+  };
 }
 
 describe('scrubUrl', () => {
@@ -778,5 +890,273 @@ describe('error reporting with a DSN', () => {
         else server.close(() => resolve());
       });
     }
+  });
+
+  describe('a request that failed on a database, told by which one [KNOW-R20]', () => {
+    // The issue's reproduction (#4037), on the real driver: postgres.js
+    // against a port nothing listens on, and against servers that refuse a
+    // client's startup the way PostgreSQL does. A knowledge database's outage
+    // used to answer the platform's DATABASE_UNAVAILABLE and reach nobody.
+    let configRoot: string;
+    let closed: number;
+    let startingUp: FakePostgres;
+    let badPassword: FakePostgres;
+    let missingDatabase: FakePostgres;
+    let warn: ReturnType<typeof vi.spyOn>;
+    const env = {
+      configDir: process.env.TALE_CONFIG_DIR,
+      knowledgeUrl: process.env.KNOWLEDGE_DATABASE_URL,
+    };
+
+    beforeAll(async () => {
+      startingUp = await refusingPostgres(
+        '57P03',
+        'the database system is starting up',
+      );
+      badPassword = await refusingPostgres(
+        '28P01',
+        'password authentication failed for user "acme_user"',
+      );
+      missingDatabase = await refusingPostgres(
+        '3D000',
+        'database "acme_knowledge" does not exist',
+      );
+    });
+
+    afterAll(async () => {
+      await Promise.all(
+        [startingUp, badPassword, missingDatabase].map((fake) => fake.close()),
+      );
+    });
+
+    beforeEach(async () => {
+      configRoot = mkdtempSync(path.join(tmpdir(), 'knowledge-door-'));
+      closed = await closedPort();
+      process.env.TALE_CONFIG_DIR = configRoot;
+      process.env.KNOWLEDGE_DATABASE_URL = `postgres://tale:pw@127.0.0.1:${closed}/tale_knowledge`;
+      warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      for (const quiet of ['error', 'info', 'log', 'debug'] as const) {
+        vi.spyOn(console, quiet).mockImplementation(() => undefined);
+      }
+    });
+
+    afterEach(async () => {
+      await closeKnowledgePools();
+      setKnowledgeOutageReporter(null);
+      vi.useRealTimers();
+      vi.restoreAllMocks();
+      rmSync(configRoot, { recursive: true, force: true });
+      restoreEnv('TALE_CONFIG_DIR', env.configDir);
+      restoreEnv('KNOWLEDGE_DATABASE_URL', env.knowledgeUrl);
+    });
+
+    /** The pool of `orgSlug`'s own database at `port`, reached the way a
+     * knowledge search reaches it (`core/knowledge/search.ts`), and one
+     * statement on it. */
+    async function ownDatabase(orgSlug: string, port: number): Promise<void> {
+      const dir = path.join(configRoot, orgSlug, 'knowledge');
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(
+        path.join(dir, 'connection.json'),
+        JSON.stringify({
+          host: '127.0.0.1',
+          port,
+          database: 'acme_knowledge',
+          user: 'acme_user',
+          sslmode: 'disable',
+        }),
+      );
+      const sql = await getKnowledgePoolForOrg(orgSlug);
+      await sql`SELECT 1`;
+    }
+
+    /** One statement on a client of the platform's own database at `port`. */
+    async function platformDatabase(port: number): Promise<void> {
+      const sql = createSql(`postgres://tale:pw@127.0.0.1:${port}/tale`);
+      try {
+        await sql`SELECT 1`;
+      } finally {
+        await sql.end({ timeout: 0 });
+      }
+    }
+
+    const KNOWLEDGE_SENTENCE =
+      'The knowledge database is not answering right now; retry with backoff';
+    const PLATFORM_SENTENCE =
+      'The platform’s database is not answering right now — it may be restarting; retry with backoff';
+
+    it.each<{
+      name: string;
+      row: string;
+      fail: () => Promise<unknown>;
+      answers: 'knowledge' | 'platform' | 'reported 500';
+      warns?: string;
+    }>([
+      {
+        name: 'an organization’s own database refusing',
+        row: 'own-refused',
+        fail: () => ownDatabase('acme', closed),
+        answers: 'knowledge',
+        warns: 'knowledge database unavailable (organization)',
+      },
+      {
+        name: 'an organization’s own database starting up',
+        row: 'own-starting-up',
+        fail: () => ownDatabase('initech', startingUp.port),
+        answers: 'knowledge',
+        warns: 'knowledge database unavailable (organization)',
+      },
+      {
+        name: 'the deployment’s knowledge database refusing',
+        row: 'deployment-refused',
+        fail: async () => {
+          // No connection of its own: the deployment's database.
+          const sql = await getKnowledgePoolForOrg('globex');
+          await sql`SELECT 1`;
+        },
+        answers: 'knowledge',
+        warns: 'knowledge database unavailable (deployment)',
+      },
+      {
+        name: 'a knowledge client the platform ended itself — a defect, not an outage',
+        row: 'ended',
+        fail: async () => {
+          const session = openKnowledgeSession(
+            `postgres://acme_user:pw@127.0.0.1:${closed}/acme_knowledge`,
+          );
+          await session.end();
+          await session`SELECT 1`;
+        },
+        answers: 'reported 500',
+      },
+      {
+        name: 'an organization’s own database rejecting its password',
+        row: 'own-bad-password',
+        fail: () => ownDatabase('umbrella', badPassword.port),
+        answers: 'reported 500',
+      },
+      {
+        name: 'an organization’s own database that does not exist',
+        row: 'own-missing',
+        fail: () => ownDatabase('hooli', missingDatabase.port),
+        answers: 'reported 500',
+      },
+      {
+        name: 'the platform’s database starting up',
+        row: 'platform-starting-up',
+        fail: () => platformDatabase(startingUp.port),
+        answers: 'platform',
+        warns:
+          'database unavailable — 503 for GET /api/app/knowledge/search/platform-starting-up: 57P03 the database system is starting up',
+      },
+      {
+        name: 'the platform’s database refusing',
+        row: 'platform-refused',
+        fail: () => platformDatabase(closed),
+        answers: 'platform',
+        warns:
+          'database unavailable — 503 for GET /api/app/knowledge/search/platform-refused: connect ECONNREFUSED',
+      },
+      {
+        name: 'another client’s refused connection',
+        row: 'fetch-refused',
+        fail: () => fetch(`http://127.0.0.1:${closed}/`),
+        answers: 'reported 500',
+      },
+      {
+        name: 'a plain defect',
+        row: 'defect',
+        fail: () => Promise.reject(new Error('boom-plain-defect')),
+        answers: 'reported 500',
+      },
+    ])('$name answers $answers', async ({ row, fail, answers, warns }) => {
+      const app = new Hono();
+      app.onError(appErrorHandler);
+      app.get('/api/app/knowledge/search/:row', async (c) => {
+        await fail();
+        return c.text('never');
+      });
+      const route = `/api/app/knowledge/search/${row}`;
+
+      const res = await app.request(`http://localhost${route}`);
+
+      if (answers === 'reported 500') {
+        expect(res.status).toBe(500);
+        expect(await res.text()).toBe('Internal Server Error');
+      } else {
+        expect(res.status).toBe(503);
+        expect(res.headers.get('retry-after')).toBe('5');
+        expect(res.headers.get('cache-control')).toBe('no-store');
+        expect(await res.json()).toEqual(
+          answers === 'knowledge'
+            ? {
+                error: KNOWLEDGE_SENTENCE,
+                code: 'KNOWLEDGE_DATABASE_UNAVAILABLE',
+              }
+            : { error: PLATFORM_SENTENCE, code: 'DATABASE_UNAVAILABLE' },
+        );
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining(`[backend] ${warns ?? ''}`),
+        );
+      }
+      await flushErrorReporting();
+      expect(reportedPaths().includes(route)).toBe(answers === 'reported 500');
+    });
+
+    it('reports an own database’s outage once it outlasts a routine restart — once, with nothing of the connection', async () => {
+      setKnowledgeOutageReporter(reportKnowledgeDatabaseOutage);
+      vi.useFakeTimers({ toFake: ['Date'] });
+      const start = Date.now();
+      const app = new Hono();
+      app.onError(appErrorHandler);
+      app.get('/api/app/knowledge/search/outage', async (c) => {
+        await ownDatabase('acme', closed);
+        return c.text('never');
+      });
+
+      for (const after of [0, 30_000, 61_000, 62_000]) {
+        vi.setSystemTime(start + after);
+        const res = await app.request(
+          'http://localhost/api/app/knowledge/search/outage',
+        );
+        expect(res.status).toBe(503);
+      }
+
+      await flushErrorReporting();
+      expect(reportedPaths()).not.toContain('/api/app/knowledge/search/outage');
+      const reports = capturedEvents().filter(
+        (event) =>
+          exceptionOf(event)?.type === 'KnowledgeDatabaseUnavailableError',
+      );
+      expect(reports).toHaveLength(1);
+      const report = reports[0];
+      expect(exceptionOf(report)?.value).toBe(
+        'An organization’s own knowledge database is not answering',
+      );
+      expect(report?.level).toBe('warning');
+      expect(report?.tags).toMatchObject({
+        'tale.reason': 'knowledge_database_unavailable',
+        'tale.knowledge_database': 'organization',
+      });
+      expect(report?.extra).toEqual({
+        outageMs: 61_000,
+        code: 'ECONNREFUSED',
+        orgSlug: 'acme',
+      });
+      const fields = JSON.stringify([
+        exceptionOf(report),
+        report?.tags,
+        report?.extra,
+      ]);
+      for (const connection of [
+        '127.0.0.1',
+        `:${closed}`,
+        'acme_user',
+        'acme_knowledge',
+        'SELECT',
+      ]) {
+        expect(fields).not.toContain(connection);
+      }
+    });
   });
 });

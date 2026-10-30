@@ -28,6 +28,7 @@ import {
 import { SafeFetchError } from '../../../lib/net/safe-fetch';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
+import { markKnowledgeDatabaseError } from '../../db/unavailable';
 
 const searchKnowledgeMock = vi.fn();
 vi.mock('../knowledge/search', () => ({
@@ -505,6 +506,35 @@ describe('rag_search', () => {
     expect(result.sources?.documents).not.toContain('not set up');
     expect(result.sources?.webPages).toBe(result.sources?.documents);
   });
+
+  it.each(['organization', 'deployment'] as const)(
+    'says the %s knowledge database is not answering, never that search is not set up [KNOW-R20]',
+    async (database) => {
+      // What a knowledge pool rejects a query with while its host is down.
+      const refused = Object.assign(
+        new Error('connect ECONNREFUSED 10.0.0.9:5432'),
+        { code: 'ECONNREFUSED', query: 'select 1', parameters: [] },
+      );
+      markKnowledgeDatabaseError(refused, database);
+      searchKnowledgeMock.mockRejectedValueOnce(refused);
+      const executor = await makeExecutor(createCtx().ctx);
+
+      const result = await executor.execute({
+        id: 'call_1',
+        name: 'rag_search',
+        input: { query: 'acme' },
+      });
+
+      expect(result.status).toBe('ok');
+      expect(result.sources?.documents).toMatch(/^unavailable:/);
+      expect(result.sources?.documents).toContain(
+        'the knowledge database is not answering',
+      );
+      expect(result.sources?.documents).not.toContain('not set up');
+      expect(result.sources?.documents).not.toContain('10.0.0.9');
+      expect(result.sources?.webPages).toBe(result.sources?.documents);
+    },
+  );
 
   it('says the corpora are unavailable when knowledge search fails — other legs still answer', async () => {
     searchKnowledgeMock.mockRejectedValueOnce(

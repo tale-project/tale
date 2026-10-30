@@ -1,6 +1,7 @@
 import type { SSEStreamingApi } from 'hono/streaming';
 import type { Sql } from 'postgres';
 
+import { createOutageWatch } from '../db/outage-watch.ts';
 import {
   describeDatabaseError,
   isDatabaseUnavailable,
@@ -161,52 +162,6 @@ function lateHintFrame(row: TailRow): string {
   });
 }
 
-/**
- * A database outage as the hub sees it: the first failure logs it, the
- * first success logs its end, and an outage that outlasts `reportAfterMs`
- * is reported once, at warning level.
- */
-function createOutageWatch(reportAfterMs: number): {
-  failed: (error: unknown) => void;
-  recovered: () => void;
-} {
-  let since: number | null = null;
-  let reported = false;
-  return {
-    failed(error) {
-      const now = Date.now();
-      if (since === null) {
-        since = now;
-        reported = false;
-        console.warn(
-          `[backend] /events: database unavailable, streams backing off: ${describeDatabaseError(error)}`,
-        );
-        return;
-      }
-      const outageMs = now - since;
-      if (!reported && outageMs >= reportAfterMs) {
-        reported = true;
-        console.warn(
-          `[backend] /events: database still unavailable after ${Math.round(outageMs / 1000)}s`,
-        );
-        reportError(error, {
-          level: 'warning',
-          tags: { 'tale.lane': 'events-poll' },
-          extra: { outageMs },
-        });
-      }
-    },
-    recovered() {
-      if (since === null) return;
-      console.log(
-        `[backend] /events: database back after ${Math.round((Date.now() - since) / 1000)}s`,
-      );
-      since = null;
-      reported = false;
-    },
-  };
-}
-
 export interface HintHub {
   /**
    * Serve one stream until it ends (client gone, reader refused, process
@@ -226,7 +181,30 @@ export function createHintHub(sql: Sql, options: HintHubOptions): HintHub {
   const lingerMs = options.lingerMs ?? DEFAULT_LINGER_MS;
   const lateCommitGraceMs =
     options.lateCommitGraceMs ?? DEFAULT_LATE_COMMIT_GRACE_MS;
-  const outage = createOutageWatch(options.outageReportAfterMs);
+  // The first failure logs the outage, the first success its end, and one
+  // that outlasts `outageReportAfterMs` is reported once, at warning level.
+  const outage = createOutageWatch(options.outageReportAfterMs, {
+    began(error) {
+      console.warn(
+        `[backend] /events: database unavailable, streams backing off: ${describeDatabaseError(error)}`,
+      );
+    },
+    lasted(error, outageMs) {
+      console.warn(
+        `[backend] /events: database still unavailable after ${Math.round(outageMs / 1000)}s`,
+      );
+      reportError(error, {
+        level: 'warning',
+        tags: { 'tale.lane': 'events-poll' },
+        extra: { outageMs },
+      });
+    },
+    ended(outageMs) {
+      console.log(
+        `[backend] /events: database back after ${Math.round(outageMs / 1000)}s`,
+      );
+    },
+  });
   /** The last read of the oldest retained id, shared by resumes. */
   let oldestRead: { at: number; value: Promise<bigint | null> } | null = null;
   const reclaimer = createOutboxReclaimer({
