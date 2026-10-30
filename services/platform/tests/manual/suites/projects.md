@@ -713,6 +713,22 @@ projects-list row ⋯ menu.
 - [ ] `PROJ-F39` · **Save a default without taking over waiting reviews** — As an editor, open `/dashboard/{org}/projects/{projectId}/overview` → **Task reviews** (`projects.taskReview.title`) → **Default reviewer** (`projects.taskReview.defaultReviewer`), choose project agent B, save, and reload → B remains selected. An existing pending review keeps the person named in **Current review** (`tasks.reviewer.pendingFor`); a later review on a task using **Project default** (`tasks.reviewer.projectDefaultLabel`) names B. Neither saving nor reloading starts B or grants **Review other agents’ task results** (`projects.agents.tool.task_review`).
 - [ ] `PROJ-B14` · **A slow agent save cannot discard later typing** — Edit an agent's **Instructions** (`projects.agents.instructionsLabel`), throttle the save request, and choose **Save changes** (`projects.agents.editSubmit`) → name, agent type, model, equipment, secrets and instructions are unavailable while saving; keyboard and pointer input cannot change the submitted draft. Successful completion closes the dialog and reopening shows the submitted instructions. Repeat with a duplicate name → the dialog stays open, the draft remains visible, and editing becomes available again; the stored agent is unchanged. Repeat in **New agent** → fields also lock until creation finishes.
 - [ ] `PROJ-B12` · **Keep the review default safe across concurrent saves** — Open the project's General tab in two editor sessions, edit the default in both, and save B in the first → the second save refuses with the localized stale-draft message (`projects.taskReview.stale`), and reloading still shows B. Discard the stale draft, choose another default and save; then make and save a second change after the first save's live update → both deliberate later choices persist, without an unexpected stale warning or lost draft.
+- [ ] `PROJ-B33` · **An agent list that doesn't load keeps the Default reviewer** —
+  As an editor on General of a project whose **Default reviewer**
+  (`projects.taskReview.defaultReviewer`) is a project agent, block
+  `*/api/app/projects/*/agents*` in DevTools (Network → request blocking) and
+  reload → after the retries (a few seconds) the field reads **Agent not
+  loaded** (`projects.taskReview.agentNotLoaded`) and is disabled, above one
+  notice **Couldn't load this project's agents.** (`projects.agents.loadFailed`)
+  with **Try again** (`common.actions.tryAgain`); never **The selected reviewer
+  agent is unavailable. Choose another reviewer.**
+  (`projects.taskReview.unavailable`). Unblock, Tab to **Try again** and press
+  Enter → the field names the agent again and takes the focus, and a reload
+  shows the default unchanged. As a member who cannot edit the project, the
+  same retry leaves the focus on the **Default reviewer** row. Delete the agent
+  instead → the field and the caption under it say it is unavailable, with no
+  notice. Network shows no write. Repeat the blocked state in German and
+  French.
 
 ## Dispatch
 
