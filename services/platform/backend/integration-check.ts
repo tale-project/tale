@@ -103,6 +103,7 @@ import { checkVersionDoors } from './domains/automations/version-doors.integrati
 import { checkVersionHistory } from './domains/automations/version-history.integration.ts';
 import { checkVersionRetention } from './domains/automations/version-retention.integration.ts';
 import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
+import { chatSendAttachmentSchema } from './domains/chat/routes.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
 import { checkAgentQuestionCoalescing } from './domains/collab/agent-question-coalescing.integration.ts';
 import { checkMentionHandles } from './domains/collab/mention-handles.integration.ts';
@@ -5272,6 +5273,7 @@ async function checkDocuments(
               storageId: z.string(),
               isCurrent: z.boolean(),
               fileName: z.string().optional(),
+              size: z.number().int().min(0).optional(),
             }),
           ),
         })
@@ -5305,11 +5307,12 @@ async function checkDocuments(
       versions.success &&
       versions.data.versions?.versions[0]?.isCurrent === true &&
       versions.data.versions.versions[0].fileName === 'notes.txt' &&
+      (versions.data.versions.versions[0].size ?? 0) > 0 &&
       byExternal.success &&
       byExternal.data.document === null &&
       hubSearch.success &&
       hubSearch.data.documents.some((d) => d.documentId === documentId),
-    `count=${approx.success ? approx.data.count : 'ERR'}, limited=${usage.success ? usage.data.limited : 'ERR'}, versions=${versions.success ? (versions.data.versions?.versions.length ?? 'null') : 'ERR'}, extNull=${byExternal.success ? byExternal.data.document === null : 'ERR'}, search=${hubSearch.success ? hubSearch.data.documents.length : 'ERR'}`,
+    `count=${approx.success ? approx.data.count : 'ERR'}, limited=${usage.success ? usage.data.limited : 'ERR'}, versions=${versions.success ? `${versions.data.versions?.versions.length ?? 'null'} (size ${versions.data.versions?.versions[0]?.size})` : `ERR ${versions.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')}`}, extNull=${byExternal.success ? byExternal.data.document === null : 'ERR'}, search=${hubSearch.success ? hubSearch.data.documents.length : 'ERR'}`,
   );
 
   // Retry-rag answers the established { success, error? } wire (never a 5xx).
@@ -5690,6 +5693,13 @@ async function checkDocuments(
       }),
     })
     .safeParse(await get(`/api/app/documents/${recordDocId}?orgId=${orgId}`));
+  // The snapshot keeps the approved file's size as a number: read as the
+  // driver's bigint string, it was dropped each time the record was read.
+  const approvedSnapshot = await sql<{ sizeType: string | null }[]>`
+    SELECT jsonb_typeof(record->'approvedVersions'->0->'size') AS "sizeType"
+    FROM app.documents WHERE id = ${recordDocId}
+  `;
+  const snapshotSizeType = approvedSnapshot[0]?.sizeType ?? null;
   const deleteApproved = await send(
     'POST',
     `/api/app/documents/${recordDocId}/delete?orgId=${orgId}`,
@@ -5720,11 +5730,12 @@ async function checkDocuments(
       approvedItem.success &&
       approvedItem.data.document.record.state === 'approved' &&
       approvedItem.data.document.record.hasApprovedVersions &&
+      snapshotSizeType === 'number' &&
       deleteApproved.status === 400 &&
       revision.success &&
       revision.data.version === 2 &&
       deleteRetained.status === 400,
-    `resubmitFresh=${resubmit.success && submit.success ? resubmit.data.approvalId !== submit.data.approvalId : 'ERR'}, approve=${approve.success ? 'ok' : 'ERR'}, badge=${approvedItem.success ? `${approvedItem.data.document.record.state}/${approvedItem.data.document.record.hasApprovedVersions}` : 'ERR'}, deleteApproved → ${deleteApproved.status} (want 400), revision=${revision.success ? revision.data.version : 'ERR'}, deleteRetained → ${deleteRetained.status} (want 400)`,
+    `resubmitFresh=${resubmit.success && submit.success ? resubmit.data.approvalId !== submit.data.approvalId : 'ERR'}, approve=${approve.success ? 'ok' : 'ERR'}, badge=${approvedItem.success ? `${approvedItem.data.document.record.state}/${approvedItem.data.document.record.hasApprovedVersions}` : 'ERR'}, snapshot size=${snapshotSizeType} (want number), deleteApproved → ${deleteApproved.status} (want 400), revision=${revision.success ? revision.data.version : 'ERR'}, deleteRetained → ${deleteRetained.status} (want 400)`,
   );
 
   // --- The settings panel's text file: access is not absence ---------------
@@ -41107,7 +41118,11 @@ exit 1
     const listed = z
       .object({
         jobs: z.array(
-          z.looseObject({ jobId: z.string(), displayStatus: z.string() }),
+          z.looseObject({
+            jobId: z.string(),
+            displayStatus: z.string(),
+            fileSize: z.number().int().min(0).optional(),
+          }),
         ),
       })
       .safeParse(
@@ -41129,9 +41144,13 @@ exit 1
         captFile[0].threadId === threadId &&
         listed.success &&
         listed.data.jobs.some(
-          (j) => j.jobId === captJobId && j.displayStatus === 'completed',
+          (j) =>
+            j.jobId === captJobId &&
+            j.displayStatus === 'completed' &&
+            j.fileSize !== undefined &&
+            j.fileSize > 0,
         ),
-      `ingest=${ingest.success} drained=${drained} job=${captJob?.status}/${captJob?.captionTrackKind}:${captJob?.captionLang}, transcript(hdr=${captTranscript.includes('Source: https://www.youtube.com')} toc=${captTranscript.includes('Chapters:')} body=${captTranscript.includes('Hello from captions')}), file=${captFile[0]?.source}/${captFile[0]?.threadId === threadId}, chip=${listed.success ? listed.data.jobs.find((j) => j.jobId === captJobId)?.displayStatus : 'ERR'}`,
+      `ingest=${ingest.success} drained=${drained} job=${captJob?.status}/${captJob?.captionTrackKind}:${captJob?.captionLang}, transcript(hdr=${captTranscript.includes('Source: https://www.youtube.com')} toc=${captTranscript.includes('Chapters:')} body=${captTranscript.includes('Hello from captions')}), file=${captFile[0]?.source}/${captFile[0]?.threadId === threadId}, chip=${listed.success ? `${listed.data.jobs.find((j) => j.jobId === captJobId)?.displayStatus}/size ${listed.data.jobs.find((j) => j.jobId === captJobId)?.fileSize}` : `ERR ${listed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')}`}`,
     );
 
     // 2. Dedup, bind/unbind doors, donor clone into a second thread.
@@ -41144,10 +41163,24 @@ exit 1
         })
       ).json(),
     );
+    // The composer sends the bound payloads on as the message's
+    // attachments, so each must pass the send door's own schema: a size
+    // read as the driver's bigint string once refused every such send, and
+    // so did a title sanitizing had left empty, as this one is for the bind.
+    const captTitle =
+      (
+        await sql<{ title: string | null }[]>`
+          SELECT video_title AS title FROM app.video_link_jobs
+          WHERE id = ${captJobId}
+        `
+      )[0]?.title ?? null;
+    await sql`
+      UPDATE app.video_link_jobs SET video_title = '' WHERE id = ${captJobId}
+    `;
     const bind = z
       .object({
         attachments: z.array(
-          z.looseObject({ jobId: z.string(), fileId: z.string() }),
+          chatSendAttachmentSchema.extend({ jobId: z.string() }),
         ),
       })
       .safeParse(
@@ -41162,6 +41195,10 @@ exit 1
           await send(`/api/app/video-links/bind?orgId=${orgId}`, { threadId })
         ).json(),
       );
+    await sql`
+      UPDATE app.video_link_jobs SET video_title = ${captTitle}
+      WHERE id = ${captJobId}
+    `;
     // The unbind door's two guards. The org is the scope: a row this user
     // uploaded in ANOTHER organization is not theirs here, and a batch that
     // mixes it in is refused whole (the own row stays bound). And a SENT
@@ -41284,6 +41321,7 @@ exit 1
         bind.success &&
         bind.data.attachments.length === 1 &&
         bind.data.attachments[0]?.jobId === captJobId &&
+        bind.data.attachments[0].fileName === 'Video link' &&
         rebind.success &&
         rebind.data.attachments.length === 0 &&
         unbind.status === 200 &&
@@ -41292,7 +41330,7 @@ exit 1
         donorJob?.status === 'completed' &&
         (donorFile[0]?.transcript ?? '').includes('Hello from captions') &&
         Number(donorAudit[0]?.count ?? '0') === 1,
-      `dedup=${dedup.success && dedup.data.jobId === captJobId}, bind=${bind.success ? bind.data.attachments.length : 'ERR'}/1 rebind=${rebind.success ? rebind.data.attachments.length : 'ERR'}/0 unbind=${unbind.status}/unbound=${unboundAfter}, donor=${donorJob?.status} sameText=${(donorFile[0]?.transcript ?? '').includes('Hello from captions')} auditReuse=${donorAudit[0]?.count}/1`,
+      `dedup=${dedup.success && dedup.data.jobId === captJobId}, bind=${bind.success ? `${bind.data.attachments.length} named "${bind.data.attachments[0]?.fileName}"` : `ERR ${bind.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('; ')}`}/1 rebind=${rebind.success ? rebind.data.attachments.length : 'ERR'}/0 unbind=${unbind.status}/unbound=${unboundAfter}, donor=${donorJob?.status} sameText=${(donorFile[0]?.transcript ?? '').includes('Hello from captions')} auditReuse=${donorAudit[0]?.count}/1`,
     );
 
     // 3. Whisper path via the inc-68 pipeline, the never-retry failure +

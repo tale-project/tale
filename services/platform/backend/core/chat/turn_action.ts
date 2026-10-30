@@ -173,8 +173,10 @@ async function resolveDirectWire(
 }
 
 /** Settle the accumulated tool-call drafts into parsed requests, in the
- * provider's index order. Arguments that fail to parse become `{}` with the
- * raw string kept, so the executor can answer with a correctable error. */
+ * order of their keys: the provider's block or output index, and on Chat
+ * Completions the order the calls were announced. Arguments that fail to
+ * parse become `{}` with the raw string kept, so the executor can answer
+ * with a correctable error. */
 function settleToolCalls(
   drafts: Map<number, ToolCallDraft>,
 ): ToolCallRequest[] {

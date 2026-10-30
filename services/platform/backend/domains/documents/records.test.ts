@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   assertReviewerNotSubmitter,
   assertReviewResponder,
+  parseControlledRecord,
   pendingReviewEchoes,
 } from './records.ts';
 import { DocumentError } from './service.ts';
@@ -114,4 +115,39 @@ describe('pendingReviewEchoes (re-submit while in review) [DOC-R4]', () => {
     expect(pendingReviewEchoes({ metadata: null }, 'u_bob')).toBe(false);
     expect(pendingReviewEchoes({ metadata: {} }, 'u_bob')).toBe(false);
   });
+});
+
+describe('parseControlledRecord (approved snapshots)', () => {
+  const approved = (size: unknown) =>
+    parseControlledRecord({
+      state: 'approved',
+      version: 1,
+      approvedVersions: [
+        {
+          version: 1,
+          fileId: 's3:org/sop.pdf',
+          size,
+          approvedAt: 1,
+          approvedBy: 'u_bob',
+        },
+      ],
+    })?.approvedVersions[0];
+
+  it('keeps the file size of a snapshot', () => {
+    expect(approved(2048)?.size).toBe(2048);
+  });
+
+  it('reads the digit string an older snapshot stored as its size', () => {
+    // The database's bigint reached the snapshot as the driver's string.
+    expect(approved('2048')?.size).toBe(2048);
+  });
+
+  it.each([['2kB'], [''], [null], [{}]])(
+    'drops a size that is no file size (%j)',
+    (size) => {
+      const snapshot = approved(size);
+      expect(snapshot?.fileId).toBe('s3:org/sop.pdf');
+      expect(snapshot).not.toHaveProperty('size');
+    },
+  );
 });

@@ -193,6 +193,27 @@ describe('safeFetch through the outbound proxies', () => {
     ]);
   });
 
+  it('names the proxy each response came through by its entry, never its credentials', async () => {
+    const [first, second] = await useProxies(200, 200);
+    const viaFirst = await safeFetch('http://example.test/0', {
+      credentialless: true,
+      outboundProxy: true,
+    });
+    const viaSecond = await safeFetchBinary('http://example.test/1', {
+      credentialless: true,
+      outboundProxy: true,
+    });
+    expect(viaFirst.outboundProxy).toEqual({
+      label: `http://127.0.0.1:${first?.port}`,
+      entry: 1,
+    });
+    expect(viaSecond.outboundProxy).toEqual({
+      label: `http://127.0.0.1:${second?.port}`,
+      entry: 2,
+    });
+    expect(JSON.stringify(viaFirst.outboundProxy)).not.toContain('alice');
+  });
+
   it('tunnels an https destination by name, so the proxy resolves it', async () => {
     const [proxy] = await useProxies(200);
     // The stand-in proxy closes the tunnel at once: the TLS handshake fails,
@@ -213,6 +234,7 @@ describe('safeFetch through the outbound proxies', () => {
       outboundProxy: true,
     });
     expect(response.body).toBe(`target saw intranet.test:${targetPort}/`);
+    expect(response.outboundProxy).toBeUndefined();
     expect(proxy?.asked).toEqual([]);
   });
 
@@ -246,6 +268,7 @@ describe('safeFetch through the outbound proxies', () => {
       outboundProxy: true,
     });
     expect(first.status).toBe(200);
+    expect(first.outboundProxy?.entry).toBe(2);
     await safeFetch('http://example.test/b', {
       credentialless: true,
       outboundProxy: true,

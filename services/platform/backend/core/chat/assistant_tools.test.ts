@@ -8,7 +8,17 @@
 // database, or network. The executor's contract is that `execute` NEVER
 // rejects, so every failure case here asserts through `.resolves`.
 
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type MockInstance,
+} from 'vitest';
 
 import {
   CHAT_ASSISTANT_SLUG,
@@ -1416,6 +1426,279 @@ describe('web_fetch', () => {
       input: { url: 'https://example.com/long', limit: 999_999 },
     });
     expect(clamped.nextOffset).toBe(20_000);
+  });
+
+  it('asks for a page with no credential, over https alone, through the outbound proxies', async () => {
+    safeFetchMock.mockResolvedValueOnce(longPage('hello'));
+    const executor = await makeExecutor(createCtx().ctx);
+    await executor.execute({
+      id: 'call_1',
+      name: 'web_fetch',
+      input: { url: 'https://example.com/long' },
+    });
+    expect(safeFetchMock).toHaveBeenCalledWith(
+      'https://example.com/long',
+      expect.objectContaining({
+        credentialless: true,
+        httpsOnly: true,
+        outboundProxy: true,
+      }),
+    );
+  });
+});
+
+describe('web_fetch meets a bot check', () => {
+  let warn: MockInstance<typeof console.warn>;
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Answers a case queued and did not use must not reach the next case.
+    safeFetchMock.mockReset();
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  // The console and clock spies a case set.
+  afterEach(() => vi.restoreAllMocks());
+
+  /** The page wiki.mozilla.org served one proxy exit in place of the article
+   * (2026-10-30), cut to the parts that tell it. */
+  const fastlyCheck = (entry?: number) => ({
+    status: 200,
+    statusText: 'OK',
+    headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+    body:
+      '<html><head><title>Client Challenge</title>' +
+      '<link href="/_fs-ch-1T1wmsGaOgGaSxcX/assets/styles.css" rel="stylesheet" />' +
+      '</head><body><div id="loading-error">A required part of this site ' +
+      'couldn’t load.</div></body></html>',
+    finalUrl: 'https://wiki.mozilla.org/Release_Management/Calendar',
+    ...(entry !== undefined
+      ? { outboundProxy: { label: 'http://p.webshare.io:80', entry } }
+      : {}),
+  });
+  const article = (entry: number) => ({
+    status: 200,
+    statusText: 'OK',
+    headers: new Headers({ 'content-type': 'text/html; charset=utf-8' }),
+    body: '<html><head><title>Release Calendar</title></head><body><p>Nightly 147 starts on 10 November.</p></body></html>',
+    finalUrl: 'https://whattrainisitnow.com/calendar',
+    outboundProxy: { label: 'http://p.webshare.io:80', entry },
+  });
+  const fetchCalendar = async () =>
+    (await makeExecutor(createCtx().ctx)).execute({
+      id: 'call_1',
+      name: 'web_fetch',
+      input: { url: 'https://wiki.mozilla.org/Release_Management/Calendar' },
+    });
+
+  it('asks again through the next proxy and reads the page it is served there', async () => {
+    safeFetchMock
+      .mockResolvedValueOnce(fastlyCheck(1))
+      .mockResolvedValueOnce(article(2));
+
+    const result = await fetchCalendar();
+
+    expect(result).toMatchObject({
+      status: 'ok',
+      url: 'https://whattrainisitnow.com/calendar',
+      title: 'Release Calendar',
+    });
+    expect(result.content).toContain('Nightly 147 starts on 10 November.');
+    expect(result.content).not.toContain('couldn’t load');
+    expect(safeFetchMock).toHaveBeenCalledTimes(2);
+    const logged = String(warn.mock.calls[0]?.[0]);
+    expect(logged).toContain('wiki.mozilla.org');
+    expect(logged).toContain('Fastly through outbound proxy entry 1');
+    expect(logged).toContain(
+      'then served the page through outbound proxy entry 2',
+    );
+  });
+
+  it("tells the model the page could not be read when every attempt met the check, never the check's text", async () => {
+    safeFetchMock
+      .mockResolvedValueOnce(fastlyCheck(1))
+      .mockResolvedValueOnce(fastlyCheck(2))
+      .mockResolvedValueOnce(fastlyCheck(3));
+
+    const result = await fetchCalendar();
+
+    expect(result.status).toBe('error');
+    expect(result.message).toContain("Fastly's bot check");
+    expect(result.message).toContain('on each of 3 attempts');
+    expect(result.content).toBeUndefined();
+    expect(safeFetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('asks once when the check came without a proxy, since asking again would leave from the same address', async () => {
+    safeFetchMock.mockResolvedValueOnce(fastlyCheck());
+
+    const result = await fetchCalendar();
+
+    expect(result.status).toBe('error');
+    expect(result.message).toContain("Fastly's bot check instead of the page,");
+    expect(safeFetchMock).toHaveBeenCalledTimes(1);
+    expect(String(warn.mock.calls[0]?.[0])).toContain('Fastly directly');
+  });
+
+  it('keeps the bot check the answer when asking again fails', async () => {
+    safeFetchMock
+      .mockResolvedValueOnce(fastlyCheck(1))
+      .mockRejectedValueOnce(
+        new SafeFetchError(
+          'timeout',
+          'Request timed out after 15000ms (through the outbound proxy http://p.webshare.io:80)',
+        ),
+      );
+
+    const result = await fetchCalendar();
+
+    expect(result.status).toBe('error');
+    expect(result.message).toContain("Fastly's bot check");
+    const logged = String(warn.mock.calls[0]?.[0]);
+    expect(logged).toContain('Fastly through outbound proxy entry 1');
+    expect(logged).toContain('asking again failed: Request timed out');
+  });
+
+  it('asks no more once the first attempt used the time a retry would need', async () => {
+    // The clock web_fetch reads before the first attempt, then after it.
+    vi.spyOn(Date, 'now')
+      .mockReturnValueOnce(1_000)
+      .mockReturnValueOnce(16_000);
+    safeFetchMock.mockResolvedValueOnce(fastlyCheck(1));
+
+    const result = await fetchCalendar();
+
+    expect(result.status).toBe('error');
+    expect(result.message).not.toContain('attempts');
+    expect(safeFetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('reads a check answered with an error status as a check, not as the status', async () => {
+    safeFetchMock
+      .mockResolvedValueOnce({
+        status: 403,
+        statusText: 'Forbidden',
+        headers: new Headers({
+          'content-type': 'text/html',
+          'cf-mitigated': 'challenge',
+        }),
+        body: '<html><title>Just a moment...</title></html>',
+        finalUrl: 'https://example.com/report',
+        outboundProxy: { label: 'http://p.webshare.io:80', entry: 4 },
+      })
+      .mockResolvedValueOnce(article(5));
+
+    const result = await fetchCalendar();
+
+    expect(result.status).toBe('ok');
+    expect(safeFetchMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('web_fetch redirects, through the shipped safeFetch', () => {
+  // safeFetch decides what a redirect may reach; these cases run the real one
+  // over a stubbed network, so the options web_fetch hands it are judged by
+  // the policy that ships.
+  let real: typeof import('../../../lib/net/safe-fetch');
+  beforeAll(async () => {
+    real = await vi.importActual('../../../lib/net/safe-fetch');
+  });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    safeFetchMock.mockReset();
+    safeFetchMock.mockImplementation(
+      (...args: Parameters<typeof real.safeFetch>) => real.safeFetch(...args),
+    );
+    real.setSafeFetchResolverForTests((hostname) =>
+      Promise.resolve([
+        {
+          address:
+            hostname === 'intranet.example.com' ? '10.0.0.5' : '93.184.216.34',
+          family: 4,
+        },
+      ]),
+    );
+  });
+  afterEach(() => {
+    real.setSafeFetchResolverForTests(null);
+    safeFetchMock.mockReset();
+    vi.restoreAllMocks();
+  });
+
+  /** The URL a request named. */
+  const requestUrl = (input: string | URL | Request): string =>
+    typeof input === 'string'
+      ? input
+      : input instanceof URL
+        ? input.href
+        : input.url;
+  /** The network for one case: these answers in turn, and a failure for any
+   * request past them, so a hop the policy should refuse never reaches a
+   * real host. */
+  const stubNetwork = (...answers: Response[]) =>
+    vi.spyOn(globalThis, 'fetch').mockImplementation((input) => {
+      const next = answers.shift();
+      return next === undefined
+        ? Promise.reject(new Error(`unexpected request: ${requestUrl(input)}`))
+        : Promise.resolve(next);
+    });
+  const redirectTo = (location: string) =>
+    new Response(null, { status: 301, headers: { location } });
+  const fetchNotes = async () =>
+    (await makeExecutor(createCtx().ctx)).execute({
+      id: 'call_1',
+      name: 'web_fetch',
+      input: { url: 'https://www.mozilla.org/en-US/firefox/notes/' },
+    });
+
+  it('follows a redirect onto another public site and reports the page it landed on', async () => {
+    const network = stubNetwork(
+      redirectTo(
+        'https://www.firefox.com/en-US/firefox/notes/?redirect_source=mozilla-org',
+      ),
+      new Response(
+        '<html><head><title>Firefox Release Notes</title></head><body><p>Version 145.0</p></body></html>',
+        { status: 200, headers: { 'content-type': 'text/html' } },
+      ),
+    );
+
+    const result = await fetchNotes();
+
+    expect(result).toMatchObject({
+      status: 'ok',
+      url: 'https://www.firefox.com/en-US/firefox/notes/?redirect_source=mozilla-org',
+      title: 'Firefox Release Notes',
+    });
+    expect(result.content).toContain('Version 145.0');
+    expect(network.mock.calls.map(([input]) => requestUrl(input))).toEqual([
+      'https://www.mozilla.org/en-US/firefox/notes/',
+      'https://www.firefox.com/en-US/firefox/notes/?redirect_source=mozilla-org',
+    ]);
+  });
+
+  it.each([
+    [
+      'down to plaintext http',
+      'http://www.firefox.com/notes/',
+      'insecure_public_http',
+    ],
+    [
+      'into a private network',
+      'https://intranet.example.com/notes/',
+      'private_ip',
+    ],
+    [
+      'onto loopback written as an IPv4-compatible address',
+      'https://[::7f00:1]/notes/',
+      'private_ip',
+    ],
+  ])('still refuses a redirect %s', async (_label, location, kind) => {
+    const network = stubNetwork(redirectTo(location));
+
+    await expect(fetchNotes()).resolves.toMatchObject({
+      status: 'error',
+      message: expect.stringContaining(kind),
+    });
+    // Refused before the hop: the page behind the redirect is never asked for.
+    expect(network).toHaveBeenCalledTimes(1);
   });
 });
 

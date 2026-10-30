@@ -1237,6 +1237,31 @@ export async function bindJobsForDeferredSend(
   return claimed.map((row) => row.id);
 }
 
+/** The longest file name the send door takes, in UTF-16 code units
+ * (`chatSendAttachmentSchema`, `domains/chat/routes.ts`). */
+const SEND_FILE_NAME_MAX = 512;
+
+let titleSegmenter: Intl.Segmenter | undefined;
+
+/**
+ * The file name a bound transcript is sent with: the video's title, cut a
+ * whole character at a time to what the send door takes, or "Video link"
+ * when sanitizing left no title (one of zero-width or control characters
+ * alone). The door refuses an empty or longer name, and the message with it.
+ */
+export function boundTranscriptFileName(videoTitle: string | null): string {
+  const title = videoTitle?.trim() ?? '';
+  if (title === '') return 'Video link';
+  if (title.length <= SEND_FILE_NAME_MAX) return title;
+  titleSegmenter ??= new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+  let cut = '';
+  for (const { segment } of titleSegmenter.segment(title)) {
+    if (cut.length + segment.length > SEND_FILE_NAME_MAX - 1) break;
+    cut += segment;
+  }
+  return `${cut}…`;
+}
+
 /** Fire-time payloads for a deferred send's claimed jobs (the 0.4
  * `buildBoundJobAttachments`): the same shape the direct-send bind puts on
  * attachments — `video/mp4` stays the routing sentinel. Jobs without a
@@ -1281,7 +1306,7 @@ export async function buildBoundJobAttachments(
     if (!transcriptReady) continue;
     out.push({
       fileId: row.storageRef,
-      fileName: row.videoTitle ?? 'Video link',
+      fileName: boundTranscriptFileName(row.videoTitle),
       fileType: 'video/mp4',
       fileSize: row.size,
     });
@@ -1573,7 +1598,8 @@ async function projectJob(
         transcriptionError: string | null;
       }[]
     >`
-      SELECT size, transcription_status AS "transcriptionStatus",
+      SELECT size::float8 AS size,
+             transcription_status AS "transcriptionStatus",
              transcription_progress AS "transcriptionProgress",
              transcription_error AS "transcriptionError"
       FROM app.file_metadata WHERE id = ${job.fileMetadataId} LIMIT 1
@@ -1709,8 +1735,10 @@ export async function bindCompletedJobsToMessage(
       }
       if (!ready) continue;
 
+      // `size` is a bigint, which the driver hands back as a string: the
+      // send door refuses an attachment whose size is not a number.
       const metas = await tx<{ size: number }[]>`
-        SELECT size FROM app.file_metadata
+        SELECT size::float8 AS size FROM app.file_metadata
         WHERE id = ${job.fileMetadataId} LIMIT 1
       `;
       const meta = metas[0];
@@ -1726,7 +1754,7 @@ export async function bindCompletedJobsToMessage(
       out.push({
         fileId: job.storageRef,
         fileType: 'video/mp4',
-        fileName: job.videoTitle ?? 'Video link',
+        fileName: boundTranscriptFileName(job.videoTitle),
         fileSize: meta.size,
         pastedToken: job.pastedToken,
         jobId: job.id,

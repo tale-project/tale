@@ -43,6 +43,7 @@ import { Agent, ProxyAgent } from 'undici';
 import { stripRuntimeLocations } from './error-message-hygiene';
 import {
   nextOutboundProxy,
+  outboundProxyEntry,
   setOutboundProxyAside,
   type OutboundProxy,
 } from './outbound-proxy';
@@ -362,6 +363,11 @@ class ProxyRoute {
     return this.proxy;
   }
 
+  /** The proxy this route is on now, as a response names it. */
+  get ref(): OutboundProxyRef {
+    return { label: this.proxy.label, entry: outboundProxyEntry(this.proxy) };
+  }
+
   dispatcher(): ProxyAgent {
     // A plain `http:` destination goes to the proxy as an absolute-form
     // request, the way a forward proxy serves it; an `https:` one is
@@ -505,12 +511,25 @@ function through(
   );
 }
 
+/** The outbound proxy a response came through, as a log or a caller may
+ * name it: never its credentials. */
+export interface OutboundProxyRef {
+  /** `http://host:port`. */
+  readonly label: string;
+  /** Where it stands in `OUTBOUND_PROXY_URLS`, counted from 1: entries on
+   * one host and port (a provider's per-address user names) share a label. */
+  readonly entry: number;
+}
+
 export interface SafeFetchResponse {
   status: number;
   statusText: string;
   headers: Headers;
   body: string;
   finalUrl: string;
+  /** The outbound proxy the final hop went out through; absent when it
+   * left directly. */
+  outboundProxy?: OutboundProxyRef;
 }
 
 export interface SafeFetchBinaryResponse {
@@ -519,6 +538,8 @@ export interface SafeFetchBinaryResponse {
   headers: Headers;
   body: Blob;
   finalUrl: string;
+  /** As on {@link SafeFetchResponse}. */
+  outboundProxy?: OutboundProxyRef;
 }
 
 const DEFAULT_TIMEOUT_MS = 10_000;
@@ -1034,6 +1055,7 @@ export async function safeFetch(
       headers: response.headers,
       body: bodyText,
       finalUrl,
+      ...(carried !== null ? { outboundProxy: carried.ref } : {}),
     };
   } finally {
     clearTimeout(timeout);
@@ -1108,6 +1130,7 @@ export async function safeFetchBinary(
       headers: response.headers,
       body: blob,
       finalUrl,
+      ...(carried !== null ? { outboundProxy: carried.ref } : {}),
     };
   } finally {
     clearTimeout(timeout);

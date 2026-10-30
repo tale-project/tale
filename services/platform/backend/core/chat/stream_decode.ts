@@ -72,6 +72,10 @@ export interface ToolCallDraft {
   id: string;
   name: string;
   argumentsJson: string;
+  /** The `index` a Chat Completions stream gives the call's fragments. The
+   * wire's index does not key the draft there, since a gateway may give two
+   * calls the same one (`chatToolCallDraft`). */
+  wireIndex?: number;
 }
 
 /** Mutable per-stream decode state: running usage plus the tool-call drafts,
@@ -231,6 +235,48 @@ function readResponsesEvent(
   }
 }
 
+/**
+ * The draft one Chat Completions tool-call fragment belongs to. Fragments
+ * name their call by `index`, the first of them its `id` and function name
+ * as well, and the arguments follow under the same index. A fragment that
+ * announces another call — another id, with a function name — at an index
+ * already holding a call starts a new call: a gateway converting a Responses
+ * API answer numbers each call `output_index - 1` (Bifrost does), so the
+ * calls at output indexes 0 and 1 of an answer with no reasoning or text
+ * before them both arrive as index 0, and their arguments used to run
+ * together into one call whose JSON no parser reads. A new id on a fragment
+ * that names no function only renames the call, as the vendor's SDK reads
+ * it. Drafts are kept in the order their calls were announced.
+ */
+function chatToolCallDraft(
+  state: StreamDecodeState,
+  fragment: Record<string, unknown>,
+): ToolCallDraft {
+  const wireIndex = typeof fragment.index === 'number' ? fragment.index : 0;
+  const id =
+    typeof fragment.id === 'string' && fragment.id.length > 0
+      ? fragment.id
+      : undefined;
+  const fn = asRecord(fragment.function);
+  const namesFunction = typeof fn?.name === 'string' && fn.name.length > 0;
+  let draft: ToolCallDraft | undefined;
+  for (const candidate of state.drafts.values()) {
+    if (candidate.wireIndex === wireIndex) draft = candidate;
+  }
+  const anotherCall =
+    draft !== undefined &&
+    id !== undefined &&
+    namesFunction &&
+    draft.id.length > 0 &&
+    draft.id !== id;
+  if (draft === undefined || anotherCall) {
+    draft = { id: '', name: '', argumentsJson: '', wireIndex };
+    state.drafts.set(state.drafts.size, draft);
+  }
+  if (id !== undefined) draft.id = id;
+  return draft;
+}
+
 /** The Anthropic `stop_reason` vocabulary folded onto the platform's. */
 function anthropicStopReason(value: unknown): TurnFinishReason | undefined {
   if (typeof value !== 'string' || value.length === 0) return undefined;
@@ -355,15 +401,7 @@ export function readEvent(
   for (const raw of toolCallDeltas) {
     const fragment = asRecord(raw);
     if (!fragment) continue;
-    const index = typeof fragment.index === 'number' ? fragment.index : 0;
-    const draft = state.drafts.get(index) ?? {
-      id: '',
-      name: '',
-      argumentsJson: '',
-    };
-    if (typeof fragment.id === 'string' && fragment.id.length > 0) {
-      draft.id = fragment.id;
-    }
+    const draft = chatToolCallDraft(state, fragment);
     const fn = asRecord(fragment.function);
     if (fn) {
       if (typeof fn.name === 'string' && fn.name.length > 0) {
@@ -373,7 +411,6 @@ export function readEvent(
         draft.argumentsJson += fn.arguments;
       }
     }
-    state.drafts.set(index, draft);
   }
   const text = typeof delta?.content === 'string' ? delta.content : '';
   const reasoningDelta =

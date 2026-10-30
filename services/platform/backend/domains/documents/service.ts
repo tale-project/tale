@@ -1438,8 +1438,8 @@ export async function listDocumentVersionsView(
         createdAt: number;
       }[]
     >`
-      SELECT storage_ref AS "storageRef", file_name AS "fileName", size,
-             content_type AS "contentType",
+      SELECT storage_ref AS "storageRef", file_name AS "fileName",
+             size::float8 AS size, content_type AS "contentType",
              created_at_ms::float8 AS "createdAt"
       FROM app.file_metadata
       WHERE org_id = ${auth.organizationId} AND storage_ref = ANY(${refs})

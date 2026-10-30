@@ -70,6 +70,16 @@ export interface ControlledRecord {
   approvedBy?: string;
 }
 
+/** An approved snapshot's file size. Snapshots taken before the size was
+ * read as a number stored the database's bigint as a digit string. */
+function snapshotSize(value: unknown): { size?: number } {
+  if (typeof value === 'number') return { size: value };
+  if (typeof value === 'string' && /^\d{1,15}$/.test(value)) {
+    return { size: Number(value) };
+  }
+  return {};
+}
+
 /** Parse the jsonb record column; malformed content reads as uncontrolled
  * (the projection stance the item view takes). */
 export function parseControlledRecord(
@@ -104,7 +114,7 @@ export function parseControlledRecord(
         ...(typeof candidate.sha256 === 'string'
           ? { sha256: candidate.sha256 }
           : {}),
-        ...(typeof candidate.size === 'number' ? { size: candidate.size } : {}),
+        ...snapshotSize(candidate.size),
         approvedAt:
           typeof candidate.approvedAt === 'number' ? candidate.approvedAt : 0,
         approvedBy:
@@ -786,7 +796,7 @@ export async function respondToDocumentRecordReview(
       );
     }
     const metas = await tx<{ size: number }[]>`
-      SELECT size FROM app.file_metadata
+      SELECT size::float8 AS size FROM app.file_metadata
       WHERE org_id = ${doc.organizationId} AND storage_ref = ${doc.fileRef}
       LIMIT 1
     `;

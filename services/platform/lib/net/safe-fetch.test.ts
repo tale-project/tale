@@ -1,3 +1,4 @@
+import { isMetadataAddress } from '@tale/shared/net/private-ip';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -33,8 +34,28 @@ describe('lib/http/safe_fetch.isPrivateIp', () => {
     '[::ffff:7f00:1]', // IPv4-mapped 127.0.0.1 (hex)
     '[::ffff:127.0.0.1]', // IPv4-mapped 127.0.0.1 (dotted)
     '[::ffff:a9fe:a9fe]', // IPv4-mapped 169.254.169.254 (AWS IMDS)
+    '[::7f00:1]', // IPv4-compatible 127.0.0.1 (hex)
+    '[::127.0.0.1]', // IPv4-compatible 127.0.0.1 (dotted)
+    '[0:0:0:0:0:0:a00:5]', // IPv4-compatible 10.0.0.5, expanded
+    '[::a9fe:a9fe]', // IPv4-compatible 169.254.169.254 (AWS IMDS)
   ])('rejects private / loopback / link-local: %s', (host) => {
     expect(isPrivateIp(host)).toBe(true);
+  });
+
+  it.each([
+    ['169.254.169.254'],
+    ['[::ffff:a9fe:a9fe]'],
+    ['[::a9fe:a9fe]'],
+    ['[::169.254.169.254]'],
+    ['[fd00:ec2::254]'],
+  ])('knows the metadata address however it is spelled: %s', (host) => {
+    expect(isMetadataAddress(host)).toBe(true);
+  });
+
+  it('keeps an IPv4-compatible public address public, and no metadata', () => {
+    expect(isPrivateIp('[::808:808]')).toBe(false);
+    expect(isMetadataAddress('[::808:808]')).toBe(false);
+    expect(isMetadataAddress('[::1]')).toBe(false);
   });
 
   it.each([
