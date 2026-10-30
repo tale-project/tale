@@ -35,6 +35,8 @@ Maskieren entfernt erkannte Werte aus dem weitergegebenen Text. Im Chat speicher
 
 Eine eingebaute Kennung, die nur aus Ziffern besteht, etwa eine schwedische Passnummer oder eine ukrainische Steuernummer, wird nur neben einem Wort erkannt, das sie benennt, zum Beispiel `passnummer` oder `ІПН`. Bestellnummern, kompakte Datumsangaben und Build-Nummern bleiben unverändert. Jede Erkennung unter **Aktuelle Ereignisse** nennt das ausgelöste Muster, etwa `se-passport`.
 
+Eine E-Mail-Adresse wird auch dann vollständig erkannt, wenn der Teil vor dem `@` Umlaute, Akzente, Buchstaben anderer Alphabete oder einen Apostroph enthält, etwa `jörg.müller@example.com` oder `john.o'brien@example.ie`. Manche Formen werden nur teilweise oder gar nicht erkannt. Chinesisch, Japanisch, Thai, Laotisch, Khmer und Birmanisch werden ohne Leerzeichen zwischen den Wörtern geschrieben, deshalb zählen ihre Schriftzeichen nie zu einer Adresse: Text direkt vor einer Adresse bleibt unverändert, und solche Zeichen vor dem `@` werden nicht erkannt. Andere Sonderzeichen als `.`, `_`, `%`, `+`, `-` und der Apostroph beenden die Adresse: In `list+john=example.org@lists.example.com` wird nur `example.org@lists.example.com` erkannt. Eine Adresse, deren Teil vor dem `@` in Anführungszeichen steht, etwa `"john doe"@example.com`, oder deren Domain andere Buchstaben als A bis Z enthält, etwa `jörg@müller.de`, wird nicht erkannt.
+
 Teste die tatsächlich verwendeten Formate mit erfundenen Werten. Muster können ungewöhnliche Formate übersehen oder normalen Text fälschlich markieren. Prüfe Eingabe und Ausgabe getrennt.
 
 ## Externe Moderation ergänzen

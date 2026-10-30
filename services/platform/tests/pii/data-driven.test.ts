@@ -11,6 +11,10 @@
  *  - every positive is detected (`modified`) AND every pattern its
  *    `expected` list names appears in the outcome's categoryIds — a
  *    positive being caught by the wrong pattern is a regression too;
+ *  - every email a positive expects is detected at exactly its recorded
+ *    span — the category check above passes a match that also swallowed
+ *    the neighbouring word, and Chinese and Japanese text runs straight
+ *    into an address with no space between;
  *  - every negative passes untouched.
  *
  * One full-coverage scrubber per locale, shared across its cases (the
@@ -49,7 +53,13 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { PatternRegistry, createScrubber, type Scrubber } from '../../lib/pii';
+import {
+  PatternRegistry,
+  createScrubber,
+  detectPii,
+  normalizeForDetection,
+  type Scrubber,
+} from '../../lib/pii';
 import { parseYamlOrThrow } from '../../lib/shared/config/yaml';
 
 /** Shape of the frozen fixture files (formerly the generator's output). */
@@ -124,6 +134,14 @@ for (const locale of LOCALES) {
   );
 }
 
+// The email pattern alone, for the span check: with every pattern on, an
+// overlapping match of another kind could stand in for the email's span.
+const EMAIL_ONLY = createScrubber({
+  mode: 'mask',
+  registry: REGISTRY,
+  patterns: { email: true },
+});
+
 it('has fixture coverage for every registered locale', () => {
   expect(LOCALES.length).toBe(43);
 });
@@ -157,6 +175,25 @@ describe.each(LOCALES)('locale: %s', (locale) => {
           expect(outcome.categoryIds).toContain(expectedPattern);
         }
       });
+    });
+  }
+
+  const emailCases = posCases?.filter((c) =>
+    c.expected.some((e) => e.pattern === 'email'),
+  );
+  if (emailCases && emailCases.length > 0) {
+    it('detects every expected email at exactly its span', () => {
+      for (const c of emailCases) {
+        const spans = detectPii(
+          normalizeForDetection(c.input),
+          EMAIL_ONLY.patterns,
+        ).map((m) => [m.start, m.end]);
+        expect(spans, c.id).toEqual(
+          c.expected
+            .filter((e) => e.pattern === 'email')
+            .map((e) => [e.start, e.end]),
+        );
+      }
     });
   }
 

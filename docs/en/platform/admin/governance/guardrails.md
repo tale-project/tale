@@ -35,6 +35,8 @@ Masking removes matched values from the text sent onward. In a chat, the masked 
 
 A built-in identifier that is digits only, such as a Swedish passport number or a Ukrainian tax ID, is recognized only next to a word that names it, for example `passnummer` or `ІПН`. Order numbers, compact dates, and build numbers pass through. Each detection in **Recent events** names the pattern that fired, such as `se-passport`.
 
+An email address is recognized in full even when the part before the `@` contains accented or non-Latin letters or an apostrophe, as in `jörg.müller@example.com` or `john.o'brien@example.ie`. Some forms are recognized only in part or not at all. Chinese, Japanese, Thai, Lao, Khmer, and Burmese are written without spaces between words, so their letters never count as part of an address: text right before an address stays as it is, and such letters before the `@` are not recognized. Special characters other than `.`, `_`, `%`, `+`, `-`, and the apostrophe end the address, so in `list+john=example.org@lists.example.com` only `example.org@lists.example.com` is recognized. An address whose part before the `@` is in quotation marks, such as `"john doe"@example.com`, or whose domain contains letters other than A to Z, such as `jörg@müller.de`, is not recognized.
+
 Test the formats you actually use with synthetic values. Pattern detection can miss unusual formats and can flag ordinary text. Check input and output separately.
 
 ## Add external moderation

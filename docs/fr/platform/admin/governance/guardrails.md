@@ -35,6 +35,8 @@ Le masquage retire les valeurs détectées du texte transmis. Dans un chat, Tale
 
 Un identifiant intégré composé uniquement de chiffres, comme un numéro de passeport suédois ou un identifiant fiscal ukrainien, n’est reconnu qu’à côté d’un mot qui le nomme, par exemple `passnummer` ou `ІПН`. Les numéros de commande, les dates compactes et les numéros de build passent tels quels. Chaque détection dans **Événements récents** nomme le motif déclenché, par exemple `se-passport`.
 
+Une adresse e-mail est reconnue en entier même lorsque la partie avant le `@` contient des lettres accentuées, des lettres d’autres alphabets ou une apostrophe, comme `jörg.müller@example.com` ou `john.o'brien@example.ie`. Certaines formes ne sont reconnues qu’en partie, ou pas du tout. Le chinois, le japonais, le thaï, le lao, le khmer et le birman s’écrivent sans espace entre les mots ; leurs caractères ne font donc jamais partie d’une adresse : le texte juste avant une adresse reste tel quel, et, placés avant le `@`, ces caractères ne sont pas reconnus. Les caractères spéciaux autres que `.`, `_`, `%`, `+`, `-` et l’apostrophe terminent l’adresse : dans `list+john=example.org@lists.example.com`, seul `example.org@lists.example.com` est reconnu. Une adresse dont la partie avant le `@` est entre guillemets, comme `"john doe"@example.com`, ou dont le domaine contient d’autres lettres que A à Z, comme `jörg@müller.de`, n’est pas reconnue.
+
 Teste tes formats réels avec des valeurs fictives. La détection peut manquer des formats inhabituels et signaler à tort du texte ordinaire. Vérifie séparément l’entrée et la sortie.
 
 ## Ajouter une modération externe
