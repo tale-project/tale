@@ -832,6 +832,167 @@ describe('streamSse — a tool call the model began', () => {
   );
 });
 
+/** One Chat Completions frame carrying one tool-call fragment. */
+function toolCallFrame(fragment: Record<string, unknown>): unknown {
+  return { choices: [{ index: 0, delta: { tool_calls: [fragment] } }] };
+}
+
+/** The tool calls a stream settles with. */
+async function settledCalls(frames: readonly unknown[]) {
+  const chunks = await chunksOf(sseResponse(frames), 'openai');
+  return chunks.find((chunk) => chunk.toolCalls !== undefined)?.toolCalls;
+}
+
+const NOTES = 'https://www.mozilla.org/en-US/firefox/notes/';
+const CALENDAR = 'https://wiki.mozilla.org/Release_Management/Calendar';
+const TRAINS = 'https://whattrainisitnow.com/calendar';
+
+/**
+ * Parallel calls on the Chat Completions wire. A gateway that answers it
+ * from the Responses API (Bifrost, for an OpenAI model it routes there)
+ * numbers each call `output_index - 1`, so when nothing comes before the
+ * calls the first two both arrive as index 0, each with its own id.
+ */
+describe('streamSse — parallel tool calls sharing an index', () => {
+  it('keeps calls a gateway gave the same index apart, each with its own arguments', async () => {
+    const announce = (index: number, id: string) =>
+      toolCallFrame({
+        index,
+        id,
+        type: 'function',
+        function: { name: 'web_fetch', arguments: '' },
+      });
+    const args = (index: number, url: string) =>
+      toolCallFrame({
+        index,
+        function: { name: null, arguments: JSON.stringify({ url }) },
+      });
+    // What the gateway sends for the closing events of each call: no delta.
+    const closing = { choices: [{ index: 0, delta: {} }] };
+
+    const calls = await settledCalls([
+      announce(0, 'call_notes'),
+      args(0, NOTES),
+      closing,
+      announce(0, 'call_calendar'),
+      args(0, CALENDAR),
+      closing,
+      announce(1, 'call_trains'),
+      args(1, TRAINS),
+      closing,
+      { choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] },
+    ]);
+
+    expect(calls).toEqual([
+      { id: 'call_notes', name: 'web_fetch', input: { url: NOTES } },
+      { id: 'call_calendar', name: 'web_fetch', input: { url: CALENDAR } },
+      { id: 'call_trains', name: 'web_fetch', input: { url: TRAINS } },
+    ]);
+  });
+
+  it('keeps calls apart that each arrive whole at index 0', async () => {
+    const whole = (id: string, url: string) =>
+      toolCallFrame({
+        index: 0,
+        id,
+        type: 'function',
+        function: { name: 'web_fetch', arguments: JSON.stringify({ url }) },
+      });
+
+    const calls = await settledCalls([
+      whole('call_notes', NOTES),
+      whole('call_calendar', CALENDAR),
+    ]);
+
+    expect(calls?.map((call) => call.input)).toEqual([
+      { url: NOTES },
+      { url: CALENDAR },
+    ]);
+  });
+
+  it('reads a call whose every fragment repeats its id as one call', async () => {
+    const calls = await settledCalls([
+      toolCallFrame({
+        index: 0,
+        id: 'call_notes',
+        type: 'function',
+        function: { name: 'web_fetch', arguments: '{"url":' },
+      }),
+      toolCallFrame({
+        index: 0,
+        id: 'call_notes',
+        function: { arguments: JSON.stringify(NOTES) },
+      }),
+      toolCallFrame({
+        index: 0,
+        id: 'call_notes',
+        function: { arguments: '}' },
+      }),
+    ]);
+
+    expect(calls).toEqual([
+      { id: 'call_notes', name: 'web_fetch', input: { url: NOTES } },
+    ]);
+  });
+
+  it('reads fragments that bring a new id but no function name as the same call', async () => {
+    // A server may stamp each fragment with an id of its own; only a
+    // fragment that names a function announces a call.
+    const calls = await settledCalls([
+      toolCallFrame({
+        index: 0,
+        id: 'call_a1',
+        type: 'function',
+        function: { name: 'web_fetch', arguments: '{"url":' },
+      }),
+      toolCallFrame({
+        index: 0,
+        id: 'call_a2',
+        function: { arguments: JSON.stringify(NOTES) },
+      }),
+      toolCallFrame({ index: 0, id: 'call_a3', function: { arguments: '}' } }),
+    ]);
+
+    expect(calls).toHaveLength(1);
+    expect(calls?.[0]).toMatchObject({
+      name: 'web_fetch',
+      input: { url: NOTES },
+    });
+  });
+
+  it('keeps the calls in the order they were announced, interleaved fragments included', async () => {
+    const calls = await settledCalls([
+      toolCallFrame({
+        index: 0,
+        id: 'call_notes',
+        function: { name: 'web_fetch', arguments: '' },
+      }),
+      toolCallFrame({
+        index: 1,
+        id: 'call_calendar',
+        function: { name: 'web_fetch', arguments: '' },
+      }),
+      toolCallFrame({
+        index: 1,
+        function: { arguments: JSON.stringify({ url: CALENDAR }) },
+      }),
+      toolCallFrame({
+        index: 0,
+        function: { arguments: JSON.stringify({ url: NOTES }) },
+      }),
+    ]);
+
+    expect(calls?.map((call) => call.id)).toEqual([
+      'call_notes',
+      'call_calendar',
+    ]);
+    expect(calls?.map((call) => call.input)).toEqual([
+      { url: NOTES },
+      { url: CALENDAR },
+    ]);
+  });
+});
+
 /**
  * What a failed reply books, with the real wire under the real turn: the
  * provider is a synthetic `Response` (no network, no store, no money), read

@@ -114,6 +114,7 @@ Sehr lange Gespräche können das Kontextfenster des Modells überschreiten. Tal
 | Eine Datei wurde nicht verwendet | Prüfe Projektzuordnung, Indexierungsstatus und Abrufschritte. Nenne die Datei ausdrücklich. |
 | Die Suche meldet eine nicht verfügbare Quelle | Bitte einen Admin, den genannten Dienst oder die Embedding-Konfiguration zu prüfen. Ein leeres Ergebnis beweist nicht, dass die Information fehlt. |
 | Eine Antwort endet mit einem Fehler | Lies die Fehlermeldung, prüfe das gewählte Modell und versuche es nach Behebung erneut. Tale wechselt nicht still den Anbieter. |
+| Eine Webseite ließ sich nicht lesen | Der fehlgeschlagene Leseschritt nennt den Grund. Meldet eine Adresse 404, gibt es dort keine Seite. Hat statt der Seite der Bot-Schutz einer Website geantwortet, lässt sie sich im Chat nicht lesen; öffne sie in deinem Browser. |
 | Eine Antwort bleibt leer | Der Hinweis an ihrer Stelle nennt den Grund: Das Modell hat nichts geliefert, es hat sein Limit für Ausgabe-Tokens vor dem Schreiben aufgebraucht, oder der Inhaltsfilter des Anbieters hat die Antwort zurückgehalten. Wähle **Erneut versuchen**, oder verringere vorher den Denkaufwand, kürze die Anfrage oder wähle ein anderes Modell. |
 
 Ein angeleitetes Beispiel mit Quellenprüfung findest du unter [Bessere Fragen im Chat](/de/tutorials/member/chat-effectively).

@@ -20,7 +20,8 @@
  *  - IPv4: 10/8, 172.16/12, 192.168/16, 127/8, 169.254/16, 0/8, 224+
  *  - IPv6: ::1, fe80::/10, fc00::/7
  *  - IPv4-mapped IPv6: `::ffff:a.b.c.d` and the 32-bit hex form
- *    `::ffff:7f00:1` — decoded back to IPv4 before re-checking.
+ *    `::ffff:7f00:1` — decoded back to IPv4 before re-checking, as are the
+ *    IPv4-compatible `::a.b.c.d` / `::7f00:1` and the 6to4 and NAT64 forms.
  */
 export function isPrivateIp(hostname: string): boolean {
   // `URL.hostname` keeps surrounding brackets for IPv6 literals; strip them
@@ -89,6 +90,11 @@ export function isPrivateIp(hostname: string): boolean {
       const v4 = `${(hextets[6] >> 8) & 0xff}.${hextets[6] & 0xff}.${(hextets[7] >> 8) & 0xff}.${hextets[7] & 0xff}`;
       return isPrivateIpv4(v4);
     }
+    // IPv4-compatible IPv6 ::/96 (deprecated, RFC 4291) — `::7f00:1` and
+    // `::127.0.0.1` name the IPv4 in their last 32 bits; `::` and `::1`
+    // were judged above.
+    const compatible = ipv4CompatibleTail(hextets);
+    if (compatible !== null) return isPrivateIpv4(compatible);
     // 6to4 2002::/16 — hextet[1..2] embeds the public v4 the tunnel
     // wraps; if that v4 is private, the tunnel targets a private host.
     if (hextets[0] === 0x2002) {
@@ -163,6 +169,14 @@ function expandIpv6(addr: string): number[] | null {
   return out;
 }
 
+/** The IPv4 an IPv4-compatible IPv6 address (`::a.b.c.d`, ::/96) carries in
+ * its last 32 bits, or null for any other address. */
+function ipv4CompatibleTail(hextets: readonly number[]): string | null {
+  if (!hextets.slice(0, 6).every((hextet) => hextet === 0)) return null;
+  const [high = 0, low = 0] = hextets.slice(6);
+  return `${(high >> 8) & 0xff}.${high & 0xff}.${(low >> 8) & 0xff}.${low & 0xff}`;
+}
+
 function isPrivateIpv4(host: string): boolean {
   const m = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (!m) return false;
@@ -214,7 +228,9 @@ function canonicalAddress(lower: string): string | null {
   ) {
     return `${(hextets[6] >> 8) & 0xff}.${hextets[6] & 0xff}.${(hextets[7] >> 8) & 0xff}.${hextets[7] & 0xff}`;
   }
-  return hextets.map((h) => h.toString(16)).join(':');
+  return (
+    ipv4CompatibleTail(hextets) ?? hextets.map((h) => h.toString(16)).join(':')
+  );
 }
 
 const METADATA_CANONICAL: ReadonlySet<string> = new Set(

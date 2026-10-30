@@ -165,6 +165,16 @@ const arenaTurnSchema = z.object({
   locale: localeTagSchema.optional(),
 });
 
+/** One attachment of a send, direct or deferred: an upload the composer
+ * staged, or the transcript a video link bound to the message
+ * (`/video-links/bind`). */
+export const chatSendAttachmentSchema = z.object({
+  fileId: z.string().min(1).max(1024),
+  fileName: z.string().min(1).max(512),
+  fileType: z.string().min(1).max(255),
+  fileSize: z.number().int().min(0),
+});
+
 const sendSchema = z.object({
   text: z.string().max(200_000),
   /** Exactly one of `modelId` and `modelSelection: 'auto'` — enforced by
@@ -173,17 +183,7 @@ const sendSchema = z.object({
   modelSelection: z.literal('auto').optional(),
   providerSlug: z.string().min(1).max(200).optional(),
   reasoningEffort: z.enum(['low', 'medium', 'high', 'extra', 'max']).optional(),
-  attachments: z
-    .array(
-      z.object({
-        fileId: z.string().min(1).max(1024),
-        fileName: z.string().min(1).max(512),
-        fileType: z.string().min(1).max(255),
-        fileSize: z.number().int().min(0),
-      }),
-    )
-    .max(20)
-    .optional(),
+  attachments: z.array(chatSendAttachmentSchema).max(20).optional(),
   resend: z.boolean().optional(),
   /** The UI's language: the reply's default — the language the user writes
    * in still wins, this lane never fixes it — and the catalog the turn's
@@ -939,17 +939,7 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     const body = z
       .object({
         text: z.string().max(200_000),
-        attachments: z
-          .array(
-            z.object({
-              fileId: z.string().min(1).max(1024),
-              fileName: z.string().min(1).max(512),
-              fileType: z.string().min(1).max(255),
-              fileSize: z.number().int().min(0),
-            }),
-          )
-          .max(20)
-          .optional(),
+        attachments: z.array(chatSendAttachmentSchema).max(20).optional(),
         videoJobIds: z.array(z.string().min(1).max(128)).max(20).optional(),
         modelId: z.string().min(1).max(200).optional(),
         modelSelection: z.literal('auto').optional(),

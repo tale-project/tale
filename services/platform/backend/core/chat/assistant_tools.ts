@@ -44,10 +44,13 @@ import {
 import { htmlTitle, htmlToText } from '../../../lib/knowledge/html-to-text';
 import { isMessageRef } from '../../../lib/knowledge/message-ref';
 import type { KnowledgeAccessScope } from '../../../lib/knowledge/types';
+import { botCheckOf } from '../../../lib/net/bot-check';
 import {
   SafeFetchError,
   isPrivateIp,
   safeFetch,
+  type OutboundProxyRef,
+  type SafeFetchResponse,
 } from '../../../lib/net/safe-fetch';
 import { modelTimestamp } from '../../../lib/shared/model-timestamp';
 import { readDocumentText } from '../knowledge/document_text';
@@ -108,6 +111,84 @@ export interface ChatToolContext {
  * never threaten the Convex value ceiling. */
 const WEB_FETCH_MAX_RESPONSE_BYTES = 4 * 1024 * 1024;
 const WEB_FETCH_TIMEOUT_MS = 15_000;
+/** How many times a page that answers with a bot check is asked for through
+ * the outbound proxies: the check is the site's verdict on one address, and
+ * the next proxy leaves from another. */
+const WEB_FETCH_BOT_CHECK_ATTEMPTS = 3;
+
+/** A page web_fetch asked for, and the bot check it still met, if any. */
+interface FetchedPage {
+  readonly response: SafeFetchResponse;
+  /** The vendor whose bot check answered the last attempt. */
+  readonly botCheck: string | null;
+  readonly attempts: number;
+}
+
+/**
+ * Fetch a public page for web_fetch. Nothing it sends is a credential, so a
+ * redirect onto another site leaks nothing and is followed as a browser
+ * follows it (`www.mozilla.org` sends Firefox's pages to `www.firefox.com`),
+ * every hop still resolved, checked and pinned, and over https alone. A bot
+ * check that came through an outbound proxy is asked for again through the
+ * next one, while the attempts so far left the time for it; a retry that
+ * fails leaves the check the answer.
+ */
+async function fetchPublicPage(url: URL): Promise<FetchedPage> {
+  const started = Date.now();
+  const walls: string[] = [];
+  let walled: FetchedPage | null = null;
+  for (let attempts = 1; ; attempts += 1) {
+    let response: SafeFetchResponse;
+    try {
+      response = await safeFetch(url.toString(), {
+        timeoutMs: WEB_FETCH_TIMEOUT_MS,
+        maxResponseBytes: WEB_FETCH_MAX_RESPONSE_BYTES,
+        credentialless: true,
+        httpsOnly: true,
+        outboundProxy: true,
+        headers: {
+          accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5',
+          'user-agent': 'TaleAssistant/1.0 (+chat web_fetch)',
+        },
+      });
+    } catch (error) {
+      // The page was never read, and the check an earlier attempt met says
+      // why better than the failure of asking again.
+      if (walled === null) throw error;
+      console.warn(
+        `[chat] web_fetch: ${url.hostname} answered with a bot check (${walls.join('; ')}), and asking again failed: ${describeError(error)}`,
+      );
+      return walled;
+    }
+    const botCheck = botCheckOf(response);
+    const via = response.outboundProxy;
+    if (botCheck !== null) {
+      walls.push(`${botCheck} ${cameThrough(via)}`);
+      walled = { response, botCheck, attempts };
+    }
+    const again =
+      botCheck !== null &&
+      via !== undefined &&
+      attempts < WEB_FETCH_BOT_CHECK_ATTEMPTS &&
+      Date.now() - started < WEB_FETCH_TIMEOUT_MS;
+    if (again) continue;
+    if (walls.length > 0) {
+      console.warn(
+        `[chat] web_fetch: ${url.hostname} answered with a bot check (${walls.join('; ')})${botCheck === null ? `, then served the page ${cameThrough(via)}` : ''}`,
+      );
+    }
+    return { response, botCheck, attempts };
+  }
+}
+
+/** How a log line names the way a response came: the proxy, never its
+ * credentials. */
+function cameThrough(via: OutboundProxyRef | undefined): string {
+  return via === undefined
+    ? 'directly'
+    : `through outbound proxy entry ${via.entry} (${via.label})`;
+}
+
 /** Snippet budget per rag_search row that carries a description — a task, a
  * project, a website — and for a product's or contact's free text. */
 const SNIPPET_CHARS = 500;
@@ -2557,17 +2638,9 @@ export function createChatToolExecutor(
         ? Math.min(Math.floor(args.limit), FETCH_WINDOW_CHARS)
         : FETCH_WINDOW_CHARS;
 
-    let response;
+    let fetched: FetchedPage;
     try {
-      response = await safeFetch(parsed.toString(), {
-        timeoutMs: WEB_FETCH_TIMEOUT_MS,
-        maxResponseBytes: WEB_FETCH_MAX_RESPONSE_BYTES,
-        outboundProxy: true,
-        headers: {
-          accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5',
-          'user-agent': 'TaleAssistant/1.0 (+chat web_fetch)',
-        },
-      });
+      fetched = await fetchPublicPage(parsed);
     } catch (error) {
       const message =
         error instanceof SafeFetchError
@@ -2575,6 +2648,16 @@ export function createChatToolExecutor(
           : `The page could not be fetched: ${clip(describeError(error), 200)}`;
       const result: ToolFailure = { status: 'error', message };
       await recordDispatch('web_fetch', result.status, message);
+      return result;
+    }
+    const { response } = fetched;
+
+    if (fetched.botCheck !== null) {
+      const result: ToolFailure = {
+        status: 'error',
+        message: `The site answered with ${fetched.botCheck}'s bot check instead of the page${fetched.attempts > 1 ? ` on each of ${fetched.attempts} attempts` : ''}, so it cannot be read here. Tell the user; they can open it in their browser.`,
+      };
+      await recordDispatch('web_fetch', result.status, result.message);
       return result;
     }
 
