@@ -16,7 +16,11 @@ import { painted } from '@/tests/utils/paint';
 import { cleanup, render, screen, within } from '@/tests/utils/render';
 
 import type { HomeData } from '../hooks/use-home-data';
-import type { HomeGroup, HomeItem } from '../lib/home-items';
+import {
+  DRAFT_ROW_KEY,
+  type HomeGroup,
+  type HomeItem,
+} from '../lib/home-items';
 import { HomeNavigator, HomePanel } from './home-panel';
 import { HomePanelProvider } from './home-panel-context';
 import { HomeConversationRow } from './home-rows';
@@ -289,6 +293,26 @@ function chatList(
   }));
 }
 
+/**
+ * `threads` and a chat a live read brings in from elsewhere (another tab, an
+ * agent): the newest of all, so it leads the stream and every row moves down.
+ */
+function withArrivedChat(threads: ChatThreadSummary[]): ChatThreadSummary[] {
+  const newest = Math.max(...threads.map((thread) => thread.updatedAt));
+  return [
+    {
+      id: 'chat-arrived',
+      title: 'Arrived chat',
+      kind: 'direct',
+      createdAt: newest + 1,
+      updatedAt: newest + 1,
+      archived: false,
+      generating: false,
+    },
+    ...threads,
+  ];
+}
+
 function homeData(
   projects: ChatProjectSummary[],
   threads: ChatThreadSummary[],
@@ -348,6 +372,7 @@ function renderHome({
   view?: string;
 }) {
   localStorage.setItem(`home-view-${ORG}`, JSON.stringify(view));
+  let read = { projects, threads };
   backend.home = homeData(projects, threads, unread);
   backend.location = {
     pathname: `/dashboard/${ORG}/chat/${openThreadId}`,
@@ -375,6 +400,23 @@ function renderHome({
       };
       result.rerender(home());
     },
+    /** Opens a fresh chat, whose draft row leads the stream. */
+    startChat() {
+      backend.location = {
+        pathname: `/dashboard/${ORG}/chat`,
+        search: { new: true },
+      };
+      result.rerender(home());
+    },
+    /** Hands the panel its next live read, as a refetch does. */
+    update(next: {
+      projects?: ChatProjectSummary[];
+      threads?: ChatThreadSummary[];
+    }) {
+      read = { ...read, ...next };
+      backend.home = homeData(read.projects, read.threads, unread);
+      result.rerender(home());
+    },
   };
 }
 
@@ -392,12 +434,80 @@ function streamRows() {
   return element;
 }
 
+/** The stream's list itself, also while a dialog hides the page behind it. */
+function streamList() {
+  return screen.getByRole('list', {
+    name: 'Your chats, tasks and conversations',
+    hidden: true,
+  });
+}
+
 function chatRow(threadId: string) {
   const element = document.querySelector(`[data-thread-id="${threadId}"]`);
   if (!(element instanceof HTMLElement)) {
     throw new Error(`No row for ${threadId}`);
   }
   return element;
+}
+
+/** The chat rows in the page, by thread. */
+function drawnChatRows() {
+  return new Map(
+    [...document.querySelectorAll<HTMLElement>('[data-thread-id]')].map(
+      (row) => [row.dataset.threadId ?? '', row],
+    ),
+  );
+}
+
+/**
+ * The rows `before` drew that `after` draws too: kept as the same elements,
+ * or remounted as new ones, which is what replacing the list does.
+ */
+function survivors(
+  before: ReadonlyMap<string, Element>,
+  after: ReadonlyMap<string, Element>,
+) {
+  const kept: string[] = [];
+  const remounted: string[] = [];
+  for (const [key, row] of after) {
+    const previous = before.get(key);
+    if (previous === undefined) continue;
+    (previous === row ? kept : remounted).push(key);
+  }
+  return { kept, remounted };
+}
+
+/**
+ * Waits out the fade a Home list plays as it mounts (`animate-in` on its
+ * root). Call it straight after the render: a list whose root is replaced
+ * plays the fade again, and a settled one plays nothing.
+ */
+async function fadedIn(list: Element) {
+  const fades = list.getAnimations();
+  expect(fades).not.toHaveLength(0);
+  await Promise.all(fades.map((fade) => fade.finished));
+}
+
+/**
+ * Takes a stream of 60 chats across the window threshold and back, the way
+ * live reads do: a chat arriving from elsewhere makes 61 rows, of which only
+ * those near the view are mounted, and its leaving makes 60 again, all of
+ * them mounted. `check` runs on each side.
+ */
+async function crossTheWindowThreshold(
+  view: ReturnType<typeof renderHome>,
+  check: () => void,
+) {
+  view.update({
+    threads: withArrivedChat(chatList(WINDOWED_STREAM_MIN_ROWS)),
+  });
+  await expect
+    .poll(() => drawnChatRows().size)
+    .toBeLessThan(WINDOWED_STREAM_MIN_ROWS);
+  check();
+  view.update({ threads: chatList(WINDOWED_STREAM_MIN_ROWS) });
+  expect(drawnChatRows().size).toBe(WINDOWED_STREAM_MIN_ROWS);
+  check();
 }
 
 function box(element: Element) {
@@ -496,6 +606,7 @@ async function carryTo(from: Point, to: Point, settled: () => boolean) {
 describe('Home panel in Chromium', () => {
   it('keeps an inline rename draft and focus when live rows cross the virtual threshold', async () => {
     const view = renderHome({ threads: chatList(WINDOWED_STREAM_MIN_ROWS) });
+    const list = streamList();
     await page
       .elementLocator(
         within(chatRow('chat-0')).getByRole('button', { name: 'More actions' }),
@@ -504,24 +615,14 @@ describe('Home panel in Chromium', () => {
     await page.getByRole('menuitem', { name: 'Rename' }).click();
     const input = screen.getByRole('textbox', { name: 'Rename' });
     await page.elementLocator(input).fill('Keep this unsaved title');
-    const navigator = () => (
-      <div
-        data-testid="frame"
-        style={{ height: 640 }}
-        className="bg-background flex w-70 flex-col overflow-hidden"
-      >
-        <HomeNavigator organizationId={ORG} variant="panel" />
-      </div>
-    );
-    backend.home = homeData([], chatList(WINDOWED_STREAM_MIN_ROWS + 1));
-    view.rerender(navigator());
-    expect(input.isConnected).toBe(true);
-    expect(input).toHaveValue('Keep this unsaved title');
-    expect(input).toHaveFocus();
-    backend.home = homeData([], chatList(WINDOWED_STREAM_MIN_ROWS));
-    view.rerender(navigator());
-    expect(input).toHaveValue('Keep this unsaved title');
-    expect(input).toHaveFocus();
+    await crossTheWindowThreshold(view, () => {
+      expect(input.isConnected).toBe(true);
+      expect(input).toHaveValue('Keep this unsaved title');
+      expect(input).toHaveFocus();
+      // One list on both sides: had it been replaced, the row and its rename
+      // state would have gone with it.
+      expect(streamList()).toBe(list);
+    });
   });
 
   it('keeps the reading position and viewport when live rows cross the window threshold', async () => {
@@ -535,21 +636,11 @@ describe('Home panel in Chromium', () => {
     const anchorTop = box(anchor).top;
     const viewport = box(stream);
     expect(offset).toBeGreaterThan(600);
-    const navigator = () => (
-      <div
-        data-testid="frame"
-        style={{ height: 640 }}
-        className="bg-background flex w-70 flex-col overflow-hidden"
-      >
-        <HomeNavigator organizationId={ORG} variant="panel" />
-      </div>
-    );
     for (const count of [
       WINDOWED_STREAM_MIN_ROWS + 1,
       WINDOWED_STREAM_MIN_ROWS,
     ]) {
-      backend.home = homeData([], chatList(count));
-      view.rerender(navigator());
+      view.update({ threads: chatList(count) });
       await nextFrame();
       await nextFrame();
       expect(anchor.isConnected).toBe(true);
@@ -844,6 +935,109 @@ describe('a long Home stream in Chromium', () => {
     expect(mountedRows()).toBe(WINDOWED_STREAM_MIN_ROWS);
   });
 
+  // Each list once rendered one element up to 60 rows and another past them,
+  // so a crossing replaced the list: every row remounted, with whatever was
+  // open or focused in it, and the list faded in again (#4414).
+  it('keeps the list, the rows in view and the focus as live rows cross the threshold, and fades in once', async () => {
+    const view = renderHome({ threads: chatList(WINDOWED_STREAM_MIN_ROWS) });
+    const list = streamList();
+    await fadedIn(list);
+    const link = rowLink('chat-5');
+    if (!(link instanceof HTMLElement)) throw new Error('No row');
+    link.focus();
+    let before = drawnChatRows();
+    await crossTheWindowThreshold(view, () => {
+      const after = drawnChatRows();
+      const { kept, remounted } = survivors(before, after);
+      expect(remounted).toEqual([]);
+      expect(kept.length).toBeGreaterThan(10);
+      expect(streamList().getAnimations()).toEqual([]);
+      expect(streamList()).toBe(list);
+      expect(link).toHaveFocus();
+      before = after;
+    });
+  });
+
+  it("keeps a row's open menu, and the focus in it, as live rows cross the threshold", async () => {
+    const view = renderHome({ threads: chatList(WINDOWED_STREAM_MIN_ROWS) });
+    const list = streamList();
+    const row = chatRow('chat-5');
+    await page
+      .elementLocator(within(row).getByRole('button', { name: 'More actions' }))
+      .click();
+    const menu = await screen.findByRole('menu');
+    await expect.poll(() => menu.contains(document.activeElement)).toBe(true);
+    await crossTheWindowThreshold(view, () => {
+      expect(chatRow('chat-5')).toBe(row);
+      expect(menu.isConnected).toBe(true);
+      expect(menu.contains(document.activeElement)).toBe(true);
+      expect(streamList()).toBe(list);
+    });
+  });
+
+  it("keeps a row's delete confirmation, and the focus in it, as live rows cross the threshold", async () => {
+    const view = renderHome({ threads: chatList(WINDOWED_STREAM_MIN_ROWS) });
+    const list = streamList();
+    const row = chatRow('chat-5');
+    await page
+      .elementLocator(within(row).getByRole('button', { name: 'More actions' }))
+      .click();
+    await page.getByRole('menuitem', { name: 'Delete' }).click();
+    await expect
+      .element(page.getByRole('button', { name: 'Delete chat' }))
+      .toBeVisible();
+    const dialog = screen.getByRole('dialog');
+    await expect.poll(() => dialog.contains(document.activeElement)).toBe(true);
+    await crossTheWindowThreshold(view, () => {
+      expect(chatRow('chat-5')).toBe(row);
+      expect(dialog.isConnected).toBe(true);
+      expect(dialog.contains(document.activeElement)).toBe(true);
+      expect(streamList()).toBe(list);
+    });
+  });
+
+  // A fresh chat's draft row counts as a row: opening one beside 60 chats
+  // crosses the threshold too, and leaving it crosses back.
+  it('keeps a rename left with its error while a fresh chat takes the stream across the threshold and back', async () => {
+    const view = renderHome({ threads: chatList(WINDOWED_STREAM_MIN_ROWS) });
+    const list = streamList();
+    const row = chatRow('chat-5');
+    await page
+      .elementLocator(within(row).getByRole('button', { name: 'More actions' }))
+      .click();
+    await page.getByRole('menuitem', { name: 'Rename' }).click();
+    const input = screen.getByRole('textbox', { name: 'Rename' });
+    await page.elementLocator(input).fill('');
+    // Leaving the empty field asks for a title and keeps the field open.
+    await page.elementLocator(screen.getByPlaceholderText(/Search/i)).click();
+    await expect
+      .poll(() => input)
+      .toHaveAccessibleErrorMessage('Enter a chat title.');
+    const unchanged = () => {
+      expect(chatRow('chat-5')).toBe(row);
+      expect(input.isConnected).toBe(true);
+      expect(input).toHaveValue('');
+      expect(input).toHaveAccessibleErrorMessage('Enter a chat title.');
+      expect(streamList()).toBe(list);
+    };
+    const draftRow = () =>
+      streamList().querySelector(`[data-indicator-key="${DRAFT_ROW_KEY}"]`);
+
+    // A fresh chat opens: its draft row leads 60 chats, 61 rows.
+    view.startChat();
+    await expect
+      .poll(() => mountedRows())
+      .toBeLessThan(WINDOWED_STREAM_MIN_ROWS);
+    unchanged();
+    expect(draftRow()).not.toBeNull();
+
+    // Another chat opens: the draft row goes, 60 rows.
+    view.navigateTo('chat-0');
+    expect(mountedRows()).toBe(WINDOWED_STREAM_MIN_ROWS);
+    unchanged();
+    expect(draftRow()).toBeNull();
+  });
+
   it('mounts only the rows near the view, each telling its place in the whole stream', async () => {
     renderHome({ threads: chatList(400) });
     await expect.poll(() => mountedRows()).toBeGreaterThan(10);
@@ -1045,14 +1239,111 @@ describe('a long PROJECTS list in Chromium', () => {
       .querySelectorAll('li[data-index]');
   }
 
-  function projectsScroller() {
+  function projectsList() {
     const list = screen
       .getByRole('region', { name: 'Projects' })
       .querySelector('ul[role="list"]');
-    const scroller = list?.parentElement;
+    if (!(list instanceof HTMLElement)) throw new Error('No projects list');
+    return list;
+  }
+
+  function projectsScroller() {
+    const scroller = projectsList().parentElement;
     if (!(scroller instanceof HTMLElement)) throw new Error('No scroller');
     return scroller;
   }
+
+  /** The project rows in the page, by project. */
+  function drawnProjectRows() {
+    return new Map(
+      [...projectRows()].map((row) => [
+        row
+          .querySelector('[data-indicator-key]')
+          ?.getAttribute('data-indicator-key') ?? '',
+        row,
+      ]),
+    );
+  }
+
+  /**
+   * Takes 60 projects across the window threshold and back, the way live
+   * reads do: a project created elsewhere, sorting first, makes 61 rows, of
+   * which only those near the view are mounted; its leaving makes 60 again,
+   * all of them mounted. `check` runs on each side. PROJECTS is drawn by the
+   * stream's list, so it windows past the stream's threshold.
+   */
+  async function crossTheProjectsThreshold(
+    view: ReturnType<typeof renderHome>,
+    check: () => void,
+  ) {
+    view.update({
+      projects: [
+        { id: 'project-new', name: 'Project 000' },
+        ...manyProjects(WINDOWED_STREAM_MIN_ROWS),
+      ],
+    });
+    await expect
+      .poll(() => projectRows().length)
+      .toBeLessThan(WINDOWED_STREAM_MIN_ROWS);
+    check();
+    view.update({ projects: manyProjects(WINDOWED_STREAM_MIN_ROWS) });
+    expect(projectRows()).toHaveLength(WINDOWED_STREAM_MIN_ROWS);
+    check();
+  }
+
+  it('mounts every project of a list at the threshold', () => {
+    renderHome({
+      projects: manyProjects(WINDOWED_STREAM_MIN_ROWS),
+      threads: chatList(3),
+    });
+    expect(projectRows()).toHaveLength(WINDOWED_STREAM_MIN_ROWS);
+  });
+
+  it('keeps the list, the rows in view and the focus as projects cross the threshold, and fades in once', async () => {
+    const view = renderHome({
+      projects: manyProjects(WINDOWED_STREAM_MIN_ROWS),
+      threads: chatList(3),
+    });
+    const list = projectsList();
+    await fadedIn(list);
+    const link = screen.getByRole('link', { name: /Project 005/ });
+    link.focus();
+    let before = drawnProjectRows();
+    await crossTheProjectsThreshold(view, () => {
+      const after = drawnProjectRows();
+      const { kept, remounted } = survivors(before, after);
+      expect(remounted).toEqual([]);
+      expect(kept.length).toBeGreaterThan(5);
+      expect(projectsList().getAnimations()).toEqual([]);
+      expect(projectsList()).toBe(list);
+      expect(link).toHaveFocus();
+      before = after;
+    });
+  });
+
+  it("keeps a project's open menu, and the focus in it, as projects cross the threshold", async () => {
+    const view = renderHome({
+      projects: manyProjects(WINDOWED_STREAM_MIN_ROWS),
+      threads: chatList(3),
+    });
+    const list = projectsList();
+    const row = () =>
+      screen.getByRole('link', { name: /Project 005/ }).closest('li');
+    const opened = row();
+    await page
+      .elementLocator(
+        screen.getByRole('button', { name: 'Actions for Project 005' }),
+      )
+      .click();
+    const menu = await screen.findByRole('menu');
+    await expect.poll(() => menu.contains(document.activeElement)).toBe(true);
+    await crossTheProjectsThreshold(view, () => {
+      expect(row()).toBe(opened);
+      expect(menu.isConnected).toBe(true);
+      expect(menu.contains(document.activeElement)).toBe(true);
+      expect(projectsList()).toBe(list);
+    });
+  });
 
   it('mounts only the projects near the view, and every one a scroll or End reaches', async () => {
     renderHome({ projects: manyProjects(300), threads: chatList(3) });

@@ -263,14 +263,23 @@ single warm sample.
   than 60 projects in Home (a few hundred of each seeded), open one, scroll
   the stream and the PROJECTS list to their ends and back, press **End** and
   **Home** on a row of each, then drag a chat from the far end onto a
-  project. → The panel holds only the rows near each list's view (under 100
-  `[data-thread-id]` elements), and every row is reached by scrolling and by
-  the arrow keys, with no blank gap and no jump. A screen reader reads
-  consistent item positions and totals for the whole list, including its day
-  headings and any draft row; the open chat and the open project keep their
-  highlight wherever their list scrolls; the drag files the chat. A stream
-  of 60 work rows or fewer, or a PROJECTS list of 60 projects or fewer,
-  keeps every row in the page, so **Ctrl+F** finds any of them.
+  project. Then, with exactly 60 chats and 60 projects and Home in view,
+  start a chat and create a project from a second window beside it, then
+  delete both: once with a chat's rename field left open (clear its title
+  and click outside it), once with a chat's menu open, once with a project's
+  menu open, and once with a row focused from the keyboard. → The panel
+  holds only the rows near each list's view (under 100 `[data-thread-id]`
+  elements), and every row is reached by scrolling and by the arrow keys,
+  with no blank gap and no jump. A screen reader reads consistent item
+  positions and totals for the whole list, including its day headings and
+  any draft row; the open chat and the open project keep their highlight
+  wherever their list scrolls; the drag files the chat. A stream of 60 work
+  rows or fewer, or a PROJECTS list of 60 projects or fewer, keeps every row
+  in the page, so **Ctrl+F** finds any of them. Crossing 60 either way
+  changes only which rows are in the page: the rows in view stay put, the
+  rename field stays open asking for a title, an open menu stays open, the
+  focused row has the focus again once its window does, and neither list
+  fades in again.
 - [ ] `PERF-B11` · **Reply when the api restarts** — Follow `docker compose logs -f backend-api`, send a prompt that makes the model write a long answer (1,500 words), and while it streams run `docker compose restart backend-api`. → The reply does not spin for ten minutes: within the api's drain window (`SHUTDOWN_DRAIN_MS`, 15 s by default) it either finishes or ends as failed with "Couldn't generate a response. Try again.", and the log shows `[backend] 1 chat turn(s) still running at shutdown — settled as interrupted` before the api exits. Once the api is back the thread has no generation in progress, the composer reads **Send message**, and a new prompt in the same thread is answered.
 - [ ] `PERF-B12` · **Reply as the database restarts** — Follow `docker compose logs -f backend-api`, send a prompt that makes the model write a long answer (1,500 words), run `docker compose stop db` while it streams, and `docker compose start db` about ten seconds after the answer has stopped streaming. → The api does not give up on the finished reply: its log shows `database unavailable` lines and no error stack, and once `db` answers the reply is stored whole. Reload the tab: the thread shows the full answer (not a failed or empty one), its composer reads **Send message**, and Settings → Usage counts the reply once.
 - [ ] `PERF-B13` · **A database restart does not sign you out** — With a tab signed in to an account that belongs to two organizations, run `docker compose restart db` and, while it is away, switch organization from the user menu and create an API key (Settings → API keys). → Each action fails with a retryable message (the Better Auth routes answer `503` `DATABASE_UNAVAILABLE` with `Retry-After`, never `401` `UNAUTHORIZED`) and the tab is not taken to the sign-in page; once `db` is healthy the same tab switches organization and creates the key without signing in again.
