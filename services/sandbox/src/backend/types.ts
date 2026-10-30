@@ -274,9 +274,27 @@ export interface SessionBackend {
    * `State.OOMKilled`, from the same inspect: no call of its own). Asked
    * once per dead incarnation; false when the check saw no such kill or
    * never ran. Absent on Kubernetes, which restarts an OOM-killed runner
-   * in its Pod instead of ending the session.
+   * in its Pod instead of ending the session ({@link restartedOutOfMemory}).
    */
   takeOutOfMemory?(sessionId: string, createdAtMs: number): boolean;
+  /**
+   * Whether the kernel's OOM killer ended this incarnation's runner at or
+   * after `sinceMs` and the backend restarted it in place, the session going
+   * on: Kubernetes, whose kubelet restarts the runner container in its Pod,
+   * which stays Running, so {@link sessionExists} still finds the session and
+   * {@link takeOutOfMemory} is never asked. Asked for an exec whose stream
+   * ended short of its end on a session that is still there. A runner's end
+   * is reported a second or so after it, so this waits for a report of an end
+   * since `sinceMs` — a few seconds at most, less once `signal` aborts — and
+   * is false without one, when something else ended the runner, or when the
+   * backend cannot be read (it never throws).
+   */
+  restartedOutOfMemory?(
+    sessionId: string,
+    createdAtMs: number,
+    sinceMs: number,
+    signal: AbortSignal,
+  ): Promise<boolean>;
   /** Tear down container/Pod (+ Secret on K8s) and DELETE the workspace
    * (host dir / PVC). The ONLY data-deleting verb — reached through the
    * DELETE route (the explicit Destroy, and the platform's workspace cleanup)

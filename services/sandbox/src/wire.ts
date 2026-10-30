@@ -68,8 +68,9 @@ export const sandboxErrorCodeLiterals = [
   // same limit.
   'OOM_KILLED',
   // The session's container died with an exec in flight, and Docker
-  // recorded that the OOM killer ended processes in it. As SESSION_LOST,
-  // with the cause known.
+  // recorded that the OOM killer ended processes in it — or, on Kubernetes,
+  // the kubelet restarted the runner container the OOM killer ended. As
+  // SESSION_LOST, with the cause known.
   'SESSION_OOM',
 ] as const;
 
