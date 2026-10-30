@@ -19,10 +19,14 @@ import { physicalTaskQueue, TASK_QUEUE_OPTIONS } from './tasks.ts';
  * never loses one. `start()` installs/migrates the `pgboss` schema itself
  * (advisory-lock guarded), so concurrently booting containers are safe; the
  * api role starts with `supervise: false` so maintenance runs on workers.
+ * Every role runs the cron clock unless it passes `schedule: false`, as the
+ * integration harness does, whose lanes drive each recurring job's work
+ * themselves: the schedules are still registered and read (`schedule`,
+ * `getSchedules`), and none of them ticks.
  */
 export function createBoss(
   databaseUrl: string,
-  options: { supervise: boolean },
+  options: { supervise: boolean; schedule?: boolean },
 ): PgBoss {
   // pg-boss hands its whole config to `new pg.Pool`, and node-postgres lets a
   // connection string's `sslmode` override an `ssl` option — so it gets the
@@ -39,6 +43,9 @@ export function createBoss(
     application_name: 'tale-backend',
     useListenNotify: true,
     supervise: options.supervise,
+    // A `schedule` key pg-boss is handed wins over its default even when it
+    // is `undefined`, which stops the clock: so the default is spelled out.
+    schedule: options.schedule ?? true,
   });
   logErrors(boss);
   boss.on('warning', (warning) => {
@@ -78,8 +85,8 @@ function logErrors(boss: PgBoss): void {
 
 /**
  * Whether a pg-boss worker has fetched from the database since `since`.
- * Every role has one: the cron clock's own worker counts, and it runs
- * wherever pg-boss starts.
+ * Every role in a deployment has one: the cron clock's own worker counts,
+ * and every role starts pg-boss with its clock on.
  */
 function polledSince(boss: PgBoss, since: number): boolean {
   return boss
@@ -129,10 +136,13 @@ function withoutWorkerSuffix(error: unknown): unknown {
  */
 export async function startBoss(
   databaseUrl: string,
-  options: { supervise: boolean; wait: BootDatabaseWait },
+  options: { supervise: boolean; schedule?: boolean; wait: BootDatabaseWait },
 ): Promise<PgBoss> {
   const boss = await options.wait(async () => {
-    const attempt = createBoss(databaseUrl, { supervise: options.supervise });
+    const attempt = createBoss(databaseUrl, {
+      supervise: options.supervise,
+      schedule: options.schedule,
+    });
     try {
       await attempt.start();
     } catch (error) {

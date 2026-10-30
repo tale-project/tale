@@ -1,6 +1,7 @@
 /** Native pg-boss completion evidence. Only this lane's throwaway queue and
- * owned jobs are touched; the production trigger scan stays unscheduled by
- * the integration harness. The reader is the actual telemetry query. */
+ * owned jobs are touched; the integration harness runs pg-boss with its cron
+ * clock off, so no production trigger scan ticks. The reader is the actual
+ * telemetry query. */
 import { randomUUID } from 'node:crypto';
 
 import type { PgBoss } from 'pg-boss';

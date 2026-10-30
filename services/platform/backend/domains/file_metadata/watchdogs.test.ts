@@ -20,9 +20,11 @@
  * that throws defers its own row and no other: the rows after it are still
  * settled and told, only two faults in a row stop the organization, and no
  * fault in one organization, its slug read included, stops the sweep of the
- * organizations after it. The stale-window scan, the batch order, a real row
- * lock and the adopt/revive rules ride the real-Postgres probes in
- * `integration-check.ts` and `watchdogs.integration.ts`.
+ * organizations after it. Every status write lands only while its row still
+ * reads the status and queue stamp the sweep read, so a retry queued in
+ * between stands. The stale-window scan, the batch order, a real row lock, a
+ * real re-queue mid-sweep and the adopt/revive rules ride the real-Postgres
+ * probes in `integration-check.ts` and `watchdogs.integration.ts`.
  */
 
 import type { Sql } from 'postgres';
@@ -58,6 +60,8 @@ interface Candidate {
   ragStatus: string;
   ragError: string | null;
   ragErrorCode: string | null;
+  /** When its run was last queued, as the driver reads the `bigint`: text. */
+  ragQueuedAtMs: string | null;
   /** A document holds the file, so a document list shows its status. */
   listed: boolean;
 }
@@ -69,13 +73,37 @@ interface CorpusRow {
   updated_at: string | null;
 }
 
+/** The stamp a re-queue between the read and the write leaves on its row. */
+const REQUEUED_AT = '9000';
+
+/** The clause every status write carries: the row's status and queue stamp
+ * as the sweep read them. */
+const READ_STATE_GUARD =
+  'AND rag_status = ? AND rag_queued_at_ms IS NOT DISTINCT FROM ?';
+
+/** The read state a status write is guarded by — the two values its guard
+ * binds — or null for a write that carries no guard. */
+function guardOf(
+  write: Pick<Statement, 'text' | 'values'> | undefined,
+): unknown[] | null {
+  if (write === undefined) return null;
+  const at = write.text.indexOf(READ_STATE_GUARD);
+  if (at === -1) return null;
+  // The guard's two values follow every value bound ahead of it.
+  const before = write.text.slice(0, at).split('?').length - 1;
+  return write.values.slice(before, before + 2);
+}
+
 /**
  * Scripted `sql`: the candidate read is a snapshot of the columns it
  * selects, while the ownership read sees the current state. A bind or deletion may land between that
  * snapshot and the status write, as the real-Postgres lane proves too. The
  * status write of each row in `failWrites` throws, as a lock timeout would,
  * the slug read of `failSlugFor` throws, as a dropped connection would, and
- * with `failStamp` so does the rotation stamp.
+ * with `failStamp` so does the rotation stamp. Each row in
+ * `requeueBeforeWrite` is queued again between the read and its write, as
+ * Retry indexing would: a write guarded by the state the sweep read matches
+ * it no more, and one matched by its id alone lands on it all the same.
  * `begin` runs its body on a handle whose statements carry the
  * transaction's number; a throw in the body is the begin's, as a rolled-back
  * transaction's is.
@@ -88,6 +116,7 @@ function fakeSql(
     failWrites?: readonly string[];
     failSlugFor?: string;
     failStamp?: boolean;
+    requeueBeforeWrite?: readonly string[];
   } = {},
 ): {
   sql: Sql;
@@ -126,6 +155,17 @@ function fakeSql(
       const row = id === undefined ? undefined : current.get(id);
       if (row === undefined || row.id === options.deleteBeforeWrite) {
         if (id !== undefined) current.delete(id);
+        return Promise.resolve([]);
+      }
+      if (options.requeueBeforeWrite?.includes(row.id) === true) {
+        row.ragStatus = 'queued';
+        row.ragQueuedAtMs = REQUEUED_AT;
+      }
+      const guard = guardOf({ text, values });
+      if (
+        guard !== null &&
+        (guard[0] !== row.ragStatus || guard[1] !== row.ragQueuedAtMs)
+      ) {
         return Promise.resolve([]);
       }
       if (row.id === options.bindBeforeWrite) row.listed = true;
@@ -186,6 +226,7 @@ function candidate(
     ragStatus,
     ragError: null,
     ragErrorCode: null,
+    ragQueuedAtMs: '1000',
     listed: true,
     ...over,
   };
@@ -383,9 +424,9 @@ describe('recoverStuckRagIndexing — the interrupted text [FMETA-R2]', () => {
     expect(writes[0]?.values).toContain('The embedding server answered 503.');
     expect(writes[0]?.values).toContain('fm_known');
     expect(writes[0]?.text).not.toContain('status_changed_at_ms');
-    // Only the failed row it read, still without a code: a retry may have
-    // queued it, or failed it with a classified cause, since.
-    expect(writes[0]?.text).toContain("AND rag_status = 'failed'");
+    // Only the failed row as it read it, still without a code: a retry may
+    // have queued it, or failed it with a classified cause, since.
+    expect(guardOf(writes[0])).toEqual(['failed', '1000']);
     expect(writes[0]?.text).toContain('AND rag_error_code IS NULL');
     // The corpus copy carries no code, and the text never travels without
     // its pair.
@@ -524,9 +565,10 @@ describe('recoverStuckRagIndexing — a failure keeps its code with its text [FM
       const writes = writesOf(statements);
       expect(writes).toHaveLength(1);
       // The status moves; the sentence and its code stay together as the app
-      // wrote them — only while the row still carries that code.
+      // wrote them — only while the row still carries that code, and still
+      // reads as the sweep read it.
       expect(writes[0]?.text).toMatch(
-        /^UPDATE app\.file_metadata SET rag_status = 'failed', status_changed_at_ms = \? WHERE id = \? AND rag_error_code = \? RETURNING id$/,
+        /^UPDATE app\.file_metadata SET rag_status = 'failed', status_changed_at_ms = \? WHERE id = \? AND rag_error_code = \? AND rag_status = \? AND rag_queued_at_ms IS NOT DISTINCT FROM \? RETURNING id$/,
       );
       expect(writes[0]?.values).toContain('embedding_not_configured');
       expect(writes[0]?.values).not.toContain(corpusError);
@@ -736,6 +778,112 @@ describe('recoverStuckRagIndexing — a lock held on a row', () => {
       ).toEqual(["SET LOCAL lock_timeout = '2s'", write.text]);
     }
     expect(new Set(writes.map((write) => write.transaction)).size).toBe(5);
+  });
+});
+
+describe('recoverStuckRagIndexing — a retry queued while it settles [FMETA-R6]', () => {
+  // Retry indexing is offered on a queued or running row once it is as old
+  // as the stale window, so a retry meets the sweep on exactly the rows the
+  // sweep settles. `markRagQueued` stamps the row afresh and keeps its code:
+  // a write matched by the id, or by the code, failed a file its person had
+  // just queued again.
+  const corpus: CorpusRow[] = [
+    {
+      file_id: 's3:fm_done',
+      status: 'completed',
+      error: null,
+      updated_at: null,
+    },
+    {
+      file_id: 's3:fm_kept',
+      status: 'failed',
+      error: 'The embedding server answered 503.',
+      updated_at: null,
+    },
+    {
+      file_id: 's3:fm_copy',
+      status: 'failed',
+      error: 'No text extractor exists for "copy.bin".',
+      updated_at: null,
+    },
+    {
+      file_id: 's3:fm_known',
+      status: 'failed',
+      error: 'The embedding server answered 503.',
+      updated_at: null,
+    },
+    {
+      file_id: 's3:fm_live',
+      status: 'processing',
+      error: null,
+      updated_at: new Date().toISOString(),
+    },
+  ];
+  const kept = {
+    ragError: 'No embedding model is configured for this organization.',
+    ragErrorCode: 'embedding_not_configured',
+  };
+
+  it('guards every status write with the status and queue stamp it read', async () => {
+    const { sql, statements } = fakeSql([
+      candidate('fm_done', 'running', { ragQueuedAtMs: '101' }),
+      candidate('fm_kept', 'queued', { ...kept, ragQueuedAtMs: '102' }),
+      candidate('fm_copy', 'running', { ragQueuedAtMs: '103' }),
+      candidate('fm_known', 'failed', {
+        ragError: RAG_INTERRUPTED_MESSAGE,
+        ragQueuedAtMs: '104',
+      }),
+      candidate('fm_live', 'failed', { ragQueuedAtMs: '105' }),
+      candidate('fm_dead', 'queued', { ragQueuedAtMs: null }),
+    ]);
+    corpusAnswering(corpus);
+
+    const result = await recoverStuckRagIndexing(sql, { staleMs: 60_000 });
+
+    // An adoption, a kept pair, a corpus copy, a corrected text, a revival
+    // and an interrupted run: every kind of write the sweep sends, and each
+    // lands on a row that still reads as it was read.
+    expect(result).toEqual({ adopted: 1, failed: 3, revived: 1 });
+    expect(writesOf(statements).map((write) => guardOf(write))).toEqual([
+      ['running', '101'],
+      ['queued', '102'],
+      ['running', '103'],
+      ['failed', '104'],
+      ['failed', '105'],
+      ['queued', null],
+    ]);
+  });
+
+  it('leaves a row queued again after its read as it is, and settles the rest', async () => {
+    const { sql, statements } = fakeSql(
+      [
+        candidate('fm_done'),
+        candidate('fm_kept', 'queued', kept),
+        candidate('fm_copy'),
+        candidate('fm_live', 'failed'),
+        candidate('fm_dead', 'queued'),
+        candidate('fm_stuck'),
+      ],
+      {
+        requeueBeforeWrite: [
+          'fm_done',
+          'fm_kept',
+          'fm_copy',
+          'fm_live',
+          'fm_dead',
+        ],
+      },
+    );
+    corpusAnswering(corpus);
+
+    const result = await recoverStuckRagIndexing(sql, { staleMs: 60_000 });
+
+    // Each write was sent and matched no row: the retry's queued state
+    // stands, is counted nowhere, and no list hears of it. The row nobody
+    // queued again is failed as before.
+    expect(writesOf(statements)).toHaveLength(6);
+    expect(result).toEqual({ adopted: 0, failed: 1, revived: 0 });
+    expect(toldAbout(statements, 'org_1')).toEqual(['fm_stuck']);
   });
 });
 
