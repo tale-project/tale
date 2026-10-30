@@ -36,6 +36,8 @@ Sans choix par défaut, un connector qui possède plusieurs identifiants peut to
 
 La synchronisation des boîtes et le triage peuvent examiner tous les identifiants actifs d’un connector de messagerie ; une synchronisation réglée sur une seule boîte ne lit que celle-ci. Une deuxième boîte n’a pas besoin de devenir le choix par défaut pour être trouvée par ces opérations. Quand tu rédiges un nouvel e-mail, le champ **Boîte** liste chaque boîte sous son nom, et l’e-mail part de celle que tu choisis. Les réponses dans cette conversation partent de la même boîte, y compris quand tu relances un envoi qui a échoué.
 
+Les e-mails de notification destinés aux membres qui laissent [**M'envoyer les alertes actionnables par e-mail**](/fr/platform/member/preferences#notification-email) activé partent aussi par une boîte connectée. Tale prend d’abord des identifiants actifs de Boîte mail IMAP / SMTP, puis de Gmail, puis de Microsoft Outlook, et, pour un même connector, ceux par défaut. Par IMAP / SMTP, ces e-mails partent de `notification@` sur le domaine de la boîte : une boîte qui se connecte en tant que `support@example.com` les envoie comme `notification@example.com`. Sans identifiants actifs pour une boîte, les membres ne reçoivent leurs notifications que dans Tale. Un envoi qui échoue n’est pas retenté ; la notification reste dans Tale.
+
 ## Renouveler un secret ou suspendre l’accès
 
 Utilise l’action de remplacement adaptée à la méthode, par exemple **Remplacer la clé API** ou **Remplacer le jeton**. Le nouveau secret remplace l’ancien tout en conservant le nom, le choix par défaut et les références. Vérifie ensuite une action appropriée du service.

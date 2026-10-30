@@ -1,6 +1,6 @@
 ---
 title: Gérer ton compte et tes préférences
-description: Modifie ton nom, protège ta connexion, choisis une langue et comprends les réglages personnels de Tale.
+description: Modifie ton nom, protège ta connexion, choisis ta langue et tes notifications, et comprends les réglages personnels de Tale.
 ---
 
 Les réglages du compte déterminent le nom visible par tes collègues et ta façon de te connecter. Le menu de profil permet aussi de changer d’organisation et de langue, et affiche les équipes dont tu fais partie. Ces commandes sont accessibles sans rôle d’admin.
@@ -58,6 +58,50 @@ Ouvre **Paramètres > Personnalisation**. Les **Instructions personnalisées** s
 Tes instructions ne remplacent jamais les instructions obligatoires de l’organisation ni **Général > Instructions** d’un projet ; en cas de conflit, celles-ci prévalent. Désactiver l’interrupteur conserve le texte pour plus tard sans l’appliquer.
 
 </Note>
+
+## Gérer tes notifications {#notifications}
+
+Sur ordinateur, la cloche en bas de la barre de navigation rassemble les notifications qui te sont destinées, et son badge compte celles que tu n’as pas lues. Les propriétaires et les admins y trouvent aussi des avis sur l’organisation, par exemple un compte verrouillé. La cloche n’est pas disponible sur téléphone.
+
+Ouvre la cloche pour les lire. **Non lus** montre ce que tu n’as pas encore lu, et **Tous** y ajoute le reste. Le bouton de tri alterne entre **Plus récentes** et **Priorité** ; **Priorité** place en tête les notifications qui attendent quelque chose de toi. Choisis une notification pour ouvrir ce dont elle parle, ce qui la marque aussi comme lue. **Marquer comme lu**, la coche à côté d’une notification, la marque comme lue sans l’ouvrir, et **Tout marquer comme lu** les marque toutes. **Agrandir** ouvre la liste dans une fenêtre plus grande.
+
+Tant qu’une notification n’est pas lue, un nouveau changement sur le même élément la met à jour au lieu d’en ajouter une deuxième, par exemple un autre changement de statut de la même tâche. Chaque commentaire et chaque mention garde la sienne. Certaines notifications se marquent aussi comme lues d’elles-mêmes une fois traité ce qu’elles demandaient : une demande de revue dès que la revue est tranchée, ou la question d’un agent dès que quelqu’un y a répondu.
+
+### Choisir les événements qui te parviennent {#notification-events}
+
+Ouvre **Paramètres > Notifications**. Sous **Notifications**, chaque type d’événement a son propre interrupteur. Tous les interrupteurs sont activés jusqu’à ce que tu les désactives, et chaque changement est enregistré aussitôt. En cas d’échec, **Impossible d'enregistrer tes préférences de notification.** s’affiche avec la raison. Tes choix valent pour l’organisation ouverte : règle-les dans chaque organisation dont tu fais partie. Désactiver un interrupteur arrête les nouvelles notifications de ce type et leurs e-mails ; celles que tu as déjà restent.
+
+| Interrupteur | Tu es prévenu quand |
+| --- | --- |
+| **Tâche qui m'est assignée** | Une tâche t’est assignée ou retirée. Si tu t’assignes toi-même une tâche, aucune notification n’est envoyée. |
+| **Changement de statut** | Une tâche que tu suis change de statut. Tu n’es pas prévenu de tes propres changements. |
+| **Nouveau commentaire** | Quelqu’un commente une tâche que tu suis. Si le commentaire te mentionne, tu reçois la mention à la place. |
+| **Mentions** | Quelqu’un te mentionne avec `@` dans un commentaire ou dans la description d’une tâche. |
+| **Dates de début et d'échéance** | Une tâche qui t’est assignée atteint sa date de début ou arrive à échéance dans les 24 heures. Si aucune personne n’en a la charge, c’est la personne qui l’a créée qui est prévenue. Quand une tâche a plus d’un jour de retard, la personne qui l’a créée ainsi que les propriétaires et les admins de l’organisation sont aussi prévenus. |
+| **Demandes de review** | Une tâche ou un document attend ta revue, ou on te désigne comme relecteur d’une tâche avant le début de sa revue. Cet interrupteur couvre aussi la décision sur un document que tu as soumis. |
+| **Escalades d'agent** | Un agent s’arrête pour poser une question sur une tâche ou une exécution que tu peux ouvrir. Une exécution d’agent que tu as lancée, ou une exécution sur une tâche que tu suis, échoue et ne sera pas relancée. |
+| **Alertes d'automatisation** | La planification d’une automatisation [se met en pause](/fr/platform/automations/triggers#quand-une-planification-se-met-en-pause) parce que ses exécutions échouent à répétition. Seuls les propriétaires et les admins reçoivent ces alertes ; eux seuls voient donc cet interrupteur. |
+| **Messages des automatisations** | Une automatisation [t’envoie un message](/fr/platform/automations/notify-members), par exemple pour annoncer qu’un rapport est prêt. |
+| **Messages de conversation** | Une conversation client est assignée à toi ou à l’une de tes équipes, par une personne ou, à son arrivée, par une [règle de routage](/fr/platform/admin/governance/policies-and-limits#routage-des-conversations). Les messages suivants de la conversation ne t’envoient pas de notification. |
+
+L’interrupteur **Demandes de review** reste toujours activé et ne peut pas être désactivé. Une revue est le moment où une personne vérifie un travail, souvent celui d’un agent, avant qu’il soit accepté. Tale traite donc une demande comme un signal de sécurité qui doit parvenir à son relecteur.
+
+Tu suis les tâches que tu as créées, qui te sont assignées, que tu as commentées, où tu as été mentionné ou dont tu es relecteur. Pour suivre une autre tâche, choisis **Suivre** dans ses **Détails**. **Ne plus suivre** arrête les notifications de changement de statut et de commentaire de cette tâche sans toucher à tes interrupteurs ; une mention, une assignation ou une demande de revue te parvient toujours. Tu n’es prévenu que pour les tâches des projets que tu peux ouvrir.
+
+### Recevoir les alertes par e-mail {#notification-email}
+
+L’interrupteur **M'envoyer les alertes actionnables par e-mail**, sous **Envoi par e-mail** en haut de la page, t’envoie aussi par e-mail les notifications qui attendent quelque chose de toi :
+
+- une tâche qui t’est assignée, une mention, une demande de revue, ainsi que les dates de début et d’échéance d’une tâche ;
+- la question ou l’exécution échouée d’un agent, une planification mise en pause et un message d’une automatisation ;
+- une conversation assignée à toi ou à l’une de tes équipes ;
+- une de tes synchronisations OneDrive ou Google Drive qui ne fonctionne plus et, pour les propriétaires et les admins, la demande de crédits d’utilisation supplémentaires d’un membre.
+
+Les changements de statut, les commentaires, une tâche qui t’est retirée, ta désignation comme relecteur avant le début d’une revue, la décision sur un document que tu as soumis et les avis sur l’organisation restent dans la cloche. Désactiver un événement sous **Notifications** arrête aussi ses e-mails.
+
+L’e-mail part vers l’adresse de ton compte, affichée sous **Paramètres > Compte**. Tale attend environ une minute avant de l’envoyer : si tu lis la notification dans Tale d’ici là, aucun e-mail ne suit, et si le même élément change encore entre-temps, un seul e-mail porte le dernier état. Aucun e-mail ne part au sujet d’une tâche d’un projet que tu ne peux plus ouvrir. Les e-mails sont rédigés dans la langue par défaut de l’organisation, que les propriétaires et les admins définissent sous **Paramètres > Organisation** avec **Langue par défaut (pour les agents)**, et non dans la langue que tu as choisie pour Tale.
+
+Les e-mails partent par une boîte mail que ton organisation a connectée : Gmail, Microsoft Outlook ou une boîte mail IMAP / SMTP. S’il n’y en a aucune, l’interrupteur reste activé, mais tes notifications ne te parviennent que dans Tale. Les propriétaires, les admins et les développeurs connectent les boîtes mail sous **Paramètres > Connectors** ; [Identifiants des connectors](/fr/platform/admin/connectors#choisir-les-identifiants-par-defaut) explique par quelle boîte partent ces e-mails.
 
 ## Consulter tes limites d’utilisation {#usage-limits}
 

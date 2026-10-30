@@ -746,7 +746,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Konto und persönliche Einstellungen verwalten",
-      "description": "Ändere deinen Namen, sichere die Anmeldung ab, wähle eine Sprache und lerne die persönlichen Einstellungen kennen."
+      "description": "Ändere deinen Namen, sichere die Anmeldung ab, wähle Sprache und Benachrichtigungen und lerne die persönlichen Einstellungen kennen."
     }
   },
   "de:platform/models": {
@@ -1989,7 +1989,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Manage your account and preferences",
-      "description": "Update your name, secure your sign-in, choose a language, and understand the personal settings available in Tale."
+      "description": "Update your name, secure your sign-in, choose a language and your notifications, and understand the personal settings available in Tale."
     }
   },
   "en:platform/models": {
@@ -3229,7 +3229,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Gérer ton compte et tes préférences",
-      "description": "Modifie ton nom, protège ta connexion, choisis une langue et comprends les réglages personnels de Tale."
+      "description": "Modifie ton nom, protège ta connexion, choisis ta langue et tes notifications, et comprends les réglages personnels de Tale."
     }
   },
   "fr:platform/models": {

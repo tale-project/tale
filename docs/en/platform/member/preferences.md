@@ -1,6 +1,6 @@
 ---
 title: Manage your account and preferences
-description: Update your name, secure your sign-in, choose a language, and understand the personal settings available in Tale.
+description: Update your name, secure your sign-in, choose a language and your notifications, and understand the personal settings available in Tale.
 ---
 
 Your account settings control how teammates recognize you and how you sign in. Your profile menu also lets you switch organization and language and shows the teams you belong to. These controls are available without an administrator role.
@@ -58,6 +58,50 @@ Open **Settings > Preferences**. **Custom instructions** are standing instructio
 Your instructions never override the organization’s mandatory instructions or a project’s **General > Instructions**; where they conflict, those take precedence. Turning the switch off keeps the text for later without applying it.
 
 </Note>
+
+## Manage your notifications {#notifications}
+
+On a computer, the bell at the foot of the rail collects the notifications meant for you, and its badge counts the unread ones. Owners and Admins also find notices about the organization there, such as a locked account. The bell isn't available on a phone.
+
+Open the bell to read your notifications. **Unread** shows what you haven't read yet, and **All** includes the rest. The sort button switches between **Most recent** and **Priority**; **Priority** lists the notifications that ask something of you first. Choose a notification to open what it is about; that also marks it read. **Mark as read**, the check mark beside a notification, marks it read without opening it, and **Mark all as read** marks every one. **Expand** opens the list in a larger window.
+
+While a notification is unread, a newer change to the same thing, such as another status change on the same task, updates it instead of adding a second one. Each comment and mention keeps its own. Some notifications also mark themselves read once what they asked for is done, such as a review request once the review is decided, or an agent's question once someone answers it.
+
+### Choose which events reach you {#notification-events}
+
+Open **Settings > Notifications**. Under **Notifications**, each kind of event has its own switch. Every switch is on until you turn it off, and each change is saved at once; if it can't be saved, **Couldn't save your notification preferences.** appears with the reason. Your choices apply to the organization you have open, so set them in each organization you belong to. Turning a switch off stops new notifications of that kind and their emails; the ones you already have stay.
+
+| Switch | You're told when |
+| --- | --- |
+| **Task assigned to me** | A task is assigned to you or taken off you. Assigning a task to yourself doesn't notify you. |
+| **Task status changed** | A task you watch moves to another status. Your own changes don't notify you. |
+| **New comment** | Someone comments on a task you watch. A comment that mentions you counts as a mention instead. |
+| **Mentions** | Someone mentions you with `@` in a task's comment or description. |
+| **Start and due dates** | A task assigned to you reaches its start date or is due within a day. When no person holds the task, whoever created it is told. A task more than a day overdue is also reported to its creator and to the organization's Owners and Admins. |
+| **Review requests** | A task or document waits for your review, or you're named the reviewer of a task before it reaches review. The switch also covers the decision on a document you submitted. |
+| **Agent escalations** | An agent stops to ask a question on a task or run you can open. An agent run you started, or a run on a task you watch, fails and won't be tried again. |
+| **Automation alerts** | An automation's schedule [pauses itself](/platform/automations/triggers#when-a-schedule-pauses-itself) after repeated failures. Only Owners and Admins receive these alerts, so only they see this switch. |
+| **Messages from automations** | An automation [sends you a message](/platform/automations/notify-members), for example that a report is ready. |
+| **Conversation messages** | A customer conversation is assigned to you or to one of your teams, by a person or, when it arrives, by a [routing rule](/platform/admin/governance/policies-and-limits#conversation-routing). Later messages in the conversation don't notify you. |
+
+The **Review requests** switch is always on and can't be turned off. A review is how a person checks work, often an agent's, before it is accepted, so Tale treats a request as a safety signal that has to reach its reviewer.
+
+You watch the tasks you created, are assigned to, commented on, were mentioned in, or review. To watch another task, choose **Watch** in the task's **Details**. **Unwatch** stops notifications about a task's status changes and comments without touching your switches; a mention, an assignment, or a review request still reaches you. You're only told about tasks in projects you can open.
+
+### Get alerts by email {#notification-email}
+
+The **Email me actionable alerts** switch, under **Email delivery** at the top of the page, also sends you by email the notifications that ask something of you:
+
+- a task assigned to you, a mention, a review request, and a task's start or due date;
+- an agent's question or failed run, a paused schedule, and a message from an automation;
+- a conversation assigned to you or to one of your teams;
+- a OneDrive or Google Drive sync of yours that stopped and, for Owners and Admins, a member's request for more usage credits.
+
+Status changes, comments, a task taken off you, being named a task's reviewer before it reaches review, the decision on a document you submitted, and notices about the organization stay in the bell. Switching an event off under **Notifications** stops its email as well.
+
+The email goes to your account's address, shown under **Settings > Account**. Tale waits about a minute before sending it: if you read the notification in Tale by then, no email follows, and if the same thing changes again meanwhile, one email carries the latest state. Nothing is emailed about a task in a project you can no longer open. Emails are written in the organization's default language, which Owners and Admins set as **Default language (for agents)** under **Settings > Organization**, not in the language you chose for Tale.
+
+Emails leave through a mailbox your organization has connected: Gmail, Microsoft Outlook, or an IMAP / SMTP mailbox. Without one, the switch stays on, but your notifications reach you only in Tale. Owners, Admins, and Developers connect mailboxes under **Settings > Connectors**, and [Connector credentials](/platform/admin/connectors#choose-the-default) explains which mailbox sends the alerts.
 
 ## Check your usage limits {#usage-limits}
 

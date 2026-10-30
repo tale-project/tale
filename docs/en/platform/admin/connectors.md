@@ -36,6 +36,8 @@ A connector with several credentials and no default can still serve callers that
 
 Mailbox synchronization and inbox triage can inspect every active credential for a mailbox connector; a mail sync set to one mailbox reads only that one. A second mailbox does not have to become the default before these operations can find it. When you compose a new email, the **Inbox** field lists each mailbox by its name, and the email leaves from the one you choose. Replies in that conversation, including a retry of a failed send, leave from the same mailbox.
 
+Notification emails to members also leave through a connected mailbox, for everyone who keeps [**Email me actionable alerts**](/platform/member/preferences#notification-email) on. Tale picks an active IMAP / SMTP Mailbox credential first, then Gmail, then Microsoft Outlook, and within a connector its default credential. Through IMAP / SMTP, the emails come from `notification@` at the mailbox's domain: a mailbox that signs in as `support@example.com` sends them as `notification@example.com`. Without an active mailbox credential, members get their notifications only in Tale. A send that fails is not tried again; the notification in Tale stays.
+
 ## Rotate a secret or pause access
 
 Use the row's replacement action for its method, such as **Replace API key** or **Replace token**. The new secret replaces the stored one while preserving the credential's name, default choice, and references. Test an appropriate service action after replacement.
