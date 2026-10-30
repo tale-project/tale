@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { authClient } from '@/lib/auth-client';
+import { isValidOrgSlug } from '@/lib/shared/constants/org-slug';
 import { render, screen } from '@/tests/utils/render';
 
 import { isSlugTakenError, WorkspaceStep } from './workspace-step';
@@ -277,6 +278,70 @@ describe('WorkspaceStep idempotent resume (#2635)', () => {
     expect(await screen.findByText('Done content')).toBeInTheDocument();
     expect(setActive).toHaveBeenCalledWith({ organizationId: 'org-acme' });
     expect(onCreated).toHaveBeenCalledWith('org-acme');
+  });
+});
+
+const SLUG_LETTER_ERROR =
+  'The name needs at least one letter from A to Z or a digit, because the organization slug is made from them. Accented letters such as é or ü count too.';
+
+/**
+ * The step accepts what the shared organization-name rule accepts — the rule
+ * the settings form and the server's update hook apply — and refuses only a
+ * name whose slug comes out empty or reserved. The regression under test: an
+ * ASCII-only pattern refused `Müller AG` and `Smith & Co.` and told the person
+ * to use letters, which they had.
+ */
+describe('WorkspaceStep name rule (#4886)', () => {
+  it.each([
+    ['Müller AG', 'muller-ag'],
+    ['Société Générale', 'societe-generale'],
+    ['Zürcher Bau GmbH', 'zurcher-bau-gmbh'],
+    ['Smith & Co.', 'smith-co'],
+    ['Acme Inc.', 'acme-inc'],
+  ])('creates %j under the slug %j', async (name, slug) => {
+    create.mockResolvedValue({ data: { id: 'org-new' }, error: null });
+
+    const { user, onCreated } = renderStep();
+    await user.type(screen.getByLabelText(/Organization name/), name);
+    const next = screen.getByRole('button', { name: 'Next' });
+    expect(next).toBeEnabled();
+    await user.click(next);
+
+    expect(await screen.findByText('Done content')).toBeInTheDocument();
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({ name, slug }),
+    );
+    expect(isValidOrgSlug(slug)).toBe(true);
+    expect(onCreated).toHaveBeenCalledWith('org-new');
+  });
+
+  it.each(['@@@', '株式会社'])(
+    'refuses %j, whose slug would be empty, and says why',
+    async (name) => {
+      const { user } = renderStep();
+      await user.type(screen.getByLabelText(/Organization name/), name);
+
+      expect(screen.getByText(SLUG_LETTER_ERROR)).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+    },
+  );
+
+  it('refuses a name whose slug is reserved, and says so', async () => {
+    const { user } = renderStep();
+    await user.type(screen.getByLabelText(/Organization name/), 'Default');
+
+    expect(
+      screen.getByText('This name is reserved by the platform.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
+  });
+
+  it('keeps Next disabled for a blank name without an error', async () => {
+    const { user } = renderStep();
+    await user.type(screen.getByLabelText(/Organization name/), '   ');
+
+    expect(screen.queryByText(SLUG_LETTER_ERROR)).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Next' })).toBeDisabled();
   });
 });
 
