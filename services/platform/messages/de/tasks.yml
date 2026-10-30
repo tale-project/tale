@@ -353,6 +353,7 @@ detail:
   partOf: Teil von {task}
   subtask: Teilaufgabe
   notFound: Wir konnten diese Aufgabe nicht finden. Sie wurde möglicherweise gelöscht.
+  loadFailed: Diese Aufgabe konnte nicht geladen werden.
 comment:
   edited: bearbeitet
   agentBadge: Agent

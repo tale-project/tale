@@ -130,6 +130,104 @@ describe('useTask', () => {
   });
 });
 
+/** A read its retry policy gave up on, as react-query settles it. */
+function failedRead(error: unknown, refetch = vi.fn()) {
+  return {
+    data: undefined,
+    isLoading: false,
+    error,
+    isError: true,
+    isFetching: false,
+    errorUpdateCount: 1,
+    refetch,
+  };
+}
+
+/** The same read once a retry starts: react-query sets a read that never
+ *  answered back to pending, its error cleared. Offline, the browser holds
+ *  the request back and the read is not even fetching. */
+function retriedRead({ offline = false } = {}) {
+  return {
+    data: undefined,
+    isLoading: !offline,
+    error: null,
+    isError: false,
+    isFetching: !offline,
+    errorUpdateCount: 1,
+    refetch: vi.fn(),
+  };
+}
+
+/** The read answered at last, after the failures before it. */
+function answeredRead(data: unknown) {
+  return { ...retriedRead(), data, isLoading: false, isFetching: false };
+}
+
+// #4587: Try again on a failed task read must not trade the failure for a
+// skeleton (or "not found") while the retry runs, then bring it back.
+describe('useTask through a retry', () => {
+  it('holds a failed read until an answer replaces it', () => {
+    const error = new TypeError('Failed to fetch');
+    mocks.result = failedRead(error);
+    const { result, rerender } = renderHook(() => useTask('task-1'));
+    expect(result.current.error).toBe(error);
+    expect(result.current.retrying).toBe(false);
+
+    mocks.result = retriedRead();
+    rerender();
+    expect(result.current.error).toBe(error);
+    expect(result.current.notFound).toBe(false);
+    expect(result.current.retrying).toBe(true);
+
+    mocks.result = retriedRead({ offline: true });
+    rerender();
+    expect(result.current.error).toBe(error);
+    expect(result.current.retrying).toBe(false);
+
+    mocks.result = answeredRead({ task: { _id: 'task-1', title: 'Ship it' } });
+    rerender();
+    expect(result.current.task).toEqual({ _id: 'task-1', title: 'Ship it' });
+    expect(result.current.error).toBeNull();
+    expect(result.current.retrying).toBe(false);
+  });
+
+  it('keeps a task that is not yours to see not found while it is read again', () => {
+    mocks.result = failedRead(
+      new AppError({ code: 'TASK_FORBIDDEN', message: 'refused' }),
+    );
+    const { result, rerender } = renderHook(() => useTask('task-1'));
+    expect(result.current.notFound).toBe(true);
+
+    mocks.result = retriedRead();
+    rerender();
+    expect(result.current.notFound).toBe(true);
+    expect(result.current.error).toBeNull();
+  });
+
+  it("never holds one task's failure for another", () => {
+    mocks.result = failedRead(new TypeError('Failed to fetch'));
+    const { result, rerender } = renderHook(({ id }) => useTask(id), {
+      initialProps: { id: 'task-1' },
+    });
+    expect(result.current.error).not.toBeNull();
+
+    // The next task's own read is being retried: it has no failure of its
+    // own on hand yet, and the last task's is not it.
+    mocks.result = retriedRead();
+    rerender({ id: 'task-2' });
+    expect(result.current.error).toBeNull();
+    expect(result.current.notFound).toBe(false);
+  });
+
+  it('reads the task again on retry', () => {
+    const refetch = vi.fn(() => Promise.resolve());
+    mocks.result = failedRead(new TypeError('Failed to fetch'), refetch);
+    const { result } = renderHook(() => useTask('task-1'));
+    result.current.retry();
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+});
+
 // The board's context is rebuilt whenever one of these arrays changes, and
 // every card reads the context: a fresh `[]` per render while a read is
 // pending or failed re-rendered the whole board on each open of a task

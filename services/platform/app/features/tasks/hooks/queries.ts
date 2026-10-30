@@ -1,5 +1,5 @@
 import { QueryClientContext, type UseQueryResult } from '@tanstack/react-query';
-import { useContext, useEffect } from 'react';
+import { useCallback, useContext, useEffect, useRef } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
@@ -8,6 +8,7 @@ import {
   prefetchAdaptedPaginatedQuery,
   prefetchAdaptedQuery,
 } from '@/app/lib/backend/prefetch';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { taskBoardScope } from '@/app/lib/backend/tasks';
 import type { TaskOwnership } from '@/backend/core/tasks/access';
 import { backendErrorCode } from '@/lib/utils/backend-error';
@@ -166,13 +167,41 @@ const TASK_MISSING_CODES: ReadonlySet<string> = new Set([
 /** One stable empty ancestry, so a root task's access decision memoizes. */
 const NO_ANCESTORS: readonly TaskOwnership[] = [];
 
+/** The error a task's read last settled on, and which task it was. */
+interface SettledReadError {
+  taskId: string | undefined;
+  error: Error | null;
+}
+
+/**
+ * One task, with how its read stands (`readStateOf`). A task that is gone
+ * is `notFound`; a read that failed for any other reason is `error`, never
+ * a task that is gone, and `retry` reads it again (#4587).
+ */
 export function useTask(taskId: string | undefined) {
   const organizationId = useOrganizationId();
-  const { data, isLoading, error } = useBackendQuery(
+  const query = useBackendQuery(
     'tasks/queries:getTask',
     taskId && organizationId ? { taskId, organizationId } : 'skip',
   );
+  const { data, isLoading, refetch } = query;
+  const read = readStateOf(query);
+  // A retry starts a read that never answered over as pending, its error
+  // cleared. Hold the error it retries until an answer replaces it, so a
+  // surface keeps saying what failed (or that the task is gone) instead of
+  // falling back to its skeleton while the retry runs.
+  const settled = useRef<SettledReadError>({ taskId: undefined, error: null });
+  if (query.error != null) settled.current = { taskId, error: query.error };
+  const error =
+    query.error ??
+    (read.unavailable && settled.current.taskId === taskId
+      ? settled.current.error
+      : null);
   const code = backendErrorCode(error);
+  const missing = code !== undefined && TASK_MISSING_CODES.has(code);
+  const retry = useCallback(() => {
+    void refetch();
+  }, [refetch]);
   return {
     task: data?.task ?? null,
     // The task's project access, as on the board: decide this task with
@@ -188,15 +217,13 @@ export function useTask(taskId: string | undefined) {
     canComment: data?.canComment ?? false,
     isLoading,
     /** The read failed for a reason other than the task being gone. */
-    error:
-      error != null && (code === undefined || !TASK_MISSING_CODES.has(code))
-        ? error
-        : null,
+    error: error != null && !missing ? error : null,
     /** Settled and gone: deleted, never existed, or not this member's to see
      *  — a deep link to it deserves a "not found" state, not a blank sheet. */
-    notFound:
-      !isLoading &&
-      (data === null || (code !== undefined && TASK_MISSING_CODES.has(code))),
+    notFound: (!isLoading && data === null) || missing,
+    /** A retry of the failed read is under way. */
+    retrying: read.retrying,
+    retry,
   };
 }
 

@@ -354,6 +354,7 @@ detail:
   partOf: Part of {task}
   subtask: Subtask
   notFound: We couldn't find that task. It may have been deleted.
+  loadFailed: Couldn't load this task.
 comment:
   edited: edited
   agentBadge: Agent
