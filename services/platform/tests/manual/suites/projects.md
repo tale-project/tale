@@ -521,6 +521,30 @@ projects-list row ⋯ menu.
   `*/api/app/documents/by-project/*` instead → the folders stay and the
   notice reads `projects.files.loadFailed`; both blocked →
   `projects.files.treeLoadFailed`. No toast.
+- [ ] `PROJ-B35` · **A file's version history that cannot load says so** —
+  On a project file revised at least once, block
+  `*/api/app/documents/versions/*` in DevTools and press its row's **Version
+  history** (`projects.files.historyAction`) → after the retries the dialog
+  reads **Couldn't load the version history.**
+  (`documents.history.loadFailed`) with **Try again**, never **No stored
+  versions for this file.** (`documents.history.empty`), and no toast;
+  unblock, Tab to **Try again** and press Enter → it reads as busy while
+  the read runs, then its versions are listed and focus is on the
+  **Versions** group (`documents.history.versionsLabel`), never on the
+  page. Keep the dialog open, block the read again and upload a file to the
+  project from a second tab → after the retries the versions stay listed
+  under `documents.history.refreshFailed` with **Try again**.
+- [ ] `PROJ-B36` · **A History link whose lookup fails keeps the link** —
+  Block `*/api/app/documents/by-external-item-id*` and open the Files tab
+  with `?historyExternalItemId=missing-1` → after the retries one notice
+  above the tree (`documents.history.linkLoadFailed`) with **Try again**,
+  no **That file has no version history yet.** toast
+  (`documents.history.notFound`), and the address keeps
+  `historyExternalItemId=missing-1`; a reload asks again. Unblock →
+  **Try again** → the id names no file, so that toast shows once and the
+  parameter leaves the address. With the id of a project file instead (an
+  automation's form file carries `project-text:<projectId>:<folder>:<file>`),
+  the same recovery opens that file's **Version history**.
 - [ ] `PROJ-B19` · **Teams that don't load keep the Audience** — As an owner
   on General of a project shared with two teams, block `*/api/app/teams?*`
   in DevTools and reload → after the retries the **Audience** row

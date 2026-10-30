@@ -45,6 +45,8 @@ Quand l’onglet ne parvient pas à charger les fichiers ou les dossiers du proj
 
 **Réessayer** ne relance que le chargement qui a échoué, et l’arborescence garde ses dossiers dépliés et sélectionnés. Si l’échec se répète, demande à un administrateur de vérifier que les services de Tale fonctionnent.
 
+L’**Historique des versions** d’un fichier fonctionne de la même façon. Si ses versions ne se chargent pas, la boîte de dialogue l’indique et propose **Réessayer** ; les versions déjà affichées restent listées, et l’avis précise qu’elles ne sont peut-être plus à jour. Un lien qui ouvre directement l’historique des versions d’un fichier n’est pas perdu quand Tale ne parvient pas à retrouver le fichier : il reste dans l’adresse, et l’avis au-dessus de l’arborescence propose **Réessayer**. Tale ne signale l’absence d’historique de versions que si la recherche ne trouve aucun fichier correspondant.
+
 ## Poser la question dans un chat du projet
 
 Ouvre **Chats** dans ce projet, démarre une conversation et pose une question en nommant le fichier ou son sujet. L’assistant peut consulter les fichiers de ce projet et les documents de la bibliothèque auxquels tu as accès. Il ne peut pas lire les fichiers d’un autre projet depuis ce chat.

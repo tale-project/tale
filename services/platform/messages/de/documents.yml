@@ -554,7 +554,8 @@ history:
   versionsLabel: Versionen
   currentBadge: Aktuell
   loading: Lädt Versionen…
-  loadFailed: Versionsverlauf konnte nicht geladen werden
+  loadFailed: Der Versionsverlauf konnte nicht geladen werden.
+  refreshFailed: Der Versionsverlauf konnte nicht aktualisiert werden. Die angezeigten Versionen sind womöglich veraltet.
   empty: Keine gespeicherten Versionen für diese Datei.
   singleVersion:
     Nur die aktuelle Version ist gespeichert — eine Revision baut den
@@ -570,3 +571,4 @@ history:
   baseSelected: Basis
   compareSelectedBadge: Vergleich
   notFound: Für diese Datei gibt es noch keinen Versionsverlauf.
+  linkLoadFailed: Der Versionsverlauf, auf den dieser Link verweist, konnte nicht geöffnet werden.
