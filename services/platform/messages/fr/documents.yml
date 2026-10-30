@@ -168,6 +168,9 @@ folder:
   folderName: Nom du dossier
   folderNamePlaceholder: Saisis le nom du dossier
   nameRequired: Le nom du dossier est obligatoire
+  nameSeparator: Un nom de dossier ne peut pas contenir de barre oblique (/ ou \)
+  nameControl: Un nom de dossier ne peut pas contenir de caractère de contrôle, comme une tabulation
+  nameDot: Un nom de dossier ne peut pas se limiter à un ou deux points
   creating: Création...
   created: Dossier créé
   createFailed: Échec de la création du dossier

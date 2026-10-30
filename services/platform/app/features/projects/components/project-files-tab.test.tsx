@@ -147,9 +147,15 @@ vi.mock('@/app/hooks/use-backend-mutation', () => ({
   useBackendMutation: () => ({ mutateAsync: vi.fn().mockResolvedValue({}) }),
 }));
 
+// The indexing retry answers what each test sets; any other action resolves
+// empty.
+const retryRagIndexingMutateAsync = vi.fn();
 vi.mock('@/app/hooks/use-backend-action', () => ({
-  useBackendAction: () => ({
-    mutateAsync: vi.fn().mockResolvedValue(undefined),
+  useBackendAction: (name: string) => ({
+    mutateAsync:
+      name === 'documents/actions:retryRagIndexing'
+        ? retryRagIndexingMutateAsync
+        : vi.fn().mockResolvedValue(undefined),
   }),
 }));
 
@@ -328,6 +334,85 @@ describe('ProjectFilesTab', () => {
     ).toBeInTheDocument();
   });
 
+  // The retry door answers a refusal (its rate limit, a row with no file)
+  // with 200, `success: false` and its own sentence, not a thrown error
+  // (#4837): the tab read past it and toasted that indexing was queued.
+  describe.each([
+    {
+      action: 'Index now',
+      ragStatus: null,
+      queued: 'Indexing queued',
+      refused: "Couldn't start indexing",
+    },
+    {
+      action: 'Retry indexing',
+      ragStatus: 'failed',
+      queued: 'Indexing retry queued',
+      refused: "Couldn't retry indexing",
+    },
+  ] as const)('$action', ({ action, ragStatus, queued, refused }) => {
+    const rateLimited =
+      'Rate limit exceeded for file:rag-retry. Try again in 42 seconds.';
+
+    it('names a refusal in the words the server gave, never as queued', async () => {
+      documentsFixture = [makeDoc({ ragStatus })];
+      retryRagIndexingMutateAsync.mockResolvedValue({
+        success: false,
+        error: rateLimited,
+      });
+      const { user } = renderTab();
+
+      await user.click(screen.getByRole('button', { name: action }));
+
+      await waitFor(() => {
+        expect(toast).toHaveBeenCalledWith({
+          title: refused,
+          description: rateLimited,
+          variant: 'destructive',
+        });
+      });
+      expect(retryRagIndexingMutateAsync).toHaveBeenCalledWith({
+        documentId: 'doc-1',
+      });
+      expect(toast).not.toHaveBeenCalledWith(
+        expect.objectContaining({ title: queued }),
+      );
+      expect(vi.mocked(toast).mock.calls).toHaveLength(1);
+    });
+
+    it('names a refusal that gives no reason by its title alone', async () => {
+      documentsFixture = [makeDoc({ ragStatus })];
+      retryRagIndexingMutateAsync.mockResolvedValue({ success: false });
+      const { user } = renderTab();
+
+      await user.click(screen.getByRole('button', { name: action }));
+
+      await waitFor(() => {
+        expect(toast).toHaveBeenCalledWith({
+          title: refused,
+          variant: 'destructive',
+        });
+      });
+      expect(vi.mocked(toast).mock.calls).toHaveLength(1);
+    });
+
+    it('reports a queued run as queued', async () => {
+      documentsFixture = [makeDoc({ ragStatus })];
+      retryRagIndexingMutateAsync.mockResolvedValue({ success: true });
+      const { user } = renderTab();
+
+      await user.click(screen.getByRole('button', { name: action }));
+
+      await waitFor(() => {
+        expect(toast).toHaveBeenCalledWith({
+          title: queued,
+          variant: 'success',
+        });
+      });
+      expect(vi.mocked(toast).mock.calls).toHaveLength(1);
+    });
+  });
+
   it('shows no preview affordance for a row without a stored file', async () => {
     documentsFixture = [makeDoc({ fileId: undefined, title: 'Pending.pdf' })];
     renderTab();
@@ -481,6 +566,45 @@ describe('ProjectFilesTab', () => {
         replace: true,
       }),
     );
+  });
+
+  // The tab shows a reader no create-folder control, and an archived
+  // project reads `canEdit: false` for everyone (#4837): the link opened a
+  // dialog whose every submit was refused.
+  it('opens no create-folder dialog from the deep link for a reader, and drops the link', async () => {
+    projectFixture = { canEdit: false };
+    renderTab(undefined, true);
+
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: '/dashboard/$id/projects/$projectId/files',
+          search: {},
+          replace: true,
+        }),
+      );
+    });
+    expect(screen.queryByRole('dialog', { name: 'Create folder' })).toBeNull();
+  });
+
+  it('keeps the create-folder deep link until the project has loaded', async () => {
+    projectFixture = null;
+    const { rerender } = renderTab(undefined, true);
+    expect(mockNavigate).not.toHaveBeenCalled();
+
+    projectFixture = { canEdit: true };
+    rerender(
+      <ProjectFilesTab
+        organizationId="org-1"
+        projectId={PROJECT_ID}
+        openCreateFolder
+      />,
+    );
+
+    expect(
+      await screen.findByRole('dialog', { name: 'Create folder' }),
+    ).toBeInTheDocument();
+    expect(mockNavigate).toHaveBeenCalledTimes(1);
   });
 
   it('creates the folder scoped to the project', async () => {

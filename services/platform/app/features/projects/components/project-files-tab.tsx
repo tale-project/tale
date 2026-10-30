@@ -431,19 +431,31 @@ export function ProjectFilesTab({
     });
   }, [folders, initialFolderId]);
 
-  // One-shot deep-link: open the create-folder dialog at project root, then
-  // strip `createFolder` from the URL so refresh does not re-open it.
+  // One-shot deep-link: once the project has loaded, open the create-folder
+  // dialog at project root for someone who can edit it (`canEdit` is false
+  // on an archived project too), then strip `createFolder` from the URL so
+  // refresh does not re-open it. Anyone else gets no dialog, as the tab
+  // shows them no create-folder control.
+  const canEditProject = project?.canEdit;
   useEffect(() => {
     if (!openCreateFolder || hydratedCreateFolderRef.current) return;
+    if (canEditProject === undefined) return;
     hydratedCreateFolderRef.current = true;
-    setCreateFolderParent({});
+    if (canEditProject) setCreateFolderParent({});
     void navigate({
       to: '/dashboard/$id/projects/$projectId/files',
       params: { id: organizationId, projectId: projectId },
       search: initialFolderId ? { folderId: initialFolderId } : {},
       replace: true,
     });
-  }, [openCreateFolder, navigate, organizationId, projectId, initialFolderId]);
+  }, [
+    openCreateFolder,
+    canEditProject,
+    navigate,
+    organizationId,
+    projectId,
+    initialFolderId,
+  ]);
 
   // One-shot deep-link: open History for a document resolved by externalItemId
   // (Case Setup transform.py), then strip the search param. Only an answer
@@ -932,15 +944,29 @@ export function ProjectFilesTab({
       if (retryingIds.has(documentId)) return;
       setRetryingIds((prev) => new Set(prev).add(documentId));
       try {
-        await retryRagIndexing({ documentId });
-        toast({
-          title: t(
-            firstIndex
-              ? 'files.indexingStartQueued'
-              : 'files.indexingRetryQueued',
-          ),
-          variant: 'success',
-        });
+        // A refusal (the rate limit, a row with no file) answers 200 with
+        // `success: false` and the server's reason, not a thrown error.
+        const result = await retryRagIndexing({ documentId });
+        if (result.success) {
+          toast({
+            title: t(
+              firstIndex
+                ? 'files.indexingStartQueued'
+                : 'files.indexingRetryQueued',
+            ),
+            variant: 'success',
+          });
+        } else {
+          toast({
+            title: t(
+              firstIndex
+                ? 'files.indexingStartFailed'
+                : 'files.indexingRetryFailed',
+            ),
+            description: result.error,
+            variant: 'destructive',
+          });
+        }
       } catch (error) {
         console.error('retryRagIndexing failed', error);
         toast({
