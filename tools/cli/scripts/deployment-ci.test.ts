@@ -1652,7 +1652,9 @@ describe('standalone container CI efficiency', () => {
         { ...diskStep?.env, TEST_AVAILABLE: available },
         {
           df: '#!/bin/sh\nprintf "Filesystem 1024-blocks Used Available Capacity Mounted on\\nsynthetic 10000000 1000000 %s 10%% /\\n" "$TEST_AVAILABLE"\n',
-          sudo: '#!/bin/sh\nprintf "%s\\n" "$*" >> "$PROOF_DIR/reclaim-calls"\n',
+          sudo: '#!/bin/sh\nprintf "sudo %s\\n" "$*" >> "$PROOF_DIR/reclaim-calls"\n',
+          docker:
+            '#!/bin/sh\nprintf "docker %s\\n" "$*" >> "$PROOF_DIR/reclaim-calls"\n',
         },
       );
       expect(result.code, result.stdout + result.stderr).toBe(0);
@@ -1661,10 +1663,10 @@ describe('standalone container CI efficiency', () => {
       if (reclaim) {
         expect(await calls.text()).toBe(
           [
-            'rm -rf -- /usr/share/dotnet',
-            'rm -rf -- /usr/local/lib/android',
-            'rm -rf -- /opt/ghc',
-            'rm -rf -- /opt/hostedtoolcache/CodeQL',
+            'sudo rm -rf -- /usr/share/dotnet',
+            'sudo rm -rf -- /usr/local/lib/android',
+            'sudo rm -rf -- /opt/ghc',
+            'sudo rm -rf -- /opt/hostedtoolcache/CodeQL',
             'docker image prune -af',
             '',
           ].join('\n'),
@@ -1685,6 +1687,7 @@ describe('standalone container CI efficiency', () => {
       const result = await execute(diskStep?.run, diskStep?.env ?? {}, {
         df,
         sudo: '#!/bin/sh\nexit 99\n',
+        docker: '#!/bin/sh\nexit 99\n',
       });
       expect(result.code, result.stdout + result.stderr).toBe(code);
       expect(result.stderr).not.toContain('MIN_FREE_GIB');

@@ -58,6 +58,7 @@ const CHECKED_CI_FILES = [
   '.github/workflows/e2e.yml',
   '.github/workflows/release-candidate-receipt.yml',
   '.github/workflows/release-candidate-source.yml',
+  '.github/workflows/sandbox-incus-e2e.yml',
   '.github/workflows/sast.yml',
   '.github/workflows/security.yml',
   '.github/actions/setup-cli/action.yml',
