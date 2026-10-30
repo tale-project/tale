@@ -56,4 +56,58 @@ describe('renderWorkLadder', () => {
       /load_skill/,
     );
   });
+
+  describe('pictures', () => {
+    const IMAGES_OFF: WorkLoadout = { ...ALL, generateImage: false };
+
+    it('offers generate_image for a picture while image generation is on', () => {
+      const text = renderWorkLadder(ALL) ?? '';
+      expect(text).toMatch(/3\. generate_image — a picture/);
+      expect(text).not.toMatch(/Image generation is not available/);
+      expect(text).not.toMatch(/Governance/);
+    });
+
+    it('says pictures cannot be made while image generation is off, and who turns it on', () => {
+      const text = renderWorkLadder(IMAGES_OFF) ?? '';
+      expect(text).not.toMatch(/generate_image/);
+      expect(text).toMatch(/Image generation is not available/);
+      expect(text).toMatch(/no photo, illustration or artwork/);
+      expect(text).toMatch(/When asked for one, say so plainly/);
+      expect(text).toMatch(/an Admin or Owner can turn it on/);
+      expect(text).toContain(
+        'Settings → Governance → Models → Image generation',
+      );
+    });
+
+    it('keeps SVG for diagrams, icons and charts, never as a stand-in for a picture', () => {
+      const text = renderWorkLadder(IMAGES_OFF) ?? '';
+      expect(text).toMatch(/2\. create_file — .*SVG/);
+      expect(text).toMatch(
+        /Never pass off an SVG or a drawing made with code as such a picture/,
+      );
+      expect(text).toMatch(/those are for diagrams, icons and charts/);
+    });
+
+    it('says so after the numbered steps, before the skills and the closing rule', () => {
+      const text = renderWorkLadder(IMAGES_OFF) ?? '';
+      const order = [
+        '3. run_code',
+        'Image generation is not available',
+        'load it with load_skill',
+        'Never use a costlier step',
+      ].map((needle) => text.indexOf(needle));
+      expect(order.every((at) => at >= 0)).toBe(true);
+      expect([...order].sort((a, b) => a - b)).toEqual(order);
+    });
+
+    it('says so whatever else the turn offers, and nothing when it offers no work tool', () => {
+      expect(renderWorkLadder({ ...NONE, skills: true })).toMatch(
+        /Image generation is not available/,
+      );
+      expect(renderWorkLadder({ ...NONE, escalate: true })).toMatch(
+        /Image generation is not available/,
+      );
+      expect(renderWorkLadder(NONE)).toBeUndefined();
+    });
+  });
 });

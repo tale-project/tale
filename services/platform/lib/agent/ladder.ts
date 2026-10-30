@@ -7,6 +7,9 @@
  * job wins, and a costlier tier is never reached for out of habit. It names
  * only the tools the turn is actually offered, so an organization that
  * switched code execution off never reads about a sandbox it cannot use.
+ * Pictures are the exception: no other rung makes one, and the cheapest that
+ * seems to fit, an SVG, is no photo. So a turn without the image tool is told
+ * that pictures cannot be made, and who can change that.
  *
  * It rides the agent instructions, inside the cached prefix: it changes
  * only with the organization's policy, never per person or per turn.
@@ -25,6 +28,15 @@ export interface WorkLoadout {
    * and leaves this off. */
   readonly escalate?: boolean;
 }
+
+/**
+ * What a turn without the image tool is told in its place. The tool is
+ * missing when the organization's image generation policy is off or when no
+ * image model serves it, so the words hold for both and name where an admin
+ * turns it on.
+ */
+const NO_IMAGE_GENERATION =
+  'Image generation is not available in this organization, so no picture can be made: no photo, illustration or artwork. When asked for one, say so plainly, and that an Admin or Owner can turn it on under Settings → Governance → Models → Image generation. Never pass off an SVG or a drawing made with code as such a picture: those are for diagrams, icons and charts.';
 
 /** True when the loadout offers any work tool at all. */
 export function offersWork(loadout: WorkLoadout): boolean {
@@ -70,6 +82,7 @@ export function renderWorkLadder(loadout: WorkLoadout): string | undefined {
     '**MAKING THINGS** — reach for the cheapest way that does the job, in this order:',
     ...steps.map((step, index) => `${index + 1}. ${step}`),
   ];
+  if (!loadout.generateImage) lines.push(NO_IMAGE_GENERATION);
   if (loadout.skills) {
     lines.push(
       'When a skill in the list below matches the work — such as one for the file format you are making — load it with load_skill before you start and follow it.',

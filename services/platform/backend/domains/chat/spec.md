@@ -235,8 +235,9 @@ the model decides, except a skill the person chose, which the reply reads first.
 ### CHAT-R18 · The assistant is offered only the tools the organization allows
 
 A tool switched off under Chat tools, or images while image generation is off, is not offered on
-any chat turn: the model is never told about it. A missing policy file offers every chat tool;
-images stay off until an admin turns them on.
+any chat turn: the model is never told about it, except that pictures cannot be made
+(`CHAT-R32`). A missing policy file offers every chat tool; images stay off until an admin turns
+them on.
 
 - **Example**: Ada, an admin, turns off **Code** under Chat tools. Mia asks her chat for an
   Excel file → her turn is offered no code tool.
@@ -385,6 +386,20 @@ the person chatting can no longer read is named to no model.
 - **Example**: A photo in Mia's earlier message was deleted since → her next reply's model is
   told of no such photo.
 
+### CHAT-R32 · Without image generation, the assistant is told pictures cannot be made
+
+While image generation is off, or no image model can serve it, a chat turn that offers other
+tools tells the assistant that no photo, illustration or artwork can be made in the organization,
+that an Admin or Owner turns image generation on under Settings › Governance › Models, and that
+an SVG or a drawing made with code is no stand-in for such a picture. SVG stays for diagrams,
+icons and charts. With image generation on, the assistant has the image tool and is told none of
+this.
+
+- **Example**: Image generation is off in Mia's organization. She asks her chat for a
+  photorealistic image of a lighthouse → her assistant has no image tool, and is told to say
+  that pictures cannot be made and that an Admin or Owner can turn image generation on, not to
+  hand her an SVG as the photo.
+
 ## Not yet
 
 - **Attachments on a message**: the gate that holds a message to at most 10 files of the
@@ -422,6 +437,10 @@ the person chatting can no longer read is named to no model.
   `../../../lib/agent/ladder.ts`); no unit test can hold a model's choice. The light sandbox's
   bounds (three minutes a run, 10 files of 20 MB each, inputs and skills per call) are held
   only in part (`../agent_tools/run-code.ts`).
+- **Undecided: what does a chat with every tool off say of a picture?** With every Chat tools
+  switch and image generation off, the assistant gets no word of image generation
+  (`CHAT-R32`); its instructions call an image task work for a project agent
+  (`../../../lib/chat/assistant.ts`), though no agent of the organization can make one either.
 - **What the assistant can search and fetch from a chat** (`../../core/chat/assistant_tools.ts`):
   the project boundary of a filed chat, the hub for a personal chat, and untrusted content;
   what a search finds is knowledge's (`KNOW-R3` to `KNOW-R5`), the inbox leg conversations'
