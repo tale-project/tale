@@ -12,6 +12,8 @@ import type {
 } from '@/app/features/chat/types';
 import { projectConversationItem } from '@/lib/shared/conversations/conversation-item';
 import { contrastRatio, deriveAccentPalette } from '@/lib/utils/color';
+import { i18n } from '@/tests/utils/i18n-all-languages';
+import { forgetSavedLocale, saveLocale } from '@/tests/utils/lapsed-session';
 import { painted } from '@/tests/utils/paint';
 import { cleanup, render, screen, within } from '@/tests/utils/render';
 
@@ -204,6 +206,13 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   useParams: () => ({
     threadId: /\/chat\/([^/]+)$/.exec(backend.location.pathname)?.[1],
   }),
+}));
+
+// The Inbox view's own list reads the conversations backend; the cases here
+// judge the panel around it.
+vi.mock('./home-inbox-list', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./home-inbox-list')>()),
+  HomeInboxList: () => <p>Inbox conversations</p>,
 }));
 
 vi.mock('@/app/hooks/use-current-user', () => ({
@@ -1895,6 +1904,128 @@ describe('Home screen on a phone', () => {
     expect(frame().scrollWidth).toBeLessThanOrEqual(frame().clientWidth);
     expect(document.documentElement.scrollWidth).toBeLessThanOrEqual(390);
   });
+});
+
+/**
+ * The view switcher in the row it shares with New chat: the narrowest and
+ * widest desktop panel, and a phone's Home screen, in every language the app
+ * ships, with and without an Inbox. Whichever view is open, its name shows in
+ * full beside its icon, every other view is its icon alone, and the row keeps
+ * New chat inside the panel.
+ */
+describe('the Home view switcher in its row', () => {
+  afterEach(async () => {
+    await forgetSavedLocale();
+  });
+
+  function labelFrames() {
+    return screen.getAllByRole('radio').map((radio) => {
+      // oxlint-disable-next-line testing-library/no-node-access -- the label's frame has no role
+      const labelFrame = radio.querySelector(
+        '[data-slot="segmented-label-frame"]',
+      );
+      // oxlint-disable-next-line testing-library/no-node-access -- see above
+      const label = labelFrame?.querySelector('[data-slot="segmented-label"]');
+      if (
+        !(labelFrame instanceof HTMLElement) ||
+        !(label instanceof HTMLElement)
+      ) {
+        throw new Error('A view has no label frame');
+      }
+      return { radio, labelFrame, label };
+    });
+  }
+
+  it.each([
+    ['panel', 280, 'en'],
+    ['panel', 280, 'de'],
+    ['panel', 280, 'fr'],
+    ['panel', 480, 'en'],
+    ['panel', 480, 'de'],
+    ['panel', 480, 'fr'],
+    ['screen', 360, 'en'],
+    ['screen', 360, 'de'],
+    ['screen', 360, 'fr'],
+  ] as const)(
+    'names the open view in full at %s %ipx in %s, with three views or four',
+    async (variant, width, locale) => {
+      await resizeViewport(variant === 'panel' ? 1280 : width, 800);
+      saveLocale(locale);
+      await i18n.changeLanguage(locale);
+      for (const hasInbox of [false, true]) {
+        const views = hasInbox
+          ? ['all', 'chats', 'tasks', 'inbox']
+          : ['all', 'chats', 'tasks'];
+        for (const view of views) {
+          localStorage.setItem(`home-view-${ORG}`, JSON.stringify(view));
+          localStorage.setItem(
+            `home-panel-width-${ORG}`,
+            JSON.stringify(width),
+          );
+          backend.home = {
+            ...homeData([], chatList(3)),
+            hasInbox,
+            attention: { chats: 2, tasks: 1, inbox: 3 },
+          } satisfies HomeData;
+          backend.location = {
+            pathname: `/dashboard/${ORG}/chat/chat-0`,
+            search: {},
+          };
+          render(
+            <div
+              data-testid="host"
+              className="bg-background flex h-160"
+              style={{ width }}
+            >
+              {variant === 'panel' ? (
+                <HomePanelProvider organizationId={ORG}>
+                  <HomePanel organizationId={ORG} />
+                </HomePanelProvider>
+              ) : (
+                <HomeNavigator organizationId={ORG} variant="screen" />
+              )}
+            </div>,
+          );
+          const name = i18n.t(`home:views.${view}`);
+          const frames = labelFrames();
+          expect(frames).toHaveLength(views.length);
+          for (const { radio, labelFrame, label: text } of frames) {
+            const open = radio.getAttribute('aria-checked') === 'true';
+            expect(radio, text.textContent ?? '').toHaveAccessibleName(
+              new RegExp(`^${text.textContent ?? ''}`),
+            );
+            if (open) {
+              // Shown, and never cut: its frame holds the whole word.
+              expect(text).toHaveTextContent(name);
+              expect(labelFrame).toHaveAttribute('data-shown', 'true');
+              expect(box(labelFrame).width).toBeGreaterThanOrEqual(
+                box(text).width - SUBPIXEL,
+              );
+            } else {
+              expect(labelFrame).toHaveAttribute('data-shown', 'false');
+            }
+          }
+          // Every view stays in the row: short of New chat, which keeps its
+          // place at the row's end inside the panel, or of a phone's edge.
+          const host = box(screen.getByTestId('host'));
+          const [newChat] =
+            variant === 'panel'
+              ? screen.getAllByRole('link', { name: i18n.t('home:newChat') })
+              : [];
+          for (const { radio } of frames) {
+            expect(box(radio).left).toBeGreaterThanOrEqual(host.left);
+            expect(box(radio).right).toBeLessThanOrEqual(
+              newChat === undefined ? host.right : box(newChat).left,
+            );
+          }
+          if (newChat !== undefined) {
+            expect(box(newChat).right).toBeLessThanOrEqual(host.right);
+          }
+          cleanup();
+        }
+      }
+    },
+  );
 });
 
 it('isolates Home shortcuts from a focused Search dialog button in Chromium', async () => {

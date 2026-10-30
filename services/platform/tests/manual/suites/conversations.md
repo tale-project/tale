@@ -135,7 +135,7 @@ subject.
 - [ ] `CONV-G1` · **Hidden without automation** — On an org with **no** email
   automation installed, load any dashboard page, then the phone's Home list →
   The Home panel's **Show** switcher (`home.views.label`) offers **All**,
-  **Chats** and **Tasks** only — no **Inbox** option (`home.views.inbox`;
+  **Chats** and **Tasks** only — no **Inbox** tray icon (`home.views.inbox`;
   `getByRole('radio', { name: 'Inbox' })` count 0) — and neither does the
   phone's Home list; the **All** view lists no conversations; the Home tile
   carries no unread chip; the option also never flashes in during load.
@@ -150,8 +150,9 @@ subject.
 - [ ] `CONV-G3` · **Appears after install** — Create **Sync Outlook emails**
   from the catalog CONV-G2's link opens, then deploy it (**Start it now** with
   Outlook connected; otherwise create it as a draft and **Deploy** it in its
-  editor) → The **Inbox** option (`home.views.inbox`) appears in the Home panel's
-  switcher without a reload, and choosing it lists the Open conversations;
+  editor) → The **Inbox** option (`home.views.inbox`, a tray icon named in its
+  tooltip) appears in the Home panel's switcher without a reload, and choosing
+  it shows its name beside the icon and lists the Open conversations;
   `/conversations/open` now shows the inbox, not the set-up state; the
   automation's own page shows only workflow-settings tabs (Configuration /
   Connectors) — **no Inbox tab**. Deleting the last deployed email automation
@@ -693,7 +694,8 @@ subject.
   focus to the button.
 - [ ] `CONV-A5` · **Inbox entry** → The Inbox is reached through the Home
   panel's switcher: a `radio` named **Inbox** (`home.views.inbox`) in the
-  **Show** radiogroup (`home.views.label`), reachable with the arrow keys; the
+  **Show** radiogroup (`home.views.label`), drawn as a tray icon and named in
+  full even while only its icon shows, reachable with the arrow keys; the
   phone's Home list offers the same radio. Neither the rail nor the tab bar
   carries an Inbox entry of its own; the Home tile and tab announce the
   unread count in their names (NAV-F23).
