@@ -5,11 +5,18 @@
  * document from the light sandbox, a file it wrote out, a generated image.
  *
  * They are the deliverable, so they render below the answer as soon as they
- * exist, not behind the tool steps: images as pictures that open in the
- * gallery, every other file as a card that opens the in-app preview (a PDF,
- * a Word document, a spreadsheet render in place) with a Download beside it
- * that saves the file under its own name. A file whose bytes are gone keeps
- * its card; its preview says so.
+ * exist, not behind the tool steps: a PNG, JPEG, GIF or WebP as a picture
+ * that opens in the gallery, every other file as a card that opens the
+ * in-app preview (a PDF, a Word document, a spreadsheet render in place)
+ * with a Download beside it that saves the file under its own name.
+ *
+ * An SVG is a card too. Drawn as a picture it sizes itself from its markup:
+ * one that names no width collapsed to nothing and one that does not parse
+ * drew a broken image, both without a Download, so a reply said it attached
+ * a file nobody could see (#5028). Its preview draws it through `<img>`,
+ * where no script in it runs. A picture whose bytes cannot be shown gets
+ * its card as well, and a file whose bytes are gone keeps its card; its
+ * preview says so.
  */
 
 import { DocumentIcon } from '@tale/ui/document-icon';
@@ -30,6 +37,7 @@ import { useFileUrls } from '@/app/features/shared/files/use-file-url';
 import { ImagePreviewDialog } from '@/app/features/shared/markdown/image-preview-dialog';
 import { backendUrl } from '@/app/lib/backend/api-client';
 import { useT } from '@/lib/i18n/client';
+import { isRasterImage } from '@/lib/shared/file-types';
 
 import type { MessagePart } from '../types';
 
@@ -130,25 +138,36 @@ function ArtifactCard({
   );
 }
 
-function ArtifactImages({ images }: { images: readonly ArtifactPart[] }) {
+function ArtifactImages({
+  images,
+  organizationId,
+}: {
+  images: readonly ArtifactPart[];
+  organizationId?: string;
+}) {
   const { t } = useT('chat');
   const urls = useFileUrls(images.map((image) => image.fileId));
+  // The links whose bytes did not draw. A new link is tried again.
+  const [broken, setBroken] = useState<ReadonlySet<string>>(() => new Set());
   const urlByFileId = new Map(
     (urls.data ?? []).map((row) => [row.fileId, row.url] as const),
   );
-  const gallery = images.flatMap((image) => {
+  const drawable = (image: ArtifactPart): string | undefined => {
     const src = urlByFileId.get(image.fileId);
-    return typeof src === 'string' && src.length > 0
-      ? [{ src, alt: image.name }]
-      : [];
+    return typeof src === 'string' && src.length > 0 && !broken.has(src)
+      ? src
+      : undefined;
+  };
+  const gallery = images.flatMap((image) => {
+    const src = drawable(image);
+    return src === undefined ? [] : [{ src, alt: image.name }];
   });
   const [previewIndex, setPreviewIndex] = useState<number | null>(null);
   return (
     <>
       <ul className="flex flex-wrap items-start gap-2">
         {images.map((image) => {
-          const src = urlByFileId.get(image.fileId);
-          if (src === undefined && urls.data === undefined) {
+          if (urls.isLoading) {
             return (
               <li key={image.fileId}>
                 <Skeletonize loading>
@@ -159,13 +178,21 @@ function ArtifactImages({ images }: { images: readonly ArtifactPart[] }) {
               </li>
             );
           }
-          if (typeof src !== 'string' || src.length === 0) {
-            // The bytes cannot be shown (gone, or not this reader's): the
-            // image still has its name.
-            return (
+          const src = drawable(image);
+          if (src === undefined) {
+            // The bytes cannot be shown (gone, not this reader's, or no
+            // picture after all, or the link could not be read): the file
+            // keeps its card, which still opens and downloads it.
+            return organizationId === undefined ? (
               <li key={image.fileId}>
                 <Text variant="caption">{image.name}</Text>
               </li>
+            ) : (
+              <ArtifactCard
+                key={image.fileId}
+                artifact={image}
+                organizationId={organizationId}
+              />
             );
           }
           const index = gallery.findIndex((entry) => entry.src === src);
@@ -181,6 +208,7 @@ function ArtifactImages({ images }: { images: readonly ArtifactPart[] }) {
                   src={src}
                   alt={image.name}
                   className="max-h-64 w-auto max-w-[16rem] object-contain"
+                  onError={() => setBroken((prev) => new Set(prev).add(src))}
                 />
               </button>
             </li>
@@ -215,15 +243,17 @@ export function MessageArtifacts({
   const artifacts = artifactsOf(parts);
   if (artifacts.length === 0) return null;
   const images = artifacts.filter((artifact) =>
-    artifact.mediaType.startsWith('image/'),
+    isRasterImage(artifact.mediaType),
   );
   const files = artifacts.filter(
-    (artifact) => !artifact.mediaType.startsWith('image/'),
+    (artifact) => !isRasterImage(artifact.mediaType),
   );
   return (
     <section aria-label={t('artifacts.label')} className="mt-2 min-w-0">
       <Stack gap={2}>
-        {images.length > 0 && <ArtifactImages images={images} />}
+        {images.length > 0 && (
+          <ArtifactImages images={images} organizationId={organizationId} />
+        )}
         {files.length > 0 && organizationId !== undefined && (
           <ul className="flex min-w-0 flex-col items-start gap-1.5">
             {files.map((artifact) => (

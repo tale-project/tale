@@ -13,6 +13,7 @@ import {
   isAllowedDocumentUpload,
   isAudioOrVideo,
   isRagIndexableFile,
+  isRasterImage,
   mimeToExtension,
   RAG_INDEXABLE_EXTENSIONS,
   resolveFileType,
@@ -641,5 +642,22 @@ describe('documentIconExtension', () => {
 
   it('is undefined when neither side knows', () => {
     expect(documentIconExtension('Overview')).toBeUndefined();
+  });
+});
+
+describe('isRasterImage', () => {
+  it('takes the pixel formats a picture is drawn from', () => {
+    for (const type of ['image/png', 'image/jpeg', 'image/gif', 'image/webp']) {
+      expect(isRasterImage(type)).toBe(true);
+    }
+  });
+
+  it('leaves out an SVG, which is markup without a size of its own', () => {
+    expect(isRasterImage('image/svg+xml')).toBe(false);
+  });
+
+  it('leaves out a file that is no image', () => {
+    expect(isRasterImage('application/pdf')).toBe(false);
+    expect(isRasterImage(FALLBACK_MIME_TYPE)).toBe(false);
   });
 });

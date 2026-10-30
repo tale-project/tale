@@ -400,6 +400,17 @@ this.
   that pictures cannot be made and that an Admin or Owner can turn image generation on, not to
   hand her an SVG as the photo.
 
+### CHAT-R33 · Every file a reply made shows under it, as a picture or a card
+
+A PNG, JPEG, GIF or WebP the reply made shows as a picture that opens the gallery. Every other
+file, an SVG too, shows as a card with its name, type and size that opens the preview, with a
+Download beside it; so does a picture that cannot be shown. The files show while the reply
+streams, after a reload and on a reply tried again.
+
+- **Example**: Mia's assistant writes `superheld-dunkle-gasse.svg` and says it is attached → a
+  card for it shows under the reply, also after she reloads the chat; she opens its preview or
+  downloads it.
+
 ## Not yet
 
 - **Attachments on a message**: the gate that holds a message to at most 10 files of the

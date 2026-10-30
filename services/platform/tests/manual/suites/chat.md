@@ -819,9 +819,12 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   generation**). No SVG or other file arrives as the photo, and the timeline
   shows no **Writing …** step (`chat.thinking.writingFile`) for one. Then ask
   "Draw a simple SVG icon of a lighthouse instead" → the assistant writes the
-  `.svg` file. Turn image generation on and ask the first prompt again in a
-  new chat → **Generating an image** (`chat.thinking.generatingImages`), as
-  in GOV-F66. Restore: switch image generation off.
+  `.svg` file, and it arrives as a card under the reply with **SVG** and its
+  size, never as an empty or broken picture; its preview draws the icon and
+  its download saves it. Reload → the card is still there. Turn image
+  generation on and ask the first prompt again in a new chat → **Generating an
+  image** (`chat.thinking.generatingImages`), as in GOV-F66. Restore: switch
+  image generation off.
 
 ## Boundary & error tests
 

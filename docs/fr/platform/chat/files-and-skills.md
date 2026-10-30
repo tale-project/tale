@@ -25,7 +25,7 @@ Pendant que l’assistant travaille, les étapes au-dessus de la réponse indiqu
 
 ## Ouvrir et télécharger les fichiers
 
-Les fichiers apparaissent sous la réponse, dans l’ordre où ils ont été créés. Les images s’affichent directement ; sélectionnes-en une pour l’ouvrir en grand et parcourir les autres. Chaque autre fichier s’affiche sous forme de carte avec son nom, son type et sa taille. Sélectionne la carte pour afficher un aperçu ; les PDF, documents Word, tableurs, fichiers Markdown et fichiers texte s’ouvrent directement. Le bouton de téléchargement à côté de la carte enregistre le fichier sous son propre nom.
+Les fichiers apparaissent sous la réponse, dans l’ordre où ils ont été créés. Les images PNG, JPEG, GIF et WebP s’affichent directement ; sélectionnes-en une pour l’ouvrir en grand et parcourir les autres. Chaque autre fichier, y compris un fichier SVG, s’affiche sous forme de carte avec son nom, son type et sa taille, tout comme une image qui ne peut pas être affichée. Sélectionne la carte pour afficher un aperçu ; les PDF, documents Word, tableurs, fichiers Markdown, fichiers texte et fichiers SVG s’ouvrent directement. Le bouton de téléchargement à côté de la carte enregistre le fichier sous son propre nom.
 
 <Frame caption="Le fichier rédigé par l’assistant apparaît sous forme de carte sous sa réponse, avec un bouton de téléchargement à côté.">
 

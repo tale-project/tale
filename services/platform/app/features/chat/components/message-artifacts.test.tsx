@@ -1,20 +1,23 @@
 /**
  * The files a reply produced render below the answer: a document as a card
  * that opens the in-app preview with a download beside it that keeps the
- * file's name, an image as a picture that opens the gallery.
+ * file's name, a picture as a picture that opens the gallery. An SVG, and a
+ * picture that cannot be shown, get the card.
  */
 
 import { formatFileSize } from '@tale/ui/format';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen, within } from '@/tests/utils/render';
+import { fireEvent, render, screen, within } from '@/tests/utils/render';
 
 import type { MessagePart } from '../types';
 import { artifactsOf, MessageArtifacts } from './message-artifacts';
 
 const { urls } = vi.hoisted(() => ({
   urls: {
-    data: undefined as { fileId: string; url: string }[] | undefined,
+    data: undefined as { fileId: string; url: string | null }[] | undefined,
+    isLoading: false,
+    isError: false,
   },
 }));
 
@@ -49,9 +52,36 @@ const IMAGE: MessagePart = {
   sizeBytes: 412_000,
 };
 
+/** What `create_file` stores for a typed-out SVG (#5028). */
+const SVG: MessagePart = {
+  type: 'artifact',
+  fileId: 's3:acme/gasse',
+  name: 'superheld-dunkle-gasse.svg',
+  mediaType: 'image/svg+xml',
+  sizeBytes: 2_048,
+  callId: 'call_svg',
+};
+
 function filesSection() {
   return screen.getByRole('region', { name: 'Files from this reply' });
 }
+
+/** The card of the file `name`: it opens the preview and downloads. */
+function expectCard(name: string) {
+  const section = filesSection();
+  expect(
+    within(section).getByRole('button', { name: `Open ${name}` }),
+  ).toBeVisible();
+  expect(
+    within(section).getByRole('link', { name: `Download ${name}` }),
+  ).toHaveAttribute('download');
+}
+
+beforeEach(() => {
+  urls.data = undefined;
+  urls.isLoading = false;
+  urls.isError = false;
+});
 
 describe('MessageArtifacts', () => {
   it('renders nothing for a reply that made no file', () => {
@@ -122,11 +152,72 @@ describe('MessageArtifacts', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
-  it('keeps the name of an image whose bytes cannot be shown', () => {
-    urls.data = [];
+  it('shows an SVG the reply made as a card, not as a picture [CHAT-R33]', async () => {
+    // An SVG drawn as a picture sizes itself from its markup: one that
+    // names no width collapsed to nothing, one that does not parse drew a
+    // broken image, and neither had a Download (#5028).
+    urls.data = [{ fileId: 's3:acme/gasse', url: 'https://cdn.test/g.svg' }];
+    const { user } = render(
+      <MessageArtifacts parts={[SVG]} organizationId="org-1" />,
+    );
+    expectCard('superheld-dunkle-gasse.svg');
+    expect(
+      within(filesSection()).getByText(`SVG · ${formatFileSize(2_048)}`),
+    ).toBeVisible();
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+
+    await user.click(
+      within(filesSection()).getByRole('button', {
+        name: 'Open superheld-dunkle-gasse.svg',
+      }),
+    );
+    expect(
+      screen.getByRole('dialog', {
+        name: 'Preview of superheld-dunkle-gasse.svg',
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it('holds the place of a picture whose link is on its way', () => {
+    urls.isLoading = true;
     render(<MessageArtifacts parts={[IMAGE]} organizationId="org-1" />);
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'Open lighthouse.png' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('gives a picture whose bytes cannot be shown its card [CHAT-R33]', () => {
+    urls.data = [{ fileId: 's3:acme/lighthouse', url: null }];
+    render(<MessageArtifacts parts={[IMAGE]} organizationId="org-1" />);
+    expectCard('lighthouse.png');
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  it('turns a picture that fails to load into its card [CHAT-R33]', () => {
+    urls.data = [
+      { fileId: 's3:acme/lighthouse', url: 'https://cdn.test/l.png' },
+    ];
+    render(<MessageArtifacts parts={[IMAGE]} organizationId="org-1" />);
+    fireEvent.error(
+      within(filesSection()).getByRole('img', { name: 'lighthouse.png' }),
+    );
+    expectCard('lighthouse.png');
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  it('gives the pictures their cards when their links cannot be read [CHAT-R33]', () => {
+    urls.isError = true;
+    render(<MessageArtifacts parts={[IMAGE]} organizationId="org-1" />);
+    expectCard('lighthouse.png');
+  });
+
+  it('keeps the name of a picture whose bytes cannot be shown where no organization is open', () => {
+    urls.data = [];
+    render(<MessageArtifacts parts={[IMAGE]} />);
     expect(within(filesSection()).getByText('lighthouse.png')).toBeVisible();
     expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 });
 

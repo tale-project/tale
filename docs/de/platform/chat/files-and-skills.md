@@ -25,7 +25,7 @@ Während der Assistent arbeitet, zeigen die Schritte über der Antwort, was er g
 
 ## Die Dateien öffnen und herunterladen
 
-Die Dateien erscheinen unter der Antwort, in der Reihenfolge ihrer Entstehung. Bilder werden direkt angezeigt; wähle eines aus, um es groß zu öffnen und durch die anderen zu blättern. Jede andere Datei erscheint als Karte mit Name, Typ und Größe. Wähle die Karte, um eine Vorschau zu öffnen; PDF-, Word-, Tabellen-, Markdown- und Textdateien werden direkt angezeigt. Die Download-Schaltfläche neben der Karte speichert die Datei unter ihrem eigenen Namen.
+Die Dateien erscheinen unter der Antwort, in der Reihenfolge ihrer Entstehung. PNG-, JPEG-, GIF- und WebP-Bilder werden direkt angezeigt; wähle eines aus, um es groß zu öffnen und durch die anderen zu blättern. Jede andere Datei, auch eine SVG-Datei, erscheint als Karte mit Name, Typ und Größe, ebenso ein Bild, das sich nicht anzeigen lässt. Wähle die Karte, um eine Vorschau zu öffnen; PDF-, Word-, Tabellen-, Markdown-, Text- und SVG-Dateien werden direkt angezeigt. Die Download-Schaltfläche neben der Karte speichert die Datei unter ihrem eigenen Namen.
 
 <Frame caption="Die Datei, die der Assistent geschrieben hat, erscheint als Karte unter seiner Antwort, mit einer Download-Schaltfläche daneben.">
 
