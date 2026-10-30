@@ -186,13 +186,13 @@ export const UploadFileRow = memo(function UploadFileRow({
         )}
 
         {isUploading && (
-          <span className="shrink-0 text-[11px] font-bold text-blue-600 tabular-nums">
+          <span className="text-primary shrink-0 text-[11px] font-bold tabular-nums">
             {formattedPercentage}
           </span>
         )}
 
         {(isFinalizing || isBinding) && (
-          <span className="inline-flex shrink-0 items-center gap-1 text-[11px] font-medium text-blue-600">
+          <span className="text-primary inline-flex shrink-0 items-center gap-1 text-[11px] font-medium">
             <Loader2
               className="size-3 motion-safe:animate-spin"
               aria-hidden="true"
@@ -225,7 +225,9 @@ export const UploadFileRow = memo(function UploadFileRow({
       </Row>
 
       {/* Progress bar: determinate while bytes flow, indeterminate while
-          confirming (no aria-valuenow — there is no meaningful value). */}
+          confirming (no aria-valuenow — there is no meaningful value). Its
+          fill wears the accent's text shade, as `ProgressBar`'s does, and
+          so does its figure in the row above. */}
       {isUploading && (
         <div
           role="progressbar"
@@ -237,7 +239,7 @@ export const UploadFileRow = memo(function UploadFileRow({
           className="bg-muted h-1 w-full overflow-hidden rounded-full"
         >
           <div
-            className="h-full rounded-full bg-gradient-to-b from-blue-600 to-blue-400 transition-all duration-300 ease-out"
+            className="bg-primary h-full rounded-full transition-all duration-300 ease-out"
             style={{ width: `${percentage}%` }}
           />
         </div>
@@ -248,7 +250,7 @@ export const UploadFileRow = memo(function UploadFileRow({
           aria-label={indeterminateAriaLabel}
           className="bg-muted h-1 w-full overflow-hidden rounded-full"
         >
-          <div className="h-full w-full rounded-full bg-gradient-to-b from-blue-600 to-blue-400 motion-safe:animate-pulse" />
+          <div className="bg-primary h-full w-full rounded-full motion-safe:animate-pulse" />
         </div>
       )}
 
