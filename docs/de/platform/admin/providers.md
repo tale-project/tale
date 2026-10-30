@@ -50,6 +50,8 @@ Tale erneuert ein eingefügtes Token nicht. Läuft es ab oder wechselst du zu ei
 
 Wähle **Abo-Schlüssel**, füge den Zugriffstoken ein und trage die **ChatGPT-Konto-ID** aus dem Anspruch `chatgpt_account_id` ein. Codex verwendet beide Werte. Beschränke die Modelle auf dein ChatGPT-Abo; die Zugangsdaten funktionieren nur in Aufgaben und Automatisierungen.
 
+Läuft der Zugriffstoken ab, füge über die Ersetzen-Aktion der Zeile einen neuen ein. Lass die **ChatGPT-Konto-ID** leer, um die gespeicherte zu behalten, oder trage die ID des anderen Kontos ein, wenn der neue Token zu einem anderen ChatGPT-Konto gehört.
+
 ## Einen Abo-Broker verbinden
 
 Abo-Broker unterstützen Anthropic-Abonnements über Claude Code und OpenAI-ChatGPT-Abonnements über Codex. Diese Zugangsdaten dienen Agenten für Aufgaben und Automatisierungen. Chats benötigen Zugangsdaten für den direkten API-Zugriff, aus den [oben genannten Gründen](#abos-in-aufgaben-nutzen-nicht-im-chat).

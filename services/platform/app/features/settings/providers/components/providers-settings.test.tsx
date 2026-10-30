@@ -632,6 +632,53 @@ describe('ProvidersSettings', () => {
       ).toBeInTheDocument();
     });
 
+    // The server refuses an account ID on any other method, and the field is
+    // gone once the method moves on — so the draft's leftover must not travel.
+    it('drops a typed subscription account ID once the method moves to API key', async () => {
+      fixtures.catalogs = [
+        {
+          ...openaiProvider,
+          authMethods: ['api-key', 'subscription-key'],
+        } as unknown as ProviderCatalog,
+      ];
+      fixtures.credentials = [];
+      createCredential.mockResolvedValue({ credentialId: 'cred-9' });
+      const { user } = renderPage();
+      const form = await pickProvider(user, 'OpenAI');
+      const method = form.getByRole('combobox', {
+        name: /Authentication method/,
+      });
+
+      await user.click(method);
+      await user.click(
+        screen.getByRole('option', { name: 'Subscription key' }),
+      );
+      await user.type(
+        form.getByRole('textbox', { name: 'ChatGPT account ID' }),
+        'acct-123',
+      );
+      await user.click(method);
+      await user.click(screen.getByRole('option', { name: 'API key' }));
+      expect(
+        form.queryByRole('textbox', { name: 'ChatGPT account ID' }),
+      ).toBeNull();
+      await user.type(
+        form.getByLabelText(/^API key/, { selector: 'input' }),
+        'sk-openai-secret',
+      );
+      await user.click(form.getByRole('button', { name: 'Add credential' }));
+
+      await waitFor(() =>
+        expect(createCredential).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          providerSlug: 'openai',
+          authMethod: 'api-key',
+          name: 'OpenAI',
+          secret: 'sk-openai-secret',
+        }),
+      );
+    });
+
     it('explains before the broker fields that a subscription never serves chat, and why', async () => {
       const { user } = renderPage();
       const form = await pickProvider(user, 'Anthropic');
@@ -899,6 +946,59 @@ describe('ProvidersSettings', () => {
       expect(
         menu.getByRole('menuitem', { name: 'Delete' }),
       ).toBeInTheDocument();
+    });
+
+    // The update keeps the stored account ID when it names none, so a new
+    // token alone is a complete replacement.
+    it('replaces a subscription key without retyping its account ID', async () => {
+      fixtures.catalogs = [openaiProvider];
+      fixtures.credentials = [
+        credential({
+          id: 'cred-oa',
+          name: 'ChatGPT subscription',
+          providerSlug: 'openai',
+          authMethod: 'subscription-key',
+          maskedPreview: 'eyJ…x9a',
+        }),
+      ];
+      updateCredential.mockResolvedValue(null);
+      const { user } = renderPage();
+      await user.click(
+        screen.getByRole('button', {
+          name: 'Actions for ChatGPT subscription',
+        }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Replace subscription key',
+        }),
+      );
+      const dialog = within(
+        await screen.findByRole('dialog', { name: 'Replace subscription key' }),
+      );
+
+      const accountId = dialog.getByRole('textbox', {
+        name: /^ChatGPT account ID/,
+      });
+      expect(accountId).not.toBeRequired();
+      await user.type(
+        dialog.getByLabelText(/^New subscription key/, { selector: 'input' }),
+        'eyJ-new-token',
+      );
+      const save = dialog.getByRole('button', { name: 'Save' });
+      expect(save).toBeEnabled();
+      expect(accountId).toHaveAccessibleDescription(
+        'Leave empty to keep the stored account ID.',
+      );
+      await user.click(save);
+
+      await waitFor(() =>
+        expect(updateCredential).toHaveBeenCalledWith({
+          organizationId: 'org-1',
+          credentialId: 'cred-oa',
+          secret: 'eyJ-new-token',
+        }),
+      );
     });
   });
 

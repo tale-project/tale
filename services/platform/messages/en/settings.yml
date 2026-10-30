@@ -960,6 +960,9 @@ providers:
       The knowledge embedding model uses this credential. Choose another
       credential for it under Settings → Data residency → Embedding model,
       then delete this one.
+    accountIdInvalid:
+      Only a subscription key takes an account ID. Choose Subscription key
+      as the authentication method, or save without an account ID.
   replace:
     apiKeyTitle: Replace API key
     envTitle: Change environment variable
@@ -970,6 +973,7 @@ providers:
     brokerNote:
       Stored broker values can't be shown. Enter the full configuration
       again — leave the broker secret empty to keep the stored one.
+    accountIdKeep: Leave empty to keep the stored account ID.
   dialog:
     secret: API key
     subscriptionSecret: Subscription key

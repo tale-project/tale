@@ -50,6 +50,8 @@ Tale ne renouvelle pas un jeton collé. Quand il expire, ou quand tu passes à u
 
 Choisis **Clé d'abonnement**, colle le jeton d’accès et saisis l’**ID du compte ChatGPT** indiqué par la revendication `chatgpt_account_id`. Codex utilise ces deux valeurs. Limite les modèles à ceux pris en charge par ton abonnement ; ces identifiants servent uniquement aux tâches et aux automatisations.
 
+Quand le jeton expire, utilise l’action de remplacement de la ligne pour en coller un nouveau. Laisse l’**ID du compte ChatGPT** vide pour conserver celui qui est stocké, ou saisis celui de l’autre compte si le nouveau jeton appartient à un autre compte ChatGPT.
+
 ## Connecter un courtier d’abonnement
 
 Les courtiers d’abonnement prennent en charge les abonnements Anthropic via Claude Code et les abonnements OpenAI ChatGPT via Codex. Ces identifiants servent aux agents de tâche et d’automatisation ; les chats nécessitent des identifiants d’accès direct à l’API, pour les [raisons expliquées plus haut](#utiliser-les-abonnements-dans-les-taches-pas-dans-le-chat).

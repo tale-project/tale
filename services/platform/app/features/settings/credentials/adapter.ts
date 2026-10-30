@@ -111,8 +111,17 @@ export interface CredentialSecretModule<
   empty: () => Draft;
   /** Whether anything has been typed — drives the discard-on-close prompt. */
   isDirty: (draft: Draft) => boolean;
-  /** Whether the method's required fields are filled — the submit gate. */
-  isComplete: (method: Method, draft: Draft, vendor?: V) => boolean;
+  /**
+   * Whether the method's required fields are filled — the submit gate.
+   * `replacing` is true in the replace dialog, where a field the server keeps
+   * when left empty is not required.
+   */
+  isComplete: (
+    method: Method,
+    draft: Draft,
+    vendor?: V,
+    replacing?: boolean,
+  ) => boolean;
   /**
    * The mutation arguments for this method.
    *

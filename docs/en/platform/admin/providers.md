@@ -50,6 +50,8 @@ Tale does not refresh a pasted token. When it expires, or you move to another Cl
 
 Choose **Subscription key**, paste the access token, and enter the **ChatGPT account ID** from its `chatgpt_account_id` claim. Codex uses both values. Limit the credential to models your ChatGPT plan supports; it works in tasks and automations, never chat.
 
+When the token expires, use the row's replacement action to paste a new one. Leave **ChatGPT account ID** empty to keep the stored ID, or enter the other account's ID when the new token belongs to a different ChatGPT account.
+
 ## Connect a subscription broker
 
 Subscription brokers support Anthropic subscriptions through Claude Code and OpenAI ChatGPT subscriptions through Codex. These credentials serve task and automation agents; chats require direct API credentials, for the [reasons above](#use-subscriptions-in-tasks-not-in-chat).
