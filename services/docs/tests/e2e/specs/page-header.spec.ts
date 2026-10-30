@@ -1,7 +1,17 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 import { gotoClientPage } from '@tale/e2e/client-page';
 import { createI18n } from '@tale/e2e/i18n';
 import { collectConsoleErrors } from '@tale/e2e/smoke';
+
+import { gotoClientPageWithLateBody } from '../helpers/late-page-body';
+
+/** The first Tab lands on the skip link; Enter moves focus into `main`. */
+async function startKeyboardNavigationAtSkipLink(page: Page, name: string) {
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('link', { name })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('main')).toBeFocused();
+}
 
 for (const locale of ['en', 'de', 'fr'] as const) {
   const { t } = createI18n(
@@ -30,12 +40,33 @@ for (const locale of ['en', 'de', 'fr'] as const) {
         await page.setViewportSize({ width, height: 1000 });
         await gotoClientPage(page, releasePath);
         await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-        await page.keyboard.press('Tab');
-        await expect(
-          page.getByRole('link', { name: t('docs.skipToMain') }),
-        ).toBeFocused();
-        await page.keyboard.press('Enter');
-        await expect(page.getByRole('main')).toBeFocused();
+        await startKeyboardNavigationAtSkipLink(page, t('docs.skipToMain'));
+      });
+
+      test(`starts keyboard navigation at the skip link once a late page body has committed at ${width}px`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 1000 });
+        const prerendered = await gotoClientPageWithLateBody(
+          page,
+          releasePath,
+          /\/assets\/config-releases-[^/]+\.js(?:\?|$)/,
+          async () => {
+            // The complete build CI previews already shows a skip link here
+            // (vite preview answers this URL with the root page's English
+            // prerender) with no client behind it: a Tab that landed on it
+            // lost its focus to the commit, and the localized link never got
+            // it (#4554).
+            const link = page.locator('a[href="#main"]').first();
+            return (await link.count()) > 0 ? link.elementHandle() : null;
+          },
+        );
+        if (prerendered) {
+          expect(await prerendered.evaluate((node) => node.isConnected)).toBe(
+            false,
+          );
+        }
+        await startKeyboardNavigationAtSkipLink(page, t('docs.skipToMain'));
       });
     }
 
