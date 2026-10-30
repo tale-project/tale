@@ -2,7 +2,8 @@
  * Real-Postgres proof of the expired-session reaper: only rows expired for
  * longer than the grace go, a live session and one inside the grace stay,
  * a run takes at most its batch budget, a row another transaction holds is
- * skipped rather than waited on, and the daily job deletes the same rows.
+ * skipped rather than waited on, and the daily job deletes the same rows. A
+ * batch finds its rows through `session_expiresAt_idx` (`db/boot-indexes.ts`).
  */
 import { randomUUID } from 'node:crypto';
 
@@ -10,7 +11,9 @@ import type { Sql } from 'postgres';
 
 import { createTaskList } from '../jobs/task-list.ts';
 import {
+  EXPIRED_SESSION_BATCH,
   EXPIRED_SESSION_GRACE_MS,
+  expiredSessionBatch,
   reapExpiredSessions,
 } from './expired-sessions.ts';
 
@@ -106,6 +109,26 @@ export async function checkExpiredSessionReaper(
         afterRelease.has(live) &&
         afterRelease.has(inGrace),
       `drainedUnderLock=${skipped?.drained}, keptWhileLocked=${lockedKept}, goneAfterRelease=${!afterRelease.has(locked)}`,
+    );
+
+    // On the harness's handful of rows the planner may prefer a sequential
+    // scan, so that is ruled out: the batch must then find its rows by an
+    // index, and `session_expiresAt_idx` is the one its predicate fits.
+    const plan = await sql.begin(async (tx) => {
+      await tx`SET LOCAL enable_seqscan = off`;
+      return tx<{ 'QUERY PLAN': string }[]>`
+        EXPLAIN ${expiredSessionBatch(
+          tx,
+          new Date(now - EXPIRED_SESSION_GRACE_MS),
+          EXPIRED_SESSION_BATCH,
+        )}
+      `;
+    });
+    const planText = plan.map((row) => row['QUERY PLAN']).join('\n');
+    record(
+      'expired sessions: a batch finds its rows through session_expiresAt_idx',
+      planText.includes('session_expiresAt_idx'),
+      planText,
     );
   } finally {
     await sql`DELETE FROM "session" WHERE "id" LIKE ${`${prefix}-%`}`;
