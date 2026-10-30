@@ -366,6 +366,72 @@ describe('connectorSchema', () => {
     }
   });
 
+  it('labels the options of a select field, in English and per locale, and only its own values', () => {
+    const mailbox = connectorSchema.parse(MAILBOX);
+    const field = {
+      key: 'security',
+      label: 'Connection security',
+      type: 'string',
+      enum: ['tls', 'starttls'],
+    };
+    const labelled = connectorSchema.parse({
+      ...mailbox,
+      configFields: [
+        {
+          ...field,
+          optionLabels: { tls: 'Implicit TLS', starttls: 'STARTTLS' },
+          // A translation may name some of the options; the rest fall back.
+          i18n: { de: { optionLabels: { tls: 'Implizites TLS' } } },
+        },
+      ],
+    });
+    expect(labelled.configFields[0]?.optionLabels).toEqual({
+      tls: 'Implicit TLS',
+      starttls: 'STARTTLS',
+    });
+    expect(labelled.configFields[0]?.i18n?.de?.optionLabels).toEqual({
+      tls: 'Implizites TLS',
+    });
+
+    const refusals = (configField: object) =>
+      connectorSchema
+        .safeParse({ ...mailbox, configFields: [configField] })
+        .error?.issues.map(({ path, message }) => ({ path, message }));
+    // A label for a value the field does not take, in English or translated.
+    expect(refusals({ ...field, optionLabels: { ssl: 'SSL' } })).toEqual([
+      {
+        path: ['configFields', 0, 'optionLabels', 'ssl'],
+        message:
+          'optionLabels names "ssl", which is not one of the field\'s enum values',
+      },
+    ]);
+    expect(
+      refusals({ ...field, i18n: { fr: { optionLabels: { ssl: 'SSL' } } } }),
+    ).toEqual([
+      {
+        path: ['configFields', 0, 'i18n', 'fr', 'optionLabels', 'ssl'],
+        message:
+          'optionLabels names "ssl", which is not one of the field\'s enum values',
+      },
+    ]);
+    // A field without options has none to label.
+    expect(
+      refusals({
+        key: 'imapHost',
+        label: 'IMAP server',
+        type: 'string',
+        optionLabels: { tls: 'Implicit TLS' },
+      }),
+    ).toEqual([
+      {
+        path: ['configFields', 0, 'optionLabels', 'tls'],
+        message:
+          'optionLabels names "tls", which is not one of the field\'s enum values',
+      },
+    ]);
+    expect(refusals({ ...field, optionLabels: { tls: '' } })).toHaveLength(1);
+  });
+
   it('requires a mock on every action', () => {
     const github = connectorSchema.parse(GITHUB);
     const noMock = {

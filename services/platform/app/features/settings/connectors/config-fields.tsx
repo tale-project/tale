@@ -30,10 +30,10 @@ export interface ConnectorVendorLike {
  * with `needs "IMAP server"` while offering no field to supply it.
  *
  * Types come from the declaration rather than being guessed: `boolean` renders
- * a switch, a `string` with `enum` renders a select over exactly those values,
- * everything else an input. Numbers stay STRINGS in form state and are coerced
- * by the server's own `normalizeConfig`, so a half-typed "9" is not silently
- * read as the port.
+ * a switch, a `string` with `enum` renders a select over exactly those values
+ * (each shown by its declared label), everything else an input. Numbers stay
+ * STRINGS in form state and are coerced by the server's own `normalizeConfig`,
+ * so a half-typed "9" is not silently read as the port.
  */
 export type ConnectorConfigValue = Record<string, string | number | boolean>;
 
@@ -47,6 +47,22 @@ function fieldsOf(summary: ConnectorSummary): ConnectorSummary['configFields'] {
   return summary.configFields.filter(
     (field) => !HIDDEN_CONFIG_KEYS.has(field.key),
   );
+}
+
+/** One option of a select field as its own text, for `useLocalized` to
+ * resolve: a translation that names only some options leaves the rest to
+ * the next language in the chain, then to the English label, then to the
+ * stored value itself. */
+function optionText(
+  field: ConnectorSummary['configFields'][number],
+  option: string,
+): { label: string; i18n: Record<string, { label: string }> } {
+  const i18n: Record<string, { label: string }> = {};
+  for (const [locale, text] of Object.entries(field.i18n ?? {})) {
+    const label = text.optionLabels?.[option];
+    if (label !== undefined) i18n[locale] = { label };
+  }
+  return { label: field.optionLabels?.[option] ?? option, i18n };
 }
 
 /** Whether `field` must be filled in for a credential of `method`: always
@@ -165,7 +181,7 @@ export function ConnectorConfigFields({
               onValueChange={(next) => set(field.key, next)}
               options={field.enum.map((option) => ({
                 value: option,
-                label: option,
+                label: localized(optionText(declared, option)).label,
               }))}
               disabled={disabled === true || locked}
               required={isRequired(field, method)}
