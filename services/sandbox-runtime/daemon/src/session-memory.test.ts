@@ -100,16 +100,21 @@ describe('memoryRefusesExec', () => {
     workingSetBytes: workingSetMiB * MiB,
   });
 
-  test('refuses at or past the share of the limit', () => {
-    expect(memoryRefusesExec(memory(900, 1000), 90)).toBe(true);
-    expect(memoryRefusesExec(memory(950, 1000), 90)).toBe(true);
-    expect(memoryRefusesExec(memory(899, 1000), 90)).toBe(false);
+  test('refuses at or past the share of the limit while an exec runs', () => {
+    expect(memoryRefusesExec(memory(900, 1000), 90, 1)).toBe(true);
+    expect(memoryRefusesExec(memory(950, 1000), 90, 3)).toBe(true);
+    expect(memoryRefusesExec(memory(899, 1000), 90, 1)).toBe(false);
   });
 
   test('admits without a limit, a reading, or with the check off', () => {
-    expect(memoryRefusesExec(memory(950, null), 90)).toBe(false);
-    expect(memoryRefusesExec(null, 90)).toBe(false);
-    expect(memoryRefusesExec(memory(1000, 1000), 0)).toBe(false);
+    expect(memoryRefusesExec(memory(950, null), 90, 1)).toBe(false);
+    expect(memoryRefusesExec(null, 90, 1)).toBe(false);
+    expect(memoryRefusesExec(memory(1000, 1000), 0, 1)).toBe(false);
+  });
+
+  test('admits into a full session with nothing running', () => {
+    expect(memoryRefusesExec(memory(950, 1000), 90, 0)).toBe(false);
+    expect(memoryRefusesExec(memory(1000, 1000), 90, 0)).toBe(false);
   });
 });
 

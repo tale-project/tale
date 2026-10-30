@@ -21,7 +21,8 @@ export const RUNNERD_INCARNATION_HEADER = 'x-tale-runnerd-incarnation';
 
 export const RUNNERD_MAX_LIVE_EXECS = 4;
 /** POST /execs refused because the session's memory is nearly spent: its
- * working set reached `TALE_EXEC_ADMISSION_MEMORY_PERCENT` of its limit.
+ * working set reached `TALE_EXEC_ADMISSION_MEMORY_PERCENT` of its limit
+ * while another exec runs (with none running, the exec is admitted).
  * HTTP 429 with a {@link RunnerdMemoryBusy} body and a `retry-after` header
  * in seconds. Nothing started; the execs already running are untouched. */
 export const RUNNERD_MEMORY_BUSY_ERROR = 'session_memory_busy';

@@ -580,13 +580,16 @@ clock, so a step of the wall clock never counts as quiet time, and a round more
 than three sampling intervals after the one before it (the host slept, or its
 VM was paused) starts every exec's window again.
 
-runnerd refuses to start an exec in a session about to run out of memory: when
-the session cgroup's working set (`memory.current` minus the `inactive_file`
-cache it can drop at once) has reached `TALE_EXEC_ADMISSION_MEMORY_PERCENT` of
-`memory.max` (90 unless set, `0` admits every exec), `POST /execs` answers
-`429` `{ error: "session_memory_busy", code: "SESSION_MEMORY_BUSY" }` with
+runnerd refuses to start an exec beside the running ones of a session about to
+run out of memory: when the session cgroup's working set (`memory.current`
+minus the `inactive_file` cache it can drop at once) has reached
+`TALE_EXEC_ADMISSION_MEMORY_PERCENT` of `memory.max` (90 unless set, `0` admits
+every exec) while an exec runs, `POST /execs` answers `429`
+`{ error: "session_memory_busy", code: "SESSION_MEMORY_BUSY" }` with
 `retry-after: 5`. Nothing starts and the running execs are left alone; a
-session without a limit, or whose cgroup cannot be read, is never refused.
+session with nothing running, without a limit, or whose cgroup cannot be read
+is never refused — no exec can lose to the new one there, and what fills an
+idle session (inner containers, tmpfs, page cache) frees nothing by waiting.
 
 runnerd says when the session's memory limit ended an exec. It reads the
 session cgroup's `oom_kill` count (`memory.events`, the whole subtree) as the
