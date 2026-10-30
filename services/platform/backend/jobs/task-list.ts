@@ -1054,11 +1054,15 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
       }
     },
-    'sandbox.destroy_session': async (payload) => {
+    'sandbox.destroy_session': async (payload, context) => {
       // A throw is the retry: the spawner could not be asked, refused, or
       // the session's device is offline. The row stays listed, unpinned on
       // both sides, and reads the Destroy as pending until the last attempt.
-      await teardownSession(deps.sql, destroySessionSchema.parse(payload));
+      // The job's signal stops an attempt pg-boss has given up on.
+      await teardownSession(deps.sql, {
+        ...destroySessionSchema.parse(payload),
+        ...(context !== undefined && { signal: context.signal }),
+      });
     },
     'sandbox.retire_workspaces': async (payload) => {
       const input = retireWorkspacesSchema.parse(payload);

@@ -152,6 +152,31 @@ describe('revokeSessionGatewayKeys', () => {
     expect(statements.some((s) => s.text.includes(PARKED))).toBe(false);
   });
 
+  // A Destroy names the incarnation it was asked for; a newer one under the
+  // reused id keeps its credentials. The guards are SQL, proven against
+  // Postgres by `lifecycle.integration.ts`; this holds the statements to
+  // carrying them.
+  it('scopes a row-scoped teardown to that incarnation [SBX-R11]', async () => {
+    const { sql, statements } = fakeSql([
+      { match: CLAIM, rows: [{ keyId: 'k1' }] },
+    ]);
+
+    const out = await revokeSessionGatewayKeys(sql, {
+      ...ARGS,
+      rowId: 'row-1',
+    });
+
+    expect(out).toEqual({ revoked: 1, failed: 0 });
+    // The session's tokens only while the row is still the newest.
+    const claim = statements.find((s) => s.text.includes(CLAIM));
+    expect(claim?.text).toContain('ORDER BY created_at_ms DESC, id DESC');
+    expect(claim?.values).toContain('row-1');
+    // The parked key of that row alone.
+    const parked = statements.find((s) => s.text.includes(PARKED));
+    expect(parked?.text).toContain('OR id = ?)');
+    expect(parked?.values).toContain('row-1');
+  });
+
   it('skips the gateway entirely when nothing was claimed', async () => {
     const { sql } = fakeSql([]);
 
