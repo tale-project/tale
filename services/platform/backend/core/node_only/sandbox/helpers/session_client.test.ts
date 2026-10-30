@@ -18,6 +18,7 @@ import {
   sandboxWorkspaceInventory,
   sandboxWorkspaceUsage,
   STAGE_BODY_BUDGET_BYTES,
+  STAGE_DOWNLOAD_BUDGET_BYTES,
   SpawnerUnreachableError,
   sessionAcquire,
   sessionCancelExec,
@@ -1507,6 +1508,82 @@ describe('chunkStageFiles', () => {
   test('empty input yields no batches', () => {
     expect(chunkStageFiles([], 1_000)).toEqual([]);
   });
+
+  const MiB = 1024 * 1024;
+  const urlFile = (path: string, expectedBytes?: number): SessionStageFile => ({
+    path,
+    url: `https://platform.test/api/sandbox-blob/${path}`,
+    ...(expectedBytes !== undefined ? { expectedBytes } : {}),
+  });
+
+  test('URL entries whose downloads together pass the budget land in separate batches', () => {
+    // A few hundred bytes of JSON each, but 120 MiB for runnerd to fetch
+    // inside one request's deadline if they shared it.
+    const files = [
+      urlFile('inputs/a.pdf', 60 * MiB),
+      urlFile('inputs/b.pdf', 60 * MiB),
+    ];
+    expect(chunkStageFiles(files)).toEqual([[files[0]], [files[1]]]);
+    expect(STAGE_DOWNLOAD_BUDGET_BYTES).toBe(100 * MiB);
+  });
+
+  test('URL entries pack up to the download budget, in order', () => {
+    const files = [
+      urlFile('a', 40),
+      urlFile('b', 60),
+      urlFile('c', 40),
+      urlFile('d', 40),
+    ];
+    expect(chunkStageFiles(files, STAGE_BODY_BUDGET_BYTES, 100)).toEqual([
+      [files[0], files[1]],
+      [files[2], files[3]],
+    ]);
+  });
+
+  test('small URL entries still share one batch, up to the file cap', () => {
+    const files = Array.from({ length: 600 }, (_, i) =>
+      urlFile(`inputs/note-${i}.txt`, 64 * 1024),
+    );
+    const batches = chunkStageFiles(files);
+    expect(batches.map((batch) => batch.length)).toEqual([512, 88]);
+    expect(batches.flat()).toEqual(files);
+  });
+
+  test('a URL entry of unknown size travels alone; inline entries ride along', () => {
+    const files = [
+      urlFile('inputs/known.pdf', 1024),
+      urlFile('inputs/unknown.pdf'),
+      stageFile('code/params.json', 16),
+      urlFile('inputs/negative.pdf', -1),
+      urlFile('inputs/later.pdf', 1024),
+    ];
+    expect(chunkStageFiles(files)).toEqual([
+      [files[0]],
+      [files[1], files[2]],
+      [files[3]],
+      [files[4]],
+    ]);
+  });
+
+  test('a URL entry over the download budget gets a batch of its own instead of throwing', () => {
+    const files = [
+      urlFile('inputs/small.pdf', MiB),
+      urlFile('inputs/huge.mp4', 150 * MiB),
+      urlFile('inputs/after.pdf', MiB),
+    ];
+    expect(chunkStageFiles(files)).toEqual([
+      [files[0]],
+      [files[1]],
+      [files[2]],
+    ]);
+  });
+
+  test('expectedBytes counts toward no request bytes: it is never sent', () => {
+    const sized = urlFile('inputs/a.pdf', 1024);
+    const wire = { path: sized.path, url: sized.url };
+    const exact = Buffer.byteLength(JSON.stringify({ files: [wire] }), 'utf8');
+    expect(chunkStageFiles([sized], exact)).toEqual([[sized]]);
+  });
 });
 
 describe('sessionStageFiles chunking', () => {
@@ -1549,6 +1626,47 @@ describe('sessionStageFiles chunking', () => {
     ]);
     expect(result.skipped).toEqual([
       { path: 'skills/b/extra', reason: 'denied' },
+    ]);
+  });
+
+  test('stages large URL entries in separate POSTs without sending their sizes', async () => {
+    const files: SessionStageFile[] = [
+      {
+        path: 'inputs/attachments/a.pdf',
+        url: 'https://platform.test/api/sandbox-blob/a',
+        expectedBytes: 80 * 1024 * 1024,
+      },
+      {
+        path: 'inputs/attachments/b.pdf',
+        url: 'https://platform.test/api/sandbox-blob/b',
+        expectedBytes: 80 * 1024 * 1024,
+      },
+    ];
+    const bodies: string[] = [];
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async (_url: any, init: any) => {
+      const body = String(init.body);
+      bodies.push(body);
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+      const parsed = JSON.parse(body) as { files: SessionStageFile[] };
+      return new Response(
+        JSON.stringify({
+          staged: parsed.files.map((f) => ({ path: f.path, bytes: 1 })),
+          skipped: [],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+
+    const result = await sessionStageFiles('ses-stage', files);
+    expect(bodies.map((body) => JSON.parse(body))).toEqual([
+      { files: [{ path: files[0]?.path, url: files[0]?.url }] },
+      { files: [{ path: files[1]?.path, url: files[1]?.url }] },
+    ]);
+    expect(result.staged.map((s) => s.path)).toEqual([
+      'inputs/attachments/a.pdf',
+      'inputs/attachments/b.pdf',
     ]);
   });
 });

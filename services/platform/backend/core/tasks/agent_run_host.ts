@@ -445,14 +445,14 @@ export function partitionTaskInputSkips(
  * gone deliverable leaves the brief, an infra fault throws with the real
  * reason instead of quietly proceeding blind.
  */
-async function stageTaskInputs(
+export async function stageTaskInputs(
   ctx: ActionCtx,
   args: {
     organizationId: string;
     sessionId: string;
     taskId: string;
-    attachments: Array<{ fileId: string; fileName: string }>;
-    outputs: Array<{ fileId: string; fileName: string }>;
+    attachments: Array<{ fileId: string; fileName: string; fileSize?: number }>;
+    outputs: Array<{ fileId: string; fileName: string; fileSize?: number }>;
   },
 ): Promise<StagedTaskInputs> {
   const dir = taskInputsDir(args.taskId);
@@ -485,6 +485,7 @@ async function stageTaskInputs(
       toStage.push({
         path,
         url,
+        expectedBytes: file.fileSize,
         sourceId: stageBlobCacheKey(args.organizationId, file.fileId),
       });
       planned.set(path, {
