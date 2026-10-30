@@ -7,7 +7,10 @@
  * actually serve them.
  */
 
-import type { ProviderDefinition } from '@tale/shared/schemas/providers';
+import type {
+  DeclaredModel,
+  ProviderDefinition,
+} from '@tale/shared/schemas/providers';
 
 /** Why a provider's model listing reached a server that answered without a
  * model list: a body that is not JSON, or HTTP 404. */
@@ -64,6 +67,11 @@ export interface LibContract {
       /** Present when the listing answered without a model list. */
       catalogErrorCode?: ProviderCatalogFailureCode;
       catalogSource: 'none' | 'static' | 'openrouter-api' | 'models-endpoint';
+      /** What a `catalog: none` provider's definition declares about the
+       * models its credentials' allowlists name (`catalog.models`) — the
+       * facts the edit dialog shows beside each id. Absent when it declares
+       * none. */
+      declaredModels?: DeclaredModel[];
       authMethods: Array<
         'api-key' | 'env' | 'subscription-key' | 'subscription-broker'
       >;

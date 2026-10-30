@@ -46,6 +46,7 @@ import type { ActionCtx } from '../ctx';
 import { internal } from '../handler_names';
 import { getProviderCatalog } from './catalog_fetch';
 import { resolveProvidersForOrgId } from './org_providers';
+import { getServableCatalog } from './servable_catalog';
 
 /**
  * Curated vision models, best first — tried before the price sort.
@@ -132,7 +133,8 @@ function pinnedResolutionFailure(error: unknown): VisionModelPolicyError {
  * through that lane: only a text-only serving model (per its catalog entry;
  * an unknown entry counts as text-only) — arming the polyfill for a model
  * that sees images would route them through a second (worse) model for no
- * reason.
+ * reason. A catalog-less provider's entry is the one serving synthesized for
+ * the model, so what the provider declares about its image input decides.
  *
  * Failure semantics follow the serving model: a text-only serving keeps the
  * strict rules (a pinned model that cannot be served, or an unreadable pin,
@@ -157,7 +159,10 @@ export async function resolveTurnVisionModel(
       (entry) => entry.name === target.providerSlug,
     );
     if (provider) {
-      const entry = (await getProviderCatalog(provider)).find(
+      // The serving walk already held the model to its credential's
+      // allowlist, so for a catalog-less provider the served id alone is
+      // the set to describe.
+      const entry = (await getServableCatalog(provider, [target.modelId])).find(
         (candidate) => candidate.id === target.modelId,
       );
       servingSeesImages = entry?.supportsVision === true;

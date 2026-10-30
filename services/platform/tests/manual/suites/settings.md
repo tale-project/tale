@@ -1080,6 +1080,28 @@ Restore any toggled setting after the run.
   offers it with **Effort** (`chat.effort.label`), and neither **Text
   Embedding 3 Small** nor **Whisper 1** is offered there. A listed model no
   Tale catalog knows shows **Tools** supported and **Vision** not supported.
+- [ ] `SET-F91` · **A custom provider without a model list says what its
+  models take** — **Add credential** (`settings.credentials.addCredential`) →
+  **Custom provider** (`settings.providers.custom.pickerTitle`) → **Enter
+  model IDs** (`settings.providers.custom.modelsManual`) with
+  `claude-sonnet-gw, claude-haiku-gw` in **Model allowlist**
+  (`settings.providers.dialog.allowlist`) → **Model details**
+  (`settings.providers.custom.modelFacts.title`) shows one group per id, in
+  that order, each with **Context window**
+  (`settings.providers.custom.modelFacts.contextWindow`, placeholder
+  `128000`, unit `settings.providers.custom.modelFacts.tokens`) and **Reads
+  images** (`settings.providers.custom.modelFacts.readsImages`), reachable by
+  Tab in that order; `0` in a window shows
+  `settings.providers.custom.modelFacts.contextWindowInvalid` under it and
+  holds **Add credential** (`settings.credentials.create`) → `1000000` and
+  **Reads images** for the first id, the second left blank → submit →
+  the `catalog` of `TALE_CONFIG_DIR/<org>/providers/<slug>.yml` lists the
+  first id alone under `models`; **Edit credential** (`settings.credentials.edit`)
+  opens on the same values; in a new chat the details
+  (`chat.modelSelector.viewInfo`) of the first model show **Context**
+  (`chat.modelSelector.info.contextWindow`) 1,000,000 and **Vision**
+  `chat.modelSelector.info.supported`, those of the second 128,000 and
+  `chat.modelSelector.info.notSupported`.
 
 ## Boundary & error tests
 

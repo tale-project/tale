@@ -353,6 +353,63 @@ describe('providerDefinitionSchema', () => {
       }).success,
     ).toBe(false);
   });
+
+  it('lets a provider without a catalog describe its models', () => {
+    expect(
+      providerDefinitionSchema.safeParse({
+        ...VALID_CONNECTOR,
+        catalog: {
+          source: 'none',
+          models: [
+            {
+              id: 'claude-sonnet-gw',
+              contextWindow: 1_000_000,
+              supportsVision: true,
+            },
+            { id: 'claude-haiku-gw', contextWindow: 200_000 },
+            { id: 'claude-legacy-gw' },
+          ],
+        },
+      }).success,
+    ).toBe(true);
+    expect(
+      providerDefinitionSchema.safeParse({
+        ...VALID_CONNECTOR,
+        catalog: { source: 'none' },
+      }).success,
+    ).toBe(true);
+  });
+
+  it('refuses described models on a provider that has a catalog', () => {
+    for (const source of ['static', 'openrouter-api', 'models-endpoint']) {
+      expect(
+        providerDefinitionSchema.safeParse({
+          ...VALID_CONNECTOR,
+          catalog: { source, models: [{ id: 'm', contextWindow: 200_000 }] },
+        }).success,
+      ).toBe(false);
+    }
+  });
+
+  it('refuses a described model with a repeated or padded id, an invalid window or an unknown fact', () => {
+    const describes = (models: unknown[]) =>
+      providerDefinitionSchema.safeParse({
+        ...VALID_CONNECTOR,
+        catalog: { source: 'none', models },
+      }).success;
+    expect(describes([{ id: 'm' }, { id: 'm', contextWindow: 200_000 }])).toBe(
+      false,
+    );
+    expect(describes([{ id: ' m ' }])).toBe(false);
+    expect(describes([{ id: '' }])).toBe(false);
+    for (const contextWindow of [0, -1, 1.5, '200000'])
+      expect(describes([{ id: 'm', contextWindow }])).toBe(false);
+    expect(describes([{ id: 'm', supportsVision: 'yes' }])).toBe(false);
+    expect(describes([{ id: 'm', maxOutputTokens: 8192 }])).toBe(false);
+    expect(
+      describes(Array.from({ length: 201 }, (_, n) => ({ id: `m-${n}` }))),
+    ).toBe(false);
+  });
 });
 
 describe('modelCatalogEntrySchema', () => {
