@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -98,11 +98,13 @@ vi.mock('../hooks/actions', () => ({
 }));
 
 // Whether the CURRENT folder's listing was cut at the bound — the picker's
-// notice keys on it. `pair` lists PAIR on either tab instead.
+// notice keys on it. `pair` lists PAIR on either tab instead, and `empty`
+// lists nothing on either tab.
 const listingState = vi.hoisted(() => ({
   truncated: false,
   browse: false,
   pair: false,
+  empty: false,
 }));
 
 // Two files for the search tests: one selected before a search, one the
@@ -120,18 +122,20 @@ vi.mock('../hooks/queries', () => ({
   }),
   useOneDriveFiles: (_org: string, folderId?: string) => ({
     data: {
-      items: listingState.pair
-        ? PAIR
-        : listingState.browse && folderId
-          ? [
-              {
-                id: 'personal-file',
-                name: 'Budget.txt',
-                size: 10,
-                isFolder: false,
-              },
-            ]
-          : [{ id: 'folder-1', name: 'Meetings', size: 0, isFolder: true }],
+      items: listingState.empty
+        ? []
+        : listingState.pair
+          ? PAIR
+          : listingState.browse && folderId
+            ? [
+                {
+                  id: 'personal-file',
+                  name: 'Budget.txt',
+                  size: 10,
+                  isFolder: false,
+                },
+              ]
+            : [{ id: 'folder-1', name: 'Meetings', size: 0, isFolder: true }],
       truncated: listingState.truncated,
     },
     isLoading: false,
@@ -153,24 +157,27 @@ vi.mock('../hooks/queries', () => ({
   }),
   useSharePointFiles: () => ({
     data: {
-      items: listingState.pair
-        ? PAIR
-        : [
-            { id: 'report', name: 'Report.txt', size: 10, isFolder: false },
-            ...(listingState.browse
-              ? [
-                  {
-                    id: 'audit-folder',
-                    name: 'Audits',
-                    size: 0,
-                    isFolder: true,
-                  },
-                ]
-              : []),
-          ],
+      items: listingState.empty
+        ? []
+        : listingState.pair
+          ? PAIR
+          : [
+              { id: 'report', name: 'Report.txt', size: 10, isFolder: false },
+              ...(listingState.browse
+                ? [
+                    {
+                      id: 'audit-folder',
+                      name: 'Audits',
+                      size: 0,
+                      isFolder: true,
+                    },
+                  ]
+                : []),
+            ],
       truncated: false,
     },
     isLoading: false,
+    error: null,
   }),
 }));
 
@@ -240,6 +247,7 @@ describe('OneDriveImportDialog', () => {
     listingState.truncated = false;
     listingState.browse = false;
     listingState.pair = false;
+    listingState.empty = false;
   });
 
   it('imports a SharePoint root file into the hub after browsing OneDrive', async () => {
@@ -807,6 +815,54 @@ describe('OneDriveImportDialog', () => {
     render(<OneDriveImportDialog {...defaultProps} />);
 
     expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  // #2802: an empty folder has nothing to search, while a search that found
+  // nothing keeps its box, so the query can be cleared.
+  describe('search', () => {
+    const searchBox = () =>
+      screen.getByRole('textbox', { name: 'documents.searchFilesAndFolders' });
+
+    it('is disabled in an empty OneDrive folder', () => {
+      listingState.empty = true;
+      render(<OneDriveImportDialog {...defaultProps} />);
+
+      expect(screen.getByText('documents.onedrive.folderEmpty')).toBeVisible();
+      expect(searchBox()).toBeDisabled();
+    });
+
+    it('stays usable when it found nothing, so it can be cleared', async () => {
+      const user = userEvent.setup();
+      render(<OneDriveImportDialog {...defaultProps} />);
+
+      await user.type(searchBox(), 'no such file');
+      expect(screen.getByText('documents.noItemsMatchingSearch')).toBeVisible();
+      // Judged after focus leaves: a focused box never turns disabled.
+      act(() => searchBox().blur());
+      expect(searchBox()).toBeEnabled();
+
+      // Readonly until focused again (anti-autofill): click to focus it first.
+      await user.click(searchBox());
+      await user.clear(searchBox());
+      expect(meetingsCheckbox()).toBeInTheDocument();
+    });
+
+    it('is disabled in an empty SharePoint library', async () => {
+      listingState.empty = true;
+      const user = userEvent.setup();
+      render(<OneDriveImportDialog {...defaultProps} />);
+
+      await user.click(
+        screen.getByRole('tab', {
+          name: 'documents.microsoft365.sharePointSites',
+        }),
+      );
+      await user.click(screen.getByText('Test site'));
+      await user.click(screen.getByText('Documents'));
+
+      expect(screen.getByText('documents.onedrive.folderEmpty')).toBeVisible();
+      expect(searchBox()).toBeDisabled();
+    });
   });
 
   // Regression test: the picker and settings stages are plain functions called

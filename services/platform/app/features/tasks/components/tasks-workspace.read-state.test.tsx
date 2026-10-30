@@ -414,6 +414,43 @@ describe('a search reaches every matching task (#3745)', () => {
   });
 });
 
+// #2802: a project with no task has nothing to search, while a search that
+// emptied the board keeps its box, so the query can be cleared.
+describe('the search box over an empty board (#2802)', () => {
+  const searchBox = () => screen.getByPlaceholderText('Search tasks');
+
+  it('is disabled while the project holds no task', async () => {
+    fakeBoardBackend([]);
+    renderWorkspace('board');
+
+    await waitFor(() =>
+      expect(screen.getAllByText('No tasks')).toHaveLength(6),
+    );
+    expect(searchBox()).toBeDisabled();
+  });
+
+  it('stays usable when a search matched nothing, so it can be cleared', async () => {
+    fakeBoardBackend(searchFixture());
+    const { user } = renderWorkspace('board');
+
+    await screen.findByRole('button', { name: 'needle item 26' });
+    await search(user, 'no-such-token');
+    await waitFor(() =>
+      expect(titleButton('needle item 26')).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText(NO_MATCHES)).toBeVisible();
+    // Judged after focus leaves: a focused box never turns disabled.
+    await user.tab();
+    expect(searchBox()).not.toHaveFocus();
+    expect(searchBox()).toBeEnabled();
+
+    await search(user, '');
+    expect(
+      await screen.findByRole('button', { name: 'needle item 26' }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe('a failed read is never an empty or unfiltered board (#3747)', () => {
   it.each(['board', 'list'] as const)(
     'shows a failed first read of the %s with Try again, not empty lanes',
@@ -429,6 +466,7 @@ describe('a failed read is never an empty or unfiltered board (#3747)', () => {
       expect(titleButton('needle item 26')).not.toBeInTheDocument();
       // The controls stay usable: nothing says the board is empty.
       expect(screen.getByRole('button', { name: 'Filter' })).toBeEnabled();
+      expect(screen.getByPlaceholderText('Search tasks')).toBeEnabled();
       expect(
         screen.getByRole('button', { name: 'Create task' }),
       ).toBeInTheDocument();

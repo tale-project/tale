@@ -2,6 +2,7 @@
 
 import { Button } from '@tale/ui/button';
 import { Dialog } from '@tale/ui/dialog/dialog';
+import { isFilterAffordanceDisabled } from '@tale/ui/filters/filter-panel';
 import { HStack } from '@tale/ui/layout';
 import { SearchInput } from '@tale/ui/search-input';
 import { SectionHeader } from '@tale/ui/section-header';
@@ -565,6 +566,16 @@ export function GoogleDriveImportDialog({
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               wrapperClassName="flex-1"
+              // Nothing to search in an empty folder; a search that found
+              // nothing keeps the box, so it can be cleared. A listing that
+              // has not answered, or failed, is an unknown folder, never an
+              // empty one.
+              disabled={isFilterAffordanceDisabled({
+                isLoading: listing === undefined,
+                isError: loadError !== null,
+                itemCount: currentItems.length,
+                hasActiveFilters: searchQuery.trim() !== '',
+              })}
             />
             <Button
               onClick={proceedToSettings}

@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
+import { isFilterAffordanceDisabled } from '@tale/ui/filters/filter-panel';
 import { Stack } from '@tale/ui/layout';
 import { SearchInput } from '@tale/ui/search-input';
 import { SkeletonBox } from '@tale/ui/skeleton';
@@ -123,6 +124,13 @@ export function VendorPickerPane<
         onChange={(e) => setQuery(e.target.value)}
         placeholder={searchPlaceholder}
         className="max-w-none"
+        // Nothing to search in an empty catalog: the custom entry below stays
+        // whatever the search says. A query that found nothing keeps the box,
+        // so it can be cleared.
+        disabled={isFilterAffordanceDisabled({
+          itemCount: addable.length,
+          hasActiveFilters: query.trim() !== '',
+        })}
       />
       <div className="min-h-0 flex-1 overflow-y-auto">
         {addable.length === 0 ? (

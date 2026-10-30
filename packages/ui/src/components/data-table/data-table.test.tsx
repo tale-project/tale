@@ -6,6 +6,7 @@ import { render, screen, within } from '@/tests/utils/render';
 
 import { createSelectColumn } from './column-builders';
 import { DataTable } from './data-table';
+import type { FilterConfig } from './data-table-filters';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -408,6 +409,98 @@ describe('DataTable loading states', () => {
       const borderContainer = container.querySelector('.rounded-lg.border');
       expect(borderContainer).toBeInTheDocument();
     });
+  });
+});
+
+// #2802: DataTable is the reference for the rule every list follows — an
+// empty, unfiltered list has nothing to search or filter, while a search that
+// found nothing keeps its box so the query can be cleared.
+describe('DataTable search and filters over an empty list', () => {
+  function statusFilter(overrides?: Partial<FilterConfig>): FilterConfig {
+    return {
+      key: 'status',
+      title: 'Status',
+      options: [{ value: 'active', label: 'Active' }],
+      selectedValues: [],
+      onChange: vi.fn(),
+      ...overrides,
+    };
+  }
+
+  function renderTable({
+    data = [],
+    searchValue = '',
+    filters = [statusFilter()],
+    isLoading = false,
+  }: {
+    data?: TestRow[];
+    searchValue?: string;
+    filters?: FilterConfig[];
+    isLoading?: boolean;
+  } = {}) {
+    render(
+      <DataTable
+        columns={columns}
+        data={data}
+        isLoading={isLoading}
+        search={{
+          value: searchValue,
+          onChange: vi.fn(),
+          placeholder: 'Search items...',
+        }}
+        filters={filters}
+      />,
+    );
+    return {
+      searchBox: screen.getByRole('textbox', { name: 'Search items...' }),
+      filterButton: screen.getByRole('button', { name: /filter/i }),
+    };
+  }
+
+  it('disables search and filters when there is nothing to narrow', () => {
+    const { searchBox, filterButton } = renderTable();
+
+    expect(searchBox).toBeDisabled();
+    expect(filterButton).toBeDisabled();
+  });
+
+  it('keeps both enabled when a search found nothing, so it can be cleared', () => {
+    const { searchBox, filterButton } = renderTable({ searchValue: 'zzz' });
+
+    expect(searchBox).toBeEnabled();
+    expect(filterButton).toBeEnabled();
+  });
+
+  it('keeps both enabled when a filter narrowed the list to nothing', () => {
+    const { searchBox, filterButton } = renderTable({
+      filters: [statusFilter({ selectedValues: ['active'] })],
+    });
+
+    expect(searchBox).toBeEnabled();
+    expect(filterButton).toBeEnabled();
+  });
+
+  it('keeps a widening filter usable while the search box stays disabled', () => {
+    const { searchBox, filterButton } = renderTable({
+      filters: [statusFilter({ widensResultSet: true })],
+    });
+
+    expect(searchBox).toBeDisabled();
+    expect(filterButton).toBeEnabled();
+  });
+
+  it('never disables either while the rows are still loading', () => {
+    const { searchBox, filterButton } = renderTable({ isLoading: true });
+
+    expect(searchBox).toBeEnabled();
+    expect(filterButton).toBeEnabled();
+  });
+
+  it('keeps both enabled over a list with rows', () => {
+    const { searchBox, filterButton } = renderTable({ data: sampleRows });
+
+    expect(searchBox).toBeEnabled();
+    expect(filterButton).toBeEnabled();
   });
 });
 

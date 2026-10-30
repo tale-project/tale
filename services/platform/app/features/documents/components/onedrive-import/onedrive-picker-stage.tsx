@@ -28,6 +28,10 @@ import type {
 interface OneDrivePickerStageProps {
   sourceTab: SourceTab;
   searchQuery: string;
+  /** Nothing to search: the open folder holds no item and no search narrows
+   *  it. The dialog judges it from the listing before its search filters it
+   *  (`isFilterAffordanceDisabled`); this stage only sees the filtered rows. */
+  searchDisabled: boolean;
   selectedItems: Map<string, OneDriveSelectedItem>;
   filteredItems: OneDriveApiItem[];
   loading: boolean;
@@ -71,6 +75,7 @@ interface OneDrivePickerStageProps {
 export function OneDrivePickerStage({
   sourceTab,
   searchQuery,
+  searchDisabled,
   selectedItems,
   filteredItems,
   loading,
@@ -184,6 +189,7 @@ export function OneDrivePickerStage({
                 value={searchQuery}
                 onChange={(e) => onSearchChange(e.target.value)}
                 wrapperClassName="flex-1"
+                disabled={searchDisabled}
               />
               <Button
                 onClick={onProceedToSettings}
@@ -248,6 +254,7 @@ export function OneDrivePickerStage({
                     value={searchQuery}
                     onChange={(e) => onSearchChange(e.target.value)}
                     wrapperClassName="flex-1"
+                    disabled={searchDisabled}
                   />
                   <Button
                     onClick={onProceedToSettings}
