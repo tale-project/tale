@@ -15,7 +15,7 @@ Utilise un clone local du [dépôt Tale](https://github.com/tale-project/tale). 
 | Docker avec Compose | Bases applicative et documentaire, stockage objet et services sandbox | `docker info` et `docker compose version` |
 | Ports locaux libres | Application sur 3000, backend sur 3005 | `bun run setup:check` |
 
-Le dépôt fixe la version du gestionnaire de paquets. Utilise-la pour reproduire un problème ou modifier le lockfile ; la vérification de démarrage ne contrôle qu’une version minimale.
+Le dépôt fixe la version du gestionnaire de paquets. Utilise-la pour reproduire un problème ou modifier le lockfile. `bun run check` et les scripts de test à la racine affichent un avertissement si ta version de Bun n’est pas celle fixée par le dépôt ; la vérification de démarrage ne contrôle qu’une version minimale.
 
 La vérification préalable contrôle Bun et les deux ports. Vérifie Node et Docker séparément : un résultat positif ne les valide pas. Le premier démarrage nécessite aussi un accès réseau pour télécharger les dépendances et les images. Un fournisseur de modèles est nécessaire pour obtenir de vraies réponses AI, mais pas pour te connecter et explorer l’application.
 
