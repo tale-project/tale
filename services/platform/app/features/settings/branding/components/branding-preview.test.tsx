@@ -168,14 +168,14 @@ describe('BrandingPreview', () => {
     expect(dots).toHaveLength(3);
   });
 
-  it('draws the Home panel with its live view labels', () => {
+  it('draws the Home panel with its view switcher: a glyph per view, the open one named', () => {
     render(<BrandingPreview data={{}} />);
 
     const panel = screen.getByTestId('preview-home-panel');
     expect(panel).toHaveTextContent('Home');
-    for (const label of ['All', 'Chats', 'Tasks', 'Inbox']) {
-      expect(screen.getByText(label)).toBeInTheDocument();
-    }
+    const switcher = screen.getByTestId('preview-view-switcher');
+    expect(switcher.querySelectorAll('svg')).toHaveLength(4);
+    expect(switcher).toHaveTextContent(/^All$/);
     expect(screen.getAllByTestId('preview-row')).toHaveLength(4);
   });
 

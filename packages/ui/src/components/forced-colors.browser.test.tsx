@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
+import { Inbox, Layers, ListChecks } from 'lucide-react';
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cdp, userEvent } from 'vitest/browser';
@@ -89,6 +90,33 @@ describe('the current choice and the progress, in forced colours', () => {
     // that kept it would look like the rest.
     expectReadableFill(chosen);
     for (const name of ['Canvas', 'Source']) {
+      const other = screen.getByRole('radio', { name });
+      expect(getComputedStyle(chosen).backgroundColor).not.toBe(
+        getComputedStyle(other).backgroundColor,
+      );
+    }
+  });
+
+  it('draws the chosen option of an icon-led segmented control apart from the others', async () => {
+    await inForcedColors();
+    render(
+      <SegmentedControl
+        aria-label="Show"
+        labels="selected"
+        value="tasks"
+        onValueChange={() => undefined}
+        options={[
+          { value: 'all', label: 'All', icon: Layers },
+          { value: 'tasks', label: 'Tasks', icon: ListChecks },
+          { value: 'inbox', label: 'Inbox', icon: Inbox },
+        ]}
+      />,
+    );
+    // The gliding thumb is a tint the theme paints over; the chosen option
+    // takes the selection pair itself.
+    const chosen = screen.getByRole('radio', { name: 'Tasks' });
+    expectReadableFill(chosen);
+    for (const name of ['All', 'Inbox']) {
       const other = screen.getByRole('radio', { name });
       expect(getComputedStyle(chosen).backgroundColor).not.toBe(
         getComputedStyle(other).backgroundColor,
