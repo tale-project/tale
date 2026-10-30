@@ -10,12 +10,12 @@ skillDeleteFailed: Skill konnte nicht gelöscht werden
 deleteConfirmation:
   Das entfernt das Skill-Bundle "{slug}" von der Festplatte. Bei jedem
   Agenten, der es ausgerüstet hat, wird es abgelegt.
-listFailed: Die Skill-Bibliothek konnte nicht geladen werden. Lade neu und versuche es erneut.
 readOnly: Du kannst diesen Skill lesen, aber nicht ändern — sein Inhaber
   (oder ein Org-Admin bei geteilten Skills) verwaltet ihn.
 entityLabel: Skills
 entityLabelOne: Skill
 library:
+  refreshFailed: Die neuesten Skills konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
   labelFilterLabel: Nach Label filtern
   scopeFilterLabel: Sichtbarkeit
   tabs:

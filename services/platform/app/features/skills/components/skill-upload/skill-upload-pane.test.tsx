@@ -12,6 +12,8 @@
 import type { SkillFrontmatter } from '@tale/shared/schemas/skills';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { backendErrorFromResponse } from '@/app/lib/backend/adapters';
+import { AppError } from '@/lib/shared/errors/app-error';
 import { render, screen } from '@/tests/utils/render';
 
 import type { ParsedSkillBundle } from './utils/parse-skill-bundle';
@@ -211,5 +213,65 @@ describe('SkillUploadPane', () => {
         variant: 'destructive',
       }),
     );
+  });
+});
+
+/**
+ * A failed upload reads what it threw through `failureDetail`, never through
+ * the error's message: a refusal keeps the door's words, a lost connection is
+ * the localized sentence, and a fault puts nothing under the title — not
+ * "Request failed with status 502" or "Failed to fetch" (#4888).
+ */
+describe('SkillUploadPane — a failed upload', () => {
+  const UPLOAD_FAILED = "Couldn't upload skill bundle";
+
+  beforeEach(() => {
+    useSkillPublishing.mockReturnValue({ mode: 'everyone', allowed: true });
+    bundle.current = parsed({ visibility: 'org' });
+  });
+
+  it('puts no status line under the title when the door answers with a fault', async () => {
+    upload.mockRejectedValue(
+      await backendErrorFromResponse(
+        new Response('<html>Bad Gateway</html>', { status: 502 }),
+      ),
+    );
+    const { user } = mountPane();
+
+    await user.click(submitButton());
+    expect(toast).toHaveBeenCalledExactlyOnceWith({
+      title: UPLOAD_FAILED,
+      description: undefined,
+      variant: 'destructive',
+    });
+  });
+
+  it('says the connection was lost when the upload got no answer', async () => {
+    upload.mockRejectedValue(new TypeError('Failed to fetch'));
+    const { user } = mountPane();
+
+    await user.click(submitButton());
+    expect(toast).toHaveBeenCalledExactlyOnceWith({
+      title: UPLOAD_FAILED,
+      description: "Couldn't reach Tale. Check your connection and try again.",
+      variant: 'destructive',
+    });
+  });
+
+  it('keeps a refusal’s own words under the title', async () => {
+    upload.mockRejectedValue(
+      new AppError({
+        code: 'INVALID_BUNDLE',
+        message: 'SKILL.md frontmatter needs a description.',
+      }),
+    );
+    const { user } = mountPane();
+
+    await user.click(submitButton());
+    expect(toast).toHaveBeenCalledExactlyOnceWith({
+      title: UPLOAD_FAILED,
+      description: 'SKILL.md frontmatter needs a description.',
+      variant: 'destructive',
+    });
   });
 });

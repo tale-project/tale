@@ -6,6 +6,7 @@ import { Row, Stack } from '@tale/ui/layout';
 import { toast } from '@tale/ui/use-toast';
 import { useCallback, useState } from 'react';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { isAbortError } from '@/lib/utils/abort-error';
 
@@ -105,9 +106,12 @@ export function SkillUploadPane({
         if (isAbortError(err)) return;
         toast({
           title: t('upload.uploadFailed'),
+          // A refused audience in the viewer's language, any other refusal in
+          // the door's words; a lost connection is a localized sentence, and
+          // a fault (a 5xx) leaves the title alone, never its status line.
           description: isSkillPublishRefusal(err)
             ? t('publishing.refused')
-            : extractErrorMessage(err),
+            : failureDetail(err),
           variant: 'destructive',
         });
       } finally {
@@ -184,14 +188,4 @@ export function SkillUploadPane({
       />
     </>
   );
-}
-
-function extractErrorMessage(err: unknown): string | undefined {
-  if (err && typeof err === 'object') {
-    const data = (err as { data?: { message?: string } }).data;
-    if (data?.message) return data.message;
-  }
-  if (err instanceof Error) return err.message;
-  if (typeof err === 'string') return err;
-  return undefined;
 }
