@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { gotoClientPage } from '@tale/e2e/client-page';
 import { createI18n } from '@tale/e2e/i18n';
 import { collectConsoleErrors } from '@tale/e2e/smoke';
 
@@ -27,7 +28,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
         page,
       }) => {
         await page.setViewportSize({ width, height: 1000 });
-        await page.goto(releasePath);
+        await gotoClientPage(page, releasePath);
         await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
         await page.keyboard.press('Tab');
         await expect(
@@ -42,7 +43,10 @@ for (const locale of ['en', 'de', 'fr'] as const) {
       page,
     }) => {
       await page.setViewportSize({ width: 390, height: 960 });
-      await page.goto(`${prefix}/self-hosted/configuration/secrets-with-sops`);
+      await gotoClientPage(
+        page,
+        `${prefix}/self-hosted/configuration/secrets-with-sops`,
+      );
       const title = page.getByRole('heading', { level: 1 });
       await expect(title).toBeVisible();
       await page.evaluate(() => document.fonts.ready);
@@ -60,7 +64,10 @@ for (const locale of ['en', 'de', 'fr'] as const) {
       page,
     }) => {
       for (const slug of ['providers', 'config-releases']) {
-        await page.goto(`${prefix}/self-hosted/configuration/${slug}`);
+        await gotoClientPage(
+          page,
+          `${prefix}/self-hosted/configuration/${slug}`,
+        );
         const trail = page.getByRole('navigation', {
           name: t('docs.breadcrumbs'),
         });
@@ -81,7 +88,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
     }) => {
       const errors = collectConsoleErrors(page);
       await page.setViewportSize({ width: 375, height: 812 });
-      await page.goto(releasePath);
+      await gotoClientPage(page, releasePath);
       const trail = page.getByRole('navigation', {
         name: t('docs.breadcrumbs'),
       });
@@ -117,7 +124,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
     test('keeps the trail leaf out of the heading outline', async ({
       page,
     }) => {
-      await page.goto(releasePath);
+      await gotoClientPage(page, releasePath);
       // The app's trail ends in the page's `h1`; a docs page carries that
       // title in the article instead, so the leaf must stay a plain marker —
       // one `h1` per page, and it is the article's.
@@ -134,7 +141,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
       page,
     }) => {
       await page.setViewportSize({ width: 1440, height: 1000 });
-      await page.goto(releasePath);
+      await gotoClientPage(page, releasePath);
       // The strip carries page actions; it must stay the rail's `h-13` bar,
       // border included, so the two bottom borders meet as one line.
       await expect(
@@ -168,7 +175,7 @@ for (const locale of ['en', 'de', 'fr'] as const) {
       page,
     }) => {
       await page.setViewportSize({ width: 1440, height: 1000 });
-      await page.goto(releasePath);
+      await gotoClientPage(page, releasePath);
       const trail = page.getByRole('navigation', {
         name: t('docs.breadcrumbs'),
       });

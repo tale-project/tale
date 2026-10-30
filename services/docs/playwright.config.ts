@@ -6,7 +6,12 @@ import { createPlaywrightConfig } from '@tale/e2e/config';
  * Smoke e2e for the documentation site. Boots the service's own dev server
  * (port 3002) via its `dev` script, which builds the search index before Vite
  * starts — so the search affordance is exercisable. House defaults come from
- * `@tale/e2e/config`.
+ * `@tale/e2e/config`. CI previews the complete, prerendered build, so specs
+ * navigate with `gotoClientPage` (`@tale/e2e/client-page`): it waits for the
+ * client commit that replaces the prerendered nodes before they are used.
+ * It marks the document through `page.route`, which cannot see a navigation
+ * the site's service worker serves once it is active, so the suite runs
+ * with service workers blocked.
  *
  * `DOCS_E2E_PORT` moves the preview server off 3002 — needed whenever another
  * checkout of this repo already serves the docs there, which would otherwise
@@ -19,6 +24,7 @@ const PORT = Number(process.env.DOCS_E2E_PORT ?? 3002);
 export default createPlaywrightConfig({
   testDir: fileURLToPath(new URL('./tests/e2e', import.meta.url)),
   port: PORT,
+  serviceWorkers: 'block',
   webServer: {
     // Search index + client-only build + static preview, NOT `bun run dev`:
     // cold Vite dev starts stall past the budget on CI runners (same class

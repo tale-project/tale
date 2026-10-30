@@ -1,8 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { gotoClientPage } from '@tale/e2e/client-page';
 import { createI18n } from '@tale/e2e/i18n';
 import { collectConsoleErrors, expectPageRenders } from '@tale/e2e/smoke';
-
-import { gotoClientPage } from '../helpers/client-page';
 
 /**
  * Marketing-site smoke: the high-value "does it load and navigate" checks.

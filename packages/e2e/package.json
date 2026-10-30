@@ -6,6 +6,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./client-page": "./src/client-page.ts",
     "./config": "./src/config.ts",
     "./crawl": "./src/crawl.ts",
     "./i18n": "./src/i18n.ts",
@@ -20,6 +21,10 @@
   "dependencies": {
     "@playwright/test": "1.62.1",
     "htmlparser2": "10.1.0",
+    "jsdom": "29.0.2",
     "yaml": "2.8.3"
+  },
+  "devDependencies": {
+    "@types/jsdom": "21.1.7"
   }
 }

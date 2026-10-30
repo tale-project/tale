@@ -66,6 +66,22 @@ shows this setup for an app service.
 `expectPageRenders(page)` for basic page checks. They complement assertions about
 the actual task; a visible body alone does not establish a working workflow.
 
+## Wait for the client commit
+
+The web and docs sites render with `createRoot` over prerendered HTML. Until the first
+client commit replaces it, a prerendered control looks ready but has no handlers, and `load`
+does not wait for the lazy route chunk that commit awaits: a key pressed or a click made on
+it is lost (#4536). `@tale/e2e/client-page` provides `gotoClientPage(page, url)`, which
+navigates like `page.goto` but returns only once the client commit has removed a hidden
+marker it adds to the document's `#root`. It refuses an HTTP redirect and a document
+without `#root`. It marks the document through `page.route`, which cannot see a navigation
+an active service worker serves, so a suite whose site registers one passes
+`serviceWorkers: 'block'` to `createPlaywrightConfig`, as docs does. It parses the document
+with `jsdom`: on Node 22.21.1, the version the repository pins, Playwright's default
+synchronous loader cannot load that import, so a suite that uses the helper runs Playwright
+through scripts that set `PLAYWRIGHT_FORCE_ASYNC_LOADER=1`, as the web and docs `test:e2e`
+scripts do. Cold-start specs that test the transition itself keep `page.goto`.
+
 ## Crawl a built site
 
 `@tale/e2e/crawl` checks a built site through its own server. `startSiteServer({ cwd })` runs the

@@ -4,7 +4,15 @@ import { JSDOM } from 'jsdom';
 export const CLIENT_PAGE_SNAPSHOT = '[data-startup-snapshot="client-page"]';
 
 /** Wait for the client commit, rather than acting on replaceable SSR nodes.
- * The cold-start specs use the same hidden snapshot convention independently. */
+ * The static sites (web, docs) render with `createRoot` over prerendered HTML:
+ * until the first commit replaces it, a prerendered control has no handlers,
+ * and `load` does not wait for the lazy route chunk that commit awaits.
+ * The document is marked through `page.route`, which cannot see a navigation
+ * an active service worker serves: a suite whose site registers one (docs)
+ * runs with `serviceWorkers: 'block'`. Playwright's synchronous loader cannot
+ * load `jsdom` on the pinned Node 22.21.1, so a suite that imports this runs
+ * through scripts that set `PLAYWRIGHT_FORCE_ASYNC_LOADER=1` (web, docs).
+ * The web cold-start specs use the same hidden snapshot convention independently. */
 export async function gotoClientPage(page: Page, url: string) {
   let rootMarked = false;
   let redirected = false;

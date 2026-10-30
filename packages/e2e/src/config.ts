@@ -26,6 +26,12 @@ export interface CreatePlaywrightConfigOptions {
   workers?: number;
   outputDir?: string;
   fullyParallel?: boolean;
+  /**
+   * Playwright's `serviceWorkers`. A site that registers a worker and
+   * navigates with `gotoClientPage` blocks it: an active worker serves
+   * navigations that `page.route` cannot see.
+   */
+  serviceWorkers?: 'allow' | 'block';
 }
 
 const DEFAULT_PROJECTS: PlaywrightTestConfig['projects'] = [
@@ -71,6 +77,7 @@ export function createPlaywrightConfig(
     workers = 1,
     outputDir = './test-results',
     fullyParallel = false,
+    serviceWorkers,
   } = options;
 
   return defineConfig({
@@ -90,6 +97,7 @@ export function createPlaywrightConfig(
       screenshot: 'only-on-failure',
       locale: 'en-US',
       timezoneId: 'UTC',
+      ...(serviceWorkers && { serviceWorkers }),
     },
     projects,
     webServer,

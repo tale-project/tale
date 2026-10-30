@@ -1,8 +1,8 @@
 import { expect, test } from '@playwright/test';
+import { gotoClientPage } from '@tale/e2e/client-page';
 import { createI18n } from '@tale/e2e/i18n';
 
 import { publishedMarketingContent } from '../../../lib/content/server';
-import { gotoClientPage } from '../helpers/client-page';
 
 const guides = publishedMarketingContent().filter(
   (page) => page.category === 'comparisons' && page.slug !== 'index',

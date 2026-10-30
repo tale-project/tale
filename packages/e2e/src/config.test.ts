@@ -55,3 +55,14 @@ test('the service port supplies the default target', () => {
   });
   expect(config.use?.baseURL).toBe('http://localhost:3002');
 });
+
+test('a site with a service worker can block it for gotoClientPage', () => {
+  // `gotoClientPage` marks the document through `page.route`, which cannot
+  // see a navigation an active service worker serves (the docs site, #4536).
+  const options = { testDir: '/tmp/tale-config-test', port: 3002 };
+  expect(createPlaywrightConfig(options).use?.serviceWorkers).toBeUndefined();
+  expect(
+    createPlaywrightConfig({ ...options, serviceWorkers: 'block' }).use
+      ?.serviceWorkers,
+  ).toBe('block');
+});

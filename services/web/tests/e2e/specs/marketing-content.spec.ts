@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test';
+import { gotoClientPage } from '@tale/e2e/client-page';
 
 import { readMarketingContent } from '../../../lib/content/server';
-import { gotoClientPage } from '../helpers/client-page';
 
 const content = readMarketingContent();
 test.use({ contextOptions: { reducedMotion: 'reduce' } });

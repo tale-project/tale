@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { gotoClientPage } from '@tale/e2e/client-page';
 import { createI18n } from '@tale/e2e/i18n';
 import { collectConsoleErrors, expectPageRenders } from '@tale/e2e/smoke';
 
@@ -29,7 +30,7 @@ test.describe('docs smoke', () => {
     page,
   }) => {
     const errors = collectConsoleErrors(page);
-    await page.goto('/');
+    await gotoClientPage(page, '/');
     await expectPageRenders(page);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(
       'Send your first message',
@@ -63,7 +64,7 @@ test.describe('docs smoke', () => {
       },
     );
     test(`the ${locale} root opens its first guide`, async ({ page }) => {
-      await page.goto(`/${locale}`);
+      await gotoClientPage(page, `/${locale}`);
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
       await expect(page.locator('html')).toHaveAttribute('lang', locale);
       await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
@@ -81,7 +82,7 @@ test.describe('docs smoke', () => {
   }
 
   test('the rail is the labelled navigation landmark', async ({ page }) => {
-    await page.goto('/self-hosted/install/quickstart');
+    await gotoClientPage(page, '/self-hosted/install/quickstart');
     const rail = page.getByRole('navigation', {
       name: t('nav.sidebarAriaLabel'),
     });
@@ -95,7 +96,7 @@ test.describe('docs smoke', () => {
   });
 
   test('the active page is marked in the rail', async ({ page }) => {
-    await page.goto('/self-hosted/install/quickstart');
+    await gotoClientPage(page, '/self-hosted/install/quickstart');
     const rail = page.getByRole('navigation', {
       name: t('nav.sidebarAriaLabel'),
     });
@@ -113,13 +114,13 @@ test.describe('docs smoke', () => {
     // neighbour is the locale home) and the 404's way back all once claimed
     // to be the page a reader was on.
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto('/de/get-started/quickstart');
+    await gotoClientPage(page, '/de/get-started/quickstart');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     const current = page.locator('a[aria-current="page"]');
     await expect(current).toHaveCount(1);
     await expect(current).toHaveAttribute('href', '/de/get-started/quickstart');
 
-    await page.goto('/de/nope-not-a-page');
+    await gotoClientPage(page, '/de/nope-not-a-page');
     await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
     await expect(page.locator('a[aria-current="page"]')).toHaveCount(0);
   });
@@ -128,7 +129,7 @@ test.describe('docs smoke', () => {
     page,
   }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
-    await page.goto('/self-hosted/install/quickstart');
+    await gotoClientPage(page, '/self-hosted/install/quickstart');
     const html = page.locator('html');
     const switcher = page.getByRole('button', {
       name: t('themeSwitcher.ariaLabel'),
@@ -158,7 +159,7 @@ test.describe('docs smoke', () => {
   test('the header row stays pinned while the article scrolls', async ({
     page,
   }) => {
-    await page.goto('/self-hosted/install/quickstart');
+    await gotoClientPage(page, '/self-hosted/install/quickstart');
     const trail = page.getByRole('navigation', { name: t('docs.breadcrumbs') });
     const before = (await trail.boundingBox())!;
     await page.mouse.wheel(0, 1200);
@@ -170,7 +171,7 @@ test.describe('docs smoke', () => {
   });
 
   test('search palette opens', async ({ page }) => {
-    await page.goto('/');
+    await gotoClientPage(page, '/');
     await page
       .getByRole('button', { name: t('docs.openSearch') })
       .first()
@@ -184,7 +185,7 @@ test.describe('docs smoke', () => {
     page,
   }) => {
     await page.setViewportSize(PHONE);
-    await page.goto('/self-hosted/install/quickstart');
+    await gotoClientPage(page, '/self-hosted/install/quickstart');
     const menu = page.getByRole('button', { name: t('docs.openMenu') });
     await expect(menu).toHaveAttribute('aria-expanded', 'false');
     await menu.click();
@@ -215,7 +216,7 @@ test.describe('docs smoke', () => {
     page,
   }) => {
     await page.setViewportSize(PHONE);
-    await page.goto('/self-hosted/install/quickstart');
+    await gotoClientPage(page, '/self-hosted/install/quickstart');
     await page.getByRole('button', { name: t('docs.openMenu') }).click();
     await expect(page.getByRole('dialog')).toBeVisible();
     // The panel is `md:hidden`, but the overlay Radix portals is not: left
@@ -234,7 +235,7 @@ test.describe('docs smoke', () => {
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto('/self-hosted/install/quickstart');
+    await gotoClientPage(page, '/self-hosted/install/quickstart');
     // Both copies ship in the HTML; the one the stylesheet hides is also
     // `aria-hidden`, so exactly one is addressable by role at any width.
     await expect(
