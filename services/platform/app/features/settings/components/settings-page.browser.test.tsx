@@ -84,3 +84,42 @@ describe('SettingsPage scroll clearance in Chromium', () => {
     });
   });
 });
+
+// #2794: a narrow frame — a project's Chats, Knowledge, Agents and Dispatch
+// tabs, an automation's pages — and a settings page — Settings, a project's
+// General and Environment — show their content in one column: the same left
+// edge and the same width, in a wide window and in one narrower than the
+// column, so moving between them never reflows what is read.
+describe('the settings measure in Chromium', () => {
+  it.each([
+    [1280, 768],
+    [600, 568],
+  ])(
+    'puts a narrow frame’s content on a settings page’s column at %ipx',
+    async (width, column) => {
+      await page.viewport(width, 800);
+      render(
+        <>
+          <ContentArea>
+            <SettingsPage data-testid="settings-column">
+              <p>Settings</p>
+            </SettingsPage>
+          </ContentArea>
+          <ContentArea variant="narrow">
+            <p data-testid="narrow-content">A project tab</p>
+          </ContentArea>
+        </>,
+      );
+
+      const settings = screen
+        .getByTestId('settings-column')
+        .getBoundingClientRect();
+      const narrow = screen
+        .getByTestId('narrow-content')
+        .getBoundingClientRect();
+      expect(settings.width).toBe(column);
+      expect(narrow.x).toBe(settings.x);
+      expect(narrow.width).toBe(settings.width);
+    },
+  );
+});
