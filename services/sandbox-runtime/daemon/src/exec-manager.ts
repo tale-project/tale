@@ -1180,10 +1180,13 @@ export class ExecManager {
 
   /** The stall watch found the exec quiet and idle for its whole window: end
    * it as a cancel does — SIGTERM, then SIGKILL once the grace has passed —
-   * and let its exit event say why. */
+   * and let its exit event say why. Not once its command has exited: the
+   * exec only drains its output then, which the drain's own grace bounds,
+   * and its exit is the command's. */
   private endStalled(execId: string): void {
     const rec = this.live.get(execId);
-    if (rec === undefined || rec.finishing) return;
+    if (rec === undefined || rec.finishing || rec.processState.leaderExited)
+      return;
     rec.stalled = true;
     console.warn(
       `[runnerd] exec ${execId} printed nothing and used under 1% of a CPU for ${this.stalls.windowMs} ms; ending it as stalled`,

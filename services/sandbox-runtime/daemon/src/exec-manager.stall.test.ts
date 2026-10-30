@@ -114,6 +114,75 @@ describe('ExecManager stall watch', () => {
     expect(exit?.t === 'exit' && exit.failure).toBeUndefined();
     expect(exit?.t === 'exit' && exit.cancelled).toBe(true);
   });
+
+  test('an exec whose command exited is not ended as stalled while it drains', async () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    // No round samples before the command printed its last line, the moment
+    // before it exits: the watch can judge it only while its output drains.
+    const watch = idleWatch(300);
+    let sampling = false;
+    const rounds: number[] = [];
+    using mgr = new ExecManager(
+      new EnvStore(),
+      () => {},
+      () => {},
+      {},
+      {
+        stall: {
+          ...watch.stall,
+          readTable: async () => {
+            if (!sampling) return null;
+            rounds.push(Date.now());
+            return [];
+          },
+        },
+      },
+    );
+    // While another exec runs, what this one leaves running waits for it and
+    // holds the exec's stdout open: the drain lasts its whole grace.
+    const busyDone = mgr.run(
+      {
+        ...base,
+        execId: 'stall4busy',
+        shell: 'while :; do echo tick; sleep 0.05; done',
+      },
+      () => {},
+    );
+    try {
+      const events: RunnerdExecEvent[] = [];
+      let lastOutputAt = 0;
+      let exitAt = 0;
+      await mgr.run(
+        { ...base, execId: 'stall4', shell: 'sleep 30 & echo $!; exit 3' },
+        (e) => {
+          events.push(e);
+          if (e.t === 'stdout' && !sampling) {
+            lastOutputAt = Date.now();
+            sampling = true;
+          }
+          if (e.t === 'exit') exitAt = Date.now();
+        },
+      );
+      const exit = events.at(-1);
+      expect(exit?.t).toBe('exit');
+      if (exit?.t !== 'exit') return;
+      expect(exit.exitCode).toBe(3);
+      expect(exit.failure).toBeUndefined();
+      // Rounds ran a whole window past its last output and before its exit:
+      // the watch judged it quiet and idle inside the drain.
+      const judgedFrom = lastOutputAt + 2 * watch.stall.windowMs;
+      expect(rounds.some((at) => at >= judgedFrom && at < exitAt)).toBe(true);
+      expect(
+        warn.mock.calls.some((call) =>
+          String(call[0]).includes('ending it as stalled'),
+        ),
+      ).toBe(false);
+    } finally {
+      mgr.cancel('stall4busy');
+      await busyDone;
+      warn.mockRestore();
+    }
+  }, 15_000);
 });
 
 describe('ExecManager OOM attribution', () => {
