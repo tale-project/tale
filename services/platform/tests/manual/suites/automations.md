@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 246 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 307 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -1289,6 +1289,19 @@ output:
       and says `automationRuns.list.noMatch` when nothing fits; selecting two
       rows enables `automationRuns.list.compare`, which opens their
       comparison, and a row opens its run.
+- [ ] `AUTO-F246` · **Scroll the Runs tab of an automation with about 40
+      runs at 1280×720: with the wheel or trackpad over the rows, then by
+      keyboard (Tab to a row's checkbox, then Page Down and End)** → the rows
+      move INSIDE the bordered table (`automationRuns.list.caption`) while
+      the tab strip, the heading (`automations.runs.title`), **Filter**, the
+      column header row and the count footer stay put; the page itself never
+      scrolls, and the end of the rows loads older runs. With two rows
+      selected, `automationRuns.list.compare` stays in view under the table.
+      Filtered down to two runs, the frame hugs them. At 390×844 the frame
+      ends above the bottom tab bar and the table scrolls sideways inside it,
+      never the page; at 640×360 the frame grows with its rows and the page
+      scrolls instead. While the first page loads the table shows skeleton
+      rows, and an automation that never ran reads `automations.runs.empty`.
 - [ ] `AUTO-F117` · **On a finished run, choose `automationRuns.view.steps`**
       → the canvas gives way to the run's steps in time order, each with how
       long it worked (none for a skipped step) and a bar for when, each
