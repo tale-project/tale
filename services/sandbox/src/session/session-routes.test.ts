@@ -1643,6 +1643,134 @@ describe('SessionRoutes (fake runnerd)', () => {
     },
   );
 
+  test.each([
+    ['the OOM killer ended', true, 'SESSION_OOM'],
+    ['something else ended', false, 'SESSION_LOST'],
+  ])(
+    'a runner restarted in place after %s mid-exec ends the exec as %s, and the session goes on',
+    async (_, outOfMemory, errorCode) => {
+      const asked: { createdAtMs: number; sinceMs: number }[] = [];
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        restartedOutOfMemory: async (sessionId, createdAtMs, sinceMs) => {
+          expect(sessionId).toBe('sess_restarted');
+          asked.push({ createdAtMs, sinceMs });
+          return outOfMemory;
+        },
+      });
+      const createRes = await routes.handleCreate(
+        JSON.stringify({
+          sessionId: 'sess_restarted',
+          organizationId: 'org_f',
+        }),
+      );
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+      const createBody = (await createRes.json()) as {
+        session: { createdAtMs: number };
+      };
+      const before = Date.now();
+      const execRes = await routes.handleExec(
+        new Request('http://x/v1/sessions/sess_restarted/exec', {
+          method: 'POST',
+        }),
+        'sess_restarted',
+        JSON.stringify({
+          execId: 'e9',
+          command: ['echo', '__container_died__'],
+        }),
+      );
+      const { events } = await readSse(execRes);
+      expect(events.find((e) => e.event === 'result')?.data).toMatchObject({
+        status: 'failed',
+        exitCode: null,
+        errorCode,
+      });
+      // Asked once, for this incarnation, since the exec was opened.
+      expect(asked).toEqual([
+        {
+          createdAtMs: createBody.session.createdAtMs,
+          sinceMs: expect.any(Number),
+        },
+      ]);
+      expect(asked[0]?.sinceMs).toBeGreaterThanOrEqual(before);
+      // The backend object is still there: nothing was evicted.
+      expect((await routes.handleGet('sess_restarted')).status).toBe(200);
+    },
+  );
+
+  test.each([
+    ['the OOM killer ended', true, 'SESSION_OOM'],
+    ['something else ended', false, undefined],
+  ])(
+    'an attach whose runner was restarted in place after %s ends the exec as %s, and the session goes on',
+    async (_, outOfMemory, errorCode) => {
+      const asked: number[] = [];
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        restartedOutOfMemory: async (_sessionId, _createdAtMs, sinceMs) => {
+          asked.push(sinceMs);
+          return outOfMemory;
+        },
+      });
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'sess_reattach', organizationId: 'org_f' }),
+      );
+      const before = Date.now();
+      const attached = await routes.handleExecAttach(
+        new Request('http://x', { method: 'GET' }),
+        'sess_reattach',
+        'died-2',
+      );
+      const { events } = await readSse(attached);
+      const result = events.find((e) => e.event === 'result')?.data;
+      if (errorCode === undefined) expect(result).toBeUndefined();
+      else
+        expect(result).toMatchObject({
+          status: 'failed',
+          exitCode: null,
+          errorCode,
+        });
+      expect(asked).toHaveLength(1);
+      expect(asked[0]).toBeGreaterThanOrEqual(before);
+      expect((await routes.handleGet('sess_reattach')).status).toBe(200);
+    },
+  );
+
+  test('a session whose backend object is gone is not asked how its runner ended', async () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      let asked = 0;
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        sessionExists: async () => false,
+        takeOutOfMemory: () => false,
+        restartedOutOfMemory: async () => {
+          asked += 1;
+          return true;
+        },
+      });
+      await routes.handleCreate(
+        JSON.stringify({ sessionId: 'sess_gone', organizationId: 'org_f' }),
+      );
+      const execRes = await routes.handleExec(
+        new Request('http://x/v1/sessions/sess_gone/exec', { method: 'POST' }),
+        'sess_gone',
+        JSON.stringify({
+          execId: 'e10',
+          command: ['echo', '__container_died__'],
+        }),
+      );
+      const { events } = await readSse(execRes);
+      expect(events.find((e) => e.event === 'result')?.data).toMatchObject({
+        errorCode: 'SESSION_LOST',
+      });
+      expect(asked).toBe(0);
+      expect((await routes.handleGet('sess_gone')).status).toBe(404);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   test('any other pre-spawn refusal still reads as a runtime error', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend);
     await routes.handleCreate(

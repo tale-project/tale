@@ -44,6 +44,7 @@ import {
 } from './k8s-client.ts';
 import {
   buildSessionPod,
+  RUNNER_CONTAINER,
   sessionPodNameFor,
   sessionSecretNameFor,
   sessionWorkspacePvcNameFor,
@@ -104,6 +105,12 @@ interface CreateOwnership {
 const START_FAILURE_POLL_MS = 1_000;
 /** How often a create asks runnerd whether it is ready, as on Docker. */
 const RUNNERD_READY_POLL_MS = 100;
+/** How long an exec whose runner went away waits for the kubelet to report
+ * how the runner container ended: the kubelet notices a dead container on its
+ * next relist, about a second later, and only then writes the Pod's status. */
+const RUNNER_END_REPORT_MS = 5_000;
+/** How often that wait reads the Pod. */
+const RUNNER_END_POLL_MS = 500;
 
 /** Waiting reasons a session container does not recover from within a create:
  * the kubelet backs off a crashing container or an image it cannot pull, and
@@ -145,6 +152,34 @@ export function unstartableReason(pod: V1Pod): string | undefined {
     return `container ${status.name} ${waiting.reason}${details.length > 0 ? `: ${details.join('; ')}` : ''}`;
   }
   return undefined;
+}
+
+/** How the session Pod's runner container ended at or after `sinceMs`, as its
+ * status reports it: `oom` when the kernel's OOM killer ended it, `other` for
+ * any other end (and for a runner already down then, which nothing since
+ * ended), undefined while the status shows it running with no end since. The
+ * kubelet reports an end as the container's state until the replacement
+ * starts, through any crash-loop back-off, then as its last state, with
+ * `finishedAt` in whole seconds: an end in the second `sinceMs` falls in
+ * counts. */
+export function runnerEndSince(
+  pod: V1Pod,
+  sinceMs: number,
+): 'oom' | 'other' | undefined {
+  const status = pod.status?.containerStatuses?.find(
+    (container) => container.name === RUNNER_CONTAINER,
+  );
+  if (status === undefined) return undefined;
+  const end = status.state?.terminated ?? status.lastState?.terminated;
+  if (
+    end?.finishedAt !== undefined &&
+    new Date(end.finishedAt).getTime() >= Math.floor(sinceMs / 1000) * 1000
+  )
+    return end.reason === 'OOMKilled' ? 'oom' : 'other';
+  return status.state?.waiting !== undefined ||
+    status.state?.terminated !== undefined
+    ? 'other'
+    : undefined;
 }
 
 export class KubernetesSessionBackend implements SessionBackend {
@@ -719,6 +754,43 @@ export class KubernetesSessionBackend implements SessionBackend {
       expectedCreatedAtMs === undefined ||
       this.observedCreationStamp(sessionId, pod) === expectedCreatedAtMs
     );
+  }
+
+  /** The kubelet restarts a runner container the OOM killer ended in its Pod
+   * (restartPolicy Always) and the Pod stays Running, so the session goes on
+   * with a fresh runnerd. The exec's stream breaks the moment the kill closes
+   * runnerd's socket, before the kubelet has noticed, so this reads the Pod
+   * until its status reports how the runner ended (runnerEndSince). */
+  async restartedOutOfMemory(
+    sessionId: string,
+    createdAtMs: number,
+    sinceMs: number,
+    signal: AbortSignal,
+  ): Promise<boolean> {
+    const deadline = Date.now() + RUNNER_END_REPORT_MS;
+    try {
+      for (;;) {
+        const pod = await this.readPod(sessionId);
+        // A stop ends the runner of a Pod being deleted, and another
+        // incarnation's runner is not the one the exec ran in.
+        if (
+          pod.metadata?.deletionTimestamp ||
+          this.observedCreationStamp(sessionId, pod) !== createdAtMs
+        )
+          return false;
+        const end = runnerEndSince(pod, sinceMs);
+        if (end !== undefined) return end === 'oom';
+        if (signal.aborted || Date.now() >= deadline) return false;
+        await new Promise((r) => setTimeout(r, RUNNER_END_POLL_MS));
+      }
+    } catch (err) {
+      if (httpStatusCode(err) !== 404)
+        console.warn(
+          `[sandbox.k8s] reading how session ${sessionId}'s runner ended failed:`,
+          err instanceof Error ? err.message : err,
+        );
+      return false;
+    }
   }
 
   private observedCreationStamp(sessionId: string, pod: V1Pod): number {

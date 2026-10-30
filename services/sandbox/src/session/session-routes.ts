@@ -2412,6 +2412,34 @@ export class SessionRoutes {
     );
   }
 
+  /** Did the kernel's OOM killer end the runner a stream read from, at or
+   * after `sinceMs`? Asked once the stream stopped short of its exec's end
+   * and evictIfBackendGone ran: a Docker container that died of it was read
+   * by that check, while a Kubernetes runner restarts in its Pod, the session
+   * going on, and the backend reads how the runner ended. A session no longer
+   * registered as this entry, or being stopped, ended for another reason. */
+  private async endedOutOfMemory(
+    session: RegistrySession,
+    sinceMs: number,
+    signal: AbortSignal,
+  ): Promise<boolean> {
+    if (this.lostToOutOfMemory.has(session)) return true;
+    const { sessionId } = session;
+    if (
+      this.backend.restartedOutOfMemory === undefined ||
+      this.registry.get(sessionId) !== session ||
+      this.stopping.has(sessionId) ||
+      signal.aborted
+    )
+      return false;
+    return this.backend.restartedOutOfMemory(
+      sessionId,
+      session.createdAtMs,
+      sinceMs,
+      signal,
+    );
+  }
+
   /** Drop a registry entry whose incarnation is confirmed gone, keeping its
    * workspace for the resume; true when it did. The verdict describes the
    * entry it was reached for: a destroy / recreate or a stop that began
@@ -3746,6 +3774,8 @@ export class SessionRoutes {
     // failure is reported on the stream, as before. The stream's consumer
     // leaving detaches from the exec, never ends it.
     const consumer = new AbortController();
+    // A runner that ends from here on may be what cuts this exec's stream.
+    const openedAtMs = Date.now();
     const opened = replayOnly
       ? undefined
       : runnerdOpenExec(
@@ -3910,9 +3940,14 @@ export class SessionRoutes {
           // Evict the zombie first, so the platform's reconnect/next turn
           // gets the definitive 404 instead of retrying a dead address — and
           // so the result can say when the OOM killer took the container
-          // (read by the same check).
+          // (read by the same check, or by the backend for a runner it
+          // restarted in place).
           await this.evictIfBackendGone(sessionId);
-          const outOfMemory = this.lostToOutOfMemory.has(session);
+          const outOfMemory = await this.endedOutOfMemory(
+            session,
+            openedAtMs,
+            execSignal,
+          );
           await send('result', {
             status: 'failed',
             exitCode: null,
@@ -4132,13 +4167,22 @@ export class SessionRoutes {
     const token = this.tokenFor(sessionId);
     return sseResponse(async ({ send, signal }) => {
       // Whether the exec's end came through: a stream that stops short of it
-      // lost its container, and the eviction's check says whether the OOM
-      // killer took it — as handleExec says for the first window.
+      // lost its container, and the eviction's check (or the backend, for a
+      // runner it restarted in place) says whether the OOM killer took it —
+      // as handleExec says for the first window.
       let ended = false;
+      const attachedAtMs = Date.now();
       const outOfMemory = async (): Promise<boolean> => {
         if (ended || req.signal.aborted || signal.aborted) return false;
         await this.evictIfBackendGone(sessionId);
-        if (!this.lostToOutOfMemory.has(session)) return false;
+        if (
+          !(await this.endedOutOfMemory(
+            session,
+            attachedAtMs,
+            AbortSignal.any([ac.signal, signal]),
+          ))
+        )
+          return false;
         await send('result', sessionOutOfMemoryResult());
         return true;
       };
@@ -4533,11 +4577,12 @@ function execFailErrorCode(
 
 /** Why an exec whose container the OOM killer took ended. */
 const SESSION_OOM_MESSAGE =
-  "the session ran out of memory: the kernel's OOM killer ended processes in its container, which stopped";
+  "the session ran out of memory: the kernel's OOM killer ended processes in its container, which stopped or restarted";
 
-/** The result of an exec whose container died after the OOM killer hit it,
- * for an attach that never saw the exec's end: its output already went to
- * the stream, and no measurement survived the container. */
+/** The result of an exec whose container died (or, on Kubernetes, restarted)
+ * after the OOM killer hit it, for an attach that never saw the exec's end:
+ * its output already went to the stream, and no measurement survived the
+ * container. */
 function sessionOutOfMemoryResult(): SessionExecResponse {
   return {
     status: 'failed',

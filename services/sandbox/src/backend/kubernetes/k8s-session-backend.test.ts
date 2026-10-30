@@ -6,6 +6,7 @@ import { describe, expect, spyOn, test } from 'bun:test';
 import type {
   CoreV1Api,
   NetworkingV1Api,
+  V1ContainerStatus,
   V1PersistentVolumeClaim,
   V1Pod,
 } from '@kubernetes/client-node';
@@ -22,6 +23,7 @@ import {
 import type { K8sClient } from './k8s-client.ts';
 import {
   KubernetesSessionBackend,
+  runnerEndSince,
   unstartableReason,
 } from './k8s-session-backend.ts';
 import {
@@ -1883,5 +1885,231 @@ describe('a session container that cannot start', () => {
     expect(error?.message).toContain('[entrypoint] FATAL: no egress');
     // The create budget is 180 s; the watch reads the Pod every second.
     expect(performance.now() - started).toBeLessThan(10_000);
+  });
+});
+
+describe('a runner the OOM killer ended, restarted in its Pod', () => {
+  // The exec's stream began half a second into the second 1_700_000_100;
+  // the API reports when a container ended in whole seconds.
+  const since = 1_700_000_100_500;
+  const second = (offset: number) => new Date((1_700_000_100 + offset) * 1000);
+  const end = (reason: string, offset: number) => ({
+    exitCode: reason === 'OOMKilled' ? 137 : 1,
+    reason,
+    finishedAt: second(offset),
+  });
+  /** A signal the caller never aborts: the backend's own wait bounds it. */
+  const staying = () => new AbortController().signal;
+
+  /** The session Pod, its runner running since before the stream began
+   * unless `runner` says otherwise. */
+  function runnerPod(
+    runner: Partial<V1ContainerStatus> = {},
+    stamp = String(spec.createdAtMs),
+  ): V1Pod {
+    return {
+      metadata: { annotations: { 'tale.dev/created-at': stamp } },
+      status: {
+        phase: 'Running',
+        podIP: '10.0.0.2',
+        containerStatuses: [
+          {
+            name: 'runner',
+            ready: true,
+            restartCount: 0,
+            image: cfg.runtimeImage,
+            imageID: '',
+            state: { running: { startedAt: second(-60) } },
+            ...runner,
+          },
+        ],
+      },
+    };
+  }
+
+  /** After the kubelet restarted the runner `reason` ended in second 2. */
+  const restarted = (reason: string) =>
+    runnerPod({
+      restartCount: 1,
+      state: { running: { startedAt: second(3) } },
+      lastState: { terminated: end(reason, 2) },
+    });
+
+  /** A backend whose reads of the session Pod answer `pods` in turn, the
+   * last one from then on (404: no Pod by the name). */
+  function reading(...pods: (V1Pod | 404)[]) {
+    const calls = { reads: 0 };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- read-only CoreV1 test seam
+    const core = {
+      async readNamespacedPod() {
+        const pod = pods[Math.min(calls.reads, pods.length - 1)];
+        calls.reads += 1;
+        return pod === 404 ? notFound() : pod;
+      },
+    } as unknown as CoreV1Api;
+    return {
+      backend: new KubernetesSessionBackend(cfg, {
+        ...stub(async () => ({})).client,
+        core,
+      }),
+      calls,
+    };
+  }
+
+  const ask = (
+    backend: KubernetesSessionBackend,
+    signal: AbortSignal,
+    sinceMs = since,
+  ) =>
+    backend.restartedOutOfMemory(
+      spec.sessionId,
+      spec.createdAtMs,
+      sinceMs,
+      signal,
+    );
+
+  test('a runner the OOM killer ended and the kubelet restarted answers true', async () => {
+    const { backend, calls } = reading(restarted('OOMKilled'));
+    expect(await ask(backend, staying())).toBe(true);
+    expect(calls.reads).toBe(1);
+  });
+
+  test('the end counts before the restart and through a crash-loop back-off', async () => {
+    // Noticed, not yet restarted: the end is the runner's state.
+    expect(
+      await ask(
+        reading(
+          runnerPod({
+            ready: false,
+            state: { terminated: end('OOMKilled', 2) },
+          }),
+        ).backend,
+        staying(),
+      ),
+    ).toBe(true);
+    // Backing off: restartCount stays with the ended container.
+    expect(
+      await ask(
+        reading(
+          runnerPod({
+            ready: false,
+            restartCount: 3,
+            state: { waiting: { reason: 'CrashLoopBackOff' } },
+            lastState: { terminated: end('OOMKilled', 2) },
+          }),
+        ).backend,
+        staying(),
+      ),
+    ).toBe(true);
+  });
+
+  test('a restart for another reason answers false', async () => {
+    const { backend, calls } = reading(restarted('Error'));
+    expect(await ask(backend, staying())).toBe(false);
+    expect(calls.reads).toBe(1);
+  });
+
+  test('a restart answers the streams it cut, not one that began after it', async () => {
+    const { backend } = reading(restarted('OOMKilled'));
+    expect(await ask(backend, staying())).toBe(true);
+    expect(await ask(backend, staying())).toBe(true);
+    expect(
+      await ask(backend, AbortSignal.abort(), second(5).getTime() + 500),
+    ).toBe(false);
+  });
+
+  test('an end in the second the stream began counts; one before does not', async () => {
+    const inSecond = runnerPod({
+      restartCount: 1,
+      lastState: { terminated: end('OOMKilled', 0) },
+    });
+    expect(await ask(reading(inSecond).backend, AbortSignal.abort())).toBe(
+      true,
+    );
+    const before = runnerPod({
+      restartCount: 1,
+      lastState: { terminated: end('OOMKilled', -1) },
+    });
+    expect(await ask(reading(before).backend, AbortSignal.abort())).toBe(false);
+  });
+
+  test('an unchanged status answers false once the wait ends', async () => {
+    const { backend, calls } = reading(runnerPod());
+    expect(await ask(backend, AbortSignal.abort())).toBe(false);
+    expect(calls.reads).toBe(1);
+  });
+
+  test('a report the kubelet writes late is read again until it comes', async () => {
+    // Its stream breaks with the kill, before the kubelet noticed it.
+    const { backend, calls } = reading(runnerPod(), restarted('OOMKilled'));
+    expect(await ask(backend, staying())).toBe(true);
+    expect(calls.reads).toBe(2);
+  });
+
+  test('a runner already down when the stream began answers at once', async () => {
+    const { backend, calls } = reading(
+      runnerPod({
+        ready: false,
+        restartCount: 4,
+        state: { waiting: { reason: 'CrashLoopBackOff' } },
+        lastState: { terminated: end('OOMKilled', -20) },
+      }),
+    );
+    expect(await ask(backend, staying())).toBe(false);
+    expect(calls.reads).toBe(1);
+  });
+
+  test('another incarnation, a Pod being deleted or none answer false', async () => {
+    const replaced = runnerPod(
+      { restartCount: 1, lastState: { terminated: end('OOMKilled', 2) } },
+      String(spec.createdAtMs + 1),
+    );
+    const deleting = restarted('OOMKilled');
+    deleting.metadata = {
+      annotations: { 'tale.dev/created-at': String(spec.createdAtMs) },
+      deletionTimestamp: second(4),
+    };
+    for (const pod of [replaced, deleting, 404] as const) {
+      const { backend, calls } = reading(pod);
+      expect(await ask(backend, staying())).toBe(false);
+      expect(calls.reads).toBe(1);
+    }
+  });
+
+  test('a Pod whose incarnation cannot be read answers false and says why', async () => {
+    const pod = restarted('OOMKilled');
+    pod.metadata = {};
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(await ask(reading(pod).backend, staying())).toBe(false);
+      expect(String(warn.mock.calls[0]?.[0])).toContain(
+        `reading how session ${spec.sessionId}'s runner ended failed`,
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('only the runner container counts, not the egress sidecar', () => {
+    const pod = runnerPod();
+    pod.status = {
+      phase: 'Running',
+      containerStatuses: pod.status?.containerStatuses,
+      initContainerStatuses: [
+        {
+          name: 'egress',
+          ready: true,
+          restartCount: 1,
+          image: 'egress',
+          imageID: '',
+          state: { running: { startedAt: second(3) } },
+          lastState: { terminated: end('OOMKilled', 2) },
+        },
+      ],
+    };
+    expect(runnerEndSince(pod, since)).toBeUndefined();
+    expect(runnerEndSince({ status: { phase: 'Running' } }, since)).toBe(
+      undefined,
+    );
   });
 });

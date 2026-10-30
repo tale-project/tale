@@ -43,6 +43,9 @@ interface SessionPodInput {
   startupDeadlineMs?: number;
 }
 
+/** The session Pod's container that runs runnerd, and every exec with it. */
+export const RUNNER_CONTAINER = 'runner';
+
 const WORKSPACE_MOUNT = '/agent';
 const ID_RE = /^[a-zA-Z0-9_-]{1,64}$/;
 const ORG_RE = /^[a-zA-Z0-9_-]{1,128}$/;
@@ -432,7 +435,7 @@ export function buildSessionPod(
       ...(egressSidecars.length > 0 ? { initContainers: egressSidecars } : {}),
       containers: [
         {
-          name: 'runner',
+          name: RUNNER_CONTAINER,
           image: cfg.runtimeImage,
           imagePullPolicy: 'IfNotPresent',
           // A runner that exits during start (the entrypoint's FATAL line)
