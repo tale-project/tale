@@ -1086,9 +1086,18 @@ describe('HomePanel', () => {
     const switcher = within(panel).getByRole('radiogroup');
     const newChat = within(panel).getAllByRole('link', { name: 'New chat' })[0];
     expect(newChat).toHaveAttribute('href', '/dashboard/org-1/chat');
-    // Beside the switcher: the two share one row.
+    // Beside the switcher: the nearest box holding both is their row, not
+    // the panel with its stream under them.
     // oxlint-disable-next-line testing-library/no-node-access -- the row is structural, not a queryable role
-    expect(switcher.parentElement?.parentElement).toContainElement(newChat);
+    let row = switcher.parentElement;
+    while (row !== null && !row.contains(newChat)) {
+      // oxlint-disable-next-line testing-library/no-node-access -- see above
+      row = row.parentElement;
+    }
+    expect(row).not.toBeNull();
+    const streamName = { name: 'Your chats, tasks and conversations' };
+    expect(within(panel).getByRole('list', streamName)).toBeInTheDocument();
+    expect(within(row ?? panel).queryByRole('list', streamName)).toBeNull();
   });
 
   function backslash() {
