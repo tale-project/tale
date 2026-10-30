@@ -141,13 +141,18 @@ describe('SkillsMenu', () => {
       />,
     );
     await user.click(screen.getByRole('button', { name: /skills/i }));
-    expect(
-      await screen.findByRole('menuitemcheckbox', { name: /^Find tasks/ }),
-    ).toHaveTextContent('Read only');
-    const write = await screen.findByRole('menuitemcheckbox', {
-      name: /^Change task priority and agent assignment/,
+    // A grant is named by its label alone and described by what it does to
+    // data, which is how a screen reader announces it (#3658).
+    const read = await screen.findByRole('menuitemcheckbox', {
+      name: 'Find tasks',
+    });
+    expect(read).toHaveTextContent('Read only');
+    expect(read).toHaveAccessibleDescription('Read only');
+    const write = screen.getByRole('menuitemcheckbox', {
+      name: 'Change task priority and agent assignment',
     });
     expect(write).toHaveTextContent('Writes data');
+    expect(write).toHaveAccessibleDescription('Writes data');
     await user.click(write);
     expect(onChange).toHaveBeenCalledWith({
       skills: [],

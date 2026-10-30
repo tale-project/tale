@@ -51,6 +51,7 @@ const items: DropdownMenuGroup[] = [
 ## Accessibility
 - Full keyboard navigation (Arrow keys, Enter, Escape)
 - ARIA menu roles and attributes
+- A checkbox row is named by its \`label\` alone; its \`description\` is the row's accessible description
 - Focus management handled automatically
         `,
       },
