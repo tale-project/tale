@@ -12,14 +12,19 @@
  *    orderings `DAY (de|of) MONTH (de) YEAR` and `MONTH DAY, YEAR`, with
  *    optional context prefix and day ordinals (`28th`, `1er`, `28.`);
  *  - one CJK regex (`YYYY年MM月DD日` with optional context word before or
- *    after) from the union of the year/month/day markers.
+ *    after) from the union of the year/month/day markers;
+ *  - one keyword-gated regex for a numeric date with a two-digit year
+ *    (`DOB: 15/03/87`) from the union of the context keywords. On its own
+ *    `15.03.87` reads as well as a version or a section number, so only a
+ *    keyword right before it makes it a date of birth.
  *
  * Locales without a `dateOfBirth` block contribute nothing.
  *
  * Every match passes a plausibility validator: the year must fall in
- * 1900..currentYear+1 (the +1 absorbs New-Year clock skew), the day/month
- * groups must be calendar-plausible — that is what keeps phone numbers and
- * card issue dates from reading as DOBs. Keywords are escaped and
+ * 1900..currentYear+1 (the +1 absorbs New-Year clock skew; a two-digit
+ * year after a keyword may be any), the day/month groups must be
+ * calendar-plausible — that is what keeps phone numbers and card issue
+ * dates from reading as DOBs. Keywords are escaped and
  * longest-first ordered by the shared composer; all quantifiers are
  * bounded, and the composed regexes run under the engine's exec budget
  * like any other.
@@ -43,17 +48,33 @@ const CURRENT_YEAR = new Date().getUTCFullYear();
 const MIN_YEAR = 1900;
 const MAX_YEAR = CURRENT_YEAR + 1;
 
-// Both textual forms carry exactly one 4-digit group — the year — so the
-// first 4-digit run in a match is always it.
+// A four-digit-year match, numeric or textual, carries exactly one 4-digit
+// group — the year — so the first 4-digit run in a match is always it. A
+// bare numeric match without one (`15.03.87`) fails here on purpose: only
+// the keyword-gated pass takes a two-digit year.
 const YEAR_EXTRACT_RE = /\d{4}/;
 const NUMERIC_PARTS_RE = /(\d{1,4})[./\-–—](\d{1,2})[./\-–—](\d{1,4})/;
 const LEADING_DAY_RE = /\d{1,2}/;
+
+/** Separators between a context keyword and the date it names: whitespace,
+ * a colon (ASCII or full-width), a dot, a comma, an equals sign or a dash —
+ * "DOB: 15/03/87", "geb. 15.03.87", "dob=15/03/87". */
+const KEYWORD_GAP = '[\\s:：.,=\\-–—]{0,12}';
+/** A numeric date with a two-digit year at either end (`15.03.87`,
+ * `87.03.15`), never the head of a longer run (`15.03.87.12`, `15.03.879`). */
+const TWO_DIGIT_YEAR_DATE =
+  '\\d{1,2}[./—–-]\\d{1,2}[./—–-]\\d{2}(?![\\p{L}\\p{M}\\p{N}]|[./—–-]\\p{N})';
 
 function yearLooksPlausible(matchedText: string): boolean {
   const m = matchedText.match(YEAR_EXTRACT_RE);
   if (!m) return false;
   const year = Number(m[0]);
   return year >= MIN_YEAR && year <= MAX_YEAR;
+}
+
+/** A day and a month that can form a calendar date. */
+function dayMonthLooksPlausible(day: number, month: number): boolean {
+  return month >= 1 && month <= 12 && day >= 1 && day <= 31;
 }
 
 /**
@@ -72,12 +93,28 @@ function numericDateLooksPlausible(matchedText: string): boolean {
   const g2 = Number(parts[2]);
   const g3 = Number(parts[3]);
 
-  if (g1 >= 1000) {
-    return g2 >= 1 && g2 <= 12 && g3 >= 1 && g3 <= 31;
-  }
-  const dmyOk = g2 >= 1 && g2 <= 12 && g1 >= 1 && g1 <= 31;
-  const mdyOk = g1 >= 1 && g1 <= 12 && g2 >= 1 && g2 <= 31;
-  return dmyOk || mdyOk;
+  if (g1 >= 1000) return dayMonthLooksPlausible(g3, g2);
+  return dayMonthLooksPlausible(g1, g2) || dayMonthLooksPlausible(g2, g1);
+}
+
+/**
+ * Two-digit-year plausibility: any year — the keyword before the match is
+ * what says it is a date of birth — and a real day/month in DMY, MDY or
+ * YMD order (`15.03.87`, `03/15/87`, `87.03.15`).
+ */
+function twoDigitYearDateLooksPlausible(matchedText: string): boolean {
+  const parts = matchedText.match(NUMERIC_PARTS_RE);
+  if (!parts) return false;
+
+  const g1 = Number(parts[1]);
+  const g2 = Number(parts[2]);
+  const g3 = Number(parts[3]);
+
+  return (
+    dayMonthLooksPlausible(g1, g2) ||
+    dayMonthLooksPlausible(g2, g1) ||
+    dayMonthLooksPlausible(g3, g2)
+  );
 }
 
 /** Latin textual plausibility: plausible year plus a 1–31 leading day. */
@@ -91,6 +128,7 @@ function latinTextualLooksPlausible(matchedText: string): boolean {
 }
 
 interface ComposedDob {
+  twoDigitYear: PiiPatternRegex | null;
   latin: PiiPatternRegex | null;
   cjk: PiiPatternRegex | null;
 }
@@ -123,6 +161,38 @@ function partitionLocales(locales: ReadonlyArray<LocaleConfig>): {
     else latinish.push(l);
   }
   return { latinish, cjk };
+}
+
+/**
+ * A numeric date with a two-digit year right after a date-of-birth context
+ * keyword of any enabled locale (`DOB: 15/03/87`, `Geburtsdatum: 15.03.87`).
+ * The keyword is matched the way the phone and national-ID keywords are
+ * (word-bounded, case-insensitive) but in a lookbehind, so it stays outside
+ * the span and the mask keeps it: `DOB: [DATE_OF_BIRTH]`, as with a
+ * four-digit year.
+ */
+function buildTwoDigitYearPattern(
+  locales: ReadonlyArray<LocaleConfig>,
+  name: string,
+  replacement: string,
+): PiiPatternRegex | null {
+  const contextAlt = composeKeywordAlternation(
+    locales.map((l) => l.dateOfBirth?.contextKeywords ?? []),
+  );
+  if (contextAlt === '(?!)') return null;
+
+  const keyword = `(?<![\\p{L}\\p{M}])(?:${contextAlt})(?![\\p{L}\\p{M}])`;
+  const regex = new RegExp(
+    `(?<=${keyword}${KEYWORD_GAP})${TWO_DIGIT_YEAR_DATE}`,
+    'giu',
+  );
+
+  return {
+    name,
+    regex,
+    replacement,
+    validate: twoDigitYearDateLooksPlausible,
+  };
 }
 
 function buildLatinTextualPattern(
@@ -230,6 +300,7 @@ function composeFromLocales(
 
   const { latinish, cjk } = partitionLocales(locales);
   const composed: ComposedDob = {
+    twoDigitYear: buildTwoDigitYearPattern(locales, name, replacement),
     latin:
       latinish.length > 0
         ? buildLatinTextualPattern(latinish, name, replacement)
@@ -255,6 +326,7 @@ export const buildDateOfBirthPattern: NativePatternBuilder = (file) => {
     const out: PiiPattern[] = [];
     if (numericPattern) out.push(numericPattern);
     const composed = composeFromLocales(locales, file.name, file.replacement);
+    if (composed.twoDigitYear) out.push(composed.twoDigitYear);
     if (composed.latin) out.push(composed.latin);
     if (composed.cjk) out.push(composed.cjk);
     return out;

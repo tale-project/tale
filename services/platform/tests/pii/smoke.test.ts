@@ -240,7 +240,33 @@ describe('createScrubber — mask mode', () => {
     const o = scrubber.scrub('DOB: 15/03/1987');
     expect(o.kind).toBe('modified');
     if (o.kind !== 'modified') return;
-    expect(o.text).toContain('[DATE_OF_BIRTH]');
+    expect(o.text).toBe('DOB: [DATE_OF_BIRTH]');
+  });
+
+  // A two-digit year counts only right after a word that names a date of
+  // birth: on its own, `15.03.87` reads as well as a version or a section.
+  it.each([
+    ['DOB: 15/03/87', 'DOB: [DATE_OF_BIRTH]'],
+    ['Geburtsdatum: 15.03.87', 'Geburtsdatum: [DATE_OF_BIRTH]'],
+    ['date de naissance : 15/03/87', 'date de naissance : [DATE_OF_BIRTH]'],
+    ['생년월일: 87.03.15', '생년월일: [DATE_OF_BIRTH]'],
+  ])(
+    'masks a two-digit-year date of birth after its keyword: %s',
+    (input, expected) => {
+      const o = scrubber.scrub(input);
+      expect(o.kind).toBe('modified');
+      if (o.kind !== 'modified') return;
+      expect(o.text).toBe(expected);
+      expect(o.categoryIds).toEqual(['dateOfBirth']);
+    },
+  );
+
+  it('leaves a two-digit-year date without a keyword alone', () => {
+    expect(scrubber.scrub('15.03.87').kind).toBe('pass');
+  });
+
+  it('leaves an impossible two-digit-year date after a keyword alone', () => {
+    expect(scrubber.scrub('DOB: 45/13/87').kind).toBe('pass');
   });
 });
 
