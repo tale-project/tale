@@ -33,15 +33,55 @@ export function normalizeProjectKey(raw: string): string {
 }
 
 /**
+ * Letters NFKD does not take apart into a base letter and a mark, spelled the
+ * way the platform's agent handles spell them (`lib/shared/agent-handle.ts`).
+ * Umlauts are not among them: they lose their marks like every other accent
+ * (`Müller` → `MUL`), as in the platform's `latinSlug`.
+ */
+const SPELLED_OUT: Readonly<Record<string, string>> = {
+  ß: 'ss',
+  æ: 'ae',
+  œ: 'oe',
+  ø: 'o',
+  ł: 'l',
+  đ: 'd',
+  ð: 'd',
+  þ: 'th',
+  ı: 'i',
+};
+
+const SPELLED_OUT_LETTER = new RegExp(
+  `[${Object.keys(SPELLED_OUT).join('')}]`,
+  'g',
+);
+
+/**
+ * A word in the letters and digits a key can hold: accents dropped
+ * (`Générale` → `generale`), the letters above spelled out (`Łódź` → `lodz`),
+ * and nothing left of a word in another script (`发票`).
+ */
+function latinSpelling(word: string): string {
+  return word
+    .normalize('NFKD')
+    .replace(/\p{M}+/gu, '')
+    .toLowerCase()
+    .replace(SPELLED_OUT_LETTER, (letter) => SPELLED_OUT[letter] ?? letter)
+    .replace(/[^a-z0-9]+/g, '');
+}
+
+/**
  * Suggest a key from a project name: initials of the first words when the name
- * is multi-word, otherwise the leading letters of the single word. Always
- * returns a normalized (possibly empty) string — e.g. "Tale Platform" → "TAL",
- * "tale" → "TAL", "QA" → "QA".
+ * is multi-word, otherwise the leading letters of the single word. A word is a
+ * run of letters and digits in any script, read in Latin letters, so an accent
+ * never ends one ("Société Générale" → "SG", not "STG"), and a word with no
+ * Latin letter or digit counts for nothing. Always returns a normalized
+ * (possibly empty) string — e.g. "Tale Platform" → "TP", "tale" → "TAL",
+ * "QA" → "QA", "发票提醒" → "".
  */
 export function deriveProjectKey(name: string): string {
   const words = name
-    .trim()
-    .split(/[^A-Za-z0-9]+/)
+    .split(/[^\p{L}\p{M}\p{N}]+/u)
+    .map(latinSpelling)
     .filter(Boolean);
   if (words.length === 0) return '';
   const candidate =
