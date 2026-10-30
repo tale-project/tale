@@ -460,6 +460,25 @@ export function useChatThreadsRetry(
 }
 
 /**
+ * Asks again for the ⌘K chat search (`chat/search:searchChats`) of `query`
+ * that came back `unavailable` — the palette's **Try again** (#4890).
+ * Resolves once it has settled, answered or failed again.
+ */
+export function useChatSearchRetry(
+  organizationId: string,
+): (query: string) => Promise<void> {
+  const queryClient = useChatQueryClient();
+  return useCallback(
+    (query) =>
+      queryClient.refetchQueries({
+        queryKey: chatSearchQuery(organizationId, query).queryKey,
+        exact: true,
+      }),
+    [queryClient, organizationId],
+  );
+}
+
+/**
  * The two turn lanes stamp cost in different units — the direct pipeline
  * writes `costEstimateCents`, the external (harness) lane `costEstimateUsd`
  * — so the seam normalizes to cents ONCE, here, and the view model only ever
