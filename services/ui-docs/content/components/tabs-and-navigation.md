@@ -3,12 +3,13 @@ title: Tabs and navigation
 description: Choose local panels or route navigation, preserve drafts deliberately, and keep every destination reachable.
 ---
 
-Use `Tabs` to switch panels within a screen, and `LocaleTabs` to edit one value per language. Use `TabNavigation` for destinations that should support a URL, reload, and browser history. Similar visual treatments do not make these controls interchangeable.
+Use `Tabs` to switch panels within a screen, and `LocaleTabs` to edit one value per language. Use `TabNavigation` for destinations that should support a URL, reload, and browser history. To narrow one list to a kind of item, use an icon-led `SegmentedControl`. Similar visual treatments do not make these controls interchangeable.
 
 ```tsx
 import { Tabs } from '@tale/ui/tabs';
 import { LocaleTabs } from '@tale/ui/locale-tabs';
 import { TabNavigation } from '@tale/ui/tab-navigation';
+import { SegmentedControl } from '@tale/ui/segmented-control';
 ```
 
 ## Switch local panels
@@ -65,6 +66,23 @@ The component stores no text and applies no fallback. Your host keeps the values
 | `listAriaLabel` | Accessible name for the tab list. |
 
 Give each editor an accessible name that includes its language; a panel's association with its tab does not label the field inside it. A validation message in a hidden panel is invisible, and a disabled Save button cannot say which language to fix, so answer `hasError` from your form state: the tab of every language with a problem shows the mark while the reader works in another one.
+
+## Switch what a list shows
+
+When a strip of choices narrows one list rather than swapping panels, such as everything, chats, tasks or an inbox, use `SegmentedControl` from `@tale/ui/segmented-control` with an icon per option and `labels="selected"`. Only the chosen option shows its label beside its icon. Every other option is its icon alone: its accessible name is still the full label, and hovering it shows the label in a tooltip. Each further option therefore costs an icon instead of a word, so the strip keeps its width in German and French and when a kind of work is added.
+
+<Demo name="tabs/view-switcher" />
+
+Choose **Tasks**. The highlight glides to it while its label opens and the label of **All** closes, on one timing. With reduced motion, both change in place. The group is one Tab stop, and the arrow keys, Home and End move the choice. **Chats** carries `attention`: a quiet dot on its icon, and the sentence a screen reader hears after the label.
+
+The control hugs its options. When the column is too narrow even for the chosen label, that label folds into its icon as well instead of being cut short, and it opens again once there is room. Give every option an icon in this layout. An option without one keeps its label. The tooltips need the `TooltipProvider` that `AppShell` supplies.
+
+| Option field | Purpose |
+| --- | --- |
+| `value`, `label` | The choice and its name, in the reader's language. |
+| `icon` | A Lucide icon drawn before the label; required with `labels="selected"`. |
+| `attention` | A translated sentence. It adds a dot and is read after the label. |
+| `disabled` | Keeps the option visible but not selectable. |
 
 ## Navigate between routes
 
