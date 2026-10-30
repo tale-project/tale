@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 66 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 67 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -681,6 +681,21 @@ compute codes from the enrollment secret.
   who belongs to A alone, open `/dashboard/{B}` → **You're not a member of
   this workspace.** and no button. Repeat with Deutsch and Français → the
   sentence and the button are localized.
+- [ ] `AUTH-B27` · **Someone else signs in where a person is still signed
+  in** — With a second account in the org, signed out, open `/log-in` in
+  two tabs of one browser. Sign in as the owner in the first → the
+  dashboard. In the second, whose form still shows, sign in as the second
+  account → its dashboard, never **Wrong email or password**
+  (`auth.login.wrongCredentials`) nor **Repeated failed attempts will
+  temporarily lock the account.** (`auth.login.lockoutAdvisory`). Reload the
+  first tab → it is signed in as the second account too: one browser holds
+  one person. Sign out and open `/log-in` in two tabs again; sign in through
+  an organization's single sign-on (`AUTH-F12`) in the first, then with that
+  person's own password in the second → **This session is limited to the
+  organization that signed you in.**
+  (`common.errors.organizationSessionRestricted`) and no lockout advisory;
+  another person's email and password in that tab still sign them in.
+  Repeat with Deutsch and Français → the sentence is localized.
 
 ## Accessibility (WCAG 2.1 AA)
 

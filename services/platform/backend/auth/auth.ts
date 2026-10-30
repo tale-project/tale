@@ -344,6 +344,22 @@ function bodyEmail(body: unknown): string | null {
 }
 
 /**
+ * Whether a password sign-in names another person than the session the
+ * request presents: a browser someone else is still signed in on (#4919).
+ * Compared in the canonical form, so a case variant of the presented
+ * person's own address is that person, and a body without an address names
+ * nobody else.
+ */
+function signsInAnotherPerson(
+  mw: { path: string; body: unknown },
+  presented: { user: { email: string } },
+): boolean {
+  if (mw.path !== SIGN_IN_EMAIL_PATH) return false;
+  const email = bodyEmail(mw.body);
+  return email !== null && email !== normalizeAuthEmail(presented.user.email);
+}
+
+/**
  * The client address and agent of a request: over HTTP, or a server-side
  * call that passes the browser's headers on — the app's own password door
  * calls `auth.api.changePassword` that way.
@@ -574,6 +590,14 @@ export function createAuth(config: AuthConfig) {
     if (mw.request !== undefined || mw.headers !== undefined) {
       const existing = await getSessionFromCtx(mw);
       if (existing !== null) {
+        // The password is the proof of a sign-in as somebody else: the
+        // presented session lends it no authority and refuses it nothing, as
+        // from an empty cookie jar. Its cookie is replaced; the session
+        // itself stays its owner's to end.
+        if (signsInAnotherPerson(mw, existing)) {
+          mw.context.session = null;
+          return undefined;
+        }
         const current = await authoritative(existing);
         if (current === null) {
           const identityPaths = new Set([

@@ -2,6 +2,8 @@ import '@testing-library/jest-dom/vitest';
 import { cleanup, screen, waitFor, fireEvent } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { SESSION_ORGANIZATION_MESSAGE } from '@/lib/shared/constants/session-authority';
+import { forgetSavedLocale, saveLocale } from '@/tests/utils/lapsed-session';
 import { render } from '@/tests/utils/render';
 
 // ── Router ───────────────────────────────────────────────────────────────────
@@ -196,6 +198,8 @@ describe('LogInPage – submit button state after failed login (#648)', () => {
 });
 
 describe('LogInPage – a sign-in the server could not check', () => {
+  afterEach(forgetSavedLocale);
+
   async function submit() {
     const { user } = render(<LogInPage />);
     await user.type(
@@ -250,5 +254,33 @@ describe('LogInPage – a sign-in the server could not check', () => {
     expect(
       screen.queryByText('login.temporarilyUnavailable'),
     ).not.toBeInTheDocument();
+  });
+
+  it('says the session this browser presents refused the sign-in, not that the password is wrong (#4919)', async () => {
+    saveLocale('de');
+    mockSignInEmail.mockImplementation(async (_payload, { onError }) => {
+      onError?.({
+        error: {
+          status: 403,
+          code: 'ORG_FORBIDDEN',
+          message: SESSION_ORGANIZATION_MESSAGE,
+        },
+      });
+      return { data: null };
+    });
+
+    await submit();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'Diese Sitzung ist auf die Organisation beschränkt, die dich angemeldet hat.',
+        ),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByText('login.wrongCredentials'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText('login.lockoutAdvisory')).not.toBeInTheDocument();
   });
 });
