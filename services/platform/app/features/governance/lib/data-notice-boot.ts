@@ -1,24 +1,27 @@
 /**
  * The loading skeleton's memory of the confidentiality notice.
  *
- * The notice sits under the chat composer, so whether it shows decides where
- * the composer sits. The composer placeholder — baked into the served boot
- * shell and rendered while access resolves — paints before any policy read
- * can answer, so it would leave no room for the notice and the live composer
- * would shift up by the notice's height when it mounts. Instead, the last
- * notice this device showed for an org is remembered here, and the
- * pre-hydration script in `index.html` hands it to the placeholder before
- * first paint:
+ * On a new chat the notice sits under the chat composer, so whether it shows
+ * decides where the composer sits (an open conversation carries it on its
+ * last message instead, and reserves nothing). The composer placeholder —
+ * baked into the served boot shell and rendered while access resolves —
+ * paints before any policy read can answer, so it would leave no room for
+ * the notice and the live composer would shift up by the notice's height
+ * when it mounts. Instead, the last notice this device showed for an org is
+ * remembered here, and the pre-hydration script in `index.html` hands it to
+ * the placeholder before first paint:
  *
  * - `localStorage[chat-data-notice-<orgId>]` holds the notice text as a CSS
- *   string literal, present only while the notice shows. Org-scoped rather
- *   than user-scoped because the script runs before auth, like the chat
- *   panel's `chat-history-panel-open-<orgId>`.
- * - The script copies it to the `--boot-chat-notice` custom property on
- *   `<html>` and adds the `boot-chat-notice` class; `ChatComposerPlaceholder`
- *   reveals its notice row on the class and sizes the row by rendering that
- *   property as generated content, so the row wraps exactly like the live
- *   notice at every width — without the served shell carrying any text.
+ *   string literal, present only while the notice shows — a member's "Don't
+ *   show again" drops it. Org-scoped rather than user-scoped because the
+ *   script runs before auth, like the chat panel's
+ *   `chat-history-panel-open-<orgId>`.
+ * - On a new chat, the script copies it to the `--boot-chat-notice` custom
+ *   property on `<html>` and adds the `boot-chat-notice` class;
+ *   `ChatComposerPlaceholder` reveals its notice row on the class and sizes
+ *   the row by rendering that property as generated content, so the row
+ *   wraps exactly like the live notice at every width — without the served
+ *   shell carrying any text.
  *
  * The value is stored pre-escaped so the inline script stays a plain copy.
  */
