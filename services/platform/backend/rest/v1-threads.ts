@@ -1214,7 +1214,6 @@ export function createThreadRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
               scopeKey,
               messageId: assistantMessageId,
               response: accepted,
-              now,
             });
           }
         });
