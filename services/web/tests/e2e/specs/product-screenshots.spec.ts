@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { gotoClientPage } from '@tale/e2e/client-page';
 import { createI18n } from '@tale/e2e/i18n';
 
 import {
@@ -7,7 +8,6 @@ import {
 } from '../../../app/content/product-screenshots';
 import { IMAGE_MANIFEST } from '../../../app/generated/image-manifest';
 import { PRODUCT_MOTION } from '../../../app/generated/product-motion';
-import { gotoClientPage } from '../helpers/client-page';
 
 const catalogs = {
   en: createI18n(new URL('../../../messages/en.yml', import.meta.url)),

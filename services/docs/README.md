@@ -108,6 +108,13 @@ E2E_USE_BUILD=1 bun run --filter @tale/docs test:e2e
 CI sets this flag after its build. Leave it unset or use `0` for the normal local
 E2E build.
 
+Run the suite through `test:e2e` or `test:e2e:ui`, not a bare `bunx playwright test`.
+The scripts set `PLAYWRIGHT_FORCE_ASYNC_LOADER=1`, so Playwright loads the specs through
+its asynchronous ESM loader. The specs navigate with `@tale/e2e/client-page`, which imports
+`jsdom`, and on Node 22.21.1, the version the repository pins, Playwright's default
+synchronous loader cannot load that import and fails with `ERR_VM_MODULE_LINK_FAILURE`
+before any test runs.
+
 `DOCS_E2E_PORT` changes the Playwright preview port from `3002`. Use a free port when another
 checkout is running: local tests reuse an existing server and can otherwise inspect the wrong
 checkout. `E2E_BASE_URL` chooses the request target; it does not disable the configured local

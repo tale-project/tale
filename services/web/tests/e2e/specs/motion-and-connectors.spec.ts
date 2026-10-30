@@ -1,7 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { gotoClientPage } from '@tale/e2e/client-page';
 import { createI18n } from '@tale/e2e/i18n';
-
-import { gotoClientPage } from '../helpers/client-page';
 
 const { t } = createI18n(new URL('../../../messages/en.yml', import.meta.url));
 

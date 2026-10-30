@@ -2,9 +2,8 @@ import { createServer } from 'node:http';
 import { gzipSync } from 'node:zlib';
 
 import { expect, test, type Page } from '@playwright/test';
+import { CLIENT_PAGE_SNAPSHOT, gotoClientPage } from '@tale/e2e/client-page';
 import { JSDOM } from 'jsdom';
-
-import { CLIENT_PAGE_SNAPSHOT, gotoClientPage } from '../helpers/client-page';
 
 async function documentFixture(
   page: Page,

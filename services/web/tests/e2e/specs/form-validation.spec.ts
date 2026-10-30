@@ -1,7 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { gotoClientPage } from '@tale/e2e/client-page';
 import { createI18n } from '@tale/e2e/i18n';
-
-import { gotoClientPage } from '../helpers/client-page';
 
 for (const locale of ['en', 'de', 'fr'] as const) {
   const { t } = createI18n(

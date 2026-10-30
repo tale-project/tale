@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, test } from '@playwright/test';
+import { gotoClientPage } from '@tale/e2e/client-page';
 
 import {
   PRODUCT_SCREENSHOTS,
@@ -7,7 +8,6 @@ import {
 import { IMAGE_MANIFEST } from '../../../app/generated/image-manifest';
 import { PRODUCT_MOTION } from '../../../app/generated/product-motion';
 import type { MotionCapture } from '../../../lib/media/product-motion-provenance';
-import { gotoClientPage } from '../helpers/client-page';
 
 const locales = ['en', 'de', 'fr'] as const;
 const pages = Object.keys(PRODUCT_SCREENSHOTS) as ProductScreenshotPage[];

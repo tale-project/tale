@@ -1,7 +1,6 @@
 import { expect, test } from '@playwright/test';
+import { gotoClientPage } from '@tale/e2e/client-page';
 import { createI18n } from '@tale/e2e/i18n';
-
-import { gotoClientPage } from '../helpers/client-page';
 
 test('sticky navigation stays readable over product screenshots in both themes', async ({
   page,

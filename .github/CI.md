@@ -101,9 +101,11 @@ GitHub-hosted runners.
   the client and overwrite prerendered HTML. Pull requests first compute affected service
   scope from the PR diff; missing or nonboolean filter results fail the scope job.
   Nightly, manual and candidate rounds always select platform, web and docs. Static
-  suites use two workers. Ordinary interactive web journeys await a test-only root
-  snapshot marker being removed by the client commit, so prerendered nodes cannot
-  satisfy their readiness check. Cold-start tests still exercise the transition itself.
+  suites use two workers. Ordinary interactive web and docs journeys await a test-only
+  root snapshot marker being removed by the client commit (`@tale/e2e/client-page`), so
+  prerendered nodes cannot satisfy their readiness check. The docs suite blocks the
+  site's service worker: a navigation it serves never reaches the `page.route` that
+  adds the marker. Cold-start tests still exercise the transition itself.
 - **Sandbox Incus E2E** is a required check (`CI ready (Sandbox Incus E2E)`) but no
   part of the candidate receipts: a release candidate does not run it. On a runner it
   builds the Incus node `services/sandbox/docs/incus.md` describes (Zabbly's pinned
