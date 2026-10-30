@@ -199,6 +199,9 @@ export function useProjects(
     isRetrying: query.isFetching,
     ...readStateOf(query),
     retry,
+    // Whether the list has answered: a first read held back while the
+    // browser is offline is not `isLoading`, and no empty list either.
+    hasAnswer: query.data !== undefined,
   };
 }
 

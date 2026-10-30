@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { ApiKeyCreateDialog } from './api-key-create-dialog';
 
@@ -21,52 +21,111 @@ vi.mock('../hooks/use-api-keys', () => ({
   useCreateApiKey: () => ({ mutateAsync: mockCreateKey, isPending: false }),
 }));
 
-// The pickers an Owner or Admin chooses whose key it is from.
+// The pickers an Owner or Admin chooses whose key it is from, each list read
+// as its hook reports it; every test starts with the three lists answered.
+const MEMBERS = [
+  {
+    userId: 'ada',
+    displayName: 'Ada',
+    email: 'ada@example.test',
+    role: 'admin',
+  },
+  {
+    userId: 'ines',
+    displayName: 'Ines',
+    email: 'ines@example.test',
+    role: 'admin',
+  },
+  {
+    userId: 'olav',
+    displayName: 'Olav',
+    email: 'olav@example.test',
+    role: 'owner',
+  },
+  {
+    userId: 'mia',
+    displayName: 'Mia Keller',
+    email: 'mia@example.test',
+    role: 'member',
+  },
+];
+const TEAMS = [{ id: 'finance', name: 'Finance' }];
+const PROJECTS = [
+  { _id: 'launch', name: 'Launch' },
+  { _id: 'old', name: 'Old site', archivedAt: 1 },
+];
+
+const reads = vi.hoisted(() => ({
+  members: {} as Record<string, unknown>,
+  teams: {} as Record<string, unknown>,
+  projects: {} as Record<string, unknown>,
+}));
 vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
-  useOrgMembersForPicker: () => ({
-    data: [
-      {
-        userId: 'ada',
-        displayName: 'Ada',
-        email: 'ada@example.test',
-        role: 'admin',
-      },
-      {
-        userId: 'ines',
-        displayName: 'Ines',
-        email: 'ines@example.test',
-        role: 'admin',
-      },
-      {
-        userId: 'olav',
-        displayName: 'Olav',
-        email: 'olav@example.test',
-        role: 'owner',
-      },
-      {
-        userId: 'mia',
-        displayName: 'Mia Keller',
-        email: 'mia@example.test',
-        role: 'member',
-      },
-    ],
-  }),
+  useOrgMembersForPicker: () => reads.members,
 }));
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
-  useOrgTeams: () => ({ teams: [{ id: 'finance', name: 'Finance' }] }),
+  useOrgTeams: () => reads.teams,
 }));
 vi.mock('@/app/features/projects/hooks/queries', () => ({
-  useProjects: () => ({
-    projects: [
-      { _id: 'launch', name: 'Launch' },
-      { _id: 'old', name: 'Old site', archivedAt: 1 },
-    ],
-  }),
+  useProjects: () => reads.projects,
 }));
+
+/** A list read: answered with its rows, still pending, or failed with no
+ * answer — `readStateOf`'s `unavailable`, which holds through a retry. */
+type ListRead = { rows: readonly object[] } | 'pending' | 'failed';
+type TargetList = 'members' | 'teams' | 'projects';
+
+const retries = {
+  members: vi.fn(),
+  teams: vi.fn(),
+  projects: vi.fn(),
+} satisfies Record<TargetList, () => void>;
+
+/** Set how `list` reads, in the shape its hook answers. */
+function setRead(list: TargetList, read: ListRead) {
+  const rows = typeof read === 'object' ? read.rows : undefined;
+  const failure = {
+    unavailable: read === 'failed',
+    stale: false,
+    retrying: false,
+    failureCount: read === 'failed' ? 1 : 0,
+  };
+  if (list === 'members') {
+    // The whole react-query result.
+    reads.members = {
+      data: rows,
+      isLoading: read === 'pending',
+      isError: read === 'failed',
+      isFetching: read === 'pending',
+      errorUpdateCount: failure.failureCount,
+      refetch: retries.members,
+    };
+  } else if (list === 'teams') {
+    reads.teams = {
+      teams: rows,
+      isLoading: read === 'pending',
+      ...failure,
+      retry: retries.teams,
+    };
+  } else {
+    reads.projects = {
+      projects: rows ?? [],
+      hasAnswer: rows !== undefined,
+      isLoading: read === 'pending',
+      error: read === 'failed',
+      isRetrying: false,
+      ...failure,
+      retry: retries.projects,
+    };
+  }
+}
 
 describe('ApiKeyCreateDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setRead('members', { rows: MEMBERS });
+    setRead('teams', { rows: TEAMS });
+    setRead('projects', { rows: PROJECTS });
   });
 
   // The key name is capped at Better Auth's apiKey `maximumNameLength` default
@@ -473,6 +532,131 @@ describe('ApiKeyCreateDialog', () => {
       expect(
         screen.getAllByRole('option').map((option) => option.textContent),
       ).toEqual(['Launch']);
+    });
+
+    // A list that has not answered offers nobody, and that never reads as
+    // nobody qualifying: a pending read masks the picker, a failed one says
+    // the list couldn't load and offers Try again (#4586).
+    describe('before its list answers', () => {
+      const TARGETS = [
+        {
+          list: 'members',
+          owner: 'Another member',
+          picker: 'api-key-member',
+          failed: "Couldn't load the members.",
+          empty: 'No member whose role is below yours',
+          // Only Ada, her fellow Admin and the Owner: nobody below her.
+          nobody: MEMBERS.filter((member) => member.role !== 'member'),
+        },
+        {
+          list: 'teams',
+          owner: 'A team',
+          picker: 'api-key-team',
+          failed: "Couldn't load the teams.",
+          empty: 'No teams',
+          nobody: [],
+        },
+        {
+          list: 'projects',
+          owner: 'A project',
+          picker: 'api-key-project',
+          failed: "Couldn't load the projects.",
+          empty: 'No active projects',
+          // An archived project takes no new keys.
+          nobody: PROJECTS.filter((project) => project.archivedAt),
+        },
+      ] satisfies Array<{
+        list: TargetList;
+        owner: string;
+        picker: string;
+        failed: string;
+        empty: string;
+        nobody: readonly object[];
+      }>;
+
+      async function chooseOwner(
+        user: ReturnType<typeof render>['user'],
+        owner: string,
+      ) {
+        await user.click(screen.getByRole('combobox', { name: 'Belongs to' }));
+        await user.click(screen.getByRole('option', { name: owner }));
+      }
+
+      function pickerTrigger(id: string): HTMLElement {
+        const trigger = document.getElementById(id);
+        if (trigger === null) throw new Error(`No picker #${id}`);
+        return trigger;
+      }
+
+      /** The alert that says `message` (the name field's own error is an
+       * alert too). */
+      function alertSaying(message: string): HTMLElement {
+        const alert = screen
+          .getByText(message)
+          .closest<HTMLElement>('[role="alert"]');
+        if (alert === null) throw new Error(`"${message}" is in no alert`);
+        return alert;
+      }
+
+      function expectNoFailure(failed: string) {
+        expect(screen.queryByText(failed)).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole('button', { name: 'Try again' }),
+        ).not.toBeInTheDocument();
+      }
+
+      it.each(TARGETS)(
+        'names a failed $list read with Try again, not as nobody to choose',
+        async ({ list, owner, picker, failed, empty }) => {
+          setRead(list, 'failed');
+          const { user, container } = renderForAdmin();
+          await chooseOwner(user, owner);
+
+          await user.click(pickerTrigger(picker));
+          expect(screen.queryByText(empty)).not.toBeInTheDocument();
+          expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+          expect(pickerTrigger(picker)).toBeDisabled();
+          expect(
+            screen.getByRole('button', { name: 'Create key' }),
+          ).toBeDisabled();
+          const alert = alertSaying(failed);
+
+          await user.click(
+            within(alert).getByRole('button', { name: 'Try again' }),
+          );
+          expect(retries[list]).toHaveBeenCalledTimes(1);
+          await checkAccessibility(container);
+        },
+      );
+
+      it.each(TARGETS)(
+        'masks the picker while the $list read is pending, never saying nobody qualifies',
+        async ({ list, owner, picker, failed, empty }) => {
+          setRead(list, 'pending');
+          const { user } = renderForAdmin();
+          await chooseOwner(user, owner);
+
+          await user.click(pickerTrigger(picker));
+          expect(screen.queryByText(empty)).not.toBeInTheDocument();
+          expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+          expect(pickerTrigger(picker)).toBeDisabled();
+          expect(pickerTrigger(picker)).toHaveAttribute('aria-hidden', 'true');
+          expectNoFailure(failed);
+        },
+      );
+
+      it.each(TARGETS)(
+        'says nobody qualifies once the $list read answered without a candidate',
+        async ({ list, owner, picker, failed, empty, nobody }) => {
+          setRead(list, { rows: nobody });
+          const { user } = renderForAdmin();
+          await chooseOwner(user, owner);
+
+          expectNoFailure(failed);
+          await user.click(pickerTrigger(picker));
+          expect(await screen.findByText(empty)).toBeInTheDocument();
+        },
+      );
     });
   });
 
