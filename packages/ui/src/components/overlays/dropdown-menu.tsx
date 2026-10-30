@@ -250,12 +250,15 @@ function CheckboxRow({ item }: { item: DropdownMenuCheckboxItem }) {
                 : 'bg-muted',
           )}
         >
+          {/* On, the knob takes the ink matched to `--primary`: a white
+              one vanished on the dark theme's white track and on a light
+              accent's. */}
           <span
             className={cn(
-              'block h-3 w-3 translate-y-0.5 rounded-full bg-white shadow transition-transform',
+              'block h-3 w-3 translate-y-0.5 rounded-full shadow transition-transform',
               item.checked || item.locked === true
-                ? 'translate-x-3.5'
-                : 'translate-x-0.5',
+                ? 'bg-primary-foreground translate-x-3.5'
+                : 'translate-x-0.5 bg-white',
             )}
           />
         </span>
