@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 79 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 80 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -876,6 +876,20 @@ records and delete them after.
   nothing still reads `websites.pagesDialog.noSearchResults`, with no **Try
   again**. In German and French the notice and **Try again** read in the
   page's language.
+
+- [ ] `KNOW-B29` · **An open edit outlives another member's save** — Two
+  signed-in editors, **A** and **B**, each with **Knowledge entries** open. A
+  opens an entry's row **Open menu** → **Edit** (`knowledgeEntries.editEntry`)
+  and changes **Content** without saving; B edits the same entry and saves →
+  once B's version is indexed, within seconds and with no reload, A's row
+  shows B's text while A's dialog stays open with A's text above **A newer
+  version was published while you were editing…**
+  (`knowledgeEntries.editDialog.newerVersion`). **Cancel** asks
+  `common.discardChangesConfirm` first; **Save** instead replaces B's version,
+  and the entry's **Version history** lists B's text as replaced. The same
+  holds for **Edit** reached from the row menu's **View** and from a row
+  click. A row A checked before B's save is still checked after it, and
+  **Delete selected** removes the whole entry.
 
 ## Accessibility (WCAG 2.1 AA)
 

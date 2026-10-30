@@ -28,6 +28,16 @@ export interface KnowledgeEntriesTableProps {
   organizationId: string;
 }
 
+/**
+ * A row is the entry, not one of its versions. A save gives the entry a new
+ * `_id` and keeps its `documentId`, so the row, and a dialog its menu holds
+ * open, stay mounted when another member saves the entry (#4860). An entry
+ * with no document yet is keyed by its `_id`.
+ */
+function entryKey(entry: KnowledgeEntryItem): string {
+  return entry.documentId ?? entry._id;
+}
+
 export function KnowledgeEntriesTable({
   organizationId,
 }: KnowledgeEntriesTableProps) {
@@ -53,14 +63,14 @@ export function KnowledgeEntriesTable({
   } = useViewedRecord(
     paginatedResult.results,
     paginatedResult.status,
-    (entry) => entry.documentId ?? entry._id,
+    entryKey,
   );
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
   const { mutateAsync: deleteEntry } = useDeleteKnowledgeEntry();
 
   const handleRowClick = useCallback(
     (row: Row<KnowledgeEntryItem>) => {
-      openRecord(row.original.documentId ?? row.original._id);
+      openRecord(entryKey(row.original));
     },
     [openRecord],
   );
@@ -69,12 +79,23 @@ export function KnowledgeEntriesTable({
     setRowSelection({});
   }, []);
 
+  // RowSelectionState keys are entry keys by construction (getRowId), so a
+  // selection outlives another member's save; a key reads as the version
+  // listed now.
+  const listedEntry = useCallback(
+    (key: string) =>
+      paginatedResult.results.find((entry) => entryKey(entry) === key),
+    [paginatedResult.results],
+  );
+
   const handleDeleteItem = useCallback(
-    async (id: string) => {
-      // RowSelectionState keys are the row `_id`s by construction (getRowId).
-      await deleteEntry({ entryId: id });
+    async (key: string) => {
+      // The current version, so the entry goes with its history: the id of a
+      // version it replaced would delete that version alone (KENTRY-R7). A key
+      // no longer listed is sent as it is, and answered as not found.
+      await deleteEntry({ entryId: listedEntry(key)?._id ?? key });
     },
-    [deleteEntry],
+    [deleteEntry, listedEntry],
   );
 
   const { regionRef, retryRead, focusRegion, failedWithRows } =
@@ -97,6 +118,7 @@ export function KnowledgeEntriesTable({
       fields: ['topic', 'content'],
       placeholder: searchPlaceholder,
     },
+    getRowId: entryKey,
     approxRowCount: count,
     entityLabel: {
       one: t('entityLabelOne'),
@@ -154,10 +176,7 @@ export function KnowledgeEntriesTable({
               <BulkDeleteBar
                 rowSelection={rowSelection}
                 onRowSelectionChange={setRowSelection}
-                getItemLabel={(id) =>
-                  paginatedResult.results.find((item) => item._id === id)
-                    ?.topic ?? id
-                }
+                getItemLabel={(key) => listedEntry(key)?.topic ?? key}
                 onClearSelection={handleClearSelection}
                 onDeleteItem={handleDeleteItem}
                 onDeleteComplete={handleClearSelection}
