@@ -121,10 +121,12 @@ export const STEP_FAILURE_META: Readonly<
   CONNECTOR_NOT_FOUND: { params: ['connector', 'action', 'status'] },
   CONNECTOR_RATE_LIMITED: { params: ['connector', 'action', 'status'] },
   CONNECTOR_UNREACHABLE: { params: ['connector', 'action'] },
+  // `errorName` and `errorCode`: the class of what the connector's own code
+  // threw ({@link errorClassOf}), when it was an error with a class to name.
   CONNECTOR_FAILED: {
     params: ['connector', 'action'],
-    optional: ['status'],
-    technical: ['detail'],
+    optional: ['status', 'errorName', 'errorCode'],
+    technical: ['detail', 'errorName', 'errorCode'],
   },
   // The HTTP connector's own causes. `host` is the address's host only and
   // `target` a URL without its query: a query may carry a value the author
@@ -246,12 +248,15 @@ export function reasonFamily(reason: string, params?: FailureParams): string {
 /**
  * The cause of a connector call that failed: refused credentials, a missing
  * resource or a rate limit by the status the connector answered, a network
- * that never answered, or any other failure.
+ * that never answered, or any other failure, which keeps the class of what
+ * the connector's own code threw — `thrown`, the error itself unless a door
+ * handed it on wrapped.
  */
 export function connectorFailureOf(
   error: unknown,
   connector: string,
   action: string,
+  thrown: unknown = error,
 ): FailureCause {
   const status =
     typeof error === 'object' &&
@@ -279,6 +284,7 @@ export function connectorFailureOf(
     params: {
       ...params,
       ...(status !== undefined && { status }),
+      ...errorClassOf(thrown),
       detail: message,
     },
   };
@@ -286,6 +292,38 @@ export function connectorFailureOf(
 
 const UNREACHABLE_RE =
   /fetch failed|ECONNREFUSED|ECONNRESET|ENOTFOUND|EAI_AGAIN|ETIMEDOUT|EHOSTUNREACH|network (?:error|request failed)|socket hang up/i;
+
+/** An error class's name: `PostgresError`, `TaskError`, `TypeError`. */
+const ERROR_NAME_SHAPE = /^[A-Z][A-Za-z0-9]{0,63}$/;
+/** The code an error carries: a SQLSTATE (`40001`, `P0001`), a refusal's
+ * (`AGENT_START_FORBIDDEN`), a socket's (`ECONNRESET`). */
+const ERROR_CODE_SHAPE = /^[0-9A-Z][0-9A-Z_]{1,63}$/;
+
+/** The class of a thrown error: its name and the code it carries. */
+interface ErrorClass {
+  errorName?: string;
+  errorCode?: string;
+}
+
+/**
+ * The class of `error`, each part kept only in its shape and never the
+ * error's words, which may quote the service or the data. It tells apart
+ * the causes one reason holds: a SQLSTATE says whether the database refused
+ * a write or the transaction lost to another one, a refusal's code which
+ * rule refused. A value that is not an object, and a part out of its
+ * shape, name nothing.
+ */
+export function errorClassOf(error: unknown): ErrorClass {
+  if (typeof error !== 'object' || error === null) return {};
+  const name = 'name' in error ? error.name : undefined;
+  const code = 'code' in error ? error.code : undefined;
+  return {
+    ...(typeof name === 'string' &&
+      ERROR_NAME_SHAPE.test(name) && { errorName: name }),
+    ...(typeof code === 'string' &&
+      ERROR_CODE_SHAPE.test(code) && { errorCode: code }),
+  };
+}
 
 /** What a failure site knows about its cause: everything a {@link StepFailure}
  * holds but the run-level code and the English, which the run's own catch

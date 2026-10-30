@@ -831,6 +831,10 @@ export async function checkStandingRoleWakeScenarios(
       await releaseOnce(s);
       const fired = await fire(s);
       const failed = await occurrence(fired?.firedRunId ?? null);
+      const failure =
+        fired?.firedRunId === null || fired?.firedRunId === undefined
+          ? null
+          : await readWakeAdmissionFailure(sql, s.orgId, fired.firedRunId);
       const classified = await scan(s);
       const runsAfterFault = (await managerRuns(s)).length;
       await dropFault();
@@ -851,6 +855,18 @@ export async function checkStandingRoleWakeScenarios(
           done?.consumedSeq === 1 &&
           done.attempts === 0,
         `occurrence=${show(failed)} classified=${show(classified)} runs=${runsAfterFault} manager=${show(m)} done=${show(done)} (want no run, attempts 1 at end + 60 s, then served with attempts 0)`,
+      );
+      // The trigger's RAISE is SQLSTATE P0001: what the start step threw is
+      // kept as its class and its code, which the W12 and W18 evidence
+      // prints, never as its words.
+      record(
+        'standing-role wake: a faulted admission records the class of what its start step threw, a database error and its SQLSTATE (W7)',
+        failure?.failureCode === 'connector_error' &&
+          failure.stepFailed &&
+          failure.stepFailureReason === 'CONNECTOR_FAILED' &&
+          failure.stepErrorName === 'PostgresError' &&
+          failure.stepErrorCode === 'P0001',
+        `failure=${show(failure)} (want connector_error at the start step, CONNECTOR_FAILED, PostgresError P0001)`,
       );
     });
 
@@ -1057,6 +1073,12 @@ export async function checkStandingRoleWakeScenarios(
       const s = await setup('w12');
       await releaseOnce(s);
       const first = await fire(s);
+      // A first occurrence whose start step failed starts no manager, and
+      // both checks below fail for it: they print what that step threw.
+      const firstFailure =
+        first?.firedRunId === null || first?.firedRunId === undefined
+          ? null
+          : await readWakeAdmissionFailure(sql, s.orgId, first.firedRunId);
       const [m] = await managerRuns(s);
       const failedAt = Date.now();
       if (m !== undefined) {
@@ -1083,7 +1105,7 @@ export async function checkStandingRoleWakeScenarios(
         next?.firedRunId !== null &&
           next?.firedRunId !== undefined &&
           next.firedRunId !== first?.firedRunId,
-        `first=${show(first)} next=${show(next)} (want a new occurrence after the work key is released)`,
+        `first=${show(first)} firstFailure=${show(firstFailure)} next=${show(next)} (want a new occurrence after the work key is released)`,
       );
       const [m2] = await managerRuns(s);
       if (m2 !== undefined) {
@@ -1122,7 +1144,7 @@ export async function checkStandingRoleWakeScenarios(
           retired.consumedSeq === 0 &&
           retired.notBefore !== null &&
           retired.notBefore >= retiredAt + 2 * MINUTE_MS,
-        `forGood=${show(forGood)} armed=${show(armed)} held=${show(held)} runs=${runsWhileArmed} retired=${show(retired)} (want manager_failed 1, armed unchanged, held, then manager_failed 2 at +2 min, c0 throughout)`,
+        `forGood=${show(forGood)} armed=${show(armed)} held=${show(held)} runs=${runsWhileArmed} retired=${show(retired)} firstFailure=${show(firstFailure)} (want manager_failed 1, armed unchanged, held, then manager_failed 2 at +2 min, c0 throughout)`,
       );
     });
 

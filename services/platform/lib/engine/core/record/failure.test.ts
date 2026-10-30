@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import {
   classifyStepFailure,
   connectorFailureOf,
+  errorClassOf,
   exprFailureOf,
   failureCauseOf,
   fieldOf,
@@ -296,5 +297,156 @@ describe('connectorFailureOf', () => {
       reason: 'CONNECTOR_FAILED',
       params: { connector: 'x', action: 'x.y', detail: 'odd' },
     });
+  });
+
+  // An error as postgres.js throws one: its class's name, the SQLSTATE as
+  // its code, the server's words as its message.
+  const database = (code: string, message: string) =>
+    Object.assign(new Error(message), { name: 'PostgresError', code });
+
+  it.each([
+    [
+      'a transaction that lost to another one',
+      database(
+        '40001',
+        'could not serialize access due to read/write dependencies among transactions',
+      ),
+      { errorName: 'PostgresError', errorCode: '40001' },
+    ],
+    [
+      'a deadlock',
+      database('40P01', 'deadlock detected'),
+      { errorName: 'PostgresError', errorCode: '40P01' },
+    ],
+    [
+      'a write a constraint refused',
+      database(
+        '23505',
+        'duplicate key value violates unique constraint "runs_one_live"',
+      ),
+      { errorName: 'PostgresError', errorCode: '23505' },
+    ],
+    [
+      'an exception a trigger raised',
+      database('P0001', 'itest admission fault'),
+      { errorName: 'PostgresError', errorCode: 'P0001' },
+    ],
+    [
+      'a refusal of the task domain',
+      Object.assign(
+        new Error(
+          'The automation run asking to start an agent no longer exists',
+        ),
+        { name: 'TaskError', code: 'AGENT_START_FORBIDDEN' },
+      ),
+      { errorName: 'TaskError', errorCode: 'AGENT_START_FORBIDDEN' },
+    ],
+    [
+      'a connection the database closed',
+      Object.assign(new Error('write CONNECTION_CLOSED db:5432'), {
+        code: 'CONNECTION_CLOSED',
+      }),
+      { errorName: 'Error', errorCode: 'CONNECTION_CLOSED' },
+    ],
+    [
+      'a defect',
+      new TypeError("Cannot read properties of undefined (reading 'id')"),
+      { errorName: 'TypeError' },
+    ],
+    [
+      'an error with no code',
+      new Error('agent run insert failed'),
+      { errorName: 'Error' },
+    ],
+  ])(
+    'keeps the class of %s a door handed on, never its words',
+    (_case, thrown, errorClass) => {
+      const door = new Error(
+        `the live task.start_agent call failed: ${thrown.message}`,
+        { cause: thrown },
+      );
+      expect(
+        connectorFailureOf(door, 'task', 'task.start_agent', thrown),
+      ).toEqual({
+        reason: 'CONNECTOR_FAILED',
+        params: {
+          connector: 'task',
+          action: 'task.start_agent',
+          ...errorClass,
+          detail: door.message,
+        },
+      });
+    },
+  );
+
+  it('names the error itself when no door wrapped it', () => {
+    expect(
+      connectorFailureOf(database('40001', 'boom'), 'x', 'x.y').params,
+    ).toEqual({
+      connector: 'x',
+      action: 'x.y',
+      errorName: 'PostgresError',
+      errorCode: '40001',
+      detail: 'boom',
+    });
+  });
+
+  it('keeps no part of a class out of its shape', () => {
+    const odd = Object.assign(new Error('boom'), {
+      name: 'Bearer sk-live-0123456789 refused',
+      code: 'could not serialize access',
+    });
+    expect(connectorFailureOf(odd, 'x', 'x.y').params).toEqual({
+      connector: 'x',
+      action: 'x.y',
+      detail: 'boom',
+    });
+  });
+
+  it('names no class for a cause another reason states', () => {
+    const refused = Object.assign(new Error('denied'), {
+      name: 'HttpError',
+      code: 'FORBIDDEN',
+      status: 403,
+    });
+    expect(connectorFailureOf(refused, 'x', 'x.y')).toEqual({
+      reason: 'CONNECTOR_AUTH',
+      params: { connector: 'x', action: 'x.y', status: 403 },
+    });
+  });
+});
+
+describe('errorClassOf', () => {
+  it('reads a name and a code, each in its shape', () => {
+    expect(errorClassOf({ name: 'PostgresError', code: '40001' })).toEqual({
+      errorName: 'PostgresError',
+      errorCode: '40001',
+    });
+    expect(
+      errorClassOf({ name: 'ConnectorError', code: 'INTERRUPTED' }),
+    ).toEqual({ errorName: 'ConnectorError', errorCode: 'INTERRUPTED' });
+    expect(errorClassOf(new RangeError('x'))).toEqual({
+      errorName: 'RangeError',
+    });
+    expect(errorClassOf({ code: 'ECONNRESET' })).toEqual({
+      errorCode: 'ECONNRESET',
+    });
+  });
+
+  it.each([
+    ['words', 'could not serialize access'],
+    ['a token', 'Bearer sk-live-0123456789abcdef'],
+    ['a lower-case code', 'card_declined'],
+    ['a number', 40001],
+    ['an overlong name or code', 'A'.repeat(65)],
+    ['nothing', null],
+  ])('names nothing for %s', (_case, value) => {
+    expect(errorClassOf({ name: value, code: value })).toEqual({});
+  });
+
+  it('names nothing for a value that is not an object', () => {
+    for (const value of [undefined, null, 'PostgresError', 40001]) {
+      expect(errorClassOf(value)).toEqual({});
+    }
   });
 });
