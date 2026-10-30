@@ -33,7 +33,9 @@ export const MODEL_CAPACITY_RETRY_DELAY_MS = 60_000;
 /** How long the retry of a run whose sandbox ran out of memory waits, by
  * the attempt the failed run showed: 2, then 10, then 30 minutes. A re-run
  * at once would meet the same memory limit; the pause lets the session's
- * other work settle and gives an Admin time to raise the limit. */
+ * other work settle and gives an Admin time to raise the limit. Only a
+ * retry the budget still allows waits: a failure with none left is final
+ * at once (`failAgentRunFromTurn`). */
 const RESOURCE_EXHAUSTED_RETRY_DELAYS_MS = [
   2 * 60_000,
   10 * 60_000,
@@ -69,9 +71,9 @@ export type TaskRunFailureCode =
    * person decides whether to start the agent again. */
   | 'turn_stalled'
   /** The sandbox ran out of memory: the kernel's OOM killer ended the
-   * harness, or the session's container with it. Retried, but only after
-   * {@link resourceExhaustedRetryDelayMs}: at once it would meet the same
-   * limit. */
+   * harness, or the session's container with it. Retried while the budget
+   * lasts, but only after {@link resourceExhaustedRetryDelayMs}: at once it
+   * would meet the same limit. */
   | 'resource_exhausted'
   | 'session_gone'
   | 'start_failed'
