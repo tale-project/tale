@@ -691,6 +691,7 @@ editor:
     typeUnlisted: Saisir un modèle qui n’est pas listé
     modelIdLabel: Identifiant du modèle
     modelIdHint: Exactement tel que le fournisseur l’écrit, p. ex. fournisseur/nom-du-modele.
+    modelsLoadFailed: Impossible de charger les modèles.
   # Un autre modèle dans chaque étape llm qui nomme un modèle : cela
   # modifie le brouillon, et Enregistrer le garde.
   modelSwap:

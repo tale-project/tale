@@ -12,13 +12,20 @@
  * entries — which only an agent harness can use — are not offered. A model
  * that is not listed can still be typed: the free-text escape keeps a
  * document authorable before its provider is connected, and says so.
+ *
+ * A roster that has not answered offers nothing, and that never reads as
+ * nothing served (#4765): the picker is masked while the first read runs,
+ * and a failed read is named under it with Try again — never "No models
+ * found" — while the free-text escape stays.
  */
 
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { Field } from '@tale/ui/field';
 import { Input } from '@tale/ui/input';
 import { Stack } from '@tale/ui/layout';
 import { SearchableSelect } from '@tale/ui/searchable-select';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useId, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -41,36 +48,54 @@ export function LlmModelField({
   const { t } = useT('automations');
   const { t: tProjects } = useT('projects');
   const inputId = useId();
-  const { options, loaded } = useLlmModelOptions(organizationId);
+  const pickerId = `${inputId}-picker`;
+  const { options, loaded, unavailable, retrying, failureCount, retry } =
+    useLlmModelOptions(organizationId);
   const [typing, setTyping] = useState(false);
 
   const listed = options.some((option) => option.value === model);
   // Only claim "not listed" once the roster has answered — an empty list
-  // while it loads is not a missing model.
+  // while it loads, or after its read failed, is not a missing model.
   const unlisted = loaded && model !== '' && !listed;
-  const freeText = typing || unlisted;
+  // A failed read lists nothing to pick: the model the step names stays in
+  // view, and editable, in the id box.
+  const freeText = typing || unlisted || (unavailable && model !== '');
 
   return (
     <Stack gap={2}>
-      <SearchableSelect
-        id={`${inputId}-picker`}
-        label={t('editor.fields.model')}
-        placeholder={t('editor.llm.modelPlaceholder')}
-        searchPlaceholder={tProjects('agents.modelSearchPlaceholder')}
-        emptyText={tProjects('agents.modelSearchEmpty')}
-        options={options}
-        required={required}
-        disabled={readOnly}
-        value={listed ? model : null}
-        {...(unlisted
-          ? { description: t('editor.llm.modelUnlisted', { model }) }
-          : {})}
-        onValueChange={(value) => {
-          if (value === '') return;
-          setTyping(false);
-          onChange(value);
-        }}
-      />
+      <Skeletonize loading={!loaded && !unavailable}>
+        <SearchableSelect
+          id={pickerId}
+          label={t('editor.fields.model')}
+          placeholder={t('editor.llm.modelPlaceholder')}
+          searchPlaceholder={tProjects('agents.modelSearchPlaceholder')}
+          emptyText={tProjects('agents.modelSearchEmpty')}
+          options={options}
+          required={required}
+          // Nothing to choose from until the roster answers.
+          disabled={readOnly || !loaded}
+          value={listed ? model : null}
+          {...(unlisted
+            ? { description: t('editor.llm.modelUnlisted', { model }) }
+            : {})}
+          onValueChange={(value) => {
+            if (value === '') return;
+            setTyping(false);
+            onChange(value);
+          }}
+        />
+      </Skeletonize>
+      {unavailable && (
+        <CatalogLoadError
+          message={t('editor.llm.modelsLoadFailed')}
+          failureKey={failureCount}
+          isRetrying={retrying}
+          onRetry={retry}
+          // A retry that brings the models takes the alert away: the focus
+          // it held goes to the picker, not the page.
+          onFocusLost={() => document.getElementById(pickerId)?.focus()}
+        />
+      )}
       {freeText ? (
         <Field
           label={t('editor.llm.modelIdLabel')}
@@ -83,6 +108,9 @@ export function LlmModelField({
             value={model}
             className="font-mono text-xs"
             onChange={(event) => {
+              // Typing makes the box the choice: a roster that answers
+              // meanwhile does not take it away under the cursor.
+              setTyping(true);
               onChange(
                 event.target.value === '' ? undefined : event.target.value,
               );

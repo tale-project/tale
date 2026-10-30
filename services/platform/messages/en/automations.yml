@@ -684,6 +684,7 @@ editor:
     typeUnlisted: Type a model that is not listed
     modelIdLabel: Model id
     modelIdHint: Exactly as the provider spells it, e.g. vendor/model-name.
+    modelsLoadFailed: Couldn't load the models.
   # Another model in every llm step that names one model: it edits the
   # draft, and Save keeps it.
   modelSwap:
