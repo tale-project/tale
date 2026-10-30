@@ -112,8 +112,9 @@ export function organizationQuery(organizationId: string) {
   });
 }
 
-/** The 0.4 `members/queries:getCurrentMemberContext` type, verbatim —
- * consumers compiled against it and it stays the one source of truth. */
+/** The 0.4 `members/queries:getCurrentMemberContext` type, plus
+ * `session_restricted` — consumers compiled against it and it stays the one
+ * source of truth. */
 export type MemberContextView =
   ReturnsOf<'members/queries:getCurrentMemberContext'>;
 
@@ -128,6 +129,12 @@ export function memberContextQuery(organizationId: string) {
       }).catch((error: unknown): Exclude<MemberContextView, null> => {
         if (error instanceof BackendApiError) {
           if (error.status === 404) return { status: 'not_found' };
+          // A member whose session another organization's sign-in minted is
+          // refused with the same code; telling them they are not a member
+          // would be false.
+          if (error.sessionRefusal === 'organization') {
+            return { status: 'session_restricted' };
+          }
           if (error.code === 'ORG_FORBIDDEN') return { status: 'not_member' };
         }
         throw error;

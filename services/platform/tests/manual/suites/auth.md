@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 65 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 66 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -665,6 +665,22 @@ compute codes from the enrollment secret.
   the first, then submit the password in the second → the same toast, and
   the second tab leaves the wall for the dashboard. Repeat with Deutsch and
   Français → the toasts are localized.
+- [ ] `AUTH-B25` · **A session one organization signed in opens another
+  workspace** — As a member of organizations A and B, sign in through A's
+  single sign-on (`AUTH-F12`) → on A's dashboard the account menu offers
+  **Log out** (`auth.userButton.logOut`). Open `/dashboard/{B}` from the
+  address bar, as a bookmark would → **Access denied** (`accessDenied.title`)
+  says **This session is limited to the organization that signed you in.**
+  (`common.errors.organizationSessionRestricted`), never **You're not a
+  member of this workspace.** (`accessDenied.noMembership`), and offers
+  **Sign in to this workspace** (`accessDenied.signInToWorkspace`). Choose it
+  → the log-in form shows and stays: the session has ended. Sign in with a
+  password → back on `/dashboard/{B}`. With a session the proxy hand-off
+  minted for A (`AUTH-F22`) → the same sentence and no button, since the
+  proxy would sign you in to A again. Signed in with a password as someone
+  who belongs to A alone, open `/dashboard/{B}` → **You're not a member of
+  this workspace.** and no button. Repeat with Deutsch and Français → the
+  sentence and the button are localized.
 
 ## Accessibility (WCAG 2.1 AA)
 

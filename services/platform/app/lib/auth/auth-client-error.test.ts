@@ -11,10 +11,15 @@ import {
   teamWriteClient,
 } from '@/backend/auth/team-lapse.integration';
 import { i18n } from '@/lib/i18n/i18n';
+import {
+  ACCOUNT_AUTHENTICATION_MESSAGE,
+  SESSION_ORGANIZATION_MESSAGE,
+} from '@/lib/shared/constants/session-authority';
 import { SESSION_ENDED, SHIPPED_LOCALES } from '@/tests/utils/lapsed-session';
 
 import {
   authClientError,
+  authSessionRefusal,
   authSessionRefusalMessage,
   isLapsedAuthClientAnswer,
   type AuthClientRefusal,
@@ -109,6 +114,27 @@ describe("Better Auth's answers once the session has ended", () => {
   });
 });
 
+describe('authSessionRefusal', () => {
+  // The backend's fetch seam keeps this name on its error, so a screen can
+  // tell the refusal apart after the message is localized.
+  it('names each authority refusal by its own sentence', () => {
+    expect(
+      authSessionRefusal({
+        status: 403,
+        code: 'ORG_FORBIDDEN',
+        message: SESSION_ORGANIZATION_MESSAGE,
+      }),
+    ).toBe('organization');
+    expect(
+      authSessionRefusal({
+        status: 403,
+        code: 'SESSION_NOT_FRESH',
+        message: ACCOUNT_AUTHENTICATION_MESSAGE,
+      }),
+    ).toBe('account');
+  });
+});
+
 describe('authClientError', () => {
   it('does not relabel another meaning of the code or an unauthenticated answer', async () => {
     await i18n.changeLanguage('de');
@@ -130,6 +156,7 @@ describe('authClientError', () => {
           'This session is limited to the organization that signed you in.',
       },
     ]) {
+      expect(authSessionRefusal(error)).toBeUndefined();
       expect(authSessionRefusalMessage(error)).toBeUndefined();
       expect(authClientError(error).message).toBe(error.message);
     }

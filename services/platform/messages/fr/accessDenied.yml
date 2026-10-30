@@ -14,6 +14,7 @@ automations: Les automatisations sont réservées aux propriétaires, admins et 
 workspaceNotFound: L'espace de travail que tu recherches n'existe pas ou a été supprimé.
 disabled: Ton compte a été désactivé. Contacte le support pour obtenir de l'aide.
 noMembership: Tu n'es pas membre de cet espace de travail. Contacte un administrateur pour obtenir l'accès.
+signInToWorkspace: Se connecter à cet espace de travail
 enterpriseSso:
   Tu dois disposer des autorisations Administrateur pour accéder
   aux paramètres SSO d'entreprise.

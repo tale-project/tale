@@ -3,6 +3,7 @@
 import { cn } from '@tale/ui/cn';
 import { Heading } from '@tale/ui/heading';
 import { Text } from '@tale/ui/text';
+import type { ReactNode } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -15,6 +16,8 @@ interface AccessDeniedProps {
    * The description message explaining what permissions are needed.
    */
   message: string;
+  /** What the person can do about it, shown under the message. */
+  action?: ReactNode;
   className?: string;
 }
 
@@ -22,7 +25,12 @@ interface AccessDeniedProps {
  * Access denied component for permission errors.
  * Shows a centered message when users lack required permissions.
  */
-export function AccessDenied({ title, message, className }: AccessDeniedProps) {
+export function AccessDenied({
+  title,
+  message,
+  action,
+  className,
+}: AccessDeniedProps) {
   const { t } = useT('accessDenied');
   const displayTitle = title ?? t('title');
   return (
@@ -36,6 +44,7 @@ export function AccessDenied({ title, message, className }: AccessDeniedProps) {
         {displayTitle}
       </Heading>
       <Text variant="muted">{message}</Text>
+      {action && <div className="mt-4">{action}</div>}
     </div>
   );
 }

@@ -673,7 +673,7 @@ describe('a live session the backend has no user for, once the reload is spent',
     const proxied = {
       data: {
         user: { id: member.userId },
-        session: { trustedOrganizationId: 'org-1' },
+        session: { trustedOrganizationId: 'org-1', trustedRole: 'member' },
       },
       error: null,
     };
@@ -688,6 +688,26 @@ describe('a live session the backend has no user for, once the reload is spent',
         name: 'auth.accountUnavailable.signInAgain',
       }),
     ).not.toBeInTheDocument();
+  });
+
+  // Single sign-on binds its session to one organization as well, but no
+  // proxy stands behind it: its person can end it and sign in again.
+  it('offers a single sign-on session Sign in again', async () => {
+    const singleSignOn = {
+      data: {
+        user: { id: member.userId },
+        session: { trustedOrganizationId: 'org-1', trustedRole: null },
+      },
+      error: null,
+    };
+    queryClient.setQueryData(sessionQueryOptions.queryKey, singleSignOn);
+    h.getSession.mockResolvedValue(singleSignOn);
+    render(<Dashboard />, { wrapper: QueryWrapper });
+    expect(
+      await screen.findByRole('button', {
+        name: 'auth.accountUnavailable.signInAgain',
+      }),
+    ).toBeEnabled();
   });
 
   // A probe that never held a user (a 401) goes back to loading on every

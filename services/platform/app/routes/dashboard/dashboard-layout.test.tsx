@@ -419,6 +419,32 @@ describe('DashboardLayout', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
+  it('tells a member whose session another organization minted to sign in to this one', () => {
+    mockUseConvexAuth.mockReturnValue({
+      isLoading: false,
+      isAuthenticated: true,
+    });
+    mockUseCurrentMemberContext.mockReturnValue({
+      data: { status: 'session_restricted' },
+      isLoading: false,
+      isError: false,
+    });
+
+    render(<DashboardLayout />);
+
+    expect(
+      screen.getByText('common.errors.organizationSessionRestricted'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'accessDenied.signInToWorkspace' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('accessDenied.noMembership'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId('outlet')).not.toBeInTheDocument();
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
   it('redirects to /dashboard/ when organization does not exist', () => {
     mockUseConvexAuth.mockReturnValue({
       isLoading: false,

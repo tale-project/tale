@@ -108,6 +108,7 @@ Der Schlüssel bestimmt die Organisation: Ein Mitglied wird angemeldet, eine Adr
 | SCIM kann sich nicht verbinden | Prüfe Basis-URL, Bearer-Token und ob die Bereitstellung aktiviert ist. |
 | Der IdP meldet den Fehler `invalidFilter` | Setze sein Abgleichsattribut für Users auf `userName` und für Groups auf `displayName`. |
 | Die Proxy-Anmeldung wird abgelehnt | Prüfe, ob die Karte eingeschaltet ist, der Schlüssel nicht widerrufen wurde und der Proxy E-Mail-Header und Schlüssel bei der Übergabe-Anfrage sendet. |
+| Ein Mitglied mehrerer Organisationen liest „Diese Sitzung ist auf die Organisation beschränkt, die dich angemeldet hat.“ | Eine Anmeldung über SSO oder den Proxy gilt nur für die Organisation, bei der sie das Mitglied angemeldet hat. **Bei diesem Arbeitsbereich anmelden** beendet die Sitzung und öffnet die Anmeldeseite; dort meldet sich das Mitglied mit Passwort oder über das SSO der anderen Organisation an. Mitglieder, die der Proxy angemeldet hat, sehen diese Schaltfläche nicht: Der Proxy würde sie wieder bei derselben Organisation anmelden. |
 | Fehlende Callback-URL oder Server-Konfigurationswarnung | Bitte den Betreiber, die [Authentifizierungskonfiguration](/de/self-hosted/configuration/authentication) zu prüfen. |
 
 **Anmeldung deaktivieren** stoppt neue SSO-Anmeldungen; aktive Sitzungen bleiben bestehen. **Entfernen** löscht die Verbindungskonfiguration samt Zugangsdaten. Sorge vor beiden Aktionen für eine andere funktionierende Anmeldemethode.
