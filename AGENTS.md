@@ -37,7 +37,8 @@ The biggest quality lever is deciding well, not typing fast. Work in this order:
    browser.
 9. **Review your own diff** — adversarial read, then the automated reviewers.
 10. **Land it** — meet the shared definition of done, atomic commits, pushed straight to
-    `main`; no branch and no PR unless the repo contract says otherwise.
+    `main`; no branch and no PR unless the repo contract says otherwise. The autonomous
+    development cycle's tasks ride the repo's merge train instead, where it runs one.
 
 Every code-writing task passes **two gates**. **Gate A — before code:** note · intent · status quo
 · reuse · conventions · blast radius — a divergent second copy of an existing concept is a defect,
@@ -103,13 +104,18 @@ Safety and architecture invariants — they hold even where no linter covers the
   controls, AA contrast.
 - **Commits** follow `.commitlintrc.json` (atomic, imperative, ≤72-char header) and land
   **directly on `main`** — no feature branch, no pull request, unless the repo contract says
-  otherwise. **Never add `Co-Authored-By` or "Generated with Claude Code" / any attribution
-  line** — `.husky/commit-msg` strips such trailers before commitlint runs.
+  otherwise. **The merge train** is the exception every repository that runs one shares: the
+  autonomous development cycle works each task on a branch off `train` and opens no pull
+  request, its reviewer squashes the task into one commit on `train`, and `train` reaches
+  `main` in one pull request per train (`train-<YYYYMMDD-HHMM>`); the repo contract says when
+  a train departs, how its pull request is checked and who lands it. **Never add
+  `Co-Authored-By` or "Generated with Claude Code" / any attribution line** —
+  `.husky/commit-msg` strips such trailers before commitlint runs.
 - **Branches** — where the repo contract asks for one, name it for the work, never for the
   tool that did it: `<type>/<kebab-slug>` with a type from `.commitlintrc.json` (`feat/`,
   `fix/`, `refactor/`, `docs/`, `chore/`, `ci/`), or `dist/` for published build output.
   **Never** an agent-vendor namespace (`codex/…`, `claude/…`, `cursor/…`); `renovate/` and
-  `automated/` belong to the bots.
+  `automated/` belong to the bots, `train` and `train-*` to the merge train.
 - **A change is rarely one file** — sweep the concept's blast radius: a user-visible string →
   every locale the repo ships (+ docs); a new UI element → label + a11y + docs + tests; an env
   var / flag / API field → docs + `.env.example` + the READMEs. The guards catch the big ones —
