@@ -14,6 +14,8 @@
  * an address minted by one side always resolves on the other.
  */
 
+import { latinSlug } from '../shared/utils/latin-slug';
+
 /** `billing/dunning-reminder` → `billing__dunning-reminder`. */
 export function automationSlugToParam(name: string): string {
   return name.replaceAll('/', '__');
@@ -33,16 +35,7 @@ export function paramToAutomationSlug(param: string): string {
  * on in the presentation.
  */
 export function slugFromName(input: string): string {
-  return input
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replaceAll('ß', 'ss')
-    .trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 64)
-    .replace(/^-+|-+$/g, '');
+  return latinSlug(input, 64);
 }
 
 /** The name an automation gets when its typed name has nothing

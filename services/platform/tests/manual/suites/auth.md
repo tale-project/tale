@@ -362,10 +362,13 @@ compute codes from the enrollment secret.
   then attempt to reuse the same code → Second use rejected (single-use).
   Manual-only — needs enrolled backup codes.
 - [ ] `AUTH-B5` · **Illegal org name** — `/dashboard/create-organization` →
-  **Organization name** = `@@@bad@@@` → Inline error **Use letters, digits,
-  spaces, hyphens, and underscores only…**
-  (`settings.organization.companyNameCharacterError`); **Next** stays
-  **disabled** (client-side)
+  **Organization name** = `@@@` → Inline error **The name needs at least one
+  letter from A to Z or a digit…**
+  (`settings.organization.companyNameCharacterError`), because the slug is
+  made from those and `@@@` has none; **Next** stays **disabled**
+  (client-side). Then **Organization name** = `Müller AG` → the error clears
+  and **Next** is **enabled**: accented letters and punctuation are fine in a
+  name, and the slug folds `ü` to `u`.
 - [ ] `AUTH-B6` · **Reserved org name** — Create-org wizard → **Organization
   name** = `default` → Blocked **client-side**: inline **This name is reserved
   by the platform.** and **Next** stays **disabled** (the server-side

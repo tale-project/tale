@@ -55,8 +55,9 @@ test.describe('onboarding wizard', () => {
       exact: true,
     });
 
-    // Invalid characters are rejected with the character-set hint.
-    await nameField.fill('Acme!');
+    // A name with no Latin letter or digit leaves no slug to derive — refused
+    // with the hint that says so.
+    await nameField.fill('@@@');
     await expect(
       page.getByText(t('settings.organization.companyNameCharacterError')),
     ).toBeVisible();
@@ -69,14 +70,16 @@ test.describe('onboarding wizard', () => {
     ).toBeVisible();
     await expect(next).toBeDisabled();
 
-    // A valid name clears the error and enables Next. (The slug preview and
-    // the field descriptions were intentionally removed in the wizard UX
-    // refinement — #1903 — so they are no longer asserted here.)
-    await nameField.fill('Acme QA');
+    // A valid name clears the error and enables Next — accents and
+    // punctuation included (#4886). (The slug preview and the field
+    // descriptions were intentionally removed in the wizard UX refinement —
+    // #1903 — so they are no longer asserted here.)
+    await nameField.fill('Müller AG');
     await expect(next).toBeEnabled();
 
-    // A unique name so the derived slug never collides on re-runs, then create.
-    const orgName = `E2E Onboarding ${Date.now().toString(36)}`;
+    // A unique name so the derived slug never collides on re-runs, then
+    // create — accented, so the folded slug goes through the server's checks.
+    const orgName = `E2E Société Générale ${Date.now().toString(36)}`;
     await nameField.fill(orgName);
     await expect(next).toBeEnabled();
     await next.click();

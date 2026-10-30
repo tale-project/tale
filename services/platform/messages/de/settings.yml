@@ -263,9 +263,9 @@ organization:
   searchMember: Mitglied suchen
   addMember: Mitglied hinzufügen
   organizationName: Organisationsname
-  companyNameCharacterError: Verwende nur Buchstaben, Ziffern, Leerzeichen,
-    Bindestriche und Unterstriche und beginne mit einem Buchstaben oder einer
-    Ziffer.
+  companyNameCharacterError: Der Name braucht mindestens einen Buchstaben von
+    A bis Z oder eine Ziffer, denn daraus wird der Organisations-Slug
+    gebildet. Buchstaben mit Akzent oder Umlaut wie é oder ü zählen auch.
   nameReserved: Dieser Name ist von der Plattform reserviert.
   enterCompanyName: Gib deinen Firmennamen ein
   organizationCreated: Organisation erstellt!

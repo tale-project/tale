@@ -258,8 +258,9 @@ organization:
   addMember: Add member
   organizationName: Organization name
   companyNameCharacterError:
-    Use letters, digits, spaces, hyphens, and underscores
-    only, starting with a letter or digit.
+    The name needs at least one letter from A to Z or a digit, because the
+    organization slug is made from them. Accented letters such as é or ü
+    count too.
   nameReserved: This name is reserved by the platform.
   enterCompanyName: Enter your company name
   organizationCreated: Organization created

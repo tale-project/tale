@@ -12,26 +12,25 @@ import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { recordOrgSwitch } from '@/app/lib/backend/org';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
-import { MAX_ORG_SLUG_LENGTH } from '@/lib/shared/constants/org-slug';
+import {
+  isValidOrgSlug,
+  MAX_ORG_SLUG_LENGTH,
+} from '@/lib/shared/constants/org-slug';
 import { isReservedOrgSlug } from '@/lib/shared/constants/reserved-org-slugs';
+import { organizationNameSchema } from '@/lib/shared/schemas/organizations';
 import { clampToSupportedLocale } from '@/lib/shared/utils/get-organization-default-locale';
+import { latinSlug } from '@/lib/shared/utils/latin-slug';
 
 /**
- * Derive the on-disk slug from a free-form display name. Mirrors
- * `services/platform/lib/shared/constants/org-slug.ts` ORG_SLUG_REGEX and
- * truncates to the shared cap so a long name can't mint a slug the
- * RAG/crawler validators would reject.
+ * Derive the on-disk slug from a free-form display name with the shared
+ * Latin fold, so `Müller AG` becomes `muller-ag`, not `m-ller-ag` — the slug
+ * is the tenant key and never changes. Capped at the shared length, so any
+ * non-empty result is a valid org slug; a name with no Latin letter or digit
+ * yields none.
  */
 function deriveOrgSlug(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, MAX_ORG_SLUG_LENGTH);
+  return latinSlug(name, MAX_ORG_SLUG_LENGTH);
 }
-
-const NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9 _-]*$/;
 
 /**
  * Whether a better-auth create failure means the slug is already in use.
@@ -106,19 +105,18 @@ export function WorkspaceStep({ createdOrgId, onCreated }: WorkspaceStepProps) {
 
   const trimmed = name.trim();
   const slug = deriveOrgSlug(name);
-  const nameValid =
-    trimmed.length > 0 &&
-    NAME_PATTERN.test(trimmed) &&
-    !isReservedOrgSlug(slug);
-
-  const nameError =
-    trimmed.length === 0
-      ? undefined
-      : !NAME_PATTERN.test(trimmed)
-        ? tSettings('organization.companyNameCharacterError')
-        : isReservedOrgSlug(slug)
-          ? tSettings('organization.nameReserved')
-          : undefined;
+  // Any name the shared organization-name rule accepts is a fine name — the
+  // settings form and the server's update hook apply the same rule. The step
+  // refuses only a name whose slug comes out empty or reserved, and says which.
+  const nameAccepted = organizationNameSchema().safeParse(name).success;
+  const nameError = !nameAccepted
+    ? undefined
+    : !isValidOrgSlug(slug)
+      ? tSettings('organization.companyNameCharacterError')
+      : isReservedOrgSlug(slug)
+        ? tSettings('organization.nameReserved')
+        : undefined;
+  const nameValid = nameAccepted && nameError === undefined;
 
   /**
    * The org this user already belongs to under the derived slug, if any. A
