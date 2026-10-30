@@ -14,6 +14,7 @@ import {
 import { useT } from '@/lib/i18n/client';
 import { type TaskRepeat, taskRepeatCreateOn } from '@/lib/shared/task-repeat';
 
+import type { ResolvedActor } from '../hooks/use-actor-directory';
 import { TASK_TERMINAL_STATUSES, isTaskStatus } from '../lib/display';
 import { useTaskRepeatLabel } from '../lib/task-repeat-label';
 
@@ -26,12 +27,20 @@ export function useTaskCardStateLabels() {
   return {
     blocked: t('detail.blocked'),
     comments: (count: number) => t('detail.commentCount', { count }),
-    review: (reviewerName?: string, reviewerIsMe = false) =>
+    // A reviewer the member directory has not named yet is waited on by
+    // nobody in particular; one it no longer lists has its own sentence,
+    // which a label put in the name's place would make ungrammatical.
+    review: (
+      reviewer?: Pick<ResolvedActor, 'name' | 'standing'>,
+      reviewerIsMe = false,
+    ) =>
       reviewerIsMe
         ? t('review.waitingOnYou')
-        : reviewerName !== undefined
-          ? t('review.waitingOn', { name: reviewerName })
-          : t('review.needsReview'),
+        : reviewer?.standing === 'former'
+          ? t('review.waitingOnFormerMember')
+          : reviewer !== undefined && reviewer.standing === undefined
+            ? t('review.waitingOn', { name: reviewer.name })
+            : t('review.needsReview'),
   };
 }
 

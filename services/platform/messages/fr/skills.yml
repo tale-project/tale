@@ -122,7 +122,6 @@ attribution:
   builtin: Fourni avec Tale
   release: Release de configuration
   releaseBy: Release de configuration · {name}
-  formerMember: Ancien membre
   byMember: Par {name}
   byFormerMember: Par un ancien membre
 publishing:

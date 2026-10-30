@@ -151,6 +151,7 @@ function AssigneePickerTrigger(props: AssigneePickerProps) {
       assigneeType={assigneeType}
       assigneeId={assigneeId}
       name={resolved?.name}
+      standing={resolved?.standing}
       isCurrentUser={
         assigneeType === 'user' &&
         !!assigneeId &&
@@ -298,6 +299,7 @@ function AssigneePickerList({
       assigneeType={assigneeType}
       assigneeId={assigneeId}
       name={resolved?.name}
+      standing={resolved?.standing}
       isCurrentUser={assignedToCurrentUser}
       size={size}
     />

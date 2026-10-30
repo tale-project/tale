@@ -178,7 +178,7 @@ builtin skill from `configs/platform/custom/skills/`.
   the organization (Settings → Members) → The table's **Created by** column
   (`skills.columns.createdBy`) reads A's name on A's skill, **Built-in**
   (`skills.attribution.builtin`) on `docx`, **Former member**
-  (`skills.attribution.formerMember`) on B's skill — never a raw user id —
+  (`common.formerMember`) on B's skill — never a raw user id —
   and a skill a managed configuration release installed reads
   **Configuration release · ‹installing member›**
   (`skills.attribution.releaseBy`); a zip A uploads whose `SKILL.md`

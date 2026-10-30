@@ -112,7 +112,7 @@ export function CompetencesPage({ organizationId }: Props) {
     // without a directory (it failed to load) the id is all there is.
     const personOf = (userId: string): Person =>
       people.get(userId) ?? {
-        name: members === undefined ? userId : t('competences.formerMember'),
+        name: members === undefined ? userId : tCommon('formerMember'),
         email: null,
       };
     return (competences.data ?? []).map((record) => ({
@@ -136,7 +136,7 @@ export function CompetencesPage({ organizationId }: Props) {
                 name: personOf(record.revokedBy).name,
               }),
     }));
-  }, [competences.data, members, people, t]);
+  }, [competences.data, members, people, t, tCommon]);
 
   // An empty register shows its empty state, not "no results" for the
   // default Active filter; the filter applies once there is anything to sift.

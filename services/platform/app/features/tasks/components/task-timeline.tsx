@@ -497,9 +497,11 @@ function TaskTimelineEntryContent({
         return key ? t(key) : value;
       }
       case 'person':
-        return historicalAgentIds.has(value) &&
-          resolveAssigneeId(value) === value
-          ? t('timeline.deletedAgent')
+        // An id that ran on this task is an agent's: by its name, or as a
+        // deleted agent once the project no longer has it — never as a
+        // former member, which is what an id nobody names reads as.
+        return historicalAgentIds.has(value)
+          ? resolveActor('agent', value).name
           : resolveAssigneeId(value);
       case 'reviewer': {
         // Legacy rows stored a bare user id; new rows preserve actor kind.
@@ -507,7 +509,7 @@ function TaskTimelineEntryContent({
         try {
           parsed = JSON.parse(value);
         } catch {
-          return resolveAssigneeId(value);
+          return resolveActor('user', value).name;
         }
         if (
           typeof parsed !== 'object' ||
@@ -620,10 +622,15 @@ function TaskTimelineEntryContent({
         {label}
         {detail ? `: ${detail}` : ''}
       </span>
-      <span aria-hidden="true"> · </span>
-      <ThreadEventActor>
-        <TaskActorName preview={preview} name={displayName} />
-      </ThreadEventActor>
+      {/* Nobody yet while the member directory has not named the person. */}
+      {displayName !== '' && (
+        <>
+          <span aria-hidden="true"> · </span>
+          <ThreadEventActor>
+            <TaskActorName preview={preview} name={displayName} />
+          </ThreadEventActor>
+        </>
+      )}
     </ThreadEvent>
   );
 }

@@ -1011,7 +1011,6 @@ competences:
   title: Competences
   description: Let a member do one narrow thing without an admin seat, or record a qualification your review policy asks for. Every grant and revocation is audited, and removing a member revokes their grants.
   accessDenied: Only organization owners and admins can manage competences.
-  formerMember: Former member
   grantedBy: by {name}
   revokedBy: Revoked by {name}
   revokedBySystem: Replaced by a new grant after it expired

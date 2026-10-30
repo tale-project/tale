@@ -4,7 +4,7 @@ import { Alert } from '@tale/ui/alert';
 import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
 import { Stack } from '@tale/ui/layout';
-import { SkeletonText } from '@tale/ui/skeleton';
+import { SKELETON_PULSE, SkeletonText } from '@tale/ui/skeleton';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { THREAD_COLUMN_CLASS } from '@tale/ui/thread/layout';
@@ -125,7 +125,8 @@ export function SharedChatView({
     );
   }
 
-  const sharerName = resolveActor('user', shared.sharedBy).name;
+  const sharer = resolveActor('user', shared.sharedBy);
+  const sharedOn = formatDate(new Date(shared.sharedAt), 'long');
 
   return view(
     <>
@@ -134,10 +135,18 @@ export function SharedChatView({
           {shared.title ?? t('share.sharedChat')}
         </Text>
         <Text as="p" variant="muted" className="text-sm">
-          {t('share.byline', {
-            name: sharerName,
-            date: formatDate(new Date(shared.sharedAt), 'long'),
-          })}
+          {sharer.standing === 'pending' ? (
+            // Who shared it waits for the member directory: a placeholder,
+            // never a guess.
+            <span
+              aria-hidden="true"
+              className={cn(SKELETON_PULSE, 'inline-block h-3.5 w-48 rounded')}
+            />
+          ) : sharer.standing === 'former' ? (
+            t('share.bylineFormerMember', { date: sharedOn })
+          ) : (
+            t('share.byline', { name: sharer.name, date: sharedOn })
+          )}
         </Text>
       </Stack>
       {readFailure && (

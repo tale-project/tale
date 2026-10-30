@@ -123,7 +123,6 @@ attribution:
   builtin: Mitgeliefert
   release: Konfigurations-Release
   releaseBy: Konfigurations-Release · {name}
-  formerMember: Ehemaliges Mitglied
   byMember: Von {name}
   byFormerMember: Von einem ehemaligen Mitglied
 publishing:

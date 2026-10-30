@@ -137,17 +137,18 @@ function TaskSubjectPanelBody({
   const recipient = pendingReview?.reviewer;
   const agentReview = recipient?.kind === 'agent';
   const { resolveActor } = useActorDirectory(organizationId, task.projectId);
-  const reviewerName =
+  const reviewer =
     recipient !== undefined && recipient !== null
       ? resolveActor(
           recipient.kind,
           recipient.kind === 'user' ? recipient.userId : recipient.agentId,
-        ).name
+        )
       : reviewReady &&
           pendingReview === null &&
           task.reviewerUserId !== undefined
-        ? resolveActor('user', task.reviewerUserId).name
+        ? resolveActor('user', task.reviewerUserId)
         : undefined;
+  const reviewerName = reviewer?.name;
 
   const runQuery = useBackendQuery('automations/queries:getLiveRunForTask', {
     organizationId,
@@ -465,6 +466,24 @@ function TaskSubjectPanelBody({
     );
   }
 
+  // A reviewer the member directory has not named yet is left out, as
+  // before the review itself is read; one it no longer lists has its own
+  // sentence.
+  const reviewLine =
+    reviewer?.standing === 'pending'
+      ? t('subject.review', { name: displayName })
+      : pendingReview !== undefined && pendingReview !== null
+        ? t('reviewer.pendingFor', {
+            reviewer: reviewerName ?? t('reviewer.none'),
+          })
+        : reviewer?.standing === 'former'
+          ? t('subject.reviewWaitingOnFormerMember', { name: displayName })
+          : reviewerName !== undefined
+            ? t('subject.reviewWaitingOn', {
+                name: displayName,
+                reviewer: reviewerName,
+              })
+            : t('subject.review', { name: displayName });
   const stateLine =
     state.kind === 'running'
       ? pendingAsk !== null
@@ -477,16 +496,7 @@ function TaskSubjectPanelBody({
               : t('run.waitingDecisionOther', { name: displayName })
             : t('run.working', { name: displayName })
       : state.kind === 'review'
-        ? pendingReview !== undefined && pendingReview !== null
-          ? t('reviewer.pendingFor', {
-              reviewer: reviewerName ?? t('reviewer.none'),
-            })
-          : reviewerName !== undefined
-            ? t('subject.reviewWaitingOn', {
-                name: displayName,
-                reviewer: reviewerName,
-              })
-            : t('subject.review', { name: displayName })
+        ? reviewLine
         : state.kind === 'ready'
           ? t('subject.ready', { name: displayName })
           : state.kind === 'waiting_input'
@@ -513,7 +523,10 @@ function TaskSubjectPanelBody({
 
       <Skeletonize
         loading={
-          state.kind === 'review' && !reviewReady && !reviewerQuery.isError
+          state.kind === 'review' &&
+          // The reviewer's name waits for the member directory too.
+          ((!reviewReady && !reviewerQuery.isError) ||
+            reviewer?.standing === 'pending')
         }
       >
         <Row gap={2} align="center">

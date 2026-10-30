@@ -135,6 +135,7 @@ function ReviewerPickerTrigger(props: ReviewerPickerProps) {
       assigneeType={effective?.kind}
       assigneeId={actorId}
       name={resolved?.name}
+      standing={resolved?.standing}
       isCurrentUser={
         effective?.kind === 'user' && actorId === directory.currentUserId
       }
@@ -324,6 +325,7 @@ function ReviewerPickerList({
       assigneeType={effective?.kind}
       assigneeId={actorId}
       name={resolved?.name}
+      standing={resolved?.standing}
       isCurrentUser={effective?.kind === 'user' && actorId === currentUserId}
     />
   );

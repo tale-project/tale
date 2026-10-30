@@ -22,6 +22,7 @@ export function ApiKeyOwnerCell({
 }: ApiKeyOwnerCellProps) {
   const { t } = useT('settings');
   const { t: tRoles } = useT('roles');
+  const { t: tCommon } = useT('common');
   const { owner } = apiKey;
 
   let label: string;
@@ -33,7 +34,7 @@ export function ApiKeyOwnerCell({
       label =
         owner.userId === viewerUserId
           ? t('apiKeys.owner.you')
-          : (owner.name ?? owner.email ?? t('apiKeys.owner.formerMember'));
+          : (owner.name ?? owner.email ?? tCommon('formerMember'));
       break;
     case 'team':
       label =
@@ -57,7 +58,7 @@ export function ApiKeyOwnerCell({
       ? t('apiKeys.owner.actsAs', { role: tRoles(apiKey.role) })
       : owner.kind === 'member' && apiKey.createdBy !== null
         ? t('apiKeys.owner.madeBy', {
-            name: apiKey.createdBy.name ?? t('apiKeys.owner.formerMember'),
+            name: apiKey.createdBy.name ?? tCommon('formerMember'),
           })
         : null;
 

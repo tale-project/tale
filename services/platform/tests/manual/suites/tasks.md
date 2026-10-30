@@ -921,6 +921,19 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   **Done** and the rail's count grows. Select the rail (**Expand Done**,
   `tasks.board.expandLane`) → the lane opens with its cards. Before the cards
   load, the placeholder already shows the rails.
+- [ ] `TASK-F96` · **A removed member keeps a name on their tasks** — With
+  an owner and an editor, Ava: as Ava, create a task, assign it to Ava and
+  comment on it; as the owner, set **Reviewer** (`tasks.fields.reviewer`) to
+  Ava, then remove Ava on `/dashboard/{org}/settings/members` (**Remove
+  member**, `settings.organization.removeMember`) and open the board, the
+  list and the task → wherever the task still names Ava (**Author**,
+  `tasks.fields.author`; **Assignee**, `tasks.fields.assignee`; the comment;
+  the **Reviewer changed** line, `tasks.activity.reviewerChanged`; what Ava
+  did) it reads **Former member** (`common.formerMember`), and a screen
+  reader names the avatar on the card, on the list row and in the dialog
+  **Former member**, drawn as a plain person without initials. No text,
+  tooltip or accessible name shows Ava's user id. Repeat in Deutsch and
+  Français.
 
 ### One agent on several tasks
 

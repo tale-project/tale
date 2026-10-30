@@ -114,7 +114,6 @@ attribution:
   builtin: Built-in
   release: Configuration release
   releaseBy: Configuration release · {name}
-  formerMember: Former member
   byMember: By {name}
   byFormerMember: By a former member
 publishing:
