@@ -24,6 +24,7 @@ import { createSandboxLlmGatewayService } from '../services/create-sandbox-llm-g
 import { createSandboxService } from '../services/create-sandbox-service';
 import type { ComposeConfig, ServiceConfig } from '../types';
 import { DEV_VOLUME_NAMES } from './constants';
+import { serveOrigin } from './serve-origin';
 
 const DEV_COLOR = 'blue' as const;
 
@@ -179,30 +180,17 @@ export function generateDevCompose(
   const sandbox = createSandboxService(config);
   sandbox.ports = ['127.0.0.1:8003:8003'];
 
-  // Explicit Compose environment wins over env_file. Auth, callback and blob
-  // URLs must match the address advertised by this local run even when .env
-  // contains production settings. Keep the stored deployment settings intact.
-  for (const service of [proxy, platform, backendApi, backendWorker, sandbox]) {
-    service.environment = {
-      ...service.environment,
-      HOST: origin.host,
-      SITE_URL: origin.siteUrl,
-      TLS_MODE: 'selfsigned',
-    };
-  }
+  // Auth, callback and blob URLs must match the address advertised by this
+  // local run even when .env contains production settings.
+  serveOrigin([proxy, platform, backendApi, backendWorker, sandbox], origin, {
+    TLS_MODE: 'selfsigned',
+  });
   // Caddy's site address selects its listener as well as its hostname. Keep
   // that listener on 443 so a public port such as 2020 cannot collide with
   // its private health endpoint. The app still uses the full public origin.
   const proxyOrigin = new URL(origin.siteUrl);
   proxyOrigin.port = '';
   proxy.environment = { ...proxy.environment, SITE_URL: proxyOrigin.origin };
-  for (const service of [backendApi, backendWorker]) {
-    service.environment = {
-      ...service.environment,
-      // Compose interpolation reads .env, not this service's environment.
-      OBJECT_STORE_PUBLIC_ENDPOINT: `\${OBJECT_STORE_PUBLIC_ENDPOINT:-${origin.siteUrl}}`,
-    };
-  }
 
   // Scope dev volumes/networks explicitly via `external: true` + `name:`.
   // Dev volumes live under the `${projectId}-dev_` prefix (matching the

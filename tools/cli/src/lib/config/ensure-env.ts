@@ -153,6 +153,8 @@ function parseEnvFile(content: string): Record<string, string> {
 
 interface EnvSetupOptions {
   deployDir: string;
+  /** Log by key what would be written to `.env`, and write nothing. */
+  dryRun?: boolean;
 }
 
 interface EnvSetupResult {
@@ -258,6 +260,7 @@ async function applyEnvUpdates(
 async function migrateRenamedEnvVars(
   envPath: string,
   existing: Record<string, string>,
+  dryRun: boolean,
 ): Promise<void> {
   const OLD_PREFIX = 'LLM_GATEWAY_';
   const NEW_PREFIX = 'SANDBOX_LLM_GATEWAY_';
@@ -268,40 +271,46 @@ async function migrateRenamedEnvVars(
     if (existing[renamed] === undefined) updates[renamed] = value;
   }
   if (Object.keys(updates).length === 0) return;
-  await applyEnvUpdates(envPath, existing, updates);
+  if (dryRun) {
+    logger.info(
+      `[DRY-RUN] Would copy ${Object.keys(updates).length} gateway env var(s) to the SANDBOX_LLM_GATEWAY_* prefix in .env.`,
+    );
+  } else {
+    await applyEnvUpdates(envPath, existing, updates);
+    logger.info(
+      `Migrated ${Object.keys(updates).length} gateway env var(s) to the SANDBOX_LLM_GATEWAY_* prefix.`,
+    );
+  }
   Object.assign(existing, updates);
-  logger.info(
-    `Migrated ${Object.keys(updates).length} gateway env var(s) to the SANDBOX_LLM_GATEWAY_* prefix.`,
-  );
 }
 
 /**
  * Configure the production domain + TLS ahead of a deploy. `tale init` leaves a
  * local default (localhost + self-signed); deploy is where a real domain is
- * picked. Non-interactive with `--host` or when HOST is already public;
- * otherwise it prompts. On a non-TTY run with no `--host` and a still-local
- * HOST it is a no-op — deploy-preflight then validates the result.
+ * picked. A no-op when HOST is already public; otherwise it prompts. On a
+ * non-TTY run with a still-local HOST it is a no-op — deploy-preflight then
+ * validates the result. `tale deploy --host` does not come here: its host is
+ * served for that run only, and `.env` keeps its own.
  */
 export async function ensureProductionDomain(
   deployDir: string,
-  opts: { host?: string } = {},
+  opts: { dryRun?: boolean } = {},
 ): Promise<void> {
   const envPath = join(deployDir, '.env');
   if (!existsSync(envPath)) return;
   const existing = parseEnvFile(await readFile(envPath, 'utf-8'));
   const currentHost = (existing.HOST ?? '').trim();
 
-  let config: DomainTlsConfig | undefined;
-  const flagHost = opts.host?.trim();
-  if (flagHost) {
-    config = deriveDomainTls({ mode: 'production', host: flagHost });
-  } else if (!isLocalHostname(currentHost)) {
-    return; // HOST already points at a public domain — keep it.
-  } else if (isTTY) {
-    config = await promptProductionDomain();
-  } else {
-    return; // Non-interactive with nothing to go on — keep the local default.
+  // HOST already points at a public domain — keep it. Non-interactive with
+  // nothing to go on — keep the local default.
+  if (!isLocalHostname(currentHost) || !isTTY) return;
+  if (opts.dryRun) {
+    logger.info(
+      '[DRY-RUN] Would ask for the production domain and save HOST, SITE_URL, TLS_MODE and TLS_EMAIL to .env.',
+    );
+    return;
   }
+  const config = await promptProductionDomain();
 
   if (isLocalHostname(config.host)) return; // local host → keep local default
 
@@ -320,6 +329,7 @@ export async function ensureEnv(
   options: EnvSetupOptions,
 ): Promise<EnvSetupResult> {
   const envPath = join(options.deployDir, '.env');
+  const dryRun = options.dryRun ?? false;
 
   if (existsSync(envPath)) {
     // Parse existing .env and check for missing required variables
@@ -328,7 +338,7 @@ export async function ensureEnv(
 
     // Carry forward any renamed vars before computing what's "missing", so a
     // rename isn't mistaken for a fresh required secret and regenerated.
-    await migrateRenamedEnvVars(envPath, existing);
+    await migrateRenamedEnvVars(envPath, existing, dryRun);
 
     // Split required vars by who can satisfy them:
     //   - User-supplied: needs human input (HOST, TLS choice). Non-TTY
@@ -387,7 +397,25 @@ export async function ensureEnv(
         logger.info('Run the CLI interactively to complete environment setup.');
         return { success: false };
       }
+      if (dryRun) {
+        logger.info(
+          `[DRY-RUN] Would generate ${missingAuto.length} missing secret(s) in .env: ${missingAuto.join(', ')}.`,
+        );
+        return {
+          success: true,
+          ...(existing.SOPS_AGE_KEY
+            ? { agePublicKey: deriveAgePublicKey(existing.SOPS_AGE_KEY) }
+            : {}),
+          regeneratedAutoSecrets: missingAuto,
+        };
+      }
       result = await runHeadlessAutoSecretFill(envPath, existing, missingAuto);
+    } else if (dryRun) {
+      const missing = [...missingUser, ...missingAuto];
+      logger.info(
+        `[DRY-RUN] Would ask for or generate ${missing.length} missing .env variable(s): ${missing.join(', ')}.`,
+      );
+      return { success: true };
     } else {
       // Fill in only the missing variables
       result = await runPartialEnvSetup(envPath, existing, [
@@ -401,6 +429,12 @@ export async function ensureEnv(
 
   // No .env yet — write the local default. Non-interactive (no prompts, no
   // Docker), so this works the same in a terminal and in CI.
+  if (dryRun) {
+    logger.info(
+      '[DRY-RUN] Would create .env with local defaults (localhost, self-signed TLS) and generated secrets.',
+    );
+    return { success: true };
+  }
   return await runEnvSetup(envPath);
 }
 

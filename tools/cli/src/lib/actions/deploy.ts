@@ -16,7 +16,10 @@ import { rotateSnapshots } from '../backup/rotate-snapshots';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
 import { generateStatefulCompose } from '../compose/generators/generate-stateful-compose';
-import { selectDefaultServices } from '../compose/select-services';
+import {
+  selectDefaultServices,
+  servicesKeepingHost,
+} from '../compose/select-services';
 import {
   type RotatableService,
   type ServiceName,
@@ -28,6 +31,7 @@ import {
   isRotatableService,
   isStatefulService,
 } from '../compose/types';
+import type { RunOrigin } from '../config/dev-origin';
 import { requireAutomationProtocol } from '../deployment/automation-protocol';
 import {
   assessTagAutomationCutover,
@@ -129,6 +133,11 @@ interface DeployOptions {
   stop: boolean;
   env: DeploymentEnv;
   hostAlias: string;
+  /**
+   * The host this run serves instead of `.env`'s HOST and SITE_URL
+   * (`tale deploy --host`). `.env` is not changed.
+   */
+  origin?: RunOrigin;
   dryRun: boolean;
   services?: ServiceName[];
   override?: boolean;
@@ -161,7 +170,7 @@ interface DeployOptions {
 }
 
 export async function deploy(options: DeployOptions): Promise<void> {
-  const { version, stop, env, hostAlias, dryRun, services } = options;
+  const { version, stop, env, hostAlias, origin, dryRun, services } = options;
   const streamLogs = !options.quiet && (process.stdout.isTTY ?? false);
 
   // Colour projects started during this deploy but not yet live — torn down
@@ -284,6 +293,18 @@ export async function deploy(options: DeployOptions): Promise<void> {
               'Re-run with `tale deploy --stop` to update them (brief downtime).',
           );
         }
+      }
+
+      const keepHost = origin
+        ? servicesKeepingHost([...rotatableToUpdate, ...statefulToUpdate])
+        : [];
+      if (origin && keepHost.length > 0) {
+        logger.warn(
+          `--host ${origin.host} does not reach ${keepHost.join(', ')}: not recreated by this deploy, they keep the host they were started with. ` +
+            (services && services.length > 0
+              ? 'Add them to --services to recreate them.'
+              : 'Re-run with `tale deploy --stop` to recreate them (brief downtime).'),
+        );
       }
 
       if (rotatableToUpdate.length === 0 && statefulToUpdate.length === 0) {
@@ -539,6 +560,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
         const statefulCompose = generateStatefulCompose(
           serviceConfig,
           hostAlias,
+          origin,
         );
 
         // Will this deploy actually recreate the sandbox spawner? Same logic as
@@ -659,6 +681,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
           const colorCompose = generateColorCompose(
             serviceConfig,
             currentColor,
+            origin,
           );
 
           if (dryRun) {
@@ -847,7 +870,7 @@ export async function deploy(options: DeployOptions): Promise<void> {
               await startColor({
                 color: promoting,
                 services: rotatableToUpdate,
-                compose: generateColorCompose(serviceConfig, promoting),
+                compose: generateColorCompose(serviceConfig, promoting, origin),
                 replicas,
                 cwd: env.DEPLOY_DIR,
                 healthTimeout: env.HEALTH_CHECK_TIMEOUT,

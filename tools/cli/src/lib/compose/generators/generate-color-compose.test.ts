@@ -195,3 +195,39 @@ describe('generateColorCompose ↔ the shared config store', () => {
     }
   });
 });
+
+describe('generateColorCompose ↔ tale deploy --host', () => {
+  const origin = {
+    host: 'tale.example.com',
+    siteUrl: 'https://tale.example.com:8443',
+  };
+
+  test('every role serves the host of the run instead of .env', () => {
+    const services = (
+      parse(generateColorCompose(config, 'blue', origin)) as {
+        services: Record<string, ComposeService>;
+      }
+    ).services;
+    for (const [name, service] of Object.entries(services)) {
+      expect(service.environment, name).toMatchObject({
+        HOST: 'tale.example.com',
+        SITE_URL: 'https://tale.example.com:8443',
+      });
+    }
+    // Compose fills `${SITE_URL}` from .env, not from the service's own
+    // environment, so the browser's blob URL carries the run's origin.
+    for (const name of ['backend-api', 'backend-worker']) {
+      expect(services[name]?.environment?.OBJECT_STORE_PUBLIC_ENDPOINT).toBe(
+        '${OBJECT_STORE_PUBLIC_ENDPOINT:-https://tale.example.com:8443}',
+      );
+    }
+  });
+
+  test('without --host every role reads HOST and SITE_URL from .env', () => {
+    for (const [name, service] of Object.entries(servicesOf('blue'))) {
+      expect(service.env_file, name).toEqual(['.env']);
+      expect(service.environment?.HOST, name).toBeUndefined();
+      expect(service.environment?.SITE_URL, name).toBeUndefined();
+    }
+  });
+});

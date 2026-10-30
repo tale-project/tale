@@ -7,7 +7,16 @@ import {
   ALL_SERVICES,
   isValidService,
 } from '../compose/types';
-import { ensureEnv, ensureProductionDomain } from '../config/ensure-env';
+import {
+  type RunOrigin,
+  deploySiteUrl,
+  resolveDeployHost,
+} from '../config/dev-origin';
+import {
+  ensureEnv,
+  ensureProductionDomain,
+  isLocalHostname,
+} from '../config/ensure-env';
 import { ensureDocker } from '../docker/ensure-docker';
 import { requireProject } from '../project/find-project';
 import { resolveOrAssignProjectContext } from '../project/project-context';
@@ -37,6 +46,27 @@ interface RunDeployOptions {
 }
 
 /**
+ * Injectable seams (project lookup, Docker, preflight, the deploy itself) so
+ * what a run reads from and writes to `.env` is unit-testable without Docker.
+ * Production passes the defaults below.
+ */
+export interface RunDeployDeps {
+  requireProject: typeof requireProject;
+  ensureDocker: typeof ensureDocker;
+  runDeployPreflight: typeof runDeployPreflight;
+  checkBreakingCutover: typeof checkBreakingCutover;
+  deploy: typeof deploy;
+}
+
+const defaultDeps: RunDeployDeps = {
+  requireProject,
+  ensureDocker,
+  runDeployPreflight,
+  checkBreakingCutover,
+  deploy,
+};
+
+/**
  * Deploy the current CLI version to the environment: Docker/env preflight,
  * version resolution, then {@link deploy}.
  *
@@ -46,7 +76,10 @@ interface RunDeployOptions {
  * ever (re)deploy that recorded version — it never needs to write `cliVersion`
  * itself. Moving to a new version is `tale update`'s job.
  */
-export async function runDeploy(options: RunDeployOptions): Promise<void> {
+export async function runDeploy(
+  options: RunDeployOptions,
+  deps: RunDeployDeps = defaultDeps,
+): Promise<void> {
   // `--override` and `--override-all` are semantically incompatible: host push
   // runs first, then the catalog factory reseed clobbers whatever --override
   // just wrote. Reject the combination so operators don't reason about a
@@ -60,18 +93,23 @@ export async function runDeploy(options: RunDeployOptions): Promise<void> {
         'OR --override-all (factory-reseed all orgs server-side).',
     );
   }
+  const dryRun = options.dryRun ?? false;
+  // `--host` serves another host for this run only; `.env` keeps its own.
+  const runHost =
+    options.host === undefined ? undefined : resolveDeployHost(options.host);
 
-  const projectDir = requireProject();
-  await resolveOrAssignProjectContext(projectDir);
+  const projectDir = deps.requireProject();
+  await resolveOrAssignProjectContext(projectDir, { dryRun });
 
   // Zero-prerequisite: make sure Docker is usable before anything else.
-  const docker = await ensureDocker({ assumeYes: options.yes });
+  const docker = await deps.ensureDocker({ assumeYes: options.yes });
   if (docker.status === 'refused' || docker.status === 'failed') {
     throw preconditionError(docker.detail);
   }
 
   const { success: envSetupSuccess, regeneratedAutoSecrets } = await ensureEnv({
     deployDir: projectDir,
+    dryRun,
   });
   if (!envSetupSuccess) {
     throw preconditionError(
@@ -90,17 +128,39 @@ export async function runDeploy(options: RunDeployOptions): Promise<void> {
     (options.overrideAll ?? false);
 
   // `tale init` leaves a local default (localhost + self-signed). Choose the
-  // production domain + TLS here: prompts interactively, honors --host, and is
-  // a no-op in CI when HOST is already a public domain.
-  await ensureProductionDomain(projectDir, { host: options.host });
+  // production domain + TLS here: prompts interactively, and is a no-op in CI
+  // or when HOST is already a public domain. `--host` skips it.
+  if (runHost === undefined) {
+    await ensureProductionDomain(projectDir, { dryRun });
+  }
 
   const env = loadEnv(projectDir);
+  const origin: RunOrigin | undefined =
+    runHost === undefined
+      ? undefined
+      : { host: runHost, siteUrl: deploySiteUrl(runHost, env.SITE_URL) };
+  if (origin) {
+    const tlsMode = process.env.TLS_MODE || 'selfsigned';
+    logger.info(
+      `${dryRun ? '[DRY-RUN] Would serve' : 'Serving'} ${origin.siteUrl} (--host ${origin.host}, TLS_MODE=${tlsMode}). ` +
+        '.env is not changed: set HOST and SITE_URL there to keep this host.',
+    );
+    if (tlsMode === 'selfsigned' && !isLocalHostname(origin.host)) {
+      logger.warn(
+        `${origin.host} gets a self-signed certificate that browsers do not trust. ` +
+          "For a Let's Encrypt certificate set TLS_MODE=letsencrypt and TLS_EMAIL in .env.",
+      );
+    }
+  }
 
   // Catch fixable problems (daemon down, letsencrypt misconfig) before mutating
-  // any container. Throws on a real deploy; warns on --dry-run.
-  await runDeployPreflight({
-    dryRun: options.dryRun ?? false,
-    env: process.env,
+  // any container, for the host this run serves. Throws on a real deploy;
+  // warns on --dry-run.
+  await deps.runDeployPreflight({
+    dryRun,
+    env: origin
+      ? { ...process.env, HOST: origin.host, SITE_URL: origin.siteUrl }
+      : process.env,
   });
 
   const version = isDevBuild() ? 'latest' : pkg.version;
@@ -113,11 +173,11 @@ export async function runDeploy(options: RunDeployOptions): Promise<void> {
   // Refuse a cross-baseline in-place deploy (a pre-baseline instance under a
   // post-baseline CLI) before pulling images or snapshotting volumes — there
   // is no upgrade path across BREAKING_BASELINE (0.5.0: Convex → Postgres).
-  await checkBreakingCutover({
+  await deps.checkBreakingCutover({
     deployDir: projectDir,
     targetVersion: version,
     acceptDataLoss: options.acceptDataLoss ?? false,
-    dryRun: options.dryRun ?? false,
+    dryRun,
   });
 
   let services: ServiceName[] | undefined;
@@ -132,15 +192,16 @@ export async function runDeploy(options: RunDeployOptions): Promise<void> {
     services = serviceList.filter(isValidService);
   }
 
-  const hostAlias = options.host ?? process.env.HOST ?? 'localhost';
-  await deploy({
+  const hostAlias = origin?.host ?? process.env.HOST ?? 'localhost';
+  await deps.deploy({
     version,
     // --override-all implies --stop so the stop-gated tier rolls and the
     // forceRecreate below restarts services for the reseed entrypoint.
     stop: (options.stop || options.overrideAll) ?? false,
-    env,
+    env: origin ? { ...env, SITE_URL: origin.siteUrl } : env,
     hostAlias,
-    dryRun: options.dryRun ?? false,
+    origin,
+    dryRun,
     services,
     override: options.override,
     overrideAll: options.overrideAll,

@@ -41,7 +41,10 @@ export function createDeployCommand(): Command {
       `Specific services to update (comma-separated: ${ALL_SERVICES.join(',')})`,
     )
     .option('--dry-run', 'Preview deployment without making changes', false)
-    .option('--host <hostname>', 'Host alias for proxy')
+    .option(
+      '--host <hostname>',
+      'Serve this host for this run instead of HOST in .env (.env is not changed)',
+    )
     .option(
       '--override',
       'overwrite container config from the host workspace. Without --override, host config files are NOT pushed (the container keeps its current config). With --override, the host workspace overwrites container config, except encrypted *.secrets.json files and .history/ directories, which are always preserved',

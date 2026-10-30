@@ -65,7 +65,7 @@ tale config show
 
 Configuration releases and [managed deployments](#managed-deployments) select their sources and destinations explicitly and do not align to a nearby workspace. `config show` keeps its existing local-project behavior.
 
-For a workspace deployment, the host the proxy answers on, TLS settings, and every secret live in the project's `.env`. For production, edit `HOST` there or pass `--host` to `tale deploy`. Local `tale dev` defaults to `localhost`; its `--host` and `--port` flags apply only to that run. To operate a remote workspace host, point your shell's Docker context (or `DOCKER_HOST`) at it. Managed bundle deployment instead runs on its declared destination with the local Docker daemon.
+For a workspace deployment, the host the proxy answers on, TLS settings, and every secret live in the project's `.env`. For production, set `HOST` and `SITE_URL` there, or run `tale deploy` in a terminal and enter the domain when it asks. `tale deploy --host` serves another host for one run and leaves `.env` unchanged. Local `tale dev` defaults to `localhost`; its `--host` and `--port` flags apply only to that run. To operate a remote workspace host, point your shell's Docker context (or `DOCKER_HOST`) at it. Managed bundle deployment instead runs on its declared destination with the local Docker daemon.
 
 ## Run tale deploy
 
@@ -119,18 +119,18 @@ Docker, Compose, Docker Engine version or unsupported container-mode failures or
 - `--host <hostname>` — host alias for the proxy (default `localhost`).
 - `-y, --yes` — non-interactive: auto-accept prompts (e.g. installing or starting Docker).
 
-`tale deploy` — deploy the current CLI version with blue-green replacement of application roles. Shared execution services roll in place; database and proxy replacement needs `--stop`. On first deployment, the CLI asks for the production domain and TLS email unless supplied. Read [Upgrades](/self-hosted/operate/upgrades) before changing an existing installation.
+`tale deploy` — deploy the current CLI version with blue-green replacement of application roles. Shared execution services roll in place; database and proxy replacement needs `--stop`. On the first deployment from a terminal, while `HOST` in `.env` is still local, the CLI asks for the production domain and TLS email and saves them to `.env`. Read [Upgrades](/self-hosted/operate/upgrades) before changing an existing installation.
 
 - `--stop` — also update the stop-gated tier (`db`, `proxy`) — recreates those containers, so accept a brief downtime; without it, running `db`/`proxy` are left untouched.
 - `-s, --services <list>` — update only these comma-separated services (default: all rotatable services).
-- `--host <hostname>` — host alias for the proxy (default: the `HOST` value from `.env`).
+- `--host <hostname>` — serve this host for this run instead of `HOST` from `.env`, keeping the scheme and port of `SITE_URL`; `.env` is not changed. Containers this deploy does not recreate keep their host, so a running `proxy` needs `--stop`.
 - `--override` — overwrite container config from the host workspace (encrypted `*.secrets.json` and `.history/` are always preserved).
 - `--override-all` — factory-reseed the builtin catalog into every org server-side; implies `--stop`.
 - `-q, --quiet` — suppress container logs during the deploy.
 - `-y, --yes` — auto-accept destructive confirmation prompts (e.g. `--override-all`).
 - `--skip-backup` — skip the automatic pre-deploy volume snapshot.
 - `--configuration-only` — with `--bundle <directory>` (required), apply only hot managed configuration (instructions, agent tools and models, review contexts, automations and project dispatch) to the exact healthy runtime of an already-ready deployment, skipping the pre-deploy snapshot and restart. Use it when only those resources change; runtime and identity inputs must stay unchanged, with no pending runtime rollout.
-- `--dry-run` — preview what would change without touching anything.
+- `--dry-run` — preview what would change without touching anything: `.env` and `tale.json` stay as they are, and the preview names what a real run would write there.
 
 ### Managed deployments
 
@@ -835,7 +835,7 @@ For a manual recovery, run it without flags in an interactive terminal to enter 
 ## Troubleshooting
 
 - **`tale deploy` targets the wrong machine.** The CLI uses your shell's Docker context / `DOCKER_HOST`. Switch with `docker context use …` (or set `DOCKER_HOST`) so it points at the intended host, then re-run.
-- **`tale deploy` uses the wrong host alias.** The host the proxy answers on comes from `HOST` in the project's `.env`, not a separate CLI store. Edit `.env` or pass `--host` to override it for one run.
+- **`tale deploy` uses the wrong host alias.** The host the proxy answers on comes from `HOST` in the project's `.env`, not a separate CLI store. Edit `HOST` and `SITE_URL` in `.env` to change it, or pass `--host` to serve another host for one run; a running proxy takes a new host only when it is recreated (`--stop`).
 - **Installer fails on macOS because the binary cannot execute.** When the freshly installed binary refuses to run (e.g. Gatekeeper kills it), the installer fails with recovery hints instead of reporting success — follow them, then re-run the installer.
 - **`tale` not found after install on Linux.** The installer drops the binary in `/usr/local/bin`; verify the directory is on the user's `PATH` (`echo $PATH`).
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 
-import { selectDefaultServices } from './select-services';
+import { selectDefaultServices, servicesKeepingHost } from './select-services';
 
 const ALL_RUNNING = () => true;
 const NONE_RUNNING = () => false;
@@ -112,5 +112,40 @@ describe('the application backend tier', () => {
     expect(sel.rotatable).toContain('backend-worker');
     expect(sel.stateful).not.toContain('backend-api');
     expect(sel.stateful).not.toContain('backend-worker');
+  });
+});
+
+describe('servicesKeepingHost', () => {
+  // A container serves the host it was created with, so `tale deploy --host`
+  // reaches only the services the deploy recreates.
+  const recreated = (opts: { isFirstDeploy: boolean; stop: boolean }) => {
+    const sel = selectDefaultServices({
+      ...opts,
+      isStopGatedRunning: ALL_RUNNING,
+    });
+    return [...sel.rotatable, ...sel.stateful];
+  };
+
+  test('a default deploy leaves a running proxy on its old host', () => {
+    expect(
+      servicesKeepingHost(recreated({ isFirstDeploy: false, stop: false })),
+    ).toEqual(['proxy']);
+  });
+
+  test('--stop and a first deploy reach every service that serves the host', () => {
+    expect(
+      servicesKeepingHost(recreated({ isFirstDeploy: false, stop: true })),
+    ).toEqual([]);
+    expect(
+      servicesKeepingHost(recreated({ isFirstDeploy: true, stop: false })),
+    ).toEqual([]);
+  });
+
+  test('--services reaches only the services it names', () => {
+    expect(servicesKeepingHost(['platform', 'sandbox'])).toEqual([
+      'proxy',
+      'backend-api',
+      'backend-worker',
+    ]);
   });
 });
