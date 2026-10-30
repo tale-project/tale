@@ -20,14 +20,15 @@ export const previewPaneReadableClasses = previewPaneCanvasClasses;
 export const previewPaneDocumentClasses = 'bg-muted p-4';
 
 /**
- * The one type rhythm of a source preview: an editor's mono `text-xs` on a
- * 20px row. The highlighted and the plain path of the document text preview
- * and of the skill asset viewer, and the text skeleton, all use it, so a file
- * never changes size when its highlight lands. Set it on the block (the `pre`
- * or the highlight's wrapper), never on the inline `code`: a row is never
+ * The one type rhythm of a source preview: an editor's mono `text-xs` on the
+ * line height of all read-only code (`leading-code`), an 18px row. The
+ * highlighted and the plain path of the document text preview and of the
+ * skill asset viewer, and the text skeleton, all use it, so a file never
+ * changes size when its highlight lands. Set it on the block (the `pre` or
+ * the highlight's wrapper), never on the inline `code`: a row is never
  * shorter than its block's own line height.
  */
-export const previewCodeTextClasses = 'font-mono text-xs leading-5';
+export const previewCodeTextClasses = 'font-mono text-xs leading-code';
 
 /**
  * Sizes the number column of a source view to the file's widest line number

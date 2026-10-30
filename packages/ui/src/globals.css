@@ -69,6 +69,12 @@
   --font-sans: 'Inter', 'Inter Fallback', ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 
+  /* The one line height of read-only code, `leading-code`: the source
+     previews, the markdown fences, the highlighted blocks and the diffs all
+     set it, and a numbered row's gutter inherits it from its line. It is the
+     type scale's normal step, so mono `text-xs` sits on an editor's 18px row. */
+  --leading-code: 1.5;
+
   --color-bg-base: #ffffff;
   --color-bg-elevated: #f9fafb;
   --color-bg-muted: #f3f4f6;

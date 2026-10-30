@@ -13,8 +13,9 @@ import { SkillAssetViewer } from './skill-asset-viewer';
 
 import '@/app/globals.css';
 
-// An editor's rhythm: mono 12px type on a 20px row, in every path.
-const ROW_PX = 20;
+// An editor's rhythm: mono 12px type on an 18px row (`leading-code`, 1.5), in
+// every path.
+const ROW_PX = 18;
 const FONT_PX = '12px';
 // 2rem of numbers + 1rem of gap before the text column.
 const GUTTER_PX = 48;
@@ -149,7 +150,7 @@ describe('SkillAssetViewer typography', () => {
     expect(getComputedStyle(long).fontSize).toBe(FONT_PX);
   });
 
-  it('keeps one 20px row per line with wrap off, scrolling instead', async () => {
+  it('keeps one 18px row per line with wrap off, scrolling instead', async () => {
     asset.text = SOURCE;
     const { container, user } = renderViewer('schemas/demo.json');
     await highlightedRows(container);

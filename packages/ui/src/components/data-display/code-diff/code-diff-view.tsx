@@ -415,7 +415,7 @@ const CodeDiffView = forwardRef<CodeDiffHandle, CodeDiffProps>(
     const text = (line: DiffLine) => (
       <td
         className={cn(
-          'h-5 px-2 align-top [overflow-wrap:anywhere] whitespace-pre-wrap',
+          'h-[1lh] px-2 align-top [overflow-wrap:anywhere] whitespace-pre-wrap',
           TINT[line.kind],
         )}
       >
@@ -574,7 +574,7 @@ const CodeDiffView = forwardRef<CodeDiffHandle, CodeDiffProps>(
     const table = (
       <table
         data-layout={split ? 'split' : 'unified'}
-        className="w-full table-fixed border-collapse font-mono text-sm leading-5 md:text-xs"
+        className="leading-code w-full table-fixed border-collapse font-mono text-sm md:text-xs"
       >
         <caption className="sr-only">{ariaLabel}</caption>
         <colgroup>

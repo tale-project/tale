@@ -159,6 +159,22 @@ describe('CodeDiff', () => {
     expect(say?.getAttribute('style')).toContain('--code-token-string');
   });
 
+  it('sets each line on the code line height: 18px rows from md, 21px below', async () => {
+    const { container } = await renderDiff();
+    const rows = () => [
+      ...container.querySelectorAll<HTMLElement>('tr[data-diff-line]'),
+    ];
+    expect(rows().length).toBeGreaterThan(0);
+    for (const row of rows())
+      expect(row.getBoundingClientRect().height).toBe(18);
+    // Below md the type is 14px, on 21px rows.
+    await page.viewport(600, 1000);
+    await waitFor(() => {
+      for (const row of rows())
+        expect(row.getBoundingClientRect().height).toBe(21);
+    });
+  });
+
   it('folds the unchanged runs and opens them in place', async () => {
     const { container } = await renderDiff();
     const between = screen.getByRole('button', {
