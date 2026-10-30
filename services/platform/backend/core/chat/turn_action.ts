@@ -77,7 +77,10 @@ import { providerAttributionHeaders } from '../../../lib/shared/providers/attrib
 import type { CredentialAuth } from '../../../lib/shared/providers/resolve_execution';
 import { chosenSkills } from '../../../lib/skills/slash';
 import { isTextBasedFile } from '../../../lib/utils/text-file-types';
-import { buildChatRequest } from '../automations_builder/chat_wire';
+import {
+  buildChatRequest,
+  type ChatWireRequest,
+} from '../automations_builder/chat_wire';
 import type { EmbeddingMeter } from '../knowledge/embedding';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
@@ -96,6 +99,16 @@ import {
   type ChatToolContext,
 } from './assistant_tools';
 import { readCustomInstructions } from './custom_instructions';
+import {
+  gatewayResponsesPick,
+  gatewayResponsesReasoning,
+  isOpenAiGateway,
+  noteArgumentsLost,
+  noteResponsesRefused,
+  RESPONSES_REFUSAL_STATUSES,
+  toolMissingInput,
+  type GatewayModel,
+} from './gateway_wire';
 import {
   buildTurnGuardrails,
   mandatoryInstructionsFor,
@@ -120,6 +133,10 @@ import { readTaskHandover } from './task_handover';
  * a whole pretty-printed provider error — secrets are handled by redaction
  * (`sanitizeError`), not by cutting the text short. */
 const ERROR_EXCERPT = 2000;
+
+/** How much of a gateway's refusal of the Responses API the log line keeps:
+ * enough to tell a missing route from a field it does not take. */
+const REFUSAL_EXCERPT = 300;
 
 // ------------------------------------------------------------- the model call
 
@@ -267,6 +284,15 @@ function streamFailureError(failure: StreamFailure): Error {
   );
 }
 
+/** What a settled stream knows that its chunks do not carry. */
+export interface StreamSettlement {
+  /** The tools called with no argument bytes at all, in a reply the output
+   * cap did not cut. The settle chunk hands such a call on with `{}`, as it
+   * does one whose model sent `{}`; a gateway that lost the arguments on the
+   * way shows only here. */
+  readonly toolsCalledWithoutArguments: readonly string[];
+}
+
 /** Read a provider's Server-Sent Events stream line by line, yielding each
  * `data:` payload as a chunk of cleared text (and the final usage when it
  * arrives). With a stall guard, every byte restarts its silence clock and
@@ -276,12 +302,13 @@ function streamFailureError(failure: StreamFailure): Error {
  * words ({@link streamFailureError}), whatever had streamed before it. A tool
  * call is handed on whole, on the settle chunk; that the model began one is
  * said once, as soon as it shows (`toolCallStarted`), so a round that fails
- * before its settle still reads as answered. */
+ * before its settle still reads as answered. A stream that ends returns what
+ * its settle chunk cannot say ({@link StreamSettlement}). */
 export async function* streamSse(
   response: Response,
   dialect: StreamDialect,
   stall?: StallGuard,
-): AsyncGenerator<ModelStreamChunk> {
+): AsyncGenerator<ModelStreamChunk, StreamSettlement> {
   const body = response.body;
   if (!body) throw new Error('the model returned no response body to stream');
   const reader = body.getReader();
@@ -419,6 +446,20 @@ export async function* streamSse(
       ...(toolCalls.length > 0 ? { toolCalls } : {}),
     };
   }
+  return {
+    // A reply the output cap cut may end on a call it never wrote the
+    // arguments of: that is the cap, not a loss.
+    toolsCalledWithoutArguments:
+      lastFinishReason === 'length'
+        ? []
+        : [...state.drafts.values()]
+            .filter(
+              (draft) =>
+                draft.name.length > 0 &&
+                draft.argumentsJson.trim().length === 0,
+            )
+            .map((draft) => draft.name),
+  };
 }
 
 /** Ceiling for one inlined image. The composer compresses images toward
@@ -538,12 +579,22 @@ export function createDirectModelCall(
     checkProviderHostPolicy(wire.baseUrl);
 
     // A model whose function tools work only on the Responses API (its
-    // catalog entry says so) is called there; everything else keeps the
-    // connector's own wire.
-    const responses = request.toolCallingApi === 'responses';
-    const dialect: StreamDialect = responses
-      ? 'openai-responses'
-      : wire.apiFormat;
+    // catalog entry says so) is called there. So is an OpenAI model on a
+    // gateway whose vendor serves its tools only there: the gateway's own
+    // translation back into Chat Completions can lose a call's arguments,
+    // and a gateway that refuses is asked on Chat Completions instead
+    // (`gateway_wire.ts`). Everything else keeps the connector's own wire.
+    const required = request.toolCallingApi === 'responses';
+    const gatewayModel: GatewayModel = {
+      organizationId,
+      provider: connector.name,
+      baseUrl: wire.baseUrl,
+      modelId: request.model,
+    };
+    const pick = required
+      ? undefined
+      : gatewayResponsesPick(connector, gatewayModel);
+    const viaGateway = pick !== undefined;
 
     // The modern OpenAI dialect, the Responses API and the Anthropic wire
     // send a custom temperature only for a model KNOWN not to reason; that
@@ -552,7 +603,8 @@ export function createDirectModelCall(
     if (
       (wire.wireDialect !== undefined ||
         wire.apiFormat === 'anthropic' ||
-        responses) &&
+        required ||
+        viaGateway) &&
       !reasoningResolved
     ) {
       const entry = (await getProviderCatalog(connector)).find(
@@ -575,41 +627,48 @@ export function createDirectModelCall(
     // effort.ts`): maxTokens as the reply ceiling, temperature only when the
     // turn may carry one (a thinking-enabled request must not), and the
     // reasoning control for the dialect shaping to spell.
-    const base = buildChatRequest({
-      apiFormat: wire.apiFormat,
-      ...(wire.wireDialect !== undefined
-        ? { wireDialect: wire.wireDialect }
-        : {}),
-      ...(reasoningModel !== undefined ? { reasoningModel } : {}),
-      ...(responses ? { toolCallingApi: 'responses' as const } : {}),
-      baseUrl: wire.baseUrl,
-      modelId: request.model,
-      apiKey: wire.apiKey,
-      messages,
-      ...(request.tools !== undefined && request.tools.length > 0
-        ? { tools: request.tools }
-        : {}),
-      ...(request.toolsWithheld === true ? { toolsWithheld: true } : {}),
-      ...(request.sampling.temperature !== undefined
-        ? { temperature: request.sampling.temperature }
-        : {}),
-      maxTokens: request.sampling.maxTokens,
-      ...(request.sampling.reasoning !== undefined
-        ? { reasoning: request.sampling.reasoning }
-        : {}),
-      extraHeaders: wire.attribution,
-    });
-    // Reuse the dialect shaping, then flip streaming on. Chat Completions
-    // endpoints must be asked for a usage frame explicitly; the Responses
-    // API reports usage on its closing event and refuses the option.
-    const parsed: unknown = JSON.parse(base.body);
-    const body = JSON.stringify({
-      ...(isRecord(parsed) ? parsed : {}),
-      stream: true,
-      ...(dialect === 'openai'
-        ? { stream_options: { include_usage: true } }
-        : {}),
-    });
+    const requestOn = (responses: boolean): ChatWireRequest => {
+      const reasoning =
+        responses && viaGateway
+          ? gatewayResponsesReasoning(request.sampling.reasoning)
+          : request.sampling.reasoning;
+      const base = buildChatRequest({
+        apiFormat: wire.apiFormat,
+        ...(wire.wireDialect !== undefined
+          ? { wireDialect: wire.wireDialect }
+          : {}),
+        ...(reasoningModel !== undefined ? { reasoningModel } : {}),
+        ...(responses ? { toolCallingApi: 'responses' as const } : {}),
+        baseUrl: wire.baseUrl,
+        modelId: request.model,
+        apiKey: wire.apiKey,
+        messages,
+        ...(request.tools !== undefined && request.tools.length > 0
+          ? { tools: request.tools }
+          : {}),
+        ...(request.toolsWithheld === true ? { toolsWithheld: true } : {}),
+        ...(request.sampling.temperature !== undefined
+          ? { temperature: request.sampling.temperature }
+          : {}),
+        maxTokens: request.sampling.maxTokens,
+        ...(reasoning !== undefined ? { reasoning } : {}),
+        extraHeaders: wire.attribution,
+      });
+      // Reuse the dialect shaping, then flip streaming on. Chat Completions
+      // endpoints must be asked for a usage frame explicitly; the Responses
+      // API reports usage on its closing event and refuses the option.
+      const parsed: unknown = JSON.parse(base.body);
+      return {
+        ...base,
+        body: JSON.stringify({
+          ...(isRecord(parsed) ? parsed : {}),
+          stream: true,
+          ...(!responses && wire.apiFormat === 'openai'
+            ? { stream_options: { include_usage: true } }
+            : {}),
+        }),
+      };
+    };
 
     // The round's only clock is a SILENCE clock — never a whole-request
     // deadline. A reply that keeps streaming is never cut, however long it
@@ -621,34 +680,94 @@ export function createDirectModelCall(
     const signal = request.signal
       ? AbortSignal.any([request.signal, stall.signal])
       : stall.signal;
+    const send = async (sent: ChatWireRequest): Promise<Response> => {
+      try {
+        return await fetch(sent.url, {
+          method: 'POST',
+          headers: sent.headers,
+          body: sent.body,
+          signal,
+        });
+      } catch (error) {
+        stall.dispose();
+        if (stall.stalled) throw stall.error(error);
+        throw new Error(
+          `The model provider was unreachable: ${sanitizeError(error, ERROR_EXCERPT)}`,
+          { cause: error },
+        );
+      }
+    };
 
-    let response: Response;
-    try {
-      response = await fetch(base.url, {
-        method: 'POST',
-        headers: base.headers,
-        body,
-        signal,
-      });
-    } catch (error) {
-      stall.dispose();
-      if (stall.stalled) throw stall.error(error);
-      throw new Error(
-        `The model provider was unreachable: ${sanitizeError(error, ERROR_EXCERPT)}`,
-        { cause: error },
+    let responses = required || viaGateway;
+    let sent = requestOn(responses);
+    let response = await send(sent);
+    if (viaGateway && RESPONSES_REFUSAL_STATUSES.has(response.status)) {
+      // The gateway takes no Responses request for this model: the round
+      // asks it on Chat Completions, as before the gateway rule. The refusal
+      // consumed nothing.
+      const detail = await response.text().catch(() => '');
+      console.warn(
+        `[chat] provider "${connector.name}" refused the Responses API for model "${request.model}" (${response.status}: ${sanitizeError(detail, REFUSAL_EXCERPT)}); asking it on Chat Completions`,
       );
+      stall.touch();
+      responses = false;
+      sent = requestOn(false);
+      response = await send(sent);
+      // The next rounds go there directly for a while — but only when Chat
+      // Completions took what the Responses API refused: a request both
+      // refuse (a prompt over the window, say) failed for itself, and the
+      // wire stays as it was.
+      if (response.ok) noteResponsesRefused(gatewayModel);
     }
+    const dialect: StreamDialect = responses
+      ? 'openai-responses'
+      : wire.apiFormat;
     // A documented regional endpoint says where the request is processed
     // before any response does.
-    const endpoint = regionalEndpoint(base.url);
+    const endpoint = regionalEndpoint(sent.url);
     try {
-      yield* streamProviderAnswer(
+      const settlement = yield* streamProviderAnswer(
         response,
         dialect,
         stall,
         request.onAccepted,
         endpoint !== undefined ? { endpoint } : undefined,
       );
+      const lost =
+        dialect === 'openai' && isOpenAiGateway(connector)
+          ? toolMissingInput(
+              settlement.toolsCalledWithoutArguments,
+              request.tools,
+            )
+          : undefined;
+      if (lost !== undefined) {
+        // The round's call runs as it came, and its tool asks for the input
+        // it lacks; the model calls again, on the Responses API if the
+        // gateway serves one.
+        const next = noteArgumentsLost(gatewayModel)
+          ? 'later rounds ask its Responses API'
+          : 'it refused the Responses API, so later rounds stay on Chat Completions';
+        console.warn(
+          `[chat] provider "${connector.name}" streamed a "${lost}" call from model "${request.model}" without its arguments on Chat Completions; ${next}`,
+        );
+      }
+    } catch (error) {
+      // A Responses round only a lost call picked, which the gateway took
+      // and then failed: its Responses API does not serve the model after
+      // all, and later rounds go back to Chat Completions for a while. A
+      // cancel is the user's, not the gateway's.
+      if (
+        responses &&
+        pick === 'lost-arguments' &&
+        response.ok &&
+        request.signal?.aborted !== true
+      ) {
+        noteResponsesRefused(gatewayModel);
+        console.warn(
+          `[chat] provider "${connector.name}" failed a Responses API round for model "${request.model}" after a lost call moved it there (${sanitizeError(error, REFUSAL_EXCERPT)}); later rounds ask it on Chat Completions`,
+        );
+      }
+      throw error;
     } finally {
       stall.dispose();
     }
@@ -673,7 +792,7 @@ export async function* streamProviderAnswer(
   /** What the host knows about where the request went — the regional
    * endpoint it was sent to. */
   requestServedBy?: ServedBy,
-): AsyncGenerator<ModelStreamChunk> {
+): AsyncGenerator<ModelStreamChunk, StreamSettlement> {
   if (!response.ok) {
     const detail = await response.text().catch(() => '');
     // The HTTP status rides on the error so the chat-error classifier can
@@ -697,7 +816,7 @@ export async function* streamProviderAnswer(
     readServedByHeaders(response.headers),
   );
   if (serving !== undefined) yield { text: '', serving };
-  yield* streamSse(response, dialect, stall);
+  return yield* streamSse(response, dialect, stall);
 }
 
 // ----------------------------------------------------------------- the turn

@@ -1,8 +1,8 @@
 /**
  * How a streamed model answer is read, event by event, in the three dialects
  * the platform's chat speaks — OpenAI-compatible chat completions, the
- * OpenAI Responses API (for a model whose tools work only there) and
- * Anthropic Messages: the incremental text, the reasoning, the tool-call
+ * OpenAI Responses API (for a model whose tools work only there, and for an
+ * OpenAI model on a gateway, see `gateway_wire.ts`) and Anthropic Messages: the incremental text, the reasoning, the tool-call
  * fragments, the finish reason, the usage the provider reports, and a
  * failure it reports after the stream opened. The chat turn's stream reader
  * (`turn_action.ts` `streamSse`) folds a whole answer through it; the model
@@ -25,7 +25,9 @@ import { isRecord } from '../../../lib/utils/type-utils';
 
 /** What a stream is read as: a connector's API format, or the OpenAI
  * Responses API an OpenAI-compatible connector speaks for a model whose
- * catalog entry declares `toolCallingApi: responses`. */
+ * catalog entry declares `toolCallingApi: responses` — and a gateway is
+ * asked on for an OpenAI model whose vendor serves tools only there
+ * (`gateway_wire.ts`). */
 export type StreamDialect = ApiFormat | 'openai-responses';
 
 function asRecord(value: unknown): Record<string, unknown> | null {

@@ -195,6 +195,10 @@ export interface NormalizeCatalogOptions {
    * whether it sees images, takes tools, and whether its reasoning effort can
    * be set — never how one vendor's wire spells them (a reasoning-off value,
    * a Responses-only tool API): a gateway translates the wire its own way.
+   * The direct chat call still reads those vendor facts to ask a gateway's
+   * own Responses API for such a model, since a gateway's translation back
+   * into Chat Completions can lose a tool call's arguments
+   * (`backend/core/chat/gateway_wire.ts`).
    */
   readonly knownModel?: (id: string) => KnownModel | undefined;
 }

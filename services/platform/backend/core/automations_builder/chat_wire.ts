@@ -8,7 +8,8 @@
  * connectors declare exactly two: OpenAI-compatible chat completions and
  * Anthropic messages. An OpenAI-compatible connector speaks a third body for
  * a model whose catalog entry says its function tools work only on the
- * Responses API (`toolCallingApi: responses`).
+ * Responses API (`toolCallingApi: responses`), and a gateway for an OpenAI
+ * model whose vendor serves its tools only there (`chat/gateway_wire.ts`).
  *
  * Two shape rules matter and are easy to get wrong:
  *  - Anthropic takes the system prompt as a top-level parameter, not as a
@@ -82,11 +83,13 @@ export interface ChatWireArgs {
    */
   reasoningModel?: boolean;
   /**
-   * The model's tool API, from its catalog entry. `responses` builds the
-   * OpenAI Responses API body (`POST <base>/responses`) instead of Chat
-   * Completions — the one wire on which such a model's function tools work.
-   * Only an OpenAI-compatible connector can spell it. Absent keeps the
-   * connector's own format.
+   * The model's tool API, from its catalog entry — or, for an OpenAI model
+   * on a gateway, the direct chat call's pick (`chat/gateway_wire.ts`).
+   * `responses` builds the OpenAI Responses API body (`POST
+   * <base>/responses`) instead of Chat Completions — the one wire on which
+   * such a model's function tools work, and on which a gateway relays the
+   * vendor's stream untranslated. Only an OpenAI-compatible connector can
+   * spell it. Absent keeps the connector's own format.
    */
   toolCallingApi?: ModelCatalogEntry['toolCallingApi'];
   /** The connector's API origin, with or without a trailing slash. */
@@ -404,7 +407,8 @@ function responsesInput(
 
 /**
  * The OpenAI Responses API request, for a model whose function tools work
- * only there. The system prompt rides `instructions`; the output cap is
+ * only there (and for an OpenAI model on a gateway that serves the API, see
+ * `chat/gateway_wire.ts`). The system prompt rides `instructions`; the output cap is
  * `max_output_tokens`, the surface's only spelling; a custom temperature
  * rides only a model KNOWN not to reason, as on the `openai-modern` dialect.
  * Function tools are declared flat and NOT strict: the Responses API
