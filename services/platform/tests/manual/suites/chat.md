@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 129 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 135 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -398,9 +398,10 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   While recording a level meter (`chat.dictation.level`) shows; after stop,
   **Transcribing…** (`chat.dictation.transcribing`) then the transcript lands
   in the input. A failed recording offers retry and **Discard recording**
-  (`chat.dictation.discard`). Sending while recording stops the mic. A known
-  unavailable server model explains the reason before recording and cannot
-  start MediaRecorder; with no candidate it reads `chat.transcription.noModel`.
+  (`chat.dictation.discard`). Sending while recording stops the mic and waits
+  for the transcript (CHAT-F80). A known unavailable server model explains the
+  reason before recording and cannot start MediaRecorder; with no candidate it
+  reads `chat.transcription.noModel`.
 - [ ] `CHAT-F27` · **Pin / rename / unread** — Hover a chat row in the Home
   panel and open its **More actions** (`chat.moreActions`) → **Pin chat**
   (`chat.pinChat`); **Rename** (`chat.history.renameChat`) — the title turns
@@ -799,6 +800,17 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   leaves the same models out of its model list. With **Image generation** on
   (GOV-F38), keep **Auto** and ask for a picture → it appears under the reply,
   made by the image model the Models page names.
+- [ ] `CHAT-F80` · **Sending while dictating** — In Chrome (SpeechRecognition),
+  type a few words, click **Start dictation** (`chat.dictation.start`), say a
+  sentence and press Enter right as you finish it → The mic stops, the send
+  button spins for a moment under the name **Finishing transcription…**
+  (`chat.dictation.finishing`), and the sent message holds the typed words and
+  every dictated word, the last ones included; afterwards the field is empty
+  and no late words appear in it. Repeat in Firefox or Safari without
+  SpeechRecognition (**mode B**, available organization audio model), pressing
+  Enter while recording → the same, once the server transcription returns. In
+  either browser, with an empty field, **Send message** (`chat.send`) is
+  enabled as soon as dictation starts and sends what you said.
 - [ ] `CHAT-F81` · **Ask for a photo while image generation is off** — Mode B
   with **Image generation** off (GOV-F38) and every Chat tool on (GOV-F65): in
   a new chat ask "Make a photorealistic image of a lighthouse at dusk" → The
@@ -813,8 +825,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
 
 ## Boundary & error tests
 
-- [ ] `CHAT-B1` · **Empty composer** — Empty or whitespace-only input → **Send
-  message** (`chat.send`) is disabled; Enter no-ops.
+- [ ] `CHAT-B1` · **Empty composer** — Empty or whitespace-only input, no
+  dictation running → **Send message** (`chat.send`) is disabled; Enter
+  no-ops.
 - [ ] `CHAT-B2` · **Very long message** — Mode A: paste a ~20k-character
   message, send → The message sends without freezing the UI; the bubble
   renders; the thread stays scrollable and the **Scroll to bottom** button
@@ -1043,6 +1056,16 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   picker has no **Skills** section; send `/brief-summary Hello` → the message
   reads `/brief-summary Hello` as text, with no chip and no **Reading the …
   skill** step. Restore **Skills**.
+- [ ] `CHAT-B29` · **A dictation that cannot finish sends nothing** — In a
+  browser without SpeechRecognition, make the organization's audio model fail
+  (a revoked key on its provider), type a few words, start dictation, speak and
+  press Enter while recording → Nothing is sent; the **Message not sent** toast
+  (`chat.dictation.notSent`) reads `chat.dictation.finishFailed`; the field
+  keeps the typed words and the failed-recording pill offers **Try again**
+  (`chat.dictation.retry`). Restore the key and click **Try again** → the
+  dictated words join the field, still unsent. With a transcription that takes
+  longer than 30 seconds the toast reads `chat.dictation.finishTimedOut` and
+  the words join the field when they arrive.
 - [ ] `CHAT-A1` · **Keyboard send** → Enter sends; Shift+Enter inserts a
   newline; a blocked send announces its reason (toast) instead of silently
   no-opping.

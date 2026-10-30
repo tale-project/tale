@@ -24,6 +24,7 @@ vi.mock('../hooks/use-speech-to-text', () => ({
     error: null,
     startListening: vi.fn(),
     stopListening: vi.fn(),
+    finishListening: () => null,
   }),
 }));
 vi.mock('../hooks/use-microphone-level', () => ({

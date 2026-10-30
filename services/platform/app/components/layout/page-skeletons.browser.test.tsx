@@ -55,6 +55,7 @@ vi.mock('@/app/features/chat/hooks/use-speech-to-text', () => ({
     error: null,
     startListening: vi.fn(),
     stopListening: vi.fn(),
+    finishListening: () => null,
   }),
 }));
 vi.mock('@/app/features/chat/hooks/use-microphone-level', () => ({

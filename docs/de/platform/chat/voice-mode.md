@@ -12,7 +12,7 @@ Mit Diktat sprichst du eine Nachricht ein, statt sie zu tippen. Die Sprachausgab
 3. Klicke auf **Diktat stoppen**. Wird serverseitig transkribiert, warte auf den Abschluss.
 4. Lies und korrigiere den Text im Nachrichtenfeld, besonders Namen, Zahlen und Termine. Sende ihn, wenn er stimmt.
 
-Das Diktat ergänzt Text im Nachrichtenfeld; es sendet die Nachricht nicht automatisch. Das Senden beendet ein laufendes Diktat. Das Chat-Modell erhält den Text, den du abschickst.
+Das Diktat ergänzt Text im Nachrichtenfeld; es sendet die Nachricht nicht automatisch. Du kannst auch senden, während du noch diktierst: Das Senden schaltet das Mikrofon aus, und die Senden-Schaltfläche wird zu einem Ladesymbol mit der Beschriftung **Transkription wird abgeschlossen…**, bis deine letzten Worte im Nachrichtenfeld stehen. Danach geht die ganze Nachricht hinaus. Lassen sich diese letzten Worte nicht transkribieren oder dauert das zu lange, wird nichts gesendet: Das Nachrichtenfeld behält alles bisher Transkribierte, und die Meldung **Nachricht nicht gesendet** nennt den Grund. Das Chat-Modell erhält den Text, den du abschickst.
 
 Tale nutzt zuerst die Spracherkennung des Browsers, sofern verfügbar. Andernfalls kann es die Aufnahme über das Transkriptionsmodell der Organisation verarbeiten. Die Browser-Spracherkennung kann einen Dienst des Browseranbieters nutzen. Gehe deshalb nicht von Offline-Verfügbarkeit aus.
 
@@ -36,6 +36,7 @@ Die Einstellung in einem vorhandenen Chat gilt für dieses Gespräch. In einem n
 | Eine Meldung sagt, Diktat sei nicht verfügbar | Der Browser erreicht seinen Sprachdienst nicht: Verbindung, Proxy oder Inhaltsblocker prüfen, dann erneut versuchen. |
 | Wörter fehlen oder stimmen nicht | Hintergrundgeräusche verringern und den Text vor dem Senden korrigieren. |
 | Die Server-Transkription schlägt fehl | Erneut versuchen, solange die fehlgeschlagene Aufnahme verfügbar ist, oder verwerfen und tippen. |
+| **Nachricht nicht gesendet** nach dem Senden während des Diktats | Die letzten Worte ließen sich nicht oder nicht rechtzeitig transkribieren. Das Nachrichtenfeld prüfen, eine fehlgeschlagene Server-Transkription erneut versuchen, dann noch einmal senden. |
 | Die Antwort ist bereit, aber stumm | Lautstärke und Wiedergabeerlaubnis des Browsers prüfen, dann die Antwort abspielen. |
 | Eine Konfigurationsmeldung erscheint | Einen Administrator Sprachmodell und Zugangsdaten prüfen lassen. |
 

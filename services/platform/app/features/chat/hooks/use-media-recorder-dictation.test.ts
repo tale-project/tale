@@ -675,3 +675,136 @@ describe('useMediaRecorderDictation', () => {
     });
   });
 });
+
+describe('useMediaRecorderDictation — finishing for a send', () => {
+  async function recording(onTranscript = vi.fn()) {
+    const hook = renderHook(() =>
+      useMediaRecorderDictation({ organizationId: ORG_ID, onTranscript }),
+    );
+    await act(async () => {
+      hook.result.current.startListening();
+    });
+    const recorder = latestRecorder();
+    act(() => {
+      recorder._fireEvent('dataavailable', {
+        data: new Blob([new Uint8Array([5, 6, 7])], { type: 'audio/webm' }),
+      });
+    });
+    return { ...hook, recorder, onTranscript };
+  }
+
+  it('has nothing to wait for while nothing is recorded or transcribed', () => {
+    const { result } = renderHook(() =>
+      useMediaRecorderDictation({
+        organizationId: ORG_ID,
+        onTranscript: vi.fn(),
+      }),
+    );
+    expect(result.current.finishListening()).toBeNull();
+  });
+
+  it('stops the recording and settles once the transcript reached onTranscript', async () => {
+    mockTranscribeDictation.mockResolvedValue({ text: 'the last words' });
+    const order: string[] = [];
+    const onTranscript = vi.fn(() => order.push('transcript'));
+    const { result, recorder } = await recording(onTranscript);
+
+    const finished = result.current.finishListening();
+    if (finished === null) throw new Error('nothing to wait for');
+    void finished.then(() => order.push('finished'));
+    expect(recorder.stop).toHaveBeenCalledOnce();
+
+    await act(async () => {
+      recorder._fireEvent('stop');
+    });
+
+    await expect(finished).resolves.toBeUndefined();
+    expect(order).toEqual(['transcript', 'finished']);
+    expect(onTranscript).toHaveBeenCalledWith('the last words');
+  });
+
+  it('waits for a round trip already in flight', async () => {
+    let deliver!: (body: { text: string }) => void;
+    mockTranscribeDictation.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          deliver = resolve;
+        }),
+    );
+    const { result, recorder, onTranscript } = await recording();
+    act(() => result.current.stopListening());
+    await act(async () => {
+      recorder._fireEvent('stop');
+    });
+    await waitFor(() => expect(mockTranscribeDictation).toHaveBeenCalledOnce());
+
+    const finished = result.current.finishListening();
+    if (finished === null) throw new Error('nothing to wait for');
+    await act(async () => {
+      deliver({ text: 'delivered late' });
+    });
+
+    await expect(finished).resolves.toBeUndefined();
+    expect(onTranscript).toHaveBeenCalledWith('delivered late');
+  });
+
+  it('fails the wait when the transcription fails, and keeps the recording', async () => {
+    mockTranscribeDictation.mockRejectedValueOnce(new Error('provider 500'));
+    const { result, recorder, onTranscript } = await recording();
+
+    const finished = result.current.finishListening();
+    if (finished === null) throw new Error('nothing to wait for');
+    const failed = expect(finished).rejects.toThrow('provider 500');
+    await act(async () => {
+      recorder._fireEvent('stop');
+    });
+
+    await failed;
+    expect(onTranscript).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.hasFailedRecording).toBe(true));
+  });
+
+  it('settles at once when the stop finds nothing recorded', async () => {
+    const hook = renderHook(() =>
+      useMediaRecorderDictation({
+        organizationId: ORG_ID,
+        onTranscript: vi.fn(),
+      }),
+    );
+    await act(async () => {
+      hook.result.current.startListening();
+    });
+
+    const finished = hook.result.current.finishListening();
+    if (finished === null) throw new Error('nothing to wait for');
+    await act(async () => {
+      latestRecorder()._fireEvent('stop');
+    });
+
+    await expect(finished).resolves.toBeUndefined();
+    expect(mockTranscribeDictation).not.toHaveBeenCalled();
+  });
+
+  it('fails the wait when the recorder breaks', async () => {
+    const { result, recorder } = await recording();
+    const finished = result.current.finishListening();
+    if (finished === null) throw new Error('nothing to wait for');
+
+    act(() => {
+      recorder._fireEvent('error', new Event('error'));
+    });
+
+    await expect(finished).rejects.toThrow(/recorder failed/);
+  });
+
+  it('fails the wait when the hook unmounts', async () => {
+    const { result, unmount } = await recording();
+    const finished = result.current.finishListening();
+    if (finished === null) throw new Error('nothing to wait for');
+
+    unmount();
+
+    await expect(finished).rejects.toThrow(/unmount/);
+    expect(mockTranscribeDictation).not.toHaveBeenCalled();
+  });
+});
