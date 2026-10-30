@@ -406,7 +406,7 @@ Every deployment makes the backend match the declaration. An absent account is c
 | `displayName` | What people see on the sign-in page. Default `OpenID Connect`. |
 | `scopes` | The requested scopes. Default `openid`, `profile` and `email`. |
 | `pkce` | Whether the sign-in uses PKCE. Default `true`. |
-| `claimMappings` | The claim names, as dot paths, that carry the `email`, `name` and `groups`. Declare at least one or omit the block. |
+| `claimMappings` | The claim names, as dot paths, that carry the `email`, `name` and `groups`. Declare at least one or omit the block. A claim whose own name contains dots, such as `https://example.com/roles`, is read as written. |
 | `trustEmail` | Marks the address of the mapped email claim as verified at sign-in. Default `false`. It needs `claimMappings.email`. |
 
 The connection is written like the Entra one: new members get the `member` role, and roles and teams are not assigned from the provider. People are matched to the members Tale already has by the address in the email claim. When you map that claim, the provider must send it: a sign-in whose answer lacks it is refused, and Tale never falls back to the plain `email` or `preferred_username` claim, which a person may be able to edit at the provider. Without a mapping, Tale reads `email` and then `preferred_username`, as for any generic OIDC connection. An address that no account on the deployment holds creates a new member, as it does with Entra; an address held by an account that is not a member of the organization is refused and nothing is changed.

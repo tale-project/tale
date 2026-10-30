@@ -406,7 +406,7 @@ Chaque déploiement aligne le backend sur la déclaration. Un compte absent est 
 | `displayName` | Ce que les personnes voient sur la page de connexion. Par défaut : `OpenID Connect`. |
 | `scopes` | Les scopes demandés. Par défaut : `openid`, `profile` et `email`. |
 | `pkce` | Indique si la connexion utilise PKCE. Par défaut : `true`. |
-| `claimMappings` | Les noms de claims, sous forme de chemins à points, qui portent `email`, `name` et `groups`. Déclare-en au moins un ou omets le bloc. |
+| `claimMappings` | Les noms de claims, sous forme de chemins à points, qui portent `email`, `name` et `groups`. Déclare-en au moins un ou omets le bloc. Tale lit tel quel un claim dont le nom contient lui-même des points, comme `https://example.com/roles`. |
 | `trustEmail` | Marque comme vérifiée, à la connexion, l’adresse du claim d’e-mail associé. Par défaut : `false`. Exige `claimMappings.email`. |
 
 La connexion est écrite comme celle d’Entra : les nouveaux membres reçoivent le rôle `member`, et le fournisseur n’attribue ni rôles ni équipes. Tale associe chaque personne aux membres qu’il a déjà d’après l’adresse du claim d’e-mail. Si tu associes ce claim, le fournisseur doit l’envoyer : une connexion dont la réponse ne le contient pas est refusée, et Tale ne se rabat jamais sur le claim simple `email` ou `preferred_username`, qu’une personne peut parfois modifier elle-même chez le fournisseur. Sans association, Tale lit `email`, puis `preferred_username`, comme pour toute connexion OIDC générique. Une adresse qu’aucun compte du déploiement ne détient crée un nouveau membre, comme avec Entra. Une adresse détenue par un compte qui n’est pas membre de l’organisation est refusée, et rien n’est modifié.

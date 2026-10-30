@@ -785,7 +785,10 @@ enterpriseSso:
     patternLabel: Passender Wert
     targetRoleLabel: Weist Rolle zu
     claimLabel: Claim-Pfad
-    claimHelp: Punktpfad in die Token-Claims, z. B. realm_access.roles.
+    claimHelp:
+      Punktpfad in die Token-Claims, z. B. realm_access.roles. Einen Claim,
+      dessen eigener Name Punkte enthält, etwa https://example.com/roles oder
+      eine SAML-Attribut-URI, liest Tale unter genau diesem Namen.
   redirectUrlLabel: In Entra zu registrierende Weiterleitungs-URL
   redirectUrlHelp:
     Registriere genau diese URL als "Web"-Weiterleitungs-URI

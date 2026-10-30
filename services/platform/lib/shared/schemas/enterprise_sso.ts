@@ -35,7 +35,11 @@ export const roleMappingRuleSchema = z.object({
   source: roleMappingSourceSchema,
   pattern: z.string(),
   targetRole: platformRoleSchema,
-  /** Dot-path into the raw claims/attributes (e.g. `realm_access.roles`). */
+  /**
+   * Dot-path into the raw claims/attributes (e.g. `realm_access.roles`). A
+   * name that contains dots itself (`https://example.com/roles`) is read as
+   * written first; see `resolveClaimPath`.
+   */
   claim: z.string().optional(),
 });
 export type RoleMappingRule = z.infer<typeof roleMappingRuleSchema>;
