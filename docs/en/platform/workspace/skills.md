@@ -107,7 +107,7 @@ The **Created by** column names the member who created each skill. Search the li
 
 </Frame>
 
-Open a skill to see **Created by** and **Last edited by**: the member whose save or upload in Tale produced the current version. **Last edited by** is left out when nobody has edited the skill since it was created, or when its file changed outside Tale since the last edit. The skill list in an [agent's equipment](/platform/agents/skills) names the creator under each skill as well.
+Open a skill to see **Created by** and **Last edited by**: the member whose save or upload in Tale produced the current version. **Last edited by** is left out when nobody has edited the skill since it was created, or when its file changed outside Tale since the last edit. The skill list in an [agent's equipment](/platform/agents/skills) and the skill lists in [chat](/platform/chat/files-and-skills#use-a-skill) name the creator under each skill as well.
 
 Tale records creating, editing, uploading and deleting a skill, and every change to its visibility or teams, in the audit log. Administrators and owners find these entries under **Settings > Governance > Logs** in the **Skill** category.
 

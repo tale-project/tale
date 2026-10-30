@@ -5,6 +5,7 @@ import {
   conversationSkillsOf,
   insertSkillSlash,
   matchSkills,
+  skillCaption,
   skillTokenAtCaret,
 } from './skill-picks';
 
@@ -91,6 +92,21 @@ describe('matchSkills', () => {
     ]);
     expect(matchSkills(skills, '')).toHaveLength(4);
     expect(matchSkills(skills, 'zip')).toEqual([]);
+  });
+});
+
+describe('skillCaption', () => {
+  it('reads who made a skill first, then what it is for, then its note', () => {
+    expect(
+      skillCaption('By Ada Lovelace', 'Our tone of voice', 'Only when chosen'),
+    ).toBe('By Ada Lovelace · Our tone of voice · Only when chosen');
+  });
+
+  it('leaves out a part without words', () => {
+    expect(skillCaption('Built-in', undefined, undefined)).toBe('Built-in');
+    expect(skillCaption('By a former member', '', 'Only when chosen')).toBe(
+      'By a former member · Only when chosen',
+    );
   });
 });
 

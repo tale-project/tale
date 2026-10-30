@@ -53,6 +53,8 @@ Pour un seul message, tape `/` au début de la zone de saisie, ou choisis **Util
 
 Pour toute une conversation, ouvre le sélecteur de modèle, va dans **Skills** et coche jusqu’à quatre skills. Chaque réponse de cette conversation les lit avant de répondre. Un nouveau chat commence sans skill.
 
+Les deux listes indiquent, avant la description, qui a créé chaque skill : un membre, **Fourni avec Tale** pour les skills fournis à la création de ton organisation, ou **Release de configuration** suivi du membre dont le téléversement l’a installé. Quand son créateur a quitté l’organisation, le skill affiche **Par un ancien membre**. Vérifie l’origine d’un skill inconnu avant de l’utiliser.
+
 L’assistant lit aussi un skill de lui-même quand l’un d’eux correspond à ta demande, ou quand tu le nommes avec tes mots. Il voit le nom et la description de chaque skill de ta bibliothèque ; dans une bibliothèque de plus de 40 skills, il voit les 40 premiers par ordre alphabétique, alors choisis tout autre skill avec `/`. Un skill que son auteur réserve à un usage explicite est fait pour que tu le choisisses : l’assistant est prié de ne pas l’utiliser autrement.
 
 Un skill guide l’assistant ; il ne change pas ce que l’assistant a le droit de faire. Les scripts et modèles d’un skill s’exécutent dans la sandbox légère, comme le code de l’assistant lui-même. Quand un admin désactive **Skills** sous Outils du chat, il n’y a rien à choisir, et un message qui commence par `/` est envoyé tel quel.

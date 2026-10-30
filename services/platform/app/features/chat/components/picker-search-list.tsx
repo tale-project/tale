@@ -16,6 +16,7 @@ import { Check, Search } from 'lucide-react';
 import {
   Fragment,
   useCallback,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -37,6 +38,11 @@ export interface PickerSearchOption {
    * than its name (a description line must not bloat what a screen reader
    * announces). */
   readonly ariaLabel?: string;
+  /** A muted line under the label, up to two lines long, at the muted
+   * colour's full strength so it keeps AA contrast — what a screen reader
+   * reads as the row's description, after its name. A row with one is named
+   * by its label alone, unless `ariaLabel` names it. */
+  readonly description?: string;
   readonly selected?: boolean;
   readonly disabled?: boolean;
   readonly onSelect: () => void;
@@ -61,6 +67,7 @@ export function PickerSearchList({
   readonly onPicked?: () => void;
 }) {
   const { t } = useT('chat');
+  const rowIdPrefix = useId();
   const [query, setQuery] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
   const [focusKey, setFocusKey] = useState<string | null>(null);
@@ -177,6 +184,8 @@ export function PickerSearchList({
         ) : (
           virtual.items.map((row) => {
             const option = filtered[row.index];
+            const labelId = `${rowIdPrefix}-${row.index}-label`;
+            const descriptionId = `${rowIdPrefix}-${row.index}-description`;
             return (
               <Fragment key={option.key}>
                 {row.paddingBefore > 0 && (
@@ -197,6 +206,11 @@ export function PickerSearchList({
                   aria-setsize={filtered.length}
                   {...(option.ariaLabel !== undefined
                     ? { 'aria-label': option.ariaLabel }
+                    : option.description !== undefined
+                      ? { 'aria-labelledby': labelId }
+                      : {})}
+                  {...(option.description !== undefined
+                    ? { 'aria-describedby': descriptionId }
                     : {})}
                   disabled={option.disabled}
                   // The submenu's dismiss layer reacts to pointerdown, which
@@ -214,9 +228,23 @@ export function PickerSearchList({
                     'hover:bg-accent focus:bg-accent flex w-full cursor-default items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm outline-none disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0',
                   )}
                 >
-                  <span className="min-w-0 flex-1 truncate">
-                    {option.label}
-                  </span>
+                  {option.description === undefined ? (
+                    <span className="min-w-0 flex-1 truncate">
+                      {option.label}
+                    </span>
+                  ) : (
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span id={labelId} className="truncate">
+                        {option.label}
+                      </span>
+                      <span
+                        id={descriptionId}
+                        className="text-muted-foreground line-clamp-2 text-xs leading-snug text-wrap"
+                      >
+                        {option.description}
+                      </span>
+                    </span>
+                  )}
                   {option.selected === true && (
                     <Check aria-hidden className="text-primary size-3.5" />
                   )}

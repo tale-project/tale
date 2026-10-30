@@ -9,6 +9,7 @@ import {
   readSkillAssetForViewer,
   readSkillForViewer,
 } from '../../core/skills/file_actions.ts';
+import type { SkillSummaryView } from '../../core/skills/views.ts';
 import { prewarmLightSandbox } from './run-code.ts';
 import {
   failure,
@@ -35,11 +36,27 @@ export const SKILL_BODY_MAX_CHARS = 40_000;
 
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-/** The skills the viewer may load, for the catalog block: name, the
- * description excerpt's source, and the explicit-only flag. `only` narrows
- * the list to the skills an agent is equipped with. Throws when the library
- * cannot be read — a check that must tell "none" from "unreadable" asks this;
- * a turn's catalog asks {@link listSkillCatalog}. */
+/** A listed skill as the catalog block reads it: its name, the description
+ * excerpt's source, and the explicit-only flag. Nothing else of the listing,
+ * such as who made the skill, reaches the catalog. */
+export function toSkillCatalogEntry(
+  skill: SkillSummaryView,
+): SkillCatalogEntry {
+  const entry: {
+    slug: string;
+    description?: string;
+    explicitOnly?: boolean;
+  } = { slug: skill.slug };
+  if (skill.description !== '') entry.description = skill.description;
+  if (skill.disableModelInvocation === true) entry.explicitOnly = true;
+  return entry;
+}
+
+/** The skills the viewer may load, for the catalog block
+ * ({@link toSkillCatalogEntry}), by name. `only` narrows the list to the
+ * skills an agent is equipped with. Throws when the library cannot be read —
+ * a check that must tell "none" from "unreadable" asks this; a turn's catalog
+ * asks {@link listSkillCatalog}. */
 export async function readSkillCatalog(
   orgSlug: string,
   viewer: SkillViewer,
@@ -48,16 +65,7 @@ export async function readSkillCatalog(
   const listing = await listSkillsForViewer({ orgSlug, viewer });
   return listing.skills
     .filter((skill) => only === undefined || only.includes(skill.slug))
-    .map((skill): SkillCatalogEntry => {
-      const entry: {
-        slug: string;
-        description?: string;
-        explicitOnly?: boolean;
-      } = { slug: skill.slug };
-      if (skill.description !== '') entry.description = skill.description;
-      if (skill.disableModelInvocation === true) entry.explicitOnly = true;
-      return entry;
-    })
+    .map(toSkillCatalogEntry)
     .sort((a, b) => a.slug.localeCompare(b.slug));
 }
 

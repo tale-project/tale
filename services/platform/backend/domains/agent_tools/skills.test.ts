@@ -30,6 +30,8 @@ function skill(
     body: string;
     files: { path: string; size: number }[];
     disableModelInvocation: boolean;
+    origin: string;
+    owner: string;
   }> = {},
 ) {
   return {
@@ -281,11 +283,16 @@ describe('read_skill_file', () => {
 });
 
 describe('listSkillCatalog', () => {
-  it('lists the viewer’s skills by name, with their explicit-only flag', async () => {
+  it('lists the viewer’s skills by name, with their explicit-only flag and not who made them', async () => {
     vi.mocked(listSkillsForViewer).mockResolvedValue({
       skills: [
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the summary fields the catalog reads
-        skill({ slug: 'pptx', description: 'Slides' }) as never,
+        skill({
+          slug: 'pptx',
+          description: 'Slides',
+          origin: 'member',
+          owner: 'user_ada',
+        }) as never,
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the summary fields the catalog reads
         skill({
           slug: 'audit',

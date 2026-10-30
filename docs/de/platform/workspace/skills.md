@@ -107,7 +107,7 @@ Die Spalte **Erstellt von** nennt das Mitglied, das den jeweiligen Skill erstell
 
 </Frame>
 
-Öffne einen Skill, um **Erstellt von** und **Zuletzt bearbeitet von** zu sehen: das Mitglied, dessen Speichern oder Hochladen in Tale die aktuelle Version erzeugt hat. **Zuletzt bearbeitet von** fehlt, wenn seit dem Erstellen niemand den Skill bearbeitet hat oder die Datei seit der letzten Bearbeitung außerhalb von Tale geändert wurde. Auch die Skill-Liste in der [Ausrüstung eines Agenten](/de/platform/agents/skills) nennt unter jedem Skill seinen Ersteller.
+Öffne einen Skill, um **Erstellt von** und **Zuletzt bearbeitet von** zu sehen: das Mitglied, dessen Speichern oder Hochladen in Tale die aktuelle Version erzeugt hat. **Zuletzt bearbeitet von** fehlt, wenn seit dem Erstellen niemand den Skill bearbeitet hat oder die Datei seit der letzten Bearbeitung außerhalb von Tale geändert wurde. Auch die Skill-Liste in der [Ausrüstung eines Agenten](/de/platform/agents/skills) und die Skill-Listen im [Chat](/de/platform/chat/files-and-skills#einen-skill-nutzen) nennen unter jedem Skill seinen Ersteller.
 
 Tale hält das Erstellen, Bearbeiten, Hochladen und Löschen eines Skills sowie jede Änderung seiner Sichtbarkeit oder Teams im Audit-Log fest. Administratoren und Inhaber finden diese Einträge unter **Einstellungen > Richtlinien > Protokolle** in der Kategorie **Skill**.
 

@@ -587,17 +587,20 @@ describe('the skills a conversation uses [CHAT-R29]', () => {
     );
   });
 
-  it('lists what the composer may offer to choose', async () => {
-    listChatSkillChoices.mockResolvedValueOnce({
-      enabled: true,
-      skills: [{ slug: 'docx', description: 'Word documents' }],
-    });
+  it('lists what the composer may offer to choose, with who made each skill', async () => {
+    const skills = [
+      {
+        slug: 'brand-voice',
+        description: 'Our tone of voice',
+        origin: 'member',
+        ownerName: 'Ada Lovelace',
+      },
+      { slug: 'docx', description: 'Word documents', origin: 'builtin' },
+    ];
+    listChatSkillChoices.mockResolvedValueOnce({ enabled: true, skills });
     const res = await makeApp().request('/composer/skills?orgId=o1');
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({
-      enabled: true,
-      skills: [{ slug: 'docx', description: 'Word documents' }],
-    });
+    await expect(res.json()).resolves.toEqual({ enabled: true, skills });
     expect(listChatSkillChoices).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'o1',
       userId: 'u1',

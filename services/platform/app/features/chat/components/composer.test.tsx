@@ -5,6 +5,7 @@ import { isInaccessible } from '@testing-library/dom';
 import { useState, type ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { ComposerSkillChoices } from '@/app/lib/backend/chat';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { i18n } from '@/tests/utils/i18n-all-languages';
@@ -439,12 +440,39 @@ describe('Composer model picker', () => {
 });
 
 describe('Composer skills [CHAT-R29]', () => {
-  const SKILLS = {
+  const SKILLS: ComposerSkillChoices = {
     enabled: true,
     skills: [
-      { slug: 'docx', description: 'Word documents' },
-      { slug: 'pdf', description: 'PDF files' },
-      { slug: 'xlsx', description: 'Spreadsheets', explicitOnly: true },
+      { slug: 'docx', description: 'Word documents', origin: 'builtin' },
+      { slug: 'pdf', description: 'PDF files', origin: 'builtin' },
+      {
+        slug: 'xlsx',
+        description: 'Spreadsheets',
+        explicitOnly: true,
+        origin: 'builtin',
+      },
+    ],
+  };
+  /** A skill of each kind of creator: a member, Tale itself, a member who
+   * has left (the server sends no name), and a configuration release. */
+  const MADE_BY: ComposerSkillChoices = {
+    enabled: true,
+    skills: [
+      {
+        slug: 'brand-voice',
+        description: 'Our tone of voice',
+        origin: 'member',
+        ownerName: 'Ada Lovelace',
+      },
+      { slug: 'docx', description: 'Word documents', origin: 'builtin' },
+      { slug: 'old-notes', origin: 'member' },
+      {
+        slug: 'q3-report',
+        description: 'Quarterly figures',
+        explicitOnly: true,
+        origin: 'release',
+        ownerName: 'Ada Lovelace',
+      },
     ],
   };
   const field = () => screen.getByRole('textbox', { name: 'Message input' });
@@ -457,9 +485,9 @@ describe('Composer skills [CHAT-R29]', () => {
     expect(
       screen.getAllByRole('option').map((option) => option.textContent),
     ).toEqual([
-      '/docxWord documents',
-      '/pdfPDF files',
-      '/xlsxSpreadsheets · Only when chosen',
+      '/docxBuilt-in · Word documents',
+      '/pdfBuilt-in · PDF files',
+      '/xlsxBuilt-in · Spreadsheets · Only when chosen',
     ]);
     // The keyboard stays in the field, which points at the list.
     expect(field()).toHaveAttribute('aria-controls', listbox.id);
@@ -477,7 +505,10 @@ describe('Composer skills [CHAT-R29]', () => {
     // Names that start with it first, then names that contain it.
     expect(
       screen.getAllByRole('option').map((option) => option.textContent),
-    ).toEqual(['/xlsxSpreadsheets · Only when chosen', '/docxWord documents']);
+    ).toEqual([
+      '/xlsxBuilt-in · Spreadsheets · Only when chosen',
+      '/docxBuilt-in · Word documents',
+    ]);
     await user.keyboard('{Enter}');
 
     expect(field()).toHaveValue('/xlsx ');
@@ -562,10 +593,87 @@ describe('Composer skills [CHAT-R29]', () => {
     expect(screen.queryByRole('menuitem', { name: 'Use a skill' })).toBeNull();
   });
 
+  it('says who made each skill, as each option’s description', async () => {
+    const { user } = renderComposer({ skillChoices: MADE_BY });
+    await user.type(field(), '/');
+
+    // The name stays the skill's own; who made it is read after it.
+    expect(
+      screen.getByRole('option', { name: '/brand-voice' }),
+    ).toHaveAccessibleDescription('By Ada Lovelace · Our tone of voice');
+    expect(
+      screen.getByRole('option', { name: '/docx' }),
+    ).toHaveAccessibleDescription('Built-in · Word documents');
+    expect(
+      screen.getByRole('option', { name: '/old-notes' }),
+    ).toHaveAccessibleDescription('By a former member');
+    expect(
+      screen.getByRole('option', { name: '/q3-report' }),
+    ).toHaveAccessibleDescription(
+      'Configuration release · Ada Lovelace · Quarterly figures · Only when chosen',
+    );
+  });
+
+  it('says who made each skill under its name in the picker’s Skills section', async () => {
+    const { user } = renderComposer({ skillChoices: MADE_BY });
+    await openSection(user, /Skills/);
+
+    const row = (name: string) =>
+      screen.getByRole('menuitemcheckbox', { name });
+    expect(row('brand-voice')).toHaveAccessibleDescription(
+      'By Ada Lovelace · Our tone of voice',
+    );
+    expect(row('docx')).toHaveAccessibleDescription(
+      'Built-in · Word documents',
+    );
+    expect(row('old-notes')).toHaveAccessibleDescription('By a former member');
+    expect(row('q3-report')).toHaveAccessibleDescription(
+      'Configuration release · Ada Lovelace · Quarterly figures',
+    );
+    // The rows' names and descriptions point at lines that exist. `region` is
+    // off for the portaled menu, as in the model list's audit.
+    await waitFor(() =>
+      checkAccessibility(document.body, {
+        rules: { region: { enabled: false } },
+      }),
+    );
+  });
+
+  it.each([
+    ['de', 'Von Ada Lovelace', 'Mitgeliefert', 'Von einem ehemaligen Mitglied'],
+    ['fr', 'Par Ada Lovelace', 'Fourni avec Tale', 'Par un ancien membre'],
+  ])(
+    'says who made each skill in %s',
+    async (locale, member, builtin, formerMember) => {
+      localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+      await i18n.changeLanguage(locale);
+      try {
+        const { user } = renderComposer({ skillChoices: MADE_BY });
+        await user.type(screen.getByRole('textbox'), '/');
+
+        expect(
+          screen.getByRole('option', { name: '/brand-voice' }),
+        ).toHaveAccessibleDescription(`${member} · Our tone of voice`);
+        expect(
+          screen.getByRole('option', { name: '/docx' }),
+        ).toHaveAccessibleDescription(`${builtin} · Word documents`);
+        expect(
+          screen.getByRole('option', { name: '/old-notes' }),
+        ).toHaveAccessibleDescription(formerMember);
+      } finally {
+        localStorage.removeItem(LOCALE_STORAGE_KEY);
+        await i18n.changeLanguage('en');
+      }
+    },
+  );
+
   it('sets the conversation’s skills in the picker, up to four', async () => {
-    const many = {
+    const many: ComposerSkillChoices = {
       enabled: true,
-      skills: ['a', 'b', 'c', 'd', 'e'].map((slug) => ({ slug })),
+      skills: ['a', 'b', 'c', 'd', 'e'].map((slug) => ({
+        slug,
+        origin: 'builtin',
+      })),
     };
     const { user, selection } = renderComposer({ skillChoices: many });
     await openSection(user, /Skills/);

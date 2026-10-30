@@ -1,3 +1,4 @@
+import type { SkillOrigin } from '@tale/shared/schemas/skills';
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
 
 import type { ReturnsOf } from '@/app/lib/backend/contract';
@@ -287,11 +288,15 @@ export function setChatThreadSkills(
 }
 
 /** A skill the composer offers to choose: its name, the description its
- * author wrote, and whether it is meant to be used only when chosen. */
+ * author wrote, whether it is meant to be used only when chosen, and who made
+ * it — read through `useSkillAttribution`, as the library reads it. */
 export interface ComposerSkillChoice {
   readonly slug: string;
   readonly description?: string;
   readonly explicitOnly?: boolean;
+  readonly origin: SkillOrigin;
+  /** The creator's name while they are a member of the organization. */
+  readonly ownerName?: string;
 }
 
 /** What the composer offers to choose, and whether it may offer anything:

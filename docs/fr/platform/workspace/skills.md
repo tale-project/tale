@@ -107,7 +107,7 @@ La colonne **Créé par** indique le membre qui a créé chaque skill. Recherche
 
 </Frame>
 
-Ouvre un skill pour voir **Créé par** et **Dernière modification par** : le membre dont l’enregistrement ou le téléversement dans Tale a produit la version actuelle. **Dernière modification par** n’apparaît pas si personne n’a modifié le skill depuis sa création, ou si son fichier a changé en dehors de Tale depuis la dernière modification. La liste des skills dans l’[équipement d’un agent](/fr/platform/agents/skills) indique elle aussi le créateur sous chaque skill.
+Ouvre un skill pour voir **Créé par** et **Dernière modification par** : le membre dont l’enregistrement ou le téléversement dans Tale a produit la version actuelle. **Dernière modification par** n’apparaît pas si personne n’a modifié le skill depuis sa création, ou si son fichier a changé en dehors de Tale depuis la dernière modification. La liste des skills dans l’[équipement d’un agent](/fr/platform/agents/skills) et celles du [chat](/fr/platform/chat/files-and-skills#utiliser-un-skill) indiquent elles aussi le créateur sous chaque skill.
 
 Tale consigne dans le journal d’audit la création, la modification, le téléversement et la suppression d’un skill, ainsi que chaque changement de sa visibilité ou de ses équipes. Les administrateurs et propriétaires trouvent ces entrées dans **Paramètres > Gouvernance > Journaux**, catégorie **Skill**.
 
