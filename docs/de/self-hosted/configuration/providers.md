@@ -29,9 +29,39 @@ auth:
   - method: env
 ```
 
-Die Definition verwendet eine OpenAI-kompatible Chat-API und liest Modelle aus `/v1/models`. Prüfe die tatsächliche Kompatibilität des Servers. Eine Modellliste beweist noch nicht, dass Generierung, Werkzeugaufrufe oder Streaming funktionieren. Kann der Server keine Modelle auflisten, verwende `catalog.source: none` und trage die genauen Modellbezeichner in die Freigabeliste der Zugangsdaten ein. Eigene Anbieter laden keine statische Modelldatei aus dem Organisationsverzeichnis.
+Die Definition verwendet eine OpenAI-kompatible Chat-API und liest Modelle aus `/v1/models`. Prüfe die tatsächliche Kompatibilität des Servers. Eine Modellliste beweist noch nicht, dass Generierung, Werkzeugaufrufe oder Streaming funktionieren. Kann der Server keine Modelle auflisten, verwende `catalog.source: none`, trage die genauen Modellbezeichner in die Freigabeliste der Zugangsdaten ein und [beschreibe jedes Modell](#describe-models-without-a-listing) in der Definition. Eigene Anbieter laden keine statische Modelldatei aus dem Organisationsverzeichnis.
 
 Lass anschließend einen Organisationsadmin unter [KI-Anbieter](/de/platform/admin/providers) Zugangsdaten hinzufügen, den Katalog aktualisieren und ein bestimmtes Modell für einen kurzen Chat auswählen. Prüfe die abgeschlossene Anfrage im Protokoll des vorgesehenen Inferenzservers. Für Embeddings, Sprache und Werkzeugverkehr musst du die Ziele getrennt prüfen; ein lokaler Chatendpunkt hält sie nicht automatisch lokal.
+
+## Modelle ohne Modellliste beschreiben {#describe-models-without-a-listing}
+
+Ein Anbieter mit `catalog.source: none` listet keine Modelle auf. Tale erfährt also nicht, was die Modelle in der Freigabeliste von Zugangsdaten verarbeiten können, und nimmt für jedes 128.000 Token und keine Bildeingabe an. Stellt ein Endpunkt mehr bereit, deklariere die tatsächlichen Werte unter `catalog.models`. Ein Beispiel ist ein internes Gateway, das Claude-Modelle im Anthropic-Format bereitstellt:
+
+```yaml
+name: claude-gateway
+displayName: Claude gateway
+apiFormat: anthropic
+baseUrl: https://llm.example.com
+catalog:
+  source: none
+  models:
+    - id: claude-sonnet-gw
+      contextWindow: 1000000
+      supportsVision: true
+    - id: claude-haiku-gw
+      contextWindow: 200000
+auth:
+  - method: api-key
+  - method: env
+```
+
+| Feld | Bedeutung |
+| --- | --- |
+| `id` | Der Modellbezeichner, genau wie ihn die Freigabeliste der Zugangsdaten nennt. |
+| `contextWindow` | Das Kontextfenster, das der Endpunkt für das Modell bereitstellt, in Token. Ohne Angabe 128.000. |
+| `supportsVision` | `true`, wenn das Modell Bilder liest. Ohne Angabe behandelt Tale das Modell als reines Textmodell. |
+
+Eine Deklaration beschreibt ein Modell, sie macht es nicht verfügbar. Angeboten werden nur die Bezeichner in der Freigabeliste von Zugangsdaten; die Deklaration eines anderen Bezeichners bewirkt nichts. Nach dem Kontextfenster bemisst der Chat den Gesprächsverlauf, den er mitschickt, und Coding-Agenten fassen ihre Konversation innerhalb dieses Fensters zusammen, wie [Modellzugriff aus der Sandbox prüfen](#modellzugriff-aus-der-sandbox-pruefen) beschreibt. Ein Organisationsadmin kann dieselben Angaben in der App eintragen, unter **Modelldetails** bei den Zugangsdaten des Anbieters; siehe [Einen eigenen Anbieter definieren](/de/platform/admin/providers#einen-eigenen-anbieter-definieren). Mitgelieferte Connectors ohne Modellliste wie Azure OpenAI lassen sich so nicht beschreiben, weil ihre Definitionen zum Image gehören.
 
 ## Audiotranskription konfigurieren
 
@@ -109,7 +139,7 @@ Beim Start einer neuen Sandbox-Sitzung prüft das Backend Hostname und DNS-Antwo
 
 Erstelle die betroffenen Backend-Prozesse mit der aktualisierten Umgebung neu. Starte dann eine neue Sandbox-Sitzung mit dem vorgesehenen Anbieter und Modell sowie einer kompatiblen Agent-Laufzeit. Prüfe mit einer harmlosen Anfrage die vollständige Antwort und den passenden Eintrag im Inferenzserver-Protokoll. Funktioniert der Chat, aber der Agent erreicht sein Modell nicht, prüfe die Protokolle von `sandbox-llm-gateway`. `SANDBOX_EGRESS_ALLOWLIST` steuert allgemeine Webzugriffe der Sandbox, nicht diese separate Modellverbindung.
 
-Coding-Agenten richten sich außerdem nach dem Kontextfenster, das der Katalog für das Modell meldet: nach `context_length` oder `context_window` in der Modellliste deines Servers unter `/v1/models`, und nach 128.000 Token, wenn die Liste keines von beiden nennt, ebenso bei einem Anbieter mit `catalog.source: none`. Sorge dafür, dass die Liste den Kontext nennt, den dein Server tatsächlich bereitstellt. Liegt dieses Fenster oder ein niedrigeres [Kontextlimit](/de/platform/admin/governance/policies-and-limits) der Person, die den Lauf gestartet hat, unter 200.000 Token, fasst eine verwaltete Claude-Code-Sitzung ihre Konversation zusammen, bevor der Prompt darüber hinauswächst. Claude Code behandelt jeden Wert unter 100.000 Token wie 100.000. Ein Modell mit weniger Kontext kann also längere Prompts erhalten, als es aufnehmen kann. Setze Claude Code deshalb nur mit Modellen ein, die mindestens so viel Kontext bereitstellen.
+Coding-Agenten richten sich außerdem nach dem Kontextfenster, das der Katalog für das Modell meldet: nach `context_length` oder `context_window` in der Modellliste deines Servers unter `/v1/models`, und nach 128.000 Token, wenn die Liste keines von beiden nennt. Ein Anbieter mit `catalog.source: none` meldet das Fenster, das [seine Definition](#describe-models-without-a-listing) für das Modell deklariert, sonst 128.000 Token. Sorge dafür, dass die Liste oder die Deklaration den Kontext nennt, den dein Server tatsächlich bereitstellt. Liegt dieses Fenster oder ein niedrigeres [Kontextlimit](/de/platform/admin/governance/policies-and-limits) der Person, die den Lauf gestartet hat, unter 200.000 Token, fasst eine verwaltete Claude-Code-Sitzung ihre Konversation zusammen, bevor der Prompt darüber hinauswächst. Ab 200.000 Token bemisst Claude Code das selbst: nach dem Fenster, das es für das Modell kennt, oder nach 200.000 Token für ein Modell, das es nicht kennt. Claude Code behandelt jeden Wert unter 100.000 Token wie 100.000. Ein Modell mit weniger Kontext kann also längere Prompts erhalten, als es aufnehmen kann. Setze Claude Code deshalb nur mit Modellen ein, die mindestens so viel Kontext bereitstellen.
 
 Auf einem Modell, das nicht Claude ist, lässt eine verwaltete Claude-Code-Sitzung außerdem die Zuordnungszeile weg, die Claude Code sonst an den Anfang jedes Systemprompts stellt. Diese Zeile ändert sich mit jeder Anfrage, und ein Server, der Prompt-Anfänge zwischenspeichert, müsste sonst bei jedem Schritt die ganze Konversation neu berechnen.
 
@@ -166,6 +196,7 @@ auth:
 | `baseUrl` | Fester Endpunkt für alle zugehörigen Zugangsdaten. |
 | `endpointMode: per-credential` | Verwendet statt `baseUrl` einen Endpunkt je Zugangsdaten-Eintrag, etwa bei Azure OpenAI. |
 | `catalog.source` | `static`, `openrouter-api`, `models-endpoint` oder `none`. Statische Einträge stammen aus dem oben beschriebenen Modellkatalog. |
+| `catalog.models` | Nur mit `none`: Kontextfenster und Bildeingabe der Modelle, die die Freigabelisten der Zugangsdaten nennen; siehe [Modelle ohne Modellliste beschreiben](#describe-models-without-a-listing). |
 | `embedding` | Ob der Anbieter Embeddings bedient: `supported`, wenn sein Katalog eine kuratierte Vektorbreite mitliefert; `unsupported`, wenn der Anbieter kein Embedding-Modell anbietet, sodass **Einstellungen > Datenresidenz > Embedding-Modell** ihn ablehnt; oder `unknown`, der Standard, wenn Admins Modell und Vektorbreite selbst eingeben. Deklariere `unsupported` nur, wenn die Dokumentation des Anbieters selbst das sagt. |
 | `auth` und `constraints` | Erlaubte Zugangsmethoden und Ausführungsbedingungen, etwa eine bestimmte Agent-Laufzeit in der Sandbox. |
 

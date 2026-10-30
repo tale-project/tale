@@ -29,9 +29,39 @@ auth:
   - method: env
 ```
 
-Cette définition utilise une API de chat compatible OpenAI et découvre les modèles à partir de `/v1/models`. Vérifie la compatibilité réelle du serveur : une liste de modèles ne prouve pas que la génération, les appels d’outils ou le streaming fonctionnent. Si le serveur ne peut pas lister ses modèles, utilise `catalog.source: none` et saisis leurs identifiants exacts dans la liste autorisée de l’accès. Un fournisseur personnalisé ne charge pas de fichier de modèles statique propre à l’organisation.
+Cette définition utilise une API de chat compatible OpenAI et découvre les modèles à partir de `/v1/models`. Vérifie la compatibilité réelle du serveur : une liste de modèles ne prouve pas que la génération, les appels d’outils ou le streaming fonctionnent. Si le serveur ne peut pas lister ses modèles, utilise `catalog.source: none`, saisis leurs identifiants exacts dans la liste autorisée de l’accès et [décris chaque modèle](#describe-models-without-a-listing) dans la définition. Un fournisseur personnalisé ne charge pas de fichier de modèles statique propre à l’organisation.
 
 Un administrateur ajoute ensuite un accès dans [Fournisseurs IA](/fr/platform/admin/providers), actualise le catalogue et sélectionne un modèle précis pour un court chat. Vérifie la requête terminée dans les journaux du serveur prévu. Les embeddings, la parole et les outils nécessitent leur propre contrôle des destinations ; un endpoint de chat local ne les rend pas locaux.
+
+## Décrire les modèles sans liste {#describe-models-without-a-listing}
+
+Un fournisseur configuré avec `catalog.source: none` ne liste aucun modèle : rien n’indique donc à Tale ce que peuvent traiter les modèles de la liste autorisée d’un accès. Tale suppose pour chacun 128 000 tokens et aucune entrée d’image. Si un endpoint offre davantage, déclare les valeurs réelles sous `catalog.models`. Par exemple, pour une passerelle interne qui sert des modèles Claude au format Anthropic :
+
+```yaml
+name: claude-gateway
+displayName: Claude gateway
+apiFormat: anthropic
+baseUrl: https://llm.example.com
+catalog:
+  source: none
+  models:
+    - id: claude-sonnet-gw
+      contextWindow: 1000000
+      supportsVision: true
+    - id: claude-haiku-gw
+      contextWindow: 200000
+auth:
+  - method: api-key
+  - method: env
+```
+
+| Champ | Signification |
+| --- | --- |
+| `id` | L’identifiant du modèle, exactement tel que la liste autorisée d’un accès le nomme. |
+| `contextWindow` | La fenêtre de contexte que l’endpoint offre pour le modèle, en tokens. Sans cette valeur, 128 000. |
+| `supportsVision` | `true` lorsque le modèle lit les images. Sans cette valeur, Tale traite le modèle comme un modèle texte seul. |
+
+Une déclaration décrit un modèle ; elle ne le rend pas disponible. Seuls les identifiants de la liste autorisée d’un accès sont proposés, et la déclaration d’un autre identifiant reste sans effet. Le chat dimensionne d’après cette fenêtre l’historique de conversation qu’il envoie, et les agents de programmation condensent leur conversation à l’intérieur de la fenêtre, comme l’explique [Vérifier l’accès aux modèles depuis la sandbox](#verifier-lacces-aux-modeles-depuis-la-sandbox). Un administrateur de l’organisation peut saisir les mêmes valeurs dans l’app, sous **Détails des modèles** dans l’accès du fournisseur ; voir [Définir un fournisseur personnalisé](/fr/platform/admin/providers#definir-un-fournisseur-personnalise). Les connectors livrés sans liste, comme Azure OpenAI, ne peuvent pas être décrits ainsi, car leurs définitions font partie de l’image.
 
 ## Configurer la transcription audio
 
@@ -109,7 +139,7 @@ Au démarrage d’une nouvelle session sandbox, le backend contrôle le nom du f
 
 Recrée les processus backend concernés avec le nouvel environnement, puis démarre une nouvelle session sandbox avec le fournisseur, le modèle et un environnement d’exécution compatible. Envoie une demande sans contenu sensible et vérifie la réponse complète ainsi que l’entrée correspondante dans les journaux du serveur d’inférence. Si le chat fonctionne mais que l’agent n’atteint pas son modèle, examine les journaux de `sandbox-llm-gateway`. `SANDBOX_EGRESS_ALLOWLIST` contrôle l’accès web général de la sandbox, pas cette connexion distincte au modèle.
 
-Les agents de programmation s’appuient aussi sur la fenêtre de contexte que le catalogue indique pour le modèle : la valeur `context_length` ou `context_window` que ton serveur publie sur `/v1/models`, ou 128 000 tokens lorsque la liste n’indique ni l’une ni l’autre, comme pour un fournisseur configuré avec `catalog.source: none`. Fais en sorte que cette liste indique le contexte que ton serveur sert réellement. Lorsque cette fenêtre, ou une [limite de contexte](/fr/platform/admin/governance/policies-and-limits) plus basse pour la personne qui a lancé l’exécution, reste sous 200 000 tokens, une session Claude Code gérée condense sa conversation en un résumé avant que le prompt ne la dépasse. Claude Code traite toute valeur inférieure à 100 000 tokens comme 100 000 : un modèle qui offre moins de contexte peut donc recevoir des prompts plus longs qu’il ne peut en contenir. Réserve Claude Code aux modèles qui offrent au moins ce contexte.
+Les agents de programmation s’appuient aussi sur la fenêtre de contexte que le catalogue indique pour le modèle : la valeur `context_length` ou `context_window` que ton serveur publie sur `/v1/models`, ou 128 000 tokens lorsque la liste n’indique ni l’une ni l’autre. Un fournisseur configuré avec `catalog.source: none` indique la fenêtre que [sa définition déclare](#describe-models-without-a-listing) pour le modèle, sinon 128 000 tokens. Fais en sorte que la liste ou la déclaration indique le contexte que ton serveur sert réellement. Lorsque cette fenêtre, ou une [limite de contexte](/fr/platform/admin/governance/policies-and-limits) plus basse pour la personne qui a lancé l’exécution, reste sous 200 000 tokens, une session Claude Code gérée condense sa conversation en un résumé avant que le prompt ne la dépasse. À partir de 200 000 tokens, Claude Code garde son propre calcul : la fenêtre qu’il connaît pour le modèle, ou 200 000 tokens pour un modèle qu’il ne connaît pas. Claude Code traite toute valeur inférieure à 100 000 tokens comme 100 000 : un modèle qui offre moins de contexte peut donc recevoir des prompts plus longs qu’il ne peut en contenir. Réserve Claude Code aux modèles qui offrent au moins ce contexte.
 
 Sur un modèle autre que Claude, une session Claude Code gérée omet aussi la ligne d’attribution que Claude Code place sinon au début de chaque prompt système. Cette ligne change à chaque requête : un serveur qui met en cache le début des prompts devrait sinon recalculer toute la conversation à chaque tour.
 
@@ -166,6 +196,7 @@ auth:
 | `baseUrl` | Endpoint fixe partagé par les accès correspondants. |
 | `endpointMode: per-credential` | Utilise un endpoint propre à chaque accès à la place de `baseUrl`, comme Azure OpenAI. |
 | `catalog.source` | `static`, `openrouter-api`, `models-endpoint` ou `none`. Les entrées statiques viennent du catalogue de modèles décrit plus haut. |
+| `catalog.models` | Avec `none` uniquement : la fenêtre de contexte et l’entrée d’image des modèles que nomment les listes autorisées des accès ; voir [Décrire les modèles sans liste](#describe-models-without-a-listing). |
 | `embedding` | Indique si le fournisseur sert des embeddings : `supported` quand son catalogue fournit une largeur de vecteurs vérifiée, `unsupported` quand il ne propose aucun modèle d’embedding, si bien que **Paramètres > Résidence des données > Modèle d’embedding** le refuse, ou `unknown`, la valeur par défaut, quand un admin saisit le modèle et sa largeur de vecteurs. Ne déclare `unsupported` que si la documentation du fournisseur lui-même l’indique. |
 | `auth` et `constraints` | Méthodes d’accès admises et conditions d’exécution, par exemple un environnement d’agent sandbox précis. |
 
