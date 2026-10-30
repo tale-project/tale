@@ -90,7 +90,8 @@ agentRun:
     cancelled: Cancelled
   # Replaces "Queued" while the run waits for room, one short state per
   # reason; `unknown` is a wait that kept no reason (most waits are for a
-  # worker). The run starts by itself once that room frees.
+  # worker). The run starts by itself once that room frees; one the sandbox
+  # host refused may start sooner in another worker of its agent.
   waiting:
     org_limit: Waiting for a worker
     host: Waiting for room
@@ -101,7 +102,7 @@ agentRun:
   # What the short state means, said under it while the run waits.
   waitingWhy:
     org_limit: All of your organization's agent workers are busy. The run starts on its own when one is free.
-    host: The sandbox host is full or short of memory or disk. The run starts on its own once there is room.
+    host: The sandbox host is full or short of memory or disk. If another worker of this agent can start, for example on a connected device with room, the run moves there. Otherwise it waits for room, for up to 12 hours from its start.
     destroy_pending: An admin is deleting the workspace this run would use. The run starts in a fresh one once that is done.
     exec_limit: Its sandbox is still finishing an earlier process. The run starts on its own in a moment.
     model_capacity: The AI model this agent uses is at capacity. The run starts on its own once the model answers again; no retry is used while it waits.

@@ -357,12 +357,14 @@ far as the limit of agent workers allows.
 - **Example**: Ada starts the agent Scribe on "Release notes" and on "Changelog". The
   organization allows 2 agent workers → both work at once, each in its own sandbox.
 
-### TASK-R25 · A start that finds no free worker waits and starts on its own
+### TASK-R25 · A start that finds no free worker waits for one, for at most 12 hours
 
 The run waits and says why: every agent worker is in use, the sandbox host is full, the
 workspace it would use is being deleted, or its sandbox is still ending an earlier process.
-It starts by itself as soon as room frees, uses no attempt for the wait, and gets its full
-working time from the moment it starts. It waits at most 12 hours from the start request.
+A worker that frees goes to a waiting run, which starts by itself; a run the sandbox host
+refused moves to another worker that can start (`TASK-R85`), or asks that host again until it
+has room. The wait uses no attempt, and the run gets its full working time from the moment it
+starts. It waits at most 12 hours from the start request, then fails as having waited too long.
 When several runs wait, a freed worker goes to the run of the agent with the fewest runs
 working, and among those to the one that has waited longest. A start that has not waited never
 takes the room freed for a waiting run: it waits behind that run.
@@ -398,7 +400,8 @@ on another task (`self_start`).
 ### TASK-R27 · A task's next run goes back to its worker when that worker is free
 
 There the run continues the task's conversation and finds the files it left. On another worker
-it starts fresh from the task's description, discussion, attachments and deliverables. A
+it starts fresh from the task's description, discussion, attachments and deliverables; a run
+the sandbox host refused in its worker may move to another (`TASK-R85`). A
 worker whose run failed or was cancelled is kept for that task for 15 minutes, so a retry finds
 what the run left there; another task's run takes it only when no other worker is free and no
 new one can open.
@@ -412,6 +415,27 @@ new one can open.
   Scribe on "Changelog" and, a moment later, asks for changes on "Release notes" → "Release
   notes" continues in worker 1, and "Changelog" takes another worker: a run that has not
   started yet holds no worker.
+
+### TASK-R85 · A run its sandbox host refused moves to a worker that can start elsewhere
+
+When the sandbox host refuses to start the worker a run claimed (the host is full, or short of
+memory, disk or CPU), the run waits for room (`TASK-R25`) and remembers that worker for as long
+as it lives. Its next start passes over the workers it was refused in, unless one sits on a
+connected device that has room now, and takes, in this order: its task's worker, another worker
+of its agent that is already up, a stopped one on a device with room, or a new one while a
+device has room. On a worker other than its task's it starts fresh (`TASK-R27`). When none of
+these fits, it chooses as if it had not been refused, so mostly its task's worker, and waits for
+that host. Nothing is deleted: the refused worker keeps its files for the task's later runs. A
+run no host refused goes back to its task's worker first, as before.
+
+- **Example**: "Changelog" last worked in Scribe's worker 3, on the Tale server. The server is
+  full, and Scribe's worker 2 is stopped on Ada's laptop, which has a free slot. Ada asks for
+  changes on "Changelog" → the server refuses worker 3, and the run starts in worker 2 on the
+  laptop. Worker 3 keeps its files.
+- **Example**: The same, but the laptop is full too → the run waits for the server, and starts
+  in worker 3 once the server has room, or fails after waiting 12 hours.
+- **Example**: Every agent worker of Ada's organization is busy → "Changelog" waits for a worker
+  and remembers none: when a worker frees, it goes back to worker 3 first.
 
 ### TASK-R40 · A model at capacity makes every run on it wait instead of failing
 
@@ -1176,7 +1200,7 @@ connection to its own instance.
 
 ## Not yet
 
-- **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`–`TASK-R27`, `TASK-R30`–`TASK-R38`, `TASK-R40` and `TASK-R84`, and how a run moves the card between statuses (`agent-runs.ts`,
+- **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`–`TASK-R27`, `TASK-R30`–`TASK-R38`, `TASK-R40`, `TASK-R84` and `TASK-R85`, and how a run moves the card between statuses (`agent-runs.ts`,
   `run-start.ts`, `reattach.ts`, `kick-plan.ts`).
 - **Reviews beyond `TASK-R21`–`TASK-R22`, `TASK-R28`–`TASK-R29` and `TASK-R39`**: who a review goes to otherwise, an agent as reviewer, and what a decision does to the task
   (`reviews.ts`, `agent-review.ts`, `review-decision.ts`, `review-repair.ts`). `TASK-R39` hands reviews on from the members door

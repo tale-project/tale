@@ -26,7 +26,12 @@
  *   one, and a task's next run still goes back to its own worker;
  * - a wake restarts a run without a claim stamp an older image's park left
  *   on it, so it never collides with the run that holds that worker now;
- * - migration 0167's columns, CHECK and unique index are in place.
+ * - a run its sandbox host refused remembers that worker, once however often
+ *   it is refused there, and its next claim takes a worker that is up rather
+ *   than ask that host again; while nothing else fits it goes back to that
+ *   worker, whose workspace stays; a run parked for a slot remembers none;
+ * - migration 0167's columns, CHECK and unique index, and migration 0224's
+ *   list of refused workers, are in place.
  *
  * The lane drives the turn job's own steps — the claim, the slot reserve or
  * resume, the launch flip, the settle and the release — on hand-inserted
@@ -58,6 +63,7 @@ import {
 } from './agent-runs.ts';
 import {
   claimAgentWorker,
+  parkAgentRunInTx,
   predictWorkerWait,
   type WorkerClaim,
 } from './agent-workers.ts';
@@ -728,6 +734,74 @@ export async function checkAgentWorkers(
       await endAll();
     }
 
+    // ---- a run its sandbox host refused -----------------------------------
+    {
+      // "Server full" worked in a worker of its own, which stopped when its
+      // run ended. Its next run goes back there and the sandbox host refuses
+      // the start, twice: the run waits for the host and remembers the
+      // worker once. With no device and no other worker up it goes back to
+      // that worker each time, as it always did. Once another worker is up,
+      // its next claim takes that one; the refused workspace stays.
+      const serverFull = await insertTask('Server full', scribe);
+      const before = await kick(serverFull, scribe);
+      const own = sessionOfClaim(await start(before));
+      await end(before);
+      const refusedOf = async (runId: string) =>
+        (
+          await sql<{ refused: string[] }[]>`
+            SELECT host_refused_session_ids AS refused
+            FROM app.project_agent_runs WHERE id = ${runId}
+          `
+        )[0]?.refused;
+      /** The run claims a worker and its start finds no room for `reason`;
+       * a wake restarts it. */
+      const refuse = async (runId: string, reason: 'host' | 'org_limit') => {
+        const { execId } = await factsOf(runId);
+        const claim = await claimAgentWorker(sql, {
+          organizationId: orgId,
+          runId,
+          execId,
+        });
+        await sql.begin((tx) =>
+          parkAgentRunInTx(tx, { runId, execId, reason }),
+        );
+        const waited = await factsOf(runId);
+        await wakeOrganizationParkedAgentRun(sql, orgId);
+        return `${sessionOfClaim(claim)}:${waited.waitingReason}`;
+      };
+      const run = await kick(serverFull, scribe);
+      const refusals = [await refuse(run, 'host'), await refuse(run, 'host')];
+      const remembered = await refusedOf(run);
+      const slotRun = await kick(
+        await insertTask('Waits for a slot', scribe),
+        scribe,
+      );
+      await refuse(slotRun, 'org_limit');
+      // Another worker is up and idle, as one is between its run's end and
+      // its release.
+      const other = own === w(1) ? w(2) : w(1);
+      const up = await resumeSessionSlot(sql, {
+        organizationId: orgId,
+        sessionId: other,
+      });
+      const next = await claimAgentWorker(sql, {
+        organizationId: orgId,
+        runId: run,
+        execId: (await factsOf(run)).execId,
+      });
+      record(
+        'agent workers: a run its sandbox host refused remembers that worker once however often it is refused there, goes back to it while nothing else fits, then takes a worker that is up — the refused workspace stays; a run parked for a slot remembers none',
+        refusals.every((refusal) => refusal === `${own}:host`) &&
+          JSON.stringify(remembered) === JSON.stringify([own]) &&
+          JSON.stringify(await refusedOf(slotRun)) === '[]' &&
+          up &&
+          sessionOfClaim(next) === other &&
+          (await sessionStatus(own)) === 'stopped',
+        `own=${own} refusals=${refusals.join(',')} remembered=${JSON.stringify(remembered)} slot run=${JSON.stringify(await refusedOf(slotRun))} up=${String(up)} next=${sessionOfClaim(next)} (want ${other}) own=${await sessionStatus(own)}`,
+      );
+      await endAll();
+    }
+
     // ---- migration 0167 ----------------------------------------------------
     {
       const columns = await sql<{ name: string; nullable: string }[]>`
@@ -768,6 +842,27 @@ export async function checkAgentWorkers(
         `columns=${JSON.stringify(columns)} index=${JSON.stringify(index)} check=${checked}`,
       );
       await endAll();
+    }
+
+    // ---- migration 0224 ----------------------------------------------------
+    {
+      const column = await sql<
+        { type: string; nullable: string; fallback: string | null }[]
+      >`
+        SELECT udt_name AS type, is_nullable AS nullable,
+               column_default AS fallback
+        FROM information_schema.columns
+        WHERE table_schema = 'app' AND table_name = 'project_agent_runs'
+          AND column_name = 'host_refused_session_ids'
+      `;
+      record(
+        'agent workers: migration 0224 adds the list of workers a host refused a run in, never null and empty by default',
+        column.length === 1 &&
+          column[0]?.type === '_text' &&
+          column[0].nullable === 'NO' &&
+          (column[0].fallback ?? '').startsWith("'{}'"),
+        `column=${JSON.stringify(column)}`,
+      );
     }
   } finally {
     await release();

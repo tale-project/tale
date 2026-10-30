@@ -65,7 +65,7 @@ Das Gerät läuft nach einem Neustart des Rechners weiter, sofern Docker mitstar
 
 ## Verstehen, wo Sandboxes laufen
 
-Neue Arbeitsbereiche für Agenten und Automatisierungen starten auf einem verbundenen Gerät mit freiem Platz. Hat keines Platz, starten sie auf dem Tale-Server. Ein Arbeitsbereich bleibt mit seinen Dateien auf dem Rechner, auf dem er gestartet ist; ein Agent, der schon einen Arbeitsbereich auf dem Server hat, nutzt diesen also weiter. Seiten, die beim Crawlen von Websites gerendert werden, bleiben immer auf dem Server.
+Neue Arbeitsbereiche für Agenten und Automatisierungen starten auf einem verbundenen Gerät mit freiem Platz. Hat keines Platz, starten sie auf dem Tale-Server. Ein Arbeitsbereich bleibt mit seinen Dateien auf dem Rechner, auf dem er gestartet ist; ein Agent, der schon einen Arbeitsbereich auf dem Server hat, nutzt diesen also weiter. Ist der Server voll, wechselt ein Aufgabenlauf, dessen Arbeitsbereich dort liegt, jedoch in einen anderen Arbeitsbereich seines Agenten, der starten kann, etwa einen auf einem Gerät mit freiem Platz oder einen neuen dort; sein Arbeitsbereich auf dem Server behält seine Dateien. Seiten, die beim Crawlen von Websites gerendert werden, bleiben immer auf dem Server.
 
 Haben mehrere Geräte Platz, berücksichtigt Tale sowohl freie Plätze als auch den gemessenen verfügbaren Arbeitsspeicher. Lehnt ein Gerät den Start wegen fehlender Kapazität ab, kann ein anderes Gerät oder der Server übernehmen. Geht die Antwort verloren oder meldet das Gerät einen Serverfehler, bleiben Wiederholungen auf diesem Gerät: Es könnte den Arbeitsbereich bereits angelegt haben.
 

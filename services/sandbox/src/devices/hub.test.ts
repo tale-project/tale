@@ -505,6 +505,23 @@ describe('DeviceHub placement', () => {
     expect(hub.deviceSessionCapacity(ORG)).toBe(0);
   });
 
+  test('a device summary counts the new sessions the hub would place there', async () => {
+    const { hub } = await makeHub();
+    const full = connectDevice(hub, 'dev-full');
+    await full.hello();
+    await full.status({ running: 2 });
+    const roomy = connectDevice(hub, 'dev-roomy');
+    await roomy.hello();
+    await roomy.status({ maxSessions: 3, running: 1 });
+    const old = connectDevice(hub, 'dev-old');
+    await old.hello({ version: '0.5.59' });
+    expect(hub.devicesFor(ORG).map((d) => [d.deviceId, d.freeSlots])).toEqual([
+      ['dev-full', 0],
+      ['dev-roomy', 2],
+      ['dev-old', 0],
+    ]);
+  });
+
   test('a full device is skipped: the least-loaded one with room wins', async () => {
     const { hub } = await makeHub();
     const busy = connectDevice(hub, 'dev-busy');
@@ -696,6 +713,10 @@ describe('DeviceHub placement', () => {
       'dev-healthy',
       'dev-healthy',
     ]);
+    // Its summary offers no room while it sits out, though no slot is used.
+    expect(
+      hub.devicesFor(ORG).find((d) => d.deviceId === 'dev-broken')?.freeSlots,
+    ).toBe(0);
   });
 
   test('a create the platform gave up on keeps its placement and makes no second copy', async () => {
@@ -1597,6 +1618,7 @@ describe('DeviceHub placement', () => {
         maxSessions: 4,
         sessions: { running: 1, starting: 0 },
         platform: expect.objectContaining({ os: 'darwin', cpus: 10 }),
+        freeSlots: 3,
       }),
     ]);
     expect(hub.capacityOverlay(ORG).runtimeSessions).toEqual([

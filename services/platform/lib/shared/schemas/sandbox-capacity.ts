@@ -14,6 +14,12 @@ export type SandboxDeploymentLimits =
   | ({ status: 'available' } & z.infer<typeof sandboxDeploymentLimitsSchema>)
   | { status: 'unavailable'; reason: 'not_configured' | 'unreachable' };
 
+/** Which of the organization's devices a device-placed session lives on. */
+export const sandboxPlacementSchema = z.object({
+  sessionId: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
+  deviceId: z.string().min(1).max(64),
+});
+
 /** Validated at the spawner boundary. Missing measurements stay unknown;
  * organization quota usage is read independently from the platform ledger. */
 export const sandboxCapacitySchema = z.object({
@@ -46,14 +52,7 @@ export const sandboxCapacitySchema = z.object({
   ),
   /** Where each of the organization's device-placed sessions lives — also
    * while its device is offline. Absent from spawners without a device hub. */
-  placements: z
-    .array(
-      z.object({
-        sessionId: z.string().regex(/^[a-zA-Z0-9_-]{1,64}$/),
-        deviceId: z.string().min(1).max(64),
-      }),
-    )
-    .optional(),
+  placements: z.array(sandboxPlacementSchema).optional(),
   /** The heavy-phase leases the host holds now, of every organization, and
    * how many it grants at once. Absent from spawners without leases. */
   leases: z

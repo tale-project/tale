@@ -65,7 +65,7 @@ L’appareil continue de fonctionner après un redémarrage de la machine, tant 
 
 ## Comprendre où s’exécutent les sandboxes
 
-Les nouveaux espaces de travail des agents et des automatisations démarrent sur un appareil connecté qui a de la place. S’il n’y en a aucun, ils démarrent sur le serveur Tale. Un espace de travail reste, avec ses fichiers, sur la machine où il a démarré : un agent qui a déjà un espace de travail sur le serveur continue donc de l’utiliser. Les pages rendues pour l’exploration des sites web restent toujours sur le serveur.
+Les nouveaux espaces de travail des agents et des automatisations démarrent sur un appareil connecté qui a de la place. S’il n’y en a aucun, ils démarrent sur le serveur Tale. Un espace de travail reste, avec ses fichiers, sur la machine où il a démarré : un agent qui a déjà un espace de travail sur le serveur continue donc de l’utiliser. Quand le serveur est plein, une exécution de tâche dont l’espace de travail s’y trouve passe toutefois dans un autre espace de travail de son agent qui peut démarrer, par exemple sur un appareil qui a de la place ou dans un nouvel espace sur cet appareil ; son espace de travail sur le serveur garde ses fichiers. Les pages rendues pour l’exploration des sites web restent toujours sur le serveur.
 
 Quand plusieurs appareils ont de la place, Tale tient compte à la fois des places libres et de la marge de mémoire mesurée. Si un appareil refuse un démarrage faute de capacité, un autre appareil ou le serveur peut le prendre en charge. Si la réponse est perdue ou si l’appareil renvoie une erreur serveur, les nouvelles tentatives restent sur cet appareil : il a peut-être déjà créé l’espace de travail.
 

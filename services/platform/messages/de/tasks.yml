@@ -87,7 +87,9 @@ agentRun:
     cancelled: Abgebrochen
   # Ersetzt „Wartet", solange der Lauf auf Platz wartet: ein kurzer Zustand
   # pro Grund; `unknown` ist ein Warten ohne gespeicherten Grund (meist auf
-  # einen Worker). Der Lauf startet von selbst, sobald der Platz frei wird.
+  # einen Worker). Der Lauf startet von selbst, sobald der Platz frei wird;
+  # hat ihn der Sandbox-Host abgelehnt, kann er früher in einem anderen
+  # Worker seines Agenten starten.
   waiting:
     org_limit: Wartet auf einen Worker
     host: Wartet auf freien Platz
@@ -98,7 +100,7 @@ agentRun:
   # Was der kurze Zustand bedeutet, darunter, solange der Lauf wartet.
   waitingWhy:
     org_limit: Alle Agenten-Worker deiner Organisation sind belegt. Der Lauf startet von selbst, sobald einer frei ist.
-    host: Der Sandbox-Host ist voll oder hat zu wenig Arbeitsspeicher oder Speicherplatz. Der Lauf startet von selbst, sobald wieder Platz ist.
+    host: Der Sandbox-Host ist voll oder hat zu wenig Arbeitsspeicher oder Speicherplatz. Kann ein anderer Worker dieses Agenten starten, etwa auf einem verbundenen Gerät mit freiem Platz, wechselt der Lauf dorthin. Sonst wartet er auf Platz, bis zu 12 Stunden nach seinem Start.
     destroy_pending: Ein Admin löscht gerade den Arbeitsbereich, den dieser Lauf nutzen würde. Danach startet der Lauf in einem neuen.
     exec_limit: Seine Sandbox beendet noch einen früheren Prozess. Der Lauf startet gleich von selbst.
     model_capacity: Das KI-Modell dieses Agenten ist ausgelastet. Der Lauf startet von selbst, sobald das Modell wieder antwortet; das Warten verbraucht keinen Versuch.

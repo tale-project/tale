@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { sandboxPlacementSchema } from './sandbox-capacity';
+
 /**
  * Sandbox devices — machines an organization connected with
  * `tale sandbox connect` to run its sandboxes on its own hardware. The shapes
@@ -174,7 +176,13 @@ export const hubDevicesSchema = z.object({
         error: z.string().max(500).nullable(),
         atMs: measure,
       }),
+      /** New sessions the hub would place on the device now. Absent from
+       * hubs older than it. */
+      freeSlots: count.optional(),
     }),
   ),
+  /** Which device each of the organization's device-placed sessions lives
+   * on. Absent from hubs older than it. */
+  placements: z.array(sandboxPlacementSchema).optional(),
 });
 export type HubDevices = z.infer<typeof hubDevicesSchema>;
