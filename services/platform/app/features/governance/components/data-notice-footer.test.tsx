@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
+import { dataNoticeDismissalKey } from '../hooks/use-shown-data-notice';
 import { dataNoticeBootKey } from '../lib/data-notice-boot';
 import { DataNoticeFooter } from './data-notice-footer';
 
@@ -16,7 +17,13 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: () => ({ data: state.data }),
 }));
 
+// The member whose "Don't show again" the footer honours.
+vi.mock('@/app/hooks/use-current-user', () => ({
+  useCurrentUser: () => ({ data: { userId: 'user-1' } }),
+}));
+
 const BOOT_KEY = dataNoticeBootKey('org-1');
+const DISMISSAL_KEY = dataNoticeDismissalKey('user-1', 'org-1');
 const DEFAULT_TEXT =
   'AI can make mistakes—verify responses and do not share sensitive data.';
 
@@ -69,6 +76,30 @@ describe('DataNoticeFooter', () => {
     expect(noticeEl()).toHaveTextContent('Mind the client data.');
   });
 
+  it("renders nothing once this member chose Don't show again for the text", () => {
+    window.localStorage.setItem(
+      DISMISSAL_KEY,
+      JSON.stringify('Mind the client data.'),
+    );
+    state.data = {
+      config: { enabled: true, messages: { en: 'Mind the client data.' } },
+    };
+    render(<DataNoticeFooter organizationId="org-1" />);
+    expect(noticeEl()).not.toBeInTheDocument();
+  });
+
+  it('renders a text this member never dismissed', () => {
+    window.localStorage.setItem(
+      DISMISSAL_KEY,
+      JSON.stringify('An older text.'),
+    );
+    state.data = {
+      config: { enabled: true, messages: { en: 'Mind the client data.' } },
+    };
+    render(<DataNoticeFooter organizationId="org-1" />);
+    expect(noticeEl()).toHaveTextContent('Mind the client data.');
+  });
+
   /**
    * The chat's loading skeleton reserves the notice's row from what the
    * footer last showed, so the composer does not shift when the notice
@@ -86,6 +117,16 @@ describe('DataNoticeFooter', () => {
     it('forgets a previously shown notice once the org keeps it off', () => {
       window.localStorage.setItem(BOOT_KEY, '"Mind it"');
       state.data = { config: { enabled: false } };
+      render(<DataNoticeFooter organizationId="org-1" />);
+
+      expect(window.localStorage.getItem(BOOT_KEY)).toBeNull();
+      expect(bootMarked()).toBe(false);
+    });
+
+    it('forgets the remembered notice once this member dismissed it', () => {
+      window.localStorage.setItem(BOOT_KEY, '"Mind it"');
+      window.localStorage.setItem(DISMISSAL_KEY, JSON.stringify('Mind it'));
+      state.data = { config: { enabled: true, messages: { en: 'Mind it' } } };
       render(<DataNoticeFooter organizationId="org-1" />);
 
       expect(window.localStorage.getItem(BOOT_KEY)).toBeNull();

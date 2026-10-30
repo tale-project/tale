@@ -336,7 +336,9 @@ export function effectiveMandatoryInstructions(
 }
 
 /**
- * Admin-customizable confidentiality notice, shown under the chat composer.
+ * Admin-customizable confidentiality notice, shown in chat: under the
+ * composer until a conversation has a message, then on its last message,
+ * where a member can hide it ("Don't show again") until its text changes.
  *
  * Opt-in: the notice shows only while `enabled` is true — an org without
  * this file shows none. Admins edit it under Settings → Governance →

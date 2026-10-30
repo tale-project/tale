@@ -118,6 +118,9 @@ interface MessageThreadProps extends MessageThreadHandlers {
   voiceEnabled?: boolean;
   /** The org can synthesize at all — gates the "Speak out loud" action. */
   speakAvailable?: boolean;
+  /** Show the org's confidentiality notice on the last message; until there
+   * is one, the chat surface shows it under the composer. */
+  dataNotice?: boolean;
   className?: string;
 }
 
@@ -147,6 +150,7 @@ export const MessageThread = memo(function MessageThread({
   onFork,
   voiceEnabled,
   speakAvailable,
+  dataNotice,
   className,
 }: MessageThreadProps) {
   const { t } = useT('chat');
@@ -262,6 +266,14 @@ export const MessageThread = memo(function MessageThread({
       voicePillForced={message.id === forceVoicePillMessageId}
       isFreshSinceMount={isFreshSinceMount(message.id)}
       deferred={index < firstEagerIdx}
+      // The newest row only: a reply shows it once it settles (AssistantBody
+      // holds it until then); any other row while no turn runs, so a send
+      // never flashes it under the prompt before the reply row arrives.
+      dataNotice={
+        dataNotice === true &&
+        index === messages.length - 1 &&
+        (message.role === 'assistant' || isGenerating !== true)
+      }
     />
   );
 

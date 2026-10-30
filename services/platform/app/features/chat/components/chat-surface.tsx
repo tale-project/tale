@@ -1020,6 +1020,15 @@ function ChatSurfaceInner({
 
   const threadsAvailable = threads.status === 'ready';
   const messagesAvailable = threadView.status === 'ready';
+  // The confidentiality notice sits under the composer until a message can
+  // carry it (ChatTranscript's `dataNotice`): on a new chat, an empty
+  // conversation, and beside an arena pair, whose columns carry none. A
+  // conversation still loading shows it nowhere yet, so it never flashes
+  // under the composer before the messages arrive.
+  const noticeUnderComposer =
+    arenaActive ||
+    (threadView.items.length === 0 &&
+      (threadId === undefined || messagesAvailable));
   // The model listing ANSWERED and came back empty: the org has no active
   // provider credential, so nothing could reply. Only the index shows the
   // setup guidance — with a thread open, a missing conversation is a
@@ -2239,6 +2248,9 @@ function ChatSurfaceInner({
                   }
                   voiceEnabled={voiceEnabled && viewerIsOwner}
                   speakAvailable={speakAvailable}
+                  // The confidentiality notice rides the last message. An
+                  // archived conversation, which has no composer, shows none.
+                  dataNotice={!threadArchived}
                   // Clears the floating top bar at rest.
                   className={viewerIsOwner ? 'md:pt-13' : undefined}
                 />
@@ -2431,11 +2443,14 @@ function ChatSurfaceInner({
                 />
                 {/* The confidentiality disclosure sits with the field it
                     governs — visible BEFORE the first send, not only under a
-                    settled reply (gematik: the notice is pre-input). */}
-                <DataNoticeFooter
-                  organizationId={organizationId}
-                  className="pt-1 pb-1"
-                />
+                    settled reply (gematik: the notice is pre-input) — until
+                    the conversation's last message carries it. */}
+                {noticeUnderComposer && (
+                  <DataNoticeFooter
+                    organizationId={organizationId}
+                    className="pt-1 pb-1"
+                  />
+                )}
               </div>
             ))}
         </Stack>

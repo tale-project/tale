@@ -17,7 +17,7 @@ Open **Home**. On a computer, a new chat opens, and the Home panel beside it lis
 
 For example: “Find the onboarding feedback and summarize the three most common problems. Cite the documents and separate reported problems from your suggestions.”
 
-If your organization turned on a confidentiality notice, it appears under the message field as a reminder of what not to share in chat. In a window that is not very tall, such as on a laptop screen, the notice keeps to one line. If it is cut short, choose the arrow beside it to read all of it.
+If your organization turned on a confidentiality notice, it reminds you of what not to share in chat. In a new chat it appears under the message field; once the chat has messages, it appears under the last message instead. In a window that is not very tall, such as on a laptop screen, the notice under the message field keeps to one line. If it is cut short, choose the arrow beside it to read all of it. To stop seeing the notice, choose **Don't show again** at the end of the notice under a message. It stays hidden in this browser until your organization changes its text.
 
 While the reply streams, the send control becomes a stop control. Stopping keeps the text already received, which may end mid-sentence. Use a follow-up message to clarify the question or ask for missing detail.
 

@@ -17,7 +17,7 @@ Nutze den Chat, um Fragen zu stellen, ein Dokument zu verstehen oder Information
 
 Zum Beispiel: „Finde die Onboarding-Rückmeldungen und fasse die drei häufigsten Probleme zusammen. Nenne die Dokumente als Quellen und trenne gemeldete Probleme von deinen Vorschlägen.“
 
-Hat deine Organisation einen Vertraulichkeitshinweis eingeschaltet, steht er unter dem Nachrichtenfeld und erinnert dich daran, was du im Chat nicht teilen solltest. In einem niedrigen Fenster, etwa auf einem Laptop, bleibt der Hinweis auf einer Zeile. Ist er gekürzt, wähle den Pfeil daneben, um ihn ganz zu lesen.
+Hat deine Organisation einen Vertraulichkeitshinweis eingeschaltet, erinnert er dich daran, was du im Chat nicht teilen solltest. In einem neuen Chat steht er unter dem Nachrichtenfeld; sobald der Chat Nachrichten enthält, steht er stattdessen unter der letzten Nachricht. In einem niedrigen Fenster, etwa auf einem Laptop, bleibt der Hinweis unter dem Nachrichtenfeld auf einer Zeile. Ist er gekürzt, wähle den Pfeil daneben, um ihn ganz zu lesen. Willst du den Hinweis nicht mehr sehen, wähle **Nicht mehr anzeigen** am Ende des Hinweises unter einer Nachricht. Er bleibt in diesem Browser ausgeblendet, bis deine Organisation seinen Text ändert.
 
 Während die Antwort erscheint, wird aus der Sende- eine Stopp-Schaltfläche. Beim Stoppen bleibt der bereits empfangene Text erhalten, auch wenn er mitten im Satz endet. Stelle eine Rückfrage, um dein Anliegen zu präzisieren oder fehlende Details anzufordern.
 
