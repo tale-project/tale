@@ -80,6 +80,8 @@ SCIM-Users werden zu Mitgliedern, Groups zu Teams. Eine Deaktivierung (`active: 
 
 Der Inhaber lässt sich über SCIM weder deaktivieren noch entfernen. Gruppen dürfen nur Mitglieder dieser Organisation enthalten. Eine Änderung des Benutzernamens wird abgelehnt, wenn die neue E-Mail-Adresse schon vergeben ist oder das Konto mehreren Organisationen angehört. So bleibt seine gemeinsame Anmeldeidentität geschützt.
 
+Tale sucht Users über `userName` und Groups über `displayName`, jeweils mit dem Operator `eq`. Behalte diese Attribute als Abgleichsattribute deines IdP bei. Jeden anderen Filter lehnt Tale mit dem Fehler `invalidFilter` ab.
+
 ## Mitglieder über einen Authentifizierungsproxy anmelden
 
 Eine Anwendung, die ihre Nutzer bereits authentifiziert, kann sie über ihren Reverse-Proxy in diese Organisation weiterreichen, sodass Mitglieder das Anmeldeformular von Tale nie sehen. Die Karte **Vertrauenswürdige Header** auf derselben Seite enthält den Schalter, die Rollen-Obergrenze und die Schlüssel, die der Proxy vorlegt.
@@ -104,6 +106,7 @@ Der Schlüssel bestimmt die Organisation: Ein Mitglied wird angemeldet, eine Adr
 | Fehler bei der Browserbindung | Starte die Anmeldung im selben Browser neu und erlaube die bei Weiterleitungen benötigten Cookies. |
 | Falsche Rolle oder fehlendes Team | Prüfe die tatsächlichen IdP-Claims, die Rollenregeln und ihre Reihenfolge, Ausschlüsse und Gruppenberechtigungen. Eine **App-Rolle**-Regel passt auf den Wert der App-Rolle, nicht auf ihren Anzeigenamen oder ihre ID. |
 | SCIM kann sich nicht verbinden | Prüfe Basis-URL, Bearer-Token und ob die Bereitstellung aktiviert ist. |
+| Der IdP meldet den Fehler `invalidFilter` | Setze sein Abgleichsattribut für Users auf `userName` und für Groups auf `displayName`. |
 | Die Proxy-Anmeldung wird abgelehnt | Prüfe, ob die Karte eingeschaltet ist, der Schlüssel nicht widerrufen wurde und der Proxy E-Mail-Header und Schlüssel bei der Übergabe-Anfrage sendet. |
 | Fehlende Callback-URL oder Server-Konfigurationswarnung | Bitte den Betreiber, die [Authentifizierungskonfiguration](/de/self-hosted/configuration/authentication) zu prüfen. |
 

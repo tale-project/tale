@@ -67,8 +67,14 @@ async function listUsers(rc: ScimRc, url: URL): Promise<Response> {
   if (filter) {
     const userName = parseEqFilter(filter, 'userName');
     if (userName == null) {
+      // RFC 7644 §3.4.2.2: decline what we cannot evaluate. An empty list
+      // would tell the IdP the user is missing, and it would create it again.
       console.warn(`[scim] unsupported user filter: ${filter}`);
-      return scimListResponse([], 0, 1, 0);
+      return scimError(
+        400,
+        'Unsupported filter: Users can be filtered only by userName eq "<value>"',
+        'invalidFilter',
+      );
     }
     const rec = await rc.ctx.runQuery(
       internal.scim.internal_queries.findUserRecordByUserName,
@@ -248,8 +254,13 @@ async function listGroups(rc: ScimRc, url: URL): Promise<Response> {
   if (filter) {
     const displayName = parseEqFilter(filter, 'displayName');
     if (displayName == null) {
+      // Declined, not an empty list: see listUsers (RFC 7644 §3.4.2.2).
       console.warn(`[scim] unsupported group filter: ${filter}`);
-      return scimListResponse([], 0, 1, 0);
+      return scimError(
+        400,
+        'Unsupported filter: Groups can be filtered only by displayName eq "<value>"',
+        'invalidFilter',
+      );
     }
     const rec = await rc.ctx.runQuery(
       internal.scim.internal_queries.findGroupRecordByDisplayName,

@@ -80,6 +80,8 @@ Les Users SCIM correspondent aux membres et les Groups aux équipes. La désacti
 
 Le propriétaire de l’organisation ne peut pas être désactivé ni retiré par SCIM. Les groupes ne peuvent contenir que des membres de cette organisation. Un changement de nom d’utilisateur est refusé si la nouvelle adresse e-mail est déjà utilisée ou si le compte appartient à plusieurs organisations, afin de protéger son identité de connexion partagée.
 
+Tale recherche les Users par `userName` et les Groups par `displayName`, avec l’opérateur `eq`. Garde ces attributs comme attributs de correspondance de ton IdP. Tale refuse tout autre filtre avec l’erreur `invalidFilter`.
+
 ## Connecter les membres via un proxy d’authentification
 
 Une application qui authentifie déjà ses utilisateurs peut les faire entrer dans cette organisation via son reverse proxy, sans que les membres voient le formulaire de connexion de Tale. La carte **En-têtes de confiance**, sur la même page, regroupe l’interrupteur, le plafond de rôle et les clés que le proxy présente.
@@ -104,6 +106,7 @@ Ouvre une session de navigateur séparée et choisis **Continuer avec SSO**. Le 
 | Erreur de liaison au navigateur | Recommence dans le même navigateur et autorise les cookies nécessaires aux redirections. |
 | Mauvais rôle ou équipe absente | Vérifie les claims réellement fournis, les règles de rôles et leur ordre, les exclusions et les autorisations de groupes. Une règle **Rôle d'application** correspond à la valeur du rôle d’application, pas à son nom d’affichage ni à son ID. |
 | SCIM ne se connecte pas | Vérifie l’URL de base, le jeton Bearer et l’activation du provisionnement. |
+| L’IdP signale une erreur `invalidFilter` | Règle son attribut de correspondance sur `userName` pour les Users et sur `displayName` pour les Groups. |
 | La connexion par proxy est refusée | Vérifie que la carte est activée, que la clé n’est pas révoquée et que le proxy envoie l’en-tête d’e-mail et la clé dans la requête de passage. |
 | URL de rappel absente ou avertissement de configuration serveur | Demande à l’opérateur de vérifier la [configuration de l’authentification](/fr/self-hosted/configuration/authentication). |
 
