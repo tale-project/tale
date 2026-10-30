@@ -147,8 +147,8 @@ export async function migrateConfigVolume(
   );
 
   // Create the target BEFORE pausing, so the pause window covers only the
-  // copy. `docker run -v` would create it implicitly, but unlabelled — and
-  // `tale reset` prunes this project's volumes by that label.
+  // copy. `docker run -v` would create it implicitly, but without the
+  // `project` label every other volume of this project carries.
   const created = await deps.exec('docker', [
     'volume',
     'create',

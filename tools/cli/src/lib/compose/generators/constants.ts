@@ -28,7 +28,8 @@ export const DEV_VOLUME_NAMES = [
 
 // All volumes that must exist before any `docker compose up` in production.
 // Every volume declared as `external: true` in the stateful or color compose
-// must appear here so `ensureVolumes` pre-creates it.
+// must appear here so `ensureVolumes` pre-creates it. `tale reset --all`
+// deletes each of them by name, except the snapshots' `backups` volume.
 export const REQUIRED_VOLUMES = [
   'static-assets',
   // See DEV_VOLUME_NAMES for the retired-stub rationale.

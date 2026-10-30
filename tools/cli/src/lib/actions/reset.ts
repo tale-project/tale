@@ -4,11 +4,15 @@ import { getProjectId, type DeploymentEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
 import { resolveConsent } from '../../utils/output-mode';
 import { confirm } from '../../utils/prompt';
+import { BACKUP_VOLUME } from '../backup/constants';
+import { REQUIRED_VOLUMES } from '../compose/generators/constants';
 import type { DeploymentColor } from '../compose/types';
 import { SIDECAR_SERVICES, STATEFUL_SERVICES } from '../compose/types';
 import { docker } from '../docker/docker';
+import { volumeExists } from '../docker/ensure-volumes';
 import { listComposeContainers } from '../docker/list-service-containers';
 import { removeContainer } from '../docker/remove-container';
+import { removeVolume } from '../docker/remove-volume';
 import { getPreviousVersionFilePath } from '../state/get-previous-version-file-path';
 import { getStateFilePath } from '../state/get-state-file-path';
 import { withLock } from '../state/with-lock';
@@ -22,6 +26,18 @@ interface ResetOptions {
   dryRun: boolean;
 }
 
+/**
+ * The volumes `--all` deletes: each volume a deploy creates under the
+ * project's `<id>_` prefix, by name. Never `backups`, which the first snapshot
+ * creates and which holds the snapshots `tale restore` lists, the one way back
+ * from this reset; never the dev stack's `<id>-dev_` volumes either.
+ */
+function dataVolumes(): string[] {
+  return REQUIRED_VOLUMES.filter((name: string) => name !== BACKUP_VOLUME).map(
+    (name) => `${getProjectId()}_${name}`,
+  );
+}
+
 export async function reset(options: ResetOptions): Promise<void> {
   const { env, force, includeStateful, dryRun } = options;
 
@@ -29,6 +45,10 @@ export async function reset(options: ResetOptions): Promise<void> {
   if (includeStateful) {
     logger.warn(
       `Including stateful services: ${[...STATEFUL_SERVICES, ...SIDECAR_SERVICES].join(', ')}`,
+    );
+    logger.warn(
+      `and deleting their data volumes, which cannot be undone: ${dataVolumes().join(', ')}. ` +
+        `The snapshots in ${getProjectId()}_${BACKUP_VOLUME} are kept.`,
     );
   }
 
@@ -137,28 +157,28 @@ export async function reset(options: ResetOptions): Promise<void> {
       );
     }
 
-    // Only prune volumes when the user explicitly asked to include stateful
+    // Only delete volumes when the user explicitly asked to include stateful
     // services — volume data is not recoverable. `includeStateful` is the
     // `--all` flag, which is the same consent boundary used for removing
-    // db/proxy containers above.
+    // db/proxy containers above. By name, not by `docker volume prune`: since
+    // API 1.42 (Engine 23.0) a prune removes only anonymous volumes unless
+    // given `--all`, which older daemons refuse, and every volume here is
+    // named. The `project` label a prune would filter on also marks the
+    // snapshots and the dev stack's volumes.
     if (includeStateful) {
-      logger.step(`${prefix}Pruning unused Docker volumes...`);
-      if (!dryRun) {
-        const result = await docker(
-          'volume',
-          'prune',
-          '-f',
-          '--filter',
-          `label=project=${getProjectId()}`,
-        );
-        if (!result.success) {
-          logger.warn(
-            `Failed to prune project volumes: ${result.stderr.trim()}`,
-          );
+      logger.step(`${prefix}Removing data volumes...`);
+      for (const volume of dataVolumes()) {
+        if (dryRun) {
+          logger.info(`${prefix}Would remove volume: ${volume}`);
+        } else {
+          await removeVolume(volume);
         }
-      } else {
+      }
+      const backups = `${getProjectId()}_${BACKUP_VOLUME}`;
+      if (await volumeExists(backups)) {
         logger.info(
-          `${prefix}Would prune unused Docker volumes for project ${getProjectId()}`,
+          `${prefix}${dryRun ? 'Would keep' : 'Kept'} volume: ${backups}, with the snapshots \`tale restore\` lists. ` +
+            `To delete them as well: docker volume rm ${backups}`,
         );
       }
     }
@@ -174,7 +194,9 @@ export async function reset(options: ResetOptions): Promise<void> {
       logger.info(
         `Stateful services (${STATEFUL_SERVICES.join(', ')}) were preserved`,
       );
-      logger.info('Use --all to remove them as well');
+      logger.info(
+        'Use --all to remove them as well, together with their data volumes',
+      );
     }
   });
 }
