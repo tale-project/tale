@@ -1010,6 +1010,15 @@ providers:
     modelsDiscoverHelp: Liest /models des Endpunkts mit dem Schlüssel dieser Zugangsdaten.
     modelsManual: Modell-IDs eingeben
     modelsManualHelp: Für einen Endpunkt, der seine Modelle nicht auflisten kann.
+    modelFacts:
+      title: Modelldetails
+      description: >-
+        Lässt du ein Kontextfenster leer, gelten 128.000 Tokens. Markiere die
+        Modelle, die Bilder lesen; die übrigen gelten als reine Textmodelle.
+      contextWindow: Kontextfenster
+      tokens: Tokens
+      contextWindowInvalid: Gib eine ganze Zahl an Tokens ein, etwa 200000.
+      readsImages: Liest Bilder
     check: Modelle prüfen
     checkOk: '{name}: {count, plural, =0 {keine Modelle gelistet} one {# Modell gelistet} other {# Modelle gelistet}}'
     checkFailed: 'Die Modelle von {name} konnten nicht abgerufen werden: {error}'

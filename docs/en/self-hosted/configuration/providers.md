@@ -29,9 +29,39 @@ auth:
   - method: env
 ```
 
-This uses an OpenAI-compatible chat API and discovers models from `/v1/models`. Check the server’s actual compatibility; model listing alone does not prove that generation, tool calls or streaming work. If the server cannot list models, use `catalog.source: none` and enter exact model identifiers in the credential’s allowlist. Organization-defined providers do not load an organization-side static model file.
+This uses an OpenAI-compatible chat API and discovers models from `/v1/models`. Check the server’s actual compatibility; model listing alone does not prove that generation, tool calls or streaming work. If the server cannot list models, use `catalog.source: none`, enter exact model identifiers in the credential’s allowlist and [describe each model](#describe-models-without-a-listing) in the definition. Organization-defined providers do not load an organization-side static model file.
 
 Then have an organization admin add a credential through [AI providers](/platform/admin/providers), refresh the catalog and select a specific model for a short chat. Verify the completed request in the intended inference server’s logs. Embeddings, speech and tool traffic require their own routing review; a local chat endpoint does not make them local.
+
+## Describe models without a listing {#describe-models-without-a-listing}
+
+A provider with `catalog.source: none` lists no models, so nothing tells Tale what the models in a credential’s allowlist can take. Each one is assumed to hold 128,000 tokens and to read no images. When an endpoint serves more, declare the real facts under `catalog.models`. For example, an internal gateway that serves Claude models in the Anthropic format:
+
+```yaml
+name: claude-gateway
+displayName: Claude gateway
+apiFormat: anthropic
+baseUrl: https://llm.example.com
+catalog:
+  source: none
+  models:
+    - id: claude-sonnet-gw
+      contextWindow: 1000000
+      supportsVision: true
+    - id: claude-haiku-gw
+      contextWindow: 200000
+auth:
+  - method: api-key
+  - method: env
+```
+
+| Field | Meaning |
+| --- | --- |
+| `id` | The model identifier exactly as a credential’s allowlist names it. |
+| `contextWindow` | The context window the endpoint serves for the model, in tokens. Without it, 128,000. |
+| `supportsVision` | `true` when the model reads images. Without it, Tale treats the model as text-only. |
+
+A declaration describes a model; it does not make one available. Only the identifiers in a credential’s allowlist are offered, and a declaration for any other identifier has no effect. Chat sizes the conversation history it sends from the window, and coding agents compact inside it, as [Verify sandbox model access](#verify-sandbox-model-access) describes. An organization admin can enter the same facts in the app, under **Model details** of the provider’s credential; see [Define a custom provider](/platform/admin/providers#define-a-custom-provider). Shipped connectors without a listing, such as Azure OpenAI, cannot be described this way, because their definitions belong to the image.
 
 ## Configure audio transcription
 
@@ -109,7 +139,7 @@ When a new sandbox session starts, the backend checks the custom provider’s ho
 
 After recreating the affected backend processes, start a new sandbox session with the intended provider, model and compatible agent runtime. Use a harmless request and verify a completed reply and the matching inference-server log entry. Inspect `sandbox-llm-gateway` logs if chat works but the agent cannot reach its model. `SANDBOX_EGRESS_ALLOWLIST` controls general sandbox web access, not this separate model connection.
 
-Coding agents also rely on the context window the catalog reports for the model: the `context_length` or `context_window` your server lists on `/v1/models`, or 128,000 tokens when the listing publishes neither, as for a provider configured with `catalog.source: none`. Make the listing report the context your server actually serves. When that window, or a lower [context limit](/platform/admin/governance/policies-and-limits) for the person who started the run, is below 200,000 tokens, a managed Claude Code session compacts its conversation into a summary before the prompt outgrows it. Claude Code treats any value below 100,000 tokens as 100,000, so a model that serves less can still receive longer prompts than it holds. Give Claude Code a model with at least that much context.
+Coding agents also rely on the context window the catalog reports for the model: the `context_length` or `context_window` your server lists on `/v1/models`, or 128,000 tokens when the listing publishes neither. A provider configured with `catalog.source: none` reports the window [its definition declares](#describe-models-without-a-listing) for the model, or 128,000 tokens. Make the listing or the declaration report the context your server actually serves. When that window, or a lower [context limit](/platform/admin/governance/policies-and-limits) for the person who started the run, is below 200,000 tokens, a managed Claude Code session compacts its conversation into a summary before the prompt outgrows it. At 200,000 tokens or more, Claude Code keeps its own sizing: the window it knows for the model, or 200,000 tokens for a model it does not know. Claude Code treats any value below 100,000 tokens as 100,000, so a model that serves less can still receive longer prompts than it holds. Give Claude Code a model with at least that much context.
 
 A managed Claude Code session on a model other than Claude also leaves out the attribution line Claude Code otherwise puts at the start of every system prompt. That line changes with each request, so a server that caches prompt prefixes would recompute the whole conversation on every turn.
 
@@ -166,6 +196,7 @@ auth:
 | `baseUrl` | A fixed endpoint shared by credentials. |
 | `endpointMode: per-credential` | Use an endpoint supplied with each credential instead of `baseUrl`, as Azure OpenAI does. |
 | `catalog.source` | `static`, `openrouter-api`, `models-endpoint`, or `none`. Static entries use the model catalog described above. |
+| `catalog.models` | With `none` only: the context window and image input of the models the credentials’ allowlists name; see [Describe models without a listing](#describe-models-without-a-listing). |
 | `embedding` | Whether the provider serves embeddings: `supported` when its catalog ships a curated vector width, `unsupported` when the vendor offers no embedding model, so **Settings > Data residency > Embedding model** refuses it, or `unknown`, the default, when an admin enters the model and its vector width. Declare `unsupported` only where the vendor's own documentation says so. |
 | `auth` and `constraints` | Allowed credential methods and any execution requirements, such as a named sandbox agent runtime. |
 
