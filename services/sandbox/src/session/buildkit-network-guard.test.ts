@@ -25,21 +25,37 @@ const path = join(dir, 'state.json');
 const s = JSON.parse(readFileSync(path, 'utf8'));
 const a = process.argv.slice(2);
 appendFileSync(join(dir, 'calls.jsonl'), JSON.stringify(a) + '\n');
+// Every command records its end, so a case can prove that nothing it started
+// is still running.
+function exit(code) {
+  appendFileSync(join(dir, 'finished.jsonl'), JSON.stringify(a) + '\n');
+  process.exit(code);
+}
+// Only a command that changes the state writes it back: a read that ends late
+// must never replace what was saved after it started.
+function save() { writeFileSync(path, JSON.stringify(s)); }
 function done(value = '', observation = '') {
-  writeFileSync(path, JSON.stringify(s));
   const text = typeof value === 'string' ? value : JSON.stringify(value);
   console.log(observation && s.truncated === observation ? text.padEnd(2 * 1024 * 1024, '\n') : text);
-  process.exit(0);
+  exit(0);
 }
-function fail() { console.error('fixture refusal'); process.exit(1); }
-if (a[0] === 'inspect') done(s.session, 'session');
-if (a[0] === 'network' && a[1] === 'inspect') done(s.network, 'network');
+function fail() { console.error('fixture refusal'); exit(1); }
+// The slow read answers well after the other one has.
+if (a[0] === 'inspect') {
+  if (s.slow === 'session') await Bun.sleep(300);
+  done(s.session, 'session');
+}
+if (a[0] === 'network' && a[1] === 'inspect') {
+  if (s.slow === 'network') await Bun.sleep(300);
+  done(s.network, 'network');
+}
 if (a[0] === 'network' && a[1] === 'connect') {
   if (s.connectFails) fail();
   s.connected = true;
   if (a[2] !== s.network.Id) fail();
   s.session.networks[s.network.Name] = {};
   if (s.extraNetworkAfterConnect) s.session.networks.foreign = {};
+  save();
   done();
 }
 if (a[0] === 'exec') {
@@ -66,6 +82,7 @@ if (a[0] === 'exec') {
   if (a.includes('-I')) {
     if (s.installFails === family) fail();
     if (s.installNoop !== family) s.guarded[family] = true;
+    save();
     done();
   }
 }
@@ -105,20 +122,31 @@ function initialState() {
     extraNetworkAfterConnect: false,
     execFails: false,
     truncated: '',
+    slow: '',
   };
 }
 let root = '';
+let dir = '';
 const originalDockerBin = process.env.DOCKER_BIN;
 async function save(state: ReturnType<typeof initialState>) {
-  await writeFile(join(root, 'state.json'), JSON.stringify(state));
+  await writeFile(join(dir, 'state.json'), JSON.stringify(state));
+}
+async function lines(file: string): Promise<string[]> {
+  const text = (await readFile(join(dir, file), 'utf8')).trim();
+  return text ? text.split('\n') : [];
 }
 async function calls(): Promise<string[][]> {
-  const text = (await readFile(join(root, 'calls.jsonl'), 'utf8')).trim();
-  return text ? text.split('\n').map((line) => JSON.parse(line)) : [];
+  return (await lines('calls.jsonl')).map((line) => JSON.parse(line));
 }
 async function attach() {
   const planned = await readBuildkitNetworkPlan(organizationId);
   return attachBuildkitNetwork(cfg, containerName, organizationId, planned);
+}
+/** A verdict comes only after every docker command it started has ended. */
+async function expectNothingRunning() {
+  expect((await lines('finished.jsonl')).sort()).toEqual(
+    (await lines('calls.jsonl')).sort(),
+  );
 }
 async function expectFailure(message: string) {
   try {
@@ -127,6 +155,7 @@ async function expectFailure(message: string) {
     expect(error instanceof Error ? error.message : String(error)).toContain(
       message,
     );
+    await expectNothingRunning();
     return;
   }
   throw new Error('Expected network attachment to fail');
@@ -140,14 +169,18 @@ async function expectDetached() {
 }
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'tale-build-network-guard-'));
-  const docker = join(root, 'docker');
+});
+// Every case has a fake docker of its own beside its state and its records,
+// so nothing one case started can read or write another's.
+beforeEach(async () => {
+  dir = await mkdtemp(join(root, 'case-'));
+  const docker = join(dir, 'docker');
   await writeFile(docker, FAKE_DOCKER);
   await chmod(docker, 0o755);
   process.env.DOCKER_BIN = docker;
-});
-beforeEach(async () => {
   await save(initialState());
-  await writeFile(join(root, 'calls.jsonl'), '');
+  await writeFile(join(dir, 'calls.jsonl'), '');
+  await writeFile(join(dir, 'finished.jsonl'), '');
 });
 afterAll(async () => {
   if (originalDockerBin === undefined) delete process.env.DOCKER_BIN;
@@ -277,7 +310,8 @@ describe('verified session build-network attachment', () => {
     await expectDetached();
     state.ipv6Disabled = true;
     await save(state);
-    await writeFile(join(root, 'calls.jsonl'), '');
+    await writeFile(join(dir, 'calls.jsonl'), '');
+    await writeFile(join(dir, 'finished.jsonl'), '');
     await attach();
     const checks = (await calls()).filter((call) => call.includes('/bin/sh'));
     // Before and after the IPv4 repair, and after attaching.
@@ -311,6 +345,38 @@ describe('verified session build-network attachment', () => {
       await expectDetached();
     },
   );
+
+  test.each([
+    ['session', 'network'],
+    ['network', 'session'],
+  ])(
+    'refusing a foreign %s leaves no %s read running',
+    async (foreign, slow) => {
+      const planned = await readBuildkitNetworkPlan(organizationId);
+      const state = initialState();
+      if (foreign === 'session') state.session.labels['tale.org'] = 'other-org';
+      else state.network.Labels['tale.org'] = 'other-org';
+      state.slow = slow;
+      await save(state);
+      expect(
+        attachBuildkitNetwork(cfg, containerName, organizationId, planned),
+      ).rejects.toThrow('refusing foreign');
+      await expectNothingRunning();
+    },
+  );
+
+  test('a foreign session and network report the session even when its read ends last', async () => {
+    const planned = await readBuildkitNetworkPlan(organizationId);
+    const state = initialState();
+    state.session.labels['tale.org'] = 'other-org';
+    state.network.Labels['tale.org'] = 'other-org';
+    state.slow = 'session';
+    await save(state);
+    expect(
+      attachBuildkitNetwork(cfg, containerName, organizationId, planned),
+    ).rejects.toThrow('foreign or unexpected session networks');
+    await expectNothingRunning();
+  });
 
   test.each([
     ['172.31.0.0/16', 'overlaps the inner Docker'],

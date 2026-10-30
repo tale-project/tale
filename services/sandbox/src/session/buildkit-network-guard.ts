@@ -240,10 +240,16 @@ export async function attachBuildkitNetwork(
   planned: BuildkitNetworkPlan,
 ): Promise<void> {
   const network = buildkitdNetworkName(organizationId);
-  const [, observed] = await Promise.all([
+  // Both reads run together, and the verdict waits for both: a refusal must
+  // not leave the other docker command running once this has returned. The
+  // session's verdict is reported first.
+  const [session, current] = await Promise.allSettled([
     inspectSessionNetworks(containerName, organizationId, [cfg.egressNetwork]),
     readBuildkitNetworkPlan(organizationId),
   ]);
+  if (session.status === 'rejected') throw session.reason;
+  if (current.status === 'rejected') throw current.reason;
+  const observed = current.value;
   if (
     observed.id !== planned.id ||
     JSON.stringify(observed.subnets) !== JSON.stringify(planned.subnets)
