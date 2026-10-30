@@ -15,10 +15,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
+import { harnessResumesConversations } from '../chat/external_turn_shared';
 import type { ActionCtx } from '../lib/ctx';
 import { resolveModel } from '../lib/providers/resolve_model';
+import { SessionMemoryBusyError } from '../node_only/sandbox/helpers/session_client';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { SANDBOX_DESTROY_PENDING_MESSAGE } from '../sandbox/session_constants';
+import { workflowAgentRetryResume } from './agent_retry';
 
 const io = vi.hoisted(() => ({
   /** The serving the resolver answers; the local gateway model when unset. */
@@ -29,6 +32,8 @@ const io = vi.hoisted(() => ({
   systemPrompt: null as unknown,
   /** What the session ensure throws, when it refuses. */
   sessionRefusal: undefined as Error | undefined,
+  /** What the exec start throws, when the session's runtime refuses it. */
+  execRefusal: undefined as Error | undefined,
   reservation: { allowed: true, budgetCents: 500 } as
     | { allowed: true; budgetCents: number }
     | { allowed: false; reason: string },
@@ -56,6 +61,8 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
       start?: { argv: string[]; env: Record<string, string> };
     }) => {
       if (args.start !== undefined) {
+        // A refused start launched nothing.
+        if (io.execRefusal !== undefined) throw io.execRefusal;
         io.starts.push({
           execId: args.execId,
           argv: args.start.argv,
@@ -165,13 +172,16 @@ function makeCtx(cursor: unknown) {
   const mutations: Array<{ name: string; args: Record<string, unknown> }> = [];
   const scheduled: string[] = [];
   const delays: number[] = [];
+  // The run the cursor reads serve: the retarget moves its agent to the
+  // resume's exec, as the shim's does, so a settle after it lands as it would.
+  let served = cursor;
   const ctx = {
     runQuery: async (ref: unknown, args: Record<string, unknown>) => {
       const name = functionRefName(ref);
       queries.push({ name, args });
       switch (name) {
         case 'automations/queries:readAgentCursor':
-          return cursor;
+          return served;
         case 'automations/queries:getRunLanguageContext':
           return {
             defaultLocale: 'de',
@@ -200,6 +210,19 @@ function makeCtx(cursor: unknown) {
         return io.reservation;
       }
       if (name === 'automations/human_asks:retargetAgentCursor') {
+        const run = served as { cursor: { agent: Record<string, unknown> } };
+        served = {
+          ...run,
+          cursor: {
+            ...run.cursor,
+            agent: {
+              ...run.cursor.agent,
+              execId: args.toExecId,
+              retargetedFrom: args.fromExecId,
+              deadlineAt: args.deadlineAt,
+            },
+          },
+        };
         return { retargeted: true };
       }
       return null;
@@ -226,6 +249,7 @@ beforeEach(() => {
   io.prompts = [];
   io.systemPrompt = null;
   io.sessionRefusal = undefined;
+  io.execRefusal = undefined;
   io.reservation = { allowed: true, budgetCents: 500 };
   vi.mocked(resolveModel).mockReset();
   vi.mocked(resolveProviderCredential).mockReset();
@@ -588,6 +612,92 @@ describe('an automation agent turn', () => {
         retryAfterMs: 15_000,
       },
     });
+  });
+
+  it('keeps the asking conversation for the re-kick when the session refuses the resumed exec for want of memory', async () => {
+    // Refused after the cursor moved to the resume's exec (#4719): nothing
+    // launched, so the settle still names the asking conversation and the
+    // answer it never brought, or the re-kick starts the node over — or
+    // resumes the conversation an earlier retry did, which the retarget kept.
+    servesWindow(65_536);
+    io.execRefusal = new SessionMemoryBusyError(
+      'wf-run-1',
+      'exec-resume',
+      5_000,
+      'the session is using 90% or more of its memory limit',
+    );
+    const parked = {
+      ...WAITING_CURSOR.cursor.agent,
+      resumedFrom: 'claude-session-0',
+      resumeReason: 'the stream broke',
+    };
+    const { ctx, mutations } = makeCtx({
+      ...WAITING_CURSOR,
+      cursor: { ...WAITING_CURSOR.cursor, agent: parked },
+    });
+
+    await resumeWorkflowAgentTurnWithAnswerImpl(ctx, {
+      organizationId: 'org-1',
+      askId: 'ask-1',
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    const retarget = mutations.find(
+      (m) => m.name === 'automations/human_asks:retargetAgentCursor',
+    )?.args;
+    expect(retarget?.fromExecId).toBe('exec-asking');
+    const settled = mutations.find(
+      (m) => m.name === 'automations/mutations:recordAgentTurnSettled',
+    )?.args;
+    expect(settled).toMatchObject({
+      execId: retarget?.toExecId,
+      result: {
+        errored: true,
+        failureCode: 'sandbox_capacity',
+        agentSessionId: 'claude-session-1',
+        undeliveredAskId: 'ask-1',
+        retryAfterMs: 15_000,
+      },
+    });
+
+    // The stepper's re-kick of that settle delivers the answer to the
+    // asking conversation.
+    const result = settled?.result as Parameters<
+      typeof workflowAgentRetryResume
+    >[0] & { reason: string };
+    const resume = workflowAgentRetryResume(result, result.reason, parked, {
+      resumable: harnessResumesConversations(parked.harness),
+    });
+    expect(resume).toEqual({
+      agentSessionId: 'claude-session-1',
+      reason: result.reason,
+      askId: 'ask-1',
+    });
+    io.execRefusal = undefined;
+    vi.mocked(console.error).mockClear();
+    await startWorkflowAgentTurnImpl(makeCtx({ status: 'running' }).ctx, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      nodeId: 'book',
+      execId: 'exec-2',
+      sessionId: 'wf-run-1',
+      harness: 'claude-code',
+      lane: 'gateway',
+      providerSlug: 'local-inference',
+      modelId: 'qwen3-32b',
+      gatewayModel: 'local-inference-org-1/qwen3-32b',
+      deadlineAt: Date.now() + 60_000,
+      request: { model: 'qwen3-32b', prompt: 'Book the synthetic invoice.' },
+      resume,
+    } as never);
+
+    expect(console.error).not.toHaveBeenCalled();
+    expect(io.starts).toHaveLength(1);
+    expect(io.starts[0]?.argv).toContain('claude-session-1');
+    const prompt = io.prompts.at(-1);
+    expect(prompt).toContain('The operator answered your question:');
+    expect(prompt).toContain('Cost centre 4711.');
+    expect(prompt).not.toContain('cut short by an infrastructure');
   });
 
   it('fails a start whose workspace an administrator is destroying with the reason, waiting for no room', async () => {
