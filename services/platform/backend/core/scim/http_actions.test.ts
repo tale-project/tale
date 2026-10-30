@@ -291,3 +291,72 @@ describe('PATCH hands the write the externalId, as PUT does', () => {
     expect(groupPut.written?.externalId).toBe('idp-9');
   });
 });
+
+/**
+ * A list filter the dispatcher does not evaluate — another attribute, another
+ * operator, or one it cannot read — is declined with 400 `invalidFilter`
+ * (RFC 7644 §3.4.2.2, §3.12), before any lookup. An empty list would tell the
+ * IdP that the member or team is missing, and it would create it again.
+ */
+describe('a filter Tale cannot evaluate is declined [SCIM-R9]', () => {
+  const SUPPORTED = { Users: 'userName eq', Groups: 'displayName eq' } as const;
+
+  async function list(
+    collection: 'Users' | 'Groups',
+    filter: string,
+  ): Promise<{ res: Response; runQuery: ReturnType<typeof vi.fn> }> {
+    const { rc, runQuery } = stubRc();
+    const impl = collection === 'Users' ? scimUsersImpl : scimGroupsImpl;
+    const res = await impl(
+      rc,
+      new Request(
+        `https://tale.example/scim/v2/${collection}?filter=${encodeURIComponent(filter)}`,
+      ),
+    );
+    return { res, runQuery };
+  }
+
+  it.each([
+    ['Users', 'externalId eq "abc-123"'],
+    ['Users', 'userName co "ada"'],
+    ['Users', 'userName eq "ada@example.com" and active eq true'],
+    ['Users', 'userName eq'],
+    ['Groups', 'externalId eq "grp-1"'],
+    ['Groups', 'displayName sw "Fin"'],
+    ['Groups', 'displayName eq "Finance'],
+  ] as const)(
+    'answers %s?filter=%s with 400 invalidFilter',
+    async (collection, filter) => {
+      const { res, runQuery } = await list(collection, filter);
+      expect(res.status).toBe(400);
+      const body: unknown = await res.json();
+      expect(body).toMatchObject({
+        scimType: 'invalidFilter',
+        status: '400',
+        detail: expect.stringContaining(SUPPORTED[collection]),
+      });
+      expect(runQuery).not.toHaveBeenCalled();
+    },
+  );
+
+  it('still looks up a user by userName eq', async () => {
+    const { res, runQuery } = await list(
+      'Users',
+      'userName eq "Ada@Example.com"',
+    );
+    expect(res.status).toBe(200);
+    expect(runQuery).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org_1',
+      userName: 'ada@example.com',
+    });
+  });
+
+  it('still looks up a group by displayName eq', async () => {
+    const { res, runQuery } = await list('Groups', 'displayName eq "Finance"');
+    expect(res.status).toBe(200);
+    expect(runQuery).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org_1',
+      displayName: 'Finance',
+    });
+  });
+});

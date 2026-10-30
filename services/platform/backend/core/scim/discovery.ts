@@ -21,7 +21,8 @@ export function serviceProviderConfig(): unknown {
     schemas: [SPC_SCHEMA],
     patch: { supported: true },
     bulk: { supported: false, maxOperations: 0, maxPayloadSize: 0 },
-    // We support the `attr eq "value"` filter IdPs use during sync.
+    // IdPs look a resource up during sync with `userName eq "…"` (Users) or
+    // `displayName eq "…"` (Groups); any other filter answers 400 invalidFilter.
     filter: { supported: true, maxResults: 200 },
     changePassword: { supported: false },
     sort: { supported: false },

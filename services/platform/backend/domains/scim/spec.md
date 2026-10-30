@@ -5,7 +5,7 @@
 With SCIM an organization's identity provider creates, updates and deactivates members, and
 keeps teams in step with its groups, without anyone signing in. A SCIM user is a member and a
 SCIM group is a team. These rules cover what the provider cannot do and what its changes take
-with them. The SCIM token, listing and filtering, and creating a member are not covered; see
+with them. The SCIM token, listing and paging, and creating a member are not covered; see
 Not yet.
 
 ## Members
@@ -69,6 +69,17 @@ another organization is answered as not found, and nothing is changed.
 - **Example**: The provider deletes the group behind the Finance team → a project that was
   restricted to Finance and Legal is restricted to Legal alone.
 
+## Looking up members and teams
+
+### SCIM-R9 · A provider can look up a user only by user name and a group only by name
+
+A user is looked up with `userName eq "…"` and a group with `displayName eq "…"`. A filter on
+another attribute, with another operator, or one Tale cannot read is refused, and nothing is
+looked up (400, `invalidFilter`). The answer's detail names the filter Tale reads.
+
+- **Example**: The provider looks for Mia with `externalId eq "abc-123"` → it receives a 400 with
+  the type `invalidFilter` and the filter Tale reads, not an empty list.
+
 ## How a refusal is answered
 
 ### SCIM-R8 · A refusal is answered in the error format identity providers read
@@ -89,5 +100,5 @@ The answer carries the reason as its detail.
 - **The SCIM token**: who can generate it, that it is shown once, and that every request must
   carry it (`routes.ts`).
 - **Creating and reactivating a member**, and the role a reactivated member gets back.
-- **Listing, paging and filtering** users and groups, and how the different providers' request
-  shapes are read (`core/scim/`).
+- **Listing and paging** users and groups, and how the different providers' request shapes are
+  read (`core/scim/`).

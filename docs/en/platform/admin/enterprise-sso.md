@@ -80,6 +80,8 @@ SCIM Users map to members and Groups to teams. Deactivation (`active: false`) di
 
 The organization owner cannot be deactivated or removed through SCIM. Groups can contain only members of this organization. A username change is refused if the new email is in use or the account belongs to multiple organizations, protecting its shared sign-in identity.
 
+Tale looks up users by `userName` and groups by `displayName`, with the `eq` operator. Keep these as your IdP's matching attributes. Tale refuses any other filter with an `invalidFilter` error.
+
 ## Sign members in through an authenticating proxy
 
 An application that already authenticates its users can hand them into this organization through its reverse proxy, so members never see Tale's sign-in form. The **Trusted headers** card on the same page holds the switch, the role ceiling and the keys the proxy presents.
@@ -104,6 +106,7 @@ Open a separate browser session and choose **Continue with SSO**. The organizati
 | Browser-binding error | Start sign-in again in the same browser and allow the cookies needed across redirects. |
 | Wrong role or missing team | Inspect the IdP's actual claims, role rules and their order, exclusions, and group permissions. An **App role** rule matches the app role's Value, not its display name or ID. |
 | SCIM cannot connect | Check the base URL, bearer token, and whether provisioning is enabled. |
+| The IdP reports an `invalidFilter` error | Set its matching attribute to `userName` for users and `displayName` for groups. |
 | Proxy sign-in is refused | Check that the card is on, the key is not revoked, and the proxy sends the email header and the key on the hand-off request. |
 | Missing redirect URL or server-configuration warning | Ask the deployment operator to check [authentication configuration](/self-hosted/configuration/authentication). |
 
