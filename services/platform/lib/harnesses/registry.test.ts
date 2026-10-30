@@ -40,6 +40,13 @@ function factOf(facts: HarnessDefinition[], slug: string): HarnessDefinition {
   return fact;
 }
 
+/** The resume slot of a fact, for doctoring what it states. */
+function resumeSlotOf(fact: HarnessDefinition) {
+  const slot = fact.exec.argv.find((s) => 'resume' in s);
+  if (!slot) throw new Error(`"${fact.slug}" has no resume slot`);
+  return slot.resume;
+}
+
 /** Re-validate one doctored fact through the schema and return the joined
  * issue messages ('' when it still validates). */
 function schemaProblems(fact: HarnessDefinition): string {
@@ -174,6 +181,47 @@ describe('schema coherence (the retired behavior-probing validator)', () => {
     codex.capabilities.resume = false;
     expect(schemaProblems(codex)).toMatch(
       /capabilities\.resume must match the presence of an argv resume slot/,
+    );
+  });
+
+  it('states which instructions every resumed conversation reads', () => {
+    // A fact of each pinned CLI, never inferred from how its instructions
+    // travel: the task host restates `recorded` ones at the head of every
+    // resumed turn. Cursor is handed none; Gemini never resumes.
+    const stated = Object.fromEntries(
+      loadHarnesses().flatMap((fact) => {
+        const slot = fact.exec.argv.find((s) => 'resume' in s);
+        return slot ? [[fact.slug, slot.resume.instructions ?? 'none']] : [];
+      }),
+    );
+    expect(stated).toEqual({
+      'claude-code': 'recorded',
+      'claude-code-compact': 'recorded',
+      codex: 'recorded',
+      cursor: 'none',
+      hermes: 'current',
+      openclaw: 'current',
+      opencode: 'current',
+      pi: 'current',
+      'qwen-code': 'current',
+    });
+  });
+
+  it('rejects a resume slot that leaves its instructions unstated', () => {
+    const facts = clonedFacts();
+    const claude = factOf(facts, 'claude-code');
+    delete resumeSlotOf(claude).instructions;
+    expect(schemaProblems(claude)).toMatch(
+      /a resume slot must state its instructions \(recorded or current\)/,
+    );
+  });
+
+  it('rejects stating the instructions of a harness that is handed none', () => {
+    const facts = clonedFacts();
+    const cursor = factOf(facts, 'cursor');
+    resumeSlotOf(cursor).instructions = 'recorded';
+    expect(schemaProblems(cursor)).toMatch(
+      /a resume slot states its instructions only when the harness delivers instructions/,
     );
   });
 

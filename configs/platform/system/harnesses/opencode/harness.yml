@@ -33,7 +33,13 @@ exec:
   bin: opencode
   argv:
     - args: ['run', '--format', 'json', '--dir', '${workdir}']
-    - resume: { flag: '-s' }
+    # A session stores its messages and no instructions: `opencode run`
+    # reads the files config `instructions` names on every model request,
+    # so a resumed session reads this exec's staged file. Observed on
+    # 1.18.34 against a local stand-in for the chat API. (The binary's
+    # experimental v2 session runner, which `run` does not use, would keep a
+    # recorded baseline and send changes as a separate message.)
+    - resume: { flag: '-s', instructions: current }
     # `-m` is only pushed for an explicit selection (config.model below is
     # the default either way); the value is the generated tale-provider ref.
     - model:

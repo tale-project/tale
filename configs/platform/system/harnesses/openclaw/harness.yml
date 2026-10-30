@@ -42,7 +42,12 @@ exec:
   bin: tale-openclaw-run
   argv:
     - args: ['--workdir', '${workdir}']
-    - resume: { flag: '--resume' }
+    # OpenClaw stores no system prompt with a session: every run reads the
+    # workspace AGENTS.md the wrapper staged and rebuilds its prompt, and a
+    # resumed session restores only the messages, so it reads this exec's
+    # instructions. Observed on 2026.9.8 against a local stand-in for the
+    # chat API.
+    - resume: { flag: '--resume', instructions: current }
   stdin:
     mode: json-envelope
     envelope:

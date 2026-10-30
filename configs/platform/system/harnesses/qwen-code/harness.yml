@@ -40,7 +40,12 @@ exec:
   bin: tale-qwen-run
   argv:
     - args: ['--workdir', '${workdir}']
-    - resume: { flag: '--resume' }
+    # The session file stores the turns and no system prompt: a resumed
+    # session rebuilds its system instruction from the context files this
+    # process reads, the wrapper's per-exec instructions file among them, so
+    # it reads this exec's instructions. Observed on 0.24.7 against a local
+    # stand-in for the chat API.
+    - resume: { flag: '--resume', instructions: current }
     - model: { flag: '--model' }
     - additionalDirs: { flag: '--include-directories' }
   stdin:

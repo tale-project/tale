@@ -44,7 +44,13 @@ exec:
   bin: tale-pi-run
   argv:
     - args: ['--workdir', '${workdir}']
-    - resume: { flag: '--resume' }
+    # Pi keeps the system prompt in the session as named sections, re-reads
+    # the staged APPEND_SYSTEM.md every process and stores what changed as a
+    # section update ahead of the new turn; the request carries the newest
+    # value of each section. So a resumed session reads this exec's
+    # instructions. Observed on 1.0.1 against a local stand-in for the chat
+    # API.
+    - resume: { flag: '--resume', instructions: current }
     # Managed: pin the staged gateway provider so model resolution never
     # wanders into Pi's built-in catalog (its default provider is google).
     # byo: the caller-resolved catalog id (or raw ref) resolves against Pi's

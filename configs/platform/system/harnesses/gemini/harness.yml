@@ -46,8 +46,9 @@ capabilities:
   # 'tool_calls'"). Every later kick of a task or node therefore starts a
   # FRESH conversation over the preserved workspace (the planners read this
   # flag; the exec builder refuses a handle). Flip to true and restore the
-  # `resume: { flag: '--resume' }` argv slot once the pin carries the
-  # upstream fix (still open on the pinned 0.62.0).
+  # `resume` argv slot, with its `instructions` fact checked against that
+  # pin, once the pin carries the upstream fix (still open on the pinned
+  # 0.62.0).
   resume: false
 parser: gemini-stream
 exec:

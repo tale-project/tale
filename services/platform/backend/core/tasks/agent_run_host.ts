@@ -838,20 +838,23 @@ function taskExecutionGuidance(
 }
 
 /** Whether a resumed conversation on this harness keeps the instructions it
- * recorded when it started, so its later turns must restate them. The
- * pinned Codex takes them as CLI config (`-c developer_instructions`, the
- * YAML's `instructions.configKey`) and renders that config into the thread
- * only with its initial context — the first turn, and again after it
- * compacts: `codex exec resume` loads the new value but keeps the recorded
- * developer message. Read from the harness facts, so a variant inherits it.
- * Exported for its unit test. */
+ * recorded when it started, so its later turns must restate them — the
+ * harness facts state it per pinned CLI on the resume slot
+ * (`instructions: recorded`), never inferred from how the instructions
+ * travel. The pinned Codex renders its `-c developer_instructions` config
+ * into the thread only with its initial context — the first turn, and again
+ * after it compacts: `codex exec resume` loads the new value but keeps the
+ * recorded developer message. The pinned Claude Code records its whole
+ * system prompt, `--append-system-prompt` included, into the transcript and
+ * sends that recorded prompt from a resumed process until it compacts. Read
+ * from the harness facts, so a variant inherits it. Exported for its unit
+ * test. */
 export function resumeKeepsRecordedInstructions(harness: string): boolean {
   if (!isHarnessSlug(harness)) return false;
   const def = loadHarnesses().find((h) => h.slug === harness);
   return (
     def?.exec.argv.some(
-      (slot) =>
-        'instructions' in slot && slot.instructions.configKey !== undefined,
+      (slot) => 'resume' in slot && slot.resume.instructions === 'recorded',
     ) ?? false
   );
 }
@@ -859,17 +862,18 @@ export function resumeKeepsRecordedInstructions(harness: string): boolean {
 /** A RESUMED turn's prompt — a later kick, an automatic retry, a steer
  * restart — opened by the turn's own execution, ahead of anything the task
  * says. On a harness that keeps the instructions its conversation recorded
- * ({@link resumeKeepsRecordedInstructions}: Codex), the opening restates
- * this exec's `instructions` whole — the organization's and the agent's,
- * the execution, skills, tools, credential names and language as they
- * stand now. Without it a retry read the run that started the conversation
- * as its own and took its own live run for another one, and every resumed
- * turn kept the guidance of that first turn until Codex compacted. The
- * other harnesses hand their instructions to every exec through a channel
- * of their own, so their opening names the execution alone rather than a
- * second copy of the instructions every turn. `keys` are the exec's own (a
- * steer restart's rotated one), and `instructions` the text its harness
- * carries — composed before this is called. */
+ * ({@link resumeKeepsRecordedInstructions}: Codex, Claude Code), the
+ * opening restates this exec's `instructions` whole — the organization's
+ * and the agent's, the execution, skills, tools, credential names and
+ * language as they stand now. Without it a retry read the run that started
+ * the conversation as its own and took its own live run for another one,
+ * and every resumed turn kept the guidance of that first turn until the
+ * CLI compacted. A harness whose resumed conversation reads each exec's
+ * instructions, or that is handed none, gets an opening that names the
+ * execution alone rather than a second copy of the instructions every
+ * turn. `keys` are the exec's own (a steer restart's rotated one), and
+ * `instructions` the text its harness carries — composed before this is
+ * called. */
 function resumedTurnPrompt(
   keys: Pick<TurnKeys, 'harness' | 'taskId' | 'agentId' | 'runId' | 'execId'>,
   instructions: string,
@@ -2990,8 +2994,8 @@ export async function steerTaskAgentTurnImpl(
       serving: prepared.serving,
       instructions,
       // A resumed conversation's turn opens with the ROTATED exec — and, on
-      // Codex, with these instructions whole — so it is opened only now that
-      // they are composed.
+      // a CLI that keeps its recorded instructions, with these instructions
+      // whole — so it is opened only now that they are composed.
       prompt:
         resume !== undefined
           ? resumedTurnPrompt({ ...args, execId }, instructions, prompt)
