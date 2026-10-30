@@ -131,6 +131,7 @@ import { checkRejectedUploadReclaim } from './domains/files/reject-blob.integrat
 import { checkHubFolderWriteRole } from './domains/folders/write-role.integration.ts';
 import { checkImmutableBudgetProjects } from './domains/governance/immutable-projects.integration.ts';
 import { checkProjectBudgets } from './domains/governance/project-budget.integration.ts';
+import { checkIdleSessionSweep } from './domains/governance/session-idle.integration.ts';
 import { checkUsageMetricsBuckets } from './domains/governance/usage-metrics.integration.ts';
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
@@ -65190,7 +65191,9 @@ async function main(): Promise<void> {
   // themselves, and a tick beside one made its outcome hang on the host's
   // minute boundary: the delivery lanes count what each trigger scan they
   // drive fired, the liveness lane sweeps the overdue run it seeded, the
-  // transcription watchdog lane counts the rows its sweep failed, and the
+  // transcription watchdog lane counts the rows its sweep failed, the
+  // idle-session lanes read back which sessions the sweep they drive revoked
+  // and which transaction audited them, and the
   // RAG watchdog lanes' rows lead every sweep's batch — a tick in its
   // 2-59/5 slot once failed the row the lock lane held, before the lane read
   // it back (#4113). A lane that needs a recurring job's work drives it;
@@ -65299,7 +65302,7 @@ async function main(): Promise<void> {
 
   // 1a'. Sign-in, the member and user doors and the owner checks all match
   //      `lower("email")`, which Better Auth's raw-column unique index
-  //      cannot serve. `indexUserEmailLower` in `db/migrate.ts` builds an
+  //      cannot serve. `buildBootIndexes` in `db/boot-indexes.ts` builds an
   //      expression index at boot (concurrently, rebuilt when a crashed
   //      build left it invalid); this proves it exists and is usable.
   const emailIndex = await sql<{ valid: boolean; def: string }[]>`
@@ -65313,6 +65316,25 @@ async function main(): Promise<void> {
       /lower\(\(?email/i.test(emailIndex[0]?.def ?? ''),
     `index=${emailIndex[0] === undefined ? 'MISSING' : `${emailIndex[0].valid ? 'valid' : 'INVALID'} ${emailIndex[0].def}`}`,
   );
+  // The same boot step builds the session sweeps' indexes: the reaper takes
+  // its batches by `"expiresAt"`, the idle sweep walks `"updatedAt"` with
+  // `"expiresAt"` beside it. Their lanes prove the plans use them.
+  for (const [name, columns] of [
+    ['session_expiresAt_idx', '("expiresAt")'],
+    ['session_updatedAt_expiresAt_idx', '("updatedAt", "expiresAt")'],
+  ] as const) {
+    const sessionIndex = await sql<{ valid: boolean; def: string }[]>`
+      SELECT i.indisvalid AS valid, pg_get_indexdef(i.indexrelid) AS def
+      FROM pg_index i
+      WHERE i.indexrelid = to_regclass(${`"${name}"`})
+    `;
+    record(
+      `boot builds a valid ${name} on "session" ${columns}`,
+      (sessionIndex[0]?.valid ?? false) &&
+        (sessionIndex[0]?.def ?? '').endsWith(`USING btree ${columns}`),
+      `index=${sessionIndex[0] === undefined ? 'MISSING' : `${sessionIndex[0].valid ? 'valid' : 'INVALID'} ${sessionIndex[0].def}`}`,
+    );
+  }
 
   // 1b. The boot backfill: accounts this deployment provisioned before a
   //     provisioned account counted as a verified one are caught up, and a
@@ -66018,6 +66040,7 @@ async function main(): Promise<void> {
         'checkPolicySweeps',
         () => checkPolicySweeps(sql, authCtx, `itest-${orgSuffix}`),
       ],
+      ['checkIdleSessionSweep', () => checkIdleSessionSweep(sql, record)],
       [
         'checkExpiredSessionReaper',
         () => checkExpiredSessionReaper(sql, authCtx, record),
