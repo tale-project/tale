@@ -343,7 +343,7 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'closed (false met a card awaiting review, or a done/cancelled one), ' +
     'self_start (you named yourself; hand the task to another agent), ' +
     'blocked (an open task blocks it) or paused (three automated ' +
-    'starts on this task within the hour, their automatic retries ' +
+    'starts on this task within the hour, every automatic retry ' +
     'included) start nothing. The run answers to whoever your run ' +
     'answers to and names you as the agent that started it; an agent you ' +
     'start cannot start further agents. Keep the run id in your report. ' +

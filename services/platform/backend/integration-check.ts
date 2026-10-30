@@ -202,6 +202,7 @@ import { checkIssueSync } from './domains/tasks/issue-sync.integration.ts';
 import { checkProjectTaskMetrics } from './domains/tasks/metrics.integration.ts';
 import { checkModelCapacityRetry } from './domains/tasks/model-capacity.integration.ts';
 import { checkNativeAgentRuns } from './domains/tasks/native-runs.integration.ts';
+import { checkOutOfMemoryRetryBudget } from './domains/tasks/out-of-memory-retry.integration.ts';
 import { checkTaskRepeatSeriesUpgrade } from './domains/tasks/repeat-series.integration.ts';
 import { checkTaskRepeat } from './domains/tasks/repeat.integration.ts';
 import { checkAutomatedRetryAgentBusy } from './domains/tasks/retry-agent-busy.integration.ts';
@@ -66232,6 +66233,10 @@ async function main(): Promise<void> {
       [
         'checkCooledStartRetry',
         () => checkCooledStartRetry(sql, authCtx, record),
+      ],
+      [
+        'checkOutOfMemoryRetryBudget',
+        () => checkOutOfMemoryRetryBudget(sql, authCtx, record),
       ],
       [
         'checkModelCapacityRetry',

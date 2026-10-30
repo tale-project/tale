@@ -9,7 +9,9 @@ import {
   freeCredentialRotations,
   isAutoRetryableFailure,
   isCredentialRotation,
+  refreshesRetryBudget,
   resolveAutoRetryBudget,
+  resourceExhaustedRetryDelayMs,
   type AutoRetryRunFacts,
 } from './task_auto_retry';
 
@@ -323,6 +325,69 @@ describe('resolveAutoRetryBudget', () => {
     expect(rows.length).toBeLessThanOrEqual(AUTO_RETRY_HISTORY_LIMIT);
     expect(resolveAutoRetryBudget(rows).retry).toBe(false);
     expect(resolveAutoRetryBudget(rows.slice(1)).retry).toBe(true);
+  });
+});
+
+describe('a run that keeps running out of memory (#5148) [TASK-R84]', () => {
+  /** A run the OOM killer ended after twenty minutes of work. */
+  function oom(overrides: Partial<AutoRetryRunFacts> = {}): AutoRetryRunFacts {
+    return failed({ failureCode: 'resource_exhausted', ...LONG, ...overrides });
+  }
+
+  it('counts a failure out of memory however long the run worked [TASK-R84]', () => {
+    const long = 20 * 60_000;
+    expect(
+      refreshesRetryBudget({
+        executedMs: long,
+        failureCode: 'resource_exhausted',
+      }),
+    ).toBe(false);
+    expect(
+      refreshesRetryBudget({ executedMs: long, failureCode: 'harness_error' }),
+    ).toBe(true);
+    expect(refreshesRetryBudget({ executedMs: long })).toBe(true);
+    expect(
+      refreshesRetryBudget({
+        executedMs: 60_000,
+        failureCode: 'harness_error',
+      }),
+    ).toBe(false);
+  });
+
+  it('retries a run that died of memory after 20 minutes three times, 2, 10 and 30 minutes apart, then stops [TASK-R84]', () => {
+    // The person's run, then each retry the budget allows, newest first —
+    // each dying of memory after twenty minutes. Bounded, so a budget that
+    // never ends fails the test instead of hanging it.
+    const history: AutoRetryRunFacts[] = [oom()];
+    const attempts: number[] = [];
+    const waits: number[] = [];
+    for (let round = 0; round < 10; round += 1) {
+      const budget = resolveAutoRetryBudget(history);
+      if (!budget.retry) break;
+      // The wait follows the attempt the failed run showed.
+      waits.push(resourceExhaustedRetryDelayMs(history[0]?.autoRetryAttempt));
+      attempts.push(budget.attempt);
+      history.unshift(oom({ autoRetryAttempt: budget.attempt }));
+    }
+    expect(attempts).toEqual([1, 2, AUTO_RETRY_MAX_ATTEMPTS]);
+    expect(waits).toEqual([2 * 60_000, 10 * 60_000, 30 * 60_000]);
+    expect(history).toHaveLength(AUTO_RETRY_MAX_ATTEMPTS + 1);
+  });
+
+  it('counts a long failure out of memory among other failures [TASK-R84]', () => {
+    expect(resolveAutoRetryBudget([failed(), oom(), failed()])).toEqual({
+      retry: true,
+      attempt: AUTO_RETRY_MAX_ATTEMPTS,
+    });
+    expect(
+      resolveAutoRetryBudget([oom(), failed(), oom(), failed()]).retry,
+    ).toBe(false);
+  });
+
+  it('still refreshes the budget at a long failure of any other kind [TASK-R84]', () => {
+    expect(resolveAutoRetryBudget([oom(), failed(LONG), oom(), oom()])).toEqual(
+      { retry: true, attempt: 1 },
+    );
   });
 });
 

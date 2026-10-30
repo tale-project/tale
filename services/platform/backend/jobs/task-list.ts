@@ -327,8 +327,8 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
     // stand now).
     // Attribution stays with the failed run's own starter — the retry
     // continues THEIR kick.
-    // A run an automation step or another agent started is retried under
-    // the delegated start's per-task budget too (`admitAutomatedStart`). The
+    // Every retry is admitted under the delegated start's per-task budget
+    // too (`admitAutomatedStart`), whoever started the run it continues. The
     // retry is kicked at once, its agent busy on other tasks or not: the run
     // it starts takes a worker of its own, or waits for one like any start
     // (`domains/tasks/agent-workers.ts`). The arm (`task.agent_retry`) and a
@@ -451,10 +451,11 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         return refusal;
       }
       // A run an automation step or another agent started stays one when
-      // retried: it still counts as automated and may not delegate, and
-      // the retry is an automated start the per-task budget admits like
-      // any other (`admitAutomatedStart`). A person's run carries no
-      // provenance, so its retries are never counted or refused there.
+      // retried: it still counts as automated and may not delegate. Every
+      // retry is an automated start the per-task budget admits like any
+      // other (`admitAutomatedStart`), a person's run's too: a run that keeps
+      // failing costs the same whoever started it. The person's own Start is
+      // never counted or refused there.
       let sessionId: string | undefined;
       if (startedVia !== undefined) {
         // The workspace family the retry works in: the standing one, or the
@@ -466,18 +467,18 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           agentId: input.agentId,
           startedBy: newest.startedBy,
         });
-        const admitted = await admitAutomatedStart(tx, {
-          task: {
-            id: input.taskId,
-            organizationId: input.organizationId,
-            projectId: task.projectId,
-          },
-          agentId: input.agentId,
-        });
-        if (!admitted.admitted) {
-          await retire(true);
-          return 'task_circuit_breaker';
-        }
+      }
+      const admitted = await admitAutomatedStart(tx, {
+        task: {
+          id: input.taskId,
+          organizationId: input.organizationId,
+          projectId: task.projectId,
+        },
+        agentId: input.agentId,
+      });
+      if (!admitted.admitted) {
+        await retire(true);
+        return 'task_circuit_breaker';
       }
       try {
         await kickAgentRun(tx, {

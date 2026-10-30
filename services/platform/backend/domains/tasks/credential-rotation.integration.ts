@@ -316,14 +316,21 @@ export async function checkCooledStartRetry(
   );
 
   // The same 429 -> cooldown pair in a delegated chain: both retry budgets
-  // must recognize the wait as the same event. The cancelled human run
-  // stays in the actual history, but never spends an automated start.
+  // must recognize the wait as the same event. The cancelled run stands for
+  // a person's own Start: it stays in the actual history, but never spends
+  // an automated start (an automatic retry does, whoever started the run it
+  // continues — #5148).
   await sql`
     UPDATE app.project_agent_runs SET
       trigger = CASE WHEN id = ${failedRunId} THEN 'auto_retry' ELSE 'delegated' END,
       started_via = 'agent', started_via_run_id = 'itest-manager-run',
       started_via_agent_id = ${agentId}
     WHERE task_id = ${taskId} AND id <> ${kicked.runId}
+  `;
+  await sql`
+    UPDATE app.project_agent_runs SET trigger = 'manual',
+      auto_retry_attempt = NULL
+    WHERE id = ${kicked.runId}
   `;
   const failedAutomatedAttempt = async (): Promise<void> => {
     const at = Date.now();

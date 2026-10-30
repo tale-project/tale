@@ -656,7 +656,7 @@ describe('task.agent_retry admission', () => {
       text.includes('started_via IS NOT NULL'),
     );
     expect(budget).toContain('FROM app.project_agent_runs');
-    expect(budget).not.toContain('trigger');
+    expect(budget).toContain("trigger IS NOT DISTINCT FROM 'auto_retry'");
     expect(kickAgentRun).toHaveBeenCalledTimes(1);
     expect(
       statements.some((text) => text.includes('INSERT INTO app.task_activity')),
@@ -687,18 +687,42 @@ describe('task.agent_retry admission', () => {
     expect(refusal).toBeDefined();
   });
 
-  it('never counts or refuses the retry of a run a person started', async () => {
+  it('counts the retry of a run a person started against the per-task budget, and kicks it while the hour has room [TASK-R12]', async () => {
+    const now = Date.now();
+
+    const lines = await deliver({
+      automatedStarts: [now - 30_000, now - 20_000],
+    });
+
+    expect(
+      statements.some(
+        (text) =>
+          text.includes('FROM app.project_agent_runs') &&
+          text.includes("trigger IS NOT DISTINCT FROM 'auto_retry'"),
+      ),
+    ).toBe(true);
+    expect(kickAgentRun).toHaveBeenCalledTimes(1);
+    expect(lines).toEqual([]);
+    expect(
+      statements.some((text) => text.includes('INSERT INTO app.task_activity')),
+    ).toBe(false);
+  });
+
+  it('refuses the retry of a run a person started once the hour holds three automated starts, and records why [TASK-R12]', async () => {
     const now = Date.now();
 
     const lines = await deliver({
       automatedStarts: [now - 50_000, now - 40_000, now - 30_000],
     });
 
-    expect(kickAgentRun).toHaveBeenCalledTimes(1);
-    expect(lines).toEqual([]);
+    expect(kickAgentRun).not.toHaveBeenCalled();
+    expect(lines).toEqual([
+      '[task-agent] auto-retry skipped: task_circuit_breaker',
+    ]);
+    expect(retireAutoRetry).toHaveBeenCalledWith(...retiredWith(true));
     expect(
-      statements.some((text) => text.includes('started_via IS NOT NULL')),
-    ).toBe(false);
+      statements.some((text) => text.includes('INSERT INTO app.task_activity')),
+    ).toBe(true);
   });
 
   it.each(['backlog', 'todo', 'in_progress'])(

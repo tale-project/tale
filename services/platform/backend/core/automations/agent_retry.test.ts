@@ -197,6 +197,34 @@ describe('planWorkflowAgentRetry', () => {
     ).toMatchObject({ retry: true, attempt: 1 });
   });
 
+  it('counts a sandbox out of memory however long the attempt worked, so the re-kicks end', () => {
+    // Twenty minutes of work before each kill refreshes nothing: the same
+    // work meets the same memory limit (task-lane parity, #5148). Bounded,
+    // so a budget that never ends fails the test instead of hanging it.
+    let parked: WorkflowAgentAttempt = { launchedAt: LONG };
+    const attempts: number[] = [];
+    for (let round = 0; round < 10; round += 1) {
+      const plan = planWorkflowAgentRetry(parked, 'resource_exhausted', NOW);
+      attempts.push(plan.attempt);
+      if (!plan.retry) break;
+      parked = { attempt: plan.attempt, launchedAt: LONG };
+    }
+    expect(attempts).toEqual([
+      1,
+      2,
+      AUTO_RETRY_MAX_ATTEMPTS,
+      AUTO_RETRY_MAX_ATTEMPTS + 1,
+    ]);
+    // Any other failure after the same work still refreshes the budget.
+    expect(
+      planWorkflowAgentRetry(
+        { attempt: AUTO_RETRY_MAX_ATTEMPTS, launchedAt: LONG },
+        'turn_crashed',
+        NOW,
+      ),
+    ).toMatchObject({ retry: true, attempt: 1 });
+  });
+
   it('counts a model-capacity failure but keeps the account the model refused in the pool', () => {
     // Codex's terminal "Selected model is at capacity": the model refused
     // everyone, which says nothing about this account — task-lane parity

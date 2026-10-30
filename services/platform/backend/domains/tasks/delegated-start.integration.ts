@@ -1703,12 +1703,12 @@ export async function checkDelegatedAgentStartTool(
       `closed=${JSON.stringify(closedStart)} card=${closedRow[0]?.status} runs=${describeRuns(closedRuns)} standing=${JSON.stringify(standing)} card=${standingRow[0]?.status} runs=${describeRuns(standingRuns)} reviews=${standingReviews[0]?.count}`,
     );
 
-    // ---- the hourly budget counts automatic retries, a person's never ------
+    // ---- the hourly budget counts every automatic retry, a person's Start never
     // A delegated start, then each failure's actual queued retry payload
     // through the real retry worker (turns held inert): the retries inherit
     // `started_via`, so the third automated start fills the hour's budget
     // and the retry that would be the fourth is refused, as is the manager's
-    // next restart. A person's Start in that hour, and its retry, are not.
+    // next restart. A person's Start in that hour is not; its retry is.
     const retrySkips: string[] = [];
     const failAndRetry = (taskId: string): Promise<void> =>
       failNewestRunAndRetry(sql, taskId, retrySkips);
@@ -1752,8 +1752,9 @@ export async function checkDelegatedAgentStartTool(
     );
     // A person's work in a full hour: three delegated starts of another task
     // (each cancelled, so no failure streak builds) fill its budget and the
-    // manager's fourth is paused; a person's Start still runs, and when it
-    // fails its retry is still kicked.
+    // manager's fourth is paused; a person's Start still runs, but when it
+    // fails its retry counts like any automatic start (#5148), so it is
+    // refused and the timeline says why.
     const personRefusedBefore: string[] = [];
     const skipsBeforePerson = retrySkips.length;
     for (let start = 0; start < AUTOMATED_STARTS_PER_TASK_PER_HOUR; start++) {
@@ -1788,21 +1789,32 @@ export async function checkDelegatedAgentStartTool(
     const personBudgetBody: unknown = await personBudgetStart
       .json()
       .catch(() => null);
+    const breakerRefusals = async () =>
+      (
+        await sql<{ count: number }[]>`
+          SELECT count(*)::int AS count FROM app.task_activity
+          WHERE task_id = ${personTask} AND action = 'agent_run.refused'
+            AND to_value = 'task_circuit_breaker'
+        `
+      )[0]?.count ?? -1;
+    const refusalsBeforeRetry = await breakerRefusals();
     await failAndRetry(personTask);
     const budgetWithPerson = await runsOf(sql, personTask);
+    const refusalsAfterRetry = await breakerRefusals();
     record(
-      "delegation: in an hour whose automated budget is spent, a person's Start still starts the agent, and its automatic retry is still kicked — neither is counted or refused",
+      "delegation: in an hour whose automated budget is spent, a person's Start still starts the agent uncounted, but its automatic retry counts like any other: refused, nothing kicked, and the timeline says why [TASK-R12]",
       personRefusedBefore.length === 0 &&
         outputOf(fourth).reason === 'paused' &&
         personBudgetStart.status === 200 &&
         isRecord(personBudgetBody) &&
         personBudgetBody.started === true &&
         describeRuns(budgetWithPerson) ===
-          'cancelled/delegated,cancelled/delegated,cancelled/delegated,failed/manual,queued/auto_retry' &&
+          'cancelled/delegated,cancelled/delegated,cancelled/delegated,failed/manual' &&
         budgetWithPerson[3]?.startedVia === null &&
-        budgetWithPerson[4]?.startedVia === null &&
-        retrySkips.length === skipsBeforePerson,
-      `refused before=${JSON.stringify(personRefusedBefore)} fourth=${JSON.stringify(fourth)} person=${personBudgetStart.status} ${JSON.stringify(personBudgetBody)} runs=${describeRuns(budgetWithPerson)} new skips=${retrySkips.slice(skipsBeforePerson).join(',') || 'none'}`,
+        retrySkips.slice(skipsBeforePerson).join(',') ===
+          'task_circuit_breaker' &&
+        refusalsAfterRetry === refusalsBeforeRetry + 1,
+      `refused before=${JSON.stringify(personRefusedBefore)} fourth=${JSON.stringify(fourth)} person=${personBudgetStart.status} ${JSON.stringify(personBudgetBody)} runs=${describeRuns(budgetWithPerson)} (want the person's run failed, no retry) new skips=${retrySkips.slice(skipsBeforePerson).join(',') || 'none'} (want task_circuit_breaker) breaker refusals=${refusalsBeforeRetry}→${refusalsAfterRetry} (want one more)`,
     );
 
     // ---- a resumption answers the open question, or changes nothing ------
