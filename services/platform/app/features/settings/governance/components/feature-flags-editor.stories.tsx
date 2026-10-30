@@ -45,6 +45,7 @@ const meta: Meta<typeof FeatureFlagsEditor> = {
     mocked(useOrgTeams).mockReturnValue({
       teams: [],
       isLoading: false,
+      error: null,
       unavailable: false,
       stale: false,
       retrying: false,

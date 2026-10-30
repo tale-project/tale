@@ -8,6 +8,8 @@ deliveryDescription:
   escalades) peuvent aussi arriver sur ton e-mail de compte quand
   l'organisation a une boîte connectée.
 saveFailed: Impossible d'enregistrer tes préférences de notification.
+loadFailed: "Impossible de charger tes préférences de notification."
+refreshFailed: "Impossible d’actualiser tes préférences de notification. L’affichage n’est peut-être plus à jour."
 fields:
   actionableEmail:
     label: M'envoyer les alertes actionnables par e-mail

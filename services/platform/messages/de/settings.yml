@@ -331,6 +331,7 @@ teams:
   noMembersToAdd: Alle Organisationsmitglieder sind bereits in diesem Team
   noTeamMembers: Noch keine Mitglieder in diesem Team
   sectionDescription: Teams verwalten und Mitglieder in Gruppen organisieren.
+  refreshFailed: "Die neuesten Teams konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet."
   memberCount: '{count} {count, plural, one {Mitglied} other {Mitglieder}}'
   teamName: Teamname
   teamNamePlaceholder: Teamname eingeben...
@@ -560,6 +561,8 @@ connectors:
     endpointHelpGeneric: Der https-Ursprung der Instanz, zu der dieser Eintrag gehört.
 enterpriseSso:
   connected: Die Anmeldung ist aktiviert.
+  loadFailed: "Die SSO-Verbindung konnte nicht geladen werden."
+  refreshFailed: "Die SSO-Verbindung konnte nicht aktualisiert werden. Die Anzeige ist womöglich veraltet."
   copy: Kopieren
   protocolLabel: Protokoll
   protocolHelp:

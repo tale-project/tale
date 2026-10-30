@@ -18,7 +18,14 @@ import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { useToast } from '@tale/ui/use-toast';
 import { AlertTriangle, Loader2 } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Ref,
+} from 'react';
 import {
   Controller,
   type Control,
@@ -79,6 +86,9 @@ interface Props {
   organizationId: string;
   /** The loaded connection view, or `undefined` while the parent is loading. */
   config: EnterpriseSsoConfig | undefined;
+  /** The form's first section, where the page hands the focus a failed
+   * read's Try again held once the connection comes back. */
+  sectionRef?: Ref<HTMLElement>;
 }
 
 const DEFAULT_SCOPES: Record<UiProtocol, string> = {
@@ -212,7 +222,11 @@ const MAX_METADATA_UPLOAD_BYTES = 1_048_576;
  * treated as "not customized" when the protocol switch re-derives the name. */
 const LEGACY_DEFAULT_DISPLAY_NAME = 'Enterprise SSO';
 
-export function EnterpriseSsoForm({ organizationId, config }: Props) {
+export function EnterpriseSsoForm({
+  organizationId,
+  config,
+  sectionRef,
+}: Props) {
   const { t } = useT('settings');
   const { t: tNav } = useT('navigation');
   const { t: tAuth } = useT('auth');
@@ -849,7 +863,12 @@ export function EnterpriseSsoForm({ organizationId, config }: Props) {
             );
           })()}
 
-          <SettingsSection title={tNav('enterpriseSso')}>
+          <SettingsSection
+            ref={sectionRef}
+            tabIndex={-1}
+            className="outline-none"
+            title={tNav('enterpriseSso')}
+          >
             {connected && (
               <StatusIndicator variant="success">
                 {t('enterpriseSso.connected')}
