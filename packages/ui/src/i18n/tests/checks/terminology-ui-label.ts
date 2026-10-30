@@ -2,7 +2,10 @@
  * `terminology-ui-label` — glossary terms in {feature, role, knowledgeEntity}
  * whose locale form differs from `en` and whose `en` form appears in
  * non-EN text, or whose `_avoid` list names a form that the locale's text
- * uses in any case (a lowercase loanword, a retired translation).
+ * uses in any case (a lowercase loanword, a retired translation). A match
+ * inside a name from the term's `_allow` list for the locale (another
+ * vendor's product, such as `Google Workspace`) names something else and
+ * is skipped. Swiss German reads the German lists unless it has its own.
  *
  * Distinct from `terminology-loanword`: this check is scoped to UI-label
  * categories (the noun shows up as a button/menu/panel label) and produces
@@ -19,12 +22,12 @@ const WORD_START = '(?<![\\p{L}\\p{N}_])';
 const WORD_END = '(?![\\p{L}\\p{N}_])';
 
 /**
- * Case-insensitive name. Brackets confine an ordinary word to a context:
- * `sous [gel]` reports `gel` only right after `sous`, so `gel du code` stays
- * clean, and the finding starts where a longer name such as `gel juridique`
- * starts, so it never adds a second finding there.
+ * Case-insensitive name from `_avoid` or `_allow`. Brackets confine an
+ * ordinary word to a context: `sous [gel]` matches `gel` only right after
+ * `sous`, so `gel du code` stays clean, and the match starts where a longer
+ * name such as `gel juridique` starts, so it never adds a second finding there.
  */
-function avoidedName(entry: string): RegExp {
+function listedName(entry: string): RegExp {
   const scoped = /^([^[\]]*)\[([^[\]]+)\]([^[\]]*)$/u.exec(entry);
   const before = scoped?.[1] ?? '';
   const name = scoped?.[2] ?? entry;
@@ -33,6 +36,22 @@ function avoidedName(entry: string): RegExp {
     `(?<=${WORD_START}${escapeRegex(before)})${escapeRegex(name)}(?=${escapeRegex(after)}${WORD_END})`,
     'giu',
   );
+}
+
+/** Where the text uses an allowed name: `[start, end)` per occurrence. */
+function allowedSpans(
+  allowed: ReadonlyArray<RegExp>,
+  text: string,
+): Array<readonly [number, number]> {
+  const spans: Array<readonly [number, number]> = [];
+  for (const name of allowed) {
+    name.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = name.exec(text)) !== null) {
+      spans.push([m.index, m.index + m[0].length]);
+    }
+  }
+  return spans;
 }
 
 const ENFORCED_CATEGORIES: ReadonlyArray<Category> = [
@@ -64,9 +83,12 @@ export const terminologyUiLabel = createCheck({
           term,
           re: wordBoundary(term.en, 'g'),
           // An empty name would match everywhere, without advancing.
-          avoided: (term._avoid?.[locale.id] ?? [])
+          avoided: (glossary.forLocale(term._avoid, locale.id) ?? [])
             .filter((name) => name !== '')
-            .map(avoidedName),
+            .map(listedName),
+          allowed: (glossary.forLocale(term._allow, locale.id) ?? [])
+            .filter((name) => name !== '')
+            .map(listedName),
           native: glossary.resolveForm(term, locale.id),
         }));
       if (applicable.length === 0) continue;
@@ -88,11 +110,19 @@ export const terminologyUiLabel = createCheck({
         if (fragment.disabled?.has('terminology-ui-label')) continue;
         if (!anyTerm.test(fragment.text) && !anyAvoided?.test(fragment.text))
           continue;
-        for (const { term, re, avoided, native } of applicable) {
+        for (const { term, re, avoided, allowed, native } of applicable) {
+          const spans = allowedSpans(allowed, fragment.text);
+          // Inside an allowed name the word names something else.
+          const isAllowed = (match: RegExpExecArray) =>
+            spans.some(
+              ([start, end]) =>
+                start <= match.index && match.index + match[0].length <= end,
+            );
           const reported = new Set<number>();
           re.lastIndex = 0;
           let m: RegExpExecArray | null;
           while ((m = re.exec(fragment.text)) !== null) {
+            if (isAllowed(m)) continue;
             reported.add(m.index);
             findings.push({
               file: fragment.pos.file,
@@ -110,7 +140,7 @@ export const terminologyUiLabel = createCheck({
           for (const name of avoided) {
             name.lastIndex = 0;
             while ((m = name.exec(fragment.text)) !== null) {
-              if (reported.has(m.index)) continue;
+              if (reported.has(m.index) || isAllowed(m)) continue;
               reported.add(m.index);
               findings.push({
                 file: fragment.pos.file,
