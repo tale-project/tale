@@ -1188,6 +1188,9 @@ export async function stageWorkflowFiles(
       toStage.push({
         path: `${pathPrefix}${name}/${file.name}`,
         url,
+        ...(typeof file.sizeBytes === 'number'
+          ? { expectedBytes: file.sizeBytes }
+          : {}),
         sourceId: stageBlobCacheKey(organizationId, String(file.fileId)),
       });
     }

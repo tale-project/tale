@@ -406,7 +406,7 @@ async function stageImages(
           'this deployment cannot sign a sandbox stage URL (no HMAC root)',
         );
       }
-      toStage.push({ path, url });
+      toStage.push({ path, url, expectedBytes: image.bytes.byteLength });
     }
     const result = await sessionStageFiles(args.sessionId, toStage);
     return {

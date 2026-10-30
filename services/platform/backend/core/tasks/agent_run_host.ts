@@ -509,8 +509,8 @@ export async function stageTaskInputs(
     organizationId: string;
     sessionId: string;
     taskId: string;
-    attachments: Array<{ fileId: string; fileName: string; withheld?: string }>;
-    outputs: Array<{ fileId: string; fileName: string }>;
+    attachments: Array<{ fileId: string; fileName: string; withheld?: string; fileSize?: number }>;
+    outputs: Array<{ fileId: string; fileName: string; fileSize?: number }>;
   },
 ): Promise<StagedTaskInputs> {
   const dir = taskInputsDir(args.taskId);
@@ -555,6 +555,7 @@ export async function stageTaskInputs(
       toStage.push({
         path,
         url,
+        expectedBytes: file.fileSize,
         sourceId: stageBlobCacheKey(args.organizationId, file.fileId),
       });
       planned.set(path, {
