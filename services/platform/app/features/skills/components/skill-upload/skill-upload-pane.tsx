@@ -10,16 +10,19 @@ import { useT } from '@/lib/i18n/client';
 import { isAbortError } from '@/lib/utils/abort-error';
 
 import { isSkillPublishRefusal } from '../../hooks/mutations';
-import { useOrgReservedReason } from '../../hooks/use-org-reserved-reason';
+import { useSkillAudience } from '../../hooks/use-skill-audience';
+import type { SkillSharingValue } from '../skill-visibility-field';
 import { useSkillBundleUpload } from './hooks/use-skill-bundle-upload';
 import { useUploadSkill } from './hooks/use-upload-skill';
 import { PreviewStep } from './steps/preview-step';
 import { UploadStep } from './steps/upload-step';
+import type { ParsedSkillBundle } from './utils/parse-skill-bundle';
 
 /**
- * The library dialog's upload pane: pick (zip or folder) → preview → submit
- * through the four-hop storage flow, with the replace-an-existing-bundle
- * confirmation stacked on top.
+ * The library dialog's upload pane: pick (zip or folder) → preview, which
+ * asks whom the skill is for → submit through the four-hop storage flow,
+ * carrying that audience, with the replace-an-existing-bundle confirmation
+ * stacked on top.
  */
 export function SkillUploadPane({
   organizationId,
@@ -37,12 +40,30 @@ export function SkillUploadPane({
   const { t: tCommon } = useT('common');
 
   const state = useUploadSkill();
-  const orgReservedReason = useOrgReservedReason(organizationId);
-  // An organization-wide bundle the viewer may not publish: the server
-  // would refuse it, so the preview says why and nothing is sent.
-  const orgWideReserved =
-    orgReservedReason !== undefined &&
-    state.parsedBundle?.meta.visibility === 'org';
+  const bundle = state.parsedBundle;
+  // The member's pick holds for the bundle it was made on; a bundle picked
+  // afresh starts on its own default again.
+  const [picked, setPicked] = useState<{
+    bundle: ParsedSkillBundle;
+    sharing: SkillSharingValue;
+  } | null>(null);
+  const audience = useSkillAudience(organizationId, {
+    picked: picked !== null && picked.bundle === bundle ? picked.sharing : null,
+    ...(bundle
+      ? {
+          declared: {
+            visibility: bundle.meta.visibility,
+            teams: bundle.meta.teams ?? [],
+          },
+        }
+      : {}),
+  });
+  const pickSharing = useCallback(
+    (sharing: SkillSharingValue) => {
+      if (bundle) setPicked({ bundle, sharing });
+    },
+    [bundle],
+  );
   const { upload, isMountedRef } = useSkillBundleUpload(organizationId);
   const [confirmReplaceSlug, setConfirmReplaceSlug] = useState<string | null>(
     null,
@@ -50,9 +71,8 @@ export function SkillUploadPane({
 
   const runUpload = useCallback(
     async (force: boolean): Promise<boolean> => {
-      const bundle = state.parsedBundle;
       if (!bundle) return false;
-      const outcome = await upload(bundle.zipFile, force);
+      const outcome = await upload(bundle.zipFile, force, audience.sharing);
       if (outcome.status === 'aborted') return false;
       if (outcome.status === 'needs_confirm') {
         if (isMountedRef.current) setConfirmReplaceSlug(outcome.slug);
@@ -60,7 +80,7 @@ export function SkillUploadPane({
       }
       return true;
     },
-    [state.parsedBundle, upload, isMountedRef],
+    [bundle, upload, audience.sharing, isMountedRef],
   );
 
   const submit = useCallback(
@@ -107,7 +127,8 @@ export function SkillUploadPane({
             ) : state.parsedBundle ? (
               <PreviewStep
                 parsedBundle={state.parsedBundle}
-                orgReservedReason={orgReservedReason}
+                audience={audience}
+                onAudienceChange={pickSharing}
               />
             ) : null}
           </div>
@@ -131,7 +152,11 @@ export function SkillUploadPane({
               <Button
                 type="button"
                 onClick={() => void submit(false)}
-                disabled={!state.parsedBundle || orgWideReserved}
+                disabled={
+                  !state.parsedBundle ||
+                  audience.noAudience ||
+                  audience.audienceMissing
+                }
                 isLoading={state.isSubmitting}
               >
                 {state.isSubmitting

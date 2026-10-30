@@ -68,7 +68,7 @@ brief-summary/
     └── example-brief.md
 ```
 
-L’aperçu présente les métadonnées, le partage, la licence et la liste des fichiers avant que **Téléverser le bundle** n’enregistre quoi que ce soit. Vérifie le contenu et le public. Sans `visibility`, le partage est ouvert à l’organisation. Si ton organisation le réserve et que tu ne peux pas publier, l’aperçu le signale et **Téléverser le bundle** reste indisponible ; ajoute `visibility: team` et les identifiants de tes équipes dans `SKILL.md`. Quand tu crées un skill d’équipe ou modifies ses équipes, tu ne peux indiquer que des équipes de ton organisation, et seulement les tiennes si tu n’es pas administrateur. Tu peux conserver la liste existante même si une équipe a été supprimée depuis. Un `owner` indiqué dans le fichier est ignoré : un nouveau skill t’appartient. Un skill remplacé garde son propriétaire actuel ou t’appartient s’il n’en avait pas. Si le nom existe déjà, Tale demande s’il faut remplacer le skill ; ce remplacement concerne aussi les agents qui l’utilisent.
+L’aperçu présente les métadonnées, la **Visibilité**, la licence et la liste des fichiers avant que **Téléverser le bundle** n’enregistre quoi que ce soit. Vérifie le contenu et choisis sous **Visibilité** à qui le skill est destiné. Elle reprend d’abord ce que déclare `SKILL.md` ; sans `visibility`, c’est **Organisation**. Tale écrit ton choix dans le `SKILL.md` enregistré : tu n’as jamais à y saisir d’identifiants d’équipes. Si ton organisation réserve le partage avec tout le monde et que tu ne peux pas publier, l’aperçu commence avec **Équipes** et toutes tes équipes ; retire celles auxquelles le skill n’est pas destiné. Quand tu crées un skill d’équipe ou modifies ses équipes, tu ne peux indiquer que des équipes de ton organisation, et seulement les tiennes si tu n’es pas administrateur. Tu peux conserver la liste existante même si une équipe a été supprimée depuis. Un `owner` indiqué dans le fichier est ignoré : un nouveau skill t’appartient. Un skill remplacé garde son propriétaire actuel ou t’appartient s’il n’en avait pas. Si le nom existe déjà, Tale demande s’il faut remplacer le skill ; ce remplacement concerne aussi les agents qui l’utilisent.
 
 <Warning>
 
@@ -93,7 +93,7 @@ Par défaut, chaque membre peut partager un skill avec toute l’organisation. U
 
 - **Organisation** n’est pas disponible sous **Visibilité**, et un nouveau skill commence avec **Équipes**. Tu peux partager avec tes propres équipes.
 - Un skill partagé avec l’organisation que tu as créé ne peut pas être modifié sur place. Restreins-le à tes équipes, avec d’autres modifications dans le même enregistrement si besoin, ou supprime-le.
-- L’aperçu du téléversement signale un bundle qui serait partagé avec toute l’organisation, y compris un bundle sans `visibility`, et **Téléverser le bundle** reste indisponible.
+- Pour un bundle qui serait partagé avec toute l’organisation, y compris un bundle sans `visibility`, l’aperçu du téléversement commence avec **Équipes** et tes équipes. Si tu ne fais partie d’aucune équipe, il t’invite à demander à un admin de t’ajouter à une équipe, et **Téléverser le bundle** reste indisponible.
 
 Les skills déjà partagés avec l’organisation le restent.
 
@@ -130,7 +130,7 @@ ouvertes. Cite les preuves et marque les informations absentes « Non précisé 
 | --- | --- |
 | `name` | Correspond au nom du dossier. `anthropic` et `claude` sont réservés. |
 | `description` | Quand et pourquoi lire le skill ; 1 024 caractères maximum. |
-| `visibility` / `teams` | `org`, ou `team` accompagné des identifiants d’équipes. L’interface remplit ces valeurs. |
+| `visibility` / `teams` | `org`, ou `team` accompagné des identifiants d’équipes. L’éditeur et l’aperçu du téléversement remplissent ces valeurs. |
 | `owner` | L’identifiant utilisateur du membre qui a créé le skill. Tale le renseigne ; une valeur présente dans un fichier téléversé est ignorée. |
 | `license` | Les conditions d’utilisation fournies par l’auteur. |
 | `recommended-packages` | Les dépendances conseillées ; l’import ne les installe pas. |

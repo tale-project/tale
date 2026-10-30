@@ -1,5 +1,6 @@
 import { parseEntityTagList } from '@tale/shared/http/entity-tag';
 import {
+  SKILL_EDIT_VISIBILITIES,
   SKILL_VISIBILITIES,
   skillEditFields,
 } from '@tale/shared/schemas/skills';
@@ -56,6 +57,21 @@ const editSchema = z.object({
   ...skillEditFields,
   visibility: z.enum(SKILL_VISIBILITIES).optional(),
 });
+
+/** An upload names its staged zip and, from the preview, whom the skill is
+ * for — never `private`, and `teams` only for `team` — at the editor's own
+ * caps; without `visibility` the bundle's `SKILL.md` decides. */
+const uploadSchema = z
+  .object({
+    storageId: z.string().min(1).max(2_000),
+    force: z.boolean().optional(),
+    visibility: z.enum(SKILL_EDIT_VISIBILITIES).optional(),
+    teams: skillEditFields.teams,
+  })
+  .refine((body) => body.teams === undefined || body.visibility === 'team', {
+    message: 'teams is only allowed with visibility "team"',
+    path: ['teams'],
+  });
 
 export function createSkillRoutes(deps: {
   sql: Sql;
@@ -246,13 +262,9 @@ export function createSkillRoutes(deps: {
 
   /** The bundle-upload lane (zip staged via the org byte lane). */
   app.post('/upload', async (c) => {
-    const body = z
-      .object({
-        storageId: z.string().min(1).max(2_000),
-        force: z.boolean().optional(),
-      })
-      .safeParse(await c.req.json());
+    const body = uploadSchema.safeParse(await c.req.json());
     if (!body.success) return invalidBodyResponse(c, body.error);
+    const { visibility, teams } = body.data;
     try {
       const who = await caller(c);
       return c.json(
@@ -263,6 +275,14 @@ export function createSkillRoutes(deps: {
           actor: who.actor,
           storageId: body.data.storageId,
           ...(body.data.force !== undefined ? { force: body.data.force } : {}),
+          ...(visibility !== undefined
+            ? {
+                audience: {
+                  visibility,
+                  ...(teams !== undefined ? { teams } : {}),
+                },
+              }
+            : {}),
           assertTeamsAssignable: who.assertTeamsAssignable,
           mayPublishOrgWide: await who.readMayPublishOrgWide(),
         }),

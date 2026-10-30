@@ -79,3 +79,32 @@ describe('skills/actions:saveSkill', () => {
     });
   });
 });
+
+describe('skills/actions:uploadSkillBundle', () => {
+  const run = libraryWriteAdapters['skills/actions:uploadSkillBundle']?.run;
+  if (run === undefined) throw new Error('adapter missing');
+  const ctx = { organizationId: 'org-1' } as never;
+
+  it('carries the audience the uploader picked, and none when they picked none', async () => {
+    await run(
+      {
+        organizationId: 'org-1',
+        storageId: 'blob-1',
+        visibility: 'team',
+        teams: ['team-red'],
+      },
+      ctx,
+    );
+    expect(lastBody()).toEqual({
+      storageId: 'blob-1',
+      visibility: 'team',
+      teams: ['team-red'],
+    });
+
+    await run(
+      { organizationId: 'org-1', storageId: 'blob-1', force: true },
+      ctx,
+    );
+    expect(lastBody()).toEqual({ storageId: 'blob-1', force: true });
+  });
+});

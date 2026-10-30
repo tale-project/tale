@@ -543,7 +543,7 @@ describe('SkillDetailPane', () => {
   describe('when the organization reserves organization-wide skills', () => {
     const reserved = { mode: 'admins', allowed: false };
     const reason =
-      'Your organization reserves sharing with everyone for owners and admins, and members an admin allowed.';
+      'Only owners and admins, and members an admin allowed, can share a skill with everyone.';
 
     it('says why an organization-wide skill cannot be changed in place, and keeps Save off while it stays shared with everyone', async () => {
       useSkillPublishing.mockReturnValue(reserved);

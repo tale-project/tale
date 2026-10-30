@@ -81,9 +81,10 @@ reserved setting.
 ### SKILL-R7 · Where sharing with everyone is reserved, only those roles can do it
 
 Creating a skill for the whole organization, and widening a team skill to it, are refused for
-anyone else (`SKILL_PUBLISH_FORBIDDEN`), and nothing is written. A bundle that does not say
-whom it is for counts as for everyone, so it is refused too. The refusal is written to the
-audit log. A policy that cannot be read counts as the strictest setting.
+anyone else (`SKILL_PUBLISH_FORBIDDEN`), and nothing is written. An upload for which neither
+the upload nor its bundle says whom it is for counts as for everyone, so it is refused too. The
+refusal is written to the audit log. A policy that cannot be read counts as the strictest
+setting.
 
 - **Example**: The organization reserves sharing with everyone for owners and admins. Mia
   creates a skill and leaves **Organization** selected → refused. She picks her team instead →
@@ -105,6 +106,18 @@ names a team its author cannot share with (`TEAM_ACCESS_DENIED`).
 
 - **Example**: Mia removes the last team from her team skill and saves → refused, and the
   skill keeps its team.
+
+### SKILL-R17 · An upload is shared with the audience picked for it, written into its file
+
+Whoever uploads a bundle can pick whom the skill is for: their teams, or the whole
+organization where they may share with everyone. The pick replaces what the bundle's
+instructions file says, and the stored file says it too, so nobody edits team IDs into a
+bundle. It is held to the same rules as any audience (`SKILL-R7`, `SKILL-R9`). An upload that
+picks nothing keeps what the file says.
+
+- **Example**: The organization reserves sharing with everyone for admins. Mia uploads a
+  bundle whose file says nothing about its audience, with her team Finance picked → the skill
+  is shared with Finance, and its file names Finance.
 
 ## Saving and uploading
 

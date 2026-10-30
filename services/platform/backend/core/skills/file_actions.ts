@@ -9,6 +9,7 @@ import {
 import {
   describeSkillSlugProblem,
   MAX_SKILL_TEAMS,
+  type SKILL_EDIT_VISIBILITIES,
   type SkillFrontmatter,
   type SkillOrigin,
 } from '@tale/shared/schemas/skills';
@@ -597,6 +598,37 @@ const PRIVATE_SKILLS_RETIRED_MESSAGE =
   'Private skills are retired — nothing can equip one. Share the skill with a team or the organization instead.';
 
 /**
+ * Whom an upload says its skill is for, in place of what its `SKILL.md`
+ * declares — the upload preview's Visibility choice, so a member never edits
+ * team IDs into the file. `teams` is read only for `team`, where it must name
+ * at least one team. It is held to every rule a declared audience is.
+ */
+export interface BundleAudience {
+  readonly visibility: (typeof SKILL_EDIT_VISIBILITIES)[number];
+  readonly teams?: readonly string[];
+}
+
+/** The audience a bundle is written with — the upload's own choice when it
+ * names one, else what its `SKILL.md` declares — after the editor's team
+ * normalization, so the audience checked is the one readers see. */
+function writtenAudience(
+  parsed: ParsedBundle,
+  audience: BundleAudience | undefined,
+): { visibility: SkillFrontmatter['visibility']; teams: string[] | undefined } {
+  const visibility = audience?.visibility ?? parsed.meta.visibility;
+  const declaredTeams =
+    audience === undefined
+      ? parsed.meta.teams
+      : audience.teams === undefined
+        ? undefined
+        : [...audience.teams];
+  return {
+    visibility,
+    teams: resolveTeams(visibility, declaredTeams, undefined),
+  };
+}
+
+/**
  * The bundle files as they will be persisted, with `SKILL.md` rewritten so
  * the file on disk says exactly what the readers will conclude — under the
  * SAME rules {@link saveSkillForViewer} applies, because an upload is a
@@ -607,7 +639,9 @@ const PRIVATE_SKILLS_RETIRED_MESSAGE =
  *   declared `owner` is never honored — the editor never lets a member pick
  *   one, so a zip cannot install a skill in someone else's name either;
  * - `private` is retired: a bundle may stay private only when the one it
- *   replaces already is (its owner re-uploading), never become it.
+ *   replaces already is (its owner re-uploading), never become it;
+ * - an `audience` the upload names replaces the one the file declares, and
+ *   is written into it.
  *
  * `existing` is the bundle the upload replaces, or `null` for a new slug — a
  * slug whose current document is unreadable counts as new, since there is
@@ -621,11 +655,10 @@ export function normalizedBundleFiles(
   parsed: ParsedBundle,
   uploader: UserSkillViewer,
   existing: OrgSkill | null,
+  audience?: BundleAudience,
 ): Array<{ path: string; content: Buffer }> {
-  if (
-    parsed.meta.visibility === 'private' &&
-    existing?.meta.visibility !== 'private'
-  ) {
+  const { visibility, teams } = writtenAudience(parsed, audience);
+  if (visibility === 'private' && existing?.meta.visibility !== 'private') {
     throw new AppError({
       code: 'SKILL_PRIVATE_RETIRED',
       message: PRIVATE_SKILLS_RETIRED_MESSAGE,
@@ -635,11 +668,6 @@ export function normalizedBundleFiles(
     existing === null
       ? uploader.userId
       : (existing.meta.owner ?? uploader.userId);
-  const teams = resolveTeams(
-    parsed.meta.visibility,
-    parsed.meta.teams,
-    undefined,
-  );
 
   const files = parsed.files.map((file) => ({
     path: file.relPath,
@@ -647,14 +675,22 @@ export function normalizedBundleFiles(
   }));
   if (
     parsed.meta.owner === owner &&
+    parsed.meta.visibility === visibility &&
     (teams === undefined ||
       (teams.length === parsed.meta.teams?.length &&
         teams.every((id, index) => id === parsed.meta.teams?.[index])))
   )
     return files;
 
-  const meta: SkillFrontmatter = { ...parsed.meta, owner };
-  if (teams !== undefined) meta.teams = teams;
+  // `teams` belongs to a team skill only: an audience that widens a team
+  // bundle to the organization drops the list the file carried.
+  const { teams: _declaredTeams, ...declared } = parsed.meta;
+  const meta: SkillFrontmatter = {
+    ...declared,
+    owner,
+    visibility,
+    ...(teams !== undefined ? { teams } : {}),
+  };
   const rewritten = serializeSkillMd(meta, parsed.body);
   return files.map((file) =>
     file.path === SKILL_DOCUMENT_NAME
@@ -674,10 +710,12 @@ export function normalizedBundleFiles(
  * `mayPublishOrgWide`: an upload is a write of every file, so unlike the
  * editor's identical save it has no unchanged case to let through — an
  * automation package's carried skill that already reads as stored is never
- * handed here. Both upload lanes write through it: the skill zip and an
- * automation package's carried skills. `assertTeamsAssignable` is supplied
- * by the door, which owns the database handle, and throws the refusal it
- * answers.
+ * handed here. The rules judge the audience the bundle is written with: the
+ * `audience` the upload names when it names one (the skill zip's preview),
+ * else the one its `SKILL.md` declares. Both upload lanes write through it:
+ * the skill zip and an automation package's carried skills.
+ * `assertTeamsAssignable` is supplied by the door, which owns the database
+ * handle, and throws the refusal it answers.
  */
 export async function prepareBundleWrite(args: {
   parsed: ParsedBundle;
@@ -685,24 +723,22 @@ export async function prepareBundleWrite(args: {
   existing: OrgSkill | null;
   assertTeamsAssignable: (teamIds: string[]) => Promise<void>;
   mayPublishOrgWide: boolean;
+  audience?: BundleAudience;
 }): Promise<Array<{ path: string; content: Buffer }>> {
   const files = normalizedBundleFiles(
     args.parsed,
     args.uploader,
     args.existing,
+    args.audience,
   );
+  const audience = writtenAudience(args.parsed, args.audience);
   assertOrgWidePublishable({
     slug: args.parsed.slug,
-    visibility: args.parsed.meta.visibility,
+    visibility: audience.visibility,
     mayPublishOrgWide: args.mayPublishOrgWide,
     unchangedOrgWide: false,
   });
-  const teams =
-    resolveTeams(
-      args.parsed.meta.visibility,
-      args.parsed.meta.teams,
-      undefined,
-    ) ?? [];
+  const teams = audience.teams ?? [];
   if (teams.length > 0 && !sameTeams(teams, args.existing)) {
     await args.assertTeamsAssignable([...teams]);
   }

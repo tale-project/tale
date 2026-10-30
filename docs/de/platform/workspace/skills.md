@@ -68,7 +68,7 @@ brief-summary/
     └── example-brief.md
 ```
 
-Die Vorschau zeigt Metadaten, Freigabe, Lizenz und Dateiliste, bevor **Bundle hochladen** etwas speichert. Prüfe Inhalt und Zielgruppe. Fehlt `visibility`, wird der Skill organisationsweit geteilt. Behält deine Organisation das vor und darfst du nicht veröffentlichen, weist die Vorschau darauf hin und **Bundle hochladen** bleibt gesperrt; ergänze in der `SKILL.md` `visibility: team` und die IDs deiner Teams. Wenn du einen Team-Skill anlegst oder seine Teams änderst, darfst du nur Teams deiner Organisation angeben, ohne Administratorrechte nur deine eigenen. Eine bestehende Teamliste darf unverändert bleiben, auch wenn ein Team inzwischen gelöscht wurde. Ein `owner` in der Datei wird ignoriert: Ein neuer Skill gehört dir. Ein ersetzter behält seinen bisherigen Eigentümer; hatte er keinen, gehört er danach dir. Existiert der Name schon, fragt Tale nach dem Ersetzen. Das betrifft auch Agenten, die diesen Skill verwenden.
+Die Vorschau zeigt Metadaten, **Sichtbarkeit**, Lizenz und Dateiliste, bevor **Bundle hochladen** etwas speichert. Prüfe den Inhalt und wähle unter **Sichtbarkeit**, für wen der Skill ist. Sie beginnt mit dem, was die `SKILL.md` angibt; fehlt `visibility`, ist das **Organisation**. Tale schreibt deine Wahl in die gespeicherte `SKILL.md`, du trägst also nie Team-IDs in die Datei ein. Behält deine Organisation das Teilen mit allen vor und darfst du nicht veröffentlichen, beginnt die Vorschau mit **Teams** und all deinen Teams; entferne die, für die der Skill nicht gedacht ist. Wenn du einen Team-Skill anlegst oder seine Teams änderst, darfst du nur Teams deiner Organisation angeben, ohne Administratorrechte nur deine eigenen. Eine bestehende Teamliste darf unverändert bleiben, auch wenn ein Team inzwischen gelöscht wurde. Ein `owner` in der Datei wird ignoriert: Ein neuer Skill gehört dir. Ein ersetzter behält seinen bisherigen Eigentümer; hatte er keinen, gehört er danach dir. Existiert der Name schon, fragt Tale nach dem Ersetzen. Das betrifft auch Agenten, die diesen Skill verwenden.
 
 <Warning>
 
@@ -93,7 +93,7 @@ Standardmäßig kann jedes Mitglied einen Skill mit der ganzen Organisation teil
 
 - Unter **Sichtbarkeit** ist **Organisation** nicht wählbar, und ein neuer Skill beginnt mit **Teams**. Mit deinen eigenen Teams kannst du teilen.
 - Einen organisationsweiten Skill, den du erstellt hast, kannst du nicht direkt ändern. Schränke ihn auf deine Teams ein, auch zusammen mit anderen Änderungen im selben Speichervorgang, oder lösche ihn.
-- Die Upload-Vorschau markiert ein Bundle, das mit der ganzen Organisation geteilt würde, auch eines ohne `visibility`, und **Bundle hochladen** bleibt gesperrt.
+- Bei einem Bundle, das mit der ganzen Organisation geteilt würde, auch einem ohne `visibility`, beginnt die Upload-Vorschau mit **Teams** und deinen Teams. Bist du in keinem Team, bittet sie dich, dich von einem Admin einem Team hinzufügen zu lassen, und **Bundle hochladen** bleibt gesperrt.
 
 Skills, die schon mit der Organisation geteilt waren, bleiben geteilt.
 
@@ -130,7 +130,7 @@ Zitiere Belege und kennzeichne fehlende Informationen mit „Nicht angegeben“.
 | --- | --- |
 | `name` | Entspricht dem Ordnernamen. `anthropic` und `claude` sind reserviert. |
 | `description` | Wann und warum das Modell den Skill lesen soll; höchstens 1.024 Zeichen. |
-| `visibility` / `teams` | `org` oder `team` mit Team-IDs. Die Oberfläche trägt diese Werte ein. |
+| `visibility` / `teams` | `org` oder `team` mit Team-IDs. Der Editor und die Upload-Vorschau tragen diese Werte ein. |
 | `owner` | Die Benutzer-ID des Mitglieds, das den Skill erstellt hat. Tale setzt sie; ein Wert in einer hochgeladenen Datei wird ignoriert. |
 | `license` | Die vom Autor angegebenen Nutzungsbedingungen. |
 | `recommended-packages` | Empfohlene Abhängigkeiten; der Import installiert sie nicht. |

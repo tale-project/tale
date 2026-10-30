@@ -188,6 +188,10 @@ export const libraryWriteAdapters: Record<string, WriteAdapter> = {
         body: {
           storageId: stringArg(args, 'storageId'),
           ...(args.force === true ? { force: true } : {}),
+          ...(typeof args.visibility === 'string'
+            ? { visibility: args.visibility }
+            : {}),
+          ...(Array.isArray(args.teams) ? { teams: args.teams } : {}),
         },
       }),
   },

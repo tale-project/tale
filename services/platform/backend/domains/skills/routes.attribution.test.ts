@@ -350,6 +350,49 @@ describe('the app skill door under a reserved organization-wide audience', () =>
       expect.objectContaining({ via: 'upload' }),
     );
   });
+
+  const postUpload = (audience: object) =>
+    routes().request('/upload?orgId=o1', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        storageId: 's3:acme/skill_bundle/x',
+        ...audience,
+      }),
+    });
+
+  it('hands the audience the member picked to the upload lane, and none when they picked none [SKILL-R17]', async () => {
+    mocks.uploadSkillBundlePg.mockResolvedValue({
+      ok: true,
+      slug: 'house-voice',
+    });
+    expect(
+      (await postUpload({ visibility: 'team', teams: ['team_red'] })).status,
+    ).toBe(200);
+    expect((await postUpload({ visibility: 'org' })).status).toBe(200);
+    expect((await postUpload({})).status).toBe(200);
+    const handed = mocks.uploadSkillBundlePg.mock.calls.map(
+      ([, args]) => args as Record<string, unknown>,
+    );
+    expect(handed[0]).toMatchObject({
+      audience: { visibility: 'team', teams: ['team_red'] },
+      mayPublishOrgWide: false,
+    });
+    expect(handed[1]?.audience).toEqual({ visibility: 'org' });
+    expect(handed[2]).not.toHaveProperty('audience');
+  });
+
+  it('refuses an audience the upload door does not take, before the upload lane runs [SKILL-R17]', async () => {
+    for (const audience of [
+      { visibility: 'private' },
+      { teams: ['team_red'] },
+      { visibility: 'org', teams: ['team_red'] },
+      { visibility: 'team', teams: [''] },
+    ]) {
+      expect((await postUpload(audience)).status).toBe(400);
+    }
+    expect(mocks.uploadSkillBundlePg).not.toHaveBeenCalled();
+  });
 });
 
 describe('the app skill door with the native file store', () => {

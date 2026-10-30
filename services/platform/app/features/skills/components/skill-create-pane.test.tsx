@@ -25,7 +25,7 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({ useOrgTeams }));
 import { SkillCreatePane } from './skill-create-pane';
 
 const RESERVED_FOR_ADMINS =
-  'Your organization reserves sharing with everyone for owners and admins, and members an admin allowed.';
+  'Only owners and admins, and members an admin allowed, can share a skill with everyone.';
 
 function mountPane(existingSlugs: readonly string[] = []) {
   const onCreated = vi.fn();
@@ -140,7 +140,7 @@ describe('SkillCreatePane', () => {
     mountPane();
     expect(
       screen.getByText(
-        'Your organization reserves sharing with everyone for Editors and above, and members an admin allowed.',
+        'Only Editors and above, and members an admin allowed, can share a skill with everyone.',
       ),
     ).toBeInTheDocument();
   });

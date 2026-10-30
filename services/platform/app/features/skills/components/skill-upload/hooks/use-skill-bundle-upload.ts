@@ -9,6 +9,7 @@ import {
   useRecordSkillUploadIntent,
   useUploadSkillBundle,
 } from '../../../hooks/mutations';
+import type { SkillSharingValue } from '../../skill-visibility-field';
 
 export type BundleUploadOutcome =
   | { status: 'landed'; slug: string }
@@ -24,6 +25,10 @@ export type BundleUploadOutcome =
  * The in-flight POST aborts when the owner unmounts (dialog closed), so a
  * cancelled upload never strands a `_storage` write; `isMounted` guards the
  * state the caller derives from the outcome.
+ *
+ * `audience` is whom the preview says the skill is for; the server writes it
+ * into the stored `SKILL.md`. A retired `private` one can only be the file's
+ * own, so it is left to the file.
  */
 export function useSkillBundleUpload(organizationId: string) {
   const { mutateAsync: generateUploadUrl } = useGenerateSkillUploadUrl();
@@ -47,7 +52,11 @@ export function useSkillBundleUpload(organizationId: string) {
   }, []);
 
   const upload = useCallback(
-    async (zipFile: File, force: boolean): Promise<BundleUploadOutcome> => {
+    async (
+      zipFile: File,
+      force: boolean,
+      audience: SkillSharingValue,
+    ): Promise<BundleUploadOutcome> => {
       const controller = new AbortController();
       abortRef.current?.abort();
       abortRef.current = controller;
@@ -81,6 +90,11 @@ export function useSkillBundleUpload(organizationId: string) {
         organizationId,
         storageId,
         ...(force ? { force: true } : {}),
+        ...(audience.visibility === 'team'
+          ? { visibility: 'team' as const, teams: [...audience.teams] }
+          : audience.visibility === 'org'
+            ? { visibility: 'org' as const }
+            : {}),
       });
       if (!result.ok) {
         return { status: 'needs_confirm', slug: result.slug };
