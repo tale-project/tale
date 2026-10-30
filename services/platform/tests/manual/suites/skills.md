@@ -1,6 +1,6 @@
 # Skills
 
-> **Prefix** `SKILL-` · **Reset** none · **Cost** 36 boxes
+> **Prefix** `SKILL-` · **Reset** none · **Cost** 37 boxes
 
 Exercise the skill library — reusable instruction bundles (SKILL.md + optional
 assets) that project agents and automation agent nodes are equipped with, and
@@ -83,10 +83,10 @@ builtin skill from `configs/platform/custom/skills/`.
   (`skills.createMenu.uploadZip`) → drop/pick the bundle zip in the dropzone
   (`skills.upload.dropOrClick`) → review the preview step → **Upload bundle**
   (`skills.upload.submit`) → The preview lists the parsed **Frontmatter**
-  (`skills.upload.frontmatter`), the **Sharing** block
-  (`skills.upload.sharingHeading` — with no `visibility:` in frontmatter it
-  reads `skills.upload.sharingAs.private`), and **Bundle files**
-  (`skills.upload.bundleFiles`) with the file count
+  (`skills.upload.frontmatter`), the **Visibility** field
+  (`skills.visibility.label` — with no `visibility:` in frontmatter
+  **Organization**, `skills.visibility.org`, is preselected), and **Bundle
+  files** (`skills.upload.bundleFiles`) with the file count
   (`skills.upload.fileCount`); on submit toast `skills.upload.uploadSuccess`,
   the dialog switches to the detail pane, and after reload the row is in the
   table.
@@ -235,6 +235,25 @@ builtin skill from `configs/platform/custom/skills/`.
   reopen and every other folder is open; the folder the new upload added
   opens expanded while the two stay collapsed; the other skill's tree opens
   with every folder expanded.
+- [ ] `SKILL-F22` · **Upload a bundle for your team** — As an admin set
+  **Skill sharing** (`governance.skillSharing.title`) to **Owners and admins
+  only** (`governance.skillSharing.modes.admins`). As a Member in T1 and no
+  other team, **Add skill** → **Upload folder**
+  (`skills.createMenu.uploadFolder`) → pick a folder whose `SKILL.md` has no
+  `visibility:`, with a few files under `references/` and `examples/`; in the
+  preview remove T1 under **Shared with teams**
+  (`skills.visibility.teamsLabel`), pick it again, and **Upload bundle**
+  (`skills.upload.submit`); then repeat the upload as a Member in no team →
+  The preview's **Visibility** (`skills.visibility.label`) starts on
+  **Teams** (`skills.visibility.team`) with T1 picked and **Organization**
+  disabled with `skills.publishing.reserved.admins`; without T1 it shows
+  `skills.visibility.teamsRequired` and **Upload bundle** is off, and with T1
+  back it is on; the upload lands, the **Bundle** tree
+  (`skills.detail.tree.heading`) lists every file of the folder, the row
+  reads T1's badge after reload, and the bundle's `SKILL.md` reads
+  `visibility: team` with T1's ID under `teams:`. The Member in no team sees
+  `skills.publishing.noTeams` in place of the field, and **Upload bundle**
+  stays off. Restore **Every member** afterwards.
 
 ## Boundary & error tests
 
@@ -286,8 +305,9 @@ builtin skill from `configs/platform/custom/skills/`.
   skill still reads **Organization** (tightening narrowed nothing), its
   dialog shows the notice (`skills.publishing.lockedEdit`) and **Save** stays
   off until it is narrowed, after which it saves; delete works; the upload
-  preview shows the reason with `skills.publishing.uploadRefused` and
-  **Upload bundle** stays off. `PUT /api/v1/skills/{slug}` with the Member's
+  preview starts on **Teams** with T1 picked and **Organization** disabled
+  with the same reason, and **Upload bundle** lands the skill shared with T1
+  (SKILL-F22 covers the pick). `PUT /api/v1/skills/{slug}` with the Member's
   key and no `visibility` answers 403 `SKILL_PUBLISH_FORBIDDEN`, and
   Governance → Logs lists **Skill publishing refused**
   (`settings.logs.audit.actionLabels.skill.publish_denied`) as denied.

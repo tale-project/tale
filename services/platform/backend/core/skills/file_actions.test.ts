@@ -1703,6 +1703,182 @@ describe('prepareBundleWrite', () => {
     expect(assertTeamsAssignable).toHaveBeenCalledExactlyOnceWith(['team_red']);
     expect(files.map((file) => file.path)).toEqual(['SKILL.md']);
   });
+
+  describe('with the audience the upload names', () => {
+    const written = (files: Array<{ path: string; content: Buffer }>) =>
+      parseSkillMd(files[0]!.content.toString('utf8'), 'SKILL.md');
+
+    it('writes a team audience over an organization-wide or unmarked bundle a non-publisher uploads, and checks its teams [SKILL-R17]', async () => {
+      for (const content of [
+        skillMd({ name: 'house-voice', description: 'Ours.' }),
+        // Already names its uploader, so only the audience makes it rewrite.
+        skillMd({
+          name: 'house-voice',
+          description: 'Ours.',
+          visibility: 'org',
+          owner: alice.viewer.userId,
+        }),
+      ]) {
+        const assertTeamsAssignable = vi.fn(async () => undefined);
+        const files = await prepareBundleWrite({
+          parsed: bundleOf(content),
+          uploader: alice.viewer,
+          mayPublishOrgWide: false,
+          existing: null,
+          assertTeamsAssignable,
+          audience: { visibility: 'team', teams: [' team_red ', 'team_red'] },
+        });
+        expect(assertTeamsAssignable).toHaveBeenCalledExactlyOnceWith([
+          'team_red',
+        ]);
+        expect(written(files)).toMatchObject({
+          meta: {
+            name: 'house-voice',
+            description: 'Ours.',
+            visibility: 'team',
+            teams: ['team_red'],
+            owner: alice.viewer.userId,
+          },
+          body: 'Body.\n',
+        });
+      }
+    });
+
+    it('refuses an organization-wide audience the uploader may not publish, whatever the file says [SKILL-R17]', async () => {
+      const assertTeamsAssignable = vi.fn(async () => undefined);
+      await expect(
+        prepareBundleWrite({
+          parsed: bundleOf(teamSkill(['team_red'])),
+          uploader: alice.viewer,
+          mayPublishOrgWide: false,
+          existing: null,
+          assertTeamsAssignable,
+          audience: { visibility: 'org' },
+        }),
+      ).rejects.toMatchObject({
+        data: {
+          code: 'SKILL_PUBLISH_FORBIDDEN',
+          data: { slug: 'house-voice' },
+        },
+      });
+      expect(assertTeamsAssignable).not.toHaveBeenCalled();
+    });
+
+    it('widens a team bundle to the organization for a publisher, dropping the teams the file named [SKILL-R17]', async () => {
+      const assertTeamsAssignable = vi.fn(async () => undefined);
+      const files = await prepareBundleWrite({
+        parsed: bundleOf(teamSkill(['t-fin', 't-ops'])),
+        uploader: alice.viewer,
+        mayPublishOrgWide: true,
+        existing: null,
+        assertTeamsAssignable,
+        audience: { visibility: 'org', teams: ['t-hr'] },
+      });
+      expect(assertTeamsAssignable).not.toHaveBeenCalled();
+      const { meta } = written(files);
+      expect(meta.visibility).toBe('org');
+      expect(meta.teams).toBeUndefined();
+    });
+
+    it('holds a team audience to the team rules: a team the uploader cannot share with, and no team at all [SKILL-R17]', async () => {
+      const parsed = bundleOf(
+        skillMd({ name: 'house-voice', description: 'Ours.' }),
+      );
+      const refusal = new Error('TEAM_ACCESS_DENIED');
+      await expect(
+        prepareBundleWrite({
+          parsed,
+          uploader: alice.viewer,
+          mayPublishOrgWide: false,
+          existing: null,
+          assertTeamsAssignable: async () => {
+            throw refusal;
+          },
+          audience: { visibility: 'team', teams: ['t-foreign'] },
+        }),
+      ).rejects.toBe(refusal);
+
+      for (const audience of [
+        { visibility: 'team' as const },
+        { visibility: 'team' as const, teams: [' '] },
+      ]) {
+        const assertTeamsAssignable = vi.fn(async () => undefined);
+        await expect(
+          prepareBundleWrite({
+            parsed,
+            uploader: alice.viewer,
+            mayPublishOrgWide: false,
+            existing: null,
+            assertTeamsAssignable,
+            audience,
+          }),
+        ).rejects.toMatchObject({ data: { code: 'INVALID_SKILL' } });
+        expect(assertTeamsAssignable).not.toHaveBeenCalled();
+      }
+    });
+
+    it('does not re-check an audience that keeps the teams the replaced skill has [SKILL-R17]', async () => {
+      const assertTeamsAssignable = vi.fn(async () => undefined);
+      await prepareBundleWrite({
+        parsed: bundleOf(
+          skillMd({ name: 'house-voice', description: 'Ours.' }),
+        ),
+        uploader: alice.viewer,
+        mayPublishOrgWide: false,
+        existing: existingOf(teamSkill(['t-fin', 't-ops'])),
+        assertTeamsAssignable,
+        audience: { visibility: 'team', teams: ['t-ops', 't-fin'] },
+      });
+      expect(assertTeamsAssignable).not.toHaveBeenCalled();
+    });
+
+    it('lets a bundle that declares the retired private audience be uploaded for a team instead [SKILL-R17]', async () => {
+      const privateSkill = bundleOf(
+        skillMd({
+          name: 'house-voice',
+          description: 'Ours.',
+          visibility: 'private',
+          owner: alice.viewer.userId,
+        }),
+      );
+      const write = (audience?: { visibility: 'team'; teams: string[] }) =>
+        prepareBundleWrite({
+          parsed: privateSkill,
+          uploader: alice.viewer,
+          mayPublishOrgWide: false,
+          existing: null,
+          assertTeamsAssignable: vi.fn(async () => undefined),
+          ...(audience !== undefined ? { audience } : {}),
+        });
+      await expect(write()).rejects.toMatchObject({
+        data: { code: 'SKILL_PRIVATE_RETIRED' },
+      });
+      const files = await write({ visibility: 'team', teams: ['team_red'] });
+      expect(written(files).meta).toMatchObject({
+        visibility: 'team',
+        teams: ['team_red'],
+      });
+    });
+
+    it('keeps SKILL.md byte for byte when the audience is the one the file already says [SKILL-R17]', async () => {
+      const content = skillMd({
+        name: 'house-voice',
+        description: 'Ours.',
+        visibility: 'team',
+        teams: '[team_red]',
+        owner: alice.viewer.userId,
+      });
+      const files = await prepareBundleWrite({
+        parsed: bundleOf(content),
+        uploader: alice.viewer,
+        mayPublishOrgWide: false,
+        existing: null,
+        assertTeamsAssignable: vi.fn(async () => undefined),
+        audience: { visibility: 'team', teams: ['team_red'] },
+      });
+      expect(files[0]!.content.toString('utf8')).toBe(content);
+    });
+  });
 });
 describe('readSkillBundle', () => {
   it('hands a member the whole bundle, SKILL.md verbatim', async () => {

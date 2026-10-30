@@ -95,13 +95,6 @@ upload:
   unknownKeys:
     '{count, plural, one {# zusätzlicher Frontmatter-Eintrag bewahrt}
     other {# zusätzliche Frontmatter-Einträge bewahrt}}'
-  sharingHeading: Freigabe
-  sharingAs:
-    private: Deklariert die ausgemusterte private Freigabe — landet nur als
-      Ersatz für einen bestehenden privaten Skill
-    team: Landet geteilt mit den Teams aus seinem Frontmatter
-    org: Landet geteilt mit der ganzen Organisation
-  sharingEditableAfter: Freigabe kannst du nach dem Hochladen ändern.
   submit: Bundle hochladen
   submitting: Lade hoch…
   uploadSuccess: Skill-Bundle hochgeladen
@@ -135,18 +128,16 @@ attribution:
   byFormerMember: Von einem ehemaligen Mitglied
 publishing:
   reserved:
-    editors: Deine Organisation erlaubt das Teilen mit allen nur Redakteuren
-      und höher sowie Mitgliedern, denen ein Admin es erlaubt hat.
-    admins: Deine Organisation erlaubt das Teilen mit allen nur Inhabern und
-      Admins sowie Mitgliedern, denen ein Admin es erlaubt hat.
+    editors: Nur Redakteure und höher sowie Mitglieder, denen ein Admin es
+      erlaubt hat, können einen Skill mit allen teilen.
+    admins: Nur Inhaber und Admins sowie Mitglieder, denen ein Admin es
+      erlaubt hat, können einen Skill mit allen teilen.
   noTeams: Du bist in keinem Team, und deine Organisation beschränkt das
     Teilen mit allen. Ein Admin kann dich einem Team hinzufügen oder dir das
     Veröffentlichen von Skills erlauben.
   lockedEdit: Solange der Skill mit der ganzen Organisation geteilt ist, kann
     ihn nur ändern, wer veröffentlichen darf. Du kannst ihn auf deine Teams
     einschränken (und im selben Schritt bearbeiten) oder löschen.
-  uploadRefused: Setze in der SKILL.md die Sichtbarkeit auf team mit den IDs
-    deiner Teams, oder lass einen Admin das Bundle hochladen.
   refused: Deine Organisation beschränkt das Teilen mit allen, und du darfst
     nicht veröffentlichen. Teile den Skill stattdessen mit deinen Teams.
   exists: Ein Skill mit diesem Namen existiert bereits. Es wurde nichts geändert.

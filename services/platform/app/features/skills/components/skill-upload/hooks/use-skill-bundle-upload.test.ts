@@ -22,6 +22,7 @@ vi.mock('../../../hooks/mutations', () => ({
 import { useSkillBundleUpload } from './use-skill-bundle-upload';
 
 const zip = () => new File(['PK'], 'triage.zip', { type: 'application/zip' });
+const ORG = { visibility: 'org', teams: [] } as const;
 
 describe('useSkillBundleUpload', () => {
   beforeEach(() => {
@@ -52,7 +53,9 @@ describe('useSkillBundleUpload', () => {
     );
     const { result } = renderHook(() => useSkillBundleUpload('org_1'));
 
-    await expect(result.current.upload(zip(), false)).rejects.toMatchObject({
+    await expect(
+      result.current.upload(zip(), false, ORG),
+    ).rejects.toMatchObject({
       data: {
         code: 'FILE_SIZE_INVALID',
         message: 'The file exceeds the 512 MiB limit',
@@ -71,7 +74,7 @@ describe('useSkillBundleUpload', () => {
     uploadBundle.mockResolvedValue({ ok: true, slug: 'triage' });
     const { result } = renderHook(() => useSkillBundleUpload('org_1'));
 
-    await expect(result.current.upload(zip(), false)).resolves.toEqual({
+    await expect(result.current.upload(zip(), false, ORG)).resolves.toEqual({
       status: 'landed',
       slug: 'triage',
     });
@@ -79,5 +82,41 @@ describe('useSkillBundleUpload', () => {
       organizationId: 'org_1',
       storageId: 'blob_1',
     });
+  });
+
+  it('sends the audience picked in the preview, and leaves a retired private one to the file', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockImplementation(async () => Response.json({ storageId: 'blob_1' })),
+    );
+    uploadBundle.mockResolvedValue({ ok: true, slug: 'triage' });
+    const { result } = renderHook(() => useSkillBundleUpload('org_1'));
+
+    await result.current.upload(zip(), false, {
+      visibility: 'team',
+      teams: ['team_red', 'team_blue'],
+    });
+    await result.current.upload(zip(), true, ORG);
+    await result.current.upload(zip(), false, {
+      visibility: 'private',
+      teams: [],
+    });
+    expect(uploadBundle.mock.calls.map(([args]) => args)).toEqual([
+      {
+        organizationId: 'org_1',
+        storageId: 'blob_1',
+        visibility: 'team',
+        teams: ['team_red', 'team_blue'],
+      },
+      {
+        organizationId: 'org_1',
+        storageId: 'blob_1',
+        force: true,
+        visibility: 'org',
+      },
+      { organizationId: 'org_1', storageId: 'blob_1' },
+    ]);
   });
 });

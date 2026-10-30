@@ -87,13 +87,6 @@ upload:
   unknownKeys:
     '{count, plural, one {# additional frontmatter key preserved} other
     {# additional frontmatter keys preserved}}'
-  sharingHeading: Sharing
-  sharingAs:
-    private: Declares retired private sharing — accepted only when it
-      replaces an existing private skill
-    team: Uploads shared with the teams its frontmatter declares
-    org: Uploads shared with the whole organization
-  sharingEditableAfter: you can change sharing after the upload.
   submit: Upload bundle
   submitting: Uploading…
   uploadSuccess: Skill bundle uploaded
@@ -126,18 +119,16 @@ attribution:
   byFormerMember: By a former member
 publishing:
   reserved:
-    editors: Your organization reserves sharing with everyone for Editors
-      and above, and members an admin allowed.
-    admins: Your organization reserves sharing with everyone for owners and
-      admins, and members an admin allowed.
+    editors: Only Editors and above, and members an admin allowed, can share
+      a skill with everyone.
+    admins: Only owners and admins, and members an admin allowed, can share a
+      skill with everyone.
   noTeams: You aren't in a team, and your organization reserves sharing
     with everyone. Ask an admin to add you to a team or to let you publish
     skills.
   lockedEdit: While it stays shared with the whole organization, only a
     member allowed to publish can change it. You can narrow it to your teams
     (and edit it in the same save) or delete it.
-  uploadRefused: Set visibility to team with your team IDs in SKILL.md, or
-    ask an admin to upload this bundle.
   refused: Your organization reserves sharing with everyone, and you aren't
     allowed to publish. Share the skill with your teams instead.
   exists: A skill with this name already exists. Nothing was changed.

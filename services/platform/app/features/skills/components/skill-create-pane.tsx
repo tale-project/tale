@@ -1,7 +1,6 @@
 'use client';
 
 import { isValidSkillSlug } from '@tale/shared/schemas/skills';
-import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { Input } from '@tale/ui/input';
 import { Label } from '@tale/ui/label';
@@ -10,15 +9,12 @@ import { Textarea } from '@tale/ui/textarea';
 import { toast } from '@tale/ui/use-toast';
 import { useId, useState } from 'react';
 
-import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 
 import { useSaveSkill } from '../hooks/mutations';
-import { useOrgReservedReason } from '../hooks/use-org-reserved-reason';
-import {
-  SkillVisibilityField,
-  type SkillSharingValue,
-} from './skill-visibility-field';
+import { useSkillAudience } from '../hooks/use-skill-audience';
+import { SkillAudienceField } from './skill-audience-field';
+import type { SkillSharingValue } from './skill-visibility-field';
 
 /**
  * Create a text-based skill: pick its slug (the immutable identity), write a
@@ -44,7 +40,6 @@ export function SkillCreatePane({
   const { t: tCommon } = useT('common');
   const slugId = useId();
   const descriptionId = useId();
-  const visibilityId = useId();
 
   const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
@@ -54,32 +49,18 @@ export function SkillCreatePane({
     null,
   );
   const saveSkill = useSaveSkill();
-  const { teams, isLoading: teamsLoading } = useOrgTeams();
-
-  const orgReservedReason = useOrgReservedReason(organizationId);
-  const sharing: SkillSharingValue = pickedSharing ?? {
-    visibility: orgReservedReason === undefined ? 'org' : 'team',
-    teams: [],
-  };
-  // Nowhere to share it: the whole organization is reserved and the member
-  // is in no team they could share it with.
-  const noAudience =
-    orgReservedReason !== undefined &&
-    !teamsLoading &&
-    (teams ?? []).length === 0;
+  const audience = useSkillAudience(organizationId, { picked: pickedSharing });
+  const { sharing } = audience;
 
   const trimmedSlug = slug.trim();
   const slugInvalid = trimmedSlug.length > 0 && !isValidSkillSlug(trimmedSlug);
   const slugTaken = existingSlugs.includes(trimmedSlug);
-  const audienceMissing =
-    (sharing.visibility === 'team' && sharing.teams.length === 0) ||
-    (sharing.visibility === 'org' && orgReservedReason !== undefined);
   const canSubmit =
     trimmedSlug.length > 0 &&
     !slugInvalid &&
     !slugTaken &&
     description.trim().length > 0 &&
-    !audienceMissing &&
+    !audience.audienceMissing &&
     !saveSkill.isPending;
 
   const slugError = slugTaken
@@ -148,22 +129,7 @@ export function SkillCreatePane({
           </p>
         </div>
 
-        <div
-          className="flex flex-col gap-1.5"
-          role="group"
-          aria-labelledby={visibilityId}
-        >
-          <Label id={visibilityId}>{t('visibility.label')}</Label>
-          {noAudience ? (
-            <Alert variant="warning" description={t('publishing.noTeams')} />
-          ) : (
-            <SkillVisibilityField
-              value={sharing}
-              onChange={setPickedSharing}
-              orgReservedReason={orgReservedReason}
-            />
-          )}
-        </div>
+        <SkillAudienceField audience={audience} onChange={setPickedSharing} />
       </Stack>
 
       <Row gap={2} justify="end">

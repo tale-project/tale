@@ -194,6 +194,39 @@ describe('uploadSkillBundlePg', () => {
     expect(s3DeleteObject).toHaveBeenCalled();
   });
 
+  it('hands the audience the uploader picked to the bundle rules, and none when they picked none [SKILL-R17]', async () => {
+    vi.mocked(readOrgSkill).mockResolvedValue(null);
+    vi.mocked(listSkillBundleFileEntries).mockResolvedValue(null);
+    const handed: Array<Parameters<typeof prepareBundleWrite>[0]> = [];
+    const stop = new Error('stop before the write');
+    const record = async (args: Parameters<typeof prepareBundleWrite>[0]) => {
+      handed.push(args);
+      throw stop;
+    };
+    vi.mocked(prepareBundleWrite)
+      .mockImplementationOnce(record)
+      .mockImplementationOnce(record);
+    await expect(
+      uploadSkillBundlePg(fakeSql([]), {
+        organizationId: 'org_1',
+        orgSlug: 'acme',
+        viewer: alice,
+        actor,
+        storageId: 's3:acme/skill_bundle/x',
+        assertTeamsAssignable: () => Promise.resolve(),
+        mayPublishOrgWide: false,
+        audience: { visibility: 'team', teams: ['team_red'] },
+      }),
+    ).rejects.toBe(stop);
+    await expect(upload(fakeSql([]))).rejects.toBe(stop);
+    expect(handed.map((args) => args.audience)).toEqual([
+      { visibility: 'team', teams: ['team_red'] },
+      undefined,
+    ]);
+    expect('audience' in handed[1]!).toBe(false);
+    expect(writeSkillBundleFiles).not.toHaveBeenCalled();
+  });
+
   it('reads the existing bundle and writes inside one writer-lock transaction', async () => {
     const events: string[] = [];
     vi.mocked(readOrgSkill).mockImplementation(async () => {

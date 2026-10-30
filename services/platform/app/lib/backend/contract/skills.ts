@@ -117,7 +117,17 @@ export interface SkillsContract {
   };
   'skills/actions:uploadSkillBundle': {
     kind: 'action';
-    args: { force?: boolean; organizationId: string; storageId: string };
+    args: {
+      force?: boolean;
+      organizationId: string;
+      storageId: string;
+      /**
+       * Whom the uploader picked the skill for; the bundle's SKILL.md
+       * decides when absent. `teams` goes with `team` only.
+       */
+      visibility?: 'org' | 'team';
+      teams?: string[];
+    };
     returns:
       | { ok: true; slug: string }
       | { ok: false; status: 'needs_confirm'; slug: string };

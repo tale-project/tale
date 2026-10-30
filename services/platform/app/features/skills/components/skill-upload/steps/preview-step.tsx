@@ -1,6 +1,5 @@
 'use client';
 
-import { Alert } from '@tale/ui/alert';
 import { Heading } from '@tale/ui/heading';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { HStack, Stack } from '@tale/ui/layout';
@@ -9,26 +8,30 @@ import { Text } from '@tale/ui/text';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 
+import type { SkillAudience } from '../../../hooks/use-skill-audience';
+import { SkillAudienceField } from '../../skill-audience-field';
+import type { SkillSharingValue } from '../../skill-visibility-field';
 import type { ParsedSkillBundle } from '../utils/parse-skill-bundle';
 
 interface PreviewStepProps {
   parsedBundle: ParsedSkillBundle;
-  /** Why the organization withholds the Organization audience from this
-   * viewer, when it does — an organization-wide bundle is then refused. */
-  orgReservedReason?: string;
+  /** Whom the skill is for, starting on what the bundle declares. */
+  audience: SkillAudience;
+  onAudienceChange: (value: SkillSharingValue) => void;
 }
 
 /**
  * Everything the server will conclude from the bundle, before it is sent:
- * identity, frontmatter extras, the resulting sharing, and the full file
- * list with sizes. The sharing row matters most — an unmarked bundle lands
- * as an organization skill, and this is where that stops being a surprise,
- * or where the viewer learns the organization reserves it before anything
- * is sent.
+ * identity, whom it is for, frontmatter extras, and the full file list with
+ * sizes. Whom it is for is asked here: it starts on what the bundle declares
+ * (an unmarked bundle reads as the organization), so that stops being a
+ * surprise, and a member whose organization reserves sharing with everyone
+ * shares it with their teams instead of editing team IDs into the file.
  */
 export function PreviewStep({
   parsedBundle,
-  orgReservedReason,
+  audience,
+  onAudienceChange,
 }: PreviewStepProps) {
   const { t } = useT('skills');
   const { locale } = useLocale();
@@ -47,21 +50,7 @@ export function PreviewStep({
         <Text variant="muted">{meta.description}</Text>
       </Stack>
 
-      <Stack gap={1}>
-        <Text variant="label">{t('upload.sharingHeading')}</Text>
-        <Text variant="caption">
-          {t(`upload.sharingAs.${meta.visibility}`)}
-          {' — '}
-          {t('upload.sharingEditableAfter')}
-        </Text>
-        {meta.visibility === 'org' && orgReservedReason !== undefined && (
-          <Alert
-            variant="warning"
-            title={orgReservedReason}
-            description={t('publishing.uploadRefused')}
-          />
-        )}
-      </Stack>
+      <SkillAudienceField audience={audience} onChange={onAudienceChange} />
 
       {(meta.license !== undefined ||
         recommendedPython.length > 0 ||

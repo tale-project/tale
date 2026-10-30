@@ -94,13 +94,6 @@ upload:
   disableModelInvocation: Demande un usage explicite de ce skill ; ne restreint pas l'accès.
   unknownKeys: '{count, plural, one {# entrée frontmatter supplémentaire
     conservée} other {# entrées frontmatter supplémentaires conservées}}'
-  sharingHeading: Partage
-  sharingAs:
-    private: Déclare le partage privé retiré — accepté seulement s'il
-      remplace un skill privé existant
-    team: Arrive partagé avec les équipes que son frontmatter déclare
-    org: Arrive partagé avec toute l'organisation
-  sharingEditableAfter: tu peux changer le partage après le téléversement.
   submit: Téléverser le bundle
   submitting: Téléversement…
   uploadSuccess: Bundle de skill téléversé
@@ -134,11 +127,10 @@ attribution:
   byFormerMember: Par un ancien membre
 publishing:
   reserved:
-    editors: Ton organisation réserve le partage avec tout le monde aux
-      éditeurs et au-delà, ainsi qu'aux membres autorisés par un admin.
-    admins: Ton organisation réserve le partage avec tout le monde aux
-      propriétaires et aux admins, ainsi qu'aux membres autorisés par un
-      admin.
+    editors: Seuls les éditeurs et au-delà, ainsi que les membres autorisés
+      par un admin, peuvent partager un skill avec tout le monde.
+    admins: Seuls les propriétaires et les admins, ainsi que les membres
+      autorisés par un admin, peuvent partager un skill avec tout le monde.
   noTeams: Tu ne fais partie d'aucune équipe, et ton organisation réserve le
     partage avec tout le monde. Demande à un admin de t'ajouter à une équipe
     ou de t'autoriser à publier des skills.
@@ -146,9 +138,6 @@ publishing:
     seule une personne autorisée à publier peut le modifier. Tu peux le
     restreindre à tes équipes (et le modifier au même moment) ou le
     supprimer.
-  uploadRefused: Dans SKILL.md, mets la visibilité sur team avec les
-    identifiants de tes équipes, ou demande à un admin de téléverser ce
-    bundle.
   refused: Ton organisation réserve le partage avec tout le monde, et tu n'as
     pas le droit de publier. Partage plutôt ce skill avec tes équipes.
   exists: Un skill portant ce nom existe déjà. Aucune modification n’a été effectuée.

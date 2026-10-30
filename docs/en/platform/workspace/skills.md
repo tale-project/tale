@@ -68,7 +68,7 @@ brief-summary/
     └── example-brief.md
 ```
 
-The preview shows metadata, sharing, license, and the file list before **Upload bundle** writes anything. Check the contents and audience. Missing `visibility` means organization-wide sharing. If your organization reserves that and you may not publish, the preview says so and **Upload bundle** stays unavailable; add `visibility: team` and your team IDs to `SKILL.md`. When you create a team skill or change its teams, you may name only your organization's teams, and only your own unless you are an administrator. Keeping an existing team list is allowed even if a team has since been deleted. An `owner` in the file is ignored: a new skill is yours, and a replacement keeps its current owner or becomes yours if it had none. If the name already exists, Tale asks whether to replace that skill; replacement affects the agents that use it.
+The preview shows metadata, **Visibility**, license, and the file list before **Upload bundle** writes anything. Check the contents, and pick whom the skill is for under **Visibility**. It starts with what `SKILL.md` declares; missing `visibility` means **Organization**. Tale writes your pick into the stored `SKILL.md`, so you never edit team IDs into the file. If your organization reserves sharing with everyone and you may not publish, the preview starts with **Teams** and all of your teams; remove the ones the skill is not for. When you create a team skill or change its teams, you may name only your organization's teams, and only your own unless you are an administrator. Keeping an existing team list is allowed even if a team has since been deleted. An `owner` in the file is ignored: a new skill is yours, and a replacement keeps its current owner or becomes yours if it had none. If the name already exists, Tale asks whether to replace that skill; replacement affects the agents that use it.
 
 <Warning>
 
@@ -93,7 +93,7 @@ By default, every member can share a skill with the whole organization. An admin
 
 - **Organization** is unavailable under **Visibility**, and a new skill starts with **Teams**. You can share with your own teams.
 - An organization-wide skill you created cannot be changed in place. Narrow it to your teams, with any other change in the same save, or delete it.
-- The upload preview flags a bundle that would be shared with the whole organization, one without `visibility` included, and **Upload bundle** stays unavailable.
+- For a bundle that would be shared with the whole organization, one without `visibility` included, the upload preview starts with **Teams** and your teams. If you are in no team, it asks you to have an administrator add you to one, and **Upload bundle** stays unavailable.
 
 Skills that were already shared with the organization stay shared.
 
@@ -130,7 +130,7 @@ Quote supporting text and mark missing information as "Not stated".
 | --- | --- |
 | `name` | Matches the bundle's folder name. `anthropic` and `claude` are reserved. |
 | `description` | When and why the model should read the skill; maximum 1,024 characters. |
-| `visibility` / `teams` | `org`, or `team` with the team IDs. The UI fills these in for you. |
+| `visibility` / `teams` | `org`, or `team` with the team IDs. The editor and the upload preview fill these in for you. |
 | `owner` | The user ID of the member who created the skill. Tale sets it; a value in an uploaded file is ignored. |
 | `license` | The terms supplied by the author. |
 | `recommended-packages` | Suggested dependencies; importing does not install them. |

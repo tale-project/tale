@@ -18,6 +18,7 @@ import {
 } from '../../core/lib/storage/object_store.ts';
 import { parseSkillBundleZip } from '../../core/skills/bundle_zip.ts';
 import {
+  type BundleAudience,
   describeBundleWrite,
   prepareBundleWrite,
 } from '../../core/skills/file_actions.ts';
@@ -69,6 +70,10 @@ export async function uploadSkillBundlePg(
      * audience (`publish.ts`); a bundle shared with the organization is
      * refused without it (`SKILL_PUBLISH_FORBIDDEN`). */
     mayPublishOrgWide: boolean;
+    /** Whom the uploader picked the skill for in the preview, written into
+     * its `SKILL.md` in place of what the file declares; the file decides
+     * when the upload names none. */
+    audience?: BundleAudience;
   },
 ): Promise<UploadOutcome> {
   // Single-use: the intent is consumed here, and the blob dies with this
@@ -192,6 +197,7 @@ export async function uploadSkillBundlePg(
           assertTeamsAssignable: (teamIds) =>
             args.assertTeamsAssignable(teamIds, tx),
           mayPublishOrgWide: args.mayPublishOrgWide,
+          ...(args.audience !== undefined ? { audience: args.audience } : {}),
         });
         // What the write changes, read before it replaces the bundle.
         const change = describeBundleWrite({
