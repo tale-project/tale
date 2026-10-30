@@ -8,6 +8,11 @@
  *
  * Postgres proves the matching itself (`board-search.integration.ts`); these
  * tests pin where the match sits and that the palette and the board share it.
+ *
+ * The board's other filters are plain predicates, in the statement only when
+ * they are set (#4708): written as `(… IS NULL OR …)`, a filter hid from a
+ * generic plan what the statement filters on, and Home's "assigned to me"
+ * walked the organization's tasks instead of the person's.
  */
 
 import type { Sql } from 'postgres';
@@ -414,5 +419,95 @@ describe('a search reads a mention by its name', () => {
     const lookup = statements.find((s) => s.text.includes('FROM "user" u'));
     expect(lookup?.values).toContainEqual(['u-ada-with-a-long-id-to-shrink']);
     expect(JSON.stringify(lookup?.values)).not.toContain('u-grace');
+  });
+});
+
+/** What Home reads as "assigned to me": the work that is not done. */
+const OPEN_STATUSES = ['backlog', 'todo', 'in_progress', 'in_review'];
+
+describe('a board filter is in the statement only when it is set', () => {
+  it("reads Home's assigned tasks with the plain predicates the assignee index serves", async () => {
+    const { sql, statements } = recordingSql();
+    await listTasksForAccessibleProjects(sql, auth, {
+      includeArchived: false,
+      assigneeId: 'user-1',
+      statuses: OPEN_STATUSES,
+    });
+
+    const board = boardStatement(statements);
+    // The literal archived predicate proves the partial index's own.
+    expect(board.text).toContain(
+      'WHERE org_id = ? AND project_id = ANY(?) AND t.archived_at_ms IS NULL AND t.status = ANY(?) AND t.assignee_id = ? ORDER BY updated_at_ms DESC LIMIT ?',
+    );
+    expect(board.text).not.toMatch(/IS NULL OR\b/);
+    expect(board.values.slice(1)).toEqual([
+      'org-a',
+      ['proj-1'],
+      OPEN_STATUSES,
+      'user-1',
+      2001,
+    ]);
+  });
+
+  it('leaves every filter that is not set out of the statement', async () => {
+    const { sql, statements } = recordingSql();
+    await listTasksForAccessibleProjects(sql, auth, {});
+
+    const board = boardStatement(statements);
+    expect(board.text).toContain(
+      'AND project_id = ANY(?) AND t.archived_at_ms IS NULL ORDER BY updated_at_ms DESC LIMIT ?',
+    );
+    for (const absent of [
+      'assignee_id',
+      't.status',
+      'external_system',
+      'app.approvals',
+    ])
+      expect(board.text).not.toContain(absent);
+    expect(board.text).not.toMatch(/IS NULL OR\b/);
+    expect(board.values.slice(1)).toEqual(['org-a', ['proj-1'], 2001]);
+  });
+
+  it('drops the archived predicate when archived tasks are asked for', async () => {
+    const { sql, statements } = recordingSql();
+    await listTasksForAccessibleProjects(sql, auth, {
+      includeArchived: true,
+      assigneeId: 'user-1',
+    });
+
+    const board = boardStatement(statements);
+    expect(board.text).toContain('AND TRUE AND t.assignee_id = ? ORDER BY');
+    expect(board.text).not.toContain('archived_at_ms');
+  });
+
+  it('writes each filter that is set as its own predicate, an empty one included', async () => {
+    const { sql, statements } = recordingSql();
+    await listTasksByProject(sql, auth, 'proj-1', {
+      status: 'in_review',
+      statuses: [],
+      assigneeId: 'user-2',
+      reviewerId: 'user-3',
+      externalSystem: 'github',
+    });
+
+    const board = boardStatement(statements);
+    expect(board.text).toContain(
+      't.archived_at_ms IS NULL AND t.status = ? AND t.status = ANY(?) AND t.assignee_id = ? AND (EXISTS ( SELECT 1 FROM app.approvals r',
+    );
+    expect(board.text).toContain(
+      ') OR ( t.reviewer_user_id = ? AND NOT EXISTS (',
+    );
+    expect(board.text).toContain('AND t.external_system = ? ORDER BY');
+    expect(board.text).not.toMatch(/IS NULL OR\b/);
+    // An empty list still matches no status, rather than every status.
+    expect(board.values.slice(-7)).toEqual([
+      'in_review',
+      [],
+      'user-2',
+      'user-3',
+      'user-3',
+      'github',
+      2001,
+    ]);
   });
 });
