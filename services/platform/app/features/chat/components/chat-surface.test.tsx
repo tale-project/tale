@@ -6,7 +6,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { act, fireEvent, render, screen, waitFor } from '@/tests/utils/render';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@/tests/utils/render';
 
 const navigateMock = vi.hoisted(() => vi.fn());
 // Whether the rendered viewer could open Settings → AI providers; the
@@ -56,11 +63,25 @@ vi.mock('@/app/hooks/use-ability', () => ({
 // send write. The defaults mirror the provider-less test environment
 // (everything unavailable); suites override per scenario and the shared
 // afterEach below restores the defaults.
-// The notice resolves its own policy (data-notice-footer.test.tsx covers
-// that); this stand-in pins only WHERE the surface mounts it.
+// The notice resolves its own policy (data-notice-footer.test.tsx and
+// message-thread-data-notice.test.tsx cover that); these stand-ins pin only
+// WHERE the surface mounts it: under the composer, or on the last message.
 vi.mock('@/app/features/governance/components/data-notice-footer', () => ({
   DataNoticeFooter: () => (
-    <div role="note" aria-label="Confidentiality notice" />
+    <div
+      role="note"
+      aria-label="Confidentiality notice"
+      data-testid="data-notice-footer"
+    />
+  ),
+}));
+vi.mock('@/app/features/governance/components/data-notice-inline', () => ({
+  DataNoticeInline: () => (
+    <div
+      role="note"
+      aria-label="Confidentiality notice"
+      data-testid="data-notice-inline"
+    />
   ),
 }));
 
@@ -896,7 +917,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     },
   );
 
-  it('mounts the confidentiality notice below the composer', () => {
+  it('mounts the confidentiality notice below the composer of a new chat', () => {
     render(<ChatSurface organizationId="org-1" />);
 
     const composer = screen.getByRole('textbox', { name: 'Message input' });
@@ -907,6 +928,71 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
       composer.compareDocumentPosition(notice as Node) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+  });
+
+  it('moves the confidentiality notice onto the last message of an open conversation', () => {
+    vi.mocked(useThreadView).mockReturnValue({
+      status: 'ready',
+      items: toSettledItems([
+        {
+          id: 'm-user',
+          role: 'user',
+          parts: [{ type: 'text', text: 'Where are the tides highest?' }],
+          sequence: 0,
+          createdAt: 1,
+        },
+        {
+          id: 'm-answer',
+          role: 'assistant',
+          parts: [{ type: 'text', text: 'In the Bay of Fundy.' }],
+          sequence: 1,
+          createdAt: 2,
+        },
+      ]),
+      generation: null,
+      streamingMessageId: undefined,
+      pendingConsumed: false,
+    });
+
+    render(<ChatSurface organizationId="org-1" threadId="t-1" />);
+
+    expect(
+      screen.getByRole('textbox', { name: 'Message input' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId('data-notice-footer')).toBeNull();
+    const [question, answer] = screen.getAllByTestId('chat-message');
+    expect(within(answer!).getByTestId('data-notice-inline')).toBeVisible();
+    expect(within(question!).queryByTestId('data-notice-inline')).toBeNull();
+  });
+
+  it('keeps the notice under the composer of a conversation with no message', () => {
+    vi.mocked(useThreadView).mockReturnValue({
+      status: 'ready',
+      items: [],
+      generation: null,
+      streamingMessageId: undefined,
+      pendingConsumed: false,
+    });
+
+    render(<ChatSurface organizationId="org-1" threadId="t-1" />);
+
+    expect(screen.getByTestId('data-notice-footer')).toBeInTheDocument();
+  });
+
+  it('shows no notice while an open conversation is still loading', () => {
+    // Its messages may carry it any moment: a footer now would flash under
+    // the composer and leave again.
+    vi.mocked(useThreadView).mockReturnValue({
+      status: 'loading',
+      items: [],
+      generation: null,
+      streamingMessageId: undefined,
+      pendingConsumed: false,
+    });
+
+    render(<ChatSurface organizationId="org-1" threadId="t-1" />);
+
+    expect(queryNotice()).toBeNull();
   });
 
   it('fills the composer from a starter instead of firing it as a message', async () => {
@@ -2419,8 +2505,26 @@ describe('ChatSurface on an archived thread', () => {
   });
 
   it('takes the confidentiality notice away with the composer', () => {
+    vi.mocked(useThreadView).mockReturnValue({
+      status: 'ready',
+      items: toSettledItems([
+        {
+          id: 'm-answer',
+          role: 'assistant',
+          parts: [{ type: 'text', text: 'Filed under Q3.' }],
+          sequence: 0,
+          createdAt: 1,
+        },
+      ]),
+      generation: null,
+      streamingMessageId: undefined,
+      pendingConsumed: false,
+    });
+
     render(<ChatSurface organizationId="org-1" threadId="thread-archived" />);
 
+    // Neither under the banner nor on the last message.
+    expect(screen.getByTestId('chat-message')).toBeInTheDocument();
     expect(queryNotice()).toBeNull();
   });
 });
