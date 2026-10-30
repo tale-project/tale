@@ -355,6 +355,7 @@ detail:
   partOf: Partie de {task}
   subtask: Sous-tâche
   notFound: Impossible de trouver cette tâche. Elle a peut-être été supprimée.
+  loadFailed: Impossible de charger cette tâche.
 comment:
   edited: modifié
   agentBadge: Agent

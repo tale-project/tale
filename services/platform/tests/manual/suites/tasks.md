@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 162 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 174 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -1058,6 +1058,23 @@ otherwise. Mark them **ENVIRONMENT** without a runnable harness.
   is in flight the dialog shows a skeleton, never the message; a task you
   may not see (another member's private project) reads the same, not a
   blank sheet.
+- [ ] `TASK-B56` · **A task page whose read fails** — Open a task from Home,
+  block `*/api/app/tasks/{taskId}?*` in DevTools (Network → request
+  blocking) and reload → after the retries (a few seconds) the page reads
+  **Couldn't load this task.** (`tasks.detail.loadFailed`) and **Couldn't
+  reach Tale. Check your connection and try again.**
+  (`common.errors.connectionLost`) under the heading **Tasks**
+  (`tasks.title`), with **Try again** (`common.actions.tryAgain`); a screen
+  reader announces it. Never **Page not found** (`common.notFound.title`).
+  **Try again** pressed while still blocked stays focused and busy, reads
+  **Trying again…** (`tasks.read.retrying`), then the failure again, with
+  no skeleton and no dead end in between. Unblock → **Try again** from the
+  keyboard → the task's page loads in place without a reload, and the focus
+  lands on it (a screen reader names the task). On the board, open the same
+  task (`?task={taskId}`) with the request blocked → the dialog reads the
+  same failure with **Try again** and **Close**; unblocked, **Try again**
+  loads the task into the dialog. A deleted task still reads **Page not
+  found** (TASK-B7). Every label reads in German and French too.
 - [ ] `TASK-B9` · **A mention that names no one** — In a task comment, pick a
   teammate from the mention listbox, type `@nobody-here` by hand, and send →
   The comment posts and the teammate gets the mention; a toast **Mention not

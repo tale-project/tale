@@ -1392,6 +1392,8 @@ export function EditTaskBody({
     ancestors,
     notFound,
     error: readError,
+    retrying,
+    retry,
   } = useTask(taskId);
   usePrefetchTaskReads(taskId);
   // Editors work every task; any other reader of the project works the
@@ -1553,12 +1555,18 @@ export function EditTaskBody({
     if (surface === 'dialog') {
       // Settled on nothing (a deleted task, a stale notification link, a
       // tampered `?task=`) or broken: say so, with a way out — never a
-      // skeleton that stays. The page surface has its own dead end
-      // (`TaskDetailPage`).
-      if (notFound || readError != null) {
+      // skeleton that stays. A broken read offers Try again. The page
+      // surface has its own states (`TaskDetailPage`).
+      if (notFound) {
+        return <TaskDetailFallback state="missing" onClose={onClose} />;
+      }
+      if (readError != null) {
         return (
           <TaskDetailFallback
-            state={notFound ? 'missing' : 'error'}
+            state="error"
+            error={readError}
+            retrying={retrying}
+            onRetry={retry}
             onClose={onClose}
           />
         );

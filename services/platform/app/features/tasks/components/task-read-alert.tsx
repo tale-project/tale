@@ -9,12 +9,13 @@ import { useLayoutEffect, useState } from 'react';
 import { useT } from '@/lib/i18n/client';
 
 /**
- * One board read that failed once its retries gave up (#3747): what did not
- * load, and **Try again**, which re-issues that read alone. It stays on
+ * One task read that failed once its retries gave up — a board read
+ * (#3747), or the task itself on its page or in its dialog (#4587): what did
+ * not load, and **Try again**, which re-issues that read alone. It stays on
  * screen while the retry runs — the button busy, the message saying so — and
  * leaves only when an answer replaces it. A retry that works takes the
- * button with it, so the focus it held goes to `onFocusLost` (the board)
- * instead of dropping to the page.
+ * button with it, so the focus it held goes to `onFocusLost` (the board, the
+ * task page) instead of dropping to the page.
  */
 export function TaskReadAlert({
   message,
@@ -30,8 +31,9 @@ export function TaskReadAlert({
   retrying: boolean;
   onRetry: () => void;
   /** Takes the focus this alert held when it goes. Keep it stable: the
-   * alert reads it only as it unmounts. */
-  onFocusLost: () => void;
+   * alert reads it only as it unmounts. Left out inside a dialog, whose
+   * focus trap takes the focus back to the dialog by itself. */
+  onFocusLost?: () => void;
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -41,7 +43,7 @@ export function TaskReadAlert({
   // still inside it; the board mounts in the same commit, so it takes the
   // focus a frame later.
   useLayoutEffect(() => {
-    if (root === null) return undefined;
+    if (root === null || onFocusLost === undefined) return undefined;
     return () => {
       if (root.contains(document.activeElement)) {
         requestAnimationFrame(onFocusLost);
