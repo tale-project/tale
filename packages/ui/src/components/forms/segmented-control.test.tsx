@@ -1,3 +1,4 @@
+import { Inbox, Layers, MessageCircle } from 'lucide-react';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -224,5 +225,99 @@ describe('SegmentedControl', () => {
     expect(onValueChange).not.toHaveBeenCalled();
     await user.click(screen.getByRole('radio', { name: 'Board' }));
     expect(onValueChange).toHaveBeenCalledWith('board');
+  });
+});
+
+function IconLedSegments({
+  onValueChange,
+}: {
+  onValueChange: (value: string) => void;
+}) {
+  const [value, setValue] = useState('all');
+  return (
+    <>
+      <button type="button">Before</button>
+      <SegmentedControl
+        aria-label="Show"
+        labels="selected"
+        value={value}
+        onValueChange={(next) => {
+          setValue(next);
+          onValueChange(next);
+        }}
+        options={[
+          { value: 'all', label: 'All', icon: Layers },
+          {
+            value: 'chats',
+            label: 'Chats',
+            icon: MessageCircle,
+            attention: '2 items need you',
+          },
+          { value: 'inbox', label: 'Inbox', icon: Inbox },
+          { value: 'notes', label: 'Notes' },
+        ]}
+      />
+      <button type="button">After</button>
+    </>
+  );
+}
+
+describe('SegmentedControl with labels="selected"', () => {
+  it('names every option in full, its attention read after its label', () => {
+    render(<IconLedSegments onValueChange={() => {}} />);
+    expect(screen.getByRole('radiogroup', { name: 'Show' })).toBeVisible();
+    expect(
+      screen.getAllByRole('radio').map((radio) => radio.textContent),
+    ).toEqual(['All', 'Chats, 2 items need you', 'Inbox', 'Notes']);
+    expect(
+      screen.getByRole('radio', { name: 'Chats, 2 items need you' }),
+    ).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('draws the attention as one quiet dot the reader does not hear twice', () => {
+    render(<IconLedSegments onValueChange={() => {}} />);
+    const chats = screen.getByRole('radio', { name: /^Chats/ });
+    // oxlint-disable-next-line testing-library/no-node-access -- the dot is decorative, so it has no role
+    const dots = chats.querySelectorAll('[data-slot="attention-dot"]');
+    expect(dots).toHaveLength(1);
+    expect(dots[0]).toHaveAttribute('aria-hidden', 'true');
+  });
+
+  it('opens the chosen label alone and keeps an option without an icon labelled', async () => {
+    const { user } = render(<IconLedSegments onValueChange={() => {}} />);
+    const shown = () =>
+      screen
+        .getAllByRole('radio')
+        .filter(
+          (radio) =>
+            radio
+              // oxlint-disable-next-line testing-library/no-node-access -- the frame is how the label opens; it has no role
+              .querySelector('[data-slot="segmented-label-frame"]')
+              ?.getAttribute('data-shown') !== 'false',
+        )
+        .map((radio) => radio.textContent);
+    expect(shown()).toEqual(['All', 'Notes']);
+    await user.click(screen.getByRole('radio', { name: 'Inbox' }));
+    expect(shown()).toEqual(['Inbox', 'Notes']);
+  });
+
+  it('keeps one Tab stop and moves the choice with the arrow keys', async () => {
+    const onValueChange = vi.fn();
+    const { user } = render(<IconLedSegments onValueChange={onValueChange} />);
+    await user.click(screen.getByRole('button', { name: 'Before' }));
+    await user.tab();
+    const all = screen.getByRole('radio', { name: 'All' });
+    expect(all).toHaveFocus();
+    await user.keyboard('{ArrowLeft}');
+    const notes = screen.getByRole('radio', { name: 'Notes' });
+    expect(notes).toHaveFocus();
+    expect(notes).toHaveAttribute('aria-checked', 'true');
+    await user.keyboard('{ArrowRight}{ArrowRight}');
+    const chats = screen.getByRole('radio', { name: /^Chats/ });
+    expect(chats).toHaveFocus();
+    expect(chats).toHaveAttribute('aria-checked', 'true');
+    expect(onValueChange.mock.calls).toEqual([['notes'], ['all'], ['chats']]);
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'After' })).toHaveFocus();
   });
 });
