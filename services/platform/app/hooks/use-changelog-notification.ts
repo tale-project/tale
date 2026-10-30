@@ -38,6 +38,13 @@ interface ChangelogNotification {
    * "no row yet" from "still loading".
    */
   stateLoaded: boolean;
+  /**
+   * True when the notification-state read failed and holds no earlier
+   * answer: `lastSeenVersion` is unknown, and `stateLoaded` stays false
+   * until a later read succeeds. A surface that waits on `stateLoaded` must
+   * stop waiting here.
+   */
+  stateFailed: boolean;
   hasUnseenVersion: boolean;
   shouldShowToast: boolean;
   /**
@@ -53,7 +60,7 @@ interface ChangelogNotification {
 
 export function useChangelogNotification(): ChangelogNotification {
   const currentVersion = getEnv('TALE_VERSION');
-  const { data: state } = useBackendQuery(
+  const { data: state, isError } = useBackendQuery(
     'users/notification_state:getUserNotificationState',
     currentVersion ? {} : 'skip',
   );
@@ -68,6 +75,10 @@ export function useChangelogNotification(): ChangelogNotification {
   // toast/dot until we know whether the user has acknowledged the version
   // to avoid a spurious flash.
   const stateLoaded = state !== undefined;
+  // A failed read never loads: without this, a surface waiting for the
+  // state would wait forever. It still shows no dot and no toast, since
+  // what the user last saw is unknown.
+  const stateFailed = isError && !stateLoaded;
 
   // `state === null` means no row exists for this user at all: nothing was
   // ever recorded, so there is no previous version to have "updated" from.
@@ -95,6 +106,7 @@ export function useChangelogNotification(): ChangelogNotification {
     currentVersion,
     lastSeenVersion: state?.lastSeenChangelogVersion ?? undefined,
     stateLoaded,
+    stateFailed,
     hasUnseenVersion,
     shouldShowToast,
     needsBaseline: !!currentVersion && isFreshInstall,
