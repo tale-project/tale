@@ -10,6 +10,7 @@ import { lazyComponent } from '@tale/ui/lazy-component';
 import { Text } from '@tale/ui/text';
 import { useToast } from '@tale/ui/use-toast';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { TWO_FACTOR_ERROR_CODES } from 'better-auth/client/plugins';
 import { useEffect, useState } from 'react';
 
 import { usePasswordRefusalMessage } from '@/app/features/auth/hooks/use-password-refusal-message';
@@ -76,14 +77,28 @@ function NotEnrolledState({ enforced }: { enforced: boolean }) {
     try {
       const result = await authClient.twoFactor.enable({ password });
       if (result.error || !result.data) {
-        // A wrong password and the sign-in lock are worded; any other
-        // refusal keeps Better Auth's words.
+        if (
+          result.error?.code ===
+          TWO_FACTOR_ERROR_CODES.TOTP_ALREADY_ENABLED.code
+        ) {
+          // Another window turned two-factor on after this one read it off.
+          // Say so, and read the status again: the section then shows it on,
+          // which would unmount this prompt and any error written in it.
+          reset();
+          toast({ title: t('enrollment.enabledElsewhere') });
+          void queryClient.invalidateQueries({
+            queryKey: twoFactorStatusQuery().queryKey,
+          });
+          return;
+        }
+        // A wrong password, the sign-in lock and the session's authority are
+        // worded; any other refusal reads as this prompt's failure, since
+        // Better Auth's own words are English in every language.
         const refusal = readPasswordRefusal(result.error);
         setError(
           refusal
             ? refusalMessage(refusal)
             : (authSessionRefusalMessage(result.error) ??
-                result.error?.message ??
                 t('errors.enableFailed')),
         );
         return;
@@ -210,7 +225,6 @@ function EnrolledState({ enforced }: { enforced: boolean }) {
           refusal
             ? refusalMessage(refusal)
             : (authSessionRefusalMessage(result.error) ??
-                result.error.message ??
                 t('errors.disableFailed')),
         );
         return;
@@ -236,12 +250,29 @@ function EnrolledState({ enforced }: { enforced: boolean }) {
         password,
       });
       if (result.error || !result.data) {
+        if (
+          result.error?.code ===
+          TWO_FACTOR_ERROR_CODES.TWO_FACTOR_NOT_ENABLED.code
+        ) {
+          // Another window turned two-factor off after this one read it on,
+          // so there are no backup codes to replace. Say so, and read the
+          // status again: the section then shows it off.
+          setRegenOpen(false);
+          toast({
+            title: t('errors.regenerateFailed'),
+            description: t('enrollment.disabledElsewhere'),
+            variant: 'destructive',
+          });
+          void queryClient.invalidateQueries({
+            queryKey: twoFactorStatusQuery().queryKey,
+          });
+          return;
+        }
         const refusal = readPasswordRefusal(result.error);
         setError(
           refusal
             ? refusalMessage(refusal)
             : (authSessionRefusalMessage(result.error) ??
-                result.error?.message ??
                 t('errors.regenerateFailed')),
         );
         return;

@@ -31,6 +31,8 @@ Un passkey satisfait la règle de double facteur de Tale, même sans application
 
 La page du compte confirme maintenant que le double facteur est actif. À ta prochaine connexion par mot de passe, utilise un code provenant de la même entrée dans ton application.
 
+Si tu actives ou désactives le double facteur dans un autre onglet, un onglet déjà ouvert peut encore afficher l’état précédent. Si tu y choisis ensuite **Activer le double facteur** ou **Régénérer les codes de secours**, Tale indique que le double facteur a été activé ou désactivé pendant que la page était ouverte, ne change rien et affiche l’état actuel.
+
 Ton application d’authentification affiche l’entrée sous le nom de ce déploiement, pour que tu distingues les entrées de différents déploiements. Un déploiement pour un client commence par le nom de ce client, et un déploiement de test ajoute son environnement, comme **Acme Tale Platform TE** ; le déploiement de production de Tale lui-même s’appelle **Tale Platform**. Les codes de secours téléchargés reprennent les mêmes mots dans leur nom de fichier, par exemple `acme-tale-platform-te-backup-codes.txt`.
 
 <Tip>

@@ -24,6 +24,7 @@ import {
   useNavigate,
   useSearch,
 } from '@tanstack/react-router';
+import { TWO_FACTOR_ERROR_CODES } from 'better-auth/client/plugins';
 import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useState } from 'react';
 import { z } from 'zod';
@@ -35,6 +36,7 @@ import { resumeOAuthSignIn } from '@/app/features/auth/lib/resume-oauth';
 import { PasskeyRegisterDialog } from '@/app/features/settings/account/components/passkey-register-dialog';
 import { downloadBackupCodes } from '@/app/features/settings/account/lib/download-backup-codes';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
+import { authSessionRefusalMessage } from '@/app/lib/auth/auth-client-error';
 import { readPasswordRefusal } from '@/app/lib/auth/password-refusal';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { twoFactorStatusQuery } from '@/app/lib/backend/account';
@@ -104,13 +106,32 @@ export function TwoFactorEnrollPage() {
     try {
       const result = await authClient.twoFactor.enable({ password });
       if (result.error || !result.data) {
-        // A wrong password and the sign-in lock are worded; any other
-        // refusal keeps Better Auth's words.
+        if (
+          result.error?.code ===
+          TWO_FACTOR_ERROR_CODES.TOTP_ALREADY_ENABLED.code
+        ) {
+          // Another window finished enrolling while this one waited for the
+          // password. Say so, and read the status again: the guard above then
+          // leaves the wall, as it does for anyone already enrolled. Awaited,
+          // so the button stays busy until then.
+          toast({
+            title: t('enrollment.enabledElsewhere'),
+            position: 'top-center',
+          });
+          await queryClient.invalidateQueries({
+            queryKey: twoFactorStatusQuery().queryKey,
+          });
+          return;
+        }
+        // A wrong password, the sign-in lock and the session's authority are
+        // worded; any other refusal reads as this prompt's failure, since
+        // Better Auth's own words are English in every language.
         const refusal = readPasswordRefusal(result.error);
         setError(
           refusal
             ? refusalMessage(refusal)
-            : (result.error?.message ?? t('errors.enableFailed')),
+            : (authSessionRefusalMessage(result.error) ??
+                t('errors.enableFailed')),
         );
         return;
       }

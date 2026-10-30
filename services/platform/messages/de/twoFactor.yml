@@ -11,6 +11,8 @@ enrollment:
   regenerateButton: Backup-Codes neu erzeugen
   enabled: Zwei-Faktor-Authentifizierung aktiviert
   disabled: Zwei-Faktor-Authentifizierung deaktiviert
+  enabledElsewhere: Die Zwei-Faktor-Authentifizierung wurde aktiviert, während diese Seite offen war.
+  disabledElsewhere: Die Zwei-Faktor-Authentifizierung wurde deaktiviert, während diese Seite offen war.
   passwordPromptDescription: Bestätige dein Passwort, um die Einrichtung der
     Zwei-Faktor-Authentifizierung zu starten.
   disablePromptDescription: Bestätige dein Passwort, um die

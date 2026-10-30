@@ -11,6 +11,8 @@ enrollment:
   regenerateButton: Régénérer les codes de secours
   enabled: Authentification à double facteur activée
   disabled: Authentification à double facteur désactivée
+  enabledElsewhere: L'authentification à double facteur a été activée pendant que cette page était ouverte.
+  disabledElsewhere: L'authentification à double facteur a été désactivée pendant que cette page était ouverte.
   passwordPromptDescription: Confirme ton mot de passe pour commencer la
     configuration de l'authentification à double facteur.
   disablePromptDescription: Confirme ton mot de passe pour désactiver

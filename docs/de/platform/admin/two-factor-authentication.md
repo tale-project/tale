@@ -31,6 +31,8 @@ Ein Passkey erfüllt Tales Zwei-Faktor-Richtlinie auch ohne eingerichteten Authe
 
 Auf der Kontoseite steht jetzt, dass Zwei-Faktor-Authentifizierung aktiv ist. Bei der nächsten Anmeldung mit Passwort gibst du einen Code aus demselben Authenticator-Eintrag ein.
 
+Wenn du die Zwei-Faktor-Authentifizierung in einem anderen Tab aktivierst oder deaktivierst, kann ein Tab, der schon offen war, noch den vorherigen Stand zeigen. Wählst du dort danach **Zwei-Faktor aktivieren** oder **Backup-Codes neu erzeugen**, meldet Tale, dass die Zwei-Faktor-Authentifizierung aktiviert oder deaktiviert wurde, während die Seite offen war, ändert nichts und zeigt den aktuellen Stand.
+
 Deine Authenticator-App führt den Eintrag unter dem Namen dieses Deployments, damit du Einträge verschiedener Deployments auseinanderhältst. Bei einem Deployment für einen Kunden steht dessen Name vorn, und ein Test-Deployment hängt seine Umgebung an, etwa **Acme Tale Platform TE**. Das Produktiv-Deployment von Tale selbst heißt **Tale Platform**. Heruntergeladene Backup-Codes tragen dieselben Wörter im Dateinamen, etwa `acme-tale-platform-te-backup-codes.txt`.
 
 <Tip>
