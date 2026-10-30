@@ -207,6 +207,22 @@ describe('createScrubber — mask mode', () => {
     expect(o.text).toContain('[IP_ADDRESS]');
   });
 
+  // RFC 5952 ends an address in `::` when its last groups are zero: a
+  // subnet's router, a network written as an address.
+  it.each([
+    ['subnet 2001:db8:abcd:12:: is ours', 'subnet [IP_ADDRESS] is ours'],
+    ['router fd12:3456:789a:1:: here', 'router [IP_ADDRESS] here'],
+    ['link-local fe80::%eth0 up', 'link-local [IP_ADDRESS] up'],
+    ['prefix 2001:db8::/32 assigned', 'prefix [IP_ADDRESS]/32 assigned'],
+    ['gateway 2001:db8::1 ok', 'gateway [IP_ADDRESS] ok'],
+  ])('masks a compressed IPv6 address whole: %s', (input, expected) => {
+    const o = scrubber.scrub(input);
+    expect(o.kind).toBe('modified');
+    if (o.kind !== 'modified') return;
+    expect(o.text).toBe(expected);
+    expect(o.categoryIds).toEqual(['ipAddress']);
+  });
+
   it('masks a US SSN', () => {
     const o = scrubber.scrub('SSN: 123-45-6789');
     expect(o.kind).toBe('modified');
@@ -513,6 +529,17 @@ describe('edge cases', () => {
 
   it('does not mask an out-of-range dotted run as an IP', () => {
     expect(scrubber.scrub('Version 2.0.1.300').kind).toBe('pass');
+  });
+
+  // `isIP` accepts `::`, `d::` and `e::` as well, so a trailing `::` counts
+  // only after a group that starts a word, and only when no word follows.
+  it.each([
+    'f :: Int -> Int',
+    'Example::',
+    'std::vector<int> v;',
+    'let feed = Feed::new();',
+  ])('does not mask a double colon outside an address: %s', (input) => {
+    expect(scrubber.scrub(input).kind).toBe('pass');
   });
 
   it('resolves overlapping matches to one clean replacement', () => {
