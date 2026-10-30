@@ -340,11 +340,15 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   — never a partial table. _Mint a non-admin member; see [auth.md](auth.md)
   RBAC._.
 - [ ] `CONN-B5` · **Catalog unreadable** — Point the config root at a missing
-  directory and reload → The page reports the listing failure with the
-  server's message (`settings.connectors.catalog.listFailed`); a failed
-  credential list says so too (`settings.credentials.listFailed`). The picker
-  distinguishes a vendor-less deployment
-  (`settings.connectors.catalog.emptyBody`) from an empty organization.
+  directory and reload → The page names the listing failure
+  (`settings.connectors.catalog.listFailed`) with Try again
+  (`common.actions.tryAgain`), in the reader's language and without the
+  server's text; **Add credential** shows the same notice where the
+  connectors would be, never `settings.connectors.catalog.emptyBody`, which
+  stays for a deployment whose listing answers with no connector. A credential
+  list that cannot be read is the table's error state with Try again, never
+  `emptyStates.connectors.title`; rows a failed refresh left stay under
+  `settings.credentials.refreshFailed`.
 - [ ] `CONN-B6` · **OAuth callback hardening** — Open
   `…/http_api/api/connectors/oauth2/callback` directly (no/stale `state`) → A
   fixed server-rendered error page — "This connection link has expired" — with

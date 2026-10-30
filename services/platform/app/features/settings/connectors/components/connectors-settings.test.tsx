@@ -1237,19 +1237,41 @@ describe('ConnectorsSettings', () => {
   });
 
   describe('degradation', () => {
+    // #4831: the alerts said the server's own words; they say the page's.
     it('surfaces a catalog failure instead of an empty table', () => {
       fixtures.connectors = [];
       fixtures.connectorsError = { data: { message: 'catalog root missing' } };
       render(<ConnectorsSettings organizationId="org-1" />);
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Couldn't load the connectors.",
+      );
       expect(
-        screen.getByText('Could not load the connectors: catalog root missing'),
-      ).toBeInTheDocument();
+        screen.queryByText(/catalog root missing/),
+      ).not.toBeInTheDocument();
     });
 
     it('says so when the credential list fails rather than implying none exist', () => {
       fixtures.credentialsError = { data: { message: 'read timed out' } };
       render(<ConnectorsSettings organizationId="org-1" />);
-      expect(screen.getByText(/read timed out/)).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Couldn't load the latest credentials. What's listed may be incomplete or out of date.",
+      );
+      expect(screen.queryByText(/read timed out/)).not.toBeInTheDocument();
+    });
+
+    // #4831: a list that never loaded showed "No connectors connected yet"
+    // under its alert.
+    it('shows a credential list that never loaded as the table error, never as empty', () => {
+      fixtures.credentials = undefined as unknown as unknown[];
+      fixtures.credentialsError = new Error('read timed out');
+      render(<ConnectorsSettings organizationId="org-1" />);
+      expect(screen.getByRole('button', { name: 'Try again' })).toBeVisible();
+      expect(
+        screen.queryByText('No connectors connected yet'),
+      ).not.toBeInTheDocument();
+      // One error: the table's own, no notice above it.
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.queryByText(/read timed out/)).not.toBeInTheDocument();
     });
 
     it('refuses the page without the developer capability', () => {

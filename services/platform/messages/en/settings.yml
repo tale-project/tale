@@ -383,7 +383,7 @@ credentials:
   namePlaceholder: e.g. Support inbox
   nameHelp: The name a call uses to pick this credential.
   searchPlaceholder: Search credentials
-  listFailed: 'Could not load the credentials: {error}'
+  refreshFailed: "Couldn't load the latest credentials. What's listed may be incomplete or out of date."
   entityLabel: credentials
   entityLabelOne: credential
   columns:
@@ -397,6 +397,15 @@ credentials:
       are listed first — select one again to add another key.
     configured: Configured
     noMatches: Nothing matches that search.
+  errors:
+    nameTaken: Another credential already uses this name. Choose a different one.
+    nameInvalid: Enter a name of at most 100 characters.
+    disabledDefault: A disabled credential can't be the default. Enable it first.
+    defaultConflict: >-
+      Another credential became the default in the meantime. Check the list,
+      then choose the default again.
+    nothingChanged: Nothing was changed, so nothing was saved.
+    forbidden: Your role doesn't allow managing these settings.
 connectors:
   searchPlaceholder: Search connectors
   sectionDescription:
@@ -410,7 +419,7 @@ connectors:
     emptyBody: >-
       This deployment ships no connector files. Check that the config root
       is mounted and readable.
-    listFailed: 'Could not load the connectors: {error}'
+    listFailed: Couldn't load the connectors.
   authMethod:
     apiKey: API key
     bearer: Token
@@ -914,7 +923,7 @@ providers:
     resultError: '{name}: {error}'
     nothingToRefresh: Every catalog ships with the platform — there is nothing to refresh.
     refreshFailed: Couldn't refresh the catalogs.
-    listFailed: "Couldn't load the providers: {error}"
+    listFailed: Couldn't load the providers.
   harnesses:
     title: Agent runtimes
     description: How each agent runtime is configured for this organization — the models available and any vendor subscriptions bound to it. Configure this through provider credentials above.
@@ -964,6 +973,18 @@ providers:
     accountIdInvalid:
       Only a subscription key takes an account ID. Choose Subscription key
       as the authentication method, or save without an account ID.
+    endpointInvalid: >-
+      Tale can't use this endpoint URL. Enter an https address; plain http
+      works only for a private or loopback host, which also needs
+      TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 on the backend. Cloud-metadata
+      hosts are always refused.
+    envNameInvalid: >-
+      Use only letters, digits and underscores in the variable name after
+      TALE_PROVIDER_KEY_.
+    secretRequired: Enter the key for this authentication method.
+    secretInvalid: >-
+      Enter a new key. A credential that reads its key from an environment
+      variable stores none, so change its variable instead.
   replace:
     apiKeyTitle: Replace API key
     envTitle: Change environment variable
@@ -1012,6 +1033,11 @@ providers:
       A subscription broker supplies rotating OAuth tokens for Claude or
       ChatGPT subscriptions.
     invalid: 'Invalid broker configuration: {error}'
+    refused: >-
+      The broker configuration was refused. Check the broker endpoint: it
+      must be an https address, or plain http to a private or loopback host,
+      which also needs TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 on the backend.
+      If you left the broker secret empty, enter it again.
     endpoint: Broker endpoint
     httpMethod: HTTP method
     auth: Broker authentication

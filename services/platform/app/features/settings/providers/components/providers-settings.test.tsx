@@ -916,6 +916,36 @@ describe('ProvidersSettings', () => {
       fixtures.dependents = [];
     });
 
+    // #4831: a refused rename said, in English, what the server wrote.
+    it('words a refused rename in the reader language, not the server sentence', async () => {
+      updateCredential.mockRejectedValueOnce(
+        new AppError({
+          code: 'CREDENTIAL_NAME_TAKEN',
+          message:
+            'A credential named "Ops key" already exists for this provider — pick a different name.',
+        }),
+      );
+      const { user } = renderPage();
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Production key' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Edit credential',
+        }),
+      );
+      const dialog = within(
+        await screen.findByRole('dialog', { name: 'Edit credential' }),
+      );
+      await rename(user, dialog, 'Ops key');
+      await user.click(dialog.getByRole('button', { name: 'Save' }));
+      const alert = await dialog.findByRole('alert');
+      expect(alert).toHaveTextContent(
+        'Another credential already uses this name. Choose a different one.',
+      );
+      expect(alert).not.toHaveTextContent('pick a different name');
+    });
+
     it('keeps make-default visible but inert on a disabled credential', async () => {
       const { user } = renderPage();
       await user.click(
@@ -1025,11 +1055,15 @@ describe('ProvidersSettings', () => {
   });
 
   describe('degradation', () => {
+    // #4831: the alert said the server's own words; it says the page's.
     it('surfaces a whole-catalog failure instead of an empty table', () => {
       fixtures.catalogs = [];
       fixtures.catalogsError = { data: { message: 'config root missing' } };
       renderPage();
-      expect(screen.getByText(/config root missing/)).toBeInTheDocument();
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Couldn't load the providers.",
+      );
+      expect(screen.queryByText(/config root missing/)).not.toBeInTheDocument();
     });
 
     it('refuses the page without the developer capability', () => {

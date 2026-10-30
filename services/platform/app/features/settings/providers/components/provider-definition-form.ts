@@ -148,10 +148,11 @@ function listingFailureSentence(
 
 /**
  * Admin-facing copy for a failed provider write or listing. The backend's
- * refusals are coded, and each code has a localized sentence naming the fix;
- * anything else keeps the server's own sentence via `mapCredentialError`.
- * A failed listing answers 502, which reaches here as the transport's own
- * error rather than an `AppError`, so its code is read off that.
+ * refusals are coded, and each code has a localized sentence naming the fix:
+ * the provider's own here, the ones every credential surface shares through
+ * `mapCredentialError`, which also words anything else without the server's
+ * text. A failed listing answers 502, which reaches here as the transport's
+ * own error rather than an `AppError`, so its code is read off that.
  */
 export function mapProviderDefinitionError(
   t: Translator,
@@ -176,6 +177,16 @@ export function mapProviderDefinitionError(
       return t('providers.credential.inUseByEmbedding');
     case 'CREDENTIAL_ACCOUNT_ID_INVALID':
       return t('providers.credential.accountIdInvalid');
+    case 'CREDENTIAL_ENDPOINT_INVALID':
+      return t('providers.credential.endpointInvalid');
+    case 'CREDENTIAL_ENV_NAME_INVALID':
+      return t('providers.credential.envNameInvalid');
+    case 'CREDENTIAL_SECRET_REQUIRED':
+      return t('providers.credential.secretRequired');
+    case 'CREDENTIAL_SECRET_INVALID':
+      return t('providers.credential.secretInvalid');
+    case 'CREDENTIAL_BROKER_CONFIG_INVALID':
+      return t('providers.broker.refused');
     case 'PROVIDER_CATALOG_UNAVAILABLE':
       return t('providers.custom.errors.catalogUnavailable');
     default:
