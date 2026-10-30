@@ -208,6 +208,7 @@ import { installReviewHandoverHook } from './domains/tasks/reviews.ts';
 import { checkAgentRunFailureNotice } from './domains/tasks/run-failure-notice.integration.ts';
 import { checkTaskRunStartFence } from './domains/tasks/run-start.integration.ts';
 import { checkTaskSearchPriority } from './domains/tasks/search-priority.integration.ts';
+import { checkTaskShortRanks } from './domains/tasks/short-ranks.integration.ts';
 import { checkTaskSourceThread } from './domains/tasks/source-thread.integration.ts';
 import { checkStandingRoleWakeScenarios } from './domains/tasks/standing-role-wake-scenarios.integration.ts';
 import { checkStandingRoleWake } from './domains/tasks/standing-role-wake.integration.ts';
@@ -66029,6 +66030,7 @@ async function main(): Promise<void> {
         'checkTaskRepeatSeriesUpgrade',
         () => checkTaskRepeatSeriesUpgrade(sql, authCtx, record),
       ],
+      ['checkTaskShortRanks', () => checkTaskShortRanks(sql, authCtx, record)],
       [
         'checkSteerFallbackRecovery',
         () => checkSteerFallbackRecovery(sql, authCtx),

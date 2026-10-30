@@ -134,3 +134,43 @@ export function rankBetween(before?: string, after?: string): string {
   }
   return result;
 }
+
+/**
+ * A rank longer than this is what appends left behind before #4594, when
+ * each took the midpoint towards the alphabet's end and a column's keys grew
+ * a digit every six appends (7,319 characters after 44k appends to one
+ * board). Counted appends keep a million within 16 characters, so a board in
+ * ordinary use stays far below it; migration 0220 gives every task of a
+ * board that holds a longer rank a short one ({@link spacedRanks}).
+ */
+export const LONG_RANK_LENGTH = 64;
+
+/**
+ * `count` keys in ascending order, for a board's tasks in the order they
+ * stand: evenly spaced, all of one length, one digit longer than the count
+ * needs — every gap, and the room before the first and after the last, is
+ * then at least 35 keys wide at that length, so the drops and appends that
+ * follow stay short (44k tasks get 4 digits). A position whose last digit is
+ * 0 moves one up, so no key ends in 0 (the post-condition of
+ * {@link rankBetween}) and none is all `z`, which an append would extend.
+ */
+export function spacedRanks(count: number): string[] {
+  if (!Number.isSafeInteger(count) || count < 0) {
+    throw new RangeError(`spacedRanks: no count ${count}`);
+  }
+  const base = BigInt(BASE);
+  const slots = BigInt(count) + 1n;
+  let width = 1;
+  while (base ** BigInt(width - 1) < slots) width += 1;
+  const span = base ** BigInt(width);
+  const keys: string[] = [];
+  for (let slot = 1n; slot < slots; slot += 1n) {
+    const position = (slot * span) / slots;
+    keys.push(
+      (position % base === 0n ? position + 1n : position)
+        .toString(BASE)
+        .padStart(width, '0'),
+    );
+  }
+  return keys;
+}

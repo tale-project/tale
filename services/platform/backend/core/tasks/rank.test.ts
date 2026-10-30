@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 
-import { initialRank, rankBetween } from './rank';
+import {
+  initialRank,
+  LONG_RANK_LENGTH,
+  rankBetween,
+  spacedRanks,
+} from './rank';
 
 describe('initialRank', () => {
   it('returns a stable mid-alphabet key', () => {
@@ -142,5 +147,100 @@ describe('rankBetween', () => {
     ] as const) {
       expect(() => rankBetween(a, b)).toThrow();
     }
+  });
+});
+
+/** The append #4594 replaced: past the key's leading z's, the midpoint
+ * between its first other digit and the alphabet's end. */
+function walkedAppend(key: string): string {
+  const at = key.search(/[^z]/);
+  if (at === -1) return `${key}i`;
+  const digit = parseInt(key.charAt(at), 36);
+  return `${key.slice(0, at)}${Math.floor((digit + 36) / 2).toString(36)}`;
+}
+
+/** A key's place among all keys of `width` digits. */
+function position(key: string, width: number): number {
+  return parseInt(key.padEnd(width, '0'), 36);
+}
+
+describe('spacedRanks', () => {
+  it('gives no key for no task, and keys of one length otherwise', () => {
+    expect(spacedRanks(0)).toEqual([]);
+    expect(spacedRanks(1)).toEqual(['i1']);
+    expect(spacedRanks(2)).toEqual(['c1', 'o1']);
+    expect(spacedRanks(3)).toEqual(['91', 'i1', 'r1']);
+    expect(() => spacedRanks(-1)).toThrow(RangeError);
+    expect(() => spacedRanks(1.5)).toThrow(RangeError);
+  });
+
+  it.each([1, 2, 35, 36, 1_295, 1_296, 46_655, 44_000])(
+    'spaces %i keys evenly, one digit longer than the count needs, none ending in 0 or all z',
+    (count) => {
+      const keys = spacedRanks(count);
+      const width = count.toString(36).length + 1;
+      expect(keys).toHaveLength(count);
+      // The room between two keys, and before the first and after the
+      // last, among all keys of that length.
+      let previous = 0;
+      let narrowest = Infinity;
+      let widest = 0;
+      const room = (next: number) => {
+        narrowest = Math.min(narrowest, next - previous);
+        widest = Math.max(widest, next - previous);
+        previous = next;
+      };
+      for (const key of keys) {
+        expect(key).toMatch(/^[0-9a-z]*[1-9a-z]$/);
+        expect(key).toHaveLength(width);
+        expect(key).not.toBe('z'.repeat(width));
+        room(position(key, width));
+      }
+      room(36 ** width);
+      expect(narrowest).toBeGreaterThanOrEqual(35);
+      expect(widest - narrowest).toBeLessThanOrEqual(3);
+    },
+  );
+
+  it('orders its keys as the board sorts them', () => {
+    const keys = spacedRanks(5_000);
+    expect([...keys].sort()).toEqual(keys);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('leaves room for a drop before, between and after its keys', () => {
+    for (const count of [1, 35, 36, 1_295, 1_296]) {
+      const keys = spacedRanks(count);
+      const width = keys[0]?.length ?? 0;
+      // The midpoint walk may descend one digit past the keys' length.
+      const first = rankBetween(undefined, keys[0]);
+      expect(first < (keys[0] ?? '')).toBe(true);
+      expect(first.length).toBeLessThanOrEqual(width + 1);
+      for (let i = 1; i < keys.length; i += 1) {
+        const between = rankBetween(keys[i - 1], keys[i]);
+        expect(between > (keys[i - 1] ?? '')).toBe(true);
+        expect(between < (keys[i] ?? '')).toBe(true);
+        expect(between.length).toBeLessThanOrEqual(width + 1);
+      }
+      // Appends count on at that length through the room after the last.
+      let last = keys.at(-1) ?? '';
+      for (let i = 0; i < 33; i += 1) {
+        const next = rankBetween(last, undefined);
+        expect(next > last).toBe(true);
+        expect(next).toHaveLength(width);
+        last = next;
+      }
+    }
+  });
+
+  it('gives the load run’s board short keys for its long ones', () => {
+    // #4713: 44k appends to one board under the old walk.
+    let key = initialRank();
+    for (let i = 1; i < 44_000; i += 1) key = walkedAppend(key);
+    expect(key.length).toBeGreaterThan(7_000);
+    expect(key.length).toBeGreaterThan(LONG_RANK_LENGTH);
+
+    const keys = spacedRanks(44_000);
+    expect(keys.every((spaced) => spaced.length === 4)).toBe(true);
   });
 });

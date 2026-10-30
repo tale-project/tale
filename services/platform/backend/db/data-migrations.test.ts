@@ -8,7 +8,8 @@
  * files an extractor reads — is a numbered `.ts` module, applied in the same
  * filename order and ledger as the `.sql` files. What is pinned: which files
  * the migrator applies, that every `.ts` one exports `migrate` and reaches
- * only pure rules, and what `0128` and `0129` fill and leave alone.
+ * only pure rules, and what `0128`, `0129`, `0166` and `0220` fill and leave
+ * alone.
  */
 
 import { existsSync, statSync } from 'node:fs';
@@ -29,6 +30,7 @@ import {
   unsupportedByName,
   unsupportedTypeError,
 } from '../core/knowledge/rag_unsupported.ts';
+import { LONG_RANK_LENGTH, spacedRanks } from '../core/tasks/rank.ts';
 import { isMigrationFile } from './migrate.ts';
 
 // The indexer's by-name rule, as the migrations see it: the real rule unless
@@ -77,6 +79,7 @@ describe('the files the boot migrator applies', () => {
         '0128_rag_unsupported_type_codes.ts',
         '0129_rag_unsupported_image_codes.ts',
         '0166_project_agent_handles_backfill.ts',
+        '0220_short_task_ranks.ts',
       ]),
     );
     for (const file of files) {
@@ -110,6 +113,10 @@ const PURE_RULES: ReadonlyMap<string, string> = new Map([
   [
     'backend/core/lib/knowledge/extraction/',
     'the extractor set: decides by extension, parses only the bytes it is handed',
+  ],
+  [
+    'backend/core/tasks/rank.ts',
+    'the board ranks, built from the keys and counts it is handed, imports nothing',
   ],
   ['lib/shared/agent-handle.ts', 'the agent handle slug rule, imports nothing'],
   [
@@ -792,5 +799,139 @@ describe('0166 — handles for the agents that existed before them [PROJ-R18]', 
     });
     await m0166.migrate(tx);
     expect(statements.some((s) => s.text.startsWith('UPDATE'))).toBe(false);
+  });
+});
+
+/**
+ * Scripted transaction for 0220, answered by statement text: the boards that
+ * hold a long rank, then each board's lock and its tasks in the order it
+ * reads them, then the rank writes and the hint.
+ */
+function fakeRankTx(answers: {
+  boards: { projectId: string; orgId: string }[];
+  tasks: Record<string, { id: string; long: boolean }[]>;
+}): { tx: TransactionSql; statements: Statement[] } {
+  const statements: Statement[] = [];
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join('$').replace(/\s+/g, ' ').trim();
+    statements.push({ text, values });
+    if (text.includes('FROM app.projects')) {
+      return Promise.resolve(answers.boards);
+    }
+    if (text.includes('ORDER BY rank')) {
+      const board = values.find(
+        (value): value is string =>
+          typeof value === 'string' && value in answers.tasks,
+      );
+      return Promise.resolve(board === undefined ? [] : answers.tasks[board]);
+    }
+    return Promise.resolve([]);
+  };
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
+  return { tx: tag as unknown as TransactionSql, statements };
+}
+
+const m0220 = await load('0220_short_task_ranks.ts');
+
+describe('0220 — short ranks for the boards whose ranks grew long', () => {
+  /** A board's tasks in the order it reads them, the last one's rank long. */
+  const board = (prefix: string, count: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      id: `${prefix}-${String(index).padStart(5, '0')}`,
+      long: index === count - 1,
+    }));
+  const writesOf = (statements: Statement[]) =>
+    statements.filter((statement) =>
+      statement.text.startsWith('UPDATE app.tasks'),
+    );
+  const hintsOf = (statements: Statement[]) =>
+    statements.filter((statement) =>
+      statement.text.startsWith('INSERT INTO app_realtime.outbox'),
+    );
+
+  it('reads only the boards that hold a rank over the threshold, and stops when none does', async () => {
+    const { tx, statements } = fakeRankTx({ boards: [], tasks: {} });
+    await m0220.migrate(tx);
+    expect(statements).toHaveLength(1);
+    expect(statements[0]?.text).toContain('length(t.rank) > $');
+    expect(statements[0]?.values).toEqual([LONG_RANK_LENGTH]);
+  });
+
+  it('locks a board’s tasks before it reads their order: by rank in code-unit order, then id', async () => {
+    const { tx, statements } = fakeRankTx({
+      boards: [{ projectId: 'p1', orgId: 'org-1' }],
+      tasks: { p1: board('a', 3) },
+    });
+    await m0220.migrate(tx);
+    expect(statements[1]?.text).toContain('FOR UPDATE');
+    expect(statements[1]?.values).toEqual(['p1']);
+    expect(statements[2]?.text).toContain(
+      'ORDER BY rank COLLATE "C", id COLLATE "C"',
+    );
+    expect(statements[2]?.values).toEqual([LONG_RANK_LENGTH, 'p1']);
+  });
+
+  it('gives every task of the board the rank module’s keys in the order read, 5,000 rows a write', async () => {
+    const tasks = board('t', 12_001);
+    const { tx, statements } = fakeRankTx({
+      boards: [{ projectId: 'p1', orgId: 'org-1' }],
+      tasks: { p1: tasks },
+    });
+
+    await m0220.migrate(tx);
+
+    const writes = writesOf(statements);
+    const [ids, ranks] = [0, 1].map((at) =>
+      writes.map((write) => (write.values[at] ?? []) as string[]),
+    );
+    expect(ids?.map((batch) => batch.length)).toEqual([5_000, 5_000, 2_001]);
+    expect(ids?.flat()).toEqual(tasks.map((task) => task.id));
+    expect(ranks?.flat()).toEqual(spacedRanks(12_001));
+    // Never a row of another board.
+    for (const write of writes) {
+      expect(write.text).toContain('AND t.project_id = $');
+      expect(write.values[2]).toBe('p1');
+    }
+  });
+
+  it('leaves a board alone whose ranks are all short by the time it is locked', async () => {
+    const { tx, statements } = fakeRankTx({
+      boards: [{ projectId: 'p1', orgId: 'org-1' }],
+      tasks: {
+        p1: [
+          { id: 'a', long: false },
+          { id: 'b', long: false },
+        ],
+      },
+    });
+    await m0220.migrate(tx);
+    expect(writesOf(statements)).toEqual([]);
+    expect(hintsOf(statements)).toEqual([]);
+  });
+
+  it('hints each board it rewrote once, in the board’s organization', async () => {
+    const { tx, statements } = fakeRankTx({
+      boards: [
+        { projectId: 'p1', orgId: 'org-1' },
+        { projectId: 'p2', orgId: 'org-1' },
+        { projectId: 'p3', orgId: 'org-2' },
+      ],
+      tasks: {
+        p1: board('a', 2),
+        p2: [{ id: 'b', long: false }],
+        p3: board('c', 1),
+      },
+    });
+
+    await m0220.migrate(tx);
+
+    const hints = hintsOf(statements);
+    expect(hints).toHaveLength(1);
+    expect(hints[0]?.text).toContain("SELECT org_id, NULL, 'task', project_id");
+    expect(hints[0]?.values).toEqual([
+      ['org-1', 'org-2'],
+      ['p1', 'p3'],
+    ]);
+    expect(statements.at(-1)).toBe(hints[0]);
   });
 });
