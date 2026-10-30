@@ -348,11 +348,19 @@ async function handleExec(
   }
   // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
   const parsed = body.value as RunnerdExecRequest;
-  // A session about to run out of memory starts nothing more: a new exec
-  // would push the kernel to kill one of the running ones, most often the
-  // agent. Refused before it starts, with a hint to ask again; the execs
-  // already running are left alone.
-  if (memoryRefusesExec(await readSessionMemory(), ADMISSION_MEMORY_PERCENT)) {
+  // A session about to run out of memory starts nothing beside its running
+  // execs: a new exec would push the kernel to kill one of them, most often
+  // the agent. Refused before it starts, with a hint to ask again; the execs
+  // already running are left alone. With nothing running the exec is
+  // admitted: no exec can lose to it, the kernel reclaims cache for it under
+  // the limit, and what fills an idle session (inner containers, tmpfs)
+  // frees nothing by waiting. The live count is read once the memory is, and
+  // nothing awaits from there until execManager.run counts the new exec, so
+  // two starts at once cannot both pass as the only one.
+  const memory = await readSessionMemory();
+  if (
+    memoryRefusesExec(memory, ADMISSION_MEMORY_PERCENT, execManager.liveCount())
+  ) {
     const refusal: RunnerdMemoryBusy = {
       error: RUNNERD_MEMORY_BUSY_ERROR,
       code: 'SESSION_MEMORY_BUSY',

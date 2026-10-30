@@ -160,10 +160,11 @@ and runnerd ends it: every session container gets the window as
 `EXEC_STALLED`, even when the command exited 0 on the SIGTERM
 (../sandbox-runtime/README.md).
 
-A session whose memory is nearly spent starts no new exec: every session
-container gets `TALE_EXEC_ADMISSION_MEMORY_PERCENT=90`, and once the session's
-working set has reached that share of its limit runnerd refuses a new exec
-before it starts. `POST /v1/sessions/:id/exec` then answers `429`
+A session whose memory is nearly spent starts no new exec beside a running
+one: every session container gets `TALE_EXEC_ADMISSION_MEMORY_PERCENT=90`, and
+once the session's working set has reached that share of its limit while an
+exec runs, runnerd refuses a new exec before it starts; with nothing running
+it admits the exec. `POST /v1/sessions/:id/exec` then answers `429`
 `{ error: "session_memory_busy", code: "SESSION_MEMORY_BUSY" }` with runnerd's
 `retry-after`, before any stream: the spawner starts the exec before it answers,
 so a refused exec never shows up as a failed one. Running execs are untouched.

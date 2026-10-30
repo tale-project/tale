@@ -180,7 +180,7 @@ describe('runnerd HTTP service', () => {
     expect(response.status).toBe(401);
   });
 
-  test('refuses a new exec while the session’s memory is nearly spent, and runs it once there is room', async () => {
+  test('refuses a new exec beside a running one while the session’s memory is nearly spent, and admits it once there is room or nothing runs', async () => {
     const cgroup = mkdtempSync(`${tmpdir()}/runnerd-cgroup-`);
     const previousRoot = process.env.TALE_CGROUP_ROOT;
     process.env.TALE_CGROUP_ROOT = cgroup;
@@ -204,9 +204,39 @@ describe('runnerd HTTP service', () => {
           stderrMaxBytes: 1_000,
         }),
       });
+    const health = async () =>
+      record(await (await fetch(`${baseUrl}/healthz`, { headers })).json());
+    const controller = new AbortController();
+    let running: Response | undefined;
     try {
       // 950 MiB of 1 GiB in use, none of it cache the kernel can drop.
       fill(950, 0);
+      // Released and with nothing running, the session starts the exec all
+      // the same: no exec can lose to it, and nothing frees by waiting.
+      expect(
+        (await activityPost('/release', await releaseTicket())).value,
+      ).toEqual({ released: true, incarnation });
+      running = await fetch(`${baseUrl}/execs`, {
+        method: 'POST',
+        headers,
+        signal: controller.signal,
+        body: JSON.stringify({
+          execId: 'memory-running',
+          shell: 'exec sleep 30',
+          cwd: workspace,
+          timeoutMs: 30_000,
+          stdoutMaxBytes: 0,
+          stderrMaxBytes: 0,
+        }),
+      });
+      expect(running.status).toBe(200);
+      expect(await health()).toMatchObject({
+        liveExecs: 1,
+        activity: { released: false },
+      });
+
+      // Beside the running exec, the next start is refused and nothing
+      // starts.
       const refused = await post('memory-busy');
       expect(refused.status).toBe(429);
       expect(refused.headers.get('retry-after')).toBe('5');
@@ -223,7 +253,41 @@ describe('runnerd HTTP service', () => {
       const admitted = await post('memory-room');
       expect(admitted.status).toBe(200);
       expect(await admitted.text()).toContain('"t":"exit"');
+
+      // Once the running exec has ended, the refusal holds nothing: the
+      // session releases, and the next start into it is admitted.
+      fill(950, 0);
+      await fetch(`${baseUrl}/execs/memory-running/cancel`, {
+        method: 'POST',
+        headers,
+      });
+      expect(await running.text()).toContain('"t":"exit"');
+      const deadline = Date.now() + 5_000;
+      let settled = await health();
+      while (
+        (settled.liveExecs !== 0 ||
+          record(settled.activity).activeOperations !== 0) &&
+        Date.now() < deadline
+      ) {
+        await new Promise((settle) => setTimeout(settle, 10));
+        settled = await health();
+      }
+      expect(
+        (await activityPost('/release', await releaseTicket())).value,
+      ).toEqual({ released: true, incarnation });
+      const idle = await post('memory-idle');
+      expect(idle.status).toBe(200);
+      expect(await idle.text()).toContain('"t":"exit"');
     } finally {
+      controller.abort();
+      if (running?.bodyUsed === false)
+        await running.body?.cancel().catch((error: unknown) => {
+          console.warn('[test] cancelling the running exec stream:', error);
+        });
+      await fetch(`${baseUrl}/execs/memory-running/cancel`, {
+        method: 'POST',
+        headers,
+      });
       if (previousRoot === undefined) delete process.env.TALE_CGROUP_ROOT;
       else process.env.TALE_CGROUP_ROOT = previousRoot;
       rmSync(cgroup, { recursive: true, force: true });

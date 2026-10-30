@@ -3,8 +3,8 @@
 // Kubernetes); every exec, this daemon and the inner Docker engine draw on
 // it, and past the limit the kernel's OOM killer ends a process of the
 // session — most often the agent itself, the largest one. Reading the
-// cgroup's own files lets runnerd refuse to start more work into a session
-// that is about to run out, and say afterwards when it did.
+// cgroup's own files lets runnerd refuse to start more work beside the execs
+// of a session that is about to run out, and say afterwards when it did.
 //
 // Inside the container's cgroup namespace its cgroup is the root of
 // /sys/fs/cgroup. Under Docker-in-sandbox the entrypoint moves every process
@@ -16,8 +16,8 @@
 import { readFile } from 'node:fs/promises';
 
 /** The share of its limit a session's working set may reach before runnerd
- * refuses to start another exec in it, when `TALE_EXEC_ADMISSION_MEMORY_PERCENT`
- * is unset. */
+ * refuses to start another exec beside a running one, when
+ * `TALE_EXEC_ADMISSION_MEMORY_PERCENT` is unset. */
 export const DEFAULT_ADMISSION_MEMORY_PERCENT = 90;
 /** How long a refused start is told to wait before it asks again. */
 export const MEMORY_BUSY_RETRY_AFTER_SECONDS = 5;
@@ -127,13 +127,17 @@ export async function readMemoryPeak(
   return peak !== undefined && /^\d+$/.test(peak) ? Number(peak) : null;
 }
 
-/** Whether a session this full refuses a new exec: its working set has
- * reached `percent` of its limit. Never without a limit, a reading, or with
- * the check off (0). */
+/** Whether a session this full refuses a new exec beside the `liveExecs`
+ * already running: its working set has reached `percent` of its limit. Never
+ * with nothing running — no exec can lose to the new one, and what fills the
+ * session then frees nothing by waiting — nor without a limit, a reading, or
+ * with the check off (0). */
 export function memoryRefusesExec(
   memory: SessionMemory | null,
   percent: number,
+  liveExecs: number,
 ): boolean {
+  if (liveExecs <= 0) return false;
   if (memory === null || memory.maxBytes === null || percent <= 0) return false;
   return memory.workingSetBytes * 100 >= memory.maxBytes * percent;
 }
