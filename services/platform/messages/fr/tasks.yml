@@ -231,6 +231,7 @@ labels:
   rename: Renommer
   deleteConfirmTitle: Supprimer cette étiquette ?
   deleteConfirmDescription: Retire « {label} » du projet et de toutes les tâches qui l'utilisent.
+  overflow: '{count, plural, one {# autre étiquette} other {# autres étiquettes}} : {labels}'
   errors:
     TASK_LABEL_NAME_TAKEN: Une étiquette porte déjà ce nom.
     TASK_LABEL_UNKNOWN: Cette étiquette n'existe pas dans le projet — choisis-en une qu'il a déjà. Les Éditeurs et les rôles supérieurs ajoutent de nouvelles étiquettes dans le sélecteur.
@@ -273,6 +274,8 @@ board:
   noTasks: Aucune tâche
 list:
   showArchived: Afficher les archivées
+  noMatches: Aucune tâche ne correspond à ces filtres.
+  clearFilters: Effacer les filtres
 # Une lecture du tableau qui a échoué après toutes ses tentatives (#3747) :
 # ce qui n’a pas été chargé et ce que la personne voit entre-temps — jamais
 # un tableau vide. Chaque alerte porte « Réessayer »

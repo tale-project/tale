@@ -235,3 +235,66 @@ describe('TasksList keyboard access', () => {
     expect(onOpenTask).toHaveBeenLastCalledWith(task);
   });
 });
+
+// A row shows three labels and folds the rest into "+N" (#4910). The chip
+// was a span: no keyboard reached its tooltip, and a screen reader heard
+// "+1" without the label it stands for.
+describe('TasksList hidden labels', () => {
+  const label = (name: string) => ({
+    id: `label_${name}`,
+    name,
+    color: 'blue',
+  });
+  const labels = ['ops', 'docs', 'billing', 'security'].map(label);
+
+  it('lets the keyboard reach the +1 chip, which names the fourth label', async () => {
+    const task = makeTask({ labels });
+    const { user, container } = render(
+      <TasksList tasks={[task]} onOpenTask={vi.fn()} />,
+    );
+
+    screen.getByRole('button', { name: task.title }).focus();
+    await user.tab();
+    const chip = screen.getByRole('button', {
+      name: '1 more label: security',
+    });
+    expect(chip).toHaveFocus();
+    expect(chip).toHaveTextContent('+1');
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('security');
+    await checkAccessibility(container);
+  });
+
+  it('names every hidden label, in order', () => {
+    render(
+      <TasksList tasks={[makeTask({ labels: [...labels, label('legal')] })]} />,
+    );
+    expect(
+      screen.getByRole('button', { name: '2 more labels: security, legal' }),
+    ).toHaveTextContent('+2');
+  });
+
+  it('keeps a press on the chip from opening the task', async () => {
+    const task = makeTask({ labels });
+    const onOpenTask = vi.fn();
+    const { user } = render(
+      <TasksList tasks={[task]} onOpenTask={onOpenTask} />,
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: '1 more label: security' }),
+    );
+    await user.keyboard('{Enter}');
+    expect(onOpenTask).not.toHaveBeenCalled();
+    // The labels it shows are metadata: a click on one still opens the task.
+    await user.click(screen.getByText('ops'));
+    expect(onOpenTask).toHaveBeenCalledExactlyOnceWith(task);
+  });
+
+  it('shows no chip while every label fits', () => {
+    render(<TasksList tasks={[makeTask({ labels: labels.slice(0, 3) })]} />);
+    expect(screen.getByText('billing')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /more label/ }),
+    ).not.toBeInTheDocument();
+  });
+});

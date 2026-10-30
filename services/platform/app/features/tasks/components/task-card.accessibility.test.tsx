@@ -235,6 +235,97 @@ describe('TaskCard state accessibility', () => {
   });
 });
 
+// A card shows four labels and folds the rest into "+N" (#4910): a span the
+// keyboard never reached, under the title's stretched hit area.
+describe('TaskCard hidden labels', () => {
+  const label = (name: string) => ({
+    id: `label_${name}`,
+    name,
+    color: 'blue',
+  });
+  const labels = ['ops', 'docs', 'billing', 'design', 'security'].map(label);
+
+  it('lets the keyboard reach the +1 chip after the title, and names the fifth label', async () => {
+    const { user, container } = renderCard(false, { labels }, false);
+
+    await user.tab();
+    expect(screen.getByRole('button', { name: task.title })).toHaveFocus();
+    await user.tab();
+    const chip = screen.getByRole('button', {
+      name: '1 more label: security',
+    });
+    expect(chip).toHaveFocus();
+    expect(chip).toHaveTextContent('+1');
+    await waitFor(() =>
+      expect(screen.getByRole('tooltip')).toHaveTextContent('security'),
+    );
+    await checkAccessibility(container, {
+      rules: { 'aria-prohibited-attr': { enabled: true } },
+    });
+  });
+
+  it.each([
+    ['en', 1, '1 more label: security'],
+    ['en', 2, '2 more labels: security, legal'],
+    ['de', 1, '1 weiteres Label: security'],
+    ['de', 2, '2 weitere Labels: security, legal'],
+    ['fr', 1, '1 autre étiquette\u00a0: security'],
+    ['fr', 2, '2 autres étiquettes\u00a0: security, legal'],
+  ])('uses the %s plural for %s hidden labels', (locale, hidden, name) => {
+    state.locale = locale;
+    renderCard(
+      false,
+      { labels: hidden === 1 ? labels : [...labels, label('legal')] },
+      false,
+    );
+    expect(screen.getByRole('button', { name })).toHaveTextContent(
+      `+${hidden}`,
+    );
+  });
+
+  it('keeps a press on the chip from opening the task', async () => {
+    const onOpen = vi.fn();
+    const row = { ...task, labels };
+    const { user } = render(
+      <DndContext>
+        <TaskBoardProvider tasks={[row]} dependencyEdges={[]}>
+          <TaskCard task={row} onOpen={onOpen} />
+        </TaskBoardProvider>
+      </DndContext>,
+    );
+
+    const chip = screen.getByRole('button', { name: '1 more label: security' });
+    await user.click(chip);
+    await user.keyboard('{Enter}');
+    expect(onOpen).not.toHaveBeenCalled();
+    await user.click(screen.getByRole('button', { name: task.title }));
+    expect(onOpen).toHaveBeenCalledExactlyOnceWith(row);
+  });
+
+  // A tap never hovers, and the chip sits above the title's hit area: the
+  // tap opens the chip's tooltip itself, or it would do nothing at all.
+  it('shows the hidden labels on a tap and hides them on the next', async () => {
+    const onOpen = vi.fn();
+    const row = { ...task, labels };
+    const { user } = render(
+      <DndContext>
+        <TaskBoardProvider tasks={[row]} dependencyEdges={[]}>
+          <TaskCard task={row} onOpen={onOpen} />
+        </TaskBoardProvider>
+      </DndContext>,
+    );
+
+    const chip = screen.getByRole('button', { name: '1 more label: security' });
+    await user.pointer({ keys: '[TouchA]', target: chip });
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('security');
+    await user.pointer({ keys: '[TouchA]', target: chip });
+    await waitFor(() =>
+      expect(screen.queryByRole('tooltip')).not.toBeInTheDocument(),
+    );
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+});
+
 function liveCard(
   overrides: Partial<TaskRow>,
   indicators: { running?: string[]; asking?: string[] },

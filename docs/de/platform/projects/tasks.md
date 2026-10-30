@@ -232,11 +232,15 @@ Grenze das Board mit **Filter** ein oder wechsle zur **Liste**, um Zeilen zu üb
 
 **Tasks durchsuchen** grenzt das Board zusammen mit **Filter** ein. Jede Aufgabe, die zu beidem passt, erscheint, egal wie viele es sind. Die Suche findet Aufgaben, deren Titel, Beschreibung oder Kennung, etwa `WEB-12`, jedes eingegebene Wort enthält, und Aufgaben mit einem Kommentar, der alle diese Wörter enthält. Das Board fasst bis zu 2.000 Aufgaben. In einem größeren Projekt sagt ein Hinweis, dass nur die ersten 2.000 angezeigt werden; über die Suche erreichst du die übrigen.
 
+Lassen deine Suche und deine Filter keine Aufgabe übrig, bleibt jeder Status an seinem Platz, und ein Hinweis darüber sagt **Keine Aufgaben passen zu diesen Filtern.** **Filter zurücksetzen** im Hinweis entfernt die Suche und alle Filter auf einmal. Der Hinweis erscheint nur, wenn das Board jede Aufgabe prüfen konnte: nicht, wenn es nur die ersten 2.000 zeigt, und nicht bei **Wartet auf mein Review**, solange die Aktivität der Agenten und Reviews nicht geladen werden kann.
+
 Können die Aufgaben nicht geladen werden, sagt das Board das, statt leere Spalten zu zeigen, und deine Suche und deine Filter bleiben, wie sie sind. Wähle **Erneut versuchen**, um sie zu laden. Schlägt eine Aktualisierung fehl, bleiben die angezeigten Aufgaben stehen, und ein Hinweis sagt, dass sie dem zuletzt geladenen Stand entsprechen. Ein Hinweis erscheint auch, wenn die Abhängigkeiten oder die Aktivität der Agenten und Reviews nicht geladen werden können, denn dann sind blockierte Aufgaben, laufende Agenten, offene Fragen und ausstehende Reviews möglicherweise nicht markiert. **Erneut versuchen** in einem Hinweis lädt nur, was fehlgeschlagen ist.
 
 Mit der Tastatur drückst du **Enter** auf **Filter**: Das Panel öffnet sich beim ersten Filter, **Zuständig**. Mit **Enter** klappst du ihn auf, mit **Tab** erreichst du seine Optionen. Die Pfeiltasten wählen eine aus, und das Board folgt sofort. Die **Leertaste** wählt die Option, auf der der Fokus steht, und hebt die Auswahl auf, wenn sie schon gewählt ist. **Tab** führt zum nächsten Filter, und **Escape** schließt das Panel.
 
 In den Ansichten **Board** und **Liste** erreichst du den Aufgabentitel mit **Tab**. Drücke dann **Enter**, um die Aufgabe zu öffnen.
+
+Eine Karte zeigt bis zu vier Labels, eine Zeile in der **Liste** bis zu drei; **+N** steht für die übrigen. Zeige darauf, tippe es an oder drücke vom Aufgabentitel aus einmal **Tab**, um zu sehen, für welche Labels es steht; ein Screenreader liest sie vor. Wählst du **+N** aus, öffnet sich die Aufgabe nicht.
 
 Kannst du die Aufgabe bearbeiten, drückst du auf ihrem Titel die **Leertaste**, um sie aufzunehmen. Verschiebe sie mit den Pfeiltasten und lege sie mit der **Leertaste** wieder ab. **Escape** bricht das Verschieben ab und lässt die Aufgabe, wo sie war. Ein Screenreader nennt die Aufgabe beim Aufnehmen und sagt beim Verschieben ihren Status und ihre Position an.
 

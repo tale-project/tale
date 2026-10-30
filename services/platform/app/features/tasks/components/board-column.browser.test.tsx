@@ -505,3 +505,56 @@ describe('a folded lane (real Chromium)', () => {
     );
   });
 });
+
+// #4910: a card folds labels past its fourth into "+N", a span under the
+// title's stretched hit area: the keyboard never reached it, and the pointer
+// landed on the title, so the chip's tooltip never opened.
+describe("a card's hidden labels (real Chromium)", () => {
+  const labelled: TaskRow = {
+    ...makeTask(0),
+    labels: ['ops', 'docs', 'billing', 'design', 'security'].map((name) => ({
+      id: `label-${name}`,
+      name,
+      color: 'blue',
+    })),
+  };
+  const openTips = () =>
+    [...document.querySelectorAll('[role="tooltip"]')].map(
+      (tip) => tip.textContent,
+    );
+
+  it('opens the +N chip’s tooltip one Tab after the title', async () => {
+    await page.viewport(1280, 900);
+    render(
+      <div className="h-[600px] w-full">
+        <KanbanBoard tasks={[labelled]} />
+      </div>,
+    );
+
+    screen.getByRole('button', { name: 'Lane task 0' }).focus();
+    await userEvent.keyboard('{Tab}');
+    expect(
+      screen.getByRole('button', { name: '1 more label: security' }),
+    ).toHaveFocus();
+    await expect.poll(openTips).toEqual(['security']);
+  });
+
+  it('lets the pointer reach the +N chip above the title, whose tooltip names the label', async () => {
+    await page.viewport(1280, 900);
+    render(
+      <div className="h-[600px] w-full">
+        <KanbanBoard tasks={[labelled]} />
+      </div>,
+    );
+
+    const chip = screen.getByText('+1');
+    const box = chip.getBoundingClientRect();
+    const hit = document.elementFromPoint(
+      box.left + box.width / 2,
+      box.top + box.height / 2,
+    );
+    expect(chip.contains(hit)).toBe(true);
+    await userEvent.hover(chip);
+    await expect.poll(openTips).toEqual(['security']);
+  });
+});
