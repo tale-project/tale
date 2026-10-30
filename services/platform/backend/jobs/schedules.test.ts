@@ -85,6 +85,53 @@ describe('repeating tasks that continue on their due date have a scan', () => {
   });
 });
 
+/** The minutes of the hour a cron minute field names, in the forms the
+ * roster uses: every minute, one minute, a step over the hour or over a
+ * range, and lists of those. */
+function minutesOf(field: string): Set<number> {
+  const minutes = new Set<number>();
+  for (const part of field.split(',')) {
+    const [range = '*', step = '1'] = part.split('/');
+    const [from, to] =
+      range === '*'
+        ? [0, 59]
+        : range.includes('-')
+          ? range.split('-').map(Number)
+          : [Number(range), part.includes('/') ? 59 : Number(range)];
+    for (let minute = from ?? 0; minute <= (to ?? 59); minute += Number(step))
+      minutes.add(minute);
+  }
+  return minutes;
+}
+
+describe('expired chat send keys have a sweep that waits for no send', () => {
+  test('the send-key sweep runs hourly, on a minute only the every-minute schedules share', () => {
+    // A keyed send no longer sweeps its organization's expired keys; without
+    // this entry the ledger keeps every key it was ever given.
+    const entry = SCHEDULES.find(
+      (row) => row.name === 'chat.send_idempotency_gc',
+    );
+    expect(entry?.cron).toMatch(/^\d+ \* \* \* \*$/);
+    const minute = Number(entry?.cron.split(' ')[0]);
+    const sharing = SCHEDULES.filter((row) => {
+      const field = row.cron.split(' ')[0] ?? '*';
+      return (
+        row.name !== 'chat.send_idempotency_gc' &&
+        field !== '*' &&
+        minutesOf(field).has(minute)
+      );
+    }).map((row) => row.name);
+    expect(sharing).toEqual([]);
+  });
+
+  test('the minute reader reads the roster’s forms', () => {
+    expect([...minutesOf('41')]).toEqual([41]);
+    expect([...minutesOf('*/15')]).toEqual([0, 15, 30, 45]);
+    expect([...minutesOf('7-59/15')]).toEqual([7, 22, 37, 52]);
+    expect(minutesOf('*').size).toBe(60);
+  });
+});
+
 describe('the schedule roster is well formed', () => {
   test('every name is unique', () => {
     const names = SCHEDULES.map((row) => row.name);
