@@ -416,6 +416,46 @@ describe('suspendRun', () => {
       expect(written.agent.result).toBeUndefined();
       expect(vi.mocked(addJobInTx).mock.calls[0]?.[1]).toBe('automation.poll');
     });
+
+    it('waits out a held re-kick with its settle in place instead of waking the run at once', async () => {
+      // Zoe's review agent ran out of memory: its walker keeps the settle in
+      // the cursor and holds the re-kick for ten minutes, no op row behind.
+      const settle = {
+        errored: true,
+        failureCode: 'resource_exhausted',
+        text: '',
+        files: [],
+      };
+      const fake = fakeSql([{ seq: 9 }], false, (text) =>
+        text.includes("checkpoints -> 'cursor' AS cursor")
+          ? [{ cursor: turn({ execId: 'exec_1', attempt: 1, result: settle }) }]
+          : undefined,
+      );
+      await park(fake.sql, {
+        detail: 'agent:review',
+        cursor: turn({
+          execId: 'exec_1',
+          attempt: 1,
+          rekickHeldSince: 5_000,
+          result: settle,
+        }),
+        resumeInMs: 600_000,
+      });
+      expect(JSON.parse(writtenCursor(fake.statements))).toMatchObject({
+        agent: {
+          execId: 'exec_1',
+          rekickHeldSince: 5_000,
+          result: { failureCode: 'resource_exhausted' },
+        },
+      });
+      expect(addJobInTx).toHaveBeenCalledTimes(1);
+      expect(addJobInTx).toHaveBeenCalledWith(
+        fake.sql,
+        'automation.poll',
+        { organizationId: 'org_1', runId: 'run_1', seq: 9, pollMs: 600_000 },
+        { startAfter: expect.any(Date) },
+      );
+    });
   });
 
   it('reads no stored cursor for a park that is not an agent turn', async () => {
