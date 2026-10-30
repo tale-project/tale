@@ -102,6 +102,8 @@ const { containerRef, ...indicator } = useSlidingIndicator<HTMLDivElement>(openK
 
 The hook applies one motion to every highlight: with nothing active it fades out where it stood, it lands on the next active item with a fade instead of sliding in from a corner, and it glides only between two places the reader can see. Take its `transitionClassName` rather than a transition of your own, so the rail, the segmented controls and the panels all move alike.
 
+When the active item changes size on the same timing, as a label opening inside it does, pass a third argument, `settle(item, box)`, that returns the box the item will have once that transition ends. The highlight then glides straight there instead of re-aiming at every frame and trailing behind; the icon-led `SegmentedControl` uses it.
+
 ## Head a conversation page
 
 `ThreadHeader` (`@tale/ui/thread-header`) is the title row of every conversation-shaped page — a chat, a task's discussion, a customer conversation — so each reads the same way: controls before the identity (a panel toggle, a phone's back button), a 32px identity mark, the title, one line of context, and the page's actions.

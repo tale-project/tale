@@ -77,7 +77,7 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   reply renders; **Stop generating** (`chat.stopGenerating`) replaces Send
   while streaming, then Send returns.
 - [ ] `CHAT-F4` · **New chat from Home** — In a thread, click **New chat**
-  (`home.newChat`) in the Home panel's header (or press ⌥⌘N, Alt+Ctrl+N off a
+  (`home.newChat`) beside the Home panel's view switcher (or press ⌥⌘N, Alt+Ctrl+N off a
   Mac) → URL becomes `/dashboard/{org}/chat?new=true` (no thread id); a draft
   row **New chat** (context **Draft**, `home.row.draft`) leads the panel's
   list, marked current; the prior chat stays listed in its time band under
