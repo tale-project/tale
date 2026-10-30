@@ -17,6 +17,7 @@ import { governanceShimHandlers } from '../governance/shim.ts';
 import { credentialShimHandlers } from '../provider_credentials/service.ts';
 import { resolveSessionOpAttribution } from '../sandbox/op-attribution.ts';
 import {
+  activateCreatedSession,
   releaseProjectAgentSessionSlot,
   reserveSessionSlot,
   resumeSessionSlot,
@@ -771,6 +772,16 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
          * may be another incarnation's. */
         collected?: boolean;
       };
+      // The activation after a fresh create: never of a row settled while
+      // the create ran (a Destroy that landed meanwhile) — the start fails.
+      if (args.status === 'active') {
+        if (!(await activateCreatedSession(sql, args.rowId))) {
+          throw new Error(
+            `the sandbox session row ${args.rowId} was settled while its sandbox was being created`,
+          );
+        }
+        return null;
+      }
       const now = Date.now();
       await sql`
         UPDATE app.sandbox_sessions SET

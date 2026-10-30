@@ -121,6 +121,12 @@ async function revokeGatewayKeys(
  *    another turn still running in the same worker — a steered turn's
  *    successor, or one an older image started there during a rolling
  *    deploy — keeps its own credential.
+ *  - with `rowId` — ONE incarnation under the reused id (an administrator's
+ *    Destroy, which names the row it was asked for): the key parked on that
+ *    row, and the session's tokens only while that row is still the newest
+ *    under the id. A token names no row, and a newer incarnation's turns
+ *    mint theirs only after its row has committed, so a claim that would
+ *    see such a token sees that row too, and takes nothing.
  *
  * A key whose remote delete did not happen hands its claim back: the token
  * row reads unrevoked again, so the next teardown pass or the settlement
@@ -128,9 +134,15 @@ async function revokeGatewayKeys(
  */
 export async function revokeSessionGatewayKeys(
   sql: Sql,
-  args: { organizationId: string; sessionId: string; execId?: string },
+  args: {
+    organizationId: string;
+    sessionId: string;
+    execId?: string;
+    rowId?: string;
+  },
 ): Promise<{ revoked: number; failed: number }> {
   const execId = args.execId ?? null;
+  const rowId = args.rowId ?? null;
   const now = Date.now();
   // The flip IS the claim — see the module note. An exec-scoped teardown
   // narrows to the key that exec's op row minted; a token row with no
@@ -142,6 +154,12 @@ export async function revokeSessionGatewayKeys(
       AND (${execId}::text IS NULL OR llm_gateway_key_id = (
         SELECT minted_key_id FROM app.sandbox_session_ops
         WHERE session_id = ${args.sessionId} AND exec_id = ${execId}
+        LIMIT 1
+      ))
+      AND (${rowId}::text IS NULL OR ${rowId} = (
+        SELECT id FROM app.sandbox_sessions
+        WHERE session_id = ${args.sessionId} AND org_id = ${args.organizationId}
+        ORDER BY created_at_ms DESC, id DESC
         LIMIT 1
       ))
     RETURNING llm_gateway_key_id AS "keyId"
@@ -162,6 +180,7 @@ export async function revokeSessionGatewayKeys(
         WHERE session_id = ${args.sessionId}
           AND org_id = ${args.organizationId}
           AND llm_gateway_key_id IS NOT NULL
+          AND (${rowId}::text IS NULL OR id = ${rowId})
         FOR UPDATE
       ), cleared AS (
         UPDATE app.sandbox_sessions SET llm_gateway_key_id = NULL

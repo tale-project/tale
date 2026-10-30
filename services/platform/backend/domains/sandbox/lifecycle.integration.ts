@@ -7,8 +7,11 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { createSql } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
+import { crawlHandlers } from '../websites/service.ts';
 import { lockOrgAdmission } from './admission-lock.ts';
 import { scheduleSessionDestroy } from './destroy-schedule.ts';
+import { revokeSessionGatewayKeys } from './gateway-keys.ts';
 import {
   pinSession,
   reconcileSession,
@@ -16,6 +19,7 @@ import {
   schedulePinnedRecreate,
   syncSessionPin,
   teardownSession,
+  withSessionLifecycleLock,
 } from './service.ts';
 import {
   markSessionDestroyed,
@@ -1024,8 +1028,8 @@ async function checkDestroyAdmission(
     );
 
     // 7. A settlement that commits between the resume's row read and its
-    // predicate. A terminal write takes no admission lock (a Destroy's
-    // settle runs under the session's lifecycle lock; a heal or a reclaim
+    // predicate. A destroying settle takes no admission lock (a Destroy's
+    // or a heal's runs under the session's lifecycle lock, a reclaim's
     // under none), so the predicate can find the row already settled — no
     // live row, so no pending Destroy — and the resume must still not move
     // that row back to active and hand its turn the old incarnation. A lock
@@ -1100,6 +1104,251 @@ async function checkDestroyAdmission(
       }
     } finally {
       await third.end({ timeout: 1 });
+    }
+
+    const token = async () => {
+      const hash = randomUUID();
+      await sql`
+        INSERT INTO app.sandbox_session_tokens (
+          org_id, session_id, token_hash, scope, created_at_ms, expires_at_ms
+        ) VALUES (${orgId}, ${sessionId}, ${hash}, '{}'::jsonb,
+          ${Date.now()}, ${Date.now() + 3_600_000})
+      `;
+      return hash;
+    };
+    const revoked = async (hash: string | undefined) =>
+      hash === undefined
+        ? undefined
+        : (
+            await sql<{ revoked: boolean }[]>`
+              SELECT revoked_at_ms IS NOT NULL AS revoked
+              FROM app.sandbox_session_tokens WHERE token_hash = ${hash}
+            `
+          )[0]?.revoked;
+    // The queue's own claim of an attempt: its job runs.
+    const runDestroy = async (rowId: string) => {
+      await sql`
+        UPDATE pgboss.job SET state = 'active', started_on = now()
+        WHERE name = 'sandbox.destroy_session'
+          AND data ->> 'rowId' = ${rowId}
+      `;
+    };
+    const taskAgentShim = agentTurnShimHandlers(sql);
+    const setStatus =
+      taskAgentShim['sandbox/session_mutations:setSessionStatus'];
+    if (setStatus === undefined)
+      throw new Error('the task-agent shim lacks setSessionStatus');
+
+    // 8. An attempt settles only the incarnation it was asked for. While it
+    // deletes, two writers can end its row without either lock — a host's
+    // `failed` by row id after a create the delete cut short, the
+    // watchdog's expiry (which reclaims the row's credentials itself) — and
+    // a pending Destroy holds the session only while its row is live, so a
+    // fresh incarnation is let in under the same id. The attempt's settle
+    // must leave that one and the token its turn minted alone. A row that
+    // stays live is the control: the fresh start is refused, and the
+    // attempt revokes the session's token with its row.
+    for (const writer of ['none', 'failed', 'expired'] as const) {
+      await clear();
+      const named = await stopped();
+      const from = { none: 'stopped', failed: 'creating', expired: 'active' }[
+        writer
+      ];
+      await sql`
+        UPDATE app.sandbox_sessions SET status = ${from} WHERE id = ${named}
+      `;
+      // A failed create minted nothing; the other two had a turn.
+      const namedToken = writer === 'failed' ? undefined : await token();
+      await pendingDestroy(named);
+      await runDestroy(named);
+      const inDelete = gate();
+      const releaseDelete = gate();
+      const scoped = teardownSession(
+        first,
+        { ...args, rowId: named },
+        async () => {
+          inDelete.release();
+          await releaseDelete.promise;
+          return true;
+        },
+        unpinned,
+      );
+      await inDelete.promise;
+      if (writer === 'failed') {
+        await setStatus({ rowId: named, status: 'failed' });
+      } else if (writer === 'expired') {
+        await sql`
+          UPDATE app.sandbox_sessions SET status = 'expired' WHERE id = ${named}
+        `;
+        await revokeSessionGatewayKeys(sql, args);
+      }
+      const freshStart = await admission(
+        reserveSessionSlot(second, reserveArgs),
+      );
+      const freshToken = freshStart === 'admitted' ? await token() : undefined;
+      releaseDelete.release();
+      const scopedSettled = await scoped;
+      await endDestroys('completed');
+      const rows = (await rowStates()).join();
+      const namedRevoked = await revoked(namedToken);
+      const freshRevoked = await revoked(freshToken);
+      record(
+        `sandbox Destroy admission: an attempt settles only the row it was asked for (${writer === 'none' ? 'the row stays live' : `the row is set ${writer}`} while it deletes)`,
+        writer === 'none'
+          ? freshStart === 'refused' &&
+              scopedSettled &&
+              rows === 'destroyed' &&
+              namedRevoked === true
+          : freshStart === 'admitted' &&
+              scopedSettled &&
+              rows === 'destroyed,creating' &&
+              (namedToken === undefined || namedRevoked === true) &&
+              freshRevoked === false,
+        `fresh reserve=${freshStart} (want ${writer === 'none' ? 'refused' : 'admitted'}), settled=${scopedSettled}, rows=${rows} (want ${writer === 'none' ? 'destroyed' : 'destroyed,creating'}), asked row's token revoked=${namedRevoked ?? 'none'}, fresh row's token revoked=${freshRevoked ?? 'none'}${writer === 'none' ? '' : ' (want false)'}`,
+      );
+    }
+
+    // 9. An attempt that outlives its job stops. Past the queue's expiry
+    // pg-boss aborts the job's signal and fails the job — the last try's
+    // stays `failed` — while the handler still runs; the Destroy then
+    // holds nothing, and a turn resumes the row. The attempt must neither
+    // delete nor settle under that turn: once while it waits for the
+    // session's lifecycle lock (a pinned recreate holds it), once during
+    // its delete.
+    for (const expiresWhile of ['waiting for the lock', 'deleting'] as const) {
+      await clear();
+      const expiring = await stopped();
+      await pendingDestroy(expiring);
+      await runDestroy(expiring);
+      const expired = new Error('the Destroy job expired');
+      const expiry = new AbortController();
+      const attemptArgs = { ...args, rowId: expiring, signal: expiry.signal };
+      let expiredDeletes = 0;
+      let waited = true;
+      let resumed: string;
+      let ended: Promise<string>;
+      const outcome = (run: Promise<boolean>) =>
+        run.then(
+          (settledRow) => (settledRow ? 'settled' : 'left'),
+          (error: unknown) =>
+            error === expired ? 'stopped' : `error: ${String(error)}`,
+        );
+      if (expiresWhile === 'waiting for the lock') {
+        const held = gate();
+        const releaseHeld = gate();
+        const holder = withSessionLifecycleLock(first, args, async () => {
+          held.release();
+          await releaseHeld.promise;
+        });
+        await held.promise;
+        ended = outcome(
+          teardownSession(
+            second,
+            attemptArgs,
+            async () => {
+              expiredDeletes += 1;
+              return true;
+            },
+            unpinned,
+          ),
+        );
+        waited = await waitsForLock(ended);
+        expiry.abort(expired);
+        await endDestroys('failed');
+        resumed = await admission(resumeSessionSlot(sql, args));
+        releaseHeld.release();
+        await holder;
+      } else {
+        const inExpiringDelete = gate();
+        const releaseExpiringDelete = gate();
+        ended = outcome(
+          teardownSession(
+            first,
+            attemptArgs,
+            async () => {
+              expiredDeletes += 1;
+              inExpiringDelete.release();
+              await releaseExpiringDelete.promise;
+              return true;
+            },
+            unpinned,
+          ),
+        );
+        await inExpiringDelete.promise;
+        expiry.abort(expired);
+        await endDestroys('failed');
+        resumed = await admission(resumeSessionSlot(second, args));
+        releaseExpiringDelete.release();
+      }
+      const attemptOutcome = await ended;
+      const rows = (await rowStates()).join();
+      const wantDeletes = expiresWhile === 'deleting' ? 1 : 0;
+      record(
+        `sandbox Destroy admission: an attempt past its job's expiry neither deletes nor settles under a resumed turn (${expiresWhile})`,
+        waited &&
+          resumed === 'admitted' &&
+          attemptOutcome === 'stopped' &&
+          expiredDeletes === wantDeletes &&
+          rows === 'active',
+        `attempt waited for the lock=${waited}, resume after the expiry=${resumed} (want admitted), attempt=${attemptOutcome} (want stopped), deletes=${expiredDeletes} (want ${wantDeletes}), rows=${rows} (want active)`,
+      );
+    }
+
+    // 10. A start's activation moves only the row its own create made, and
+    // only while that row is still `creating`. A Destroy that lands during
+    // the create settles the row; activating it by id alone would hand the
+    // settled incarnation back to the turn, `active` under its destroyed
+    // stamp. A sibling turn of the same owner may have resumed the
+    // `creating` row first: that row stays active and the start goes on.
+    // Both lanes that create a session answer the verb: the agent hosts'
+    // and the crawler's.
+    const crawlerSetStatus =
+      crawlHandlers(sql)['sandbox/session_mutations:setSessionStatus'];
+    if (crawlerSetStatus === undefined)
+      throw new Error('the crawler shim lacks setSessionStatus');
+    for (const [lane, activate] of [
+      ['task agent', setStatus],
+      ['crawler', crawlerSetStatus],
+    ] as const) {
+      const activation = (rowId: string) =>
+        activate({ rowId, status: 'active' }).then(
+          () => 'activated',
+          (error: unknown) =>
+            `refused: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      const row = async (rowId: string) =>
+        (
+          await sql<{ status: string; destroyedAt: number | null }[]>`
+            SELECT status, destroyed_at_ms::float8 AS "destroyedAt"
+            FROM app.sandbox_sessions WHERE id = ${rowId}
+          `
+        )[0];
+      await clear();
+      const created = await reserveSessionSlot(sql, reserveArgs);
+      const settledMeanwhile = await markSessionDestroyed(sql, args);
+      const onSettled = await activation(created);
+      const settledRow = await row(created);
+      await clear();
+      const sibling = await reserveSessionSlot(sql, reserveArgs);
+      const siblingResumed = await admission(resumeSessionSlot(sql, args));
+      const onResumed = await activation(sibling);
+      const resumedRow = await row(sibling);
+      await clear();
+      const plain = await reserveSessionSlot(sql, reserveArgs);
+      const onPlain = await activation(plain);
+      const plainRow = await row(plain);
+      record(
+        `sandbox Destroy admission: a start's activation never revives a row settled during its create (${lane})`,
+        settledMeanwhile &&
+          onSettled.startsWith('refused') &&
+          settledRow?.status === 'destroyed' &&
+          siblingResumed === 'admitted' &&
+          onResumed === 'activated' &&
+          resumedRow?.status === 'active' &&
+          onPlain === 'activated' &&
+          plainRow?.status === 'active',
+        `settled during the create=${settledMeanwhile}, activation=${onSettled} (want refused), row=${settledRow?.status ?? 'none'} (want destroyed)${settledRow?.status === 'active' && settledRow.destroyedAt !== null ? ', revived with its destroyed stamp' : ''}; after a sibling's resume=${siblingResumed}, activation=${onResumed}, row=${resumedRow?.status ?? 'none'} (want activated, active); fresh create's activation=${onPlain}, row=${plainRow?.status ?? 'none'} (want activated, active)`,
+      );
     }
   } finally {
     for (const item of gates) item.release();

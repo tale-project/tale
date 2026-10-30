@@ -19,7 +19,11 @@ import { lockOrgAdmission } from './admission-lock.ts';
  *
  * Each job names the row it was asked for. A session id is deterministic
  * (a project agent's is the same for every incarnation), so a retry that
- * finds a newer row under it leaves that one alone (`teardownSession`).
+ * finds a newer row under it leaves that one alone, and an attempt settles
+ * only the row it names (`teardownSession`): one that ends another way while
+ * the attempt deletes (its start failed, it expired) no longer holds the id
+ * below, and the fresh incarnation a turn then opens is not this Destroy's.
+ * Its create waits on the spawner for the delete under way.
  *
  * The page reads the queue back for each row: a Destroy of that row still
  * queued, retrying or running reads `pending`, and one whose every attempt

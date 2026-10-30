@@ -110,25 +110,39 @@ export async function withSessionLifecycleLock<T>(
  * settle the row only after it confirms destruction or absence. Failures
  * throw, for the job's retry, and leave the row unpinned on both sides.
  *
- * `rowId` names the incarnation the Destroy was asked for. A retry can run
- * long after the request: by then that row may have been settled another
- * way (the reconcile heals a row whose container is gone) and a turn may
- * have opened a fresh incarnation under the same deterministic id. That one
- * is not this Destroy's to remove, so the teardown leaves it alone. A turn
- * cannot have resumed the row it names in between: a pending Destroy closes
- * its row to admission (`destroy-schedule.ts`), since a resume keeps the
- * row id this check reads. */
+ * `rowId` names the incarnation the Destroy was asked for, and the settle
+ * takes that row alone (`markSessionDestroyed`). A retry can run long after
+ * the request: by then that row may have been settled another way (the
+ * reconcile heals a row whose container is gone) and a turn may have opened
+ * a fresh incarnation under the same deterministic id. That one is not this
+ * Destroy's to remove, so the teardown leaves it alone — also when it opens
+ * while this attempt deletes, after a writer that takes neither lock ended
+ * the named row (a host's failed create, the watchdog's expiry) and the
+ * pending Destroy stopped holding the id. A turn cannot have resumed the
+ * row it names while its job runs: a pending Destroy closes its row to
+ * admission (`destroy-schedule.ts`), since a resume keeps the row id this
+ * check reads.
+ *
+ * `signal` is the job's. pg-boss aborts it when the attempt outlives the
+ * queue's expiry, and fails the job (the last try's stays failed, which
+ * reopens the row to admission), or when the worker shuts down. The
+ * teardown then stops by throwing, before the unpin, before the delete and
+ * before the settle: a turn may have resumed the row since, and a stopped
+ * attempt must not complete its job either. */
 export async function teardownSession(
   sql: Sql,
-  args: SessionArgs & { rowId?: string },
+  args: SessionArgs & { rowId?: string; signal?: AbortSignal },
   destroy: (sessionId: string) => Promise<boolean> = sessionDestroy,
   setPinned: (
     sessionId: string,
     pinned: boolean,
   ) => Promise<boolean> = sessionSetPinned,
 ): Promise<boolean> {
-  const { rowId, ...sessionArgs } = args;
+  const { rowId, signal, ...sessionArgs } = args;
   return withSessionLifecycleLock(sql, sessionArgs, async (sessionSql) => {
+    // The lock can be waited for past the expiry (a pinned recreate holds
+    // it for minutes).
+    signal?.throwIfAborted();
     const session = await getSessionBySessionId(
       sessionSql,
       sessionArgs.organizationId,
@@ -161,8 +175,13 @@ export async function teardownSession(
         error,
       );
     }
+    signal?.throwIfAborted();
     await destroy(sessionArgs.sessionId);
-    return markSessionDestroyed(sessionSql, sessionArgs);
+    signal?.throwIfAborted();
+    return markSessionDestroyed(
+      sessionSql,
+      rowId === undefined ? sessionArgs : { ...sessionArgs, rowId },
+    );
   });
 }
 

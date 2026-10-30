@@ -183,7 +183,9 @@ The refusal means "no room yet, ask again", not that the work failed.
 From the moment a Destroy is asked for until it has finished, or until its last attempt has
 failed, a start or a resume in that workspace is refused (`QUOTA_EXCEEDED`, with the reason
 `destroy_pending`) and nothing is reserved for it. The refusal is told apart from a full
-limit, because what frees is an empty workspace, not room.
+limit, because what frees is an empty workspace, not room. A workspace that ends another way
+while it is being deleted, for example because the start that was creating it fails, holds
+nothing back: the next turn opens a new workspace, which the Destroy leaves alone (`SBX-R11`).
 
 - **Example**: Ada destroys an agent's workspace. While its row reads **Destroying**, Mia
   starts the agent on a task → the start is refused with the reason `destroy_pending`.
@@ -259,8 +261,17 @@ keys its turns used to reach their models are revoked. If the sandbox service ca
 the deletion, the workspace stays listed and unpinned, and is left for another attempt; when
 every attempt has failed, its row says so.
 
+A Destroy settles only the workspace it was asked for. A new workspace that a turn opens for
+the same agent after the old one ended another way (`SBX-R9`) keeps its gateway keys and is
+not settled, even while the old one is still being deleted. An attempt that runs past its
+time limit stops before it deletes or settles anything, because once its last attempt has
+failed a turn may be using the workspace again.
+
 - **Example**: Ada destroys a pinned workspace while the sandbox service is down → the
   workspace stays in the list, now unpinned, and the Destroy is tried again.
+- **Example**: Ada destroys an agent's workspace while the agent's turn is still starting it
+  → the start fails, the agent's next turn opens a new, empty workspace once the old files are
+  gone, and the Destroy leaves the new one running.
 
 ## When a sandbox disappears
 

@@ -84,6 +84,7 @@ import {
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import { writeNotificationForOrgs } from '../notifications/service.ts';
 import {
+  activateCreatedSession,
   markSessionDestroyed,
   reserveSessionSlot,
 } from '../sandbox/sessions.ts';
@@ -902,6 +903,16 @@ export function crawlHandlers(sql: Sql): ShimHandlers {
          * may be another incarnation's. */
         collected?: boolean;
       };
+      // The activation after a fresh create: never of a row settled while
+      // the create ran (a Destroy that landed meanwhile) — the batch fails.
+      if (args.status === 'active') {
+        if (!(await activateCreatedSession(sql, args.rowId))) {
+          throw new Error(
+            `the sandbox session row ${args.rowId} was settled while its sandbox was being created`,
+          );
+        }
+        return null;
+      }
       const now = Date.now();
       await sql`
         UPDATE app.sandbox_sessions SET

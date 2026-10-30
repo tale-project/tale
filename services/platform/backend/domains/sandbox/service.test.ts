@@ -438,6 +438,124 @@ describe('teardownSession of a queued Destroy', () => {
     expect(sessionDestroy).not.toHaveBeenCalled();
     expect(stored?.status).toBe('destroyed');
   });
+
+  // Another writer can end the row while the delete runs (a host's failed
+  // create, the watchdog's expiry), and a turn may then open a fresh
+  // incarnation under the id: the settle and the credential reclaim name
+  // the row, so that one is left alone. Postgres proves the guards
+  // (`lifecycle.integration.ts`); this holds the teardown to passing them.
+  it('settles only the row it was asked for, and reclaims only its credentials [SBX-R11]', async () => {
+    const { sql, dataSql, data, stored } = fakeSql(OWNED_SESSION);
+
+    await expect(
+      teardownSession(sql, { ...ARGS, rowId: OWNED_SESSION.id }),
+    ).resolves.toBe(true);
+
+    expect(stored?.status).toBe('destroyed');
+    expect(revokeSessionGatewayKeys).toHaveBeenCalledExactlyOnceWith(dataSql, {
+      ...ARGS,
+      rowId: OWNED_SESSION.id,
+    });
+    const settle = data.find((statement) =>
+      statement.text.startsWith(
+        "UPDATE app.sandbox_sessions SET status = 'destroyed'",
+      ),
+    );
+    expect(settle?.text).toContain('OR id = ?)');
+    expect(settle?.values).toContain(OWNED_SESSION.id);
+    const tokens = data.find((statement) =>
+      statement.text.startsWith('UPDATE app.sandbox_session_tokens'),
+    );
+    expect(tokens?.text).toContain('ORDER BY created_at_ms DESC, id DESC');
+    expect(tokens?.values).toContain(OWNED_SESSION.id);
+  });
+
+  // pg-boss aborts the job's signal when an attempt outlives the queue's
+  // expiry, and fails the job, which reopens the row to admission: a turn
+  // may have taken it back. The attempt stops where it is, by throwing, so
+  // a worker shutting down never completes a job whose Destroy did not
+  // happen either.
+  describe('past its job’s expiry', () => {
+    const expired = new Error('the Destroy job expired');
+
+    it('touches nothing once its signal was aborted while it waited for the lock [SBX-R11]', async () => {
+      const { sql, data, stored } = fakeSql({ ...OWNED_SESSION, pinned: true });
+      const expiry = new AbortController();
+      expiry.abort(expired);
+
+      await expect(
+        teardownSession(sql, {
+          ...ARGS,
+          rowId: OWNED_SESSION.id,
+          signal: expiry.signal,
+        }),
+      ).rejects.toBe(expired);
+
+      expect(data).toEqual([]);
+      expect(sessionSetPinned).not.toHaveBeenCalled();
+      expect(sessionDestroy).not.toHaveBeenCalled();
+      expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
+      expect(stored).toMatchObject({ status: 'active', pinned: true });
+    });
+
+    it('does not delete once its signal is aborted during the unpin [SBX-R11]', async () => {
+      const { sql, stored } = fakeSql(OWNED_SESSION);
+      const expiry = new AbortController();
+      vi.mocked(sessionSetPinned).mockImplementationOnce(async () => {
+        expiry.abort(expired);
+        return true;
+      });
+
+      await expect(
+        teardownSession(sql, {
+          ...ARGS,
+          rowId: OWNED_SESSION.id,
+          signal: expiry.signal,
+        }),
+      ).rejects.toBe(expired);
+
+      expect(sessionDestroy).not.toHaveBeenCalled();
+      expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
+      expect(stored?.status).toBe('active');
+    });
+
+    it('does not settle once its signal is aborted during the delete [SBX-R11]', async () => {
+      const { sql, stored } = fakeSql(OWNED_SESSION);
+      const expiry = new AbortController();
+      vi.mocked(sessionDestroy).mockImplementationOnce(async () => {
+        expiry.abort(expired);
+        return true;
+      });
+
+      await expect(
+        teardownSession(sql, {
+          ...ARGS,
+          rowId: OWNED_SESSION.id,
+          signal: expiry.signal,
+        }),
+      ).rejects.toBe(expired);
+
+      expect(sessionDestroy).toHaveBeenCalledExactlyOnceWith('session-a');
+      expect(revokeSessionGatewayKeys).not.toHaveBeenCalled();
+      expect(wakeParkedAgentRuns).not.toHaveBeenCalled();
+      expect(stored?.status).toBe('active');
+    });
+
+    it('settles as before while its signal stands [SBX-R11]', async () => {
+      const { sql, stored } = fakeSql(OWNED_SESSION);
+
+      await expect(
+        teardownSession(sql, {
+          ...ARGS,
+          rowId: OWNED_SESSION.id,
+          signal: new AbortController().signal,
+        }),
+      ).resolves.toBe(true);
+
+      expect(sessionDestroy).toHaveBeenCalledExactlyOnceWith('session-a');
+      expect(stored?.status).toBe('destroyed');
+    });
+  });
 });
 
 describe('pinSession serializes with the other lifecycle transitions', () => {
@@ -1075,9 +1193,11 @@ describe('reconcileSession keeps an agent workspace whose sandbox disappeared [S
         expect.stringContaining('pg_advisory_xact_lock'),
         expect.stringContaining("SET status = 'stopped'"),
       ]);
+      // The session's credentials: a row id would narrow the reclaim to a
+      // Destroy's scope.
       expect(revokeSessionGatewayKeys).toHaveBeenCalledExactlyOnceWith(
         dataSql,
-        { ...ARGS, rowId: 'row-a' },
+        ARGS,
       );
       expect(wakeParkedAgentRuns).toHaveBeenCalledExactlyOnceWith(
         dataSql,

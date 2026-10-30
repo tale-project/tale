@@ -339,6 +339,28 @@ export async function markRecreatedSessionActive(
   return rows.length > 0;
 }
 
+/** creating → active for the row a host's own reserve made, once the sandbox
+ * its create asked for is up (`ensureAgentSession`, the crawler's render).
+ * By row id, and only while that row is still the incarnation the create
+ * was for: `creating`, or `active` when a sibling turn of the same owner
+ * resumed it during the create (which only touches it). A Destroy that
+ * lands during the create settles the row, and an activation by id alone
+ * would revive it, `active` under its destroyed stamp. False when the row
+ * was settled or hibernated meanwhile: the start fails, and the next one
+ * resumes or opens an incarnation through admission. */
+export async function activateCreatedSession(
+  sql: Sql,
+  rowId: string,
+): Promise<boolean> {
+  const rows = await sql<{ id: string }[]>`
+    UPDATE app.sandbox_sessions SET
+      status = 'active', last_activity_at_ms = ${Date.now()}
+    WHERE id = ${rowId} AND status IN ('creating', 'active')
+    RETURNING id
+  `;
+  return rows.length > 0;
+}
+
 /** "Always-on" pin: exempt from the idle reaper + the hard TTL. An unpin also
  * counts as the workspace's last use: a pinned period is no disuse, so the
  * workspace cleanup's window starts over (`workspace-cleanup.ts`) instead of
@@ -507,22 +529,30 @@ export async function resumeSessionSlot(
       }
     }
     // Against a terminal write, the write itself is the boundary. The row
-    // read above holds no lock and a settlement takes no admission lock
-    // (`markSessionDestroyed` — a Destroy attempt's under the session's
-    // lifecycle lock, a heal's or a reclaim's under none — the cleanup's
-    // claim, a watchdog's stamp), so one can commit anywhere in this
+    // read above holds no lock, and not every write that ends a row takes
+    // the admission lock: a Destroy attempt's and the reconcile's heal
+    // (`markSessionDestroyed`) run under the session's lifecycle lock only,
+    // an ended run's reclaim, the watchdog's expiry and a host's `failed`
+    // after its create under none. One of them can commit anywhere in this
     // transaction, also before the predicate, which then finds no live row
-    // and so no pending Destroy. The write therefore moves the row only
-    // while it is still live: moving nothing answers that the allocation is
-    // gone, as if the settlement had come first, so no caller resumes a
-    // settled incarnation, and its next start opens a fresh one. A write
-    // that lands holds the row until this commit, so nothing settles it in
-    // between. After it, an administrator's Destroy settles only from
-    // inside an attempt, while its job is unfinished: one queued before
-    // this transaction took the admission lock either refused the turn at
-    // the predicate or had settled the row already, leaving the write
-    // nothing to move; one asked for later waits for that lock, so it is
-    // ordered after this turn, which it cancels.
+    // and so no pending Destroy. (The cleanup's claim, a release and the
+    // heal to `stopped` take the admission lock, so each lands wholly
+    // before or after this transaction.) The write therefore moves the row
+    // only while it is still live: moving nothing answers that the
+    // allocation is gone, as if the settlement had come first, so no caller
+    // resumes a settled incarnation, and its next start opens a fresh one.
+    // A write that lands holds the row until this commit, so nothing
+    // settles it in between.
+    //
+    // After the commit, an administrator's Destroy asked for before this
+    // transaction took the admission lock either refused the turn at the
+    // predicate or names another row: its own row had left the live set,
+    // and its attempt settles that row alone (`teardownSession`). One asked
+    // for later waits for that lock, so it is ordered after this turn,
+    // which it cancels. A Destroy whose last attempt failed holds nothing,
+    // so this turn may take its row back; an attempt that outlived its job
+    // and still runs then stops on the job's signal before its delete and
+    // before its settle.
     const moved = await tx<{ id: string }[]>`
       UPDATE app.sandbox_sessions SET
         status = 'active', last_activity_at_ms = ${now},
@@ -566,7 +596,12 @@ export async function markSessionStopped(
     return rows.length > 0;
   });
   if (!stopped) return false;
-  await revokeSessionGatewayKeys(sql, args).catch((error: unknown) => {
+  // The session's credentials, as at every edge but a Destroy's (whose
+  // reclaim names its row).
+  await revokeSessionGatewayKeys(sql, {
+    organizationId: args.organizationId,
+    sessionId: args.sessionId,
+  }).catch((error: unknown) => {
     console.error(
       `[sandbox] gateway key reclaim for stopped ${args.sessionId} failed:`,
       error,
@@ -586,10 +621,19 @@ export async function markSessionStopped(
  * reclaim cannot be missed on one of them. The one exception is a failed
  * create's row, which never minted credentials: the watchdog's collect pass
  * stamps it by primary key, because its session id may already name a live
- * successor this function would settle too. */
+ * successor this function would settle too.
+ *
+ * With `rowId` it settles that incarnation alone: the administrator's
+ * Destroy, whose attempt names the row it was asked for. While the attempt
+ * deletes, a writer that takes neither of its locks can end that row (a
+ * host's `failed` after a create the delete cut short, the watchdog's
+ * expiry), and a turn may then open a fresh incarnation under the same id.
+ * That one, and the tokens its turns mint, are not this Destroy's: a token
+ * names no row, so the session's tokens go only while the named row is
+ * still the newest under the id (`revokeSessionGatewayKeys`). */
 export async function markSessionDestroyed(
   sql: Sql,
-  args: { organizationId: string; sessionId: string },
+  args: { organizationId: string; sessionId: string; rowId?: string },
 ): Promise<boolean> {
   // Credentials FIRST: the gateway key outlives the row (no native TTL), and
   // the token flip below is what elects a single revoker — running it after
@@ -601,6 +645,7 @@ export async function markSessionDestroyed(
       error,
     );
   });
+  const rowId = args.rowId ?? null;
   return sql
     .begin(async (tx) => {
       const now = Date.now();
@@ -609,12 +654,20 @@ export async function markSessionDestroyed(
         status = 'destroyed', destroyed_at_ms = ${now}
       WHERE session_id = ${args.sessionId} AND org_id = ${args.organizationId}
         AND status <> 'destroyed'
+        AND (${rowId}::text IS NULL OR id = ${rowId})
       RETURNING id
     `;
       if (rows.length === 0) return false;
       await tx`
       UPDATE app.sandbox_session_tokens SET revoked_at_ms = ${now}
       WHERE session_id = ${args.sessionId} AND revoked_at_ms IS NULL
+        AND (${rowId}::text IS NULL OR ${rowId} = (
+          SELECT id FROM app.sandbox_sessions
+          WHERE session_id = ${args.sessionId}
+            AND org_id = ${args.organizationId}
+          ORDER BY created_at_ms DESC, id DESC
+          LIMIT 1
+        ))
     `;
       return true;
     })
