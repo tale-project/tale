@@ -202,6 +202,45 @@ describe('DropdownMenu', () => {
       });
       await checkAccessibility(container);
     });
+
+    it('names a checkbox row by its label and describes it by its caption', async () => {
+      render(
+        <DropdownMenu
+          open
+          trigger={<button>Equipment</button>}
+          items={[
+            [
+              {
+                type: 'checkbox',
+                label: 'Create tasks',
+                description: 'Writes data',
+                checked: false,
+                onCheckedChange: vi.fn(),
+              },
+              {
+                type: 'checkbox',
+                label: 'Find tasks',
+                checked: false,
+                onCheckedChange: vi.fn(),
+              },
+            ],
+          ]}
+        />,
+      );
+      // Read as part of the name, the caption ran into the label ("Create
+      // tasksWrites data") and was never announced as what the row does.
+      const row = screen.getByRole('menuitemcheckbox', {
+        name: /^Create tasks/,
+      });
+      expect(row).toHaveAccessibleName('Create tasks');
+      expect(row).toHaveAccessibleDescription('Writes data');
+      expect(
+        screen.getByRole('menuitemcheckbox', { name: 'Find tasks' }),
+      ).not.toHaveAccessibleDescription();
+      await act(async () => {
+        await checkAccessibility(screen.getByRole('menu'));
+      });
+    });
   });
 });
 

@@ -542,6 +542,36 @@ describe('ProjectAgentDialog document skills', () => {
   });
 });
 
+describe('ProjectAgentDialog platform tools', () => {
+  it('describes each grant by what it does to data and saves it unchanged', async () => {
+    const { user } = renderDialog(LEGACY_AGENT);
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    // The tool catalog's classification is the row's description, so a
+    // screen reader announces it with the grant (#3658).
+    const create = await screen.findByRole('menuitemcheckbox', {
+      name: 'Create tasks',
+    });
+    expect(create).toHaveTextContent('Writes data');
+    expect(create).toHaveAccessibleDescription('Writes data');
+    expect(
+      screen.getByRole('menuitemcheckbox', { name: 'Find tasks' }),
+    ).toHaveAccessibleDescription('Read');
+    expect(
+      screen.getByRole('menuitemcheckbox', {
+        name: 'Search the knowledge base',
+      }),
+    ).toHaveAccessibleDescription('Always on — no grant needed');
+
+    await user.click(create);
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    await waitFor(() => expect(updateAgent).toHaveBeenCalledTimes(1));
+    expect(updateAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ tools: ['task_create'] }),
+    );
+  });
+});
+
 describe('ProjectAgentDialog repository access', () => {
   const FORGEJO_CONNECTORS = [
     { slug: 'forgejo', label: 'Forgejo', git: true as const },
