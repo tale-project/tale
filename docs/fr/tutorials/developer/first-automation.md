@@ -22,7 +22,7 @@ L’automatisation s’ouvre dans l’éditeur. Sa version 1 est en service et s
 
 Tu n’as pas besoin d’attendre 09:00. Dans l’en-tête de l’éditeur, choisis **Exécuter en réel**, puis confirme avec **Exécuter en réel**. L’exécution liste les tâches du projet des dernières 24 heures et t’envoie le récapitulatif.
 
-Ouvre **Exécutions** pour la suivre. Quand l’exécution indique **Réussie**, choisis-la, puis son étape **Tasks** : **Returned** liste les tâches qu’elle a lues.
+Ouvre **Exécutions** pour la suivre. Quand l’exécution indique **Réussie**, choisis-la, puis son étape **Tasks** : **Renvoyé** liste les tâches qu’elle a lues.
 
 <Frame caption="L’exécution, avec son étape Tasks sélectionnée : les tâches lues, la plus ancienne d’abord.">
 
