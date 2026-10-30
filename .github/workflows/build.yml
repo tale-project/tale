@@ -341,7 +341,9 @@ jobs:
             measure_space
             if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
           done
-          sudo docker image prune -af
+          # Run as the job's user, like its Docker steps: sudo resets the
+          # environment and would lose a self-hosted runner's DOCKER_HOST.
+          docker image prune -af
           measure_space
           # Preserve the old cold-build fallback after exhausting its cleanup.
           # The target controls when to stop deleting; it is not a runner quota.

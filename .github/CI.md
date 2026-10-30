@@ -145,6 +145,9 @@ GitHub-hosted runners.
   space, removes existing tool directories one at a time and stops when the job's
   target is met. If all existing cleanup still leaves less space, it warns and preserves
   the existing build behavior; these targets are not new admission requirements.
+  The cleanup's last resort, an image prune, runs as the job's own user, like the job's
+  other Docker steps: `sudo` would reset the environment and drop the `DOCKER_HOST`
+  through which a self-hosted runner reaches its daemon.
   Published-image smoke and validation jobs also log disk usage after their probes,
   including failures. Compare that remaining headroom with preparation's measurement;
   the completion measurement does not establish peak disk usage during the probes.

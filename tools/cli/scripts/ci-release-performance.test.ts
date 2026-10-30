@@ -241,11 +241,12 @@ test.skipIf(process.platform === 'win32').each([
     '#!/bin/sh\nprintf "Filesystem 1024-blocks Used Available Capacity Mounted\\nroot 99999999 0 %s 0%% /\\n" "$AVAILABLE_KB"\n',
     { mode: 0o755 },
   );
-  await writeFile(
-    join(directory, 'sudo'),
-    '#!/bin/sh\nprintf "%s\\n" "$*" >> "$PROOF_DIR/reclaim"\n',
-    { mode: 0o755 },
-  );
+  for (const command of ['sudo', 'docker'])
+    await writeFile(
+      join(directory, command),
+      `#!/bin/sh\nprintf "${command} %s\\n" "$*" >> "$PROOF_DIR/reclaim"\n`,
+      { mode: 0o755 },
+    );
   const result = await execute(
     (await step('container-test', 'Reclaim disk space if needed')).run!,
     directory,
@@ -256,10 +257,10 @@ test.skipIf(process.platform === 'win32').each([
   expect(await calls.exists()).toBe(reclaim);
   if (reclaim)
     expect((await calls.text()).trim().split('\n')).toEqual([
-      'rm -rf -- /usr/share/dotnet',
-      'rm -rf -- /usr/local/lib/android',
-      'rm -rf -- /opt/ghc',
-      'rm -rf -- /opt/hostedtoolcache/CodeQL',
+      'sudo rm -rf -- /usr/share/dotnet',
+      'sudo rm -rf -- /usr/local/lib/android',
+      'sudo rm -rf -- /opt/ghc',
+      'sudo rm -rf -- /opt/hostedtoolcache/CodeQL',
       'docker image prune -af',
     ]);
 });

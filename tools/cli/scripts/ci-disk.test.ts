@@ -35,7 +35,7 @@ afterEach(async () => {
 
 async function cleanupSteps() {
   const result: { workflow: string; job: string; step: Step }[] = [];
-  for (const workflow of ['build', 'release']) {
+  for (const workflow of ['build', 'release', 'sandbox-incus-e2e']) {
     const file = parse(
       await readFile(
         join(repository, `.github/workflows/${workflow}.yml`),
@@ -75,6 +75,7 @@ test('every image cleanup uses one candidate-independent policy and preserves co
       'container-test',
       "${{ needs.prepare.outputs.sites_only == 'true' && '20' || '40' }}",
     ],
+    ['sandbox-incus-e2e', 'incus', '40'],
   ]);
   expect(new Set(entries.map(({ step }) => step.run)).size).toBe(1);
   for (const { job, step } of entries) {
@@ -92,6 +93,7 @@ async function execute(options: {
   reclaimed?: number;
   pruned?: number;
   fail?: string;
+  dockerHost?: string;
 }) {
   const directory = await mkdtemp(join(tmpdir(), 'tale-ci-disk-'));
   directories.push(directory);
@@ -118,10 +120,25 @@ if [ "\${FAIL:-}" = "$1" ]; then exit 32; fi
 read -r AVAILABLE < "$FIXTURE/available" || true
 case "$1" in
   rm) AVAILABLE=$((AVAILABLE + RECLAIMED)) ;;
-  docker) AVAILABLE=$((AVAILABLE + PRUNED)) ;;
+  # sudo resets the environment, so the command it runs has no DOCKER_HOST.
+  docker) exec env -u DOCKER_HOST "$@" ;;
   *) exit 33 ;;
 esac
 printf '%s\\n' "$AVAILABLE" > "$FIXTURE/available"
+`,
+    // Like Docker's CLI it dials DOCKER_HOST, else the local socket; only the
+    // job's daemon answers.
+    docker: `#!/usr/bin/env bash
+set -euo pipefail
+printf 'docker %s\\n' "$*" >> "$FIXTURE/calls"
+ENDPOINT="\${DOCKER_HOST:-unix:///var/run/docker.sock}"
+if [ "$ENDPOINT" != "$DAEMON" ]; then
+  printf 'failed to connect to the docker API at %s\\n' "$ENDPOINT" >&2
+  exit 1
+fi
+if [ "\${FAIL:-}" = docker ]; then exit 32; fi
+read -r AVAILABLE < "$FIXTURE/available" || true
+printf '%s\\n' "$((AVAILABLE + PRUNED))" > "$FIXTURE/available"
 `,
   };
   for (const [name, script] of Object.entries(scripts)) {
@@ -140,6 +157,10 @@ printf '%s\\n' "$AVAILABLE" > "$FIXTURE/available"
       RECLAIMED: String(options.reclaimed ?? 0),
       PRUNED: String(options.pruned ?? 0),
       FAIL: options.fail ?? '',
+      // A self-hosted runner names its own daemon in DOCKER_HOST; a hosted
+      // runner's listens on the local socket.
+      DAEMON: options.dockerHost ?? 'unix:///var/run/docker.sock',
+      ...(options.dockerHost ? { DOCKER_HOST: options.dockerHost } : {}),
     },
     stdout: 'pipe',
     stderr: 'pipe',
@@ -194,17 +215,25 @@ describe.skipIf(process.platform === 'win32')(
       },
     );
 
-    test.each([0, 40 * kibPerGib])(
-      'exhausted directory cleanup retains the image-prune fallback (%sKiB reclaimed)',
-      async (pruned) => {
-        const result = await execute({ available: 0, target: '40', pruned });
+    test.each([
+      ['GitHub-hosted', 0, undefined],
+      ['GitHub-hosted', 40 * kibPerGib, undefined],
+      ['self-hosted', 0, 'tcp://127.0.0.1:2375'],
+      ['self-hosted', 40 * kibPerGib, 'tcp://127.0.0.1:2375'],
+    ] as const)(
+      "exhausted directory cleanup on a %s runner prunes through the job's daemon (%dKiB reclaimed)",
+      async (_runner, pruned, dockerHost) => {
+        const result = await execute({
+          available: 0,
+          target: '40',
+          pruned,
+          dockerHost,
+        });
         expect(result.code, result.stderr).toBe(0);
-        expect(result.calls.filter((call) => call.startsWith('sudo '))).toEqual(
-          [
-            ...toolchains.map((path) => `sudo rm -rf -- ${path}`),
-            'sudo docker image prune -af',
-          ],
-        );
+        expect(result.calls.filter((call) => !call.startsWith('df '))).toEqual([
+          ...toolchains.map((path) => `sudo rm -rf -- ${path}`),
+          'docker image prune -af',
+        ]);
         expect(result.calls.filter((call) => call === 'df -Pk /')).toHaveLength(
           6,
         );
@@ -218,8 +247,8 @@ describe.skipIf(process.platform === 'win32')(
         const result = await execute({ available });
         expect(result.code).not.toBe(0);
         expect(result.stdout).toContain('Could not measure free disk space');
-        expect(result.calls.some((call) => call.startsWith('sudo '))).toBe(
-          false,
+        expect(result.calls.filter((call) => !call.startsWith('df '))).toEqual(
+          [],
         );
       },
     );
@@ -243,7 +272,7 @@ describe.skipIf(process.platform === 'win32')(
             result.calls.filter((call) => call.startsWith('sudo ')),
           ).toEqual([`sudo rm -rf -- ${toolchains[0]}`]);
         if (fail === 'docker')
-          expect(result.calls.at(-1)).toBe('sudo docker image prune -af');
+          expect(result.calls.at(-1)).toBe('docker image prune -af');
       },
     );
   },
