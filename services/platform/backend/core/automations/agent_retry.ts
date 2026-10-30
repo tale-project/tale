@@ -22,6 +22,7 @@ import {
   CREDENTIAL_ROTATION_FREE_RETRIES,
   MODEL_CAPACITY_RETRY_DELAY_MS,
   refreshesRetryBudget,
+  resourceExhaustedRetryDelayMs,
 } from '../tasks/task_auto_retry';
 
 /** Producer-side failure classification, stamped where each failure is
@@ -41,10 +42,10 @@ export type WorkflowAgentFailureCode =
    * most likely hang the same way, so none follows. */
   | 'turn_stalled'
   /** The sandbox ran out of memory and the kernel's OOM killer ended the
-   * harness or its session. Re-kicked like any failure, but only after
-   * {@link RESOURCE_EXHAUSTED_REKICK_DELAY_MS}: at once it would meet the
-   * same limit. It counts however long the attempt worked, so the re-kicks
-   * end ({@link planWorkflowAgentRetry}). */
+   * harness or its session. Re-kicked like any failure, but only at
+   * {@link resourceExhaustedRekickAtMs}, which the node waits for parked: at
+   * once it would meet the same limit. It counts however long the attempt
+   * worked, so the re-kicks end ({@link planWorkflowAgentRetry}). */
   | 'resource_exhausted'
   | 'session_gone'
   | 'start_failed'
@@ -89,11 +90,18 @@ export const SANDBOX_ROOM_MAX_WAIT_MS = 2 * 60 * 60_000;
  * past it, a node still waiting asks about once a minute on average. */
 export const SANDBOX_ROOM_RETRY_CEILING_MS = 2 * 60_000;
 
-/** How long the re-kick of a node whose sandbox ran out of memory is held:
- * as long as the kick may hold a start (its op row must stay inside the
- * stalled-turn sweep's window), so the 10 and 30 minutes a task run waits
- * are not available here. */
-export const RESOURCE_EXHAUSTED_REKICK_DELAY_MS = SANDBOX_ROOM_RETRY_CEILING_MS;
+/** When the re-kick of a node whose sandbox ran out of memory may start: the
+ * task lane's wait for the attempt that failed — 2, then 10, then 30 minutes
+ * (`resourceExhaustedRetryDelayMs`) — from when the stepper began holding
+ * it. A kick holds a start only while its op row stays inside the
+ * stalled-turn sweep's window, far shorter, so the node waits parked with no
+ * op row instead (`stepAgentNode`). */
+export function resourceExhaustedRekickAtMs(
+  parked: Pick<WorkflowAgentAttempt, 'attempt'>,
+  heldSince: number,
+): number {
+  return heldSince + resourceExhaustedRetryDelayMs(parked.attempt);
+}
 
 /** The retry floor after the provider refused the model for capacity. The
  * pinned Codex does not retry that refusal, and once a 429 ends its own
