@@ -122,7 +122,7 @@ Une autorisation change par une action, une opération ponctuelle sur une ressou
 }
 ```
 
-Seule une écriture d’un connecteur vers un système externe peut être autorisée. Une lecture, et une écriture dans Tale même comme la création d’une tâche, n’attendent jamais d’approbation. Autoriser une écriture retire une personne des exécutions réelles de cette automatisation : le plan nomme donc l’effet `removes-human-approval`, au risque critical — montre-le d’abord à la personne. Retirer une autorisation n’a pas cet effet : l’écriture demande de nouveau une approbation. Une modification laisse les autres autorisations telles quelles, et son hash ne couvre que l’automatisation et ses écritures autorisées : une nouvelle version de l’automatisation ne périme donc pas un plan, la modification de ses autorisations par une autre personne, si. Les propriétaires et les admins modifient les autorisations ; les développeurs les lisent. Le [journal d’audit](/fr/platform/admin/governance/audit-logs) enregistre chaque autorisation et chaque retrait comme faits par MCP, comme pour l’onglet **Général**.
+Seule une écriture d’un connector vers un système externe peut être autorisée. Une lecture, et une écriture dans Tale même comme la création d’une tâche, n’attendent jamais d’approbation. Autoriser une écriture retire une personne des exécutions réelles de cette automatisation : le plan nomme donc l’effet `removes-human-approval`, au risque critical — montre-le d’abord à la personne. Retirer une autorisation n’a pas cet effet : l’écriture demande de nouveau une approbation. Une modification laisse les autres autorisations telles quelles, et son hash ne couvre que l’automatisation et ses écritures autorisées : une nouvelle version de l’automatisation ne périme donc pas un plan, la modification de ses autorisations par une autre personne, si. Les propriétaires et les admins modifient les autorisations ; les développeurs les lisent. Le [journal d’audit](/fr/platform/admin/governance/audit-logs) enregistre chaque autorisation et chaque retrait comme faits par MCP, comme pour l’onglet **Général**.
 
 ## Lire les effets d’un plan {#effects}
 
@@ -159,7 +159,7 @@ Un refus arrive sous forme de données, avec un `error`, un `code`, un `hint` et
 | `FORBIDDEN`, `ORG_FORBIDDEN`, `FORBIDDEN_DEVELOPER_SETTINGS` | Le rôle de la personne ne permet pas non plus cette modification dans Tale. Réessayer ne sert à rien. |
 | `EMBEDDING_CORPUS_NOT_EMPTY` | Le modèle d’embedding ne change que tant que les connaissances de l’organisation sont vides. `data` indique combien de documents et de sites web elles contiennent. |
 | `BRANDING_IMAGE_UNKNOWN` | Un nom de fichier du branding ne désigne aucune image téléversée dans l’organisation. |
-| `APPROVAL_ALLOWANCE_INVALID` | Un nom n’est pas une écriture d’un connecteur vers un système externe : on ne peut pas l’autoriser. `data.types` les nomme. |
+| `APPROVAL_ALLOWANCE_INVALID` | Un nom n’est pas une écriture d’un connector vers un système externe : on ne peut pas l’autoriser. `data.types` les nomme. |
 | `PROVIDER_IN_USE`, `CREDENTIAL_IN_USE` | Des identifiants désignent encore le fournisseur, ou le modèle d’embedding utilise ces identifiants. Modifie-les d’abord. |
 
 La référence des paramètres liste les codes que les outils de paramètres renvoient eux-mêmes ; le rédacteur d’un type en renvoie aussi les siens, chacun avec sa phrase et un conseil. La page du [point d’accès MCP](/fr/develop/mcp-endpoint#settings) décrit les arguments et les réponses des outils.
