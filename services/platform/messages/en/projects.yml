@@ -8,6 +8,7 @@ taskReview:
   existingReviews: "Applies when a new review starts. Reviews already waiting keep their recorded reviewer."
   permissionRequired: "This agent needs the task review permission before it can decide."
   unavailable: "The selected reviewer agent is unavailable. Choose another reviewer."
+  agentNotLoaded: "Agent not loaded"
   stale: "The project reviewer changed while you were editing. Discard this draft and choose again."
   search: "Search reviewer agents"
 

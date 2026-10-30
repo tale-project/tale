@@ -3,7 +3,14 @@ import '@testing-library/jest-dom/vitest';
 import { EditorGroup } from '@tale/ui/editor';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { act, fireEvent, render, screen, waitFor } from '@/tests/utils/render';
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@/tests/utils/render';
 
 import { ProjectTaskReviewerSection } from './project-task-reviewer-section';
 
@@ -13,21 +20,57 @@ const mocks = vi.hoisted(() => ({
     defaultTaskReviewerAgentId: undefined as string | undefined,
     archivedAt: undefined as number | undefined,
   },
+  /** How `useProjectAgents` reports its read (`readStateOf`). */
+  agentsRead: {
+    agents: [] as { _id: string; name: string; tools: string[] }[],
+    hasAnswer: false,
+    isLoading: false,
+    unavailable: false,
+    stale: false,
+    retrying: false,
+    failureCount: 0,
+  },
+  retryAgents: vi.fn(),
   save: vi.fn(),
 }));
 vi.mock('../hooks/queries', () => ({
   useProject: () => ({ project: mocks.project }),
-  useProjectAgents: () => ({
-    agents: [
-      { _id: 'reviewer-1', name: 'Review agent', tools: ['task_review'] },
-      { _id: 'reviewer-2', name: 'Other agent', tools: [] },
-    ],
-    isLoading: false,
-  }),
+  useProjectAgents: () => ({ ...mocks.agentsRead, retry: mocks.retryAgents }),
 }));
 vi.mock('../hooks/mutations', () => ({
   useSetProjectTaskReviewer: () => ({ mutateAsync: mocks.save }),
 }));
+
+const AGENTS = [
+  { _id: 'reviewer-1', name: 'Review agent', tools: ['task_review'] },
+  { _id: 'reviewer-2', name: 'Other agent', tools: [] },
+];
+/** A read that answered with these agents. */
+function answered(agents = AGENTS): typeof mocks.agentsRead {
+  return {
+    agents,
+    hasAnswer: true,
+    isLoading: false,
+    unavailable: false,
+    stale: false,
+    retrying: false,
+    failureCount: 0,
+  };
+}
+/** The first read, still waiting for its answer. */
+const PENDING = { ...answered([]), hasAnswer: false, isLoading: true };
+/** A read that failed before it ever answered: no agents are known. */
+const FAILED = {
+  ...answered([]),
+  hasAnswer: false,
+  unavailable: true,
+  failureCount: 1,
+};
+
+const UNAVAILABLE =
+  'The selected reviewer agent is unavailable. Choose another reviewer.';
+const LOAD_FAILED = "Couldn't load this project's agents.";
+
 function Subject() {
   return (
     <EditorGroup>
@@ -42,6 +85,7 @@ beforeEach(() => {
     defaultTaskReviewerAgentId: undefined,
     archivedAt: undefined,
   };
+  mocks.agentsRead = answered();
   mocks.save.mockResolvedValue(null);
 });
 
@@ -134,6 +178,81 @@ describe('ProjectTaskReviewerSection', () => {
       ),
     ).toBeInTheDocument();
     expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it('keeps a saved agent when the agent list fails to load, and reads it again on Try again', async () => {
+    mocks.project = {
+      ...mocks.project,
+      defaultTaskReviewerAgentId: 'reviewer-1',
+    };
+    mocks.agentsRead = FAILED;
+    const view = render(<Subject />);
+    const picker = screen.getByRole('button', { name: 'Default reviewer' });
+    // A list that never answered proves nothing about the agent: no verdict,
+    // no invitation to replace it, and no picker over options it lacks.
+    expect(screen.queryByText(UNAVAILABLE)).not.toBeInTheDocument();
+    expect(picker).toHaveTextContent('Agent not loaded');
+    expect(picker).toBeDisabled();
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent(LOAD_FAILED);
+    await view.user.click(
+      within(alert).getByRole('button', { name: 'Try again' }),
+    );
+    expect(mocks.retryAgents).toHaveBeenCalledTimes(1);
+
+    // The retry runs: the notice stays, busy, and still no verdict.
+    mocks.agentsRead = { ...FAILED, isLoading: true, retrying: true };
+    view.rerender(<Subject />);
+    expect(screen.getByRole('button', { name: 'Try again' })).toHaveAttribute(
+      'aria-busy',
+      'true',
+    );
+    expect(screen.queryByText(UNAVAILABLE)).not.toBeInTheDocument();
+
+    // It answers: the saved agent is named and can be changed again.
+    mocks.agentsRead = answered();
+    view.rerender(<Subject />);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(picker).toHaveTextContent('Review agent');
+    expect(picker).toBeEnabled();
+    expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it('names a failed agent list under a person reviewer too', () => {
+    mocks.agentsRead = FAILED;
+    render(<Subject />);
+    const picker = screen.getByRole('button', { name: 'Default reviewer' });
+    expect(picker).toHaveTextContent('Person');
+    expect(picker).toBeDisabled();
+    expect(screen.getByRole('alert')).toHaveTextContent(LOAD_FAILED);
+  });
+
+  it('gives no verdict on a saved agent while the agent list loads', () => {
+    mocks.project = {
+      ...mocks.project,
+      defaultTaskReviewerAgentId: 'reviewer-1',
+    };
+    mocks.agentsRead = PENDING;
+    render(<Subject />);
+    const picker = screen.getByRole('button', { name: 'Default reviewer' });
+    expect(picker).toHaveTextContent('Loading...');
+    expect(picker).toBeDisabled();
+    expect(screen.queryByText(UNAVAILABLE)).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('says a saved agent is unavailable once the answered list lacks it', () => {
+    mocks.project = {
+      ...mocks.project,
+      defaultTaskReviewerAgentId: 'reviewer-removed',
+    };
+    render(<Subject />);
+    const picker = screen.getByRole('button', { name: 'Default reviewer' });
+    expect(picker).toHaveTextContent(UNAVAILABLE);
+    expect(picker).toBeEnabled();
+    // The value and the caption under it.
+    expect(screen.getAllByText(UNAVAILABLE)).toHaveLength(2);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
   it.each(['viewer', 'archived'] as const)(
