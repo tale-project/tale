@@ -90,7 +90,7 @@ Une fois des tests exécutés, la ligne au-dessus de la liste indique combien de
 
 Chaque version garde sa dernière vérification, et [Versions](/fr/platform/automations/editor#versions) l’affiche, par exemple **2 tests sur 3 réussis · vérifié à la mise en service**. Quand des tests en échec bloquent une mise en service, **Tests** s’ouvre avec le focus sur le premier test en échec.
 
-Les tests s’exécutent toujours en simulation : un connecteur, un modèle ou un agent répond par une réponse de substitution, et rien n’est envoyé ni modifié hors de Tale. Un test s’arrête au bout de 10 secondes, et une exécution de tous les tests au bout de 60 secondes. Si beaucoup de tests viennent de s’exécuter dans ton organisation, Tale te demande d’attendre quelques secondes et indique combien.
+Les tests s’exécutent toujours en simulation : un connector, un modèle ou un agent répond par une réponse de substitution, et rien n’est envoyé ni modifié hors de Tale. Un test s’arrête au bout de 10 secondes, et une exécution de tous les tests au bout de 60 secondes. Si beaucoup de tests viennent de s’exécuter dans ton organisation, Tale te demande d’attendre quelques secondes et indique combien.
 
 ## Lire un résultat
 
