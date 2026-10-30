@@ -20,11 +20,11 @@
  * TIGHTEN the effective window via the `session_idle_timeout` governance
  * policy (#1502); that per-org window drives the client watchdog AND the
  * 5-minute idle-revocation sweep
- * (`convex/governance/session_idle_enforcement.ts`). Resolving the per-org
- * window on every server request would defeat the JWT-only fast path, so
- * per-request enforcement stays on the deployment backstop; the sweep closes
- * the gap for closed/abandoned sessions — see `resolveEffectiveIdleMinutes`
- * for how the env and org windows combine.
+ * (`services/platform/backend/domains/governance/session-idle.ts`).
+ * Resolving the per-org window on every server request would defeat the
+ * JWT-only fast path, so per-request enforcement stays on the deployment
+ * backstop; the sweep closes the gap for closed/abandoned sessions — see
+ * `resolveEffectiveIdleMinutes` for how the env and org windows combine.
  */
 
 const ENV_KEY = 'SESSION_IDLE_TIMEOUT_MINUTES';
@@ -104,8 +104,9 @@ const BETTER_AUTH_DEFAULT_EXPIRES_IN_SECONDS = 60 * 60 * 24 * 7;
  * `updateAge` is tightened from the upstream default (1 day) to 60s so
  * `session.updatedAt` slides on every token refresh (~15 min per active
  * client). That makes `updatedAt` a usable activity proxy for the per-org
- * idle-revocation sweep (`convex/governance/session_idle_enforcement.ts`) —
- * with the 1-day cadence the sweep would revoke actively-used sessions.
+ * idle-revocation sweep
+ * (`services/platform/backend/domains/governance/session-idle.ts`) — with
+ * the 1-day cadence the sweep would revoke actively-used sessions.
  *
  * `updateAge` is the refresh cadence: the session expiry is only re-extended
  * once per `updateAge`, so an active session slides forward without a write on
