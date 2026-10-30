@@ -220,6 +220,8 @@ export interface TaskPayloads {
   /** Crash-recovery sweep: re-poke waiting sends whose poll chain severed and
    * clear claimed sends wedged by a crash mid-turn. */
   'watchdog.deferred_sends': Record<string, never>;
+  /** Hourly delete of REST chat send keys past their window (cron). */
+  'chat.send_idempotency_gc': Record<string, never>;
   /** One REST-accepted chat turn — re-gates the accepted URL scope and
    * drives the direct turn detached. */
   'chat.api_turn': {
@@ -668,6 +670,9 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     expireInSeconds: 3_600,
   },
   'watchdog.deferred_sends': { retryLimit: 1, expireInSeconds: 120 },
+  // Bounded batches that stop on the job's signal; a missed or cut-short
+  // sweep is picked up by the next hour's, so nothing to retry.
+  'chat.send_idempotency_gc': { retryLimit: 0, expireInSeconds: 300 },
   // At-most-once LLM spend, like the other turn lanes: a crash surfaces via
   // the generation watchdog + the appended error row, never a silent rerun.
   'chat.api_turn': { retryLimit: 0, expireInSeconds: 3_600 },

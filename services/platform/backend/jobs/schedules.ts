@@ -80,6 +80,11 @@ export const SCHEDULES: CronSchedule[] = [
   // Deferred-send crash recovery: revive severed poll chains and clear sends
   // wedged 'claimed' by a crash mid-turn (an un-cancellable tray chip).
   { name: 'watchdog.deferred_sends', cron: '*/2 * * * *' },
+  // REST chat send keys past their day-long window. A send no longer sweeps
+  // them (concurrent sends of one organization waited on each other's
+  // deletes), so this does, in bounded batches. Hourly, on a minute no other
+  // sweep takes.
+  { name: 'chat.send_idempotency_gc', cron: '41 * * * *' },
   // Replacement-upload blob reclaim backstop (event-driven enqueues cover
   // the common paths; this drains expiry/crash leftovers).
   { name: 'documents.replacement_cleanup', cron: '*/10 * * * *' },
