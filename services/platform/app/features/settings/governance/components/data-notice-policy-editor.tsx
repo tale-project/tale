@@ -1,7 +1,7 @@
 'use client';
 
 import { useFormEditor, useRegisterGroupedEditor } from '@tale/ui/editor';
-import { useLocalesLoaded } from '@tale/ui/i18n/load-locale';
+import { useLocalesLoad } from '@tale/ui/i18n/load-locale';
 import { Stack } from '@tale/ui/layout';
 import { LocaleTabs } from '@tale/ui/locale-tabs';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -89,7 +89,7 @@ function DataNoticePolicyEditorContent({
   // fixed-language `t` reads its language's messages, which load on first
   // use, so the placeholders wait for them — for that one topic alone.
   const { i18n } = useTranslation();
-  const noticeLocalesLoaded = useLocalesLoaded(NOTICE_LOCALES, ['dataNotice']);
+  const noticeDefaults = useLocalesLoad(NOTICE_LOCALES, ['dataNotice']);
   const ability = useAbility();
 
   const { data: policy, isLoading } = useGovernancePolicy(
@@ -200,14 +200,22 @@ function DataNoticePolicyEditorContent({
 
   // Each placeholder shows what that language's readers see while its field
   // is empty: the English text when there is one, else the platform default
-  // in their language — the chain the chat itself resolves.
+  // in their language — the chain the chat itself resolves. That default
+  // waits for its language's messages, and says so when they did not load,
+  // rather than reading as an empty one.
   const englishText = (texts.en ?? '').trim();
-  const placeholderFor = (locale: NoticeLocale) =>
-    resolveDataNoticeMessage(
+  const placeholderFor = (locale: NoticeLocale) => {
+    if (englishText === '' && noticeDefaults[locale] !== 'loaded') {
+      return noticeDefaults[locale] === 'failed'
+        ? t('dataNotice.defaultUnavailable')
+        : undefined;
+    }
+    return resolveDataNoticeMessage(
       englishText === '' ? {} : { en: englishText },
       locale,
       i18n.getFixedT(locale, 'dataNotice')('default'),
     );
+  };
 
   return (
     <Skeletonize loading={isLoading} label={t('dataNotice.title')}>
@@ -258,11 +266,7 @@ function DataNoticePolicyEditorContent({
                         // The tab strip names the language; the text spans
                         // the section rather than the 20rem control column.
                         wideControl
-                        placeholder={
-                          noticeLocalesLoaded
-                            ? placeholderFor(field)
-                            : undefined
-                        }
+                        placeholder={placeholderFor(field)}
                         errorMessage={errors[field]?.message}
                         counterMax={DATA_NOTICE_MAX_CHARS}
                         {...register(field)}

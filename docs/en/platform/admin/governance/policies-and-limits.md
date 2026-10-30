@@ -112,7 +112,7 @@ All three are on until you turn one off, and a missing policy file leaves them o
 
 </Frame>
 
-Members see the text for their language. A tab marked **untranslated** has no text of its own: members reading that language see your English text, or the default notice when English is empty too, and the empty field previews that text. A red dot marks a language whose text is too long, and saving stays unavailable until you shorten it. Turning the notice off keeps your texts for when you turn it on again.
+Members see the text for their language. A tab marked **untranslated** has no text of its own: members reading that language see your English text, or the default notice when English is empty too, and the empty field previews that text. When the default notice of a language can't be loaded, its empty field says so instead. A red dot marks a language whose text is too long, and saving stays unavailable until you shorten it. Turning the notice off keeps your texts for when you turn it on again.
 
 The notice is a reminder only. It does not check, block, or change what members send. To act on sensitive content, configure [Guardrails](/platform/admin/governance/guardrails).
 

@@ -7,7 +7,7 @@ import {
   isLocaleLoaded,
   loadLocale,
   registerLocaleLoader,
-  useLocalesLoaded,
+  useLocalesLoad,
 } from './load-locale';
 
 type Bundle = Record<string, Record<string, unknown>>;
@@ -62,8 +62,8 @@ describe('loadLocale', () => {
   });
 });
 
-describe('useLocalesLoaded', () => {
-  it('answers false until every language has landed, then re-renders with true', async () => {
+describe('useLocalesLoad', () => {
+  it('answers loading for a language until it has landed, then re-renders with loaded', async () => {
     const i18n = await englishOnly();
     let deliver = (_bundle: Bundle) => {};
     registerLocaleLoader(
@@ -75,10 +75,12 @@ describe('useLocalesLoaded', () => {
         }),
     );
     function Placeholder() {
-      const loaded = useLocalesLoaded(['en', 'de']);
+      const loads = useLocalesLoad(['en', 'de']);
       return (
         <span>
-          {loaded ? i18n.getFixedT('de', 'home')('title') : 'waiting'}
+          {loads.de === 'loaded'
+            ? i18n.getFixedT('de', 'home')('title')
+            : `${loads.en} ${loads.de}`}
         </span>
       );
     }
@@ -88,12 +90,43 @@ describe('useLocalesLoaded', () => {
         <Placeholder />
       </I18nextProvider>,
     );
-    expect(screen.getByText('waiting')).toBeInTheDocument();
+    expect(screen.getByText('loaded loading')).toBeInTheDocument();
 
     await act(async () => {
       deliver({ home: { title: 'Startseite' } });
       await Promise.resolve();
     });
     expect(await screen.findByText('Startseite')).toBeInTheDocument();
+  });
+
+  it('answers failed for a language that did not load, and fetches it again once the browser is back online', async () => {
+    const i18n = await englishOnly();
+    const fetch = vi
+      .fn<() => Promise<Bundle>>()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ home: { title: 'Accueil' } });
+    registerLocaleLoader(i18n, 'fr', fetch);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    function Placeholder() {
+      const loads = useLocalesLoad(['en', 'fr']);
+      return <span>{`${loads.en} ${loads.fr}`}</span>;
+    }
+
+    render(
+      <I18nextProvider i18n={i18n}>
+        <Placeholder />
+      </I18nextProvider>,
+    );
+    expect(await screen.findByText('loaded failed')).toBeInTheDocument();
+    expect(warn).toHaveBeenCalled();
+
+    act(() => {
+      window.dispatchEvent(new Event('online'));
+    });
+
+    expect(await screen.findByText('loaded loaded')).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(i18n.getFixedT('fr', 'home')('title')).toBe('Accueil');
+    warn.mockRestore();
   });
 });

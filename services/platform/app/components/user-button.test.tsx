@@ -2,7 +2,7 @@ import { TALE_DOCS_URL } from '@tale/ui/seo/globals';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen, waitFor, within } from '@/tests/utils/render';
+import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { UserButton } from './user-button';
 
@@ -38,8 +38,9 @@ vi.mock('@tale/ui/i18n/client', () => ({
         'languages.en': 'English',
         'languages.de': 'Deutsch',
         'languages.fr': 'Français',
-        // common.actions.* (ConfirmDialog cancel button)
+        // common.actions.* (ConfirmDialog cancel button, pending language)
         'actions.cancel': 'Cancel',
+        'actions.loading': 'Loading...',
       };
       // Substitute `{name}` placeholders the way i18next does, so a value
       // carrying interpolation (the teams count) asserts on what a reader
@@ -67,6 +68,33 @@ const mockToast = vi.fn();
 vi.mock('@tale/ui/use-toast', () => ({
   toast: (...args: unknown[]) => mockToast(...args),
 }));
+
+// French as a session fetches it on first use, slow or failing as a test
+// says (`french.load`); every other language, and French while no test holds
+// it, comes from the store as usual.
+const { french } = vi.hoisted(() => ({
+  french: {
+    load: undefined as (() => Promise<void>) | undefined,
+    landed: false,
+  },
+}));
+vi.mock('@tale/ui/i18n/load-locale', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@tale/ui/i18n/load-locale')>();
+  const held = (locale: string) =>
+    french.load !== undefined && locale.startsWith('fr');
+  return {
+    ...actual,
+    isLocaleLoaded: (...args: Parameters<typeof actual.isLocaleLoaded>) =>
+      held(args[1]) ? french.landed : actual.isLocaleLoaded(...args),
+    loadLocale: (...args: Parameters<typeof actual.loadLocale>) => {
+      const load = french.load;
+      return load !== undefined && held(args[1])
+        ? load()
+        : actual.loadLocale(...args);
+    },
+  };
+});
 
 vi.mock('@/app/hooks/use-changelog-notification', () => ({
   useChangelogNotification: () => ({
@@ -445,6 +473,105 @@ describe('UserButton', () => {
 
       expect(menu).toHaveTextContent('Mia Rossi');
       expect(menu).not.toHaveTextContent('John Doe');
+    });
+  });
+
+  // The picker marks the language the page shows. German and French load on
+  // first use, so a picked language whose messages are on their way, or did
+  // not load, is not marked (#4421).
+  describe('language picker', () => {
+    function accountTrigger(container: HTMLElement) {
+      return container.querySelector('[aria-haspopup="menu"]') as HTMLElement;
+    }
+
+    async function openInlineLanguages() {
+      mockIsMobile = true;
+      const result = render(<UserButton />);
+      await result.user.click(accountTrigger(result.container));
+      const menu = await screen.findByRole('menu');
+      await result.user.click(
+        within(menu).getByRole('button', { name: 'Language' }),
+      );
+      return result;
+    }
+
+    function languageOption(name: RegExp) {
+      return screen.getByRole('radio', { name });
+    }
+
+    afterEach(() => {
+      french.load = undefined;
+      french.landed = false;
+      localStorage.clear();
+    });
+
+    it('keeps the shown language marked while the picked one loads, then marks it', async () => {
+      let deliver = () => {};
+      french.load = vi.fn(
+        () =>
+          new Promise<void>((resolve) => {
+            deliver = () => {
+              french.landed = true;
+              resolve();
+            };
+          }),
+      );
+      const { user } = await openInlineLanguages();
+
+      await user.click(languageOption(/Français/));
+
+      expect(languageOption(/English/)).toBeChecked();
+      expect(languageOption(/Français/)).not.toBeChecked();
+      expect(languageOption(/Français/)).toHaveAccessibleName(/Loading/);
+
+      await act(async () => {
+        deliver();
+        await Promise.resolve();
+      });
+
+      await waitFor(() => expect(languageOption(/Français/)).toBeChecked());
+      expect(languageOption(/English/)).not.toBeChecked();
+      expect(languageOption(/Français/)).not.toHaveAccessibleName(/Loading/);
+    });
+
+    it('keeps the shown language marked when the picked one does not load, and fetches it again when it is picked again', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      french.load = vi.fn(() => Promise.reject(new Error('offline')));
+      const { user } = await openInlineLanguages();
+
+      await user.click(languageOption(/Français/));
+
+      // No longer on its way, and still not marked.
+      await waitFor(() =>
+        expect(languageOption(/Français/)).not.toHaveAccessibleName(/Loading/),
+      );
+      expect(languageOption(/English/)).toBeChecked();
+      expect(languageOption(/Français/)).not.toBeChecked();
+
+      await user.click(languageOption(/Français/));
+
+      await waitFor(() => expect(french.load).toHaveBeenCalledTimes(2));
+      expect(languageOption(/English/)).toBeChecked();
+      warn.mockRestore();
+    });
+
+    it('marks the shown language in the desktop sub-menu while the stored one loads', async () => {
+      // A session that starts in French shows English until French is in.
+      localStorage.setItem('user-locale', 'fr');
+      french.load = vi.fn(() => new Promise<void>(() => {}));
+      const { user, container } = render(<UserButton />);
+
+      await user.click(accountTrigger(container));
+      await user.click(
+        await screen.findByRole('menuitem', { name: 'Language' }),
+      );
+
+      expect(
+        await screen.findByRole('menuitemradio', { name: /English/ }),
+      ).toHaveAttribute('aria-checked', 'true');
+      const stored = screen.getByRole('menuitemradio', { name: /Français/ });
+      expect(stored).toHaveAttribute('aria-checked', 'false');
+      expect(stored).toHaveAccessibleName(/Loading/);
     });
   });
 

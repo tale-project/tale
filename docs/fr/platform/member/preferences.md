@@ -23,7 +23,7 @@ Configure une application sous **Authentification à deux facteurs** ou ajoute u
 
 ## Changer de langue ou d’espace de travail
 
-Ouvre le menu de profil depuis ton avatar. **Langue** change la langue de l’interface. Si tu appartiens à plusieurs organisations, **Organisation** change d’espace de travail. La ligne **Équipes** nomme tes équipes et ouvre la page du compte ; elle ne bascule vers rien, car une équipe n’est pas un espace de travail.
+Ouvre le menu de profil depuis ton avatar. **Langue** change la langue de l’interface. La page bascule une fois la nouvelle langue chargée ; d’ici là, le menu garde la langue actuelle cochée et affiche un indicateur de chargement à côté de la nouvelle. Si la langue ne peut pas être chargée, la page reste telle quelle et un message te le signale : choisis **Réessayer** ou sélectionne à nouveau la langue. Tale réessaie aussi de lui-même dès que ta connexion revient. Si tu appartiens à plusieurs organisations, **Organisation** change d’espace de travail. La ligne **Équipes** nomme tes équipes et ouvre la page du compte ; elle ne bascule vers rien, car une équipe n’est pas un espace de travail.
 
 Chaque organisation de la liste **Organisation** indique ton rôle, par exemple **Propriétaire** ou **Membre**. Si la liste ne peut pas être chargée, elle le signale ; choisis **Réessayer** pour la recharger.
 

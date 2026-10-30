@@ -671,6 +671,7 @@ dataNotice:
   languagesLabel: Sprachen des Hinweises
   textLabel: Hinweistext ({language})
   saveFailed: Vertraulichkeitshinweis konnte nicht gespeichert werden
+  defaultUnavailable: Der Standardhinweis konnte nicht geladen werden.
 personalization:
   enabledLabel: Für diese Organisation aktiviert
   saved: Personalisierungsrichtlinie aktualisiert
