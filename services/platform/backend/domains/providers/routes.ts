@@ -283,6 +283,12 @@ export function createProviderSettingRoutes(deps: {
             ? { endpointMode: provider.endpointMode }
             : {}),
           catalogSource: provider.catalog.source,
+          // A catalog-less provider's own description of its models: the
+          // credential dialog edits it beside the allowlist.
+          ...(provider.catalog.source === 'none' &&
+          provider.catalog.models !== undefined
+            ? { declaredModels: provider.catalog.models }
+            : {}),
           authMethods: provider.auth.map((entry) => entry.method),
           models,
           ...(catalogError !== undefined ? { catalogError } : {}),

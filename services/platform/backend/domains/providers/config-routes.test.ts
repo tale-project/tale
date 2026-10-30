@@ -508,6 +508,50 @@ describe('native custom provider definition HTTP door', () => {
     }
   });
 
+  it('keeps the models a catalog-less definition describes, and lists them for its dialog', async () => {
+    catalog.mockResolvedValue([]);
+    const described = {
+      ...definition,
+      catalog: {
+        source: 'none',
+        models: [
+          {
+            id: 'claude-sonnet-gw',
+            contextWindow: 1_000_000,
+            supportsVision: true,
+          },
+          { id: 'claude-haiku-gw', contextWindow: 200_000 },
+        ],
+      },
+    };
+    const saved = await put({ config: described, expectedHash: null });
+    expect(saved.status).toBe(200);
+    expect(((await saved.json()) as { config: unknown }).config).toEqual(
+      described,
+    );
+    expect(
+      await (await app().request('/definitions/local-chat?orgId=org-a')).json(),
+    ).toMatchObject({ config: described });
+    const listing = (
+      (await (await app().request('/catalogs?orgId=org-a')).json()) as {
+        catalogs: Array<{
+          name: string;
+          catalogSource: string;
+          models: unknown[];
+          declaredModels?: unknown;
+        }>;
+      }
+    ).catalogs;
+    expect(listing.find((entry) => entry.name === 'local-chat')).toMatchObject({
+      catalogSource: 'none',
+      models: [],
+      declaredModels: described.catalog.models,
+    });
+    expect(listing.find((entry) => entry.name === 'openai')).not.toHaveProperty(
+      'declaredModels',
+    );
+  });
+
   it('marks organization-defined providers in the catalog listing', async () => {
     catalog.mockResolvedValue([]);
     expect((await put({ config: definition, expectedHash: null })).status).toBe(

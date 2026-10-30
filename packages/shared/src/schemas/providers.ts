@@ -135,6 +135,32 @@ export const providerBaseUrlSchema = z
   }, 'must be an https:// URL (plain http:// is allowed only for private/loopback hosts, e.g. a self-hosted model server)');
 
 /**
+ * One model of a `catalog: none` provider as the organization running it
+ * describes it: the facts a catalog would carry and nothing lists — an own
+ * gateway's real context window, whether it reads images. A declaration
+ * describes an id a credential's allowlist names and never offers one by
+ * itself; a fact left out keeps the neutral assumption every undescribed id
+ * gets (`lib/shared/providers/allowlist_catalog.ts`).
+ */
+export const declaredModelSchema = z
+  .object({
+    /** The id as the allowlist names it, and as it goes on the wire. */
+    id: z
+      .string()
+      .min(1)
+      .max(200)
+      .refine(
+        (id) => id.trim() === id,
+        'must not start or end with whitespace',
+      ),
+    /** Total context window in tokens. */
+    contextWindow: z.number().int().positive().optional(),
+    supportsVision: z.boolean().optional(),
+  })
+  .strict();
+export type DeclaredModel = z.infer<typeof declaredModelSchema>;
+
+/**
  * Where a provider's model catalog comes from. The four cases:
  *
  *  - `static`          → shipped file `models/<name>.yml` (Anthropic, OpenAI,
@@ -146,7 +172,8 @@ export const providerBaseUrlSchema = z
  *                        (Azure: model ids are org-chosen deployment names;
  *                        Nous Portal: a subscription-routed marketplace) —
  *                        availability comes from each credential's own
- *                        `modelAllowlist`.
+ *                        `modelAllowlist`, and `models` may describe the
+ *                        ids an allowlist names ({@link declaredModelSchema}).
  *
  * A live source may ALSO ship a `models/<name>.yml` file: it acts as the
  * curated DEFAULT set, merged under the fetched listing (fetched wins by id)
@@ -157,7 +184,20 @@ const catalogSourceSchema = z.discriminatedUnion('source', [
   z.object({ source: z.literal('static') }).strict(),
   z.object({ source: z.literal('openrouter-api') }).strict(),
   z.object({ source: z.literal('models-endpoint') }).strict(),
-  z.object({ source: z.literal('none') }).strict(),
+  z
+    .object({
+      source: z.literal('none'),
+      models: z
+        .array(declaredModelSchema)
+        .max(200)
+        .refine(
+          (models) =>
+            new Set(models.map((model) => model.id)).size === models.length,
+          { message: 'model ids must be unique within a catalog' },
+        )
+        .optional(),
+    })
+    .strict(),
 ]);
 
 /**
