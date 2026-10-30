@@ -1,15 +1,29 @@
 import { useBackendMutation } from '@/app/hooks/use-backend-mutation';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { readStateOf } from '@/app/lib/backend/read-state';
 
+/**
+ * The app-passwords, with how the read stands (`readStateOf`). `rows` stays
+ * `undefined` until the read answers so the UI can tell its skeleton from
+ * the empty state: coercing to `[]` would flash "No app-passwords yet." on
+ * first paint, and on a read that failed. `error` is the read's settled
+ * failure, which the table shows with `retry` instead of a skeleton that
+ * never ends (#4652); react-query clears it while it retries a read that
+ * never answered.
+ */
 export function useWebdavAppPasswords(organizationId: string) {
-  // Return `undefined` while loading so the UI can distinguish skeleton vs
-  // empty-state. Coercing to `[]` here would collapse both into the empty
-  // path and flash "No app-passwords yet." on first paint.
-  const { data } = useBackendQuery(
+  const query = useBackendQuery(
     'webdav/app_password_queries:listAppPasswords',
     { organizationId },
   );
-  return data;
+  const { refetch } = query;
+
+  return {
+    rows: query.data,
+    error: query.error,
+    ...readStateOf(query),
+    retry: () => void refetch(),
+  };
 }
 
 // The settings page toasts a failed create or revoke itself (a spent limit
@@ -27,5 +41,5 @@ export function useRevokeWebdavAppPassword() {
 }
 
 export type WebdavAppPasswordRow = NonNullable<
-  ReturnType<typeof useWebdavAppPasswords>
+  ReturnType<typeof useWebdavAppPasswords>['rows']
 >[number];

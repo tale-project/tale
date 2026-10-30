@@ -28,6 +28,7 @@ list:
   title: App-Passwörter
   empty: Noch keine App-Passwörter.
   emptyDescription: Erzeuge unten ein App-Passwort, um Tale-Dokumente als Netzlaufwerk einzubinden.
+  refreshFailed: "Die neuesten App-Passwörter konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet."
   label: Label
   prefix: Präfix
   lastUsed: Zuletzt genutzt
