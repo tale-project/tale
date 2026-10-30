@@ -922,21 +922,34 @@ review remains a separate obligation; a CI readiness result does not certify it.
 
 ### Landing on main
 
-Two lanes land on `main`, both linear (ruleset **Tale required CI**; the repository allows
-squash and rebase merges).
+Two release lines are open at once, both linear: `main`, the stable line (0.5.x), which takes
+fixes alone, and `release/0.6`, the feature line (0.6.x), which takes everything else and is
+`main` plus its own commits ([the repo contract](../.agents/repo.md) says which change goes
+where). Two lanes land on `main` (ruleset **Tale required CI**; the repository allows squash
+and rebase merges), and the feature train lands on `release/0.6`.
 
-**The merge train** (since 2026-10-30) carries the autonomous development cycle's work. A task
-branch starts from `train` and opens no pull request: once reviewed, it is squashed into one
-commit on top of `train`, and that commit is pushed only if the fast gate passes on it
+**The merge trains** (one since 2026-10-30, one per line since the lines split the same day)
+carry the autonomous development cycle's work. A task branch starts from its line's train,
+`train` or `feature-train`, and opens no pull request: once reviewed, it is squashed into one
+commit on top of that train, and that commit is pushed only if the fast gate passes on it
 (formatting, `bunx turbo run typecheck build`); the task branch is then deleted, as GitHub
-deletes a merged pull request's branch. Every eight hours `train`'s head departs as
-`train-<YYYYMMDD-HHMM>` (UTC) with one pull request into `main` (label `merge-train`,
-`gh pr merge --rebase --auto`). The full CI runs once for the whole train instead of once per
-task, and the pull request rebase-merges when the eight `CI ready (…)` contexts pass, so each
-task stays one commit on `main`. One train pull request is open at a time: a red one is repaired
+deletes a merged pull request's branch. Every eight hours each train's head departs (UTC):
+`train` as `train-<YYYYMMDD-HHMM>` with one pull request into `main` (label `merge-train`,
+`gh pr merge --rebase --auto`, which lands it when the eight `CI ready (…)` contexts pass), and
+`feature-train` as `feature-train-<YYYYMMDD-HHMM>` with one into `release/0.6` (label
+`merge-train`), which the cycle's feature-train role lands with
+`gh pr merge --rebase --match-head-commit` once every `CI ready (…)` check passed: the line has
+no ruleset, because its rebase onto `main` rewrites commits whose checks a ruleset would ask for
+again. The full CI runs once for the whole train instead of once per task, and each task stays
+one commit on its line. One train pull request per line is open at a time: a red one is repaired
 on its own branch (a fix, or a task's commit taken out, its task branch restored at that commit
-for the repair) while `train` collects the next, which departs only after it merges. After the
-merge, `train` is rebased onto `main`, keeping only the commits that landed after the departure.
+for the repair) while its train collects the next, which departs only after it lands. After the
+landing, the train is rebased onto the branch it landed on, keeping only the commits that
+landed after the departure. Whenever `main` moved and no feature-train pull request is open, the
+feature-train role rebases `release/0.6` onto `main`, and `feature-train` with it, so every fix
+reaches the feature line without a merge. The pull-request workflows still name only `main` in
+their `pull_request` branches (and `.github/release-candidate-contract.json` holds them to it):
+until they also run for `release/**`, the feature train collects and does not depart.
 
 **A pull request of its own** (a person's, Renovate's) squash-merges once the eight
 `CI ready (…)` contexts pass on its head and its review approves, with

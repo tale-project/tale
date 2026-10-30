@@ -5,6 +5,15 @@ A release ships one commit: a **release candidate**, the full 40-character SHA o
 and no merge can change or cancel what you validate. A version tag is pushed only at a candidate
 whose validation and gate have passed.
 
+**Two lines.** Since 2026-10-30 `main` is the stable line (0.5.x, 0.5.95 next) and `release/0.6`
+the feature line (0.6.x, 0.6.0 next): `main` plus the feature work, kept rebased onto `main`
+([the repo contract](../.agents/repo.md)). Everything below releases the stable line from
+`main`, as before. The feature line is not released yet: the candidate gate, `release.yml`
+(which points `latest` at every release) and Ops's release adoption read one line and have to
+learn the second first. When a person decides the feature line is stable, its release moves
+`latest` to 0.6.x, `main` takes the feature line's commits, 0.5.x is no longer maintained, and
+`release/0.7` opens as the next feature line.
+
 | Step | What you do | What decides |
 | --- | --- | --- |
 | 1. Choose | Record the candidate SHA and the version. | You, explicitly. |
