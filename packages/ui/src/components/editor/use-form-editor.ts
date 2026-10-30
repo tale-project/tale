@@ -199,6 +199,13 @@ export function useFormEditor<T extends FieldValues>({
                 keepValues: true,
                 keepDirty: false,
               });
+              // Adopt them as the baseline refetches compare against too: the
+              // refetch of what was just saved (the effect skips one that
+              // lands while the save runs) would otherwise compare against the
+              // pre-save data and flag the next draft as changed in another
+              // session (#4049).
+              hasInitializedRef.current = true;
+              lastDataRef.current = values;
               setHasRemoteUpdate(false);
               resolve();
             } catch (err) {
@@ -257,6 +264,15 @@ export function useFormEditor<T extends FieldValues>({
     if (isSavingRef.current) return;
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- DefaultValues<T> ⊂ T
     form.reset(dataRef.current);
+    // Discard loads the latest data, which may be a remote change the effect
+    // only flagged while the form was dirty. Adopt it as the baseline, as the
+    // effect does when it resets the form itself, or the next refetch of that
+    // same data compares against the stale baseline and flags the next draft
+    // as changed in another session (#4049).
+    if (dataRef.current !== undefined) {
+      hasInitializedRef.current = true;
+      lastDataRef.current = dataRef.current;
+    }
     setHasRemoteUpdate(false);
     onResetRef.current?.();
   }, [form]);
