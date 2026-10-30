@@ -1,13 +1,16 @@
 /**
  * The helpers `backend/integration-check.ts` shares with the lanes that live
  * in modules of their own (`*.integration.ts`), so a lane never carries a
- * second copy of the suite's cookie handling or its throwaway sign-up.
+ * second copy of the suite's cookie handling, its throwaway sign-up or the
+ * budget a check builds and drops a database of its own on.
  */
 import { setTimeout as sleep } from 'node:timers/promises';
 
+import postgres, { type Sql, type TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import { systemFfmpeg } from './core/video_links/ytdlp_toolchain.ts';
+import { resolvePostgresConnection } from './db/ssl.ts';
 import { endAllEventStreams, liveStreamCount } from './realtime/sse.ts';
 
 /** The password every throwaway `itest-` user signs up with. */
@@ -496,5 +499,78 @@ export async function recordOpenStreams(
       `that never reached the backend. Shutdown would have ended them ` +
       `without a word; the harness ended them, so later lanes start with ` +
       `none. Close every tail on every path (withCleanup()).`,
+  );
+}
+
+/**
+ * The statement and lock timeout of the DDL that builds and removes a
+ * database a check creates for itself: `CREATE DATABASE`, `ALTER DATABASE …
+ * SET`, `DROP DATABASE`, and the schema and migrations the check applies to
+ * it. That DDL is the check's fixture, not the code it tests, and it waits on
+ * the whole server: `DROP DATABASE` waits for an immediate checkpoint, which
+ * writes out and syncs everything the run has written since the last one. On
+ * CI's shared runners those checkpoints outlasted the 8 s the checks give the
+ * statements they test, the slowest still running after 17 s, and the run
+ * ended before its lanes (#5133). The budget stays finite, so a statement
+ * that hangs still fails the run with its tally, long before CI's wall clock
+ * would.
+ */
+const OWNED_DATABASE_DDL_TIMEOUT_MS = 120_000;
+
+/**
+ * The connection a check creates and drops its own database on, with
+ * {@link OWNED_DATABASE_DDL_TIMEOUT_MS} as its statement and lock timeout.
+ * `CREATE DATABASE` and `DROP DATABASE` cannot run inside a transaction, so
+ * the budget is the session's: the statements the check tests run on
+ * connections of their own, which keep the check's tighter timeouts.
+ */
+export function ownedDatabaseAdmin(databaseUrl: string): Sql {
+  const url = new URL(databaseUrl);
+  url.searchParams.set(
+    'options',
+    `${url.searchParams.get('options') ?? ''} -c statement_timeout=${OWNED_DATABASE_DDL_TIMEOUT_MS} -c lock_timeout=${OWNED_DATABASE_DDL_TIMEOUT_MS}`,
+  );
+  const resolved = resolvePostgresConnection(url.toString());
+  return postgres(resolved.url, {
+    ssl: resolved.ssl,
+    max: 1,
+    connect_timeout: 8,
+    onnotice: () => {},
+  });
+}
+
+/**
+ * Gives the rest of `tx` {@link OWNED_DATABASE_DDL_TIMEOUT_MS} as its
+ * statement and lock timeout, for the schema and migrations a check applies
+ * to its own database over the connection it then tests on. The setting is
+ * the transaction's (`set_config(…, true)`): once it commits or rolls back,
+ * the connection's own timeouts hold again for the statements under test.
+ */
+export async function setOwnedDatabaseBudgetInTx(
+  tx: TransactionSql,
+): Promise<void> {
+  const budget = String(OWNED_DATABASE_DDL_TIMEOUT_MS);
+  await tx`
+    SELECT set_config('statement_timeout', ${budget}, true),
+      set_config('lock_timeout', ${budget}, true)
+  `;
+}
+
+/**
+ * Drops a database a check created for itself, on its
+ * {@link ownedDatabaseAdmin} connection, and logs how long that took: the
+ * job log's record that the drop completed, and how much of its budget it
+ * used. A drop that fails throws its error unchanged, so the run fails as it
+ * always has.
+ */
+export async function dropOwnedDatabase(
+  admin: Sql,
+  name: string,
+): Promise<void> {
+  const started = performance.now();
+  await admin`DROP DATABASE ${admin(name)}`;
+  const seconds = (performance.now() - started) / 1_000;
+  console.log(
+    `[itest] dropped database ${name} in ${seconds.toFixed(1)} s of its ${deadlineText(OWNED_DATABASE_DDL_TIMEOUT_MS)} budget`,
   );
 }

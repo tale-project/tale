@@ -27,6 +27,11 @@ import {
 } from '../../db/migrate.ts';
 import { toJson } from '../../db/sql.ts';
 import { resolvePostgresConnection } from '../../db/ssl.ts';
+import {
+  dropOwnedDatabase,
+  ownedDatabaseAdmin,
+  setOwnedDatabaseBudgetInTx,
+} from '../../integration-lane-helpers.ts';
 import { createCtxShim, type ShimHandlers } from '../../lib/ctx-shim.ts';
 
 type Recorder = (name: string, ok: boolean, detail: string) => void;
@@ -197,7 +202,7 @@ export async function checkLegacyAgentFlow(
   databaseUrl: string,
   record: Recorder,
 ): Promise<void> {
-  const admin = connect(databaseUrl);
+  const admin = ownedDatabaseAdmin(databaseUrl);
   const name = `itest_legacy_agent_${randomUUID().replaceAll('-', '')}`;
   const target = new URL(databaseUrl);
   target.pathname = `/${name}`;
@@ -212,13 +217,17 @@ export async function checkLegacyAgentFlow(
     await admin`ALTER DATABASE ${admin(name)} SET search_path TO tale, public`;
     sql = connect(target.toString());
     const fixture = sql;
-    await fixture`CREATE SCHEMA tale`;
-    await fixture`CREATE TABLE app_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`;
+    await fixture.begin(async (tx) => {
+      await setOwnedDatabaseBudgetInTx(tx);
+      await tx`CREATE SCHEMA tale`;
+      await tx`CREATE TABLE app_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`;
+    });
     for (const file of (await readdir(migrationRoot))
       .filter(isMigrationFile)
       .sort()
       .filter((entry) => entry < '0163_automation_legacy_protocol.sql')) {
       await fixture.begin(async (tx) => {
+        await setOwnedDatabaseBudgetInTx(tx);
         await applyMigrationFileInTx(tx, file);
         await tx`INSERT INTO app_migrations (name) VALUES (${file})`;
       });
@@ -432,7 +441,7 @@ export async function checkLegacyAgentFlow(
       cleanupFailures.push(cleanup);
     }
     try {
-      if (owned && disconnected) await admin`DROP DATABASE ${admin(name)}`;
+      if (owned && disconnected) await dropOwnedDatabase(admin, name);
     } catch (cleanup) {
       cleanupFailures.push(cleanup);
     }
