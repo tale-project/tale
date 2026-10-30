@@ -2222,6 +2222,20 @@ output:
       switch. Unblock, Tab to Try again and press Enter → the Slack · Send
       message switch appears without a reload, and the focus is on the
       section, not lost to the page.
+- [ ] `AUTO-B47` · **Block `*/api/app/chat/composer/models*` in DevTools
+      (Network → request blocking), open the Editor of an automation whose
+      `llm` steps name a model, and select one of those steps** → once the
+      read's retries give up (a few seconds; the offline notice may cover the
+      page meanwhile) the **Model** picker is disabled with
+      `automations.editor.llm.modelsLoadFailed` and Try again
+      (`common.actions.tryAgain`) under it, never
+      `projects.agents.modelSearchEmpty`; the **Model id** box
+      (`automations.editor.llm.modelIdLabel`) holds the step's model and
+      takes typing, with no `automations.editor.llm.modelUnlisted`. Click
+      Change model (`automations.editor.modelSwap.open`) → With shows the same
+      notice, and Use this model (`automations.editor.modelSwap.apply`) stays
+      off, its tooltip saying why. Unblock, Tab to Try again and press Enter →
+      With lists the served models without a reload and holds the focus.
 - [ ] `AUTO-B34` · **With two Gmail connections in the sync, revoke the
       second one's access in its Google account and select Run now; then
       revoke the first one too and run again** → the first run succeeds: the

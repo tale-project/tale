@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useProjectHarnesses } from '@/app/features/projects/hooks/queries';
+import { readStateOf, type ReadState } from '@/app/lib/backend/read-state';
 import { toModelOptions } from '@/lib/shared/harness-offer';
 
 /** One model an `llm` step may name, as the pickers list it. */
@@ -19,13 +20,20 @@ export interface LlmModelOption {
  * llm walk picks the provider itself, so two providers serving the same id
  * are one choice — and direct lanes only: a subscription-served model only
  * an agent harness can use. `loaded` says the roster has answered, so an
- * empty list while it loads is never read as "nothing is served".
+ * empty list while it loads is never read as "nothing is served"; how the
+ * read stands (`readStateOf`) says when it failed, so a picker names the
+ * failure with Try again instead of "No models found" (#4765).
  */
-export function useLlmModelOptions(organizationId: string): {
+export function useLlmModelOptions(organizationId: string): ReadState & {
   options: LlmModelOption[];
   loaded: boolean;
+  retry: () => void;
 } {
   const roster = useProjectHarnesses(organizationId);
+  const { refetch } = roster;
+  const retry = useCallback(() => {
+    void refetch();
+  }, [refetch]);
   const options = useMemo(() => {
     const byId = new Map<string, { label: string; providers: string[] }>();
     for (const option of toModelOptions(roster.data?.models ?? [])) {
@@ -45,5 +53,10 @@ export function useLlmModelOptions(organizationId: string): {
       description: entry.providers.join(', '),
     }));
   }, [roster.data]);
-  return { options, loaded: roster.data !== undefined };
+  return {
+    options,
+    loaded: roster.data !== undefined,
+    ...readStateOf(roster),
+    retry,
+  };
 }

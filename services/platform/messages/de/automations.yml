@@ -691,6 +691,7 @@ editor:
     typeUnlisted: Ein Modell eingeben, das nicht aufgeführt ist
     modelIdLabel: Modell-ID
     modelIdHint: Genau so, wie der Anbieter sie schreibt, z. B. anbieter/modellname.
+    modelsLoadFailed: Die Modelle konnten nicht geladen werden.
   # Ein anderes Modell in jedem llm-Schritt, der ein Modell nennt: Es
   # ändert den Entwurf, und Speichern behält ihn.
   modelSwap:

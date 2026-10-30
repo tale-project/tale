@@ -6,9 +6,14 @@
  * naming a model no connected provider offers), or a switch to a cheaper or
  * stronger one. It edits the draft like any field edit, so the Save and
  * Discard cluster keeps the change reviewable; nothing is saved here.
+ *
+ * With lists the models the composer roster serves; a read of it that failed
+ * is named under With with Try again, never "No models found", and Use this
+ * model says why it stays off (#4765).
  */
 
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import {
   ResponsiveDialog,
   ResponsiveDialogContent,
@@ -17,6 +22,7 @@ import {
 } from '@tale/ui/responsive-dialog';
 import { SearchableSelect } from '@tale/ui/searchable-select';
 import { Select } from '@tale/ui/select';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useId, useMemo, useState } from 'react';
 
@@ -34,7 +40,8 @@ export function LlmModelSwapDialog({
   open,
   onOpenChange,
   organizationId,
-  document,
+  // Named apart from the page's `document`, which the focus hand-off reads.
+  document: rawDocument,
   onApply,
 }: {
   open: boolean;
@@ -48,14 +55,16 @@ export function LlmModelSwapDialog({
   const { t } = useT('automations');
   const { t: tProjects } = useT('projects');
   const id = useId();
-  const { options } = useLlmModelOptions(organizationId);
+  const toId = `${id}-to`;
+  const { options, loaded, unavailable, retrying, failureCount, retry } =
+    useLlmModelOptions(organizationId);
   const byModel = useMemo(() => {
     const groups = new Map<string, LlmModelStep[]>();
-    for (const step of llmModelSteps(document)) {
+    for (const step of llmModelSteps(rawDocument)) {
       groups.set(step.model, [...(groups.get(step.model) ?? []), step]);
     }
     return groups;
-  }, [document]);
+  }, [rawDocument]);
   const models = [...byModel.keys()];
   const [picked, setPicked] = useState<string | null>(null);
   const [to, setTo] = useState<string | null>(null);
@@ -96,19 +105,34 @@ export function LlmModelSwapDialog({
             setTo(null);
           }}
         />
-        <SearchableSelect
-          id={`${id}-to`}
-          label={t('editor.modelSwap.to')}
-          placeholder={t('editor.llm.modelPlaceholder')}
-          searchPlaceholder={tProjects('agents.modelSearchPlaceholder')}
-          emptyText={tProjects('agents.modelSearchEmpty')}
-          options={choices}
-          value={to}
-          onValueChange={(value) => {
-            if (value === '') return;
-            setTo(value);
-          }}
-        />
+        <Skeletonize loading={!loaded && !unavailable}>
+          <SearchableSelect
+            id={toId}
+            label={t('editor.modelSwap.to')}
+            placeholder={t('editor.llm.modelPlaceholder')}
+            searchPlaceholder={tProjects('agents.modelSearchPlaceholder')}
+            emptyText={tProjects('agents.modelSearchEmpty')}
+            options={choices}
+            // Nothing to choose from until the roster answers.
+            disabled={!loaded}
+            value={to}
+            onValueChange={(value) => {
+              if (value === '') return;
+              setTo(value);
+            }}
+          />
+        </Skeletonize>
+        {unavailable && (
+          <CatalogLoadError
+            message={t('editor.llm.modelsLoadFailed')}
+            failureKey={failureCount}
+            isRetrying={retrying}
+            onRetry={retry}
+            // A retry that brings the models takes the alert away: the focus
+            // it held goes to With, not the dialog.
+            onFocusLost={() => document.getElementById(toId)?.focus()}
+          />
+        )}
         <div>
           <Text as="h3" variant="label" id={`${id}-steps`}>
             {t('editor.modelSwap.steps')}
@@ -130,6 +154,9 @@ export function LlmModelSwapDialog({
           </Button>
           <Button
             disabled={from === undefined || to === null}
+            disabledReason={
+              unavailable ? t('editor.llm.modelsLoadFailed') : undefined
+            }
             onClick={() => {
               if (from === undefined || to === null) return;
               onApply(from, to);
