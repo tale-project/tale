@@ -140,13 +140,16 @@ A longer list is refused (`TASK_ATTACHMENTS_INVALID`).
 ## Automatic agent starts
 
 A person can start an agent on a task as often as they like. Starts that nobody clicked, by an
-automation or by another agent, are limited so that a task cannot be restarted in a loop.
+automation, by another agent or by an automatic retry, are limited so that a task cannot be
+restarted in a loop.
 
-### TASK-R12 · Automations and agents can start an agent on a task three times an hour
+### TASK-R12 · A task takes three automatic agent starts an hour, every retry included
 
-Automatic retries count as starts. The next start within any 60 minutes is refused (`paused`)
-and noted on the task's timeline. A start by a person, and its retries, are never counted and
-never refused.
+Automatic retries count as starts, the retries of a run a person started included: a run that
+keeps failing costs the same whoever began it. The next start within any 60 minutes is refused
+(`paused`) and noted on the task's timeline. A refused retry ends the run's retries, and the
+person the run answers to is told it failed. A start by a person is never counted and never
+refused.
 
 One wait is free: when a run hits the model provider's rate limit (HTTP 429) and waits before
 trying again, that wait is not counted as a start. A second wait in a row is.
@@ -159,6 +162,22 @@ restart the task in a loop.
   another agent starts it again → refused as `paused`, with the time after which it may retry.
 - **Example**: Since 14:00 the provider has refused three runs on the task because the model
   was at capacity. At 14:40 a schedule starts the agent → it is started.
+- **Example**: Mia starts the agent on a task at 14:00, and every run fails after 16 minutes.
+  It is retried at 14:16, 14:32 and 14:48, and the run of 14:48 fails at 15:04 → its retry is
+  refused as `paused` and Mia is told the run failed. At 15:05 she starts the agent again → it
+  is started.
+
+### TASK-R84 · A run that keeps running out of memory is retried three times, then stops
+
+A failure because the run's sandbox ran out of memory counts toward the run's three automatic
+retries however long the run worked; any other failure after 15 minutes of work starts the count
+again. The retries wait 2, 10 and 30 minutes. When the third retry runs out of memory too, the
+run fails for good with the out-of-memory notice, and the person it answers to is told. An
+automation's agent node that keeps running out of memory stops after three re-kicks the same way.
+
+- **Example**: Noah starts the agent at 14:00 on a task whose build runs the sandbox out of
+  memory after 20 minutes, every time → it is retried at 14:22, 14:52 and 15:42, and when the
+  run of 15:42 runs out of memory at 16:02 it fails for good and Noah is told.
 
 ## Deleting a task
 
@@ -1157,7 +1176,7 @@ connection to its own instance.
 
 ## Not yet
 
-- **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`–`TASK-R27`, `TASK-R30`–`TASK-R38` and `TASK-R40`, and how a run moves the card between statuses (`agent-runs.ts`,
+- **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`–`TASK-R27`, `TASK-R30`–`TASK-R38`, `TASK-R40` and `TASK-R84`, and how a run moves the card between statuses (`agent-runs.ts`,
   `run-start.ts`, `reattach.ts`, `kick-plan.ts`).
 - **Reviews beyond `TASK-R21`–`TASK-R22`, `TASK-R28`–`TASK-R29` and `TASK-R39`**: who a review goes to otherwise, an agent as reviewer, and what a decision does to the task
   (`reviews.ts`, `agent-review.ts`, `review-decision.ts`, `review-repair.ts`). `TASK-R39` hands reviews on from the members door

@@ -11,7 +11,9 @@
  * capacity). Unlike the task lane there is no run-history walk: the attempt
  * counter — and the streak of credential rotations — lives on the agent
  * cursor and dies with the node execution, so only the progress reset
- * survives from the streak semantics.
+ * survives from the streak semantics — under the task lane's own rule
+ * (`refreshesRetryBudget`): a sandbox out of memory counts however long the
+ * attempt worked.
  */
 
 import {
@@ -19,6 +21,7 @@ import {
   AUTO_RETRY_PROGRESS_MS,
   CREDENTIAL_ROTATION_FREE_RETRIES,
   MODEL_CAPACITY_RETRY_DELAY_MS,
+  refreshesRetryBudget,
 } from '../tasks/task_auto_retry';
 
 /** Producer-side failure classification, stamped where each failure is
@@ -40,7 +43,8 @@ export type WorkflowAgentFailureCode =
   /** The sandbox ran out of memory and the kernel's OOM killer ended the
    * harness or its session. Re-kicked like any failure, but only after
    * {@link RESOURCE_EXHAUSTED_REKICK_DELAY_MS}: at once it would meet the
-   * same limit. */
+   * same limit. It counts however long the attempt worked, so the re-kicks
+   * end ({@link planWorkflowAgentRetry}). */
   | 'resource_exhausted'
   | 'session_gone'
   | 'start_failed'
@@ -270,9 +274,14 @@ function executedMsOf(launchedAt: number | undefined, now: number): number {
 
 /** The attempt number the re-kick parks under: an attempt that executed past
  * the progress threshold proved the failure is not a rapid crash loop, so
- * the budget refreshes instead of counting toward exhaustion. */
-function nextAttempt(prev: number, executedMs: number): number {
-  return executedMs >= AUTO_RETRY_PROGRESS_MS ? 1 : prev + 1;
+ * the budget refreshes instead of counting toward exhaustion — unless its
+ * sandbox ran out of memory (`refreshesRetryBudget`). */
+function nextAttempt(
+  prev: number,
+  executedMs: number,
+  failureCode: string | undefined,
+): number {
+  return refreshesRetryBudget({ executedMs, failureCode }) ? 1 : prev + 1;
 }
 
 /** The burned-hash list is bounded because progress resets can stretch one
@@ -353,8 +362,8 @@ export interface WorkflowAgentRetryPlan {
 /**
  * Plan the re-kick of a failed attempt (task-lane parity with
  * `resolveAutoRetryBudget`). An ordinary failure counts toward the budget —
- * unless the attempt executed past the progress threshold — and burns its
- * broker account. A credential rotation — the broker refreshed the account
+ * unless the attempt executed past the progress threshold and did not run
+ * out of memory (`refreshesRetryBudget`) — and burns its broker account. A credential rotation — the broker refreshed the account
  * under the turn — is free up to `CREDENTIAL_ROTATION_FREE_RETRIES` in a row:
  * the attempt number stays unless progress resets the budget, and the
  * account stays in the pool, since it holds a fresh token. A rotation after
@@ -413,12 +422,12 @@ export function planWorkflowAgentRetry(
       retry: true,
       // Work past the progress threshold refreshes the budget, as it does
       // for any failure — and the free re-kick then spends none of it.
-      attempt: executedMs >= AUTO_RETRY_PROGRESS_MS ? 0 : attempt,
+      attempt: refreshesRetryBudget({ executedMs, failureCode }) ? 0 : attempt,
       burnedBrokerTokenHashes: [...(parked.burnedBrokerTokenHashes ?? [])],
       credentialRotations,
     };
   }
-  const retryAttempt = nextAttempt(attempt, executedMs);
+  const retryAttempt = nextAttempt(attempt, executedMs, failureCode);
   return {
     retry: retryAttempt <= AUTO_RETRY_MAX_ATTEMPTS,
     attempt: retryAttempt,

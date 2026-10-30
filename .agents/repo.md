@@ -698,8 +698,9 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   `GET /api/v1/skills/{slug}/versions` over the app's history rows, same shape as the knowledge
   entries' `…/{id}/versions`.
 - **The per-task circuit breaker covers project agents only** — starts of a project agent by an
-  automation step or another agent stop after three per task in a rolling hour, their automatic
-  retries included except a single broker cooldown immediately after the same agent's HTTP 429
+  automation step or another agent stop after three per task in a rolling hour, every automatic
+  retry included (a person's run's too since #5148: only a person's own start is never counted)
+  except a single broker cooldown immediately after the same agent's HTTP 429
   (`freeCooldownWaits`; consecutive cooldowns still count)
   (`AUTOMATED_STARTS_PER_TASK_PER_HOUR`, `backend/domains/tasks/delegated-start.ts`, refused as
   `paused` with an `agent_run.refused` timeline row, 2026-09-29), but nothing counts AUTOMATION

@@ -236,3 +236,33 @@ describe('the circuit window the wake scan reads (#4540) [TASK-R12]', () => {
     expect(recordActivity).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('the automatic retries of a run a person started (#5148) [TASK-R12]', () => {
+  it('counts every automatic retry, and no start by a person', async () => {
+    const statements: string[] = [];
+    vi.spyOn(Date, 'now').mockReturnValue(NOW);
+    const query = (strings: TemplateStringsArray): Promise<unknown[]> => {
+      statements.push(strings.join('?'));
+      return Promise.resolve([]);
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the window uses only the SQL tag; this reads the statement it sends
+    await automatedStartWindow(query as unknown as TransactionSql, task);
+    const window = statements.find((text) =>
+      text.includes('FROM app.project_agent_runs'),
+    );
+    expect(window?.replaceAll(/\s+/g, ' ')).toContain(
+      "(started_via IS NOT NULL OR trigger IS NOT DISTINCT FROM 'auto_retry') AS automated",
+    );
+  });
+
+  it('refuses the fourth start of the hour once three retries of a person’s run counted, the person’s own start aside', async () => {
+    await expect(
+      admit([
+        run(NOW - 1_000),
+        run(NOW - 2_000),
+        run(NOW - 3_000),
+        run(NOW - 4_000, { automated: false }),
+      ]),
+    ).resolves.toEqual({ admitted: false, retryAfter: NOW - 3_000 + HOUR_MS });
+  });
+});

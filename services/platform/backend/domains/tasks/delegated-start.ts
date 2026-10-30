@@ -113,13 +113,13 @@ import {
  * - `blocked` — a task this one depends on is still open;
  * - `paused` — the per-task circuit breaker ({@link admitAutomatedStart}):
  *   at most {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} starts by
- *   automations and agents per task in any rolling hour, their automatic
- *   retries included (a broker cooldown after its own 429, the first two
- *   consecutive broker credential rotations and a model at capacity spend no
- *   second start), so two
+ *   automations and agents per task in any rolling hour, every automatic
+ *   retry included — the retries of a run a person started too (a broker
+ *   cooldown after its own 429, the first two consecutive broker credential
+ *   rotations and a model at capacity spend no second start), so two
  *   agents (or an agent and a schedule) cannot restart one task in a loop, and
  *   failing retries cannot stretch the budget. The refusal
- *   lands on the task's timeline (`agent_run.refused`, `task_circuit_breaker`); a person's own Start, and its retries, are
+ *   lands on the task's timeline (`agent_run.refused`, `task_circuit_breaker`); a person's own Start is
  *   never counted or refused by it.
  *
  * An agent busy on other tasks is started all the same: each of its runs
@@ -153,10 +153,10 @@ export const DISPATCH_REVOKED_BEFORE_LAUNCH =
   "The project's dispatch that started this run was switched off, or the project archived, before the run launched — nothing ran.";
 
 /** Starts by automations and agents one task takes in any rolling hour —
- * their automatic retries included, except the free cooldown wait after the
- * run's own 429, the first two consecutive credential rotations and a run
- * the provider refused because its model is at capacity — before the circuit
- * breaker refuses the next. */
+ * every automatic retry included, a person's run's too, except the free
+ * cooldown wait after the run's own 429, the first two consecutive
+ * credential rotations and a run the provider refused because its model is
+ * at capacity — before the circuit breaker refuses the next. */
 export const AUTOMATED_STARTS_PER_TASK_PER_HOUR = 3;
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -164,17 +164,17 @@ const HOUR_MS = 60 * 60 * 1000;
 /**
  * The per-task circuit breaker: ONE admission for every automated start of a
  * project agent — a direct one (an automation's `task.start_agent` step,
- * another agent's `task_start_agent`) and the automatic retry that continues
- * one (`task.agent_retry`: a retry inherits `started_via`, so it stays
- * automated). It admits while the task has taken fewer than
- * {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} such starts in the last hour —
- * every run row carrying `started_via`, whatever its trigger, except the
- * broker wait its retry budget already counts as part of the preceding 429
- * ({@link freeCooldownWaits}) — and records a refusal on the task's timeline
- * as the refused agent (`agent_run.refused`,
+ * another agent's `task_start_agent`) and every automatic retry
+ * (`task.agent_retry`), whoever started the run it continues: a run that
+ * keeps failing costs the same whoever began it. It admits while the task has
+ * taken fewer than {@link AUTOMATED_STARTS_PER_TASK_PER_HOUR} such starts in
+ * the last hour — every run row carrying `started_via` or the `auto_retry`
+ * trigger, except the broker wait its retry budget already counts as part of
+ * the preceding 429 ({@link freeCooldownWaits}) — and records a refusal on
+ * the task's timeline as the refused agent (`agent_run.refused`,
  * `task_circuit_breaker`: "<agent> could not start: agent runs are paused on
- * this task"). Runs a person started carry no `started_via`, so neither they
- * nor their retries count, and neither is ever refused here.
+ * this task"). A start by a person (trigger `manual` or `mention`) carries
+ * neither, so it never counts and is never refused here.
  *
  * Transactional: it locks the task row before counting, so two admissions of
  * one task — two agents' starts, a start racing a retry — count one after the
@@ -233,6 +233,9 @@ export async function automatedStartWindow(
   // counted, so a genuinely dead grant still closes the task's circuit. A run
   // the provider refused for model capacity is no restart loop either: its
   // retries wait on the model's hold, which spaces them out and ends them.
+  // Every automatic retry counts, a person's run's included; a person's own
+  // start (no provenance, trigger `manual` or `mention`) never does. The
+  // trigger column is nullable: a run without one reads as no retry.
   const history = await tx<
     (Pick<AutoRetryRunFacts, 'agentId' | 'status'> & {
       startedAt: number;
@@ -255,7 +258,8 @@ export async function automatedStartWindow(
     SELECT started_at_ms::float8 AS "startedAt",
            launched_at_ms::float8 AS "launchedAt",
            settled_at_ms::float8 AS "settledAt",
-           started_via IS NOT NULL AS automated,
+           (started_via IS NOT NULL
+             OR trigger IS NOT DISTINCT FROM 'auto_retry') AS automated,
            agent_id AS "agentId", status, failure_code AS "failureCode",
            api_error_status AS "apiErrorStatus"
     FROM app.project_agent_runs

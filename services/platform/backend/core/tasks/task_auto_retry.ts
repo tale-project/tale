@@ -15,7 +15,9 @@
  * with a progress reset, not a sliding window: a sliding window plus any
  * retry spacing lets a deterministically-broken task drip retries forever,
  * while a streak terminates it and still refreshes the budget whenever an
- * attempt proves real progress by executing long enough.
+ * attempt proves real progress by executing long enough — unless its
+ * sandbox ran out of memory, which no length of work disproves
+ * ({@link refreshesRetryBudget}).
  *
  * A retry is kicked at once whoever started the run: when every agent
  * worker is busy, the run it starts waits for one like any other start
@@ -73,7 +75,8 @@ export type TaskRunFailureCode =
   /** The sandbox ran out of memory: the kernel's OOM killer ended the
    * harness, or the session's container with it. Retried while the budget
    * lasts, but only after {@link resourceExhaustedRetryDelayMs}: at once it
-   * would meet the same limit. */
+   * would meet the same limit. It counts however long the run worked
+   * ({@link refreshesRetryBudget}), so the chain ends. */
   | 'resource_exhausted'
   | 'session_gone'
   | 'start_failed'
@@ -142,8 +145,27 @@ export function isAutoRetryableFailure(code: string | undefined): boolean {
 }
 
 /** An attempt that EXECUTED at least this long is progress: the streak (and
- * budget) resets at it. 15 minutes, per the product decision. */
+ * budget) resets at it ({@link refreshesRetryBudget}). 15 minutes, per the
+ * product decision. */
 export const AUTO_RETRY_PROGRESS_MS = 15 * 60 * 1000;
+
+/** Whether a failed attempt refreshes the retry budget: it executed at least
+ * {@link AUTO_RETRY_PROGRESS_MS}, which proves the failure no rapid crash
+ * loop — unless its sandbox ran out of memory. Work that does not fit the
+ * sandbox's memory dies the same way however long it ran first, so such a
+ * failure always counts, and its chain ends after
+ * {@link AUTO_RETRY_MAX_ATTEMPTS} retries. The one rule of both lanes: the
+ * task lane's {@link resolveAutoRetryBudget} and the automation node's
+ * `planWorkflowAgentRetry`. */
+export function refreshesRetryBudget(attempt: {
+  executedMs: number;
+  failureCode?: string | undefined;
+}): boolean {
+  return (
+    attempt.executedMs >= AUTO_RETRY_PROGRESS_MS &&
+    attempt.failureCode !== 'resource_exhausted'
+  );
+}
 
 /** Credential rotations in a row that resume for free — outside
  * `AUTO_RETRY_MAX_ATTEMPTS`, and without excluding the account from the
@@ -297,7 +319,8 @@ export function freeCapacityWaits(
  * budget. The walk stops — resetting the budget — at the first row that is
  * not a failure of the same agent (human cancel, a settled run, or a
  * reassignment boundary all count as intervention/progress), or whose
- * attempt executed ≥ the progress threshold. A free credential rotation
+ * attempt executed ≥ the progress threshold and did not run out of memory
+ * ({@link refreshesRetryBudget}). A free credential rotation
  * ({@link freeCredentialRotations}) or cooldown wait
  * ({@link freeCooldownWaits}) is skipped — neither counted nor ending the
  * streak — and, when it is the run that just failed, is retried whatever
@@ -317,7 +340,14 @@ export function resolveAutoRetryBudget(
   for (const [index, row] of rows.entries()) {
     if (row.agentId !== agentId) break;
     if (row.status !== 'failed') break;
-    if (executedMs(row) >= AUTO_RETRY_PROGRESS_MS) break;
+    if (
+      refreshesRetryBudget({
+        executedMs: executedMs(row),
+        failureCode: row.failureCode,
+      })
+    ) {
+      break;
+    }
     if (free[index]) continue;
     shortStreak += 1;
     // One past the budget already decides — no need to walk the whole tail.
@@ -341,6 +371,14 @@ export function resolveAutoRetryBudget(
  * automation lane's `planWorkflowAgentRetry` stamps the same), and the next
  * counted failure is the first attempt of the fresh budget. */
 function freeRotationAttempt(cut: AutoRetryRunFacts | undefined): number {
-  if (cut === undefined || executedMs(cut) >= AUTO_RETRY_PROGRESS_MS) return 0;
+  if (
+    cut === undefined ||
+    refreshesRetryBudget({
+      executedMs: executedMs(cut),
+      failureCode: cut.failureCode,
+    })
+  ) {
+    return 0;
+  }
   return cut.autoRetryAttempt ?? 0;
 }
