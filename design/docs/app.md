@@ -42,8 +42,10 @@ what is there, and the page shows the one thing you opened.
   Automations have no panel**: Knowledge's pages are a tab strip under its header, and an
   automation's canvas is a workbench that needs the full width.
 - **Home** — chats, the tasks assigned to you or waiting on your review, and the inbox's customer
-  conversations in **one list**. A pill switcher narrows it (All · Chats · Tasks · Inbox; each option
-  sized to its label, so a long German or French label keeps its word), **New chat** beside it; Projects
+  conversations in **one list**. A switcher narrows it (All · Chats · Tasks · Inbox): one icon per view
+  and only the open view's name beside its icon, the others named in a tooltip and in full for a
+  screen reader, so no label is cut in any language and a further view costs an icon, not a word
+  (`SegmentedControl labels="selected"`); **New chat** beside it; Projects
   sit above the list as doors to their pages and as drop targets for filing chats; the list bands
   by time (Pinned, Today, Yesterday, Previous 7 days, Earlier). Every row has one anatomy: a 20px
   glyph that says what the item is (chat bubble, task status, contact initials), the title, a
