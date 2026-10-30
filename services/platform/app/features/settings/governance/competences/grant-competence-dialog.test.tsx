@@ -10,29 +10,16 @@ const DAY = 24 * 60 * 60 * 1000;
 const state = vi.hoisted(() => ({
   grant: vi.fn(),
   toast: vi.fn(),
+  refetchMembers: vi.fn(),
+  // The member list as `useOrgMembersForPicker` answers it (`setMembers`).
+  members: {} as Record<string, unknown>,
 }));
 
 vi.mock('../hooks/mutations', () => ({
   useGrantCompetence: () => ({ mutateAsync: state.grant, isPending: false }),
 }));
 vi.mock('../hooks/queries', () => ({
-  useOrgMembersForPicker: () => ({
-    data: [
-      {
-        userId: 'user-worker',
-        email: 'worker@example.com',
-        displayName: 'Integration Worker',
-        role: 'developer',
-      },
-      {
-        userId: 'user-reviewer',
-        email: 'reviewer@example.com',
-        displayName: 'Tax Reviewer',
-        role: 'member',
-      },
-    ],
-    isLoading: false,
-  }),
+  useOrgMembersForPicker: () => state.members,
 }));
 vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: state.toast }),
@@ -41,8 +28,40 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
   useOrganizationId: () => 'org-a',
 }));
 
+const MEMBERS = [
+  {
+    userId: 'user-worker',
+    email: 'worker@example.com',
+    displayName: 'Integration Worker',
+    role: 'developer',
+  },
+  {
+    userId: 'user-reviewer',
+    email: 'reviewer@example.com',
+    displayName: 'Tax Reviewer',
+    role: 'member',
+  },
+];
+
+/** How the member list reads: answered with its rows, still pending, or
+ * failed with no answer (`readStateOf`'s `unavailable`). */
+type MembersRead = { rows: readonly object[] } | 'pending' | 'failed';
+
+/** Set the member list's read, in the shape of the react-query result. */
+function setMembers(read: MembersRead) {
+  state.members = {
+    data: typeof read === 'object' ? read.rows : undefined,
+    isLoading: read === 'pending',
+    isError: read === 'failed',
+    isFetching: read === 'pending',
+    errorUpdateCount: read === 'failed' ? 1 : 0,
+    refetch: state.refetchMembers,
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
+  setMembers({ rows: MEMBERS });
 });
 
 function renderDialog() {
@@ -178,5 +197,81 @@ describe('GrantCompetenceDialog', () => {
     renderDialog();
     await screen.findByRole('dialog');
     await checkAccessibility(document.body);
+  });
+
+  // A member list that has not answered offers nobody, and that never reads
+  // as nobody to grant to: a pending read masks the picker, a failed one
+  // says the list couldn't load and offers Try again (#4840, the #4586 class).
+  describe('before the member list answers', () => {
+    const LOAD_FAILED = "Couldn't load the members.";
+
+    function memberPicker(): HTMLElement {
+      const trigger = document.getElementById('competence-member');
+      if (trigger === null) throw new Error('No member picker');
+      return trigger;
+    }
+
+    it('names a failed member read with Try again, never as no members', async () => {
+      setMembers('failed');
+      const { user } = renderDialog();
+
+      await user.click(memberPicker());
+      expect(screen.queryByText('No members found')).not.toBeInTheDocument();
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+      expect(memberPicker()).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Grant' })).toBeDisabled();
+
+      const alert = screen
+        .getByText(LOAD_FAILED)
+        .closest<HTMLElement>('[role="alert"]');
+      if (alert === null) throw new Error(`"${LOAD_FAILED}" is in no alert`);
+      await user.click(
+        within(alert).getByRole('button', { name: 'Try again' }),
+      );
+      expect(state.refetchMembers).toHaveBeenCalledTimes(1);
+      await checkAccessibility(document.body);
+    });
+
+    it('masks the member picker while its read is pending', async () => {
+      setMembers('pending');
+      const { user } = renderDialog();
+
+      await user.click(memberPicker());
+      expect(screen.queryByText('No members found')).not.toBeInTheDocument();
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+      expect(memberPicker()).toBeDisabled();
+      expect(memberPicker()).toHaveAttribute('aria-hidden', 'true');
+      expect(screen.queryByText(LOAD_FAILED)).not.toBeInTheDocument();
+    });
+
+    it('says no members were found once the list answered empty', async () => {
+      setMembers({ rows: [] });
+      const { user } = renderDialog();
+
+      expect(screen.queryByText(LOAD_FAILED)).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Member' }));
+      expect(await screen.findByText('No members found')).toBeInTheDocument();
+    });
+
+    it('offers the members once a retry answers', async () => {
+      setMembers('failed');
+      const { user, rerender, onOpenChange } = renderDialog();
+      expect(screen.getByText(LOAD_FAILED)).toBeInTheDocument();
+
+      setMembers({ rows: MEMBERS });
+      rerender(
+        <GrantCompetenceDialog
+          open
+          onOpenChange={onOpenChange}
+          organizationId="org-a"
+        />,
+      );
+
+      expect(screen.queryByText(LOAD_FAILED)).not.toBeInTheDocument();
+      await choose(user, 'Member', 'Tax Reviewer reviewer@example.com');
+      expect(screen.getByRole('button', { name: 'Member' })).toHaveTextContent(
+        'Tax Reviewer',
+      );
+    });
   });
 });

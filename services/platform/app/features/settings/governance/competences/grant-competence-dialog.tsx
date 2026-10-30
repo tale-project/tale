@@ -2,17 +2,20 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Alert } from '@tale/ui/alert';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { FormSection } from '@tale/ui/form-section';
 import { Input } from '@tale/ui/input';
 import { SearchableSelect } from '@tale/ui/searchable-select';
 import { Select } from '@tale/ui/select';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Textarea } from '@tale/ui/textarea';
 import { useForm } from '@tale/ui/use-form';
 import { useToast } from '@tale/ui/use-toast';
 import { useMemo, useState } from 'react';
 import * as z from 'zod';
 
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 import {
   isPlatformCapability,
@@ -69,6 +72,11 @@ export function GrantCompetenceDialog({
   const { toast } = useToast();
   const { mutateAsync, isPending } = useGrantCompetence();
   const members = useOrgMembersForPicker(open ? organizationId : undefined);
+  // Until the member list answers it offers nobody, and that never reads as
+  // nobody to grant to (#4586): a pending read masks the picker, a failed
+  // one names the list with Try again above it.
+  const membersAnswered = members.data !== undefined;
+  const membersRead = readStateOf(members);
   // A refusal the admin can act on stays in the form, beside the fields.
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -231,25 +239,41 @@ export function GrantCompetenceDialog({
         {submitError !== null && (
           <Alert variant="destructive" description={submitError} />
         )}
-        <SearchableSelect
-          id="competence-member"
-          label={t('competences.grantDialog.memberLabel')}
-          placeholder={t('competences.grantDialog.memberPlaceholder')}
-          searchPlaceholder={t('competences.grantDialog.memberSearch')}
-          emptyText={t('competences.grantDialog.memberEmpty')}
-          required
-          value={userId || null}
-          onValueChange={(value) => {
-            // A refusal was about the previous choice; a new one clears it.
-            setSubmitError(null);
-            setValue('userId', value, {
-              shouldDirty: true,
-              shouldValidate: true,
-            });
-          }}
-          options={memberOptions}
-          error={formState.errors.userId !== undefined}
-        />
+        {membersRead.unavailable && (
+          <CatalogLoadError
+            message={t('competences.grantDialog.memberLoadFailed')}
+            failureKey={membersRead.failureCount}
+            isRetrying={membersRead.retrying}
+            onRetry={() => void members.refetch()}
+            // A retry that brings the list takes the alert away: the focus
+            // it held goes to the picker, not the page.
+            onFocusLost={() =>
+              document.getElementById('competence-member')?.focus()
+            }
+          />
+        )}
+        <Skeletonize loading={!membersAnswered && !membersRead.unavailable}>
+          <SearchableSelect
+            id="competence-member"
+            label={t('competences.grantDialog.memberLabel')}
+            placeholder={t('competences.grantDialog.memberPlaceholder')}
+            searchPlaceholder={t('competences.grantDialog.memberSearch')}
+            emptyText={t('competences.grantDialog.memberEmpty')}
+            required
+            disabled={!membersAnswered}
+            value={userId || null}
+            onValueChange={(value) => {
+              // A refusal was about the previous choice; a new one clears it.
+              setSubmitError(null);
+              setValue('userId', value, {
+                shouldDirty: true,
+                shouldValidate: true,
+              });
+            }}
+            options={memberOptions}
+            error={formState.errors.userId !== undefined}
+          />
+        </Skeletonize>
         <SearchableSelect
           id="competence-name"
           label={t('competences.grantDialog.competenceLabel')}

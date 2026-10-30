@@ -1056,6 +1056,7 @@ competences:
     memberPlaceholder: Select a member
     memberSearch: Search members
     memberEmpty: No members found
+    memberLoadFailed: Couldn't load the members.
     competenceLabel: Competence
     competencePlaceholder: Select a competence
     capabilitiesGroup: Platform capabilities
@@ -1146,6 +1147,9 @@ trash:
     restoredToast: Restored.
     failedToast: Couldn't restore
     failedDescription: Couldn't restore this record.
+    gone: This record is no longer in Trash. It was restored or permanently deleted in the meantime.
+    forbidden: Only admins can restore records.
+    unsupported: Records of this type can't be restored from Trash.
   emptyTitle: Trash is empty
   entityLabelOne: record
   entityLabel: records
@@ -1322,16 +1326,16 @@ legalHold:
     generic:
       title: Couldn't finish that action
       description: Try again. If it keeps happening, contact your administrator.
-    unauthenticated: Sign in required.
     forbidden: You don't have permission to do this.
     validation: Check the form fields.
-    notFound: Not found.
     alreadyActive: An active legal hold already exists on this target.
     matterNotFound: That matter does not exist in this organization.
     targetNotInOrg: That target does not belong to this organization.
     targetOrgMismatch: Org-scoped hold target must equal the organization itself.
+    holdNotFound: That legal hold does not exist in this organization.
     alreadyReleased: This legal hold has already been released.
     releaseAlreadyPending: A release request is already pending for this hold.
+    requestNotFound: That release request does not exist in this organization.
     releaseNotPending: Release request is no longer in pending state.
     selfApprovalBlocked: A different admin must approve this release. Set
       TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true to allow self-approval in
@@ -1340,7 +1344,6 @@ legalHold:
     requesterNoLongerAdmin:
       The original requester is no longer an admin of this
       org. Reject this request and have a current admin file a new one.
-    bulkTooLarge: At most 200 entries per batch.
 modelAccess:
   title: Model access
   description: Control which AI models are available to users, teams, and roles.

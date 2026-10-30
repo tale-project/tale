@@ -1090,6 +1090,7 @@ competences:
     memberPlaceholder: Mitglied auswählen
     memberSearch: Mitglieder suchen
     memberEmpty: Keine Mitglieder gefunden
+    memberLoadFailed: Die Mitglieder konnten nicht geladen werden.
     competenceLabel: Kompetenz
     competencePlaceholder: Kompetenz auswählen
     capabilitiesGroup: Plattform-Berechtigungen
@@ -1183,6 +1184,9 @@ trash:
     restoredToast: Wiederhergestellt.
     failedToast: Wiederherstellung fehlgeschlagen
     failedDescription: Dieser Datensatz konnte nicht wiederhergestellt werden.
+    gone: Dieser Datensatz ist nicht mehr im Papierkorb. Er wurde inzwischen wiederhergestellt oder endgültig gelöscht.
+    forbidden: Nur Admins können Datensätze wiederherstellen.
+    unsupported: Datensätze dieses Typs lassen sich nicht aus dem Papierkorb wiederherstellen.
   emptyTitle: Papierkorb ist leer
   entityLabelOne: Datensatz
   entityLabel: Datensätze
@@ -1364,16 +1368,16 @@ legalHold:
     generic:
       title: Etwas ist schiefgelaufen
       description: Versuch es nochmal. Hält das Problem an, wende dich an die Administration.
-    unauthenticated: Anmeldung erforderlich.
     forbidden: Du hast keine Berechtigung dafür.
     validation: Prüf die Formularfelder.
-    notFound: Nicht gefunden.
     alreadyActive: Auf dieses Ziel besteht bereits ein aktiver Legal Hold.
     matterNotFound: Dieser Fall existiert in der Organisation nicht.
     targetNotInOrg: Dieses Ziel gehört nicht zu dieser Organisation.
     targetOrgMismatch: Org-weite Holds müssen das Org-Ziel selbst sein.
+    holdNotFound: Dieser Legal Hold existiert in der Organisation nicht.
     alreadyReleased: Dieser Legal Hold ist bereits freigegeben.
     releaseAlreadyPending: Für diesen Hold ist bereits ein Freigabeantrag ausstehend.
+    requestNotFound: Dieser Freigabeantrag existiert in der Organisation nicht.
     releaseNotPending: Der Freigabeantrag ist nicht mehr ausstehend.
     selfApprovalBlocked: Ein anderer Admin muss genehmigen. Setze
       TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true, um Selbstgenehmigung in
@@ -1383,7 +1387,6 @@ legalHold:
       Der ursprüngliche Antragsteller ist kein Admin mehr.
       Lehne den Antrag ab und lasse einen aktuellen Admin einen neuen
       einreichen.
-    bulkTooLarge: Maximal 200 Einträge pro Batch.
 modelAccess:
   targetRequired: Wähle ein Ziel für diese Regel.
   missingTarget: Ziel fehlt

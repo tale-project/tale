@@ -1129,6 +1129,7 @@ competences:
     memberPlaceholder: Choisis un membre
     memberSearch: Rechercher des membres
     memberEmpty: Aucun membre trouvé
+    memberLoadFailed: Impossible de charger les membres.
     competenceLabel: Compétence
     competencePlaceholder: Choisis une compétence
     capabilitiesGroup: Capacités de la plateforme
@@ -1221,6 +1222,9 @@ trash:
     restoredToast: Restauré.
     failedToast: Échec de la restauration
     failedDescription: Échec de la restauration de cet enregistrement.
+    gone: Cet enregistrement n'est plus dans la corbeille. Il a été restauré ou supprimé définitivement entre-temps.
+    forbidden: Seuls les admins peuvent restaurer des enregistrements.
+    unsupported: Les enregistrements de ce type ne peuvent pas être restaurés depuis la corbeille.
   emptyTitle: La corbeille est vide
   entityLabelOne: enregistrement
   entityLabel: enregistrements
@@ -1405,16 +1409,16 @@ legalHold:
     generic:
       title: Une erreur est survenue
       description: Réessaie. Si le problème persiste, contacte l'administration.
-    unauthenticated: Connexion requise.
     forbidden: Tu n'as pas la permission de faire cela.
     validation: Vérifie les champs du formulaire.
-    notFound: Introuvable.
     alreadyActive: Une conservation active existe déjà sur cette cible.
     matterNotFound: Ce dossier n'existe pas dans cette organisation.
     targetNotInOrg: Cette cible n'appartient pas à cette organisation.
     targetOrgMismatch: Une conservation à l'échelle de l'org doit cibler l'org elle-même.
+    holdNotFound: Cette conservation n'existe pas dans cette organisation.
     alreadyReleased: Cette conservation a déjà été libérée.
     releaseAlreadyPending: Une demande de libération est déjà en attente pour cette conservation.
+    requestNotFound: Cette demande de libération n'existe pas dans cette organisation.
     releaseNotPending: La demande de libération n'est plus en attente.
     selfApprovalBlocked: Un autre admin doit approuver. Définis
       TALE_LEGAL_HOLD_SINGLE_ADMIN_OK=true pour autoriser l'auto-approbation
@@ -1422,7 +1426,6 @@ legalHold:
     approvalTooSoon: Approbation possible dans {countdown}.
     requesterNoLongerAdmin: Le demandeur d'origine n'est plus admin de l'org.
       Rejette la demande et fais déposer une nouvelle par un admin actuel.
-    bulkTooLarge: Au maximum 200 entrées par lot.
 modelAccess:
   targetRequired: Sélectionne une cible pour cette règle.
   missingTarget: Cible manquante

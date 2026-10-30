@@ -1122,6 +1122,17 @@ function credentialGone(error: unknown): boolean {
   return backendErrorCode(error) === 'CREDENTIAL_NOT_FOUND';
 }
 
+/**
+ * A restore refused because its row has left the trash since the list was
+ * read: another admin restored it, or it was deleted for good. The list
+ * re-reads, so the row drops instead of failing the same way on every
+ * Restore.
+ */
+function trashRowGone(error: unknown): boolean {
+  const code = backendErrorCode(error);
+  return code === 'ROW_NOT_FOUND' || code === 'CONTACT_NOT_FOUND';
+}
+
 /** The Sandboxes list polls every 15 s, and every 2 s while a row's
  * Destroy is under way: the row leaves soon after its job settles. */
 function sandboxListPollInterval(list: unknown): number {
@@ -1674,6 +1685,7 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         queryKey: backendEntityPrefix(orgId, 'governance_trash'),
       });
     },
+    refusalInvalidates: trashRowGone,
   },
   'lib/providers/catalog_actions:refreshProviderCatalogs': {
     run: (args, ctx) =>

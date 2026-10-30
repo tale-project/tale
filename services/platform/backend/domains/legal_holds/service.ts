@@ -17,12 +17,32 @@ import { createAuditLog } from '../audit_logs/service.ts';
 
 type Db = Sql | TransactionSql;
 
+/** Every code a `LegalHoldError` carries. The app words each refusal its
+ * doors answer in the reader's language (`legal-hold-errors.ts`), never
+ * through the English `message`, so a new code starts here. */
+export type LegalHoldErrorCode =
+  | 'LEGAL_HOLD_ACTIVE'
+  | 'CROSS_ORG_TARGET'
+  | 'TARGET_NOT_FOUND'
+  | 'FORBIDDEN'
+  | 'REASON_REQUIRED'
+  | 'MATTER_NOT_FOUND'
+  | 'LEGAL_HOLD_ALREADY_ACTIVE'
+  | 'HOLD_NOT_FOUND'
+  | 'LEGAL_HOLD_ALREADY_RELEASED'
+  | 'LEGAL_HOLD_RELEASE_ALREADY_PENDING'
+  | 'REQUEST_NOT_FOUND'
+  | 'REQUEST_NOT_PENDING'
+  | 'SELF_APPROVAL_BLOCKED'
+  | 'APPROVAL_TOO_SOON'
+  | 'REQUESTER_NO_LONGER_ADMIN';
+
 export class LegalHoldError extends Error {
-  readonly code: string;
+  readonly code: LegalHoldErrorCode;
   readonly status: 400 | 403 | 404 | 409;
   readonly data?: Record<string, unknown>;
   constructor(
-    code: string,
+    code: LegalHoldErrorCode,
     message: string,
     status: 400 | 403 | 404 | 409 = 400,
     data?: Record<string, unknown>,
