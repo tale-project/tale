@@ -316,13 +316,17 @@ export function RunsTable({
   });
 
   return (
-    <div className="flex flex-col gap-3">
+    // `min-h-0 flex-1` hands the tab's bounded height on to the table: its
+    // `stickyLayout` frame takes what the filters leave and scrolls the rows
+    // in its own scrollport, under a header row and footer that stay put.
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       <DataTableFilters filters={filters} disabled={filtersDisabled} />
       {failure !== null && result.results.length === 0 ? (
         failure
       ) : (
         <>
           <DataTable<RunRow>
+            stickyLayout
             columns={columns}
             data={result.results}
             caption={t('list.caption')}

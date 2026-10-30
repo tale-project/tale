@@ -297,6 +297,18 @@ describe('RunsTable', () => {
     expect(screen.getByRole('button', { name: 'Filter' })).toBeEnabled();
   });
 
+  it('renders the fixed frame every collection screen uses', () => {
+    // The defect this locks: the runs rendered the non-sticky layout, so the
+    // whole page scrolled and the heading, Filter and the column header row
+    // slid away with the rows, while the Automations list kept its frame.
+    page.results = [run('run-a'), run('run-b')];
+    renderTable();
+
+    expect(screen.getByTestId('data-table-scrollport')).toContainElement(
+      screen.getByRole('table', { name: 'Runs of this automation' }),
+    );
+  });
+
   it('passes an axe audit', async () => {
     page.results = [
       run('run-a'),
