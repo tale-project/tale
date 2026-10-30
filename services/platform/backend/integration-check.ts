@@ -92,6 +92,7 @@ import { checkEventScopeAndIsolation } from './domains/automations/event-scope.i
 import { checkLegacyAgentFlow } from './domains/automations/legacy-agent-flow.integration.ts';
 import { checkLegacyAutomationProtocol } from './domains/automations/legacy-protocol.integration.ts';
 import { checkManagedAutomationConfiguration } from './domains/automations/managed-configuration.integration.ts';
+import { checkWorkflowModelCapacityRetry } from './domains/automations/model-capacity.integration.ts';
 import { checkAutomationNodeRuns } from './domains/automations/node-runs.integration.ts';
 import { checkAutomationProjectVisibility } from './domains/automations/project-visibility.integration.ts';
 import { checkSeededGithubSchedulesOff } from './domains/automations/seeded-github-schedules.integration.ts';
@@ -66238,6 +66239,10 @@ async function main(): Promise<void> {
       [
         'checkModelCapacityRetry',
         () => checkModelCapacityRetry(sql, boss, authCtx, record),
+      ],
+      [
+        'checkWorkflowModelCapacityRetry',
+        () => checkWorkflowModelCapacityRetry(sql, boss, authCtx, record),
       ],
       ['checkFleetDispatch', () => checkFleetDispatch(sql, authCtx, record)],
       [

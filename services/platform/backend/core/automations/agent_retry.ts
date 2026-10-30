@@ -6,10 +6,12 @@
  *
  * Semantics (2026-08-23, parity with the task lane): a failed turn re-kicks
  * immediately — no backoff, the harness already backed off per-request —
- * under a fixed in-node budget. Unlike the task lane there is no run-history
- * walk: the attempt counter — and the streak of credential rotations — lives
- * on the agent cursor and dies with the node execution, so only the progress
- * reset survives from the streak semantics.
+ * under a fixed in-node budget, unless what failed it says to wait (a
+ * cooling broker pool, no sandbox room, a sandbox out of memory, a model at
+ * capacity). Unlike the task lane there is no run-history walk: the attempt
+ * counter — and the streak of credential rotations — lives on the agent
+ * cursor and dies with the node execution, so only the progress reset
+ * survives from the streak semantics.
  */
 
 import {
@@ -24,7 +26,11 @@ import {
  * free-text reason. */
 export type WorkflowAgentFailureCode =
   | 'harness_error'
-  /** The selected model/provider answered 429; delay before re-kicking. */
+  /** The provider refused the selected model for capacity: Codex's typed
+   * terminal refusal (`providerErrorKind`), or a 429 that exhausted its
+   * request retries. The re-kick waits {@link MODEL_CAPACITY_REKICK_DELAY_MS}
+   * and counts, but burns no account: a refusal of the model says nothing
+   * about the account that asked ({@link planWorkflowAgentRetry}). */
   | 'model_capacity'
   | 'turn_crashed'
   /** The sandbox ended the harness because it stalled: no output and
@@ -85,9 +91,10 @@ export const SANDBOX_ROOM_RETRY_CEILING_MS = 2 * 60_000;
  * are not available here. */
 export const RESOURCE_EXHAUSTED_REKICK_DELAY_MS = SANDBOX_ROOM_RETRY_CEILING_MS;
 
-/** The retry floor after a harness exits on a provider 429. The request-level
- * harness backoff has already ended, but immediately launching every waiting
- * node together recreates the same provider pressure. */
+/** The retry floor after the provider refused the model for capacity. The
+ * pinned Codex does not retry that refusal, and once a 429 ends its own
+ * request retries the backoff is over too, so launching every waiting node
+ * at once recreates the same provider pressure. */
 export const MODEL_CAPACITY_REKICK_DELAY_MS = MODEL_CAPACITY_RETRY_DELAY_MS;
 
 /** The most a start that holds a place in the spawner's line comes back
@@ -357,6 +364,9 @@ export interface WorkflowAgentRetryPlan {
  * when the refused attempt retried a 429 — the failure that cooled the pool
  * already counted, and the wait is the same event — and ordinary otherwise,
  * so a pool that other work keeps cooling cannot hold the node in a loop.
+ * A model at capacity counts like any failure but keeps its account in the
+ * pool: the model refused every account alike (task-lane parity with
+ * `resolveTaskKickStartArgs`, which excludes no `model_capacity` run's).
  */
 export function planWorkflowAgentRetry(
   parked: WorkflowAgentAttempt,
@@ -414,7 +424,7 @@ export function planWorkflowAgentRetry(
     attempt: retryAttempt,
     burnedBrokerTokenHashes: mergeBurnedHashes(
       parked.burnedBrokerTokenHashes,
-      parked.brokerTokenHash,
+      failureCode === 'model_capacity' ? undefined : parked.brokerTokenHash,
     ),
     credentialRotations,
   };
