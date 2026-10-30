@@ -177,6 +177,33 @@ describe('mergeParkedAgentCursor', () => {
   });
 });
 
+describe('parkedAgentSettled', () => {
+  const turn = (agent: Record<string, unknown>) => ({
+    node: 'review',
+    index: 0,
+    passes: 0,
+    outs: [],
+    agent: { execId: 'exec_1', sessionId: 'sess_1', ...agent },
+  });
+  const outOfMemory = {
+    errored: true,
+    failureCode: 'resource_exhausted',
+    text: '',
+    files: [],
+  };
+
+  it('has the next walker consume a settled turn at once', () => {
+    expect(parkedAgentSettled(turn({ result: outOfMemory }))).toBe(true);
+    expect(parkedAgentSettled(turn({}))).toBe(false);
+  });
+
+  it('leaves a turn whose re-kick is held to the hold, settled as it is', () => {
+    expect(
+      parkedAgentSettled(turn({ result: outOfMemory, rekickHeldSince: 1_000 })),
+    ).toBe(false);
+  });
+});
+
 describe('a replay’s reused steps', () => {
   const checkpoints = {
     nodes: {
