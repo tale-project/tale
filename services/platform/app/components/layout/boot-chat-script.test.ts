@@ -63,6 +63,24 @@ describe('index.html boot-chat script', () => {
     expect(root.style.getPropertyValue('--boot-chat-notice')).toBe(value);
   });
 
+  it('reserves the notice row on an org root, which opens a new chat', () => {
+    const root = bootAt('/dashboard/org-1', {
+      [dataNoticeBootKey('org-1')]: toCssString('Mind the client data.'),
+    });
+
+    expect(root.classList.contains('boot-chat-notice')).toBe(true);
+  });
+
+  it('reserves no notice row in an open conversation, whose last message carries it', () => {
+    const root = bootAt('/dashboard/org-1/chat/thread-1', {
+      [dataNoticeBootKey('org-1')]: toCssString('Mind the client data.'),
+    });
+
+    expect(root.classList.contains('boot-chat')).toBe(true);
+    expect(root.classList.contains('boot-chat-notice')).toBe(false);
+    expect(root.style.getPropertyValue('--boot-chat-notice')).toBe('');
+  });
+
   it('reserves nothing when this device never saw the org show a notice', () => {
     const root = bootAt('/dashboard/org-1/chat');
 

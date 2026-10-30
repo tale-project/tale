@@ -26,7 +26,8 @@ import {
  * navigation targets a chat route (or an org root, which always redirects to
  * chat) — the same CSS-only contract as HomePanelPlaceholder, gated on the
  * chat route alone: the composer is part of every chat layout. The notice row under
- * the frame follows `boot-chat-notice` the same way (see
+ * the frame follows `boot-chat-notice` the same way, set on a new chat only:
+ * an open conversation carries the notice on its last message (see
  * `features/governance/lib/data-notice-boot.ts`).
  */
 export function ChatComposerPlaceholder() {
@@ -69,10 +70,10 @@ export function ChatComposerPlaceholder() {
           </Stack>
         </div>
         {/* The confidentiality notice's row — DataNoticeFooter as the chat
-            surface renders it: beside the composer's centered frame at the
-            column's full width, `px-3 pt-1 pb-1`, a 14px icon, caption
-            text, and on a `compact-height` viewport one line with no bottom
-            padding. Shown only under `boot-chat-notice`; its text is the
+            surface renders it on a new chat: beside the composer's centered
+            frame at the column's full width, `px-3 pt-1 pb-1`, a 14px icon,
+            caption text, and on a `compact-height` viewport one line with no
+            bottom padding. Shown only under `boot-chat-notice`; its text is the
             generated content of `--boot-chat-notice`, so the served shell
             carries no text node and the masked line wraps exactly like the
             notice. */}

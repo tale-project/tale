@@ -269,10 +269,10 @@ if you want to keep a write.
   mobile and desktop screenshots in real Chrome; also check a long filename
   and a loading preview before closing with Escape.
 - [ ] `RESP-B9` · **The chat composer on a laptop screen** — In an
-  organization with the confidentiality notice on, open a chat at
+  organization with the confidentiality notice on, open a new chat at
   **1280×720** and **1366×768** (browser zoom 100 %), then on a 1920×1080
   laptop at 150 % display scaling → The empty composer is one line tall and,
-  with the notice under it, takes about a seventh of the window; the thread
+  with the notice under it, takes about a seventh of the window; the welcome
   shows above it. Type a draft of thirty lines (Shift+Enter) → The field
   grows a line at a time to about two-fifths of the window, then scrolls
   inside with the line being typed in view; sending empties it back to one
