@@ -881,6 +881,20 @@ jobs:
 
       # The transcription and video-link lanes run the real ffmpeg/ffprobe the
       # platform image bakes in. Same APT bounds as the Playwright installs.
+      # A timeout under `-qq` once left no word of which phase stalled (#4010).
+      # Each phase now logs its start and duration and keeps APT's `-q` output
+      # (fetches, dpkg's unpacking) in the evidence as apt-<phase>.log. It runs
+      # as a background job because the runner's SIGINT at the step's timeout
+      # (or a cancellation) reaches a shell in `wait` at once, but a shell
+      # running a foreground command only after that command ends. The trap
+      # then names the phase and its elapsed time with a bounded snapshot of
+      # APT's state (apt-state.txt), and the runner still fails the step as
+      # timed out; a failed phase reports the same way and exits with APT's
+      # status. APT is left running, as the timeout always left it: dpkg
+      # stopped midway would break a persistent runner's package database for
+      # its next job. The step sets no deadline of its own, so the 8 minutes
+      # stay APT's: self-hosted installs that passed took up to 435 s
+      # (2026-10-29).
       - name: Install ffmpeg
         timeout-minutes: 8
         run: |
@@ -890,8 +904,53 @@ jobs:
           Acquire::https::Timeout "30";
           Acquire::Retries "1";
           APT
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends ffmpeg
+          # Best effort, and never the step's outcome: the phase's last APT
+          # lines, the processes the phase started (state, seconds running,
+          # kernel wait; no other process) and APT's partial downloads,
+          # bounded in lines and columns.
+          apt_report() {
+            echo "::error::apt-get $phase $1 after $((SECONDS - started)) s ($SECONDS s into this step)"
+            ( set +e
+              echo "--- $(date -u +%T) UTC: apt-get $phase $1 after $((SECONDS - started)) s"
+              echo '--- last APT output'
+              tail -n 20 "$log"
+              echo '--- APT processes'
+              sudo timeout 5 ps -e -ww -o pid,ppid,stat,etimes,wchan:32,args |
+                awk -v root="$apt_pid" 'NR == 1 { print; next }
+                  { pid[NR] = $1; up[$1] = $2; row[NR] = $0 }
+                  END { for (i = 2; i <= NR; i++) {
+                    p = pid[i]; for (n = 0; n < 64 && p != root && p in up; n++) p = up[p]
+                    if (p == root) print row[i] } }' | cut -c1-200 | head -n 20
+              echo '--- partial downloads'
+              sudo ls -l --time-style=+%T /var/lib/apt/lists/partial /var/cache/apt/archives/partial 2>&1 | head -n 12
+            ) 2>&1 | tee "$PROOF_DIR/apt-state.txt" || true
+          }
+          stopped() {
+            trap - INT TERM
+            apt_report 'was stopped mid-run'
+            exit "$1"
+          }
+          apt_phase() {
+            phase=$1
+            log="$PROOF_DIR/apt-$phase.log"
+            started=$SECONDS
+            echo "apt-get $phase: started"
+            trap 'stopped 130' INT
+            trap 'stopped 143' TERM
+            sudo apt-get -q "$@" > "$log" 2>&1 &
+            apt_pid=$!
+            status=0
+            wait "$apt_pid" || status=$?
+            trap - INT TERM
+            if [ "$status" -ne 0 ]; then
+              apt_report "failed with exit $status"
+              exit "$status"
+            fi
+            fetched=$(grep '^Fetched ' "$log" | tail -n 1)
+            echo "apt-get $phase: done in $((SECONDS - started)) s${fetched:+; $fetched}"
+          }
+          apt_phase update
+          apt_phase install -y --no-install-recommends ffmpeg
           ffmpeg -hide_banner -version | head -n 1
           { node --version; bun --version; ffmpeg -version; ffprobe -version; } > "$PROOF_DIR/toolchain.txt"
 

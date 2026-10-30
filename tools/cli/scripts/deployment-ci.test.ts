@@ -28,6 +28,7 @@ type Step = {
   with?: Record<string, unknown>;
   'working-directory'?: string;
   'continue-on-error'?: boolean;
+  'timeout-minutes'?: number;
 };
 const repository = fileURLToPath(new URL('../../..', import.meta.url));
 const roots: string[] = [];
@@ -2047,6 +2048,167 @@ describe('the Backend integration check', () => {
     );
     expect(upload?.with?.path).not.toMatch(/config|builtin/);
   });
+
+  // The Install ffmpeg step against inert stand-ins (#4010): `sudo` never
+  // elevates and writes APT's configuration into the fixture, `apt-get`
+  // touches no network or package state, and fails or stalls on request.
+  // The runner runs the step under `bash -e`.
+  const installFfmpeg = async () => {
+    const step = (await checks()).jobs['backend-integration']?.steps.find(
+      (candidate) => candidate.name === 'Install ffmpeg',
+    );
+    return { step, script: `set -e\n${step?.run ?? ''}` };
+  };
+  const aptCommands = {
+    sudo: `#!/bin/sh
+if [ "$1" = tee ]; then exec cat > "$PROOF_DIR/apt.conf"; fi
+exec "$@"
+`,
+    'apt-get': `#!/bin/sh
+printf 'apt-get %s\\n' "$*"
+for arg; do case "$arg" in update | install) phase=$arg ;; esac; done
+case "$phase" in
+  update) printf 'Hit:1 http://archive.ubuntu.com/ubuntu noble InRelease\\nFetched 1,234 kB in 1s (1,234 kB/s)\\n' ;;
+  install) printf 'Get:1 http://archive.ubuntu.com/ubuntu noble/universe amd64 ffmpeg [1,234 kB]\\nFetched 79.7 MB in 4s (19.5 MB/s)\\n' ;;
+esac
+if [ "$phase" = "$APT_FAIL" ]; then
+  printf 'E: synthetic %s failure\\n' "$phase" >&2
+  exit 100
+fi
+if [ "$phase" = "$APT_STALL" ]; then
+  printf '%s\\n' "$$" > "$PROOF_DIR/apt-get.pid"
+  # A child of APT's own, as its download methods are.
+  sleep 10 &
+  printf '%s\\n' "$!" > "$PROOF_DIR/method.pid"
+  # What the runner does at the step's timeout: signal the shell, not APT.
+  kill -s "$APT_SIGNAL" "$PPID"
+  wait
+fi
+`,
+    ffmpeg: '#!/bin/sh\nprintf "ffmpeg version 6.1.1\\n"\n',
+    ffprobe: '#!/bin/sh\nprintf "ffprobe version 6.1.1\\n"\n',
+    node: '#!/bin/sh\nprintf "v22.21.1\\n"\n',
+    bun: '#!/bin/sh\nprintf "1.4.2\\n"\n',
+  };
+
+  test.skipIf(process.platform === 'win32')(
+    'logs each APT phase of the ffmpeg install and keeps its output, inside the unchanged bounds',
+    async () => {
+      const { step, script } = await installFfmpeg();
+      // No deadline of the step's own: APT keeps the whole budget.
+      expect(step?.['timeout-minutes']).toBe(8);
+      const result = await execute(script, {}, aptCommands);
+      expect(result.code, result.stderr).toBe(0);
+      expect(result.stdout.replaceAll(/in \d+ s;/g, 'in N s;')).toBe(
+        [
+          'apt-get update: started',
+          'apt-get update: done in N s; Fetched 1,234 kB in 1s (1,234 kB/s)',
+          'apt-get install: started',
+          'apt-get install: done in N s; Fetched 79.7 MB in 4s (19.5 MB/s)',
+          'ffmpeg version 6.1.1',
+          '',
+        ].join('\n'),
+      );
+      expect(await readFile(join(result.root, 'apt.conf'), 'utf8')).toBe(
+        [
+          'Acquire::ForceIPv4 "true";',
+          'Acquire::http::Timeout "30";',
+          'Acquire::https::Timeout "30";',
+          'Acquire::Retries "1";',
+          '',
+        ].join('\n'),
+      );
+      expect(
+        await readFile(join(result.root, 'apt-update.log'), 'utf8'),
+      ).toStartWith('apt-get -q update\nHit:1 ');
+      expect(
+        await readFile(join(result.root, 'apt-install.log'), 'utf8'),
+      ).toStartWith('apt-get -q install -y --no-install-recommends ffmpeg\n');
+      expect(await readFile(join(result.root, 'toolchain.txt'), 'utf8')).toBe(
+        'v22.21.1\n1.4.2\nffmpeg version 6.1.1\nffprobe version 6.1.1\n',
+      );
+      expect(await Bun.file(join(result.root, 'apt-state.txt')).exists()).toBe(
+        false,
+      );
+    },
+  );
+
+  test.skipIf(process.platform === 'win32').each(['update', 'install'])(
+    'fails the ffmpeg install with APT exit status when %s fails, naming the phase and its output',
+    async (phase) => {
+      const { script } = await installFfmpeg();
+      const result = await execute(script, { APT_FAIL: phase }, aptCommands);
+      expect(result.code, result.stderr).toBe(100);
+      expect(result.stdout).toMatch(
+        new RegExp(
+          `^::error::apt-get ${phase} failed with exit 100 after \\d+ s \\(\\d+ s into this step\\)$`,
+          'm',
+        ),
+      );
+      const state = await readFile(join(result.root, 'apt-state.txt'), 'utf8');
+      expect(state).toContain(`--- last APT output\napt-get -q ${phase}`);
+      expect(state).toContain(`E: synthetic ${phase} failure\n`);
+      expect(result.stdout).toContain(state);
+      expect(result.stdout).not.toContain(`apt-get ${phase}: done`);
+      if (phase === 'update')
+        expect(result.stdout).not.toContain('apt-get install: started');
+      expect(await Bun.file(join(result.root, 'toolchain.txt')).exists()).toBe(
+        false,
+      );
+    },
+  );
+
+  test.skipIf(process.platform === 'win32').each([
+    ['update', 'INT', 130],
+    ['install', 'TERM', 143],
+  ] as const)(
+    'names the %s phase a SIG%s stopped, leaves APT running and fails the ffmpeg install',
+    async (phase, signal, code) => {
+      const { script } = await installFfmpeg();
+      // Elsewhere on the machine: a process that only mentions apt-get.
+      const decoy = Bun.spawn(['bash', '-c', 'exec -a apt-get-decoy sleep 10']);
+      const result = await execute(
+        script,
+        { APT_STALL: phase, APT_SIGNAL: signal },
+        aptCommands,
+      ).finally(() => decoy.kill());
+      const pid = async (file: string) =>
+        Number(await readFile(join(result.root, file), 'utf8'));
+      const apt = await pid('apt-get.pid');
+      const method = await pid('method.pid');
+      // Left running, as the runner's timeout always left it.
+      expect(() => process.kill(apt, 0)).not.toThrow();
+      process.kill(apt, 'SIGKILL');
+      process.kill(method, 'SIGKILL');
+      expect(result.code, result.stderr).toBe(code);
+      expect(result.stdout).toMatch(
+        new RegExp(
+          `^::error::apt-get ${phase} was stopped mid-run after \\d+ s \\(\\d+ s into this step\\)$`,
+          'm',
+        ),
+      );
+      const state = await readFile(join(result.root, 'apt-state.txt'), 'utf8');
+      expect(state).toContain(`--- last APT output\napt-get -q ${phase}`);
+      expect(state).toContain('--- APT processes');
+      expect(state).toContain('--- partial downloads');
+      // procps' ps lists the stalled APT and its child, with their state and
+      // run time, and no process the phase did not start.
+      if (process.platform === 'linux') {
+        expect(state).toMatch(
+          new RegExp(`^ *${apt} +\\d+ \\S+ +\\d+ .*/apt-get -q ${phase}`, 'm'),
+        );
+        expect(state).toMatch(
+          new RegExp(`^ *${method} +${apt} .*sleep 10$`, 'm'),
+        );
+      }
+      expect(state).not.toContain('apt-get-decoy');
+      expect(result.stdout).toContain(state);
+      expect(result.stdout).not.toContain(`apt-get ${phase}: done`);
+      expect(await Bun.file(join(result.root, 'toolchain.txt')).exists()).toBe(
+        false,
+      );
+    },
+  );
 
   test.skipIf(process.platform === 'win32')(
     'records the checked-out source separately from the workflow source',
