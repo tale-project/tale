@@ -34,6 +34,7 @@ vi.mock('../hooks/queries', () => ({
       failures: [],
     },
     isPending: false,
+    error: null,
   }),
   useSkillPublishing: () => ({ mode: 'everyone', allowed: true }),
 }));
@@ -42,7 +43,11 @@ vi.mock('../hooks/mutations', () => ({
 }));
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => ({ teams: [], isLoading: false }),
-  useTeamDirectory: () => ({ teams: [], isLoading: false }),
+  useTeamNames: () => ({
+    nameOf: () => undefined,
+    teams: [],
+    isLoading: false,
+  }),
 }));
 vi.mock('@tale/ui/error-boundaries/error-scope', () => ({
   useErrorScope: () => ({ organizationId: 'org1' }),

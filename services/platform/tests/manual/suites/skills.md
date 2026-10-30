@@ -1,6 +1,6 @@
 # Skills
 
-> **Prefix** `SKILL-` · **Reset** none · **Cost** 37 boxes
+> **Prefix** `SKILL-` · **Reset** none · **Cost** 38 boxes
 
 Exercise the skill library — reusable instruction bundles (SKILL.md + optional
 assets) that project agents and automation agent nodes are equipped with, and
@@ -357,6 +357,25 @@ builtin skill from `configs/platform/custom/skills/`.
   a skill untouched in A while B saves new instructions → within a few
   seconds A's field shows B's text and **Save** stays disabled; a description
   change in A saved after that stores both.
+- [ ] `SKILL-B10` · **A failed library read is not an empty library** — In
+  the browser's developer tools block the list request
+  (`*/api/app/skills?orgId=*`), reload `/settings/skills` and wait until the
+  read gives up (a few seconds); lift the block and press **Try again**
+  (`common.errors.tryAgain`). Block it again, save a skill so the list
+  refreshes, and wait again; lift the block and press **Try again**
+  (`common.actions.tryAgain`). Block the team directory
+  (`*/api/app/teams/directory*`) and reload with a skill shared with a team.
+  Lift every block, set the network to **Offline**, and **Upload bundle**
+  (`skills.upload.submit`) from a zip's preview → The failed read shows
+  `common.errors.somethingWentWrong` with **Try again**, never
+  `emptyStates.skills.title`, and offers no **Add skill**
+  (`skills.addMenu.label`); its retry lists the skills. The failed refresh
+  keeps the rows under `skills.library.refreshFailed`, and its retry clears
+  the notice. With the directory blocked, the team-shared skill reads
+  **Teams** (`skills.visibility.team`), never
+  `skills.visibility.unknownTeam`. The offline upload raises one toast,
+  `skills.upload.uploadFailed` over `common.errors.connectionLost`, never
+  "Failed to fetch".
 
 ## Accessibility (WCAG 2.1 AA)
 

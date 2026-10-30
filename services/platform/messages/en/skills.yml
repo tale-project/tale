@@ -9,12 +9,14 @@ skillDeleteFailed: Couldn't delete skill
 deleteConfirmation:
   This removes the skill bundle "{slug}" from disk. Every agent currently
   equipped with it is unequipped.
-listFailed: Couldn't load the skill library. Reload to retry.
 readOnly: You can read this skill but not change it — its owner (or an org
   admin, for shared skills) manages it.
 entityLabel: skills
 entityLabelOne: skill
 library:
+  # A failed refresh keeps the rows it left and is named above them; a
+  # failed first read is the table's error state (#4888).
+  refreshFailed: "Couldn't load the latest skills. What's listed may be incomplete or out of date."
   labelFilterLabel: Filter by label
   scopeFilterLabel: Visibility
   tabs:

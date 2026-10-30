@@ -5,6 +5,7 @@ import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { CatalogLabels } from '@tale/ui/catalog/catalog-labels';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { ConfigIcon as SkillIcon } from '@tale/ui/catalog/config-icon';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
@@ -20,7 +21,9 @@ import { useMemo, useRef, useState } from 'react';
 import { useSkillAttribution } from '@/app/components/skills/use-skill-attribution';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { useTeamDirectory } from '@/app/features/settings/teams/hooks/queries';
+import { useTeamNames } from '@/app/features/settings/teams/hooks/queries';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
 import { useSkills } from '../hooks/queries';
@@ -65,7 +68,10 @@ interface SkillRow extends SkillSummary {
  *
  * Scope is a filter facet rather than a tab strip: the table owns its own
  * header, and visibility is one narrowing among several rather than a mode.
- * Unreadable bundles surface as an operator banner instead of vanishing.
+ * Unreadable bundles surface as an operator banner instead of vanishing. A
+ * library read that failed is never an empty library (#4888): with no skill
+ * loaded the table shows its error state with Try again, and rows a failed
+ * refresh left stay under a notice that names it, with the same retry.
  */
 export function SkillsSettings({ organizationId }: { organizationId: string }) {
   const { t } = useT('skills');
@@ -93,19 +99,25 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
   const [labelFilter, setLabelFilter] = useState<string[]>([]);
 
   const skillsQuery = useSkills(organizationId);
+  const { retrying, failureCount } = readStateOf(skillsQuery);
   const failures = skillsQuery.data?.failures ?? [];
   // Every team by name (the directory), so a skill shared with a team the
-  // viewer is not in still says which team.
-  const { teams } = useTeamDirectory();
-  const teamNames = useMemo(
-    () => new Map((teams ?? []).map((team) => [team.id, team.name])),
-    [teams],
-  );
+  // viewer is not in still says which team. Only an answered directory can
+  // call a team unknown: while it loads, or after its read failed, a team
+  // skill reads as the Teams visibility it has.
+  const { nameOf: teamNameOf, teams: teamDirectory } = useTeamNames();
+  const teamNamesRead = teamDirectory !== undefined;
 
   const skills: SkillSummary[] = useMemo(
     () => skillsQuery.data?.skills ?? [],
     [skillsQuery.data],
   );
+  const { regionRef, retryRead, focusRegion, failedWithRows } =
+    useListReadRecovery<HTMLElement>({
+      error: skillsQuery.error,
+      results: skills,
+      retry: () => void skillsQuery.refetch(),
+    });
 
   const labelFacets = useMemo(() => {
     const seen = new Set<string>();
@@ -238,8 +250,11 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
           if (skill.visibility === 'private') {
             return <Badge variant="outline">{t('visibility.private')}</Badge>;
           }
+          if (!teamNamesRead) {
+            return <Badge variant="outline">{t('visibility.team')}</Badge>;
+          }
           const names = (skill.teams ?? []).map(
-            (teamId) => teamNames.get(teamId) ?? t('visibility.unknownTeam'),
+            (teamId) => teamNameOf(teamId) ?? t('visibility.unknownTeam'),
           );
           const label =
             names.length <= 1
@@ -260,13 +275,19 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
         ),
       },
     ],
-    [t, teamNames],
+    [t, teamNameOf, teamNamesRead],
   );
 
   const list = useListPage<SkillRow>({
     dataSource: {
       type: 'query',
       data: skillsQuery.isPending ? undefined : rows,
+      // The page narrows its rows itself (the scope and label facets), so
+      // the table cannot tell a facet that matches nothing from a library
+      // that never loaded: it shows the read's failure only while no skill
+      // is loaded, and a failed refresh is named above the rows instead.
+      error: failedWithRows ? null : skillsQuery.error,
+      retry: retryRead,
     },
     pageSize: DEFAULT_LIST_PAGE_SIZE,
     search: {
@@ -287,11 +308,22 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
   return (
     <SettingsPage>
       <SettingsSection
+        ref={regionRef}
+        tabIndex={-1}
+        className="outline-none"
         title={tNav('skills')}
         description={t('sectionDescription')}
       >
-        {skillsQuery.isError && (
-          <Alert variant="destructive" description={t('listFailed')} />
+        {failedWithRows && (
+          <CatalogLoadError
+            // Each failure is announced again; Try again keeps its node, and
+            // the focus on it, while a retry runs and when it fails again.
+            failureKey={failureCount}
+            onFocusLost={focusRegion}
+            message={t('library.refreshFailed')}
+            onRetry={() => void skillsQuery.refetch()}
+            isRetrying={retrying}
+          />
         )}
         {failures.length > 0 && (
           <Alert
@@ -355,6 +387,7 @@ export function SkillsSettings({ organizationId }: { organizationId: string }) {
             setPane({ view: 'detail', slug: row.original.slug });
           }}
           clickableRows
+          onErrorFocusLost={focusRegion}
           {...list.tableProps}
         />
       </SettingsSection>
