@@ -29,7 +29,7 @@ tale-project standard ([`AGENTS.md`](../../../../AGENTS.md) "Manual tests"), and
 
 ## The suites
 
-1280 boxes across 22 suites. Every suite declares the ID prefix its
+1281 boxes across 22 suites. Every suite declares the ID prefix its
 boxes carry, in its header blockquote; a box ID is unique across this whole
 directory and greppable as one token.
 
@@ -48,7 +48,7 @@ directory and greppable as one token.
 | [mcp](suites/mcp.md) | `MCP-` | the MCP endpoint from a coding agent: connecting five clients with a key on either protocol era, a stale save, mock runs in Runs, the ask before a deploy, answering a run's question, prompts, resources and the Tale skill, its saves in the audit log | 16 |
 | [metrics](suites/metrics.md) | `MET-` | org metrics tabs: usage, feedback, chat health, harness turns, automations, projects | 20 |
 | [navigation](suites/navigation.md) | `NAV-` | side-nav rail + the Home panel, section panels, breadcrumbs, command palette, changelog, page-loads | 70 |
-| [notifications](suites/notifications.md) | `NOTIF-` | the notification bell + panel | 32 |
+| [notifications](suites/notifications.md) | `NOTIF-` | the notification bell + panel | 33 |
 | [origins](suites/origins.md) | `ORIGIN-` | one deployment on several origins: sessions, file links, sign-in doors, an external TLS terminator | 12 |
 | [performance](suites/performance.md) | `PERF-` | cold load, chat TTFT, thread switch, pagination | 22 |
 | [projects](suites/projects.md) | `PROJ-` | projects, agents, tasks (attachments, comments), files, secrets, threads, Home's projects section | 66 |

@@ -19,6 +19,8 @@ sortRecent: Plus récentes
 sortPriority: Priorité
 loadMore: Charger plus
 loading: Chargement…
+loadFailed: Impossible de charger tes notifications.
+loadPartlyFailed: Certaines de tes notifications n'ont pas pu être chargées.
 newNotifications: Nouvelles notifications
 creditRequestTitle: "Crédits d'utilisation demandés"
 creditRequestBody: '{name} a atteint sa limite et demande plus de crédits.'

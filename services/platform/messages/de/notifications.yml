@@ -18,6 +18,8 @@ sortRecent: Neueste zuerst
 sortPriority: Priorität
 loadMore: Mehr laden
 loading: Lädt…
+loadFailed: Deine Benachrichtigungen konnten nicht geladen werden.
+loadPartlyFailed: Einige deiner Benachrichtigungen konnten nicht geladen werden.
 newNotifications: Neue Benachrichtigungen
 creditRequestTitle: Nutzungskontingent angefragt
 creditRequestBody: '{name} hat das Nutzungslimit erreicht und um mehr Kontingent gebeten.'

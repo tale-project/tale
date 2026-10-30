@@ -18,6 +18,8 @@ sortRecent: Most recent
 sortPriority: Priority
 loadMore: Load more
 loading: Loading…
+loadFailed: Couldn't load your notifications.
+loadPartlyFailed: Some of your notifications couldn't be loaded.
 newNotifications: New notifications
 creditRequestTitle: Usage credits requested
 creditRequestBody: '{name} hit their usage limit and asked for more credits.'

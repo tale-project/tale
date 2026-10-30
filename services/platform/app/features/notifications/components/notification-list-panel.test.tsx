@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n } from '@/lib/i18n/i18n';
 import { forgetSavedLocale, saveLocale } from '@/tests/utils/lapsed-session';
-import { act, render, screen } from '@/tests/utils/render';
+import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { NotificationListPanel } from './notification-list-panel';
 
@@ -38,6 +38,23 @@ const markMyRead = { mutateAsync: vi.fn(), isPending: false };
 // render. The rollback suites populate both streams and use real row controls.
 const orgLoadMore = vi.fn();
 const myLoadMore = vi.fn();
+const orgRetry = vi.fn();
+const myRetry = vi.fn();
+
+/** How a stream's read stands, as `useCachedPaginatedQuery` reports it. */
+interface MockRead {
+  error: Error | null;
+  unavailable: boolean;
+  isRetrying: boolean;
+  errorCount: number;
+}
+
+const answered = (): MockRead => ({
+  error: null,
+  unavailable: false,
+  isRetrying: false,
+  errorCount: 0,
+});
 
 interface MockNotification {
   _id: string;
@@ -70,6 +87,9 @@ const streamState = {
   // other suites stay focused on the button controls.
   orgResults: [] as MockNotification[],
   myResults: [] as MockNotification[],
+  // Each read answered by default; the failed-read suite fails one or both.
+  orgRead: answered(),
+  myRead: answered(),
 };
 
 // --- Org stream hooks (`../hooks/*`) --------------------------------------
@@ -89,6 +109,8 @@ vi.mock('../hooks/queries', async () => {
       results: streamState.orgResults,
       status: streamState.org,
       loadMore: orgLoadMore,
+      retry: orgRetry,
+      ...streamState.orgRead,
     }),
     useNotificationsUnreadCount: () => ({ data: streamState.orgUnread }),
   };
@@ -105,6 +127,8 @@ vi.mock('@/app/features/inbox/hooks/queries', () => ({
     results: streamState.myResults,
     status: streamState.my,
     loadMore: myLoadMore,
+    retry: myRetry,
+    ...streamState.myRead,
   }),
   useUnreadNotificationCount: () => streamState.myUnread,
 }));
@@ -145,6 +169,8 @@ beforeEach(() => {
   streamState.myUnread = 0;
   streamState.orgResults = [];
   streamState.myResults = [];
+  streamState.orgRead = answered();
+  streamState.myRead = answered();
   for (const mutation of [markRead, markMyRead, markAllRead, markAllMyRead]) {
     mutation.mutateAsync.mockReset().mockResolvedValue(undefined);
   }
@@ -975,4 +1001,255 @@ describe('NotificationListPanel', () => {
       });
     },
   );
+
+  // The paginated hook reads a first page that failed as an exhausted empty
+  // list, so the panel passed a failed read off as "You're all caught up"
+  // (Unread) or "No notifications yet" (All), with no way to ask again, and
+  // silently dropped one stream that failed beside rows of the other (#4665).
+  describe('a failed read (#4665)', () => {
+    const CAUGHT_UP = "You're all caught up";
+    const CAUGHT_UP_DESCRIPTION =
+      "We'll let you know when anything new comes in.";
+    const NOTHING_YET = 'No notifications yet';
+    const OLDER_UNREAD = 'You have older unread notifications';
+    const LOAD_FAILED = "Couldn't load your notifications.";
+    const PARTLY_FAILED = "Some of your notifications couldn't be loaded.";
+    const ORG_ROW_TITLE = 'Usage credits requested';
+    const PERSONAL_ROW_TITLE = 'You were mentioned';
+
+    /** A first page the retry policy gave up on: no rows, `Exhausted`. */
+    const failedFirstPage = (errorCount = 1): MockRead => ({
+      error: new Error('Service unavailable'),
+      unavailable: true,
+      isRetrying: false,
+      errorCount,
+    });
+    /** That first page asked for again: react-query resets it to its first
+     * load, so only `unavailable` still says it failed. */
+    const retriedFirstPage = (errorCount = 1): MockRead => ({
+      error: null,
+      unavailable: true,
+      isRetrying: true,
+      errorCount,
+    });
+    /** Rows on screen, and the refresh or the page after them failed. */
+    const failedAfterRows = (): MockRead => ({
+      error: new Error('Service unavailable'),
+      unavailable: false,
+      isRetrying: false,
+      errorCount: 1,
+    });
+
+    const orgRow = (id: string, read = false): MockNotification => ({
+      _id: id,
+      createdAt: 2000,
+      read,
+      titleKey: 'creditRequestTitle',
+      bodyKey: 'auditIntegrityFailed',
+    });
+    const personalRow = (id: string, read = false): MockNotification => ({
+      _id: id,
+      createdAt: 1000,
+      read,
+      titleKey: 'mention',
+      bodyKey: 'taskCommented',
+    });
+
+    const notice = () => screen.getByRole('alert');
+    const tryAgain = () =>
+      within(notice()).getByRole('button', { name: 'Try again' });
+    const rerenderPanel = (
+      rerender: ReturnType<typeof renderPanel>['rerender'],
+    ) => rerender(<NotificationListPanel organizationId="org-1" />);
+
+    it.each(['unread', 'all'] as const)(
+      'names a failure of both reads with Try again on %s, never an empty state',
+      async (filter) => {
+        streamState.orgRead = failedFirstPage();
+        streamState.myRead = failedFirstPage();
+        const { user } = renderPanel();
+        if (filter === 'all') await switchFilterToAll(user);
+
+        expect(notice()).toHaveTextContent(LOAD_FAILED);
+        expect(screen.queryByText(CAUGHT_UP)).not.toBeInTheDocument();
+        expect(
+          screen.queryByText(CAUGHT_UP_DESCRIPTION),
+        ).not.toBeInTheDocument();
+        expect(screen.queryByText(NOTHING_YET)).not.toBeInTheDocument();
+        expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+
+        await user.click(tryAgain());
+        expect(orgRetry).toHaveBeenCalledTimes(1);
+        expect(myRetry).toHaveBeenCalledTimes(1);
+      },
+    );
+
+    it.each(['org', 'personal'] as const)(
+      'shows the rows the other read answered under a notice when only the %s read fails, and Try again asks for that read alone',
+      async (failing) => {
+        if (failing === 'org') {
+          streamState.orgRead = failedFirstPage();
+          streamState.myResults = [personalRow('personal-1')];
+          streamState.myUnread = 1;
+        } else {
+          streamState.myRead = failedFirstPage();
+          streamState.orgResults = [orgRow('org-1')];
+          streamState.orgUnread = 1;
+        }
+        const { user } = renderPanel();
+
+        expect(notice()).toHaveTextContent(PARTLY_FAILED);
+        expect(
+          screen.getByText(
+            failing === 'org' ? PERSONAL_ROW_TITLE : ORG_ROW_TITLE,
+          ),
+        ).toBeInTheDocument();
+        expect(screen.queryByText(CAUGHT_UP)).not.toBeInTheDocument();
+
+        await user.click(tryAgain());
+        expect(failing === 'org' ? orgRetry : myRetry).toHaveBeenCalledTimes(1);
+        expect(failing === 'org' ? myRetry : orgRetry).not.toHaveBeenCalled();
+      },
+    );
+
+    it('never claims caught up when the read that answered holds no unread row and the other failed', async () => {
+      streamState.orgRead = failedFirstPage();
+      streamState.myResults = [personalRow('personal-read', true)];
+      const { user } = renderPanel();
+
+      expect(notice()).toHaveTextContent(PARTLY_FAILED);
+      expect(screen.queryByText(CAUGHT_UP)).not.toBeInTheDocument();
+
+      await switchFilterToAll(user);
+      expect(notice()).toHaveTextContent(PARTLY_FAILED);
+      expect(screen.getByText(PERSONAL_ROW_TITLE)).toBeInTheDocument();
+      expect(screen.queryByText(NOTHING_YET)).not.toBeInTheDocument();
+    });
+
+    it('keeps the caught-up and empty states for reads that answered empty', async () => {
+      const { user } = renderPanel();
+
+      expect(screen.getByText(CAUGHT_UP)).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+      await switchFilterToAll(user);
+      expect(screen.getByText(NOTHING_YET)).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    });
+
+    it('shows the first load as loading, not as a failure', () => {
+      streamState.org = 'LoadingFirstPage';
+      streamState.my = 'LoadingFirstPage';
+      renderPanel();
+
+      expect(screen.getByText('Loading…')).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.queryByText(CAUGHT_UP)).not.toBeInTheDocument();
+    });
+
+    it('holds the notice with Try again busy while a retry runs, with no loading state and no empty state', async () => {
+      // react-query resets a read that never answered to its first load
+      // while it is asked for again.
+      streamState.org = 'LoadingFirstPage';
+      streamState.my = 'LoadingFirstPage';
+      streamState.orgRead = retriedFirstPage();
+      streamState.myRead = retriedFirstPage();
+      const { user } = renderPanel();
+
+      expect(notice()).toHaveTextContent(LOAD_FAILED);
+      expect(tryAgain()).toHaveAttribute('aria-busy', 'true');
+      expect(screen.queryByText('Loading…')).not.toBeInTheDocument();
+      expect(screen.queryByText(CAUGHT_UP)).not.toBeInTheDocument();
+
+      await user.click(tryAgain());
+      expect(orgRetry).not.toHaveBeenCalled();
+      expect(myRetry).not.toHaveBeenCalled();
+    });
+
+    it('keeps a focused Try again through a retry that fails again, and hands its focus to the list once the reads answer', async () => {
+      streamState.orgRead = failedFirstPage();
+      streamState.myRead = failedFirstPage();
+      const { rerender } = renderPanel();
+      const retry = tryAgain();
+      act(() => retry.focus());
+
+      streamState.org = 'LoadingFirstPage';
+      streamState.my = 'LoadingFirstPage';
+      streamState.orgRead = retriedFirstPage();
+      streamState.myRead = retriedFirstPage();
+      rerenderPanel(rerender);
+      expect(tryAgain()).toBe(retry);
+      expect(retry).toHaveFocus();
+
+      streamState.org = 'Exhausted';
+      streamState.my = 'Exhausted';
+      streamState.orgRead = failedFirstPage(2);
+      streamState.myRead = failedFirstPage(2);
+      rerenderPanel(rerender);
+      expect(tryAgain()).toBe(retry);
+      expect(retry).toHaveFocus();
+
+      streamState.orgRead = answered();
+      streamState.myRead = answered();
+      streamState.orgResults = [orgRow('org-1')];
+      rerenderPanel(rerender);
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(screen.getByText(ORG_ROW_TITLE)).toBeInTheDocument();
+      await waitFor(() =>
+        expect(
+          screen.getByRole('region', { name: 'Notifications' }),
+        ).toHaveFocus(),
+      );
+    });
+
+    it('loads no further pages of a failed stream through Load more, only through Try again', async () => {
+      // The organization stream's page after its first failed; the personal
+      // stream still has another page.
+      streamState.org = 'CanLoadMore';
+      streamState.orgResults = [orgRow('org-1')];
+      streamState.orgRead = failedAfterRows();
+      streamState.my = 'CanLoadMore';
+      streamState.myResults = [personalRow('personal-1')];
+      const { user } = renderPanel();
+
+      expect(notice()).toHaveTextContent(PARTLY_FAILED);
+      expect(screen.getByText(ORG_ROW_TITLE)).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Load more' }));
+      expect(myLoadMore).toHaveBeenCalledTimes(1);
+      expect(orgLoadMore).not.toHaveBeenCalled();
+
+      await user.click(tryAgain());
+      expect(orgRetry).toHaveBeenCalledTimes(1);
+      expect(myRetry).not.toHaveBeenCalled();
+    });
+
+    it('offers no Load more when only a failed stream has pages left', async () => {
+      streamState.org = 'CanLoadMore';
+      streamState.orgResults = [orgRow('org-1')];
+      streamState.orgRead = failedAfterRows();
+      const { user } = renderPanel();
+      await switchFilterToAll(user);
+
+      expect(notice()).toHaveTextContent(PARTLY_FAILED);
+      expect(screen.getByText(ORG_ROW_TITLE)).toBeInTheDocument();
+      expect(
+        screen.queryByRole('button', { name: 'Load more' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('never points at older unread rows that a failed read would have to load', () => {
+      streamState.org = 'CanLoadMore';
+      streamState.orgResults = Array.from({ length: 25 }, (_, index) => ({
+        ...orgRow(`org-read-${index}`, true),
+        createdAt: 100_000 - index,
+      }));
+      streamState.orgUnread = 1;
+      streamState.orgRead = failedAfterRows();
+      renderPanel();
+
+      expect(notice()).toHaveTextContent(PARTLY_FAILED);
+      expect(screen.queryByText(OLDER_UNREAD)).not.toBeInTheDocument();
+      expect(screen.queryByText(CAUGHT_UP)).not.toBeInTheDocument();
+    });
+  });
 });
