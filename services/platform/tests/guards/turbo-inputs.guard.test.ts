@@ -138,6 +138,12 @@ const OUTSIDE_READS = [
     readers: 'tests/guards/frontend-entry-discovery.guard.test.ts',
   },
   {
+    // Run through bun, not imported: the root `prepare`, which the pruner's
+    // production install runs with HUSKY=0.
+    path: 'package.json',
+    readers: 'tests/guards/dockerfile-fail-closed.guard.test.ts',
+  },
+  {
     path: 'packages/shared/src/automation-name.ts',
     readers: 'lib/engine/selftest/purity.test.ts scans the extracted grammar',
   },
