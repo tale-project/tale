@@ -101,7 +101,7 @@ Les trois sont activés tant que tu n’en désactives pas un, et un fichier de 
 
 ## Afficher un avis de confidentialité dans le chat
 
-**Avis de confidentialité** ajoute une courte ligne sous le champ de message du chat pour tous les membres de ton organisation, par exemple pour rappeler de ne pas partager de données sensibles. L’avis reste désactivé tant que tu ne l’actives pas.
+**Avis de confidentialité** ajoute une courte ligne au chat pour tous les membres de ton organisation, par exemple pour rappeler de ne pas partager de données sensibles : sous le champ de message d’un nouveau chat, puis sous le dernier message dès qu’un chat contient des messages. L’avis reste désactivé tant que tu ne l’actives pas.
 
 1. Active le commutateur **Avis de confidentialité**. Les membres voient aussitôt l’avis dans le chat, dans leur langue, et les chats ouverts se mettent à jour sans rechargement.
 2. Si tu le souhaites, saisis ton propre texte dans les onglets de langue **English**, **Deutsch** et **Français**, jusqu’à 280 caractères par langue. Enregistre ensuite les changements de la page.
@@ -113,6 +113,8 @@ Les trois sont activés tant que tu n’en désactives pas un, et un fichier de 
 </Frame>
 
 Chaque membre voit le texte de sa langue. Un onglet marqué **non traduit** n’a pas de texte propre : les membres qui lisent cette langue voient ton texte anglais, ou l’avis par défaut si l’anglais est vide lui aussi, et le champ vide présente ce texte en aperçu. Si l’avis par défaut d’une langue ne peut pas être chargé, son champ vide l’indique à la place. Un point rouge signale une langue dont le texte est trop long ; l’enregistrement reste impossible tant que tu ne l’as pas raccourci. Désactiver l’avis conserve tes textes pour la prochaine activation.
+
+Un membre qui choisit **Ne plus afficher** sous un message ne voit plus l’avis dans son navigateur. Il le revoit dès que tu modifies le texte qu’il lit ; si tu désactives puis réactives l’avis avec le même texte, il reste masqué pour lui.
 
 L’avis n’est qu’un rappel : il ne vérifie, ne bloque ni ne modifie les messages envoyés. Pour agir sur les contenus sensibles, configure les [Garde-fous](/fr/platform/admin/governance/guardrails).
 
