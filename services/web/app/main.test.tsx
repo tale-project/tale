@@ -1,15 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { load, render, createRoot, report, replaceHistory } = vi.hoisted(() => {
-  const renderRoot = vi.fn();
-  return {
-    load: vi.fn(),
-    render: renderRoot,
-    createRoot: vi.fn(() => ({ render: renderRoot })),
-    report: vi.fn(),
-    replaceHistory: vi.fn(),
-  };
-});
+const { load, render, createRoot, report, replaceHistory, routerState } =
+  vi.hoisted(() => {
+    const renderRoot = vi.fn();
+    return {
+      load: vi.fn(),
+      render: renderRoot,
+      createRoot: vi.fn(() => ({ render: renderRoot })),
+      report: vi.fn(),
+      replaceHistory: vi.fn(),
+      routerState: {} as { redirect?: { options: Record<string, unknown> } },
+    };
+  });
 
 vi.mock('@tale/ui/analytics/browser', () => ({
   startBrowserAnalytics: vi.fn(),
@@ -25,6 +27,7 @@ vi.mock('@/lib/i18n/i18n', () => ({ i18n: {} }));
 vi.mock('./router', () => ({
   router: {
     load,
+    state: routerState,
     resetNextScroll: true,
     history: {
       location: {
@@ -40,6 +43,7 @@ describe('marketing cold start', () => {
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
+    delete routerState.redirect;
     window.history.replaceState({}, '', '/');
     document.body.innerHTML =
       '<div id="root"><main>Prerendered page</main></div>';
@@ -99,6 +103,48 @@ describe('marketing cold start', () => {
     expect(createRoot).toHaveBeenCalledWith(document.getElementById('root'), {
       onUncaughtError: report,
     });
+  });
+
+  // The hash case would also replay the initial load before mounting.
+  for (const [start, scrollY] of [
+    ['/ui?source=cold', 0],
+    ['/de/ui?source=cold#intro', 1200],
+  ] as const) {
+    it(`keeps the prerendered page once ${start} sends the document off-site`, async () => {
+      window.history.replaceState({}, '', start);
+      vi.stubGlobal('scrollY', scrollY);
+      load.mockImplementation(async () => {
+        // An absolute `href` (the UI guide aliases): router-core marks the
+        // redirect `reloadDocument` and has called location.replace by now.
+        routerState.redirect = {
+          options: {
+            href: 'https://ui.tale.dev?source=cold',
+            reloadDocument: true,
+          },
+        };
+      });
+      await import('./main');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      // Any further load (a mount's, through the router's Transitioner, or
+      // the hash replay) would repeat the off-site navigation.
+      expect(load).toHaveBeenCalledOnce();
+      expect(replaceHistory).not.toHaveBeenCalled();
+      expect(createRoot).not.toHaveBeenCalled();
+      expect(document.querySelector('main')?.textContent).toBe(
+        'Prerendered page',
+      );
+    });
+  }
+
+  it('mounts after an initial redirect that stays in the app', async () => {
+    load.mockImplementation(async () => {
+      routerState.redirect = { options: { href: '/pricing?source=legacy' } };
+    });
+    await import('./main');
+
+    await vi.waitFor(() => expect(render).toHaveBeenCalledOnce());
+    expect(load).toHaveBeenCalledOnce();
   });
 
   it('reports an initial load error and still mounts the router error surface', async () => {
