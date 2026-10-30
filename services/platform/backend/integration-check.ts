@@ -24483,6 +24483,9 @@ async function checkWorkflowTurnReattachRows(
       heartbeatAgoMs?: number;
       opStatus?: string;
       agentResultStatus?: string;
+      /** The failed turn's settle is already in the cursor, and the stepper
+       * holds its re-kick since then. */
+      heldSince?: number;
     },
   ): Promise<{ runId: string; sessionId: string; execId: string }> => {
     const sessionId = `wf-reattach-session-${suffix}`;
@@ -24515,6 +24518,19 @@ async function checkWorkflowTurnReattachRows(
               // run's agent nodes may each run their own.
               harness: 'codex',
               input: { model: 'agent-model', prompt: 'probe' },
+              ...(opts.heldSince !== undefined
+                ? {
+                    attempt: 1,
+                    rekickHeldSince: opts.heldSince,
+                    result: {
+                      errored: true,
+                      reason: "The agent's sandbox ran out of memory",
+                      failureCode: 'resource_exhausted',
+                      text: '',
+                      files: [],
+                    },
+                  }
+                : {}),
             },
           },
         })},
@@ -24559,6 +24575,16 @@ async function checkWorkflowTurnReattachRows(
     heartbeatAgoMs: 10 * 60_000,
     opStatus: 'completed',
     agentResultStatus: 'awaiting_human',
+  });
+  // Held after its sandbox ran out of memory: the failed turn's op is over
+  // and silent past the window, and the run waits minutes for its re-kick
+  // with no op row of its own — only the settle the cursor still holds
+  // tells the listing it is no turn to re-attach.
+  const held = await mkRun('held', {
+    withOp: true,
+    heartbeatAgoMs: 10 * 60_000,
+    opStatus: 'failed',
+    heldSince: now - 5 * 60_000,
   });
 
   // The fleet: 120 NEWER `waiting` runs — approval parks, no agent cursor —
@@ -24636,8 +24662,14 @@ async function checkWorkflowTurnReattachRows(
     FROM app.sandbox_session_ops
     WHERE session_id = ${noOp.sessionId} AND exec_id = ${noOp.execId}
   `;
+  // Neither pass so much as reserved the held run: its settle keeps it off
+  // the work list, whatever its op row says.
+  const heldVisit = await sql<{ checkedAt: string | null }[]>`
+    SELECT recovery_checked_at_ms::text AS "checkedAt"
+    FROM app.automation_runs WHERE id = ${held.runId}
+  `;
   record(
-    'automations re-attach: abandoned turns resume behind a fleet of newer parks; live and ask-parked stay',
+    'automations re-attach: abandoned turns resume behind a fleet of newer parks; live, ask-parked and held stay',
     unreachable.resumed === 0 &&
       jobsAfterUnreachable[0]?.count === jobsBefore[0]?.count &&
       recovered.resumed === 2 &&
@@ -24645,6 +24677,8 @@ async function checkWorkflowTurnReattachRows(
       drivenRunIds.has(noOp.runId) &&
       !drivenRunIds.has(live.runId) &&
       !drivenRunIds.has(asked.runId) &&
+      !drivenRunIds.has(held.runId) &&
+      heldVisit[0]?.checkedAt === null &&
       driveKeys?.nodeId === 'work' &&
       driveKeys?.gatewayModel === 'itestauto/agent-model' &&
       driveKeys?.providerSlug === 'itestauto' &&
@@ -24656,7 +24690,7 @@ async function checkWorkflowTurnReattachRows(
       // The harness of the NODE's turn (the run cursor), not the one the
       // run's session was opened with.
       createdOp[0]?.harness === 'codex',
-    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}}, keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.status ?? '-'}/${createdOp[0]?.kind ?? '-'}/${createdOp[0]?.harness ?? '-'} (want watchdog/running/workflow-agent/codex)`,
+    `unreachable=${unreachable.resumed} (want 0), resumed=${recovered.resumed}/${recovered.examined} (want 2), driven={stale:${drivenRunIds.has(abandoned.runId)}, noop:${drivenRunIds.has(noOp.runId)}, live:${drivenRunIds.has(live.runId)}, asked:${drivenRunIds.has(asked.runId)}, held:${drivenRunIds.has(held.runId)}}, heldVisited=${heldVisit[0] === undefined ? 'missing' : (heldVisit[0].checkedAt ?? 'never')} (want never), keys=${String(driveKeys?.nodeId)}/${String(driveKeys?.providerSlug)}, createdOp=${createdOp[0]?.resumedBy ?? 'missing'}/${createdOp[0]?.status ?? '-'}/${createdOp[0]?.kind ?? '-'}/${createdOp[0]?.harness ?? '-'} (want watchdog/running/workflow-agent/codex)`,
   );
 
   // Failed probes rotate independently of run liveness. Two replicas must
