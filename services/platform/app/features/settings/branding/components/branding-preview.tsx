@@ -8,6 +8,10 @@ import {
   BrainIcon,
   CircleUser,
   House,
+  Inbox,
+  Layers,
+  ListChecks,
+  MessageCircle,
   MessageSquare,
   Search,
   SettingsIcon,
@@ -37,8 +41,14 @@ interface BrandingPreviewProps {
 const RAIL_SECTIONS = [House, BrainIcon, Workflow];
 const RAIL_FOOTER = [Bell, SettingsIcon, CircleUser];
 
-/** The Home panel's view switcher, as the live panel labels it. */
-const VIEW_KEYS = ['views.all', 'views.chats', 'views.tasks', 'views.inbox'];
+/** The Home panel's view switcher, as the live panel draws it: a glyph per
+ * view, and the open one (All) named beside its glyph. */
+const VIEWS = [
+  { key: 'views.all', icon: Layers },
+  { key: 'views.chats', icon: MessageCircle },
+  { key: 'views.tasks', icon: ListChecks },
+  { key: 'views.inbox', icon: Inbox },
+] as const;
 
 /** Stand-in stream rows: title and context-line widths. */
 const STREAM_ROWS = [
@@ -222,19 +232,33 @@ export const BrandingPreview = memo(function BrandingPreview({
               <SquarePen className="text-muted-foreground size-3" />
             </Row>
             <div className="px-2 pt-2">
-              <Row gap={0} className="bg-muted rounded-md p-0.5">
-                {VIEW_KEYS.map((key, i) => (
-                  <span
-                    key={key}
-                    className={
-                      i === 0
-                        ? 'bg-background text-foreground flex-1 rounded-[4px] py-0.5 text-center text-[8px] font-medium shadow-xs'
-                        : 'text-muted-foreground flex-1 py-0.5 text-center text-[8px]'
-                    }
-                  >
-                    {tHome(key)}
-                  </span>
-                ))}
+              <Row
+                gap={0}
+                className="bg-muted w-fit gap-0.5 rounded-md p-0.5"
+                data-testid="preview-view-switcher"
+              >
+                {VIEWS.map(({ key, icon: Icon }, i) =>
+                  i === 0 ? (
+                    <Row
+                      key={key}
+                      gap={0}
+                      className="bg-background text-foreground gap-1 rounded-[4px] px-1 py-0.5 shadow-xs"
+                    >
+                      <Icon className="size-2.5" />
+                      <span className="text-[8px] font-medium">
+                        {tHome(key)}
+                      </span>
+                    </Row>
+                  ) : (
+                    <Row
+                      key={key}
+                      gap={0}
+                      className="text-muted-foreground px-1 py-0.5"
+                    >
+                      <Icon className="size-2.5" />
+                    </Row>
+                  ),
+                )}
               </Row>
             </div>
             <span className="text-muted-foreground px-3 pt-3 pb-1 text-[7px] font-medium tracking-wide uppercase">
