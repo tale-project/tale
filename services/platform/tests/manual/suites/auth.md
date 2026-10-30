@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 64 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 65 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -644,6 +644,27 @@ compute codes from the enrollment secret.
   again** → that organization opens. Block it again, reload and choose
   **Sign in again** → the log-in form shows and stays. Repeat with Deutsch
   and Français → the notices and both actions are localized.
+- [ ] `AUTH-B24` · **Two-factor changed in another tab** — Signed in with a
+  password and two-factor on, open `/dashboard/{org}/settings/account` in two
+  tabs. Turn it off in the first with **Disable**
+  (`twoFactor.enrollment.disableButton`). In the second, which still shows it
+  on, choose **Regenerate backup codes**
+  (`twoFactor.enrollment.regenerateButton`), enter the password and
+  **Confirm** → the prompt closes, a toast says **Couldn't generate new
+  backup codes.** (`twoFactor.errors.regenerateFailed`) and **Two-factor
+  authentication was turned off while this page was open.**
+  (`twoFactor.enrollment.disabledElsewhere`), never Better Auth's English
+  "Two factor isn't enabled", and the section offers **Enable two-factor**
+  (`twoFactor.enrollment.enableButton`). Turn it on in the first tab as in
+  `AUTH-F8`, then choose **Enable two-factor** with the password in the
+  second → the prompt closes, a toast says **Two-factor authentication was
+  turned on while this page was open.**
+  (`twoFactor.enrollment.enabledElsewhere`), never "TOTP is already enabled",
+  and the section shows **Regenerate backup codes** and **Disable**. On the
+  enrollment wall of `AUTH-F30`, open `/2fa-enroll` in two tabs, enroll in
+  the first, then submit the password in the second → the same toast, and
+  the second tab leaves the wall for the dashboard. Repeat with Deutsch and
+  Français → the toasts are localized.
 
 ## Accessibility (WCAG 2.1 AA)
 

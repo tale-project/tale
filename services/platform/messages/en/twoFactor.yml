@@ -10,6 +10,8 @@ enrollment:
   regenerateButton: Regenerate backup codes
   enabled: Two-factor authentication enabled
   disabled: Two-factor authentication disabled
+  enabledElsewhere: Two-factor authentication was turned on while this page was open.
+  disabledElsewhere: Two-factor authentication was turned off while this page was open.
   passwordPromptDescription: Confirm your password to start setting up two-factor authentication.
   disablePromptDescription: Confirm your password to turn off two-factor authentication.
   disableEnforcedWarning:

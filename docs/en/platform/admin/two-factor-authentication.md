@@ -31,6 +31,8 @@ A passkey satisfies Tale's two-factor policy even if you have never set up an au
 
 The account page now confirms that two-factor authentication is active. At your next password sign-in, enter a code from the same authenticator entry.
 
+If you turn two-factor authentication on or off in another tab, a tab that was already open may still show the earlier state. If you then choose **Enable two-factor** or **Regenerate backup codes** there, Tale says that two-factor authentication was turned on or off while the page was open, changes nothing and shows the current state.
+
 Your authenticator app lists the entry under the name of this deployment, so entries from different deployments stay apart. A deployment for a client puts the client's name first, and a test deployment adds its environment, as in **Acme Tale Platform TE**; Tale's own production deployment is **Tale Platform**. Downloaded backup codes use the same words in their file name, such as `acme-tale-platform-te-backup-codes.txt`.
 
 <Tip>
