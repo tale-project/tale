@@ -133,6 +133,7 @@
         "$TURBO_ROOT$/services/sandbox/src/backend/incus/incus-registry-caches.ts",
         "$TURBO_ROOT$/services/sandbox/src/backend/incus/incus-units.ts",
         "$TURBO_ROOT$/services/sandbox/src/backend/kubernetes/k8s-session-pod-spec.ts",
+        "$TURBO_ROOT$/services/sandbox/src/docker-engine.ts",
         "$TURBO_ROOT$/services/sandbox/src/host-memory.ts",
         "$TURBO_ROOT$/services/sandbox/src/host-pressure-assessment.ts",
         "$TURBO_ROOT$/services/sandbox/src/network-address.ts",

@@ -8,6 +8,11 @@ import { release } from 'node:os';
 import type { IncusClient } from './backend/incus/incus-client.ts';
 import type { K8sClient } from './backend/kubernetes/k8s-client.ts';
 import {
+  containerListing,
+  jsonString,
+  type ListingFormat,
+} from './docker-engine.ts';
+import {
   type CpuCounters,
   parseCpuCounters,
   parseMemory,
@@ -30,8 +35,7 @@ const PREVIOUS_CPU_SAMPLE_MAX_AGE_MS = 30_000;
 const CPU_PRIME_SAMPLE_MS = 1_000;
 /** How long the host's fixed facts hold: its CPU count, memory total and
  * kernel, and whether this process's /proc describes it. They change only
- * with a daemon or host restart, and each read forks the Docker CLI while the
- * live inventory is already one fork per five seconds. */
+ * with a daemon or host restart, and each read forks the Docker CLI. */
 const HOST_FACTS_TTL_MS = 10 * 60_000;
 /** A Docker endpoint that could not be resolved is asked again sooner, so a
  * busy CLI does not hide host usage for ten minutes. */
@@ -138,6 +142,14 @@ function observation(
     state,
   };
 }
+
+/** A session container in the Docker inventory, a JSON line each, from the
+ * CLI's template or from the Engine API's listing (docker-engine.ts). */
+export const SESSION_INVENTORY: ListingFormat = {
+  template: `{"sessionId":{{json (.Label "tale.session")}},"organizationId":{{json (.Label "tale.org")}},"state":{{json .State}},"instance":{{json (.Label "${SESSION_INSTANCE_LABEL}")}}}`,
+  render: (c) =>
+    `{"sessionId":${jsonString(c.label('tale.session'))},"organizationId":${jsonString(c.label('tale.org'))},"state":${jsonString(c.state)},"instance":${jsonString(c.label(SESSION_INSTANCE_LABEL))}}`,
+};
 
 /** Docker inventories all session containers, including warming and exited
  * ones. Paused containers still hold compute; restarting ones are starting. */
@@ -343,19 +355,21 @@ export class CapacityReader {
 
     if (this.cfg.backend === 'incus') return this.observeIncus();
 
+    const { args, engine } = containerListing(
+      [
+        '--all',
+        '--filter',
+        'label=tale.sandbox-session=1',
+        ...sessionInstanceFilter(this.cfg.instance),
+      ],
+      SESSION_INVENTORY,
+    );
     const [inventory, resources] = await Promise.allSettled([
-      this.docker(
-        [
-          'ps',
-          '--all',
-          '--filter',
-          'label=tale.sandbox-session=1',
-          ...sessionInstanceFilter(this.cfg.instance),
-          '--format',
-          `{"sessionId":{{json (.Label "tale.session")}},"organizationId":{{json (.Label "tale.org")}},"state":{{json .State}},"instance":{{json (.Label "${SESSION_INSTANCE_LABEL}")}}}`,
-        ],
-        { timeoutMs: 5_000, stdoutMaxBytes: 1_048_576 },
-      ).then(commandOutput),
+      this.docker(args, {
+        timeoutMs: 5_000,
+        stdoutMaxBytes: 1_048_576,
+        engine,
+      }).then(commandOutput),
       this.observeHost(),
     ]);
     if (inventory.status === 'rejected') throw inventory.reason;

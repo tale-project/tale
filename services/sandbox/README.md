@@ -145,7 +145,14 @@ inspects, the build helper and host memory checks) take a free one of those
 or one of 4 more kept for them, and never queue behind long calls. A health
 probe that found no slot in time answers unhealthy without caching it.
 Cancelling a queued call removes its waiter immediately; it consumes no slot
-and never starts the Docker command. Platform adds an organization's three
+and never starts the Docker command. Where `DOCKER_HOST` names a local socket
+(the spawner image sets it) and neither `DOCKER_BIN` nor `DOCKER_CONTEXT` is
+set, the reads of session containers are requests to the Engine API on that
+socket instead, with no CLI process and no slot: each session's inspects
+(liveness, identity, removal, a stuck create, its workspace mount) and the
+session listings (adoption, the capacity inventory, the package-cache sweep).
+Every other call, and every call against another target, runs the CLI.
+Platform adds an organization's three
 `sandbox_quota` workload limits (defaults 2/2/2) and refuses a save if the sum
 exceeds the current deployment capacity or that capacity cannot be read.
 There is no independently configured organization runtime ceiling. With
@@ -219,7 +226,8 @@ ownership labels still contributes to aggregate occupancy; only validated
 organization/session identities appear in that organization's session list.
 Failed or incomplete inventories return 503, never a successful zero count.
 Observations coalesce and cache for five seconds, each one a single
-`docker ps`; the daemon's totals and kernel, and whether the local endpoint
+listing of the session containers (from the Engine API, or `docker ps` where
+the CLI answers); the daemon's totals and kernel, and whether the local endpoint
 describes this host, are read once per ten minutes (an endpoint the CLI
 could not resolve is asked again after 30 seconds). The spawner image sets
 `DOCKER_HOST` to the mounted socket, so it never asks the CLI for its
