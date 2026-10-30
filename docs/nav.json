@@ -191,6 +191,7 @@
           "label": "admin",
           "pages": [
             "platform/admin/overview",
+            "platform/admin/organization",
             "platform/admin/members-and-roles",
             "platform/admin/teams",
             "platform/admin/agents",

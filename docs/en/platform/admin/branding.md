@@ -19,7 +19,7 @@ Give an organization its own logo, browser-tab icons, and accent color under **S
 | **Favicon** | A small, recognizable tab icon. You can provide separate light and dark variants. |
 | **Accent color** | Your brand's hex color, then a visual check in both themes. Tale derives the displayed palette for the current theme. |
 
-The organization name supplies the text wordmark when there is no logo. Change that name under **Settings > Organization**; there is no separate application-name field on Branding.
+The organization name supplies the text wordmark when there is no logo. To change that name, [rename the organization](/platform/admin/organization#rename-the-organization) under **Settings > Organization**; there is no separate application-name field on Branding.
 
 ## Upload a logo or favicon
 

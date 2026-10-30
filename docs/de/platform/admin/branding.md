@@ -19,7 +19,7 @@ Unter **Einstellungen > Branding** gibst du einer Organisation ihr eigenes Logo,
 | **Favicon** | Ein kleines, wiedererkennbares Tab-Symbol. Du kannst eine helle und eine dunkle Variante hinterlegen. |
 | **Akzentfarbe** | Die Hex-Farbe deiner Marke und eine Sichtprüfung in beiden Designs. Tale leitet die angezeigte Palette für das aktuelle Design ab. |
 
-Ohne Logo dient der Organisationsname als Textmarke. Diesen Namen änderst du unter **Einstellungen > Organisation**. Auf der Branding-Seite gibt es kein separates Feld für einen Anwendungsnamen.
+Ohne Logo dient der Organisationsname als Textmarke. Diesen Namen änderst du, indem du unter **Einstellungen > Organisation** [die Organisation umbenennst](/de/platform/admin/organization#rename-the-organization). Auf der Branding-Seite gibt es kein separates Feld für einen Anwendungsnamen.
 
 ## Logo oder Favicon hochladen
 

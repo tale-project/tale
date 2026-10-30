@@ -116,6 +116,7 @@
     "platform/admin/governance/usage-attribution",
     "platform/admin/integrations",
     "platform/admin/members-and-roles",
+    "platform/admin/organization",
     "platform/admin/overview",
     "platform/admin/providers",
     "platform/admin/sandbox-devices",

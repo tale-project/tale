@@ -29,6 +29,7 @@ Inhaber und Admins verwalten die Organisationseinstellungen. Entwickler erreiche
 | Fehlschlagende Chat-Antworten, Agenten-Runden oder Automatisierungsläufe finden | [Betriebsmetriken](/de/platform/admin/governance/operations-metrics) |
 | Aufbewahrte Daten wiederherstellen oder vor dem Löschen schützen | [Papierkorb](/de/platform/admin/governance/trash) oder [Aufbewahrungssperre](/de/platform/admin/governance/legal-hold) |
 | Eine Löschanfrage bearbeiten | [Betroffenenanfragen](/de/platform/admin/governance/data-subject-requests) |
+| Die Organisation umbenennen, die Standardsprache ihrer Agenten festlegen oder sie löschen | [Organisationseinstellungen](/de/platform/admin/organization) |
 
 ## Anmeldung, Integrationen und Darstellung
 

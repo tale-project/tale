@@ -40,7 +40,7 @@ Ajoute ensuite la personne aux équipes dont elle a besoin. Un rôle seul ne don
 
 | Rôle | Travail habituel | Administration de l’organisation |
 | --- | --- | --- |
-| **Propriétaire** | Toutes les tâches du produit et de son administration | Peut aussi transférer la propriété et supprimer l’organisation, ce qui efface également ses sandboxes et leurs fichiers ; la suppression demande de taper le nom de l’organisation avant d’activer le bouton. |
+| **Propriétaire** | Toutes les tâches du produit et de son administration | Peut aussi transférer la propriété et [supprimer l’organisation](/fr/platform/admin/organization#delete-the-organization), ce qui efface également ses sandboxes et leurs fichiers ; la suppression demande de taper le nom de l’organisation avant d’activer le bouton. |
 | **Admin** | Gérer les personnes, les services, les politiques et le travail de l’équipe | Tous les paramètres de l’organisation, sans transfert de propriété. |
 | **Développeur** | Créer des agents, des automatisations et des intégrations | Paramètres techniques des fournisseurs, connectors et API ; pas de gestion des membres. |
 | **Éditeur** | Entretenir les contenus et traiter le travail quotidien | Modification du contenu ; pas d’accès à **Automatisations** ; lecture seule des ressources de connectors. |
