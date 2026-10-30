@@ -11,7 +11,7 @@ Unter **Einstellungen > Mitglieder** fügst du Personen hinzu und wählst die pa
 
 <Frame caption="Einstellungen > Mitglieder — jeder Account und die Rolle, die ihn begrenzt.">
 
-![Die Einstellungsseite Mitglieder, die den Inhaber des Workspace und vier weitere Personen mit je einem Rollen-Badge listet, neben der Schaltfläche Mitglied hinzufügen.](/images/get-started/settings-organization-members.webp)
+![Die Einstellungsseite Mitglieder, die den Inhaber des Arbeitsbereichs und vier weitere Personen mit je einem Rollen-Badge listet, neben der Schaltfläche Mitglied hinzufügen.](/images/get-started/settings-organization-members.webp)
 
 </Frame>
 

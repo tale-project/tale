@@ -64,7 +64,7 @@ Der JSON-Endpunkt braucht keinen API-Schlüssel und verbraucht kein Schlüsselbu
 
 Im produktiven Deployment prüft `/health` nur den Edge-Proxy: Er antwortet selbst mit `OK`, auch während die Anwendung neu startet. Eine unbekannte Route wie `/healthz` kann die App-Oberfläche mit HTTP `200` liefern. Beides ist keine Bereitschaftsprüfung der Plattform. Wähle je nach Prüfziel den dokumentierten Pfad `/status.json` oder `/api/health`.
 
-Ein grüner Status prüft weder Guthaben noch Freischaltung oder Erreichbarkeit externer Modelle. Er führt auch keinen vollständigen Upload, keine Wissensabfrage, keinen Chat und keine Automation aus. Ergänze einen kontrollierten Ende-zu-Ende-Test für die Aktion, von der deine Integration abhängt.
+Ein grüner Status prüft weder Guthaben noch Freischaltung oder Erreichbarkeit externer Modelle. Er führt auch keinen vollständigen Upload, keine Wissensabfrage, keinen Chat und keine Automatisierung aus. Ergänze einen kontrollierten Ende-zu-Ende-Test für die Aktion, von der deine Integration abhängt.
 
 ## Einen Fehler untersuchen
 

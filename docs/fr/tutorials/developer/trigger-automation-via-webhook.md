@@ -1,18 +1,18 @@
 ---
-title: Déclencher une automation par webhook
-description: Installe une automation déployée dans un projet, envoie un webhook et vérifie l’exécution terminée.
+title: Déclencher une automatisation par webhook
+description: Installe une automatisation déployée dans un projet, envoie un webhook et vérifie l’exécution terminée.
 ---
-Relie un événement externe à une automation déployée et vérifie son acceptation puis son résultat. Ce tutoriel utilise un webhook de projet, une clé API pour la configuration et la lecture, et curl pour l’envoi. L’expéditeur externe n’a besoin que de l’URL du webhook.
+Relie un événement externe à une automatisation déployée et vérifie son acceptation puis son résultat. Ce tutoriel utilise un webhook de projet, une clé API pour la configuration et la lecture, et curl pour l’envoi. L’expéditeur externe n’a besoin que de l’URL du webhook.
 
-## Préparer une automation de test sans effet externe
+## Préparer une automatisation d’essai sans effet externe
 
-Choisis une automation déployée dont les tests passent et qui ne peut ni envoyer de messages, ni modifier des données clients, ni produire d’autres effets externes. Une transformation qui renvoie son entrée suffit. Crée-la et déploie-la dans l’application ou via [MCP](/fr/develop/mcp-endpoint) ; REST ne crée ni ne déploie les définitions.
+Choisis une automatisation déployée dont les tests passent et qui ne peut ni envoyer de messages, ni modifier des données clients, ni produire d’autres effets externes. Une transformation qui renvoie son entrée suffit. Crée-la et déploie-la dans l’application ou via [MCP](/fr/develop/mcp-endpoint) ; REST ne crée ni ne déploie les définitions.
 
-Utilise un projet actif où tu peux modifier les données et une clé avec les droits Développeur. Définis `TALE_BASE_URL`, `TALE_API_KEY`, `TALE_ORG_SLUG`, `TALE_PROJECT_ID` et `TALE_AUTOMATION`. L’organisation utilise un slug ; le projet utilise un ID. Dans l’URL, remplace `/` à l’intérieur du nom d’automation par `__`.
+Utilise un projet actif où tu peux modifier les données et une clé avec les droits Développeur. Définis `TALE_BASE_URL`, `TALE_API_KEY`, `TALE_ORG_SLUG`, `TALE_PROJECT_ID` et `TALE_AUTOMATION`. L’organisation utilise un slug ; le projet utilise un ID. Dans l’URL, remplace `/` à l’intérieur du nom d’automatisation par `__`.
 
-## Installer l’automation dans le projet
+## Installer l’automatisation dans le projet
 
-Une livraison webhook exige que l’automation soit installée dans le projet nommé par l’URL. Installe-la avec le nom dans le chemin et un corps vide :
+Une livraison webhook exige que l’automatisation soit installée dans le projet nommé par l’URL. Installe-la avec le nom dans le chemin et un corps vide :
 
 ```bash
 curl --fail-with-body --silent --show-error --request POST \
@@ -26,7 +26,7 @@ La première installation renvoie `201`, la suivante `200`. Un appel à la colle
 
 ## Créer et protéger le déclencheur
 
-Lie un déclencheur webhook à cette nouvelle automation de test :
+Lie un déclencheur webhook à cette nouvelle automatisation d’essai :
 
 ```bash
 curl --fail-with-body --silent --show-error --request PUT \
@@ -40,11 +40,11 @@ Copie le `token` renvoyé dans la variable privée `TALE_WEBHOOK_TOKEN`. Tale ne
 
 <Warning>
 
-L’URL est un identifiant d’accès. Toute personne qui la connaît peut envoyer des livraisons. Garde-la hors du code, des captures et des logs publics. Lier un webhook remplace le déclencheur existant de cette automation ; utilise bien celle choisie pour le test.
+L’URL est un identifiant d’accès. Toute personne qui la connaît peut envoyer des livraisons. Garde-la hors du code, des captures et des logs publics. Lier un webhook remplace le déclencheur existant de cette automatisation ; utilise bien celle choisie pour le test.
 
 </Warning>
 
-Le déclencheur suit le nom de l’automation et utilise sa version déployée. Une nouvelle version peut donc changer le travail exécuté par la même URL. Si elle fuit, remplace le token ou retire le déclencheur. Le désactiver ne fait que le suspendre ; le réactiver rétablit le même token.
+Le déclencheur suit le nom de l’automatisation et utilise sa version déployée. Une nouvelle version peut donc changer le travail exécuté par la même URL. Si elle fuit, remplace le token ou retire le déclencheur. Le désactiver ne fait que le suspendre ; le réactiver rétablit le même token.
 
 ## Envoyer une livraison
 
@@ -58,7 +58,7 @@ curl --fail-with-body --silent --show-error \
   --data '{"orderId":"12345","amount":199.0}'
 ```
 
-L’acceptation renvoie `202` avec `runId`. Conserve cet ID dans `TALE_RUN_ID`. L’automation reçoit `{"trigger":"webhook","payload":<body>}` ; l’ID de commande se trouve donc dans `input.payload.orderId`. Un schéma d’entrée doit décrire cette enveloppe.
+L’acceptation renvoie `202` avec `runId`. Conserve cet ID dans `TALE_RUN_ID`. L’automatisation reçoit `{"trigger":"webhook","payload":<body>}` ; l’ID de commande se trouve donc dans `input.payload.orderId`. Un schéma d’entrée doit décrire cette enveloppe.
 
 Répète la commande. Pendant la fenêtre de déduplication, la réponse garde le même `runId` et ajoute `duplicate: true` ; aucune seconde exécution ne démarre. Les IDs sont retenus 24 heures. Sans en-tête d’ID, seuls les corps aux octets identiques sont dédupliqués pendant deux minutes. Utilise un nouvel ID pour un nouvel événement.
 
@@ -82,7 +82,7 @@ Si l’exécution échoue, lis `failureCode` et `detail`, puis examine le nœud 
 | Réponse | Correction |
 | --- | --- |
 | `400` | Lis `code` et les problèmes d’entrée. Corrige l’enveloppe ou retire le paramètre de requête `projectId`. |
-| `403` | Vérifie que le projet est actif et que l’automation y est installée. |
+| `403` | Vérifie que le projet est actif et que l’automatisation y est installée. |
 | `404` | Vérifie le token et l’activation. L’endpoint ne révèle pas lequel pose problème. |
 | `409` | Lis `code` : déploie une version, corrige le périmètre de l’URL ou résous le conflit de livraison. |
 | `413` | Réduis le corps sous 256 KiB ou envoie une référence. |

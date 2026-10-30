@@ -3,7 +3,7 @@ title: Einen externen Client über MCP verbinden
 description: Finde den MCP-Endpunkt von Tale und erfahre, wie externe Clients damit arbeiten.
 ---
 
-Über den MCP-Endpunkt verbindet sich ein externer Coding-Assistent oder anderer MCP-Client mit deiner Organisation in Tale. Er kann verfügbare Funktionen finden, Automationen erstellen und Läufe prüfen. Der Zugriff folgt den Berechtigungen der Person hinter der Verbindung: dem Inhaber des API-Schlüssels oder der Person, die den Agent angemeldet hat.
+Über den MCP-Endpunkt verbindet sich ein externer Coding-Assistent oder anderer MCP-Client mit deiner Organisation in Tale. Er kann verfügbare Funktionen finden, Automatisierungen erstellen und Läufe prüfen. Der Zugriff folgt den Berechtigungen der Person hinter der Verbindung: dem Inhaber des API-Schlüssels oder der Person, die den Agent angemeldet hat.
 
 ## Den Endpunkt finden
 
@@ -25,6 +25,6 @@ Soll ein Agent innerhalb von Tale einen anderen Dienst verwenden, prüfe den [Co
 
 ## Den Zugriff vor dem Erstellen prüfen
 
-Beginne mit der Testanfrage auf der MCP-Seite und prüfe, ob der Client die Tools auflisten kann. Lies vor einem Schreibzugriff, welche Berechtigung das Tool verlangt. Eine Automation zu speichern und bereitzustellen sind getrennte Schritte. Eine Client-Verbindung umgeht weder die Freigabe zur Bereitstellung noch Genehmigungsregeln.
+Beginne mit der Testanfrage auf der MCP-Seite und prüfe, ob der Client die Tools auflisten kann. Lies vor einem Schreibzugriff, welche Berechtigung das Tool verlangt. Eine Automatisierung zu speichern und bereitzustellen sind getrennte Schritte. Eine Client-Verbindung umgeht weder die Freigabe zur Bereitstellung noch Genehmigungsregeln.
 
-[API-Schlüssel](/de/platform/admin/api-keys) erklärt Austausch und Widerruf. Unter [Automationen verstehen](/de/platform/automations/concepts) findest du den Ablauf zum Speichern, Testen und Bereitstellen.
+[API-Schlüssel](/de/platform/admin/api-keys) erklärt Austausch und Widerruf. Unter [Automatisierungen verstehen](/de/platform/automations/concepts) findest du den Ablauf zum Speichern, Testen und Bereitstellen.

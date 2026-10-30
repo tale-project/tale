@@ -3,7 +3,7 @@ title: Tester une automatisation
 description: Écris des tests pour une automatisation dans l’éditeur, exécute-les sur ton brouillon ou sur une version enregistrée, et lis ce qu’un test en échec a trouvé.
 ---
 
-Un test exécute une automatisation avec une entrée de ton choix et vérifie ce qui en ressort : la sortie, les actions qu’elle déclenche et les étapes qui s’exécutent. Les tests font partie du document de l’automatisation, si bien que chaque version garde les siens. Tale les exécute à l’enregistrement, puis à nouveau avant chaque mise en service, et une version dont les tests échouent ne peut pas être déployée. Écrire et exécuter des tests demande le rôle Developer, Admin ou Owner.
+Un test exécute une automatisation avec une entrée de ton choix et vérifie ce qui en ressort : la sortie, les actions qu’elle déclenche et les étapes qui s’exécutent. Les tests font partie du document de l’automatisation, si bien que chaque version garde les siens. Tale les exécute à l’enregistrement, puis à nouveau avant chaque mise en service, et une version dont les tests échouent ne peut pas être déployée. Écrire et exécuter des tests demande le rôle Développeur, Admin ou Propriétaire.
 
 ## Ouvrir les tests
 

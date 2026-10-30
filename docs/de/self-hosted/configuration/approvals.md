@@ -1,5 +1,5 @@
 ---
-title: Genehmigungsregeln für Automationen festlegen
+title: Genehmigungsregeln für Automatisierungen festlegen
 description: Lege fest, welche Connector-Schreibaktionen eine Prüfung brauchen, und prüfe die Regelauswertung.
 ---
 Genehmigungsregeln bestimmen, ob eine schreibende Connector-Aktion sofort läuft oder auf eine Person wartet. Standardmäßig brauchen Schreibzugriffe auf externe Systeme eine Genehmigung; interne Connectors mit Plattformauthentifizierung dürfen schreiben. Passe diese Grenze je Organisation an ihren Prüfprozess an.
@@ -30,10 +30,10 @@ Verwende Bezeichner aus dem ausgelieferten Katalog, keine übersetzten Anzeigena
 
 Eine Aktionsregel hat unabhängig von ihrer Position Vorrang vor einer Connector-Regel. Bei gleich spezifischen Treffern gewinnt die letzte Regel. Ohne Treffer führt eine Automatisierung, der ein Inhaber oder Admin den Schreibzugriff ohne Freigabe erlaubt hat (in ihrem Tab **Allgemein** unter **Läuft ohne Freigabe**), ihn aus; sonst verwendet Tale die oben beschriebene Unterscheidung zwischen intern und extern. Eine `require_approval`-Regel hat Vorrang vor einer solchen Erlaubnis. Führe jedes Ziel möglichst nur einmal auf, damit das Ergebnis ohne Nachverfolgen von Überschreibungen verständlich bleibt.
 
-Die Richtlinie wirkt auf neue Prüfungen. Eine ausstehende Genehmigung bleibt erhalten, wenn du die Regel lockerst; sie wird nicht automatisch erteilt. Die Datei hebt auch keine unabhängigen Prüfungen auf, etwa die Veröffentlichung einer Automation oder den Abschluss einer prüfpflichtigen Aufgabe.
+Die Richtlinie wirkt auf neue Prüfungen. Eine ausstehende Genehmigung bleibt erhalten, wenn du die Regel lockerst; sie wird nicht automatisch erteilt. Die Datei hebt auch keine unabhängigen Prüfungen auf, etwa die Veröffentlichung einer Automatisierung oder den Abschluss einer prüfpflichtigen Aufgabe.
 
 ## Wirkung prüfen
 
-Teste die Regel vor dem Produktiveinsatz mit einer isolierten Automation und unkritischen Daten. Prüfe eine passende Aktion und eine, für die der Standard gelten soll. Kontrolliere ausstehende Genehmigung und Ausführungsverlauf im [Genehmigungsablauf](/de/platform/approvals/configure).
+Teste die Regel vor dem Produktiveinsatz mit einer isolierten Automatisierung und unkritischen Daten. Prüfe eine passende Aktion und eine, für die der Standard gelten soll. Kontrolliere ausstehende Genehmigung und Ausführungsverlauf im [Genehmigungsablauf](/de/platform/approvals/configure).
 
 Neue Entscheidungen über Schreibzugriffe lesen die aktuelle Richtlinie und den Organisations-Slug ohne den kurzen Anzeigecache. Ist die Richtlinie ungültig oder ihr Konfigurationsverzeichnis nicht verfügbar, stoppt der Vorgang vor dem Schreiben. Repariere die Konfiguration, bevor du ihn wiederholst. Nur eine fehlende Richtliniendatei in einem verfügbaren Konfigurationsbaum führt zu den Standardregeln. Eine fehlerhafte `.yml`-Datei wird nie durch eine benachbarte `.json` ersetzt. Bereits gespeicherte Freigaben behalten ihre Entscheidung; das gilt sowohl für ausstehende als auch für zuvor genehmigte Vorgänge.

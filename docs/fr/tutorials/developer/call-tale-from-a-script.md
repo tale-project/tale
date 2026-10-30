@@ -134,4 +134,4 @@ La limite de dix minutes est un choix de cet exemple, pas un délai du serveur. 
 
 Pour les conversations d’un projet, utilise `/api/v1/projects/{id}/threads` pour la création, les messages, la génération et les lectures. Tu dois avoir accès au projet actif. Ajouter `projectId` au corps d’une requête de thread personnel ne change pas son périmètre.
 
-La [référence API](/fr/develop/api-reference) décrit les droits sur les projets, les parties des messages et les exécutions d’automations. Pour déclencher du travail à l’arrivée d’un événement externe, poursuis avec [Déclencher une automation par webhook](/fr/tutorials/developer/trigger-automation-via-webhook).
+La [référence API](/fr/develop/api-reference) décrit les droits sur les projets, les parties des messages et les exécutions d’automatisations. Pour déclencher du travail à l’arrivée d’un événement externe, poursuis avec [Déclencher une automatisation par webhook](/fr/tutorials/developer/trigger-automation-via-webhook).
