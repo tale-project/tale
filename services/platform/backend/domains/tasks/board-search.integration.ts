@@ -3,13 +3,17 @@
  * narrows the board read itself, with the board's other filters, before the
  * board's cap — so no match can fall outside a capped search the page used
  * to intersect afterwards. Fixture rows go in by SQL; every read goes
- * through the app's own HTTP doors.
+ * through the app's own HTTP doors. Home's "assigned to me" (#4708) keeps its
+ * rows beside the other board reads, and the statement it sends is planned on
+ * an index of its own.
  */
 import { randomUUID } from 'node:crypto';
 
 import { taskExternalIssueSchema } from '@tale/shared/schemas/task-external-issue';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
+
+import { listTasksForAccessibleProjects } from './service.ts';
 
 const BOARD_STATUSES = [
   'backlog',
@@ -345,6 +349,7 @@ export async function checkTaskBoardSearch(
   );
 
   await checkTaskBoardFolderRead(sql, base, ctx, record);
+  await checkTaskBoardAssignedRead(sql, base, ctx, record);
 }
 
 /** Real SQL/wire proof for the batched folder walk and metadata projection. */
@@ -689,5 +694,216 @@ async function checkProjectSummaries(
     'project detail keeps all retained instructions',
     detail.success && detail.data.project.instructions === fixture.instructions,
     `detail=${detail.success}`,
+  );
+}
+
+/** What Home reads as "assigned to me": the work that is not done. */
+const OPEN_STATUSES = ['backlog', 'todo', 'in_progress', 'in_review'];
+
+/** A tag's template, as postgres.js tells one from a helper call. */
+const isTemplate = (value: unknown): value is TemplateStringsArray =>
+  Array.isArray(value) && 'raw' in value;
+
+/**
+ * Home's "assigned to me" (#4708): one person's open tasks across the projects
+ * the caller reads, newest activity first. The read returns the rows, in the
+ * order, the unassigned read gives that person; the unassigned and archived
+ * reads keep theirs; and both plans of its statement, the custom one and the
+ * generic one a prepared statement may settle on, take the person's tasks
+ * from `tasks_org_assignee_updated` (migration 0223) instead of walking the
+ * organization's tasks by `updated_at_ms`.
+ */
+async function checkTaskBoardAssignedRead(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+  record: (name: string, ok: boolean, detail: string) => void,
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const suffix = randomUUID().slice(0, 8);
+  const term = `assignedproof${suffix}`;
+  const now = Date.now();
+  const memberId = randomUUID();
+  const projectA = randomUUID();
+  const projectB = randomUUID();
+  await sql`
+    INSERT INTO "user" ("id", "email", "name", "emailVerified", "createdAt", "updatedAt")
+    VALUES (${memberId}, ${`itest-board-assigned-${suffix}@example.test`},
+      'Board Assigned Member', true, now(), now())
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+    VALUES (${randomUUID()}, ${orgId}, ${memberId}, 'editor', now())
+  `;
+  for (const [id, key] of [
+    [projectA, `AA${suffix.toUpperCase()}`],
+    [projectB, `AB${suffix.toUpperCase()}`],
+  ] as const) {
+    await sql`
+      INSERT INTO app.projects (id, org_id, name, key, created_by, created_at_ms, updated_at_ms)
+      VALUES (${id}, ${orgId}, ${`Assigned read proof ${key}`}, ${key}, ${userId}, ${now}, ${now})
+    `;
+  }
+
+  // The member's open tasks across both projects, their activity out of the
+  // board's order; the member's done and archived tasks; and one task of the
+  // session user and one of no one beside them.
+  const seeds = [
+    ['m1', memberId, projectA, 'todo', 'a1', 1_000, false],
+    ['m2', memberId, projectB, 'in_progress', 'a0', 2_000, false],
+    ['m3', memberId, projectA, 'todo', 'a0', 3_000, false],
+    ['m4', memberId, projectB, 'backlog', 'b0', 4_000, false],
+    ['m5', memberId, projectA, 'done', 'c0', 1_500, false],
+    ['m6', memberId, projectB, 'in_review', 'c1', 500, true],
+    ['u1', userId, projectA, 'todo', 'd0', 600, false],
+    ['n1', null, projectB, 'todo', 'd1', 700, false],
+  ] as const;
+  const names = new Map<string, string>();
+  for (const [
+    index,
+    [name, assigneeId, projectId, status, rank, age, archived],
+  ] of seeds.entries()) {
+    const id = randomUUID();
+    const at = now - age;
+    names.set(id, name);
+    await sql`
+      INSERT INTO app.tasks (id, org_id, project_id, title, status, assignee_type,
+        assignee_id, rank, number, created_by, created_by_type, created_at_ms,
+        updated_at_ms, archived_at_ms)
+      VALUES (${id}, ${orgId}, ${projectId}, ${`${term} ${name}`}, ${status},
+        ${assigneeId === null ? null : 'user'}, ${assigneeId}, ${rank}, ${index + 1},
+        ${userId}, 'user', ${at}, ${at}, ${archived ? at : null})
+    `;
+  }
+
+  const read = async (
+    params: Record<string, string>,
+  ): Promise<BoardRow[] | null> => {
+    const query = new URLSearchParams({ orgId, ...params });
+    const response = await fetch(`${base}/api/app/tasks?${query}`, {
+      headers: { cookie },
+    });
+    const parsed = boardSchema.safeParse(await response.json());
+    return parsed.success && !parsed.data.truncated ? parsed.data.tasks : null;
+  };
+  /** The fixture names a read returns, in its order (`ERR` for no page). */
+  const inOrder = (rows: BoardRow[] | null, assigneeId?: string) =>
+    rows === null
+      ? 'ERR'
+      : rows
+          .filter(
+            (row) => assigneeId === undefined || row.assigneeId === assigneeId,
+          )
+          .map((row) => names.get(row.id) ?? 'other')
+          .join(',');
+  const asSet = (rows: BoardRow[] | null) =>
+    rows === null
+      ? 'ERR'
+      : rows
+          .map((row) => names.get(row.id) ?? 'other')
+          .toSorted()
+          .join(',');
+
+  const open = OPEN_STATUSES.join(',');
+  const every = BOARD_STATUSES.join(',');
+  const assigned = await read({
+    includeArchived: 'false',
+    statuses: open,
+    assigneeId: memberId,
+  });
+  const unassigned = await read({
+    includeArchived: 'false',
+    statuses: open,
+    q: term,
+  });
+  record(
+    "Home's assigned read returns the person's open tasks in the board's order",
+    inOrder(assigned) === 'm4,m2,m3,m1' &&
+      inOrder(unassigned, memberId) === inOrder(assigned),
+    `assigned=${inOrder(assigned)} (want m4,m2,m3,m1), the unassigned read's own=${inOrder(unassigned, memberId)}`,
+  );
+
+  const everyStatus = await read({
+    includeArchived: 'false',
+    statuses: every,
+    q: term,
+  });
+  const withArchived = await read({
+    includeArchived: 'true',
+    statuses: every,
+    q: term,
+  });
+  const assignedWithArchived = await read({
+    includeArchived: 'true',
+    statuses: open,
+    assigneeId: memberId,
+  });
+  record(
+    'the unassigned and archived board reads keep their rows beside the assigned one',
+    asSet(unassigned) === 'm1,m2,m3,m4,n1,u1' &&
+      asSet(everyStatus) === 'm1,m2,m3,m4,m5,n1,u1' &&
+      asSet(withArchived) === 'm1,m2,m3,m4,m5,m6,n1,u1' &&
+      asSet(assignedWithArchived) === 'm1,m2,m3,m4,m6',
+    `open=${asSet(unassigned)}, every status=${asSet(everyStatus)}, with archived=${asSet(withArchived)}, assigned with archived=${asSet(assignedWithArchived)}`,
+  );
+
+  // The plans of the statement Home's read sends, taken inside the read: its
+  // custom plan (values bound) and the generic plan a prepared statement may
+  // settle on. On the harness's handful of rows the planner may prefer any
+  // index plus a sort, so sequential scans and sorts are ruled out: the plan
+  // must take the person's tasks, newest first, from an index, and only the
+  // assignee index both bounds and orders them. The former
+  // `(… IS NULL OR …)` filters left a generic plan neither.
+  const plans = { custom: '', generic: '' };
+  await sql.begin(async (tx) => {
+    await tx`SET LOCAL enable_seqscan = off`;
+    await tx`SET LOCAL enable_sort = off`;
+    const explaining = new Proxy(tx, {
+      apply(target, thisArg: unknown, args: unknown[]): unknown {
+        const [strings, ...values] = args;
+        if (
+          !isTemplate(strings) ||
+          !strings.join(' ').includes('FROM app.tasks t') ||
+          !strings.join(' ').includes('ORDER BY updated_at_ms DESC')
+        ) {
+          const passed: unknown = Reflect.apply(target, thisArg, args);
+          return passed;
+        }
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the read's own parameters, passed through
+        const parameters = values as never[];
+        const prefixed = Object.assign(
+          [`EXPLAIN ${strings[0] ?? ''}`, ...strings.slice(1)],
+          { raw: [`EXPLAIN ${strings.raw[0] ?? ''}`, ...strings.raw.slice(1)] },
+        );
+        const explain = async () => {
+          const custom = await target<{ 'QUERY PLAN': string }[]>(
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template array with its raw strings, as postgres.js reads one
+            prefixed as unknown as TemplateStringsArray,
+            ...parameters,
+          );
+          const { string } = await target(strings, ...parameters).describe();
+          const generic = await target
+            .unsafe<{ 'QUERY PLAN': string }[]>(
+              `EXPLAIN (GENERIC_PLAN) ${string}`,
+            )
+            .simple();
+          plans.custom = custom.map((row) => row['QUERY PLAN']).join('\n');
+          plans.generic = generic.map((row) => row['QUERY PLAN']).join('\n');
+          return [];
+        };
+        return explain();
+      },
+    });
+    await listTasksForAccessibleProjects(
+      explaining,
+      { organizationId: orgId, userId, role: 'owner', teamIds: [] },
+      { includeArchived: false, assigneeId: memberId, statuses: OPEN_STATUSES },
+    );
+  });
+  record(
+    "Home's assigned statement reads tasks_org_assignee_updated in its custom and generic plans",
+    plans.custom.includes('tasks_org_assignee_updated') &&
+      plans.generic.includes('tasks_org_assignee_updated'),
+    `custom: ${plans.custom} | generic: ${plans.generic}`,
   );
 }
