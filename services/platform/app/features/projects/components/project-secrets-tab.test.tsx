@@ -6,6 +6,7 @@ import { checkAccessibility } from '@/tests/utils/a11y';
 import { i18n } from '@/tests/utils/i18n-all-languages';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
+import { ProjectSecretsSkeleton } from './project-secrets-layout';
 import { ProjectSecretsTab } from './project-secrets-tab';
 
 // The project "Environment" page is now the project-scoped surface of the shared
@@ -72,8 +73,8 @@ function renderTab() {
   );
 }
 
-// The static page chrome stacks the StickySectionHeader (h2) above the Alert's
-// fixed level-5 heading. In isolation that h2→h5 jump trips axe's heading-order, but
+// The static page chrome stacks the settings section's heading (h2) above the
+// Alert's fixed level-5 heading. In isolation that h2→h5 jump trips axe's heading-order, but
 // it's a standalone-render artifact (in the app the tab sits under the page's
 // h1/h2). Suppress only that one rule; every other WCAG rule stays on.
 const NO_HEADING_ORDER = { rules: { 'heading-order': { enabled: false } } };
@@ -149,6 +150,47 @@ describe('ProjectSecretsTab', () => {
       expect(screen.getByDisplayValue('OPENAI_API_KEY')).toBeInTheDocument();
 
       await checkAccessibility(container, NO_HEADING_ORDER);
+    });
+  });
+
+  // #2794: Environment is a settings form, so it is one settings section in
+  // the general settings page, as Settings › Teams is — not a list page's
+  // sticky header in a padded frame of its own, whose padding inside the cap
+  // left the column 32px narrower than the settings one. Its heading repeats
+  // the tab's name, so — like a settings page's under its header — it stays
+  // for assistive tech and the description leads.
+  describe('frame', () => {
+    function expectSettingsFrame() {
+      const heading = screen.getByRole('heading', {
+        name: i18n.t('title', { ns: 'projectSecrets' }),
+      });
+      const section = heading.closest('[data-settings-section]');
+      expect(section).toHaveAttribute('data-repeats-page-title');
+      expect(section).toHaveAccessibleDescription(
+        i18n.t('description', { ns: 'projectSecrets' }),
+      );
+      const page = section?.closest('[data-field-layout="row"]');
+      expect(page).toHaveClass('mx-auto', 'max-w-3xl', 'gap-8');
+      expect(page).not.toHaveClass('px-4');
+    }
+
+    it('stands in a section of the general settings page', () => {
+      renderTab();
+
+      expectSettingsFrame();
+    });
+
+    it('keeps that frame for the access notice', () => {
+      secretsErrorFixture = new AppError({ code: 'PROJECT_FORBIDDEN' });
+      renderTab();
+
+      expectSettingsFrame();
+    });
+
+    it('gives the loading skeleton the same frame, so nothing shifts', () => {
+      render(<ProjectSecretsSkeleton />);
+
+      expectSettingsFrame();
     });
   });
 
