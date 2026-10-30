@@ -76,6 +76,39 @@ describe('workflow file staging authority and reuse', () => {
     expect(stage.files).toHaveBeenCalledTimes(1);
   });
 
+  it('hands the stager the size each document records, and none it does not know', async () => {
+    const runQuery = vi.fn().mockResolvedValue({
+      files: [
+        { fileId: 'video', name: 'walkthrough.mp4', sizeBytes: 80_000_000 },
+        { fileId: 'legacy', name: 'notes.txt' },
+      ],
+      truncated: false,
+    });
+    await stageWorkflowFiles(
+      { runQuery } as unknown as ActionCtx,
+      'org',
+      'session',
+      { data: { folderId: 'folder' } },
+      'inputs/',
+    );
+    expect(stage.files.mock.calls[0]?.[1]).toEqual([
+      {
+        path: 'inputs/data/walkthrough.mp4',
+        url: 'https://authorized.test/blob',
+        expectedBytes: 80_000_000,
+        sourceId: stageBlobCacheKey('org', 'video'),
+      },
+      {
+        path: 'inputs/data/notes.txt',
+        url: 'https://authorized.test/blob',
+        sourceId: stageBlobCacheKey('org', 'legacy'),
+      },
+    ]);
+    expect(stage.files.mock.calls[0]?.[1]?.[1]).not.toHaveProperty(
+      'expectedBytes',
+    );
+  });
+
   it('reconciles an empty current folder so old files cannot survive', async () => {
     const ctx = {
       runQuery: vi.fn().mockResolvedValue({ files: [], truncated: false }),

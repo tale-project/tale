@@ -201,6 +201,9 @@ export interface FolderFile {
   fileId: string;
   /** Mount-relative path: subfolder segments + the safe leaf name. */
   name: string;
+  /** The stored file's size, when the document records one — what the stager
+   * packs its downloads by. */
+  sizeBytes?: number;
 }
 
 /**
@@ -277,6 +280,7 @@ export async function listFilesByFolder(
       extension: string | null;
       prefix: string;
       depth: number;
+      sizeBytes: number | null;
     }[]
   >`
     WITH RECURSIVE subtree AS (
@@ -291,7 +295,9 @@ export async function listFilesByFolder(
         AND ${recursive}
         AND s.depth <= ${MAX_RECURSION_DEPTH}
     )
-    SELECT d.file_ref AS "fileId", d.title, d.extension, s.prefix, s.depth
+    SELECT d.file_ref AS "fileId", d.title, d.extension, s.prefix, s.depth,
+           CASE WHEN jsonb_typeof(d.metadata -> 'size') = 'number'
+                THEN (d.metadata ->> 'size')::float8 END AS "sizeBytes"
     FROM app.documents d
     JOIN subtree s ON s.id = d.folder_id
     WHERE d.org_id = ${args.organizationId}
@@ -341,10 +347,12 @@ export async function listFilesByFolder(
         : title;
     // The prefix is built from write-validated folder names; the leaf is
     // free text and must never add or climb a path level.
-    return {
+    const file: FolderFile = {
       fileId: row.fileId,
       name: `${row.prefix}${safePathSegment(withExt)}`,
     };
+    if (typeof row.sizeBytes === 'number') file.sizeBytes = row.sizeBytes;
+    return file;
   });
   return { files, truncated };
 }
