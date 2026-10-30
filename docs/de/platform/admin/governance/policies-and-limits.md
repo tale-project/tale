@@ -101,7 +101,7 @@ Alle drei sind eingeschaltet, bis du einen ausschaltest, und eine fehlende Richt
 
 ## Einen Vertraulichkeitshinweis im Chat anzeigen
 
-**Vertraulichkeitshinweis** blendet für alle Mitglieder deiner Organisation eine kurze Zeile unter dem Nachrichtenfeld im Chat ein, etwa die Erinnerung, keine sensiblen Daten zu teilen. Der Hinweis bleibt aus, bis du ihn einschaltest.
+**Vertraulichkeitshinweis** blendet für alle Mitglieder deiner Organisation eine kurze Zeile im Chat ein, etwa die Erinnerung, keine sensiblen Daten zu teilen: in einem neuen Chat unter dem Nachrichtenfeld und, sobald ein Chat Nachrichten enthält, unter der letzten Nachricht. Der Hinweis bleibt aus, bis du ihn einschaltest.
 
 1. Schalte **Vertraulichkeitshinweis** ein. Mitglieder sehen den Hinweis sofort im Chat, in ihrer Sprache; geöffnete Chats aktualisieren sich ohne Neuladen.
 2. Gib bei Bedarf in den Sprach-Tabs **English**, **Deutsch** und **Français** eigene Texte mit jeweils höchstens 280 Zeichen ein. Speichere danach die ausstehenden Seitenänderungen.
@@ -113,6 +113,8 @@ Alle drei sind eingeschaltet, bis du einen ausschaltest, und eine fehlende Richt
 </Frame>
 
 Mitglieder sehen den Text in ihrer Sprache. Ein Tab mit der Markierung **nicht übersetzt** hat keinen eigenen Text: Mitglieder mit dieser Sprache sehen deinen englischen Text oder, wenn auch dieser fehlt, den Standardhinweis, und das leere Feld zeigt diesen Text als Vorschau. Lässt sich der Standardhinweis einer Sprache nicht laden, meldet ihr leeres Feld das stattdessen. Ein roter Punkt markiert eine Sprache mit zu langem Text; Speichern ist erst wieder möglich, wenn du ihn kürzt. Schaltest du den Hinweis aus, bleiben deine Texte für das nächste Einschalten erhalten.
+
+Wählt ein Mitglied unter einer Nachricht **Nicht mehr anzeigen**, sieht es den Hinweis in seinem Browser nicht mehr. Es sieht ihn wieder, sobald du den Text änderst, den es liest; schaltest du den Hinweis mit demselben Text aus und wieder ein, bleibt er für dieses Mitglied ausgeblendet.
 
 Der Hinweis ist nur eine Erinnerung. Er prüft, blockiert oder verändert keine Nachrichten. Um auf sensible Inhalte zu reagieren, richte [Guardrails](/de/platform/admin/governance/guardrails) ein.
 
