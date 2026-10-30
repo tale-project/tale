@@ -523,6 +523,35 @@ describe('the personal bell hint (wire contract with the web app)', () => {
   });
 });
 
+describe('a rewritten row leads the first page of the bell (#3630)', () => {
+  it('takes a fresh seq with its new createdAt, in place of the old row', async () => {
+    const { db, calls, statements } = fakeDb((text) => {
+      if (text.startsWith('SELECT id, coalesce_key')) {
+        return [{ id: 'n-twin', coalesceKey: twinKey }];
+      }
+      return [];
+    });
+    await expect(
+      writeCoalescedNotification(db, {
+        ...statusBell,
+        params: { ...statusBell.params, to: 'done' },
+      }),
+    ).resolves.toBe('rewritten');
+    const rewrite = calls.find((c) =>
+      c.text.startsWith('UPDATE app.user_notifications SET type'),
+    );
+    // `listMyNotifications` orders and cursors by `seq`: moving only
+    // `created_at_ms` left the row behind every row written since.
+    expect(rewrite?.text).toContain('seq = DEFAULT');
+    expect(rewrite?.values.at(-1)).toBe('n-twin');
+    expect(
+      statements.some((s) =>
+        s.startsWith('INSERT INTO app.user_notifications'),
+      ),
+    ).toBe(false);
+  });
+});
+
 describe('the reviewer-designation heads-up (task_reviewer_assigned) [COLLAB-R6]', () => {
   /** Like `fakeDb`, but keeps each statement's VALUES so the row written can
    * be pinned (type, keys, params), not only the statement shape. */

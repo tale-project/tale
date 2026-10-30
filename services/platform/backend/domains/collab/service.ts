@@ -353,8 +353,10 @@ export async function writeCoalescedNotification(
 
   const now = Date.now();
   if (existingId !== null) {
-    // Rewrite in place: same row, current truth; `createdAt` moves so the
-    // bell re-sorts to the top — this IS news, just not a second item.
+    // Rewrite in place: same row, current truth; it moves to the top — this
+    // IS news, just not a second item. `listMyNotifications` orders and
+    // cursors by `seq`, so the row takes a fresh one with its new
+    // `createdAt` and leads the bell's first page (#3630).
     await db`
       UPDATE app.user_notifications SET
         type = ${args.type}, title_key = ${args.titleKey},
@@ -362,7 +364,8 @@ export async function writeCoalescedNotification(
         params = ${args.params === undefined ? null : db.json(toJson(args.params))},
         resource_type = ${args.resourceType}, resource_id = ${args.resourceId},
         task_id = ${args.taskId ?? null}, actor_type = ${args.actorType},
-        actor_id = ${args.actorId ?? null}, created_at_ms = ${now}
+        actor_id = ${args.actorId ?? null}, created_at_ms = ${now},
+        seq = DEFAULT
       WHERE id = ${existingId}
     `;
     await scheduleNotificationEmail(db, {
