@@ -6,6 +6,7 @@
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/check-bun-version.ts",
         "$TURBO_ROOT$/scripts/ci-task-cache.ts",
         "$TURBO_ROOT$/services/platform/backend/core/**",
         "$TURBO_ROOT$/services/platform/backend/auth/**",
