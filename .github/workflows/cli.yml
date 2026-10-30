@@ -3,8 +3,6 @@ name: CLI
 run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
 
 on:
-  merge_group:
-    types: [checks_requested]
   repository_dispatch:
     types: [release-candidate]
   workflow_dispatch:
@@ -635,7 +633,7 @@ jobs:
   # A required context must execute even when an upstream check failed/skipped.
   ci-ready:
     name: CI ready (CLI)
-    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    if: always() && github.event_name == 'pull_request'
     needs: [pr-scope, candidate-source, prepare, build, release, candidate-gate]
     runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 3

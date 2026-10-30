@@ -26,8 +26,6 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
-  merge_group:
-    types: [checks_requested]
   # A draft is held, as the other heavy workflows hold it (e2e.yml): to try a
   # draft of the backend, dispatch this workflow on its branch.
   workflow_dispatch:
@@ -487,7 +485,7 @@ jobs:
   # A required context must execute even when an upstream check failed/skipped.
   ci-ready:
     name: CI ready (Sandbox Incus E2E)
-    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    if: always() && github.event_name == 'pull_request'
     needs: [pr-scope, incus]
     runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 3

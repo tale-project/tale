@@ -39,7 +39,7 @@ runs:
         script: |
           const { requiresFullScope } = await import(require('node:url').pathToFileURL(`${process.env.GITHUB_WORKSPACE}/tools/cli/scripts/ci-ready.ts`).href);
           if (context.eventName !== 'pull_request') {
-            if (!['merge_group', 'push', 'schedule', 'workflow_dispatch', 'repository_dispatch'].includes(context.eventName)) throw new Error('Unknown scope event');
+            if (!['push', 'schedule', 'workflow_dispatch', 'repository_dispatch'].includes(context.eventName)) throw new Error('Unknown scope event');
             core.setOutput('full', 'true');
             return;
           }

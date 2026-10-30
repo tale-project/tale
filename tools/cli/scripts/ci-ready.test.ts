@@ -30,10 +30,8 @@ function fixture(workflow: keyof typeof CI_JOBS, event = 'pull_request') {
   if (needs['candidate-source']) needs['candidate-source'].result = 'skipped';
   if (needs['candidate-gate']) needs['candidate-gate'].result = 'skipped';
   if (needs.release) needs.release.result = 'skipped';
-  if (needs['pr-scope']) {
-    needs['pr-scope'].result = event === 'pull_request' ? 'success' : 'skipped';
+  if (needs['pr-scope'])
     needs['pr-scope'].outputs = { run: 'true', full: 'false' };
-  }
   if (needs['integration-scope'])
     needs['integration-scope'].outputs = { run: 'true' };
   if (workflow === 'build') {
@@ -55,7 +53,7 @@ function fixture(workflow: keyof typeof CI_JOBS, event = 'pull_request') {
   return {
     workflow,
     event,
-    payload: { pull_request: pr(), merge_group: { base_sha: A, head_sha: C } },
+    payload: { pull_request: pr() },
     source: C,
     needs,
   };
@@ -63,16 +61,13 @@ function fixture(workflow: keyof typeof CI_JOBS, event = 'pull_request') {
 
 describe('native CI readiness', () => {
   for (const workflow of Object.keys(CI_JOBS) as (keyof typeof CI_JOBS)[]) {
-    test(`${workflow}: ordinary, ready and full merge-group success`, () => {
-      for (const event of ['pull_request', 'merge_group']) {
-        const input = fixture(workflow, event);
-        const verdict = evaluateReadiness(input);
-        expect(verdict.reasons).toEqual([]);
-        expect(verdict.passed).toBe(true);
-        expect(verdict.jobs.map((job) => job.job).toSorted()).toEqual(
-          [...CI_JOBS[workflow]].toSorted(),
-        );
-      }
+    test(`${workflow}: ordinary and ready success`, () => {
+      const verdict = evaluateReadiness(fixture(workflow));
+      expect(verdict.reasons).toEqual([]);
+      expect(verdict.passed).toBe(true);
+      expect(verdict.jobs.map((job) => job.job).toSorted()).toEqual(
+        [...CI_JOBS[workflow]].toSorted(),
+      );
       const input = fixture(workflow);
       input.payload.pull_request.draft = true;
       expect(evaluateReadiness(input).passed).toBe(false);
@@ -81,37 +76,33 @@ describe('native CI readiness', () => {
     });
 
     test(`${workflow}: failures, cancellations, missing and unexpected skips fail closed`, () => {
-      for (const event of ['pull_request', 'merge_group']) {
-        for (const id of CI_JOBS[workflow]) {
-          for (const result of [
-            'failure',
-            'cancelled',
-            'skipped',
-            '',
-            'neutral',
-            'timed_out',
-          ]) {
-            const input = fixture(workflow, event);
-            const original = input.needs[id]!.result;
-            if (result === original) continue;
-            input.needs[id]!.result = result;
-            expect(evaluateReadiness(input).passed, `${id}/${result}`).toBe(
-              false,
-            );
-          }
-          const missing = fixture(workflow, event);
-          delete missing.needs[id];
-          expect(evaluateReadiness(missing).passed, `missing ${id}`).toBe(
+      for (const id of CI_JOBS[workflow]) {
+        for (const result of [
+          'failure',
+          'cancelled',
+          'skipped',
+          '',
+          'neutral',
+          'timed_out',
+        ]) {
+          const input = fixture(workflow);
+          const original = input.needs[id]!.result;
+          if (result === original) continue;
+          input.needs[id]!.result = result;
+          expect(evaluateReadiness(input).passed, `${id}/${result}`).toBe(
             false,
           );
         }
-        const extra = fixture(workflow, event);
-        extra.needs['new-unclassified-proof'] = {
-          result: 'success',
-          outputs: {},
-        };
-        expect(evaluateReadiness(extra).passed).toBe(false);
+        const missing = fixture(workflow);
+        delete missing.needs[id];
+        expect(evaluateReadiness(missing).passed, `missing ${id}`).toBe(false);
       }
+      const extra = fixture(workflow);
+      extra.needs['new-unclassified-proof'] = {
+        result: 'success',
+        outputs: {},
+      };
+      expect(evaluateReadiness(extra).passed).toBe(false);
     });
 
     test(`${workflow}: a newer native failed rerun cannot borrow a prior success`, () => {
@@ -130,24 +121,16 @@ describe('native CI readiness', () => {
   }
 
   test('Checks requires each native Unit lane even when its aggregate reports success', () => {
-    for (const event of ['pull_request', 'merge_group']) {
-      for (const id of ['test-platform-shards', 'test-workspaces']) {
-        for (const result of ['failure', 'cancelled', 'skipped', '']) {
-          const input = fixture('checks', event);
-          expect(input.needs.test!.result).toBe('success');
-          input.needs[id]!.result = result;
-          expect(
-            evaluateReadiness(input).passed,
-            `${event}/${id}/${result}`,
-          ).toBe(false);
-        }
-        const missing = fixture('checks', event);
-        delete missing.needs[id];
-        expect(
-          evaluateReadiness(missing).passed,
-          `${event}/missing ${id}`,
-        ).toBe(false);
+    for (const id of ['test-platform-shards', 'test-workspaces']) {
+      for (const result of ['failure', 'cancelled', 'skipped', '']) {
+        const input = fixture('checks');
+        expect(input.needs.test!.result).toBe('success');
+        input.needs[id]!.result = result;
+        expect(evaluateReadiness(input).passed, `${id}/${result}`).toBe(false);
       }
+      const missing = fixture('checks');
+      delete missing.needs[id];
+      expect(evaluateReadiness(missing).passed, `missing ${id}`).toBe(false);
     }
   });
 
@@ -215,9 +198,13 @@ describe('native CI readiness', () => {
         expect(evaluateReadiness(input).passed, `${key}/${value}`).toBe(false);
       }
     }
-    const input = fixture('e2e', 'merge_group');
+    const input = fixture('e2e');
+    input.needs['pr-scope']!.outputs.full = 'true';
+    expect(evaluateReadiness(input).passed).toBe(true);
     input.needs.scope!.outputs.static_services = '["web"]';
-    expect(evaluateReadiness(input).passed).toBe(false);
+    expect(evaluateReadiness(input).reasons).toEqual([
+      'Full E2E scope lost service coverage',
+    ]);
   });
 
   test('backend integration skips require a successful explicit PR decision', () => {
@@ -225,9 +212,6 @@ describe('native CI readiness', () => {
     input.needs['integration-scope']!.outputs.run = 'false';
     input.needs['backend-integration']!.result = 'skipped';
     expect(evaluateReadiness(input).passed).toBe(true);
-    input.event = 'merge_group';
-    expect(evaluateReadiness(input).passed).toBe(false);
-    input.event = 'pull_request';
     input.needs['integration-scope']!.outputs.run = '';
     expect(evaluateReadiness(input).passed).toBe(false);
     input.needs['integration-scope']!.outputs.run = 'false';
@@ -344,11 +328,6 @@ describe('native CI readiness', () => {
     expect(verdict.jobs.find((job) => job.job === 'incus')?.policy).toBe(
       'not run for a fork',
     );
-
-    const group = fixture('sandbox-incus-e2e', 'merge_group');
-    expect(evaluateReadiness(group).passed).toBe(true);
-    group.needs.incus!.result = 'skipped';
-    expect(evaluateReadiness(group).passed).toBe(false);
   });
 
   test('malformed and incomplete Build scope never means no work', () => {
@@ -373,17 +352,18 @@ describe('native CI readiness', () => {
   test('source identities, unknown events and candidate lanes are not ordinary readiness', () => {
     for (const event of [
       'push',
+      'schedule',
       'repository_dispatch',
       'workflow_dispatch',
       '',
     ])
-      expect(evaluateReadiness(fixture('checks', event)).passed).toBe(false);
-    const input = fixture('checks', 'merge_group');
-    input.payload.merge_group.head_sha = B;
-    expect(evaluateReadiness(input).passed).toBe(false);
-    input.payload.merge_group.head_sha = C;
-    input.payload.merge_group.base_sha = '';
-    expect(evaluateReadiness(input).passed).toBe(false);
+      expect(evaluateReadiness(fixture('checks', event)).reasons).toEqual([
+        'Readiness is only defined for pull_request',
+      ]);
+    for (const source of ['', 'main', B.slice(1)])
+      expect(evaluateReadiness({ ...fixture('checks'), source }).passed).toBe(
+        false,
+      );
     expect(
       evaluateReadiness({ ...fixture('checks'), needs: null }).passed,
     ).toBe(false);

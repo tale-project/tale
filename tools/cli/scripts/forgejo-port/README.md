@@ -1,15 +1,15 @@
 # Forgejo port
 
 Turns the workflows under `.github/` into the ones Forgejo's runner runs under `.forgejo/`.
-It is a function of text: the files go in, the generated files, the checks the merge train
-declares and the list of what Forgejo would refuse come out. No workflow under `.github/` is
+It is a function of text: the files go in, the generated files, the checks a pull request
+waits for and the list of what Forgejo would refuse come out. No workflow under `.github/` is
 changed until the cut-over, which adds one condition to one of them (`github --write`, below).
 
 The unit tests of `@tale/cli` run the port over the workflows as they are today. They fail a
 change when the generator crashes on a workflow, when `declared-checks.yml` no longer lists the
 checks the port generates (`checks --write` rewrites it), when a composite action or a script the
-manifest names is renamed or removed, when `e2e.yml` or `sast.yml` stops carrying the tier it is
-generated for, and when this README lacks a row for a workflow or an edit the manifest lists.
+manifest names is renamed or removed, and when this README lacks a row for a workflow or an edit
+the manifest lists.
 What Forgejo would refuse in a workflow, an action the node's mirror list below lacks, a rule
 that no longer finds the text it changes (its `anchor` warning) and a local action the port does
 not generate (its `local-action-unported` warning) are printed as warnings, so that a workflow
@@ -30,7 +30,7 @@ bun tools/cli/scripts/forgejo-port.ts report               # what the port does 
 bun tools/cli/scripts/forgejo-port.ts check                # fail on a problem, a rule with nothing to change, a local action left as GitHub's, a stale declared-checks.yml
 bun tools/cli/scripts/forgejo-port.ts check --runner PATH  # also hold every file to a forgejo-runner
 bun tools/cli/scripts/forgejo-port.ts generate [--write]   # the files of .forgejo/ (the cut-over); --force to overwrite what differs
-bun tools/cli/scripts/forgejo-port.ts checks [--write]     # the checks the merge train declares
+bun tools/cli/scripts/forgejo-port.ts checks [--write]     # the checks a pull request waits for
 bun tools/cli/scripts/forgejo-port.ts github [--write]     # the edits GitHub's copies of the workflows that stay need
 ```
 
@@ -45,17 +45,16 @@ until `--force` is given.
 
 | Where | What | Why |
 | --- | --- | --- |
-| Triggers | `merge_group` and `repository_dispatch` are removed; `push` runs for `mq/**` with no `paths`; `pull_request` loses the types Forgejo has no event for | Forgejo fires neither event, and a batch of the merge train is a push to `mq/<batch>-<attempt>`. A new branch has no "before" to compare paths with |
+| Triggers | `repository_dispatch` is removed; `pull_request` loses the types Forgejo has no event for; the rest stay as GitHub has them, and a path that names a file the port generates names its Forgejo copy | Forgejo fires no such event, and a push to main is validated as GitHub validates it |
 | Release candidate | the `candidate-source` and `candidate-gate` jobs, `run-name`, and every condition on them | the candidate runs are GitHub's dispatch, which only the release lane on GitHub receives |
 | Conditions | folded by what the port knows (the events the workflow has, the jobs it lost, the size of a matrix); a job or step that can never run is removed; a condition that called `always()`, `cancelled()`, `failure()` or `success()` still calls one when it folds to true | Forgejo evaluates `if` on the runner, so a skipped job still takes a runner; an `if:` that calls no status function waits for its `needs` to succeed |
-| Merge group | `github.event_name == 'merge_group'` reads `push` | a batch is a push, and the only pushes a ported workflow has are batches |
-| Scope | the `ci-scope` step is replaced by what it answers for the tier (below); Security runs on every pull request | the answer is a function of the event, and the files a pull request touches need GitHub's API |
-| Readiness | each `CI ready (…)` job runs `forgejo-port/ready.ts`, which hands the needs to Tale's own policy (`../ci-ready.ts`) as a pull request or as a merge group, by the tier | the check the merge train reads is the one the merge queue read |
+| Scope | the `ci-scope` step is replaced by what it answers when a run owes everything (below); Security runs on every pull request | the answer is then a function of the event, and the files a pull request touches need GitHub's API |
+| Readiness | each `CI ready (…)` job runs `forgejo-port/ready.ts`, which hands a pull request's needs to Tale's own policy (`../ci-ready.ts`) | the check a pull request waits for is the one GitHub's pull request waits for |
 | Services | `services:` become `docker run` steps on the loopback address; a service's `credentials` and `volumes` are not carried over and are reported as warnings | a runner in host mode never starts them |
 | Matrix | `strategy.job-total` is written as the number; rows whose runner the pool does not serve are removed | the runner leaves `job-total` empty, and a label it does not serve falls back to a Docker image instead of waiting |
 | Actions | each external action is kept, replaced, dropped or refused from one table (`actions.ts`) | the node mirrors every action a workflow pins; the artifact actions have Forgejo forks; the runner cache is per instance |
-| Registry | CI images go to `git.tale.dev` with the token of the secret `CI_PACKAGES_TOKEN`; BuildKit's `type=gha` cache becomes a registry cache written by batches | the job token can log in but cannot push a package |
-| Link check | `lint:links` runs with `LINT_LINKS_BASE` set to the merge base with main, and the Format job fetches the whole history | GitHub checks a pull request out as a merge commit, so `HEAD^1` is the base there; a Forgejo run checks out the pull request's head and a batch is one commit per pull request, so `HEAD^1` would hide a page retired in an earlier commit |
+| Registry | CI images go to `git.tale.dev` with the token of the secret `CI_PACKAGES_TOKEN`; BuildKit's `type=gha` cache becomes a registry cache written by pushes to main | the job token can log in but cannot push a package |
+| Link check | `lint:links` runs with `LINT_LINKS_BASE` set to the merge base with main on a pull request and to the commit before it on a push, and the Format job fetches the whole history | GitHub checks a pull request out as a merge commit, so `HEAD^1` is the base there; a Forgejo run checks out the pull request's head, so `HEAD^1` would hide a page retired in an earlier commit of it |
 | Release feed | `GITHUB_TOKEN` handed to a build becomes the secret `CI_GITHUB_TOKEN` | the web site's release feed calls api.github.com, which does not know Forgejo's token |
 | Publisher | `publish-packages.yml` pushes to the Forgejo repository and runs on a `v*.*.*` tag as well | the push mirror makes GitHub's refs exactly Forgejo's, so snapshots and pins must be made there |
 
@@ -63,28 +62,17 @@ The rules are in `rules.ts`, `scope.ts`, `triggers.ts`, `actions.ts`, `cache.ts`
 `workflow-rules.ts`; the folder is `expression.ts` and `workflow.ts`; `manifest.ts` is the
 one place that names a workflow, a label, a secret or a file.
 
-## Tiers
+## What a pull request owes
 
-A batch of the merge train, a push to `mq/**`, owes every job of every workflow. What a pull
-request owes is the tier, set for all workflows by `tier` in `manifest.ts` and for one by the
-`tier` of its plan; `--tier` replaces it for one run of the command.
-
-| Tier | A pull request owes | Why |
-| --- | --- | --- |
-| `full` (the manifest's) | what a batch owes | a failure shows on the pull request, where its author is, and not in the train, where it costs a rebuild of the batch |
-| `fast` | what the workflow says: since `main` lands each pull request on its own, every suite | GitHub's pull request tier, which CI.md describes |
-
-Both tiers hand each `CI ready (…)` job to Tale's own policy; `full` as a merge group, `fast` as
-a pull request.
-
-Since GitHub's workflows hold no suite back from a pull request, the two tiers run the same
-jobs on one; they differ only in that readiness.
+Every suite of every workflow, whatever files it touches: listing them would take GitHub's API,
+so its scope steps answer that it owes everything. Each pull request lands on its own once its
+`CI ready (…)` checks pass, as on GitHub.
 
 ## What the node must hold
 
 | Of | What the generated workflows need |
 | --- | --- |
-| Mirrors (the instance resolves `uses:` at itself) | `actions/checkout`, `actions/setup-node`, `aquasecurity/trivy-action`, `astral-sh/setup-uv`, `docker/bake-action`, `docker/build-push-action`, `docker/login-action`, `docker/setup-buildx-action`, `forgejo/download-artifact`, `forgejo/upload-artifact`, `oven-sh/setup-bun`; and the pins those actions resolve before a job starts: `aquasecurity/setup-trivy`, `actions/cache` |
+| Mirrors (the instance resolves `uses:` at itself) | `actions/checkout`, `actions/setup-node`, `aquasecurity/trivy-action`, `astral-sh/setup-uv`, `docker/bake-action`, `docker/build-push-action`, `docker/login-action`, `docker/setup-buildx-action`, `dorny/paths-filter`, `forgejo/download-artifact`, `forgejo/upload-artifact`, `oven-sh/setup-bun`; and the pins those actions resolve before a job starts: `aquasecurity/setup-trivy`, `actions/cache` |
 | Runner labels | `ubuntu-latest` and `ubuntu-24.04`, in host mode |
 | Runner image | Bun, Node, git, jq, Docker with buildx and compose, and passwordless `sudo` for the runner's user; 4 CPUs, 16 GiB of memory (Type check gives Node a 6 GiB heap) and 80 GiB of disk (Build reclaims space down to 40 GiB free before it pulls the images) |
 | Secrets of the repository | `CI_PACKAGES_TOKEN`, a token that may write packages (the job's own token logs in to the registry but cannot push), and `CI_GITHUB_TOKEN`, a read-only GitHub token for the web site's release feed |
@@ -112,7 +100,7 @@ a ref only GitHub made.
 
 ## Checks
 
-`declared-checks.yml` lists the checks the merge train waits for, one `CI ready (…)` per
+`declared-checks.yml` lists the checks a pull request waits for, one `CI ready (…)` per
 workflow. `check` fails when it differs from what the port generates; `checks --write`
 rewrites it.
 
@@ -167,4 +155,4 @@ check.
 3. `github --write` in a branch of the GitHub repository, merged before the push mirror is
    switched on; set the repository variable `TALE_SOURCE` to `forgejo` when it is.
 4. The ops repository's `docs/guides/tale-cutover.md` has the rest: the accounts, the
-   secrets, the merge train's declaration and the order.
+   secrets, the checks main requires and the order.

@@ -219,8 +219,8 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 
 ## A green check is not always a run
 
-The eight workflow-specific **CI ready** terminal jobs judge complete native PR/merge-group
-dependencies and validated scope. Their source contract, conditional limits and
+The eight workflow-specific **CI ready** terminal jobs judge complete native PR dependencies
+and validated scope. Their source contract, conditional limits and
 separate required-check activation procedure are in [`.github/CI.md`](../.github/CI.md).
 They do not replace independent review or the release-candidate gate.
 
@@ -287,8 +287,8 @@ type error or raise the budget.
 
 The **Backend integration** check is always a run: it calls `backend:integration` directly,
 never through turbo, with `ITEST_REQUIRE_ALL_LANES=1`, so a lane that cannot run fails instead of
-skipping. Its **Integration scope** job owes it to every push to `main`, merge group and release
-candidate, and to a pull request that touches the backend, its libraries, either database's
+skipping. Its **Integration scope** job owes it to every push to `main` and release candidate,
+and to a pull request that touches the backend, its libraries, either database's
 migrations, the database image, the object-store pin, the dependencies or `checks.yml`; on other
 pull requests the check reads skipped, and when the scope job itself fails the check fails. The
 path list is held to every module the harness imports and every file it reads by

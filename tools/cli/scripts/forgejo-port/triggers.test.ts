@@ -5,10 +5,7 @@ import { emptyReport, readWorkflow, writeWorkflow } from './workflow';
 
 function rewrite(
   on: string,
-  options: {
-    keepMainPush?: boolean;
-    dropEvents?: { name: string; why: string }[];
-  } = {},
+  options: { dropEvents?: { name: string; why: string }[] } = {},
 ) {
   const doc = readWorkflow(
     `name: W\n${on}\njobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: x\n`,
@@ -21,10 +18,8 @@ function rewrite(
 }
 
 describe('rewriteTriggers', () => {
-  test('drops what Forgejo never fires and adds the train, as for commitlint.yml', () => {
+  test('drops what Forgejo never fires and keeps the rest as GitHub has it, as for commitlint.yml', () => {
     const { result, written } = rewrite(`on:
-  merge_group:
-    types: [checks_requested]
   repository_dispatch:
     types: [release-candidate]
   pull_request:
@@ -36,19 +31,14 @@ describe('rewriteTriggers', () => {
       - main
 `);
     expect(result.events).toEqual(['pull_request', 'push']);
-    expect(result.validatedInQueue).toBe(true);
-    expect(written).not.toContain('merge_group');
     expect(written).not.toContain('repository_dispatch');
     expect(written).not.toContain('ready_for_review');
     expect(written).toContain('types: [opened, synchronize, reopened]');
-    expect(written).toMatch(/push:\n {4}branches: \['mq\/\*\*'\]/);
-    expect(written).toContain('- main');
+    expect(written).toMatch(/push:\n {4}branches:\n {6}- main\n/);
   });
 
-  test('adds a push for the train to a workflow that had only the merge queue, as e2e.yml', () => {
+  test('adds no push to a workflow that has none, as e2e.yml', () => {
     const { result, written } = rewrite(`on:
-  merge_group:
-    types: [checks_requested]
   repository_dispatch:
     types: [release-candidate]
   pull_request:
@@ -61,14 +51,13 @@ describe('rewriteTriggers', () => {
       'pull_request',
       'schedule',
       'workflow_dispatch',
-      'push',
     ]);
-    expect(written).toContain("branches: ['mq/**']");
+    expect(written).not.toContain('push');
     expect(written).toContain("cron: '30 2 * * *'");
   });
 
-  test('takes the paths off a push, since a new branch has no files to compare', () => {
-    const { written } = rewrite(`on:
+  test('keeps the paths of a push to main, which has the commit before it to compare with', () => {
+    const { result, written } = rewrite(`on:
   pull_request:
     branches: [main]
   push:
@@ -76,16 +65,17 @@ describe('rewriteTriggers', () => {
     paths:
       - 'services/**'
       - 'bun.lock'
-  merge_group:
 `);
-    expect(written).not.toContain('paths');
-    expect(written).not.toContain('services/**');
-    expect(written).toContain("branches: ['mq/**']");
+    expect(result.events).toEqual(['pull_request', 'push']);
+    expect(written).toMatch(
+      /push:\n {4}branches: \[main\]\n {4}paths:\n {6}- 'services\/\*\*'\n {6}- 'bun\.lock'\n/,
+    );
   });
 
   test('removes a workflow_dispatch that exists for release candidates, as build.yml', () => {
     const { result, written } = rewrite(`on:
-  merge_group:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       candidate_sha:
@@ -131,13 +121,12 @@ describe('rewriteTriggers', () => {
 
   test('keeps a manual dispatch with other inputs', () => {
     const { result } = rewrite(`on:
-  merge_group:
   workflow_dispatch:
     inputs:
       profile:
         type: string
 `);
-    expect(result.events).toEqual(['workflow_dispatch', 'push']);
+    expect(result.events).toEqual(['workflow_dispatch']);
   });
 
   test('leaves a publisher alone: a push to main is what it is for', () => {
@@ -150,22 +139,8 @@ describe('rewriteTriggers', () => {
       release_tag:
         required: false
 `);
-    expect(result.validatedInQueue).toBe(false);
     expect(result.events).toEqual(['push', 'workflow_dispatch']);
     expect(written).toContain("paths: ['packages/ui/**']");
-    expect(written).not.toContain('mq/');
-  });
-
-  test('keeps the default branch too when the workflow publishes after a merge', () => {
-    const { written } = rewrite(
-      `on:
-  push:
-    branches: [main]
-  merge_group:
-`,
-      { keepMainPush: true },
-    );
-    expect(written).toContain("branches: [main, 'mq/**']");
   });
 
   test('reads the scalar and list forms of on', () => {
@@ -174,15 +149,14 @@ describe('rewriteTriggers', () => {
       'push',
       'pull_request',
     ]);
-    expect(rewrite('on: [merge_group, pull_request]').result.events).toEqual([
-      'pull_request',
-      'push',
-    ]);
+    expect(
+      rewrite('on: [repository_dispatch, pull_request]').result.events,
+    ).toEqual(['pull_request']);
   });
 
   test('says what it did', () => {
     const { report } = rewrite(`on:
-  merge_group:
+  workflow_run:
   repository_dispatch:
   pull_request:
     types: [opened, ready_for_review]
@@ -191,7 +165,6 @@ describe('rewriteTriggers', () => {
       'trigger-dead',
       'trigger-dead',
       'trigger-type',
-      'trigger-train',
     ]);
   });
 });

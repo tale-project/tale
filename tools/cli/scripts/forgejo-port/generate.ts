@@ -16,16 +16,10 @@ import {
   rewriteLocalActions,
 } from './actions';
 import { buildCache } from './cache';
-import type { Rule, Tier } from './context';
-import {
-  MANIFEST,
-  planFor,
-  tierOf,
-  type Manifest,
-  type Plan,
-} from './manifest';
+import type { Rule } from './context';
+import { MANIFEST, planFor, type Manifest, type Plan } from './manifest';
 import { portAction, portWorkflow } from './port';
-import { defaultRules } from './rules';
+import { DEFAULT_RULES } from './rules';
 import { validateAction, validateWorkflow, type Problem } from './validate';
 import {
   emptyReport,
@@ -35,8 +29,6 @@ import {
   type Report,
 } from './workflow';
 import {
-  batchEvent,
-  commitlintBatch,
   dropForeignRows,
   dropJobs,
   githubApiToken,
@@ -67,15 +59,13 @@ export interface WorkflowOutcome {
   /** The jobs of the GitHub file that are not in the generated one, with why. */
   readonly removed: ReadonlyMap<string, string>;
   readonly events: readonly string[];
-  /** What a pull request owes of it. */
-  readonly tier?: Tier;
 }
 
 export interface Generated {
   /** Repository path to text. */
   readonly files: ReadonlyMap<string, string>;
   readonly outcomes: readonly WorkflowOutcome[];
-  /** `<workflow> / <job>` of every readiness job: what the merge train reads. */
+  /** `<workflow> / <job>` of every readiness job: what a pull request waits for. */
   readonly checks: readonly string[];
   readonly report: Report;
   /** What Forgejo would refuse in the files above. Empty when the port is sound. */
@@ -96,15 +86,20 @@ function rulesFor(
   plan: Extract<Plan, { kind: 'port' }>,
   manifest: Manifest,
 ): Rule[] {
-  const moves = manifest.scripts.map((script) => ({
-    from: script.from,
-    to: script.to,
-  }));
+  const moves = [
+    ...manifest.scripts.map((script) => ({ from: script.from, to: script.to })),
+    // A push to main runs for the paths GitHub's workflow lists, and the composites
+    // it names are edited in their Forgejo copies.
+    ...manifest.composites.map((name) => ({
+      from: `.github/actions/${name}/`,
+      to: `${ACTION_DIR}/${name}/`,
+    })),
+  ];
   return [
     dropJobs(plan.dropJobs ?? []),
-    ...defaultRules(tierOf(manifest, plan)),
+    ...DEFAULT_RULES,
     dropForeignRows(manifest.labels),
-    readyJob(tierOf(manifest, plan)),
+    readyJob,
     rewriteActions,
     buildCache,
     registryLogin(manifest.registry),
@@ -114,8 +109,6 @@ function rulesFor(
     }),
     movePaths(moves),
     runUrls,
-    batchEvent,
-    commitlintBatch,
     lintLinksBase,
     publishRemote,
     publishOnTag,
@@ -156,7 +149,6 @@ export function generate(
       jobs: ported.jobs,
       removed: ported.removed,
       events: ported.events,
-      tier: tierOf(manifest, plan),
     });
     problems.push(...validateWorkflow(text, path, { labels: manifest.labels }));
     const doc = readWorkflow(ported.text, file);

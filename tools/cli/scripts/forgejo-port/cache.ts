@@ -6,8 +6,8 @@
  * reaches out to api.github.com for the cache's bookkeeping. The cache that works
  * is a registry cache in Forgejo's own registry. The build job already reads one
  * (`...-buildcache:amd64`, which release.yml writes); here the build job also
- * writes it, for a push of the merge train only: a pull request never writes a
- * cache another run reads.
+ * writes it, for a push to main only, as it writes GitHub's: a pull request never
+ * writes a cache another run reads.
  *
  * The site images (web, docs, ui-docs) and the database image the integration job
  * builds have no registry login before their cache step, which a registry cache
@@ -28,7 +28,7 @@ const BUILD_CACHE_TO =
   /^\$\{\{\s*github\.event_name == 'push' && github\.ref == 'refs\/heads\/main' && format\('type=gha,scope=\{0\},mode=max,ghtoken=\{1\},repository=\{2\}', matrix\.service, secrets\.GITHUB_TOKEN, github\.repository\) \|\| ''\s*\}\}$/;
 
 const REGISTRY_CACHE_TO =
-  "${{ github.event_name == 'push' && format('type=registry,ref={0}/{1}/tale-{2}-buildcache:amd64,mode=max,ignore-error=true,compression=zstd', env.REGISTRY, github.repository, matrix.service) || '' }}";
+  "${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('type=registry,ref={0}/{1}/tale-{2}-buildcache:amd64,mode=max,ignore-error=true,compression=zstd', env.REGISTRY, github.repository, matrix.service) || '' }}";
 
 const CACHE_KEYS = ['cache-from', 'cache-to', 'set'] as const;
 
@@ -61,7 +61,7 @@ export const buildCache: Rule = (doc, context) => {
             at: where,
             rule: 'build-cache',
             detail:
-              'the main-only GitHub cache export is a registry cache export for the merge train',
+              'the main-only GitHub cache export is a main-only registry cache export',
           });
           continue;
         }

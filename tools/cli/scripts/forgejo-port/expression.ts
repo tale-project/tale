@@ -3,7 +3,7 @@
  * printer and a constant folder.
  *
  * The Forgejo port rewrites workflows that were written for GitHub. Where an event
- * can never happen on Forgejo (`repository_dispatch`, `merge_group`) or a job is
+ * can never happen on Forgejo (`repository_dispatch`, `workflow_run`) or a job is
  * left out (`candidate-source`), the conditions that mention them are decided at
  * generation time instead of being carried into a file somebody has to maintain.
  * That takes real expressions, not text substitution: a condition such as
@@ -381,20 +381,15 @@ export interface Facts {
   /**
    * The strings a path can be, when it can only be one of a few: a workflow that
    * declares `push` and `pull_request` can only run as `github.event_name` of
-   * either, so a comparison with `merge_group` is decided.
+   * either, so a comparison with `schedule` is decided.
    */
   readonly oneOf?: ReadonlyMap<string, readonly string[]>;
   /**
    * Paths whose value depends on a condition that only holds, or not, when the run
-   * starts: a scope output is `'false'` for a pull request and `''` for a batch.
+   * starts: a scope job's result is `'success'` for a pull request and `'skipped'` for
+   * a push.
    */
   readonly conditional?: ReadonlyMap<string, Conditional>;
-  /**
-   * Strings that mean another string when a path is compared with them, lowercase:
-   * a batch of the merge train is a push here, so `github.event_name == 'merge_group'`
-   * asks whether this run is one.
-   */
-  readonly aliases?: ReadonlyMap<string, ReadonlyMap<string, string>>;
 }
 
 /** A value that is `ifTrue` when `when` holds and `ifFalse` when it does not. */
@@ -601,20 +596,6 @@ function compareConditional(
   return decide(node.left, node.right) ?? decide(node.right, node.left);
 }
 
-/** The literal a path is compared with, in the words this run uses for it. */
-function aliasLiteral(pathSide: Expr, literalSide: Expr, facts: Facts): Expr {
-  const path = contextPath(pathSide);
-  const table = path === undefined ? undefined : facts.aliases?.get(path);
-  if (
-    !table ||
-    !isLiteral(literalSide) ||
-    typeof literalSide.value !== 'string'
-  )
-    return literalSide;
-  const renamed = table.get(literalSide.value.toLowerCase());
-  return renamed === undefined ? literalSide : literalOf(renamed);
-}
-
 /** What a comparison of a path with a string is, when the path can only be one of a few strings. */
 function decidedByOneOf(
   left: Expr,
@@ -675,12 +656,9 @@ function simplifyBinary(
     const conditional = compareConditional(node, facts);
     if (conditional) return conditional;
   }
-  let left = simplify(node.left, facts, 'value');
-  let right = simplify(node.right, facts, 'value');
+  const left = simplify(node.left, facts, 'value');
+  const right = simplify(node.right, facts, 'value');
   if (op === '==' || op === '!=') {
-    const [leftPath, rightPath] = [left, right];
-    left = aliasLiteral(rightPath, left, facts);
-    right = aliasLiteral(leftPath, right, facts);
     if (isLiteral(left) && isLiteral(right)) {
       const equal = looseEquals(left.value, right.value);
       return { kind: 'literal', value: op === '==' ? equal : !equal };

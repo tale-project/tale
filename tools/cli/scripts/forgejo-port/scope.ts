@@ -1,18 +1,12 @@
 /**
- * The scope of a run: which suites a pull request owes and which only a batch of the
- * merge train does.
+ * The scope of a run: which suites it owes.
  *
  * On GitHub a `ci-scope` step answers that: a pull request owes the suites its paths
- * touch, every other event owes everything. A step that passes `queue-only: 'true'`
- * holds its suite back from pull requests: one then owes nothing and reports so without
- * looking at its files. Tale's workflows hold nothing back since `main` lands each pull
- * request on its own. The answers are a function of the event, so the port does not run
- * the step: it teaches the folder what each output is for a pull request and for
- * anything else, and the conditions that read it fold into conditions on the event.
- *
- * What a pull request owes is the tier. `fast` keeps what the workflow says. `full` makes
- * a pull request owe what a batch owes, so that a failure shows on the pull request and
- * not in the train.
+ * touch, every other event owes everything. Which files a pull request touches takes
+ * GitHub's API, so on Forgejo a pull request owes everything too, and lands on its own
+ * with its full suite. The answers are then a function of the event, so the port does
+ * not run the step: it teaches the folder what each output is for a pull request and
+ * for anything else, and the conditions that read it fold into conditions on the event.
  *
  * The one thing it does not carry over is Security's path filter: Security runs on
  * every pull request, which costs a few runner-minutes for two lockfile scans.
@@ -23,11 +17,9 @@ import { isMap, isScalar } from 'yaml';
 import { BUILD_FILTERS, E2E_SERVICES, buildScope, e2eScope } from '../ci-ready';
 import {
   jobKnowledge,
-  type EventResults,
   type JobResult,
   type Knowledge,
   type Rule,
-  type Tier,
 } from './context';
 import {
   ExpressionError,
@@ -62,7 +54,7 @@ const OUTPUTS = [
 type Event = 'pull_request' | 'push';
 const EVENTS: readonly Event[] = ['pull_request', 'push'];
 
-/** `push` stands for every event that is not a pull request: a batch, a schedule, a dispatch. */
+/** `push` stands for every event that is not a pull request: a push, a schedule, a dispatch. */
 const PULL_REQUEST = parseExpression("github.event_name == 'pull_request'");
 
 function usesOf(step: unknown): string | undefined {
@@ -91,7 +83,7 @@ function inputText(inputs: unknown, name: string): string | undefined {
   return value === null || value === undefined ? undefined : String(value);
 }
 
-/** What the scope action answers when the run owes everything. */
+/** What the scope action answers when the run owes everything, as every run here does. */
 function fullOutputs(filter: string): Record<string, string> {
   const outputs: Record<string, string> = { run: 'true', full: 'true' };
   if (filter === 'build')
@@ -111,20 +103,6 @@ function fullOutputs(filter: string): Record<string, string> {
       ),
     );
   return outputs;
-}
-
-/** What it answers for each kind of run. */
-function scopeOutputs(
-  filter: string,
-  queueOnly: boolean,
-  tier: Tier,
-): Record<Event, Record<string, string>> {
-  const full = fullOutputs(filter);
-  return {
-    pull_request:
-      queueOnly && tier === 'fast' ? { run: 'false', full: 'false' } : full,
-    push: full,
-  };
 }
 
 /** Whether something with this condition runs for this kind of run; `undefined` when more than the event decides. */
@@ -181,136 +159,133 @@ function stepOutputPath(value: unknown): string | undefined {
   }
 }
 
-export function ciScope(tier: Tier): Rule {
-  return (doc, context) => {
-    const { file, report, knowledge, removed, results } = context;
-    const warn = (at: string, detail: string): void => {
-      report.warnings.push({ file, at, rule: 'scope', detail });
-    };
+export const ciScope: Rule = (doc, context) => {
+  const { file, report, knowledge, removed, results } = context;
+  const warn = (at: string, detail: string): void => {
+    report.warnings.push({ file, at, rule: 'scope', detail });
+  };
 
-    for (const id of jobIds(doc)) {
-      const job = jobOf(doc, id);
-      const steps = job && stepsOf(job);
-      if (!job || !steps) continue;
-      const scoping = steps.items.filter(isScopeStep);
-      if (scoping.length === 0) continue;
-      const at = `jobs.${id}`;
-      const inJob = jobKnowledge(knowledge, id);
+  for (const id of jobIds(doc)) {
+    const job = jobOf(doc, id);
+    const steps = job && stepsOf(job);
+    if (!job || !steps) continue;
+    const scoping = steps.items.filter(isScopeStep);
+    if (scoping.length === 0) continue;
+    const at = `jobs.${id}`;
+    const inJob = jobKnowledge(knowledge, id);
 
-      // What each scope step reports where it runs, by the path a later step or job reads.
-      const reported = new Map<string, Record<Event, string>>();
-      let understood = true;
-      for (const step of scoping) {
-        if (!isMap(step)) continue;
-        const stepId = stringOf(step.get('id'));
-        const inputs = step.get('with');
-        const filter = inputText(inputs, 'filter');
-        if (stepId === undefined || filter === undefined) {
-          warn(at, 'a scope step with no id or no filter: left as it is');
-          understood = false;
-          continue;
-        }
-        const queueOnly = inputText(inputs, 'queue-only') === 'true';
-        const answers = scopeOutputs(filter, queueOnly, tier);
-        const ran = EVENTS.map((event) => ranOn(conditionOf(step), event));
-        if (ran.some((value) => value === undefined)) {
-          warn(
-            at,
-            `the scope step \`${stepId}\` runs on more than the event decides: left as it is`,
-          );
-          understood = false;
-          continue;
-        }
-        for (const name of OUTPUTS) {
-          const values = Object.fromEntries(
-            EVENTS.map((event, index) => [
-              event,
-              ran[index] ? (answers[event][name] ?? '') : '',
-            ]),
-          ) as Record<Event, string>;
-          reported.set(`steps.${stepId}.outputs.${name}`, values);
-          teach(inJob, `steps.${stepId}.outputs.${name}`, values);
-        }
-      }
-      if (!understood) continue;
-
-      const pure = steps.items.every(
-        (step) =>
-          (isScopeStep(step) || isScopeCheckout(step)) &&
-          isMap(step) &&
-          conditionOf(step) === undefined,
-      );
-      if (!pure) {
-        for (let index = steps.items.length - 1; index >= 0; index -= 1) {
-          const step = steps.items[index];
-          if (!isScopeStep(step) && !isScopeCheckout(step)) continue;
-          steps.items.splice(index, 1);
-          report.changes.push({
-            file,
-            at: `${at}.steps[${index}]`,
-            rule: 'scope-step',
-            detail:
-              'removed: what the step answers is a function of the event, so the conditions that read it say so',
-          });
-        }
+    // What each scope step reports where it runs, by the path a later step or job reads.
+    const reported = new Map<string, Record<Event, string>>();
+    let understood = true;
+    for (const step of scoping) {
+      if (!isMap(step)) continue;
+      const stepId = stringOf(step.get('id'));
+      const inputs = step.get('with');
+      const filter = inputText(inputs, 'filter');
+      if (stepId === undefined || filter === undefined) {
+        warn(at, 'a scope step with no id or no filter: left as it is');
+        understood = false;
         continue;
       }
-
-      // A job that only asks for the scope: its result and outputs are functions of the event too.
-      const jobRan = EVENTS.map((event) => ranOn(conditionOf(job), event));
-      if (jobRan.some((value) => value === undefined)) {
+      const answers = fullOutputs(filter);
+      const ran = EVENTS.map((event) => ranOn(conditionOf(step), event));
+      if (ran.some((value) => value === undefined)) {
         warn(
           at,
-          'a scope job that runs on more than the event decides: left as it is',
+          `the scope step \`${stepId}\` runs on more than the event decides: left as it is`,
         );
+        understood = false;
         continue;
       }
-      const declared = job.get('outputs');
-      const outputPaths = new Map<string, string>();
-      if (isMap(declared)) {
-        for (const pair of declared.items) {
-          const name = stringOf(pair.key);
-          const path = stepOutputPath(pair.value);
-          if (name !== undefined && path !== undefined && reported.has(path))
-            outputPaths.set(name, path);
-        }
-      }
-      const perEvent = Object.fromEntries(
-        EVENTS.map((event, index): [Event, JobResult] => {
-          const outputs: Record<string, string> = {};
-          for (const [name, path] of outputPaths)
-            outputs[name] = jobRan[index]
-              ? (reported.get(path)?.[event] ?? '')
-              : '';
-          return [
+      for (const name of OUTPUTS) {
+        const values = Object.fromEntries(
+          EVENTS.map((event, index) => [
             event,
-            { result: jobRan[index] ? 'success' : 'skipped', outputs },
-          ];
-        }),
-      ) as unknown as EventResults;
-      teach(knowledge, `needs.${id}.result`, {
-        pull_request: perEvent.pull_request.result,
-        push: perEvent.push.result,
-      });
-      for (const name of outputPaths.keys())
-        teach(knowledge, `needs.${id}.outputs.${name}`, {
-          pull_request: perEvent.pull_request.outputs[name] ?? '',
-          push: perEvent.push.outputs[name] ?? '',
-        });
-      knowledge.jobs.delete(id);
-      removeJobs(doc, [id]);
-      removed.set(
-        id,
-        'scope: what it reports is a function of the event, so the jobs that read it say so',
-      );
-      results.set(id, perEvent);
-      report.changes.push({
-        file,
-        at,
-        rule: 'scope-job',
-        detail:
-          'removed: a pull request owes only what is not held for the merge train, a batch owes everything',
-      });
+            ran[index] ? (answers[name] ?? '') : '',
+          ]),
+        ) as Record<Event, string>;
+        reported.set(`steps.${stepId}.outputs.${name}`, values);
+        teach(inJob, `steps.${stepId}.outputs.${name}`, values);
+      }
     }
-  };
-}
+    if (!understood) continue;
+
+    const pure = steps.items.every(
+      (step) =>
+        (isScopeStep(step) || isScopeCheckout(step)) &&
+        isMap(step) &&
+        conditionOf(step) === undefined,
+    );
+    if (!pure) {
+      for (let index = steps.items.length - 1; index >= 0; index -= 1) {
+        const step = steps.items[index];
+        if (!isScopeStep(step) && !isScopeCheckout(step)) continue;
+        steps.items.splice(index, 1);
+        report.changes.push({
+          file,
+          at: `${at}.steps[${index}]`,
+          rule: 'scope-step',
+          detail:
+            'removed: what the step answers is a function of the event, so the conditions that read it say so',
+        });
+      }
+      continue;
+    }
+
+    // A job that only asks for the scope: its result and outputs are functions of the event too.
+    const jobRan = EVENTS.map((event) => ranOn(conditionOf(job), event));
+    if (jobRan.some((value) => value === undefined)) {
+      warn(
+        at,
+        'a scope job that runs on more than the event decides: left as it is',
+      );
+      continue;
+    }
+    const declared = job.get('outputs');
+    const outputPaths = new Map<string, string>();
+    if (isMap(declared)) {
+      for (const pair of declared.items) {
+        const name = stringOf(pair.key);
+        const path = stepOutputPath(pair.value);
+        if (name !== undefined && path !== undefined && reported.has(path))
+          outputPaths.set(name, path);
+      }
+    }
+    const perEvent = Object.fromEntries(
+      EVENTS.map((event, index): [Event, JobResult] => {
+        const outputs: Record<string, string> = {};
+        for (const [name, path] of outputPaths)
+          outputs[name] = jobRan[index]
+            ? (reported.get(path)?.[event] ?? '')
+            : '';
+        return [
+          event,
+          { result: jobRan[index] ? 'success' : 'skipped', outputs },
+        ];
+      }),
+    ) as Record<Event, JobResult>;
+    teach(knowledge, `needs.${id}.result`, {
+      pull_request: perEvent.pull_request.result,
+      push: perEvent.push.result,
+    });
+    for (const name of outputPaths.keys())
+      teach(knowledge, `needs.${id}.outputs.${name}`, {
+        pull_request: perEvent.pull_request.outputs[name] ?? '',
+        push: perEvent.push.outputs[name] ?? '',
+      });
+    knowledge.jobs.delete(id);
+    removeJobs(doc, [id]);
+    removed.set(
+      id,
+      'scope: what it reports is a function of the event, so the jobs that read it say so',
+    );
+    results.set(id, perEvent.pull_request);
+    report.changes.push({
+      file,
+      at,
+      rule: 'scope-job',
+      detail:
+        'removed: what it reports is a function of the event, and a pull request owes everything',
+    });
+  }
+};

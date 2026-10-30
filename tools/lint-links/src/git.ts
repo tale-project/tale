@@ -78,7 +78,7 @@ export type BaseResolution =
  * The commit a change is compared with. `LINT_LINKS_BASE` names it
  * explicitly. In GitHub Actions it is `HEAD^1`: a pull request is checked
  * out as GitHub's merge commit, whose first parent is the base branch, and
- * a push or a merge group as the commit on top of it — so the checkout
+ * a push as the commit on top of it — so the checkout
  * needs `fetch-depth: 2`, and a missing parent is an error, never a skip.
  * Anywhere else it is the merge base with `origin/main`; without one the
  * retirement rules are skipped with a warning.

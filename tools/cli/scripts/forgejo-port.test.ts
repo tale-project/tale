@@ -11,6 +11,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { parse } from 'yaml';
+
 import {
   DECLARED_CHECKS,
   README,
@@ -70,7 +72,7 @@ jobs:
 
 const CHECKS = `name: Checks
 on:
-  merge_group:
+  push:
   pull_request:
 jobs:
   lint:
@@ -91,7 +93,7 @@ jobs:
   ci-ready:
     name: CI ready (Checks)
     needs: [lint, format]
-    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    if: always() && github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout verdict policy
@@ -112,7 +114,6 @@ jobs:
 `;
 
 const SMALL: Manifest = {
-  tier: 'full',
   registry: { host: 'git.example.test', tokenSecret: 'CI_PACKAGES_TOKEN' },
   githubApiTokenSecret: 'CI_GITHUB_TOKEN',
   labels: ['ubuntu-latest'],
@@ -182,7 +183,7 @@ describe('describe, compare and writeGenerated', () => {
     const generated = generate(readSources(root, SMALL), SMALL);
     const lines = describeGenerated(generated);
     expect(lines.join('\n')).toContain(
-      'checks.yml: ported; a pull request owes what a batch owes',
+      'checks.yml: ported; on push, pull_request; 3 jobs',
     );
     expect(lines.join('\n')).toContain('publish-packages.yml: github; stays');
     expect(lines).toContain('  Checks / CI ready (Checks)');
@@ -243,8 +244,8 @@ describe('the command line', () => {
     const root = repository();
     run(root, 'checks', '--write');
     const text = readFileSync(join(root, DECLARED_CHECKS), 'utf8');
-    expect(text).toContain('deployments/tale/merge-train/pr/repositories.yml');
-    put(root, DECLARED_CHECKS, text.replace('merge-train', 'train'));
+    expect(text).toContain("the checks Forgejo's protection of main requires");
+    put(root, DECLARED_CHECKS, text.replace('of main', 'of trunk'));
     const drifted = run(root, 'check');
     expect(drifted.code).toBe(1);
     expect(drifted.err.join('\n')).toContain('is not what the port generates');
@@ -405,15 +406,11 @@ describe('the command line', () => {
     expect(again.out.at(-1)).toBe('wrote 0 files');
   });
 
-  test("a tier of the command line replaces the manifest's, and only fast and full are tiers", () => {
+  test('has no tier to choose: every pull request owes the whole suite', () => {
     const root = repository();
-    expect(run(root, 'report', '--tier', 'fast').out.join('\n')).toContain(
-      'checks.yml: ported; a pull request owes the fast tier',
-    );
-    expect(run(root, 'report').out.join('\n')).toContain(
-      'checks.yml: ported; a pull request owes what a batch owes',
-    );
-    expect(run(root, 'report', '--tier', 'half').code).toBe(2);
+    const tier = run(root, 'report', '--tier', 'full');
+    expect(tier.code).toBe(2);
+    expect(tier.err.join('\n')).toContain('--tier');
   });
 
   test('refuses what it does not know', () => {
@@ -429,7 +426,7 @@ describe('the command line', () => {
 describe("Tale's own workflows", () => {
   const sources = readSources(ROOT);
 
-  test('are ported without the port failing, and the checks the merge train declares are the ones listed', () => {
+  test('are ported without the port failing, and the checks a pull request waits for are the ones listed', () => {
     const generated = generate(sources);
     expect(generated.checks.length).toBeGreaterThan(0);
     expect(
@@ -440,20 +437,30 @@ describe("Tale's own workflows", () => {
       expect(path.startsWith('.forgejo/')).toBe(true);
   });
 
-  test('are ported in both tiers, with the same checks', () => {
-    const fast = generate(sources, { ...MANIFEST, tier: 'fast' });
-    const full = generate(sources, { ...MANIFEST, tier: 'full' });
-    expect(fast.checks).toEqual(full.checks);
-    expect(fast.files.size).toBe(full.files.size);
-    expect(fast.files.get('.forgejo/workflows/e2e.yml')).not.toBe(
-      full.files.get('.forgejo/workflows/e2e.yml'),
-    );
-    expect(fast.files.get('.forgejo/workflows/sast.yml')).toContain(
-      'CI_TIER: fast',
-    );
-    expect(full.files.get('.forgejo/workflows/sast.yml')).toContain(
-      'CI_TIER: full',
-    );
+  test('land each pull request on its own: a push is one to main, a verdict is for a pull request', () => {
+    const generated = generate(sources);
+    const ready: string[] = [];
+    for (const [path, text] of generated.files) {
+      if (!path.startsWith('.forgejo/workflows/')) continue;
+      const doc = parse(text) as {
+        on?: { push?: { branches?: string[] } | null };
+        jobs?: Record<
+          string,
+          { if?: string; steps?: { env?: Record<string, unknown> }[] }
+        >;
+      };
+      const branches = doc.on?.push?.branches;
+      if (branches !== undefined) expect(branches, path).toEqual(['main']);
+      const job = doc.jobs?.['ci-ready'];
+      if (!job) continue;
+      ready.push(path);
+      expect(job.if, path).toBe(
+        "always() && github.event_name == 'pull_request'",
+      );
+      for (const step of job.steps ?? [])
+        expect(Object.keys(step.env ?? {}), path).not.toContain('CI_TIER');
+    }
+    expect(ready.length).toBe(generated.checks.length);
   });
 
   test('say what Forgejo would refuse, without holding a workflow edited today to a port applied at the cut-over', () => {

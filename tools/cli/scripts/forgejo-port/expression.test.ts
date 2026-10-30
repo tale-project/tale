@@ -24,7 +24,7 @@ const forgejo: Facts = {
   ]),
   absent: [
     'github.event.client_payload',
-    'github.event.merge_group',
+    'github.event.workflow_run',
     'needs.candidate-source.outputs',
   ],
   oneOf: new Map([['github.event_name', ['pull_request', 'push']]]),
@@ -109,7 +109,7 @@ describe('parseExpression and printExpression', () => {
     const sources = [
       "!cancelled() && (((github.event_name == 'repository_dispatch') && needs.candidate-source.result == 'success') || ((github.event_name != 'repository_dispatch') && needs.candidate-source.result == 'skipped'))",
       "github.event_name == 'pull_request' && !startsWith(github.head_ref, 'dependabot/')",
-      "always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')",
+      "always() && (github.event_name == 'pull_request' || github.event_name == 'push')",
       "(needs.integration-scope.result != 'success' || needs.integration-scope.outputs.run == 'true')",
       "github.event_name == 'push' && github.ref == 'refs/heads/main'",
       "format('type=gha,scope={0},mode=max,ghtoken={1},repository={2}', matrix.service, secrets.GITHUB_TOKEN, github.repository)",
@@ -198,14 +198,14 @@ describe('simplify', () => {
 
   test('folds what it knows around a name it does not know', () => {
     expect(
-      fold("someNewContext.value || github.event_name == 'merge_group'"),
+      fold("someNewContext.value || github.event_name == 'workflow_run'"),
     ).toBe('someNewContext.value');
   });
 
-  test('drops the merge-group half of the readiness gate', () => {
+  test('drops the half of a gate that names an event the workflow does not have', () => {
     expect(
       fold(
-        "always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')",
+        "always() && (github.event_name == 'pull_request' || github.event_name == 'workflow_run')",
       ),
     ).toBe("always() && github.event_name == 'pull_request'");
   });
@@ -238,7 +238,7 @@ describe('simplify', () => {
     expect(fold('needs.candidate-source.outputs.candidate_sha', 'value')).toBe(
       'null',
     );
-    expect(fold("github.event.merge_group.base_sha == ''", 'value')).toBe(
+    expect(fold("github.event.workflow_run.head_sha == ''", 'value')).toBe(
       'true',
     );
   });
@@ -285,14 +285,14 @@ describe('simplify', () => {
   });
 
   test('negates a decided operand', () => {
-    expect(fold("!(github.event_name == 'merge_group')")).toBe('true');
-    expect(fold("!(github.event_name != 'merge_group')")).toBe('false');
+    expect(fold("!(github.event_name == 'workflow_run')")).toBe('true');
+    expect(fold("!(github.event_name != 'workflow_run')")).toBe('false');
   });
 
   test('simplifies inside calls and indexes', () => {
     expect(
       fold(
-        "contains(fromJSON(needs.x.outputs.y), github.event_name == 'merge_group' && 'a' || 'b')",
+        "contains(fromJSON(needs.x.outputs.y), github.event_name == 'workflow_run' && 'a' || 'b')",
         'value',
       ),
     ).toBe("contains(fromJSON(needs.x.outputs.y), 'b')");
@@ -304,7 +304,7 @@ describe('conditional values', () => {
   const scoped: Facts = {
     oneOf: new Map([['github.event_name', ['pull_request', 'push']]]),
     conditional: new Map([
-      // A queue-only scope: 'false' for a pull request, 'true' for a batch.
+      // A scope that is 'false' for a pull request and 'true' for a push.
       [
         'needs.scope.outputs.run',
         { when: pullRequest, ifTrue: 'false', ifFalse: 'true' },
@@ -355,14 +355,14 @@ describe('conditional values', () => {
   });
 
   test('a run of one kind decides it', () => {
-    const batch: Facts = {
+    const pushes: Facts = {
       ...scoped,
       oneOf: new Map([['github.event_name', ['push']]]),
     };
-    const foldBatch = (source: string) =>
-      printExpression(simplify(parseExpression(source), batch));
-    expect(foldBatch("needs.scope.outputs.run == 'true'")).toBe('true');
-    expect(foldBatch('needs.scope.outputs.changes')).toBe('\'["web"]\'');
+    const foldPush = (source: string) =>
+      printExpression(simplify(parseExpression(source), pushes));
+    expect(foldPush("needs.scope.outputs.run == 'true'")).toBe('true');
+    expect(foldPush('needs.scope.outputs.changes')).toBe('\'["web"]\'');
   });
 
   test('a condition and its negation fold together', () => {
@@ -397,41 +397,6 @@ describe('conditional values', () => {
     expect(() => simplify(parseExpression('x.y'), facts, 'value')).toThrow(
       ExpressionError,
     );
-  });
-});
-
-describe('aliases', () => {
-  const facts: Facts = {
-    aliases: new Map([
-      ['github.event_name', new Map([['merge_group', 'push']])],
-    ]),
-    oneOf: new Map([['github.event_name', ['pull_request', 'push']]]),
-  };
-  const read = (source: string) =>
-    printExpression(simplify(parseExpression(source), facts));
-
-  test('a batch is a push', () => {
-    expect(read("github.event_name == 'merge_group'")).toBe(
-      "github.event_name == 'push'",
-    );
-    expect(read("'Merge_Group' != github.event_name")).toBe(
-      "'push' != github.event_name",
-    );
-    expect(read("github.event_name != 'pull_request'")).toBe(
-      "github.event_name != 'pull_request'",
-    );
-  });
-
-  test('a workflow that only has pushes decides it', () => {
-    const only: Facts = {
-      ...facts,
-      oneOf: new Map([['github.event_name', ['push']]]),
-    };
-    expect(
-      printExpression(
-        simplify(parseExpression("github.event_name == 'merge_group'"), only),
-      ),
-    ).toBe('true');
   });
 });
 

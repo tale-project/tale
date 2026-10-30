@@ -291,25 +291,16 @@ export function evaluateReadiness(input: {
     if (!sameSet(Object.keys(needs), ids))
       throw new Error('Native needs must cover every classified job exactly');
     sha(input.source);
-    let fork = false;
-    if (input.event === 'pull_request') {
-      const pr = object(payload.pull_request, 'Pull request');
-      identity(pr);
-      fork = boolean(
-        object(object(pr.head, 'PR head').repo, 'PR repository').fork,
-        'Fork',
-      );
-      if (boolean(pr.draft, 'Draft'))
-        reasons.push('Draft pull request is held, not ready for merge');
-    } else if (input.event === 'merge_group') {
-      const group = object(payload.merge_group, 'Merge group');
-      sha(group.base_sha);
-      if (sha(group.head_sha) !== input.source)
-        throw new Error('Merge group source does not match the checkout');
-    } else
-      throw new Error(
-        'Readiness is only defined for pull_request and merge_group',
-      );
+    if (input.event !== 'pull_request')
+      throw new Error('Readiness is only defined for pull_request');
+    const pr = object(payload.pull_request, 'Pull request');
+    identity(pr);
+    const fork = boolean(
+      object(object(pr.head, 'PR head').repo, 'PR repository').fork,
+      'Fork',
+    );
+    if (boolean(pr.draft, 'Draft'))
+      reasons.push('Draft pull request is held, not ready for merge');
 
     const results = new Map<string, string>();
     const outputs = new Map<string, ObjectValue>();
@@ -340,22 +331,17 @@ export function evaluateReadiness(input: {
       requireResult('release', 'skipped', 'manual publication only');
 
     let applicable = true;
-    let full = input.event === 'merge_group';
+    let full = false;
     if (ids.some((id) => id === 'pr-scope')) {
-      if (input.event === 'pull_request') {
-        requireResult('pr-scope', 'success', 'validated PR scope');
-        applicable = scopeBoolean(outputs.get('pr-scope')!.run);
-        full = scopeBoolean(outputs.get('pr-scope')!.full);
-        if (full && !applicable)
-          throw new Error('Full scope cannot exclude validation');
-      } else
-        requireResult('pr-scope', 'skipped', 'merge group runs full coverage');
+      requireResult('pr-scope', 'success', 'validated PR scope');
+      applicable = scopeBoolean(outputs.get('pr-scope')!.run);
+      full = scopeBoolean(outputs.get('pr-scope')!.full);
+      if (full && !applicable)
+        throw new Error('Full scope cannot exclude validation');
     }
     if (workflow === 'checks') {
       requireResult('integration-scope', 'success', 'validated backend scope');
       const run = scopeBoolean(outputs.get('integration-scope')!.run);
-      if (full && !run)
-        throw new Error('Merge group must run backend integration');
       requireResult('backend-integration', run ? 'success' : 'skipped');
     }
     if (workflow === 'e2e' && applicable) {

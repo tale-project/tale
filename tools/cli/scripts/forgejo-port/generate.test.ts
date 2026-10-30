@@ -9,7 +9,6 @@ const SCRIPT = '.github/scripts/pull.sh';
 
 /** A manifest of its own, so that no rule of the port is held back by what the real one names. */
 const MANIFEST: Manifest = {
-  tier: 'full',
   registry: { host: 'git.example.test', tokenSecret: 'CI_PACKAGES_TOKEN' },
   githubApiTokenSecret: 'CI_GITHUB_TOKEN',
   labels: ['ubuntu-latest'],
@@ -106,7 +105,7 @@ const ROWS: Record<string, Row> = {
     rules: ['scope-job'],
     source: `name: E2E
 on:
-  merge_group:
+  push:
   pull_request:
 jobs:
   pr-scope:
@@ -123,7 +122,6 @@ jobs:
         uses: ./.github/actions/ci-scope
         with:
           filter: e2e
-          queue-only: 'true'
   suite:
     needs: [pr-scope]
     if: needs.pr-scope.outputs.run == 'true'
@@ -196,6 +194,14 @@ jobs:
     rules: ['path'],
     source: workflow(job('pull', `      - run: ${SCRIPT}\n`)),
   },
+  movePathsOfComposites: {
+    rules: ['path'],
+    text: ["- '.forgejo/actions/setup-turbo/**'"],
+    source: workflow(
+      job('lint', '      - run: echo lint\n'),
+      "    paths:\n      - '.github/actions/setup-turbo/**'\n",
+    ),
+  },
   runUrls: {
     rules: ['run-url'],
     source: workflow(
@@ -203,23 +209,6 @@ jobs:
         'link',
         '      - run: echo ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\n',
       ),
-    ),
-  },
-  batchEvent: {
-    rules: ['batch-event'],
-    file: 'build.yml',
-    source: workflow(
-      job(
-        'changes',
-        '      - run: |\n          if [ "$EVENT_NAME" = merge_group ]; then\n            echo all\n          fi\n',
-      ),
-    ),
-  },
-  commitlintBatch: {
-    rules: ['commitlint-batch'],
-    file: 'commitlint.yml',
-    source: workflow(
-      job('commitlint', '      - run: bunx commitlint --last --verbose\n'),
     ),
   },
   lintLinksBase: {

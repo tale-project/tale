@@ -8,14 +8,11 @@
  */
 
 import type { Registry } from './actions';
-import type { Tier } from './context';
 
 export type Plan =
   /** Ported to `.forgejo/workflows`, with whatever its entry adds. */
   | {
       readonly kind: 'port';
-      /** What a pull request owes of this workflow, where it is not what the manifest says. */
-      readonly tier?: Tier;
       /** Jobs that cannot run on Forgejo even though the workflow can, with why. */
       readonly dropJobs?: readonly {
         readonly id: string;
@@ -43,12 +40,6 @@ export interface GithubEdit {
 }
 
 export interface Manifest {
-  /**
-   * What a pull request owes: `full` is what a batch owes, so that a failure shows on the pull
-   * request and not in the train; `fast` is GitHub's pull request tier. A workflow may say
-   * otherwise in its own plan, so the heavy suites can move onto pull requests one at a time.
-   */
-  readonly tier: Tier;
   /** The registry CI images are pushed to, and the secret that holds the package token. */
   readonly registry: Registry;
   /**
@@ -80,7 +71,6 @@ const RELEASE_LANE =
   'the release lane stays on GitHub: Ops binds its jobs and its runs, it builds arm64 images, signs the macOS and Windows binaries and creates the GitHub release';
 
 export const MANIFEST: Manifest = {
-  tier: 'full',
   registry: { host: 'git.tale.dev', tokenSecret: 'CI_PACKAGES_TOKEN' },
   githubApiTokenSecret: 'CI_GITHUB_TOKEN',
   labels: ['ubuntu-latest', 'ubuntu-24.04'],
@@ -161,9 +151,4 @@ export const MANIFEST: Manifest = {
 
 export function planFor(manifest: Manifest, file: string): Plan {
   return manifest.workflows[file] ?? { kind: 'port' };
-}
-
-/** What a pull request owes of a ported workflow. */
-export function tierOf(manifest: Manifest, plan: Plan): Tier {
-  return plan.kind === 'port' && plan.tier ? plan.tier : manifest.tier;
 }
