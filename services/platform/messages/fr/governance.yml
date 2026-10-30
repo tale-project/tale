@@ -736,7 +736,7 @@ guardrailsOverview:
     contentSafety:
       title: Sécurité du contenu
       description: Listes de mots et motifs regex fournis par l'admin.
-      summary: '{count} catégories · {targets}'
+      summary: '{count, plural, one {# catégorie} many {# catégories} other {# catégories}} · {targets}'
     pii:
       title: Détection DCP
       description: Motifs intégrés pour emails, téléphones, identifiants, etc.

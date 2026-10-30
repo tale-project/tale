@@ -41,6 +41,7 @@ import {
   presetActiveLabelKey,
   presetLabelKey,
   presetNoteKey,
+  responseShapeLabelKey,
   type CustomCategoryShape,
   type EndpointDraft,
   type HeaderRow,
@@ -624,7 +625,7 @@ function ModerationProviderConfigViewContent({
                     onClick={() => handleResponseShapeChange('custom_jsonpath')}
                   >
                     {responseShape === 'custom_jsonpath'
-                      ? `✓ ${t('moderationProvider.presetCustomJsonPathActive')}`
+                      ? `✓ ${t(responseShapeLabelKey('custom_jsonpath'))}`
                       : t('moderationProvider.presetCustomJsonPath')}
                   </Button>
                 </Row>

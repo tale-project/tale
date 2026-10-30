@@ -173,6 +173,17 @@ export function presetActiveLabelKey(id: ModerationPreset['id']): string {
   return 'moderationProvider.presetPerspectiveActive';
 }
 
+/** The provider the Provider row marks as active for a response shape: a
+ *  preset's own name, or Custom JSONPath. The Guardrails overview's
+ *  moderation card names the configured provider the same way. */
+export function responseShapeLabelKey(
+  type: ModerationResponseShape['type'],
+): string {
+  if (type === 'custom_jsonpath')
+    return 'moderationProvider.presetCustomJsonPathActive';
+  return presetActiveLabelKey(type);
+}
+
 export function presetNoteKey(id: ModerationPreset['id']): string | null {
   if (id === 'azure_content_safety')
     return 'moderationProvider.presetAzureNote';

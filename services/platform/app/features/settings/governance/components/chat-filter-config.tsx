@@ -42,6 +42,7 @@ import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
 import { usePolicyReadAvailable } from '../hooks/policy-read-access';
 import { useGovernancePolicy } from '../hooks/queries';
+import { contentSafetyTargetLabel } from './content-safety-target-labels';
 import { withGovernancePolicyReadBoundary } from './policy-read-boundary';
 
 interface ChatFilterConfigProps {
@@ -308,13 +309,13 @@ function ChatFilterConfigViewContent({
               >
                 <Stack gap={2}>
                   <Checkbox
-                    label={t('contentSafety.userInput')}
+                    label={contentSafetyTargetLabel('input', t)}
                     checked={appliesToInput}
                     disabled={cannotManage}
                     onCheckedChange={(v) => handleAppliesToInput(Boolean(v))}
                   />
                   <Checkbox
-                    label={t('contentSafety.modelOutput')}
+                    label={contentSafetyTargetLabel('output', t)}
                     checked={appliesToOutput}
                     disabled={cannotManage}
                     onCheckedChange={(v) => handleAppliesToOutput(Boolean(v))}
