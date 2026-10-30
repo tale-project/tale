@@ -540,6 +540,8 @@ describe('generate_image — generation, booking and delivery', () => {
       {
         path: '/agent/output/task_1/big.png',
         url: 'http://backend-api/stage?t=1',
+        // Its size packs the stage requests; it is never sent.
+        expectedBytes: big.byteLength,
       },
     ]);
     expect(deleteBlobMock).toHaveBeenCalledWith('acme', 's3:acme/transit-1');

@@ -35,6 +35,7 @@ interface FileRow {
   extension: string | null;
   prefix: string;
   depth: number;
+  sizeBytes?: number | null;
 }
 
 function fakeSql(script: {
@@ -332,6 +333,44 @@ describe('listFilesByFolder', () => {
     const walk = statements.find((s) => s.text.startsWith('WITH RECURSIVE'));
     expect(walk?.values).toContain(MAX_RECURSIVE_FILES + 1);
     expect(walk?.values).toContain(true);
+  });
+
+  it('carries the size a document records, and none where it records none', async () => {
+    const { sql, statements } = fakeSql({
+      folder: [{ id: 'folder_root' }],
+      files: [
+        {
+          fileId: 's3:acme/a',
+          title: 'walkthrough.mp4',
+          extension: 'mp4',
+          prefix: '',
+          depth: 0,
+          sizeBytes: 80_000_000,
+        },
+        {
+          fileId: 's3:acme/b',
+          title: 'old.pdf',
+          extension: 'pdf',
+          prefix: '',
+          depth: 0,
+          sizeBytes: null,
+        },
+      ],
+    });
+    const listing = await listFilesByFolder(sql, {
+      organizationId: 'org_1',
+      folderId: 'folder_root',
+    });
+    expect(listing?.files).toEqual([
+      { fileId: 's3:acme/a', name: 'walkthrough.mp4', sizeBytes: 80_000_000 },
+      { fileId: 's3:acme/b', name: 'old.pdf' },
+    ]);
+    expect(listing?.files[1]).not.toHaveProperty('sizeBytes');
+    // A size that is not a JSON number reads as none, never as a failed cast.
+    const walk = statements.find((s) => s.text.startsWith('WITH RECURSIVE'));
+    expect(walk?.text).toContain(
+      "jsonb_typeof(d.metadata -> 'size') = 'number'",
+    );
   });
 
   it('lists only the folder itself unless asked to recurse', async () => {
