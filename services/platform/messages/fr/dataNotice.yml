@@ -1,7 +1,9 @@
 default:
   L'IA peut faire des erreurs – vérifie les réponses et ne partage pas de
   données sensibles.
+ariaLabel: Avis de confidentialité
 footer:
-  ariaLabel: Avis de confidentialité
   expand: Afficher l'avis en entier
   collapse: Afficher l'avis sur une ligne
+inline:
+  dismiss: Ne plus afficher
