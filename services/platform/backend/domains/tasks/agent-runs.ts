@@ -809,8 +809,10 @@ export async function settleAgentRunInTx(
  * provenance entry rides the flip. Auto-retry hangs off the SAME once-only
  * claim: only the winning terminal flip arms `task.agent_retry`, so at most
  * one retry arm per failed run — the kick job re-derives the budget and
- * every guard; this is just the arm. A failure no retry follows is final
- * here, so the people the run answers to are told in the same transaction
+ * every guard; this is just the arm. Only a failure whose retry decision
+ * the job holds (out of memory) asks the budget first, so one with no retry
+ * left is not held. A failure no retry follows is final here, so the people
+ * the run answers to are told in the same transaction
  * ({@link announceAgentRunFailed}); one a retry follows is announced by the
  * retry job, once its budget is spent. Returns whether THIS call won the
  * flip.
@@ -869,6 +871,23 @@ export async function failAgentRunFromTurn(
     `;
     const run = flipped[0];
     if (run === undefined) return false;
+    // A run its sandbox's memory limit ended has its retry decision held for
+    // minutes (below), so its budget is asked here — the job's own walk, over
+    // the history this flip just ended: a failure no retry follows is final
+    // now, not when the hold runs out. Unarmed before the terminal record,
+    // whose slot release reads the arm.
+    let retrying = armRetry;
+    if (
+      retrying &&
+      args.failureCode === 'resource_exhausted' &&
+      !resolveAutoRetryBudget(await loadTaskRetryHistory(tx, run.taskId)).retry
+    ) {
+      retrying = false;
+      await tx`
+        UPDATE app.project_agent_runs SET auto_retry_armed_at_ms = NULL
+        WHERE id = ${args.runId}
+      `;
+    }
     await recordRunTerminalInTx(tx, {
       runId: args.runId,
       organizationId: run.organizationId,
@@ -883,7 +902,6 @@ export async function failAgentRunFromTurn(
     // Only a harness run's refusal holds the model: the native engine is
     // served through the organization's gateway, whose rate limits are its
     // own, and its runs claim no worker to wait at.
-    let retrying = armRetry;
     if (args.failureCode === 'model_capacity' && run.engine === 'harness') {
       // Sampled after the terminal write won: a lock wait before it must not
       // eat into the hold.

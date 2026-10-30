@@ -1427,6 +1427,24 @@ function armedValue(
   return call.values[before.split('?').length - 1];
 }
 
+/** One run of the task's retry history, as `loadTaskRetryHistory` reads it:
+ * by default a short failed run of agent-1. */
+const historyRow = (overrides: Record<string, unknown> = {}) => ({
+  id: 'run-1',
+  status: 'failed',
+  agentId: 'agent-1',
+  startedBy: 'u-1',
+  launchedAt: 1,
+  settledAt: 2,
+  failureCode: 'harness_error',
+  apiErrorStatus: null,
+  autoRetryAttempt: null,
+  autoRetryRefusedAt: null,
+  // The turn host's failed mark armed its retry.
+  autoRetryArmedAt: 2,
+  ...overrides,
+});
+
 describe('a failure no retry follows is announced where it becomes final', () => {
   const failedFlip = () =>
     fakeSql((text) =>
@@ -1434,6 +1452,26 @@ describe('a failure no retry follows is announced where it becomes final', () =>
         ? [{ organizationId: 'org-1', taskId: 'task-1', agentId: 'agent-1' }]
         : [],
     );
+
+  /** A run out of memory, over the task's retry history its flip ended. */
+  const outOfMemory = (history: Row[]) =>
+    fakeSql((text) => {
+      if (text.startsWith('UPDATE app.project_agent_runs')) {
+        return [
+          {
+            organizationId: 'org-1',
+            taskId: 'task-1',
+            agentId: 'agent-1',
+            autoRetryAttempt: history[0]?.autoRetryAttempt ?? null,
+          },
+        ];
+      }
+      if (text.includes('auto_retry_refused_at_ms::float8')) return history;
+      return [];
+    });
+
+  const UNARM =
+    'UPDATE app.project_agent_runs SET auto_retry_armed_at_ms = NULL WHERE id = ?';
 
   beforeEach(() => {
     vi.mocked(addJobInTx).mockReset();
@@ -1477,6 +1515,63 @@ describe('a failure no retry follows is announced where it becomes final', () =>
     expect(armedValue(flip)).toEqual(expect.any(Number));
     expect(announceAgentRunFailed).not.toHaveBeenCalled();
     expect(statements.some((text) => text.startsWith(TASK_HINT))).toBe(true);
+  });
+
+  it('a run out of memory with its retries spent is announced at once, not held', async () => {
+    // Its three retries failed short as well: the held decision would only
+    // retire it, minutes after the card already reads it as final.
+    const spent = [0, 1, 2, 3].map((n) =>
+      historyRow({
+        id: n === 0 ? 'run-1' : `run-${n + 1}`,
+        failureCode: 'resource_exhausted',
+        autoRetryAttempt: n === 3 ? null : 3 - n,
+      }),
+    );
+    const { sql, statements } = outOfMemory(spent);
+    await failAgentRunFromTurn(sql, {
+      runId: 'run-1',
+      execId: 'exec-1',
+      error: "the agent's sandbox ran out of memory",
+      failureCode: 'resource_exhausted',
+    });
+    expect(addJobInTx).not.toHaveBeenCalled();
+    expect(announceAgentRunFailed).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      { organizationId: 'org-1', runId: 'run-1' },
+    );
+    // Unarmed before the run's slot release reads the arm: it releases a
+    // final failure, not one about to be retried.
+    const release = statements.findIndex((text) =>
+      text.includes('AS "retryArmed"'),
+    );
+    expect(statements.indexOf(UNARM)).toBeGreaterThan(-1);
+    expect(statements.indexOf(UNARM)).toBeLessThan(release);
+  });
+
+  it('a run out of memory with a retry left is still held for it, unannounced', async () => {
+    const { sql, statements } = outOfMemory([
+      historyRow({ failureCode: 'resource_exhausted', autoRetryAttempt: 1 }),
+      historyRow({ id: 'run-2', failureCode: 'resource_exhausted' }),
+    ]);
+    await failAgentRunFromTurn(sql, {
+      runId: 'run-1',
+      execId: 'exec-1',
+      error: "the agent's sandbox ran out of memory",
+      failureCode: 'resource_exhausted',
+    });
+    expect(addJobInTx).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      'task.agent_retry',
+      {
+        organizationId: 'org-1',
+        taskId: 'task-1',
+        agentId: 'agent-1',
+        expectedRunId: 'run-1',
+      },
+      { startAfter: expect.any(Date) },
+    );
+    expect(announceAgentRunFailed).not.toHaveBeenCalled();
+    expect(statements).not.toContain(UNARM);
   });
 
   it('a lost election announces nothing', async () => {
@@ -1546,22 +1641,6 @@ describe('the run card tells a final failure from one about to be retried', () =
     startedBy: 'u-1',
     startedAt: 1,
     settledAt: 2,
-  });
-
-  const historyRow = (overrides: Record<string, unknown> = {}) => ({
-    id: 'run-1',
-    status: 'failed',
-    agentId: 'agent-1',
-    startedBy: 'u-1',
-    launchedAt: 1,
-    settledAt: 2,
-    failureCode: 'harness_error',
-    apiErrorStatus: null,
-    autoRetryAttempt: null,
-    autoRetryRefusedAt: null,
-    // The turn host's failed mark armed its retry.
-    autoRetryArmedAt: 2,
-    ...overrides,
   });
 
   it('carries the failure code and reads a retryable first failure as pending', async () => {
