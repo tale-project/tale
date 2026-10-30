@@ -1,7 +1,7 @@
 import { MarketingSection } from '@tale/marketing-ui/marketing-section';
 import { SegmentedRadio } from '@tale/marketing-ui/segmented-radio';
 import { TierCard } from '@tale/marketing-ui/tier-card';
-import { formatCurrency } from '@tale/ui/format';
+import { formatCurrency, formatNumber } from '@tale/ui/format';
 import { Check } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -19,7 +19,7 @@ import { useT } from '@/lib/i18n/client';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 import {
   REGION_CURRENCY,
-  REGION_FORMAT_LOCALE,
+  REGION_NUMBER_LOCALE,
   REGIONS,
   type Region,
 } from '@/lib/pricing/region';
@@ -56,16 +56,16 @@ interface PricingTiersProps {
   onUsersChange: (next: number) => void;
 }
 
-function formatMoney(amount: number, region: Region): string {
+function formatMoney(
+  amount: number,
+  region: Region,
+  numberLocale: string,
+): string {
   return formatCurrency(amount, {
     currency: REGION_CURRENCY[region],
-    locale: REGION_FORMAT_LOCALE[region],
+    locale: numberLocale,
     maximumFractionDigits: 0,
   });
-}
-
-function formatUserCount(count: number, region: Region): string {
-  return new Intl.NumberFormat(REGION_FORMAT_LOCALE[region]).format(count);
 }
 
 interface TierNameProps {
@@ -128,6 +128,7 @@ export function PricingTiers({
 }: PricingTiersProps) {
   const { t } = useT('pricing');
   const locale = useCurrentLocale();
+  const numberLocale = REGION_NUMBER_LOCALE[region][locale];
 
   // Pass `billing` through so the displayed per-month figure reflects
   // the yearly discount that the `billingNote.yearly` footnote promises
@@ -136,9 +137,18 @@ export function PricingTiers({
   const enterprisePrice = formatMoney(
     enterpriseMonthlyTotal(region, users, billing),
     region,
+    numberLocale,
   );
-  const perUserPrice = formatMoney(PER_USER_MONTHLY[region], region);
-  const storagePrice = formatMoney(STORAGE_PER_TB_MONTHLY[region], region);
+  const perUserPrice = formatMoney(
+    PER_USER_MONTHLY[region],
+    region,
+    numberLocale,
+  );
+  const storagePrice = formatMoney(
+    STORAGE_PER_TB_MONTHLY[region],
+    region,
+    numberLocale,
+  );
 
   return (
     <MarketingSection
@@ -169,7 +179,7 @@ export function PricingTiers({
         <UserCountControl
           value={users}
           onChange={onUsersChange}
-          region={region}
+          numberLocale={numberLocale}
         />
       </div>
 
@@ -227,7 +237,7 @@ export function PricingTiers({
               <>
                 <p className="text-fg-muted mt-1 text-xs leading-normal tracking-tight">
                   {t('enterprise.userBreakdown', {
-                    count: formatUserCount(users, region),
+                    count: formatNumber(users, { locale: numberLocale }),
                     perUser: perUserPrice,
                   })}
                 </p>

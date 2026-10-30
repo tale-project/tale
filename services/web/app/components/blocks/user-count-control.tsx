@@ -1,3 +1,4 @@
+import { formatNumber } from '@tale/ui/format';
 import { Input } from '@tale/ui/input';
 import { Slider } from '@tale/ui/slider';
 import {
@@ -9,7 +10,6 @@ import {
 import { type ChangeEvent, useEffect, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
-import { REGION_FORMAT_LOCALE, type Region } from '@/lib/pricing/region';
 
 const MIN_USERS = 25;
 const SLIDER_MIN_USERS = 0;
@@ -33,17 +33,14 @@ function tickPositionLeft(value: number, min: number, max: number): string {
 interface UserCountControlProps {
   value: number;
   onChange: (next: number) => void;
-  region: Region;
-}
-
-function formatCount(count: number, region: Region): string {
-  return new Intl.NumberFormat(REGION_FORMAT_LOCALE[region]).format(count);
+  /** Formats the slider's numbers; see `REGION_NUMBER_LOCALE`. */
+  numberLocale: string;
 }
 
 export function UserCountControl({
   value,
   onChange,
-  region,
+  numberLocale,
 }: UserCountControlProps) {
   const { t } = useT('pricing');
   const [inputValue, setInputValue] = useState(String(value));
@@ -152,13 +149,17 @@ export function UserCountControl({
         step={5}
         onChange={handleSliderChange}
         ticks={SLIDER_TICKS}
-        valueLabel={formatCount(value, region)}
+        valueLabel={formatNumber(value, { locale: numberLocale })}
         aria-label={label}
       />
       <div className="text-fg-muted relative text-xs">
         <div className="flex justify-between">
-          <span>{formatCount(SLIDER_MIN_USERS, region)}</span>
-          <span>{formatCount(SLIDER_MAX_USERS, region)}+</span>
+          <span>
+            {formatNumber(SLIDER_MIN_USERS, { locale: numberLocale })}
+          </span>
+          <span>
+            {formatNumber(SLIDER_MAX_USERS, { locale: numberLocale })}+
+          </span>
         </div>
         <span
           aria-hidden
@@ -167,7 +168,7 @@ export function UserCountControl({
             left: tickPositionLeft(500, SLIDER_MIN_USERS, SLIDER_MAX_USERS),
           }}
         >
-          {formatCount(500, region)}
+          {formatNumber(500, { locale: numberLocale })}
         </span>
       </div>
     </div>
