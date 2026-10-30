@@ -24,6 +24,10 @@ describe('formSubmitErrorMessage', () => {
     expect(formSubmitErrorMessage(502, t)).toBe('errors.serverUnavailable');
   });
 
+  test('maps 413 to tooLarge, which names the cause instead of asking for a retry', () => {
+    expect(formSubmitErrorMessage(413, t)).toBe('errors.tooLarge');
+  });
+
   test('maps other errors to generic', () => {
     expect(formSubmitErrorMessage(400, t)).toBe('errors.generic');
     expect(formSubmitErrorMessage(0, t)).toBe('errors.generic');

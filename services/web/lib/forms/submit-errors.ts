@@ -3,12 +3,14 @@ export const FORM_NOT_CONFIGURED_CODE = 'not_configured';
 
 /** Maps a form-submit HTTP status (+ server error code) to the user-facing
  * i18n key message. The 503/not_configured pair is permanent (the deployment
- * has no `WEB_DISCORD_WEBHOOK_URL`), so it must not read as "try again". */
+ * has no `WEB_DISCORD_WEBHOOK_URL`), and a 413 refuses the same body again, so
+ * neither may read as a plain "try again". */
 export function formSubmitErrorMessage(
   status: number,
   t: (
     key:
       | 'errors.rateLimited'
+      | 'errors.tooLarge'
       | 'errors.notConfigured'
       | 'errors.serverUnavailable'
       | 'errors.generic',
@@ -16,6 +18,7 @@ export function formSubmitErrorMessage(
   code?: string,
 ): string {
   if (status === 429) return t('errors.rateLimited');
+  if (status === 413) return t('errors.tooLarge');
   if (status === 503 && code === FORM_NOT_CONFIGURED_CODE) {
     return t('errors.notConfigured');
   }

@@ -685,6 +685,7 @@ forms:
   errors:
     generic: Quelque chose s’est mal passé. Réessaie.
     rateLimited: Trop d’envois. Patiente un instant et réessaie.
+    tooLarge: Ton message est trop long pour être envoyé. Raccourcis-le, puis réessaie.
     notConfigured: Cette installation n’a pas encore configuré l’envoi de
       formulaires — ton message n’a pas été envoyé. Contacte l’équipe par un
       autre canal.
