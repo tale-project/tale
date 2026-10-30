@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
 import { Dialog } from '@tale/ui/dialog/dialog';
 import { HStack, Stack } from '@tale/ui/layout';
@@ -10,11 +11,12 @@ import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { toast } from '@tale/ui/use-toast';
 import { ArrowLeft, ArrowRightLeft } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ComparisonResults } from '@/app/features/documents/components/document-comparison/comparison-results';
 import { useDocumentComparison } from '@/app/features/documents/hooks/use-document-comparison';
 import { failureDetail } from '@/app/lib/backend/adapters';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 
@@ -55,6 +57,21 @@ export function DocumentHistoryDialog({
   const versionsQuery = useDocumentVersions(
     open ? (documentId ?? undefined) : undefined,
   );
+  const { refetch: refetchVersions } = versionsQuery;
+  // A read that failed is not a file without versions (#4577): the dialog
+  // names the failure and runs the read again, and versions a refresh could
+  // not update stay listed under the notice.
+  const historyRead = readStateOf(versionsQuery);
+  // A retry's alert goes once the read answers, so focus moves onto the
+  // versions first instead of falling back to the dialog.
+  const historyRef = useRef<HTMLDivElement>(null);
+  const focusHistory = useCallback(() => {
+    historyRef.current?.focus();
+  }, []);
+  const retryHistory = useCallback(() => {
+    focusHistory();
+    void refetchVersions();
+  }, [focusHistory, refetchVersions]);
   const { compare, result, error, isPending, reset } = useDocumentComparison({
     organizationId,
   });
@@ -165,102 +182,131 @@ export function DocumentHistoryDialog({
           </Button>
           <ComparisonResults result={result} />
         </Stack>
-      ) : versionsQuery.isLoading ? (
-        <Stack gap={2} className="py-2" role="status" aria-busy="true">
-          {[0, 1, 2].map((i) => (
-            <div
-              key={i}
-              className="bg-muted h-12 animate-pulse rounded-md"
-              aria-hidden="true"
-            />
-          ))}
-          <span className="sr-only">{t('history.loading')}</span>
-        </Stack>
-      ) : versionsQuery.isError || !versionsQuery.data ? (
-        <Text variant="muted" className="py-4 text-center text-sm">
-          {t('history.loadFailed')}
-        </Text>
-      ) : versions.length === 0 ? (
-        <Text variant="muted" className="py-4 text-center text-sm">
-          {t('history.empty')}
-        </Text>
       ) : (
-        <Stack gap={3} className="pt-2">
-          <ul
-            role="listbox"
-            aria-label={t('history.versionsLabel')}
-            aria-multiselectable="true"
-            className="divide-border max-h-[40vh] divide-y overflow-y-auto rounded-md border"
-          >
-            {versions.map((v) => {
-              const isBase = base?.storageId === v.storageId;
-              const isCompare = compareTo?.storageId === v.storageId;
-              const selected = isBase || isCompare;
-              return (
-                <li key={v.storageId} role="option" aria-selected={selected}>
-                  <button
-                    type="button"
-                    className={cn(
-                      'hover:bg-muted/60 flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm',
-                      selected && 'bg-muted',
-                    )}
-                    onClick={() => togglePick(v)}
-                  >
-                    <span className="min-w-0 flex-1 truncate">
-                      {t('history.versionLabel', {
-                        date: formatDate(new Date(v.createdAt)),
-                      })}
-                    </span>
-                    <HStack gap={1} className="shrink-0">
-                      {v.isCurrent ? (
-                        <Badge variant="outline">
-                          {t('history.currentBadge')}
-                        </Badge>
-                      ) : null}
-                      {isBase ? (
-                        <Badge variant="blue">
-                          {t('history.baseSelected')}
-                        </Badge>
-                      ) : null}
-                      {isCompare ? (
-                        <Badge variant="green">
-                          {t('history.compareSelectedBadge')}
-                        </Badge>
-                      ) : null}
-                    </HStack>
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-
-          {selectionHint ? (
-            <Text variant="muted" className="text-sm">
-              {selectionHint}
+        <div
+          ref={historyRef}
+          role="group"
+          aria-label={t('history.versionsLabel')}
+          tabIndex={-1}
+          className="flex flex-col gap-3 outline-none"
+        >
+          {(historyRead.unavailable || historyRead.stale) && (
+            <CatalogLoadError
+              // Each failure is announced again; Try again keeps its node, and
+              // the focus on it, through a refresh that fails again.
+              failureKey={historyRead.failureCount}
+              onFocusLost={focusHistory}
+              message={t(
+                historyRead.stale
+                  ? 'history.refreshFailed'
+                  : 'history.loadFailed',
+              )}
+              onRetry={retryHistory}
+              isRetrying={historyRead.retrying}
+            />
+          )}
+          {versionsQuery.data === undefined ? (
+            historyRead.unavailable ? null : (
+              <Stack gap={2} className="py-2" role="status" aria-busy="true">
+                {[0, 1, 2].map((i) => (
+                  <div
+                    key={i}
+                    className="bg-muted h-12 animate-pulse rounded-md"
+                    aria-hidden="true"
+                  />
+                ))}
+                <span className="sr-only">{t('history.loading')}</span>
+              </Stack>
+            )
+          ) : versions.length === 0 ? (
+            // `null` is a file the history no longer reaches (it was deleted
+            // or archived): no versions to show either.
+            <Text variant="muted" className="py-4 text-center text-sm">
+              {t('history.empty')}
             </Text>
-          ) : null}
+          ) : (
+            <Stack gap={3} className="pt-2">
+              <ul
+                role="listbox"
+                aria-label={t('history.versionsLabel')}
+                aria-multiselectable="true"
+                className="divide-border max-h-[40vh] divide-y overflow-y-auto rounded-md border"
+              >
+                {versions.map((v) => {
+                  const isBase = base?.storageId === v.storageId;
+                  const isCompare = compareTo?.storageId === v.storageId;
+                  const selected = isBase || isCompare;
+                  return (
+                    <li
+                      key={v.storageId}
+                      role="option"
+                      aria-selected={selected}
+                    >
+                      <button
+                        type="button"
+                        className={cn(
+                          'hover:bg-muted/60 flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm',
+                          selected && 'bg-muted',
+                        )}
+                        onClick={() => togglePick(v)}
+                      >
+                        <span className="min-w-0 flex-1 truncate">
+                          {t('history.versionLabel', {
+                            date: formatDate(new Date(v.createdAt)),
+                          })}
+                        </span>
+                        <HStack gap={1} className="shrink-0">
+                          {v.isCurrent ? (
+                            <Badge variant="outline">
+                              {t('history.currentBadge')}
+                            </Badge>
+                          ) : null}
+                          {isBase ? (
+                            <Badge variant="blue">
+                              {t('history.baseSelected')}
+                            </Badge>
+                          ) : null}
+                          {isCompare ? (
+                            <Badge variant="green">
+                              {t('history.compareSelectedBadge')}
+                            </Badge>
+                          ) : null}
+                        </HStack>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
 
-          {error ? (
-            <Text variant="error" className="text-sm">
-              {error}
-            </Text>
-          ) : null}
+              {selectionHint ? (
+                <Text variant="muted" className="text-sm">
+                  {selectionHint}
+                </Text>
+              ) : null}
 
-          <HStack gap={2} justify="end">
-            {isPending ? (
-              <Spinner size="sm" label={t('history.comparing')} />
-            ) : null}
-            <Button
-              type="button"
-              onClick={() => void handleCompare()}
-              disabled={!canCompare}
-              isLoading={isPending}
-              icon={ArrowRightLeft}
-            >
-              {t('history.compareSelected')}
-            </Button>
-          </HStack>
-        </Stack>
+              {error ? (
+                <Text variant="error" className="text-sm">
+                  {error}
+                </Text>
+              ) : null}
+
+              <HStack gap={2} justify="end">
+                {isPending ? (
+                  <Spinner size="sm" label={t('history.comparing')} />
+                ) : null}
+                <Button
+                  type="button"
+                  onClick={() => void handleCompare()}
+                  disabled={!canCompare}
+                  isLoading={isPending}
+                  icon={ArrowRightLeft}
+                >
+                  {t('history.compareSelected')}
+                </Button>
+              </HStack>
+            </Stack>
+          )}
+        </div>
       )}
     </Dialog>
   );

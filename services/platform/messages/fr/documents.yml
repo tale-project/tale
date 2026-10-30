@@ -571,7 +571,8 @@ history:
   versionsLabel: Versions
   currentBadge: Actuelle
   loading: Chargement des versions…
-  loadFailed: Impossible de charger l’historique des versions
+  loadFailed: Impossible de charger l’historique des versions.
+  refreshFailed: Impossible d’actualiser l’historique des versions. Les versions affichées ne sont peut-être plus à jour.
   empty: Aucune version stockée pour ce fichier.
   singleVersion:
     Seule la version actuelle est stockée — une révision construit
@@ -587,3 +588,4 @@ history:
   baseSelected: Base
   compareSelectedBadge: Comparer
   notFound: Ce fichier n’a pas encore d’historique de versions.
+  linkLoadFailed: Impossible d’ouvrir l’historique des versions vers lequel pointe ce lien.
