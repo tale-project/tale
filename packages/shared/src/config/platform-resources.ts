@@ -132,11 +132,85 @@ export function resourceId(resource: PlatformResource): string {
  * them. A plan, its journal and a deployment's receipt hold as many. */
 export const PLATFORM_RESOURCES_MAX = 512;
 
+/** The path of every key of `input` that parsing left out of `parsed`, and
+ * of each key under one, which went with it. */
+function discardedKeys(
+  input: unknown,
+  parsed: unknown,
+  path: readonly PropertyKey[] = [],
+): PropertyKey[][] {
+  if (Array.isArray(input))
+    return input.flatMap((entry, index) =>
+      discardedKeys(entry, Array.isArray(parsed) ? parsed[index] : undefined, [
+        ...path,
+        index,
+      ]),
+    );
+  if (!isObject(input)) return [];
+  return Object.entries(input).flatMap(([key, value]) => {
+    const at = [...path, key];
+    return isObject(parsed) && Object.hasOwn(parsed, key)
+      ? discardedKeys(value, Reflect.get(parsed, key), at)
+      : [at].concat(discardedKeys(value, undefined, at));
+  });
+}
+
+/** `input` with `value` in place of what sits at `path`. */
+function replacedAt(
+  input: unknown,
+  path: readonly PropertyKey[],
+  value: unknown,
+): unknown {
+  if (path.length === 0) return value;
+  const [key, ...rest] = path;
+  if (Array.isArray(input))
+    return input.map((entry, index) =>
+      index === key ? replacedAt(entry, rest, value) : entry,
+    );
+  return isObject(input)
+    ? { ...input, [key]: replacedAt(Reflect.get(input, key), rest, value) }
+    : input;
+}
+
+/** A declaration is JSON, which holds no symbol: no field that checks its
+ * value takes this one. */
+const UNREADABLE = Symbol('unreadable');
+
+/**
+ * Normalization may add native defaults and leave out a field it read that
+ * says nothing (a repeat window that spans the whole week), but must not
+ * hide misspelled fields. A schema strips a key it does not know whatever
+ * its value, so a left-out key the resource still parses with
+ * {@link UNREADABLE} in its place was never read.
+ */
+function hidesMisspelledField(input: unknown, parsed: unknown): boolean {
+  return discardedKeys(input, parsed).some(
+    (path) =>
+      platformResourceSchema.safeParse(replacedAt(input, path, UNREADABLE))
+        .success,
+  );
+}
+
+/** A resource as a declaration names it, read through its native schema.
+ * The declaration around it is strict, so whatever parsing leaves out sits
+ * in a resource and is weighed against that resource alone. */
+const declaredResourceSchema = z.unknown().transform((input, context) => {
+  const parsed = platformResourceSchema.safeParse(input);
+  if (!parsed.success || hidesMisspelledField(input, parsed.data)) {
+    context.addIssue({
+      code: 'custom',
+      message: 'Unsupported resource or invalid native configuration fields',
+    });
+    return z.NEVER;
+  }
+  return parsed.data;
+});
+
 const declarationSchema = z
   .strictObject({
     schemaVersion: z.literal(1),
     resources: z
-      .array(platformResourceSchema)
+      .array(declaredResourceSchema)
       .min(1)
       .max(PLATFORM_RESOURCES_MAX),
   })
@@ -357,30 +431,11 @@ const declarationSchema = z
   });
 export type PlatformConfiguration = z.infer<typeof platformConfigurationSchema>;
 
-/** Normalization may add native defaults, but must not hide misspelled fields. */
-function discardedKeys(input: unknown, parsed: unknown): boolean {
-  if (Array.isArray(input))
-    return (
-      !Array.isArray(parsed) ||
-      input.some((entry, i) => discardedKeys(entry, parsed[i]))
-    );
-  if (input && typeof input === 'object') {
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
-      return true;
-    return Object.entries(input).some(
-      ([key, value]) =>
-        !Object.hasOwn(parsed, key) ||
-        discardedKeys(value, Reflect.get(parsed, key)),
-    );
-  }
-  return false;
-}
-
 export const platformConfigurationSchema = z
   .unknown()
   .transform((input, context) => {
     const parsed = declarationSchema.safeParse(input);
-    if (!parsed.success || discardedKeys(input, parsed.data)) {
+    if (!parsed.success) {
       context.addIssue({
         code: 'custom',
         message: 'Unsupported resources or invalid native configuration fields',

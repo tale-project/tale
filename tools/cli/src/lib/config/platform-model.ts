@@ -15,7 +15,8 @@ import { sha } from './releases/model';
 export function parsePlatformConfiguration(
   input: unknown,
 ): PlatformConfiguration {
-  // The shared schema already refuses a field that parsing would discard.
+  // The shared schema already refuses a misspelled field that parsing would
+  // discard.
   const parsed = platformConfigurationSchema.safeParse(input);
   if (!parsed.success)
     throw usageError(
