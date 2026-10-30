@@ -108,9 +108,10 @@ export function HomePanelSkeleton() {
     <Skeletonize loading>
       <Stack gap={0}>
         <Row gap={0} className="shrink-0 gap-1.5 px-2.5 pt-2.5 pb-2">
+          {/* The switcher hugs its icons and the open view's name. */}
           <div className="min-w-0 flex-1">
-            <SkeletonBox fullWidth>
-              <div className="h-8 rounded-lg" />
+            <SkeletonBox>
+              <div className="h-8.5 w-36 rounded-md" />
             </SkeletonBox>
           </div>
           <SkeletonBox>
