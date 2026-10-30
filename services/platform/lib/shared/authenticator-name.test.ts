@@ -40,23 +40,32 @@ describe('authenticatorName', () => {
     },
   );
 
-  it.each(['', ' ', 'Acme: Admin', '-Acme', 'Acme/Partner', 'a'.repeat(41)])(
-    'refuses the client name %j',
-    (clientName) => {
-      expect(() => authenticatorName({ clientName })).toThrow(
-        /TOTP_CLIENT_NAME/,
-      );
-    },
-  );
+  it.each([
+    '',
+    ' ',
+    'Acme: Admin',
+    '-Acme',
+    '& Co',
+    'Acme/Partner',
+    'a'.repeat(41),
+  ])('refuses the client name %j', (clientName) => {
+    expect(() => authenticatorName({ clientName })).toThrow(/TOTP_CLIENT_NAME/);
+  });
 
-  it.each(['', ' ', '<TE>', 'te:issuer', 'te/pr', 'a'.repeat(33)])(
-    'refuses the environment %j',
-    (environment) => {
-      expect(() => authenticatorName({ environment })).toThrow(
-        /TOTP_ENVIRONMENT/,
-      );
-    },
-  );
+  it.each([
+    '',
+    ' ',
+    '-te',
+    '_te',
+    '<TE>',
+    'te:issuer',
+    'te/pr',
+    'a'.repeat(33),
+  ])('refuses the environment %j', (environment) => {
+    expect(() => authenticatorName({ environment })).toThrow(
+      /TOTP_ENVIRONMENT/,
+    );
+  });
 
   it('normalizes the deployment values it accepts', () => {
     expect(totpClientNameSchema.parse(' Example \t plus ')).toBe(

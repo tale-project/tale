@@ -129,9 +129,11 @@ const OUTSIDE_READS = [
       'tests/docs-screenshots/manifest.test.ts selects native marketing capture readiness',
   },
   {
-    // The environment references, which must name OUTBOUND_PROXY_URLS.
+    // The environment references, which must name OUTBOUND_PROXY_URLS and
+    // state the rules of the two authenticator name settings.
     path: 'docs/*/self-hosted/configuration/environment-reference.md',
-    readers: 'tests/guards/outbound-proxies.guard.test.ts',
+    readers:
+      'tests/guards/outbound-proxies.guard.test.ts and lib/shared/authenticator-name-docs.test.ts',
   },
   {
     path: 'knip.config.ts',
