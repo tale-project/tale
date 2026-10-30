@@ -262,6 +262,8 @@ agents:
     nutzen kann.
   equipmentVisibilityHint: Die Skills hier folgen dem Team-Zugriff des
     Projekts, nicht deiner persönlichen Sichtbarkeit.
+  equipmentLoadFailed: Die Skills und Connectors dieses Projekts konnten nicht geladen werden.
+  equipmentRefreshFailed: Die Skills und Connectors dieses Projekts konnten nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
   tool:
     readBadge: Lesend
     writeBadge: Schreibt Daten

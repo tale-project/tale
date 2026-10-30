@@ -468,6 +468,8 @@ skills:
   unavailableOption: '"{slug}" (unavailable)'
   emptyConnectors: No connectors added yet.
   emptyTools: No platform tools available.
+  skillsUnavailable: Couldn't load the skills.
+  connectorsUnavailable: Couldn't load the connectors.
   searchLabel: Search skills, connectors and tools
   searchPlaceholder: Search…
   searchEmpty: Nothing matches your search.

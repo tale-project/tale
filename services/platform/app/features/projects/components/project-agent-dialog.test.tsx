@@ -3,7 +3,7 @@ import type { ComponentProps } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '@/lib/shared/errors/app-error';
-import { act, render, screen, waitFor } from '@/tests/utils/render';
+import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import type { ProjectAgentRow } from '../hooks/queries';
 import { ProjectAgentDialog } from './project-agent-dialog';
@@ -91,6 +91,15 @@ const LEGACY_AGENT = {
   connectors: [],
 } as unknown as ProjectAgentRow;
 
+// A capability catalog read that answered, or is still on its first fetch.
+const CATALOG_READ = {
+  unavailable: false,
+  stale: false,
+  retrying: false,
+  failureCount: 0,
+  retry: () => undefined,
+};
+
 function renderDialog(
   agent: ProjectAgentRow,
   models = MODELS,
@@ -105,6 +114,7 @@ function renderDialog(
       harnesses={[{ harness: 'claude-code', label: 'Claude Code' }]}
       models={models}
       skills={[]}
+      catalogRead={CATALOG_READ}
       connectors={[]}
       agent={agent}
     />,
@@ -144,6 +154,7 @@ describe('ProjectAgentDialog mention handle', () => {
         harnesses={[{ harness: 'claude-code', label: 'Claude Code' }]}
         models={MODELS}
         skills={[]}
+        catalogRead={CATALOG_READ}
         connectors={[]}
       />,
     );
@@ -232,6 +243,7 @@ describe('ProjectAgentDialog create', () => {
         harnesses={[{ harness: 'claude-code', label: 'Claude Code' }]}
         models={MODELS}
         skills={[]}
+        catalogRead={CATALOG_READ}
         connectors={[]}
         onCreated={onCreated}
       />,
@@ -282,6 +294,7 @@ describe('ProjectAgentDialog model pin', () => {
         harnesses={[{ harness: 'claude-code', label: 'Claude Code' }]}
         models={MODELS}
         skills={[]}
+        catalogRead={CATALOG_READ}
         connectors={[]}
         agent={agent}
       />
@@ -441,6 +454,7 @@ describe('ProjectAgentDialog document skills', () => {
         harnesses={[{ harness: 'claude-code', label: 'Claude Code' }]}
         models={MODELS}
         skills={VISIBLE_SKILLS}
+        catalogRead={CATALOG_READ}
         connectors={[]}
         {...overrides}
       />
@@ -453,7 +467,7 @@ describe('ProjectAgentDialog document skills', () => {
 
   async function checkedState(
     user: ReturnType<typeof renderWithSkills>['user'],
-    label: string,
+    label: string | RegExp,
   ) {
     await user.click(screen.getByRole('button', { name: /skills/i }));
     const item = await screen.findByRole('menuitemcheckbox', { name: label });
@@ -513,20 +527,22 @@ describe('ProjectAgentDialog document skills', () => {
   });
 
   it('waits for the first catalog and keeps equipment chosen while it loads', async () => {
-    const connectors = [{ slug: 'review-files', label: 'Review files' }];
-    const { user, rerender } = render(
-      dialogWithSkills({ skills: undefined, connectors }),
-    );
+    const { user, rerender } = render(dialogWithSkills({ skills: undefined }));
+    // The tools never wait for the catalog: one ticked while it loads stays.
     await user.click(screen.getByRole('button', { name: /skills/i }));
     await user.click(
-      await screen.findByRole('menuitemcheckbox', { name: 'Review files' }),
+      await screen.findByRole('menuitemcheckbox', {
+        name: /Start other agents on tasks/,
+      }),
     );
     await user.keyboard('{Escape}');
 
-    rerender(dialogWithSkills({ connectors }));
+    rerender(dialogWithSkills());
     expect(await checkedState(user, 'Word documents')).toBe('true');
     expect(await checkedState(user, 'Presentations')).toBe('true');
-    expect(await checkedState(user, 'Review files')).toBe('true');
+    expect(await checkedState(user, /Start other agents on tasks/)).toBe(
+      'true',
+    );
   });
 
   it('keeps an edited agent unchanged when the catalog arrives later', async () => {
@@ -572,6 +588,177 @@ describe('ProjectAgentDialog platform tools', () => {
   });
 });
 
+describe('ProjectAgentDialog capability catalog read', () => {
+  // An agent equipped with one skill and one connector the catalog offers.
+  const EQUIPPED = {
+    ...LEGACY_AGENT,
+    skills: ['brief-summary'],
+    connectors: ['review-files'],
+  } as unknown as ProjectAgentRow;
+  const FAILED = { ...CATALOG_READ, unavailable: true, failureCount: 1 };
+
+  function dialog(
+    overrides: Partial<ComponentProps<typeof ProjectAgentDialog>> = {},
+  ) {
+    return (
+      <ProjectAgentDialog
+        open
+        onOpenChange={vi.fn()}
+        projectId="p1"
+        organizationId="org-1"
+        harnesses={[{ harness: 'claude-code', label: 'Claude Code' }]}
+        models={MODELS}
+        skills={[{ slug: 'brief-summary', label: 'Brief summary' }]}
+        catalogRead={CATALOG_READ}
+        connectors={[{ slug: 'review-files', label: 'Review files' }]}
+        agent={EQUIPPED}
+        {...overrides}
+      />
+    );
+  }
+
+  it('says the catalog is loading, never empty, and saves the equipment it cannot check yet', async () => {
+    const { user } = render(dialog({ skills: undefined, connectors: [] }));
+    const trigger = screen.getByRole('button', { name: 'Skills' });
+    expect(trigger).toHaveTextContent('Skills (2)');
+
+    await user.click(trigger);
+    expect(
+      await screen.findAllByRole('menuitem', { name: 'Loading...' }),
+    ).toHaveLength(2);
+    expect(screen.queryByText(/\(unavailable\)/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('No skills in this organization yet.'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('No connectors added yet.'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(updateAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skills: ['brief-summary'],
+        connectors: ['review-files'],
+      }),
+    );
+  });
+
+  it('names a failed read and retries it, without calling the equipment unavailable', async () => {
+    const retry = vi.fn();
+    const { user } = render(
+      dialog({
+        skills: undefined,
+        connectors: [],
+        catalogRead: { ...FAILED, retry },
+      }),
+    );
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent(
+      "Couldn't load the skills and connectors this project offers.",
+    );
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }));
+    expect(retry).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole('button', { name: 'Skills' }));
+    expect(
+      await screen.findByRole('menuitem', {
+        name: "Couldn't load the skills.",
+      }),
+    ).toHaveAttribute('aria-disabled', 'true');
+    expect(
+      screen.getByRole('menuitem', { name: "Couldn't load the connectors." }),
+    ).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.queryByText(/\(unavailable\)/)).not.toBeInTheDocument();
+  });
+
+  it('keeps Try again in place but inert while the retry runs', async () => {
+    const retry = vi.fn();
+    const { user } = render(
+      dialog({
+        skills: undefined,
+        connectors: [],
+        catalogRead: { ...FAILED, retrying: true, retry },
+      }),
+    );
+    const again = within(screen.getByRole('alert')).getByRole('button', {
+      name: 'Try again',
+    });
+    expect(again).toHaveAttribute('aria-busy', 'true');
+    expect(again).toHaveAttribute('aria-disabled', 'true');
+    await user.click(again);
+    expect(retry).not.toHaveBeenCalled();
+  });
+
+  it('keeps the last answer listed when a refresh failed, and says it may be out of date', async () => {
+    const { user } = render(
+      dialog({
+        catalogRead: { ...CATALOG_READ, stale: true, failureCount: 2 },
+      }),
+    );
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't refresh the skills and connectors this project offers. What's shown may be out of date.",
+    );
+    await user.click(screen.getByRole('button', { name: 'Skills' }));
+    expect(
+      await screen.findByRole('menuitemcheckbox', { name: 'Brief summary' }),
+    ).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('says the organization offers nothing once an empty catalog answered', async () => {
+    const { user } = render(
+      dialog({ skills: [], connectors: [], agent: LEGACY_AGENT }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Skills' }));
+    expect(
+      await screen.findByRole('menuitem', {
+        name: 'No skills in this organization yet.',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: 'No connectors added yet.' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  it('still lists equipment an answered catalog no longer offers as unavailable', async () => {
+    const { user } = render(dialog({ skills: [], connectors: [] }));
+    await user.click(screen.getByRole('button', { name: 'Skills' }));
+    expect(
+      await screen.findByRole('menuitemcheckbox', {
+        name: '"brief-summary" (unavailable)',
+      }),
+    ).toHaveAttribute('aria-checked', 'true');
+    expect(
+      screen.getByRole('menuitemcheckbox', {
+        name: '"review-files" (unavailable)',
+      }),
+    ).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('hands the focus to the menu when a retried read recovers', async () => {
+    const { user, rerender } = render(
+      dialog({
+        skills: undefined,
+        connectors: [],
+        catalogRead: { ...FAILED, retry: vi.fn() },
+      }),
+    );
+    const again = within(screen.getByRole('alert')).getByRole('button', {
+      name: 'Try again',
+    });
+    await user.click(again);
+    expect(again).toHaveFocus();
+
+    rerender(dialog());
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: 'Skills' })).toHaveFocus(),
+    );
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+});
+
 describe('ProjectAgentDialog repository access', () => {
   const FORGEJO_CONNECTORS = [
     { slug: 'forgejo', label: 'Forgejo', git: true as const },
@@ -595,6 +782,7 @@ describe('ProjectAgentDialog repository access', () => {
         harnesses={[{ harness: 'claude-code', label: 'Claude Code' }]}
         models={MODELS}
         skills={[]}
+        catalogRead={CATALOG_READ}
         connectors={FORGEJO_CONNECTORS}
         agent={agent}
       />,

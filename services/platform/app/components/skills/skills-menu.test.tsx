@@ -252,4 +252,97 @@ describe('SkillsMenu', () => {
       'Nothing matches your search.',
     );
   });
+
+  it('says a loaded catalog that offers nothing is empty', async () => {
+    const { user } = render(
+      <SkillsMenu
+        skills={[]}
+        connectors={[]}
+        tools={[]}
+        value={EMPTY}
+        onChange={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    expect(
+      await screen.findByRole('menuitem', {
+        name: 'No skills in this organization yet.',
+      }),
+    ).toHaveAttribute('aria-disabled', 'true');
+    expect(
+      screen.getByRole('menuitem', { name: 'No connectors added yet.' }),
+    ).toHaveAttribute('aria-disabled', 'true');
+  });
+
+  it('keeps the equipment and its count while the catalog loads, and the tools choosable', async () => {
+    // Before the catalog answers, an empty list is no answer: neither "no
+    // skills yet" nor an equipped slug called unavailable.
+    const onChange = vi.fn();
+    const { user } = render(
+      <SkillsMenu
+        skills={[]}
+        connectors={[]}
+        catalog="loading"
+        tools={[{ slug: 'task_find', label: 'Find tasks' }]}
+        value={{
+          skills: ['docx', 'house-voice'],
+          connectors: ['github'],
+          tools: [],
+        }}
+        onChange={onChange}
+      />,
+    );
+    const trigger = screen.getByRole('button', { name: 'Skills' });
+    expect(trigger).toHaveTextContent('Skills (3)');
+    await user.click(trigger);
+    const loading = await screen.findAllByRole('menuitem', {
+      name: 'Loading...',
+    });
+    expect(loading).toHaveLength(2);
+    for (const row of loading) {
+      expect(row).toHaveAttribute('aria-disabled', 'true');
+    }
+    expect(screen.queryByText(/\(unavailable\)/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('No skills in this organization yet.'),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('No connectors added yet.'),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole('menuitemcheckbox', { name: 'Find tasks' }),
+    );
+    expect(onChange).toHaveBeenCalledWith({
+      skills: ['docx', 'house-voice'],
+      connectors: ['github'],
+      tools: ['task_find'],
+    });
+  });
+
+  it('says the skills and connectors could not be loaded after a failed read', async () => {
+    const { user } = render(
+      <SkillsMenu
+        skills={[]}
+        connectors={[]}
+        catalog="unavailable"
+        tools={[]}
+        value={{ skills: ['docx'], connectors: ['github'], tools: [] }}
+        onChange={vi.fn()}
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: /skills/i }));
+    expect(
+      await screen.findByRole('menuitem', {
+        name: "Couldn't load the skills.",
+      }),
+    ).toHaveAttribute('aria-disabled', 'true');
+    expect(
+      screen.getByRole('menuitem', { name: "Couldn't load the connectors." }),
+    ).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.queryByText(/\(unavailable\)/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByText('No skills in this organization yet.'),
+    ).not.toBeInTheDocument();
+  });
 });

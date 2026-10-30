@@ -471,6 +471,8 @@ skills:
   emptyConnectors: Aucun connector activé pour l’instant — ajoutes-en un
     dans Paramètres → Connectors.
   emptyTools: Aucun outil de la plateforme disponible.
+  skillsUnavailable: Impossible de charger les skills.
+  connectorsUnavailable: Impossible de charger les connectors.
   searchLabel: Rechercher des skills, connectors et outils
   searchPlaceholder: Rechercher…
   searchEmpty: Rien ne correspond à ta recherche.

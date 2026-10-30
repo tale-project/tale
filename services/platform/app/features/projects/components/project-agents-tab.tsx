@@ -12,6 +12,7 @@ import { Bot, Eye, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { failureDetail } from '@/app/lib/backend/adapters';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 import { toModelOptions, type ModelOption } from '@/lib/shared/harness-offer';
 
@@ -120,6 +121,12 @@ export function ProjectAgentsTab({
 
   const skills = catalogQuery.data?.skills;
   const connectors = catalogQuery.data?.connectors ?? [];
+  // A catalog still loading, or whose read failed, is the form's to say and
+  // retry, never an empty one.
+  const catalogRead = {
+    ...readStateOf(catalogQuery),
+    retry: () => void catalogQuery.refetch(),
+  };
   const canEdit = project.canEdit;
 
   const openCreate = () => {
@@ -331,6 +338,7 @@ export function ProjectAgentsTab({
         harnesses={harnesses}
         models={models}
         skills={skills}
+        catalogRead={catalogRead}
         connectors={connectors}
         {...(editing !== undefined ? { agent: editing } : {})}
       />

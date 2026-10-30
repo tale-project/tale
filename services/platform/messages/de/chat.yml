@@ -470,6 +470,8 @@ skills:
   unavailableOption: '"{slug}" (nicht verfügbar)'
   emptyConnectors: Noch keine Connectors hinzugefügt.
   emptyTools: Keine Plattform-Tools verfügbar.
+  skillsUnavailable: Die Skills konnten nicht geladen werden.
+  connectorsUnavailable: Die Connectors konnten nicht geladen werden.
   searchLabel: Skills, Connectors und Tools durchsuchen
   searchPlaceholder: Suchen…
   searchEmpty: Nichts passt zu deiner Suche.
