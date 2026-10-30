@@ -428,6 +428,8 @@ share:
   sharedChat: Shared chat
   byline: Shared by {name} on {date}
   notFound: This shared chat is no longer available.
+  loadFailed: Couldn't load this shared chat.
+  refreshFailed: Couldn't refresh this shared chat. The messages shown may be out of date.
 arena:
   label: Arena Mode
   enable: Enable Arena Mode

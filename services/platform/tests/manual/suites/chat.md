@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 128 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 129 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -1002,6 +1002,19 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   lighthouse at sunset" → no **Generating an image** step
   (`chat.thinking.generatingImages`) and no picture; the reply says it cannot
   create images here.
+- [ ] `CHAT-B28` · **A shared chat that fails to load is not withdrawn** —
+  With a share URL (`CHAT-F21`) open in a private window, block
+  `*/api/app/chat/threads/shared/*` in its DevTools (Network → request
+  blocking) and reload → once the read's retries give up (a few seconds; a
+  blocked request reads as a lost connection, so the offline notice may cover
+  the page meanwhile) the page shows **Couldn't load this shared chat.**
+  (`chat.share.loadFailed`) with the lost-connection sentence
+  (`common.errors.connectionLost`) and **Try again**
+  (`common.actions.tryAgain`), never **This shared chat is no longer
+  available.** (`chat.share.notFound`). Unblock, Tab to **Try again** and
+  press Enter → the snapshot appears without a reload, and the focus is on
+  the shared chat, not lost to the page. Stop sharing (`CHAT-F22`) and reload
+  → `chat.share.notFound`, with no **Try again**.
 
 ## Accessibility (WCAG 2.1 AA)
 
