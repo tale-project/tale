@@ -9,8 +9,11 @@
  * Every group ALWAYS renders. An empty group states why it is empty
  * (`skills.emptySkills` / `emptyConnectors` — the connectors hint names
  * where to add a credential) instead of hiding: a silently missing group
- * reads as a bug, not as "nothing to equip". The menu only ASSEMBLES; what a
- * selection does is decided by the lane that runs the agent.
+ * reads as a bug, not as "nothing to equip". A catalog that has not answered
+ * is not an empty one: while it loads, or after its read failed (`catalog`),
+ * the skills and connectors groups say that instead. The menu only
+ * ASSEMBLES; what a selection does is decided by the lane that runs the
+ * agent.
  */
 
 import type { SkillOrigin } from '@tale/shared/schemas/skills';
@@ -50,9 +53,21 @@ export interface SkillsSelection {
   readonly tools: readonly string[];
 }
 
+/** Whether the skills and connectors on offer are the catalog's answer, the
+ * catalog is still loading, or its read failed with nothing to show. */
+export type SkillsCatalogState = 'loaded' | 'loading' | 'unavailable';
+
 interface SkillsMenuProps {
   skills: readonly SkillOption[];
   connectors: readonly SkillOption[];
+  /**
+   * Defaults to `'loaded'`. Until the catalog has answered, and after its
+   * read failed, the skills and connectors on offer are unknown, not empty:
+   * both groups say which instead of `emptySkills` / `emptyConnectors`, and
+   * no equipped slug is listed as unavailable on a list that has not
+   * arrived. The selection is kept and still counts; tools stay choosable.
+   */
+  catalog?: SkillsCatalogState;
   /** Grantable platform tools (task/document reads and writes). */
   tools: readonly SkillOption[];
   /**
@@ -90,6 +105,7 @@ function toggle(
 export function SkillsMenu({
   skills,
   connectors,
+  catalog = 'loaded',
   tools,
   lockedTools = NO_LOCKED_TOOLS,
   value,
@@ -104,6 +120,7 @@ export function SkillsMenu({
   // The capability vocabulary lives in the chat namespace; every surface
   // shares it so the labels can never diverge between hosts.
   const { t } = useT('chat');
+  const { t: tCommon } = useT('common');
   const { creatorHint } = useSkillAttribution();
   const fieldId = useId();
   const labelId = `${fieldId}-label`;
@@ -134,6 +151,14 @@ export function SkillsMenu({
         onChange(apply(toggle(selected, option.slug, next))),
     });
 
+    // A disabled row saying why a group offers nothing to tick.
+    const note = (text: string) => ({
+      type: 'item' as const,
+      label: text,
+      disabled: true,
+      onClick: () => undefined,
+    });
+
     const group = (
       section: string,
       empty: string,
@@ -143,14 +168,7 @@ export function SkillsMenu({
     ): DropdownMenuGroup => [
       { type: 'label', content: section },
       ...(options.length === 0
-        ? [
-            {
-              type: 'item' as const,
-              label: empty,
-              disabled: true,
-              onClick: () => undefined,
-            },
-          ]
+        ? [note(empty)]
         : options.map((option) => checkbox(option, selected, apply))),
     ];
 
@@ -215,6 +233,24 @@ export function SkillsMenu({
       });
     };
 
+    // No catalog answer yet, or none at all: what is on offer is unknown,
+    // so each group says why it lists nothing rather than claiming the
+    // organization has none, and no equipped slug is called unavailable.
+    if (catalog !== 'loaded') {
+      const unknown = (section: string, unavailable: string) => [
+        { type: 'label' as const, content: section },
+        note(catalog === 'loading' ? tCommon('actions.loading') : unavailable),
+      ];
+      return [
+        unknown(t('skills.sectionSkills'), t('skills.skillsUnavailable')),
+        unknown(
+          t('skills.sectionConnectors'),
+          t('skills.connectorsUnavailable'),
+        ),
+        ...toolGroups(),
+      ];
+    }
+
     // An equipped skill the picker cannot see any more — one that was
     // unshared from this scope after it was equipped — still counts and
     // still fails a run, so it is listed as a checked, removable entry
@@ -249,7 +285,18 @@ export function SkillsMenu({
       ),
       ...toolGroups(),
     ];
-  }, [skills, connectors, tools, lockedTools, value, onChange, t, creatorHint]);
+  }, [
+    skills,
+    connectors,
+    catalog,
+    tools,
+    lockedTools,
+    value,
+    onChange,
+    t,
+    tCommon,
+    creatorHint,
+  ]);
 
   const count =
     value.skills.length + value.connectors.length + value.tools.length;

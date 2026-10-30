@@ -254,6 +254,8 @@ agents:
   equipmentHint: Skills, connectors, and platform tools this agent can use.
   equipmentVisibilityHint: Skills offered here follow the project’s
     team access, not your personal visibility.
+  equipmentLoadFailed: Couldn't load the skills and connectors this project offers.
+  equipmentRefreshFailed: Couldn't refresh the skills and connectors this project offers. What's shown may be out of date.
   tool:
     readBadge: Read
     writeBadge: Writes data

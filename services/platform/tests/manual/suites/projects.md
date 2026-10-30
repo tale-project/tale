@@ -586,6 +586,35 @@ projects-list row ⋯ menu.
   after the project. A deleted project's link still shows the not-found
   message with **Projects** (`projects.title`), and no alert. Network shows
   no write in either state.
+- [ ] `PROJ-B34` · **A capability catalog that fails is not an empty
+  equipment menu** — As an editor of a project with an agent that has a
+  skill and a connector equipped, block
+  `*/api/app/chat/composer/project/*/capabilities*` in DevTools (Network →
+  request blocking), open that agent for editing from **Agents**
+  (`projects.navigation.agents`) and open **Skills, connectors & tools**
+  (`projects.agents.equipmentLabel`) → while the read retries the trigger
+  still counts the equipment and the menu reads **Loading...**
+  (`common.actions.loading`) under the skills and under the connectors,
+  never **No skills in this organization yet.** (`chat.skills.emptySkills`)
+  or **No connectors added yet.** (`chat.skills.emptyConnectors`), and no
+  equipped skill reads as unavailable (`chat.skills.unavailableOption`).
+  After the retries (a few seconds) an alert under the menu reads
+  **Couldn't load the skills and connectors this project offers.**
+  (`projects.agents.equipmentLoadFailed`) with **Try again**
+  (`common.actions.tryAgain`), and the menu reads **Couldn't load the
+  skills.** (`chat.skills.skillsUnavailable`) and **Couldn't load the
+  connectors.** (`chat.skills.connectorsUnavailable`); **Save changes**
+  (`projects.agents.editSubmit`) keeps the equipment exactly as saved. A
+  screen reader announces the alert; **Try again** pressed while still
+  blocked stays focused (busy). Unblock → **Try again** → the alert leaves,
+  the focus lands on the menu's trigger and the menu lists the catalog with
+  the equipment ticked. With the menu loaded, block the request again and
+  save an **Audience** change (`projects.settings.audience`) in a second
+  session → after the retries the alert reads **Couldn't refresh the skills
+  and connectors this project offers. What's shown may be out of date.**
+  (`projects.agents.equipmentRefreshFailed`) and the menu keeps its list.
+  Repeat the failed state in **New agent** (`projects.agents.newAgent`), and
+  in German and French.
 
 - [ ] `PROJ-A1` · **Board DnD** → A keyboard path exists to move/reorder a
   task (not drag-only)

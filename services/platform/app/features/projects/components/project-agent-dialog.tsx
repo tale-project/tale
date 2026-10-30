@@ -11,8 +11,10 @@
  */
 
 import { projectAgentGitIdentitySchema } from '@tale/shared/schemas/projects';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { Input } from '@tale/ui/input';
+import { Stack } from '@tale/ui/layout';
 import { SearchableSelect } from '@tale/ui/searchable-select';
 import { Select } from '@tale/ui/select';
 import { Textarea } from '@tale/ui/textarea';
@@ -22,10 +24,12 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   SkillsMenu,
   type SkillOption,
+  type SkillsCatalogState,
   type SkillsSelection,
 } from '@/app/components/skills/skills-menu';
 import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
+import type { ReadState } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 import { DOCUMENT_SKILL_SLUGS } from '@/lib/shared/document-skills';
 import { AppError } from '@/lib/shared/errors/app-error';
@@ -73,6 +77,10 @@ interface ProjectAgentDialogProps {
   models: readonly ModelOption[];
   /** Undefined until the project's capability catalog has loaded. */
   skills: readonly SkillOption[] | undefined;
+  /** How the capability catalog read stands (`readStateOf`): one that has
+   * not answered is not an empty catalog, and a failed read is this form's
+   * to name and retry. */
+  catalogRead: ReadState & { retry: () => void };
   /** The connectors it may be equipped with; `git` on one whose credential
    * also opens git remotes. */
   connectors: readonly RepositoryConnectorOption[];
@@ -124,6 +132,7 @@ export function ProjectAgentDialog({
   harnesses,
   models,
   skills,
+  catalogRead,
   connectors,
   agent,
   onCreated,
@@ -216,6 +225,22 @@ export function ProjectAgentDialog({
 
   // The grantable platform tools plus the always-on knowledge search.
   const { tools: toolOptions, lockedTools } = useAgentToolOptions('project');
+
+  // Until the catalog answers, what the project offers is unknown, not
+  // empty: the menu says so and keeps the equipment it cannot check yet.
+  const catalog: SkillsCatalogState =
+    skills !== undefined
+      ? 'loaded'
+      : catalogRead.unavailable
+        ? 'unavailable'
+        : 'loading';
+  const equipmentRef = useRef<HTMLDivElement>(null);
+  // Once a retried read takes its notice away, the focus returns to the
+  // menu the notice was about.
+  const focusEquipment = () =>
+    equipmentRef.current
+      ?.querySelector<HTMLElement>('[aria-haspopup="menu"]')
+      ?.focus();
 
   const secrets: readonly AgentSecretSummary[] = orgSecrets ?? [];
 
@@ -486,23 +511,41 @@ export function ProjectAgentDialog({
         // scroll-lock shard, or the option list won't wheel-scroll.
         modal
       />
-      <SkillsMenu
-        skills={skills ?? []}
-        connectors={connectors}
-        tools={toolOptions}
-        lockedTools={lockedTools}
-        value={binding}
-        onChange={setBinding}
-        disabled={isSubmitting}
-        label={t('agents.equipmentLabel')}
-        // The menu is portaled outside this dialog; register it as a modal
-        // layer so the dialog scroll lock does not swallow wheel events.
-        modal
-        // Team skills resolve against the PROJECT's teams here, not the
-        // member configuring the agent — the agent runs for everyone in
-        // the project.
-        description={t('agents.equipmentVisibilityHint')}
-      />
+      <Stack ref={equipmentRef} gap={2}>
+        <SkillsMenu
+          skills={skills ?? []}
+          connectors={connectors}
+          catalog={catalog}
+          tools={toolOptions}
+          lockedTools={lockedTools}
+          value={binding}
+          onChange={setBinding}
+          disabled={isSubmitting}
+          label={t('agents.equipmentLabel')}
+          // The menu is portaled outside this dialog; register it as a modal
+          // layer so the dialog scroll lock does not swallow wheel events.
+          modal
+          // Team skills resolve against the PROJECT's teams here, not the
+          // member configuring the agent — the agent runs for everyone in
+          // the project.
+          description={t('agents.equipmentVisibilityHint')}
+        />
+        {/* A settled failed read, also while its retry runs, and a refresh
+            that failed: the last answer, if any, stays listed. */}
+        {(catalogRead.unavailable || catalogRead.stale) && (
+          <CatalogLoadError
+            message={t(
+              catalogRead.unavailable
+                ? 'agents.equipmentLoadFailed'
+                : 'agents.equipmentRefreshFailed',
+            )}
+            failureKey={catalogRead.failureCount}
+            isRetrying={catalogRead.retrying}
+            onRetry={catalogRead.retry}
+            onFocusLost={focusEquipment}
+          />
+        )}
+      </Stack>
       <AgentSecretsField
         organizationId={organizationId}
         secrets={secrets}

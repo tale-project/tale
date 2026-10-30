@@ -2,6 +2,7 @@
 
 import { useMemo } from 'react';
 
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { toModelOptions } from '@/lib/shared/harness-offer';
 
 import {
@@ -46,6 +47,10 @@ export function ProjectAgentCreateDialog({
       harnesses={rosterQuery.data?.harnesses ?? []}
       models={models}
       skills={catalogQuery.data?.skills}
+      catalogRead={{
+        ...readStateOf(catalogQuery),
+        retry: () => void catalogQuery.refetch(),
+      }}
       connectors={catalogQuery.data?.connectors ?? []}
       {...(onCreated !== undefined ? { onCreated } : {})}
     />
