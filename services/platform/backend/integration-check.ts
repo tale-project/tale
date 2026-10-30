@@ -107,6 +107,7 @@ import { appendMessageRow } from './domains/chat/store.ts';
 import { checkAgentQuestionCoalescing } from './domains/collab/agent-question-coalescing.integration.ts';
 import { checkMentionHandles } from './domains/collab/mention-handles.integration.ts';
 import { checkTaskNotificationAccess } from './domains/collab/notification-access.integration.ts';
+import { checkRewrittenNotificationPaging } from './domains/collab/notification-paging.integration.ts';
 import { checkConnectorCredentialLiveListing } from './domains/connector_credentials/live-listing.integration.ts';
 import { checkTaskRunConnectorCaller } from './domains/connectors/bridge-caller.integration.ts';
 import { checkAutomationMessages } from './domains/connectors/notify.integration.ts';
@@ -65831,6 +65832,10 @@ async function main(): Promise<void> {
       [
         'checkAgentQuestionCoalescing',
         () => checkAgentQuestionCoalescing(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkRewrittenNotificationPaging',
+        () => checkRewrittenNotificationPaging(sql, baseUrl, authCtx, record),
       ],
       [
         'checkTaskSourceThread',
