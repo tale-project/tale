@@ -152,6 +152,8 @@ export function useCreateProviderCredential() {
       apiFormat: customProvider.apiFormat,
       baseUrl: customProvider.baseUrl,
       catalogSource: customProvider.catalogSource,
+      allowlist: credentialArgs.modelAllowlist ?? [],
+      modelFacts: customProvider.modelFacts,
     });
     if (!built.ok) {
       throw new AppError({
@@ -234,6 +236,8 @@ export function useUpdateProviderCredential() {
           apiFormat: customProvider.apiFormat,
           baseUrl: customProvider.baseUrl,
           catalogSource: customProvider.catalogSource,
+          allowlist: modelAllowlist ?? [],
+          modelFacts: customProvider.modelFacts,
         },
         snapshot.config,
       );

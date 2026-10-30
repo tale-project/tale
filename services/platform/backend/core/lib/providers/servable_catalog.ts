@@ -9,10 +9,12 @@
  *    its catalog — the caller applies the credential's allowlist as a FILTER,
  *    exactly as before;
  *  - a `catalog: none` provider (Azure deployment names, a subscription
- *    marketplace) has nothing to filter: the credential's allowlist IS its
- *    availability set, synthesized into neutral entries. Without this every
- *    lane gated on an empty catalog and such a provider — configured exactly
- *    as documented — could never serve anything.
+ *    marketplace, an organization's own gateway) has nothing to filter: the
+ *    credential's allowlist IS its availability set, synthesized into
+ *    entries carrying the facts the provider declares for each id and
+ *    neutral ones otherwise. Without this every lane gated on an empty
+ *    catalog and such a provider — configured exactly as documented — could
+ *    never serve anything.
  */
 
 import type {

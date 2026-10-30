@@ -757,6 +757,87 @@ describe('one general native configuration lifecycle', () => {
     });
   });
 
+  test('plans, applies and reads back what a provider without a model listing declares about its models', async () => {
+    // An organization's own Anthropic-format gateway lists no models: its
+    // definition carries each model's window and image input (#5073).
+    const gateway = (contextWindow: number) =>
+      parsePlatformConfiguration({
+        schemaVersion: 1,
+        resources: [
+          {
+            kind: 'provider',
+            config: {
+              name: 'claude-gateway',
+              displayName: 'Claude gateway',
+              apiFormat: 'anthropic',
+              baseUrl: 'https://llm.example.invalid',
+              catalog: {
+                source: 'none',
+                models: [
+                  {
+                    id: 'claude-sonnet-gw',
+                    contextWindow,
+                    supportsVision: true,
+                  },
+                  { id: 'claude-haiku-gw', contextWindow: 200_000 },
+                ],
+              },
+              auth: [{ method: 'env' }],
+            },
+          },
+        ],
+      });
+    const declared = gateway(1_000_000);
+    const f = await fixture(declared);
+    const plan = await planPlatformConfiguration(declared, f.client);
+    expect(plan.resources).toMatchObject([
+      { id: 'provider/claude-gateway', action: 'create' },
+    ]);
+    await applyPlatformConfiguration(declared, plan, f.client, f.receipt);
+    expect(f.writes).toEqual(['provider/claude-gateway']);
+    expect(f.entries.get('provider/claude-gateway')?.config).toEqual(
+      declared.resources[0]?.config,
+    );
+    const read = await readPlatformConfiguration(declared, f.client);
+    expect(read.resources).toMatchObject([
+      {
+        id: 'provider/claude-gateway',
+        matches: true,
+        config: {
+          catalog: {
+            source: 'none',
+            models: [
+              {
+                id: 'claude-sonnet-gw',
+                contextWindow: 1_000_000,
+                supportsVision: true,
+              },
+              { id: 'claude-haiku-gw', contextWindow: 200_000 },
+            ],
+          },
+        },
+      },
+    ]);
+    expect(
+      (await planPlatformConfiguration(declared, f.client)).resources[0]
+        ?.action,
+    ).toBe('unchanged');
+
+    // Another window is a change to plan, and converges once applied.
+    const narrowed = gateway(200_000);
+    const update = await planPlatformConfiguration(narrowed, f.client);
+    expect(update.resources[0]?.action).toBe('update');
+    await applyPlatformConfiguration(narrowed, update, f.client, f.receipt);
+    expect(
+      (await readPlatformConfiguration(narrowed, f.client)).resources[0]
+        ?.matches,
+    ).toBe(true);
+    expect(
+      (await readPlatformConfiguration(declared, f.client)).resources[0]
+        ?.matches,
+    ).toBe(false);
+  });
+
   test('speaks the platform’s three ways about the embedding floor: a number sets it, an omitted one keeps it, null clears it', async () => {
     // The platform keeps a stored `minSimilarity` when a save omits it and
     // clears it only on an explicit null, so the declaration must be able

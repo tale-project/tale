@@ -1166,6 +1166,7 @@ describe('ProvidersSettings', () => {
             apiFormat: 'anthropic',
             baseUrl: 'https://maas.example.test/v1',
             catalogSource: 'models-endpoint',
+            modelFacts: {},
           },
         }),
       );
@@ -1199,6 +1200,133 @@ describe('ProvidersSettings', () => {
           expect.objectContaining({
             modelAllowlist: ['llama-4', 'qwen-3'],
             customProvider: expect.objectContaining({ catalogSource: 'none' }),
+          }),
+        ),
+      );
+    });
+
+    it('says what each entered model can take, beside its id', async () => {
+      createCredential.mockResolvedValue({ credentialId: 'cred-9' });
+      const { user } = renderPage();
+      const dialog = await pickCustom(user);
+      await user.type(
+        dialog.getByRole('textbox', { name: /^Provider name/ }),
+        'Claude gateway',
+      );
+      await user.type(
+        dialog.getByLabelText(/^API key/, { selector: 'input' }),
+        'sk-gateway',
+      );
+      await user.click(dialog.getByRole('textbox', { name: /^Base URL/ }));
+      await user.paste('https://llm.example.test');
+      await user.click(dialog.getByRole('radio', { name: /Enter model IDs/ }));
+      // No id yet, nothing to describe.
+      expect(
+        dialog.queryByRole('group', { name: 'Model details' }),
+      ).not.toBeInTheDocument();
+      await user.type(
+        dialog.getByPlaceholderText('gpt-4o, o4-mini'),
+        'claude-sonnet-gw, claude-haiku-gw',
+      );
+      const modelGroup = (id: string) =>
+        within(dialog.getByRole('group', { name: id }));
+      await user.type(
+        modelGroup('claude-sonnet-gw').getByRole('spinbutton', {
+          name: /^Context window/,
+        }),
+        '1000000',
+      );
+      await user.click(
+        modelGroup('claude-sonnet-gw').getByRole('checkbox', {
+          name: 'Reads images',
+        }),
+      );
+      const submit = dialog.getByRole('button', { name: 'Add credential' });
+      const haikuWindow = modelGroup('claude-haiku-gw').getByRole(
+        'spinbutton',
+        {
+          name: /^Context window/,
+        },
+      );
+      // A window that is no number of tokens holds the save.
+      await user.type(haikuWindow, '0');
+      await waitFor(() => expect(submit).toBeDisabled());
+      await user.clear(haikuWindow);
+      await waitFor(() => expect(submit).toBeEnabled());
+      await user.click(submit);
+      await waitFor(() =>
+        expect(createCredential).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelAllowlist: ['claude-sonnet-gw', 'claude-haiku-gw'],
+            customProvider: expect.objectContaining({
+              catalogSource: 'none',
+              modelFacts: {
+                'claude-sonnet-gw': {
+                  contextWindow: '1000000',
+                  supportsVision: true,
+                },
+                'claude-haiku-gw': {
+                  contextWindow: '',
+                  supportsVision: false,
+                },
+              },
+            }),
+          }),
+        ),
+      );
+    });
+
+    it('opens on what the definition declares for each model, and saves a change to it', async () => {
+      fixtures.catalogs = [
+        anthropicProvider,
+        {
+          ...customVendor,
+          catalogSource: 'none',
+          models: [],
+          declaredModels: [
+            { id: 'alpha', contextWindow: 200_000, supportsVision: true },
+          ],
+        },
+      ];
+      fixtures.credentials = [
+        { ...customCredential, modelAllowlist: ['alpha', 'beta'] },
+      ];
+      updateCredential.mockResolvedValue(null);
+      const { user } = renderPage();
+      await user.click(
+        screen.getByRole('button', { name: 'Actions for Qwen CN' }),
+      );
+      await user.click(
+        within(await screen.findByRole('menu')).getByRole('menuitem', {
+          name: 'Edit credential',
+        }),
+      );
+      const dialog = within(
+        await screen.findByRole('dialog', { name: 'Edit credential' }),
+      );
+      const modelGroup = (id: string) =>
+        within(dialog.getByRole('group', { name: id }));
+      const windowOf = (id: string) =>
+        modelGroup(id).getByRole('spinbutton', { name: /^Context window/ });
+      expect(windowOf('alpha')).toHaveValue(200_000);
+      expect(
+        modelGroup('alpha').getByRole('checkbox', { name: 'Reads images' }),
+      ).toBeChecked();
+      expect(windowOf('beta')).toHaveValue(null);
+
+      await user.type(windowOf('beta'), '131072');
+      await user.click(dialog.getByRole('button', { name: 'Save' }));
+      await waitFor(() =>
+        expect(updateCredential).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelAllowlist: ['alpha', 'beta'],
+            customProvider: expect.objectContaining({
+              catalogSource: 'none',
+              modelFacts: {
+                alpha: { contextWindow: '200000', supportsVision: true },
+                beta: { contextWindow: '131072', supportsVision: false },
+              },
+            }),
           }),
         ),
       );
@@ -1290,6 +1418,7 @@ describe('ProvidersSettings', () => {
             apiFormat: 'openai',
             baseUrl: 'https://maas.example.test/v2',
             catalogSource: 'models-endpoint',
+            modelFacts: {},
           },
           // The versions the facts on screen were read at.
           reviewed: { credentialHash: 'c1', definitionHash: 'h1' },

@@ -175,4 +175,53 @@ describe('resolveModel', () => {
       contextWindow: 128_000,
     });
   });
+
+  it('serves the window and image input a catalog-less provider declares for a model', async () => {
+    const actual =
+      await vi.importActual<typeof import('./servable_catalog')>(
+        './servable_catalog',
+      );
+    vi.mocked(resolveProvidersForOrgId).mockResolvedValue([
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only name/catalog are needed by the allowlist catalog
+      {
+        name: 'claude-gateway',
+        catalog: {
+          source: 'none',
+          models: [
+            {
+              id: 'claude-sonnet-gw',
+              contextWindow: 1_000_000,
+              supportsVision: true,
+            },
+          ],
+        },
+      } as never,
+    ]);
+    vi.mocked(getServableCatalog).mockImplementation(actual.getServableCatalog);
+    runQuery.mockResolvedValue({
+      status: 'active',
+      authMethod: 'api-key',
+      modelAllowlist: ['claude-sonnet-gw', 'claude-haiku-gw'],
+    });
+
+    await expect(
+      resolveModel(ctx, 'org-1', 'claude-sonnet-gw', 'claude-gateway', true),
+    ).resolves.toMatchObject({
+      entry: {
+        id: 'claude-sonnet-gw',
+        supportsVision: true,
+        contextWindow: 1_000_000,
+      },
+    });
+    // The model the definition does not describe keeps the neutral floor.
+    await expect(
+      resolveModel(ctx, 'org-1', 'claude-haiku-gw', 'claude-gateway', true),
+    ).resolves.toMatchObject({
+      entry: {
+        id: 'claude-haiku-gw',
+        supportsVision: false,
+        contextWindow: 128_000,
+      },
+    });
+  });
 });

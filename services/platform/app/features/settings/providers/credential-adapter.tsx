@@ -30,11 +30,15 @@ import {
   ModelAllowlistField,
   sameList,
 } from './components/model-allowlist-field';
+import { ModelFactsField } from './components/model-facts-field';
 import {
   catalogFailureText,
   CUSTOM_VENDOR_KEY,
   emptyCustomProviderFacts,
   mapProviderDefinitionError,
+  modelFactsComplete,
+  modelFactsDrafts,
+  sameModelFacts,
   type CustomProviderFacts,
 } from './components/provider-definition-form';
 import { SubscriptionScopeNotice } from './components/subscription-scope-notice';
@@ -149,6 +153,7 @@ function factsOf(vendor: ProviderVendor): CustomProviderFacts {
     baseUrl: vendor.catalog.baseUrl ?? '',
     catalogSource:
       vendor.catalog.catalogSource === 'none' ? 'none' : 'models-endpoint',
+    modelFacts: modelFactsDrafts(vendor.catalog.declaredModels),
   };
 }
 
@@ -377,13 +382,23 @@ function ProviderExtraFields({
         disabled={disabled}
       />
       {facts.catalogSource === 'none' ? (
-        <ModelAllowlistField
-          models={[]}
-          freeText
-          value={value.allowlist}
-          onValueChange={setAllowlist}
-          disabled={disabled}
-        />
+        <>
+          <ModelAllowlistField
+            models={[]}
+            freeText
+            value={value.allowlist}
+            onValueChange={setAllowlist}
+            disabled={disabled}
+          />
+          {/* Without a listing nothing says what a model can take, so the
+              provider's definition says it, beside each allowlisted id. */}
+          <ModelFactsField
+            ids={value.allowlist}
+            value={facts.modelFacts}
+            onValueChange={(modelFacts) => setFacts({ modelFacts })}
+            disabled={disabled}
+          />
+        </>
       ) : vendor.catalog.models.length > 0 || value.allowlist.length > 0 ? (
         <ModelAllowlistField
           models={vendor.catalog.models}
@@ -410,12 +425,15 @@ const providerExtras: CredentialExtraModule<
   }),
   // Blank facts count as the untouched baseline: the custom entry seeds
   // them on open, and an unfilled form is nothing to warn about discarding.
-  isDirty: (value, baseline) =>
-    !sameList(value.allowlist, baseline.allowlist) ||
-    !sameFacts(
-      value.custom ?? emptyCustomProviderFacts(),
-      baseline.custom ?? emptyCustomProviderFacts(),
-    ),
+  isDirty: (value, baseline) => {
+    const facts = value.custom ?? emptyCustomProviderFacts();
+    const before = baseline.custom ?? emptyCustomProviderFacts();
+    return (
+      !sameList(value.allowlist, baseline.allowlist) ||
+      !sameFacts(facts, before) ||
+      !sameModelFacts(value.allowlist, facts.modelFacts, before.modelFacts)
+    );
+  },
   createArgs: (value) => ({
     ...(value.allowlist.length > 0 ? { modelAllowlist: value.allowlist } : {}),
     ...(value.custom !== undefined ? { customProvider: value.custom } : {}),
@@ -434,9 +452,14 @@ const providerExtras: CredentialExtraModule<
     if (facts === undefined) return false;
     if (!providerBaseUrlSchema.safeParse(facts.baseUrl.trim()).success)
       return false;
+    if (facts.catalogSource !== 'none') return true;
     // Without a listing the allowlist IS the model set — an empty one would
-    // define a provider that can serve nothing.
-    return facts.catalogSource !== 'none' || value.allowlist.length > 0;
+    // define a provider that can serve nothing — and a window that is not a
+    // number of tokens is no fact to save.
+    return (
+      value.allowlist.length > 0 &&
+      modelFactsComplete(value.allowlist, facts.modelFacts)
+    );
   },
   Fields: ProviderExtraFields,
 };
