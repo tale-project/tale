@@ -22,7 +22,7 @@ Die Automatisierung öffnet sich im Editor. Ihre Version 1 ist live, und ihr Zei
 
 Du musst nicht bis 09:00 warten. Wähle im Kopf des Editors **Live ausführen** und bestätige mit **Live ausführen**. Der Lauf listet die Aufgaben des Projekts aus den letzten 24 Stunden und schickt dir die Übersicht.
 
-Unter **Läufe** verfolgst du ihn. Zeigt der Lauf **Erfolgreich**, wähle ihn und dann seinen Schritt **Tasks**: **Returned** listet die Aufgaben, die er gelesen hat.
+Unter **Läufe** verfolgst du ihn. Zeigt der Lauf **Erfolgreich**, wähle ihn und dann seinen Schritt **Tasks**: **Zurückgegeben** listet die Aufgaben, die er gelesen hat.
 
 <Frame caption="Der Lauf mit ausgewähltem Schritt Tasks: die gelesenen Aufgaben, die älteste zuerst.">
 
