@@ -33,6 +33,8 @@ interface ChatTranscriptProps extends MessageThreadHandlers {
   feedback?: ReadonlyMap<string, 'positive' | 'negative'>;
   voiceEnabled?: boolean;
   speakAvailable?: boolean;
+  /** Show the org's confidentiality notice on the last message. */
+  dataNotice?: boolean;
   className?: string;
 }
 
@@ -48,6 +50,7 @@ export const ChatTranscript = memo(function ChatTranscript({
   feedback,
   voiceEnabled,
   speakAvailable,
+  dataNotice,
   className,
   ...handlers
 }: ChatTranscriptProps) {
@@ -75,6 +78,7 @@ export const ChatTranscript = memo(function ChatTranscript({
         feedback={feedback}
         voiceEnabled={voiceEnabled}
         speakAvailable={speakAvailable}
+        dataNotice={dataNotice}
         className={className}
         {...handlers}
       />
