@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import type { TransactionSql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 
 import { sortObjectKeysDeep } from '../../../lib/shared/utils/canonicalize-config.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
@@ -150,9 +150,10 @@ export async function claimSendIdempotency(
 
 /**
  * Fill the claimed row in with what the send answered — in the same
- * transaction as the accept, so a committed row always carries a 202 —
- * and sweep the organization's expired keys on the way (no sweeper job:
- * the keys go with the send that outlived them).
+ * transaction as the accept, so a committed row always carries a 202. The
+ * send sweeps no expired keys: a sweep in every send had concurrent sends of
+ * one organization delete the same rows, each waiting on the one before it.
+ * {@link sweepExpiredSendKeys} removes them on a schedule instead.
  */
 export async function rememberAcceptedSend(
   tx: TransactionSql,
@@ -161,7 +162,6 @@ export async function rememberAcceptedSend(
     scopeKey: string;
     messageId: string;
     response: Record<string, unknown>;
-    now: number;
   },
 ): Promise<void> {
   await tx`
@@ -170,8 +170,63 @@ export async function rememberAcceptedSend(
       response = ${tx.json(toJson(args.response))}
     WHERE org_id = ${args.organizationId} AND scope_key = ${args.scopeKey}
   `;
-  await tx`
-    DELETE FROM app.chat_send_idempotency
-    WHERE org_id = ${args.organizationId} AND expires_at_ms <= ${args.now}
-  `;
+}
+
+/** Rows one DELETE removes, so no statement holds many row locks for long. */
+export const SEND_KEY_SWEEP_BATCH = 1_000;
+
+/**
+ * DELETE rounds one sweep may take: up to 100,000 keys a run. A larger
+ * backlog (the first run on a deployment whose idle organizations kept
+ * their keys while only sends swept) drains over the following runs.
+ */
+const SEND_KEY_SWEEP_MAX_BATCHES = 100;
+
+export interface SendKeySweep {
+  /** Keys this run deleted. */
+  deleted: number;
+  /** False when the run stopped with keys possibly left: it spent its batch
+   * budget or was aborted. The next run carries on. */
+  drained: boolean;
+}
+
+/**
+ * Delete the keys whose window has closed, in every organization — the
+ * hourly `chat.send_idempotency_gc` job. An expired key answers nothing: a
+ * send under it takes the row over as a new send (the claim's `WHERE
+ * expired`), so how soon the sweep runs changes no answer; it only keeps
+ * the ledger at about a day of keys.
+ */
+export async function sweepExpiredSendKeys(
+  sql: Sql,
+  options: {
+    now?: number;
+    batch?: number;
+    maxBatches?: number;
+    /** Stops the run between batches (the job's expiry or a shutdown). */
+    signal?: AbortSignal;
+  } = {},
+): Promise<SendKeySweep> {
+  const now = options.now ?? Date.now();
+  const batch = options.batch ?? SEND_KEY_SWEEP_BATCH;
+  const maxBatches = options.maxBatches ?? SEND_KEY_SWEEP_MAX_BATCHES;
+  let deleted = 0;
+  for (let round = 0; round < maxBatches; round += 1) {
+    if (options.signal?.aborted === true) return { deleted, drained: false };
+    // `SKIP LOCKED`: a key a send is taking over right now (its claim holds
+    // the row) is left for the next run rather than waited on.
+    const result = await sql`
+      DELETE FROM app.chat_send_idempotency
+      WHERE (org_id, scope_key) IN (
+        SELECT org_id, scope_key FROM app.chat_send_idempotency
+        WHERE expires_at_ms <= ${now}
+        ORDER BY expires_at_ms
+        LIMIT ${batch}
+        FOR UPDATE SKIP LOCKED
+      )
+    `;
+    deleted += result.count;
+    if (result.count < batch) return { deleted, drained: true };
+  }
+  return { deleted, drained: false };
 }

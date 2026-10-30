@@ -110,6 +110,7 @@ import { markAutomationWriterInTx } from './domains/automations/writer-protocol.
 import { checkChatProjectAgents } from './domains/chat/project-agents.integration.ts';
 import { chatSendAttachmentSchema } from './domains/chat/routes.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
+import { checkChatTurnWrites } from './domains/chat/turn-writes.integration.ts';
 import { checkAgentQuestionCoalescing } from './domains/collab/agent-question-coalescing.integration.ts';
 import { checkMentionHandles } from './domains/collab/mention-handles.integration.ts';
 import { checkTaskNotificationAccess } from './domains/collab/notification-access.integration.ts';
@@ -66507,6 +66508,7 @@ async function main(): Promise<void> {
         'checkExpiredSessionReaper',
         () => checkExpiredSessionReaper(sql, authCtx, record),
       ],
+      ['checkChatTurnWrites', () => checkChatTurnWrites(sql, authCtx, record)],
       [
         'checkLapsedTeamWrites',
         () => checkLapsedTeamWrites(sql, baseUrl, record),
