@@ -946,13 +946,25 @@ describe('replyToConversation — the queued reply', () => {
     });
     await replyToConversation(sql, REPLY);
 
+    // The draft of this conversation, and only while it still waits.
+    const pending = statements.find((st) =>
+      st.text.startsWith('SELECT id, metadata FROM app.approvals'),
+    );
+    expect(pending?.text).toContain("resource_type = 'conversations'");
+    expect(pending?.text).toContain('resource_id = ?');
+    expect(pending?.text).toContain("status = 'pending'");
+    expect(pending?.values).toEqual(['c1']);
+
     const settled = statements.find((st) =>
       st.text.startsWith('UPDATE app.approvals'),
     );
     expect(settled?.text).toContain("status = 'completed'");
-    // approved_by, reviewed_at_ms, metadata, id: the person who sent, and
-    // what they sent beside what was drafted.
+    // approved_by, reviewed_at_ms, metadata, id: the person who sent, when
+    // they sent it, and what they sent beside what was drafted.
+    const sentAt = queuedMessage(statements)?.values[5];
+    expect(Number.isFinite(sentAt)).toBe(true);
     expect(settled?.values[0]).toBe('u1');
+    expect(settled?.values[1]).toBe(sentAt);
     expect(settled?.values[2]).toMatchObject({
       emailBody: 'A drafted answer.',
       sentContent: '<p>On its way.</p>',

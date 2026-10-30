@@ -4,11 +4,19 @@ import { DEFAULT_SANDBOX_WORKSPACES } from '@tale/shared/schemas/governance';
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+const h = vi.hoisted(() => ({ readGovernancePolicyForOrg: vi.fn() }));
+
+vi.mock('../../lib/org-config.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../lib/org-config.ts')>()),
+  readGovernancePolicyForOrg: h.readGovernancePolicyForOrg,
+}));
+
 import { SandboxDeviceOfflineError } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import {
   leftoverVerdict,
   retireOrganizationSandboxes,
   runWorkspaceCleanup,
+  unusedWorkspaceDeletions,
   workspaceVerdict,
   type LeftoverOwner,
   type WorkspaceFacts,
@@ -78,13 +86,6 @@ describe('workspaceVerdict', () => {
     expect(
       workspaceVerdict(facts({ lastUsedAt: NOW - 29 * DAY }), context),
     ).toEqual({ retire: false });
-  });
-
-  it('deletes after 30 days, switched on, unless the organization set otherwise [SBX-R12]', () => {
-    expect(DEFAULT_SANDBOX_WORKSPACES).toMatchObject({
-      deleteUnused: true,
-      unusedDays: 30,
-    });
   });
 
   it('follows the organization policy: its window, or no deletion at all [SBX-R12]', () => {
@@ -163,6 +164,47 @@ describe('workspaceVerdict', () => {
         workspaceVerdict(facts({ ownerType, inUse: true }), context),
       ).toEqual({ retire: false });
     }
+  });
+});
+
+/**
+ * The day a stopped workspace will be deleted, as the workspace list shows
+ * it, from the policy the sweep reads: the organization's own, or the
+ * defaults when it never set one.
+ */
+describe('unusedWorkspaceDeletions', () => {
+  /** One stopped project-agent workspace, last used ten days ago, under a
+   * rule in force for a long time. */
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- answers each read by the table it names
+  const sql = (async (strings: TemplateStringsArray) => {
+    const text = strings.join('?');
+    if (text.includes('FROM app.sandbox_workspace_retention')) {
+      return [{ days: 30, since: NOW - 400 * DAY }];
+    }
+    if (text.includes('WITH incarnations AS')) {
+      return [facts({ lastUsedAt: NOW - 10 * DAY })];
+    }
+    return [];
+  }) as unknown as Sql;
+
+  const deletions = () => unusedWorkspaceDeletions(sql, 'org-1', ['pa-1'], NOW);
+
+  it('deletes after 30 days, switched on, unless the organization set otherwise [SBX-R12]', async () => {
+    // No policy of its own: the defaults decide.
+    h.readGovernancePolicyForOrg.mockResolvedValueOnce(null);
+    expect(await deletions()).toEqual(new Map([['pa-1', NOW + 20 * DAY]]));
+
+    h.readGovernancePolicyForOrg.mockResolvedValueOnce({
+      ...DEFAULT_SANDBOX_WORKSPACES,
+      unusedDays: 60,
+    });
+    expect(await deletions()).toEqual(new Map([['pa-1', NOW + 50 * DAY]]));
+
+    h.readGovernancePolicyForOrg.mockResolvedValueOnce({
+      ...DEFAULT_SANDBOX_WORKSPACES,
+      deleteUnused: false,
+    });
+    expect(await deletions()).toEqual(new Map());
   });
 });
 

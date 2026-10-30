@@ -64,6 +64,11 @@ vi.mock('../../auth/session.ts', () => ({
       await next();
     },
 }));
+// The real door takes the organization from the `orgId` query parameter and
+// admits only its members (`auth/org.test.ts`, `auth/membership.gate.test.ts`).
+// This stand-in admits every request to 'member-org' whatever it names, so no
+// request here names an `orgId`: one would be ignored by construction. Some
+// name an `organizationId` instead, which no handler here may act on.
 vi.mock('../../auth/org.ts', () => ({
   requireOrgMember:
     () => async (c: Context<OrgEnv>, next: () => Promise<void>) => {
@@ -151,14 +156,12 @@ describe('sandbox settings read and write authority', () => {
     'allows %s to inspect the authenticated organization [SBX-R1] [SBX-R2] [SBX-R3]',
     async (role) => {
       caller.role = role;
-      const response = await app().request(
-        '/capacity?orgId=foreign&organizationId=foreign',
-      );
+      const response = await app().request('/capacity?organizationId=foreign');
       expect(response.status).toBe(200);
       expect(response.headers.get('cache-control')).toBe('no-store');
       expect(capacity).toHaveBeenCalledWith('member-org');
       const limitsResponse = await app().request(
-        '/limits?maxSessions=1000&orgId=foreign',
+        '/limits?maxSessions=1000&organizationId=foreign',
       );
       expect(limitsResponse.status).toBe(200);
       expect(deploymentLimits).toHaveBeenCalledWith('member-org');
@@ -324,11 +327,14 @@ describe('sandbox settings read and write authority', () => {
     async (role) => {
       caller.role = role;
       pin.mockResolvedValueOnce(true);
-      const response = await app().request('/sessions/pa-1/pin?orgId=x', {
-        method: 'POST',
-        body: '{"pinned":true}',
-        headers: { 'content-type': 'application/json' },
-      });
+      const response = await app().request(
+        '/sessions/pa-1/pin?organizationId=foreign',
+        {
+          method: 'POST',
+          body: '{"pinned":true}',
+          headers: { 'content-type': 'application/json' },
+        },
+      );
       expect(response.status).toBe(200);
       expect(await response.json()).toEqual({ pinned: true });
       expect(pin).toHaveBeenCalledExactlyOnceWith(query, {
@@ -346,9 +352,12 @@ describe('sandbox settings read and write authority', () => {
       { execId: 'exec-2' },
     ] as never);
     cancelExec.mockResolvedValueOnce(true).mockResolvedValueOnce(true);
-    const response = await app().request('/sessions/pa-1/stop-task?orgId=x', {
-      method: 'POST',
-    });
+    const response = await app().request(
+      '/sessions/pa-1/stop-task?organizationId=foreign',
+      {
+        method: 'POST',
+      },
+    );
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ cancelled: 2, refused: 0 });
     // The workspace is looked up in the caller's organization first.
@@ -436,7 +445,7 @@ describe('sandbox settings read and write authority', () => {
           transport.mockResolvedValueOnce(Response.json(body, { status }));
         }
         const response = await app().request(
-          '/sessions/owned/stop-task?orgId=foreign',
+          '/sessions/owned/stop-task?organizationId=foreign',
           { method: 'POST' },
         );
         expect(response.status).toBe(200);
@@ -480,9 +489,12 @@ describe('sandbox settings read and write authority', () => {
     // The teardown waits for the session's lifecycle lock and the spawner's
     // delete; the request only queues it, so nobody watches a dialog spin.
     scheduleDestroy.mockResolvedValue(true);
-    const response = await app().request('/sessions/pa-1/destroy?orgId=x', {
-      method: 'POST',
-    });
+    const response = await app().request(
+      '/sessions/pa-1/destroy?organizationId=foreign',
+      {
+        method: 'POST',
+      },
+    );
     expect(response.status).toBe(202);
     expect(await response.json()).toEqual({ scheduled: true });
     expect(scheduleDestroy).toHaveBeenCalledWith(query, {

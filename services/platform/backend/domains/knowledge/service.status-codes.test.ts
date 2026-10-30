@@ -260,9 +260,11 @@ describe('indexUploadedFile — one stable code per failure', () => {
 
 // The suites above and beside this one name each code by its constant. The
 // domain spec and the API reference print the words, so the words are held
-// here: a renamed code fails this instead of leaving both out of date.
+// here: a renamed code fails this instead of leaving both out of date. It
+// holds the spelling only, so it names no rule: the tests that reach each
+// code carry the rule that states it.
 describe('the indexing codes, as the domain spec prints them', () => {
-  it('spells each code a rule states [KNOW-R7] [KNOW-R8] [KNOW-R9] [KNOW-R10] [KNOW-R12]', () => {
+  it('spells each code a rule states', () => {
     expect({
       RAG_ERROR_UNSUPPORTED_TYPE,
       RAG_ERROR_IMAGE_NO_VISION,
