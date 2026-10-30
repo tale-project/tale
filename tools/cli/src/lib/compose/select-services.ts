@@ -55,3 +55,17 @@ export function selectDefaultServices(opts: {
     leftRunning,
   };
 }
+
+/**
+ * The services that serve the host of a `tale deploy --host` run: the proxy
+ * and the colour. A container serves the host it was created with.
+ */
+const HOST_SERVICES = ['proxy', ...ROTATABLE_SERVICES] as const;
+
+/**
+ * The services a `tale deploy --host` run does not reach, because the deploy
+ * does not recreate them: they keep the host they were started with.
+ */
+export function servicesKeepingHost(updating: readonly string[]): string[] {
+  return HOST_SERVICES.filter((service) => !updating.includes(service));
+}

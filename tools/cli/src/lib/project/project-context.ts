@@ -61,10 +61,12 @@ export async function resolveProjectContext(projectDir: string): Promise<void> {
  * `tale deploy` so users don't have to run `tale update` as a separate step.
  *
  * An invalid (non-empty but malformed) ID still throws — it signals
- * tampering or corruption that the user should resolve explicitly.
+ * tampering or corruption that the user should resolve explicitly. With
+ * `dryRun` the assigned ID serves this run only and tale.json is not written.
  */
 export async function resolveOrAssignProjectContext(
   projectDir: string,
+  opts: { dryRun?: boolean } = {},
 ): Promise<void> {
   const project = await readProject(projectDir);
   const id = project.id;
@@ -79,8 +81,14 @@ export async function resolveOrAssignProjectContext(
   }
 
   const assigned = generateProjectId(basename(projectDir));
+  setProjectId(assigned);
+  if (opts.dryRun) {
+    logger.info(
+      `[DRY-RUN] Would assign a project ID and save it to tale.json (this preview uses ${assigned}).`,
+    );
+    return;
+  }
   project.id = assigned;
   await writeProject(join(projectDir, 'tale.json'), project);
-  setProjectId(assigned);
   logger.info(`Assigned project ID: ${assigned}`);
 }

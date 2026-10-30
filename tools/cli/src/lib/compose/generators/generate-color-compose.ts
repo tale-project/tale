@@ -1,12 +1,14 @@
 import { stringify } from 'yaml';
 
 import { getProjectId } from '../../../utils/load-env';
+import type { RunOrigin } from '../../config/dev-origin';
 import {
   createBackendApiService,
   createBackendWorkerService,
 } from '../services/create-backend-services';
 import { createPlatformService } from '../services/create-platform-service';
 import type { ComposeConfig, DeploymentColor, ServiceConfig } from '../types';
+import { serveOrigin } from './serve-origin';
 
 /**
  * One deployment COLOUR: the whole stateless application tier at a single
@@ -22,18 +24,23 @@ import type { ComposeConfig, DeploymentColor, ServiceConfig } from '../types';
  * proxy live in the STATEFUL compose, which is a different compose project,
  * and compose has no cross-project dependencies — the ordering is the
  * deploy's: stateful tier healthy first, then a colour.
+ *
+ * `origin` is the host a `tale deploy --host` run serves instead of `.env`'s.
  */
 export function generateColorCompose(
   config: ServiceConfig,
   color: DeploymentColor,
+  origin?: RunOrigin,
 ): string {
   const prefix = `${getProjectId()}_`;
+  const services: ComposeConfig['services'] = {
+    platform: createPlatformService(config, color),
+    'backend-api': createBackendApiService(config, { colour: color }),
+    'backend-worker': createBackendWorkerService(config, { colour: color }),
+  };
+  if (origin) serveOrigin(Object.values(services), origin);
   const compose: ComposeConfig = {
-    services: {
-      platform: createPlatformService(config, color),
-      'backend-api': createBackendApiService(config, { colour: color }),
-      'backend-worker': createBackendWorkerService(config, { colour: color }),
-    },
+    services,
     volumes: {
       'static-assets': {
         external: true,

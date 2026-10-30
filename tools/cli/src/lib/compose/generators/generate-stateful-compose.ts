@@ -1,6 +1,7 @@
 import { stringify } from 'yaml';
 
 import { getProjectId } from '../../../utils/load-env';
+import type { RunOrigin } from '../../config/dev-origin';
 import { createBgutilProviderService } from '../services/create-bgutil-provider-service';
 import { createDbService } from '../services/create-db-service';
 import { createObjectStorageService } from '../services/create-object-storage-service';
@@ -9,18 +10,26 @@ import { createSandboxEgressService } from '../services/create-sandbox-egress-se
 import { createSandboxLlmGatewayService } from '../services/create-sandbox-llm-gateway-service';
 import { createSandboxService } from '../services/create-sandbox-service';
 import type { ComposeConfig, ServiceConfig } from '../types';
+import { serveOrigin } from './serve-origin';
 
+/**
+ * `origin` is the host a `tale deploy --host` run serves instead of `.env`'s;
+ * without it the proxy reads HOST and SITE_URL from `.env`.
+ */
 export function generateStatefulCompose(
   config: ServiceConfig,
   hostAlias: string,
+  origin?: RunOrigin,
 ): string {
   const prefix = `${getProjectId()}_`;
+  const proxy = createProxyService(config, hostAlias);
+  if (origin) serveOrigin([proxy], origin);
   const services: ComposeConfig['services'] = {
     db: createDbService(config),
     // The blob store: S3 is the only blob backend, so a deployment without
     // one cannot accept a single upload.
     'object-store': createObjectStorageService(config),
-    proxy: createProxyService(config, hostAlias),
+    proxy,
     // The application tier is NOT here: platform, backend-api and
     // backend-worker are stateless and deploy as one colour
     // (generate-color-compose.ts). What remains is what holds durable state

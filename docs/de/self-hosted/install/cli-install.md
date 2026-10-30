@@ -69,7 +69,7 @@ tale config show
 
 Konfigurations-Releases und [verwaltete Deployments](#managed-deployments) wählen Quellen und Ziele explizit und gleichen sich nicht an einen benachbarten Workspace an. `config show` behält sein bisheriges Verhalten für lokale Projekte.
 
-Bei Workspace-Deployments liegen Proxy-Host, TLS-Einstellungen und Secrets in der `.env` des Projekts. Ändere für die Produktion `HOST` dort oder übergib `--host` an `tale deploy`. Lokal verwendet `tale dev` standardmäßig `localhost`; seine Optionen `--host` und `--port` gelten nur für diesen Lauf. Für entfernte Workspace-Hosts nutzt du den Docker-Kontext deiner Shell oder `DOCKER_HOST`. Ein verwaltetes Bundle-Deployment läuft dagegen auf dem festgelegten Ziel mit dessen lokalem Docker-Daemon.
+Bei Workspace-Deployments liegen Proxy-Host, TLS-Einstellungen und Secrets in der `.env` des Projekts. Setze für die Produktion dort `HOST` und `SITE_URL`, oder starte `tale deploy` in einem Terminal und gib die Domain ein, wenn es danach fragt. `tale deploy --host` stellt für einen Lauf einen anderen Host bereit und lässt `.env` unverändert. Lokal verwendet `tale dev` standardmäßig `localhost`; seine Optionen `--host` und `--port` gelten nur für diesen Lauf. Für entfernte Workspace-Hosts nutzt du den Docker-Kontext deiner Shell oder `DOCKER_HOST`. Ein verwaltetes Bundle-Deployment läuft dagegen auf dem festgelegten Ziel mit dessen lokalem Docker-Daemon.
 
 ## tale deploy ausführen
 
@@ -123,18 +123,18 @@ Fehler bei Docker, Compose, einer Docker Engine älter als 24.0, einem nicht unt
 - `--host <hostname>` — Host-Alias für den Proxy (Standard `localhost`).
 - `-y, --yes` — nicht-interaktiv: Abfragen automatisch akzeptieren (z. B. Docker installieren oder starten).
 
-`tale deploy` — die aktuelle CLI-Version bereitstellen und Anwendungsrollen per Blue-Green-Verfahren ersetzen. Gemeinsame Ausführungsdienste werden direkt ersetzt; Datenbank und Proxy brauchen dafür `--stop`. Beim ersten Deployment fragt die CLI nach Produktiv-Domain und TLS-E-Mail, soweit nicht vorgegeben. Lies vor Änderungen einer bestehenden Installation [Upgrades](/de/self-hosted/operate/upgrades).
+`tale deploy` — die aktuelle CLI-Version bereitstellen und Anwendungsrollen per Blue-Green-Verfahren ersetzen. Gemeinsame Ausführungsdienste werden direkt ersetzt; Datenbank und Proxy brauchen dafür `--stop`. Beim ersten Deployment in einem Terminal fragt die CLI nach Produktiv-Domain und TLS-E-Mail, solange `HOST` in `.env` noch lokal ist, und speichert beides in `.env`. Lies vor Änderungen einer bestehenden Installation [Upgrades](/de/self-hosted/operate/upgrades).
 
 - `--stop` — auch die stop-gebundene Schicht (`db`, `proxy`) aktualisieren — sie wird neu erstellt, also nimm eine kurze Ausfallzeit in Kauf; ohne das Flag bleiben laufende `db`/`proxy` unangetastet.
 - `-s, --services <list>` — nur diese kommagetrennten Dienste aktualisieren (Standard: alle rotierbaren Dienste).
-- `--host <hostname>` — Host-Alias für den Proxy (Standard: der `HOST`-Wert aus `.env`).
+- `--host <hostname>` — diesen Host für diesen Lauf statt `HOST` aus `.env` bereitstellen; Schema und Port von `SITE_URL` bleiben, `.env` wird nicht geändert. Container, die dieses Deployment nicht neu erstellt, behalten ihren Host; ein laufender `proxy` braucht dafür `--stop`.
 - `--override` — Container-Config aus dem Host-Workspace überschreiben (verschlüsselte `*.secrets.json` und `.history/` bleiben stets erhalten).
 - `--override-all` — den Builtin-Katalog serverseitig in jede Organisation zurücksetzen; impliziert `--stop`.
 - `-q, --quiet` — Container-Logs während des Deployments unterdrücken.
 - `-y, --yes` — destruktive Bestätigungsabfragen automatisch akzeptieren (z. B. `--override-all`).
 - `--skip-backup` — den automatischen Pre-Deploy-Snapshot überspringen.
 - `--configuration-only` — wendet nur verwaltete Konfiguration (Anweisungen, Tools und Modelle der Agenten, Review-Kontexte, Automatisierungen und die Arbeitsverteilung von Projekten) im laufenden Betrieb auf die exakt passende, gesunde Runtime eines bereits bereiten Deployments an. Erfordert `--bundle <directory>` und überspringt den Snapshot vor dem Deployment sowie den Neustart. Nutze die Option, wenn sich nur diese Ressourcen ändern; Runtime- und Identitätsangaben müssen unverändert bleiben, und es darf kein Runtime-Rollout ausstehen.
-- `--dry-run` — Vorschau ohne Änderungen.
+- `--dry-run` — Vorschau ohne Änderungen: `.env` und `tale.json` bleiben, wie sie sind, und die Vorschau nennt, was ein echter Lauf dort schreiben würde.
 
 ### Verwaltete Deployments {#managed-deployments}
 
@@ -840,7 +840,7 @@ Führe den Befehl bei einer manuellen Wiederherstellung ohne Flags im interaktiv
 ## Fehlersuche
 
 - **`tale deploy` trifft die falsche Maschine.** Die CLI nutzt den Docker-Kontext / `DOCKER_HOST` deiner Shell. Wechsle mit `docker context use …` (oder setz `DOCKER_HOST`), sodass er auf den gewünschten Host zeigt, und lauf erneut.
-- **`tale deploy` nutzt den falschen Host-Alias.** Der Host, auf dem der Proxy antwortet, kommt aus `HOST` im `.env` des Projekts, nicht aus einem separaten CLI-Speicher. Bearbeite `.env` oder übergib `--host`, um ihn für einen Lauf zu überschreiben.
+- **`tale deploy` nutzt den falschen Host-Alias.** Der Host, auf dem der Proxy antwortet, kommt aus `HOST` im `.env` des Projekts, nicht aus einem separaten CLI-Speicher. Ändere `HOST` und `SITE_URL` in `.env`, um ihn zu wechseln, oder übergib `--host`, um für einen Lauf einen anderen Host bereitzustellen; ein laufender Proxy übernimmt einen neuen Host erst, wenn er neu erstellt wird (`--stop`).
 - **Installer scheitert auf macOS, weil das Binary nicht ausführbar ist.** Verweigert das frisch installierte Binary den Start (z. B. weil Gatekeeper es beendet), bricht der Installer mit Hinweisen zur Behebung ab, statt Erfolg zu melden — folg ihnen und lauf den Installer erneut.
 - **`tale` nach der Installation auf Linux nicht gefunden.** Der Installer legt das Binary in `/usr/local/bin` ab; verifizier, dass das Verzeichnis im `PATH` des Users ist (`echo $PATH`).
 

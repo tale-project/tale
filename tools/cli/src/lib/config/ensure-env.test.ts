@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -277,6 +283,56 @@ describe('ensureEnv — LLM_GATEWAY_* → SANDBOX_LLM_GATEWAY_* rename migration
         'SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD',
       );
       expect(readFileSync(join(dir, '.env'), 'utf-8')).toBe(env);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('ensureEnv — a dry run writes nothing', () => {
+  test('no .env yet: the run succeeds and none is created', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tale-env-dry-fresh-'));
+    try {
+      const res = await ensureEnv({ deployDir: dir, dryRun: true });
+      expect(res.success).toBe(true);
+      expect(existsSync(join(dir, '.env'))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a missing secret and a renamed gateway var leave .env as it is', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tale-env-dry-fill-'));
+    try {
+      const age = generateAgeKeypair();
+      writeFileSync(
+        join(dir, '.env'),
+        [
+          'HOST=demo.tale.dev',
+          'SITE_URL=https://demo.tale.dev',
+          'TLS_MODE=letsencrypt',
+          'BETTER_AUTH_SECRET=existing-better-auth',
+          'ENCRYPTION_SECRET_HEX=existing-encryption',
+          'INSTANCE_SECRET=existing-instance',
+          'DB_PASSWORD=existing-password',
+          `SOPS_AGE_KEY=${age.secretKey}`,
+          'SANDBOX_TOKEN=existing-sandbox',
+          'OBJECT_STORE_SECRET_KEY=existing-object-store',
+          'LLM_GATEWAY_ADMIN_PASSWORD=preserved-gateway-secret',
+          '',
+        ].join('\n'),
+        'utf-8',
+      );
+      const before = readFileSync(join(dir, '.env'), 'utf-8');
+      const res = await ensureEnv({ deployDir: dir, dryRun: true });
+      // The same result a real run returns, so the deploy preview plans the
+      // same recreation.
+      expect(res).toEqual({
+        success: true,
+        agePublicKey: age.publicKey,
+        regeneratedAutoSecrets: ['TALE_AUDIT_PEPPER'],
+      });
+      expect(readFileSync(join(dir, '.env'), 'utf-8')).toBe(before);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

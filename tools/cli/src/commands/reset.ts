@@ -25,6 +25,7 @@ export function createResetCommand(): Command {
         await resolveProjectContext(projectDir);
         const { success: envSetupSuccess } = await ensureEnv({
           deployDir: projectDir,
+          dryRun: options.dryRun,
         });
         if (!envSetupSuccess) {
           throw preconditionError(

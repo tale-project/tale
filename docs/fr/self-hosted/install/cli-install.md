@@ -65,7 +65,7 @@ tale config show
 
 Les releases de configuration et les [déploiements gérés](#managed-deployments) désignent explicitement sources et destinations, sans s’aligner sur un workspace voisin. `config show` garde son comportement existant pour les projets locaux.
 
-Pour un déploiement de workspace, l’hôte du proxy, les réglages TLS et les secrets vivent dans son `.env`. Pour la production, modifie `HOST` ou passe `--host` à `tale deploy`. En local, `tale dev` utilise `localhost` par défaut ; ses options `--host` et `--port` ne valent que pour cette exécution. Pour un workspace distant, utilise le contexte Docker de ton shell ou `DOCKER_HOST`. Un bundle géré s’applique sur la destination déclarée avec son daemon Docker local.
+Pour un déploiement de workspace, l’hôte du proxy, les réglages TLS et les secrets vivent dans son `.env`. Pour la production, définis `HOST` et `SITE_URL` dans ce fichier, ou lance `tale deploy` dans un terminal et saisis le domaine quand il le demande. `tale deploy --host` sert un autre hôte le temps d’une exécution sans modifier `.env`. En local, `tale dev` utilise `localhost` par défaut ; ses options `--host` et `--port` ne valent que pour cette exécution. Pour un workspace distant, utilise le contexte Docker de ton shell ou `DOCKER_HOST`. Un bundle géré s’applique sur la destination déclarée avec son daemon Docker local.
 
 ## Lancer tale deploy
 
@@ -119,18 +119,18 @@ Un échec lié à Docker, Compose, à un Docker Engine antérieur à la version 
 - `--host <hostname>` — alias d'hôte pour le proxy (par défaut `localhost`).
 - `-y, --yes` — non-interactif : accepter automatiquement les invites (p. ex. installer ou démarrer Docker).
 
-`tale deploy` — déployer la version de la CLI avec remplacement blue-green des rôles applicatifs. Les services d’exécution partagés sont remplacés sur place ; la base et le proxy nécessitent `--stop`. Au premier déploiement, la CLI demande domaine public et e-mail TLS s’ils ne sont pas fournis. Consulte [Mises à jour](/fr/self-hosted/operate/upgrades) avant de modifier une installation existante.
+`tale deploy` — déployer la version de la CLI avec remplacement blue-green des rôles applicatifs. Les services d’exécution partagés sont remplacés sur place ; la base et le proxy nécessitent `--stop`. Au premier déploiement depuis un terminal, tant que `HOST` reste local dans `.env`, la CLI demande domaine public et e-mail TLS et les enregistre dans `.env`. Consulte [Mises à jour](/fr/self-hosted/operate/upgrades) avant de modifier une installation existante.
 
 - `--stop` — mettre aussi à jour le palier arrêté-puis-recréé (`db`, `proxy`) — ces conteneurs sont recréés, donc accepte une brève interruption ; sans l'option, les `db`/`proxy` en marche restent intouchés.
 - `-s, --services <list>` — ne mettre à jour que ces services séparés par des virgules (par défaut : tous les services rotatifs).
-- `--host <hostname>` — alias d'hôte pour le proxy (par défaut : la valeur `HOST` de `.env`).
+- `--host <hostname>` — servir cet hôte pour cette exécution au lieu du `HOST` de `.env`, en gardant le schéma et le port de `SITE_URL` ; `.env` n'est pas modifié. Les conteneurs que ce déploiement ne recrée pas gardent leur hôte : un `proxy` en marche demande `--stop`.
 - `--override` — écraser la config du conteneur depuis le workspace local (les `*.secrets.json` chiffrés et `.history/` sont toujours préservés).
 - `--override-all` — réinitialiser le catalogue intégré dans chaque organisation côté serveur ; implique `--stop`.
 - `-q, --quiet` — masquer les logs des conteneurs pendant le déploiement.
 - `-y, --yes` — accepter automatiquement les confirmations destructives (p. ex. `--override-all`).
 - `--skip-backup` — ignorer le snapshot de volume automatique d'avant déploiement.
 - `--configuration-only` — applique uniquement la configuration gérée à chaud (instructions, outils et modèles des agents, contextes de révision, automatisations et répartition du travail des projets) au runtime sain exact d’un déploiement déjà prêt. Exige `--bundle <directory>` et saute le snapshot préalable au déploiement ainsi que le redémarrage. Utilise cette option quand seules ces ressources changent ; les paramètres du runtime et de l’identité doivent rester inchangés, sans déploiement du runtime en attente.
-- `--dry-run` — prévisualiser sans rien modifier.
+- `--dry-run` — prévisualiser sans rien modifier : `.env` et `tale.json` restent tels quels, et l'aperçu indique ce qu'une vraie exécution y écrirait.
 
 ### Déploiements gérés {#managed-deployments}
 
@@ -836,7 +836,7 @@ Pour une récupération manuelle, lance la commande sans options dans un termina
 ## Dépannage
 
 - **`tale deploy` vise la mauvaise machine.** La CLI utilise le contexte Docker / `DOCKER_HOST` de ton shell. Bascule avec `docker context use …` (ou définis `DOCKER_HOST`) pour qu'il pointe sur l'hôte voulu, puis relance.
-- **`tale deploy` utilise le mauvais alias d'hôte.** L'hôte sur lequel le proxy répond vient de `HOST` dans le `.env` du projet, pas d'un stockage CLI séparé. Modifie `.env` ou passe `--host` pour le remplacer le temps d'un lancement.
+- **`tale deploy` utilise le mauvais alias d'hôte.** L'hôte sur lequel le proxy répond vient de `HOST` dans le `.env` du projet, pas d'un stockage CLI séparé. Modifie `HOST` et `SITE_URL` dans `.env` pour le changer, ou passe `--host` pour servir un autre hôte le temps d'un lancement ; un proxy en marche ne prend un nouvel hôte qu'une fois recréé (`--stop`).
 - **L'installeur échoue sur macOS parce que le binaire ne peut pas s'exécuter.** Quand le binaire fraîchement installé refuse de démarrer (p. ex. Gatekeeper le tue), l'installeur échoue avec des pistes de récupération au lieu d'annoncer un succès — suis-les, puis relance l'installeur.
 - **`tale` introuvable après installation sous Linux.** L'installeur dépose le binaire dans `/usr/local/bin` ; vérifie que le répertoire est dans le `PATH` de l'utilisateur (`echo $PATH`).
 
