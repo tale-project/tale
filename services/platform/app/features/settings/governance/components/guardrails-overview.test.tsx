@@ -4,8 +4,9 @@ import {
   QueryClientProvider,
   useQuery,
 } from '@tanstack/react-query';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { i18n } from '@/tests/utils/i18n-all-languages';
 import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { GuardrailsOverview } from './guardrails-overview';
@@ -127,6 +128,26 @@ function setLoading() {
   state.isLoading = true;
   state.policy = undefined;
   state.events = [];
+}
+
+// The three policy reads through a real react-query observer, each answered
+// by `policySpy` with the policy of its type.
+const policy = (key: string, config: Record<string, unknown>) => ({
+  key,
+  config,
+});
+const card = (name: RegExp) => screen.getByRole('link', { name });
+
+function renderWithPolicies() {
+  setLoaded();
+  state.realPolicies = true;
+  const client = new QueryClient();
+  const view = render(
+    <QueryClientProvider client={client}>
+      <GuardrailsOverview organizationId="org-1" />
+    </QueryClientProvider>,
+  );
+  return { client, ...view };
 }
 
 beforeEach(() => {
@@ -331,23 +352,6 @@ describe('GuardrailsOverview', () => {
   describe('policy status read failure', () => {
     const readFailed =
       "Couldn't load the status of every filter layer. A layer marked Unknown may be on or off.";
-    const policy = (key: string, config: Record<string, unknown>) => ({
-      key,
-      config,
-    });
-    const card = (name: RegExp) => screen.getByRole('link', { name });
-
-    function renderWithPolicies() {
-      setLoaded();
-      state.realPolicies = true;
-      const client = new QueryClient();
-      const view = render(
-        <QueryClientProvider client={client}>
-          <GuardrailsOverview organizationId="org-1" />
-        </QueryClientProvider>,
-      );
-      return { client, ...view };
-    }
 
     it('marks a card Unknown, never Off, while its policy cannot be read, and Try again recovers it', async () => {
       // Content safety and moderation answer as never set up; PII fails.
@@ -462,6 +466,141 @@ describe('GuardrailsOverview', () => {
         within(card(/moderation provider/i)).getByText('Unknown'),
       ).toBeVisible();
       expect(screen.getAllByText('On')).toHaveLength(2);
+      client.clear();
+    });
+  });
+
+  // A summary names each setting the way its editor below does, in the
+  // reader's language: never the stored value (`input`, `tokenize`,
+  // `custom_jsonpath`), and never "1 categories".
+  describe('status card summaries', () => {
+    function answerPolicies({
+      categories,
+      appliesTo,
+    }: {
+      categories: number;
+      appliesTo: string[];
+    }) {
+      const configs: Record<string, Record<string, unknown>> = {
+        chat_filter: {
+          enabled: true,
+          appliesTo,
+          categories: Array.from({ length: categories }, (_, index) => ({
+            id: `category_${index + 1}`,
+            label: `Category ${index + 1}`,
+            enabled: true,
+            mode: 'block',
+            words: ['darn'],
+            patterns: [],
+          })),
+        },
+        pii_config: {
+          enabled: true,
+          mode: 'tokenize',
+          enabledPatterns: ['email'],
+        },
+        moderation_provider: {
+          enabled: true,
+          endpoint: {
+            url: 'https://moderation.example.com/v1/check',
+            headers: { 'Content-Type': 'application/json' },
+            requestTemplate: '{"text": {{text}}}',
+          },
+          responseShape: {
+            type: 'custom_jsonpath',
+            categoriesPath: '$.categories',
+            categoryShape: 'record_of_bool',
+          },
+          categoryMappings: [],
+        },
+      };
+      policySpy.mockImplementation((type) =>
+        Promise.resolve(policy(type, configs[type] ?? {})),
+      );
+    }
+
+    afterEach(async () => {
+      localStorage.removeItem('user-locale');
+      await i18n.changeLanguage('en');
+    });
+
+    it.each([
+      {
+        locale: 'de',
+        summaries: [
+          [/Inhaltssicherheit/, '1 Kategorie · Nutzer-Eingabe, Modell-Ausgabe'],
+          [/PII-Erkennung/, 'Modus: Tokenisieren'],
+          [/Moderations-Anbieter/, 'Eigener JSONPath'],
+        ],
+        stale: [
+          'input',
+          'output',
+          'tokenize',
+          'custom_jsonpath',
+          '1 Kategorien',
+        ],
+      },
+      {
+        locale: 'fr',
+        summaries: [
+          [
+            /Sécurité du contenu/,
+            '1 catégorie · Entrée utilisateur, Sortie modèle',
+          ],
+          [/Détection DCP/, 'Mode : Tokeniser'],
+          [/Fournisseur de modération/, 'JSONPath personnalisé'],
+        ],
+        stale: [
+          'input',
+          'output',
+          'tokenize',
+          'custom_jsonpath',
+          '1 catégories',
+        ],
+      },
+      {
+        locale: 'en',
+        summaries: [
+          [/Content safety/, '1 category · User input, Model output'],
+          [/PII detection/, 'Mode: Tokenize'],
+          [/Moderation provider/, 'Custom JSONPath'],
+        ],
+        // `User input` and `Model output` hold the stored words themselves:
+        // the exact summary above is what rules out the bare `input, output`.
+        stale: ['tokenize', 'custom_jsonpath', '1 categories'],
+      },
+    ] as const)(
+      'names each setting as its editor does in $locale, never by its stored value',
+      async ({ locale, summaries, stale }) => {
+        localStorage.setItem('user-locale', locale);
+        await i18n.changeLanguage(locale);
+        answerPolicies({ categories: 1, appliesTo: ['input', 'output'] });
+        const { client } = renderWithPolicies();
+
+        for (const [name, summary] of summaries) {
+          // The summary shows once the overview has settled; under its
+          // skeleton the card holds none.
+          const statusCard = await screen.findByRole('link', { name });
+          expect(await within(statusCard).findByText(summary)).toBeVisible();
+          // What the cards showed before: stored values, and one category
+          // counted in the plural.
+          for (const text of stale) {
+            expect(statusCard).not.toHaveTextContent(text);
+          }
+        }
+        client.clear();
+      },
+    );
+
+    it('counts more than one category in the plural', async () => {
+      answerPolicies({ categories: 2, appliesTo: ['output'] });
+      const { client } = renderWithPolicies();
+      const statusCard = await screen.findByRole('link', {
+        name: /content safety/i,
+      });
+      expect(
+        await within(statusCard).findByText('2 categories · Model output'),
+      ).toBeVisible();
       client.clear();
     });
   });

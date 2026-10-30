@@ -700,7 +700,7 @@ guardrailsOverview:
     contentSafety:
       title: Inhaltssicherheit
       description: Wortlisten und vom Admin bereitgestellte Regex-Muster.
-      summary: '{count} Kategorien · {targets}'
+      summary: '{count, plural, one {# Kategorie} other {# Kategorien}} · {targets}'
     pii:
       title: PII-Erkennung
       description: Integrierte Muster für Emails, Telefonnummern, IDs usw.

@@ -681,7 +681,7 @@ guardrailsOverview:
     contentSafety:
       title: Content safety
       description: Word lists and admin-supplied regex patterns.
-      summary: '{count} categories · {targets}'
+      summary: '{count, plural, one {# category} other {# categories}} · {targets}'
     pii:
       title: PII detection
       description: Built-in patterns for emails, phones, IDs, etc.

@@ -39,6 +39,9 @@ import { useT } from '@/lib/i18n/client';
 
 import { useGovernancePolicy } from '../hooks/queries';
 import { policyEnabled } from '../lib/policy-enabled';
+import { contentSafetyTargetLabel } from './content-safety-target-labels';
+import { responseShapeLabelKey } from './moderation-presets';
+import { piiModeLabel } from './pii/pii-mode-labels';
 
 interface RecentEvent {
   _id: string;
@@ -131,6 +134,7 @@ export function GuardrailsOverview({
   organizationId,
 }: GuardrailsOverviewProps) {
   const { t } = useT('governance');
+  const { t: tPiiConfigPanel } = useT('piiConfigPanel');
   const piiQuery = useGovernancePolicy(organizationId, 'pii_config');
   const chatFilterQuery = useGovernancePolicy(organizationId, 'chat_filter');
   const moderationQuery = useGovernancePolicy(
@@ -203,10 +207,14 @@ export function GuardrailsOverview({
     (chatFilterQuery.isLoading && !chatFilterRead.unavailable) ||
     (moderationQuery.isLoading && !moderationRead.unavailable);
 
+  // Each summary names a setting with the label its editor below shows,
+  // never the stored value (`input`, `tokenize`, `custom_jsonpath`).
   const chatFilterSummary = chatFilterEnabled
     ? t('guardrailsOverview.statusCards.contentSafety.summary', {
         count: chatFilterConfig?.categories?.length ?? 0,
-        targets: (chatFilterConfig?.appliesTo ?? ['input']).join(', '),
+        targets: (chatFilterConfig?.appliesTo ?? ['input'])
+          .map((target) => contentSafetyTargetLabel(target, t))
+          .join(', '),
       })
     : undefined;
 
@@ -217,7 +225,7 @@ export function GuardrailsOverview({
   const piiConfig = piiParsed?.success ? piiParsed.data : undefined;
   const piiSummary = piiEnabled
     ? t('guardrailsOverview.statusCards.pii.summary', {
-        mode: piiConfig?.mode ?? 'mask',
+        mode: piiModeLabel(piiConfig?.mode ?? 'mask', tPiiConfigPanel),
       })
     : undefined;
 
@@ -231,7 +239,11 @@ export function GuardrailsOverview({
     : undefined;
   const moderationSummary = moderationEnabled
     ? t('guardrailsOverview.statusCards.moderation.summary', {
-        value: moderationConfig?.responseShape?.type ?? 'custom_jsonpath',
+        value: t(
+          responseShapeLabelKey(
+            moderationConfig?.responseShape?.type ?? 'custom_jsonpath',
+          ),
+        ),
       })
     : undefined;
 

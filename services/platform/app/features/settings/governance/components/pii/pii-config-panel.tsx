@@ -50,6 +50,7 @@ import {
 } from '@/app/features/settings/components/settings-field-list';
 import { useT } from '@/lib/i18n/client';
 
+import { piiModeLabel } from './pii-mode-labels';
 import { piiTypeIcon } from './pii-type-icons';
 import { piiTypeLabel } from './pii-type-labels';
 
@@ -172,19 +173,19 @@ function ModeSection({
   }> = [
     {
       value: 'tokenize',
-      label: tPiiConfigPanel('modeTokenize'),
+      label: piiModeLabel('tokenize', tPiiConfigPanel),
       description: tPiiConfigPanel('modeTokenizeDesc'),
       disabled,
     },
     {
       value: 'mask',
-      label: tPiiConfigPanel('modeMask'),
+      label: piiModeLabel('mask', tPiiConfigPanel),
       description: tPiiConfigPanel('modeMaskDesc'),
       disabled,
     },
     {
       value: 'block',
-      label: tPiiConfigPanel('modeBlock'),
+      label: piiModeLabel('block', tPiiConfigPanel),
       description: tPiiConfigPanel('modeBlockDesc'),
       disabled,
     },
