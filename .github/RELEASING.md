@@ -109,10 +109,24 @@ ffmpeg install); re-run a setup step that fails on their outage. Never waive a f
 Each workflow's final **Candidate gate** records the results of every required dependency and
 fails if any is missing, failed, skipped or cancelled. Build's gate is a normal job; the other
 six call **Candidate gate / Record receipt**. The artifact name is
-`release-candidate-<workflow-stem>-<sha>-attempt-<attempt>`, retained for 90 days. Its sole file,
+`release-candidate-<workflow-stem>-<sha>-attempt-<attempt>`. Its sole file,
 `release-candidate.json`, records schema version 1, the workflow path, C, verdict, run id/URL/event,
 attempt, H, main ref and the exact dependency job results. Build also records all eight image
 identities and digests; the other receipts have an empty image list.
+
+The upload requests 90 days of retention, but GitHub can expire the artifact sooner. Every receipt
+of the candidate validated on 2026-09-30 (#3971) was set to expire 30 days after its run was
+created, and within five hours of that its run no longer listed it. Go by the artifact's own
+metadata, never by a count of days: `expires_at` is when GitHub expires it, and the gate refuses a
+receipt whose `expired` flag is set or that its run no longer lists. When a validated candidate
+has to wait for its tag, read when its receipts expire:
+
+```bash
+gh api --paginate repos/tale-project/tale/actions/runs/<run id>/artifacts \
+  --jq '.artifacts[] | select(.name | startswith("release-candidate-")) | {name, expires_at, expired}'
+```
+
+No output for a run means it lists no receipt.
 
 A matching title alone is insufficient. The release gate checks the workflow path, main branch,
 full H and its ancestry, every expected current-attempt job (including matrix legs), the exact
@@ -398,7 +412,12 @@ fails the candidate. Work in this order.
   say that it replaces the old one. Never tag a SHA other than the validated one.
 - **Do not re-run an old `main` Build run** to validate a candidate. It keeps its ordinary
   path-filtered graph and does not produce the complete candidate receipt.
-- **An expired receipt** (after 90 days) makes the gate ask for a new validation.
+- **A missing or expired receipt** leaves the gate `blocked` and names the run. Expiry follows the
+  artifact's own metadata, not a count of days (step 2), and an expired receipt can drop out of
+  its run's artifacts: `kept no candidate receipt` for a run that passed means its receipt expired
+  or was deleted. Validate the same SHA again under the release lease below: dispatch it again
+  through the repository event, wait for the new runs, then run the gate again. It decides afresh
+  whether the candidate is eligible.
 - **Release-note validation fails.** Before tagging, correct the notes in a reviewed PR and choose
   the new candidate. If a tag was already pushed without valid notes, keep that tag and release
   the corrected candidate under the next version; never repair its source by moving the tag.
