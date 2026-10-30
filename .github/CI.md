@@ -929,14 +929,15 @@ Two lanes land on `main`, both linear (ruleset **Tale required CI**, no merge qu
 **The merge train** (since 2026-10-30) carries the autonomous development cycle's work. A task
 branch starts from `train` and opens no pull request: once reviewed, it is squashed into one
 commit on top of `train`, and that commit is pushed only if the fast gate passes on it
-(formatting, `bunx turbo run typecheck build`). Every eight hours `train`'s head departs as
+(formatting, `bunx turbo run typecheck build`); the task branch is then deleted, as GitHub
+deletes a merged pull request's branch. Every eight hours `train`'s head departs as
 `train-<YYYYMMDD-HHMM>` (UTC) with one pull request into `main` (label `merge-train`,
 `gh pr merge --rebase --auto`). The full CI runs once for the whole train instead of once per
 task, and the pull request rebase-merges when the eight `CI ready (…)` contexts pass, so each
 task stays one commit on `main`. One train pull request is open at a time: a red one is repaired
-on its own branch (a fix, or a task's commit taken out) while `train` collects the next, which
-departs only after it merges. After the merge, `train` is rebased onto `main`, keeping only the
-commits that landed after the departure.
+on its own branch (a fix, or a task's commit taken out, its task branch restored at that commit
+for the repair) while `train` collects the next, which departs only after it merges. After the
+merge, `train` is rebased onto `main`, keeping only the commits that landed after the departure.
 
 **A pull request of its own** (a person's, Renovate's) squash-merges once the eight
 `CI ready (…)` contexts pass on its head and its review approves, with

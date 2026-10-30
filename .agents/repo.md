@@ -175,7 +175,8 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
     the ruff format check, `bunx turbo run typecheck build`). Every 8 hours `train` departs as
     `train-<YYYYMMDD-HHMM>` (UTC) with one pull request into `main` (label `merge-train`) that runs
     the full CI and rebase-merges once green, one commit per task, while `train` collects the
-    next. One train pull request is open at a time. `train` and `train-*` belong to the train.
+    next. One train pull request is open at a time. `train` and `train-*` belong to the train,
+    and a task branch is deleted once it lands on `train`.
   - **A pull request of its own** (a person's, Renovate's): branch off `main`; it squash-merges,
     so its title must itself be commitlint-shaped, with `gh pr merge --squash --auto` once its
     checks and review pass; its own CI runs every suite its paths owe.
