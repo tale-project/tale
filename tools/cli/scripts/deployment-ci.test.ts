@@ -339,7 +339,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
     });
     expect(build.on.repository_dispatch?.types).toEqual(['release-candidate']);
     expect(build.on.push?.branches).toEqual(['main']);
-    expect(build.on.pull_request?.branches).toEqual(['main']);
+    expect(build.on.pull_request?.branches).toEqual(['main', 'release/**']);
     const dispatched =
       "(github.event_name == 'workflow_dispatch' || github.event_name == 'repository_dispatch')";
     const candidate =

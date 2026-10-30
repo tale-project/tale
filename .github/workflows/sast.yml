@@ -1,9 +1,10 @@
 name: SAST
 
 # Strict, blocking source-level SAST (Opengrep). Unlike the dependency scans in
-# security.yml (scoped to lockfiles + main), this runs on EVERY pull request
-# (any target branch) whenever source changes, so feature branches can't slip
-# code past the gate. The ruleset and pinned engine live in tools/opengrep/.
+# security.yml (scoped to lockfiles, and to pull requests into main and
+# release/**), this runs on EVERY pull request (any target branch) whenever
+# source changes, so feature branches can't slip code past the gate. The
+# ruleset and pinned engine live in tools/opengrep/.
 
 run-name: ${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
 

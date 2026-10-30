@@ -181,7 +181,7 @@
                 "reopened",
                 "ready_for_review"
               ],
-              "branches": ["main"]
+              "branches": ["main", "release/**"]
             },
             "push": {
               "branches": ["main"]
@@ -3012,7 +3012,7 @@
                 "reopened",
                 "ready_for_review"
               ],
-              "branches": ["main"]
+              "branches": ["main", "release/**"]
             },
             "push": {
               "branches": ["main"]
@@ -3342,7 +3342,7 @@
                 "reopened",
                 "ready_for_review"
               ],
-              "branches": ["main"]
+              "branches": ["main", "release/**"]
             },
             "schedule": [
               {
@@ -5487,7 +5487,7 @@
                 "reopened",
                 "ready_for_review"
               ],
-              "branches": ["main"]
+              "branches": ["main", "release/**"]
             },
             "push": {
               "branches": ["main"],
