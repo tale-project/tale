@@ -12,7 +12,7 @@ const POPOVER_SHADOW =
  * The editor's chrome, all through CSS variables (`--code-*` and the app's
  * tokens), so one theme serves light and dark. Sizes come from the frame:
  * the font size is inherited (`text-base md:text-xs` or `md:text-sm`), a
- * line is 1.6 em like a read-only code block, and the frame sets
+ * line is 1.6 em, and the frame sets
  * `--ce-min-rows` / `--ce-max-rows`.
  */
 export const codeEditorTheme = EditorView.theme({
