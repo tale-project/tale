@@ -705,6 +705,7 @@ dataNotice:
   languagesLabel: Langues de l'avis
   textLabel: Texte de l'avis ({language})
   saveFailed: Échec de l'enregistrement de l'avis de confidentialité
+  defaultUnavailable: Impossible de charger l'avis par défaut.
 personalization:
   enabledLabel: Activé pour cette organisation
   saved: Politique de personnalisation mise à jour

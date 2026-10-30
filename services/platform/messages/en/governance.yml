@@ -653,6 +653,7 @@ dataNotice:
   languagesLabel: Notice languages
   textLabel: Notice text ({language})
   saveFailed: Couldn't save the confidentiality notice
+  defaultUnavailable: The default notice couldn't be loaded.
 personalization:
   enabledLabel: Enabled for this organization
   saved: Personalization policy updated

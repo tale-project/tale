@@ -236,7 +236,7 @@ describe('loadLocale on a per-topic instance', () => {
   });
 });
 
-describe('useLocalesLoaded on a per-topic instance', () => {
+describe('useLocalesLoad on a per-topic instance', () => {
   // The data-notice editor reads its default in every language beside an
   // English session.
   it('fetches the namespaces a screen reads in other languages, and the pages after it fetch and wait for none of them', async () => {
@@ -258,10 +258,16 @@ describe('useLocalesLoaded on a per-topic instance', () => {
       createElement(I18nextProvider, { i18n }, children);
 
     const { result } = renderHook(
-      () => locales.useLocalesLoaded(['en', 'de', 'fr'], ['notice']),
+      () => locales.useLocalesLoad(['en', 'de', 'fr'], ['notice']),
       { wrapper },
     );
-    await vi.waitFor(() => expect(result.current).toBe(true));
+    await vi.waitFor(() =>
+      expect(result.current).toEqual({
+        en: 'loaded',
+        de: 'loaded',
+        fr: 'loaded',
+      }),
+    );
     expect(i18n.getFixedT('de', 'notice')('default')).toBe('Hinweis');
     expect(i18n.getFixedT('fr', 'notice')('default')).toBe('Avis');
     expect(homeDe).not.toHaveBeenCalled();

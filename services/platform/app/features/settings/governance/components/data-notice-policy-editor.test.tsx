@@ -47,6 +47,25 @@ vi.mock('@/app/hooks/use-ability', () => ({
   }),
 }));
 
+// German and French as the editor reads them when their messages did not
+// load (`noticeDefaults.failed`); otherwise as the store has them.
+const { noticeDefaults } = vi.hoisted(() => ({
+  noticeDefaults: { failed: false },
+}));
+vi.mock('@tale/ui/i18n/load-locale', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('@tale/ui/i18n/load-locale')>();
+  return {
+    ...actual,
+    useLocalesLoad: (...args: Parameters<typeof actual.useLocalesLoad>) => {
+      const loads = actual.useLocalesLoad(...args);
+      return noticeDefaults.failed
+        ? { ...loads, de: 'failed', fr: 'failed' }
+        : loads;
+    },
+  };
+});
+
 const DEFAULT_EN =
   'AI can make mistakes—verify responses and do not share sensitive data.';
 const DEFAULT_DE =
@@ -92,6 +111,7 @@ beforeEach(() => {
   state.isLoading = false;
   state.config = undefined;
   state.canWrite = true;
+  noticeDefaults.failed = false;
   mutateAsync.mockClear();
 });
 
@@ -176,6 +196,34 @@ describe('DataNoticePolicyEditor', () => {
         ),
       );
       expect(noticeText('English')).toHaveAttribute('placeholder', DEFAULT_EN);
+    });
+
+    it("says a language's default notice could not be loaded instead of leaving its field blank", async () => {
+      noticeDefaults.failed = true;
+      render(<DataNoticePolicyEditor organizationId="org-1" />);
+
+      expect(noticeText('Deutsch')).toHaveAttribute(
+        'placeholder',
+        "The default notice couldn't be loaded.",
+      );
+      expect(noticeText('Français')).toHaveAttribute(
+        'placeholder',
+        "The default notice couldn't be loaded.",
+      );
+      // English comes with the app.
+      expect(noticeText('English')).toHaveAttribute('placeholder', DEFAULT_EN);
+
+      // An English text needs no other language's messages.
+      fireEvent.change(noticeText('English'), {
+        target: { value: 'Mind the client data.' },
+      });
+
+      await waitFor(() =>
+        expect(noticeText('Deutsch')).toHaveAttribute(
+          'placeholder',
+          'Mind the client data.',
+        ),
+      );
     });
 
     it('previews the English text in the empty languages once there is one', async () => {

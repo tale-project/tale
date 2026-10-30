@@ -1,5 +1,7 @@
 languageSwitcher:
   ariaLabel: Switch language
+  loadFailed: Couldn't load {language}
+  loadFailedHint: Check your connection and try again.
 markdownCallout:
   note: Note
   tip: Tip

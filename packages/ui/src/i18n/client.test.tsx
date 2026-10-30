@@ -137,7 +137,7 @@ describe('useT', () => {
   });
 
   // A language loaded before the session switches to it, or read beside the
-  // session's (`useLocalesLoaded`), changes no word a reader shows.
+  // session's (`useLocalesLoad`), changes no word a reader shows.
   it('re-renders no reader when messages land in a language the session does not read', async () => {
     const i18n = await instance();
     await i18n.changeLanguage('de');

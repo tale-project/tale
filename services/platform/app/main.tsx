@@ -5,6 +5,7 @@ import {
 import { AppShell } from '@tale/ui/app-shell';
 import { loadDayjsLocale } from '@tale/ui/date';
 import { SupportUrlProvider } from '@tale/ui/error-boundaries/support-url';
+import { LocaleLoadNotice } from '@tale/ui/i18n/locale-load-notice';
 import { SwUpdateToasts } from '@tale/ui/pwa/sw-update-toasts';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { RouterProvider } from '@tanstack/react-router';
@@ -108,6 +109,7 @@ function App() {
                       <RouterProvider router={router} />
                     </OnlineGate>
                     <SwUpdateToasts />
+                    <LocaleLoadNotice />
                   </BackupCodesDialogProvider>
                 </BrandingProvider>
               </LazyMotion>

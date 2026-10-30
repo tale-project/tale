@@ -1,9 +1,25 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { isLocaleLoaded, loadLocale } from './load-locale';
+
+/** Where the switch to a locale stands. */
+export interface LocaleSyncState {
+  /** The locale switched to. */
+  readonly locale: string;
+  /**
+   * `loading` while its messages are on their way, `shown` once the page
+   * shows it, `failed` when they did not load.
+   */
+  readonly status: 'loading' | 'shown' | 'failed';
+  /**
+   * The language the page shows: `locale` once it is shown; until then, and
+   * when its messages did not load, the one it showed before.
+   */
+  readonly shownLocale: string;
+}
 
 interface LocaleSyncProps {
   /** Active locale tag — what the i18n instance should render with. Caller
@@ -15,6 +31,13 @@ interface LocaleSyncProps {
    *  the broader language. Both forms are valid BCP-47, so most callers can
    *  safely omit this prop. */
   htmlLang?: string;
+  /**
+   * Changed to switch to the same `locale` again: messages that did not load
+   * are fetched again (`loadLocale` forgets a failed fetch).
+   */
+  attempt?: number;
+  /** Told where the switch to `locale` stands, each time that changes. */
+  onStateChange?: (state: LocaleSyncState) => void;
 }
 
 /**
@@ -35,16 +58,27 @@ interface LocaleSyncProps {
  * A locale whose messages the service fetches on first use (`lazyBundles`,
  * or per topic with `topics`) is switched to once they have landed, so every
  * reader re-renders with its words present; until then the page stays in the
- * language it shows, and so does `<html lang>`.
+ * language it shows, and so does `<html lang>`. `onStateChange` hears where
+ * the switch stands, so a language picker can mark the language the page
+ * shows rather than the one it waits for.
  */
-export function LocaleSync({ locale, htmlLang }: LocaleSyncProps): null {
+export function LocaleSync({
+  locale,
+  htmlLang,
+  attempt,
+  onStateChange,
+}: LocaleSyncProps): null {
   const { i18n } = useTranslation();
+  // The caller's latest callback, without switching again when it changes.
+  const report = useRef(onStateChange);
+  report.current = onStateChange;
   useEffect(() => {
     const show = () => {
       if (i18n.language !== locale) void i18n.changeLanguage(locale);
       if (typeof document !== 'undefined') {
         document.documentElement.lang = htmlLang ?? locale;
       }
+      report.current?.({ locale, status: 'shown', shownLocale: locale });
     };
     const loaded = isLocaleLoaded(i18n, locale);
     let current = true;
@@ -60,12 +94,28 @@ export function LocaleSync({ locale, htmlLang }: LocaleSyncProps): null {
           `[i18n] the ${locale} messages did not load; the page stays in ${i18n.language}`,
           error,
         );
+        if (current && !loaded) {
+          report.current?.({
+            locale,
+            status: 'failed',
+            shownLocale: i18n.language,
+          });
+        }
       },
     );
-    if (loaded) show();
+    if (loaded) {
+      show();
+    } else {
+      report.current?.({
+        locale,
+        status: 'loading',
+        shownLocale: i18n.language,
+      });
+    }
     return () => {
       current = false;
     };
-  }, [i18n, locale, htmlLang]);
+    // `attempt` is not read: a new one runs the switch again.
+  }, [i18n, locale, htmlLang, attempt]);
   return null;
 }

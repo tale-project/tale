@@ -5,6 +5,7 @@ import { cn } from '@tale/ui/cn';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
+import { baseLocaleOf } from '@tale/ui/i18n/locales';
 import { IosInstallSheet } from '@tale/ui/pwa/ios-install-sheet';
 import { useInstallPrompt } from '@tale/ui/pwa/use-install-prompt';
 import { TALE_DOCS_URL } from '@tale/ui/seo/globals';
@@ -30,6 +31,7 @@ import {
   Download,
   ChevronRight,
   Check,
+  Loader2,
 } from 'lucide-react';
 import {
   type ComponentType,
@@ -151,12 +153,13 @@ export function UserButton({
   const { t } = useT('auth');
   const { t: tNav } = useT('navigation');
   const { t: tGlobal } = useT('global');
+  const { t: tCommon } = useT('common');
   const { user, signOut, proxied, isLoading: loading } = useAuth();
   const navigate = useNavigate();
   const params = useParams({ strict: false });
   const organizationId = params.id;
   const { theme, setTheme } = useTheme();
-  const { locale, setLocale } = useLocale();
+  const { locale, setLocale, shownLocale, status } = useLocale();
   // The org / language pickers expand inline on mobile (no room for a side
   // flyout against the screen edge) but use Radix sub-menu popups on larger
   // screens, where there's space to anchor them.
@@ -429,9 +432,13 @@ export function UserButton({
       },
     ]);
 
-    const localeBase = locale.split('-')[0];
-    const currentLocaleValue =
-      localeBase === 'de' ? 'de' : localeBase === 'fr' ? 'fr' : 'en';
+    // The switcher marks the language the page shows. German and French
+    // load on first use: the one picked shows a spinner until the page
+    // switches to it, and when it does not load, the page stays as it is and
+    // `<AppShell>` says so (#4421).
+    const shownLocaleValue = baseLocaleOf(shownLocale);
+    const pendingLocaleValue =
+      status === 'loading' ? baseLocaleOf(locale) : undefined;
 
     // Language switcher — each option's label combines its country flag and
     // the language name as written in that language (from `global.languages`,
@@ -441,6 +448,15 @@ export function UserButton({
       <span className="flex items-center gap-2">
         <span aria-hidden="true">{LANGUAGE_FLAGS[value]}</span>
         <span>{tGlobal(`languages.${value}`)}</span>
+        {value === pendingLocaleValue && (
+          <>
+            <Loader2
+              aria-hidden="true"
+              className="text-muted-foreground size-3.5 animate-spin motion-reduce:animate-none"
+            />
+            <span className="sr-only">{tCommon('actions.loading')}</span>
+          </>
+        )}
       </span>
     );
 
@@ -455,7 +471,7 @@ export function UserButton({
               >
                 <div role="radiogroup" aria-label={t('userButton.language')}>
                   {(['en', 'de', 'fr'] as const).map((value) => {
-                    const checked = currentLocaleValue === value;
+                    const checked = shownLocaleValue === value;
                     return (
                       <button
                         key={value}
@@ -487,7 +503,7 @@ export function UserButton({
               [
                 {
                   type: 'radio-group',
-                  value: currentLocaleValue,
+                  value: shownLocaleValue,
                   onValueChange: (val) => {
                     if (val) setLocale(val);
                   },
@@ -548,9 +564,12 @@ export function UserButton({
     isMobile,
     theme,
     locale,
+    shownLocale,
+    status,
     t,
     tNav,
     tGlobal,
+    tCommon,
     navigate,
     setTheme,
     setLocale,

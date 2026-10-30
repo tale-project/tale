@@ -112,7 +112,7 @@ Les trois sont activés tant que tu n’en désactives pas un, et un fichier de 
 
 </Frame>
 
-Chaque membre voit le texte de sa langue. Un onglet marqué **non traduit** n’a pas de texte propre : les membres qui lisent cette langue voient ton texte anglais, ou l’avis par défaut si l’anglais est vide lui aussi, et le champ vide présente ce texte en aperçu. Un point rouge signale une langue dont le texte est trop long ; l’enregistrement reste impossible tant que tu ne l’as pas raccourci. Désactiver l’avis conserve tes textes pour la prochaine activation.
+Chaque membre voit le texte de sa langue. Un onglet marqué **non traduit** n’a pas de texte propre : les membres qui lisent cette langue voient ton texte anglais, ou l’avis par défaut si l’anglais est vide lui aussi, et le champ vide présente ce texte en aperçu. Si l’avis par défaut d’une langue ne peut pas être chargé, son champ vide l’indique à la place. Un point rouge signale une langue dont le texte est trop long ; l’enregistrement reste impossible tant que tu ne l’as pas raccourci. Désactiver l’avis conserve tes textes pour la prochaine activation.
 
 L’avis n’est qu’un rappel : il ne vérifie, ne bloque ni ne modifie les messages envoyés. Pour agir sur les contenus sensibles, configure les [Garde-fous](/fr/platform/admin/governance/guardrails).
 

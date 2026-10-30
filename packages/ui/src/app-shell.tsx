@@ -1,6 +1,10 @@
 'use client';
 
-import { LocaleProvider, useLocale } from '@tale/ui/i18n/locale-provider';
+import {
+  LocaleProvider,
+  useLocale,
+  useLocaleSwitch,
+} from '@tale/ui/i18n/locale-provider';
 import { LocaleSync } from '@tale/ui/i18n/sync';
 import type { i18n as I18nInstance } from 'i18next';
 import type { ReactNode } from 'react';
@@ -18,9 +22,12 @@ interface ClientLocaleConfig {
   /**
    * Use client-side detection: `<LocaleProvider>` reads localStorage →
    * `window.__ACCEPT_LANGUAGE__` → `navigator.languages` and exposes
-   * `useLocale()` for the language picker. URL-driven services (web, docs)
-   * omit `locale` entirely and mount `<LocaleSync>` from the root route
-   * with `useCurrentLocale()`.
+   * `useLocale()` for the language picker, which marks the language the
+   * page shows (`shownLocale`) while a picked one loads. Mount
+   * `<LocaleLoadNotice>` (`@tale/ui/i18n/locale-load-notice`) inside to say
+   * when one does not load. URL-driven services (web, docs) omit `locale`
+   * entirely and mount `<LocaleSync>` from the root route with
+   * `useCurrentLocale()`.
    */
   mode: 'client';
   /**
@@ -68,7 +75,14 @@ interface AppShellProps {
 
 function ClientLocaleBridge() {
   const { locale } = useLocale();
-  return <LocaleSync locale={locale} />;
+  const { attempt, onStateChange } = useLocaleSwitch();
+  return (
+    <LocaleSync
+      locale={locale}
+      attempt={attempt}
+      onStateChange={onStateChange}
+    />
+  );
 }
 
 /**
@@ -114,6 +128,7 @@ export function AppShell({ i18n, locale, theme, children }: AppShellProps) {
       <LocaleProvider
         defaultLocale={locale.defaultLocale}
         onLocaleChange={locale.onChange}
+        i18n={i18n}
       >
         {tree}
       </LocaleProvider>

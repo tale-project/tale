@@ -112,7 +112,7 @@ Alle drei sind eingeschaltet, bis du einen ausschaltest, und eine fehlende Richt
 
 </Frame>
 
-Mitglieder sehen den Text in ihrer Sprache. Ein Tab mit der Markierung **nicht übersetzt** hat keinen eigenen Text: Mitglieder mit dieser Sprache sehen deinen englischen Text oder, wenn auch dieser fehlt, den Standardhinweis, und das leere Feld zeigt diesen Text als Vorschau. Ein roter Punkt markiert eine Sprache mit zu langem Text; Speichern ist erst wieder möglich, wenn du ihn kürzt. Schaltest du den Hinweis aus, bleiben deine Texte für das nächste Einschalten erhalten.
+Mitglieder sehen den Text in ihrer Sprache. Ein Tab mit der Markierung **nicht übersetzt** hat keinen eigenen Text: Mitglieder mit dieser Sprache sehen deinen englischen Text oder, wenn auch dieser fehlt, den Standardhinweis, und das leere Feld zeigt diesen Text als Vorschau. Lässt sich der Standardhinweis einer Sprache nicht laden, meldet ihr leeres Feld das stattdessen. Ein roter Punkt markiert eine Sprache mit zu langem Text; Speichern ist erst wieder möglich, wenn du ihn kürzt. Schaltest du den Hinweis aus, bleiben deine Texte für das nächste Einschalten erhalten.
 
 Der Hinweis ist nur eine Erinnerung. Er prüft, blockiert oder verändert keine Nachrichten. Um auf sensible Inhalte zu reagieren, richte [Guardrails](/de/platform/admin/governance/guardrails) ein.
 
