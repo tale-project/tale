@@ -40,6 +40,8 @@ describe('the control door', () => {
   it.each([
     ['no token', undefined],
     ['another token', 'Bearer not-the-token'],
+    // As long as the token, so the comparison of the bytes decides.
+    ['another token of the same length', `Bearer ${TOKEN.slice(0, -1)}X`],
     ['the token without the Bearer scheme', TOKEN],
   ])('refuses a call with %s [CTRL-R2]', async (_label, authorization) => {
     vi.stubEnv('TALE_CONTROL_TOKEN', TOKEN);

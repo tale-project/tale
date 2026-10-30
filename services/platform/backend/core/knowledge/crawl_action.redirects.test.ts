@@ -63,6 +63,14 @@ const retired = (statements: { text: string; params: unknown[] }[]) =>
     .filter((statement) => statement.text.includes("SET status = 'deleted'"))
     .map((statement) => statement.params[1]);
 
+/** The pages whose chunks left the index, as `[domain, url]`. */
+const unindexed = (statements: { text: string; params: unknown[] }[]) =>
+  statements
+    .filter((statement) =>
+      statement.text.startsWith('DELETE FROM public_web.chunks '),
+    )
+    .map((statement) => statement.params);
+
 const admitted = (statements: { text: string; params: unknown[] }[]) =>
   statements
     .filter((statement) => statement.text.includes('RETURNING u.url'))
@@ -212,6 +220,7 @@ describe('fetchAndStorePage — a page the crawler does not request', () => {
 
     expect(safeFetchBinary).not.toHaveBeenCalled();
     expect(retired(statements)).toEqual([url]);
+    expect(unindexed(statements)).toEqual([[DOMAIN, url]]);
   });
 
   it('still requests a disallowed address the source lists by name [KNOW-R14]', async () => {

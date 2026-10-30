@@ -140,13 +140,44 @@ describe('evaluateTwoFactorEnforcement', () => {
     expect(await decide({})).toMatchObject({ decision: 'ok' });
   });
 
-  it('holds the person to the strictest policy among their organizations [TFA-R1]', async () => {
-    organizations(
-      { enforced: false },
-      { enforced: true, gracePeriodDays: 0, exemptSsoUsers: false },
-    );
-    expect(await decide({})).toMatchObject({ decision: 'blocked' });
-  });
+  const REQUIRED_AT_ONCE = {
+    enforced: true,
+    gracePeriodDays: 0,
+    exemptSsoUsers: false,
+  };
+
+  it.each([
+    ['first', [REQUIRED_AT_ONCE, { enforced: false }]],
+    ['last', [{ enforced: false }, REQUIRED_AT_ONCE]],
+  ])(
+    'holds the person to the strictest policy among their organizations, listed %s [TFA-R1]',
+    async (_listed, policies) => {
+      organizations(...policies);
+      expect(await decide({})).toMatchObject({
+        decision: 'blocked',
+        policy: { enforced: true, exemptSsoUsers: false },
+      });
+    },
+  );
+
+  // Both organizations require a second factor; only one exempts SSO
+  // accounts, so the stricter one holds an account without a password.
+  it.each([
+    [
+      'first',
+      [REQUIRED_AT_ONCE, { ...REQUIRED_AT_ONCE, exemptSsoUsers: true }],
+    ],
+    ['last', [{ ...REQUIRED_AT_ONCE, exemptSsoUsers: true }, REQUIRED_AT_ONCE]],
+  ])(
+    'holds an SSO account when one organization does not exempt it, listed %s [TFA-R1]',
+    async (_listed, policies) => {
+      organizations(...policies);
+      expect(await decide({ signIns: ['saml'] })).toMatchObject({
+        decision: 'blocked',
+        policy: { enforced: true, exemptSsoUsers: false },
+      });
+    },
+  );
 
   it.each([
     ['an authenticator app', { authenticator: true }],
