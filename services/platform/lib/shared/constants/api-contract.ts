@@ -879,5 +879,19 @@
  * prompt is a JSON-RPC -32603 with `data.code` and `data.retryAfterMs`.
  * Such a call used to answer `INTERNAL_ERROR` (a read, -32603 with that
  * code); it now counts as a refusal, not a failure. Wait and call again.
+ *
+ * 3.51.0 — 2026-10-30: a knowledge database that restarts or cannot be
+ * reached — the deployment's own or the one the organization brought —
+ * answers `KNOWLEDGE_DATABASE_UNAVAILABLE`, and `DATABASE_UNAVAILABLE` means
+ * the platform's own database alone. A knowledge search that meets it is a
+ * 503 with that code, `Retry-After` (5 seconds) and a `requestId`, where it
+ * answered `DATABASE_UNAVAILABLE`; the MCP `get_knowledge` tool answers a
+ * tool result with that code and `data.retryAfterMs` (5000), where it
+ * answered `status: "unavailable"` with `KNOWLEDGE_UNAVAILABLE` in the
+ * driver's words, and a platform database restart during it is
+ * `DATABASE_UNAVAILABLE` like every other tool's. A knowledge database that
+ * refuses the platform's credentials or lacks its database, and a
+ * connection the platform itself closed, stay a 500 `INTERNAL_ERROR`: they
+ * are not outages to wait out. Wait and call again.
  */
-export const API_CONTRACT_VERSION = '3.50.0';
+export const API_CONTRACT_VERSION = '3.51.0';

@@ -1,6 +1,6 @@
 import { withRetry } from '@tale/shared/db/retry';
 
-import { isDatabaseUnavailable, ROUTINE_RESTART_MS } from './unavailable.ts';
+import { isAnyDatabaseUnavailable, ROUTINE_RESTART_MS } from './unavailable.ts';
 
 /**
  * How a booting process waits out an unavailable database.
@@ -74,8 +74,12 @@ export function createBootDatabaseWait(
       isTransient: (error) => {
         // Every client a boot step opens is a database client — postgres.js,
         // pg-boss's node-postgres pool, Better Auth's node-postgres migrator
-        // — so a bare socket error is the database's too.
-        if (!isDatabaseUnavailable(error, { fromDatabase: true })) return false;
+        // — so a bare socket error is the database's too. The platform's or
+        // a knowledge database: the steps a wait runs say which, and the
+        // knowledge pools mark what they reject (`db/unavailable.ts`).
+        if (!isAnyDatabaseUnavailable(error, { fromDatabase: true })) {
+          return false;
+        }
         const now = clock();
         outageSince ??= now;
         return now - outageSince < waitMs;

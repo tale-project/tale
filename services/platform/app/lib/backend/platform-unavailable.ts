@@ -22,3 +22,22 @@ export function isPlatformUnavailable(error: unknown): boolean {
     isPlatformUnavailableAnswer(error.status, error.code)
   );
 }
+
+/**
+ * Whether a request failed because the knowledge database did not answer —
+ * the deployment's default or the organization's own: the platform's 503
+ * `KNOWLEDGE_DATABASE_UNAVAILABLE`, with `Retry-After`
+ * (`backend/error-reporting.ts`). The platform itself answered, so the
+ * browser keeps it reachable (`api-client.ts`). The server reports an outage
+ * that lasts, once per database and outage, so the browser reports none of
+ * the failed requests (`app/lib/sentry-normalize.ts`), and the person reads
+ * that the knowledge database is not answering (`failureDetail`). The code at
+ * another status stays a fault.
+ */
+export function isKnowledgeDatabaseUnavailable(error: unknown): boolean {
+  return (
+    error instanceof BackendApiError &&
+    error.status === 503 &&
+    error.code === 'KNOWLEDGE_DATABASE_UNAVAILABLE'
+  );
+}

@@ -53,6 +53,7 @@ import {
   type SafeFetchResponse,
 } from '../../../lib/net/safe-fetch';
 import { modelTimestamp } from '../../../lib/shared/model-timestamp';
+import { knowledgeDatabaseUnavailable } from '../../db/unavailable';
 import { readDocumentText } from '../knowledge/document_text';
 import {
   EmbeddingBudgetExceeded,
@@ -656,6 +657,20 @@ const KNOWLEDGE_CREDENTIAL_UNUSABLE_FOR_MODEL =
   'guess at the cause.';
 
 /**
+ * The same, when the knowledge database itself is not answering — the
+ * deployment's or the organization's own, restarting or unreachable
+ * (`db/unavailable.ts`). The embedding model is set up, so "not set up yet"
+ * sent the administrator to a page that said "Configured"; this passes, and
+ * the search can be asked again. Its pool tells the operator, once an outage
+ * outlasts a routine restart (`core/knowledge/pool.ts`).
+ */
+const KNOWLEDGE_DATABASE_UNAVAILABLE_FOR_MODEL =
+  'unavailable: document and web-page search cannot run right now because ' +
+  'the knowledge database is not answering. Nothing was found missing; the ' +
+  'search can be tried again in a little while. Say this plainly if it ' +
+  'matters to the answer; do not guess at the cause.';
+
+/**
  * The same, when a usage limit refused the search: the query's embedding
  * is a model call this conversation pays for, and a limit that binds it
  * has too little room. Nothing is broken, and nothing was found missing.
@@ -674,6 +689,9 @@ function knowledgeUsageLimitForModel(error: EmbeddingBudgetExceeded): string {
 function knowledgeUnavailableForModel(error: unknown): string {
   if (error instanceof EmbeddingBudgetExceeded) {
     return knowledgeUsageLimitForModel(error);
+  }
+  if (knowledgeDatabaseUnavailable(error) !== null) {
+    return KNOWLEDGE_DATABASE_UNAVAILABLE_FOR_MODEL;
   }
   return isTerminalCredentialRefusal(error)
     ? KNOWLEDGE_CREDENTIAL_UNUSABLE_FOR_MODEL

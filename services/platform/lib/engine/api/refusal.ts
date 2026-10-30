@@ -9,7 +9,8 @@
  * rethrows a fault to its host) and the MCP endpoint's tool call
  * (`backend/domains/mcp/tools.ts`, which answers a fault as
  * `INTERNAL_ERROR` with the request id — or, when the database is not
- * answering, as `DATABASE_UNAVAILABLE` with the wait). A refusal is:
+ * answering, as `DATABASE_UNAVAILABLE` or `KNOWLEDGE_DATABASE_UNAVAILABLE`
+ * with the wait). A refusal is:
  *
  * - a structured refusal (the platform's `AppError`): its `data` carries a
  *   stable `code` and the sentence — never its `message`, which serializes

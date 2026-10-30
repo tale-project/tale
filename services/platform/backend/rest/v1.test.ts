@@ -6,6 +6,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { Auth } from '../auth/auth.ts';
+import { markKnowledgeDatabaseError } from '../db/unavailable.ts';
 import { createAuditLog } from '../domains/audit_logs/service.ts';
 import { runInRequestChannel } from '../lib/request-channel.ts';
 import type { RestEnv } from './shared.ts';
@@ -808,7 +809,8 @@ describe('/api/v1 door — escaped errors and response hygiene', () => {
  * A database restart is neither a bad key nor a defect. The door answers the
  * retryable 503 `DATABASE_UNAVAILABLE` with `Retry-After`, unreported, where
  * a key lookup the database could not serve read as an invalid key (401 —
- * "stop using this key") and an escaped outage as a reported 500.
+ * "stop using this key") and an escaped outage as a reported 500. A knowledge
+ * database's outage answers its own `KNOWLEDGE_DATABASE_UNAVAILABLE`.
  */
 describe('/api/v1 door — an unavailable database', () => {
   it('answers a key lookup the database could not serve with a 503, not a 401', async () => {
@@ -870,6 +872,70 @@ describe('/api/v1 door — an unavailable database', () => {
       expect(warn).toHaveBeenCalledWith(
         '[backend] database unavailable — 503 for GET /restart: 57P01 terminating connection due to administrator command',
       );
+    } finally {
+      warn.mockRestore();
+      errors.mockRestore();
+    }
+  });
+
+  it('answers a knowledge database’s outage with its own code, and its refused password with a reported 500', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { sql } = fakeSql();
+    const { auth } = fakeAuth();
+    const app = door(sql, auth);
+    app.use(async (c, next) => {
+      c.set('requestId', 'req-kdb');
+      await next();
+    });
+    // What an organization's own knowledge pool rejects a query with.
+    app.post('/own-database', () => {
+      const refused = Object.assign(
+        new Error('connect ECONNREFUSED 10.0.0.9:5432'),
+        { code: 'ECONNREFUSED' },
+      );
+      markKnowledgeDatabaseError(refused, 'organization');
+      throw refused;
+    });
+    app.post('/own-database/password', () => {
+      const rejected = Object.assign(
+        new Error('password authentication failed for user "tale"'),
+        { code: '28P01' },
+      );
+      markKnowledgeDatabaseError(rejected, 'organization');
+      throw rejected;
+    });
+    try {
+      const res = await app.request('http://localhost/own-database', {
+        method: 'POST',
+        ...bearer(GOOD_KEY),
+      });
+      expect(res.status).toBe(503);
+      expect(res.headers.get('retry-after')).toBe('5');
+      expect(res.headers.get('cache-control')).toBe('no-store');
+      expect(await res.json()).toEqual({
+        error:
+          'The knowledge database is not answering right now; retry with backoff',
+        code: 'KNOWLEDGE_DATABASE_UNAVAILABLE',
+        requestId: 'req-kdb',
+      });
+      expect(errors).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        '[backend] knowledge database unavailable (organization) — 503 for POST /own-database: connect ECONNREFUSED 10.0.0.9:5432',
+      );
+
+      // Waiting fixes no password: the operator must act on a report.
+      const password = await app.request(
+        'http://localhost/own-database/password',
+        { method: 'POST', ...bearer(GOOD_KEY) },
+      );
+      expect(password.status).toBe(500);
+      expect(await password.json()).toEqual({
+        error: 'Internal Server Error',
+        code: 'INTERNAL_ERROR',
+        requestId: 'req-kdb',
+      });
+      expect(errors).toHaveBeenCalled();
     } finally {
       warn.mockRestore();
       errors.mockRestore();

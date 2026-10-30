@@ -1,6 +1,6 @@
 # Per-organization data residency
 
-> **Prefix** `DATA-` · **Reset** none · **Cost** 27 boxes
+> **Prefix** `DATA-` · **Reset** none · **Cost** 28 boxes
 
 An org admin points the organization's **knowledge database**
 (Postgres/ParadeDB for extracted text + embeddings) and **object storage**
@@ -303,6 +303,33 @@ testsecret123 && mc ls --recursive t/org-blobs'`
   under their fields, and the header **Save** stays enabled without leaving
   **Host**; activate it (or Cmd/Ctrl+S) → the bucket change saves and a
   reload shows it, while nothing is saved for the knowledge database.
+- [ ] `DATA-B11` · **The organization's knowledge database stops answering,
+  then answers again** — With `DATA-F2` active (the organization's knowledge
+  database on `dr-kdb`), a tracked website (`KNOW-F6`), `SENTRY_DSN` set and
+  `docker compose logs -f backend-api` followed, run `docker stop dr-kdb`.
+  On the website's row **Open menu** → **Edit** (`common.actions.edit`),
+  change **Scan interval** and save → the toast **Couldn't update website**
+  (`websites.toast.updateError`) reads **The knowledge database isn't
+  answering right now. Try again in a moment.**
+  (`common.errors.knowledgeDatabaseUnavailable`); the dialog stays open with
+  the change, a reload shows the old interval, and the app stays usable: no
+  offline notice, no sign-in page. DevTools → Network shows the `PATCH`
+  answered `503` `KNOWLEDGE_DATABASE_UNAVAILABLE` with `Retry-After: 5` and a
+  `requestId`, never `DATABASE_UNAVAILABLE`. The log has one `knowledge
+  database unavailable (organization) — 503 for PATCH …` warning per save
+  and one `the knowledge database of organization "<slug>" is not answering:
+  …` line, and no event arrives, from the backend or the browser. Leave
+  `dr-kdb` stopped for more than a minute and save again → one warning-level
+  `KnowledgeDatabaseUnavailableError` event arrives, tagged
+  `tale.knowledge_database: organization`, with the organization's slug and
+  `outageMs` and never `dr-kdb`'s host, port, user, password or SQL; more
+  saves add none. `docker start dr-kdb` and save again → the interval saves,
+  and the log says `… is answering again after …s`. Then change its password
+  and restart it (`docker exec dr-kdb psql -U tale -d tale_knowledge -c
+  "alter user tale password 'other'" && docker restart dr-kdb`) and save once
+  more → the toast reads only its title, the `PATCH` answers a plain-text
+  `500` `Internal Server Error`, and each save sends an error-level event.
+  Set the password back to `drtest` the same way.
 
 ## Deployment defaults
 

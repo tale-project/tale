@@ -107,8 +107,12 @@ function refusalAsError(
     );
   }
   const { error, code, hint, data } = refusal.data;
-  // Not "not found": the address may well read once the database answers.
-  if (code === 'DATABASE_UNAVAILABLE') {
+  // Not "not found": the address may well read once the database answers —
+  // the platform's, or a knowledge database (`refusals.ts`).
+  if (
+    code === 'DATABASE_UNAVAILABLE' ||
+    code === 'KNOWLEDGE_DATABASE_UNAVAILABLE'
+  ) {
     return methodError(INTERNAL.code, `${INTERNAL.label}: ${error}`, {
       ...context,
       code,

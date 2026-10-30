@@ -4,6 +4,7 @@ import type { Db, Job, JobResult, PgBoss, WorkOptions } from 'pg-boss';
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { markKnowledgeDatabaseError } from '../db/unavailable.ts';
 import { reportError } from '../error-reporting.ts';
 import { startWorker } from './runner.ts';
 import { physicalTaskQueue } from './tasks.ts';
@@ -771,6 +772,83 @@ describe('startWorker failure reporting', () => {
       '[backend] task noop (job job-1) failed, database unavailable: 57P01 terminating connection due to administrator command',
     );
     warn.mockRestore();
+    error.mockRestore();
+  });
+
+  /** An error postgres.js rejected a query with — stamped with the
+   * statement — that a knowledge pool marked as its database's. */
+  function knowledgeFailure(
+    message: string,
+    code: string,
+    database: 'deployment' | 'organization',
+  ): Error {
+    const failure = Object.assign(new Error(message), {
+      code,
+      query: 'select 1',
+      parameters: [],
+    });
+    markKnowledgeDatabaseError(failure, database);
+    return failure;
+  }
+
+  it('fails a job a knowledge database outage caught for pg-boss to retry, names that database, and reports nothing [KNOW-R20]', async () => {
+    const { boss, handlers } = fakeBoss();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const refused = knowledgeFailure(
+      'connect ECONNREFUSED 127.0.0.1:1',
+      'ECONNREFUSED',
+      'organization',
+    );
+    await startWorker({
+      boss,
+      taskList: { noop: vi.fn().mockRejectedValue(refused) },
+    });
+
+    const results = await handlers.get('noop')?.([job]);
+
+    expect(results?.[0]).toMatchObject({ id: 'job-1', status: 'failed' });
+    expect(reportError).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      '[backend] task noop (job job-1) failed, knowledge database (organization) unavailable: connect ECONNREFUSED 127.0.0.1:1',
+    );
+    warn.mockRestore();
+    error.mockRestore();
+  });
+
+  it.each([
+    [
+      'a knowledge pool the platform ended under the job',
+      knowledgeFailure(
+        'write CONNECTION_ENDED 127.0.0.1:5432',
+        'CONNECTION_ENDED',
+        'deployment',
+      ),
+    ],
+    [
+      'a knowledge database that rejects the credentials',
+      knowledgeFailure(
+        'password authentication failed for user "tale"',
+        '28P01',
+        'organization',
+      ),
+    ],
+  ])('reports %s: no outage to wait out', async (_case, failure) => {
+    const { boss, handlers } = fakeBoss();
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await startWorker({
+      boss,
+      taskList: { noop: vi.fn().mockRejectedValue(failure) },
+    });
+
+    const results = await handlers.get('noop')?.([job]);
+
+    expect(results?.[0]).toMatchObject({ id: 'job-1', status: 'failed' });
+    expect(reportError).toHaveBeenCalledWith(failure, {
+      tags: { 'tale.task': 'noop' },
+      extra: { jobId: 'job-1' },
+    });
     error.mockRestore();
   });
 

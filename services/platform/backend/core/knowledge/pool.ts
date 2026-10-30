@@ -43,13 +43,33 @@
  * verified — and a corrupted one rebuilt — before the organization's first
  * write can reach them. The deployment-default database gets the same check
  * from its own boot step, which is why it is not bootstrapped here.
+ *
+ * ## Which database a failure came from
+ *
+ * A postgres.js error says nothing of the client that raised it, so the
+ * platform's outage rule (`db/unavailable.ts`) would read a knowledge
+ * database that stopped answering as the platform's own database restarting.
+ * Every pool and session this module hands out is therefore tracked: what it
+ * rejects a statement with is marked with the database it came from
+ * (`markKnowledgeDatabaseError`), and the doors answer such an outage
+ * `KNOWLEDGE_DATABASE_UNAVAILABLE`. Each pool watches its own outages too:
+ * logged when one begins and ends, reported once when it outlasts a routine
+ * restart ({@link setKnowledgeOutageReporter}).
  */
 
 import postgres, { type Sql } from 'postgres';
 
 import { logger } from '../../../lib/knowledge/logger';
+import { createOutageWatch, type OutageWatch } from '../../db/outage-watch';
 import { reconnectBackoffSeconds } from '../../db/sql';
 import { resolvePostgresConnection } from '../../db/ssl';
+import {
+  describeDatabaseError,
+  type KnowledgeDatabase,
+  knowledgeDatabaseUnavailable,
+  markKnowledgeDatabaseError,
+  ROUTINE_RESTART_MS,
+} from '../../db/unavailable';
 import { buildConnectionUrl, readOrgConnection } from './connection';
 import { applyCorpusSchema } from './ddl';
 
@@ -90,8 +110,9 @@ let openPool: PoolFactory = (rawUrl, options) => {
     ssl,
     idle_timeout: options?.session ? 30 : 120,
     connect_timeout: 30,
-    // The corpus lives in the same container as the application database in
-    // a default deployment, and meets the same restarts (`db/sql.ts`).
+    // A default deployment runs the corpus in a PostgreSQL container of its
+    // own (`knowledge-db`), which meets the same restarts as the application
+    // database's (`db/sql.ts`).
     backoff: reconnectBackoffSeconds,
     ...(options?.session ? { onnotice: () => undefined } : {}),
     connection: {
@@ -110,8 +131,34 @@ export function setPoolFactory(factory: PoolFactory | null): void {
 
 const defaultPoolFactory: PoolFactory = openPool;
 
+/** A pool this module opened: the tracked client callers get, and the one
+ * under it, which eviction retires and shutdown ends. */
+interface OpenPool {
+  readonly sql: Sql;
+  readonly raw: Sql;
+  readonly subject: PoolSubject;
+}
+
+/** Whose database a pool reaches, as its outage lines and report name it. */
+interface PoolSubject {
+  readonly database: KnowledgeDatabase;
+  /** The organization that last resolved to it (organizations that point at
+   * one database share its pool); absent for the deployment's. */
+  orgSlug: string | undefined;
+}
+
 /** Live pools, keyed by connection string, in least-recently-used order. */
-const pools = new Map<string, Sql>();
+const pools = new Map<string, OpenPool>();
+
+/**
+ * Pools eviction took out of {@link pools}. They are never ended there: a
+ * caller may still hold one mid-statement or mid-transaction, and `end()`
+ * would fail its next statement with `CONNECTION_ENDED`, the platform's own
+ * doing read as an outage, or cut a running one after its timeout. A
+ * retired pool closes its connections once they idle (`idle_timeout`) and is
+ * then collected; shutdown ends the ones still alive.
+ */
+const retired = new Set<WeakRef<Sql>>();
 
 /** In-flight schema bootstraps, keyed by connection string, so concurrent
  * first touches of a new database await one run. A failed bootstrap is dropped
@@ -139,7 +186,11 @@ export function setCorpusBootstrapHook(hook: CorpusBootstrapHook | null): void {
  * holds session state — an advisory lock, a REINDEX. Close it when done.
  */
 export function openKnowledgeSession(url: string): Sql {
-  return openPool(url, { session: true });
+  // Marked, not watched: the pool for the same database watches its outages.
+  return trackClient(openPool(url, { session: true }), {
+    database: databaseOf(url),
+    watch: null,
+  });
 }
 
 interface CachedUrl {
@@ -185,8 +236,9 @@ export function knowledgePoolMax(): number {
  */
 export async function getKnowledgePoolForOrg(orgSlug: string): Promise<Sql> {
   const url = await resolveOrgUrl(orgSlug);
-  const sql = poolFor(url);
-  if (url !== defaultKnowledgeUrl()) await bootstrapOnce(url, sql, orgSlug);
+  if (url === defaultKnowledgeUrl()) return poolFor(url);
+  const sql = poolFor(url, orgSlug);
+  await bootstrapOnce(url, sql, orgSlug);
   return sql;
 }
 
@@ -224,41 +276,285 @@ export function invalidateOrgUrl(orgSlug: string): void {
   orgUrls.delete(orgSlug);
 }
 
-/** Get or open the pool for a connection string, keeping it most-recently-used. */
-function poolFor(url: string): Sql {
+/** Get or open the pool for a connection string, keeping it most-recently-used.
+ * `orgSlug` names the organization an own database belongs to. */
+function poolFor(url: string, orgSlug?: string): Sql {
   const existing = pools.get(url);
   if (existing) {
     pools.delete(url);
     pools.set(url, existing);
-    return existing;
+    if (orgSlug !== undefined) existing.subject.orgSlug = orgSlug;
+    return existing.sql;
   }
   evictIfFull(url);
-  const sql = openPool(url);
-  pools.set(url, sql);
+  const raw = openPool(url);
+  const subject: PoolSubject = { database: databaseOf(url), orgSlug };
+  const sql = trackClient(raw, {
+    database: subject.database,
+    watch: watchOutages(subject),
+  });
+  pools.set(url, { sql, raw, subject });
   logger.info('opened a knowledge database connection pool');
   return sql;
 }
 
-/** Close the least-recently-used pool when at capacity. The deployment default
- * and the pool being opened are never the victim. */
+/** Retire the least-recently-used pool when at capacity ({@link retired}).
+ * The deployment default and the pool being opened are never the victim. */
 function evictIfFull(incoming: string): void {
   if (pools.size < MAX_POOLS) return;
   const keep = defaultKnowledgeUrl();
-  for (const key of pools.keys()) {
+  for (const [key, victim] of pools) {
     if (key === keep || key === incoming) continue;
-    const victim = pools.get(key);
     pools.delete(key);
     bootstraps.delete(key);
-    if (victim) {
-      void victim.end({ timeout: 5 }).catch((err: unknown) => {
-        logger.warn(
-          `could not close an evicted knowledge pool: ${describe(err)}`,
-        );
-      });
+    for (const ref of retired) {
+      if (ref.deref() === undefined) retired.delete(ref);
     }
-    logger.info('evicted the least recently used knowledge pool (cap reached)');
+    retired.add(new WeakRef(victim.raw));
+    logger.info(
+      'retired the least recently used knowledge pool (cap reached); its connections close once idle',
+    );
     return;
   }
+}
+
+function databaseOf(url: string): KnowledgeDatabase {
+  return url === defaultKnowledgeUrl() ? 'deployment' : 'organization';
+}
+
+// ------------------------------------------------------ failure tracking
+
+/** What a tracked client marks its failures with, and the outage watch its
+ * statements feed (`null` for a session). */
+interface Tracking {
+  readonly database: KnowledgeDatabase;
+  readonly watch: OutageWatch | null;
+}
+
+/**
+ * `raw`, with every statement it makes tracked: the tagged template,
+ * `unsafe` and `file`, a transaction or savepoint and the client its
+ * callback gets, a reserved connection and its statements. What makes no
+ * statement (identifiers, fragments, `sql.json`, `end`) passes untouched,
+ * and so do a cursor's iterator, `listen`/`notify` and large objects, which
+ * no knowledge code uses.
+ */
+function trackClient<T extends object>(raw: T, tracking: Tracking): T {
+  return new Proxy(raw, {
+    apply(target, thisArg, args) {
+      if (typeof target !== 'function') {
+        throw new TypeError('a knowledge client that is not callable');
+      }
+      return trackStatement(Reflect.apply(target, thisArg, args), tracking);
+    },
+    get(target, property) {
+      const value: unknown = Reflect.get(target, property);
+      if (typeof value !== 'function') return value;
+      switch (property) {
+        case 'unsafe':
+        case 'file':
+          return (...args: unknown[]) =>
+            trackStatement(Reflect.apply(value, target, args), tracking);
+        case 'begin':
+        case 'savepoint':
+          return (...args: unknown[]) => {
+            const thrown = handOver(args, tracking);
+            return Promise.resolve(Reflect.apply(value, target, args)).catch(
+              (error: unknown) => {
+                if (!isObject(error) || !thrown.has(error)) {
+                  noteFailure(error, tracking);
+                }
+                throw error;
+              },
+            );
+          };
+        case 'reserve':
+          return (...args: unknown[]) =>
+            Promise.resolve(Reflect.apply(value, target, args)).then(
+              (reserved: unknown) =>
+                isObject(reserved) ? trackClient(reserved, tracking) : reserved,
+              (error: unknown) => {
+                noteFailure(error, tracking);
+                throw error;
+              },
+            );
+        default:
+          return value;
+      }
+    },
+  });
+}
+
+/**
+ * A statement postgres.js made, settling through the tracking: a `Query` is
+ * a promise whose every settlement goes through its own `resolve` and
+ * `reject` (`connection.js`). Anything else (an identifier, a fragment
+ * builder, a test double's promise) is returned unchanged.
+ */
+function trackStatement<T>(made: T, tracking: Tracking): T {
+  if (!isObject(made)) return made;
+  const resolve: unknown = Reflect.get(made, 'resolve');
+  const reject: unknown = Reflect.get(made, 'reject');
+  if (typeof resolve !== 'function' || typeof reject !== 'function') {
+    return made;
+  }
+  Reflect.set(made, 'resolve', (value: unknown) => {
+    tracking.watch?.recovered();
+    return Reflect.apply(resolve, made, [value]);
+  });
+  Reflect.set(made, 'reject', (error: unknown) => {
+    noteFailure(error, tracking);
+    return Reflect.apply(reject, made, [error]);
+  });
+  return made;
+}
+
+/**
+ * Hand a transaction's callback (the last argument of `begin` and
+ * `savepoint`) the tracked client, in place, and collect what it throws. A
+ * transaction that fails with one of those is not marked again: a knowledge
+ * statement's failure already is, and anything else the callback met, the
+ * platform's own database or a defect, keeps its origin.
+ */
+function handOver(args: unknown[], tracking: Tracking): WeakSet<object> {
+  const thrown = new WeakSet<object>();
+  const remember = (error: unknown): void => {
+    if (isObject(error)) thrown.add(error);
+  };
+  const last = args.length - 1;
+  const callback = args[last];
+  if (typeof callback !== 'function') return thrown;
+  args[last] = (scope: unknown): unknown => {
+    let made: unknown;
+    try {
+      made = Reflect.apply(callback, undefined, [
+        isObject(scope) ? trackClient(scope, tracking) : scope,
+      ]);
+    } catch (error) {
+      remember(error);
+      throw error;
+    }
+    // postgres.js awaits an array of statements as one; keep it an array.
+    if (Array.isArray(made) || !isThenable(made)) return made;
+    return Promise.resolve(made).catch((error: unknown) => {
+      remember(error);
+      throw error;
+    });
+  };
+  return thrown;
+}
+
+/** Mark what a tracked statement failed with, once (the statements queued
+ * on one connection fail with the same error), and feed an outage to the
+ * watch. */
+function noteFailure(error: unknown, tracking: Tracking): void {
+  if (!markKnowledgeDatabaseError(error, tracking.database)) return;
+  if (tracking.watch !== null && knowledgeDatabaseUnavailable(error) !== null) {
+    tracking.watch.failed(error);
+  }
+}
+
+function isObject(value: unknown): value is object {
+  return (
+    (typeof value === 'object' && value !== null) || typeof value === 'function'
+  );
+}
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return isObject(value) && typeof Reflect.get(value, 'then') === 'function';
+}
+
+// ------------------------------------------------------------ outages
+
+/** A knowledge database outage, as {@link KnowledgeOutageReporter} gets it:
+ * nothing of the connection, which names its host, user and database. */
+export interface KnowledgeOutage {
+  readonly database: KnowledgeDatabase;
+  /** The organization whose own database it is; absent for the deployment's. */
+  readonly orgSlug?: string;
+  /** The driver's code (`ECONNREFUSED`, `57P01`, …), when it has one. */
+  readonly code?: string;
+  readonly outageMs: number;
+}
+
+/** Reports an outage that outlasted a routine restart: once per pool and
+ * outage. */
+export type KnowledgeOutageReporter = (outage: KnowledgeOutage) => void;
+
+let outageReporter: KnowledgeOutageReporter | null = null;
+
+/** Install what reports a knowledge database outage (`null` removes it). The
+ * boot sequence installs it (`main.ts`), so this module needs nothing of the
+ * reporting it feeds. */
+export function setKnowledgeOutageReporter(
+  reporter: KnowledgeOutageReporter | null,
+): void {
+  outageReporter = reporter;
+}
+
+/** A failure this long after the last one begins a new outage: a pool's
+ * statements can be sparse, and an end no statement saw must not date the
+ * next outage from this one. */
+const OUTAGE_FORGET_MS = 15 * 60_000;
+
+/** A pool's outage watch: the first failure warns, the first once the outage
+ * outlasts a routine restart warns and is reported, the first success logs
+ * its end. */
+function watchOutages(subject: PoolSubject): OutageWatch {
+  return createOutageWatch(
+    ROUTINE_RESTART_MS,
+    {
+      began(error) {
+        logger.warn(
+          `${databaseName(subject)} is not answering: ${describeDatabaseError(error)}`,
+        );
+      },
+      lasted(error, outageMs) {
+        logger.warn(
+          `${databaseName(subject)} is still not answering after ${Math.round(outageMs / 1000)}s`,
+        );
+        reportOutage({
+          database: subject.database,
+          orgSlug: subject.orgSlug,
+          code: outageCode(error),
+          outageMs,
+        });
+      },
+      ended(outageMs) {
+        logger.info(
+          `${databaseName(subject)} is answering again after ${Math.round(outageMs / 1000)}s`,
+        );
+      },
+    },
+    { forgetAfterMs: OUTAGE_FORGET_MS },
+  );
+}
+
+function databaseName(subject: PoolSubject): string {
+  return subject.database === 'deployment'
+    ? 'the deployment’s knowledge database'
+    : `the knowledge database of organization "${subject.orgSlug ?? 'unknown'}"`;
+}
+
+function reportOutage(outage: KnowledgeOutage): void {
+  if (outageReporter === null) return;
+  try {
+    outageReporter(outage);
+  } catch (err) {
+    logger.warn(
+      `could not report a knowledge database outage: ${describe(err)}`,
+    );
+  }
+}
+
+/** The one detail of the error an outage report carries: its message names
+ * the host. */
+function outageCode(error: unknown): string | undefined {
+  if (!isObject(error)) return undefined;
+  const code: unknown = Reflect.get(error, 'code');
+  return typeof code === 'string' && /^[A-Z0-9_]{1,40}$/.test(code)
+    ? code
+    : undefined;
 }
 
 /** Apply the corpus schema to a newly seen database, at most once per string,
@@ -331,7 +627,7 @@ export function markBm25Unavailable(sql: Sql): void {
   bm25Capability.set(sql, Promise.resolve(false));
 }
 
-/** Keyed by the pool object so the entry disappears when the pool is evicted. */
+/** Keyed by the pool object so the entry goes with the pool. */
 const bm25Capability = new WeakMap<Sql, Promise<boolean>>();
 
 /**
@@ -380,10 +676,16 @@ function isUnrecognizedParameter(err: unknown): boolean {
   );
 }
 
-/** Close every open pool and forget every cached resolution. */
+/** Close every open pool, retired ones included, and forget every cached
+ * resolution. */
 export async function closeKnowledgePools(): Promise<void> {
-  const open = [...pools.values()];
+  const open = [...pools.values()].map((pool) => pool.raw);
+  for (const ref of retired) {
+    const pool = ref.deref();
+    if (pool !== undefined) open.push(pool);
+  }
   pools.clear();
+  retired.clear();
   bootstraps.clear();
   orgUrls.clear();
   await Promise.all(

@@ -61,6 +61,7 @@ import {
 import { libraryActionQueryAdapters, libraryWriteAdapters } from './library';
 import { metricsPaginatedAdapters, metricsReadAdapters } from './metrics';
 import { orgWriteAdapters } from './org';
+import { isKnowledgeDatabaseUnavailable } from './platform-unavailable';
 import {
   projectActionQueryAdapters,
   projectReadAdapters,
@@ -324,7 +325,9 @@ export function backendRefusalDetail(error: unknown): string | undefined {
  * What a surface puts under its localized title for whatever a call threw:
  * a refusal's own words ({@link backendRefusalDetail}); for a request that
  * got no answer (the browser's "Failed to fetch"), the localized "couldn't
- * reach Tale" sentence; else the design system's floor,
+ * reach Tale" sentence; for one the knowledge database did not answer
+ * (`isKnowledgeDatabaseUnavailable`), the localized sentence that says so and
+ * to try again in a moment; else the design system's floor,
  * `readableErrorMessage`: the message of a plain `Error` the app or a
  * library raised (the auth client's refusal, a translated line a surface
  * threw). Never a structured error's `message`: an `AppError` serializes its
@@ -341,6 +344,9 @@ export function failureDetail(error: unknown): string | undefined {
   if (refusal !== undefined) return refusal;
   if (isTransportFailure(error)) {
     return i18n.t('errors.connectionLost', { ns: 'common' });
+  }
+  if (isKnowledgeDatabaseUnavailable(error)) {
+    return i18n.t('errors.knowledgeDatabaseUnavailable', { ns: 'common' });
   }
   if (error instanceof BackendApiError) return undefined;
   return readableErrorMessage(error);

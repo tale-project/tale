@@ -12,6 +12,7 @@ import { isRecord } from '../../../lib/utils/type-utils';
 import {
   databaseUnavailableCause,
   describeDatabaseError,
+  knowledgeDatabaseUnavailable,
 } from '../../db/unavailable';
 import { DATABASE_RETRY_AFTER_SECONDS } from '../../error-reporting';
 import { codedAppError } from '../../lib/app-error-response';
@@ -85,6 +86,12 @@ export function refusalFromThrown(error: unknown): McpRefusal | null {
  * A bare socket error counts only on a database client's query (postgres.js
  * stamps its own): the same `ECONNREFUSED` from a model provider or the
  * sandbox stays a fault.
+ *
+ * A knowledge database that is unavailable — the deployment's default corpus
+ * database or an organization's own — answers `KNOWLEDGE_DATABASE_UNAVAILABLE`
+ * with the same wait, as the REST door does: it is not the platform's
+ * database restarting. Its pool reports an outage that outlasts a routine
+ * restart, once (`core/knowledge/pool.ts`); a call reports nothing.
  */
 export function databaseUnavailableRefusal(
   error: unknown,
@@ -92,6 +99,21 @@ export function databaseUnavailableRefusal(
   retry: string,
   requestId: string | null,
 ): McpRefusal | null {
+  const knowledge = knowledgeDatabaseUnavailable(error);
+  if (knowledge !== null) {
+    console.warn(
+      `[mcp] knowledge database unavailable (${knowledge}) — ${failed}${requestId === null ? '' : ` (request ${requestId})`}: ${describeDatabaseError(error)}`,
+    );
+    return {
+      error: `${failed} could not reach the knowledge database, which is not answering right now; retry in ${DATABASE_RETRY_AFTER_SECONDS} s`,
+      code: 'KNOWLEDGE_DATABASE_UNAVAILABLE',
+      hint: `wait data.retryAfterMs, then ${retry}`,
+      data: {
+        retryAfterMs: DATABASE_RETRY_AFTER_SECONDS * 1000,
+        ...(requestId === null ? {} : { requestId }),
+      },
+    };
+  }
   const cause = databaseUnavailableCause(error);
   if (cause === undefined) return null;
   console.warn(

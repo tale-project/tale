@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 80 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 81 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -890,6 +890,36 @@ records and delete them after.
   holds for **Edit** reached from the row menu's **View** and from a row
   click. A row A checked before B's save is still checked after it, and
   **Delete selected** removes the whole entry.
+
+- [ ] `KNOW-B30` · **The deployment's knowledge database stops answering** —
+  In an organization without a knowledge database of its own, with a tracked
+  website (`KNOW-F6`), `SENTRY_DSN` set and `docker compose logs -f
+  backend-api backend-worker` followed, run `docker compose stop
+  knowledge-db`. On the website's row **Open menu** → **Edit**
+  (`common.actions.edit`), change **Scan interval** and save → the toast
+  **Couldn't update website** (`websites.toast.updateError`) reads **The
+  knowledge database isn't answering right now. Try again in a moment.**
+  (`common.errors.knowledgeDatabaseUnavailable`), the dialog keeps the change
+  and the rest of the app works on: no offline notice, and Home, Tasks and
+  Settings load. The `PATCH` answers `503` `KNOWLEDGE_DATABASE_UNAVAILABLE`
+  with `Retry-After: 5`, never `DATABASE_UNAVAILABLE`; the log has `knowledge
+  database unavailable (deployment)` warnings and, from each backend process
+  that met the outage, one `the deployment’s knowledge database is not
+  answering: …` line, never an error stack, and no event arrives within the
+  first minute. On a stack where uploads index, upload a small TXT meanwhile
+  (`KNOW-F1`) → between its tries the badge reads **Failed**
+  (`documents.rag.status.failed`) and its dialog says indexing is retried
+  automatically; each try logs `[knowledge] indexing failed` and `task
+  rag.index_file (job …) failed, knowledge database (deployment)
+  unavailable`. More than a minute in, save once more → one warning-level
+  `KnowledgeDatabaseUnavailableError` event per backend process that met the
+  outage, tagged `tale.knowledge_database: deployment`, with `outageMs` and
+  no organization slug, host, port, user, password or SQL; more saves add
+  none. Within two minutes of the upload, `docker compose start
+  knowledge-db` and save again → the interval saves, the log says `… is
+  answering again after …s`, and the upload reads **Indexed** after its next
+  try. In German and French the toast's sentence reads in the page's
+  language.
 
 ## Accessibility (WCAG 2.1 AA)
 

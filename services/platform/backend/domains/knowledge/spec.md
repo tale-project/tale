@@ -5,8 +5,9 @@
 The knowledge base holds an organization's documents and the pages of the websites it added,
 prepared for search (indexed). These rules cover whose content a search reads, what it finds
 for the person asking, what is indexed and what is refused, what happens when the embedding
-model is missing or fails, who changed the embedding model, how much a search returns, and
-what the website crawler will not fetch. The settings pages, the repair of the search index, the removal of indexed content,
+model is missing or fails, who changed the embedding model, how much a search returns, what
+a knowledge database that does not answer is taken for, and what the website crawler will not
+fetch. The settings pages, the repair of the search index, the removal of indexed content,
 ranking and most of the crawler are not covered; see Not yet.
 
 ## One organization's knowledge base
@@ -38,6 +39,31 @@ organization without a database of its own uses the shared one.
   leaves out the database name → every search and every indexing run of that organization
   fails with an error that names the invalid settings, and nothing is read from or written to
   the shared database.
+
+### KNOW-R20 · A knowledge database that does not answer is never taken for the platform's
+
+When the shared knowledge database or an organization's own does not answer — it restarts, or its
+host is down or refuses the connection — a search or a website change that needed it fails with
+`KNOWLEDGE_DATABASE_UNAVAILABLE` and a five-second wait, never with the platform's
+`DATABASE_UNAVAILABLE`: what does not answer is that knowledge database, not Tale's own. An indexing
+run that needed it waits and is tried again. In a chat, the assistant is told that the knowledge
+database is not answering, never that search is not set up. In the app, the person reads that the
+knowledge database is not answering and to try again in a moment, and Tale stays reachable. A
+request writes one warning line and reports nothing on its own, in the server or in the browser. An
+outage that outlasts a routine restart (a minute) is reported to the error tracker once, at warning
+level, naming which database it is and, for an organization's own, whose; nothing of its connection
+goes with it — no address, user, password, statement or value. A database that refuses its
+credentials or does not exist is no outage: that stays an error, and it is reported. A connection
+Tale closed on its own side is never taken for an outage either.
+
+- **Example**: Ada's organization has its own knowledge database, and its host is down for
+  maintenance. Ada changes how often one of the organization's websites is scanned → nothing is
+  saved, and Ada reads "The knowledge database isn't answering right now. Try again in a moment.",
+  never that the platform's database is restarting; a minute into the outage the operator's error
+  tracker shows one warning for the knowledge database of Ada's organization, without its address,
+  and none for each attempt.
+- **Example**: An operator changes the password of the shared knowledge database and not Tale's
+  settings → every search fails with an error that is reported, never with a wait.
 
 ## What a search finds for whom
 

@@ -7822,7 +7822,12 @@ export function buildSpec(): Json {
           '503': errorResponse(
             'The embedding provider could not serve the request ' +
               '(`EMBEDDING_UPSTREAM_ERROR`) — a transient upstream failure; ' +
-              '`Retry-After` names the wait, retry with backoff',
+              '`Retry-After` names the wait, retry with backoff; or the ' +
+              'knowledge database — the deployment’s own or the one the ' +
+              'organization brought — is restarting or cannot be reached ' +
+              '(`KNOWLEDGE_DATABASE_UNAVAILABLE`): `Retry-After` names the ' +
+              'wait in whole seconds — retry with backoff; the envelope ' +
+              'carries a `requestId`',
           ),
           ...standardErrors,
           '429': withDoorRefusal(
@@ -8682,8 +8687,8 @@ below, additive, so treat a value you do not know as a generic refusal of
 the status you got. A 429 carries a sentence in \`error\` like every other
 refusal, with the wait in \`data.retryAfterMs\` (milliseconds) and
 \`Retry-After\` (whole seconds); a 429, a 500, a 503
-\`DATABASE_UNAVAILABLE\`, a body-size 413 and a URL-size 414 add
-\`requestId\`; a refused body or query
+\`DATABASE_UNAVAILABLE\` or \`KNOWLEDGE_DATABASE_UNAVAILABLE\`, a body-size
+413 and a URL-size 414 add \`requestId\`; a refused body or query
 lists every problem under \`data.issues\`, each naming the field (\`path\`)
 and the reason as a short phrase you can show a person — \`is required\`,
 \`must be a string\`, \`must not be blank\`, \`must be at most 200
@@ -8706,6 +8711,10 @@ malformed), \`UPSTREAM_UNAVAILABLE\`
 platform restarts or cannot be reached — the maintenance page a browser
 gets, as JSON), \`DATABASE_UNAVAILABLE\` (503 with \`Retry-After\`, answered
 by the platform while its database restarts or cannot be reached — retry
+with backoff), \`KNOWLEDGE_DATABASE_UNAVAILABLE\` (503 with \`Retry-After\`,
+answered by an operation that reaches the knowledge base, such as a
+knowledge search, while the knowledge database restarts or cannot be
+reached: the deployment's own or the one the organization brought; retry
 with backoff) and \`INTERNAL_ERROR\`.
 
 ## Pagination

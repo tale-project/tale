@@ -3,11 +3,14 @@ import { callSiteOf, isSerializationFailure } from '@tale/shared/db/retry';
 import { scrubEvent, scrubUrl } from '@tale/shared/monitoring/privacy';
 import type { Context, ErrorHandler } from 'hono';
 
+import type { KnowledgeOutage } from './core/knowledge/pool.ts';
 import {
   databaseUnavailableCause,
   describeDatabaseError,
+  knowledgeDatabaseUnavailable,
   swallowedDatabaseError,
   type DatabaseErrorOrigin,
+  type KnowledgeDatabase,
 } from './db/unavailable.ts';
 import { methodClass, routeClass } from './telemetry.ts';
 import { configureBackendTracing, scrubTransaction } from './tracing.ts';
@@ -197,12 +200,23 @@ export const DATABASE_RETRY_AFTER_SECONDS = 5;
  * Unreported: a restart fails every request in flight at once, and a report
  * per request buried everything else in the tracker. One warn line each
  * instead, and a `Retry-After` the caller can wait out.
+ *
+ * A knowledge database that is unavailable — the deployment's default corpus
+ * database or an organization's own — answers a code of its own,
+ * `KNOWLEDGE_DATABASE_UNAVAILABLE`, with the same wait: it is not the
+ * platform's database restarting, and saying so sent operators to the wrong
+ * one. Unreported per request as well: its pool reports an outage that
+ * outlasts a routine restart, once ({@link reportKnowledgeDatabaseOutage}).
  */
 export function databaseUnavailableResponse(
   err: unknown,
   c: Context,
   origin?: DatabaseErrorOrigin,
 ): Response | undefined {
+  const knowledge = knowledgeDatabaseUnavailable(err);
+  if (knowledge !== null) {
+    return knowledgeDatabaseUnavailableResponse(err, knowledge, c);
+  }
   const cause = databaseUnavailableCause(err, origin);
   if (cause === undefined) return undefined;
   const requestId = requestIdOf(c);
@@ -220,6 +234,66 @@ export function databaseUnavailableResponse(
     {
       'Retry-After': String(DATABASE_RETRY_AFTER_SECONDS),
       'Cache-Control': 'no-store',
+    },
+  );
+}
+
+function knowledgeDatabaseUnavailableResponse(
+  err: unknown,
+  database: KnowledgeDatabase,
+  c: Context,
+): Response {
+  const requestId = requestIdOf(c);
+  console.warn(
+    `[backend] knowledge database unavailable (${database}) — 503 for ${c.req.method} ${scrubUrl(c.req.path)}: ${describeDatabaseError(err)}`,
+  );
+  return c.json(
+    {
+      error:
+        'The knowledge database is not answering right now; retry with backoff',
+      code: 'KNOWLEDGE_DATABASE_UNAVAILABLE',
+      ...(requestId === undefined ? {} : { requestId }),
+    },
+    503,
+    {
+      'Retry-After': String(DATABASE_RETRY_AFTER_SECONDS),
+      'Cache-Control': 'no-store',
+    },
+  );
+}
+
+/** What the tracker groups a knowledge database outage under: never the
+ * driver's error, whose message names the host it could not reach. */
+class KnowledgeDatabaseUnavailableError extends Error {
+  override name = 'KnowledgeDatabaseUnavailableError';
+}
+
+/**
+ * Report a knowledge database outage that outlasted a routine restart — once
+ * per outage, when its pool says so (`core/knowledge/pool.ts`, which `main.ts`
+ * hands this to: the pool cannot import this module). At warning level,
+ * tagged with which database it was; for an organization's own, its slug says
+ * whose to look at. Nothing of the connection goes with it — no URL, host,
+ * user, statement or parameter: the driver's code at most.
+ */
+export function reportKnowledgeDatabaseOutage(outage: KnowledgeOutage): void {
+  reportError(
+    new KnowledgeDatabaseUnavailableError(
+      outage.database === 'deployment'
+        ? 'The deployment’s knowledge database is not answering'
+        : 'An organization’s own knowledge database is not answering',
+    ),
+    {
+      level: 'warning',
+      tags: {
+        'tale.reason': 'knowledge_database_unavailable',
+        'tale.knowledge_database': outage.database,
+      },
+      extra: {
+        outageMs: outage.outageMs,
+        ...(outage.code === undefined ? {} : { code: outage.code }),
+        ...(outage.orgSlug === undefined ? {} : { orgSlug: outage.orgSlug }),
+      },
     },
   );
 }
@@ -357,8 +431,9 @@ export function clientAbortResponse(
 /**
  * Hono's default error handler plus a capture: `getResponse` carriers
  * (HTTPException) pass through untouched — those are deliberate responses,
- * not defects — an unavailable database answers its 503, a client that
- * left answers its unread 499, and everything else is a real 500, reported.
+ * not defects — an unavailable database (the platform's or a knowledge
+ * database) answers its 503, a client that left answers its unread 499,
+ * and everything else is a real 500, reported.
  * The backend signals expected 4xx via `c.json(..., 4xx)` returns (and an
  * app-door body that is not JSON as the 400 `lib/app-json-body.ts`
  * throws), so any other error reaching this handler is report-worthy.

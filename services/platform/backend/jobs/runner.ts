@@ -4,6 +4,7 @@ import type { Sql } from 'postgres';
 import {
   describeDatabaseError,
   isDatabaseUnavailable,
+  knowledgeDatabaseUnavailable,
 } from '../db/unavailable.ts';
 import { reportError } from '../error-reporting.ts';
 import { traceBackendTask, traceWorkerPhase } from '../tracing.ts';
@@ -247,13 +248,22 @@ export async function startWorker(options: WorkerOptions): Promise<void> {
                 };
               } catch (error) {
                 span?.setStatus({ code: 2, message: 'internal_error' });
-                if (isDatabaseUnavailable(error)) {
-                  // A database restart fails whatever was running. The failed
+                const knowledge = knowledgeDatabaseUnavailable(error);
+                if (knowledge !== null || isDatabaseUnavailable(error)) {
+                  // A database restart fails whatever was running — the
+                  // platform's database, or a knowledge database: the
+                  // deployment's default or an organization's own. The failed
                   // job is retried under its queue's policy once the database
                   // is back (a `retryLimit: 0` lane is its watchdog's to
                   // recover), so this is an operational event, not a defect.
+                  // A knowledge database's pool reports an outage that
+                  // outlasts a routine restart, once (`core/knowledge/pool.ts`).
+                  const database =
+                    knowledge === null
+                      ? 'database'
+                      : `knowledge database (${knowledge})`;
                   console.warn(
-                    `[backend] task ${name} (job ${job.id}) failed, database unavailable: ${describeDatabaseError(error)}`,
+                    `[backend] task ${name} (job ${job.id}) failed, ${database} unavailable: ${describeDatabaseError(error)}`,
                   );
                 } else {
                   console.error(
