@@ -229,6 +229,7 @@ labels:
   rename: Umbenennen
   deleteConfirmTitle: Dieses Label löschen?
   deleteConfirmDescription: Entfernt „{label}“ aus dem Projekt und von allen Aufgaben, die es nutzen.
+  overflow: '{count, plural, one {# weiteres Label} other {# weitere Labels}}: {labels}'
   errors:
     TASK_LABEL_NAME_TAKEN: Ein Label mit diesem Namen gibt es schon.
     TASK_LABEL_UNKNOWN: Dieses Label gibt es im Projekt nicht — wähle eines, das es schon hat. Neue Labels legen Redakteure und höhere Rollen im Picker an.
@@ -271,6 +272,8 @@ board:
   noTasks: Keine Aufgaben
 list:
   showArchived: Archivierte anzeigen
+  noMatches: Keine Aufgaben passen zu diesen Filtern.
+  clearFilters: Filter zurücksetzen
 # Ein Lesevorgang des Boards, der nach allen Wiederholungen gescheitert ist
 # (#3747): was nicht geladen wurde und was die Person solange sieht — nie ein
 # leeres Board. Jeder Hinweis trägt „Erneut versuchen“

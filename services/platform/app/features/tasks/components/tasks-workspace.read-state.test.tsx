@@ -329,6 +329,7 @@ const alertSaying = (text: string | RegExp) =>
 
 const TASKS_FAILED =
   "Couldn't load the tasks, so none are shown. Your search and filters stay as they are.";
+const NO_MATCHES = 'No tasks match these filters.';
 
 let savedEnv: typeof window.__ENV__;
 
@@ -592,6 +593,8 @@ describe('a failed read is never an empty or unfiltered board (#3747)', () => {
       expect(screen.getAllByText('No tasks')).toHaveLength(6),
     );
     expect(screen.queryAllByRole('alert')).toHaveLength(0);
+    // No search or filter is set, so nothing was filtered away.
+    expect(screen.queryByText(NO_MATCHES)).not.toBeInTheDocument();
   });
 
   it('says so when the board stops at its cap', async () => {
@@ -605,4 +608,94 @@ describe('a failed read is never an empty or unfiltered board (#3747)', () => {
       ),
     ).toBeInTheDocument();
   });
+});
+
+// #4910: a search or filter that kept no task left six "No tasks" statuses,
+// the look of an empty project, with nothing saying why or how back.
+describe('a search or filter that hides every task says so once (#4910)', () => {
+  it.each(['list', 'board'] as const)(
+    'names the emptied %s once, before its six statuses, with Clear filters',
+    async (view) => {
+      fakeBoardBackend(searchFixture());
+      const { user } = renderWorkspace(view);
+      await screen.findByRole('button', { name: 'needle item 26' });
+      expect(screen.queryByText(NO_MATCHES)).not.toBeInTheDocument();
+
+      await search(user, 'no-such-token');
+      await waitFor(() =>
+        expect(titleButton('needle item 26')).not.toBeInTheDocument(),
+      );
+      expect(screen.getAllByText(NO_MATCHES)).toHaveLength(1);
+      // Every status keeps its place, and no search reads as a failure.
+      expect(screen.getAllByText('No tasks')).toHaveLength(6);
+      expect(screen.queryAllByRole('alert')).toHaveLength(0);
+      const region = screen.getByRole('region', {
+        name: view === 'board' ? 'Board' : 'List',
+      });
+      expect(
+        screen.getByText(NO_MATCHES).compareDocumentPosition(region) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+
+      await user.click(screen.getByRole('button', { name: 'Clear filters' }));
+      expect(
+        await screen.findByRole('button', { name: 'needle item 26' }),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(NO_MATCHES)).not.toBeInTheDocument();
+      expect(screen.getByPlaceholderText('Search tasks')).toHaveValue('');
+      // Its button left with the line: the focus is on the board it cleared.
+      expect(region).toHaveFocus();
+    },
+  );
+
+  // A capped read holds only the board's first rows, so a facet that keeps
+  // none of them says nothing about the rest; the cap's own notice stands.
+  it.each([
+    ['a complete read', false],
+    ['a capped read', true],
+  ])(
+    'claims no match over %s only when it covers every task',
+    async (_, truncated) => {
+      const backend = fakeBoardBackend(searchFixture());
+      backend.control.truncated = truncated;
+      const { user } = renderWorkspace('list');
+      await screen.findByRole('button', { name: 'needle item 26' });
+
+      await pickFacet(user, 'Priority', 'Low');
+      await waitFor(() =>
+        expect(titleButton('needle item 26')).not.toBeInTheDocument(),
+      );
+      expect(screen.queryAllByText(NO_MATCHES)).toHaveLength(truncated ? 0 : 1);
+    },
+  );
+
+  // Needs my review reads the pending reviews from the activity read; while
+  // that read has no answer, the filter may have left out tasks.
+  it.each([
+    ['answered', 'ok'],
+    ['failed', 'fail'],
+  ] as const)(
+    'claims no match for Needs my review only once the activity read answered (%s)',
+    async (_, activity) => {
+      const backend = fakeBoardBackend(searchFixture());
+      backend.control.activity = activity;
+      const { user } = renderWorkspace('list');
+      await screen.findByRole('button', { name: 'needle item 26' });
+      if (activity === 'fail') {
+        await waitFor(() =>
+          expect(
+            alertSaying("Couldn't load agent and review activity."),
+          ).toBeDefined(),
+        );
+      }
+
+      await pickFacet(user, 'Review', 'Needs my review');
+      await waitFor(() =>
+        expect(titleButton('needle item 26')).not.toBeInTheDocument(),
+      );
+      expect(screen.queryAllByText(NO_MATCHES)).toHaveLength(
+        activity === 'ok' ? 1 : 0,
+      );
+    },
+  );
 });

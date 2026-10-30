@@ -230,6 +230,7 @@ labels:
   rename: Rename
   deleteConfirmTitle: Delete this label?
   deleteConfirmDescription: Removes "{label}" from the project and from every task that uses it.
+  overflow: '{count, plural, one {# more label} other {# more labels}}: {labels}'
   errors:
     TASK_LABEL_NAME_TAKEN: A label with that name already exists.
     TASK_LABEL_UNKNOWN: That label isn't in this project — pick one it already has. Editors and higher roles add new labels in the picker.
@@ -272,6 +273,8 @@ board:
   noTasks: No tasks
 list:
   showArchived: Show archived
+  noMatches: No tasks match these filters.
+  clearFilters: Clear filters
 # A board read that failed once its retries gave up (#3747): what did not
 # load and what the reader sees meanwhile — never an empty board. Each
 # alert carries Try again (common.actions.tryAgain) for that read alone.

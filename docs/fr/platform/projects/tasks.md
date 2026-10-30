@@ -232,11 +232,15 @@ Réduis le tableau avec les filtres ou passe à la liste pour parcourir les tâc
 
 Le champ **Rechercher des tâches** et les filtres restreignent le tableau ensemble : chaque tâche qui correspond aux deux apparaît, quel que soit leur nombre. La recherche trouve les tâches dont le titre, la description ou l’identifiant, par exemple `WEB-12`, contient chacun des mots saisis, ainsi que celles dont un commentaire les contient tous. Le tableau affiche jusqu’à 2 000 tâches. Dans un projet plus grand, un message indique que seules les 2 000 premières sont affichées ; utilise la recherche pour atteindre les autres.
 
+Quand ta recherche et tes filtres ne laissent aucune tâche, chaque statut reste à sa place et un message au-dessus indique **Aucune tâche ne correspond à ces filtres.** **Effacer les filtres** dans ce message retire la recherche et tous les filtres d’un coup. Le message n’apparaît que si le tableau a pu vérifier toutes les tâches : pas quand il n’affiche que les 2 000 premières, ni pour **En attente de ma relecture** tant que l’activité des agents et des relectures ne peut pas être chargée.
+
 Si les tâches ne peuvent pas être chargées, le tableau l’indique au lieu d’afficher des colonnes vides, et ta recherche et tes filtres restent tels quels. Choisis **Réessayer** pour les charger. Quand une actualisation échoue, les tâches déjà affichées restent visibles, avec un message indiquant qu’elles apparaissent telles qu’au dernier chargement. Un message apparaît aussi quand les dépendances ou l’activité des agents et des relectures ne peuvent pas être chargées, car les tâches bloquées, les agents en cours, les questions ouvertes et les relectures en attente ne sont alors peut-être pas signalés. **Réessayer** dans un message recharge uniquement ce qui a échoué.
 
 Au clavier, appuie sur **Entrée** sur **Filtre** : le panneau s’ouvre sur son premier filtre, **Assigné à**. Appuie sur **Entrée** pour le déplier, puis sur **Tab** pour atteindre ses options. Les touches fléchées en choisissent une, et le tableau suit aussitôt. **Espace** choisit l’option où se trouve le focus, et l’annule quand elle est déjà choisie. **Tab** passe au filtre suivant et **Échap** ferme le panneau.
 
 Dans les vues **Tableau** et **Liste**, appuie sur **Tab** jusqu’à placer le focus sur le titre de la tâche, puis sur **Entrée** pour l’ouvrir.
+
+Une carte affiche jusqu’à quatre étiquettes, et une ligne de la **Liste** jusqu’à trois ; **+N** représente les autres. Survole-le, touche-le ou appuie une fois sur **Tab** depuis le titre de la tâche pour voir les étiquettes qu’il représente ; un lecteur d’écran les lit à voix haute. Choisir **+N** n’ouvre pas la tâche.
 
 Si tu peux modifier la tâche, place le focus sur son titre et appuie sur **Espace** pour la saisir. Déplace-la avec les touches fléchées, puis appuie de nouveau sur **Espace** pour la déposer. **Échap** annule le déplacement et laisse la tâche à sa place. Un lecteur d’écran nomme la tâche quand tu la saisis, puis annonce son statut et sa position pendant le déplacement.
 

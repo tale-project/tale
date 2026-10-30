@@ -1,6 +1,7 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { ContentArea } from '@tale/ui/content-area';
 import { DataTableActionMenu } from '@tale/ui/data-table/data-table-action-menu';
@@ -330,6 +331,16 @@ export function TasksWorkspace({
     includeArchived ||
     needsMyReviewFilter ||
     searchQuery.trim().length > 0;
+  // Search and filters that keep no task leave every lane / section empty,
+  // which reads as an empty project: one line says why (#4910). Only an
+  // answer that covers every task can say none matches — a capped read holds
+  // the board's first rows alone, and Needs my review reads its queue from the
+  // activity read, which has to have answered.
+  const noMatches =
+    hasActiveFilters &&
+    tasks.length === 0 &&
+    !list.truncated &&
+    (!needsMyReviewFilter || ops.read.kind === 'ready');
 
   const taskFilterConfigs = useMemo(
     () => [
@@ -555,6 +566,28 @@ export function TasksWorkspace({
               variant="info"
               live="off"
               description={t('read.truncated', { count: loadedTasks.length })}
+            />
+          )}
+          {noMatches && (
+            <Alert
+              variant="info"
+              live="off"
+              description={
+                <span>
+                  {t('list.noMatches')}{' '}
+                  <Button
+                    variant="link"
+                    onClick={() => {
+                      handleClearFilters();
+                      // The button leaves with this line: the focus goes to
+                      // the board it brings back.
+                      focusBoard();
+                    }}
+                  >
+                    {t('list.clearFilters')}
+                  </Button>
+                </span>
+              }
             />
           )}
           {/* An empty project still renders every lane / section (with its
