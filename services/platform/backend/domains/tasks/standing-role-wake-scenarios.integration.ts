@@ -11,8 +11,8 @@
  * circuit, workspace or wake row reaches another. The agent turns stay
  * queued and inert (`holdAgentJobs`); a served pass is the turn host's two
  * marks, launch then settle. Assertions read the wake row's state, never who
- * fired it: the harness's in-process `automation.trigger_scan` tick runs the
- * same wake fire. */
+ * fired it: a deployment's `automation.trigger_scan` tick runs the same wake
+ * fire, though the harness runs pg-boss with its cron clock off. */
 import { randomUUID } from 'node:crypto';
 
 import {

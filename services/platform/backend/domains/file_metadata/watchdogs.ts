@@ -145,6 +145,9 @@ interface RagCandidate {
   ragStatus: string;
   ragError: string | null;
   ragErrorCode: string | null;
+  /** When its run was last queued: a `bigint` the driver reads as text, only
+   * ever compared, in the settle write's guard. */
+  ragQueuedAtMs: string | null;
 }
 
 /** What a sweep did, summed across its organizations. */
@@ -244,6 +247,14 @@ async function readCorpusStatuses(
  *    would pair another failure's guidance (the Settings link for a missing
  *    embedding model) with it.
  *
+ * Each write lands only while the row still reads as the sweep found it:
+ * the same status, and the same stamp of its last queueing
+ * (`rag_queued_at_ms`). Retry indexing, or any other re-queue, that commits
+ * in between stamps the row afresh, and a job that moves the row changes its
+ * status, so the write matches no row and the newer state stands. A write
+ * that matched the id alone failed a file its person had just queued again,
+ * until its job rewrote it.
+ *
  * Every write here moves a status the document list renders, so each
  * organization's lists hear the sweep once — and only for rows a document
  * holds: a stuck chat, task or email attachment is on no list
@@ -270,7 +281,7 @@ export async function recoverStuckRagIndexing(
   const candidates = await sql<RagCandidate[]>`
     SELECT id, org_id AS "orgId", storage_ref AS "storageRef",
            rag_status AS "ragStatus", rag_error AS "ragError",
-           rag_error_code AS "ragErrorCode"
+           rag_error_code AS "ragErrorCode", rag_queued_at_ms AS "ragQueuedAtMs"
     FROM app.file_metadata
     WHERE storage_ref IS NOT NULL
       AND (
@@ -466,7 +477,8 @@ async function settleOrganizationRagRows(
 /**
  * One candidate against its corpus row: at most one status write, whose
  * fault is thrown to the caller. Null when the rules leave the row as it is
- * and nothing was written.
+ * and nothing was written. Every write matches the row only as the sweep
+ * read it, so a row that moved since keeps its newer state.
  */
 async function settleRagRow(
   sql: Sql,
@@ -483,6 +495,8 @@ async function settleRagRow(
           rag_status = 'completed', rag_error = NULL, rag_error_code = NULL,
           rag_indexed_at_ms = ${now}, status_changed_at_ms = ${now}
         WHERE id = ${row.id}
+          AND rag_status = ${row.ragStatus}
+          AND rag_queued_at_ms IS NOT DISTINCT FROM ${row.ragQueuedAtMs}
         RETURNING id
       `,
     );
@@ -505,6 +519,8 @@ async function settleRagRow(
             UPDATE app.file_metadata SET
               rag_status = 'failed', status_changed_at_ms = ${now}
             WHERE id = ${row.id} AND rag_error_code = ${row.ragErrorCode}
+              AND rag_status = ${row.ragStatus}
+              AND rag_queued_at_ms IS NOT DISTINCT FROM ${row.ragQueuedAtMs}
             RETURNING id
           `,
         );
@@ -522,6 +538,8 @@ async function settleRagRow(
             rag_error_code = NULL,
             status_changed_at_ms = ${now}
           WHERE id = ${row.id} AND rag_error_code IS NULL
+            AND rag_status = ${row.ragStatus}
+            AND rag_queued_at_ms IS NOT DISTINCT FROM ${row.ragQueuedAtMs}
           RETURNING id
         `,
       );
@@ -541,16 +559,17 @@ async function settleRagRow(
     // again moved `status_changed_at_ms`, the clock of the failed window, so
     // the row never left the window: it was rewritten, and its lists told, on
     // every tick. Another text is corrected in place — the status has not
-    // changed, so neither does its clock — on a row that still has no code:
-    // a retry may have re-queued it, or failed it with a classified cause,
-    // since the read.
+    // changed, so neither does its clock — on a row still as the sweep read
+    // it, and still without a code: a retry may have re-queued it, or failed
+    // it with a classified cause, since the read.
     if (row.ragError === error) return null;
     const moved = await settleWrite(
       sql,
       (tx) => tx<{ id: string }[]>`
         UPDATE app.file_metadata SET rag_error = ${error}, rag_error_code = NULL
-        WHERE id = ${row.id} AND rag_status = 'failed'
-          AND rag_error_code IS NULL
+        WHERE id = ${row.id} AND rag_error_code IS NULL
+          AND rag_status = ${row.ragStatus}
+          AND rag_queued_at_ms IS NOT DISTINCT FROM ${row.ragQueuedAtMs}
         RETURNING id
       `,
     );
@@ -572,6 +591,8 @@ async function settleRagRow(
             rag_status = 'running', rag_error = NULL,
             rag_error_code = NULL, status_changed_at_ms = ${now}
           WHERE id = ${row.id}
+            AND rag_status = ${row.ragStatus}
+            AND rag_queued_at_ms IS NOT DISTINCT FROM ${row.ragQueuedAtMs}
           RETURNING id
         `,
       );
@@ -590,6 +611,8 @@ async function settleRagRow(
         rag_status = 'failed', rag_error = ${RAG_INTERRUPTED_MESSAGE},
         rag_error_code = NULL, status_changed_at_ms = ${now}
       WHERE id = ${row.id}
+        AND rag_status = ${row.ragStatus}
+        AND rag_queued_at_ms IS NOT DISTINCT FROM ${row.ragQueuedAtMs}
       RETURNING id
     `,
   );

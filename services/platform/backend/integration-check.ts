@@ -251,13 +251,17 @@ import {
   checkAutomationProtocolReadback,
 } from './jobs/automation-protocol.integration.ts';
 import { alignQueuePolicies, startBoss } from './jobs/boss.ts';
+import {
+  checkNoCronTick,
+  readCronClock,
+} from './jobs/cron-clock.integration.ts';
 import { addJobInTx, setEnqueueBoss } from './jobs/enqueue.ts';
 import { checkWorkerDrainHandOff } from './jobs/runner.integration.ts';
 import { startWorker } from './jobs/runner.ts';
-import { registerSchedules } from './jobs/schedules.ts';
+import { registerSchedules, SCHEDULES } from './jobs/schedules.ts';
 import { checkTaskCompletionEvidence } from './jobs/task-completion.integration.ts';
 import { createTaskList } from './jobs/task-list.ts';
-import { physicalTaskQueue, type TaskIdentifier } from './jobs/tasks.ts';
+import { physicalTaskQueue } from './jobs/tasks.ts';
 import {
   BACKEND_SERVER_OPTIONS,
   installClientErrorEnvelope,
@@ -65145,9 +65149,21 @@ async function main(): Promise<void> {
 
   console.log('[itest] starting pg-boss (installs its own schema)…');
   // The boot's own start (`startBoss`), so the job engine boots here the way
-  // `main.ts` boots it.
+  // `main.ts` boots it — with one difference: its cron clock stays off for
+  // the whole run. The lanes drive the work of the recurring jobs
+  // themselves, and a tick beside one made its outcome hang on the host's
+  // minute boundary: the delivery lanes count what each trigger scan they
+  // drive fired, the liveness lane sweeps the overdue run it seeded, the
+  // transcription watchdog lane counts the rows its sweep failed, and the
+  // RAG watchdog lanes' rows lead every sweep's batch — a tick in its
+  // 2-59/5 slot once failed the row the lock lane held, before the lane read
+  // it back (#4113). A lane that needs a recurring job's work drives it;
+  // none waits for a tick. pg-boss starts no clock at all, so no tick can
+  // even be queued before the first worker starts; the schedules are still
+  // registered and read, and the end of the run reads that no tick ran.
   const boss = await startBoss(databaseUrl, {
     supervise: true,
+    schedule: false,
     wait: createBootDatabaseWait(),
   });
   await alignQueuePolicies(sql);
@@ -65158,38 +65174,19 @@ async function main(): Promise<void> {
     triggerSchedules.length === 1 && triggerSchedules[0]?.cron === '* * * * *',
     `schedules=${triggerSchedules.length}, cron=${triggerSchedules[0]?.cron}`,
   );
-  // Lanes drive the work of these recurring jobs explicitly, and a wall-clock
-  // tick competing with those calls makes their outcome depend on the host's
-  // minute boundary:
-  //
-  //  - `automation.trigger_scan`: the delivery lanes drive the real scan,
-  //    including overlapping workers and fleets across pages, and count what
-  //    each scan fired;
-  //  - `watchdog.rag_indexing`: the RAG watchdog lanes drive the real sweep,
-  //    whose candidate read is global and led by their rows. A tick in its
-  //    slot (2-59/5) settled those rows too: it queued behind the row the
-  //    lock lane holds and failed it as soon as the lane let go, before the
-  //    lane read back the row its own tick had deferred (#4113).
-  //
-  // Disable only those recurring clocks, before starting any worker; any tick
-  // queued during schedule registration is cancelled as well.
-  const laneDrivenSchedules: readonly TaskIdentifier[] = [
-    'automation.trigger_scan',
-    'watchdog.rag_indexing',
-  ];
-  for (const name of laneDrivenSchedules) {
-    await boss.unschedule(name);
-    const queued = await sql<{ id: string }[]>`
-      SELECT id FROM pgboss.job WHERE name = ${name}
-        AND state IN ('created', 'retry')
-    `;
-    if (queued.length > 0) {
-      await boss.cancel(
-        name,
-        queued.map((job) => job.id),
-      );
-    }
-  }
+  const registered = await boss.getSchedules();
+  const unregistered = SCHEDULES.filter(
+    (schedule) =>
+      !registered.some(
+        (row) => row.name === schedule.name && row.cron === schedule.cron,
+      ),
+  );
+  record(
+    'every recurring job is registered with its cron, the clock off',
+    unregistered.length === 0,
+    `registered=${registered.length}, declared=${SCHEDULES.length}, missing or another cron=${unregistered.map((schedule) => schedule.name).join(', ') || 'none'}`,
+  );
+  const cronAtBoot = await readCronClock(sql);
   setEnqueueBoss(boss);
   // The same boot wiring: a removed member's reviews are handed on in the
   // removal's own transaction.
@@ -66687,6 +66684,21 @@ async function main(): Promise<void> {
       `RUN TRUNCATED before the lanes: ${errorText(error)}`,
     );
   } finally {
+    // Whatever ran — every lane, or the checks before them up to a throw —
+    // ran with no tick beside it: none leaned on one, and none was raced by
+    // one. Read while pg-boss still runs, bounded like the probes between
+    // lanes.
+    await withinDeadline(
+      checkNoCronTick(sql, cronAtBoot, record),
+      PROBE_DEADLINE_MS,
+      'the cron clock probe after the lanes',
+    ).catch((error: unknown) => {
+      record(
+        'harness: pg-boss’s cron clock is read after the lanes',
+        false,
+        errorText(error),
+      );
+    });
     // Bounded step by step, so a run a lane left hanging still prints its
     // tally and exits with its code. The backend closes the way the
     // deployment does: a bare `server.close()` waits for every connection,

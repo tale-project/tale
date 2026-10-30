@@ -20,13 +20,17 @@
  *    on a retried row that kept its previous failure's code, and a corpus
  *    copy on a row without one. A row the app classified keeps its sentence
  *    and code whatever its corpus copy says: a lost retry fails with it, a
- *    failed row stays as it is.
+ *    failed row stays as it is;
+ *  - a retry queued while a tick is held between its read and its writes
+ *    stands: no write of that tick lands on a row queued again since it was
+ *    read, and a row nobody queued again is settled by the same tick.
  *
  * Each on organizations of its own. The candidate read is global, so the
  * rows here are queued before the epoch (negative queue times) and lead
  * every batch, whatever other rows the database holds. For the same reason
- * every tick here must be the only sweep running: the harness takes the
- * sweep's own clock off, and the first check reads that it is off.
+ * every tick here must be the only sweep running: the harness runs pg-boss
+ * with its cron clock off, the first check reads that no sweep job waits or
+ * runs, and the harness reads after the lanes that no tick ran.
  */
 import { randomUUID } from 'node:crypto';
 
@@ -36,6 +40,8 @@ import {
   getKnowledgePoolForOrg,
   PRIVATE_KNOWLEDGE_SCHEMA,
 } from '../../core/knowledge/pool.ts';
+import { errorText, withinDeadline } from '../../integration-lane-helpers.ts';
+import { markRagQueued } from '../knowledge/service.ts';
 import {
   RAG_INTERRUPTED_MESSAGE,
   recoverStuckRagIndexing,
@@ -53,36 +59,36 @@ export async function checkRagWatchdogBatch(
   sql: Sql,
   record: Record,
 ): Promise<void> {
-  await checkNoScheduledSweep(sql, record);
+  await checkNoOtherSweep(sql, record);
   await checkSettledFailures(sql, record);
   await checkHeldRowLock(sql, record);
   await checkFailedRotation(sql, record);
   await checkErrorCodePairs(sql, record);
+  await checkRetryDuringTick(sql, record);
 }
 
 /**
  * The checks below count what their own ticks did, so no other sweep may run
  * beside them: one the job runner starts reads the same rows, which lead its
- * batch too. The harness takes the `watchdog.rag_indexing` clock off at boot.
- * Its tick in the 2-59/5 slot once queued behind the row the lock check
- * holds, and failed it as soon as the check let go, before the check read
- * back the row its own tick had deferred (#4113). A clock that comes back
- * fails here by name, not as a row another sweep settled. pg-boss's tables
- * are internal; these reads are pinned to v12 like the harness's own.
+ * batch too. The `watchdog.rag_indexing` schedule is registered here as in
+ * production, and pg-boss runs no clock to tick it: its tick in the 2-59/5
+ * slot once queued behind the row the lock check holds, and failed it as
+ * soon as the check let go, before the check read back the row its own tick
+ * had deferred (#4113). So only a sweep job something sent could run beside
+ * them, and none may wait or run as they begin; a tick that comes back fails
+ * the harness's clock check by name. pg-boss's tables are internal; these
+ * reads are pinned to v12 like the harness's own.
  */
-async function checkNoScheduledSweep(sql: Sql, record: Record): Promise<void> {
-  const [clock] = await sql<{ schedules: string; ticks: string }[]>`
-    SELECT
-      (SELECT count(*) FROM pgboss.schedule
-        WHERE name = 'watchdog.rag_indexing')::text AS schedules,
-      (SELECT count(*) FROM pgboss.job
-        WHERE name = 'watchdog.rag_indexing'
-          AND state IN ('created', 'retry', 'active'))::text AS ticks
+async function checkNoOtherSweep(sql: Sql, record: Record): Promise<void> {
+  const [sweeps] = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM pgboss.job
+    WHERE name = 'watchdog.rag_indexing'
+      AND state IN ('created', 'retry', 'active')
   `;
   record(
-    'rag watchdog: no scheduled sweep runs beside the ticks these checks count',
-    clock?.schedules === '0' && clock.ticks === '0',
-    `watchdog.rag_indexing schedules=${clock?.schedules} (want 0), queued or running ticks=${clock?.ticks} (want 0)`,
+    'rag watchdog: no other sweep runs beside the ticks these checks count',
+    sweeps?.count === '0',
+    `watchdog.rag_indexing jobs queued or running=${sweeps?.count} (want 0)`,
   );
 }
 
@@ -626,6 +632,229 @@ async function checkErrorCodePairs(sql: Sql, record: Record): Promise<void> {
         ' (want failed with the pair it carried: embedding_not_configured, embedding_not_configured, embedding_upstream)',
     );
   } finally {
+    await removeOrganizations(sql, [org]);
+  }
+}
+
+/** Polls `ready` every 50 ms for up to `ms`; whether it came true. */
+async function waitUntil(
+  ready: () => Promise<boolean>,
+  ms = 10_000,
+): Promise<boolean> {
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    if (await ready()) return true;
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  return false;
+}
+
+/**
+ * Retry indexing is offered on a queued or running row once it is as old as
+ * the stale window, so a retry meets a tick on exactly the rows the tick
+ * settles. Here a tick reads its batch and is then held between that read
+ * and its writes: another transaction holds the corpus table, so the tick's
+ * corpus read waits. Meanwhile Retry indexing's own write (`markRagQueued`)
+ * queues four of the rows again, stamping each afresh and keeping a retried
+ * row's sentence and code. A write matched by the id, or by that code,
+ * adopted or failed a file its person had just queued again; each now lands
+ * only on a row still as the tick read it. A row nobody queued again, whose
+ * run was never stamped, is settled by the same tick. The tick stamps the
+ * failed rows it read before it reads the corpus, so a failed row it leaves
+ * as it is tells when the batch was read.
+ */
+async function checkRetryDuringTick(sql: Sql, record: Record): Promise<void> {
+  const org = await insertOrganization(sql, 'retry');
+  const failedAt = Date.now() - 60_000;
+  const queuedBefore = -Date.now();
+  let release = () => {};
+  const released = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let holder: Promise<unknown> = Promise.resolve();
+  let tick: Promise<string> = Promise.resolve('not started');
+  try {
+    const refOf = (name: string) => `s3:itest/${org.slug}/${name}`;
+    const insertRow = async (
+      name: string,
+      status: string,
+      queuedAt: number | null,
+      failure: { error: string; code: string | null } | null = null,
+    ): Promise<string> => {
+      const [row] = await sql<{ id: string }[]>`
+        INSERT INTO app.file_metadata (
+          org_id, storage_ref, file_name, content_type, size, rag_status,
+          rag_error, rag_error_code, rag_queued_at_ms, status_changed_at_ms,
+          created_at_ms
+        ) VALUES (
+          ${org.id}, ${refOf(name)}, ${name}, 'application/pdf', 1, ${status},
+          ${failure?.error ?? null}, ${failure?.code ?? null}, ${queuedAt},
+          ${failedAt}, ${queuedAt ?? queuedBefore + 5}
+        )
+        RETURNING id
+      `;
+      return row?.id ?? '';
+    };
+    // Queued before the epoch, so they lead the tick's batch: one row for
+    // each write the tick would send it — an adoption, the kept pair of a
+    // retry whose job was lost, a corpus copy, the interrupted text.
+    const retried = new Map<string, string>([
+      [
+        'adopted.pdf',
+        await insertRow('adopted.pdf', 'running', queuedBefore + 1),
+      ],
+      [
+        'kept.pdf',
+        await insertRow('kept.pdf', 'queued', queuedBefore + 2, {
+          error: NO_MODEL_ERROR,
+          code: 'embedding_not_configured',
+        }),
+      ],
+      [
+        'copied.pdf',
+        await insertRow('copied.pdf', 'running', queuedBefore + 3),
+      ],
+      ['dead.pdf', await insertRow('dead.pdf', 'queued', queuedBefore + 4)],
+    ]);
+    const unstamped = await insertRow('unstamped.pdf', 'running', null);
+    const marker = await insertRow('marker.pdf', 'failed', queuedBefore + 6, {
+      error: SETTLED_ERROR,
+      code: null,
+    });
+    const pool = await getKnowledgePoolForOrg(org.slug);
+    await pool.unsafe(
+      `INSERT INTO ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+         (org_slug, file_id, filename, status)
+       VALUES ($1, $2, 'adopted.pdf', 'completed')`,
+      [org.slug, refOf('adopted.pdf')],
+    );
+    await pool.unsafe(
+      `INSERT INTO ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+         (org_slug, file_id, filename, status, error)
+       SELECT $1, ref, 'failed.pdf', 'failed', $3
+       FROM unnest($2::text[]) AS ref`,
+      [org.slug, [refOf('kept.pdf'), refOf('copied.pdf')], CORPUS_ERROR],
+    );
+
+    // Another transaction holds the corpus table until released: the tick's
+    // corpus read, and so every write after it, waits for it.
+    let taken = () => {};
+    const lockTaken = new Promise<void>((resolve) => {
+      taken = resolve;
+    });
+    let holderPid = -1;
+    holder = pool.begin(async (tx) => {
+      const [self] = await tx<{ pid: number }[]>`
+        SELECT pg_backend_pid() AS pid
+      `;
+      holderPid = self?.pid ?? -1;
+      await tx.unsafe(
+        `LOCK TABLE ${PRIVATE_KNOWLEDGE_SCHEMA}.documents IN ACCESS EXCLUSIVE MODE`,
+      );
+      taken();
+      await released;
+    });
+    await Promise.race([lockTaken, holder]);
+
+    let tickReturned = false;
+    tick = recoverStuckRagIndexing(sql)
+      .then(
+        (counts) => JSON.stringify(counts),
+        (error: unknown) => `threw ${errorText(error)}`,
+      )
+      .finally(() => {
+        tickReturned = true;
+      });
+    const readBatch = await waitUntil(async () => {
+      const [row] = await sql<{ stamped: boolean }[]>`
+        SELECT rag_reconciled_at_ms IS NOT NULL AS stamped
+        FROM app.file_metadata WHERE id = ${marker}
+      `;
+      return row !== undefined && row.stamped;
+    });
+    const held = await waitUntil(async () => {
+      const [row] = await pool.unsafe<{ count: string }[]>(
+        `SELECT count(*)::text AS count FROM pg_stat_activity
+          WHERE $1::int = ANY(pg_blocking_pids(pid))`,
+        [holderPid],
+      );
+      return row !== undefined && row.count !== '0';
+    });
+
+    // Retry indexing, committed while the tick waits.
+    for (const id of retried.values()) await markRagQueued(sql, id);
+    const stamps = new Map(
+      (
+        await sql<{ id: string; stamp: string | null }[]>`
+          SELECT id, rag_queued_at_ms::text AS stamp FROM app.file_metadata
+          WHERE id = ANY(${[...retried.values()]})
+        `
+      ).map((row) => [row.id, row.stamp]),
+    );
+    const heldThroughRetries = !tickReturned;
+    release();
+    await holder;
+    const outcome = await withinDeadline(
+      tick,
+      15_000,
+      'the tick the corpus lock held',
+    ).catch((error: unknown) => errorText(error));
+
+    const after = await sql<
+      {
+        id: string;
+        status: string | null;
+        stamp: string | null;
+        error: string | null;
+        code: string | null;
+      }[]
+    >`
+      SELECT id, rag_status AS status, rag_queued_at_ms::text AS stamp,
+             rag_error AS error, rag_error_code AS code
+      FROM app.file_metadata WHERE org_id = ${org.id}
+    `;
+    const rowOf = (id: string) => after.find((row) => row.id === id);
+    const stood = [...retried].map(([name, id]) => {
+      const row = rowOf(id);
+      const stamp = stamps.get(id) ?? null;
+      return {
+        name,
+        status: row?.status,
+        ok: row?.status === 'queued' && stamp !== null && row.stamp === stamp,
+      };
+    });
+    const kept = rowOf(retried.get('kept.pdf') ?? '');
+    record(
+      'rag watchdog: a retry queued while a tick is held between its read and its writes stands — no adoption, kept pair, corpus copy or interrupted text lands on it',
+      readBatch &&
+        held &&
+        heldThroughRetries &&
+        stood.every((entry) => entry.ok) &&
+        kept?.error === NO_MODEL_ERROR &&
+        kept.code === 'embedding_not_configured',
+      `tick read its batch=${readBatch}, held by the corpus lock=${held}, still held when the retries committed=${heldThroughRetries}; ${stood.map((entry) => `${entry.name}=${entry.status} (retry's stamp kept: ${entry.ok})`).join(', ')} (want each queued under its retry's stamp), kept pair intact=${kept?.error === NO_MODEL_ERROR && kept.code === 'embedding_not_configured'}, tick=${outcome}`,
+    );
+    const settled = rowOf(unstamped);
+    const left = rowOf(marker);
+    record(
+      'rag watchdog: the held tick still settles a row nobody queued again, one whose run was never stamped',
+      settled?.status === 'failed' &&
+        settled.error === RAG_INTERRUPTED_MESSAGE &&
+        settled.code === null &&
+        left?.status === 'failed' &&
+        left.error === SETTLED_ERROR,
+      `unstamped=${settled?.status} (want failed, with the interrupted text: ${settled?.error === RAG_INTERRUPTED_MESSAGE}, no code: ${settled?.code === null}), marker=${left?.status} (want failed, its error kept: ${left?.error === SETTLED_ERROR})`,
+    );
+  } finally {
+    release();
+    await holder.catch((error: unknown) => {
+      console.warn('[itest] rag watchdog corpus lock holder failed:', error);
+    });
+    await withinDeadline(tick, 15_000, 'the tick the corpus lock held').catch(
+      (error: unknown) => {
+        console.warn('[itest] rag watchdog held tick never returned:', error);
+      },
+    );
     await removeOrganizations(sql, [org]);
   }
 }
