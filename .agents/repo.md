@@ -790,8 +790,8 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   brief and the earlier rounds restated, where the other harnesses hand the exec the announced
   handle (2026-10). The runtime now bakes root-owned system settings for Gemini 0.62.0;
   the resume bug remains open. Paying it down means a sandbox-runtime pin that carries
-  the upstream fix, then flipping the flag and restoring the `resume` argv slot (the schema
-  holds the two coherent).
+  the upstream fix, then flipping the flag and restoring the `resume` argv slot with its
+  `instructions` fact checked against that pin (the schema holds the three coherent).
 - **An in-doubt step is decided in the app only** — a run parked on `waitingFor: in_doubt` (a
   write its server was making when it stopped may already have reached the service) is read and
   decided through `GET`/`POST /api/app/automations/runs/{runId}/in-doubt[/{attemptId}]`

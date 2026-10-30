@@ -47,6 +47,8 @@ exec:
         - stream-json
         - '--workspace'
         - '${workdir}'
+    # No `instructions` fact: the CLI is handed no instructions (see the
+    # header), so a resumed turn has none to keep or restate.
     - resume: { flag: '--resume' }
     # `default` is the CLI's own model sentinel — passing it as --model is
     # rejected, so the flag is omitted for it.

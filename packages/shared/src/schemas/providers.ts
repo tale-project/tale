@@ -1039,6 +1039,14 @@ const docFragmentsSchema = z.array(docFragmentSchema).min(1);
  *  - `additionalDirs`: flag repeated per out-of-workdir grant.
  *  - `resume`: flag + the resume handle (codex's bare `resume` subcommand
  *    word works because the slot sits between its `exec` and flags chunks).
+ *    `instructions` states which instructions a resumed conversation reads
+ *    on the pinned CLI: `recorded` = the ones its session recorded when it
+ *    started (again only when it compacts), whatever a later exec hands it,
+ *    so the task host restates the exec's instructions at the head of every
+ *    resumed turn (codex, claude); `current` = the ones each exec hands it.
+ *    Stated exactly when the harness has an instructions channel (refined
+ *    below), so a new harness or a new CLI pin is classified, never inferred
+ *    from how its instructions travel.
  *  - `model`: flag + the delivered model id. `value` templates the flag
  *    value (opencode's `tale/${model}`); `omitValues` skips the flag for
  *    sentinel ids (cursor's `default`); `transform` names the in-code model
@@ -1081,7 +1089,16 @@ const argvSlotSchema = z.union([
   z
     .object({ additionalDirs: z.object({ flag: flagSchema }).strict() })
     .strict(),
-  z.object({ resume: z.object({ flag: flagSchema }).strict() }).strict(),
+  z
+    .object({
+      resume: z
+        .object({
+          flag: flagSchema,
+          instructions: z.enum(['recorded', 'current']).optional(),
+        })
+        .strict(),
+    })
+    .strict(),
   z
     .object({
       model: z
@@ -1517,6 +1534,24 @@ export const harnessDefinitionSchema = z
       (provider.exec.stagedInstructions ? 1 : 0);
     if (instructionDeliveries > 1) {
       issue('instructions may use at most one delivery channel');
+    }
+
+    // What a resumed conversation reads of a later exec's instructions is a
+    // stated fact of the pinned CLI: a harness that resumes and delivers
+    // instructions says it, and one that delivers none has nothing to say.
+    const resumeSlot = slots.find((slot) => 'resume' in slot)?.resume;
+    if (resumeSlot !== undefined) {
+      const stated = resumeSlot.instructions !== undefined;
+      if (instructionDeliveries > 0 && !stated) {
+        issue(
+          'a resume slot must state its instructions (recorded or current) when the harness delivers instructions',
+        );
+      }
+      if (instructionDeliveries === 0 && stated) {
+        issue(
+          'a resume slot states its instructions only when the harness delivers instructions',
+        );
+      }
     }
 
     // Collect doc fragments across every document sink.

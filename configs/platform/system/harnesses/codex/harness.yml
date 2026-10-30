@@ -42,7 +42,9 @@ exec:
   bin: codex
   argv:
     - args: ['exec']
-    - resume: { flag: 'resume' }
+    # Keeps the developer message its thread recorded (see the instructions
+    # slot below).
+    - resume: { flag: 'resume', instructions: recorded }
     - args:
         - '--json'
         - '--skip-git-repo-check'
@@ -123,8 +125,9 @@ exec:
     # yet keeps the recorded message, adding only setting diffs to the
     # resumed history, and this key is not one of them. So the task host
     # opens every resumed Codex task turn with the whole current addendum,
-    # a Tale instructions update on stdin, ahead of the brief. It reads that
-    # need from this slot's `configKey` (`resumeKeepsRecordedInstructions`).
+    # a Tale instructions update on stdin, ahead of the brief. The resume
+    # slot states that need (`instructions: recorded`), which
+    # `resumeKeepsRecordedInstructions` reads.
     - instructions:
         flag: '-c'
         configKey: developer_instructions

@@ -70,7 +70,15 @@ exec:
     # attachment at an absolute path outside the workspace is unreadable
     # without this.
     - additionalDirs: { flag: '--add-dir' }
-    - resume: { flag: '--resume' }
+    # A resumed session reads the system prompt its transcript recorded, not
+    # this exec's: the pinned CLI records the whole system prompt,
+    # --append-system-prompt included, as a `prompt_snapshot` attachment when
+    # the session starts (again after it compacts), and a `--resume`d process
+    # sends that snapshot. Observed on 2.1.285 against a local stand-in for
+    # the Messages API: a session started with one appended prompt and
+    # resumed with another sent the first, byte for byte. So the task host
+    # restates the current instructions at the head of every resumed turn.
+    - resume: { flag: '--resume', instructions: recorded }
     # Every session (managed AND byo) defaults to the max 1M context window:
     # the claude-max-context transform appends the `[1m]` marker, which the
     # CLI strips before the API call, so the provider / gateway only ever

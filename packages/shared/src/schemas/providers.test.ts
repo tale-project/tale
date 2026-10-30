@@ -933,6 +933,39 @@ describe('harnessDefinitionSchema', () => {
     ).toBe(false);
   });
 
+  it('states the instructions of a resume slot exactly when instructions are delivered', () => {
+    // Which instructions a resumed conversation reads is a fact of the
+    // pinned CLI, so a harness with instructions to read must state it.
+    const withResume = (resume: Record<string, unknown>, delivers: boolean) =>
+      harnessDefinitionSchema.safeParse({
+        ...VALID_HARNESS,
+        exec: {
+          ...VALID_HARNESS.exec,
+          argv: [
+            ...VALID_HARNESS.exec.argv.filter((s) => !('resume' in s)),
+            { resume },
+            ...(delivers
+              ? [{ instructions: { flag: '--append-system-prompt' } }]
+              : []),
+          ],
+        },
+      }).success;
+    expect(
+      withResume({ flag: '--resume', instructions: 'recorded' }, true),
+    ).toBe(true);
+    expect(
+      withResume({ flag: '--resume', instructions: 'current' }, true),
+    ).toBe(true);
+    expect(withResume({ flag: '--resume' }, true)).toBe(false);
+    expect(
+      withResume({ flag: '--resume', instructions: 'replayed' }, true),
+    ).toBe(false);
+    expect(withResume({ flag: '--resume' }, false)).toBe(true);
+    expect(
+      withResume({ flag: '--resume', instructions: 'recorded' }, false),
+    ).toBe(false);
+  });
+
   it('gates the model context window to a whole, positive token count', () => {
     const withGate = (contextWindow: unknown) =>
       harnessDefinitionSchema.safeParse({

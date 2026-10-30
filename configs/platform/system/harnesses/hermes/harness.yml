@@ -37,7 +37,13 @@ exec:
     - args: ['--workdir', '${workdir}']
     # Pinned to the fixed runaway backstop — the spec carries no turn knob.
     - maxTurns: { flag: '--max-turns' }
-    - resume: { flag: '--resume' }
+    # The wrapper hands the instructions over as Hermes's ephemeral system
+    # prompt, which the agent appends to its stored base prompt at every API
+    # call and never stores, so a resumed session reads this exec's
+    # instructions. Observed on hermes-agent 0.19.0 against a local stand-in
+    # for the chat API: a session resumed with new instructions sent the new
+    # ones, and the old ones nowhere.
+    - resume: { flag: '--resume', instructions: current }
     - model: { flag: '--model' }
   stdin:
     mode: json-envelope
