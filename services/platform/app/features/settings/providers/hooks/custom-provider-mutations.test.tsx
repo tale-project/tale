@@ -63,6 +63,7 @@ const facts = {
   apiFormat: 'openai' as const,
   baseUrl: 'https://maas.example.test/v1',
   catalogSource: 'models-endpoint' as const,
+  modelFacts: {},
 };
 
 let client: QueryClient;
@@ -202,6 +203,122 @@ describe('useCreateProviderCredential', () => {
   });
 });
 
+describe('the models a provider without a listing declares', () => {
+  it('creates the provider with what was typed beside each entered id', async () => {
+    actions.save.mockResolvedValue({ config: {}, hash: 'h1' });
+    actions.create.mockResolvedValue({ credentialId: 'c1' });
+    const { result } = renderHook(() => useCreateProviderCredential(), {
+      wrapper,
+    });
+    await result.current.mutateAsync({
+      organizationId: 'org-1',
+      providerSlug: CUSTOM_VENDOR_KEY,
+      authMethod: 'api-key',
+      name: 'Claude gateway',
+      secret: 'sk',
+      modelAllowlist: ['claude-sonnet-gw', 'claude-haiku-gw'],
+      customProvider: {
+        ...facts,
+        apiFormat: 'anthropic',
+        catalogSource: 'none',
+        modelFacts: {
+          'claude-sonnet-gw': {
+            contextWindow: '1000000',
+            supportsVision: true,
+          },
+          'claude-haiku-gw': { contextWindow: '', supportsVision: false },
+        },
+      },
+    });
+    expect(actions.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'claude-gateway',
+        config: expect.objectContaining({
+          catalog: {
+            source: 'none',
+            models: [
+              {
+                id: 'claude-sonnet-gw',
+                contextWindow: 1_000_000,
+                supportsVision: true,
+              },
+            ],
+          },
+        }),
+      }),
+    );
+    expect(actions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        providerSlug: 'claude-gateway',
+        modelAllowlist: ['claude-sonnet-gw', 'claude-haiku-gw'],
+      }),
+    );
+  });
+
+  it('keeps what the definition declares for a model the dialog does not show', async () => {
+    actions.read.mockResolvedValue({
+      config: {
+        name: 'claude-gateway',
+        displayName: 'Claude gateway',
+        apiFormat: 'anthropic',
+        baseUrl: 'https://llm.example.test',
+        catalog: {
+          source: 'none',
+          models: [
+            // Another credential's model, declared in the file.
+            { id: 'claude-opus-gw', contextWindow: 1_000_000 },
+            { id: 'claude-sonnet-gw', contextWindow: 200_000 },
+          ],
+        },
+        auth: [{ method: 'api-key' }],
+      },
+      hash: 'h1',
+    });
+    actions.updateWithDefinition.mockResolvedValue(null);
+    await renderHook(() => useUpdateProviderCredential(), {
+      wrapper,
+    }).result.current.mutateAsync({
+      organizationId: 'org-1',
+      credentialId: 'c9',
+      name: 'Claude gateway',
+      modelAllowlist: ['claude-sonnet-gw'],
+      customProvider: {
+        providerSlug: 'claude-gateway',
+        apiFormat: 'anthropic',
+        baseUrl: 'https://llm.example.test',
+        catalogSource: 'none',
+        modelFacts: {
+          'claude-sonnet-gw': {
+            contextWindow: '1000000',
+            supportsVision: true,
+          },
+        },
+      },
+      reviewed: { credentialHash: 'c1', definitionHash: 'h1' },
+    });
+    expect(actions.updateWithDefinition).toHaveBeenCalledWith(
+      expect.objectContaining({
+        definition: {
+          config: expect.objectContaining({
+            catalog: {
+              source: 'none',
+              models: [
+                { id: 'claude-opus-gw', contextWindow: 1_000_000 },
+                {
+                  id: 'claude-sonnet-gw',
+                  contextWindow: 1_000_000,
+                  supportsVision: true,
+                },
+              ],
+            },
+          }),
+          expectedHash: 'h1',
+        },
+      }),
+    );
+  });
+});
+
 describe('useUpdateProviderCredential', () => {
   /** The definition the dialog's facts were read from (the listing's hash). */
   const qwen = {
@@ -224,6 +341,7 @@ describe('useUpdateProviderCredential', () => {
       apiFormat: 'anthropic' as const,
       baseUrl: 'https://maas.example.test/v2',
       catalogSource: 'none' as const,
+      modelFacts: {},
     },
     reviewed,
   };
@@ -302,6 +420,7 @@ describe('useUpdateProviderCredential', () => {
           apiFormat: 'openai',
           baseUrl: 'https://maas.example.test/v1',
           catalogSource: 'models-endpoint',
+          modelFacts: {},
         },
       }),
     ).rejects.toMatchObject({ data: { code: 'CONFIG_VERSION_CONFLICT' } });
