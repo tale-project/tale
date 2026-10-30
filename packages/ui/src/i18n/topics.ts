@@ -14,7 +14,7 @@ import { registerLocaleSource } from './load-locale';
  * that topic. A chunk the app loads on demand waits for the topics it brings
  * (`ready`, which the plugin calls at the chunk's end), so a page renders with
  * its words in place. A screen that reads another language beside the
- * session's (`useLocalesLoaded`) fetches what it reads and no more.
+ * session's (`useLocalesLoad`) fetches what it reads and no more.
  */
 
 type Messages = Record<string, unknown>;

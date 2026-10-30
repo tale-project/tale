@@ -1,5 +1,7 @@
 languageSwitcher:
   ariaLabel: Changer de langue
+  loadFailed: Impossible de charger {language}
+  loadFailedHint: Vérifie ta connexion et réessaie.
 markdownCallout:
   note: Remarque
   tip: Conseil

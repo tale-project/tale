@@ -23,7 +23,7 @@ Richte unter **Zwei-Faktor-Authentifizierung** eine Authenticator-App ein oder e
 
 ## Sprache oder Arbeitsbereich wechseln
 
-Öffne das Profilmenü über deinen Avatar. Unter **Sprache** änderst du die Oberflächensprache. Bist du in mehreren Organisationen, wechselst du mit **Organisation** den Arbeitsbereich. Die Zeile **Teams** nennt deine Teams und öffnet die Kontoseite; sie wechselt nichts, denn ein Team ist kein Arbeitsbereich.
+Öffne das Profilmenü über deinen Avatar. Unter **Sprache** änderst du die Oberflächensprache. Die Seite wechselt, sobald die neue Sprache geladen ist; bis dahin bleibt im Menü die bisherige Sprache markiert, und neben der neuen dreht sich ein Ladesymbol. Lässt sich die Sprache nicht laden, bleibt die Seite, wie sie ist, und eine Meldung weist darauf hin: Wähle **Erneut versuchen** oder die Sprache noch einmal. Tale versucht es auch selbst erneut, sobald du wieder online bist. Bist du in mehreren Organisationen, wechselst du mit **Organisation** den Arbeitsbereich. Die Zeile **Teams** nennt deine Teams und öffnet die Kontoseite; sie wechselt nichts, denn ein Team ist kein Arbeitsbereich.
 
 Jede Organisation in der Liste **Organisation** zeigt deine Rolle darin, etwa **Inhaber** oder **Mitglied**. Kann die Liste nicht geladen werden, steht das dort; mit **Erneut versuchen** lädst du sie noch einmal.
 

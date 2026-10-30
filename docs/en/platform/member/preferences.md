@@ -23,7 +23,7 @@ Set up an authenticator under **Two-factor authentication** or add a passkey und
 
 ## Switch language or workspace
 
-Open the profile menu from your avatar. **Language** changes the interface language. When you belong to several organizations, **Organization** switches the workspace. The **Teams** row names the teams you are in and opens the account page; it switches nothing, because a team is not a workspace.
+Open the profile menu from your avatar. **Language** changes the interface language. The page switches once the new language has loaded; until then, the menu keeps the current language checked and shows a spinner beside the new one. If the language can't be loaded, the page stays as it is and a message says so: choose **Try again**, or pick the language again. Tale also tries again when your connection comes back. When you belong to several organizations, **Organization** switches the workspace. The **Teams** row names the teams you are in and opens the account page; it switches nothing, because a team is not a workspace.
 
 Each organization in the **Organization** list shows your role in it, such as **Owner** or **Member**. If the list can't be loaded, it says so; choose **Try again** to load it.
 

@@ -21,7 +21,7 @@ const loadersByInstance = new WeakMap<I18nInstance, LocaleLoaders>();
 export interface LocaleSource {
   /** The session switches to `locale` (`loadLocale`). */
   load(locale: string): Promise<void>;
-  /** A screen reads `locale` beside the session's language (`useLocalesLoaded`). */
+  /** A screen reads `locale` beside the session's language (`useLocalesLoad`). */
   read(locale: string, namespaces?: readonly string[]): Promise<void>;
   isLoaded(locale: string, namespaces?: readonly string[]): boolean;
 }
@@ -96,7 +96,7 @@ export function isLocaleLoaded(
  * (`attachTopics`) also fetches the topics that register until the session
  * shows a language, and the chunks loaded meanwhile wait for them, unless
  * the fetch fails or a later call asks for another language. A screen that
- * reads a language beside the session's uses `useLocalesLoaded` instead.
+ * reads a language beside the session's uses `useLocalesLoad` instead.
  */
 export function loadLocale(
   instance: I18nInstance,
@@ -109,7 +109,7 @@ export function loadLocale(
 }
 
 /**
- * What `useLocalesLoaded` fetches: what `loadLocale` fetches, except that an
+ * What `useLocalesLoad` fetches: what `loadLocale` fetches, except that an
  * instance that loads per topic fetches `namespaces` alone when given, and
  * nothing that registers later.
  */
@@ -150,42 +150,80 @@ function loadBundle(owner: I18nInstance, locale: string): Promise<void> {
   return load.promise;
 }
 
+/** Where the messages of a locale stand for a screen that reads them. */
+export type LocaleLoad = 'loading' | 'loaded' | 'failed';
+
 /**
- * Whether the messages of every given locale are in the store, those of
- * `namespaces` alone when given, fetching the missing ones: for a screen that
- * reads other languages than the session's (`i18n.getFixedT(locale)`), which
- * re-renders once they have landed. Reading them leaves what the session's
- * own pages fetch and wait for as it was.
+ * Where the messages of each given locale stand, those of `namespaces` alone
+ * when given, fetching the missing ones: for a screen that reads other
+ * languages than the session's (`i18n.getFixedT(locale)`), which re-renders
+ * as each lands or fails. A locale that failed is fetched again once the
+ * browser is back online. Reading them leaves what the session's own pages
+ * fetch and wait for as it was.
  */
-export function useLocalesLoaded(
+export function useLocalesLoad(
   locales: readonly string[],
   namespaces?: readonly string[],
-): boolean {
+): Readonly<Record<string, LocaleLoad>> {
   const { i18n } = useTranslation();
   const localeKey = locales.join(',');
   const namespaceKey = namespaces?.join(',');
   const key = `${localeKey}\u0000${namespaceKey ?? ''}`;
-  const [landedKey, setLandedKey] = useState<string | null>(null);
-  const landed =
-    landedKey === key ||
-    locales.every((locale) => isLocaleLoaded(i18n, locale, namespaces));
+  // How each fetch for `key` came out; those of another key say nothing.
+  const [settled, setSettled] = useState<{
+    key: string;
+    outcomes: Readonly<Record<string, Exclude<LocaleLoad, 'loading'>>>;
+  } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const outcomes = settled?.key === key ? settled.outcomes : {};
+  const loads: Record<string, LocaleLoad> = {};
+  for (const locale of locales) {
+    loads[locale] = isLocaleLoaded(i18n, locale, namespaces)
+      ? 'loaded'
+      : (outcomes[locale] ?? 'loading');
+  }
+  const failed = Object.values(loads).includes('failed');
   useEffect(() => {
-    if (landed) return undefined;
-    let current = true;
     const read = namespaceKey?.split(',');
-    Promise.all(
-      localeKey.split(',').map((locale) => readLocale(i18n, locale, read)),
-    ).then(
-      () => {
-        if (current) setLandedKey(key);
-      },
-      (error: unknown) => {
-        console.warn(`[i18n] messages for ${localeKey} did not load`, error);
-      },
-    );
+    const missing = localeKey
+      .split(',')
+      .filter((locale) => !isLocaleLoaded(i18n, locale, read));
+    if (missing.length === 0) return undefined;
+    let current = true;
+    const settle = (
+      locale: string,
+      outcome: Exclude<LocaleLoad, 'loading'>,
+    ) => {
+      if (!current) return;
+      setSettled((previous) => ({
+        key,
+        outcomes: {
+          ...(previous?.key === key ? previous.outcomes : {}),
+          [locale]: outcome,
+        },
+      }));
+    };
+    for (const locale of missing) {
+      readLocale(i18n, locale, read).then(
+        () => settle(locale, 'loaded'),
+        (error: unknown) => {
+          console.warn(`[i18n] the ${locale} messages did not load`, error);
+          settle(locale, 'failed');
+        },
+      );
+    }
     return () => {
       current = false;
     };
-  }, [i18n, key, landed, localeKey, namespaceKey]);
-  return landed;
+    // `attempt` is not read: a new one fetches what failed again.
+  }, [i18n, key, localeKey, namespaceKey, attempt]);
+  useEffect(() => {
+    if (!failed) return undefined;
+    const retry = () => setAttempt((count) => count + 1);
+    window.addEventListener('online', retry);
+    return () => {
+      window.removeEventListener('online', retry);
+    };
+  }, [failed]);
+  return loads;
 }

@@ -99,14 +99,20 @@ in the Vite and Vitest configurations, and pass the other locales' topic files a
 topic — `useT('tasks')`, `{ ns: 'tasks' }`, an `entityNamespace: 'tasks'` property, a
 `'tasks:key'` literal — then carries its English, and each chunk loaded on demand waits for its
 topics in the session’s language; a namespace computed at runtime is invisible to the plugin, so
-name it literally where it is read. `LocaleSync` loads a language before switching to it. To start
+name it literally where it is read. `LocaleSync` loads a language before switching to it. In
+client mode, `useLocale()` tells a language picker which language the page shows (`shownLocale`)
+and whether the picked one is still loading or did not load (`status`), so it marks the shown one;
+picking it again, or the browser coming back online, fetches a language that did not load again.
+`LocaleLoadNotice` from `@tale/ui/i18n/locale-load-notice`, mounted inside the shell beside the
+service's other toasts, says so in the shown language and offers to try again. To start
 in the person’s language from the first frame, load and switch to `detectPreferredLocale()` before
 rendering, as the platform does (`services/platform/lib/i18n/i18n.ts`). A screen that reads
 languages other than the session’s (`i18n.getFixedT(locale)`) waits for them with
-`useLocalesLoaded(locales, namespaces)` from `@tale/ui/i18n/load-locale`, which fetches those
-namespaces alone and leaves what the session’s pages fetch and wait for as it was. `theme`
-enables the shared provider with its system preference default. Routing, authentication, and
-query providers remain the host’s responsibility.
+`useLocalesLoad(locales, namespaces)` from `@tale/ui/i18n/load-locale`, which answers `loading`,
+`loaded` or `failed` per locale, fetches those namespaces alone and leaves what the session’s
+pages fetch and wait for as it was. `theme` enables the shared provider with its system
+preference default. Routing, authentication, and query providers remain the host’s
+responsibility.
 
 ## Install from another repository
 
