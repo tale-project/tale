@@ -1,13 +1,30 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   MAX_STAGED_TASK_OUTPUTS,
   selectTaskOutputsForStaging,
 } from '../../../lib/agent/task-brief.ts';
+import type { ActionCtx } from '../lib/ctx';
+import type { SessionStageFile } from '../node_only/sandbox/helpers/session_client';
 import {
   partitionTaskInputSkips,
   type PlannedTaskInput,
+  stageTaskInputs,
 } from './agent_run_host.ts';
+
+const stage = vi.hoisted(() => ({ files: vi.fn(), url: vi.fn() }));
+vi.mock(
+  '../node_only/sandbox/helpers/session_client',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('../node_only/sandbox/helpers/session_client')
+    >()),
+    sessionStageFiles: stage.files,
+  }),
+);
+vi.mock('../node_only/sandbox/helpers/stage_url', () => ({
+  stageUrlForBlobRef: stage.url,
+}));
 
 /**
  * What a skipped input means to the run. The blob door passes the store's
@@ -155,5 +172,36 @@ describe('selectTaskOutputsForStaging', () => {
     expect(selection.selected).toHaveLength(MAX_STAGED_TASK_OUTPUTS);
     expect(selection.omitted).toBe(7);
     expect(selection.selected[0]).toBe(7);
+  });
+});
+
+describe('the staging of a task’s files', () => {
+  it('hands each file’s recorded size to the stager, which packs large ones apart', async () => {
+    stage.url.mockImplementation(
+      async (ref: string) => `https://platform.test/api/sandbox-blob/${ref}`,
+    );
+    stage.files.mockResolvedValue({ staged: [], skipped: [] });
+
+    await stageTaskInputs({} as ActionCtx, {
+      organizationId: 'org-1',
+      sessionId: 'ses-1',
+      taskId: 'task-1',
+      attachments: [
+        { fileId: 's3:org-1/a', fileName: 'Afos.xlsx', fileSize: 80_000_000 },
+      ],
+      // An entry from before sizes were recorded stays of unknown size.
+      outputs: [{ fileId: 's3:org-1/b', fileName: 'report.docx' }],
+    });
+
+    const files = (stage.files.mock.calls[0]?.[1] ?? []) as SessionStageFile[];
+    expect(
+      files.map((file) => ({
+        leaf: file.path.split('/').slice(-2).join('/'),
+        expectedBytes: file.expectedBytes,
+      })),
+    ).toEqual([
+      { leaf: 'attachments/Afos.xlsx', expectedBytes: 80_000_000 },
+      { leaf: 'outputs/report.docx', expectedBytes: undefined },
+    ]);
   });
 });
