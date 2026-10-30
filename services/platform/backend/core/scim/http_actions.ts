@@ -186,6 +186,7 @@ async function patchUserResource(
     active: patch.active,
     name,
     email: patch.email,
+    externalId: patch.externalId,
   });
   const full = await rc.ctx.runQuery(
     internal.scim.internal_queries.getUserRecord,
@@ -360,6 +361,7 @@ async function patchGroupResource(
     addMembers: patch.addMembers,
     removeMembers: patch.removeMembers,
     replaceMembers: patch.replaceMembers,
+    externalId: patch.externalId,
   });
   const full = await rc.ctx.runQuery(
     internal.scim.internal_queries.getGroupRecord,

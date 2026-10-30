@@ -118,6 +118,7 @@ export function scimShimHandlers(sql: Sql): ShimHandlers {
           addMembers: z.array(z.string()),
           removeMembers: z.array(z.string()),
           replaceMembers: z.array(z.string()).optional(),
+          externalId: z.string().optional(),
         })
         .parse(raw);
       return patchGroup(sql, args);

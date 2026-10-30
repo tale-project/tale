@@ -22489,9 +22489,10 @@ async function checkEntraLogin(
 /**
  * SCIM 2.0 provisioning, end to end on the REUSED 0.4 dispatcher bodies:
  * admin mints the bearer token → the IdP pushes a User (create, filter,
- * deactivate/restore via PATCH with role stash, hard DELETE per RFC 7644)
- * and a Group (create with members, membership PATCH, rename PUT, DELETE)
- * — all resolved to the tenant by the token hash row, audited as `scim`.
+ * deactivate/restore via PATCH with role stash, externalId via PATCH, hard
+ * DELETE per RFC 7644) and a Group (create with members, membership and
+ * externalId PATCH, rename PUT, DELETE) — all resolved to the tenant by the
+ * token hash row, audited as `scim`.
  */
 async function checkScim(
   sql: Sql,
@@ -22599,7 +22600,7 @@ async function checkScim(
     },
   });
   const deactivated = z
-    .looseObject({ active: z.boolean() })
+    .looseObject({ active: z.boolean(), externalId: z.string().optional() })
     .safeParse(await (await scim(`/Users/${scimUserId}`)).json());
   const roleDisabled = await sql<{ role: string }[]>`
     SELECT "role" FROM "member"
@@ -22617,6 +22618,26 @@ async function checkScim(
     SELECT "role" FROM "member"
     WHERE "organizationId" = ${orgId} AND "userId" = ${scimUserId || '-'}
   `;
+  // A PATCH may set the IdP's externalId like any writable attribute (RFC
+  // 7644 §3.5.2): stored as a PUT stores it, in the answer and every later
+  // GET (#4773). The PATCHes above, which do not name it, left `idp-ext-9`.
+  const withExternalId = z.looseObject({ externalId: z.string().optional() });
+  const relinked = withExternalId.safeParse(
+    await (
+      await scim(`/Users/${scimUserId}`, {
+        method: 'PATCH',
+        body: {
+          schemas: ['urn:ietf:params:scim:api:messages:2.0:PatchOp'],
+          Operations: [
+            { op: 'replace', path: 'externalId', value: 'idp-ext-10' },
+          ],
+        },
+      })
+    ).json(),
+  );
+  const relinkedRead = withExternalId.safeParse(
+    await (await scim(`/Users/${scimUserId}`)).json(),
+  );
 
   // ---- Groups -------------------------------------------------------------
   const group = z
@@ -22640,6 +22661,7 @@ async function checkScim(
       Operations: [
         { op: 'remove', path: `members[value eq "${scimUserId}"]` },
         { op: 'replace', path: 'displayName', value: 'Scim Crew' },
+        { op: 'replace', path: 'externalId', value: 'idp-grp-3' },
       ],
     },
   });
@@ -22647,6 +22669,7 @@ async function checkScim(
     .looseObject({
       displayName: z.string(),
       members: z.array(z.looseObject({ value: z.string() })),
+      externalId: z.string().optional(),
     })
     .safeParse(await (await scim(`/Groups/${groupId}`)).json());
   const groupDeleted = await scim(`/Groups/${groupId}`, { method: 'DELETE' });
@@ -22840,12 +22863,18 @@ async function checkScim(
       roleAfterCreate[0]?.role === 'member' &&
       deactivated.success &&
       !deactivated.data.active &&
+      deactivated.data.externalId === 'idp-ext-9' &&
       roleDisabled[0]?.role === 'disabled' &&
       roleRestored[0]?.role === 'member' &&
+      relinked.success &&
+      relinked.data.externalId === 'idp-ext-10' &&
+      relinkedRead.success &&
+      relinkedRead.data.externalId === 'idp-ext-10' &&
       group.success &&
       patchedGroup.success &&
       patchedGroup.data.displayName === 'Scim Crew' &&
       patchedGroup.data.members.length === 0 &&
+      patchedGroup.data.externalId === 'idp-grp-3' &&
       groupDeleted.status === 204 &&
       teamGone.length === 0 &&
       userDeleted.status === 204 &&
@@ -22853,7 +22882,7 @@ async function checkScim(
       strandedTeamRows[0]?.count === '0' &&
       strandedProvenance[0]?.count === '0' &&
       Number(scimAudits[0]?.count ?? '0') >= 7,
-    `admin=${before.success ? before.data.enabled : 'ERR'}→${after.success ? `${after.data.enabled}/${after.data.tokenPrefix}` : 'ERR'}, discovery=${discovery.status} bad=${badToken.status} alias=${alias.status} (want 200/401/200), user=${created.success}/${filtered.success ? filtered.data.totalResults : 'ERR'} role=${roleAfterCreate[0]?.role}→${roleDisabled[0]?.role}→${roleRestored[0]?.role} (want member→disabled→member), group=${group.success} patched=${patchedGroup.success ? `${patchedGroup.data.displayName}/${patchedGroup.data.members.length}` : 'ERR'} del=${groupDeleted.status} gone=${teamGone.length === 0}, userDel=${userDeleted.status}→${userGone.status} (want 204→404) stranded teams/provenance=${strandedTeamRows[0]?.count}/${strandedProvenance[0]?.count} (want 0/0), audits=${scimAudits[0]?.count} (want ≥7)`,
+    `admin=${before.success ? before.data.enabled : 'ERR'}→${after.success ? `${after.data.enabled}/${after.data.tokenPrefix}` : 'ERR'}, discovery=${discovery.status} bad=${badToken.status} alias=${alias.status} (want 200/401/200), user=${created.success}/${filtered.success ? filtered.data.totalResults : 'ERR'} role=${roleAfterCreate[0]?.role}→${roleDisabled[0]?.role}→${roleRestored[0]?.role} (want member→disabled→member), externalId=${deactivated.success ? deactivated.data.externalId : 'ERR'}→${relinked.success ? relinked.data.externalId : 'ERR'}/${relinkedRead.success ? relinkedRead.data.externalId : 'ERR'} (want idp-ext-9→idp-ext-10/idp-ext-10), group=${group.success} patched=${patchedGroup.success ? `${patchedGroup.data.displayName}/${patchedGroup.data.members.length}/${patchedGroup.data.externalId}` : 'ERR'} (want Scim Crew/0/idp-grp-3) del=${groupDeleted.status} gone=${teamGone.length === 0}, userDel=${userDeleted.status}→${userGone.status} (want 204→404) stranded teams/provenance=${strandedTeamRows[0]?.count}/${strandedProvenance[0]?.count} (want 0/0), audits=${scimAudits[0]?.count} (want ≥7)`,
   );
 }
 

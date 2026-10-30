@@ -77,10 +77,12 @@ export interface UserPatch {
   givenName?: string;
   familyName?: string;
   email?: string;
+  externalId?: string;
 }
 
 export interface GroupPatch {
   displayName?: string;
+  externalId?: string;
   addMembers: string[];
   removeMembers: string[];
   /** When set, replace the entire membership set with exactly these ids. */

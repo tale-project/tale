@@ -1048,11 +1048,20 @@ export async function patchGroup(
     addMembers: string[];
     removeMembers: string[];
     replaceMembers?: string[];
+    externalId?: string;
   },
 ): Promise<ScimGroupRecord | null> {
   return sql.begin(async (tx) => {
     const team = await findTeamRowById(tx, args.teamId);
     if (!team || team.organizationId !== args.organizationId) return null;
+    if (args.externalId !== undefined) {
+      await upsertLink(tx, {
+        organizationId: args.organizationId,
+        resourceType: 'Group',
+        internalId: args.teamId,
+        externalId: args.externalId,
+      });
+    }
 
     let displayName = team.name;
     let changed = false;
