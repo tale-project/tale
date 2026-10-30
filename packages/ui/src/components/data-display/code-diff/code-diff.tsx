@@ -55,14 +55,18 @@ export function preloadCodeDiff(): void {
 /** Placeholder bars, as wide as lines of code tend to be. */
 const WIDTHS = ['w-3/5', 'w-2/5', 'w-4/5', 'w-1/2', 'w-3/4', 'w-1/3'];
 
-/** The rows a diff shows while it loads: as tall as its lines (20 px), as
- *  many as the newer text has lines, up to twelve. */
+/** The rows a diff shows while it loads: as tall as its lines (the table's
+ *  type on `leading-code`, 18 px from `md`), as many as the newer text has
+ *  lines, up to twelve. */
 function LoadingRows({ lines, label }: { lines: number; label: string }) {
   return (
     <div aria-busy="true" data-code-diff-loading="">
-      <div aria-hidden="true" className="flex flex-col">
+      <div
+        aria-hidden="true"
+        className="leading-code flex flex-col text-sm md:text-xs"
+      >
         {Array.from({ length: lines }, (_, index) => (
-          <span key={index} className="flex h-5 items-center pl-[7.5rem]">
+          <span key={index} className="flex h-[1lh] items-center pl-[7.5rem]">
             <span
               className={cn(
                 SKELETON_PULSE,
