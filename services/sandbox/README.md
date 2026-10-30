@@ -180,9 +180,8 @@ the restart cut, on its first stream or an attach, reads `SESSION_OOM` when the
 Pod's status reports the runner's end since that stream began as `OOMKilled`
 (the kubelet reports it about a second late, so the spawner reads the Pod for
 up to 5 seconds). The platform settles such a run as `resource_exhausted` and
-retries it after a pause rather than at once: a task run 2, 10, then 30
-minutes later, an automation's agent node 2 minutes later (the longest a start
-may be held).
+retries it after a pause rather than at once: 2, 10, then 30 minutes later, a
+task run and an automation's agent node alike.
 
 Every session container has a CPU quota (`SANDBOX_AGENT_CPUS` for agents, one
 CPU for the `default` profile) and a CPU weight below the control plane's:

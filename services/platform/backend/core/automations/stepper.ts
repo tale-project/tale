@@ -64,10 +64,10 @@ import {
 } from './agent_host';
 import {
   MODEL_CAPACITY_REKICK_DELAY_MS,
-  RESOURCE_EXHAUSTED_REKICK_DELAY_MS,
   SANDBOX_ROOM_MAX_WAIT_MS,
   isWorkflowAgentRetryable,
   planWorkflowAgentRetry,
+  resourceExhaustedRekickAtMs,
   roomWaitSince,
   sandboxRoomRetryAtMs,
   workflowAgentRetryResume,
@@ -2121,10 +2121,20 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
     // so `planWorkflowAgentRetry` both gates and numbers the re-kick.
     // Exhaustion and denylisted codes fall through to the throw, which is the
     // run's durable record of how many attempts burned.
+    // A node whose sandbox ran out of memory is held before its re-kick
+    // (below), and its retry is planned and recorded by the clock its hold
+    // began on: the hold is no work of the failed attempt, and counted as
+    // work, a 30-minute hold alone would pass the progress threshold and
+    // refresh the budget, so the node would never run out of retries.
+    const now = Date.now();
+    const heldSince =
+      settled.failureCode === 'resource_exhausted'
+        ? (parked.rekickHeldSince ?? now)
+        : undefined;
     const plan = planWorkflowAgentRetry(
       parked,
       settled.failureCode,
-      Date.now(),
+      heldSince ?? now,
     );
     // A start refused for want of sandbox room ran nothing: its re-kicks
     // wait under their own wall-clock bound instead of charging the run's
@@ -2137,6 +2147,39 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       // falls through to the exhaust throw carrying the settle's reason.
       (waitingForRoom || checkpoints.executions < DEFAULT_MAX_NODE_EXECUTIONS)
     ) {
+      // A node whose sandbox ran out of memory waits first, as a task run
+      // does, so the session's other work can settle and an Admin can raise
+      // the limit — parked: no kick and no op row, its settle kept in the
+      // cursor, which no sweep takes for a turn still running. Nothing is
+      // charged or recorded until the hold has passed and the node comes
+      // back here to re-kick.
+      if (heldSince !== undefined) {
+        const rekickAt = resourceExhaustedRekickAtMs(parked, heldSince);
+        if (now < rekickAt) {
+          const agent: AgentCursor = { ...parked, rekickHeldSince: heldSince };
+          const cursor: NodeCursor = {
+            node: node.id,
+            index: 0,
+            passes: 0,
+            outs: [],
+            agent,
+          };
+          const waited = await sink.wait({
+            detail: `agent:${node.id}`,
+            cursor,
+            executions: checkpoints.executions,
+            resumeInMs: rekickAt - now,
+          });
+          if (waited === 'cancelled') return { kind: 'cancelled' };
+          if (waited === 'suspended') {
+            checkpoints.cursor = cursor;
+            return { kind: 'suspended' };
+          }
+          throw new Error(
+            'an agent node cannot run inside a subautomation — hoist it to the top level of the calling automation',
+          );
+        }
+      }
       if (!waitingForRoom) checkpoints.executions++;
       // A start refused for room ran nothing: the node waits for room. Any
       // other retry is a try that ended without settling the node.
@@ -2148,8 +2191,8 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       } else {
         run.recorder.attempt(args.unit, {
           n: attempt + 1,
-          startedAt: Date.now(),
-          endedAt: Date.now(),
+          startedAt: heldSince ?? now,
+          endedAt: heldSince ?? now,
           outcome: 'retried',
           ...(settled.failureCode !== undefined &&
             settled.failureCode !== null && {
@@ -2172,9 +2215,6 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
       // spawner's line comes up, or else backs off past the refusal's hint,
       // more with each refusal in a row; any other refusal with a hint (a
       // broker pool cooling down) waits for exactly that.
-      const now = Date.now();
-      // One whose sandbox ran out of memory waits as long as a start may be
-      // held (two minutes): at once it would meet the same limit.
       const notBefore = waitingForRoom
         ? sandboxRoomRetryAtMs({
             now,
@@ -2184,11 +2224,9 @@ async function stepAgentNode(args: AgentStepArgs): Promise<StepOutcome> {
             refusals: plan.roomRefusals ?? 1,
             queued: settled.roomQueued === true,
           })
-        : settled.failureCode === 'resource_exhausted'
-          ? now + RESOURCE_EXHAUSTED_REKICK_DELAY_MS
-          : settled.failureCode === 'model_capacity'
-            ? now + MODEL_CAPACITY_REKICK_DELAY_MS
-            : settled.retryAtMs;
+        : settled.failureCode === 'model_capacity'
+          ? now + MODEL_CAPACITY_REKICK_DELAY_MS
+          : settled.retryAtMs;
       const kicked = await run.agent.kick({
         runId: run.runId,
         nodeId: node.id,
