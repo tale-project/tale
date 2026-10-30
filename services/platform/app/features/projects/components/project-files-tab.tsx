@@ -724,24 +724,16 @@ export function ProjectFilesTab({
           });
         }
       }
-      if (kept.length === 0) {
-        // Nothing will upload, so each refusal is the whole story — say it now.
-        for (const { message } of skipped.slice(0, 3)) {
-          toast({ ...message, variant: 'destructive' });
-        }
-        if (skipped.length > 3) {
-          toast({
-            title: t('files.moreSkipped', {
-              count: String(skipped.length - 3),
-            }),
-            variant: 'destructive',
-          });
-        }
+      const [only] = skipped;
+      if (only !== undefined && skipped.length === 1 && kept.length === 0) {
+        // One file, refused: its refusal is the whole story — say it now.
+        toast({ ...only.message, variant: 'destructive' });
         return;
       }
-      // Some files go ahead: a refusal toasted now would be replaced by the
-      // success toast a moment later (one toast at a time), so the skipped
-      // files ride the ONE summary toast after the upload instead.
+      // One toast shows at a time, so a toast per refusal would replace the
+      // one before it, and the success toast would replace them all. Skipped
+      // files ride the ONE summary toast after the upload instead — also
+      // when every file was refused, and nothing uploads before it.
 
       /** Why a kept file did not land: the house sentence for a refusal
        * this tab's namespace names (a role, an archived project, a spent

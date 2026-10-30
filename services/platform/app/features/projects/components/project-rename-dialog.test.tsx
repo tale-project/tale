@@ -145,4 +145,20 @@ describe('ProjectRenameDialog', () => {
 
     expect(nameField()).toHaveValue('Second project');
   });
+
+  // #4892: a rename toasted the create dialog's "Project created".
+  it('says the project was renamed, not created', async () => {
+    const { user } = render(renameDialog({ currentName: 'Original name' }));
+    await user.clear(nameField());
+    await user.type(nameField(), 'New name');
+
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(mockToast).toHaveBeenCalledTimes(1);
+    expect(mockToast).toHaveBeenCalledWith({
+      title: 'Project renamed',
+      variant: 'success',
+    });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
 });

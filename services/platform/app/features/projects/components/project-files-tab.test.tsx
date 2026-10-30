@@ -1001,4 +1001,83 @@ describe('ProjectFilesTab — mixed upload summary', () => {
     });
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
+
+  // #4892: a pick refused whole raised a toast per refusal, then
+  // "+N more file(s) were skipped.". One toast shows at a time, so each
+  // replaced the one before it: four refused files left that last line on
+  // screen and none of the reasons. The last toast is the one a person reads.
+  const lastToast = () => vi.mocked(toast).mock.calls.at(-1)?.[0];
+  const descriptionOf = (arg: ReturnType<typeof lastToast>) =>
+    typeof arg?.description === 'string' ? arg.description : '';
+
+  it('names the reason and the count in one toast when every file is refused', async () => {
+    renderTab();
+    const user = picker();
+    const names = ['one.bin', 'two.bin', 'three.bin', 'four.bin'];
+
+    await user.upload(
+      fileInput(),
+      names.map(
+        (name) =>
+          new File(['\u0000'], name, { type: 'application/octet-stream' }),
+      ),
+    );
+
+    await waitFor(() => {
+      expect(lastToast()).toEqual(
+        expect.objectContaining({
+          title: '0 files of 4 added',
+          variant: 'destructive',
+        }),
+      );
+    });
+    expect(toast).toHaveBeenCalledTimes(1);
+    const sentences = descriptionOf(lastToast()).split(' · ');
+    expect(sentences).toHaveLength(names.length);
+    for (const [index, name] of names.entries()) {
+      expect(sentences[index]).toContain(
+        `Skipped: ${name} — ${name} is not a supported format`,
+      );
+    }
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('names each distinct reason in the one toast when every file is refused', async () => {
+    policyFixture = {
+      policyEnabled: true,
+      documentMaxFileSize: 8,
+      blockedExtensions: [],
+      allowedExtensions: [],
+    };
+    try {
+      renderTab();
+      const user = picker();
+      const junk = new File(['\u0000'], 'random.bin', {
+        type: 'application/octet-stream',
+      });
+      const huge = new File(['0123456789abcdef'], 'huge.txt', {
+        type: 'text/plain',
+      });
+
+      await user.upload(fileInput(), [junk, huge]);
+
+      await waitFor(() => {
+        expect(lastToast()).toEqual(
+          expect.objectContaining({
+            title: '0 files of 2 added',
+            variant: 'destructive',
+          }),
+        );
+      });
+      expect(toast).toHaveBeenCalledTimes(1);
+      const [unsupported, tooLarge] = descriptionOf(lastToast()).split(' · ');
+      expect(unsupported).toMatch(/^Skipped: random\.bin — /);
+      expect(unsupported).toContain('random.bin is not a supported');
+      expect(tooLarge).toMatch(/^Skipped: huge\.txt — /);
+      expect(tooLarge).toContain('huge.txt exceeds');
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    } finally {
+      policyFixture = {};
+    }
+  });
 });

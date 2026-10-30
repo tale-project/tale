@@ -9,6 +9,7 @@ import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkArchiveBar } from '@tale/ui/data-table/data-table-bulk-actions';
 import { HStack } from '@tale/ui/layout';
 import { ProgressBar } from '@tale/ui/progress-bar';
+import { useFormatDate } from '@tale/ui/use-format-date';
 import { useListPage } from '@tale/ui/use-list-page';
 import { Link, useNavigate } from '@tanstack/react-router';
 import type { ColumnDef, Row, RowSelectionState } from '@tanstack/react-table';
@@ -75,22 +76,6 @@ function projectTeamIds(project: {
     ...(project.teamId ? [project.teamId] : []),
     ...(project.sharedWithTeamIds ?? []),
   ];
-}
-
-function formatRelative(
-  timestamp: number,
-  rtf: Intl.RelativeTimeFormat,
-): string {
-  const diffMs = Date.now() - timestamp;
-  const diffSec = Math.round(diffMs / 1000);
-  const diffMin = Math.round(diffSec / 60);
-  const diffHr = Math.round(diffMin / 60);
-  const diffDay = Math.round(diffHr / 24);
-
-  if (diffSec < 60) return rtf.format(-diffSec, 'second');
-  if (diffMin < 60) return rtf.format(-diffMin, 'minute');
-  if (diffHr < 24) return rtf.format(-diffHr, 'hour');
-  return rtf.format(-diffDay, 'day');
 }
 
 export function ProjectsTable({
@@ -234,14 +219,9 @@ export function ProjectsTable({
     [preloadRoute, organizationId],
   );
 
-  const locale =
-    typeof window !== 'undefined' && window.navigator?.language
-      ? window.navigator.language
-      : 'en';
-  const relativeTime = useMemo(
-    () => new Intl.RelativeTimeFormat(locale, { numeric: 'auto' }),
-    [locale],
-  );
+  // In the app's language, not the browser's, and in months or years once
+  // days stop reading well: the age a project's Chats tab shows its chats.
+  const { formatRelative } = useFormatDate();
 
   const columns = useMemo<ColumnDef<ProjectOverviewRow>[]>(
     () => [
@@ -406,7 +386,7 @@ export function ProjectsTable({
         meta: { className: 'hidden lg:table-cell' },
         cell: ({ row }) => (
           <span className="text-muted-foreground text-xs whitespace-nowrap">
-            {formatRelative(row.original.updatedAt, relativeTime)}
+            {formatRelative(new Date(row.original.updatedAt))}
           </span>
         ),
       },
@@ -433,7 +413,14 @@ export function ProjectsTable({
         enableSorting: false,
       },
     ],
-    [t, relativeTime, organizationId, overdueTruncated, nameOf, isLoadingTeams],
+    [
+      t,
+      formatRelative,
+      organizationId,
+      overdueTruncated,
+      nameOf,
+      isLoadingTeams,
+    ],
   );
 
   const list = useListPage<ProjectOverviewRow>({
