@@ -6,6 +6,7 @@ import {
   invalidBodyReason,
 } from '@/lib/utils/backend-error';
 
+import { parentCloseRefusal } from '../lib/parent-close-refusal';
 import { reviewPolicyErrorMessage } from '../lib/review-policy-error';
 import { useNextTaskToast } from './use-next-task-toast';
 
@@ -88,18 +89,29 @@ export function useDeleteTask() {
   });
 }
 
-export function useMoveTask() {
+/** A task layout's drop. The toast below is a failed drop's one report;
+ * `onError` is the layout putting its cards back where the server has them,
+ * told which task the drop moved, and runs for every failed drop, even one a
+ * later drop has overtaken. */
+export function useMoveTask(options?: { onError?: (taskId: string) => void }) {
   const { t } = useT('tasks');
   const { t: tToast } = useT('toast');
   const announceNextTask = useNextTaskToast();
-  // Dropping In review → Done IS the review approve, so the org's
-  // review_policy can refuse a drag — name the reason instead of the generic
-  // failure copy (the card still snaps back either way).
+  // A refused drop names its reason in the task dialog's words instead of the
+  // generic failure copy: a parent cannot close while a subtask is open, an
+  // archived project is read-only, and dropping In review → Done IS the
+  // review approve, so the org's review_policy can refuse it. The card snaps
+  // back either way.
   return useBackendMutation('tasks/mutations:moveTask', {
     onSuccess: announceNextTask,
+    onError: (_error, { taskId }) => options?.onError?.(taskId),
     errorToast: {
       title: tToast('error.generic.title'),
       description: (error) =>
+        parentCloseRefusal(error, t) ??
+        (backendErrorCode(error) === 'PROJECT_ARCHIVED'
+          ? t('errors.PROJECT_ARCHIVED')
+          : undefined) ??
         reviewPolicyErrorMessage(error, t) ??
         backendUserMessage(
           error,

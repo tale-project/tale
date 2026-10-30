@@ -12,7 +12,14 @@ import {
 } from '@dnd-kit/core';
 import { arrayMove } from '@dnd-kit/sortable';
 import { formatTaskIdentifier } from '@tale/shared/utils/project-key';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import {
   boardKeyboardCoordinates,
@@ -128,6 +135,29 @@ function slotOf(cols: TaskColumns, id: string): TaskSlot | null {
   return { status, position: lane.indexOf(id) + 1, total: lane.length };
 }
 
+/** Whether the focus is on nothing: the page itself, or an element a render
+ * has just taken out of it. */
+function focusIsLost(): boolean {
+  const focused = document.activeElement;
+  return focused === null || focused === document.body || !focused.isConnected;
+}
+
+/** The task whose row holds the focus (`WindowedTaskRows` names each row's
+ * task), or null. */
+function focusedTaskId(): string | null {
+  const row = document.activeElement?.closest<HTMLElement>('[data-task-id]');
+  return row?.dataset.taskId ?? null;
+}
+
+/** Focus the title of `taskId`'s row, its drag activator (the one element
+ * dnd-kit gives a role description), wherever the row now stands. */
+function focusTaskTitle(taskId: string) {
+  const row = [
+    ...document.querySelectorAll<HTMLElement>('[data-task-id]'),
+  ].find((candidate) => candidate.dataset.taskId === taskId);
+  row?.querySelector<HTMLElement>('[aria-roledescription]')?.focus();
+}
+
 export interface TaskBoardDnd {
   /** Working copy of column → task-id ordering (reflects in-progress drags). */
   columns: TaskColumns;
@@ -156,9 +186,10 @@ export interface TaskBoardDnd {
  * Keeps a local column→ids working copy so a drag reorders within a column
  * (arrayMove on drop), previews the landing slot live across columns and into
  * empty lanes (`onDragOver`), and never bounces back (the copy already reflects
- * the drop; a failed write reverts via the prop resync). Consumers render their
- * own `<DndContext>` with these props (its `accessibility` included, so every
- * layout speaks the same lines) plus per-status `<SortableContext>`s.
+ * the drop; a refused or failed write puts the server's columns back).
+ * Consumers render their own `<DndContext>` with these props (its
+ * `accessibility` included, so every layout speaks the same lines) plus
+ * per-status `<SortableContext>`s.
  */
 export function useTaskBoardDnd(
   tasks: TaskRow[],
@@ -166,7 +197,6 @@ export function useTaskBoardDnd(
 ): TaskBoardDnd {
   const { t } = useT('tasks');
   const projectKey = options?.projectKey;
-  const moveTask = useMoveTask();
   // Cross-column drags on automation-owned tasks route through the owning
   // workflow's choreography (drag to In progress = start, drag out = cancel)
   // instead of a bare status write. A single-project board scopes the
@@ -199,6 +229,11 @@ export function useTaskBoardDnd(
 
   const [columns, setColumnsState] = useState(columnsFromProps);
   const columnsRef = useRef(columnsFromProps);
+  // The columns as the server last answered them: where a failed write puts
+  // the board back.
+  const serverColumnsRef = useRef(columnsFromProps);
+  // The task whose title had the focus when going back moved its card.
+  const refocusRef = useRef<string | null>(null);
   const draggingRef = useRef(false);
   const dropRef = useRef<DropOutcome | null>(null);
   // The slot the announcer spoke last. dnd-kit reports a picked-up task over
@@ -212,8 +247,36 @@ export function useTaskBoardDnd(
   }, []);
 
   useEffect(() => {
+    serverColumnsRef.current = columnsFromProps;
     if (!draggingRef.current) setColumns(columnsFromProps);
   }, [columnsFromProps, setColumns]);
+
+  // A refused move changed nothing on the server, so no new task list comes to
+  // resync the working copy: put every card back where the server has it, as
+  // it stands now rather than at the drop. A write lost in transit goes back
+  // too; if it landed after all, its task hint brings the list that shows it.
+  const snapBack = useCallback(
+    (taskId: string) => {
+      const next = serverColumnsRef.current;
+      if (next === columnsRef.current) return;
+      // The drop left the focus on the moved card's title, or on nothing
+      // while dnd-kit has yet to give it back; focus elsewhere stays put.
+      refocusRef.current =
+        focusedTaskId() === taskId || focusIsLost() ? taskId : null;
+      setColumns(next);
+    },
+    [setColumns],
+  );
+  const moveTask = useMoveTask({ onError: snapBack });
+
+  // Going back remounts the moved card's title in another lane, and the focus
+  // the title held falls to the page: give it back, as dnd-kit does after a
+  // drop or a cancel.
+  useLayoutEffect(() => {
+    const taskId = refocusRef.current;
+    refocusRef.current = null;
+    if (taskId !== null && focusIsLost()) focusTaskTitle(taskId);
+  }, [columns]);
 
   const onDragStart = useCallback((event: DragStartEvent) => {
     draggingRef.current = true;
@@ -316,10 +379,10 @@ export function useTaskBoardDnd(
       // 'blocked' → snap the card back where it came from.
       void choreograph(row, container, placement).then((outcome) => {
         if (outcome === 'move') move();
-        else if (outcome === 'blocked') setColumns(columnsFromProps);
+        else if (outcome === 'blocked') snapBack(row._id);
       });
     },
-    [byId, choreograph, columnsFromProps, moveTask, setColumns],
+    [byId, choreograph, columnsFromProps, moveTask, setColumns, snapBack],
   );
 
   const onDragCancel = useCallback(() => {
