@@ -175,25 +175,29 @@ export function useProjectsOverview(
   };
 }
 
+/**
+ * The organization's projects, with how the read stands (`readStateOf`): a
+ * read that failed is no empty list, and never makes a project seem deleted
+ * (#4605).
+ */
 export function useProjects(
   organizationId: string,
   options?: { includeArchived?: boolean },
 ) {
-  const { data, isLoading, isError, isFetching, refetch } = useBackendQuery(
-    'projects/queries:listProjects',
-    {
-      organizationId,
-      includeArchived: options?.includeArchived,
-    },
-  );
+  const query = useBackendQuery('projects/queries:listProjects', {
+    organizationId,
+    includeArchived: options?.includeArchived,
+  });
+  const { refetch } = query;
   const retry = useCallback(() => {
     void refetch();
   }, [refetch]);
   return {
-    projects: data ?? [],
-    isLoading,
-    error: isError,
-    isRetrying: isFetching,
+    projects: query.data ?? [],
+    isLoading: query.isLoading,
+    error: query.isError,
+    isRetrying: query.isFetching,
+    ...readStateOf(query),
     retry,
   };
 }
