@@ -11,6 +11,7 @@ automations: Automations are for Owners, Admins and Developers.
 workspaceNotFound: That workspace doesn't exist or was removed.
 disabled: Your account is disabled. Contact support for help.
 noMembership: You're not a member of this workspace. Contact an administrator for access.
+signInToWorkspace: Sign in to this workspace
 enterpriseSso: You need Admin permissions to access Enterprise SSO settings.
 dataResidency: You need Admin permissions to access data residency settings.
 providers: You need Admin or Developer permissions to manage AI providers.

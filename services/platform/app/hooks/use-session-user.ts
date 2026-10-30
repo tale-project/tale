@@ -15,14 +15,16 @@ function useConvexAuthUser() {
   // cookie alone (401 → data undefined → unauthenticated), so it needs no
   // websocket and no auth gating.
   const { data: user, isLoading } = useQuery(currentUserQuery());
-  // A session an authenticating proxy asserted carries the organization it
-  // was minted for; the proxy owns signing in and out for it, so the app
-  // offers no sign-out of its own. Read loosely: the field is one of the
-  // deployment's own session columns, not part of the client's inferred type.
+  // A session an authenticating proxy asserted carries the role the proxy
+  // asserted; the proxy owns signing in and out for it, so the app offers no
+  // sign-out of its own. A single sign-on session is bound to its
+  // organization too, but asserts no role: its person signs out here. Read
+  // loosely: the field is one of the deployment's own session columns, not
+  // part of the client's inferred type.
   const { data: session } = useQuery(sessionQueryOptions);
   const sessionRecord: Record<string, unknown> | undefined =
     session?.data?.session;
-  const proxied = typeof sessionRecord?.trustedOrganizationId === 'string';
+  const proxied = typeof sessionRecord?.trustedRole === 'string';
 
   const isAuthenticated = !!user;
 

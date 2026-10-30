@@ -108,6 +108,7 @@ Open a separate browser session and choose **Continue with SSO**. The organizati
 | SCIM cannot connect | Check the base URL, bearer token, and whether provisioning is enabled. |
 | The IdP reports an `invalidFilter` error | Set its matching attribute to `userName` for users and `displayName` for groups. |
 | Proxy sign-in is refused | Check that the card is on, the key is not revoked, and the proxy sends the email header and the key on the hand-off request. |
+| A member of several organizations reads “This session is limited to the organization that signed you in.” | A sign-in through SSO or the proxy covers only the organization it signed the member in to. **Sign in to this workspace** ends the session and opens the sign-in page, where the member signs in with a password or the other organization's own SSO. A member the proxy signed in gets no such button, because the proxy would sign them in to the same organization again. |
 | Missing redirect URL or server-configuration warning | Ask the deployment operator to check [authentication configuration](/self-hosted/configuration/authentication). |
 
 **Disable sign-in** stops new SSO sign-ins while keeping active sessions. **Remove** deletes the connection configuration and credentials. Arrange another working sign-in method before using either action.

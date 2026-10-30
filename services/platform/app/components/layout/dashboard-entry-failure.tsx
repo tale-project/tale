@@ -2,11 +2,9 @@ import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
 import { FullPageCenter } from '@tale/ui/full-page-center';
 import { VStack } from '@tale/ui/layout';
-import { toast } from '@tale/ui/use-toast';
-import { useState, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 
-import { useAuth } from '@/app/hooks/use-session-user';
-import { redirectToLogIn } from '@/app/lib/auth/log-in-redirect';
+import { useSignInAgain } from '@/app/hooks/use-sign-in-again';
 import { useT } from '@/lib/i18n/client';
 
 /**
@@ -15,12 +13,11 @@ import { useT } from '@/lib/i18n/client';
  * and the entry into an organization (`routes/dashboard/index.tsx`), or a
  * switch to another organization (`OrgSwitchFailure`). Each held its frame
  * or its spinner forever before, with no word and no way out; this says what
- * failed and offers the ways on. Signing in again ends the session first:
- * the sign-in page sends a live session straight back to the dashboard. A
- * session an authenticating proxy asserted is the proxy's to end, as the
- * account menu has it, so it is offered Try again alone. A failure with a
- * way back that keeps the session, such as the organization a failed switch
- * left the person in, offers that instead of signing in again.
+ * failed and offers the ways on: Try again, and signing in again
+ * (`useSignInAgain`), which a session an authenticating proxy asserted is
+ * not offered. A failure with a way back that keeps the session, such as the
+ * organization a failed switch left the person in, offers that instead of
+ * signing in again.
  */
 export function DashboardEntryFailure({
   title,
@@ -38,26 +35,9 @@ export function DashboardEntryFailure({
   /** A way back that keeps the session; it stands where Sign in again would. */
   wayBack?: ReactNode;
 }) {
-  const { signOut, proxied } = useAuth();
+  const { offered, leaving, signInAgain } = useSignInAgain();
   const { t } = useT('auth');
   const { t: tCommon } = useT('common');
-  const [leaving, setLeaving] = useState(false);
-
-  const signInAgain = async () => {
-    setLeaving(true);
-    try {
-      await signOut();
-    } catch (error) {
-      console.warn('[auth] Ending the session to sign in again failed', error);
-      setLeaving(false);
-      toast({
-        title: t('userButton.toast.signOutFailed'),
-        variant: 'destructive',
-      });
-      return;
-    }
-    redirectToLogIn();
-  };
 
   return (
     <FullPageCenter>
@@ -67,7 +47,7 @@ export function DashboardEntryFailure({
           {tCommon('actions.tryAgain')}
         </Button>
         {wayBack ??
-          (!proxied && (
+          (offered && (
             <Button
               variant="secondary"
               isLoading={leaving}

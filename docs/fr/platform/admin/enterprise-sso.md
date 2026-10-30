@@ -108,6 +108,7 @@ Ouvre une session de navigateur séparée et choisis **Continuer avec SSO**. Le 
 | SCIM ne se connecte pas | Vérifie l’URL de base, le jeton Bearer et l’activation du provisionnement. |
 | L’IdP signale une erreur `invalidFilter` | Règle son attribut de correspondance sur `userName` pour les Users et sur `displayName` pour les Groups. |
 | La connexion par proxy est refusée | Vérifie que la carte est activée, que la clé n’est pas révoquée et que le proxy envoie l’en-tête d’e-mail et la clé dans la requête de passage. |
+| Un membre de plusieurs organisations lit « Cette session est limitée à l’organisation qui t’a connecté. » | Une connexion par SSO ou par le proxy ne vaut que pour l’organisation à laquelle elle a connecté le membre. **Se connecter à cet espace de travail** met fin à la session et ouvre la page de connexion, où le membre se connecte avec un mot de passe ou avec le SSO de l’autre organisation. Un membre connecté par le proxy ne voit pas ce bouton : le proxy le reconnecterait à la même organisation. |
 | URL de rappel absente ou avertissement de configuration serveur | Demande à l’opérateur de vérifier la [configuration de l’authentification](/fr/self-hosted/configuration/authentication). |
 
 **Désactiver la connexion** empêche les nouvelles connexions SSO mais conserve les sessions actives. **Supprimer** efface la configuration de la connexion et ses identifiants. Prévois une autre méthode de connexion fonctionnelle avant d’utiliser l’une de ces actions.
