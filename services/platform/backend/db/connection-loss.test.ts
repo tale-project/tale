@@ -17,6 +17,15 @@
  * `begin()` that fills a connection's pipeline (`max_pipeline`) was written
  * without ever learning its connection, so the pool took the connection back
  * inside the transaction. A burst of 4,000 users made that happen in production.
+ *
+ * A cursor that loses its connection while its callback, or a `for await` loop,
+ * holds a batch rejects; it neither crashes the process from the callback's
+ * continuation nor ends the loop as if every row had been read (#4066). A
+ * statement on a transaction that has ended, or on a released reservation, is
+ * refused as misuse (UNSAFE_TRANSACTION, as postgres.js 4 does): only a connection
+ * that closed under its holder reads as the database going away
+ * (`unavailable.ts`). Every change the patch makes is pinned here: without any
+ * one of them, a case fails.
  */
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -26,11 +35,18 @@ import { fileURLToPath } from 'node:url';
 
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { isDatabaseUnavailable } from './unavailable';
+
 const CHILD = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   'connection-loss.child.mjs',
 );
 
+const int16 = (value: number) => {
+  const buffer = Buffer.alloc(2);
+  buffer.writeInt16BE(value);
+  return buffer;
+};
 const int32 = (value: number) => {
   const buffer = Buffer.alloc(4);
   buffer.writeInt32BE(value);
@@ -41,15 +57,46 @@ const message = (type: string, ...body: Buffer[]) => {
   const payload = Buffer.concat(body);
   return Buffer.concat([Buffer.from(type), int32(payload.length + 4), payload]);
 };
+const terminating = () =>
+  message(
+    'E',
+    Buffer.from('S'),
+    cstring('FATAL'),
+    Buffer.from('C'),
+    cstring('57P01'),
+    Buffer.from('M'),
+    cstring('terminating connection due to administrator command'),
+    Buffer.from([0]),
+  );
+/** The one text column, `n`, of a statement that returns rows. */
+const ROW_DESCRIPTION = message(
+  'T',
+  int16(1),
+  cstring('n'),
+  int32(0),
+  int16(0),
+  int32(25),
+  int16(-1),
+  int32(-1),
+  int16(0),
+);
+const dataRow = (value: string) =>
+  message('D', int16(1), int32(Buffer.byteLength(value)), Buffer.from(value));
+/** How many rows a statement returns: `rows_3` in its text, else none. */
+const rowsOf = (text: string) => Number(/rows_(\d+)/.exec(text)?.[1] ?? 0);
 
 /**
  * Just enough of the PostgreSQL v3 wire protocol for postgres.js: trust auth,
- * simple and extended queries answered with no rows, transaction status tracked
- * for ReadyForQuery. A statement whose text holds `cut_now` closes the socket on
- * arrival (the server process killed mid-statement), `reset_now` resets it,
- * `cut_after` closes it just after answering (killed while the transaction
- * idles), and `fatal_now` sends FATAL 57P01, then reads nothing more and closes
- * (an administrator's termination). Every statement is logged.
+ * simple and extended queries, transaction status tracked for ReadyForQuery. A
+ * statement returns no rows unless its text holds `rows_<n>`; an Execute with a
+ * row limit (a cursor's batch) returns that many and then PortalSuspended. A
+ * statement whose text holds `cut_now` closes the socket on arrival (the server
+ * process killed mid-statement), `reset_now` resets it, `cut_after` closes it just
+ * after answering (killed while the transaction idles), `fatal_now` sends FATAL
+ * 57P01, then reads nothing more and closes (an administrator's termination), and
+ * `fatal_after` does that just after answering. The first connection whose
+ * `application_name` is `fatal_auth` is asked for an MD5 password and then
+ * terminated the same way, before it can answer. Every statement is logged.
  */
 class FakePostgres {
   readonly statements: string[] = [];
@@ -59,6 +106,7 @@ class FakePostgres {
   private readonly server = createServer((socket) => this.serve(socket));
   private readonly sockets = new Set<Socket>();
   private connections = 0;
+  private authenticationFailed = false;
 
   async listen(): Promise<number> {
     this.server.listen(0, '127.0.0.1');
@@ -85,58 +133,82 @@ class FakePostgres {
     // Prepared statements by name, and the statement the current portal binds.
     const prepared = new Map<string, { text: string; params: number }>();
     let bound = '';
+    // The current portal's rows: still to return, and returned so far.
+    let remaining = 0;
+    let returned = 0;
     const ready = () => message('Z', Buffer.from(status));
-    const complete = (text: string) => {
+    const complete = (text: string, count = 0) => {
       const verb = text.trim().split(/\s+/)[0]?.toUpperCase() ?? '';
       if (verb === 'BEGIN') status = 'T';
       if (verb === 'COMMIT' || verb === 'ROLLBACK') status = 'I';
-      return message('C', cstring(verb === 'SELECT' ? 'SELECT 0' : verb));
+      return message(
+        'C',
+        cstring(verb === 'SELECT' ? `SELECT ${count}` : verb),
+      );
+    };
+    // The answers to one chunk of the client's messages go out in one write, as
+    // a server flushes its output at ReadyForQuery: a CommandComplete and the
+    // ReadyForQuery behind it reach postgres.js together, as from PostgreSQL.
+    let out: Buffer[] = [];
+    const send = (...messages: Buffer[]) => out.push(...messages);
+    const flush = () => {
+      if (out.length > 0 && !socket.destroyed) socket.write(Buffer.concat(out));
+      out = [];
+    };
+    const terminate = () => {
+      flush();
+      dead = true;
+      socket.write(terminating());
+      setTimeout(() => socket.end(), 20);
     };
     // True when the statement ends the connection instead of being answered.
     const cut = (text: string) => {
       this.statements.push(text);
       this.arrivals.push({ connection, status, text });
       if (text.includes('cut_now')) {
+        flush();
         socket.destroy();
         return true;
       }
       // A reset instead of an orderly close (unread data, a proxy): the client
       // sees ECONNRESET first, and the close only later.
       if (text.includes('reset_now')) {
+        flush();
         socket.resetAndDestroy();
         return true;
       }
       if (text.includes('fatal_now')) {
-        dead = true;
-        socket.write(
-          message(
-            'E',
-            Buffer.from('S'),
-            cstring('FATAL'),
-            Buffer.from('C'),
-            cstring('57P01'),
-            Buffer.from('M'),
-            cstring('terminating connection due to administrator command'),
-            Buffer.from([0]),
-          ),
-        );
-        setTimeout(() => socket.end(), 20);
+        terminate();
         return true;
       }
       if (text.includes('cut_after')) setTimeout(() => socket.destroy(), 20);
+      if (text.includes('fatal_after')) setTimeout(terminate, 20);
       return false;
     };
-    socket.on('data', (chunk: Buffer) => {
-      if (dead) return;
-      pending = Buffer.concat([pending, chunk]);
+    const answer = () => {
       for (;;) {
         if (!started) {
           if (pending.length < 8 || pending.length < pending.readInt32BE(0)) {
             return;
           }
+          // The startup parameters: name, value, … after the protocol version.
+          const parameters = pending
+            .toString('utf8', 8, pending.readInt32BE(0))
+            .split('\0');
           pending = pending.subarray(pending.readInt32BE(0));
           started = true;
-          socket.write(
+          if (
+            parameters[parameters.indexOf('application_name') + 1] ===
+              'fatal_auth' &&
+            !this.authenticationFailed
+          ) {
+            this.authenticationFailed = true;
+            // AuthenticationMD5Password, then the termination before any answer.
+            send(message('R', int32(5), Buffer.from([1, 2, 3, 4])));
+            terminate();
+            return;
+          }
+          send(
             Buffer.concat([
               message('R', int32(0)),
               message('K', int32(4041), int32(1)),
@@ -155,7 +227,7 @@ class FakePostgres {
         if (type === 'Q') {
           const text = body.toString('utf8', 0, body.length - 1);
           if (cut(text)) return;
-          socket.write(Buffer.concat([complete(text), ready()]));
+          send(Buffer.concat([complete(text), ready()]));
         } else if (type === 'P') {
           const nameEnd = body.indexOf(0);
           const textEnd = body.indexOf(0, nameEnd + 1);
@@ -165,12 +237,17 @@ class FakePostgres {
             text,
             params: body.readInt16BE(textEnd + 1),
           });
-          socket.write(message('1'));
+          send(message('1'));
         } else if (type === 'D') {
-          // 'S' describes a statement: its parameters (all text), then NoData.
+          // 'S' describes a statement: its parameters (all text), then its row
+          // (RowDescription) or NoData.
           const name = body.toString('utf8', 1, body.length - 1);
-          const params = prepared.get(name)?.params ?? 0;
-          socket.write(
+          const statement = prepared.get(name);
+          const params = statement?.params ?? 0;
+          const row = rowsOf(statement?.text ?? '')
+            ? ROW_DESCRIPTION
+            : message('n');
+          send(
             body[0] === 83
               ? Buffer.concat([
                   message(
@@ -178,9 +255,9 @@ class FakePostgres {
                     Buffer.from([params >> 8, params & 255]),
                     ...Array.from({ length: params }, () => int32(25)),
                   ),
-                  message('n'),
+                  row,
                 ])
-              : message('n'),
+              : row,
           );
         } else if (type === 'B') {
           const portalEnd = body.indexOf(0);
@@ -190,18 +267,42 @@ class FakePostgres {
             body.indexOf(0, portalEnd + 1),
           );
           bound = prepared.get(name)?.text ?? '';
-          socket.write(message('2'));
+          remaining = rowsOf(bound);
+          returned = 0;
+          send(message('2'));
         } else if (type === 'E') {
-          socket.write(complete(bound));
+          // Up to the row limit (0: no limit), then PortalSuspended while rows
+          // remain, or CommandComplete.
+          const limit = body.readInt32BE(body.indexOf(0) + 1);
+          const count = limit > 0 ? Math.min(limit, remaining) : remaining;
+          const rows = Array.from({ length: count }, () =>
+            dataRow(String((returned += 1))),
+          );
+          remaining -= count;
+          send(
+            Buffer.concat([
+              ...rows,
+              limit > 0 && remaining > 0
+                ? message('s')
+                : complete(bound, returned),
+            ]),
+          );
         } else if (type === 'S') {
-          socket.write(ready());
+          send(ready());
         } else if (type === 'C') {
-          socket.write(message('3'));
+          send(message('3'));
         } else if (type === 'X') {
+          flush();
           socket.end();
           return;
         }
       }
+    };
+    socket.on('data', (chunk: Buffer) => {
+      if (dead) return;
+      pending = Buffer.concat([pending, chunk]);
+      answer();
+      flush();
     });
   }
 }
@@ -246,6 +347,28 @@ function runChild(
 }
 
 const CLOSED = { ok: false, code: 'CONNECTION_CLOSED' };
+
+/** A loss of the connection: the platform answers it as the database being
+ * unavailable (a retryable 503, no error report). */
+function expectLost(outcome: Event | undefined) {
+  expect(outcome).toMatchObject(CLOSED);
+  expect(isDatabaseUnavailable(outcome)).toBe(true);
+}
+
+/** The caller's own misuse of a handle whose connection lived on, refused as
+ * postgres.js 4 refuses it: it must reach the error reports, not pass for the
+ * database going away. */
+function expectMisuse(
+  outcome: Event | undefined,
+  handle: 'transaction' | 'reserve',
+) {
+  expect(outcome).toMatchObject({
+    ok: false,
+    code: 'UNSAFE_TRANSACTION',
+    message: `UNSAFE_TRANSACTION: The ${handle} has ended`,
+  });
+  expect(isDatabaseUnavailable(outcome)).toBe(false);
+}
 
 /**
  * postgres.js schedules a reconnect at `closedAt + backoff - now`, which is
@@ -324,6 +447,34 @@ describe.each(['esm', 'cjs'] as const)(
       expect(events.get('end')).toMatchObject({ ok: true });
     });
 
+    it('does not run a dead reservation’s statement inside the transaction its reconnected connection now holds', async () => {
+      const events = await run('idle-reservation-reconnected');
+      expect(events.get('transaction')).toEqual({
+        event: 'transaction',
+        ok: true,
+        value: 'committed',
+      });
+      expectLost(events.get('stray'));
+      // Run there, it would have become part of another caller's transaction:
+      // begin, tx_one, stray_reserved, tx_two, commit.
+      expect(server.statements).not.toContain("select 'stray_reserved'");
+      expect(server.statements).toEqual(
+        expect.arrayContaining([
+          "select 'tx_one'",
+          "select 'tx_two'",
+          'commit',
+        ]),
+      );
+      expect(events.get('after')).toMatchObject({ ok: true });
+    });
+
+    it('ends the pool at once when the cut statement’s connection was never reconnected', async () => {
+      // run() holds end() well under its 1 s timeout: the closed connection no
+      // longer counts the settled statement as running.
+      const events = await run('cut-then-end');
+      expectLost(events.get('pending'));
+    });
+
     it('rejects a reserved connection’s statements, and release() does not hand the dead connection back', async () => {
       const events = await run('reserved-cut');
       expect(events.get('pending')).toMatchObject(CLOSED);
@@ -358,6 +509,49 @@ describe.each(['esm', 'cjs'] as const)(
       expect(server.statements).not.toContain('commit');
     });
 
+    it('rejects a cursor whose connection died while its callback held a batch, and serves the next caller', async () => {
+      const events = await run('cursor-cut');
+      expectLost(events.get('cursor'));
+      expect(events.get('batches')).toMatchObject({ count: 1 });
+      // Neither the cursor's next batch nor its Sync went to the reconnect.
+      expect(events.get('next')).toMatchObject({ ok: true });
+      expect(events.get('after')).toMatchObject({ ok: true });
+    });
+
+    it('lets a cursor’s callback fail after the loss without disturbing the next caller', async () => {
+      const events = await run('cursor-cut-callback-throws');
+      expectLost(events.get('cursor'));
+      expect(events.get('next')).toMatchObject({ ok: true });
+      expect(events.get('after')).toMatchObject({ ok: true });
+    });
+
+    it('fails a for-await loop over a cursor whose connection died while it held a batch', async () => {
+      const events = await run('cursor-iterator-cut');
+      expectLost(events.get('cursor'));
+      expect(events.get('rows')).toMatchObject({ count: 1 });
+      expect(events.get('after')).toMatchObject({ ok: true });
+    });
+
+    it('fails that loop with the server’s own error when an administrator terminated its connection', async () => {
+      const events = await run('cursor-iterator-terminated');
+      expect(events.get('cursor')).toMatchObject({ ok: false, code: '57P01' });
+      expect(events.get('rows')).toMatchObject({ count: 1 });
+      expect(events.get('after')).toMatchObject({ ok: true });
+    });
+
+    it('survives a password answered after the server ended the connection during authentication', async () => {
+      const events = await run('password-after-close');
+      expect(events.get('first')).toMatchObject({ ok: false, code: '57P01' });
+      expect(events.get('after')).toMatchObject({ ok: true });
+    });
+
+    it('starts the next connection cleanly after one closed with a write still pending', async () => {
+      const events = await run('closed-with-a-write-pending');
+      expectLost(events.get('pending'));
+      // The reconnected connection's startup message went out, and first.
+      expect(events.get('after')).toMatchObject({ ok: true });
+    });
+
     it('runs a begin() that fills a connection’s pipeline as a transaction of its own', async () => {
       const events = await run('begin-fills-the-pipeline');
       expect(events.get('transaction')).toEqual({
@@ -382,6 +576,42 @@ describe.each(['esm', 'cjs'] as const)(
       expect(server.statements.filter((s) => s === 'commit')).toHaveLength(1);
       expect(events.get('after')).toMatchObject({ ok: true });
       expect(events.get('end')).toMatchObject({ ok: true });
+    });
+
+    it('refuses a statement on a transaction that has ended as misuse, not as a lost connection', async () => {
+      const events = await run('transaction-ended');
+      expect(events.get('transaction')).toEqual({
+        event: 'transaction',
+        ok: true,
+        value: 'committed',
+      });
+      expect(events.get('pooled')).toMatchObject({ ok: true });
+      expectMisuse(events.get('after-commit'), 'transaction');
+      // The connection it ran on closed later, under another caller: still misuse.
+      expectLost(events.get('cut'));
+      expectMisuse(events.get('after-loss'), 'transaction');
+      // A manual COMMIT inside sql.begin() ends the transaction too, and hands the
+      // connection back to the pool.
+      expectMisuse(events.get('manual-commit'), 'transaction');
+      expect(server.statements).toContain(
+        "select 'pooled_after_manual_commit'",
+      );
+      for (const statement of [
+        "select 'after_commit'",
+        "select 'after_loss'",
+        "select 'after_manual_commit'",
+      ]) {
+        expect(server.statements).not.toContain(statement);
+      }
+      expect(events.get('after')).toMatchObject({ ok: true });
+    });
+
+    it('refuses a statement on a released reservation as misuse, not as a lost connection', async () => {
+      const events = await run('reservation-released');
+      expect(events.get('reserved')).toMatchObject({ ok: true });
+      expectMisuse(events.get('released'), 'reserve');
+      expect(server.statements).not.toContain("select 'after_release'");
+      expect(events.get('after')).toMatchObject({ ok: true });
     });
 
     it('still commits a healthy transaction and rolls back a failing one', async () => {

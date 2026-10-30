@@ -12,7 +12,7 @@ from the root manifests copies this directory (`COPY patches/ ./patches/`): the 
 
 ## `postgres@3.4.7.patch`
 
-**Why.** postgres.js 3.4.7 (and 3.4.9, the latest release) crashes the process when a PostgreSQL
+**Why.** postgres.js 3.4.7 (and 3.4.9, the latest 3.x release) crashes the process when a PostgreSQL
 server process dies under an open transaction or a reserved connection: a crash, the OOM killer, an
 immediate shutdown, `docker kill` ([#4041](https://github.com/tale-project/tale/issues/4041)). The
 closed connection's socket is nulled, then `begin()`'s `ROLLBACK`, or the reservation's next
@@ -20,7 +20,8 @@ statement, is written to it from an Immediate: an uncaught
 `TypeError: Cannot read properties of null (reading 'write')`. Upstream:
 [porsager/postgres#1154](https://github.com/porsager/postgres/issues/1154) and
 [#1208](https://github.com/porsager/postgres/issues/1208), with the guard proposed in
-[#1209](https://github.com/porsager/postgres/pull/1209); all open.
+[#1209](https://github.com/porsager/postgres/pull/1209); all closed when 4.0.0 was released (see
+**Remove it when**).
 
 A second defect, found by the 2026-10 load run: under load a transaction can start without owning its
 connection. `begin()` learns which connection its `BEGIN` runs on only through the `onexecute` hook,
@@ -55,9 +56,24 @@ unmerged.
   - It drops a cancelled write together with its timer, which would otherwise keep the next
     StartupMessage from ever being sent.
   - It no longer leaves the settled statement in `query`, where it kept `sql.end()` from resolving.
+- `connection.js`, `PortalSuspended`, where a cursor goes on once its callback has taken a batch
+  ([#4066](https://github.com/tale-project/tale/issues/4066)): when the connection closed meanwhile,
+  `closed()` has rejected the cursor and dropped it from `query`, and a reconnect may already run
+  another caller's statement there. The cursor then neither reads `query` nor writes for itself, and
+  its callback's error writes `Sync` only while the cursor still holds the connection. It used to
+  read the dropped `query`: `TypeError: Cannot read properties of null (reading 'reject')`, an
+  unhandled rejection that ended the process. Unpatched 3.4.7 crashes there too, through `nextWrite`.
+- `query.js`, `cursor()`'s async iterator: an error that arrives while the caller holds a batch, with
+  no `next()` pending to take it, is thrown by the next `next()`. Upstream dropped it, and the
+  `for await` loop ended as if it had read every row
+  ([porsager/postgres#1166](https://github.com/porsager/postgres/issues/1166)). As for the cursor's
+  promise, the first error is the one thrown.
 - `index.js`, beyond #1209 (the hunks marked `Tale:`):
   - A transaction's or a reservation's statement runs only while it still holds its connection
-    (`c.reserved` is still its own); otherwise it rejects with `CONNECTION_CLOSED`.
+    (`c.reserved` is still its own). Otherwise it rejects: with `CONNECTION_CLOSED` when that
+    connection closed while the transaction ran or the reservation held it, and with
+    `UNSAFE_TRANSACTION` (`The transaction has ended`, `The reserve has ended`, as postgres.js 4
+    words it) when the caller ended the transaction or released the reservation and kept using it.
   - Statements queued behind a busy connection reject when it closes.
   - `release()` changes nothing once the reservation no longer holds its connection.
 
@@ -68,26 +84,41 @@ unmerged.
 
 **Proof.** `services/platform/backend/db/connection-loss.test.ts` runs postgres.js in a child process
 through both its ESM and its CommonJS build. The child talks to a fake server that closes or resets the
-connection the way a killed server process or a proxy does. Without the patch, the cut cases crash the
-child, hang it, or commit the stray statement. With #1209's guard alone, they hang or fail on the dead
-connection. The `begin-fills-the-pipeline` case (a pool of two with `max_pipeline: 3`, the `begin` the
-seventh statement) fails unpatched with `UNSAFE_TRANSACTION`; patched, the transaction commits and no
-other statement ever runs on a connection inside it.
+connection the way a killed server process or a proxy does, or terminates it (FATAL 57P01), also in the
+middle of a cursor or of authentication. Without the patch, the cut cases crash the child, hang it, or
+commit the stray statement. With #1209's guard alone, they hang or fail on the dead connection. The
+`begin-fills-the-pipeline` case (a pool of two with `max_pipeline: 3`, the `begin` the seventh
+statement) fails unpatched with `UNSAFE_TRANSACTION`; patched, the transaction commits and no other
+statement ever runs on a connection inside it. Each change is pinned on its own: with any one of them
+removed from `src/` and `cjs/src/`, at least one case fails in both builds.
 
-**Behaviour change.** A statement issued on a transaction handle after its `COMMIT`, or on a
-released reservation, now rejects with `CONNECTION_CLOSED` instead of running on the pool's
-connection outside the transaction. No platform code does this (checked by grep).
+**Behaviour change.** A statement issued on a transaction handle after its `COMMIT` or `ROLLBACK`
+(a manual `COMMIT` inside `sql.begin` included), or on a released reservation, now rejects with
+`UNSAFE_TRANSACTION` instead of running on the pool's connection outside the transaction, as in
+postgres.js 4. The platform reports it as the defect it is: only a lost connection
+(`CONNECTION_CLOSED`) reads as the database being unavailable (`backend/db/unavailable.ts`). No
+platform code does this (checked by grep). A `for await` loop over a cursor whose connection is lost
+throws instead of ending early; no platform code reads a cursor.
 
-**Not changed.** A `sql.reserve()` that waits for a connection can still be dropped if another
-connection closes and the pool reconnects that one for it: upstream's `onclose` hands the request to
-the reconnect, whose type fetch discards it.
+**Not changed.**
+
+- A `sql.reserve()` that waits for a connection can still be dropped if another connection closes
+  and the pool reconnects that one for it: upstream's `onclose` hands the request to the reconnect,
+  whose type fetch discards it.
+- A statement pipelined behind a manual `COMMIT` inside `sql.begin`, sent before that `COMMIT`'s
+  ReadyForQuery is back, still runs outside the transaction: postgres.js learns that the transaction
+  ended only from that ReadyForQuery.
 
 **Remove it when** a postgres.js release fixes all of this. That means the write to a closed
-connection, what `closed()` leaves pending, the pool's hand-back of a closed connection, and the order
-in which `execute()` calls `onexecute` (#1189). Then bump
+connection, what `closed()` leaves pending, the pool's hand-back of a closed connection, a cursor
+that loses its connection, and the order in which `execute()` calls `onexecute` (#1189). Then bump
 the pin in `services/platform` and `packages/shared`, delete this file's entry and its
 `patchedDependencies` line, and keep the regression suite: it must pass on that release unpatched. If a
 release fixes only part of it, regenerate the rest against that release with `bun patch`.
+postgres.js 4.0.0 (2026-10-29) is the candidate: it rewrites the pool and the connection, and the
+upstream issues above, #1166 among them, were closed with it. It also types parameters differently
+and drops `sql.array()` and the CommonJS build (the suite's `cjs` cases go with it), so moving to it
+is an upgrade of its own.
 
 ## `@tanstack%2Frouter-core@1.168.9.patch`
 
