@@ -249,7 +249,18 @@ test.describe('web marketing smoke', () => {
     });
   }
 
-  test('/ui sends readers to the UI documentation site', async ({ page }) => {
+  test('UI aliases send a cold load to the UI documentation site once and keep the query', async ({
+    page,
+  }) => {
+    const departures: string[] = [];
+    page.on('request', (request) => {
+      if (
+        request.isNavigationRequest() &&
+        new URL(request.url()).hostname === 'ui.tale.dev'
+      ) {
+        departures.push(request.url());
+      }
+    });
     await page.route(
       (url) => url.hostname === 'ui.tale.dev',
       (route) =>
@@ -258,8 +269,14 @@ test.describe('web marketing smoke', () => {
           body: '<h1>Introduction</h1>',
         }),
     );
-    await page.goto('/ui');
-    await expect(page).toHaveURL('https://ui.tale.dev/');
+    for (const path of ['/ui', '/en/ui', '/de/ui', '/fr/ui']) {
+      departures.length = 0;
+      await page.goto(`${path}?source=cold`);
+      await expect(page, path).toHaveURL('https://ui.tale.dev/?source=cold');
+      // A second navigation to the same address while the first commits can
+      // be left unsettled, which stalled the URL check above (#4553).
+      expect(departures, path).toEqual(['https://ui.tale.dev/?source=cold']);
+    }
   });
 
   test('UI aliases redirect from client navigation and keep the query', async ({
