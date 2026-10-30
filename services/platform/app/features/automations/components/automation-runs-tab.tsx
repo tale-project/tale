@@ -12,6 +12,11 @@ import { RunsTable } from './runs-table';
  * The Runs tab: the automation's runs as a table, newest first, a page at
  * a time, narrowed by status and mode. A row opens that run's page under
  * the same chrome; two selected runs open their comparison.
+ *
+ * A collection screen like the Automations list: `ContentArea variant="list"`
+ * bounds the tab against the shell, so the heading, the filters and the
+ * table's header row stay put while the rows scroll inside the table's own
+ * frame.
  */
 export function AutomationRunsTab({
   organizationId,
@@ -28,7 +33,7 @@ export function AutomationRunsTab({
   const headingRef = useRef<HTMLSpanElement>(null);
 
   return (
-    <ContentArea gap={6}>
+    <ContentArea variant="list" gap={6}>
       <StickySectionHeader
         as="h2"
         title={
