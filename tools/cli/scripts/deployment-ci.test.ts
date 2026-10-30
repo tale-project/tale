@@ -172,7 +172,6 @@ describe('release candidate validation', () => {
     ['push', 'refs/heads/main', false],
     ['push', 'refs/heads/other', true],
     ['pull_request', 'refs/pull/1/merge', true],
-    ['merge_group', 'refs/heads/gh-readonly-queue/main/pr-1', true],
     ['workflow_dispatch', 'refs/heads/main', false],
     ['repository_dispatch', 'refs/heads/main', false],
   ] as const)(
@@ -365,7 +364,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
     'a push or pull request builds its own commit and asks nothing of main',
     async () => {
       const script = await sourceStep();
-      for (const event of ['push', 'pull_request', 'merge_group']) {
+      for (const event of ['push', 'pull_request']) {
         const tools = await standIns();
         const result = await execute(script.run, {
           PATH: tools.path,
@@ -477,7 +476,7 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         .filter((name) => name.startsWith('build_'))
         .map((name) => name.slice(6));
       expect(step(changes, 'Filter paths').if).toBe(
-        "needs.candidate-source.outputs.candidate_sha == '' && github.event_name != 'pull_request' && github.event_name != 'merge_group' && needs.pr-scope.outputs.full != 'true'",
+        "needs.candidate-source.outputs.candidate_sha == '' && github.event_name != 'pull_request' && needs.pr-scope.outputs.full != 'true'",
       );
       const matrix = step(changes, 'Compute service matrix').run;
       const candidate = outputs(
@@ -529,27 +528,20 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         stack: 'true',
         storybook: 'false',
       });
-      for (const [event, full] of [
-        ['merge_group', ''],
-        ['pull_request', 'true'],
-      ]) {
-        const complete = await execute(matrix, {
-          CANDIDATE_SHA: '',
-          EVENT_NAME: event!,
-          FULL_SCOPE: full!,
-          CHANGES: '',
-          CI_TESTS: '',
-          STORYBOOK: '',
-        });
-        expect(complete.code, complete.stderr).toBe(0);
-        const all = outputs(complete.output);
-        expect(all.list).toBe(candidate.list);
-        expect(all.ci_tests).toBe('true');
-        expect(all.storybook).toBe('true');
-        expect(JSON.parse(all.scannable!)).toEqual(
-          expect.arrayContaining(BUILT),
-        );
-      }
+      const complete = await execute(matrix, {
+        CANDIDATE_SHA: '',
+        EVENT_NAME: 'pull_request',
+        FULL_SCOPE: 'true',
+        CHANGES: '',
+        CI_TESTS: '',
+        STORYBOOK: '',
+      });
+      expect(complete.code, complete.stderr).toBe(0);
+      const all = outputs(complete.output);
+      expect(all.list).toBe(candidate.list);
+      expect(all.ci_tests).toBe('true');
+      expect(all.storybook).toBe('true');
+      expect(JSON.parse(all.scannable!)).toEqual(expect.arrayContaining(BUILT));
       // Even if the live PR has moved while this job waited, consume the
       // one frozen scope decision; do not run a second PR files query.
       const frozen = await execute(matrix, {
@@ -666,7 +658,6 @@ printf '%s\\n' "$TEST_COMPARE_STATUS"
         'type=gha,scope=platform,mode=max,ghtoken=test-github-token,repository=tale-project/tale',
       ],
       ['pull_request', 'refs/pull/1/merge', ''],
-      ['merge_group', 'refs/heads/gh-readonly-queue/main/pr-1', ''],
       ['workflow_dispatch', 'refs/heads/main', ''],
       ['repository_dispatch', 'refs/heads/main', ''],
     ]) {
@@ -1891,7 +1882,7 @@ describe('the Backend integration check', () => {
       await readFile(join(repository, '.github/workflows/checks.yml'), 'utf8'),
     ) as { jobs: Record<string, Job> };
 
-  test('is owed by every push, merge group and candidate, and by a pull request that touches what the suite runs', async () => {
+  test('is owed by every push and candidate, and by a pull request that touches what the suite runs', async () => {
     const decision = (await checks()).jobs['integration-scope']?.steps.find(
       (step) => step.id === 'decide',
     );

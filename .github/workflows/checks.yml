@@ -18,7 +18,6 @@ on:
   push:
     branches:
       - main
-  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'repository_dispatch' && format('candidate-{0}', github.event.client_payload.candidate_sha) || github.ref }}
@@ -726,8 +725,8 @@ jobs:
   # the migrations of both databases, the database image, the object-store pin,
   # the dependencies, the toolchain or this workflow. The platform's
   # tests/guards/integration-scope.guard.test.ts holds the list to the
-  # harness's module graph. A push to main, a merge group and a release
-  # candidate always owe it — so main catches whatever a narrower pull request
+  # harness's module graph. A push to main and a release candidate always
+  # owe it — so main catches whatever a narrower pull request
   # slipped past this list (a newer push to main cancels an older one's run,
   # and its tree carries every earlier commit).
   integration-scope:
@@ -1130,7 +1129,7 @@ jobs:
   # A required context must execute even when an upstream check failed/skipped.
   ci-ready:
     name: CI ready (Checks)
-    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    if: always() && github.event_name == 'pull_request'
     needs: [candidate-source, format, lint, typecheck, build, test, test-platform-shards, test-workspaces, test-ui, test-ui-shards, performance, knip, test-browser, integration-scope, backend-integration, candidate-gate]
     runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
     timeout-minutes: 3

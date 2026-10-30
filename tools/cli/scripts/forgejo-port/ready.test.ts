@@ -8,7 +8,6 @@ import {
   renderVerdict,
   type JobResult,
   type ReadyInput,
-  type RemovedJob,
 } from './ready';
 
 const A = 'a'.repeat(40);
@@ -18,9 +17,8 @@ type Workflow = keyof typeof CI_JOBS;
 type Job = { result: string; outputs: Record<string, string> };
 
 const skipped: Job = { result: 'skipped', outputs: {} };
-const wasSkipped: JobResult = { result: 'skipped', outputs: {} };
-/** A job the port took out that neither kind of run would have run. */
-const neverRan: RemovedJob = { pull_request: wasSkipped, push: wasSkipped };
+/** A job the port took out that a pull request would not have run. */
+const neverRan: JobResult = { result: 'skipped', outputs: {} };
 
 /** The workflows whose scope job a pull request answers from its paths; this one touches them all. */
 const SCOPED = new Set<Workflow>([
@@ -31,26 +29,23 @@ const SCOPED = new Set<Workflow>([
   'sandbox-incus-e2e',
 ]);
 
-/** What the port took out of each workflow, and what each job would have said. */
-function removedFor(workflow: Workflow): Record<string, RemovedJob> {
-  const gone: Record<string, RemovedJob> = {
+/** What the port took out of each workflow, and what each job would have said to a pull request. */
+function removedFor(workflow: Workflow): Record<string, JobResult> {
+  const gone: Record<string, JobResult> = {
     'candidate-source': neverRan,
     'candidate-gate': neverRan,
   };
   if (workflow === 'cli') gone.release = neverRan;
   if (SCOPED.has(workflow))
     gone['pr-scope'] = {
-      pull_request: {
-        result: 'success',
-        outputs: { run: 'true', full: 'true' },
-      },
-      push: wasSkipped,
+      result: 'success',
+      outputs: { run: 'true', full: 'true' },
     };
   return gone;
 }
 
-/** A fully green batch of one workflow, as `toJSON(needs)` of its ready job on Forgejo. */
-function greenBatch(workflow: Workflow): Record<string, Job> {
+/** A fully green pull request of one workflow, as `toJSON(needs)` of its ready job on Forgejo. */
+function greenNeeds(workflow: Workflow): Record<string, Job> {
   const needs: Record<string, Job> = {};
   for (const id of CI_JOBS[workflow]) {
     if (id in removedFor(workflow)) continue;
@@ -98,27 +93,10 @@ function onPullRequest(
 ): ReadyInput {
   return {
     workflow,
-    needs: greenBatch(workflow),
-    tier: 'fast',
+    needs: greenNeeds(workflow),
     removed: removedFor(workflow),
     event: 'pull_request',
     payload: pullRequest(),
-    sha: B,
-    ...extra,
-  };
-}
-
-function onBatch(
-  workflow: Workflow,
-  extra: Partial<ReadyInput> = {},
-): ReadyInput {
-  return {
-    workflow,
-    needs: greenBatch(workflow),
-    tier: 'fast',
-    removed: removedFor(workflow),
-    event: 'push',
-    payload: { before: '0'.repeat(40), after: B },
     sha: B,
     ...extra,
   };
@@ -128,27 +106,21 @@ const WORKFLOWS = Object.keys(CI_JOBS) as Workflow[];
 
 describe('judgeReadiness', () => {
   for (const workflow of WORKFLOWS) {
-    test(`${workflow}: a green pull request is ready at its own tier`, () => {
+    test(`${workflow}: a green pull request is ready`, () => {
       const verdict = judgeReadiness(onPullRequest(workflow));
       expect(verdict.reasons).toEqual([]);
       expect(verdict.passed).toBe(true);
     });
 
-    test(`${workflow}: a green batch is ready at full scope`, () => {
-      const verdict = judgeReadiness(onBatch(workflow));
-      expect(verdict.reasons).toEqual([]);
-      expect(verdict.passed).toBe(true);
-    });
-
-    test(`${workflow}: a batch that skipped a job it owes is held`, () => {
-      for (const id of Object.keys(greenBatch(workflow))) {
-        const needs = greenBatch(workflow);
+    test(`${workflow}: a pull request that did not finish a job it owes is held`, () => {
+      for (const id of Object.keys(greenNeeds(workflow))) {
+        const needs = greenNeeds(workflow);
         const job = needs[id];
         if (!job || job.result === 'skipped') continue;
         for (const result of ['failure', 'cancelled', 'skipped', '']) {
           job.result = result;
           expect(
-            judgeReadiness(onBatch(workflow, { needs })).passed,
+            judgeReadiness(onPullRequest(workflow, { needs })).passed,
             `${id}/${result}`,
           ).toBe(false);
         }
@@ -156,67 +128,51 @@ describe('judgeReadiness', () => {
     });
 
     test(`${workflow}: a job that is neither there nor removed by the port holds it`, () => {
-      for (const id of Object.keys(greenBatch(workflow))) {
-        const needs = greenBatch(workflow);
+      for (const id of Object.keys(greenNeeds(workflow))) {
+        const needs = greenNeeds(workflow);
         delete needs[id];
         expect(
-          judgeReadiness(onBatch(workflow, { needs })).passed,
+          judgeReadiness(onPullRequest(workflow, { needs })).passed,
           `missing ${id}`,
         ).toBe(false);
       }
     });
 
     test(`${workflow}: a job nobody classified holds it`, () => {
-      const needs = greenBatch(workflow);
+      const needs = greenNeeds(workflow);
       needs['new-unclassified-proof'] = { result: 'success', outputs: {} };
-      expect(judgeReadiness(onBatch(workflow, { needs })).passed).toBe(false);
-    });
-  }
-
-  for (const workflow of WORKFLOWS) {
-    test(`${workflow}: a pull request of the full tier owes what a batch owes`, () => {
-      const verdict = judgeReadiness(
-        onPullRequest(workflow, { tier: 'full', needs: greenBatch(workflow) }),
+      expect(judgeReadiness(onPullRequest(workflow, { needs })).passed).toBe(
+        false,
       );
-      expect(verdict.reasons).toEqual([]);
-      expect(verdict.passed).toBe(true);
-    });
-
-    test(`${workflow}: a pull request of the full tier is held for a job a batch would not skip`, () => {
-      for (const id of Object.keys(greenBatch(workflow))) {
-        const needs = greenBatch(workflow);
-        const job = needs[id];
-        if (!job || job.result === 'skipped') continue;
-        job.result = 'skipped';
-        expect(
-          judgeReadiness(onPullRequest(workflow, { tier: 'full', needs }))
-            .passed,
-          `${id}`,
-        ).toBe(false);
-      }
     });
   }
 
-  test('a pull request of either tier is held for a suite it skipped', () => {
-    for (const tier of ['fast', 'full'] as const) {
-      const needs = greenBatch('checks');
-      needs.build = skipped;
-      expect(
-        judgeReadiness(onPullRequest('checks', { tier, needs })).passed,
-        tier,
-      ).toBe(false);
-    }
+  test('a pull request owes the whole suite: a scope that lost a service holds it', () => {
+    const e2e = greenNeeds('e2e');
+    e2e.scope = {
+      result: 'success',
+      outputs: { platform: 'true', static_services: '["web"]' },
+    };
+    expect(
+      judgeReadiness(onPullRequest('e2e', { needs: e2e })).reasons,
+    ).toEqual(['Full E2E scope lost service coverage']);
+    const build = greenNeeds('build');
+    build.changes!.outputs.services = '["platform"]';
+    build.changes!.outputs.scannable_services = '["platform"]';
+    expect(
+      judgeReadiness(onPullRequest('build', { needs: build })).reasons,
+    ).toEqual(['Full Build scope lost service coverage']);
   });
 
   test('a pull request that failed a lane it owes is held', () => {
-    const needs = greenBatch('checks');
+    const needs = greenNeeds('checks');
     needs.lint = { result: 'failure', outputs: {} };
     expect(judgeReadiness(onPullRequest('checks', { needs })).passed).toBe(
       false,
     );
   });
 
-  test('does not hold a work-in-progress pull request: the merge train does', () => {
+  test('does not hold a work-in-progress pull request: Forgejo refuses to merge one', () => {
     for (const title of ['WIP: x', '[WIP] x']) {
       expect(
         judgeReadiness(
@@ -238,30 +194,26 @@ describe('judgeReadiness', () => {
     expect(verdict.reasons[0]).toContain('a maintainer pushes the branch');
   });
 
-  test('an event it cannot describe is held, and so is a pull request with no commits named', () => {
-    expect(
-      judgeReadiness(onBatch('sast', { event: 'schedule' })).reasons[0],
-    ).toContain('only defined for');
+  test('an event that is not a pull request is held, and so is a pull request with no commits named', () => {
+    for (const event of ['push', 'schedule', 'workflow_dispatch'])
+      expect(judgeReadiness(onPullRequest('sast', { event })).reasons).toEqual([
+        'Readiness is only defined for pull_request',
+      ]);
     expect(
       judgeReadiness(
         onPullRequest('sast', { payload: { pull_request: { title: 'x' } } }),
       ).passed,
     ).toBe(false);
-    expect(judgeReadiness(onBatch('sast', { needs: [] })).passed).toBe(false);
-  });
-
-  test('a batch that is not the commit checked out is held', () => {
-    const verdict = judgeReadiness(
-      onBatch('sast', { payload: { before: A, after: B }, sha: A }),
+    expect(judgeReadiness(onPullRequest('sast', { needs: [] })).passed).toBe(
+      false,
     );
-    expect(verdict.passed).toBe(false);
   });
 
   test('does not hand a job the port never removed to the policy as skipped', () => {
-    const needs = greenBatch('cli');
+    const needs = greenNeeds('cli');
     delete needs.build;
     const verdict = judgeReadiness(
-      onBatch('cli', {
+      onPullRequest('cli', {
         needs,
         removed: {
           ...removedFor('cli'),
@@ -276,18 +228,12 @@ describe('judgeReadiness', () => {
 
 describe('parseRemoved', () => {
   const one = JSON.stringify({
-    'pr-scope': {
-      pull_request: { result: 'success', outputs: { run: 'false' } },
-      push: { result: 'skipped', outputs: {} },
-    },
+    'pr-scope': { result: 'success', outputs: { run: 'true' } },
   });
 
   test('reads what the generator recorded', () => {
     expect(parseRemoved(one)).toEqual({
-      'pr-scope': {
-        pull_request: { result: 'success', outputs: { run: 'false' } },
-        push: { result: 'skipped', outputs: {} },
-      },
+      'pr-scope': { result: 'success', outputs: { run: 'true' } },
     });
     expect(parseRemoved('')).toEqual({});
   });
@@ -295,16 +241,18 @@ describe('parseRemoved', () => {
   test('refuses what is not a result', () => {
     expect(() => parseRemoved('[]')).toThrow('not an object');
     expect(() => parseRemoved('{"x":{}}')).toThrow(
-      'CI_PORT_REMOVED.x.pull_request is not a job result',
+      'CI_PORT_REMOVED.x is not a job result',
     );
     expect(() =>
-      parseRemoved(
-        '{"x":{"pull_request":{"result":"failure","outputs":{}},"push":{"result":"skipped","outputs":{}}}}',
-      ),
+      parseRemoved('{"x":{"result":"failure","outputs":{}}}'),
     ).toThrow('not a job result');
     expect(() =>
+      parseRemoved('{"x":{"result":"success","outputs":{"a":1}}}'),
+    ).toThrow('not a job result');
+    // A result for each kind of run, as the port once recorded it, is not one result.
+    expect(() =>
       parseRemoved(
-        '{"x":{"pull_request":{"result":"success","outputs":{"a":1}},"push":{"result":"skipped","outputs":{}}}}',
+        '{"x":{"pull_request":{"result":"success","outputs":{}},"push":{"result":"skipped","outputs":{}}}}',
       ),
     ).toThrow('not a job result');
   });
@@ -313,35 +261,24 @@ describe('parseRemoved', () => {
 describe('readInput', () => {
   const env = {
     CI_WORKFLOW: 'sast',
-    CI_TIER: 'fast',
     CI_NEEDS: '{"sast":{"result":"success","outputs":{}}}',
     CI_PORT_REMOVED: '{}',
-    GITHUB_EVENT_NAME: 'push',
+    GITHUB_EVENT_NAME: 'pull_request',
     GITHUB_EVENT_PATH: '/tmp/event.json',
     GITHUB_SHA: B,
   };
 
   test('takes the job environment and the runner event file', () => {
     const read = (path: string) =>
-      path === '/tmp/event.json' ? '{"before":"x","after":"y"}' : '';
+      path === '/tmp/event.json' ? '{"pull_request":{"number":7}}' : '';
     expect(readInput(env, read)).toEqual({
       workflow: 'sast',
-      tier: 'fast',
       needs: { sast: { result: 'success', outputs: {} } },
       removed: {},
-      event: 'push',
-      payload: { before: 'x', after: 'y' },
+      event: 'pull_request',
+      payload: { pull_request: { number: 7 } },
       sha: B,
     });
-  });
-
-  test('refuses a tier it does not know', () => {
-    expect(() => readInput({ ...env, CI_TIER: 'half' }, () => '{}')).toThrow(
-      'CI_TIER is neither fast nor full',
-    );
-    expect(() => readInput({ ...env, CI_TIER: undefined }, () => '{}')).toThrow(
-      'CI_TIER is not set',
-    );
   });
 
   test('names what is missing', () => {

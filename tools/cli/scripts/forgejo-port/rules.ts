@@ -10,12 +10,7 @@
 import { Scalar, YAMLMap, isMap, isScalar, isSeq } from 'yaml';
 import type { Document } from 'yaml';
 
-import {
-  jobKnowledge,
-  type PortContext,
-  type Rule,
-  type Tier,
-} from './context';
+import { jobKnowledge, type PortContext, type Rule } from './context';
 import { ciScope } from './scope';
 import { jobIds, jobOf, stepsOf, stringOf } from './workflow';
 
@@ -266,11 +261,9 @@ export function learnEmptyOutputs(
 }
 
 /** The rules every workflow goes through, in order. */
-export function defaultRules(tier: Tier): Rule[] {
-  return [ciScope(tier), servicesToDockerRun, matrixTotals, dropEnvironments];
-}
-
-/** What a pull request owes unless a manifest says otherwise. */
-const DEFAULT_TIER: Tier = 'full';
-
-export const DEFAULT_RULES: readonly Rule[] = defaultRules(DEFAULT_TIER);
+export const DEFAULT_RULES: readonly Rule[] = [
+  ciScope,
+  servicesToDockerRun,
+  matrixTotals,
+  dropEnvironments,
+];

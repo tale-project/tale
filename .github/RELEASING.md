@@ -57,7 +57,7 @@ That event starts **Build, Checks, SAST, Commitlint, E2E, CLI and Security**, ea
 CLI build targets. Candidate validation never attaches CLI binaries to a release. Normal
 pull request, push, nightly and manual events keep their existing behavior.
 They skip the standalone candidate-source resolver and retain their event's checkout
-commit (including pull-request and merge-group merge commits); manual CLI publication
+commit (including pull-request merge commits); manual CLI publication
 still resolves its requested release tag. Downstream jobs explicitly admit that intentional
 skip while retaining their dependency, cancellation and scope checks.
 

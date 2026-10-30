@@ -22,8 +22,6 @@ const COMMITLINT = `name: Commitlint
 run-name: \${{ github.event_name == 'repository_dispatch' && format('Release candidate {0}', github.event.client_payload.candidate_sha) || '' }}
 
 on:
-  merge_group:
-    types: [checks_requested]
   repository_dispatch:
     types: [release-candidate]
   pull_request:
@@ -228,12 +226,16 @@ describe('needs', () => {
 
 describe('foldCondition', () => {
   test('decides, simplifies, or leaves a condition alone', () => {
-    expect(foldCondition("github.event_name == 'merge_group'", facts)).toEqual({
-      kind: 'never',
-    });
-    expect(foldCondition("github.event_name != 'merge_group'", facts)).toEqual({
-      kind: 'always',
-    });
+    expect(foldCondition("github.event_name == 'workflow_run'", facts)).toEqual(
+      {
+        kind: 'never',
+      },
+    );
+    expect(foldCondition("github.event_name != 'workflow_run'", facts)).toEqual(
+      {
+        kind: 'always',
+      },
+    );
     expect(
       foldCondition("always() && github.event_name == 'pull_request'", facts),
     ).toEqual({
@@ -241,7 +243,7 @@ describe('foldCondition', () => {
     });
     expect(
       foldCondition(
-        "${{ !cancelled() && github.event_name != 'merge_group' }}",
+        "${{ !cancelled() && github.event_name != 'workflow_run' }}",
         facts,
       ),
     ).toEqual({
@@ -276,22 +278,22 @@ describe('foldCondition', () => {
   test('keeps the status function a fold would drop, as an `if:` without one waits for success', () => {
     const always = { kind: 'text', text: 'always()' } as const;
     for (const source of [
-      "always() || github.event_name != 'merge_group'",
-      "!cancelled() || github.event_name != 'merge_group'",
-      "failure() || github.event_name != 'merge_group'",
-      "github.event_name != 'merge_group' || always()",
-      "!(always() && github.event_name == 'merge_group')",
+      "always() || github.event_name != 'workflow_run'",
+      "!cancelled() || github.event_name != 'workflow_run'",
+      "failure() || github.event_name != 'workflow_run'",
+      "github.event_name != 'workflow_run' || always()",
+      "!(always() && github.event_name == 'workflow_run')",
     ])
       expect(foldCondition(source, facts), source).toEqual(always);
     expect(
       foldCondition(
-        "${{ always() || github.event_name != 'merge_group' }}",
+        "${{ always() || github.event_name != 'workflow_run' }}",
         facts,
       ),
     ).toEqual({ kind: 'text', text: '${{ always() }}' });
     expect(
       foldCondition(
-        "(always() || github.event_name != 'merge_group') && github.event.pull_request.draft != true",
+        "(always() || github.event_name != 'workflow_run') && github.event.pull_request.draft != true",
         facts,
       ),
     ).toEqual({
@@ -312,10 +314,10 @@ describe('foldCondition', () => {
     ).toEqual({ kind: 'text', text: '${{ always() }}' });
     // a condition that is false is false whatever the status, and one with no status function has none to keep
     expect(
-      foldCondition("always() && github.event_name == 'merge_group'", facts),
+      foldCondition("always() && github.event_name == 'workflow_run'", facts),
     ).toEqual({ kind: 'never' });
     expect(
-      foldCondition("github.event_name != 'merge_group' || x.y", facts),
+      foldCondition("github.event_name != 'workflow_run' || x.y", facts),
     ).toEqual({ kind: 'always' });
     expect(
       foldCondition(
@@ -360,7 +362,7 @@ jobs:
       - run: echo a
   b:
     needs: a
-    if: always() || github.event_name != 'merge_group'
+    if: always() || github.event_name != 'workflow_run'
     runs-on: ubuntu-latest
     steps:
       - run: echo b
@@ -400,10 +402,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - run: one
-      - if: github.event_name == 'merge_group'
+      - if: github.event_name == 'workflow_run'
         run: two
       - run: three
-      - if: github.event_name != 'merge_group'
+      - if: github.event_name != 'workflow_run'
         run: four
 `;
     const { doc, report } = fold(source);

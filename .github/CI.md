@@ -853,7 +853,7 @@ CLI install was rejected because modest size savings did not establish a reliabl
 
 ## Pull-request CI readiness
 
-Each validation workflow emits one direct terminal context on every PR and merge group:
+Each validation workflow emits one direct terminal context on every PR:
 `CI ready (Checks)`, `CI ready (Commitlint)`, `CI ready (SAST)`, `CI ready (Security)`,
 `CI ready (CLI)`, `CI ready (E2E)`, `CI ready (Build)`, and `CI ready (Sandbox Incus E2E)`.
 The terminal job always runs
@@ -877,8 +877,7 @@ discovery fails. The pinned filter expands renames into added/deleted paths: any
 added/deleted set conservatively requires full coverage, so expanded path counts never
 certify API-row completeness. Unambiguous discovery requires an exact unique path count.
 Shared gate/scope changes also require complete coverage.
-Push, schedule, manual and candidate admission remains separate; merge groups run full
-validation, and Commitlint checks the actual group base-to-head range.
+Push, schedule, manual and candidate admission remains separate.
 
 Build's detailed service outputs still decide which containers and Storybook are owed;
 outer workflow applicability alone is not a service matrix. PR service decisions come from
@@ -914,17 +913,15 @@ scope policy and passed, failed and incomplete readiness evidence.
 
 Source alone does not activate branch protection. Before requiring these contexts, observe
 their exact live names and GitHub Actions application identity (15368), positive and negative
-PR cases, and failed/latest rerun behavior. `main` has no merge queue (see
-[Landing on main](#landing-on-main)); the source guards for the `merge_group` event and its
-full scope stay until its triggers are removed. Bind the eight contexts to that app; generic candidate or skipped execution
-jobs cannot substitute for them. Keep the coordinator's
+PR cases, and failed/latest rerun behavior. Bind the eight contexts to that app; generic
+candidate or skipped execution jobs cannot substitute for them. Keep the coordinator's
 exact-head checks and independent review until enforcement is active and observed. Independent
 review remains a separate obligation; a CI readiness result does not certify it.
 
 ### Landing on main
 
-Two lanes land on `main`, both linear (ruleset **Tale required CI**, no merge queue since
-2026-10-29; the repository allows squash and rebase merges).
+Two lanes land on `main`, both linear (ruleset **Tale required CI**; the repository allows
+squash and rebase merges).
 
 **The merge train** (since 2026-10-30) carries the autonomous development cycle's work. A task
 branch starts from `train` and opens no pull request: once reviewed, it is squashed into one
@@ -950,9 +947,6 @@ that. The release gate binds a candidate to the one pull request whose merge com
 squash merge's commit, or a train's last commit, which GitHub records as the rebase merge's
 merge commit. A commit inside a train is not a release candidate.
 
-The workflows still list `merge_group` among their triggers; without a queue GitHub never sends
-that event.
-
 The complete [release-candidate gate](RELEASING.md) remains required before tagging a release.
 
 ## Forgejo
@@ -964,12 +958,10 @@ publishes nothing once Forgejo is the source. The unit tests of `@tale/cli` run 
 these workflows. They fail a change when the generator crashes on a workflow, when
 `declared-checks.yml` no longer lists the `CI ready (…)` checks the workflows define (a change
 that adds, renames or removes one runs `bun tools/cli/scripts/forgejo-port.ts checks --write`),
-when a composite action or a script the port names is renamed or removed, or when `e2e.yml` or
-`sast.yml` stops carrying the tier it is generated for.
+or when a composite action or a script the port names is renamed or removed.
 
-On Forgejo a pull request owes what a batch of the merge train (a push to `mq/**`) owes, the
-whole suite, so that a failure shows on the pull request and not in the train. A workflow whose
-`tier` says `fast` owes this document's pull request tier instead, except that Security is not
-path-scoped and runs on every pull request. The
+On Forgejo too a pull request runs its whole suite and lands on its own: which files it touches
+would take GitHub's API to list, so the port's scope answers that it owes everything, Security
+included. The
 [README](../tools/cli/scripts/forgejo-port/README.md) says what the port does and what stays on
 GitHub; `bun tools/cli/scripts/forgejo-port.ts report` shows it on the workflows as they are.

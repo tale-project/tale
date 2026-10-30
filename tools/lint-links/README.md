@@ -51,11 +51,12 @@ The procedure is in [`docs/AGENTS.md`](../../docs/AGENTS.md#retire-rename-or-mer
 
 The base commit is chosen in this order: `LINT_LINKS_BASE`, if set. In GitHub Actions it is
 `HEAD^1`: a pull request is checked out as GitHub's merge commit, whose first parent is the base
-branch, and a push or merge group as the commit on top of it. That is why CI's Format job checks
+branch, and a push as the commit on top of it. That is why CI's Format job checks
 out with `fetch-depth: 2`, and a missing parent there is an error, never a skip. Locally it is the
 merge base with `origin/main`; without `origin/main` the rules are skipped with a warning. The
-Forgejo port (`tools/cli/scripts/forgejo-port`) sets `LINT_LINKS_BASE` to that merge base, because
-a run there checks out a pull request's head, not a merge commit.
+Forgejo port (`tools/cli/scripts/forgejo-port`) sets `LINT_LINKS_BASE` to that merge base for a pull
+request, because a run there checks out a pull request's head, not a merge commit, and to the
+commit before it for a push.
 
 ## Extending it
 

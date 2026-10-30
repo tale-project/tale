@@ -107,7 +107,6 @@ describe('E2E service scheduling', () => {
     'candidate, nightly and manual runs always execute every service without a PR diff',
     async () => {
       for (const event of [
-        'merge_group',
         'repository_dispatch',
         'schedule',
         'workflow_dispatch',

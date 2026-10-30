@@ -1,6 +1,6 @@
 /**
- * The rules that know a workflow or a job by name: the readiness job the merge
- * train reads, jobs and matrix rows that cannot run on the node, and the few
+ * The rules that know a workflow or a job by name: the readiness job a pull
+ * request waits for, jobs and matrix rows that cannot run on the node, and the few
  * lines of a script that must say something else on Forgejo.
  *
  * Each is anchored on something Tale already holds still (a job id its readiness
@@ -16,10 +16,9 @@ import { replaceText } from './actions';
 import {
   SKIPPED,
   learnRemoval,
-  type EventResults,
+  type JobResult,
   type PortContext,
   type Rule,
-  type Tier,
 } from './context';
 import { flowSequence } from './triggers';
 import {
@@ -39,99 +38,92 @@ function literal(text: string): Scalar {
   return node;
 }
 
-/** The pull request and the batch of the merge train are the two events a verdict is given for. */
-const READY_CONDITION =
-  "always() && (github.event_name == 'pull_request' || github.event_name == 'push')";
+/** A verdict is given for a pull request, as on GitHub. */
+const READY_CONDITION = "always() && github.event_name == 'pull_request'";
 
 const READY_STEP = 'Evaluate native workflow';
 
 /**
- * `CI ready (X)`: the one check the merge train reads. It runs after every other job
+ * `CI ready (X)`: the one check a pull request waits for. It runs after every other job
  * whatever their result and judges them with Tale's own policy (see ready.ts): a
  * checkout of the policy and one command, where GitHub's version needs its API.
  */
-export function readyJob(tier: Tier): Rule {
-  return (doc, context) => {
-    const job = jobOf(doc, 'ci-ready');
-    const name = job && stringOf(job.get('name'));
-    if (!job || name === undefined || !name.startsWith('CI ready (')) return;
-    const checkout = stepsOf(job)?.items.find(
-      (step) =>
-        isMap(step) &&
-        stringOf(step.get('uses'))?.startsWith('actions/checkout@'),
-    );
-    const pinned = isMap(checkout) ? checkout.get('uses', true) : undefined;
-    if (!(pinned instanceof Scalar)) {
-      context.report.warnings.push({
-        file: context.file,
-        at: 'jobs.ci-ready',
-        rule: 'ready',
-        detail: 'has no pinned checkout to copy: left as it is',
-      });
-      return;
-    }
-    const stem = context.file.replace(/\.ya?ml$/, '');
-    const verdict = new YAMLMap();
-    verdict.set('name', 'Checkout verdict policy');
-    verdict.set('uses', pinned.clone());
-    const withInputs = new YAMLMap();
-    withInputs.set('persist-credentials', false);
-    withInputs.set(
-      'sparse-checkout',
-      literal(
-        '/tools/cli/scripts/ci-ready.ts\n/tools/cli/scripts/forgejo-port/ready.ts\n',
-      ),
-    );
-    withInputs.set('sparse-checkout-cone-mode', false);
-    verdict.set('with', withInputs);
-
-    const evaluate = new YAMLMap();
-    evaluate.set('name', READY_STEP);
-    const env = new YAMLMap();
-    env.set('CI_WORKFLOW', stem);
-    env.set('CI_NEEDS', '${{ toJSON(needs) }}');
-    env.set('CI_TIER', tier);
-    env.set('CI_PORT_REMOVED', '');
-    evaluate.set('env', env);
-    evaluate.set('run', 'bun tools/cli/scripts/forgejo-port/ready.ts');
-
-    const others = jobIds(doc).filter((id) => id !== 'ci-ready');
-    const ready = new YAMLMap();
-    ready.set('name', name);
-    ready.set('needs', flowSequence(others));
-    ready.set('if', READY_CONDITION);
-    ready.set('runs-on', job.get('runs-on') ?? 'ubuntu-latest');
-    ready.set('timeout-minutes', job.get('timeout-minutes') ?? 3);
-    const steps = new YAMLSeq();
-    steps.add(verdict);
-    steps.add(evaluate);
-    ready.set('steps', steps);
-    jobsOf(doc).set('ci-ready', ready);
-    context.report.changes.push({
+export const readyJob: Rule = (doc, context) => {
+  const job = jobOf(doc, 'ci-ready');
+  const name = job && stringOf(job.get('name'));
+  if (!job || name === undefined || !name.startsWith('CI ready (')) return;
+  const checkout = stepsOf(job)?.items.find(
+    (step) =>
+      isMap(step) &&
+      stringOf(step.get('uses'))?.startsWith('actions/checkout@'),
+  );
+  const pinned = isMap(checkout) ? checkout.get('uses', true) : undefined;
+  if (!(pinned instanceof Scalar)) {
+    context.report.warnings.push({
       file: context.file,
       at: 'jobs.ci-ready',
       rule: 'ready',
-      detail:
-        "rewritten: one command judges the needs with Tale's readiness policy, for a pull request and for a batch alike",
+      detail: 'has no pinned checkout to copy: left as it is',
     });
-  };
-}
+    return;
+  }
+  const stem = context.file.replace(/\.ya?ml$/, '');
+  const verdict = new YAMLMap();
+  verdict.set('name', 'Checkout verdict policy');
+  verdict.set('uses', pinned.clone());
+  const withInputs = new YAMLMap();
+  withInputs.set('persist-credentials', false);
+  withInputs.set(
+    'sparse-checkout',
+    literal(
+      '/tools/cli/scripts/ci-ready.ts\n/tools/cli/scripts/forgejo-port/ready.ts\n',
+    ),
+  );
+  withInputs.set('sparse-checkout-cone-mode', false);
+  verdict.set('with', withInputs);
+
+  const evaluate = new YAMLMap();
+  evaluate.set('name', READY_STEP);
+  const env = new YAMLMap();
+  env.set('CI_WORKFLOW', stem);
+  env.set('CI_NEEDS', '${{ toJSON(needs) }}');
+  env.set('CI_PORT_REMOVED', '');
+  evaluate.set('env', env);
+  evaluate.set('run', 'bun tools/cli/scripts/forgejo-port/ready.ts');
+
+  const others = jobIds(doc).filter((id) => id !== 'ci-ready');
+  const ready = new YAMLMap();
+  ready.set('name', name);
+  ready.set('needs', flowSequence(others));
+  ready.set('if', READY_CONDITION);
+  ready.set('runs-on', job.get('runs-on') ?? 'ubuntu-latest');
+  ready.set('timeout-minutes', job.get('timeout-minutes') ?? 3);
+  const steps = new YAMLSeq();
+  steps.add(verdict);
+  steps.add(evaluate);
+  ready.set('steps', steps);
+  jobsOf(doc).set('ci-ready', ready);
+  context.report.changes.push({
+    file: context.file,
+    at: 'jobs.ci-ready',
+    rule: 'ready',
+    detail:
+      "rewritten: one command judges a pull request's needs with Tale's readiness policy",
+  });
+};
 
 /**
  * After folding: say which jobs of the GitHub workflow are gone and what each would have
- * reported, so the policy, which judges the GitHub workflow's jobs, finds them where it
- * expects them: skipped, or a scope job's success with its outputs.
+ * reported to a pull request, so the policy, which judges the GitHub workflow's jobs, finds
+ * them where it expects them: skipped, or a scope job's success with its outputs.
  */
 export const recordRemoved: Rule = (doc, context) => {
   const job = jobOf(doc, 'ci-ready');
   const steps = job && stepsOf(job);
   if (!steps) return;
-  const removed: Record<string, EventResults> = {};
+  const removed: Record<string, JobResult> = {};
   for (const id of [...context.removed.keys()].toSorted())
-    removed[id] = context.results.get(id) ?? {
-      pull_request: SKIPPED,
-      push: SKIPPED,
-    };
+    removed[id] = context.results.get(id) ?? SKIPPED;
   for (const step of steps.items) {
     if (!isMap(step) || stringOf(step.get('name')) !== READY_STEP) continue;
     const env = step.get('env');
@@ -200,42 +192,17 @@ export function dropForeignRows(labels: readonly string[]): Rule {
   };
 }
 
-/**
- * A batch is a new branch, so the push has no "before" to lint from: the last commit
- * only would be linted. The commits a batch adds are the ones since it left main.
- */
-export const commitlintBatch: Rule = (doc, context) => {
-  if (context.file !== 'commitlint.yml') return;
-  const from = 'bunx commitlint --last --verbose';
-  const to =
-    'bunx commitlint --from "$(git merge-base "$PUSH_SHA" origin/main)" --to "$PUSH_SHA" --verbose';
-  if (replaceText(doc, from, to) === 0)
-    context.report.warnings.push({
-      file: context.file,
-      at: 'jobs.commitlint',
-      rule: 'anchor',
-      detail: `the line \`${from}\` is gone: a batch's commits are no longer all linted`,
-    });
-  else
-    context.report.changes.push({
-      file: context.file,
-      at: 'jobs.commitlint',
-      rule: 'commitlint-batch',
-      detail:
-        'a push of a new branch lints every commit since main, not only the last',
-    });
-};
-
 const LINT_LINKS = 'bun run lint:links';
 
 /**
  * `lint:links` holds a change to the pages it retires by comparing the tree with the commit
  * the change branched from. Under GitHub Actions it takes `HEAD^1`, which is that commit only
  * because GitHub checks a pull request out as a merge commit whose first parent is the base
- * branch. Here a pull request is checked out as its own head and a batch is a branch of one
- * squash commit per pull request, so `HEAD^1` is the previous commit of the pull request or
- * of the batch: a page retired without a redirect in any earlier commit would never be seen.
- * The base is the merge base with main, which needs the history down to it.
+ * branch. Here a pull request is checked out as its own head, so `HEAD^1` is the previous
+ * commit of the pull request: a page retired without a redirect in any earlier commit would
+ * never be seen. A pull request's base is the merge base with main, which needs the history
+ * down to it. A push to main keeps the commit before it, as on GitHub: main's merge base with
+ * itself is the pushed commit, and a push compared with itself retires nothing.
  */
 export const lintLinksBase: Rule = (doc, context) => {
   if (context.file !== 'checks.yml') return;
@@ -256,9 +223,9 @@ export const lintLinksBase: Rule = (doc, context) => {
     if (!isMap(checkout)) break;
 
     const comment =
-      ' lint:links compares a change with the commit it branched from, the merge base with main:\n' +
-      ' a pull request is checked out as its own head here, and a batch is one commit per pull request,\n' +
-      ' so a page retired without a redirect in an earlier commit is only seen from the whole history.';
+      ' lint:links compares a pull request with the commit it branched from, the merge base with main,\n' +
+      ' and a push with the commit before it: a pull request is checked out as its own head here, not as\n' +
+      ' a merge commit, so a page one of its earlier commits retired is only seen from the whole history.';
     const existing = checkout.get('with');
     const inputs = isMap(existing) ? existing : new YAMLMap();
     if (!isMap(existing)) checkout.set('with', inputs);
@@ -273,7 +240,12 @@ export const lintLinksBase: Rule = (doc, context) => {
     lint.set(
       'run',
       literal(
-        `base="$(git merge-base HEAD origin/main)"\nLINT_LINKS_BASE="$base" ${LINT_LINKS}\n`,
+        'if [ "$GITHUB_EVENT_NAME" = pull_request ]; then\n' +
+          '  base="$(git merge-base HEAD origin/main)"\n' +
+          'else\n' +
+          '  base="$(git rev-parse HEAD^1)"\n' +
+          'fi\n' +
+          `LINT_LINKS_BASE="$base" ${LINT_LINKS}\n`,
       ),
     );
     report.changes.push({
@@ -281,7 +253,7 @@ export const lintLinksBase: Rule = (doc, context) => {
       at: `${at}.steps[${index}]`,
       rule: 'lint-links-base',
       detail:
-        'compares a change with the merge base with main: a pull request is checked out as its own head, not as a merge commit',
+        'compares a pull request with the merge base with main: it is checked out as its own head, not as a merge commit',
     });
     return;
   }
@@ -291,30 +263,6 @@ export const lintLinksBase: Rule = (doc, context) => {
     rule: 'anchor',
     detail: `the step \`run: ${LINT_LINKS}\` after a checkout is gone: a retired page may no longer be caught`,
   });
-};
-
-/**
- * Build's service matrix names a batch by its event, `merge_group`, to build everything for
- * it. A batch is a push here, and the only pushes the workflow has are batches.
- */
-export const batchEvent: Rule = (doc, context) => {
-  if (context.file !== 'build.yml') return;
-  const from = '[ "$EVENT_NAME" = merge_group ]';
-  const to = '[ "$EVENT_NAME" = push ]';
-  if (replaceText(doc, from, to) === 0)
-    context.report.warnings.push({
-      file: context.file,
-      at: 'jobs.changes',
-      rule: 'anchor',
-      detail: `the line \`${from}\` is gone: a batch may no longer build every service`,
-    });
-  else
-    context.report.changes.push({
-      file: context.file,
-      at: 'jobs.changes',
-      rule: 'batch-event',
-      detail: 'the service matrix tells a batch by its push, not a merge group',
-    });
 };
 
 /** Run URLs on Forgejo carry the run's number in the repository, not its database id. */

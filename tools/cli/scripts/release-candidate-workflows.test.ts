@@ -191,27 +191,25 @@ function admitted(
 }
 
 describe('ordinary CI source admission', () => {
-  test('terminal jobs still execute for failed, cancelled and skipped predecessors on PRs and merge groups', async () => {
+  test('terminal jobs still execute for failed, cancelled and skipped predecessors on PRs', async () => {
     for (const stem of callers) {
       const file = await workflow(stem);
-      for (const event of ['pull_request', 'merge_group']) {
-        const state = admission(file, stem, event);
-        for (const result of ['failure', 'cancelled', 'skipped', ''] as const) {
-          for (const job of Object.values(state.needs)) job.result = result;
-          state.cancelled = result === 'cancelled';
-          expect(
-            admitted(file.jobs['ci-ready']!, state, true),
-            `${stem}/${event}/${result}`,
-          ).toBe(true);
-        }
+      const state = admission(file, stem, 'pull_request');
+      for (const result of ['failure', 'cancelled', 'skipped', ''] as const) {
+        for (const job of Object.values(state.needs)) job.result = result;
+        state.cancelled = result === 'cancelled';
+        expect(
+          admitted(file.jobs['ci-ready']!, state, true),
+          `${stem}/${result}`,
+        ).toBe(true);
       }
-      expect(
-        admitted(
-          file.jobs['ci-ready']!,
-          admission(file, stem, 'repository_dispatch'),
-          true,
-        ),
-      ).toBe(false);
+      for (const event of Object.keys(file.on).filter(
+        (name) => name !== 'pull_request',
+      ))
+        expect(
+          admitted(file.jobs['ci-ready']!, admission(file, stem, event), true),
+          `${stem}/${event}`,
+        ).toBe(false);
     }
   });
 
@@ -237,7 +235,9 @@ describe('ordinary CI source admission', () => {
           state.needs['pr-scope']!.result = result;
           expect(admitted(file.jobs[id]!, state, true)).toBe(false);
         }
-        for (const event of ['merge_group', 'repository_dispatch']) {
+        for (const event of Object.keys(file.on).filter(
+          (name) => name !== 'pull_request',
+        )) {
           const complete = admission(file, stem, event);
           complete.needs['pr-scope']!.result = 'skipped';
           complete.needs['pr-scope']!.outputs = {};
@@ -256,11 +256,7 @@ describe('ordinary CI source admission', () => {
       'scope',
     ]);
     expect(file.jobs.e2e!.needs).toEqual(['candidate-source', 'build']);
-    for (const event of [
-      'pull_request',
-      'merge_group',
-      'repository_dispatch',
-    ]) {
+    for (const event of ['pull_request', 'repository_dispatch']) {
       for (const result of ['failure', 'cancelled', 'skipped', ''] as const) {
         const state = admission(file, 'e2e', event);
         state.needs.scope!.result = result;
@@ -535,7 +531,6 @@ describe('ordinary CI source admission', () => {
     for (const event of [
       'push',
       'pull_request',
-      'merge_group',
       'repository_dispatch',
       'workflow_dispatch',
     ]) {
@@ -941,42 +936,6 @@ PUSH_BEFORE="$PUSH_SHA"
       CANDIDATE_SHA: C,
     });
     expect(missing.code).not.toBe(0);
-  },
-);
-
-test.skipIf(process.platform === 'win32')(
-  'merge-group commitlint validates its actual source range, never a synthetic last commit',
-  async () => {
-    const step = (await workflow('commitlint')).jobs.commitlint?.steps?.find(
-      (entry) => entry.name === 'Run commitlint',
-    );
-    expect(step?.env?.GROUP_BASE).toBe(
-      '${{ github.event.merge_group.base_sha }}',
-    );
-    expect(step?.env?.GROUP_HEAD).toBe(
-      '${{ github.event.merge_group.head_sha }}',
-    );
-    const environment = {
-      EVENT_NAME: 'merge_group',
-      GROUP_BASE: C,
-      GROUP_HEAD: H,
-      PUSH_SHA: H,
-    };
-    const valid = await execute(step!.run!, environment);
-    expect(valid.code, valid.stderr).toBe(0);
-    expect(valid.output).toBe(
-      `args=commitlint --from ${C} --to ${H} --verbose\n`,
-    );
-    for (const override of [
-      { GROUP_BASE: '' },
-      { GROUP_HEAD: '' },
-      { GROUP_HEAD: 'main' },
-      { PUSH_SHA: C },
-    ]) {
-      const result = await execute(step!.run!, { ...environment, ...override });
-      expect(result.code).not.toBe(0);
-      expect(result.output).toBe('');
-    }
   },
 );
 

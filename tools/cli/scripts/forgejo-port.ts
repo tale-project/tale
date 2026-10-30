@@ -5,7 +5,7 @@
  *   bun tools/cli/scripts/forgejo-port.ts report            what the port does to each file
  *   bun tools/cli/scripts/forgejo-port.ts check             port in memory and fail on a problem, a rule that found nothing to change, a local action left as GitHub's, or a README that lacks a mirror
  *   bun tools/cli/scripts/forgejo-port.ts generate [--write [--force]] the files of `.forgejo/` (the cut-over)
- *   bun tools/cli/scripts/forgejo-port.ts checks [--write]  the checks the merge train declares
+ *   bun tools/cli/scripts/forgejo-port.ts checks [--write]  the checks a pull request waits for
  *   bun tools/cli/scripts/forgejo-port.ts github [--write]  the edits GitHub's copies of the workflows that stay need
  *
  * `--root <dir>` names the repository (default: the checkout this file is in), `--out <dir>`
@@ -43,7 +43,7 @@ import { planGithubEdits } from './forgejo-port/github-edits';
 import { MANIFEST, type Manifest } from './forgejo-port/manifest';
 import type { Problem } from './forgejo-port/validate';
 
-/** The checks the merge train waits for, as the port generates them. */
+/** The checks a pull request waits for, as the port generates them. */
 export const DECLARED_CHECKS =
   'tools/cli/scripts/forgejo-port/declared-checks.yml';
 
@@ -115,7 +115,7 @@ export function describe(generated: Generated): string[] {
     if (plan.kind === 'port') {
       const gone = [...outcome.removed.keys()];
       lines.push(
-        `  ${outcome.file}: ported; a pull request owes ${outcome.tier === 'fast' ? 'the fast tier' : 'what a batch owes'}; on ${outcome.events.join(', ') || 'nothing'}; ${outcome.jobs.length} jobs` +
+        `  ${outcome.file}: ported; on ${outcome.events.join(', ') || 'nothing'}; ${outcome.jobs.length} jobs` +
           (gone.length > 0
             ? `, ${gone.length} removed (${gone.join(', ')})`
             : ''),
@@ -129,7 +129,7 @@ export function describe(generated: Generated): string[] {
       lines.push(`  ${outcome.file}: ${plan.kind}; ${plan.why}`);
     }
   }
-  lines.push('', 'Checks the merge train declares');
+  lines.push('', 'Checks a pull request waits for');
   for (const check of generated.checks) lines.push(`  ${check}`);
   lines.push('', 'Actions the node mirrors');
   for (const [name, refs] of generated.actions)
@@ -190,9 +190,9 @@ export function writeGenerated(
   for (const path of stale) rmSync(join(out, path), { force: true });
 }
 
-const CHECKS_HEADER = `# The checks the merge train waits for on tale/tale, one per workflow: the
-# readiness job of each ported workflow, as Forgejo names its status. The ops
-# repository declares them in deployments/tale/merge-train/pr/repositories.yml.
+const CHECKS_HEADER = `# The checks a pull request into main waits for on tale/tale, one per workflow:
+# the readiness job of each ported workflow, as Forgejo names its status. The ops
+# repository declares them as the checks Forgejo's protection of main requires.
 # Generated: bun tools/cli/scripts/forgejo-port.ts checks --write
 `;
 
@@ -267,7 +267,7 @@ const CHECKED_WARNINGS: ReadonlySet<string> = new Set([
  * A rule of the port finds the text it changes by what the workflow says. When that text is
  * gone the rule leaves the file as it is and says so as an `anchor` warning, which the unit
  * tests only print: the generated file then keeps what the rule exists to change (a retired
- * page that goes unseen, a batch that lints one commit). A local action the port does not
+ * page that goes unseen, a publisher that pushes to GitHub). A local action the port does not
  * generate is left as a call to the GitHub copy, which the port itself calls GitHub-only
  * (`local-action-unported`). `check`, the first step of the cut-over, fails on each.
  */
@@ -315,7 +315,6 @@ const OPTIONS = {
   root: { type: 'string' },
   out: { type: 'string' },
   runner: { type: 'string' },
-  tier: { type: 'string' },
   write: { type: 'boolean' },
   force: { type: 'boolean' },
 } as const;
@@ -333,7 +332,7 @@ function parseCommandLine(argv: readonly string[]) {
 export function main(
   argv: readonly string[],
   io: Io,
-  declared: Manifest = MANIFEST,
+  manifest: Manifest = MANIFEST,
 ): number {
   let parsed: ReturnType<typeof parseCommandLine>;
   try {
@@ -343,12 +342,6 @@ export function main(
     return 2;
   }
   const { command } = parsed;
-  const tier = parsed.values.tier ?? declared.tier;
-  if (tier !== 'fast' && tier !== 'full') {
-    io.err(`--tier is fast or full, not ${tier}`);
-    return 2;
-  }
-  const manifest: Manifest = { ...declared, tier };
   if (parsed.extra !== undefined) {
     io.err(`unexpected argument ${parsed.extra}`);
     return 2;

@@ -11,8 +11,6 @@ import type { Rule } from './context';
 import { portWorkflow } from './port';
 import { emptyReport } from './workflow';
 import {
-  batchEvent,
-  commitlintBatch,
   dropForeignRows,
   dropJobs,
   githubApiToken,
@@ -42,7 +40,7 @@ function run(
 describe('readyJob', () => {
   const SOURCE = `name: Checks
 on:
-  merge_group:
+  push:
   pull_request:
 jobs:
   candidate-source:
@@ -55,7 +53,7 @@ jobs:
       - run: echo lint
   ci-ready:
     name: CI ready (Checks)
-    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    if: always() && github.event_name == 'pull_request'
     needs: [candidate-source, lint]
     runs-on: ubuntu-latest
     timeout-minutes: 3
@@ -77,17 +75,17 @@ jobs:
           jobs: \${{ toJSON(needs) }}
 `;
 
-  test("judges the needs with Tale's policy, for a pull request and for a batch", () => {
-    const { text, jobs } = run(SOURCE, [readyJob('fast')], 'checks.yml', [
+  test("judges a pull request's needs with Tale's policy", () => {
+    const { text, jobs } = run(SOURCE, [readyJob], 'checks.yml', [
       recordRemoved,
     ]);
     expect(jobs).toEqual(['lint', 'ci-ready']);
     expect(text).toContain(
-      "if: always() && (github.event_name == 'pull_request' || github.event_name == 'push')",
+      "if: always() && github.event_name == 'pull_request'",
     );
     expect(text).toContain('needs: [lint]');
     expect(text).toContain('CI_WORKFLOW: checks');
-    expect(text).toContain('CI_TIER: fast');
+    expect(text).not.toContain('CI_TIER');
     expect(text).toContain('CI_NEEDS: ${{ toJSON(needs) }}');
     expect(text).toContain('run: bun tools/cli/scripts/forgejo-port/ready.ts');
     expect(text).toContain(`uses: actions/checkout@${SHA} # v6`);
@@ -95,16 +93,11 @@ jobs:
     expect(text).not.toContain('ci-ready/action.yml');
   });
 
-  test('says which jobs of the GitHub workflow are gone, and what each would have reported', () => {
-    const { text } = run(SOURCE, [readyJob('fast')], 'checks.yml', [
-      recordRemoved,
-    ]);
+  test('says which jobs of the GitHub workflow are gone, and what each would have reported to a pull request', () => {
+    const { text } = run(SOURCE, [readyJob], 'checks.yml', [recordRemoved]);
     const recorded = /CI_PORT_REMOVED: \|\n([\s\S]*?)\n\s*run:/.exec(text);
     expect(JSON.parse(recorded?.[1] ?? 'null')).toEqual({
-      'candidate-source': {
-        pull_request: { result: 'skipped', outputs: {} },
-        push: { result: 'skipped', outputs: {} },
-      },
+      'candidate-source': { result: 'skipped', outputs: {} },
     });
   });
 
@@ -119,13 +112,13 @@ jobs:
     steps:
       - run: echo
 `;
-    expect(run(odd, [readyJob('fast')]).text).toContain('Something else');
+    expect(run(odd, [readyJob]).text).toContain('Something else');
     const noCheckout = SOURCE.replace(
       / {6}- name: Checkout verdict policy[\s\S]*?cone-mode: false\n/,
       '',
     );
     expect(
-      run(noCheckout, [readyJob('fast')], 'checks.yml').report.warnings.map(
+      run(noCheckout, [readyJob], 'checks.yml').report.warnings.map(
         (w) => w.rule,
       ),
     ).toEqual(['ready']);
@@ -207,43 +200,6 @@ jobs:
   });
 });
 
-describe('commitlintBatch', () => {
-  const SCRIPT = `name: Commitlint
-on:
-  pull_request:
-jobs:
-  commitlint:
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          if [ -z "$PUSH_BEFORE" ]; then
-            bunx commitlint --last --verbose
-          fi
-`;
-
-  test('lints every commit of a batch, not the last one', () => {
-    const { text } = run(SCRIPT, [commitlintBatch], 'commitlint.yml');
-    expect(text).toContain(
-      'bunx commitlint --from "$(git merge-base "$PUSH_SHA" origin/main)" --to "$PUSH_SHA" --verbose',
-    );
-    expect(text).not.toContain('--last');
-  });
-
-  test('says when the line it anchors on is gone, and only touches commitlint.yml', () => {
-    const gone = run(
-      SCRIPT.replace('--last', '--changed'),
-      [commitlintBatch],
-      'commitlint.yml',
-    );
-    expect(gone.report.warnings.map((warning) => warning.rule)).toEqual([
-      'anchor',
-    ]);
-    expect(run(SCRIPT, [commitlintBatch], 'other.yml').text).toContain(
-      '--last',
-    );
-  });
-});
-
 describe('lintLinksBase', () => {
   const SOURCE = `name: Checks
 on:
@@ -313,39 +269,47 @@ jobs:
     return { work, env, git, commit };
   }
 
-  test('compares a change with the merge base with main, with the history to find it', () => {
+  test('compares a pull request with the merge base with main, with the history to find it', () => {
     const { text, report } = run(SOURCE, [lintLinksBase], 'checks.yml');
     expect(text).toContain('fetch-depth: 0');
     expect(text).not.toContain('fetch-depth: 2');
-    expect(text).not.toContain('HEAD^1');
+    expect(text).not.toContain('compares a change with HEAD^1');
+    expect(text).toContain('if [ "$GITHUB_EVENT_NAME" = pull_request ]; then');
     expect(text).toContain('LINT_LINKS_BASE="$base" bun run lint:links');
     expect(report.changes.map((change) => change.rule)).toEqual([
       'lint-links-base',
     ]);
   });
 
-  test('gives the commit a pull request of two commits, or a batch of two, branched from', () => {
+  /** What the step runs, with lint:links itself replaced by what it would be given. */
+  function probe(): string {
     const { text } = run(SOURCE, [lintLinksBase], 'checks.yml');
     const steps = (
       parse(text) as { jobs: { format: { steps: { run?: string }[] } } }
     ).jobs.format.steps;
     const script = steps[1]?.run ?? '';
-    // What the step runs, with lint:links itself replaced by what it would be given.
-    const probe = script.replace(
+    const probed = script.replace(
       'bun run lint:links',
       `sh -c 'printf %s "$LINT_LINKS_BASE"'`,
     );
-    expect(probe).not.toBe(script);
+    expect(probed).not.toBe(script);
+    return probed;
+  }
 
+  test('gives a pull request of two commits the commit it branched from', () => {
     const { work, env, git, commit } = repository();
     const main = commit('main.txt');
     git('update-ref', 'refs/remotes/origin/main', main);
     git('checkout', '--quiet', '-b', 'change');
     const first = commit('first.txt');
     commit('second.txt');
-    const result = spawnSync('bash', ['-e', '-c', probe], {
+    const result = spawnSync('bash', ['-e', '-c', probe()], {
       cwd: work,
-      env: { ...env, GITHUB_ACTIONS: 'true' },
+      env: {
+        ...env,
+        GITHUB_ACTIONS: 'true',
+        GITHUB_EVENT_NAME: 'pull_request',
+      },
       encoding: 'utf8',
     });
     expect(result.status).toBe(0);
@@ -354,20 +318,43 @@ jobs:
     expect(result.stdout).toBe(main);
   });
 
-  test('fails the step when there is no merge base to compare with', () => {
+  test('gives a push to main the commit before it, as GitHub does', () => {
+    const { work, env, git, commit } = repository();
+    const before = commit('main.txt');
+    const pushed = commit('retires-a-page.txt');
+    git('update-ref', 'refs/remotes/origin/main', pushed);
+    const result = spawnSync('bash', ['-e', '-c', probe()], {
+      cwd: work,
+      env: { ...env, GITHUB_ACTIONS: 'true', GITHUB_EVENT_NAME: 'push' },
+      encoding: 'utf8',
+    });
+    expect(result.status).toBe(0);
+    // The merge base of main with itself is the pushed commit, which retires nothing.
+    expect(git('merge-base', 'HEAD', 'origin/main')).toBe(pushed);
+    expect(result.stdout).toBe(before);
+  });
+
+  test('fails the step when there is no base to compare with', () => {
     const { text } = run(SOURCE, [lintLinksBase], 'checks.yml');
     const script =
       (parse(text) as { jobs: { format: { steps: { run?: string }[] } } }).jobs
         .format.steps[1]?.run ?? '';
     const { work, env, commit } = repository();
     commit('main.txt');
-    const result = spawnSync(
-      'bash',
-      ['-e', '-c', script.replace('bun run lint:links', 'echo ran')],
-      { cwd: work, env, encoding: 'utf8' },
-    );
-    expect(result.status).not.toBe(0);
-    expect(result.stdout).not.toContain('ran');
+    // A pull request without main to branch from, and a push without a commit before it.
+    for (const event of ['pull_request', 'push']) {
+      const result = spawnSync(
+        'bash',
+        ['-e', '-c', script.replace('bun run lint:links', 'echo ran')],
+        {
+          cwd: work,
+          env: { ...env, GITHUB_EVENT_NAME: event },
+          encoding: 'utf8',
+        },
+      );
+      expect(result.status, event).not.toBe(0);
+      expect(result.stdout, event).not.toContain('ran');
+    }
   });
 
   test('adds the history and the base where the checkout has no inputs, and says when the step is gone', () => {
@@ -507,36 +494,6 @@ describe('small text rules', () => {
     expect(text).toContain('/actions/runs/${{ github.run_number }}');
   });
 
-  test('the service matrix tells a batch by its push', () => {
-    const source = `name: Build
-on:
-  pull_request:
-jobs:
-  changes:
-    runs-on: ubuntu-latest
-    steps:
-      - run: |
-          if [ -n "$CANDIDATE_SHA" ] || [ "$EVENT_NAME" = merge_group ] || [ "$FULL_SCOPE" = true ]; then
-            echo all
-          fi
-`;
-    const { text, report } = run(source, [batchEvent], 'build.yml');
-    expect(text).toContain('[ "$EVENT_NAME" = push ]');
-    expect(text).not.toContain('merge_group');
-    expect(report.changes.map((change) => change.rule)).toEqual([
-      'batch-event',
-    ]);
-    // another workflow's script is not touched, and a moved anchor is said
-    expect(run(source, [batchEvent], 'e2e.yml').text).toContain('merge_group');
-    expect(
-      run(
-        source.replace('= merge_group', '= merge'),
-        [batchEvent],
-        'build.yml',
-      ).report.warnings.map((warning) => warning.rule),
-    ).toEqual(['anchor']);
-  });
-
   test('a build that feeds the release feed takes a GitHub token, a publisher keeps the job token', () => {
     const source = `name: B
 on:
@@ -575,7 +532,7 @@ jobs:
 describe('buildCache', () => {
   const BUILD = `name: Build
 on:
-  merge_group:
+  push:
   pull_request:
 jobs:
   build:
@@ -598,14 +555,14 @@ jobs:
           cache-from: type=gha,scope=db
 `;
 
-  test('keeps the registry cache the build already reads and writes it for the merge train only', () => {
+  test('keeps the registry cache the build already reads and writes it from main only', () => {
     const { text } = run(BUILD, [buildCache]);
     expect(text).not.toContain('type=gha');
     expect(text).toContain(
       'type=registry,ref=${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}-buildcache:amd64',
     );
     expect(text).toContain(
-      "cache-to: ${{ github.event_name == 'push' && format('type=registry,ref={0}/{1}/tale-{2}-buildcache:amd64,mode=max,ignore-error=true,compression=zstd', env.REGISTRY, github.repository, matrix.service) || '' }}",
+      "cache-to: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && format('type=registry,ref={0}/{1}/tale-{2}-buildcache:amd64,mode=max,ignore-error=true,compression=zstd', env.REGISTRY, github.repository, matrix.service) || '' }}",
     );
   });
 

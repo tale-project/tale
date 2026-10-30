@@ -159,8 +159,8 @@ bun run --filter @tale/platform backend:integration
 ```
 
 CI runs the second command in the **Backend integration** check
-(`.github/workflows/checks.yml`): on every push to `main`, merge group and release
-candidate, and on every pull request that touches the backend, its libraries,
+(`.github/workflows/checks.yml`): on every push to `main` and release candidate,
+and on every pull request that touches the backend, its libraries,
 either database's migrations, `services/db`, the object-store pin, the
 dependencies or the workflow. It builds `tale-db` from the commit's own
 `services/db`, starts the object store the CLI pins

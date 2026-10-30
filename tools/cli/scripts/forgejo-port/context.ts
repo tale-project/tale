@@ -7,7 +7,7 @@
 import type { Document } from 'yaml';
 
 import type { Conditional, Facts, Scalar } from './expression';
-import type { JobResult, RemovedJob } from './ready';
+import type { JobResult } from './ready';
 import type { Report } from './workflow';
 
 /** What is known about a workflow while it is ported; rules add to it. */
@@ -18,10 +18,8 @@ export interface Knowledge {
   readonly absent: string[];
   /** The strings a context path can be: the events the generated workflow has. */
   readonly oneOf: Map<string, string[]>;
-  /** Context paths whose value depends on the event: a scope output is 'false' for a pull request. */
+  /** Context paths whose value depends on the event: a scope job is 'skipped' for a push. */
   readonly conditional: Map<string, Conditional>;
-  /** Strings that mean another when a path is compared with them: a batch is a push. */
-  readonly aliases: Map<string, Map<string, string>>;
   /** What holds inside one job only, by job id: the size of its matrix, what its own steps report. */
   readonly jobs: Map<string, JobKnowledge>;
 }
@@ -39,7 +37,6 @@ export function newKnowledge(): Knowledge {
     absent: [],
     oneOf: new Map(),
     conditional: new Map(),
-    aliases: new Map(),
     jobs: new Map(),
   };
 }
@@ -50,7 +47,6 @@ export function factsOf(knowledge: Knowledge): Facts {
     absent: knowledge.absent,
     oneOf: knowledge.oneOf,
     conditional: knowledge.conditional,
-    aliases: knowledge.aliases,
   };
 }
 
@@ -81,10 +77,7 @@ export function jobKnowledge(knowledge: Knowledge, id: string): JobKnowledge {
   return made;
 }
 
-export type { JobResult, Tier } from './ready';
-
-/** What a job would have reported to the jobs that need it, by the kind of run. */
-export type EventResults = RemovedJob;
+export type { JobResult } from './ready';
 
 export const SKIPPED: JobResult = { result: 'skipped', outputs: {} };
 
@@ -96,11 +89,11 @@ export interface PortContext {
   /** The jobs removed so far, with why. */
   readonly removed: Map<string, string>;
   /**
-   * What a removed job would have reported, where it is not simply skipped: the readiness
-   * policy judges the GitHub workflow's jobs, so a scope job that ran on a pull request
-   * and was folded away is handed its result and outputs back.
+   * What a removed job would have reported to a pull request, where it is not simply
+   * skipped: the readiness policy judges the GitHub workflow's jobs, so a scope job that
+   * ran on a pull request and was folded away is handed its result and outputs back.
    */
-  readonly results: Map<string, EventResults>;
+  readonly results: Map<string, JobResult>;
 }
 
 /** A rule changes the document, and may teach the pipeline something. */

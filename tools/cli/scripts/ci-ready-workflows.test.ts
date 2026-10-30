@@ -78,9 +78,7 @@ describe('eight complete native merge gates', () => {
         /^CI ready \((Checks|Commitlint|SAST|Security|CLI|E2E|Build|Sandbox Incus E2E)\)$/,
       );
       names.push(gate.name);
-      expect(gate.if).toBe(
-        "always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')",
-      );
+      expect(gate.if).toBe("always() && github.event_name == 'pull_request'");
       expect([gate.needs].flat().toSorted()).toEqual(
         Object.keys(file.jobs)
           .filter((id) => id !== 'ci-ready')
@@ -100,7 +98,6 @@ describe('eight complete native merge gates', () => {
       });
       expect(file.on.pull_request?.paths).toBeUndefined();
       expect(file.on.pull_request?.types).toContain('ready_for_review');
-      expect(Object.hasOwn(file.on, 'merge_group')).toBe(true);
       if (stem === 'sandbox-incus-e2e') {
         // No release workflow: a release candidate never runs it.
         expect(CANDIDATE_JOBS[stem]).toBeUndefined();
@@ -750,7 +747,7 @@ describe('actual scope action boundaries', () => {
         await execute(
           decide,
           {},
-          'merge_group',
+          'schedule',
           { SCOPE_FILTER: 'e2e', SCOPE_FULL: 'true' },
           null,
         )
@@ -837,7 +834,7 @@ describe('actual scope action boundaries', () => {
     ).rejects.toThrow();
   });
 
-  test('preflight freezes only identity data and handles PR/merge-group/candidate events', async () => {
+  test('preflight freezes only identity data and handles PR, candidate and other events', async () => {
     const before = (await actions('ci-scope'))[0]!;
     const current = { ...pr(), body: 'not part of the scope identity' };
     const result = await execute(
@@ -855,7 +852,6 @@ describe('actual scope action boundaries', () => {
       changed_files: 2,
     });
     for (const event of [
-      'merge_group',
       'repository_dispatch',
       'push',
       'schedule',
@@ -926,15 +922,8 @@ describe('actual scope action boundaries', () => {
       ),
     ).rejects.toThrow();
     expect(
-      (
-        await execute(
-          decide,
-          {},
-          'merge_group',
-          { ...env, SCOPE_FULL: 'true' },
-          null,
-        )
-      ).outputs,
+      (await execute(decide, {}, 'push', { ...env, SCOPE_FULL: 'true' }, null))
+        .outputs,
     ).toEqual({ run: 'true', full: 'true' });
   });
 });

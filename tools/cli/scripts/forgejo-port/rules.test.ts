@@ -158,7 +158,7 @@ describe('the pipeline', () => {
   test('folds what an empty job output decides', () => {
     const { text } = port(`name: Build
 on:
-  merge_group:
+  push:
   repository_dispatch:
     types: [release-candidate]
   pull_request:

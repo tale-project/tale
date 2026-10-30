@@ -677,7 +677,6 @@ describe('Checks execution optimizations', () => {
         for (const event of [
           'push',
           'pull_request',
-          'merge_group',
           'workflow_dispatch',
           'repository_dispatch',
         ]) {

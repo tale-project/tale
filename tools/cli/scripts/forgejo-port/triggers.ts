@@ -2,12 +2,10 @@
  * The `on:` block of a ported workflow.
  *
  * Forgejo fires `push`, `pull_request`, `schedule`, `workflow_dispatch`, `release`
- * and a handful more. It never fires `merge_group`, `repository_dispatch`,
- * `workflow_run` or `branch_protection_rule`, and a workflow that lists them is
- * accepted without a word and simply never runs on them. So the generated file
- * says what it will really do: those events are gone, and a workflow that GitHub
- * validated in its merge queue is validated on Forgejo by the merge train, whose
- * batches are pushes to `mq/**`.
+ * and a handful more. It never fires `repository_dispatch`, `workflow_run` or
+ * `branch_protection_rule`, and a workflow that lists them is accepted without a
+ * word and simply never runs on them. So the generated file says what it will
+ * really do: those events are gone, and the rest are carried over as GitHub has them.
  */
 
 import { Scalar, YAMLMap, YAMLSeq, isMap, isSeq } from 'yaml';
@@ -23,7 +21,6 @@ import {
 
 /** Events GitHub fires and Forgejo 15 never does: a trigger on one is dead. */
 export const NEVER_FIRED = [
-  'merge_group',
   'repository_dispatch',
   'workflow_run',
   'branch_protection_rule',
@@ -41,9 +38,6 @@ const UNSUPPORTED_PULL_REQUEST_TYPES = [
   'unlocked',
 ] as const;
 
-/** The branches the merge train pushes a batch to (tools/merge-train: `mq/<batch>-<attempt>`). */
-const TRAIN_BRANCHES = 'mq/**';
-
 export interface TriggerOptions {
   readonly file: string;
   /** Events the workflow has on GitHub and does not have here, with why. */
@@ -51,15 +45,11 @@ export interface TriggerOptions {
     readonly name: string;
     readonly why: string;
   }[];
-  /** Whether the workflow keeps running for a push to the default branch, as a publisher does. */
-  readonly keepMainPush?: boolean;
 }
 
 export interface TriggerResult {
   /** The events the generated workflow is triggered by: what `github.event_name` can be. */
   readonly events: readonly string[];
-  /** Whether the workflow was validated by GitHub's merge queue. */
-  readonly validatedInQueue: boolean;
 }
 
 /** A flow sequence of branch names; a glob is quoted, since `*` is YAML's alias sign. */
@@ -108,7 +98,6 @@ export function rewriteTriggers(
     report.changes.push(change);
   };
 
-  const validatedInQueue = events.has('merge_group');
   for (const name of NEVER_FIRED) {
     if (events.delete(name))
       note('trigger-dead', `removed \`${name}\`: Forgejo never fires it`);
@@ -135,28 +124,6 @@ export function rewriteTriggers(
     }
   }
 
-  if (validatedInQueue) {
-    const existing = events.get('push');
-    const push = isMap(existing) ? existing : new YAMLMap();
-    const branches = options.keepMainPush
-      ? ['main', TRAIN_BRANCHES]
-      : [TRAIN_BRANCHES];
-    const before = isMap(existing) ? JSON.stringify(existing.toJSON()) : 'none';
-    // A batch is a branch that did not exist a moment ago: `paths` has no files to compare.
-    push.delete('paths');
-    push.delete('paths-ignore');
-    push.delete('branches-ignore');
-    if (!options.keepMainPush) push.delete('tags');
-    push.set('branches', flowSequence(branches));
-    events.set('push', push);
-    const after = JSON.stringify(push.toJSON());
-    if (before !== after)
-      note(
-        'trigger-train',
-        `\`push\` now runs for ${branches.map((b) => `\`${b}\``).join(' and ')}, the merge train's batches${options.keepMainPush ? ' and the default branch' : ''}`,
-      );
-  }
-
   for (const { name, why } of options.dropEvents ?? []) {
     if (events.delete(name))
       note('trigger-dropped', `removed \`${name}\`: ${why}`);
@@ -179,5 +146,5 @@ export function rewriteTriggers(
     const name = stringOf(pair.key);
     return name === undefined ? [] : [name];
   });
-  return { events: names, validatedInQueue };
+  return { events: names };
 }

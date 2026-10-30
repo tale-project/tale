@@ -302,7 +302,6 @@ function withFacts(
         ...(context.facts.conditional ?? []),
         ...(extra.conditional ?? []),
       ]),
-      aliases: context.facts.aliases,
     },
   };
 }

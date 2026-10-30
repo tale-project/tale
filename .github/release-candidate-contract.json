@@ -185,8 +185,7 @@
             },
             "push": {
               "branches": ["main"]
-            },
-            "merge_group": null
+            }
           }
         },
         {
@@ -834,7 +833,7 @@
         {
           "path": ["jobs", "ci-ready", "if"],
           "kind": "value",
-          "expected": "always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')"
+          "expected": "always() && github.event_name == 'pull_request'"
         },
         {
           "path": ["jobs", "ci-ready", "name"],
@@ -2529,9 +2528,6 @@
           "path": ["on"],
           "kind": "value",
           "expected": {
-            "merge_group": {
-              "types": ["checks_requested"]
-            },
             "repository_dispatch": {
               "types": ["release-candidate"]
             },
@@ -2656,7 +2652,7 @@
         {
           "path": ["jobs", "ci-ready", "if"],
           "kind": "value",
-          "expected": "always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')"
+          "expected": "always() && github.event_name == 'pull_request'"
         },
         {
           "path": ["jobs", "ci-ready", "name"],
@@ -3006,9 +3002,6 @@
           "path": ["on"],
           "kind": "value",
           "expected": {
-            "merge_group": {
-              "types": ["checks_requested"]
-            },
             "repository_dispatch": {
               "types": ["release-candidate"]
             },
@@ -3131,7 +3124,7 @@
         {
           "path": ["jobs", "ci-ready", "if"],
           "kind": "value",
-          "expected": "always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')"
+          "expected": "always() && github.event_name == 'pull_request'"
         },
         {
           "path": ["jobs", "ci-ready", "name"],
@@ -3297,8 +3290,6 @@
           "expected": {
             "EVENT_NAME": "${{ github.event_name }}",
             "CANDIDATE_SHA": "${{ needs.candidate-source.outputs.candidate_sha }}",
-            "GROUP_BASE": "${{ github.event.merge_group.base_sha }}",
-            "GROUP_HEAD": "${{ github.event.merge_group.head_sha }}",
             "PR_BASE": "${{ github.event.pull_request.base.sha }}",
             "PR_HEAD": "${{ github.event.pull_request.head.sha }}",
             "PUSH_BEFORE": "${{ github.event.before }}",
@@ -3341,9 +3332,6 @@
           "path": ["on"],
           "kind": "value",
           "expected": {
-            "merge_group": {
-              "types": ["checks_requested"]
-            },
             "repository_dispatch": {
               "types": ["release-candidate"]
             },
@@ -3605,7 +3593,7 @@
         {
           "path": ["jobs", "ci-ready", "if"],
           "kind": "value",
-          "expected": "always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')"
+          "expected": "always() && github.event_name == 'pull_request'"
         },
         {
           "path": ["jobs", "ci-ready", "name"],
@@ -4476,9 +4464,6 @@
           "path": ["on"],
           "kind": "value",
           "expected": {
-            "merge_group": {
-              "types": ["checks_requested"]
-            },
             "repository_dispatch": {
               "types": ["release-candidate"]
             },
@@ -5084,7 +5069,7 @@
         {
           "path": ["jobs", "ci-ready", "if"],
           "kind": "value",
-          "expected": "always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')"
+          "expected": "always() && github.event_name == 'pull_request'"
         },
         {
           "path": ["jobs", "ci-ready", "name"],
@@ -5492,9 +5477,6 @@
           "path": ["on"],
           "kind": "value",
           "expected": {
-            "merge_group": {
-              "types": ["checks_requested"]
-            },
             "repository_dispatch": {
               "types": ["release-candidate"]
             },
@@ -5761,7 +5743,7 @@
         {
           "path": ["jobs", "ci-ready", "if"],
           "kind": "value",
-          "expected": "always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')"
+          "expected": "always() && github.event_name == 'pull_request'"
         },
         {
           "path": ["jobs", "ci-ready", "name"],

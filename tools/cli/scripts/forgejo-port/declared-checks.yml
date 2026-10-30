@@ -1,6 +1,6 @@
-# The checks the merge train waits for on tale/tale, one per workflow: the
-# readiness job of each ported workflow, as Forgejo names its status. The ops
-# repository declares them in deployments/tale/merge-train/pr/repositories.yml.
+# The checks a pull request into main waits for on tale/tale, one per workflow:
+# the readiness job of each ported workflow, as Forgejo names its status. The ops
+# repository declares them as the checks Forgejo's protection of main requires.
 # Generated: bun tools/cli/scripts/forgejo-port.ts checks --write
 - Build / CI ready (Build)
 - CLI / CI ready (CLI)

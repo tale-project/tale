@@ -70,19 +70,12 @@ export function portWorkflow(
 
   const triggers = rewriteTriggers(doc, { file, ...options.triggers }, report);
   knowledge.oneOf.set('github.event_name', [...triggers.events]);
-  // A batch of the merge train is a push here: what GitHub asks of a merge group, a run asks
-  // of its push, and the only pushes the workflow has are the batches.
-  if (triggers.validatedInQueue)
-    knowledge.aliases.set(
-      'github.event_name',
-      new Map([['merge_group', 'push']]),
-    );
   // Forgejo has no draft to skip for and no event when one is marked ready, so a pull
-  // request runs whatever its title says; the merge train itself refuses a work in progress.
+  // request runs whatever its title says; Forgejo itself refuses to merge a work in
+  // progress (services/pull/check.go).
   knowledge.values.set('github.event.pull_request.draft', false);
   knowledge.absent.push(
     'github.event.client_payload',
-    'github.event.merge_group',
     'inputs.candidate_sha',
     'github.event.inputs.candidate_sha',
   );
