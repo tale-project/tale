@@ -17,7 +17,7 @@ Ouvre **Accueil**. Sur ordinateur, un nouveau chat s’ouvre, et le panneau lat�
 
 Par exemple : « Retrouve les retours d’onboarding et résume les trois problèmes les plus fréquents. Cite les documents et sépare les problèmes signalés de tes suggestions. »
 
-Si ton organisation a activé un avis de confidentialité, il s’affiche sous le champ de message pour te rappeler ce qu’il ne faut pas partager dans le chat. Dans une fenêtre peu haute, comme sur un ordinateur portable, l’avis tient sur une ligne. S’il est coupé, choisis la flèche à côté pour le lire en entier.
+Si ton organisation a activé un avis de confidentialité, il te rappelle ce qu’il ne faut pas partager dans le chat. Dans un nouveau chat, il s’affiche sous le champ de message ; dès que le chat contient des messages, il s’affiche plutôt sous le dernier message. Dans une fenêtre peu haute, comme sur un ordinateur portable, l’avis sous le champ de message tient sur une ligne. S’il est coupé, choisis la flèche à côté pour le lire en entier. Pour ne plus voir l’avis, choisis **Ne plus afficher** à la fin de l’avis, sous un message. Il reste masqué dans ce navigateur jusqu’à ce que ton organisation modifie son texte.
 
 Pendant la génération, la commande d’envoi devient une commande d’arrêt. L’arrêter conserve le texte déjà reçu, même s’il se termine au milieu d’une phrase. Pose une question de suivi pour clarifier la demande ou obtenir un détail manquant.
 
