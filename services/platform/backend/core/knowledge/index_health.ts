@@ -51,6 +51,11 @@
 import type { Sql } from 'postgres';
 
 import { logger } from '../../../lib/knowledge/logger';
+import type { BootDatabaseWait } from '../../db/boot-wait';
+import {
+  describeDatabaseError,
+  isDatabaseUnavailable,
+} from '../../db/unavailable';
 import {
   isInternalOrCorruptionError,
   isUndefinedFunction,
@@ -255,11 +260,22 @@ export interface IndexReport {
 }
 
 export interface IndexHealthReport {
-  readonly status: 'done' | 'locked' | 'disabled' | 'no_indexes' | 'error';
+  /** `unavailable`: the database did not answer (down, restarting or still
+   * starting), so nothing was verified. */
+  readonly status:
+    | 'done'
+    | 'locked'
+    | 'disabled'
+    | 'no_indexes'
+    | 'unavailable'
+    | 'error';
   /** When the run started — the notifications' idempotency stamp. */
   readonly startedAt: number;
   readonly indexes: readonly IndexReport[];
   readonly error?: string;
+  /** The database's own error when it was `unavailable`, for a caller that
+   * reports an outage. */
+  readonly cause?: unknown;
 }
 
 /** Which (database, index) pairs this process has already rebuilt. */
@@ -285,12 +301,19 @@ export interface HealOptions {
   /** Above this many bytes the rebuild is deferred to the caller. */
   readonly inlineMaxBytes?: number;
   readonly disabled?: boolean;
+  /** Runs the scan, waiting out a database that is unavailable as the
+   * process boots (`db/boot-wait.ts`). Without it such a database is
+   * `unavailable` at once. */
+  readonly wait?: BootDatabaseWait;
 }
 
 /**
  * Verify every BM25 index of a database and repair what can be repaired
- * inline. Never throws — the report carries the outcome, and the caller
- * decides what to schedule, refuse, and announce.
+ * inline. Never throws for what the database answers — the report carries
+ * the outcome, and the caller decides what to schedule, refuse, and announce;
+ * only a connection string the driver cannot take throws. A database that
+ * does not answer is `unavailable`, a warning here: what a skipped scan means
+ * is the caller's to say.
  */
 export async function healBm25Indexes(
   options: HealOptions,
@@ -304,41 +327,87 @@ export async function healBm25Indexes(
     return { status: 'disabled', startedAt, indexes: [] };
   }
   const inlineMaxBytes = options.inlineMaxBytes ?? inlineRepairMaxBytes();
-  const session = (options.openSession ?? openKnowledgeSession)(options.url);
-  try {
-    if (!(await tryAdvisoryLock(session))) {
-      logger.info(
-        `${label}: another process is verifying the BM25 indexes — skipping`,
-      );
-      return { status: 'locked', startedAt, indexes: [] };
-    }
+  const openSession = options.openSession ?? openKnowledgeSession;
+  // The first session opens before the scan, as it always has: a connection
+  // string the driver cannot take (a bad `sslmode`, an unreadable CA) throws
+  // to the caller, a configuration error rather than an outcome of the scan.
+  let firstSession: Sql | undefined = openSession(options.url);
+  // After it only the lock and the discovery can throw, both before anything
+  // is repaired, so a scan the database was unavailable for runs again whole,
+  // on a session of its own.
+  const scan = async (): Promise<IndexHealthReport> => {
+    const session = firstSession ?? openSession(options.url);
+    firstSession = undefined;
     try {
-      const indexes = await discoverBm25Indexes(session);
-      if (indexes.length === 0) {
-        logger.info(`${label}: no BM25 indexes to verify`);
-        return { status: 'no_indexes', startedAt, indexes: [] };
-      }
-      const reports: IndexReport[] = [];
-      for (const index of indexes) {
-        reports.push(
-          await examineIndex(session, index, {
-            url: options.url,
-            label,
-            inlineMaxBytes,
-          }),
-        );
-      }
-      return { status: 'done', startedAt, indexes: reports };
+      return await scanIndexes(session, {
+        url: options.url,
+        label,
+        inlineMaxBytes,
+        startedAt,
+      });
     } finally {
-      await releaseAdvisoryLock(session);
+      await endSession(session);
     }
+  };
+  try {
+    return await (options.wait === undefined ? scan() : options.wait(scan));
   } catch (error) {
+    // Every statement the scan runs is the knowledge database's own.
+    if (isDatabaseUnavailable(error, { fromDatabase: true })) {
+      logger.warn(
+        `${label}: BM25 index verification skipped — the database is unavailable: ${describeDatabaseError(error)}`,
+      );
+      return {
+        status: 'unavailable',
+        startedAt,
+        indexes: [],
+        error: describeDatabaseError(error),
+        cause: error,
+      };
+    }
     logger.error(
       `${label}: BM25 index verification failed: ${describe(error)}`,
     );
     return { status: 'error', startedAt, indexes: [], error: describe(error) };
+  }
+}
+
+/** One scan on one session: the lock, the discovery, then every index. */
+async function scanIndexes(
+  session: Sql,
+  ctx: {
+    url: string;
+    label: string;
+    inlineMaxBytes: number;
+    startedAt: number;
+  },
+): Promise<IndexHealthReport> {
+  const { label, startedAt } = ctx;
+  if (!(await tryAdvisoryLock(session))) {
+    logger.info(
+      `${label}: another process is verifying the BM25 indexes — skipping`,
+    );
+    return { status: 'locked', startedAt, indexes: [] };
+  }
+  try {
+    const indexes = await discoverBm25Indexes(session);
+    if (indexes.length === 0) {
+      logger.info(`${label}: no BM25 indexes to verify`);
+      return { status: 'no_indexes', startedAt, indexes: [] };
+    }
+    const reports: IndexReport[] = [];
+    for (const index of indexes) {
+      reports.push(
+        await examineIndex(session, index, {
+          url: ctx.url,
+          label,
+          inlineMaxBytes: ctx.inlineMaxBytes,
+        }),
+      );
+    }
+    return { status: 'done', startedAt, indexes: reports };
   } finally {
-    await endSession(session);
+    await releaseAdvisoryLock(session);
   }
 }
 

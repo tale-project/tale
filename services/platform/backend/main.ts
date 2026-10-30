@@ -28,11 +28,8 @@ import {
 import { releaseOwnedRunLeases } from './domains/automations/store.ts';
 import { settleLiveChatTurns } from './domains/chat/live-turns.ts';
 import { isBackendDraining } from './domains/control/service.ts';
-import {
-  installCorpusHealthHook,
-  verifyDefaultKnowledgeIndexes,
-} from './domains/knowledge/index-health.ts';
-import { ensureDefaultCorpusSchema } from './domains/knowledge/service.ts';
+import { bootDefaultKnowledge } from './domains/knowledge/boot.ts';
+import { installCorpusHealthHook } from './domains/knowledge/index-health.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { seedDevUser } from './domains/provisioning/dev-seed.ts';
 import { installReviewHandoverHook } from './domains/tasks/reviews.ts';
@@ -102,8 +99,9 @@ async function main(): Promise<void> {
   // (db/boot-wait.ts). Only an outage past that fails the boot below. The
   // other steps that touch the database do not wait: the best-effort ones
   // (aligning the queue policies, the boot's liveness sweep, the dev seed)
-  // log a warning and carry on, and the knowledge and object-store
-  // bootstraps report what they meet.
+  // log a warning and carry on, and the object-store bootstrap reports what
+  // it meets. The knowledge steps wait out the knowledge database on a clock
+  // of their own, below.
   const databaseWait = createBootDatabaseWait();
 
   // App migrations (numbered .sql files and .ts data migrations) run in every
@@ -146,22 +144,16 @@ async function main(): Promise<void> {
   // Per-org BYO corpora bootstrap on first use inside the pool router; the
   // hook verifies (and repairs) their BM25 indexes in that same single flight.
   installCorpusHealthHook(sql);
-  if (env.ROLE !== 'api') {
-    // The deployment-default knowledge corpus bootstraps itself.
-    await ensureDefaultCorpusSchema().catch((error: unknown) => {
-      console.warn('[backend] default corpus bootstrap failed:', error);
-      reportError(error, { tags: { 'tale.lane': 'boot' } });
-    });
-  }
-  // Every role verifies the default corpus's BM25 indexes BEFORE a job or a
+  // The deployment-default knowledge corpus bootstraps itself on the roles
+  // that index, and every role verifies its BM25 indexes BEFORE a job or a
   // request can write to them: a block zeroed by a crash-mode stop makes every
   // chunk insert PANIC the database, and the rebuild is lossless. An advisory
   // lock on the knowledge database leaves the repair to one process; the
-  // others skip. Never fails boot — the report is logged, audited, and belled.
-  await verifyDefaultKnowledgeIndexes(sql).catch((error: unknown) => {
-    console.error('[backend] knowledge index verification failed:', error);
-    reportError(error, { tags: { 'tale.lane': 'boot' } });
-  });
+  // others skip. Both wait out a knowledge database that is restarting, on a
+  // clock of their own (domains/knowledge/boot.ts). Never fails boot — the
+  // report is logged, audited, and belled, and an outage past the wait is
+  // reported once.
+  await bootDefaultKnowledge(sql, { bootstrapSchema: env.ROLE !== 'api' });
   // The PII data tree is a packaging fact, not a tenant one: every role
   // that can enforce a `pii_config` policy (indexing on workers, chat turns
   // on the api) needs it, and a missing tree would otherwise surface only as

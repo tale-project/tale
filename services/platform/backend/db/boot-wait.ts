@@ -15,12 +15,17 @@ import { isDatabaseUnavailable, ROUTINE_RESTART_MS } from './unavailable.ts';
  * unavailable (`db/unavailable.ts`), until `waitMs` has passed since the
  * first refusal. Any other failure, and an outage that outlasts the wait,
  * rejects at once, and the boot reports the error and exits. The boot's
- * best-effort steps do not wait; `main.ts` says which.
+ * best-effort steps do not wait; `main.ts` says which. The knowledge
+ * database's steps wait too, and go on without the step instead of exiting
+ * (`domains/knowledge/boot.ts`).
  *
- * The clock is one per boot, deliberately: every step a boot runs through it
- * shares it, so a second outage in the same boot is timed from the first
- * one's first refusal, the time between the two included. A database that
- * keeps going away cannot hold the boot without it ever being reported.
+ * The clock is one per boot and database, deliberately: every step a boot
+ * runs through it shares it, so a second outage in the same boot is timed
+ * from the first one's first refusal, the time between the two included. A
+ * database that keeps going away cannot hold the boot without it ever being
+ * reported. The knowledge database has a wait of its own, so a knowledge
+ * database that comes back after the app database is not timed from the app
+ * database's refusals.
  */
 
 /** The first pause after an attempt the database was unavailable for; it

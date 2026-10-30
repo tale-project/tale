@@ -1,8 +1,9 @@
 // @vitest-environment node
 
 import type { Sql } from 'postgres';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createBootDatabaseWait } from '../../db/boot-wait';
 import {
   allowCorpusWrites,
   assertCorpusWritable,
@@ -85,6 +86,8 @@ const noVerifier = (): Error =>
 interface Script {
   locked?: boolean;
   lockError?: Error;
+  /** How many lock statements `lockError` answers; every one by default. */
+  lockFailures?: number;
   indexes?: Array<{
     schema: string;
     name: string;
@@ -102,6 +105,7 @@ interface FakeSession {
   verifyCalls: string[];
   ended: boolean;
   opened: number;
+  closed: number;
   openSession: () => Sql;
 }
 
@@ -111,18 +115,28 @@ function fakeSession(script: Script = {}): FakeSession {
     verifyCalls: [],
     ended: false,
     opened: 0,
+    closed: 0,
     openSession: () => sql,
   };
   let verifyCall = 0;
+  let lockFailures = 0;
+  const lockFails = (): boolean => {
+    if (!script.lockError) return false;
+    if (lockFailures >= (script.lockFailures ?? Number.POSITIVE_INFINITY)) {
+      return false;
+    }
+    lockFailures += 1;
+    return true;
+  };
   const unsafe = (text: string, params: unknown[] = []): Promise<unknown[]> => {
     const statement = text.trim();
     state.statements.push(statement);
     if (statement.includes('pg_try_advisory_lock')) {
-      if (script.lockError) return Promise.reject(script.lockError);
+      if (lockFails()) return Promise.reject(script.lockError);
       return Promise.resolve([{ locked: script.locked ?? true }]);
     }
     if (statement.includes('pg_advisory_lock(')) {
-      if (script.lockError) return Promise.reject(script.lockError);
+      if (lockFails()) return Promise.reject(script.lockError);
       return Promise.resolve([]);
     }
     if (statement.includes('pg_advisory_unlock')) return Promise.resolve([]);
@@ -157,6 +171,7 @@ function fakeSession(script: Script = {}): FakeSession {
     unsafe,
     end: () => {
       state.ended = true;
+      state.closed += 1;
       return Promise.resolve();
     },
   } as unknown as Sql;
@@ -173,9 +188,23 @@ function reindexStatements(session: FakeSession): string[] {
   );
 }
 
+/** A boot's wait on a clock the test moves: each pause moves it on. */
+function waitOnFakeClock() {
+  const clock = { now: 0 };
+  const wait = createBootDatabaseWait({
+    now: () => clock.now,
+    sleep: (ms) => {
+      clock.now += ms;
+      return Promise.resolve();
+    },
+  });
+  return { clock, wait };
+}
+
 afterEach(() => {
   forgetRepairAttempts();
   forgetCorpusWriteRefusals();
+  vi.restoreAllMocks();
 });
 
 describe('verifying the indexes at boot', () => {
@@ -396,10 +425,14 @@ describe('verifying the indexes at boot', () => {
     expect(db.opened).toBe(0);
   });
 
-  it('reports instead of throwing when the database cannot be reached', async () => {
-    const db = fakeSession({
-      lockError: pgError('connect ECONNREFUSED', 'ECONNREFUSED'),
-    });
+  it('reports a database it cannot reach as unavailable, with a warning and no error', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const refused = pgError(
+      'connect ECONNREFUSED 10.0.0.5:5432',
+      'ECONNREFUSED',
+    );
+    const db = fakeSession({ lockError: refused });
 
     const report = await healBm25Indexes({
       url: URL,
@@ -407,9 +440,116 @@ describe('verifying the indexes at boot', () => {
       openSession: db.openSession,
     });
 
-    expect(report.status).toBe('error');
+    expect(report.status).toBe('unavailable');
     expect(report.error).toContain('ECONNREFUSED');
+    expect(report.cause).toBe(refused);
     expect(db.ended).toBe(true);
+    expect(error).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'the test database: BM25 index verification skipped — the database is unavailable',
+      ),
+    );
+  });
+
+  it('waits out a database that is still starting, then verifies its indexes', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { clock, wait } = waitOnFakeClock();
+    const db = fakeSession({
+      indexes: [PK],
+      lockError: pgError('the database system is starting up', '57P03'),
+      lockFailures: 3,
+    });
+
+    const report = await healBm25Indexes({
+      url: URL,
+      label: 'the test database',
+      openSession: db.openSession,
+      wait,
+    });
+
+    expect(report.status).toBe('done');
+    expect(report.indexes.map((entry) => entry.outcome.kind)).toEqual([
+      'healthy',
+    ]);
+    // Three refusals, 1 s, 2 s and 4 s apart; every attempt on a session of
+    // its own, and every session closed.
+    expect(clock.now).toBe(7_000);
+    expect(db.opened).toBe(4);
+    expect(db.closed).toBe(4);
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('gives up past the wait and reports the database unavailable', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { clock, wait } = waitOnFakeClock();
+    const shuttingDown = pgError(
+      'the database system is shutting down',
+      '57P03',
+    );
+    const db = fakeSession({ indexes: [PK], lockError: shuttingDown });
+
+    const report = await healBm25Indexes({
+      url: URL,
+      label: 'the test database',
+      openSession: db.openSession,
+      wait,
+    });
+
+    expect(report.status).toBe('unavailable');
+    expect(report.cause).toBe(shuttingDown);
+    expect(clock.now).toBeGreaterThanOrEqual(60_000);
+    expect(db.verifyCalls).toEqual([]);
+    expect(db.closed).toBe(db.opened);
+    expect(error).not.toHaveBeenCalled();
+  });
+
+  it('does not wait out any other failure, and reports it as an error', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { clock, wait } = waitOnFakeClock();
+    const db = fakeSession({
+      lockError: pgError(
+        'permission denied for function pg_try_advisory_lock',
+        '42501',
+      ),
+    });
+
+    const report = await healBm25Indexes({
+      url: URL,
+      label: 'the test database',
+      openSession: db.openSession,
+      wait,
+    });
+
+    expect(report.status).toBe('error');
+    expect(report.error).toContain('permission denied');
+    expect(clock.now).toBe(0);
+    expect(db.opened).toBe(1);
+    expect(db.ended).toBe(true);
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'the test database: BM25 index verification failed',
+      ),
+    );
+  });
+
+  it('throws a connection string the driver cannot take to the caller, without waiting', async () => {
+    const { clock, wait } = waitOnFakeClock();
+    const invalid = new Error('sslmode "sometimes" is not one of disable, …');
+
+    await expect(
+      healBm25Indexes({
+        url: URL,
+        label: 'the test database',
+        openSession: () => {
+          throw invalid;
+        },
+        wait,
+      }),
+    ).rejects.toBe(invalid);
+    expect(clock.now).toBe(0);
   });
 });
 
