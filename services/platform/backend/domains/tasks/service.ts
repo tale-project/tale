@@ -3888,9 +3888,16 @@ async function decorateProjectPage<Row extends BoardTaskRow>(
  * optional, ANDed). A search is one of these filters, so it narrows the same
  * statement that carries the board's `LIMIT`: every match stays reachable,
  * whatever the other filters leave.
+ *
+ * A filter that is set is written as its plain predicate, and one that is not
+ * is left out — never as `(${value} IS NULL OR …)`. Each combination is a
+ * statement of its own, so its plan, generic ones included, sees what it
+ * filters on: Home's "assigned to me" reads the person's tasks through
+ * `tasks_org_assignee_updated` (migration 0223), whose partial predicate the
+ * literal `t.archived_at_ms IS NULL` proves, instead of walking the
+ * organization's tasks by `updated_at_ms`.
  */
 function boardFilterClause(sql: Sql, filters: TaskListFilters) {
-  const includeArchived = filters.includeArchived ?? false;
   const status = filters.status ?? null;
   const statuses = filters.statuses ?? null;
   const assigneeId = filters.assigneeId ?? null;
@@ -3898,28 +3905,32 @@ function boardFilterClause(sql: Sql, filters: TaskListFilters) {
   const externalSystem = filters.externalSystem ?? null;
   const patterns = taskSearchPatterns(filters.query ?? '');
   return sql`
-    (${includeArchived} OR t.archived_at_ms IS NULL)
-    AND (${status}::text IS NULL OR t.status = ${status})
-    AND (${statuses === null} OR t.status = ANY(${statuses ?? []}))
-    AND (${assigneeId}::text IS NULL OR t.assignee_id = ${assigneeId})
-    AND (${reviewerId}::text IS NULL OR EXISTS (
-      SELECT 1 FROM app.approvals r
-      WHERE r.org_id = t.org_id AND r.resource_type = 'task_review'
-        AND r.resource_id = t.id AND r.status = 'pending'
-        AND r.wf_execution_id IS NULL
-        AND CASE WHEN r.metadata ? 'reviewer' THEN
-          CASE WHEN r.metadata -> 'reviewer' ->> 'kind' = 'user'
-            THEN r.metadata -> 'reviewer' ->> 'userId' ELSE NULL END
-          ELSE r.metadata ->> 'requestedFor' END = ${reviewerId}
-    ) OR (
-      t.reviewer_user_id = ${reviewerId} AND NOT EXISTS (
-        SELECT 1 FROM app.approvals r
-        WHERE r.org_id = t.org_id AND r.resource_type = 'task_review'
-          AND r.resource_id = t.id AND r.status = 'pending'
-          AND r.wf_execution_id IS NULL
-      )
-    ))
-    AND (${externalSystem}::text IS NULL OR t.external_system = ${externalSystem})
+    ${filters.includeArchived === true ? sql`TRUE` : sql`t.archived_at_ms IS NULL`}
+    ${status === null ? sql`` : sql`AND t.status = ${status}`}
+    ${statuses === null ? sql`` : sql`AND t.status = ANY(${statuses})`}
+    ${assigneeId === null ? sql`` : sql`AND t.assignee_id = ${assigneeId}`}
+    ${
+      reviewerId === null
+        ? sql``
+        : sql`AND (EXISTS (
+            SELECT 1 FROM app.approvals r
+            WHERE r.org_id = t.org_id AND r.resource_type = 'task_review'
+              AND r.resource_id = t.id AND r.status = 'pending'
+              AND r.wf_execution_id IS NULL
+              AND CASE WHEN r.metadata ? 'reviewer' THEN
+                CASE WHEN r.metadata -> 'reviewer' ->> 'kind' = 'user'
+                  THEN r.metadata -> 'reviewer' ->> 'userId' ELSE NULL END
+                ELSE r.metadata ->> 'requestedFor' END = ${reviewerId}
+          ) OR (
+            t.reviewer_user_id = ${reviewerId} AND NOT EXISTS (
+              SELECT 1 FROM app.approvals r
+              WHERE r.org_id = t.org_id AND r.resource_type = 'task_review'
+                AND r.resource_id = t.id AND r.status = 'pending'
+                AND r.wf_execution_id IS NULL
+            )
+          ))`
+    }
+    ${externalSystem === null ? sql`` : sql`AND t.external_system = ${externalSystem}`}
     ${patterns.length > 0 ? sql`AND ${taskSearchMatch(sql, patterns)}` : sql``}
   `;
 }
