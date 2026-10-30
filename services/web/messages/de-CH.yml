@@ -36,7 +36,7 @@ platformAgents:
       - id: projects
         eyebrow: Projekte
         title: |-
-          Agents nach Team
+          Agenten nach Team
           abgrenzen
         description: Jedes Projekt hat eigene Agentenkonfigurationen. Der Projektzugriff
           bestimmt, wer die Agenten und ihre Aufgaben sehen kann.
@@ -118,8 +118,8 @@ platformGovernance:
         docsLabel: Nutzungsanalyse
   faq:
     items:
-      - q: Was steuert die Governance?
-        a: Governance umfasst Zugriffsregeln, Genehmigungsrichtlinien für Connectors,
+      - q: Was steuern die Richtlinien?
+        a: Die Richtlinien umfassen Zugriffsregeln, Genehmigungsrichtlinien für Connectors,
           Prüfereignisse, Nutzungsbudgets und konfigurierbare Chat-Filter. Jede
           Kontrolle hat einen eigenen Geltungsbereich.
       - q: Wo entscheide ich über eine Connector-Genehmigung?
@@ -151,7 +151,7 @@ platformProjects:
         a: Ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen und Aufgaben zu
           einem Vorhaben bündelt — ein Kontakt, ein Launch, eine Recherche —
           damit der Kontext bei der Arbeit bleibt.
-      - q: Wie arbeiten Agents an Projektaufgaben?
+      - q: Wie arbeiten Agenten an Projektaufgaben?
         a: Weise eine Aufgabe zu und starte dann den Agenten oder verschiebe die Aufgabe
           auf In Bearbeitung. Der Agent arbeitet in seiner Sandbox und liefert
           einen Bericht und Dateien zur Prüfung. Eine Person oder ein separat

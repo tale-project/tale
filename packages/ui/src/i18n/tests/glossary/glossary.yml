@@ -311,7 +311,29 @@ terms:
     category: feature
     en: Agent
     _note: Capitalised when naming a Tale agent; lowercase as a general AI term.
-      Established loanword in DE/FR.
+      Established loanword in DE/FR. DE declines it as a German noun (der
+      Agent, des/dem/den Agenten), so its plural is `Agenten`
+      (`feature_agents`).
+  - key: feature_agents
+    category: feature
+    en: Agents
+    de: Agenten
+    _note: Plural, and the name of the agents area. Matches UI label
+      `navigation.agents` and the website's product menu
+      (`nav.product.agents.label`). DE never uses the English plural, not
+      even in compounds (`KI-Agenten`, `Coding-Agenten`). FR keeps `Agents`.
+      de-CH inherits de.
+  - key: feature_governance
+    category: feature
+    en: Governance
+    de: Richtlinien
+    fr: Gouvernance
+    _note: The admin area for access rules, connector approvals, audit logs,
+      usage budgets and chat filters. Matches UI label `navigation.governance`
+      (`governance.title`) and the website's product menu
+      (`nav.product.governance.label`). DE names the area `Richtlinien` and
+      one of its settings `Richtlinie`, never `Governance`, not even in
+      compounds (`KI-Richtlinien`). FR `la gouvernance`. de-CH inherits de.
   - key: feature_chatWithAI
     category: feature
     en: Chat with AI
@@ -432,8 +454,10 @@ terms:
     fr: Agent de code
     _note: 'A tool such as Claude Code, Codex or Cursor that changes
       automations through the MCP server (`automations.codingAgent.*`). DE
-      `der Coding-Agent`, plural `die Coding-Agents`; FR `l’agent de code`.
-      Distinct from an `agent` node, which works during a run.'
+      `der Coding-Agent`, `des Coding-Agenten`, plural `die Coding-Agenten`
+      (`agentConnections.list.caption`), never `Coding-Agents`; FR
+      `l’agent de code`. Distinct from an `agent` node, which works during a
+      run.'
   - key: feature_automationStart
     category: feature
     en: Start

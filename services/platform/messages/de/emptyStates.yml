@@ -9,13 +9,13 @@ contacts:
   description: Füge Kontakte hinzu, um ihnen aus dem Posteingang eine E-Mail zu schicken.
 products:
   title: Noch keine Produkte
-  description: Füge Produkte hinzu, damit Agents mit deinem Katalog antworten können.
+  description: Füge Produkte hinzu, damit Agenten mit deinem Katalog antworten können.
 websites:
   title: Noch keine Websites
-  description: Füge Websites hinzu, die Agents in Antworten zitieren können.
+  description: Füge Websites hinzu, die Agenten in Antworten zitieren können.
 knowledgeEntries:
   title: Noch keine Wissenseinträge
-  description: Speichere Fakten aus dem Chat oder füge Einträge hinzu, die Agents nutzen können.
+  description: Speichere Fakten aus dem Chat oder füge Einträge hinzu, die Agenten nutzen können.
 skills:
   title: Noch keine Skills
   description: Schreib einen Skill einmal und wähl ihn dann im Chat, oder rüste Projekt-Agenten und Agent-Knoten in Automatisierungen damit aus.
@@ -24,7 +24,7 @@ members:
   description: Lade Personen ein, in diesem Arbeitsbereich zusammenzuarbeiten.
 teams:
   title: Noch keine Teams
-  description: Fasse Mitglieder in Teams zusammen, um den Zugriff auf Agents und Skills zu steuern.
+  description: Fasse Mitglieder in Teams zusammen, um den Zugriff auf Agenten und Skills zu steuern.
 apiKeys:
   title: Noch keine API-Schlüssel
   description: Erstelle einen Schlüssel, um externe Tools und Skripte zu verbinden.

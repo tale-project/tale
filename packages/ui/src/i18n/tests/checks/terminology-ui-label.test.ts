@@ -222,6 +222,40 @@ describe('terminology UI labels', () => {
     ]);
   });
 
+  // The website's French docs paths and tour-stage ids name `automations`,
+  // the loanword `_avoid` reports in French text.
+  it('reports a list item’s text but not its id or path', () => {
+    const findings = terminologyUiLabel.run(
+      context(
+        [
+          {
+            key: 'automations',
+            category: 'feature',
+            en: 'Automations',
+            fr: 'Automatisations',
+            _avoid: { fr: ['automations'] },
+          },
+        ],
+        {
+          fr: [
+            'platformAutomations:',
+            '  docs:',
+            '    - label: Concepts des automations',
+            '      path: /platform/automations/concepts',
+            '  tour:',
+            '    stages:',
+            '      - id: automations',
+            '        eyebrow: Automatisations',
+          ].join('\n'),
+        },
+        'json',
+      ),
+    );
+    expect(findings.map(({ key, rule }) => ({ key, rule }))).toEqual([
+      { key: 'platformAutomations.docs.0.label', rule: 'ui-label-non-shipped' },
+    ]);
+  });
+
   // #4499: French UI strings and guides used a lowercase loanword and two
   // retired translations that the case-sensitive `en` form never matched.
   it('reports non-shipped names in any case, only in their locale', () => {
@@ -345,6 +379,57 @@ describe('terminology UI labels', () => {
       { column: 6, detail: nonShipped('gel') },
       { column: 11, detail: nonShipped('gel') },
     ]);
+  });
+
+  // #4483: the German app names these areas Agenten and Richtlinien, the
+  // French one Gouvernance; the German website said Agents and Governance.
+  const shippedAreaNames = (texts: Record<string, string>) =>
+    terminologyUiLabel
+      .run(context(null, texts))
+      .filter(({ detail }) =>
+        /UI-label term "(?:Agents|Governance)"/.test(detail),
+      )
+      .map(({ locale, line, suggest }) => ({ locale, line, suggest }));
+
+  it('rejects the English names of the agents and governance areas', () => {
+    expect(
+      shippedAreaNames({
+        de: [
+          'Was sind Agents in Tale?',
+          'Die Orchestrierungsebene für KI-Agents',
+          'Verbindungen der Coding-Agents',
+          'FAQ zu Governance',
+          'KI-Governance, Genehmigungen und Nutzungslimits',
+        ].join('\n'),
+        'de-CH':
+          'Wie arbeiten Agents an Projektaufgaben?\nWas steuert die Governance?',
+        fr: 'Que couvre la Governance ?',
+      }),
+    ).toEqual([
+      { locale: 'de', line: 1, suggest: 'use "Agenten"' },
+      { locale: 'de', line: 2, suggest: 'use "Agenten"' },
+      { locale: 'de', line: 3, suggest: 'use "Agenten"' },
+      { locale: 'de', line: 4, suggest: 'use "Richtlinien"' },
+      { locale: 'de', line: 5, suggest: 'use "Richtlinien"' },
+      { locale: 'de-CH', line: 1, suggest: 'use "Agenten"' },
+      { locale: 'de-CH', line: 2, suggest: 'use "Richtlinien"' },
+      { locale: 'fr', line: 1, suggest: 'use "Gouvernance"' },
+    ]);
+  });
+
+  it('keeps the shipped names, the singular Agent and French Agents', () => {
+    expect(
+      shippedAreaNames({
+        de: [
+          'Agenten & Connectors',
+          'Die Orchestrierungsebene für KI-Agenten',
+          'Verbindungen der Coding-Agenten, Zugriff eines Coding-Agenten',
+          'Ein Agent arbeitet in seiner Sandbox: Agent-Laufzeit, Agent-Delegation.',
+          'Was umfassen die Richtlinien? KI-Richtlinien und Genehmigungsrichtlinien.',
+        ].join('\n'),
+        fr: 'Agents & connectors\nQue couvre la gouvernance ? Gouvernance IA.',
+      }),
+    ).toEqual([]);
   });
 
   const shippedLegalHold = (texts: Record<string, string>) =>

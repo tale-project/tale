@@ -54,7 +54,7 @@ seo:
       und Wissenseinträge, finde zugängliche Quellen und prüfe die Belege im
       Arbeitsbereich.
   platformGovernance:
-    title: KI-Governance, Genehmigungen und Nutzungslimits | Tale
+    title: KI-Richtlinien, Genehmigungen und Nutzungslimits | Tale
     description: Konfiguriere Connector-Genehmigungen, prüfe protokollierte Aktionen und
       lege Modellbudgets und Chat-Schutzregeln für dein Team in Tale fest.
   platformProjects:
@@ -376,7 +376,7 @@ home:
     subtitle: Weise Aufgaben zu, gib Agenten den nötigen Kontext und arbeite mit
       deinem Team am nächsten Schritt.
     connect:
-      eyebrow: Agents & Connectors
+      eyebrow: Agenten & Connectors
       title: "Delegiere Arbeit an deine Agenten"
       description: "Gib Agenten ihre Anweisungen und Werkzeuge. Verfolge die Arbeit in persistenten Sandboxes und prüfe die gelieferten Dateien."
     pool:
@@ -616,7 +616,7 @@ pricing:
 requestDemo:
   eyebrow: Demo
   title: Sieh dir Tale live an
-  paragraph1: 'Eine geführte Demo ist das Produkt live, keine Folien: Agents
+  paragraph1: 'Eine geführte Demo ist das Produkt live, keine Folien: Agenten
     angedockt, Antworten in deiner Art von Wissen verankert, eine Automatisierung,
     die auf Freigabe wartet — auf einer selbst gehosteten Instanz.'
   paragraph2: Erzähl uns, was dein Team heute nutzt und was dein Netzwerk nie
@@ -753,7 +753,7 @@ about:
       klaren Ablauf. Wir helfen Teams, ihre Quellen vorzubereiten, passende
       Aufgaben zu definieren und die Ergebnisprüfung festzulegen.
     dataQuality:
-      title: Daten, auf die man Agents ansetzen kann
+      title: Daten, auf die man Agenten ansetzen kann
       body: Wir helfen dabei, Quellen, Zuständigkeiten und Herkunft zu
         strukturieren, damit Menschen und Agenten relevante Belege finden und
         prüfen können.
@@ -771,7 +771,7 @@ about:
         Arbeit deines Unternehmens anpassen.
     tailored:
       title: Lösungen, die zu deinen Zielen passen
-      body: Keine zwei Organisationen führen KI gleich ein. Wir bauen Agents,
+      body: Keine zwei Organisationen führen KI gleich ein. Wir bauen Agenten,
         Automatisierungen und Wissen um das herum, was du erreichen willst — und
         lassen weg, was du nicht brauchst.
   values:
@@ -811,12 +811,12 @@ featureShared:
   docsHeading: Docs lesen
 platformAgents:
   eyebrow: Agenten
-  title: Was sind Agents in Tale?
+  title: Was sind Agenten in Tale?
   description: Projektagenten bearbeiten Aufgaben gemeinsam mit deinem Team. Gib jedem
     Agenten Anweisungen, eine unterstützte Laufzeit, ein Modell und Tools.
     Verfolge die Arbeit in der Sandbox und prüfe Berichte und Dateien.
   capabilities:
-    heading: Was können Agents?
+    heading: Was können Agenten?
     description:
       Richte wiederverwendbare Agenten für Projektaufgaben ein – von Recherche
       und Dokumenten bis zu Code-Änderungen und Reviews.
@@ -831,7 +831,7 @@ platformAgents:
           Binde Claude Code, Codex, Hermes und OpenClaw als Agent-Laufzeit, auf der ein
           Projekt-Agent oder ein Automatisierungs-Agent-Knoten läuft.
         docsLabel: Agent-Laufzeiten
-      - title: Delegation zwischen Agents
+      - title: Delegation zwischen Agenten
         body:
           Ein entsprechend ausgestatteter Manager-Agent kann andere Agenten
           für startbereite Aufgaben desselben Projekts starten. Dabei gelten
@@ -850,7 +850,7 @@ platformAgents:
           ihre Zugriffsregeln.
         docsLabel: Wissen
   faq:
-    heading: FAQ zu Agents
+    heading: FAQ zu Agenten
     items:
       - q: Was ist ein Agent in Tale?
         a:
@@ -888,7 +888,7 @@ platformAgents:
     - label: Wissen
       path: /platform/knowledge/overview
   tour:
-    heading: So zeigen sich Agents in Tale
+    heading: So zeigen sich Agenten in Tale
     description:
       Richte Agenten für ein Projekt ein, gib ihnen die nötigen Tools und den
       Kontext und verfolge ihre Arbeit anhand von Berichten und Ergebnissen.
@@ -896,7 +896,7 @@ platformAgents:
       - id: projects
         eyebrow: Projekte
         title: |-
-          Agents nach Team
+          Agenten nach Team
           abgrenzen
         description:
           Jedes Projekt hat eigene Agentenkonfigurationen. Der Projektzugriff
@@ -1250,7 +1250,7 @@ platformGovernance:
     prüfe protokollierte Vorgänge. Lege Modellbudgets und Chat-Filter für die
     Arbeit deines Teams und seiner Agenten fest.
   capabilities:
-    heading: Was umfasst Governance?
+    heading: Was umfassen die Richtlinien?
     description: Lege fest, welche Connector-Schreibaktionen eine Genehmigung brauchen,
       welche Werkzeuge Agenten nutzen dürfen und welche Inhalts- und
       Nutzungsregeln gelten.
@@ -1291,11 +1291,11 @@ platformGovernance:
           Abonnementaufrufe nutzen die Kontrollen des Anbieters.
         docsLabel: Nutzungsanalyse
   faq:
-    heading: FAQ zu Governance
+    heading: FAQ zu Richtlinien
     items:
-      - q: Was steuert die Governance?
+      - q: Was steuern die Richtlinien?
         a:
-          Governance umfasst Zugriffsregeln, Genehmigungsrichtlinien für
+          Die Richtlinien umfassen Zugriffsregeln, Genehmigungsrichtlinien für
           Connectors, Prüfereignisse, Nutzungsbudgets und konfigurierbare
           Chat-Filter. Jede Kontrolle hat einen eigenen Geltungsbereich.
       - q: Wo entscheide ich über eine Connector-Genehmigung?
@@ -1411,7 +1411,7 @@ platformHub:
   modulesDescription:
     Projekte organisieren die Arbeit. Agenten bearbeiten zugewiesene Aufgaben.
     Chat und Wissen liefern Kontext. Automatisierungen machen Schritte
-    wiederholbar; Governance regelt Zugriff und Prüfung.
+    wiederholbar; Richtlinien regeln Zugriff und Prüfung.
   tour:
     heading: So fügt sich die Plattform zusammen
     description:
@@ -1513,7 +1513,7 @@ platformKnowledge:
         docsLabel: Wissenseinträge
       - title: Website-Crawls
         body:
-          Indexiere Seiten, die Agents zitieren sollen, ohne sie in Prompts zu
+          Indexiere Seiten, die deine Agenten zitieren sollen, ohne sie in Prompts zu
           pasten.
         docsLabel: Crawling
       - title: Typisierte Datensätze
@@ -1583,7 +1583,7 @@ platformKnowledge:
           Bibliotheken wohnen
           bei ihren Teams
         description:
-          Projekte legen fest, welche Dokumente neben welchen Agents und
+          Projekte legen fest, welche Dokumente neben welchen Agenten und
           Mitgliedern liegen.
   demos:
     knowledge:
@@ -1645,7 +1645,7 @@ platformProjects:
           Projektchats nutzen dessen Anweisungen und können relevante Dateien
           abrufen.
         docsLabel: Projekt-Überblick
-      - title: Ein Board, von dem Agents arbeiten
+      - title: Ein Board, von dem Agenten arbeiten
         body:
           Weise eine Aufgabe einem Projektagenten zu und starte sie. Verfolge
           den Fortschritt und prüfe den Bericht und die angehängten Dateien,
@@ -1674,7 +1674,7 @@ platformProjects:
         a: Ein geteilter Arbeitsbereich, der Chats, Dateien, Anweisungen und
           Aufgaben zu einem Vorhaben bündelt — ein Kontakt, ein Launch, eine
           Recherche — damit der Kontext bei der Arbeit bleibt.
-      - q: Wie arbeiten Agents an Projektaufgaben?
+      - q: Wie arbeiten Agenten an Projektaufgaben?
         a:
           Weise eine Aufgabe zu und starte dann den Agenten oder verschiebe
           die Aufgabe auf In Bearbeitung. Der Agent arbeitet in seiner Sandbox

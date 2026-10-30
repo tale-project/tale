@@ -139,7 +139,7 @@ noItemsSelected: Keine Elemente ausgewählt
 searchFilesAndFolders: Dateien und Ordner suchen
 emptyState:
   title: Noch keine Dokumente
-  description: Lade Dokumente hoch, damit Agents sie im Chat nutzen können.
+  description: Lade Dokumente hoch, damit Agenten sie im Chat nutzen können.
 actions:
   rename: Umbenennen
   deleteSyncFolder: Synchronisierungsordner löschen
