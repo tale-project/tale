@@ -8184,6 +8184,7 @@ async function checkSmallDomains(
         price: 99.5,
         currency: 'EUR',
         status: 'active',
+        category: 'Widgets',
       })
     ).json(),
   );
@@ -8213,10 +8214,20 @@ async function checkSmallDomains(
       await (
         await send('POST', `/api/app/products/bulk?orgId=${orgId}`, {
           products: [
-            { name: 'Gadget One', price: 10, status: 'active' },
+            {
+              name: 'Gadget One',
+              price: 10,
+              status: 'active',
+              category: 'Gadgets',
+            },
             // Duplicate of the row created above: it must fail ALONE.
-            { name: 'Widget Pro', price: 20 },
-            { name: 'Gadget Two', price: 30, status: 'draft' },
+            { name: 'Widget Pro', price: 20, category: 'Refused' },
+            {
+              name: 'Gadget Two',
+              price: 30,
+              status: 'draft',
+              category: 'Gadgets',
+            },
           ],
         })
       ).json(),
@@ -8234,6 +8245,28 @@ async function checkSmallDomains(
       productCount.success &&
       productCount.data.count === 3,
     `bulk=${productBulk.success ? `${productBulk.data.success}/${productBulk.data.failed}@${productBulk.data.errors[0]?.index}` : 'ERR'} (want 2/1@1), count=${productCount.success ? productCount.data.count : 'ERR'} (want 3)`,
+  );
+
+  // The Category filter (#3866): it offers each category the stored products
+  // carry, once and sorted (never the refused row's), and the listing
+  // narrows to the one chosen.
+  const productCategories = z
+    .object({ categories: z.array(z.string()) })
+    .safeParse(await get(`/api/app/products/categories?orgId=${orgId}`));
+  const inGadgets = z
+    .object({ items: z.array(z.object({ name: z.string() }).loose()) })
+    .safeParse(await get(`/api/app/products?orgId=${orgId}&category=Gadgets`));
+  const gadgetNames = inGadgets.success
+    ? inGadgets.data.items.map((item) => item.name).sort()
+    : null;
+  record(
+    'products: the Category filter offers each category once and narrows the listing',
+    productCategories.success &&
+      JSON.stringify(productCategories.data.categories) ===
+        JSON.stringify(['Gadgets', 'Widgets']) &&
+      JSON.stringify(gadgetNames) ===
+        JSON.stringify(['Gadget One', 'Gadget Two']),
+    `categories=${productCategories.success ? JSON.stringify(productCategories.data.categories) : 'ERR'} (want ["Gadgets","Widgets"]), category=Gadgets lists ${JSON.stringify(gadgetNames)} (want ["Gadget One","Gadget Two"])`,
   );
 }
 

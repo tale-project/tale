@@ -7,6 +7,14 @@ export function useApproxProductCount(organizationId: string) {
   });
 }
 
+/** The categories the organization's products carry: the Category filter's
+ * options. */
+export function useProductCategories(organizationId: string) {
+  return useBackendQuery('products/queries:listProductCategories', {
+    organizationId,
+  });
+}
+
 interface ListProductsPaginatedArgs {
   organizationId: string;
   status?: string;

@@ -64,6 +64,8 @@ Ouvre **Connaissances > Produits**, choisis **Ajouter un produit**, puis **Saisi
 
 Le menu de la ligne permet de modifier un produit enregistré. Choisis des noms faciles à distinguer et vérifie le prix ainsi que la devise avant de changer le statut.
 
+Pour n’afficher que les produits d’une catégorie, choisis **Filtre** au-dessus de la liste des produits, puis la catégorie sous **Catégorie**. Le filtre propose jusqu’à 100 catégories de tes produits, par ordre alphabétique et écrites telles qu’elles ont été enregistrées : `Tools` et `tools` sont deux catégories distinctes. Choisis de nouveau la même catégorie, ou **Tout effacer**, pour revoir tous les produits.
+
 Choisis **Téléverser une image** ou dépose un fichier PNG, JPEG, WebP, GIF ou SVG dans la zone d’image. La limite est de 5 Mio. Attends l’aperçu avant de poursuivre. Tale vérifie le contenu du fichier ; s’il le refuse, le message sous le champ d’image en donne la raison — un format non pris en charge, un fichier au-delà de la limite ou un SVG contenant des scripts ou des gestionnaires d’événements — pour que tu saches si un autre fichier est nécessaire.
 
 L’image reste disponible après l’enregistrement et le rechargement du produit. Une fois le produit enregistré, les autres membres de l’organisation ayant accès aux produits peuvent la voir. Son adresse exige une session connectée et ne constitue pas un lien de partage public. Pour la retirer, modifie le produit, choisis **Supprimer l'image**, puis enregistre. Retirer ou remplacer l’image, ou supprimer le produit, supprime aussi le fichier téléversé lui-même, sauf si un autre produit l’affiche encore.

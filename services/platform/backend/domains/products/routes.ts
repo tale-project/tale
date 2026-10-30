@@ -43,6 +43,7 @@ import {
   createProduct,
   deleteProduct,
   getProduct,
+  listProductCategories,
   listProducts,
   PRODUCT_STATUSES,
   ProductError,
@@ -195,6 +196,18 @@ export function createProductRoutes(deps: {
 
   app.get('/count', async (c) => {
     return c.json({ count: await countProducts(deps.sql, c.get('orgId')) });
+  });
+
+  // The Category filter's options; ahead of `/:productId`, which would
+  // otherwise read `categories` as a product id.
+  app.get('/categories', async (c) => {
+    try {
+      return c.json({
+        categories: await listProductCategories(deps.sql, scopeOf(c)),
+      });
+    } catch (error) {
+      return handleError(c, error);
+    }
   });
 
   app.post('/', async (c) => {

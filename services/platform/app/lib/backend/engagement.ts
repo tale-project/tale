@@ -277,6 +277,19 @@ export const engagementReadAdapters: Record<string, ReadAdapter> = {
         ),
     };
   },
+  'products/queries:listProductCategories': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      // Under the product entity: a product write can add a category or
+      // retire its last use, and every one invalidates the entity.
+      queryKey: backendKey(orgId, 'product', 'categories'),
+      queryFn: () =>
+        backendFetch<{ categories: string[] }>('/products/categories', {
+          orgId,
+        }).then((body) => body.categories),
+    };
+  },
   'collab/notifications:myUnreadCount': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;

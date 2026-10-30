@@ -40,6 +40,7 @@ import { productImageUrl } from './image-url.ts';
 import {
   createProduct,
   deleteProduct,
+  listProductCategories,
   PRODUCT_STATUSES,
   ProductError,
   updateProduct,
@@ -488,5 +489,36 @@ describe('product delete and image release', () => {
         s.text.startsWith('DELETE FROM app.file_metadata'),
       ),
     ).toBe(false);
+  });
+});
+
+/**
+ * The Category filter's options (#3866): the listing already matched
+ * `category`, but nothing told the client which categories exist.
+ */
+describe('product categories', () => {
+  it("reads the organization's distinct non-blank categories, sorted and capped", async () => {
+    const { sql, statements } = recordingSql(() => [
+      { category: 'Garden' },
+      { category: 'Tools' },
+    ]);
+    expect(await listProductCategories(sql, scope)).toEqual([
+      'Garden',
+      'Tools',
+    ]);
+    expect(statements).toHaveLength(1);
+    const read = statements[0];
+    expect(read?.text).toBe(
+      "SELECT DISTINCT category FROM app.products WHERE org_id = ? AND category IS NOT NULL AND btrim(category) <> '' ORDER BY category LIMIT ?",
+    );
+    expect(read?.values).toEqual(['org-1', 100]);
+  });
+
+  it('refuses a role that cannot read products before any statement runs', async () => {
+    const { sql, statements } = recordingSql();
+    await expect(
+      listProductCategories(sql, { ...scope, role: 'disabled' }),
+    ).rejects.toMatchObject({ code: 'RBAC_FORBIDDEN', status: 403 });
+    expect(statements).toHaveLength(0);
   });
 });

@@ -1,6 +1,6 @@
 # Knowledge
 
-> **Prefix** `KNOW-` · **Reset** none · **Cost** 78 boxes
+> **Prefix** `KNOW-` · **Reset** none · **Cost** 79 boxes
 
 Exercise the knowledge surfaces — documents (upload + RAG indexing + preview +
 controlled revisions), manual knowledge entries, and the structured catalogs
@@ -546,6 +546,16 @@ records and delete them after.
   show the scan's `robots.txt`, sitemap and page requests (`CONNECT
   <site>:443`) taking turns; the site's access log shows the proxies'
   addresses only, the rendered pages' requests included, never the server's.
+
+- [ ] `KNOW-F41` · **Products filter by category** — With two products of
+  category `Tools`, one of `Garden` and one with none → Products → **Filter**
+  (`common.labels.filter`) shows **Category** (`tables.headers.category`)
+  below **Status**, listing `Garden` and `Tools` once each; pick `Tools` →
+  only the two `Tools` rows stay, the address carries `?category=Tools`, and a
+  reload keeps both; **Clear all** (`common.actions.clearAll`) lists all four
+  again. Open `/dashboard/{org}/products?category=Retired` → **Category**
+  offers `Retired`, chosen, and pressing it again clears it. Create a product
+  of category `Seeds` → the filter offers it without a reload.
 
 ## Boundary & error tests
 

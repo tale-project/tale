@@ -14,6 +14,7 @@ import { PRODUCT_IMPORT_ROWS_MAX } from '../../core/products/field_limits.ts';
 
 const {
   listProducts,
+  listProductCategories,
   bulkCreateProducts,
   deleteProduct,
   updateProduct,
@@ -21,6 +22,7 @@ const {
   order,
 } = vi.hoisted(() => ({
   listProducts: vi.fn(),
+  listProductCategories: vi.fn(),
   bulkCreateProducts: vi.fn(),
   deleteProduct: vi.fn(),
   updateProduct: vi.fn(),
@@ -33,6 +35,7 @@ vi.mock('./service.ts', async (importOriginal) => {
   return {
     ...actual,
     listProducts,
+    listProductCategories,
     bulkCreateProducts,
     deleteProduct,
     updateProduct,
@@ -131,6 +134,33 @@ describe('GET /products — the listing query boundary', () => {
     const options = listProducts.mock.calls[0]?.[2] as Record<string, unknown>;
     expect(options.limit).toBeUndefined();
     expect(options.cursor).toBeNull();
+  });
+});
+
+describe('GET /products/categories — the Category filter options', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('answers the categories the service reads for the caller', async () => {
+    listProductCategories.mockResolvedValue(['Garden', 'Tools']);
+    const res = await makeApp().request('/categories?orgId=o1');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ categories: ['Garden', 'Tools'] });
+    expect(listProductCategories).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ organizationId: 'o1', role: 'admin' }),
+    );
+  });
+
+  it('answers a refused read with its code', async () => {
+    const { ProductError } = await import('./service.ts');
+    listProductCategories.mockRejectedValue(
+      new ProductError('RBAC_FORBIDDEN', 'Insufficient role', 403),
+    );
+    const res = await makeApp().request('/categories?orgId=o1');
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: 'RBAC_FORBIDDEN' });
   });
 });
 

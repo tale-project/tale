@@ -56,9 +56,13 @@ describeListReadFailure('ProductsTable', {
   rows: () => Response.json({ items: [product], nextCursor: null }),
   empty: () => Response.json({ items: [], nextCursor: null }),
   rowText: product.name,
-  routes: (backend) =>
+  routes: (backend) => {
     backend.on(/^GET \/api\/app\/products\/count\?/, () =>
       Response.json({ count: 1 }),
-    ),
+    );
+    backend.on(/^GET \/api\/app\/products\/categories\?/, () =>
+      Response.json({ categories: [] }),
+    );
+  },
   render: () => <ProductsTable organizationId="org-1" />,
 });

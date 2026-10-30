@@ -64,6 +64,8 @@ Kontakte, die dein Team hier erfasst oder importiert hat, bearbeitest oder lösc
 
 Gespeicherte Produkte bearbeitest du über das Zeilenmenü. Verwende unterscheidbare Produktnamen und kontrolliere Preis und Währung, bevor du den Status änderst.
 
+Um nur die Produkte einer Kategorie zu sehen, wähle über der Produktliste **Filter** und unter **Kategorie** die gewünschte Kategorie. Der Filter zeigt bis zu 100 Kategorien deiner Produkte in alphabetischer Reihenfolge, so geschrieben, wie sie gespeichert wurden: `Tools` und `tools` sind zwei verschiedene Kategorien. Wählst du dieselbe Kategorie noch einmal oder **Alle löschen**, siehst du wieder alle Produkte.
+
 Wähle **Bild hochladen** oder ziehe eine PNG-, JPEG-, WebP-, GIF- oder SVG-Datei in den Bildbereich. Die Obergrenze liegt bei 5 MiB. Warte auf die Vorschau, bevor du fortfährst. Tale prüft die hochgeladenen Dateiinhalte; lehnt es die Datei ab, nennt die Meldung unter dem Bildfeld den Grund — ein nicht unterstütztes Format, eine Datei über der Obergrenze oder eine SVG-Datei mit Skripten oder Event-Handlern —, damit du weißt, ob eine andere Datei nötig ist.
 
 Das hochgeladene Bild bleibt nach dem Speichern und Neuladen des Produkts verfügbar. Sobald das Produkt gespeichert ist, können andere Organisationsmitglieder mit Produktzugriff das Bild sehen. Die Bildadresse setzt eine angemeldete Sitzung voraus und eignet sich nicht als öffentlicher Freigabelink. Zum Entfernen bearbeitest du das Produkt, wählst **Bild entfernen** und speicherst die Änderung. Wird das Bild entfernt oder ersetzt oder das Produkt gelöscht, wird auch die hochgeladene Datei selbst entfernt, sofern kein anderes Produkt sie noch zeigt.
