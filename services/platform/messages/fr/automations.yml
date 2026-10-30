@@ -824,6 +824,7 @@ versions:
     former: Un ancien membre
     unknown: Non enregistré
     someone: Quelqu’un
+    namesFailed: Impossible de charger les noms des membres
   actions:
     menu: 'Actions pour la v{version}'
     openInEditor: Ouvrir dans l’éditeur
@@ -896,6 +897,7 @@ compare:
   title: 'Modifications de la v{from} à la v{to}'
   missing: 'Cette automatisation n’a pas de v{version}.'
   removed: 'La v{version} a été supprimée par la politique de rétention.'
+  fromFailed: 'Impossible de charger la v{version} pour la comparaison'
   backToVersions: Retour aux versions
   moreActions: 'Autres actions pour la v{version}'
   from:
@@ -1229,6 +1231,7 @@ tests:
     draft: Exécuté sur ton brouillon
     checked: '{via, select, save {Vérifié à l’enregistrement de la version {version}} deploy {Vérifié à la mise en service de la version {version}} manual {Vérifié manuellement} other {Vérifié}} · {date}'
   runFailed: Impossible d’exécuter les tests.
+  reportFailed: Impossible de charger les résultats des tests
   invalid: '{count, plural, one {Les tests s’exécutent dès que l’automatisation passe ses vérifications. Problèmes indique le # problème à corriger.} other {Les tests s’exécutent dès que l’automatisation passe ses vérifications. Problèmes indique les # problèmes à corriger.}}'
   rateLimited: '{seconds, plural, one {Beaucoup de tests viennent de s’exécuter. Réessaie dans # seconde.} other {Beaucoup de tests viennent de s’exécuter. Réessaie dans # secondes.}}'
   retry: Réessayer

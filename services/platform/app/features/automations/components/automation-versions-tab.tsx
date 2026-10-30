@@ -1,11 +1,13 @@
 'use client';
 
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { ContentArea } from '@tale/ui/content-area';
 import { SegmentedControl } from '@tale/ui/segmented-control';
 import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
 import { useAutomation, useAutomationLiveDeployment } from '../hooks/queries';
@@ -19,6 +21,7 @@ import { DeployRefusedDialog } from './versions/deploy-refused-dialog';
 import { DeploymentHistoryTable } from './versions/deployment-history-table';
 import { LiveVersionCard } from './versions/live-version-card';
 import { RestoreVersionDialog } from './versions/restore-version-dialog';
+import { AuthorNamesLoadError } from './versions/version-author';
 import { VersionHistoryTable } from './versions/version-history-table';
 
 /** The two views of the history: the versions, and when each went live. */
@@ -80,6 +83,11 @@ export function AutomationVersionsTab({
       : (liveQuery.data.live?.version ?? null);
   const latestVersion =
     automationQuery.data?.latestVersion ?? automationQuery.data?.version;
+  // The latest version is what a restore saves on top of: until the
+  // automation's read answers no version is restored, and a read that
+  // failed says so, as the editor does, instead of leaving it unexplained.
+  const automationRead = readStateOf(automationQuery);
+  const focusHeading = useCallback(() => headingRef.current?.focus(), []);
 
   const download = useDownloadVersion(organizationId, automationSlug);
 
@@ -97,6 +105,19 @@ export function AutomationVersionsTab({
           </span>
         }
         description={t('versions.description')}
+      />
+      {automationRead.unavailable && (
+        <CatalogLoadError
+          message={t('detail.loadFailed.title')}
+          failureKey={automationRead.failureCount}
+          isRetrying={automationRead.retrying}
+          onRetry={() => void automationQuery.refetch()}
+          onFocusLost={focusHeading}
+        />
+      )}
+      <AuthorNamesLoadError
+        organizationId={organizationId}
+        onFocusLost={focusHeading}
       />
       <LiveVersionCard
         organizationId={organizationId}

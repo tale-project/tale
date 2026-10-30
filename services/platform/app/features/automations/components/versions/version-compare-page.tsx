@@ -3,6 +3,7 @@
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { ChangeSummary } from '@tale/ui/change-list';
 import { CodeDiff, type CodeDiffLayout } from '@tale/ui/code-diff';
 import { ContentArea } from '@tale/ui/content-area';
@@ -27,9 +28,10 @@ import {
   Undo2,
   X,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { diffAutomationDocuments } from '@/lib/engine/core/diff/automation';
 import { changeSummaryOf } from '@/lib/engine/core/diff/changes';
 import { useT } from '@/lib/i18n/client';
@@ -41,6 +43,7 @@ import {
   useAutomationVersions,
   useNodeTypeCatalog,
 } from '../../hooks/queries';
+import { useActorLabel } from '../../hooks/use-actor-label';
 import { useDeployVersion } from '../../hooks/use-deploy-version';
 import { useDownloadVersion } from '../../hooks/use-download-version';
 import { editorVersionLink, versionsTabLink } from '../../lib/detail-paths';
@@ -61,7 +64,7 @@ import {
 } from '../trigger-deploy-notice';
 import { DeployRefusedDialog } from './deploy-refused-dialog';
 import { RestoreVersionDialog } from './restore-version-dialog';
-import { VersionAuthor } from './version-author';
+import { AuthorNamesLoadError, VersionAuthor } from './version-author';
 import {
   itemsOfBox,
   useVersionChangeSections,
@@ -178,18 +181,30 @@ export function VersionComparePage({
   });
 
   const after = afterQuery.data ?? null;
-  const before = fromVersion === undefined ? null : (beforeQuery.data ?? null);
+  // The version compared with may not come: missing (a refusal that says
+  // so) or failed (a fault, after its retries). Compared with nothing, every
+  // node, test and input would read as added, so there is no diff then.
+  const beforeRead = readStateOf(beforeQuery);
+  const fromMissing =
+    fromVersion !== undefined &&
+    !beforeQuery.isPending &&
+    isMissingAutomationRead(beforeQuery);
+  const fromFailed =
+    fromVersion !== undefined && !fromMissing && beforeRead.unavailable;
+  const fromUnread = fromMissing || fromFailed;
+  const before =
+    fromVersion === undefined || fromUnread ? null : (beforeQuery.data ?? null);
   const afterDoc = useMemo(() => readDocument(after?.document), [after]);
   const beforeDoc = useMemo(() => readDocument(before?.document), [before]);
   const diff = useMemo(
     () =>
-      afterDoc === null
+      afterDoc === null || fromUnread
         ? null
         : diffAutomationDocuments(beforeDoc, afterDoc, {
             beforePackage: packageOf(before),
             afterPackage: packageOf(after),
           }),
-    [afterDoc, beforeDoc, before, after],
+    [afterDoc, beforeDoc, before, after, fromUnread],
   );
   const labels = useMemo(
     () => ({
@@ -209,8 +224,17 @@ export function VersionComparePage({
     catalog,
   });
 
+  // The automation's own read says which version is live and which is the
+  // latest: until it answers, the page neither marks the version live nor
+  // offers to deploy or restore it, and a read that failed says so.
   const live = latestQuery.data?.deployedVersion ?? null;
   const latest = latestQuery.data?.latestVersion ?? latestQuery.data?.version;
+  const latestKnown = latestQuery.data !== undefined;
+  const latestRead = readStateOf(latestQuery);
+  const actorLabel = useActorLabel(organizationId);
+  // A failed read's retry hands its focus here once what it read arrives.
+  const headingRef = useRef<HTMLSpanElement>(null);
+  const focusHeading = useCallback(() => headingRef.current?.focus(), []);
   const view: VersionCompareView =
     search.view ?? (compact ? 'changes' : 'graph');
 
@@ -265,13 +289,11 @@ export function VersionComparePage({
     );
   }
 
+  // A failed read of the version compared with stays on screen while its
+  // retry runs, rather than turning back into the loading state.
   const loading =
     afterQuery.isPending ||
-    (fromVersion !== undefined && beforeQuery.isPending);
-  const fromMissing =
-    fromVersion !== undefined &&
-    !beforeQuery.isPending &&
-    isMissingAutomationRead(beforeQuery);
+    (fromVersion !== undefined && beforeQuery.isPending && !fromFailed);
   const message =
     after?.message === undefined || after.message.trim() === ''
       ? t('versions.noMessage')
@@ -296,7 +318,7 @@ export function VersionComparePage({
     search.node === undefined ? [] : itemsOfBox(sections, search.node);
 
   const body = (() => {
-    if (diff === null || afterDoc === null) return null;
+    if (afterDoc === null) return null;
     if (fromMissing) {
       return (
         <Alert
@@ -308,6 +330,18 @@ export function VersionComparePage({
         />
       );
     }
+    if (fromFailed) {
+      return (
+        <CatalogLoadError
+          message={t('compare.fromFailed', { version: fromVersion })}
+          failureKey={beforeRead.failureCount}
+          isRetrying={beforeRead.retrying}
+          onRetry={() => void beforeQuery.refetch()}
+          onFocusLost={focusHeading}
+        />
+      );
+    }
+    if (diff === null) return null;
     if (diff.identical && fromVersion !== undefined) {
       return (
         <EmptyState
@@ -418,7 +452,11 @@ export function VersionComparePage({
       <Skeletonize loading={loading} label={t('compare.views.label')}>
         <StickySectionHeader
           as="h2"
-          title={`${labels.after} · ${message}`}
+          title={
+            <span ref={headingRef} tabIndex={-1}>
+              {`${labels.after} · ${message}`}
+            </span>
+          }
           description={
             after === null ? undefined : (
               <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
@@ -464,7 +502,7 @@ export function VersionComparePage({
                   {t('versions.actions.openInEditor')}
                 </Link>
               </Button>
-              {canAuthor && !isLive && (
+              {canAuthor && latestKnown && !isLive && (
                 <Button
                   variant="secondary"
                   size="sm"
@@ -484,7 +522,8 @@ export function VersionComparePage({
                     key: 'restore',
                     label: t('versions.actions.restore'),
                     icon: RotateCcw,
-                    visible: canAuthor && version !== latest,
+                    visible:
+                      canAuthor && latest !== undefined && version !== latest,
                     onClick: () => setRestoring(version),
                   },
                   {
@@ -498,6 +537,22 @@ export function VersionComparePage({
             </div>
           }
         />
+        {latestRead.unavailable && (
+          <CatalogLoadError
+            message={t('detail.loadFailed.title')}
+            failureKey={latestRead.failureCount}
+            isRetrying={latestRead.retrying}
+            onRetry={() => void latestQuery.refetch()}
+            onFocusLost={focusHeading}
+          />
+        )}
+        {after !== null &&
+          actorLabel(after.createdBy).kind === 'unavailable' && (
+            <AuthorNamesLoadError
+              organizationId={organizationId}
+              onFocusLost={focusHeading}
+            />
+          )}
         {triggerOff !== null && (
           <TriggerDeployNotice
             place={{ organizationId, projectId, name: automationSlug }}
