@@ -38,6 +38,7 @@
         "$TURBO_ROOT$/docs/en/platform/**",
         "$TURBO_ROOT$/docs/*/self-hosted/configuration/environment-reference.md",
         "$TURBO_ROOT$/knip.config.ts",
+        "$TURBO_ROOT$/package.json",
         "$TURBO_ROOT$/packages/shared/src/automation-name.ts",
         "$TURBO_ROOT$/packages/shared/src/utils/stable-stringify.ts",
         "$TURBO_ROOT$/packages/ui/package.json",

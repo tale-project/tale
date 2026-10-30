@@ -6,6 +6,7 @@ import {
   mkdtempSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -13,6 +14,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { afterEach, describe, expect, it } from 'vitest';
+import { z } from 'zod';
 
 /**
  * A RUN that chains a required step and an optional cleanup into one sh
@@ -28,7 +30,8 @@ import { afterEach, describe, expect, it } from 'vitest';
  * double on a private PATH. A failed required step must fail the RUN; a
  * failed optional step must not. It also pins the pruner's manifests to
  * stage 1's: the one stage 1 copied and the pruner did not (tools/opengrep's)
- * was the lockfile change Bun refused.
+ * was the lockfile change Bun refused. And it runs the root `prepare` the
+ * pruner's install runs, which must start no hook tool while HUSKY=0.
  */
 
 const PLATFORM_ROOT = path.resolve(
@@ -41,6 +44,7 @@ const SANDBOX_RUNTIME_DOCKERFILE = path.join(
   REPO_ROOT,
   'services/sandbox-runtime/Dockerfile',
 );
+const ROOT_MANIFEST = path.join(REPO_ROOT, 'package.json');
 
 interface Instruction {
   stage: string;
@@ -188,18 +192,12 @@ afterEach(() => {
 });
 
 /**
- * Run `command` through /bin/sh with a PATH holding only recording doubles
- * for `commands`: each appends `<name> <args>` to the call log, then exits 1
- * when that line matches one of the sh `case` patterns in `failing`, else 0.
- * Builtins stay the shell's own, so nothing is installed, moved or deleted;
- * redirections into absolute paths (other than /dev/null) are pointed into
- * the scratch directory first.
+ * A scratch directory whose `bin` holds a recording double for each of
+ * `commands`: each appends `<name> <args>` to the call log (`CALL_LOG`),
+ * then exits 1 when that line matches one of the sh `case` patterns in
+ * `failing`, else 0.
  */
-function runWithDoubles(
-  command: string,
-  commands: string[],
-  failing: string[] = [],
-) {
+function recordingDoubles(commands: string[], failing: string[]) {
   const dir = mkdtempSync(path.join(tmpdir(), 'dockerfile-fail-closed-'));
   tempDirs.push(dir);
   const bin = path.join(dir, 'bin');
@@ -221,15 +219,35 @@ function runWithDoubles(
       { mode: 0o755 },
     );
   }
+  return {
+    dir,
+    bin,
+    log,
+    calls: () => readFileSync(log, 'utf8').split('\n').filter(Boolean),
+  };
+}
+
+/**
+ * Run `command` through /bin/sh with a PATH holding only recording doubles
+ * for `commands` (`recordingDoubles`). Builtins stay the shell's own, so
+ * nothing is installed, moved or deleted; redirections into absolute paths
+ * (other than /dev/null) are pointed into the scratch directory first.
+ */
+function runWithDoubles(
+  command: string,
+  commands: string[],
+  failing: string[] = [],
+) {
+  const doubles = recordingDoubles(commands, failing);
   let redirects = 0;
   const contained = command.replace(
     /(>>?)\s*(\/(?!dev\/null\b)\S+)/g,
     (_match, operator: string) =>
-      `${operator} ${path.join(dir, `redirect-${++redirects}`)}`,
+      `${operator} ${path.join(doubles.dir, `redirect-${++redirects}`)}`,
   );
   const result = spawnSync('/bin/sh', ['-c', contained], {
-    cwd: dir,
-    env: { PATH: bin, CALL_LOG: log },
+    cwd: doubles.dir,
+    env: { PATH: doubles.bin, CALL_LOG: doubles.log },
     encoding: 'utf8',
     timeout: 10_000,
   });
@@ -237,7 +255,7 @@ function runWithDoubles(
     error: result.error,
     status: result.status,
     stderr: result.stderr,
-    calls: readFileSync(log, 'utf8').split('\n').filter(Boolean),
+    calls: doubles.calls(),
   };
 }
 
@@ -294,6 +312,134 @@ describe('platform pruner: the production install fails closed', () => {
     expect(result.status).toBe(0);
     // Each cleanup step still ran after the one before it failed.
     expect(result.calls).toEqual(passing.calls);
+  });
+});
+
+/**
+ * The root manifest's `prepare`, which `bun install` runs after every install
+ * of the repository, the pruner's production install included.
+ */
+function rootPrepare(): string {
+  return z
+    .object({ scripts: z.object({ prepare: z.string() }) })
+    .parse(JSON.parse(readFileSync(ROOT_MANIFEST, 'utf8'))).scripts.prepare;
+}
+
+/** The absolute path of the `bun` on this suite's PATH. */
+function bunExecutable(): string {
+  const result = spawnSync(
+    'bun',
+    ['-e', 'process.stdout.write(process.execPath)'],
+    { encoding: 'utf8', timeout: 10_000 },
+  );
+  if (result.status !== 0 || !path.isAbsolute(result.stdout)) {
+    throw new Error(
+      `cannot locate bun: ${result.error?.message ?? result.stderr}`,
+    );
+  }
+  return result.stdout;
+}
+
+describe('platform pruner: the production install starts no hook tool', () => {
+  // HUSKY=0 tells husky to skip, but only husky reads it. The root `prepare`
+  // was `bunx husky`, and the production install has no devDependencies, so
+  // bunx first resolved husky into a tool cache of its own (a project and a
+  // lockfile: "Saved lockfile" in the build log) only to hear it skip
+  // (#4006). The `prepare` now asks HUSKY === '0' itself, the test husky
+  // makes, before it starts bunx.
+  const INSTALL = 'bun install --production';
+  const SETUP = 'bunx husky';
+  const prepare = rootPrepare();
+  const bun = bunExecutable();
+
+  /**
+   * Run the root `prepare` through `bun <args>` in a scratch project whose
+   * manifest holds nothing but that script. `bunx` is a recording double
+   * (`recordingDoubles`); `bun` is the real one, linked beside it, and the
+   * PATH holds nothing else.
+   */
+  function runPrepare(
+    args: string[],
+    env: Record<string, string>,
+    failing: string[] = [],
+  ) {
+    const doubles = recordingDoubles(['bunx'], failing);
+    symlinkSync(bun, path.join(doubles.bin, 'bun'));
+    const project = path.join(doubles.dir, 'project');
+    mkdirSync(project);
+    writeFileSync(
+      path.join(project, 'package.json'),
+      JSON.stringify({
+        name: 'root-prepare',
+        private: true,
+        scripts: { prepare },
+      }),
+    );
+    const result = spawnSync(path.join(doubles.bin, 'bun'), args, {
+      cwd: project,
+      env: {
+        PATH: doubles.bin,
+        HOME: doubles.dir,
+        TMPDIR: doubles.dir,
+        BUN_INSTALL_CACHE_DIR: path.join(doubles.dir, 'cache'),
+        CALL_LOG: doubles.log,
+        ...env,
+      },
+      encoding: 'utf8',
+      timeout: 30_000,
+    });
+    return {
+      error: result.error,
+      status: result.status,
+      stderr: result.stderr,
+      calls: doubles.calls(),
+    };
+  }
+
+  // How `bun install` runs a lifecycle script: through the system shell (the
+  // pruner's own command, on a project with nothing to install), or through
+  // Bun Shell (`bun exec`) where it finds no system shell, as on Windows.
+  const runners: [string, string[]][] = [
+    [INSTALL, ['install', '--production']],
+    ['bun exec', ['exec', prepare]],
+  ];
+  // Husky skips on exactly '0'; any other value asks for the hooks.
+  const wanted = runners.flatMap(
+    ([runner, args]): [string, string, string[], Record<string, string>][] => [
+      ['unset', runner, args, {}],
+      ['1', runner, args, { HUSKY: '1' }],
+      ['empty', runner, args, { HUSKY: '' }],
+    ],
+  );
+
+  it('runs with hook setup disabled', () => {
+    expect(runCommand(PLATFORM_DOCKERFILE, 'pruner', INSTALL)).toMatch(
+      /^HUSKY=0 bun install --production\s/,
+    );
+  });
+
+  it.each(runners)('starts no bunx when HUSKY=0 (%s)', (_runner, args) => {
+    const result = runPrepare(args, { HUSKY: '0' });
+    expect(result.error).toBeUndefined();
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.calls).toEqual([]);
+  });
+
+  it.each(wanted)(
+    'sets the hooks up with `bunx husky` when HUSKY is %s (%s)',
+    (_husky, _runner, args, env) => {
+      const result = runPrepare(args, env);
+      expect(result.error).toBeUndefined();
+      expect(result.status, result.stderr).toBe(0);
+      expect(result.calls).toEqual([SETUP]);
+    },
+  );
+
+  it.each(runners)('fails when the hook setup fails (%s)', (_runner, args) => {
+    const result = runPrepare(args, {}, [`"${SETUP}"`]);
+    expect(result.error).toBeUndefined();
+    expect(result.status).not.toBe(0);
+    expect(result.calls).toEqual([SETUP]);
   });
 });
 
