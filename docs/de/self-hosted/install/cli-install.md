@@ -410,7 +410,7 @@ Jedes Deployment gleicht das Backend an die Deklaration an. Ein fehlendes Konto 
 | `displayName` | Was Personen auf der Anmeldeseite sehen. Standard: `OpenID Connect`. |
 | `scopes` | Die angeforderten Scopes. Standard: `openid`, `profile` und `email`. |
 | `pkce` | Ob die Anmeldung PKCE nutzt. Standard: `true`. |
-| `claimMappings` | Die Claim-Namen als Punktpfade, die `email`, `name` und `groups` tragen. Deklariere mindestens einen oder lass den Block weg. |
+| `claimMappings` | Die Claim-Namen als Punktpfade, die `email`, `name` und `groups` tragen. Deklariere mindestens einen oder lass den Block weg. Einen Claim, dessen eigener Name Punkte enthält, etwa `https://example.com/roles`, liest Tale unter genau diesem Namen. |
 | `trustEmail` | Markiert die Adresse des zugeordneten E-Mail-Claims bei der Anmeldung als bestätigt. Standard: `false`. Setzt `claimMappings.email` voraus. |
 
 Die Verbindung wird wie die Entra-Verbindung geschrieben: Neue Mitglieder erhalten die Rolle `member`, und Rollen und Teams vergibt der Anbieter nicht. Personen werden anhand der Adresse im E-Mail-Claim den Mitgliedern zugeordnet, die Tale bereits hat. Ordnest du diesen Claim zu, muss der Anbieter ihn senden: Eine Anmeldung, deren Antwort ihn nicht enthält, wird abgelehnt, und Tale weicht nie auf den einfachen Claim `email` oder `preferred_username` aus, den eine Person beim Anbieter womöglich selbst ändern kann. Ohne Zuordnung liest Tale `email` und danach `preferred_username`, wie bei jeder generischen OIDC-Verbindung. Eine Adresse, die kein Konto des Deployments besitzt, legt wie bei Entra ein neues Mitglied an. Eine Adresse, die zu einem Konto gehört, das nicht Mitglied der Organisation ist, wird abgelehnt, und nichts wird verändert.

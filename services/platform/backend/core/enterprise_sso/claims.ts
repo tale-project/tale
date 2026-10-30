@@ -2,25 +2,39 @@
  * Claim resolution for generic OIDC providers (#1506).
  *
  * Identity providers rarely agree on where a claim lives: Keycloak emits roles
- * at `realm_access.roles`, Auth0 uses namespaced URLs, others flatten
- * everything to the top level. Dot-path resolution lets an operator point role
- * rules and claim mappings at any of these without provider-specific code.
+ * at `realm_access.roles`, Auth0 under namespaced URLs such as
+ * `https://example.com/roles`, SAML IdPs under attribute URIs, others flatten
+ * everything to the top level. Dot-path resolution that reads a dotted name as
+ * written first (#4775) lets an operator point role rules and claim mappings at
+ * any of these without provider-specific code.
  */
 
 import { isRecord } from '../../../lib/utils/type-utils';
 
 /**
- * Resolve a dot-path (e.g. `realm_access.roles`) inside a claims object.
- * Returns `undefined` when any segment is missing or not an object.
+ * Resolve a claim path (e.g. `realm_access.roles`) inside a claims object.
+ * Dots lead into nested claims, but a claim whose own name contains dots
+ * (`https://example.com/roles`, `urn:oid:1.3.6.1.4.1.5923.1.1.1.1`) is read as
+ * written: at each level the longest name the claims carry is tried first, and
+ * a shorter one when the longer leads nowhere. Only own keys are read, never
+ * inherited ones. Returns `undefined` when no reading of the path reaches a
+ * value.
  */
 export function resolveClaimPath(claims: unknown, path: string): unknown {
   if (!path) return undefined;
-  let current: unknown = claims;
-  for (const segment of path.split('.')) {
-    if (!isRecord(current)) return undefined;
-    current = current[segment];
+  return resolveSegments(claims, path.split('.'));
+}
+
+function resolveSegments(current: unknown, segments: string[]): unknown {
+  if (segments.length === 0) return current;
+  if (!isRecord(current)) return undefined;
+  for (let end = segments.length; end > 0; end--) {
+    const key = segments.slice(0, end).join('.');
+    if (!Object.hasOwn(current, key)) continue;
+    const value = resolveSegments(current[key], segments.slice(end));
+    if (value !== undefined) return value;
   }
-  return current;
+  return undefined;
 }
 
 /**

@@ -31,7 +31,7 @@ Choose a **Display name** members will recognize. When more than one organizatio
 1. Select the protocol in Tale and open **Setup guide** to find the callback URL.
 2. Register a web application with your IdP. Copy the callback URL exactly, including scheme, host, and path. Register each additional callback URL Tale shows if members use several deployment domains.
 3. Enter the client ID and secret in Tale. For OIDC, enter the issuer URL; Tale discovers the endpoints. For OAuth2, enter the three endpoint URLs yourself.
-4. Review **Scopes** and **Advanced**. Request the identity claims your provisioning rules need. Map nonstandard claim names where necessary; claim paths can use dots, such as `realm_access.roles`.
+4. Review **Scopes** and **Advanced**. Request the identity claims your provisioning rules need. Map nonstandard claim names where necessary; claim paths can use dots, such as `realm_access.roles`. A claim whose own name contains dots, such as the namespaced claim `https://example.com/roles`, is read as written.
 5. Select **Test connection**, resolve any error, then **Save** in the header. Continue with a real sign-in test below.
 
 When a connection maps the email claim, the provider's answer must carry that claim. Tale matches the person by that address alone: a sign-in whose answer lacks the claim is refused and nothing is changed, and Tale does not fall back to the plain `email` or `preferred_username` claim, which a person may be able to edit at the provider. Without a mapping, Tale reads `email` and then `preferred_username`. A deployment operator can also declare the connection with the Tale CLI, including a setting that marks the mapped address as verified; see [sign people in through an OpenID Connect provider](/self-hosted/install/cli-install#managed-oidc-sign-in). This page does not show that setting. Saving the form keeps it while the email mapping stays; clearing the mapping drops it, and the CLI sets it again.
@@ -65,6 +65,8 @@ Both IdP-initiated and Tale-initiated SAML are supported. For a sign-in started 
 | **Exclude groups** | Comma-separated group names to leave out of team sync. |
 
 Role rules are checked from top to bottom, and the first rule that matches decides the role. A person who matches several rules — for example, someone with both an `Administrator` and an `Employee` app role — gets the role of the rule higher in the list, not automatically the most privileged one. Put the most privileged rules first: drag a rule by its handle or use its **Move up** and **Move down** arrows, then save.
+
+A **Claim** rule reads the value at its **Claim path**, where dots lead into nested claims, as in `realm_access.roles`. Tale first looks for the name as written, so a claim or SAML attribute whose own name contains dots, such as `https://example.com/roles` or `urn:oid:1.3.6.1.4.1.5923.1.1.1.1`, is read whole. A rule whose claim the sign-in does not carry matches no one, and the next rule is checked.
 
 Team sync removes memberships it previously granted when groups disappear and deletes teams it created once empty. It preserves memberships created manually or through SCIM, and leaves excluded groups alone. See [teams](/platform/admin/teams) for manual membership management.
 

@@ -755,7 +755,10 @@ enterpriseSso:
     patternLabel: Matches value
     targetRoleLabel: Assigns role
     claimLabel: Claim path
-    claimHelp: Dot-path into the token claims, e.g. realm_access.roles.
+    claimHelp:
+      Dot-path into the token claims, e.g. realm_access.roles. A claim whose
+      own name contains dots, such as https://example.com/roles or a SAML
+      attribute URI, is read as written.
   redirectUrlLabel: Redirect URL to register in Entra
   redirectUrlHelp: Register this exact URL as a "Web" redirect URI in your app
     registration — it must byte-match (scheme, host, path, no trailing

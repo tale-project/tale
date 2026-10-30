@@ -802,7 +802,10 @@ enterpriseSso:
     patternLabel: Valeur correspondante
     targetRoleLabel: Attribue le rôle
     claimLabel: Chemin du claim
-    claimHelp: Chemin pointé dans les claims du jeton, p. ex. realm_access.roles.
+    claimHelp:
+      Chemin pointé dans les claims du jeton, p. ex. realm_access.roles. Un
+      claim dont le nom contient lui-même des points, comme
+      https://example.com/roles ou une URI d'attribut SAML, est lu tel quel.
   redirectUrlLabel: URL de redirection à enregistrer dans Entra
   redirectUrlHelp:
     Enregistre exactement cette URL comme URI de redirection « Web
