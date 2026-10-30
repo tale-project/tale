@@ -11,25 +11,39 @@
  * `session.activeOrganizationId` actually reflects the target — so the
  * downstream /dashboard/$id route mounts in a coherent state and does
  * not re-flash a loading indicator of its own.
+ *
+ * A switch the server refuses, or one that gets no answer, is neither
+ * recorded nor followed into the target: the page stays and says so
+ * (`OrgSwitchFailure`), with Try again and the way back to the organization
+ * the session is still in. So does a switch that has not finished after
+ * `ORG_SWITCH_TIMEOUT_MS`; if it then succeeds, it still goes on.
  */
 
 import { FullPageCenter } from '@tale/ui/full-page-center';
 import { VStack } from '@tale/ui/layout';
 import { Spinner } from '@tale/ui/spinner';
 import { Text } from '@tale/ui/text';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   createFileRoute,
   useNavigate,
   useRouter,
 } from '@tanstack/react-router';
-import { useEffect, useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { z } from 'zod';
 
+import {
+  OrgSwitchFailure,
+  type OrgSwitchFailureCause,
+} from '@/app/features/organization/components/org-switch-failure';
 import { useUserOrganizationsWithDetails } from '@/app/features/organization/hooks/queries';
+import { sessionQueryOptions } from '@/app/lib/auth/session-query';
+import {
+  ORG_SWITCH_TIMEOUT_MS,
+  setActiveOrganization,
+} from '@/app/lib/auth/set-active-organization';
 import { recordOrgSwitch } from '@/app/lib/backend/org';
 import { resetCrossOrgDetailSubpath } from '@/app/lib/org-switch-subpath';
-import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 
 export type DashboardHistory = { replace: (path: string) => void };
@@ -60,7 +74,12 @@ function SwitchingPage() {
   const { t } = useT('navigation');
 
   const { organizations } = useUserOrganizationsWithDetails();
-  const ranRef = useRef(false);
+  const { data: session } = useQuery(sessionQueryOptions);
+  // Each Try again is a new attempt; only the latest one reports or goes on.
+  const [attempt, setAttempt] = useState(0);
+  const [failure, setFailure] = useState<OrgSwitchFailureCause | null>(null);
+  const ranRef = useRef<number | null>(null);
+  const latestAttemptRef = useRef(0);
 
   const targetName = useMemo(
     () =>
@@ -69,14 +88,15 @@ function SwitchingPage() {
   );
 
   useEffect(() => {
-    if (ranRef.current) return;
-    ranRef.current = true;
+    if (ranRef.current === attempt) return;
+    ranRef.current = attempt;
+    latestAttemptRef.current = attempt;
+    const superseded = () => latestAttemptRef.current !== attempt;
 
     void (async () => {
       try {
-        await authClient.organization.setActive({
-          organizationId: targetOrgId,
-        });
+        await setActiveOrganization(targetOrgId);
+        if (superseded()) return;
         // Audit + lastActiveOrganizationId persistence is NOT on the critical
         // path — fire it in the background so the spinner doesn't wait on the
         // dedup scan + better-auth `updateMany` round-trip. Initiated before
@@ -127,7 +147,12 @@ function SwitchingPage() {
           },
         });
       } catch (err) {
+        if (superseded()) return;
+        // The session is still where it was: nothing is recorded, and there
+        // is nothing to go on into. The page says so instead.
         console.error('Failed to switch organization:', err);
+        setFailure({ error: err });
+        return;
       }
       // Replace history entry so Back button doesn't return here. When a
       // subpath is provided, reconstruct the full URL so the user lands on
@@ -154,7 +179,32 @@ function SwitchingPage() {
         });
       }
     })();
-  }, [targetOrgId, subpath, queryClient, navigate, router]);
+  }, [attempt, targetOrgId, subpath, queryClient, navigate, router]);
+
+  // A switch that has not finished by the bound says so, with the same ways
+  // on as a refused one, instead of spinning for good.
+  useEffect(() => {
+    if (failure) return undefined;
+    const timer = setTimeout(
+      () => setFailure({ timedOut: true }),
+      ORG_SWITCH_TIMEOUT_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [failure]);
+
+  if (failure) {
+    return (
+      <OrgSwitchFailure
+        organizationId={targetOrgId}
+        activeOrganizationId={session?.data?.session?.activeOrganizationId}
+        cause={failure}
+        onRetry={() => {
+          setFailure(null);
+          setAttempt((current) => current + 1);
+        }}
+      />
+    );
+  }
 
   return (
     <FullPageCenter>

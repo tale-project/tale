@@ -1,6 +1,6 @@
 # Navigation & shell
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 73 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 75 boxes
 
 Exercise cross-app navigation — the primary side-nav rail and the section
 panels beside the page (the Home panel with its projects and its one stream of
@@ -93,7 +93,9 @@ loaded, and reads **No teams** for an account in none.
   (`navigation.orgSwitcher.label`) in the org button; pick a second org (needs
   ≥2 orgs) → URL passes through `/dashboard/switching?to={otherOrg}` (shows
   the switching spinner), then lands on `/dashboard/{otherOrg}/…`; data is
-  scoped to the new org.
+  scoped to the new org. Each org's row reads `@<slug> · <role>`, the role
+  as the members table names it (`roles.*`): **Owner** in English,
+  **Inhaber** in Deutsch, never the raw `owner`.
 - [ ] `NAV-F6` · **Teams row** — In the user/avatar menu (bottom-left), read
   the **Teams** row (`navigation.myTeams.label`), then click it → The row is a
   plain item, not a picker: its badge COUNTS the caller's teams
@@ -639,6 +641,30 @@ loaded, and reads **No teams** for an account in none.
   and the notice stays. Unblock and choose **Try again**: the notice goes,
   the keyboard focus lands on the page (not on the document body), and the
   navigation never changes.
+- [ ] `NAV-B21` · **An org switch that fails** — Signed in to two
+  organizations (Acme open, Globex the other), block
+  `*/api/auth/organization/set-active*` in Chromium's devtools →
+  **Network**, then pick Globex in the **Organization** switcher → the
+  switching page says **Couldn't switch to Globex.**
+  (`navigation.orgSwitcher.switchFailed`) with **Couldn't reach Tale. Check
+  your connection and try again.** (`common.errors.connectionLost`) under it,
+  **Try again** (`common.actions.tryAgain`) and **Back to Acme**
+  (`navigation.orgSwitcher.backTo`); no spinner stays, and **Settings › Logs
+  › Audit** in Acme lists no switch to Globex. **Back to Acme** returns to
+  Acme, and the browser's Back does not try the switch again. Pick Globex
+  again, unblock and choose **Try again** → Globex opens. With the block back
+  on, open `/dashboard/{globex}` in Acme's tab → the page area says the same
+  beside Globex's navigation instead of **Switching…**
+  (`navigation.orgSwitcher.switching`) for good. Repeat with Deutsch and
+  Français → every line is localized.
+- [ ] `NAV-B22` · **A switcher whose organization list cannot load** —
+  Block `*/api/app/organizations` in devtools, open `/dashboard/{org}/chat`
+  in a new tab, then open the account menu's **Organization** switcher → it
+  says **Your organizations could not be loaded.**
+  (`auth.dashboardEntry.organizationsFailed`) with **Try again**, never an
+  empty list; **Create organization** stays where it is offered. Unblock and
+  choose **Try again** with the keyboard → the organizations appear and the
+  focus lands on the first one.
 
 ## Accessibility (WCAG 2.1 AA)
 

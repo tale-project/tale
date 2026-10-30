@@ -20,7 +20,13 @@ import {
   useLocation,
   useNavigate,
 } from '@tanstack/react-router';
-import { useCallback, useEffect, useRef, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { AccessRefreshNotice } from '@/app/components/layout/access-refresh-notice';
@@ -50,12 +56,20 @@ import {
   isHomePath,
   readHomeLocation,
 } from '@/app/features/home/lib/home-paths';
+import {
+  OrgSwitchFailure,
+  type OrgSwitchFailureCause,
+} from '@/app/features/organization/components/org-switch-failure';
 import { EmbeddingSetupBanner } from '@/app/features/settings/data-residency/components/embedding-setup-banner';
 import { ClockOffsetProvider } from '@/app/hooks/use-clock-offset';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useAuth } from '@/app/hooks/use-session-user';
 import { setActiveOrganizationId } from '@/app/lib/active-organization';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
+import {
+  ORG_SWITCH_TIMEOUT_MS,
+  setActiveOrganization,
+} from '@/app/lib/auth/set-active-organization';
 import {
   memberContextQuery,
   myTeamsQuery,
@@ -68,7 +82,6 @@ import {
   readCachedMemberContextRole,
 } from '@/app/lib/member-context-cache';
 import { markColdLoad } from '@/app/lib/perf/cold-load-trace';
-import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
 import { defineAbilityFor, type AppAbility } from '@/lib/permissions/ability';
 
@@ -155,21 +168,35 @@ function DashboardLayout() {
   // match the route, silently sync it to the route (user is already verified
   // as a member via useCurrentMemberContext above). This keeps routes,
   // queries, and Better Auth aligned without bouncing the user through the
-  // picker. Audit-log the entry so it's captured even for deep-link arrivals.
+  // picker. Audit-log the entry so it's captured even for deep-link arrivals
+  // — once the session switched: a sync the server refuses, or one that gets
+  // no answer, records nothing and is shown instead of the spinner below,
+  // with Try again and the way back.
   const queryClient = useQueryClient();
   const { data: session } = useQuery(sessionQueryOptions);
   const activeOrganizationId = session?.data?.session?.activeOrganizationId;
   const orgSyncRef = useRef<string | null>(null);
+  // Each sync counts; only the latest one reports, so a superseded one never
+  // overwrites what the newer one found.
+  const orgSyncCountRef = useRef(0);
+  const [orgSyncAttempt, setOrgSyncAttempt] = useState(0);
+  const [orgSyncFailure, setOrgSyncFailure] = useState<{
+    organizationId: string;
+    cause: OrgSwitchFailureCause;
+  } | null>(null);
   useEffect(() => {
     if (memberContext?.status !== 'ok') return;
     if (!activeOrganizationId) return;
     if (activeOrganizationId === organizationId) return;
-    // Prevent re-running for the same mismatch after a completed sync.
+    // Prevent re-running for the same mismatch after a completed sync; Try
+    // again clears it.
     if (orgSyncRef.current === organizationId) return;
     orgSyncRef.current = organizationId;
+    const sync = ++orgSyncCountRef.current;
     void (async () => {
       try {
-        await authClient.organization.setActive({ organizationId });
+        await setActiveOrganization(organizationId);
+        if (sync === orgSyncCountRef.current) setOrgSyncFailure(null);
         // Audit + preference persistence is off the critical path — fire in the
         // background so the guard doesn't block on it. Errors are logged.
         void recordOrgSwitch(organizationId).catch((err) => {
@@ -177,8 +204,12 @@ function DashboardLayout() {
         });
         await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
       } catch (err) {
+        // The guard stays: a refusal (a rate limit among them) is not asked
+        // again on its own. The page says so instead, with Try again.
         console.warn('Failed to sync active organization:', err);
-        orgSyncRef.current = null;
+        if (sync === orgSyncCountRef.current) {
+          setOrgSyncFailure({ organizationId, cause: { error: err } });
+        }
       }
     })();
   }, [
@@ -186,7 +217,13 @@ function DashboardLayout() {
     organizationId,
     memberContext?.status,
     queryClient,
+    orgSyncAttempt,
   ]);
+  const retryOrgSync = () => {
+    orgSyncRef.current = null;
+    setOrgSyncFailure(null);
+    setOrgSyncAttempt((current) => current + 1);
+  };
 
   const abilityRef = useRef<{ role: string | null; ability: AppAbility }>(null);
 
@@ -248,6 +285,20 @@ function DashboardLayout() {
     memberContext?.status === 'ok' &&
     !!activeOrganizationId &&
     activeOrganizationId !== organizationId;
+  // A switch that failed, or has not finished by the bound, is said as such
+  // in place of the spinner; a late success still lands.
+  const switchFailure =
+    isSwitching && orgSyncFailure?.organizationId === organizationId
+      ? orgSyncFailure.cause
+      : null;
+  useEffect(() => {
+    if (!isSwitching || switchFailure) return undefined;
+    const timer = setTimeout(
+      () => setOrgSyncFailure({ organizationId, cause: { timedOut: true } }),
+      ORG_SWITCH_TIMEOUT_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [isSwitching, switchFailure, organizationId]);
 
   useEffect(() => {
     if (isDisabled) {
@@ -404,7 +455,14 @@ function DashboardLayout() {
                             </div>
                           )}
                           {hasRole ? (
-                            isSwitching ? (
+                            switchFailure ? (
+                              <OrgSwitchFailure
+                                organizationId={organizationId}
+                                activeOrganizationId={activeOrganizationId}
+                                cause={switchFailure}
+                                onRetry={retryOrgSync}
+                              />
+                            ) : isSwitching ? (
                               <FullPageCenter>
                                 <VStack gap={3} align="center">
                                   <Spinner

@@ -83,7 +83,7 @@ two moves the docs-screenshot seed makes (`ensureMockProvider` in
 2. **Read the org's slug** — the config dir is keyed by slug, not by the
    `{org}` id. The **Manage account** menu (`auth.userButton.manageAccount`)
    → **Organization** (`navigation.orgSwitcher.label`) lists each org as
-   `@<slug> · <role>`.
+   `@<slug> · <role>`, the role in the interface language (**Owner**).
 3. **Copy the provider definition** into that org's config dir, from
    `services/platform`:
 

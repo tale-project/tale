@@ -25,6 +25,10 @@ Configure une application sous **Authentification à deux facteurs** ou ajoute u
 
 Ouvre le menu de profil depuis ton avatar. **Langue** change la langue de l’interface. Si tu appartiens à plusieurs organisations, **Organisation** change d’espace de travail. La ligne **Équipes** nomme tes équipes et ouvre la page du compte ; elle ne bascule vers rien, car une équipe n’est pas un espace de travail.
 
+Chaque organisation de la liste **Organisation** indique ton rôle, par exemple **Propriétaire** ou **Membre**. Si la liste ne peut pas être chargée, elle le signale ; choisis **Réessayer** pour la recharger.
+
+Si un changement échoue, rien n’est changé : Tale nomme l’organisation vers laquelle il n’a pas pu passer et, quand il le peut, en donne la raison. Choisis **Réessayer**, ou **Retour à** suivi du nom de l’organisation où tu étais. Un changement qui n’a pas abouti après 20 secondes est signalé de la même façon : il prend plus de temps que prévu. S’il aboutit malgré tout, l’organisation s’ouvre.
+
 Vérifie le nom de l’organisation avant de modifier des réglages ou d’ajouter du contenu.
 
 ## Voir ton rôle {#role}

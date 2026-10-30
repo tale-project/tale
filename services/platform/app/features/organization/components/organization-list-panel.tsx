@@ -1,15 +1,17 @@
 'use client';
 
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
 import { Stack } from '@tale/ui/layout';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { Check, Loader2, Plus } from 'lucide-react';
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 import {
   useOrganizationCapabilities,
   useUserOrganizationsWithDetails,
 } from '@/app/features/organization/hooks/queries';
+import { useRoleLabel } from '@/app/features/settings/organization/components/role-badge';
 import { useT } from '@/lib/i18n/client';
 
 interface OrganizationListPanelProps {
@@ -29,10 +31,26 @@ export function OrganizationListPanel({
   hideHeader = false,
 }: OrganizationListPanelProps) {
   const { t: tNav } = useT('navigation');
+  const { t: tAuth } = useT('auth');
   const navigate = useNavigate();
   const location = useLocation();
+  const roleLabel = useRoleLabel();
 
-  const { organizations: userOrgs } = useUserOrganizationsWithDetails();
+  // A list that never loaded is said as such, with Try again — never an
+  // empty switcher, which read as belonging to no other organization.
+  const {
+    organizations: userOrgs,
+    unavailable,
+    retrying,
+    failureCount,
+    retry,
+  } = useUserOrganizationsWithDetails();
+  // A Try again that brings the list back hands the focus to its first row.
+  const listRef = useRef<HTMLUListElement>(null);
+  const focusList = useCallback(
+    () => listRef.current?.querySelector('button')?.focus(),
+    [],
+  );
 
   const [switchingOrgId, setSwitchingOrgId] = useState<string | null>(null);
 
@@ -66,51 +84,64 @@ export function OrganizationListPanel({
         </div>
       )}
 
-      <ul className="max-h-72 overflow-y-auto py-1">
-        {orgs.map((org) => {
-          const isCurrent = org.organizationId === currentOrganizationId;
-          const isSwitching = switchingOrgId === org.organizationId;
-          return (
-            <li key={org.organizationId}>
-              <button
-                type="button"
-                onClick={() => switchToOrg(org.organizationId)}
-                disabled={isSwitching}
-                className={cn(
-                  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
-                  isCurrent
-                    ? 'bg-muted'
-                    : 'hover:bg-muted focus-visible:bg-muted',
-                  isSwitching && 'opacity-60',
-                )}
-              >
-                <span
-                  className="bg-muted-foreground/15 text-foreground flex size-7 shrink-0 items-center justify-center rounded text-xs font-semibold"
-                  aria-hidden="true"
+      {unavailable ? (
+        <div className="p-1">
+          <CatalogLoadError
+            message={tAuth('dashboardEntry.organizationsFailed')}
+            onRetry={retry}
+            isRetrying={retrying}
+            // Each failure is announced again; Try again keeps its node.
+            failureKey={failureCount}
+            onFocusLost={focusList}
+          />
+        </div>
+      ) : (
+        <ul ref={listRef} className="max-h-72 overflow-y-auto py-1">
+          {orgs.map((org) => {
+            const isCurrent = org.organizationId === currentOrganizationId;
+            const isSwitching = switchingOrgId === org.organizationId;
+            return (
+              <li key={org.organizationId}>
+                <button
+                  type="button"
+                  onClick={() => switchToOrg(org.organizationId)}
+                  disabled={isSwitching}
+                  className={cn(
+                    'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors',
+                    isCurrent
+                      ? 'bg-muted'
+                      : 'hover:bg-muted focus-visible:bg-muted',
+                    isSwitching && 'opacity-60',
+                  )}
                 >
-                  {org.name.slice(0, 1).toUpperCase()}
-                </span>
-                <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-sm font-medium">
-                    {org.name}
+                  <span
+                    className="bg-muted-foreground/15 text-foreground flex size-7 shrink-0 items-center justify-center rounded text-xs font-semibold"
+                    aria-hidden="true"
+                  >
+                    {org.name.slice(0, 1).toUpperCase()}
                   </span>
-                  <span className="text-muted-foreground truncate text-xs">
-                    {org.slug ? `@${org.slug} · ` : ''}
-                    {org.role}
+                  <span className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-sm font-medium">
+                      {org.name}
+                    </span>
+                    <span className="text-muted-foreground truncate text-xs">
+                      {org.slug ? `@${org.slug} · ` : ''}
+                      {roleLabel(org.role)}
+                    </span>
                   </span>
-                </span>
-                {isSwitching ? (
-                  <Loader2 className="text-muted-foreground size-4 shrink-0 animate-spin" />
-                ) : isCurrent ? (
-                  <Check className="text-foreground size-4 shrink-0" />
-                ) : (
-                  <span className="size-4 shrink-0" aria-hidden="true" />
-                )}
-              </button>
-            </li>
-          );
-        })}
-      </ul>
+                  {isSwitching ? (
+                    <Loader2 className="text-muted-foreground size-4 shrink-0 animate-spin" />
+                  ) : isCurrent ? (
+                    <Check className="text-foreground size-4 shrink-0" />
+                  ) : (
+                    <span className="size-4 shrink-0" aria-hidden="true" />
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
 
       {capabilities?.canCreate === true && (
         <div className="border-border border-t p-1">
