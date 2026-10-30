@@ -12,8 +12,12 @@ import {
 } from '../../core/collab/coalesce.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { toJson } from '../../db/sql.ts';
-import { addJobInTx } from '../../jobs/enqueue.ts';
-import { emitHintInTx } from '../../realtime/outbox.ts';
+import { addJobsInTx } from '../../jobs/enqueue.ts';
+import {
+  emitHintInTx,
+  emitHintsInTx,
+  type Hint,
+} from '../../realtime/outbox.ts';
 
 /**
  * Collaboration core — the 0.5 twin of `convex/collab/*`: per-user content
@@ -33,7 +37,6 @@ type Db = Sql | TransactionSql;
 export type NotificationActorType = 'user' | 'agent' | 'system';
 
 interface CollabNotificationBase {
-  userId: string;
   organizationId: string;
   type: string;
   titleKey: string;
@@ -55,8 +58,11 @@ interface CollabNotificationBase {
  * org home and the email loses its CTA entirely, silently: no type error, no
  * failing test, and a fallback that reads as deliberate. The two-arm union
  * makes the pair unwritable apart.
+ *
+ * This is what a notification says, whoever it is for: a fan-out writes the
+ * same one for each of its recipients.
  */
-export type CollabNotificationInput =
+export type CollabNotification =
   | (CollabNotificationBase & {
       taskId: string;
       params: Record<string, unknown> & { projectId: string };
@@ -65,6 +71,9 @@ export type CollabNotificationInput =
       taskId?: undefined;
       params?: Record<string, unknown>;
     });
+
+/** One person's notification. */
+export type CollabNotificationInput = CollabNotification & { userId: string };
 
 /** The per-type preference column (the 0.4 PREF_FIELD map). Of the 0.4
  * `automation_alerts` group only `automation_failed` came back (a schedule
@@ -89,29 +98,36 @@ const PREF_FIELD: Record<string, string> = {
   automation_message: 'automation_messages',
 };
 
-/** Tri-state preference resolution: undefined → default ON. The review
- * group ignores any stored value — the settings UI locks it always-on. */
-async function isNotificationAllowed(
+/**
+ * Of `userIds`, each once and in order, those whose settings let a
+ * notification of `type` through. Tri-state: a switch never set (no row, or
+ * NULL) is ON, so only a stored `false` keeps someone out. The review group
+ * ignores any stored value — the settings UI locks it always-on. One read
+ * answers for everyone, however many they are.
+ */
+async function notificationAllowedAmong(
   db: Db,
-  userId: string,
-  organizationId: string,
-  type: string,
-): Promise<boolean> {
-  const field = PREF_FIELD[type];
-  if (field === undefined) return true;
-  if (field === 'task_review') return true;
-  const rows = await db<Record<string, boolean | null>[]>`
-    SELECT task_assigned, task_status_changed, task_commented, mention,
-           task_deadlines, escalation, automation_alerts,
-           conversation_messages, automation_messages
+  args: { organizationId: string; type: string; userIds: readonly string[] },
+): Promise<string[]> {
+  const userIds = [...new Set(args.userIds)];
+  const field = PREF_FIELD[args.type];
+  if (field === undefined || field === 'task_review' || userIds.length === 0) {
+    return userIds;
+  }
+  const rows = await db<
+    ({ userId: string } & Record<string, string | boolean | null>)[]
+  >`
+    SELECT user_id AS "userId", task_assigned, task_status_changed,
+           task_commented, mention, task_deadlines, escalation,
+           automation_alerts, conversation_messages, automation_messages
     FROM app.notification_preferences
-    WHERE user_id = ${userId} AND org_id = ${organizationId}
-    LIMIT 1
+    WHERE org_id = ${args.organizationId}
+      AND user_id = ANY(${userIds}::text[])
   `;
-  const prefs = rows[0];
-  if (!prefs) return true;
-  const value = prefs[field];
-  return value === null || value === undefined ? true : value;
+  const muted = new Set(
+    rows.filter((row) => row[field] === false).map((row) => row.userId),
+  );
+  return userIds.filter((userId) => !muted.has(userId));
 }
 
 export type CoalesceOutcome =
@@ -133,61 +149,64 @@ function notificationEmailDebounceMs(): number {
 }
 
 /**
- * Hand the row to the email sink after the debounce window. The epoch bump
- * replaces the 0.4 cancel+reschedule: the fired job sends only when its
- * epoch is still the row's current one, so the older job of a rewritten row
- * no-ops and the newer one carries the final state. Non-actionable types
- * never email.
+ * Hand written rows to the email sink after the debounce window, all in one
+ * statement. Writing a row of an actionable type moved its epoch (a new row
+ * starts at 1, a rewrite adds 1), which replaces the 0.4 cancel+reschedule:
+ * the fired job sends only when its epoch is still the row's current one, so
+ * the older job of a rewritten row no-ops and the newer one carries the
+ * final state.
  */
-async function scheduleNotificationEmail(
+async function scheduleNotificationEmails(
   db: Db,
-  args: { notificationId: string; type: string },
+  rows: readonly { id: string; emailEpoch: number }[],
 ): Promise<void> {
-  if (!isActionableNotificationType(args.type)) return;
-  const bumped = await db<{ emailEpoch: number }[]>`
-    UPDATE app.user_notifications SET email_epoch = email_epoch + 1
-    WHERE id = ${args.notificationId}
-    RETURNING email_epoch::float8 AS "emailEpoch"
-  `;
-  const epoch = bumped[0]?.emailEpoch;
-  if (epoch === undefined) return;
-  await addJobInTx(
+  const startAfter = new Date(Date.now() + notificationEmailDebounceMs());
+  await addJobsInTx(
     db,
     'notification.email',
-    { notificationId: args.notificationId, epoch },
-    { startAfter: new Date(Date.now() + notificationEmailDebounceMs()) },
+    rows.map((row) => ({
+      payload: { notificationId: row.id, epoch: row.emailEpoch },
+      options: { startAfter },
+    })),
   );
 }
 
 /**
- * Tell the recipient's OWN streams that their bell changed. Narrowed to the
- * user — a personal notification row is one person's, so nobody else's
+ * The hint that tells a person's OWN streams their bell changed. Narrowed to
+ * the user — a personal notification row is one person's, so nobody else's
  * client refetches its bell — and named with the entity the app keys both
  * bells on (`NOTIFICATION_HINT_ENTITY`, shared with the frontend). Every
- * write, rewrite, cancel and dismissal of a personal notification routes
+ * write, rewrite, cancel and dismissal of a personal notification hints
  * through here, so the wire name cannot drift per call site again.
  */
+function bellHint(organizationId: string, userId: string): Hint {
+  return {
+    orgId: organizationId,
+    userId,
+    entity: NOTIFICATION_HINT_ENTITY,
+    entityId: null,
+  };
+}
+
+/** {@link bellHint} for one person. */
 export async function emitBellHint(
   db: Db,
   args: { organizationId: string; userId: string },
 ): Promise<void> {
-  await emitHintInTx(db, {
-    orgId: args.organizationId,
-    userId: args.userId,
-    entity: NOTIFICATION_HINT_ENTITY,
-    entityId: null,
-  });
+  await emitHintInTx(db, bellHint(args.organizationId, args.userId));
 }
 
-/** One bell hint per distinct recipient of a multi-row dismissal. */
+/** One bell hint per distinct person a write or a dismissal touched, all in
+ * one statement. */
 async function emitBellHints(
   db: Db,
   organizationId: string,
   userIds: Iterable<string>,
 ): Promise<void> {
-  for (const userId of new Set(userIds)) {
-    await emitBellHint(db, { organizationId, userId });
-  }
+  await emitHintsInTx(
+    db,
+    [...new Set(userIds)].map((userId) => bellHint(organizationId, userId)),
+  );
 }
 
 /**
@@ -207,8 +226,8 @@ async function emitBellHints(
  */
 async function withTaskProjectContext(
   db: Db,
-  args: CollabNotificationInput,
-): Promise<CollabNotificationInput> {
+  args: CollabNotification,
+): Promise<CollabNotification> {
   if (args.taskId === undefined) return args;
   const params: Record<string, unknown> = args.params;
   const supplied = params.projectId;
@@ -300,64 +319,124 @@ export function taskReadersAmong(
 }
 
 /**
- * Write (or rewrite, or cancel) one notification row. Callers own the
- * preference gate — this is the mechanics of one row.
+ * Each recipient's unread twin on the notification's dimension: the newest
+ * row with `key` among their {@link UNREAD_SCAN_CAP} newest unread rows. One
+ * scan for all of them; a recipient with no twin is left out.
+ */
+async function unreadTwins(
+  db: Db,
+  args: { organizationId: string; key: string; userIds: readonly string[] },
+): Promise<Map<string, string>> {
+  const rows = await db<{ userId: string; id: string }[]>`
+    SELECT DISTINCT ON (recipient.user_id)
+           recipient.user_id AS "userId", recent.id
+    FROM unnest(${[...args.userIds]}::text[]) AS recipient(user_id)
+    CROSS JOIN LATERAL (
+      SELECT id, seq, coalesce_key FROM app.user_notifications
+      WHERE user_id = recipient.user_id AND org_id = ${args.organizationId}
+        AND read = false
+      ORDER BY seq DESC
+      LIMIT ${UNREAD_SCAN_CAP}
+    ) recent
+    WHERE recent.coalesce_key = ${args.key}
+    ORDER BY recipient.user_id, recent.seq DESC
+  `;
+  return new Map(rows.map((row) => [row.userId, row.id]));
+}
+
+/** A row the writer wrote or rewrote, with the email epoch it now holds. */
+interface WrittenRow {
+  id: string;
+  emailEpoch: number;
+}
+
+/**
+ * Write (or rewrite, or cancel) the same notification for each of `userIds`.
+ * Callers own the preference gate — this is the mechanics of the rows. The
+ * answer is each recipient's outcome, every recipient once.
  *
  * A task-bound row is news about the task, so it is written only for
  * someone who can open the task now ({@link taskReadersAmong}): whoever
  * picked the recipient — a subscription, the task's assignee or reviewer, a
  * mention, a date sweep — for anyone else nothing is written, rewritten or
  * cancelled, and the answer is `withheld` (#3631).
+ *
+ * The statements do not grow with the recipients: one reader check, one
+ * scan for their unread twins, at most one delete, one rewrite and one
+ * insert, one email hand-over and one hint statement. The writer's
+ * transaction — a comment's, say, while the task's comment queue waits on
+ * it — is held no longer for a hundred watchers than for one.
  */
-export async function writeCoalescedNotification(
+export async function writeCoalescedNotifications(
   db: Db,
-  input: CollabNotificationInput,
-): Promise<CoalesceOutcome> {
-  if (
-    input.taskId !== undefined &&
-    (
+  notification: CollabNotification,
+  userIds: readonly string[],
+): Promise<Map<string, CoalesceOutcome>> {
+  const recipients = [...new Set(userIds)];
+  const outcomes = new Map<string, CoalesceOutcome>(
+    recipients.map((userId) => [userId, 'withheld']),
+  );
+  let told = recipients;
+  if (notification.taskId !== undefined && told.length > 0) {
+    const readers = new Set(
       await taskReadersAmong(db, {
-        organizationId: input.organizationId,
-        taskId: input.taskId,
-        userIds: [input.userId],
-      })
-    ).length === 0
-  ) {
-    return 'withheld';
+        organizationId: notification.organizationId,
+        taskId: notification.taskId,
+        userIds: told,
+      }),
+    );
+    told = told.filter((userId) => readers.has(userId));
   }
-  const args = await withTaskProjectContext(db, input);
+  if (told.length === 0) return outcomes;
+
+  const args = await withTaskProjectContext(db, notification);
   const key = coalesceKeyFor(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reused pure fn narrows types internally; unknown types simply never collapse
     args as unknown as Parameters<typeof coalesceKeyFor>[0],
   );
-  let existingId: string | null = null;
-  if (key !== null) {
-    const recent = await db<{ id: string; coalesceKey: string | null }[]>`
-      SELECT id, coalesce_key AS "coalesceKey" FROM app.user_notifications
-      WHERE user_id = ${args.userId} AND org_id = ${args.organizationId}
-        AND read = false
-      ORDER BY seq DESC
-      LIMIT ${UNREAD_SCAN_CAP}
+  const twins =
+    key === null
+      ? new Map<string, string>()
+      : await unreadTwins(db, {
+          organizationId: args.organizationId,
+          key,
+          userIds: told,
+        });
+  const cancel: string[] = [];
+  const rewrite: string[] = [];
+  const fresh: string[] = [];
+  for (const userId of told) {
+    const twin = twins.get(userId);
+    if (twin === undefined) {
+      fresh.push(userId);
+      outcomes.set(userId, 'inserted');
+    } else if (args.undoes === true) {
+      cancel.push(twin);
+      outcomes.set(userId, 'cancelled');
+    } else {
+      rewrite.push(twin);
+      outcomes.set(userId, 'rewritten');
+    }
+  }
+
+  if (cancel.length > 0) {
+    await db`
+      DELETE FROM app.user_notifications WHERE id = ANY(${cancel}::text[])
     `;
-    existingId = recent.find((row) => row.coalesceKey === key)?.id ?? null;
   }
-
-  if (existingId !== null && args.undoes === true) {
-    await db`DELETE FROM app.user_notifications WHERE id = ${existingId}`;
-    await emitBellHint(db, {
-      organizationId: args.organizationId,
-      userId: args.userId,
-    });
-    return 'cancelled';
-  }
-
+  // A row of an actionable type moves its email epoch as it is written (a
+  // new row starts at 1), so the email queued with it can tell whether the
+  // row changed before it fired.
+  const emailed = isActionableNotificationType(args.type);
+  const epochStep = emailed ? 1 : 0;
   const now = Date.now();
-  if (existingId !== null) {
+  let rewritten: WrittenRow[] = [];
+  if (rewrite.length > 0) {
     // Rewrite in place: same row, current truth; it moves to the top — this
     // IS news, just not a second item. `listMyNotifications` orders and
     // cursors by `seq`, so the row takes a fresh one with its new
     // `createdAt` and leads the bell's first page (#3630).
-    await db`
+    rewritten = await db<WrittenRow[]>`
       UPDATE app.user_notifications SET
         type = ${args.type}, title_key = ${args.titleKey},
         body_key = ${args.bodyKey},
@@ -365,65 +444,75 @@ export async function writeCoalescedNotification(
         resource_type = ${args.resourceType}, resource_id = ${args.resourceId},
         task_id = ${args.taskId ?? null}, actor_type = ${args.actorType},
         actor_id = ${args.actorId ?? null}, created_at_ms = ${now},
-        seq = DEFAULT
-      WHERE id = ${existingId}
+        seq = DEFAULT, email_epoch = email_epoch + ${epochStep}
+      WHERE id = ANY(${rewrite}::text[])
+      RETURNING id, email_epoch::float8 AS "emailEpoch"
     `;
-    await scheduleNotificationEmail(db, {
-      notificationId: existingId,
-      type: args.type,
-    });
-    await emitBellHint(db, {
-      organizationId: args.organizationId,
-      userId: args.userId,
-    });
-    return 'rewritten';
   }
-
-  const inserted = await db<{ id: string }[]>`
-    INSERT INTO app.user_notifications (
-      user_id, org_id, type, title_key, body_key, params, resource_type,
-      resource_id, task_id, actor_type, actor_id, read, created_at_ms,
-      coalesce_key
-    ) VALUES (
-      ${args.userId}, ${args.organizationId}, ${args.type}, ${args.titleKey},
-      ${args.bodyKey},
-      ${args.params === undefined ? null : db.json(toJson(args.params))},
-      ${args.resourceType}, ${args.resourceId}, ${args.taskId ?? null},
-      ${args.actorType}, ${args.actorId ?? null}, false, ${now},
-      ${key}
-    )
-    RETURNING id
-  `;
-  const insertedId = inserted[0]?.id;
-  if (insertedId !== undefined) {
-    await scheduleNotificationEmail(db, {
-      notificationId: insertedId,
-      type: args.type,
-    });
+  let inserted: WrittenRow[] = [];
+  if (fresh.length > 0) {
+    inserted = await db<WrittenRow[]>`
+      INSERT INTO app.user_notifications (
+        user_id, org_id, type, title_key, body_key, params, resource_type,
+        resource_id, task_id, actor_type, actor_id, read, created_at_ms,
+        coalesce_key, email_epoch
+      )
+      SELECT recipient.user_id, ${args.organizationId}, ${args.type},
+             ${args.titleKey}, ${args.bodyKey},
+             ${args.params === undefined ? null : db.json(toJson(args.params))},
+             ${args.resourceType}, ${args.resourceId}, ${args.taskId ?? null},
+             ${args.actorType}, ${args.actorId ?? null}, false, ${now},
+             ${key}, ${epochStep}
+      FROM unnest(${fresh}::text[]) AS recipient(user_id)
+      RETURNING id, email_epoch::float8 AS "emailEpoch"
+    `;
   }
-  await emitBellHint(db, {
-    organizationId: args.organizationId,
-    userId: args.userId,
-  });
-  return 'inserted';
+  const written = [...rewritten, ...inserted];
+  if (emailed && written.length > 0) {
+    await scheduleNotificationEmails(db, written);
+  }
+  await emitBellHints(db, args.organizationId, told);
+  return outcomes;
 }
 
-/** The preference-gated write most emitters use. */
+/** {@link writeCoalescedNotifications} for one person. */
+export async function writeCoalescedNotification(
+  db: Db,
+  input: CollabNotificationInput,
+): Promise<CoalesceOutcome> {
+  const { userId, ...notification } = input;
+  const outcomes = await writeCoalescedNotifications(db, notification, [
+    userId,
+  ]);
+  return outcomes.get(userId) ?? 'withheld';
+}
+
+/**
+ * The preference-gated write most emitters use: the same notification for
+ * each of `userIds` whose settings let it through
+ * ({@link notificationAllowedAmong}) — one preference read and one batch,
+ * however many they are.
+ */
+async function notifyUsers(
+  db: Db,
+  notification: CollabNotification,
+  userIds: readonly string[],
+): Promise<Map<string, CoalesceOutcome>> {
+  const allowed = await notificationAllowedAmong(db, {
+    organizationId: notification.organizationId,
+    type: notification.type,
+    userIds,
+  });
+  return writeCoalescedNotifications(db, notification, allowed);
+}
+
+/** {@link notifyUsers} for one person. */
 export async function notifyUser(
   db: Db,
   args: CollabNotificationInput,
 ): Promise<void> {
-  if (
-    !(await isNotificationAllowed(
-      db,
-      args.userId,
-      args.organizationId,
-      args.type,
-    ))
-  ) {
-    return;
-  }
-  await writeCoalescedNotification(db, args);
+  const { userId, ...notification } = args;
+  await notifyUsers(db, notification, [userId]);
 }
 
 export interface UserNotificationRow {
@@ -523,31 +612,46 @@ export async function markAllNotificationsRead(
 
 // ------------------------------------------------------------ subscriptions
 
-/** Idempotent task subscription upsert: a subscription the task already has
- * is kept as it is, mute included. */
-export async function autoSubscribe(
+interface SubscriptionArgs {
+  organizationId: string;
+  taskId: string;
+  subscriberType: 'user' | 'agent';
+  reason: string;
+  /** A watcher carried over from another task keeps the mute it had
+   * there; absent is the system default (not muted). */
+  muted?: boolean | null;
+}
+
+/** Idempotent task subscription upsert for many subscribers, in one insert:
+ * a subscription the task already has is kept as it is, mute included. */
+async function autoSubscribeAll(
   db: Db,
-  args: {
-    organizationId: string;
-    taskId: string;
-    subscriberType: 'user' | 'agent';
-    subscriberId: string;
-    reason: string;
-    /** A watcher carried over from another task keeps the mute it had
-     * there; absent is the system default (not muted). */
-    muted?: boolean | null;
-  },
+  args: SubscriptionArgs & { subscriberIds: readonly string[] },
 ): Promise<void> {
+  const subscriberIds = [...new Set(args.subscriberIds)];
+  if (subscriberIds.length === 0) return;
   await db`
     INSERT INTO app.task_subscriptions (
       org_id, task_id, subscriber_type, subscriber_id, reason, muted,
       created_at_ms
-    ) VALUES (
-      ${args.organizationId}, ${args.taskId}, ${args.subscriberType},
-      ${args.subscriberId}, ${args.reason}, ${args.muted ?? null}, ${Date.now()}
     )
+    SELECT ${args.organizationId}, ${args.taskId}, ${args.subscriberType},
+           subscriber.id, ${args.reason}, ${args.muted ?? null}, ${Date.now()}
+    FROM unnest(${subscriberIds}::text[]) AS subscriber(id)
     ON CONFLICT (task_id, subscriber_type, subscriber_id) DO NOTHING
   `;
+}
+
+/** {@link autoSubscribeAll} for one subscriber. */
+export async function autoSubscribe(
+  db: Db,
+  args: SubscriptionArgs & { subscriberId: string },
+): Promise<void> {
+  const { subscriberId, ...subscription } = args;
+  await autoSubscribeAll(db, {
+    ...subscription,
+    subscriberIds: [subscriberId],
+  });
 }
 
 export async function setTaskSubscription(
@@ -902,9 +1006,9 @@ export async function notifyTriggerPaused(
     WHERE "organizationId" = ${args.organizationId}
       AND lower("role") IN ('owner', 'admin')
   `;
-  for (const recipient of recipients) {
-    await notifyUser(db, {
-      userId: recipient.userId,
+  await notifyUsers(
+    db,
+    {
       organizationId: args.organizationId,
       type: 'automation_failed',
       titleKey: 'automationTriggerPaused',
@@ -918,8 +1022,9 @@ export async function notifyTriggerPaused(
       resourceType: 'automation_trigger',
       resourceId: args.triggerId,
       actorType: 'system',
-    });
-  }
+    },
+    recipients.map((recipient) => recipient.userId),
+  );
   return recipients.length;
 }
 
@@ -1003,23 +1108,18 @@ export async function notifyAutomationMessage(
   );
   const recipients = [...new Set(args.userIds)];
   const fresh = recipients.filter((id) => !already.has(id));
-  const allowed: string[] = [];
-  const muted: string[] = [];
-  for (const userId of fresh) {
-    const on = await isNotificationAllowed(
-      db,
-      userId,
-      args.organizationId,
-      'automation_message',
-    );
-    (on ? allowed : muted).push(userId);
-  }
+  const allowed = await notificationAllowedAmong(db, {
+    organizationId: args.organizationId,
+    type: 'automation_message',
+    userIds: fresh,
+  });
+  const muted = fresh.filter((id) => !allowed.includes(id));
   if (sent.length + allowed.length > args.runCap) {
     return { ok: false, sent: sent.length };
   }
-  for (const userId of allowed) {
-    await writeCoalescedNotification(db, {
-      userId,
+  await writeCoalescedNotifications(
+    db,
+    {
       organizationId: args.organizationId,
       type: 'automation_message',
       titleKey: 'automationMessage',
@@ -1038,8 +1138,9 @@ export async function notifyAutomationMessage(
       resourceType: 'automation_run',
       resourceId: args.runId,
       actorType: 'system',
-    });
-  }
+    },
+    allowed,
+  );
   return {
     ok: true,
     delivered: recipients.filter(
@@ -1096,9 +1197,9 @@ export async function notifyTaskStatusChanged(
     args.actorId,
   );
   const actorName = await resolveActorName(db, args.actorType, args.actorId);
-  for (const userId of recipients) {
-    await notifyUser(db, {
-      userId,
+  await notifyUsers(
+    db,
+    {
       organizationId: args.task.organizationId,
       type: 'task_status_changed',
       titleKey: 'taskStatusChanged',
@@ -1115,8 +1216,9 @@ export async function notifyTaskStatusChanged(
       taskId: args.task.id,
       actorType: args.actorType,
       actorId: args.actorId,
-    });
-  }
+    },
+    recipients,
+  );
 }
 
 /**
@@ -1221,17 +1323,17 @@ async function notifyMentionedUsers(
     actorName: string | null;
   },
 ): Promise<void> {
-  for (const userId of args.userIds) {
-    if (args.actorType === 'user' && userId === args.actorId) continue;
-    await autoSubscribe(db, {
-      organizationId: args.task.organizationId,
-      taskId: args.task.id,
-      subscriberType: 'user',
-      subscriberId: userId,
-      reason: 'mention',
-    });
-    await notifyUser(db, {
-      userId,
+  const userIds = withoutActor(args.userIds, args.actorType, args.actorId);
+  await autoSubscribeAll(db, {
+    organizationId: args.task.organizationId,
+    taskId: args.task.id,
+    subscriberType: 'user',
+    subscriberIds: userIds,
+    reason: 'mention',
+  });
+  await notifyUsers(
+    db,
+    {
       organizationId: args.task.organizationId,
       type: 'mention',
       titleKey: 'mention',
@@ -1246,8 +1348,9 @@ async function notifyMentionedUsers(
       taskId: args.task.id,
       actorType: args.actorType,
       actorId: args.actorId,
-    });
-  }
+    },
+    userIds,
+  );
 }
 
 /**
@@ -1290,11 +1393,10 @@ export async function notifyTaskComment(
     await taskSubscriberUserIds(db, args.task.id),
     args.actorType,
     args.actorId,
-  );
-  for (const userId of subscribers) {
-    if (mentionedUserIds.has(userId)) continue;
-    await notifyUser(db, {
-      userId,
+  ).filter((userId) => !mentionedUserIds.has(userId));
+  await notifyUsers(
+    db,
+    {
       organizationId: args.task.organizationId,
       type: 'task_commented',
       titleKey: 'taskCommented',
@@ -1309,8 +1411,9 @@ export async function notifyTaskComment(
       taskId: args.task.id,
       actorType: args.actorType,
       actorId: args.actorId,
-    });
-  }
+    },
+    subscribers,
+  );
 }
 
 /**
@@ -1398,9 +1501,9 @@ export async function notifyAgentRunFailed(
   });
   const bodyKey =
     AGENT_RUN_FAILED_BODY_KEY[taskRunFailureClass(args.failureCode)];
-  for (const userId of recipients) {
-    await notifyUser(db, {
-      userId,
+  await notifyUsers(
+    db,
+    {
       organizationId: args.task.organizationId,
       type: 'agent_run_failed',
       titleKey: 'agentRunFailed',
@@ -1411,8 +1514,9 @@ export async function notifyAgentRunFailed(
       taskId: args.task.id,
       actorType: 'agent',
       actorId: args.agentId,
-    });
-  }
+    },
+    recipients,
+  );
   return recipients.length;
 }
 
@@ -1564,30 +1668,20 @@ export async function notifyAgentQuestionAsked(
         resourceType: 'dashboard',
         resourceId: projectId ?? args.organizationId,
       } as const);
-  let notified = 0;
-  for (const userId of [...new Set(recipients)].slice(0, MAX_ASK_RECIPIENTS)) {
-    if (
-      !(await isNotificationAllowed(
-        db,
-        userId,
-        args.organizationId,
-        'agent_escalation',
-      ))
-    ) {
-      continue;
-    }
-    const outcome = await writeCoalescedNotification(db, {
+  const outcomes = await notifyUsers(
+    db,
+    {
       ...row,
-      userId,
       organizationId: args.organizationId,
       type: 'agent_escalation',
       titleKey: 'agentQuestionAsked',
       actorType: 'agent',
       actorId: args.automationLabel,
-    });
-    if (outcome !== 'withheld') notified += 1;
-  }
-  return notified;
+    },
+    [...new Set(recipients)].slice(0, MAX_ASK_RECIPIENTS),
+  );
+  return [...outcomes.values()].filter((outcome) => outcome !== 'withheld')
+    .length;
 }
 
 /** The ask is no longer pending — mark every recipient's unread ask row
@@ -1678,13 +1772,13 @@ export async function notifyConversationAssignedTeam(
     WHERE "teamId" = ${args.teamId}
     LIMIT ${MAX_TEAM_ASSIGN_RECIPIENTS + 1}
   `;
-  let notified = 0;
-  for (const member of members) {
-    if (args.actorUserId && member.userId === args.actorUserId) continue;
-    if (notified >= MAX_TEAM_ASSIGN_RECIPIENTS) break;
-    notified++;
-    await notifyUser(db, {
-      userId: member.userId,
+  const recipients = members
+    .map((member) => member.userId)
+    .filter((userId) => !(args.actorUserId && userId === args.actorUserId))
+    .slice(0, MAX_TEAM_ASSIGN_RECIPIENTS);
+  await notifyUsers(
+    db,
+    {
       organizationId: args.conversation.organizationId,
       type: 'conversation_assigned',
       titleKey: 'conversationTeamAssigned',
@@ -1701,8 +1795,9 @@ export async function notifyConversationAssignedTeam(
       resourceId: args.conversation.id,
       actorType: args.actorUserId ? 'user' : 'system',
       ...(args.actorUserId ? { actorId: args.actorUserId } : {}),
-    });
-  }
+    },
+    recipients,
+  );
 }
 
 // ------------------------------------------------------------- attention
