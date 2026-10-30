@@ -34,8 +34,8 @@ interface SettingsSectionProps
 /**
  * A titled block on a configuration surface. Which section primitive to reach
  * for is a boundary, not a preference: configuration surfaces — the settings
- * pages and the project overview — use `SettingsSection`, whose
- * `data-settings-section` marker is what drives the shared dividers
+ * pages and a project's General and Environment tabs — use `SettingsSection`,
+ * whose `data-settings-section` marker is what drives the shared dividers
  * (`SECTION_DIVIDER_CLASS`, applied by `SettingsPage` and by any other
  * configuration container); content and list tab pages use
  * `StickySectionHeader` / `PageSection` instead; panels and dialogs keep the
