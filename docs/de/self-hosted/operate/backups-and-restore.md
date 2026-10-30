@@ -1,6 +1,10 @@
 ---
 title: Backups und Wiederherstellung
 description: Stelle die vollständige Sicherung zusammen, kopiere CLI-Snapshots und stelle Daten mit der passenden Tale-Version wieder her.
+# The CLI's deployment workspace (`tale init`) keeps its English name in German,
+# and terminology-ui-label cannot tell it from the app's Arbeitsbereich.
+i18nLintExclude:
+  - terminology-ui-label
 ---
 
 Für eine wiederherstellbare Tale-Instanz reicht ein Datenbankarchiv nicht aus. Bewahre Dateien, Organisationskonfiguration, Bereitstellungsordner und Entschlüsselungsschlüssel zusammen mit der Information auf, welche Version die Daten geschrieben hat. Lege zuerst fest, wie viel Datenverlust und welche Wiederherstellungsdauer du akzeptieren kannst. Prüfe dann, ob Sicherungsplan und Wiederherstellung diese Ziele erfüllen.

@@ -134,4 +134,4 @@ Die Frist von zehn Minuten ist eine Entscheidung dieses Beispiels, kein Serverli
 
 Verwende für Projektgespräche durchgehend `/api/v1/projects/{id}/threads`: beim Erstellen sowie für Nachrichten, Generierungsstatus und Lesezugriffe. Du brauchst Zugriff auf das aktive Projekt. Ein `projectId` im Inhalt einer persönlichen Thread-Anfrage ändert den Geltungsbereich nicht.
 
-Die [API-Referenz](/de/develop/api-reference) beschreibt Projektzugriff, Nachrichtenteile und Automationsläufe. Für Arbeit, die durch externe Ereignisse startet, lies [Eine Automation per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook).
+Die [API-Referenz](/de/develop/api-reference) beschreibt Projektzugriff, Nachrichtenteile und Automatisierungsläufe. Für Arbeit, die durch externe Ereignisse startet, lies [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook).

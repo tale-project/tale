@@ -73,7 +73,7 @@ Meldet curl vor einer JSON-Antwort einen TLS- oder Netzwerkfehler, prüfe Host u
 | Du möchtest… | Lies weiter bei |
 | --- | --- |
 | Eine fertige Assistentenantwort ausgeben | [Tale aus einem Skript aufrufen](/de/tutorials/developer/call-tale-from-a-script). |
-| Eine Automation aus einem anderen System starten | [Eine Automation per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook). |
+| Eine Automatisierung aus einem anderen System starten | [Eine Automatisierung per Webhook auslösen](/de/tutorials/developer/trigger-automation-via-webhook). |
 | Einen MCP-Client verbinden | [MCP-Endpunkt](/de/develop/mcp-endpoint). |
 | Tale aus opencode, Claude Code oder einem Shell-Skript nutzen | [Tale aus deinem Editor oder einem Skript nutzen](/de/develop/use-tale-from-your-editor). |
 | Mit Projektdateien, Aufgaben oder Läufen arbeiten | [API-Referenz](/de/develop/api-reference). |

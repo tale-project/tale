@@ -580,4 +580,101 @@ describe('terminology UI labels', () => {
         .filter(({ detail }) => detail.includes('UI-label term "Editor"')),
     ).toEqual([]);
   });
+
+  // A component's `href` and a video's `src`, `poster` and `captions` hold a
+  // path, as a link's URL does; the words of its `title` are prose.
+  it('skips the paths in the URL attributes of a Markdown component', () => {
+    const findings = terminologyUiLabel.run(
+      context(
+        [{ key: 'task', category: 'feature', en: 'Task', de: 'Aufgabe' }],
+        {
+          de: [
+            '<Card title="Task" href="/de/Task">',
+            '<Video src=\'/videos/Task.mp4\' poster="/Task.webp" captions="/Task.vtt" title="Task" />',
+          ].join('\n'),
+        },
+      ),
+    );
+    expect(findings.map(({ line, column }) => ({ line, column }))).toEqual([
+      { line: 1, column: 14 },
+      { line: 2, column: 79 },
+    ]);
+  });
+
+  const shippedAutomation = (texts: Record<string, string>) =>
+    terminologyUiLabel
+      .run(context(null, texts))
+      .filter(({ detail }) => /UI-label term "Automations?"/.test(detail))
+      .map(({ locale, line, detail }) => ({ locale, line, detail }));
+
+  // #4513: the French guides wrote the lowercase loanword, which the
+  // case-sensitive `en` form never matched.
+  it('rejects the French automation names that #4513 replaced', () => {
+    const nonShipped = (name: string, term: string) =>
+      `"${name}" is not the shipped name of UI-label term "${term}"`;
+    expect(
+      shippedAutomation({
+        fr: [
+          'Déclencher une automation par webhook',
+          'Les exécutions d’automations restent visibles.',
+          'Installe l’automation dans le projet.',
+        ].join('\n'),
+      }),
+    ).toEqual([
+      { locale: 'fr', line: 1, detail: nonShipped('automation', 'Automation') },
+      {
+        locale: 'fr',
+        line: 2,
+        detail: nonShipped('automations', 'Automations'),
+      },
+      { locale: 'fr', line: 3, detail: nonShipped('automation', 'Automation') },
+    ]);
+  });
+
+  it('keeps the shipped French name, the pack file and paths', () => {
+    expect(
+      shippedAutomation({
+        fr: [
+          'Une automatisation déployée ; les automatisations du projet.',
+          'Téléverse workflow.yml (plus automation.yml), ou une .zip du pack.',
+          'Lis les [concepts](/fr/platform/automations/concepts) et ![Le modèle](/images/platform/automation-templates.webp).',
+          '<Card title="Automatisations" icon="workflow" href="/fr/platform/automations/concepts">',
+          '<Video src="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.mp4" poster="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.webp" captions="/videos/fr/tutorials/ep5-automations/ep5-automations.fr.vtt" title="Épisode 5 — Automatisations" />',
+        ].join('\n'),
+      }),
+    ).toEqual([]);
+  });
+
+  // #4513: names of other things that only contain a UI label.
+  it('keeps the names the German and French guides keep', () => {
+    const terms = /UI-label term "(Workspace|Home|Vendor|Approval)"/;
+    expect(
+      terminologyUiLabel
+        .run(
+          context(null, {
+            de: [
+              'Slack verbindet pro Slack-Workspace genau einen Satz Zugangsdaten.',
+              'Die Organisation **Dev Workspace** entsteht lokal.',
+              'Bei einer Workspace-Bereitstellung ändert `tale update` die Workspace-CLI.',
+              'Die Rollen eines Workspace-Deployments; bei einem Workspace-Deployment.',
+              'Sitzungs-Pods und Workspace-Claims; der Workspace-Claim einer Session.',
+              'Prüfe Workspace-Mounts und passende Workspace-Pfade.',
+              'Wähle **Teilen > Zum Home-Bildschirm**.',
+              'Registriere die Callback-URL in der Vendor-App.',
+              'Öffne **Approval check** in der Liste.',
+            ].join('\n'),
+            fr: 'L’organisation **Dev Workspace** et **Approval check**.',
+          }),
+        )
+        .filter(({ detail }) => terms.test(detail)),
+    ).toEqual([]);
+  });
+
+  it('rejects a Tale workspace beside a Slack workspace', () => {
+    expect(
+      shippedWorkspace({
+        de: 'Ein Slack-Workspace ist kein Workspace eines Agenten.',
+      }),
+    ).toEqual([{ locale: 'de', line: 1, column: 30 }]);
+  });
 });

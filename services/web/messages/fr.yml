@@ -626,7 +626,7 @@ requestDemo:
   title: Regarde Tale en action
   paragraph1: 'Une démo guidée, c’est le produit en direct, pas des slides : des
     agents connectés, des réponses ancrées dans ton type de connaissances, une
-    automation qui attend son approbation — sur une instance auto-hébergée.'
+    automatisation qui attend son approbation — sur une instance auto-hébergée.'
   paragraph2: Dis-nous ce que ton équipe utilise aujourd’hui et ce qui ne doit
     jamais quitter ton réseau. On te répond sous un jour ouvré, avec un créneau
     et un plan qui tient la route.
@@ -838,7 +838,7 @@ platformAgents:
       - title: Environnements d'agent pris en charge
         body:
           Lie Claude Code, Codex, Hermes et OpenClaw comme environnement d'agent sur lequel
-          tourne un agent de projet ou un nœud agent d’automation.
+          tourne un agent de projet ou un nœud agent d’automatisation.
         docsLabel: Environnements d'agent
       - title: Délégation entre agents
         body:
@@ -990,9 +990,9 @@ platformAutomations:
           informations manquantes à une personne avant de continuer.
         docsLabel: Concepts des automatisations
   faq:
-    heading: FAQ automations
+    heading: FAQ automatisations
     items:
-      - q: Qu’est-ce qu’une automation dans Tale ?
+      - q: Qu’est-ce qu’une automatisation dans Tale ?
         a:
           Une automatisation définit un workflow réutilisable avec des
           entrées, des étapes et des sorties. Les versions, le déploiement,
@@ -1000,9 +1000,9 @@ platformAutomations:
           et d’exploiter ce processus.
       - q: Existe-t-il un produit workflow autonome ?
         a:
-          Non. Un workflow vit dans son automation. L’onglet Éditeur de l’automation
+          Non. Un workflow vit dans son automatisation. L’onglet Éditeur de l’automatisation
           est là où tu rencontres le graphe.
-      - q: Quand utiliser une automation plutôt qu’un agent ?
+      - q: Quand utiliser une automatisation plutôt qu’un agent ?
         a: Utilise une automatisation pour des étapes réutilisables, des
           conditions, des horaires ou des actions connectées. Confie à un
           agent de projet une tâche dont tu examineras le résultat. Une

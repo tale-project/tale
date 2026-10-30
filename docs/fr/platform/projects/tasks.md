@@ -104,7 +104,7 @@ Dans l’onglet **Général** du projet, ouvre **Relecture des tâches**, choisi
 
 Les tâches qui suivent le **Choix par défaut du projet** reprennent ce choix au début d’une nouvelle relecture. Une personne ou un agent explicitement choisi pour une tâche reste sélectionné. Les relectures déjà en attente conservent leur relecteur enregistré, même si le choix du projet change. Si quelqu’un modifie ce choix pendant ta modification, abandonne ton brouillon périmé et choisis à nouveau.
 
-Le choix d’un agent par défaut s’applique uniquement aux résultats d’une exécution native d’agent de projet, si l’organisation n’exige ni indépendance humaine ni justificatifs de compétences. Un travail soumis par une personne ou une automation sans cette exécution suit la chaîne de relecture humaine. Pour enregistrer le choix d’un agent, sa permission de relire doit être active ; une tâche ne peut pas choisir l’agent qui l’a réalisée comme relecteur. Une relecture déjà en attente ne change jamais de responsable automatiquement après une modification des permissions, de l’affectation ou de la politique.
+Le choix d’un agent par défaut s’applique uniquement aux résultats d’une exécution native d’agent de projet, si l’organisation n’exige ni indépendance humaine ni justificatifs de compétences. Un travail soumis par une personne ou une automatisation sans cette exécution suit la chaîne de relecture humaine. Pour enregistrer le choix d’un agent, sa permission de relire doit être active ; une tâche ne peut pas choisir l’agent qui l’a réalisée comme relecteur. Une relecture déjà en attente ne change jamais de responsable automatiquement après une modification des permissions, de l’affectation ou de la politique.
 
 ### Transférer une relecture en attente {#transfer-review}
 

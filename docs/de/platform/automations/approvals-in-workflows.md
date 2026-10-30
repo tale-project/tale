@@ -1,13 +1,13 @@
 ---
 title: Auf einen wartenden Workflow reagieren
-description: Finde einen pausierten Automationslauf, prüfe einen geplanten Schreibzugriff oder beantworte eine Rückfrage des Agenten.
+description: Finde einen pausierten Automatisierungslauf, prüfe einen geplanten Schreibzugriff oder beantworte eine Rückfrage des Agenten.
 ---
 
 Ein Lauf kann auf eine Entscheidung vor einem Connector-Schreibzugriff warten oder auf Informationen, die ein Agent zum Fortfahren braucht. In den Laufdetails siehst du, welche Antwort nötig ist. Ein wartender Lauf ist noch nicht abgeschlossen, auch wenn vorherige Nodes erfolgreich waren.
 
 ## Den wartenden Lauf finden
 
-Öffne die Automation und ihre [Ausführungsprotokolle](/de/platform/automations/execution-logs). Wähle den Lauf mit dem Status **Wartet**. Prüfe Version und Eingaben, damit du die richtige Ausführung beurteilst.
+Öffne die Automatisierung und ihre [Ausführungsprotokolle](/de/platform/automations/execution-logs). Wähle den Lauf mit dem Status **Wartet**. Prüfe Version und Eingaben, damit du die richtige Ausführung beurteilst.
 
 Eine Freigabekarte nennt eine Connector-Aktion und zeigt ihre geplanten Eingaben. Eine Rückfrage des Agenten verlangt dagegen eine Antwort, als Auswahl oder Freitext. Beides ist getrennt: Mit einer Antwort gibst du keinen späteren Schreibzugriff frei.
 

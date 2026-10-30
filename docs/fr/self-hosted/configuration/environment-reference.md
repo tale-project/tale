@@ -169,7 +169,7 @@ Les connectors OAuth (Gmail, Google Drive, Outlook, Teams, Slack, …) résolven
 
 Enregistre `${SITE_URL}${BASE_PATH}/api/connectors/oauth2/callback` sur l’application fournisseur, et pour Slack aussi `${SITE_URL}${BASE_PATH}/api/connectors/slack/events` comme Events Request URL. Détails : [Connectors (développement)](/fr/develop/connectors).
 
-## Import cloud Knowledge (Documents)
+## Import cloud dans Connaissances (Documents)
 
 Les autorisations OneDrive / Google Drive par utilisateur pour **Connaissances → Documents** sont distinctes des connectors d’organisation et de la connexion. Ici aussi, une app d’organisation configurée sous **Paramètres > Connectors > Apps OAuth** prime — l’entrée **google-drive** est partagée avec la voie connector, et **OneDrive / SharePoint (import de connaissances)** a sa propre entrée ; les chaînes ci-dessous s’appliquent partout où l’organisation n’en a pas configuré. Enregistre cette URI de redirection sur l’app Microsoft (ou Google) :
 
@@ -179,7 +179,7 @@ Résolution des identifiants pour OneDrive (premier match gagne) :
 
 | Nom                                            | Description                                   |
 | ---------------------------------------------- | --------------------------------------------- |
-| `CLOUD_IMPORT_MICROSOFT_CLIENT_ID` / `_SECRET` | App dédiée à l’import Knowledge (préférée).   |
+| `CLOUD_IMPORT_MICROSOFT_CLIENT_ID` / `_SECRET` | App dédiée à l’import de connaissances (préférée).   |
 | `CLOUD_IMPORT_MICROSOFT_TENANT_ID`             | ID d’annuaire (tenant) de cette app.          |
 | `AUTH_MICROSOFT_ENTRA_ID_ID` / `_SECRET`       | App de connexion Microsoft.                   |
 | `AUTH_MICROSOFT_ENTRA_ID_TENANT_ID`            | ID d’annuaire (tenant) de l’app de connexion. |
@@ -192,7 +192,7 @@ Google Drive utilise uniquement une app dédiée (pas de repli sur l’app de co
 
 | Nom                                               | Description                          |
 | ------------------------------------------------- | ------------------------------------ |
-| `CLOUD_IMPORT_GOOGLE_DRIVE_CLIENT_ID` / `_SECRET` | App d’import Google Drive Knowledge. |
+| `CLOUD_IMPORT_GOOGLE_DRIVE_CLIENT_ID` / `_SECRET` | App Google Drive pour l’import de connaissances. |
 
 Enregistre la même URI de callback cloud-import sur le client OAuth Google. Le consentement demande **drive.readonly** et **userinfo.email**.
 
@@ -244,9 +244,9 @@ Ces valeurs façonnent les rôles applicatifs d’un déploiement de workspace 
 | ------------------------------ | ------- | ---------------------------------------------------------------------------------------------------------- |
 | `TALE_PLATFORM_REPLICAS`       | `1`     | Replicas de l'étage web qui sert la coquille de l'app. Plage `1`–`16`.                                     |
 | `TALE_BACKEND_API_REPLICAS`    | `1`     | Replicas de l'API — chaque porte applicative, l'auth et le flux de hints. Plage `1`–`16`.                  |
-| `TALE_BACKEND_WORKER_REPLICAS` | `1`     | Replicas du runner de jobs : ingestion, crawls, automations, tours d'agent. Plage `1`–`16`.                |
+| `TALE_BACKEND_WORKER_REPLICAS` | `1`     | Replicas du runner de jobs : ingestion, crawls, automatisations, tours d'agent. Plage `1`–`16`.                |
 | `UV_THREADPOOL_SIZE`           | `4`     | **Optionnel.** Threads du processus Node.js que se partagent les lectures de fichiers, les résolutions DNS et le hachage des mots de passe ; Node lit la valeur au démarrage. Un réplica `backend-api` vérifie les mots de passe sur la moitié d’entre eux au plus en même temps (`2` par défaut) et répond par un `503` avec le code `PASSWORD_CHECK_BUSY` et un `Retry-After`, dès qu’environ 16 vérifications par place attendent ou que l’une a attendu quatre secondes. Une vague de connexions ne ralentit ainsi qu’elle-même au lieu de passer devant toutes les autres requêtes. Augmente la valeur (`8`, par exemple) sur un réplica qui dispose de cœurs CPU libres et sert beaucoup de connexions à la fois ; une vérification en cours occupe environ 32 Mio. Les métriques `tale_backend_password_checks_waiting` et `tale_backend_password_checks_refused_total` montrent une telle vague pendant qu’elle se produit. |
-| `WORKER_CONCURRENCY`           | `5`     | Jobs qu’un réplica `backend-worker` exécute en même temps dans chaque file de jobs — ingestion, crawls, automations et tours d’agent en reçoivent chacun autant. Les démarrages de tours d’agent en reçoivent au moins 8 et les fenêtres de traitement des tours d’agent en cours au moins 16 par file, car chacun attend surtout sa sandbox (`AGENT_START_SLOTS`, `AGENT_DRIVE_SLOTS`). Les réponses de chat pour les clés d’API en reçoivent au moins 16, car chacune attend surtout le modèle. Le processus worker le lit lui-même ; plage `1`–`64`. C’est le levier à actionner avant d’ajouter des réplicas de worker quand un retard s’accumule. Chaque job d’indexation en cours écrit via le pool du corpus, donc augmente `KNOWLEDGE_DB_POOL_MAX` en même temps. |
+| `WORKER_CONCURRENCY`           | `5`     | Jobs qu’un réplica `backend-worker` exécute en même temps dans chaque file de jobs — ingestion, crawls, automatisations et tours d’agent en reçoivent chacun autant. Les démarrages de tours d’agent en reçoivent au moins 8 et les fenêtres de traitement des tours d’agent en cours au moins 16 par file, car chacun attend surtout sa sandbox (`AGENT_START_SLOTS`, `AGENT_DRIVE_SLOTS`). Les réponses de chat pour les clés d’API en reçoivent au moins 16, car chacune attend surtout le modèle. Le processus worker le lit lui-même ; plage `1`–`64`. C’est le levier à actionner avant d’ajouter des réplicas de worker quand un retard s’accumule. Chaque job d’indexation en cours écrit via le pool du corpus, donc augmente `KNOWLEDGE_DB_POOL_MAX` en même temps. |
 | `AGENT_START_SLOTS` | `WORKER_CONCURRENCY`, au moins `8` | Démarrages de tours d’agent qu’un réplica `backend-worker` exécute en même temps, pour les exécutions de tâches et pour les étapes d’automatisation chacun. Un démarrage occupe sa place pendant la création de la sandbox et la première fenêtre de 90 secondes du tour. Plage `1`–`256`. |
 | `AGENT_DRIVE_SLOTS` | `WORKER_CONCURRENCY`, au moins `16` | Fenêtres de traitement des tours d’agent en cours qu’un réplica `backend-worker` exécute en même temps, par voie. Un réplica garde environ 2,5 fois ce nombre de tours en cours traités par voie ; au-delà, les fenêtres attendent assez longtemps pour que la reprise intervienne. Augmente-le (ou ajoute des réplicas) pour plus de tours à la fois. Plage `1`–`256`. |
 | `AUTOMATION_ORG_CONCURRENCY` | `8` | Étapes d’automatisation d’une même organisation qui s’exécutent en même temps sur l’ensemble des réplicas `backend-worker`. Ainsi, une organisation qui lance beaucoup d’exécutions d’un coup n’occupe pas toutes les places des workers pendant que les exécutions des autres organisations attendent. `0` supprime la limite. Des réplicas qui récupèrent du travail au même instant peuvent chacun démarrer une étape : lors d’un afflux, une ou deux de plus peuvent brièvement s’exécuter. Un réplica seul avec la valeur par défaut de `WORKER_CONCURRENCY` ne l’atteint jamais ; si ton déploiement ne sert qu’une organisation et offre plus de places pour les étapes que cette valeur, augmente-la ou mets `0`. Plage `0`–`256`. |

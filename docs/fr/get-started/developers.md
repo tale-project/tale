@@ -73,7 +73,7 @@ Si curl signale une erreur TLS ou réseau avant de recevoir du JSON, vérifie l�
 | Tu veux… | Poursuis avec |
 | --- | --- |
 | Afficher une réponse complète | [Appeler Tale depuis un script](/fr/tutorials/developer/call-tale-from-a-script). |
-| Lancer une automation depuis un autre système | [Déclencher une automation par webhook](/fr/tutorials/developer/trigger-automation-via-webhook). |
+| Lancer une automatisation depuis un autre système | [Déclencher une automatisation par webhook](/fr/tutorials/developer/trigger-automation-via-webhook). |
 | Connecter un client MCP | [Endpoint MCP](/fr/develop/mcp-endpoint). |
 | Utiliser Tale depuis opencode, Claude Code ou un script shell | [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor). |
 | Utiliser les fichiers, tâches ou exécutions d’un projet | [Référence API](/fr/develop/api-reference). |

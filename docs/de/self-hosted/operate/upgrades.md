@@ -1,6 +1,10 @@
 ---
 title: Bereitstellung aktualisieren und wiederherstellen
 description: Prüfe ein Upgrade vorab, stelle mit Wiederherstellungsplan bereit und wähle bei Bedarf den richtigen Rollback-Weg.
+# The CLI's deployment workspace (`tale init`) keeps its English name in German,
+# and terminology-ui-label cannot tell it from the app's Arbeitsbereich.
+i18nLintExclude:
+  - terminology-ui-label
 ---
 
 Bei einer Workspace-Bereitstellung ändert `tale update` CLI und Workspace-Dateien; `tale deploy` ändert die laufenden Dienste. Wähle Zielversion und Wiederherstellungspunkt vor beiden Schritten. Ein Blue-Green-Rollout lässt Anwendungsreplikate überlappen, doch Snapshots, Entleerungsphasen und der Austausch zustandsbehafteter Dienste können Arbeit unterbrechen.
@@ -10,7 +14,7 @@ Verwaltete Bereitstellungen verwenden feste Quellrevisionen und vorbereitete Bun
 ## Upgrade vorbereiten
 
 1. Führe `tale status` im vorgesehenen Workspace aus. Halte laufende Version, Workspace-Version und aktuellen Bereitstellungszustand fest.
-2. Lies die Release Notes der Zielversion zu Kompatibilität, erforderlicher Konfiguration und bekannten Einschränkungen. Für Instanzen vor 0.5 gilt der getrennte Umstieg weiter unten, und ein Workspace mit v0.5.77 oder älter durchläuft einmal die Umstellung des Automations-Schreibprotokolls, die ebenfalls weiter unten beschrieben ist.
+2. Lies die Release Notes der Zielversion zu Kompatibilität, erforderlicher Konfiguration und bekannten Einschränkungen. Für Instanzen vor 0.5 gilt der getrennte Umstieg weiter unten, und ein Workspace mit v0.5.77 oder älter durchläuft einmal die Umstellung des Automatisierungs-Schreibprotokolls, die ebenfalls weiter unten beschrieben ist.
 3. Prüfe eine wiederherstellbare Sicherung außerhalb des Hosts, passende Schlüssel und den Sicherungsumfang externer Datenbanken und Buckets. [Backups und Wiederherstellung](/de/self-hosted/operate/backups-and-restore) beschreibt die benötigten Bestandteile.
 4. Plane Kapazität für alte und neue Anwendungsreplikate gleichzeitig. Vereinbare ein Wartungsfenster, wenn Snapshots, Sandbox-Austausch oder zustandsbehaftete Dienste benötigte Arbeit unterbrechen können.
 5. Prüfe die Vorschau von Update und Bereitstellung. Ein erfolgreicher Probelauf beweist nicht, dass eine echte Migration gelingt; lies alle Warnungen.
@@ -57,7 +61,7 @@ Die CLI startet die freie Farbe und wartet auf erfolgreiche Zustandsprüfungen i
 
 Vor dem Entfernen wird die alte API geleert: Neue Chat-Turns können eine Drain-Verweigerung erhalten, während laufende Turns Zeit zum Abschluss bekommen. Die Chat-Phase wartet bis zu drei Minuten; die Web-Phase nutzt `DRAIN_TIMEOUT`, standardmäßig 30 Sekunden. Die Web-Zustandsroute bleibt gesund, solange ihr Alias gemeinsam verwendet wird. Das Trennen der alten Container von den bedienenden Netzwerken entfernt sie aus DNS und kann übrige Verbindungen kappen. Deshalb erfolgt es nach den Entleerungsphasen.
 
-Das Leeren umfasst auch Automations. Worker der alten Farbe starten keinen neuen Job und geben jeden Automations-Lauf beim nächsten Schritt weiter, sodass er auf der neuen Farbe weiterläuft; die CLI wartet innerhalb derselben drei Minuten auch auf diese Schritte. Wenn die alten Container anhalten, hat jeder Worker 120 Sekunden, um weiterzugeben, was er noch hält (mehr, wenn du `SHUTDOWN_DRAIN_MS` erhöhst: Die CLI hält diese Frist 15 Sekunden darüber), und ein Schritt, der 20 Sekunden nach Beginn des Anhaltens noch arbeitet, wird unterbrochen und läuft auf der neuen Farbe noch einmal. Ausgenommen ist ein Schritt, der gerade etwas an einen externen Dienst gesendet hat, denn der Dienst hat es vielleicht schon erhalten: Dieser Lauf wartet, bis eine Person entscheidet, wie es weitergeht, wie [Automatisierungsläufe prüfen und Fehler beheben](/de/platform/automations/execution-logs) es beschreibt. Das erste Update auf Automations-Schreibprotokoll 2 läuft anders ab: Die Migration hält alle älteren Läufe in der Warteschlange, in Ausführung oder im Wartezustand an und bewahrt ihren vorherigen Zustand sowie ungeklärte externe Auswirkungen. Sie laufen nicht automatisch weiter. Bereits zugelassene oder gesendete Arbeit eines alten Workers kann noch abgeschlossen werden. Eine ausdrückliche Stoppanforderung hält fest, wer sie gestellt hat, und fordert den Abbruch der zugehörigen Sitzung an; sie belegt weder deren Ende noch das Ergebnis eines externen Schreibvorgangs. Sie gibt die gehaltene Aufgabe und ihre Nachweise nicht frei. Prüfe das tatsächliche Ergebnis, bevor du Ersatzarbeit planst.
+Das Leeren umfasst auch Automatisierungen. Worker der alten Farbe starten keinen neuen Job und geben jeden Automatisierungslauf beim nächsten Schritt weiter, sodass er auf der neuen Farbe weiterläuft; die CLI wartet innerhalb derselben drei Minuten auch auf diese Schritte. Wenn die alten Container anhalten, hat jeder Worker 120 Sekunden, um weiterzugeben, was er noch hält (mehr, wenn du `SHUTDOWN_DRAIN_MS` erhöhst: Die CLI hält diese Frist 15 Sekunden darüber), und ein Schritt, der 20 Sekunden nach Beginn des Anhaltens noch arbeitet, wird unterbrochen und läuft auf der neuen Farbe noch einmal. Ausgenommen ist ein Schritt, der gerade etwas an einen externen Dienst gesendet hat, denn der Dienst hat es vielleicht schon erhalten: Dieser Lauf wartet, bis eine Person entscheidet, wie es weitergeht, wie [Automatisierungsläufe prüfen und Fehler beheben](/de/platform/automations/execution-logs) es beschreibt. Das erste Update auf Automatisierungs-Schreibprotokoll 2 läuft anders ab: Die Migration hält alle älteren Läufe in der Warteschlange, in Ausführung oder im Wartezustand an und bewahrt ihren vorherigen Zustand sowie ungeklärte externe Auswirkungen. Sie laufen nicht automatisch weiter. Bereits zugelassene oder gesendete Arbeit eines alten Workers kann noch abgeschlossen werden. Eine ausdrückliche Stoppanforderung hält fest, wer sie gestellt hat, und fordert den Abbruch der zugehörigen Sitzung an; sie belegt weder deren Ende noch das Ergebnis eines externen Schreibvorgangs. Sie gibt die gehaltene Aufgabe und ihre Nachweise nicht frei. Prüfe das tatsächliche Ergebnis, bevor du Ersatzarbeit planst.
 
 Das Modell-Gateway wird an Ort und Stelle ersetzt, bevor die neue Farbe startet. Wenn sein Container stoppt, nimmt das Gateway keine neuen Modellaufrufe mehr an und gibt laufenden Aufrufen, gestreamte Antworten eingeschlossen, bis zu 90 Sekunden, um fertig zu werden. Seine Ausgabenzähler speichert es am Ende nur, wenn das innerhalb von 30 Sekunden nach dem Stopp geschieht, denn das eigene Aufräumfenster des Gateways zählt ab dem Stoppsignal. Ein Aufruf, der danach noch streamt, wird vollständig beantwortet, aber seine Kosten und die der Sekunden davor werden womöglich nicht gebucht. Bis das neue Gateway antwortet, schlägt ein neuer Modellaufruf fehl, und eine Antwort, die nach 90 Sekunden noch gestreamt wird, bricht ab. Eine Bereitstellung kann deshalb bis zu 90 Sekunden auf das Gateway warten.
 
@@ -93,7 +97,7 @@ tale rollback
 
 ## Upgrade von v0.5.77 oder älter
 
-Ab v0.5.78 schreiben Releases Automations-Läufe mit Schreibprotokoll 2. Ihre Migration `0163` setzt jeden Lauf, der noch in der Warteschlange steht, läuft oder wartet, auf **Zurückgehalten**, und ein zurückgehaltener Lauf läuft nie weiter. Das erste Upgrade von v0.5.77 hält deshalb das alte Backend an, sobald kein Lauf mehr offen ist, und startet erst dann die neue Version. `tale deploy` erledigt das selbst, einmalig.
+Ab v0.5.78 schreiben Releases Automatisierungsläufe mit Schreibprotokoll 2. Ihre Migration `0163` setzt jeden Lauf, der noch in der Warteschlange steht, läuft oder wartet, auf **Zurückgehalten**, und ein zurückgehaltener Lauf läuft nie weiter. Das erste Upgrade von v0.5.77 hält deshalb das alte Backend an, sobald kein Lauf mehr offen ist, und startet erst dann die neue Version. `tale deploy` erledigt das selbst, einmalig.
 
 1. Läuft der Workspace auf einem Release vor v0.5.77, bringe ihn zuerst auf v0.5.77. Die Umstellung beginnt nur bei diesem Release:
 
@@ -104,7 +108,7 @@ Ab v0.5.78 schreiben Releases Automations-Läufe mit Schreibprotokoll 2. Ihre Mi
 
    Diese Schritte verwenden `-v`: CLIs aus der Zeit vor der Korrektur verstehen `tale update --version` als Frage nach ihrer eigenen Version und ändern nichts.
 
-2. Lass jeden Automations-Lauf in jeder Organisation zu Ende laufen oder brich ihn ab, und pausiere Zeitpläne und Auslöser, die neue Läufe starten würden, bis das Upgrade abgeschlossen ist.
+2. Lass jeden Automatisierungslauf in jeder Organisation zu Ende laufen oder brich ihn ab, und pausiere Zeitpläne und Auslöser, die neue Läufe starten würden, bis das Upgrade abgeschlossen ist.
 3. Prüfe deine Sicherung außerhalb des Hosts, aktualisiere dann und sieh dir die Vorschau an. Sie nennt alles, was die Umstellung noch blockiert:
 
    ```bash
@@ -118,7 +122,7 @@ Ab v0.5.78 schreiben Releases Automations-Läufe mit Schreibprotokoll 2. Ihre Mi
    tale deploy
    ```
 
-Bevor `tale deploy` etwas ändert, prüft es das Release des laufenden Backends, die Migrationshistorie der Datenbank und die Automations-Läufe. Ist etwas davon nicht bereit, hält es mit dem nächsten Schritt an und lässt den Workspace unverändert weiterlaufen. Andernfalls erstellt es wie gewohnt seinen Snapshot und ersetzt die Sandbox-Dienste. Unmittelbar bevor die neue Farbe startet, sperrt es neue Automations-Läufe, bestätigt, dass keiner mehr offen ist, hält die alten Container `backend-api` und `backend-worker` geordnet an und verzeichnet sie in `.tale/automation-cutover.json`. Ab diesem Anhalten ist die API nicht erreichbar, bis die neue Farbe gesund ist.
+Bevor `tale deploy` etwas ändert, prüft es das Release des laufenden Backends, die Migrationshistorie der Datenbank und die Automatisierungsläufe. Ist etwas davon nicht bereit, hält es mit dem nächsten Schritt an und lässt den Workspace unverändert weiterlaufen. Andernfalls erstellt es wie gewohnt seinen Snapshot und ersetzt die Sandbox-Dienste. Unmittelbar bevor die neue Farbe startet, sperrt es neue Automatisierungsläufe, bestätigt, dass keiner mehr offen ist, hält die alten Container `backend-api` und `backend-worker` geordnet an und verzeichnet sie in `.tale/automation-cutover.json`. Ab diesem Anhalten ist die API nicht erreichbar, bis die neue Farbe gesund ist.
 
 Der erste Start der neuen Farbe wendet jede Datenbankmigration seit v0.5.77 an, bevor er sich gesund meldet; bei einer großen Wissensdatenbank kann das Kopieren der Vektoren länger dauern als `HEALTH_CHECK_TIMEOUT`. Bricht das Deployment ab, nachdem das alte Backend angehalten wurde, führe `tale deploy` mit demselben Release erneut aus: Es erkennt seine eigene Übergabe, auch einen ersten Start, der mitten in seinen Migrationen abgebrochen wurde, wartet auf die bereits startende Farbe, statt sie neu zu erstellen, und schließt das Upgrade ab. Bewahre `.tale/automation-cutover.json` auf und starte die alten Container nicht von Hand. Sobald die Umstellung begonnen hat, lehnt `tale rollback` die Rückkehr zu v0.5.77 ab; repariere mit einer kompatiblen Version, wie der nächste Abschnitt beschreibt.
 
@@ -130,9 +134,9 @@ kubectl -n tale get pods -l 'app in (backend-api, backend-worker)'
 psql "$DATABASE_URL" -Atc "select count(*) from app.automation_runs where status is null or status not in ('success', 'failed', 'cancelled')"
 ```
 
-## Umstellung des Automations-Protokolls: mit kompatibler Version reparieren
+## Umstellung des Automatisierungsprotokolls: mit kompatibler Version reparieren
 
-Sobald die Datenbank Automations-Schreibprotokoll 2 verzeichnet, brauchst du eine Runtime mit Protokoll 2 und die passende CLI. Bevor die CLI Deployment-Dateien, Infrastruktur oder Datenverkehr ändert, liest sie das installierte Migrationsverzeichnis und prüft Protokoll, Quellrevision und unveränderlichen Digest des ausgewählten Backend-Images. Ein älteres Image, fehlende oder nicht unterstützte Protokollmetadaten, ein unlesbares oder mehrdeutiges Verzeichnis oder eine geänderte Datenbankidentität stoppen Deployment und Rollback. Vor der Umschaltung muss eine ausstehende Farbe in jeder Backend-Rolle dasselbe zugelassene Image enthalten. Eine angehaltene Datenbank wird für diese Prüfung nicht automatisch gestartet.
+Sobald die Datenbank Automatisierungs-Schreibprotokoll 2 verzeichnet, brauchst du eine Runtime mit Protokoll 2 und die passende CLI. Bevor die CLI Deployment-Dateien, Infrastruktur oder Datenverkehr ändert, liest sie das installierte Migrationsverzeichnis und prüft Protokoll, Quellrevision und unveränderlichen Digest des ausgewählten Backend-Images. Ein älteres Image, fehlende oder nicht unterstützte Protokollmetadaten, ein unlesbares oder mehrdeutiges Verzeichnis oder eine geänderte Datenbankidentität stoppen Deployment und Rollback. Vor der Umschaltung muss eine ausstehende Farbe in jeder Backend-Rolle dasselbe zugelassene Image enthalten. Eine angehaltene Datenbank wird für diese Prüfung nicht automatisch gestartet.
 
 Auch ein bereits erstelltes Protokoll-2-Backend verlangt ein kompatibles Ziel, selbst wenn es angehalten ist oder seine erste Migration noch nicht abgeschlossen hat. Die CLI liest das installierte Mindestprotokoll nach dem Image-Download und vor Deployment-Änderungen erneut. Eine parallel verwendete ältere CLI oder manuelle Docker-Befehle fallen nicht unter diese Koordination.
 
