@@ -4,6 +4,7 @@
 // every actual docker call goes through one shape with consistent stdout/stderr
 // handling and timeouts.
 
+import { askEngine, engineSocket, type EngineRead } from './docker-engine.ts';
 import { operationSignal } from './operation-budget.ts';
 
 interface RunDockerOptions {
@@ -39,6 +40,11 @@ interface RunDockerOptions {
   // the shared pool when one is free, else one of a small pool of its own
   // (DOCKER_CLI_PRIORITY_CONCURRENCY), never waiting behind the shared queue.
   priority?: boolean;
+  // The same read from the Engine API (docker-engine.ts). Where the CLI is
+  // pointed at a local socket for certain, the call is one request on that
+  // socket, answered in the CLI's shape: no CLI process and no slot, so it
+  // neither costs a process nor waits behind one. Elsewhere the CLI runs.
+  engine?: EngineRead;
 }
 
 export interface RunDockerResult {
@@ -291,6 +297,14 @@ export async function runDocker(
 ): Promise<RunDockerResult> {
   opts = { ...opts, signal: operationSignal(opts.signal) };
   const budgetMs = resolveDockerTimeoutMs(opts.timeoutMs);
+  const socket = opts.engine === undefined ? null : engineSocket();
+  if (opts.engine !== undefined && socket !== null) {
+    return askEngine(socket, args, opts.engine, {
+      budgetMs,
+      signal: opts.signal,
+      stdoutMaxBytes: opts.stdoutMaxBytes,
+    });
+  }
   const queuedAtMs = Date.now();
   const release = await dockerCliSlot(
     budgetMs,

@@ -31,6 +31,13 @@ import {
   retainBuildkitd,
   sweepIdleBuildkitd,
 } from '../../buildkitd.ts';
+import {
+  containerInspect,
+  containerListing,
+  type ContainerFormat,
+  type InspectedContainer,
+  type ListingFormat,
+} from '../../docker-engine.ts';
 import { isIpv4Address } from '../../network-address.ts';
 import {
   operationSignal,
@@ -149,6 +156,95 @@ const STUCK_CONTAINER_STATES: ReadonlySet<string> = new Set([
 /** Past a create's whole budget, how long its container may still sit in a
  * {@link STUCK_CONTAINER_STATES} state before it counts as abandoned. */
 const STUCK_CONTAINER_SLACK_MS = 60_000;
+
+/** What the backend reads of a session container: each read's --format
+ * template for the CLI, with what it prints rendered from the Engine API's
+ * inspect document (docker-engine.ts). Parsed alike whichever answered.
+ * `with`: a missing label prints nothing; a bare `index` prints
+ * `<no value>`. */
+export const SESSION_READS = {
+  /** The host source of the `/agent` workspace mount. */
+  workspaceMount: {
+    template:
+      '{{range .Mounts}}{{if eq .Destination "/agent"}}{{.Source}}{{end}}{{end}}',
+    render: (c) =>
+      c.mounts
+        .filter((mount) => mount.destination === '/agent')
+        .map((mount) => mount.source)
+        .join(''),
+  },
+  /** Running, its creation stamp, and whether the OOM killer hit it. */
+  runningState: {
+    template:
+      '{{.State.Running}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}\t{{.State.OOMKilled}}',
+    render: (c) => `${c.running}\t${c.label('tale.created')}\t${c.oomKilled}`,
+  },
+  status: {
+    template: '{{.State.Status}}',
+    render: (c) => c.status,
+  },
+  /** The status, and the spawner instance it belongs to. */
+  liveSession: {
+    template: `{{.State.Status}}\t{{with index .Config.Labels "${SESSION_INSTANCE_LABEL}"}}{{.}}{{end}}`,
+    render: (c) => `${c.status}\t${c.label(SESSION_INSTANCE_LABEL)}`,
+  },
+  /** The immutable id with the status. */
+  identity: {
+    template: '{{.Id}}\t{{.State.Status}}',
+    render: (c) => `${c.id}\t${c.status}`,
+  },
+  /** The id and the incarnation's creation stamp. */
+  incarnation: {
+    template:
+      '{{.Id}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}',
+    render: (c) => `${c.id}\t${c.label('tale.created')}`,
+  },
+  /** The same, with the create attempt that launched it. */
+  incarnationAttempt: {
+    template:
+      '{{.Id}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}\t{{with index .Config.Labels "tale.create-attempt"}}{{.}}{{end}}',
+    render: (c) =>
+      `${c.id}\t${c.label('tale.created')}\t${c.label('tale.create-attempt')}`,
+  },
+  /** The id, and whether it runs Docker: its capability label, or for a
+   * session without one, an inner store mounted at /var/lib/docker. */
+  removal: {
+    template:
+      '{{.Id}}\t{{with index .Config.Labels "tale.docker"}}{{.}}{{end}}\t{{range .Mounts}}{{if eq .Destination "/var/lib/docker"}}true{{end}}{{end}}',
+    render: (c) => `${c.id}\t${c.label('tale.docker')}\t${innerStoreMounts(c)}`,
+  },
+  /** Everything a stuck-container reap decides on. */
+  stuckState: {
+    template:
+      '{{.Id}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}\t{{.State.Status}}\t{{.Created}}\t{{with index .Config.Labels "tale.docker"}}{{.}}{{end}}\t{{range .Mounts}}{{if eq .Destination "/var/lib/docker"}}true{{end}}{{end}}',
+    render: (c) =>
+      `${c.id}\t${c.label('tale.created')}\t${c.status}\t${c.created}\t${c.label('tale.docker')}\t${innerStoreMounts(c)}`,
+  },
+} satisfies Record<string, ContainerFormat>;
+
+/** `{{range .Mounts}}{{if eq .Destination "/var/lib/docker"}}true{{end}}{{end}}` */
+function innerStoreMounts(c: InspectedContainer): string {
+  return c.mounts
+    .filter((mount) => mount.destination === '/var/lib/docker')
+    .map(() => 'true')
+    .join('');
+}
+
+/** A session container as `listSessions` lists it, a line each. */
+export const SESSION_LISTING: ListingFormat = {
+  template: `{{.Label "tale.session"}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}\t{{.Label "tale.created"}}\t{{.State}}\t{{.Label "${SESSION_INSTANCE_LABEL}"}}\t{{.Label "tale.docker"}}\t{{.Label "${SESSION_EGRESS_LABEL}"}}`,
+  render: (c) =>
+    [
+      c.label('tale.session'),
+      c.label('tale.org'),
+      c.label('tale.profile'),
+      c.label('tale.created'),
+      c.state,
+      c.label(SESSION_INSTANCE_LABEL),
+      c.label('tale.docker'),
+      c.label(SESSION_EGRESS_LABEL),
+    ].join('\t'),
+};
 
 export class DockerSessionBackend implements SessionBackend {
   readonly kind = 'docker' as const;
@@ -308,15 +404,11 @@ export class DockerSessionBackend implements SessionBackend {
     requireComplete = false,
   ): Promise<string | null> {
     const containerName = sessionContainerName(sessionId);
-    const inspect = await runDocker(
-      [
-        'inspect',
-        '--format',
-        '{{range .Mounts}}{{if eq .Destination "/agent"}}{{.Source}}{{end}}{{end}}',
-        containerName,
-      ],
-      { timeoutMs: 5_000 },
+    const { args, engine } = containerInspect(
+      containerName,
+      SESSION_READS.workspaceMount,
     );
+    const inspect = await runDocker(args, { timeoutMs: 5_000, engine });
     if (inspect.exitCode !== 0) {
       if (requireComplete && !isDockerNoSuchObject(inspect.stderr)) {
         throw new Error(
@@ -772,15 +864,15 @@ export class DockerSessionBackend implements SessionBackend {
     expectedCreatedAtMs?: number,
   ): Promise<boolean> {
     const containerName = sessionContainerName(sessionId);
-    const inspect = await runDocker(
-      [
-        'inspect',
-        '--format',
-        '{{.State.Running}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}\t{{.State.OOMKilled}}',
-        containerName,
-      ],
-      { timeoutMs: 5_000, priority: true },
+    const { args, engine } = containerInspect(
+      containerName,
+      SESSION_READS.runningState,
     );
+    const inspect = await runDocker(args, {
+      timeoutMs: 5_000,
+      priority: true,
+      engine,
+    });
     if (inspect.exitCode === 0) {
       const [running, created, oomKilled] = inspect.stdout
         .replace(/\r?\n$/, '')
@@ -825,10 +917,11 @@ export class DockerSessionBackend implements SessionBackend {
    * reconcile: a null/unknown status is never treated as reapable, so a daemon
    * blip can't trigger a destructive reap of a possibly-live peer. */
   private async containerStatus(containerName: string): Promise<string | null> {
-    const inspect = await runDocker(
-      ['inspect', '--format', '{{.State.Status}}', containerName],
-      { timeoutMs: 5_000 },
+    const { args, engine } = containerInspect(
+      containerName,
+      SESSION_READS.status,
     );
+    const inspect = await runDocker(args, { timeoutMs: 5_000, engine });
     if (inspect.exitCode !== 0) return null;
     return inspect.stdout.trim();
   }
@@ -837,15 +930,11 @@ export class DockerSessionBackend implements SessionBackend {
    * An unreadable state is "no": only a definite running container is
    * answered as a live session. */
   private async runsLiveSession(containerName: string): Promise<boolean> {
-    const inspect = await runDocker(
-      [
-        'inspect',
-        '--format',
-        `{{.State.Status}}\t{{with index .Config.Labels "${SESSION_INSTANCE_LABEL}"}}{{.}}{{end}}`,
-        containerName,
-      ],
-      { timeoutMs: 5_000 },
+    const { args, engine } = containerInspect(
+      containerName,
+      SESSION_READS.liveSession,
     );
+    const inspect = await runDocker(args, { timeoutMs: 5_000, engine });
     if (inspect.exitCode !== 0) return false;
     const [status, instance] = inspect.stdout.replace(/\r?\n$/, '').split('\t');
     return (
@@ -859,10 +948,11 @@ export class DockerSessionBackend implements SessionBackend {
   private async containerState(
     containerName: string,
   ): Promise<{ id: string; status: string } | null> {
-    const observed = await runDocker(
-      ['inspect', '--format', '{{.Id}}\t{{.State.Status}}', containerName],
-      { timeoutMs: 5_000 },
+    const { args, engine } = containerInspect(
+      containerName,
+      SESSION_READS.identity,
     );
+    const observed = await runDocker(args, { timeoutMs: 5_000, engine });
     if (observed.exitCode !== 0) return null;
     const [id, status] = observed.stdout.trim().split('\t');
     return id && /^[a-f0-9]{12,64}$/.test(id) && status ? { id, status } : null;
@@ -900,22 +990,19 @@ export class DockerSessionBackend implements SessionBackend {
     expectedCreateAttemptId?: string,
   ): Promise<string | null> {
     const containerName = sessionContainerName(sessionId);
-    const observed = await runDocker(
-      [
-        'inspect',
-        '--format',
-        // `with`: a missing label prints nothing; a bare `index` prints
-        // `<no value>`.
-        '{{.Id}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}' +
-          (expectedCreateAttemptId === undefined
-            ? ''
-            : '\t{{with index .Config.Labels "tale.create-attempt"}}{{.}}{{end}}'),
-        containerName,
-      ],
-      // Short calls: a stop must not miss its fence behind a burst of
-      // creates holding every shared docker CLI slot.
-      { timeoutMs: 5_000, priority: true },
+    const { args, engine } = containerInspect(
+      containerName,
+      expectedCreateAttemptId === undefined
+        ? SESSION_READS.incarnation
+        : SESSION_READS.incarnationAttempt,
     );
+    // Short calls: a stop must not miss its fence behind a burst of
+    // creates holding every shared docker CLI slot.
+    const observed = await runDocker(args, {
+      timeoutMs: 5_000,
+      priority: true,
+      engine,
+    });
     if (observed.exitCode !== 0) {
       if (isDockerNoSuchObject(observed.stderr)) return null;
       throw new Error(
@@ -979,15 +1066,15 @@ export class DockerSessionBackend implements SessionBackend {
     let existed = false;
     let docker = this.cfg.dockerInContainer;
     try {
-      const inspect = await runDocker(
-        [
-          'inspect',
-          '--format',
-          '{{.Id}}\t{{with index .Config.Labels "tale.docker"}}{{.}}{{end}}\t{{range .Mounts}}{{if eq .Destination "/var/lib/docker"}}true{{end}}{{end}}',
-          removalTarget,
-        ],
-        { timeoutMs: 5_000, priority: true },
+      const { args, engine } = containerInspect(
+        removalTarget,
+        SESSION_READS.removal,
       );
+      const inspect = await runDocker(args, {
+        timeoutMs: 5_000,
+        priority: true,
+        engine,
+      });
       existed = inspect.exitCode === 0;
       if (existed) {
         const [, capability, mounted] = inspect.stdout.trim().split('\t');
@@ -1232,15 +1319,15 @@ export class DockerSessionBackend implements SessionBackend {
     expectedCreatedAtMs: number,
   ): Promise<boolean> {
     const containerName = sessionContainerName(sessionId);
-    const observed = await runDocker(
-      [
-        'inspect',
-        '--format',
-        '{{.Id}}\t{{with index .Config.Labels "tale.created"}}{{.}}{{end}}\t{{.State.Status}}\t{{.Created}}\t{{with index .Config.Labels "tale.docker"}}{{.}}{{end}}\t{{range .Mounts}}{{if eq .Destination "/var/lib/docker"}}true{{end}}{{end}}',
-        containerName,
-      ],
-      { timeoutMs: 5_000, priority: true },
+    const { args, engine } = containerInspect(
+      containerName,
+      SESSION_READS.stuckState,
     );
+    const observed = await runDocker(args, {
+      timeoutMs: 5_000,
+      priority: true,
+      engine,
+    });
     if (observed.exitCode !== 0) {
       if (isDockerNoSuchObject(observed.stderr)) return true;
       throw new Error(
@@ -1412,16 +1499,11 @@ export class DockerSessionBackend implements SessionBackend {
     if (organizationId) {
       filters.push('--filter', `label=tale.org=${organizationId}`);
     }
-    const res = await runDocker(
-      [
-        'ps',
-        '--all',
-        ...filters,
-        '--format',
-        `{{.Label "tale.session"}}\t{{.Label "tale.org"}}\t{{.Label "tale.profile"}}\t{{.Label "tale.created"}}\t{{.State}}\t{{.Label "${SESSION_INSTANCE_LABEL}"}}\t{{.Label "tale.docker"}}\t{{.Label "${SESSION_EGRESS_LABEL}"}}`,
-      ],
-      { timeoutMs: 10_000 },
+    const { args, engine } = containerListing(
+      ['--all', ...filters],
+      SESSION_LISTING,
     );
+    const res = await runDocker(args, { timeoutMs: 10_000, engine });
     // THROW, never `[]`, on a failed list: the callers (boot + periodic
     // adoption, the route layer's re-resolve) treat an empty list as "no
     // sessions", and a `docker ps` blip laundered into [] would leave every
