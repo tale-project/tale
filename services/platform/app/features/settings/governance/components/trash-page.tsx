@@ -28,7 +28,7 @@ import {
 } from '@/backend/core/governance/soft_delete';
 import { useT } from '@/lib/i18n/client';
 
-import { mapGovernanceSaveError } from '../governance-save-errors';
+import { mapTrashRestoreError } from '../trash-restore-errors';
 
 interface Props {
   organizationId: string;
@@ -77,6 +77,7 @@ interface TrashCursor {
 export function TrashPage({ organizationId }: Props) {
   const { t } = useT('governance');
   const { t: tCommon } = useT('common');
+  const { t: tContacts } = useT('contacts');
   const ability = useAbility();
   const { toast } = useToast();
 
@@ -209,18 +210,18 @@ export function TrashPage({ organizationId }: Props) {
       // surgically removing the row from `loadedPages`.
       resetPagination();
     } catch (err) {
+      const failure = mapTrashRestoreError(err, t, tContacts);
       toast({
         title: t('trash.restore.failedToast', 'Failed to restore'),
-        description: mapGovernanceSaveError(
-          err,
-          t,
-          t(
-            'trash.restore.failedDescription',
-            'Failed to restore this record.',
-          ),
-        ),
+        description: failure.description,
         variant: 'destructive',
       });
+      // Nothing is left to restore: the dialog closes, and the list
+      // re-reads without the row (the adapter's `refusalInvalidates`).
+      if (failure.rowGone) {
+        setRestoreTarget(null);
+        resetPagination();
+      }
     }
   };
 

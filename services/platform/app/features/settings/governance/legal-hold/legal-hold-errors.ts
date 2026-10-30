@@ -1,13 +1,24 @@
 /**
  * Map a thrown error from a legal-hold mutation into operator-facing
- * strings. Uses duck-typing for `AppError.data` since Vite's chunk
- * splitting can produce multiple `AppError` class copies which
- * breaks `instanceof` (see retention-edit-drawer.tsx for context).
+ * strings. Reads `AppError.data` by shape (see `../backend-error-data.ts`
+ * for why not `instanceof`).
+ *
+ * The codes are the ones the legal-hold doors answer: the service's
+ * (`backend/domains/legal_holds/service.ts`), the matters'
+ * (`backend/domains/governance/settings-tail.ts`) and the routes' own
+ * `FORBIDDEN` and `invalid body`. Each reads as catalog text. A door's
+ * `message` is English, written for API clients, so it never reaches the
+ * UI: a code this map does not know reads as the generic line. A code added
+ * to the service's `LegalHoldErrorCode` fails the typecheck until
+ * `legal-hold-errors.test.ts` lists it, and that test until this map words
+ * it.
  *
  * Error codes that should appear inline next to a form field (e.g. the
  * approve dialog's countdown) populate `fieldError`; everything else is
  * a toast.
  */
+
+import { backendUserMessage } from '@/lib/utils/backend-error';
 
 import { pickString, readBackendErrorData } from '../backend-error-data';
 
@@ -21,10 +32,6 @@ interface LegalHoldErrorMapping {
   /** Raw remaining ms for APPROVAL_TOO_SOON; lets the caller drive a
    *  client-side countdown until the inline error clears itself. */
   remainingMs?: number;
-  /** When set, points back at an existing record so the UI can offer a
-   *  "View existing" link. */
-  existingHoldId?: string;
-  existingRequestId?: string;
 }
 
 function pickNumber(
@@ -50,112 +57,67 @@ export function mapLegalHoldError(
 ): LegalHoldErrorMapping {
   const data = readBackendErrorData(err);
   const code = pickString(data, 'code');
-  const fallbackTitle = t('legalHold.errors.generic.title');
-  const fallbackDescription =
-    pickString(data, 'message') ?? t('legalHold.errors.generic.description');
+  const title = t('legalHold.errors.generic.title');
+  const generic = t('legalHold.errors.generic.description');
+  const asToast = (description: string): LegalHoldErrorMapping => ({
+    title,
+    description,
+  });
+  const asFieldError = (description: string): LegalHoldErrorMapping => ({
+    title,
+    description,
+    fieldError: description,
+  });
 
   switch (code) {
-    case 'unauthenticated':
-      return {
-        title: fallbackTitle,
-        description: t('legalHold.errors.unauthenticated'),
-      };
-    case 'forbidden':
-      return {
-        title: fallbackTitle,
-        description: t('legalHold.errors.forbidden'),
-      };
-    case 'validation':
-      return {
-        title: fallbackTitle,
-        description: t('legalHold.errors.validation'),
-      };
-    case 'not_found':
-      return {
-        title: fallbackTitle,
-        description: t('legalHold.errors.notFound'),
-      };
-    case 'LEGAL_HOLD_ALREADY_ACTIVE':
-      return {
-        title: fallbackTitle,
-        description: t('legalHold.errors.alreadyActive'),
-        existingHoldId: pickString(data, 'existingHoldId'),
-      };
+    case 'FORBIDDEN':
+      return asToast(t('legalHold.errors.forbidden'));
+    // A body the form checks before sending: a blank reason or matter name,
+    // or a field over the door's limit.
+    case 'invalid body':
+    case 'REASON_REQUIRED':
+    case 'MATTER_NAME_INVALID':
+      return asToast(t('legalHold.errors.validation'));
+    case 'CROSS_ORG_TARGET':
+      return asToast(t('legalHold.errors.targetOrgMismatch'));
+    // The person picked is no longer a member of the organization.
+    case 'TARGET_NOT_FOUND':
+      return asToast(t('legalHold.errors.targetNotInOrg'));
     case 'MATTER_NOT_FOUND':
-      return {
-        title: fallbackTitle,
-        description: t('legalHold.errors.matterNotFound'),
-      };
-    case 'TARGET_NOT_IN_ORG':
-      return {
-        title: fallbackTitle,
-        description: t('legalHold.errors.targetNotInOrg'),
-      };
-    case 'TARGET_ORG_MISMATCH':
-      return {
-        title: fallbackTitle,
-        description: t('legalHold.errors.targetOrgMismatch'),
-      };
+      return asToast(t('legalHold.errors.matterNotFound'));
+    case 'MATTER_CREATE_FAILED':
+      return asToast(generic);
+    case 'LEGAL_HOLD_ALREADY_ACTIVE':
+      return asToast(t('legalHold.errors.alreadyActive'));
+    case 'HOLD_NOT_FOUND':
+      return asToast(t('legalHold.errors.holdNotFound'));
     case 'LEGAL_HOLD_ALREADY_RELEASED':
-      return {
-        title: fallbackTitle,
-        description: t('legalHold.errors.alreadyReleased'),
-      };
+      return asToast(t('legalHold.errors.alreadyReleased'));
     case 'LEGAL_HOLD_RELEASE_ALREADY_PENDING':
-      return {
-        title: fallbackTitle,
-        description: t('legalHold.errors.releaseAlreadyPending'),
-        existingRequestId: pickString(data, 'existingRequestId'),
-      };
-    case 'LEGAL_HOLD_RELEASE_NOT_PENDING':
-      return {
-        title: fallbackTitle,
-        description: t('legalHold.errors.releaseNotPending'),
-      };
-    case 'SELF_APPROVAL_BLOCKED': {
-      const description = t('legalHold.errors.selfApprovalBlocked');
-      return {
-        title: fallbackTitle,
-        description,
-        fieldError: description,
-      };
-    }
+      return asToast(t('legalHold.errors.releaseAlreadyPending'));
+    case 'REQUEST_NOT_FOUND':
+      return asToast(t('legalHold.errors.requestNotFound'));
+    // Another admin approved or rejected the request first.
+    case 'REQUEST_NOT_PENDING':
+      return asToast(t('legalHold.errors.releaseNotPending'));
+    case 'SELF_APPROVAL_BLOCKED':
+      return asFieldError(t('legalHold.errors.selfApprovalBlocked'));
     case 'APPROVAL_TOO_SOON': {
       const remainingMs = pickNumber(data, 'remainingMs');
-      if (remainingMs === undefined) {
-        return {
-          title: fallbackTitle,
-          description: fallbackDescription,
-          fieldError: fallbackDescription,
-        };
-      }
+      if (remainingMs === undefined) return asFieldError(generic);
       const countdown = formatRemaining(remainingMs);
-      const description = t('legalHold.errors.approvalTooSoon', { countdown });
       return {
-        title: fallbackTitle,
-        description,
-        fieldError: description,
+        ...asFieldError(t('legalHold.errors.approvalTooSoon', { countdown })),
         remainingMs,
       };
     }
-    case 'REQUESTER_NO_LONGER_ADMIN': {
-      const description = t('legalHold.errors.requesterNoLongerAdmin');
-      return {
-        title: fallbackTitle,
-        description,
-        fieldError: description,
-      };
-    }
-    case 'BULK_HOLD_TOO_LARGE':
-      return {
-        title: fallbackTitle,
-        description: t('legalHold.errors.bulkTooLarge'),
-      };
+    case 'REQUESTER_NO_LONGER_ADMIN':
+      return asFieldError(t('legalHold.errors.requesterNoLongerAdmin'));
     default:
-      return {
-        title: fallbackTitle,
-        description: fallbackDescription,
-      };
+      // A lapsed session keeps the localized sentence it carries as its
+      // `userMessage`; anything else this map does not know (a fault, no
+      // answer) reads as the generic line.
+      return asToast(backendUserMessage(err, generic));
   }
 }
 

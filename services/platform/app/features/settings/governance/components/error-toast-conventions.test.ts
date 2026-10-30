@@ -10,10 +10,10 @@ import { describe, expect, it } from 'vitest';
  * Convex client that's a dev-facing `[CONVEX A(...)] {"code":…}` hybrid
  * stacktrace string, never a user-facing message. Every catch block in this
  * directory must route the caught error through `mapGovernanceSaveError` (or
- * this area's other dedicated mapper — `mapLegalHoldError` /
- * `mapDsarPolicyError` — for the sibling subtrees) instead of the
- * `err instanceof Error ? err.message : …` guard that always took the raw
- * branch (see `../governance-save-errors.ts` for the full rationale).
+ * this area's other dedicated mappers — `mapTrashRestoreError` for the trash,
+ * `mapLegalHoldError` / `mapDsarPolicyError` for the sibling subtrees) instead
+ * of the `err instanceof Error ? err.message : …` guard that always took the
+ * raw branch (see `../governance-save-errors.ts` for the full rationale).
  *
  * Pure source-walk (no DOM), mirroring `skeleton-conventions.test.ts`.
  */
