@@ -330,4 +330,91 @@ describe('the declared fields in the reader’s language', () => {
     });
     expect(input).toHaveAccessibleDescription(help);
   });
+
+  const securityField: ConnectorSummary['configFields'][number] = {
+    key: 'security',
+    label: 'Connection security',
+    type: 'string',
+    required: false,
+    // `none` is labelled in no language, so it shows as itself.
+    enum: ['tls', 'starttls', 'none'],
+    optionLabels: { tls: 'Implicit TLS', starttls: 'STARTTLS' },
+    default: 'tls',
+    i18n: {
+      de: {
+        label: 'Verbindungssicherheit',
+        optionLabels: { tls: 'Implizites TLS', starttls: 'STARTTLS' },
+      },
+      // French names one option; the other falls back to English.
+      fr: {
+        label: 'Sécurité de la connexion',
+        optionLabels: { tls: 'TLS implicite' },
+      },
+      // A regional override of one option; the other comes from German.
+      'de-CH': { optionLabels: { starttls: 'STARTTLS (CH)' } },
+    },
+  };
+
+  it.each([
+    ['en', 'Connection security', ['Implicit TLS', 'STARTTLS', 'none']],
+    ['de', 'Verbindungssicherheit', ['Implizites TLS', 'STARTTLS', 'none']],
+    ['fr', 'Sécurité de la connexion', ['TLS implicite', 'STARTTLS', 'none']],
+    [
+      'de-CH',
+      'Verbindungssicherheit',
+      ['Implizites TLS', 'STARTTLS (CH)', 'none'],
+    ],
+  ])(
+    'names the options of a select in %s, each through the locale chain',
+    async (locale, label, options) => {
+      localStorage.setItem('user-locale', locale);
+      await i18n.changeLanguage(locale);
+      const Fields = extras.Fields;
+      if (Fields === null) throw new Error('the config fields are missing');
+      const { user } = render(
+        <Fields
+          vendor={{ summary: summary([securityField]) }}
+          value={{}}
+          onChange={() => {}}
+        />,
+      );
+      const select = screen.getByRole('combobox', {
+        name: new RegExp(`^${label}`),
+      });
+      // The default shows by its label, not as the stored `tls`.
+      expect(select).toHaveTextContent(options[0] ?? '');
+      await user.click(select);
+      expect(
+        screen.getAllByRole('option').map((option) => option.textContent),
+      ).toEqual(options);
+    },
+  );
+
+  it('shows a German reader none of the English it translates', async () => {
+    localStorage.setItem('user-locale', 'de');
+    await i18n.changeLanguage('de');
+    const Fields = extras.Fields;
+    if (Fields === null) throw new Error('the config fields are missing');
+    const { user } = render(
+      <Fields
+        vendor={{ summary: summary([...httpFields, securityField]) }}
+        value={{}}
+        onChange={() => {}}
+      />,
+    );
+    await user.click(
+      screen.getByRole('combobox', { name: /^Verbindungssicherheit/ }),
+    );
+    expect(
+      screen.getByRole('option', { name: 'Implizites TLS' }),
+    ).toBeVisible();
+    for (const english of [
+      'Base URL',
+      'The address every call stays under.',
+      'Connection security',
+      'Implicit TLS',
+    ]) {
+      expect(document.body).not.toHaveTextContent(english);
+    }
+  });
 });

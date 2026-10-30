@@ -10,6 +10,12 @@
  * its name everywhere, and a connector named with ordinary words ("Tasks")
  * carries its German and French display names. Each shipped connector is one
  * or the other, so a new one has to be classified when it lands.
+ *
+ * A connector's settings (`configFields`) are worded the same way: the
+ * credential form shows each one's label, its help and the options of a
+ * select in the reader's language, so every one of those texts carries its
+ * German and French — a setting that lands in English only would show
+ * "IMAP server" or a raw `starttls` to a German administrator.
  */
 
 import path from 'node:path';
@@ -155,6 +161,72 @@ function displayProblems(connector: Connector): string[] {
   return problems;
 }
 
+type ConfigField = Connector['configFields'][number];
+type ConfigFieldText = NonNullable<ConfigField['i18n']>[string];
+
+/** The texts the credential form shows for one setting: its label, its help
+ * when it has one, and the label of each option of a select — each read in
+ * English and in one language's overrides. */
+function settingTexts(field: ConfigField): Array<{
+  name: string;
+  en: string | undefined;
+  translated: (text: ConfigFieldText | undefined) => string | undefined;
+}> {
+  return [
+    { name: 'label', en: field.label, translated: (text) => text?.label },
+    ...(field.description === undefined
+      ? []
+      : [
+          {
+            name: 'description',
+            en: field.description,
+            translated: (text: ConfigFieldText | undefined) =>
+              text?.description,
+          },
+        ]),
+    ...(field.enum ?? []).map((option) => ({
+      name: `label for option "${option}"`,
+      en: field.optionLabels?.[option],
+      translated: (text: ConfigFieldText | undefined) =>
+        text?.optionLabels?.[option],
+    })),
+  ];
+}
+
+/** Every problem with one connector's settings texts, as readable lines. */
+function settingProblems(connector: Connector): string[] {
+  const problems: string[] = [];
+  for (const field of connector.configFields) {
+    const at = `${connector.name}.configFields.${field.key}`;
+    for (const locale of Object.keys(field.i18n ?? {})) {
+      if (!KNOWN_LOCALES.has(locale)) {
+        problems.push(
+          `${at}: names a locale the app does not ship (${locale})`,
+        );
+      }
+    }
+    for (const text of settingTexts(field)) {
+      if (text.en === undefined) problems.push(`${at}: has no ${text.name}`);
+      for (const locale of REQUIRED_LOCALES) {
+        if (text.translated(field.i18n?.[locale]) === undefined) {
+          problems.push(`${at}: has no ${locale} ${text.name}`);
+        }
+      }
+      // Swiss German writes ss for ß, as for an action's title.
+      const swiss = text.translated(field.i18n?.['de-CH']);
+      if (
+        text.translated(field.i18n?.de)?.includes('ß') === true &&
+        (swiss === undefined || swiss.includes('ß'))
+      ) {
+        problems.push(
+          `${at}: de ${text.name} has ß but no de-CH ${text.name} without it`,
+        );
+      }
+    }
+  }
+  return problems;
+}
+
 const shipped = loadConnectorDefinitions({ root: SYSTEM_ROOT });
 
 describe('connector display data', () => {
@@ -251,6 +323,60 @@ describe('connector display data', () => {
     ).toEqual([
       'calendar: is not a listed brand and has no de display name',
       'calendar: is not a listed brand and has no fr display name',
+    ]);
+  });
+
+  it('words every shipped setting in English, German and French: label, help and options', () => {
+    expect(shipped.flatMap(settingProblems)).toEqual([]);
+    // The guard read the settings, a select among them, not an empty list.
+    const fields = shipped.flatMap((c) => c.configFields);
+    expect(fields.length).toBeGreaterThan(5);
+    expect(fields.some((field) => field.enum !== undefined)).toBe(true);
+  });
+
+  it('bites: a setting that lands in English only, an option without its labels, a ß without its Swiss form', () => {
+    const mailbox = shipped.find((c) => c.name === 'imap-smtp');
+    const imapHost = mailbox?.configFields.find((f) => f.key === 'imapHost');
+    const security = mailbox?.configFields.find((f) => f.key === 'security');
+    if (
+      mailbox === undefined ||
+      imapHost === undefined ||
+      security === undefined
+    ) {
+      throw new Error('imap-smtp ships with its server and security settings');
+    }
+    const broken: Connector = {
+      ...mailbox,
+      configFields: [
+        { ...imapHost, i18n: undefined },
+        {
+          ...security,
+          optionLabels: { tls: 'Implicit TLS' },
+          i18n: {
+            de: {
+              label: 'Verbindungssicherheit',
+              description: 'Für Ports außerhalb des Standards.',
+              optionLabels: { tls: 'Implizites TLS', starttls: 'STARTTLS' },
+            },
+            fr: {
+              label: 'Sécurité de la connexion',
+              optionLabels: { starttls: 'STARTTLS' },
+            },
+            'de-AT': { label: 'Verbindungssicherheit' },
+          },
+        },
+      ],
+    };
+    expect(settingProblems(broken)).toEqual([
+      'imap-smtp.configFields.imapHost: has no de label',
+      'imap-smtp.configFields.imapHost: has no fr label',
+      'imap-smtp.configFields.imapHost: has no de description',
+      'imap-smtp.configFields.imapHost: has no fr description',
+      'imap-smtp.configFields.security: names a locale the app does not ship (de-AT)',
+      'imap-smtp.configFields.security: has no fr description',
+      'imap-smtp.configFields.security: de description has ß but no de-CH description without it',
+      'imap-smtp.configFields.security: has no fr label for option "tls"',
+      'imap-smtp.configFields.security: has no label for option "starttls"',
     ]);
   });
 });

@@ -103,6 +103,20 @@ describe('the connector docs describe the catalog the picker offers', () => {
     }
   });
 
+  it('serves the mailbox security options by name, in English, German and French, to the real settings catalog', () => {
+    const security = shipped
+      .find((connector) => connector.slug === 'imap-smtp')
+      ?.configFields.find((field) => field.key === 'security');
+    expect(security?.enum).toEqual(['tls', 'starttls']);
+    expect(Object.keys(security?.optionLabels ?? {})).toEqual(security?.enum);
+    for (const locale of ['de', 'fr']) {
+      expect({
+        locale,
+        options: Object.keys(security?.i18n?.[locale]?.optionLabels ?? {}),
+      }).toEqual({ locale, options: security?.enum });
+    }
+  });
+
   it('lists a picker with GlitchTip and Jev decisions in it', () => {
     // A catalog that lost its files would pass the checks below vacuously.
     expect(shipped.map((connector) => connector.displayName)).toEqual(

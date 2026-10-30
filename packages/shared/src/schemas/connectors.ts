@@ -66,6 +66,13 @@ const configKeySchema = z
  * the connector's display name ("GitHub · List issues"). */
 const actionTitleSchema = z.string().min(1).max(80);
 
+/** What a select shows for each of a config field's `enum` values, keyed by
+ * the value ("Implicit TLS" for `tls`). */
+const optionLabelsSchema = z.record(
+  z.string().min(1),
+  z.string().min(1).max(120),
+);
+
 /**
  * The auth methods a connector accepts — discriminated on `method`, MULTIPLE
  * per connector, decoupled from the actions. A credential row references one
@@ -263,15 +270,18 @@ const configFieldSchema = z
     format: z.enum(['email']).optional(),
     /** Closed set of accepted values, for a `string` field rendered as a select. */
     enum: z.array(z.string().min(1)).min(1).optional(),
+    /** The select's English label for each `enum` value; a value without
+     * one shows as itself. The value stays what is stored and checked. */
+    optionLabels: optionLabelsSchema.optional(),
     /** Numeric constraints for number fields. */
     integer: z.boolean().optional(),
     min: z.number().finite().optional(),
     max: z.number().finite().optional(),
     /** Applied when the field is absent; must match `type`. */
     default: z.union([z.string(), z.number(), z.boolean()]).optional(),
-    /** Per-locale overrides of the label and description a form shows,
-     * same locale chain as an action's `title`: exact tag, then base
-     * language, then the authored English. */
+    /** Per-locale overrides of the label, description and option labels a
+     * form shows, same locale chain as an action's `title`: exact tag, then
+     * base language, then the authored English — each option on its own. */
     i18n: z
       .record(
         z.string().regex(LOCALE_RE),
@@ -279,6 +289,7 @@ const configFieldSchema = z
           .object({
             label: z.string().min(1).max(120).optional(),
             description: z.string().max(2000).optional(),
+            optionLabels: optionLabelsSchema.optional(),
           })
           .strict(),
       )
@@ -480,6 +491,23 @@ export const connectorSchema = z
             path: ['configFields', index, 'requiredFor'],
             message: `requiredFor names ${method}, which the connector does not accept`,
           });
+      // A label for a value the field does not take could never be shown.
+      const values = new Set(field.enum ?? []);
+      const labelSets = [
+        { at: ['optionLabels'], labels: field.optionLabels },
+        ...Object.entries(field.i18n ?? {}).map(([locale, text]) => ({
+          at: ['i18n', locale, 'optionLabels'],
+          labels: text.optionLabels,
+        })),
+      ];
+      for (const { at, labels } of labelSets)
+        for (const value of Object.keys(labels ?? {}))
+          if (!values.has(value))
+            context.addIssue({
+              code: 'custom',
+              path: ['configFields', index, ...at, value],
+              message: `optionLabels names "${value}", which is not one of the field's enum values`,
+            });
     });
   });
 export type Connector = z.infer<typeof connectorSchema>;

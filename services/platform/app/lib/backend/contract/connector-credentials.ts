@@ -78,6 +78,8 @@ export interface ConnectorCredentialsContract {
         description?: string;
         default?: string | number | boolean;
         enum?: string[];
+        /** The select's English label for each `enum` value. */
+        optionLabels?: Record<string, string>;
         integer?: boolean;
         min?: number;
         max?: number;
@@ -93,8 +95,16 @@ export interface ConnectorCredentialsContract {
         type: 'string' | 'number' | 'boolean';
         key: string;
         label: string;
-        /** Per-locale label and description, resolved by the form's locale. */
-        i18n?: Record<string, { label?: string; description?: string }>;
+        /** Per-locale label, description and option labels, resolved by
+         * the form's locale. */
+        i18n?: Record<
+          string,
+          {
+            label?: string;
+            description?: string;
+            optionLabels?: Record<string, string>;
+          }
+        >;
       }>;
       authMethods: Array<
         'oauth2' | 'api-key' | 'bearer' | 'basic' | 'client-credentials'

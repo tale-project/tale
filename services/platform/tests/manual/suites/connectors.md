@@ -1,6 +1,6 @@
 # Connectors
 
-> **Prefix** `CONN-` · **Reset** none · **Cost** 48 boxes
+> **Prefix** `CONN-` · **Reset** none · **Cost** 49 boxes
 
 Exercise the **connector credentials** page under Settings — one flat table of
 every credential the organization holds for a shipped connector (#2889
@@ -145,10 +145,20 @@ Sign in as an owner/admin — the page requires the `developerSettings` ability
   Mailbox** → Beyond username/password, the connector's declared config fields
   render: **IMAP server** (required), **IMAP port** (placeholder `993`),
   **SMTP server** (required), **SMTP port** (placeholder `465`), **Connection
-  security** select (`tls` / `starttls`), **Sent folder** (placeholder
-  `Sent`). **Add credential** is gated on the two required hosts and any
-  entered port being an integer from 1 through 65535; ports/security/folder
-  may stay blank (server applies the declared defaults).
+  security** select (**Implicit TLS** / **STARTTLS**, stored as `tls` /
+  `starttls`), **Sent folder** (placeholder `Sent`). **Add credential** is
+  gated on the two required hosts and any entered port being an integer from
+  1 through 65535; ports/security/folder may stay blank (server applies the
+  declared defaults).
+- [ ] `CONN-F7a` · **Switch to Deutsch, Français and Deutsch (Schweiz), then
+  open CONN-F7's form and HTTP's** → German shows **IMAP-Server**,
+  **IMAP-Port**, **SMTP-Server**, **SMTP-Port**, **Verbindungssicherheit**
+  (**Implizites TLS** / **STARTTLS**) and **Ordner für Gesendetes**, and HTTP's
+  **Basis-URL** and **API-Key-Header**, each with German help; French shows
+  **Serveur IMAP** … **Sécurité de la connexion** (**TLS implicite** /
+  **STARTTLS**) and **URL de base** / **En-tête de la clé d’API**; Swiss
+  German shows the German. No label, help or option stays English or raw
+  (`tls`), and a mailbox saved in any of them stores `tls` / `starttls`.
 - [ ] `CONN-F8` · **Split SMTP auth (imap-smtp)** — In CONN-F7's form: toggle
   **Use a separate SMTP provider**
   (`settings.connectors.dialog.smtpSeparateToggle`) → The toggle (hint

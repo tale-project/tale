@@ -76,6 +76,9 @@ configFields:
     label: Connection security
     type: string
     enum: [tls, starttls]
+    optionLabels:
+      tls: Implicit TLS
+      starttls: STARTTLS
     default: tls
     description: >-
       Fallback when a port is not standard. Ports 465 and 993 always use
@@ -84,9 +87,15 @@ configFields:
       de:
         label: 'Verbindungssicherheit'
         description: 'Fallback, wenn ein Port nicht dem Standard entspricht. Die Ports 465 und 993 verwenden immer implizites TLS, die Ports 587 und 143 immer STARTTLS.'
+        optionLabels:
+          tls: 'Implizites TLS'
+          starttls: 'STARTTLS'
       fr:
         label: 'Sécurité de la connexion'
         description: 'Solution de repli quand un port n’est pas standard. Les ports 465 et 993 utilisent toujours le TLS implicite ; les ports 587 et 143 utilisent toujours STARTTLS.'
+        optionLabels:
+          tls: 'TLS implicite'
+          starttls: 'STARTTLS'
   - key: sentMailbox
     label: Sent folder
     type: string
@@ -107,6 +116,13 @@ configFields:
     description: >-
       Mailbox address used as Conversations From / inbox source. Set
       automatically from the login username.
+    i18n:
+      de:
+        label: 'Absenderadresse'
+        description: 'Die Postfachadresse, die als Absender der Konversationen und als Quelle des Posteingangs dient. Wird automatisch aus dem Benutzernamen der Anmeldung übernommen.'
+      fr:
+        label: 'Adresse d’expéditeur'
+        description: 'L’adresse de boîte utilisée comme expéditeur des conversations et comme source de la boîte de réception. Définie automatiquement à partir du nom d’utilisateur de connexion.'
 auth:
   - method: basic
 actions:
