@@ -172,7 +172,7 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   - **The merge train** carries the autonomous development cycle's work. A task branch starts
     from `train` (the open train) and opens no pull request: once reviewed, it is squashed into
     one commit on `train` and pushed only if the fast gate passes on that commit (`oxfmt --check`,
-    the ruff format check, `bunx turbo run typecheck build`). Every 4 hours `train` departs as
+    the ruff format check, `bunx turbo run typecheck build`). Every 8 hours `train` departs as
     `train-<YYYYMMDD-HHMM>` (UTC) with one pull request into `main` (label `merge-train`) that runs
     the full CI and rebase-merges once green, one commit per task, while `train` collects the
     next. One train pull request is open at a time. `train` and `train-*` belong to the train.
