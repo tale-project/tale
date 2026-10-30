@@ -579,7 +579,8 @@ jobs:
           echo "Release image validation status: ${{ job.status }} (${{ needs.prepare.outputs.version }})" >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
-  # Publish one OCI image index (:version and :latest) per service.
+  # Publish one OCI image index per service: :version, and :latest while the
+  # version is the highest published one (tools/cli/scripts/release-latest.ts).
   # ---------------------------------------------------------------------------
   manifest:
     name: Manifest ${{ matrix.service }}
@@ -587,6 +588,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
+      contents: read
       packages: write
 
     strategy:
@@ -594,6 +596,34 @@ jobs:
         service: ${{ fromJSON(needs.prepare.outputs.service_names) }}
 
     steps:
+      # Only the dependency-free decision script; nothing is installed.
+      - name: Checkout the latest decision
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            tools/cli/scripts/release-latest.ts
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+
+      # A failed-jobs re-run keeps Prepare's outputs from an earlier attempt,
+      # which a newer release may have overtaken since: decide when writing.
+      - name: Decide whether this release moves latest
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.version }}
+          SITES_ONLY: ${{ needs.prepare.outputs.sites_only }}
+        run: |
+          set -euo pipefail
+          MOVE="$(bun tools/cli/scripts/release-latest.ts --repo "$REPOSITORY" --version "$TAG" --sites-only "$SITES_ONLY")"
+          echo "move=${MOVE}" >> "$GITHUB_OUTPUT"
+
       - name: Login to GHCR
         uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
         with:
@@ -614,7 +644,7 @@ jobs:
           IMAGE: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}
           VERSION: ${{ needs.prepare.outputs.version_number }}
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
-          SITES_ONLY: ${{ needs.prepare.outputs.sites_only }}
+          MOVE_LATEST: ${{ steps.latest.outputs.move }}
         run: |
           set -euo pipefail
           docker buildx version
@@ -644,7 +674,7 @@ jobs:
           done <<< "$LABELS"
 
           TAGS=(--tag "${IMAGE}:${VERSION}")
-          if [ "$SITES_ONLY" != true ]; then TAGS+=(--tag "${IMAGE}:latest"); fi
+          if [ "$MOVE_LATEST" = true ]; then TAGS+=(--tag "${IMAGE}:latest"); fi
           docker buildx imagetools create "${TAGS[@]}" "${ANNOTATIONS[@]}" "$AMD64" "$ARM64"
 
           # The proof: the tag is an OCI image index of exactly the two native
@@ -669,7 +699,7 @@ jobs:
             }
           done
           DIGEST=$(docker buildx imagetools inspect "${IMAGE}:${VERSION}" --format '{{.Manifest.Digest}}')
-          if [ "$SITES_ONLY" != true ]; then
+          if [ "$MOVE_LATEST" = true ]; then
             LATEST=$(docker buildx imagetools inspect "${IMAGE}:latest" --format '{{.Manifest.Digest}}')
             [ "$LATEST" = "$DIGEST" ] || {
               echo "::error::${IMAGE}:latest does not name the ${VERSION} index"
@@ -704,12 +734,14 @@ jobs:
           # one (`git describe`), so the whole tag history is needed.
           fetch-depth: 0
           persist-credentials: false
-          # API snapshots are read with git show; only the notes and their
-          # dependency-free renderers need to be present in the working tree.
+          # API snapshots are read with git show; only the notes, their
+          # dependency-free renderers and the latest decision need to be
+          # present in the working tree.
           sparse-checkout: |
             .github/release-notes
             services/platform/scripts/openapi/contract-notes.ts
             tools/cli/scripts/release-notes.ts
+            tools/cli/scripts/release-latest.ts
           sparse-checkout-cone-mode: false
 
       - name: Setup Bun
@@ -795,12 +827,28 @@ jobs:
           bun tools/cli/scripts/release-notes.ts --version "$TAG" \
             --contract /tmp/contract/release-notes.md --out /tmp/release-notes.md
 
+      # A failed-jobs re-run keeps Prepare's outputs from an earlier attempt,
+      # which a newer release may have overtaken since: decide when writing.
+      - name: Decide whether this release moves latest
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.version }}
+          SITES_ONLY: ${{ needs.prepare.outputs.sites_only }}
+        run: |
+          set -euo pipefail
+          MOVE="$(bun tools/cli/scripts/release-latest.ts --repo "$REPOSITORY" --version "$TAG" --sites-only "$SITES_ONLY")"
+          echo "move=${MOVE}" >> "$GITHUB_OUTPUT"
+
+      # GitHub marks a new release Latest unless told otherwise.
       - name: Create release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPOSITORY: ${{ github.repository }}
           TAG: ${{ needs.prepare.outputs.version }}
           SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+          MOVE_LATEST: ${{ steps.latest.outputs.move }}
         run: |
           set -euo pipefail
           if PUBLISHED="$(gh release view "$TAG" --json isDraft --jq '.isDraft == false' 2>/dev/null)"; then
@@ -810,6 +858,7 @@ jobs:
             gh release create "$TAG" \
               --target "$SOURCE_SHA" \
               --title "Tale $TAG" \
+              --latest="$MOVE_LATEST" \
               --notes-file /tmp/release-notes.md \
               --generate-notes
           fi

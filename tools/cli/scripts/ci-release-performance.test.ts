@@ -125,6 +125,7 @@ test.skipIf(process.platform === 'win32').each([
       '.github/release-notes',
       'services/platform/scripts/openapi/contract-notes.ts',
       'tools/cli/scripts/release-notes.ts',
+      'tools/cli/scripts/release-latest.ts',
     ]);
     const write = async (path: string, content: string) => {
       await mkdir(join(directory, dirname(path)), { recursive: true });

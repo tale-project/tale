@@ -9,10 +9,10 @@ whose validation and gate have passed.
 the feature line (0.6.x, 0.6.0 next): `main` plus the feature work, kept rebased onto `main`
 ([the repo contract](../.agents/repo.md)). Everything below releases the stable line from
 `main`, as before. The feature line is not released yet: the candidate gate, `release.yml`
-(which points `latest` at every release) and Ops's release adoption read one line and have to
-learn the second first. When a person decides the feature line is stable, its release moves
-`latest` to 0.6.x, `main` takes the feature line's commits, 0.5.x is no longer maintained, and
-`release/0.7` opens as the next feature line.
+(which points `latest` at the highest published version) and Ops's release adoption read one
+line and have to learn the second first. When a person decides the feature line is stable, its
+release moves `latest` to 0.6.x, `main` takes the feature line's commits, 0.5.x is no longer
+maintained, and `release/0.7` opens as the next feature line.
 
 | Step | What you do | What decides |
 | --- | --- | --- |
@@ -43,7 +43,8 @@ Choose a merged, reviewed commit on `main`, with the version it becomes. Candida
 forward only. The version must be newer than the latest release, and the commit must contain
 that release plus a later commit. Do not publish a new version at the latest release's existing
 source SHA: Ops identifies the deployment by source, so it would see no new deployment to apply.
-`release.yml` points `latest` at every release, so an older commit would move it backwards.
+`release.yml` points `latest` at the highest version, so a newer version at an older commit
+would move it backwards.
 The gate enforces both version and source progression against the latest published release.
 That comparison uses GitHub's `releases/latest` and its tag; the release lease below covers a
 version still in flight.
@@ -279,8 +280,8 @@ publisher's release-only `--checkout <directory>` selects its Git identity and p
 Neither executes historical scripts or loads the historical checkout's Bun configuration.
 
 `Manifest <service>` publishes one OCI image index per service with
-`docker buildx imagetools create`. `:X.Y.Z` and, unless the release is sites-only, `:latest`
-are written by one call, so they name the same index digest. The index carries the image's
+`docker buildx imagetools create`. `:X.Y.Z` and, when the version moves it, `:latest` are
+written by one call, so they name the same index digest. The index carries the image's
 `org.opencontainers.image.*` labels as annotations (GitHub takes a multi-arch package's
 description from the index's annotations) and indexes exactly this run's
 `X.Y.Z-amd64` and `X.Y.Z-arm64` images, each of which carries the same metadata on its own
@@ -288,6 +289,17 @@ manifest: `Build <service> (<arch>)` reads it back by digest and fails unless it
 image's labels. The Manifest job reads the index back and fails unless it is that annotated
 OCI index. `docker manifest inspect` lists the index but hides its annotations;
 `docker buildx imagetools inspect --raw` shows both.
+
+`:latest` and GitHub's **Latest** release move together, and only for the highest version:
+`tools/cli/scripts/release-latest.ts` moves them when the run is not sites-only, the version is
+a stable `X.Y.Z`, and no published release (not a draft or pre-release) is higher. A re-run or
+back-fill of an older tag publishes `:X.Y.Z` and creates its release with `--latest=false`,
+leaving both where they are; re-running the newest version keeps `:latest` on the index it
+rebuilt. `Manifest <service>` and `Create release` each decide just before they write, because
+a failed-jobs re-run reuses `Prepare`'s outputs from an earlier attempt, and unreadable release
+history fails the job before a tag moves. A re-run uses the `release.yml` of its tag's commit,
+so a tag cut before this decision still moves `:latest` on every run that is not sites-only, and
+GitHub's Latest on the run that creates its release.
 
 A version dispatch of `release.yml` builds the head of the ref it runs on. Run one only with
 `--ref vX.Y.Z` on the pushed tag, never on `main`.
@@ -438,7 +450,8 @@ fails the candidate. Work in this order.
   successes, and mixing attempts is refused. A full re-run builds new images, though:
   `Build <service> (<arch>)` stamps `org.opencontainers.image.created` with the attempt's
   time, so every attempt pushes new digests, and `Manifest <service>` then points `:X.Y.Z`
-  and `:latest` at them. So decide by what the registry holds, not by which job failed.
+  at them, and `:latest` too while X.Y.Z is the highest published version. So decide by what
+  the registry holds, not by which job failed.
   Before any retry, look up `:X.Y.Z` for every service in the run's `Build` jobs, as the
   `Verify manifests are pullable` step of `Create release` does:
 

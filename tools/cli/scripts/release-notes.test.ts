@@ -502,6 +502,7 @@ exit 99
             TAG: 'v1.2.3',
             REPOSITORY: 'tale-project/tale',
             SOURCE_SHA: '0123456789012345678901234567890123456789',
+            MOVE_LATEST: 'false',
             RELEASE_TEST_MODE: mode,
             RELEASE_TEST_MARKER: marker,
           },
