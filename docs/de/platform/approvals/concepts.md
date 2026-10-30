@@ -3,7 +3,7 @@ title: Freigaben für Aktionen verstehen
 description: Erfahre, warum ein Connector-Schreibzugriff wartet, was Freigeben oder Ablehnen bewirkt und wo du das Ergebnis prüfst.
 ---
 
-Mit einer Freigabe prüfst du einen geplanten Connector-Schreibzugriff, bevor er ausgeführt wird. Eine Automation kann zum Beispiel eine E-Mail vorbereiten und dann warten, bis du Empfänger und Inhalt vor dem Versand geprüft hast.
+Mit einer Freigabe prüfst du einen geplanten Connector-Schreibzugriff, bevor er ausgeführt wird. Eine Automatisierung kann zum Beispiel eine E-Mail vorbereiten und dann warten, bis du Empfänger und Inhalt vor dem Versand geprüft hast.
 
 ## Wann ein Schreibzugriff wartet
 
@@ -13,7 +13,7 @@ Lesezugriffe verlangen keine Freigabe. Ein **Testlauf** nutzt simulierte Connect
 
 ## Die geplante Aktion prüfen
 
-Öffne die [Laufliste](/de/platform/automations/execution-logs) der Automation und wähle den Lauf mit dem Status **Wartet**. Die Freigabekarte nennt die Aktion, etwa `imap-smtp.send`, und den anfragenden Knoten. **Der Schritt würde aufrufen mit** zeigt die genauen Eingaben.
+Öffne die [Laufliste](/de/platform/automations/execution-logs) der Automatisierung und wähle den Lauf mit dem Status **Wartet**. Die Freigabekarte nennt die Aktion, etwa `imap-smtp.send`, und den anfragenden Knoten. **Der Schritt würde aufrufen mit** zeigt die genauen Eingaben.
 
 Vergleiche Ziel, Empfänger, Inhalt und Kennungen mit der beabsichtigten Aufgabe. Prüfe auch sensible Angaben in den Eingaben, bevor du entscheidest:
 

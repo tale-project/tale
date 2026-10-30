@@ -104,7 +104,7 @@ Kann die Review-Richtlinie der Organisation nicht gelesen werden oder ist sie un
 
 Aufgaben mit **Projektstandard** übernehmen diese Auswahl, wenn ein neues Review beginnt. Eine ausdrücklich benannte Person oder ein Agent bleibt für die jeweilige Aufgabe ausgewählt. Bereits ausstehende Reviews behalten ihren gespeicherten Reviewer, auch wenn sich der Projektstandard ändert. Hat jemand den Standard während deiner Bearbeitung geändert, verwirf deinen veralteten Entwurf und wähle erneut.
 
-Ein Agent als Standard gilt nur für Ergebnisse aus einem nativen Projektagentenlauf, wenn die Organisation weder eine unabhängige menschliche Prüfung noch Kompetenznachweise verlangt. Reicht eine Person oder Automation Arbeit ohne einen solchen Lauf ein, greift die menschliche Prüferkette. Zum Speichern einer Agentenauswahl braucht der Agent die Review-Berechtigung; eine Aufgabe kann nicht ihren ausführenden Agenten als Reviewer wählen. Ein bereits ausstehendes Review wechselt bei einer geänderten Berechtigung, Zuweisung oder Richtlinie nicht automatisch den Reviewer.
+Ein Agent als Standard gilt nur für Ergebnisse aus einem nativen Projektagentenlauf, wenn die Organisation weder eine unabhängige menschliche Prüfung noch Kompetenznachweise verlangt. Reicht eine Person oder Automatisierung Arbeit ohne einen solchen Lauf ein, greift die menschliche Prüferkette. Zum Speichern einer Agentenauswahl braucht der Agent die Review-Berechtigung; eine Aufgabe kann nicht ihren ausführenden Agenten als Reviewer wählen. Ein bereits ausstehendes Review wechselt bei einer geänderten Berechtigung, Zuweisung oder Richtlinie nicht automatisch den Reviewer.
 
 ### Ein ausstehendes Review übertragen {#transfer-review}
 

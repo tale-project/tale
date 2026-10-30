@@ -15,7 +15,7 @@ Wähle Speicher für drei Datenarten: Anwendungsdatensätze, durchsuchbares Wiss
 
 Der mitgelieferte Stack betreibt `tale_app` und `tale_knowledge` als getrennte Datenbanken in einem Postgres-Dienst. Andere Aufbauten können eigene Dienste verwenden. Die vom Deployment erzeugten Umgebungswerte wählen die Standards. Ein allein gestarteter Anwendungsprozess erfindet keine funktionierenden Objektspeicher-Zugangsdaten.
 
-Organisationsänderungen brauchen Admin- oder Owner-Rechte. Ohne eigene Verbindung nutzt Tale den Bereitstellungsstandard und trennt Daten nach Organisation. Eine ungültige konfigurierte Wissensverbindung verursacht einen Fehler, statt unbemerkt eine andere Datenbank zu verwenden.
+Organisationsänderungen brauchen Admin- oder Inhaber-Rechte. Ohne eigene Verbindung nutzt Tale den Bereitstellungsstandard und trennt Daten nach Organisation. Eine ungültige konfigurierte Wissensverbindung verursacht einen Fehler, statt unbemerkt eine andere Datenbank zu verwenden.
 
 ## Externe Datenbank vorbereiten
 

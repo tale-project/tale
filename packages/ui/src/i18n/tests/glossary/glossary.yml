@@ -339,10 +339,19 @@ terms:
     en: Automation
     de: Automatisierung
     fr: Automatisation
+    _avoid:
+      fr:
+        - automation
+    _allow:
+      fr:
+        - automation.yml
     _note: The product unit — versioned document, deployment, triggers, runs
       (`automations.title`). DE feminine (die Automatisierung); never the
-      standalone German 'Automation'. Its inner multi-step definition is the
-      workflow (`feature_workflow`), a code/file-level term today.
+      standalone German 'Automation'. FR feminine (l'automatisation); never the
+      lowercase loanword 'automation', which `_avoid` reports. `_allow` keeps
+      the pack file `automation.yml` (`automations.upload.filesHelp`). Its
+      inner multi-step definition is the workflow (`feature_workflow`), a
+      code/file-level term today.
   - key: feature_dispatch
     category: feature
     en: Dispatch
@@ -377,7 +386,11 @@ terms:
     en: Automations
     de: Automatisierungen
     fr: Automatisations
+    _avoid:
+      fr:
+        - automations
     _note: Plural — the hub view. Matches UI label `navigation.automations`.
+      FR never the lowercase loanword 'automations', which `_avoid` reports.
   - key: feature_automationNode
     category: feature
     en: Node
@@ -469,9 +482,13 @@ terms:
     en: Home
     de: Start
     fr: Accueil
+    _allow:
+      de:
+        - Home-Bildschirm
     _note: The section that holds chats, projects, tasks and the inbox in one
       panel. Matches UI label `navigation.home`. Never `Startseite` in DE — it
-      is a workspace, not a landing page.
+      is a workspace, not a landing page. `_allow` keeps the iOS home screen
+      (`Home-Bildschirm`, as in its menu item `Zum Home-Bildschirm`).
   - key: feature_knowledge
     category: feature
     en: Knowledge
@@ -494,15 +511,34 @@ terms:
         - Google Workspace
         - Google-Workspace
         - Chat-Workspace
+        - Slack-Workspace
+        - Dev Workspace
+        - Workspace-Bereitstellung
+        - Workspace-CLI
+        - Workspace-Deployment
+        - Workspace-Deployments
+        - Workspace-Claim
+        - Workspace-Claims
+        - Workspace-Mounts
+        - Workspace-Pfade
       fr:
         - Google Workspace
+        - Dev Workspace
     _note: 'One word in EN. A Tale workspace is `Arbeitsbereich` in DE and
-      `Espace de travail` in FR, in every UI string. `_allow` lists the names
-      that only contain the word: Google''s product (`Google Workspace`,
-      hyphenated in a DE compound such as the `Google-Workspace-Administrator`
-      of `settings.enterpriseSso.guide.google.groupsNote`) and the workspace
-      of an outside chat app (DE `Chat-Workspace`,
-      `emptyStates.connectors.description`).'
+      `Espace de travail` in FR, in every UI string and guide. `_allow` lists
+      the names that only contain the word: Google''s product
+      (`Google Workspace`, hyphenated in a DE compound such as the
+      `Google-Workspace-Administrator` of
+      `settings.enterpriseSso.guide.google.groupsNote`), the workspace of an
+      outside chat app (DE `Chat-Workspace`,
+      `emptyStates.connectors.description`, and `Slack-Workspace` in the
+      guides), the organization the local setup seeds (`Dev Workspace`), the
+      deployment directory of the `tale` CLI (`Workspace-Bereitstellung`,
+      `Workspace-Deployment`, `Workspace-CLI`) and the Kubernetes claims and
+      Compose mounts and paths that hold a sandbox''s files
+      (`Workspace-Claim`, `Workspace-Mounts`, `Workspace-Pfade`). The three
+      DE guides where the CLI workspace runs through the text opt out of the
+      check instead (`i18nLintExclude`).'
   - key: feature_canvas
     category: feature
     en: Canvas
@@ -533,7 +569,13 @@ terms:
     en: Approval
     de: Genehmigung
     fr: Approbation
-    _note: Singular. Never Freigabe in DE or Validation in FR.
+    _allow:
+      de:
+        - Approval check
+      fr:
+        - Approval check
+    _note: Singular. Never Freigabe in DE or Validation in FR. `_allow` keeps
+      `Approval check`, the name of the sample automation a tutorial uploads.
   - key: feature_approvals
     category: feature
     en: Approvals
@@ -685,9 +727,13 @@ terms:
     en: Vendor
     de: Lieferant
     fr: Fournisseur
+    _allow:
+      de:
+        - Vendor-App
     _note:
       Matches UI label `vendors.title`. In FR overloads with `Provider` — use
-      `Fournisseur IA` to disambiguate.
+      `Fournisseur IA` to disambiguate. `_allow` keeps DE `Vendor-App`, the
+      OAuth app a connector's provider registers.
   - key: entity_vendors
     category: knowledgeEntity
     en: Vendors

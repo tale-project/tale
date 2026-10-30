@@ -8,8 +8,8 @@
  *
  * Two pipelines:
  *
- *   - `applyMarkdownMasks(line)`     — inline code, link URLs, ICU.
- *     Called per-line, post-frontmatter parse + fence strip.
+ *   - `applyMarkdownMasks(line)`     — inline code, link URLs, URL
+ *     attributes, ICU. Called per-line, post-frontmatter parse + fence strip.
  *   - `applyJsonMasks(value)`        — ICU, backtick spans, template literals.
  *     Called per JSON string value.
  *
@@ -33,6 +33,19 @@ function maskLinkUrls(line: string): string {
     (_full, label: string, url: string) => {
       return `${label}(${SPACES(url.length)})`;
     },
+  );
+}
+
+/**
+ * URL-attribute mask: `href="/fr/platform/automations"` keeps `href=`; the
+ * quoted address → spaces. A component's `href` and a video's `src`, `poster`
+ * and `captions` are markup that holds a path, not prose; `title` stays.
+ */
+function maskUrlAttributes(line: string): string {
+  return line.replace(
+    /(\b(?:href|src|poster|captions)=)("[^"]*"|'[^']*')/g,
+    (_full, attribute: string, value: string) =>
+      `${attribute}${SPACES(value.length)}`,
   );
 }
 
@@ -77,6 +90,7 @@ function maskTemplateLiterals(value: string): string {
 export function applyMarkdownMasks(line: string): string {
   let masked = maskInlineCode(line);
   masked = maskLinkUrls(masked);
+  masked = maskUrlAttributes(masked);
   masked = maskIcuPlaceholders(masked);
   return masked;
 }

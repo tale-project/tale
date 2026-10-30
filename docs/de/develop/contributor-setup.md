@@ -41,7 +41,7 @@ Der Orchestrator startet die Docker-Dienste und das Node-Backend, wartet auf API
 
 Beende die Vordergrundprozesse mit `Ctrl-C`. Die Docker-Datenvolumes bleiben erhalten; das Beenden löscht die Instanz nicht.
 
-## Am lokalen Workspace anmelden
+## An der lokalen Instanz anmelden
 
 Die lokale Entwicklungsumgebung legt `dev@tale.test` mit dem Passwort `TaleDev!Passw0rd` und der Organisation **Dev Workspace** an. Ein vorhandenes Konto bleibt unverändert. Diese Einrichtung ist auf Loopback-Adressen in `SITE_URL` beschränkt.
 

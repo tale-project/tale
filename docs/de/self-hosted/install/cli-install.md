@@ -1,6 +1,10 @@
 ---
 title: Die tale-CLI installieren
 description: Installiere die tale-CLI, wähle die richtige Umgebung und finde die Befehle für Bereitstellung, Konfiguration und Wartung.
+# The CLI's deployment workspace (`tale init`) keeps its English name in German,
+# and terminology-ui-label cannot tell it from the app's Arbeitsbereich.
+i18nLintExclude:
+  - terminology-ui-label
 ---
 
 Mit der `tale`-CLI installierst und betreibst du Tale und stellst neue Versionen bereit. Installiere sie dort, wo du deine Betriebsbefehle ausführen möchtest. Danach hilft dir der [lokale Schnellstart](/de/self-hosted/install/quickstart) oder der unten beschriebene Deployment-Ablauf weiter.
@@ -826,12 +830,12 @@ Diese Befehle führen die Sandboxes deiner Tale-Organisation auf dem Rechner aus
 
 Der Befehl liest das Passwort von stdin oder im interaktiven Terminal aus einer verdeckten Eingabe mit Bestätigung. Er lehnt ein Passwort ab, das die Standard-Passwortrichtlinie der Plattform verletzt, und gibt nur den Hash aus.
 
-`tale auth reset-owner` — die Zugangsdaten des Owner-Kontos zurücksetzen.
+`tale auth reset-owner` — die Zugangsdaten des Inhaber-Kontos zurücksetzen.
 
 Führe den Befehl bei einer manuellen Wiederherstellung ohne Flags im interaktiven Terminal aus. So gibst du das Passwort verdeckt ein, ohne es in Shell-Verlauf oder Argumenten abzulegen. Die Rücksetzung macht bestehende Sitzungen ungültig.
 
-- `-e, --email <email>` — eine neue Owner-E-Mail-Adresse setzen.
-- `-p, --password <password>` — ein neues Owner-Passwort setzen.
+- `-e, --email <email>` — eine neue E-Mail-Adresse für das Inhaber-Konto setzen.
+- `-p, --password <password>` — ein neues Passwort für das Inhaber-Konto setzen.
 
 ## Fehlersuche
 

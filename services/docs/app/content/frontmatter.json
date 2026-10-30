@@ -449,7 +449,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Agenten mit Skills ausrüsten",
-      "description": "Wähle wiederverwendbare Skill-Bundles für Projekt-Agenten und Automationsknoten, prüfe ihren Zugriff und kontrolliere die Ausführung."
+      "description": "Wähle wiederverwendbare Skill-Bundles für Projekt-Agenten und Automatisierungsknoten, prüfe ihren Zugriff und kontrolliere die Ausführung."
     }
   },
   "de:platform/approvals/concepts": {
@@ -481,7 +481,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Auf einen wartenden Workflow reagieren",
-      "description": "Finde einen pausierten Automationslauf, prüfe einen geplanten Schreibzugriff oder beantworte eine Rückfrage des Agenten."
+      "description": "Finde einen pausierten Automatisierungslauf, prüfe einen geplanten Schreibzugriff oder beantworte eine Rückfrage des Agenten."
     }
   },
   "de:platform/automations/assistant": {
@@ -825,7 +825,7 @@
     "slug": "self-hosted/configuration/approvals",
     "locale": "de",
     "frontmatter": {
-      "title": "Genehmigungsregeln für Automationen festlegen",
+      "title": "Genehmigungsregeln für Automatisierungen festlegen",
       "description": "Lege fest, welche Connector-Schreibaktionen eine Prüfung brauchen, und prüfe die Regelauswertung."
     }
   },
@@ -924,7 +924,8 @@
     "locale": "de",
     "frontmatter": {
       "title": "Die tale-CLI installieren",
-      "description": "Installiere die tale-CLI, wähle die richtige Umgebung und finde die Befehle für Bereitstellung, Konfiguration und Wartung."
+      "description": "Installiere die tale-CLI, wähle die richtige Umgebung und finde die Befehle für Bereitstellung, Konfiguration und Wartung.",
+      "i18nLintExclude": ""
     }
   },
   "de:self-hosted/install/first-admin": {
@@ -972,7 +973,8 @@
     "locale": "de",
     "frontmatter": {
       "title": "Backups und Wiederherstellung",
-      "description": "Stelle die vollständige Sicherung zusammen, kopiere CLI-Snapshots und stelle Daten mit der passenden Tale-Version wieder her."
+      "description": "Stelle die vollständige Sicherung zusammen, kopiere CLI-Snapshots und stelle Daten mit der passenden Tale-Version wieder her.",
+      "i18nLintExclude": ""
     }
   },
   "de:self-hosted/operate/container-architecture": {
@@ -1052,7 +1054,8 @@
     "locale": "de",
     "frontmatter": {
       "title": "Bereitstellung aktualisieren und wiederherstellen",
-      "description": "Prüfe ein Upgrade vorab, stelle mit Wiederherstellungsplan bereit und wähle bei Bedarf den richtigen Rollback-Weg."
+      "description": "Prüfe ein Upgrade vorab, stelle mit Wiederherstellungsplan bereit und wähle bei Bedarf den richtigen Rollback-Weg.",
+      "i18nLintExclude": ""
     }
   },
   "de:self-hosted/overview": {
@@ -1099,8 +1102,8 @@
     "slug": "tutorials/developer/trigger-automation-via-webhook",
     "locale": "de",
     "frontmatter": {
-      "title": "Eine Automation per Webhook auslösen",
-      "description": "Installiere eine veröffentlichte Automation im Projekt, sende eine Webhook-Zustellung und prüfe den fertigen Lauf."
+      "title": "Eine Automatisierung per Webhook auslösen",
+      "description": "Installiere eine veröffentlichte Automatisierung im Projekt, sende eine Webhook-Zustellung und prüfe den fertigen Lauf."
     }
   },
   "de:tutorials/editor/first-agent-end-to-end": {
@@ -3289,7 +3292,7 @@
     "slug": "self-hosted/configuration/approvals",
     "locale": "fr",
     "frontmatter": {
-      "title": "Définir les règles d’approbation des automations",
+      "title": "Définir les règles d’approbation des automatisations",
       "description": "Choisis les écritures de connectors qui demandent une validation humaine et vérifie la priorité des règles."
     }
   },
@@ -3563,8 +3566,8 @@
     "slug": "tutorials/developer/trigger-automation-via-webhook",
     "locale": "fr",
     "frontmatter": {
-      "title": "Déclencher une automation par webhook",
-      "description": "Installe une automation déployée dans un projet, envoie un webhook et vérifie l’exécution terminée."
+      "title": "Déclencher une automatisation par webhook",
+      "description": "Installe une automatisation déployée dans un projet, envoie un webhook et vérifie l’exécution terminée."
     }
   },
   "fr:tutorials/editor/first-agent-end-to-end": {

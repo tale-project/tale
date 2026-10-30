@@ -3,10 +3,10 @@
  *
  * Pipeline: read file → strip frontmatter (preserving line numbers) →
  * strip fenced-code blocks (preserving line numbers) → per-line mask
- * (inline code, link URLs, ICU placeholders). Blank lines and lines that
- * become empty after masking still emit a fragment so checks that count
- * per-line context (rare) see the full structure; callers that only care
- * about non-empty content filter trivially.
+ * (inline code, link URLs, URL attributes, ICU placeholders). Blank lines
+ * and lines that become empty after masking still emit a fragment so checks
+ * that count per-line context (rare) see the full structure; callers that
+ * only care about non-empty content filter trivially.
  *
  * Frontmatter is parsed for per-page opt-out fields: `noCurrencyCheck`,
  * `noEmDashCheck`, and `i18nLintExclude` (array of check ids). These are

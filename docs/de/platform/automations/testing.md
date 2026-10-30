@@ -3,7 +3,7 @@ title: Eine Automatisierung testen
 description: Schreib Tests für eine Automatisierung im Editor, führ sie auf deinem Entwurf oder einer gespeicherten Version aus und lies, was ein fehlgeschlagener Test gefunden hat.
 ---
 
-Ein Test führt eine Automatisierung mit einer Eingabe deiner Wahl aus und prüft, was herauskommt: die Ausgabe, die Aktionen, die sie auslöst, und welche Schritte laufen. Tests gehören zum Dokument der Automatisierung, deshalb behält jede Version ihre eigenen. Tale führt sie beim Speichern aus und vor jedem Live-Schalten noch einmal; eine Version, deren Tests fehlschlagen, lässt sich nicht live schalten. Zum Schreiben und Ausführen von Tests brauchst du die Rolle Developer, Admin oder Owner.
+Ein Test führt eine Automatisierung mit einer Eingabe deiner Wahl aus und prüft, was herauskommt: die Ausgabe, die Aktionen, die sie auslöst, und welche Schritte laufen. Tests gehören zum Dokument der Automatisierung, deshalb behält jede Version ihre eigenen. Tale führt sie beim Speichern aus und vor jedem Live-Schalten noch einmal; eine Version, deren Tests fehlschlagen, lässt sich nicht live schalten. Zum Schreiben und Ausführen von Tests brauchst du die Rolle Entwickler, Admin oder Inhaber.
 
 ## Die Tests öffnen
 

@@ -1,18 +1,18 @@
 ---
-title: Eine Automation per Webhook auslösen
-description: Installiere eine veröffentlichte Automation im Projekt, sende eine Webhook-Zustellung und prüfe den fertigen Lauf.
+title: Eine Automatisierung per Webhook auslösen
+description: Installiere eine veröffentlichte Automatisierung im Projekt, sende eine Webhook-Zustellung und prüfe den fertigen Lauf.
 ---
-Verbinde ein externes Ereignis mit einer veröffentlichten Automation und prüfe Annahme und fertigen Lauf. Diese Anleitung verwendet einen Projekt-Webhook, einen API-Schlüssel für Einrichtung und Abfragen sowie curl für die Zustellung. Das externe System braucht nur die Webhook-URL.
+Verbinde ein externes Ereignis mit einer veröffentlichten Automatisierung und prüfe Annahme und fertigen Lauf. Diese Anleitung verwendet einen Projekt-Webhook, einen API-Schlüssel für Einrichtung und Abfragen sowie curl für die Zustellung. Das externe System braucht nur die Webhook-URL.
 
-## Eine unkritische Testautomation vorbereiten
+## Eine unkritische Test-Automatisierung vorbereiten
 
-Wähle eine veröffentlichte Automation mit bestandenen Tests, deren erster Lauf weder Nachrichten sendet noch Kundendaten verändert oder andere externe Folgen hat. Eine Transformation, die ihre Eingabe zurückgibt, reicht aus. Erstelle und veröffentliche sie in der App oder über [MCP](/de/develop/mcp-endpoint). REST erstellt und veröffentlicht keine Automationsdefinitionen.
+Wähle eine veröffentlichte Automatisierung mit bestandenen Tests, deren erster Lauf weder Nachrichten sendet noch Kundendaten verändert oder andere externe Folgen hat. Eine Transformation, die ihre Eingabe zurückgibt, reicht aus. Erstelle und veröffentliche sie in der App oder über [MCP](/de/develop/mcp-endpoint). REST erstellt und veröffentlicht keine Automatisierungsdefinitionen.
 
-Nutze ein aktives Projekt mit Bearbeitungszugriff und einen API-Schlüssel mit Entwicklerrechten. Setze `TALE_BASE_URL`, `TALE_API_KEY`, `TALE_ORG_SLUG`, `TALE_PROJECT_ID` und `TALE_AUTOMATION`. Der Organisationswert ist ein Slug, der Projektwert eine ID. Ersetze `/` innerhalb von Automationsnamen in URLs durch `__`.
+Nutze ein aktives Projekt mit Bearbeitungszugriff und einen API-Schlüssel mit Entwicklerrechten. Setze `TALE_BASE_URL`, `TALE_API_KEY`, `TALE_ORG_SLUG`, `TALE_PROJECT_ID` und `TALE_AUTOMATION`. Der Organisationswert ist ein Slug, der Projektwert eine ID. Ersetze `/` innerhalb von Automatisierungsnamen in URLs durch `__`.
 
-## Die Automation im Projekt installieren
+## Die Automatisierung im Projekt installieren
 
-Für Webhook-Zustellungen muss die Automation in dem Projekt installiert sein, das die URL nennt. Installiere sie mit dem Namen im Pfad und einem leeren Anfrageinhalt:
+Für Webhook-Zustellungen muss die Automatisierung in dem Projekt installiert sein, das die URL nennt. Installiere sie mit dem Namen im Pfad und einem leeren Anfrageinhalt:
 
 ```bash
 curl --fail-with-body --silent --show-error --request POST \
@@ -26,7 +26,7 @@ Die erste Installation liefert `201`, eine Wiederholung `200`. Eine Anfrage an d
 
 ## Den Trigger erstellen und schützen
 
-Binde für die neue Testautomation einen Webhook-Trigger:
+Binde für die neue Test-Automatisierung einen Webhook-Trigger:
 
 ```bash
 curl --fail-with-body --silent --show-error --request PUT \
@@ -40,11 +40,11 @@ Kopiere das zurückgegebene `token` in die private Umgebungsvariable `TALE_WEBHO
 
 <Warning>
 
-Die URL ist ein Zugangsmittel. Wer sie kennt, kann Zustellungen senden. Halte sie aus Quellcode, Screenshots und öffentlichen Protokollen heraus. Ein Webhook ersetzt eine vorhandene Trigger-Art derselben Automation; verwende dafür die ausgewählte Testautomation.
+Die URL ist ein Zugangsmittel. Wer sie kennt, kann Zustellungen senden. Halte sie aus Quellcode, Screenshots und öffentlichen Protokollen heraus. Ein Webhook ersetzt eine vorhandene Trigger-Art derselben Automatisierung; verwende dafür die ausgewählte Test-Automatisierung.
 
 </Warning>
 
-Der Trigger folgt dem Automationsnamen und nutzt die veröffentlichte Version. Ein späterer Release kann deshalb ändern, was dieselbe URL ausführt. Rotiere oder entferne einen geleakten Trigger. Deaktivieren pausiert ihn nur; erneutes Aktivieren stellt dasselbe Token wieder her.
+Der Trigger folgt dem Automatisierungsnamen und nutzt die veröffentlichte Version. Ein späterer Release kann deshalb ändern, was dieselbe URL ausführt. Rotiere oder entferne einen geleakten Trigger. Deaktivieren pausiert ihn nur; erneutes Aktivieren stellt dasselbe Token wieder her.
 
 ## Eine Zustellung senden
 
@@ -58,7 +58,7 @@ curl --fail-with-body --silent --show-error \
   --data '{"orderId":"12345","amount":199.0}'
 ```
 
-Die Annahme liefert `202` mit `runId`. Speichere die ID als `TALE_RUN_ID`. Die Automation erhält `{"trigger":"webhook","payload":<body>}`; die Bestell-ID liegt also unter `input.payload.orderId`. Ein Eingabeschema muss diese Hülle beschreiben.
+Die Annahme liefert `202` mit `runId`. Speichere die ID als `TALE_RUN_ID`. Die Automatisierung erhält `{"trigger":"webhook","payload":<body>}`; die Bestell-ID liegt also unter `input.payload.orderId`. Ein Eingabeschema muss diese Hülle beschreiben.
 
 Wiederhole denselben Befehl. Innerhalb des Deduplizierungsfensters bleibt `runId` gleich und `duplicate: true` kommt hinzu; kein zweiter Lauf startet. IDs bleiben 24 Stunden gespeichert. Ohne ID-Kopfzeile werden identische Anfragebytes nur innerhalb von zwei Minuten zusammengefasst. Verwende für ein neues Ereignis eine neue ID.
 
@@ -73,7 +73,7 @@ curl --fail-with-body --silent --show-error \
   -H "X-Organization-Slug: $TALE_ORG_SLUG"
 ```
 
-Warte auf einen Endstatus und prüfe `output` und `trace`. Bei der Testautomation, die Eingaben zurückgibt, müssen Bestell-ID und Betrag mit deiner Zustellung übereinstimmen. Die `202`-Antwort allein bestätigt dieses Ergebnis nicht.
+Warte auf einen Endstatus und prüfe `output` und `trace`. Bei der Test-Automatisierung, die Eingaben zurückgibt, müssen Bestell-ID und Betrag mit deiner Zustellung übereinstimmen. Die `202`-Antwort allein bestätigt dieses Ergebnis nicht.
 
 Lies bei einem fehlgeschlagenen Lauf `failureCode` und `detail`, den betroffenen Knoten sowie bereits ausgeführte Aktionen. Dieselbe Zustellungs-ID liefert den ursprünglichen Lauf zurück, auch wenn er fehlgeschlagen ist; sie wiederholt seine Arbeit nicht. Eine andere ID startet neue Arbeit. Prüfe deshalb zuerst, ob bereits abgeschlossene Knoten gefahrlos erneut laufen dürfen.
 
@@ -82,7 +82,7 @@ Lies bei einem fehlgeschlagenen Lauf `failureCode` und `detail`, den betroffenen
 | Antwort | Behebung |
 | --- | --- |
 | `400` | Lies `code` und Eingabeprobleme. Korrigiere die Datenhülle oder entferne einen Query-Parameter `projectId`. |
-| `403` | Prüfe aktives Projekt und Installation der Automation darin. |
+| `403` | Prüfe aktives Projekt und Installation der Automatisierung darin. |
 | `404` | Prüfe Token und Aktivierung. Der Endpunkt verrät nicht, welches davon falsch ist. |
 | `409` | Lies `code`: Veröffentliche eine Version, korrigiere den URL-Kontext oder löse den Zustellungskonflikt. |
 | `413` | Verkleinere den Inhalt auf unter 256 KiB oder sende eine Referenz. |
