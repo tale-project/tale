@@ -114,6 +114,16 @@ organization defaults and successful saves remain covered by
 `app/features/settings/personalization/components/preferences-settings.test.tsx`.
 Live backend recovery and screen-reader announcements remain manual.
 
+The organization's custom-instructions default is unknown, never off, until its
+read answers (#4889). While it loads, the page stays masked. A failed read is
+named with Try again, and the page shows no switch, hint, field or save path.
+Try again re-reads only the failed reads and recovers to the real default. A
+failed retry keeps the alert and its focus. An organization with no default
+still reads off. The real hooks, adapter rows and retry policy run against a
+synthetic transport in
+`app/features/settings/personalization/components/preferences-settings.read-failure.test.tsx`.
+Live backend failures and screen-reader announcements remain manual.
+
 Custom instructions immediate-save failures show one localized destructive toast,
 retain the persisted switch value and instructions, and allow a successful retry.
 The real React Query mutation hook and adapter, rendered toast, EN/DE/FR/de-CH

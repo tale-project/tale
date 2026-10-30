@@ -85,28 +85,42 @@ export function PreferencesSettings({
     'user_preferences/queries:getMyPreferences',
     { organizationId },
   );
-  const { data: prefs, refetch } = preferencesQuery;
+  const { data: prefs, refetch: refetchPreferences } = preferencesQuery;
   const preferencesRead = readStateOf(preferencesQuery);
-  const readFailed = preferencesRead.unavailable;
-  const sectionRef = useRef<HTMLElement>(null);
-  const focusSection = useCallback(() => sectionRef.current?.focus(), []);
-  const { data: instructionsPolicy } = useGovernancePolicy(
+  // The switch follows the organization's default for a person who never
+  // chose, and its hint names that default either way, so the section shows
+  // only once both reads have answered. A default that has not answered is
+  // unknown, never off (#4889): until it is known there is no switch, hint
+  // or field. An answered `null` is no policy, which is off.
+  const policyQuery = useGovernancePolicy(
     organizationId,
     'custom_instructions',
   );
-
-  const instructionsGate = resolveGate(
-    prefs?.customInstructionsEnabled,
-    policyEnabled(instructionsPolicy?.config),
-  );
+  const { data: instructionsPolicy, refetch: refetchPolicy } = policyQuery;
+  const policyRead = readStateOf(policyQuery);
+  const readFailed = preferencesRead.unavailable || policyRead.unavailable;
+  const sectionRef = useRef<HTMLElement>(null);
+  const focusSection = useCallback(() => sectionRef.current?.focus(), []);
+  // Try again reads again only what failed.
+  const retryReads = useCallback(() => {
+    if (preferencesRead.unavailable) void refetchPreferences();
+    if (policyRead.unavailable) void refetchPolicy();
+  }, [
+    preferencesRead.unavailable,
+    policyRead.unavailable,
+    refetchPreferences,
+    refetchPolicy,
+  ]);
 
   return (
     <Skeletonize
-      loading={prefs === undefined && !readFailed}
+      loading={
+        (prefs === undefined || instructionsPolicy === undefined) && !readFailed
+      }
       label={t('page.title')}
     >
       <SettingsPage>
-        {prefs === undefined || readFailed ? (
+        {prefs === undefined || instructionsPolicy === undefined ? (
           <SettingsSection
             ref={sectionRef}
             tabIndex={-1}
@@ -116,10 +130,18 @@ export function PreferencesSettings({
           >
             {readFailed && (
               <CatalogLoadError
-                message={t('errors.loadFailed')}
-                onRetry={() => void refetch()}
-                isRetrying={preferencesRead.retrying}
-                failureKey={preferencesRead.failureCount}
+                message={
+                  preferencesRead.unavailable
+                    ? t('errors.loadFailed')
+                    : t('errors.orgDefaultLoadFailed')
+                }
+                onRetry={retryReads}
+                isRetrying={preferencesRead.retrying || policyRead.retrying}
+                // Each failure is announced again; Try again keeps its node,
+                // and the focus on it, through a retry that fails again.
+                failureKey={
+                  preferencesRead.failureCount + policyRead.failureCount
+                }
                 onFocusLost={focusSection}
               />
             )}
@@ -128,7 +150,10 @@ export function PreferencesSettings({
           <CustomInstructionsSection
             sectionRef={sectionRef}
             organizationId={organizationId}
-            gate={instructionsGate}
+            gate={resolveGate(
+              prefs?.customInstructionsEnabled,
+              policyEnabled(instructionsPolicy?.config),
+            )}
             savedInstructions={prefs?.customInstructions ?? ''}
           />
         )}
