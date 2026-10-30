@@ -43,8 +43,13 @@ interface Release {
 function ChangelogPage() {
   const { t } = useT('changelog');
   const { from, to } = Route.useSearch();
-  const { currentVersion, lastSeenVersion, stateLoaded, markSeen } =
-    useChangelogNotification();
+  const {
+    currentVersion,
+    lastSeenVersion,
+    stateLoaded,
+    stateFailed,
+    markSeen,
+  } = useChangelogNotification();
   const { locale } = useLocale();
   const client = useBackendClient();
 
@@ -61,9 +66,17 @@ function ChangelogPage() {
     // whether there's a real `lastSeenVersion` to chase before paging the
     // feed. Skip the wait when `currentVersion` is undefined (env unset)
     // since the hook's query is `skip`-ed and `stateLoaded` will never
-    // flip — without this guard the page would spin forever in dev. If
-    // the route was visited with `?from=` we can fetch right away.
-    if (currentVersion !== undefined && from === undefined && !stateLoaded) {
+    // flip — without this guard the page would spin forever in dev. A
+    // failed read never flips it either, so stop waiting then and read the
+    // feed without `from`: the current release's notes rather than a
+    // spinner that never ends. If the route was visited with `?from=` we
+    // can fetch right away.
+    if (
+      currentVersion !== undefined &&
+      from === undefined &&
+      !stateLoaded &&
+      !stateFailed
+    ) {
       return;
     }
     ranRef.current = true;
@@ -79,7 +92,7 @@ function ChangelogPage() {
         setError(err);
       }
     })();
-  }, [client, fromForFetch, from, stateLoaded, currentVersion]);
+  }, [client, fromForFetch, from, stateLoaded, stateFailed, currentVersion]);
 
   // markSeen as soon as we know the load resolved (success or failure) and
   // currentVersion is known — reaching this page is acknowledgement.
@@ -164,7 +177,10 @@ function ChangelogPage() {
     );
   }
 
-  if (error) {
+  // GitHub always lists its newest releases, so a feed with none in it was
+  // not read: it gets the error card, never "You're up to date" over
+  // nothing.
+  if (error || releases?.length === 0) {
     return (
       <div className="mx-auto max-w-3xl px-4 py-10">
         <ChangelogBackButton />

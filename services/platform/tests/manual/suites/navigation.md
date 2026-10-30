@@ -113,11 +113,14 @@ loaded, and reads **No teams** for an account in none.
   commits `/dashboard/{org}/settings/governance/policies-limits` and the page
   renders.
 - [ ] `NAV-F8` · **Changelog** — Open `/dashboard/changelog` → Heading
-  **What's new** (`changelog.viewer.heading`) is visible. Offline/up-to-date
-  stack: shows **You're up to date.** (`changelog.viewer.upToDate`) + **View
-  older releases on GitHub ↗** link (`changelog.viewer.viewAllOnGitHub`).
-  Online with newer releases: release entries render and the range filters
-  (`?from=&to=`) narrow them.
+  **What's new** (`changelog.viewer.heading`) is visible. Up-to-date stack:
+  shows **You're up to date.** (`changelog.viewer.upToDate`) + **View older
+  releases on GitHub ↗** link (`changelog.viewer.viewAllOnGitHub`). Offline
+  stack (the backend cannot reach GitHub): **We couldn't load release notes.
+  View them on GitHub.** (`changelog.viewer.error`) + **Open releases on
+  GitHub** (`changelog.viewer.githubLink`), never **You're up to date.** and
+  never a spinner that does not end. Online with newer releases: release
+  entries render and the range filters (`?from=&to=`) narrow them.
 - [ ] `NAV-F9` · **API reference and developer links** — Visit `/docs` → The
   Swagger reference renders the running instance’s contract. Above it,
   **Developer guides** (`settings.apiDocs.guides`) opens the public API guide

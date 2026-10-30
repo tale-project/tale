@@ -2,13 +2,18 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // The hook only calls the adapter-aware wrappers; with those mocked it runs
 // as a plain function (same approach as use-current-member-context.test.ts).
-// `data` is what the wrapper hands back, so the mock speaks that shape.
+// `data` is what the wrapper hands back, so the mock speaks that shape;
+// `isError` says the read failed.
 const mockUseQuery = vi.fn();
+let mockReadFailed = false;
 const mockMarkSeenMutation = vi.fn(() => Promise.resolve(null));
 const mockMarkToastedMutation = vi.fn(() => Promise.resolve(null));
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: (...args: unknown[]) => ({ data: mockUseQuery(...args) }),
+  useBackendQuery: (...args: unknown[]) => ({
+    data: mockUseQuery(...args),
+    isError: mockReadFailed,
+  }),
 }));
 
 vi.mock('@/app/hooks/use-backend-mutation', () => ({
@@ -39,6 +44,7 @@ describe('useChangelogNotification', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockVersion = 'v0.2.97';
+    mockReadFailed = false;
   });
 
   it('shows neither dot nor toast on a fresh install (no row recorded)', () => {
@@ -59,9 +65,38 @@ describe('useChangelogNotification', () => {
     const result = useChangelogNotification();
 
     expect(result.stateLoaded).toBe(false);
+    expect(result.stateFailed).toBe(false);
     expect(result.hasUnseenVersion).toBe(false);
     expect(result.shouldShowToast).toBe(false);
     expect(result.needsBaseline).toBe(false);
+  });
+
+  it('reports a failed state read without announcing an update', () => {
+    // The read gave up with no answer: what the user last saw is unknown, so
+    // nothing is announced, and `stateFailed` lets a page that waits for the
+    // state stop waiting.
+    mockUseQuery.mockReturnValue(undefined);
+    mockReadFailed = true;
+
+    const result = useChangelogNotification();
+
+    expect(result.stateLoaded).toBe(false);
+    expect(result.stateFailed).toBe(true);
+    expect(result.lastSeenVersion).toBeUndefined();
+    expect(result.hasUnseenVersion).toBe(false);
+    expect(result.shouldShowToast).toBe(false);
+    expect(result.needsBaseline).toBe(false);
+  });
+
+  it('keeps the last answer when a later read fails', () => {
+    mockUseQuery.mockReturnValue(row({ lastSeenChangelogVersion: 'v0.2.96' }));
+    mockReadFailed = true;
+
+    const result = useChangelogNotification();
+
+    expect(result.stateLoaded).toBe(true);
+    expect(result.stateFailed).toBe(false);
+    expect(result.lastSeenVersion).toBe('v0.2.96');
   });
 
   it('shows dot and toast when the recorded versions are older', () => {

@@ -4,8 +4,8 @@
 
 The release notes behind **What's new** are read from the product's public release list on
 GitHub. These rules say who can read them, how far back the list goes, and what a reader gets
-when GitHub cannot be reached. How long a page is kept before it is read again is not covered;
-see Not yet.
+when GitHub cannot be reached or read. How long a page that was read is kept is not covered; see
+Not yet.
 
 ## Who can read the release notes
 
@@ -28,7 +28,7 @@ and finds the rest on GitHub. A reader who names no version gets the newest page
 - **Example**: Mia's deployment runs a version listed on the second page → she gets the first
   two pages, and the third is not read.
 
-## When GitHub cannot be reached
+## When GitHub cannot be reached or read
 
 ### CLOG-R3 · When only older releases fail to load, the newer ones are still shown
 
@@ -38,15 +38,28 @@ and finds the rest on GitHub. A reader who names no version gets the newest page
 ### CLOG-R4 · When no release can be loaded, the reader gets an error, not an empty list
 
 The error has its own code (`CHANGELOG_UNAVAILABLE`), so the page can tell "nothing could be
-loaded" from "you are up to date".
+loaded" from "you are up to date". A first page that lists no release counts as not loaded:
+GitHub always lists its newest releases there.
 
 - **Example**: The deployment has no network access. Mia opens **What's new** → she is told
   the notes could not be loaded.
+- **Example**: GitHub changes its release page, and no release on it can be read. Mia opens
+  **What's new** → she is told the notes could not be loaded, not that she is up to date.
+
+### CLOG-R5 · A first page that could not be read is asked for again on the next visit
+
+A first page that failed to load, or listed no release, is not kept, so the notes are back as
+soon as GitHub answers again.
+
+- **Example**: GitHub cannot be reached when Mia opens **What's new**, and can a minute later →
+  she opens it again and the notes load.
 
 ## Not yet
 
 - **How long a page is kept**: a page read from GitHub is reused for an hour. No test holds it
-  yet (`service.ts`).
+  yet (`service.ts`). A later page that GitHub answers with an error is kept as an empty page for
+  that hour (`core/changelog/internal_actions.ts`), so the older releases stay missing until it
+  runs out.
 - **How a release page is read from GitHub** (`core/changelog/internal_actions.ts`).
 - **The unread indicator** of an update, and what clears it: kept by the app, not by this
   domain.

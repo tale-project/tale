@@ -149,9 +149,8 @@ export async function fetchReleasesPageImpl(
     });
 
     if (!response.ok) {
-      // Pages past the end of history return 404 once we've exhausted the
-      // available releases. Page 1 failing is a real error; later pages
-      // just yield an empty array so the orchestrator stops paging.
+      // Page 1 failing is a real error; later pages just yield an empty
+      // array so the orchestrator stops paging.
       if (page > 1 && response.status === 404) return [];
       const errorText = await response.text().catch(() => '');
       console.error(
@@ -164,6 +163,19 @@ export async function fetchReleasesPageImpl(
     }
 
     const html = await response.text();
-    return parseReleasesHtml(html);
+    const releases = parseReleasesHtml(html);
+    // A page past the end of history answers 200 with no release in it, but
+    // the first page always lists the newest releases: nothing read there
+    // means the page could not be read (GitHub changed its markup, or
+    // answered something other than the list). Throwing keeps it out of the
+    // page cache, and the reader is told the notes could not be loaded
+    // rather than that they are up to date.
+    if (page === 1 && releases.length === 0) {
+      console.error(
+        `GitHub releases page 1 listed no release we could read (${html.length} bytes)`,
+      );
+      throw new Error('GitHub releases page listed no release');
+    }
+    return releases;
   }
 }
