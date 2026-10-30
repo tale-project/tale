@@ -112,6 +112,11 @@ vi.mock(
     }),
   }),
 );
+// The footer keeps each member's "Don't show again" apart; a known member
+// who dismissed nothing sees the notice.
+vi.mock('@/app/hooks/use-current-user', () => ({
+  useCurrentUser: () => ({ data: { userId: 'user_test' } }),
+}));
 vi.mock('@/app/features/tasks/hooks/use-task-status-choreography', () => ({
   useTaskStatusChoreography: () => async () => 'move' as const,
 }));

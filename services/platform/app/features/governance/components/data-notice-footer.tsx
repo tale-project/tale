@@ -8,7 +8,7 @@ import { useEffect, useId, useRef, useState, type CSSProperties } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
-import { useDataClassificationNotice } from '../hooks/use-data-classification-notice';
+import { useShownDataNotice } from '../hooks/use-shown-data-notice';
 import {
   clearDataNoticeBootMarker,
   readRememberedDataNotice,
@@ -31,13 +31,17 @@ const LINE_CLASS = 'min-w-0 leading-tight';
 const ONE_LINE_CLASS = 'compact-height:truncate';
 
 /**
- * Confidentiality footer under the chat composer. Reads the org's
- * `data_classification_notice` policy via `useDataClassificationNotice`:
- * it shows only when an admin turned it on, with their text for the reader's
- * language or the platform default.
+ * Confidentiality footer under the chat composer, where the chat surface
+ * shows it until a conversation has a message to carry it — a new chat, an
+ * empty one, and beside an arena pair (an open conversation shows it on its
+ * last message: `DataNoticeInline`). Reads the org's
+ * `data_classification_notice` policy via `useShownDataNotice`: it shows
+ * only when an admin turned it on, with their text for the reader's language
+ * or the platform default, and not once this member chose "Don't show again"
+ * for that text.
  *
  * Every settled answer is also remembered for the chat's loading skeleton
- * (`data-notice-boot.ts`), so the next page load reserves the notice's row
+ * (`data-notice-boot.ts`), so the next load of a new chat reserves its row
  * before first paint. Until the read settles on that load, the footer keeps
  * the same row reserved (invisible), so the composer never drops into the
  * gap and then jumps back up when the notice arrives.
@@ -61,8 +65,8 @@ export function DataNoticeFooter({
   className,
 }: DataNoticeFooterProps) {
   const { t } = useT('dataNotice');
-  const notice = useDataClassificationNotice(organizationId);
-  const shown = notice.enabled ? notice.message : null;
+  const notice = useShownDataNotice(organizationId);
+  const shown = notice.message;
   const lineRef = useRef<HTMLElement>(null);
   const lineId = useId();
   const [expanded, setExpanded] = useState(false);
@@ -121,7 +125,7 @@ export function DataNoticeFooter({
   return (
     <div
       role="note"
-      aria-label={t('footer.ariaLabel', 'Confidentiality notice')}
+      aria-label={t('ariaLabel', 'Confidentiality notice')}
       className={cn(ROW_CLASS, 'text-muted-foreground', className)}
     >
       <ShieldAlert aria-hidden="true" className="h-3.5 w-3.5 shrink-0" />
