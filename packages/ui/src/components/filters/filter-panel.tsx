@@ -132,6 +132,10 @@ export function isFilterActive(
  *
  * A widening filter keeps the affordance usable on an empty unfiltered set,
  * because items may exist outside the default view.
+ *
+ * A search box follows the same rule: it passes no `filters` — a query only
+ * ever narrows — and counts its own non-blank query among the active filters,
+ * so a query that narrowed the set to nothing can still be cleared.
  */
 export function isFilterAffordanceDisabled({
   isLoading = false,

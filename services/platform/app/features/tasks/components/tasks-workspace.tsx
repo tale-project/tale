@@ -492,6 +492,14 @@ export function TasksWorkspace({
               value: searchQuery,
               onChange: setSearchQuery,
               placeholder: t('searchPlaceholder'),
+              // Nothing to search on an empty board; a search or filter that
+              // emptied it keeps the box, so it can be cleared.
+              disabled: isFilterAffordanceDisabled({
+                isLoading: isFirstLoad,
+                isError: readFailed(tasksRead),
+                itemCount: loadedTasks.length,
+                hasActiveFilters,
+              }),
             }}
             filters={taskFilterConfigs}
             onClearAll={handleClearFilters}

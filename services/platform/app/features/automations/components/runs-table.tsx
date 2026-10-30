@@ -9,6 +9,10 @@ import {
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
 import { ErrorDisplayCompact } from '@tale/ui/error-boundaries/error-display-compact';
+import {
+  type FilterConfig,
+  isFilterAffordanceDisabled,
+} from '@tale/ui/filters/filter-panel';
 import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/list-page-size';
 import { TableTimestampCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
@@ -271,40 +275,49 @@ export function RunsTable({
       </div>
     );
 
+  const filters: FilterConfig[] = [
+    {
+      key: 'status',
+      title: t('list.filters.status'),
+      multiSelect: true,
+      options: STATUSES.map((status) => ({
+        value: status,
+        label: tAutomations(`runs.status.${status}`),
+      })),
+      selectedValues: statuses,
+      onChange: (values) => {
+        setStatuses(values);
+        setRowSelection({});
+      },
+    },
+    {
+      key: 'mode',
+      title: t('list.filters.mode'),
+      options: [
+        { value: 'mock', label: tAutomations('runs.mode.mock') },
+        { value: 'live', label: tAutomations('runs.mode.live') },
+      ],
+      selectedValues: mode === undefined ? [] : [mode],
+      onChange: (values) => {
+        const next = values[0];
+        setMode(next === 'mock' || next === 'live' ? next : undefined);
+        setRowSelection({});
+      },
+    },
+  ];
+  // A history with no runs yet has nothing to narrow; a filter that narrowed
+  // it to nothing stays usable, so it can be undone.
+  const filtersDisabled = isFilterAffordanceDisabled({
+    isLoading: result.status === 'LoadingFirstPage',
+    isError: readError !== null,
+    itemCount: result.results.length,
+    hasActiveFilters: filtered,
+    filters,
+  });
+
   return (
     <div className="flex flex-col gap-3">
-      <DataTableFilters
-        filters={[
-          {
-            key: 'status',
-            title: t('list.filters.status'),
-            multiSelect: true,
-            options: STATUSES.map((status) => ({
-              value: status,
-              label: tAutomations(`runs.status.${status}`),
-            })),
-            selectedValues: statuses,
-            onChange: (values) => {
-              setStatuses(values);
-              setRowSelection({});
-            },
-          },
-          {
-            key: 'mode',
-            title: t('list.filters.mode'),
-            options: [
-              { value: 'mock', label: tAutomations('runs.mode.mock') },
-              { value: 'live', label: tAutomations('runs.mode.live') },
-            ],
-            selectedValues: mode === undefined ? [] : [mode],
-            onChange: (values) => {
-              const next = values[0];
-              setMode(next === 'mock' || next === 'live' ? next : undefined);
-              setRowSelection({});
-            },
-          },
-        ]}
-      />
+      <DataTableFilters filters={filters} disabled={filtersDisabled} />
       {failure !== null && result.results.length === 0 ? (
         failure
       ) : (

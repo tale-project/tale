@@ -132,12 +132,15 @@ function makeConversation(
 
 function makePaginatedResult(
   results: ConversationItem[],
+  overrides: Partial<UsePaginatedQueryReturnType<ConversationItem>> = {},
 ): UsePaginatedQueryReturnType<ConversationItem> {
   return {
     results,
     status: 'Exhausted',
     isLoading: false,
     loadMore: vi.fn(),
+    error: null,
+    ...overrides,
   } as unknown as UsePaginatedQueryReturnType<ConversationItem>;
 }
 
@@ -324,6 +327,81 @@ describe('Conversations', () => {
       expect(onReadFilterChange).toHaveBeenCalledWith('all');
       expect(searchBox()).toHaveValue('');
     });
+  });
+});
+
+// #2802: a status with no conversation has nothing to search, select or
+// narrow, while a search or a facet that narrowed it to nothing stays usable,
+// so it can be undone.
+describe('Conversations search and filters over an empty status', () => {
+  const filterButton = () => screen.getByRole('button', { name: 'Filter' });
+  const selectAll = () => screen.getByRole('checkbox', { name: 'Select all' });
+
+  function renderStatus(
+    results: ConversationItem[],
+    props: Partial<Parameters<typeof Conversations>[0]> = {},
+  ) {
+    return render(
+      <Conversations
+        status="spam"
+        organizationId="test-org-id"
+        paginatedResult={makePaginatedResult(results)}
+        conversationCount={results.length}
+        // Other statuses hold conversations: the inbox is activated.
+        totalConversationCount={4}
+        {...props}
+      />,
+    );
+  }
+
+  it('disables search, select-all and Filter while the status holds no conversation', () => {
+    renderStatus([]);
+
+    expect(screen.getByText('No conversations in this tab')).toBeVisible();
+    expect(searchBox()).toBeDisabled();
+    expect(selectAll()).toBeDisabled();
+    expect(filterButton()).toBeDisabled();
+  });
+
+  it('keeps them usable when a search found nothing, so it can be cleared', async () => {
+    const { user } = renderStatus([makeConversation('c1', 'Refund please')]);
+
+    await user.click(searchBox());
+    await user.type(searchBox(), 'no such conversation');
+    expect(hasConversationRow('Refund please')).toBe(false);
+    expect(screen.getByText('No conversations in this tab')).toBeVisible();
+    // Judged after focus leaves: a focused box never turns disabled.
+    await user.click(document.body);
+    expect(searchBox()).toBeEnabled();
+    expect(filterButton()).toBeEnabled();
+
+    await user.click(searchBox());
+    await user.clear(searchBox());
+    expect(hasConversationRow('Refund please')).toBe(true);
+  });
+
+  it('keeps them usable when the channel narrowed the status to nothing on the server', () => {
+    renderStatus([], {
+      channelFilter: {
+        options: [{ value: 'gmail', label: 'Gmail' }],
+        value: 'gmail',
+        onChange: vi.fn(),
+      },
+    });
+
+    expect(searchBox()).toBeEnabled();
+    expect(filterButton()).toBeEnabled();
+  });
+
+  it('keeps them usable when the status failed to load, since its conversations are unknown', () => {
+    renderStatus([], {
+      paginatedResult: makePaginatedResult([], {
+        error: new Error('Request timed out'),
+      }),
+    });
+
+    expect(searchBox()).toBeEnabled();
+    expect(filterButton()).toBeEnabled();
   });
 });
 

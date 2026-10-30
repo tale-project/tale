@@ -1,6 +1,7 @@
 'use client';
 
 import { Dialog } from '@tale/ui/dialog/dialog';
+import { isFilterAffordanceDisabled } from '@tale/ui/filters/filter-panel';
 import { toast } from '@tale/ui/use-toast';
 import {
   type RefObject,
@@ -445,6 +446,22 @@ export function OneDriveImportDialog({
 
   const filteredItems = currentItems;
 
+  // The search box follows the folder it narrows — the OneDrive folder's
+  // listing, or the SharePoint drive's — read before the search narrows it:
+  // nothing to search in an empty folder, while a search that found nothing
+  // keeps the box, so it can be cleared. A listing that has not answered, or
+  // failed, is an unknown folder, never an empty one.
+  const searchedListing =
+    sourceTab === 'sharepoint' && selectedSite && selectedDrive
+      ? { data: spListing, error: spFilesError }
+      : { data: oneDriveListing, error: loadError };
+  const searchDisabled = isFilterAffordanceDisabled({
+    isLoading: searchedListing.data === undefined,
+    isError: searchedListing.error !== null,
+    itemCount: searchedListing.data?.items.length ?? 0,
+    hasActiveFilters: searchQuery.trim() !== '',
+  });
+
   const getSelectAllState = (): boolean | 'indeterminate' =>
     visibleSelectionState(filteredItems, selectedItems);
 
@@ -696,6 +713,7 @@ export function OneDriveImportDialog({
     const picker = OneDrivePickerStage({
       sourceTab,
       searchQuery,
+      searchDisabled,
       selectedItems,
       filteredItems,
       loading,

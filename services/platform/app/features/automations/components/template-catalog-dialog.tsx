@@ -9,6 +9,7 @@ import { CatalogView } from '@tale/ui/catalog/catalog-view';
 import { useCatalogSearch } from '@tale/ui/catalog/use-catalog-search';
 import { CopyableField } from '@tale/ui/copyable-field';
 import { Dialog } from '@tale/ui/dialog/dialog';
+import { isFilterAffordanceDisabled } from '@tale/ui/filters/filter-panel';
 import { Stack } from '@tale/ui/layout';
 import { useRecurrenceFormat } from '@tale/ui/use-recurrence-format';
 import { useNavigate } from '@tanstack/react-router';
@@ -470,6 +471,14 @@ function TemplateBrowser({
           value: query,
           onChange: (event) => onQueryChange(event.target.value),
           placeholder: t('templates.search'),
+          // Nothing to search in an empty catalog; a query that found nothing
+          // keeps the box, so it can be cleared.
+          disabled: isFilterAffordanceDisabled({
+            isLoading: isPending,
+            isError,
+            itemCount: inCategory.length,
+            hasActiveFilters: query.trim() !== '',
+          }),
         }}
       />
       <CatalogView

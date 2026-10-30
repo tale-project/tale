@@ -272,6 +272,31 @@ describe('RunsTable', () => {
     expect(screen.getByText('This automation has not run yet.')).toBeVisible();
   });
 
+  // #2802: a history with no runs has nothing to narrow, while a filter that
+  // narrowed it to nothing stays usable, so it can be undone.
+  it('disables the filters while there is no run to narrow', () => {
+    renderTable();
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeDisabled();
+  });
+
+  it('keeps the filters usable when they narrowed the runs to nothing', async () => {
+    page.results = [run('run-a')];
+    const { user } = renderTable();
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    await user.click(
+      await screen.findByRole('button', {
+        name: (name) => name.startsWith('Status'),
+      }),
+    );
+    // The server answers the narrowed read with no run.
+    page.results = [];
+    await user.click(screen.getByRole('checkbox', { name: 'Failed' }));
+    await user.keyboard('{Escape}');
+
+    expect(screen.getByText('No runs match these filters')).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Filter' })).toBeEnabled();
+  });
+
   it('passes an axe audit', async () => {
     page.results = [
       run('run-a'),

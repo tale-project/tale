@@ -3,7 +3,10 @@
 import { Button } from '@tale/ui/button';
 import { Checkbox } from '@tale/ui/checkbox';
 import { cn } from '@tale/ui/cn';
-import { FilterPanel } from '@tale/ui/filters/filter-panel';
+import {
+  FilterPanel,
+  isFilterAffordanceDisabled,
+} from '@tale/ui/filters/filter-panel';
 import { Row } from '@tale/ui/layout';
 import { LoadingOverlay } from '@tale/ui/loading-overlay';
 import { SearchInput } from '@tale/ui/search-input';
@@ -235,8 +238,20 @@ export function Conversations({
   // hidden); the list panel shows its normal empty state on desktop.
   const isActivateEmpty = bodyState === 'activate-empty';
   const isLoading = bodyState === 'loading' || bodyState === 'skeleton';
-  // Nothing to search/select while loading or before activation.
-  const controlsDisabled = isLoading || isActivateEmpty;
+  // Nothing to search, select or narrow while loading, before activation, or
+  // in a status that holds no conversation at all (as on Home's inbox). A
+  // search or a facet that narrowed the list to nothing keeps them usable so
+  // it can be undone — the channel facet included, though it narrows on the
+  // server — and so does a failed read, which says nothing about the status.
+  const controlsDisabled =
+    isLoading ||
+    isActivateEmpty ||
+    isFilterAffordanceDisabled({
+      isError: paginatedResult.error !== null,
+      itemCount: paginatedResult.results.length,
+      hasActiveFilters: isFiltering || channelFilter?.value !== undefined,
+      filters,
+    });
   const skeletonRows = Math.min(conversationCount ?? 12, 12);
 
   const handleConversationSelect = (conversation: Conversation) => {

@@ -10,6 +10,7 @@ import type { DatePreset } from '@tale/ui/date-range-picker';
 import { ErrorBoundaryBase } from '@tale/ui/error-boundaries/error-boundary-base';
 import { ErrorDisplayCompact } from '@tale/ui/error-boundaries/error-display-compact';
 import { useErrorScope } from '@tale/ui/error-boundaries/error-scope';
+import { isFilterAffordanceDisabled } from '@tale/ui/filters/filter-panel';
 import { useT } from '@tale/ui/i18n/client';
 import { chainVerticalWheelToScrollParent } from '@tale/ui/scroll-wheel-chain';
 import { Skeletonize } from '@tale/ui/skeleton-context';
@@ -528,15 +529,23 @@ export function DataTable<TData, TValue = unknown>({
   // Disable the search box when the dataset is genuinely empty — no rows AND no
   // active filters/search, so there is nothing to search. A filtered-empty
   // result keeps it enabled so the user can still adjust or clear the query.
-  const searchDisabled =
-    !isDataLoading && data.length === 0 && !hasActiveFilters;
+  // The rule is the shared one every list with a search or a filter follows.
+  const searchDisabled = isFilterAffordanceDisabled({
+    isLoading: isDataLoading,
+    itemCount: data.length,
+    hasActiveFilters,
+  });
 
   // A widening filter (see `FilterConfig.widensResultSet`) can reveal rows the
   // default query hides — e.g. "show archived" on a list whose every row is
   // archived. Its presence keeps the filter button usable on an empty
   // unfiltered table, where a purely narrowing filter set stays disabled.
-  const filtersDisabled =
-    searchDisabled && !filters?.some((f) => f.widensResultSet);
+  const filtersDisabled = isFilterAffordanceDisabled({
+    isLoading: isDataLoading,
+    itemCount: data.length,
+    hasActiveFilters,
+    filters,
+  });
 
   // ---------------------------------------------------------------------------
   // Table body state machine

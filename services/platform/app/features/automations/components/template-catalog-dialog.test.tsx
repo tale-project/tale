@@ -647,6 +647,35 @@ describe('TemplateCatalogDialog', { timeout: 30_000 }, () => {
     ).toBeNull();
   });
 
+  // #2802: an empty catalog has nothing to search, while a search that found
+  // nothing keeps its box, so the query can be cleared.
+  it('disables the search while the catalog holds no template', () => {
+    catalog.cards = [];
+    renderCatalog();
+    expect(
+      screen.getByRole('textbox', { name: 'Search templates' }),
+    ).toBeDisabled();
+  });
+
+  it('keeps the search usable when it found nothing, so it can be cleared', async () => {
+    const { user } = renderCatalog();
+    const search = screen.getByRole('textbox', { name: 'Search templates' });
+    await user.type(search, 'no such template');
+    expect(
+      screen.queryByRole('button', { name: /Tell the reviewer/ }),
+    ).toBeNull();
+    // Judged after focus leaves: a focused box never turns disabled.
+    act(() => search.blur());
+    expect(search).toBeEnabled();
+
+    // Readonly until focused again (anti-autofill): click to focus it first.
+    await user.click(search);
+    await user.clear(search);
+    expect(
+      screen.getByRole('button', { name: /Tell the reviewer/ }),
+    ).toBeVisible();
+  });
+
   it('says why a template could not be read, and tries again', async () => {
     catalog.failing = SYNC.slug;
     const { user } = renderCatalog();

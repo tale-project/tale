@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -95,8 +95,14 @@ vi.mock('../hooks/actions', () => ({
 }));
 
 // Whether the CURRENT folder's listing was cut at the bound — the picker's
-// notice keys on it. `pair` lists PAIR instead.
-const listingState = vi.hoisted(() => ({ truncated: false, pair: false }));
+// notice keys on it. `pair` lists PAIR instead, `empty` lists nothing, and
+// `unanswered` leaves the folder without an answer yet.
+const listingState = vi.hoisted(() => ({
+  truncated: false,
+  pair: false,
+  empty: false,
+  unanswered: false,
+}));
 
 // Two files for the search test: one selected before a search, one the
 // search shows.
@@ -112,13 +118,17 @@ vi.mock('../hooks/queries', () => ({
     error: null,
   }),
   useGoogleDriveFiles: () => ({
-    data: {
-      items: listingState.pair
-        ? PAIR
-        : [{ id: 'folder-1', name: 'Meetings', size: 0, isFolder: true }],
-      truncated: listingState.truncated,
-    },
-    isLoading: false,
+    data: listingState.unanswered
+      ? undefined
+      : {
+          items: listingState.empty
+            ? []
+            : listingState.pair
+              ? PAIR
+              : [{ id: 'folder-1', name: 'Meetings', size: 0, isFolder: true }],
+          truncated: listingState.truncated,
+        },
+    isLoading: listingState.unanswered,
     error: null,
   }),
 }));
@@ -164,6 +174,8 @@ describe('GoogleDriveImportDialog', () => {
     vi.mocked(toast).mockClear();
     listingState.truncated = false;
     listingState.pair = false;
+    listingState.empty = false;
+    listingState.unanswered = false;
   });
 
   // Regression: the Drive walk was unbounded and the dialog imported
@@ -371,6 +383,44 @@ describe('GoogleDriveImportDialog', () => {
     expect(mockImportFiles.mock.calls[0][0].items).toEqual([
       expect.objectContaining({ id: 'alpha', relativePath: 'Alpha.txt' }),
     ]);
+  });
+
+  // #2802: an empty folder has nothing to search, while a search that found
+  // nothing keeps its box, so the query can be cleared.
+  describe('search', () => {
+    const searchBox = () =>
+      screen.getByRole('textbox', { name: 'documents.searchFilesAndFolders' });
+
+    it('is disabled in an empty folder', () => {
+      listingState.empty = true;
+      render(<GoogleDriveImportDialog {...defaultProps} />);
+
+      expect(screen.getByText('documents.onedrive.folderEmpty')).toBeVisible();
+      expect(searchBox()).toBeDisabled();
+    });
+
+    it('stays usable when it found nothing, so it can be cleared', async () => {
+      const user = userEvent.setup();
+      render(<GoogleDriveImportDialog {...defaultProps} />);
+
+      await user.type(searchBox(), 'no such file');
+      expect(screen.getByText('documents.noItemsMatchingSearch')).toBeVisible();
+      // Judged after focus leaves: a focused box never turns disabled.
+      act(() => searchBox().blur());
+      expect(searchBox()).toBeEnabled();
+
+      // Readonly until focused again (anti-autofill): click to focus it first.
+      await user.click(searchBox());
+      await user.clear(searchBox());
+      expect(screen.getByText('Meetings')).toBeVisible();
+    });
+
+    it('stays usable while the folder has not answered', () => {
+      listingState.unanswered = true;
+      render(<GoogleDriveImportDialog {...defaultProps} />);
+
+      expect(searchBox()).toBeEnabled();
+    });
   });
 
   // The refusal's own `message` is its serialized payload; the import toast
