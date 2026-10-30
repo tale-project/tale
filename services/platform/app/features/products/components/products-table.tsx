@@ -3,6 +3,7 @@
 import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { BulkDeleteBar } from '@tale/ui/data-table/data-table-bulk-actions';
+import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
 import { useListPage } from '@tale/ui/use-list-page';
 import { useNavigate } from '@tanstack/react-router';
 import type { Row, RowSelectionState } from '@tanstack/react-table';
@@ -20,6 +21,7 @@ import { useDeleteProduct } from '../hooks/mutations';
 import {
   useApproxProductCount,
   useListProductsPaginated,
+  useProductCategories,
 } from '../hooks/queries';
 import { useProductsTableConfig } from '../hooks/use-products-table-config';
 import { ProductViewDialog } from './product-view-dialog';
@@ -49,6 +51,7 @@ export function ProductsTable({
   const [createOpen, setCreateOpen] = useState(false);
 
   const { data: count } = useApproxProductCount(organizationId);
+  const { data: categories } = useProductCategories(organizationId);
   const { columns, searchPlaceholder, pageSize } = useProductsTableConfig();
   const paginatedResult = useListProductsPaginated({
     organizationId,
@@ -71,6 +74,20 @@ export function ProductsTable({
     [navigate, organizationId],
   );
 
+  const handleCategoryChange = useCallback(
+    (values: string[]) => {
+      void navigate({
+        to: '/dashboard/$id/products',
+        params: { id: organizationId },
+        search: (prev) => ({
+          ...prev,
+          category: values[0] || undefined,
+        }),
+      });
+    },
+    [navigate, organizationId],
+  );
+
   const handleClearFilters = useCallback(() => {
     void navigate({
       to: '/dashboard/$id/products',
@@ -79,8 +96,8 @@ export function ProductsTable({
     });
   }, [navigate, organizationId]);
 
-  const filterConfigs = useMemo(
-    () => [
+  const filterConfigs = useMemo<FilterConfig[]>(() => {
+    const configs: FilterConfig[] = [
       {
         key: 'status',
         title: tTables('headers.status'),
@@ -93,9 +110,35 @@ export function ProductsTable({
         selectedValues: status ? [status] : [],
         onChange: handleStatusChange,
       },
-    ],
-    [status, tTables, tCommon, handleStatusChange],
-  );
+    ];
+
+    // The categories the products carry. A category the address chose is
+    // offered even when they no longer carry it (or the read failed), so a
+    // filter in force can always be seen and undone. Only offered once there
+    // is a category to choose.
+    const known = categories ?? [];
+    const offered =
+      !category || known.includes(category) ? known : [category, ...known];
+    if (offered.length > 0) {
+      configs.push({
+        key: 'category',
+        title: tTables('headers.category'),
+        options: offered.map((value) => ({ value, label: value })),
+        selectedValues: category ? [category] : [],
+        onChange: handleCategoryChange,
+      });
+    }
+
+    return configs;
+  }, [
+    status,
+    category,
+    categories,
+    tTables,
+    tCommon,
+    handleStatusChange,
+    handleCategoryChange,
+  ]);
 
   const {
     record: viewedRecord,

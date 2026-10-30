@@ -56,6 +56,7 @@ vi.mock('../hooks/mutations', () => ({
 
 vi.mock('../hooks/queries', () => ({
   useApproxProductCount: () => ({ data: mockProducts.length }),
+  useProductCategories: () => ({ data: [] }),
   useListProductsPaginated: () => ({
     results: mockProducts,
     status: 'Exhausted',

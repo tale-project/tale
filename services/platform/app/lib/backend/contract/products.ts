@@ -106,6 +106,13 @@ export interface ProductsContract {
     args: { organizationId: string };
     returns: number;
   };
+  /** Each category the organization's products carry, once, sorted: the
+   * Category filter's options. */
+  'products/queries:listProductCategories': {
+    kind: 'query';
+    args: { organizationId: string };
+    returns: string[];
+  };
   'products/queries:listProducts': {
     kind: 'query';
     args: { organizationId: string };

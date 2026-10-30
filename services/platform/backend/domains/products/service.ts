@@ -605,6 +605,31 @@ export async function listProducts(
   };
 }
 
+/** At most this many categories are offered — the inbox's API-source
+ * facet's cap. */
+const CATEGORY_OPTIONS_MAX = 100;
+
+/**
+ * The categories the organization's products carry, each once and in
+ * alphabetical order: the values the Products list's Category filter
+ * offers, which `listProducts` matches exactly. A blank is not a category
+ * (the writes store it as null).
+ */
+export async function listProductCategories(
+  sql: Sql,
+  scope: ProductScope,
+): Promise<string[]> {
+  assertProductAccess(scope, 'read');
+  const rows = await sql<{ category: string }[]>`
+    SELECT DISTINCT category FROM app.products
+    WHERE org_id = ${scope.organizationId}
+      AND category IS NOT NULL AND btrim(category) <> ''
+    ORDER BY category
+    LIMIT ${CATEGORY_OPTIONS_MAX}
+  `;
+  return rows.map((row) => row.category);
+}
+
 /** How many rows the org has (the table header's total; the 0.4
  * `approxCountProducts` probe, answered exactly rather than by
  * walking a capped page). Products have no trash — a retired one is

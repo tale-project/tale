@@ -203,6 +203,32 @@ describe('the products listing rows', () => {
   });
 });
 
+// #3866: the Products listing filtered on `category`, but nothing read which
+// categories there are, so the list offered no Category filter.
+describe('the products Category filter options', () => {
+  it('reads the categories door for the organization', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(
+        new Response(JSON.stringify({ categories: ['Garden', 'Tools'] })),
+      );
+    const read = engagementReadAdapters[
+      'products/queries:listProductCategories'
+    ]?.({ organizationId: 'org1' }, {});
+    expect(await read?.queryFn()).toEqual(['Garden', 'Tools']);
+    expect(fetchSpy.mock.calls[0]?.[0]).toBe(
+      '/api/app/products/categories?orgId=org1',
+    );
+  });
+
+  it('keys them under the product entity a product write invalidates', () => {
+    const read = engagementReadAdapters[
+      'products/queries:listProductCategories'
+    ]?.({}, ctx);
+    expect(read?.queryKey.slice(0, 3)).toEqual(['backend', 'org1', 'product']);
+  });
+});
+
 describe('the contacts listing facets', () => {
   const listing = (args: Record<string, unknown>) =>
     engagementPaginatedAdapters['contacts/queries:listContactsPaginated']?.(
