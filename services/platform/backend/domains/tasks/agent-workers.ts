@@ -6,6 +6,7 @@ import {
   isAgentRunWaitingReason,
   type AgentRunWaitingReason,
 } from '../../../lib/shared/agent-run-waiting.ts';
+import { sandboxDevices } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import {
   SANDBOX_SESSION_LIVE_STATUSES,
   TASK_AGENT_OP_KIND,
@@ -93,6 +94,13 @@ export interface WorkerFacts {
   heldFor: ReadonlyMap<string, string>;
   /** Agent-worker slots the organization has left for this run. */
   room: number;
+  /** Workers whose sandbox host refused this run while it waited for room
+   * (`host_refused_session_ids`, `TASK-R85`). */
+  refused?: ReadonlySet<string>;
+  /** Where a connected device of the organization has room now, as its
+   * sandbox hub reports: whether it would take a new worker, and the workers
+   * placed on such a device. Read only for a run a host refused. */
+  devices?: { room: boolean; workers: ReadonlySet<string> };
 }
 
 export type WorkerChoice =
@@ -117,6 +125,16 @@ export type WorkerChoice =
  *
  * Otherwise the run waits for a slot (`org_limit`). A worker kept for
  * another task is skipped by 2 and 3.
+ *
+ * A run a sandbox host refused (`refused`) first takes, in the same order,
+ * only a worker it can start in without asking that host again
+ * (`TASK-R85`): the previous worker or a warm free one when it was not
+ * refused or is placed on a connected device with room now (`devices`); a
+ * stopped free one placed on such a device, while a slot is left; or, while
+ * a slot is left and a device has room, the new worker 5 names, which the
+ * sandbox hub places there. Only when none fits does it choose as above,
+ * and waits for room in its previous worker as it always did. The worker it
+ * already claimed comes first either way.
  */
 export function chooseWorker(facts: WorkerFacts): WorkerChoice {
   const byNumber = [...facts.workers].sort((a, b) => a.worker - b.worker);
@@ -132,23 +150,61 @@ export function chooseWorker(facts: WorkerFacts): WorkerChoice {
     sessionId: w.sessionId,
     worker: w.worker,
   });
-
-  for (const sessionId of [facts.claimed, facts.previous]) {
-    if (sessionId === undefined || facts.occupied.has(sessionId)) continue;
+  // The claimed or previous worker, when it is free and may start.
+  const own = (sessionId: string | undefined, claimed: boolean) => {
+    if (sessionId === undefined || facts.occupied.has(sessionId)) return null;
     const worker = known.get(sessionId);
     if (worker !== undefined) {
-      if (startable(worker) && (sessionId === facts.claimed || !kept(worker))) {
-        return pick(worker);
-      }
-      continue;
+      return startable(worker) && (claimed || !kept(worker))
+        ? pick(worker)
+        : null;
     }
     // A worker with no live row (never created, or destroyed since) is
     // opened again under the same id, which takes a slot.
     const number = projectAgentWorker(facts.agentId, sessionId);
-    if (number?.base === facts.base && facts.room > 0) {
-      return { sessionId, worker: number.worker };
+    return number?.base === facts.base && facts.room > 0
+      ? { sessionId, worker: number.worker }
+      : null;
+  };
+  // The lowest number that names no live workspace.
+  const fresh = () => {
+    for (let worker = 1; ; worker += 1) {
+      const sessionId = workerSessionId(facts.agentId, facts.base, worker);
+      if (!known.has(sessionId) && !facts.occupied.has(sessionId)) {
+        return { sessionId, worker };
+      }
+    }
+  };
+
+  const claimed = own(facts.claimed, true);
+  if (claimed !== null) return claimed;
+  const refused = facts.refused ?? new Set<string>();
+  if (refused.size > 0) {
+    const onDevice = (sessionId: string) =>
+      facts.devices?.workers.has(sessionId) === true;
+    const elsewhere = (sessionId: string) =>
+      !refused.has(sessionId) || onDevice(sessionId);
+    const previous =
+      facts.previous !== undefined && elsewhere(facts.previous)
+        ? own(facts.previous, false)
+        : null;
+    if (previous !== null) return previous;
+    const warm = free.find(
+      (w) => w.warm && !w.destroyPending && !kept(w) && elsewhere(w.sessionId),
+    );
+    if (warm !== undefined) return pick(warm);
+    if (facts.room > 0) {
+      const placed = free.find(
+        (w) => !w.destroyPending && !kept(w) && onDevice(w.sessionId),
+      );
+      if (placed !== undefined) return pick(placed);
+      // A new workspace goes to the device with the most room, whatever its
+      // number: one a host refused before is not walked past.
+      if (facts.devices?.room === true) return fresh();
     }
   }
+  const previous = own(facts.previous, false);
+  if (previous !== null) return previous;
   const warm = free.find((w) => w.warm && !w.destroyPending && !kept(w));
   if (warm !== undefined) return pick(warm);
   if (facts.room > 0) {
@@ -156,14 +212,7 @@ export function chooseWorker(facts: WorkerFacts): WorkerChoice {
     if (stopped !== undefined) return pick(stopped);
   }
   if (free.some((w) => w.destroyPending)) return { wait: 'destroy_pending' };
-  if (facts.room > 0) {
-    for (let worker = 1; ; worker += 1) {
-      const sessionId = workerSessionId(facts.agentId, facts.base, worker);
-      if (!known.has(sessionId) && !facts.occupied.has(sessionId)) {
-        return { sessionId, worker };
-      }
-    }
-  }
+  if (facts.room > 0) return fresh();
   const lastResort = free.find((w) => w.warm && !w.destroyPending);
   if (lastResort !== undefined) return pick(lastResort);
   return { wait: 'org_limit' };
@@ -195,6 +244,9 @@ interface ClaimedRun {
   /** A wake restarted the run from its park and it has not claimed since:
    * it keeps its place in line ({@link workerRoom}). */
   woken: boolean;
+  /** The workers whose sandbox host refused the run ({@link
+   * WorkerFacts.refused}). */
+  hostRefused: string[];
 }
 
 /**
@@ -208,10 +260,11 @@ interface ClaimedRun {
  * - the run's family is re-checked by its starter's rights now: a run whose
  *   starter lost the Editor role while it waited moves into the member's own
  *   family, never the other way round;
- * - a worker is chosen ({@link chooseWorker}) and written into the run's
+ * - a worker is chosen ({@link chooseWorker}), another than one whose
+ *   sandbox host refused the run when it can be, and written into the run's
  *   `session_id` with the claim stamp; or
  * - the run is parked with its reason when no worker can take it — never a
- *   refusal: it starts on its own when one frees.
+ *   refusal: a wake restarts it when a worker or a slot frees.
  *
  * Null when the run is no longer queued under this exec, or is parked: the
  * job stands down. A second claimed live run on one worker is refused by the
@@ -222,9 +275,10 @@ export async function claimAgentWorker(
   sql: Sql,
   args: { organizationId: string; runId: string; execId: string },
 ): Promise<WorkerClaim | null> {
+  const devices = await readDeviceRoom(sql, args);
   for (let attempt = 1; ; attempt += 1) {
     try {
-      return await sql.begin((tx) => claimInTx(tx, args));
+      return await sql.begin((tx) => claimInTx(tx, args, devices));
     } catch (error) {
       if (!isUniqueViolation(error) || attempt >= 3) throw error;
       console.warn(
@@ -234,9 +288,56 @@ export async function claimAgentWorker(
   }
 }
 
+/**
+ * Where the organization's connected devices have room now
+ * ({@link WorkerFacts.devices}), for a run a sandbox host refused, as the
+ * sandbox hub answers the device settings. Asked before the claim's
+ * transaction, which holds no lock while the hub answers, and only for a run
+ * with a refusal whose organization has a device. Undefined otherwise, and
+ * when the hub does not answer: the claim then knows of no device room.
+ */
+async function readDeviceRoom(
+  sql: Sql,
+  args: { organizationId: string; runId: string },
+): Promise<WorkerFacts['devices']> {
+  const rows = await sql<{ ask: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM app.sandbox_devices d
+      WHERE d.org_id = r.org_id AND d.revoked_at_ms IS NULL
+    ) AS ask
+    FROM app.project_agent_runs r
+    WHERE r.id = ${args.runId} AND r.org_id = ${args.organizationId}
+      AND cardinality(r.host_refused_session_ids) > 0
+  `;
+  if (rows[0]?.ask !== true) return undefined;
+  try {
+    const hub = await sandboxDevices(args.organizationId);
+    const roomy = new Set(
+      hub.devices
+        .filter((device) => (device.freeSlots ?? 0) > 0)
+        .map((device) => device.deviceId),
+    );
+    return {
+      room: roomy.size > 0,
+      workers: new Set(
+        (hub.placements ?? [])
+          .filter((placement) => roomy.has(placement.deviceId))
+          .map((placement) => placement.sessionId),
+      ),
+    };
+  } catch (error) {
+    console.warn(
+      `[task-agent] device room for run ${args.runId} unavailable — claiming without it`,
+      error,
+    );
+    return undefined;
+  }
+}
+
 async function claimInTx(
   tx: TransactionSql,
   args: { organizationId: string; runId: string; execId: string },
+  devices: WorkerFacts['devices'],
 ): Promise<WorkerClaim | null> {
   const agents = await tx<{ agentId: string }[]>`
     SELECT agent_id AS "agentId" FROM app.project_agent_runs
@@ -256,7 +357,8 @@ async function claimInTx(
            session_id AS "sessionId",
            session_claimed_at_ms::float8 AS "claimedAt",
            model, model_provider AS "modelProvider",
-           ${tx.unsafe(WOKEN_RUN_SQL)} AS woken
+           ${tx.unsafe(WOKEN_RUN_SQL)} AS woken,
+           host_refused_session_ids AS "hostRefused"
     FROM app.project_agent_runs
     WHERE id = ${args.runId} AND org_id = ${args.organizationId}
       AND status = 'queued' AND exec_id = ${args.execId}
@@ -290,6 +392,7 @@ async function claimInTx(
     runId: args.runId,
     base,
     run,
+    devices,
   });
   const choice = chooseWorker(facts);
   if ('wait' in choice) {
@@ -342,7 +445,8 @@ export async function predictWorkerWait(
            model, model_provider AS "modelProvider",
            waiting_for_capacity_at_ms IS NOT NULL AS parked,
            waiting_reason AS reason,
-           ${sql.unsafe(WOKEN_RUN_SQL)} AS woken
+           ${sql.unsafe(WOKEN_RUN_SQL)} AS woken,
+           host_refused_session_ids AS "hostRefused"
     FROM app.project_agent_runs
     WHERE id = ${args.runId} AND org_id = ${args.organizationId}
   `;
@@ -395,9 +499,10 @@ async function readWorkerFacts(
     runId: string;
     base: string;
     run: ClaimedRun;
+    devices?: WorkerFacts['devices'];
   },
 ): Promise<WorkerFacts> {
-  const { organizationId, runId, base, run } = args;
+  const { organizationId, runId, base, run, devices } = args;
   const now = Date.now();
   const inFamily = (sessionId: string) =>
     projectAgentWorker(run.agentId, sessionId)?.base === base;
@@ -513,6 +618,8 @@ async function readWorkerFacts(
       : {}),
     heldFor: new Map(held.map((row) => [row.sessionId, row.taskId])),
     room,
+    refused: new Set(run.hostRefused),
+    ...(devices !== undefined ? { devices } : {}),
   };
 }
 
@@ -575,6 +682,11 @@ export interface ParkedAgentRun {
  * knows nothing of workers wakes it into the family's first workspace, as
  * it always did. Undefined when the run is no longer where the caller left
  * it (another exec, or another status).
+ *
+ * A run its sandbox host refused (`host`, not an exec refusal) also adds
+ * the worker it was refused in to `host_refused_session_ids`, once, for as
+ * long as the run lives: its next claims take a worker that needs no such
+ * host first ({@link chooseWorker}, `TASK-R85`).
  */
 export async function parkAgentRunInTx(
   tx: TransactionSql,
@@ -593,6 +705,9 @@ export async function parkAgentRunInTx(
 ): Promise<ParkedAgentRun | undefined> {
   const now = Date.now();
   const execRefused = args.execRefused === true;
+  const hostRefused = args.reason === 'host' && !execRefused;
+  // Every expression reads the row as it was: `session_id` is still the
+  // worker the run claimed, before it names its family's first again below.
   const rows = await tx<(ParkedAgentRun & { sessionId: string })[]>`
     UPDATE app.project_agent_runs SET
       status = 'queued',
@@ -602,6 +717,10 @@ export async function parkAgentRunInTx(
       waiting_for_capacity_at_ms = ${now},
       waiting_reason = ${args.reason ?? null},
       session_claimed_at_ms = NULL,
+      host_refused_session_ids = CASE
+        WHEN NOT ${hostRefused} OR session_id = ANY (host_refused_session_ids)
+          THEN host_refused_session_ids
+        ELSE array_append(host_refused_session_ids, session_id) END,
       updated_at_ms = ${now}
     WHERE id = ${args.runId} AND exec_id = ${args.execId}
       AND status = ${execRefused ? 'running' : 'queued'}

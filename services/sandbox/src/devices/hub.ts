@@ -134,6 +134,9 @@ export interface DeviceSummary {
   resources: DeviceResources | null;
   platform: DevicePlatform | null;
   update: DeviceUpdateReport;
+  /** New sessions the hub would place there now: its free slots, none while
+   * it runs another release or sits out new creates (`placeCreate`). */
+  freeSlots: number;
 }
 
 /** What a device connection hands back to the socket glue. */
@@ -430,6 +433,7 @@ export class DeviceHub {
         resources: d.status?.resources ?? null,
         platform: d.hello.platform,
         update: d.status?.update ?? d.hello.update,
+        freeSlots: this.placeableSlots(d),
       });
     }
     return out;
@@ -492,6 +496,14 @@ export class DeviceHub {
     return (
       d.hello !== null && versionsCompatible(this.opts.version, d.hello.version)
     );
+  }
+
+  /** New sessions a create would be placed on the device for now: its free
+   * slots, none while it runs another release or sits out new creates after
+   * one it refused or failed. */
+  private placeableSlots(d: ConnectedDevice): number {
+    if (!this.compatible(d) || this.now() < d.createFailedUntilMs) return 0;
+    return Math.max(0, this.freeSlots(d));
   }
 
   private freeSlots(d: ConnectedDevice): number {
@@ -582,9 +594,7 @@ export class DeviceHub {
     const eligible = (device: ConnectedDevice) =>
       this.devices.get(device.deviceId) === device &&
       device.organizationId === create.organizationId &&
-      this.compatible(device) &&
-      this.now() >= device.createFailedUntilMs &&
-      this.freeSlots(device) > 0;
+      this.placeableSlots(device) > 0;
     const candidates = [...this.devices.values()]
       .filter(eligible)
       .sort(

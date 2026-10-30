@@ -47,9 +47,13 @@ The proxy publishes the door at `<site>/sandbox/tunnel` (`services/proxy/Caddyfi
   quota ceiling is `maxSessions + deviceSessions`.
 - `GET /v1/capacity?organizationId=` adds `placements` (session → device) and
   reports device sessions in `runtimeSessions` with their `deviceId`.
-- `GET /v1/devices?organizationId=` — `{hub, devices[]}`: the connected
-  devices with release, compatibility, slots, running counts, resources,
-  platform and update state.
+- `GET /v1/devices?organizationId=` — `{hub, devices[], placements[]}`: the
+  connected devices with release, compatibility, slots, running counts,
+  resources, platform and update state, and `freeSlots`: the new sessions the
+  hub would place on each now (none while it runs another release or sits out
+  new creates). `placements` is the same session → device list as the capacity
+  read's; the platform reads both to move a run its host refused to a device
+  with room.
 - `POST /v1/devices/:id/disconnect` — the organization removed the device:
   close its tunnel (4003), forget its placements and refuse its still-valid
   tickets (for as long as any could live). The platform repeats the call

@@ -1603,8 +1603,9 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       }
       // The worker the run starts in: each run of the agent working at the
       // same time as another works in a sandbox of its own. A run no worker
-      // can take now is parked with its reason and starts on its own when
-      // one frees; every start funnels through this job, so the kick, the
+      // can take now is parked with its reason, and a wake brings it back
+      // here (one the sandbox host refused may then take another worker,
+      // TASK-R85); every start funnels through this job, so the kick, the
       // wake, the retry and the recovery all choose here.
       const claim = await claimAgentWorker(deps.sql, input);
       if (claim === null) {

@@ -618,7 +618,13 @@ export async function router(req: Request): Promise<Response> {
       return jsonResponse({ error: 'bad_request' }, 400);
     }
     return jsonResponse(
-      { hub: hub !== null, devices: hub?.devicesFor(organizationId) ?? [] },
+      {
+        hub: hub !== null,
+        devices: hub?.devicesFor(organizationId) ?? [],
+        // Which device each placed session lives on: with each device's
+        // free slots, where a session the platform starts would run now.
+        placements: hub?.capacityOverlay(organizationId).placements ?? [],
+      },
       200,
       { 'cache-control': 'no-store' },
     );

@@ -1,6 +1,7 @@
 import type { Sql, TransactionSql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { sandboxDevices } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import {
   memberWorkerSessionId,
   standingWorkerSessionId,
@@ -22,6 +23,9 @@ vi.mock('../../lib/org-config.ts', () => ({
 }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 vi.mock('./run-authority.ts', () => ({ sessionIdForAgentRun: vi.fn() }));
+vi.mock('../../core/node_only/sandbox/helpers/session_client.ts', () => ({
+  sandboxDevices: vi.fn(),
+}));
 
 const AGENT = '0b7e7a4c-1f7e-4a39-9c55-6f1d3c1f2a10';
 const w = (n: number) => standingWorkerSessionId(AGENT, n);
@@ -189,6 +193,127 @@ describe('which worker a run starts in', () => {
   });
 });
 
+describe('a run its sandbox host refused [TASK-R85]', () => {
+  // Scribe's worker 3 opened on the server while the laptop's two slots
+  // were busy, and "Release notes" last worked there. Its next start was
+  // refused because the server is full. The laptop has a slot free now.
+  const laptop = (placed: string[]) => ({
+    room: true,
+    workers: new Set(placed),
+  });
+  const refusedIn3 = {
+    previous: w(3),
+    refused: new Set([w(3)]),
+  };
+
+  it('starts in a stopped worker on a device with room, not in its previous one', () => {
+    expect(
+      chooseWorker(
+        facts({
+          ...refusedIn3,
+          workers: [worker(2), worker(3)],
+          devices: laptop([w(2)]),
+        }),
+      ),
+    ).toEqual({ sessionId: w(2), worker: 2 });
+  });
+
+  it('opens a new worker for the device rather than start another one on the full host', () => {
+    // Worker 1 is stopped on the server too: starting it asks that host.
+    expect(
+      chooseWorker(
+        facts({
+          ...refusedIn3,
+          workers: [worker(1), worker(3)],
+          devices: laptop([]),
+        }),
+      ),
+    ).toEqual({ sessionId: w(2), worker: 2 });
+  });
+
+  it('opens the lowest free number though a host refused it before', () => {
+    // Worker 1 was refused, then destroyed: the hub places a new workspace
+    // by the room its devices have, whatever its number.
+    expect(
+      chooseWorker(
+        facts({
+          previous: w(3),
+          refused: new Set([w(1), w(3)]),
+          workers: [worker(3)],
+          devices: laptop([]),
+        }),
+      ),
+    ).toEqual({ sessionId: w(1), worker: 1 });
+  });
+
+  it('takes a worker that is up and was not refused, which needs no host', () => {
+    expect(
+      chooseWorker(
+        facts({
+          ...refusedIn3,
+          workers: [worker(1, { warm: true }), worker(3)],
+        }),
+      ),
+    ).toEqual({ sessionId: w(1), worker: 1 });
+  });
+
+  it('goes back to its previous worker once it is placed on a device with room', () => {
+    expect(
+      chooseWorker(
+        facts({
+          ...refusedIn3,
+          workers: [worker(2), worker(3)],
+          devices: laptop([w(2), w(3)]),
+        }),
+      ),
+    ).toEqual({ sessionId: w(3), worker: 3 });
+  });
+
+  it('waits in its previous worker when no device has room, or the hub did not say', () => {
+    const onTheServer = { ...refusedIn3, workers: [worker(1), worker(3)] };
+    expect(chooseWorker(facts(onTheServer))).toEqual({
+      sessionId: w(3),
+      worker: 3,
+    });
+    expect(
+      chooseWorker(
+        facts({
+          ...onTheServer,
+          // Worker 1 is on the laptop, which is full too.
+          devices: { room: false, workers: new Set() },
+        }),
+      ),
+    ).toEqual({ sessionId: w(3), worker: 3 });
+  });
+
+  it('keeps the worker it already claimed, and opens none without a slot', () => {
+    const onTheLaptop = {
+      ...refusedIn3,
+      workers: [worker(2), worker(3)],
+      devices: laptop([w(2)]),
+    };
+    expect(chooseWorker(facts({ ...onTheLaptop, claimed: w(3) }))).toEqual({
+      sessionId: w(3),
+      worker: 3,
+    });
+    expect(chooseWorker(facts({ ...onTheLaptop, room: 0 }))).toEqual({
+      wait: 'org_limit',
+    });
+  });
+
+  it('goes back to its previous worker first when no host refused it', () => {
+    expect(
+      chooseWorker(
+        facts({
+          previous: w(3),
+          workers: [worker(2), worker(3)],
+          devices: laptop([w(2)]),
+        }),
+      ),
+    ).toEqual({ sessionId: w(3), worker: 3 });
+  });
+});
+
 describe('the deadline a run works to [TASK-R25]', () => {
   const kickedAt = 1_000 * HOUR;
   const run = {
@@ -248,6 +373,14 @@ function fakeSql(answers: Array<[string, unknown[]]>): {
   return { sql: sql as unknown as Sql, statements };
 }
 
+/** The value a statement passes at the last `?` of `fragment`. */
+function valueAt(statement: Statement | undefined, fragment: string): unknown {
+  const at = statement?.text.indexOf(fragment) ?? -1;
+  if (statement === undefined || at < 0) return undefined;
+  const before = statement.text.slice(0, at + fragment.length);
+  return statement.values[before.split('?').length - 2];
+}
+
 const ARGS = { organizationId: 'org-1', runId: 'run-1', execId: 'exec-1' };
 const RUN_ROW = {
   agentId: AGENT,
@@ -256,6 +389,7 @@ const RUN_ROW = {
   startedBy: 'user:user-ada',
   sessionId: w(1),
   claimedAt: null,
+  hostRefused: [] as string[],
 };
 const AGENT_LOCK = "hashtextextended('agent-workers:' ||";
 const ORG_LOCK = "hashtextextended('sandbox:' ||";
@@ -267,6 +401,8 @@ const IN_FLIGHT = 'SELECT owner_type AS "ownerType"';
 const CLAIM = 'SET session_id = ?, session_claimed_at_ms = ?';
 const ROOM = 'AS pending';
 const PARK = "SET status = 'queued'";
+const ASKS_HUB = 'AS ask';
+const PREVIOUS = 'ORDER BY seq DESC';
 
 function claimSql(
   script: {
@@ -282,9 +418,14 @@ function claimSql(
     inFlight?: number;
     /** Other runs a wake restarted that have not claimed yet. */
     woken?: number;
+    /** The worker the task's last launched run worked in. */
+    previous?: string;
+    /** The run was refused by a host, and its organization has a device. */
+    asksHub?: boolean;
   } = {},
 ) {
   return fakeSql([
+    [ASKS_HUB, [{ ask: script.asksHub === true }]],
     ['SELECT agent_id AS "agentId" FROM', [{ agentId: AGENT }]],
     [RUN, [{ ...RUN_ROW, ...script.run }]],
     [FAMILY, script.family ?? []],
@@ -296,6 +437,10 @@ function claimSql(
       })),
     ],
     [ROOM, [{ pending: 0, woken: script.woken ?? 0 }]],
+    [
+      PREVIOUS,
+      script.previous === undefined ? [] : [{ sessionId: script.previous }],
+    ],
     [
       PARK,
       [
@@ -453,6 +598,120 @@ describe('claiming a worker', () => {
   });
 });
 
+describe('claiming for a run its sandbox host refused [TASK-R85]', () => {
+  // "Release notes" last worked in worker 3, on the server, which refused
+  // its start: the server is full. The laptop holds worker 2, stopped, and
+  // has a slot free.
+  const laptop = (freeSlots: number) => ({
+    deviceId: 'laptop',
+    connectedAtMs: 5,
+    version: '0.5.89',
+    compatible: true,
+    maxSessions: 2,
+    sessions: { running: 2 - freeSlots, starting: 0 },
+    resources: null,
+    platform: null,
+    update: {
+      state: 'idle' as const,
+      targetVersion: null,
+      error: null,
+      atMs: null,
+    },
+    freeSlots,
+  });
+  const refused = {
+    run: { hostRefused: [w(3)] },
+    previous: w(3),
+    family: [
+      { sessionId: w(2), status: 'stopped', pinned: false },
+      { sessionId: w(3), status: 'stopped', pinned: false },
+    ],
+  };
+
+  beforeEach(() => {
+    vi.mocked(readGovernancePolicyForOrg).mockResolvedValue(null);
+    vi.mocked(sessionIdForAgentRun).mockReset();
+    vi.mocked(sessionIdForAgentRun).mockResolvedValue(w(1));
+    vi.mocked(sandboxDevices).mockReset();
+    vi.mocked(sandboxDevices).mockResolvedValue({
+      hub: true,
+      devices: [laptop(1)],
+      placements: [{ sessionId: w(2), deviceId: 'laptop' }],
+    });
+  });
+
+  it('asks the hub where a device has room, and starts in the worker placed there', async () => {
+    const { sql, statements } = claimSql({ ...refused, asksHub: true });
+    await expect(claimAgentWorker(sql, ARGS)).resolves.toEqual({
+      sessionId: w(2),
+      worker: 2,
+      moved: true,
+    });
+    expect(sandboxDevices).toHaveBeenCalledWith('org-1');
+    // The run reads the workers its host refused, and its claim keeps them.
+    const run = statements.find((s) => s.text.includes(RUN));
+    expect(run?.text).toContain('host_refused_session_ids AS "hostRefused"');
+    const claim = statements.find((s) => s.text.includes(CLAIM));
+    expect(claim?.text).not.toContain('host_refused_session_ids');
+  });
+
+  it('asks the hub only for a refused run of an organization with a device, before any lock', async () => {
+    const { sql, statements } = claimSql(refused);
+    await expect(claimAgentWorker(sql, ARGS)).resolves.toMatchObject({
+      sessionId: w(3),
+    });
+    expect(sandboxDevices).not.toHaveBeenCalled();
+    const ask = statements.findIndex((s) => s.text.includes(ASKS_HUB));
+    expect(statements[ask]?.text).toContain(
+      'cardinality(r.host_refused_session_ids) > 0',
+    );
+    expect(statements[ask]?.text).toContain('d.revoked_at_ms IS NULL');
+    expect(ask).toBeLessThan(
+      statements.findIndex((s) => s.text.includes(AGENT_LOCK)),
+    );
+  });
+
+  it('starts in its previous worker when no device has room', async () => {
+    vi.mocked(sandboxDevices).mockResolvedValue({
+      hub: true,
+      devices: [laptop(0)],
+      placements: [{ sessionId: w(2), deviceId: 'laptop' }],
+    });
+    const { sql } = claimSql({ ...refused, asksHub: true });
+    await expect(claimAgentWorker(sql, ARGS)).resolves.toMatchObject({
+      sessionId: w(3),
+    });
+  });
+
+  it('claims as before when the hub does not answer', async () => {
+    vi.mocked(sandboxDevices).mockRejectedValue(
+      new Error('Sandbox devices unavailable (502)'),
+    );
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { sql } = claimSql({ ...refused, asksHub: true });
+    await expect(claimAgentWorker(sql, ARGS)).resolves.toMatchObject({
+      sessionId: w(3),
+    });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('device room for run run-1 unavailable'),
+      expect.any(Error),
+    );
+    warn.mockRestore();
+  });
+
+  it('tells a start whether it waits without asking the hub', async () => {
+    const { sql } = claimSql({
+      ...refused,
+      run: { ...refused.run, status: 'queued', parked: false, reason: null },
+      asksHub: true,
+    });
+    await expect(
+      predictWorkerWait(sql, { organizationId: 'org-1', runId: 'run-1' }),
+    ).resolves.toBeNull();
+    expect(sandboxDevices).not.toHaveBeenCalled();
+  });
+});
+
 describe('a start that has not waited and a run woken for room [TASK-R25]', () => {
   beforeEach(() => {
     vi.mocked(readGovernancePolicyForOrg).mockResolvedValue(null);
@@ -554,6 +813,43 @@ describe('parking a run that found no room [TASK-R25]', () => {
     );
     expect(back?.values[0]).toBe(w(1));
   });
+
+  it.each([
+    ['its host refused it', { reason: 'host' as const }, true],
+    ['every slot is held', { reason: 'org_limit' as const }, false],
+    [
+      'its runtime refused the exec',
+      { reason: 'host' as const, execRefused: true },
+      false,
+    ],
+  ])(
+    'remembers the worker it was refused in, once, only when %s [TASK-R85]',
+    async (_label, refusal, remembered) => {
+      const { sql, statements } = fakeSql([
+        [
+          PARK,
+          [
+            {
+              organizationId: 'org-1',
+              taskId: 'task-1',
+              agentId: AGENT,
+              execId: 'exec-1',
+              sessionId: w(3),
+            },
+          ],
+        ],
+      ]);
+      await sql.begin((tx) =>
+        parkAgentRunInTx(tx, { runId: 'run-1', execId: 'exec-1', ...refusal }),
+      );
+      const park = statements.find((s) => s.text.includes(PARK));
+      const remember = 'host_refused_session_ids = CASE WHEN NOT ?';
+      expect(park?.text).toContain(
+        `${remember} OR session_id = ANY (host_refused_session_ids) THEN host_refused_session_ids ELSE array_append(host_refused_session_ids, session_id) END`,
+      );
+      expect(valueAt(park, remember)).toBe(remembered);
+    },
+  );
 });
 
 describe('telling a start whether its run waits [TASK-R26]', () => {

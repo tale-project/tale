@@ -65,7 +65,7 @@ The device keeps running after the machine restarts, as long as Docker starts wi
 
 ## Understand where sandboxes run
 
-New agent and automation workspaces start on a connected device that has room. When none has, they start on the Tale server. A workspace stays with its files on the machine where it started, so an agent that already has a workspace on the server keeps using it. Pages rendered for website crawling always stay on the server.
+New agent and automation workspaces start on a connected device that has room. When none has, they start on the Tale server. A workspace stays with its files on the machine where it started, so an agent that already has a workspace on the server keeps using it. When the server is full, though, a task run whose workspace is there moves to another workspace of its agent that can start, such as one on a device with room or a new one there; its workspace on the server keeps its files. Pages rendered for website crawling always stay on the server.
 
 When several devices have room, Tale considers both free slots and observed memory headroom. If a device refuses a create because it is full, another device or the server can take it. If the response is lost or the device returns a server error, retries stay on that device: it may already have created the workspace.
 

@@ -88,7 +88,8 @@ agentRun:
   # Remplace « En attente » tant que l'exécution attend de la place : un état
   # court par raison ; `unknown` est une attente sans raison enregistrée (le
   # plus souvent, un worker). L'exécution démarre d'elle-même dès que la
-  # place se libère.
+  # place se libère ; celle que l'hôte des sandboxes a refusée peut démarrer
+  # plus tôt dans un autre worker de son agent.
   waiting:
     org_limit: En attente d’un worker
     host: En attente de place
@@ -99,7 +100,7 @@ agentRun:
   # Ce que l'état court veut dire, affiché dessous pendant l'attente.
   waitingWhy:
     org_limit: Tous les workers d’agent de ton organisation sont occupés. L’exécution démarre d’elle-même dès que l’un d’eux se libère.
-    host: L’hôte des sandboxes est plein ou manque de mémoire ou d’espace disque. L’exécution démarre d’elle-même dès qu’il y a de la place.
+    host: L’hôte des sandboxes est plein ou manque de mémoire ou d’espace disque. Si un autre worker de cet agent peut démarrer, par exemple sur un appareil connecté qui a de la place, l’exécution s’y déplace. Sinon, elle attend de la place, jusqu’à 12 heures après son démarrage.
     destroy_pending: Un admin supprime l’espace de travail que cette exécution utiliserait. Elle démarre dans un nouvel espace une fois la suppression terminée.
     exec_limit: Sa sandbox termine encore un processus précédent. L’exécution démarre d’elle-même dans un instant.
     model_capacity: Le modèle d’IA de cet agent est saturé. L’exécution démarre d’elle-même dès que le modèle répond de nouveau ; l’attente ne consomme aucune tentative.
