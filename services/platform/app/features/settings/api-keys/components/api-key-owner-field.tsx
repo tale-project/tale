@@ -1,12 +1,15 @@
 'use client';
 
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { SearchableSelect } from '@tale/ui/searchable-select';
 import { Select } from '@tale/ui/select';
-import { useMemo } from 'react';
+import { Skeletonize } from '@tale/ui/skeleton-context';
+import { useMemo, type ReactNode } from 'react';
 
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useOrgMembersForPicker } from '@/app/features/settings/governance/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
+import { readStateOf, type ReadState } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 import { roleRank } from '@/lib/shared/role-rank';
 
@@ -179,9 +182,6 @@ export function ApiKeyOwnerField(props: ApiKeyOwnerFieldProps) {
   );
 }
 
-/** The members a key may be made for: active, someone else, and below the
- * maker's role — making a key that acts as someone takes more authority
- * than they hold. */
 /** What every target picker shares: the refusal it shows, and the form's
  * check when it closes. */
 interface TargetPickerState {
@@ -200,6 +200,55 @@ function targetPickerProps({ error, onClosed }: TargetPickerState) {
   };
 }
 
+/** How the list a target picker offers stands. */
+type TargetListRead = Pick<
+  ReadState,
+  'unavailable' | 'retrying' | 'failureCount'
+> & {
+  /** The list has answered; until it does, nobody is offered. */
+  answered: boolean;
+  retry: () => void;
+};
+
+/**
+ * A target picker over its list. A list that has not answered offers nobody,
+ * and that never reads as nobody qualifying (#4586): a pending read masks the
+ * picker, and a failed one names the list with Try again above it.
+ */
+function TargetListField({
+  read,
+  failedMessage,
+  pickerId,
+  children,
+}: {
+  read: TargetListRead;
+  failedMessage: string;
+  pickerId: string;
+  children: ReactNode;
+}) {
+  return (
+    <>
+      {read.unavailable && (
+        <CatalogLoadError
+          message={failedMessage}
+          failureKey={read.failureCount}
+          isRetrying={read.retrying}
+          onRetry={read.retry}
+          // A retry that brings the list takes the alert away: the focus it
+          // held goes to the picker, not the page.
+          onFocusLost={() => document.getElementById(pickerId)?.focus()}
+        />
+      )}
+      <Skeletonize loading={!read.answered && !read.unavailable}>
+        {children}
+      </Skeletonize>
+    </>
+  );
+}
+
+/** The members a key may be made for: active, someone else, and below the
+ * maker's role — making a key that acts as someone takes more authority
+ * than they hold. */
 function MemberPicker({
   organizationId,
   viewerUserId,
@@ -217,7 +266,8 @@ function MemberPicker({
 } & TargetPickerState) {
   const { t } = useT('settings');
   const { t: tRoles } = useT('roles');
-  const { data: members } = useOrgMembersForPicker(organizationId);
+  const membersRead = useOrgMembersForPicker(organizationId);
+  const { data: members, refetch } = membersRead;
   const options = useMemo(
     () =>
       (members ?? [])
@@ -233,29 +283,41 @@ function MemberPicker({
         })),
     [members, viewerUserId, viewerRole, tRoles],
   );
+  const read: TargetListRead = {
+    answered: members !== undefined,
+    ...readStateOf(membersRead),
+    retry: () => void refetch(),
+  };
   return (
-    <SearchableSelect
-      id="api-key-member"
-      label={t('apiKeys.form.member')}
-      placeholder={t('apiKeys.form.memberPlaceholder')}
-      searchPlaceholder={t('apiKeys.form.memberSearch')}
-      // Nobody to offer, or a search that matched nobody.
-      emptyText={
-        options.length === 0
-          ? t('apiKeys.form.memberEmpty')
-          : t('apiKeys.form.memberNoMatch')
-      }
-      {...targetPickerProps({ error, onClosed })}
-      required
-      value={value || null}
-      onValueChange={(userId) =>
-        onChange(
-          userId,
-          options.find((option) => option.value === userId)?.label ?? userId,
-        )
-      }
-      options={options}
-    />
+    <TargetListField
+      read={read}
+      failedMessage={t('apiKeys.form.memberLoadFailed')}
+      pickerId="api-key-member"
+    >
+      <SearchableSelect
+        id="api-key-member"
+        label={t('apiKeys.form.member')}
+        placeholder={t('apiKeys.form.memberPlaceholder')}
+        searchPlaceholder={t('apiKeys.form.memberSearch')}
+        // Nobody to offer, or a search that matched nobody.
+        emptyText={
+          options.length === 0
+            ? t('apiKeys.form.memberEmpty')
+            : t('apiKeys.form.memberNoMatch')
+        }
+        {...targetPickerProps({ error, onClosed })}
+        required
+        disabled={!read.answered}
+        value={value || null}
+        onValueChange={(userId) =>
+          onChange(
+            userId,
+            options.find((option) => option.value === userId)?.label ?? userId,
+          )
+        }
+        options={options}
+      />
+    </TargetListField>
   );
 }
 
@@ -269,28 +331,42 @@ function TeamPicker({
   onChange: (teamId: string) => void;
 } & TargetPickerState) {
   const { t } = useT('settings');
-  const { teams } = useOrgTeams();
+  const { teams, unavailable, retrying, failureCount, retry } = useOrgTeams();
   const options = useMemo(
     () => (teams ?? []).map((team) => ({ value: team.id, label: team.name })),
     [teams],
   );
+  const read: TargetListRead = {
+    answered: teams !== undefined,
+    unavailable,
+    retrying,
+    failureCount,
+    retry,
+  };
   return (
-    <SearchableSelect
-      id="api-key-team"
-      label={t('apiKeys.form.team')}
-      placeholder={t('apiKeys.form.teamPlaceholder')}
-      searchPlaceholder={t('apiKeys.form.teamSearch')}
-      emptyText={
-        options.length === 0
-          ? t('apiKeys.form.teamEmpty')
-          : t('apiKeys.form.teamNoMatch')
-      }
-      {...targetPickerProps({ error, onClosed })}
-      required
-      value={value || null}
-      onValueChange={onChange}
-      options={options}
-    />
+    <TargetListField
+      read={read}
+      failedMessage={t('apiKeys.form.teamLoadFailed')}
+      pickerId="api-key-team"
+    >
+      <SearchableSelect
+        id="api-key-team"
+        label={t('apiKeys.form.team')}
+        placeholder={t('apiKeys.form.teamPlaceholder')}
+        searchPlaceholder={t('apiKeys.form.teamSearch')}
+        emptyText={
+          options.length === 0
+            ? t('apiKeys.form.teamEmpty')
+            : t('apiKeys.form.teamNoMatch')
+        }
+        {...targetPickerProps({ error, onClosed })}
+        required
+        disabled={!read.answered}
+        value={value || null}
+        onValueChange={onChange}
+        options={options}
+      />
+    </TargetListField>
   );
 }
 
@@ -306,7 +382,8 @@ function ProjectPicker({
   onChange: (projectId: string) => void;
 } & TargetPickerState) {
   const { t } = useT('settings');
-  const { projects } = useProjects(organizationId);
+  const { projects, hasAnswer, unavailable, retrying, failureCount, retry } =
+    useProjects(organizationId);
   const options = useMemo(
     () =>
       projects
@@ -315,22 +392,36 @@ function ProjectPicker({
         .map((project) => ({ value: project._id, label: project.name })),
     [projects],
   );
+  const read: TargetListRead = {
+    answered: hasAnswer,
+    unavailable,
+    retrying,
+    failureCount,
+    retry,
+  };
   return (
-    <SearchableSelect
-      id="api-key-project"
-      label={t('apiKeys.form.project')}
-      placeholder={t('apiKeys.form.projectPlaceholder')}
-      searchPlaceholder={t('apiKeys.form.projectSearch')}
-      emptyText={
-        options.length === 0
-          ? t('apiKeys.form.projectEmpty')
-          : t('apiKeys.form.projectNoMatch')
-      }
-      {...targetPickerProps({ error, onClosed })}
-      required
-      value={value || null}
-      onValueChange={onChange}
-      options={options}
-    />
+    <TargetListField
+      read={read}
+      failedMessage={t('apiKeys.form.projectLoadFailed')}
+      pickerId="api-key-project"
+    >
+      <SearchableSelect
+        id="api-key-project"
+        label={t('apiKeys.form.project')}
+        placeholder={t('apiKeys.form.projectPlaceholder')}
+        searchPlaceholder={t('apiKeys.form.projectSearch')}
+        emptyText={
+          options.length === 0
+            ? t('apiKeys.form.projectEmpty')
+            : t('apiKeys.form.projectNoMatch')
+        }
+        {...targetPickerProps({ error, onClosed })}
+        required
+        disabled={!read.answered}
+        value={value || null}
+        onValueChange={onChange}
+        options={options}
+      />
+    </TargetListField>
   );
 }

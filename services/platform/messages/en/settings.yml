@@ -1118,16 +1118,19 @@ apiKeys:
     memberSearch: Search members...
     memberEmpty: No member whose role is below yours
     memberNoMatch: No member matches
+    memberLoadFailed: Couldn't load the members.
     team: Team
     teamPlaceholder: Choose a team
     teamSearch: Search teams...
     teamEmpty: No teams
     teamNoMatch: No team matches
+    teamLoadFailed: Couldn't load the teams.
     project: Project
     projectPlaceholder: Choose a project
     projectSearch: Search projects...
     projectEmpty: No active projects
     projectNoMatch: No project matches
+    projectLoadFailed: Couldn't load the projects.
     role: Acts as
     roleHint: The role the key has in this organization. It cannot be above your own.
     targetRequired: Choose whom the key belongs to.

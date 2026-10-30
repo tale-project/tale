@@ -1169,16 +1169,19 @@ apiKeys:
     memberSearch: Mitglieder suchen...
     memberEmpty: Kein Mitglied mit einer niedrigeren Rolle als deiner
     memberNoMatch: Kein passendes Mitglied
+    memberLoadFailed: Die Mitglieder konnten nicht geladen werden.
     team: Team
     teamPlaceholder: Team auswählen
     teamSearch: Teams suchen...
     teamEmpty: Keine Teams
     teamNoMatch: Kein passendes Team
+    teamLoadFailed: Die Teams konnten nicht geladen werden.
     project: Projekt
     projectPlaceholder: Projekt auswählen
     projectSearch: Projekte suchen...
     projectEmpty: Keine aktiven Projekte
     projectNoMatch: Kein passendes Projekt
+    projectLoadFailed: Die Projekte konnten nicht geladen werden.
     role: Handelt als
     roleHint: Die Rolle des Schlüssels in dieser Organisation. Sie kann nicht höher sein als deine eigene.
     targetRequired: Wähle aus, wem der Schlüssel gehört.
