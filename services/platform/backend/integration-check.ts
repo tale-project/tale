@@ -224,12 +224,15 @@ import {
   isSkippedCheck,
   ITEST_VECTOR_WIDTH,
   itestObjectStore,
+  recordOpenStreams,
   recordSkip,
   requestedLanes,
   settleTeardown,
   signUpUser,
+  withCleanup,
   withinDeadline,
   type SseEvent,
+  type TeardownStep,
 } from './integration-lane-helpers.ts';
 import {
   itestResolve,
@@ -51076,7 +51079,21 @@ async function checkBellHintWire(
   const mateStream = connectSse(`${base}/events?orgId=${orgId}`, {
     cookie: mateCookie,
   });
-  try {
+  // On every path: both tails end (a tail that will not fails the lane in
+  // seconds, naming it, instead of holding it to the lane deadline), and the
+  // project goes, since later lanes count the organization's projects. A step
+  // that fails after the body did never hides the body's error.
+  const cleanup: TeardownStep[] = [
+    ["closes the owner's tail", () => ownerStream.close()],
+    ["closes the teammate's tail", () => mateStream.close()],
+    [
+      'deletes the bell-wire project',
+      () => sql`
+        DELETE FROM app.projects WHERE id = 'p-bell-wire' AND org_id = ${orgId}
+      `,
+    ],
+  ];
+  await withCleanup(cleanup, async () => {
     await sleep(500); // both tails established
     const startId = await latestOutboxId(sql);
 
@@ -51181,18 +51198,7 @@ async function checkBellHintWire(
         (row[0]?.read ?? false),
       `joined=${joined.status}, recipientHint=${mateGotIt}, otherMemberSpared=${ownerSpared}, outbox=${outboxRows.map((r) => `${r.entity}→${r.userId === mateId ? 'recipient' : (r.userId ?? 'org-wide')}`).join(',') || 'none'} (want notification→recipient), readAll=${markAll.status}/hint=${mateToldOfRead}, read=${row[0]?.read}`,
     );
-  } finally {
-    // On every path: both tails end (a tail that will not fails the lane in
-    // seconds, naming it, instead of holding it to the lane deadline), and
-    // the project goes, since later lanes count the organization's projects.
-    try {
-      await Promise.all([ownerStream.close(), mateStream.close()]);
-    } finally {
-      await sql`
-        DELETE FROM app.projects WHERE id = 'p-bell-wire' AND org_id = ${orgId}
-      `;
-    }
-  }
+  });
 }
 
 /**
@@ -64649,6 +64655,9 @@ async function runLanes(
       );
       globalThis.fetch = boundary;
     }
+    // The teardown's graceful close would end a tail the lane left open
+    // without a word; counted here, the leak names the lane.
+    await recordOpenStreams(name, record);
     const membershipsAfter = await withinDeadline(
       sharedMemberships(sql, ctx.userId),
       PROBE_DEADLINE_MS,
@@ -65065,6 +65074,10 @@ async function main(): Promise<void> {
       scaffoldDrained,
       `org-create scaffold job consumed=${scaffoldDrained}`,
     );
+
+    // The checks above open `/events` tails of their own (checkAuthAndSse);
+    // one they left open would otherwise be charged to the first lane.
+    await recordOpenStreams('the run before its lanes', record);
 
     // Every lane from here on rides the shared session. `runLanes` makes a
     // truncation LOUD: a lane that throws, or one that leaves the shared

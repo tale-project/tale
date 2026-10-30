@@ -849,7 +849,7 @@ async function collectGarbage(): Promise<void> {
 }
 
 describe("routeVendorFetch and the caller's abort", () => {
-  it('ends a streamed response on abort after a garbage collection, as fetch does', async () => {
+  it('ends a streamed response on abort after a garbage collection, as fetch does', async (ctx) => {
     // An `/events` tail on the box: one hint, then heartbeats until the
     // client goes. Before #4112 the boundary passed fetch a request whose
     // signal followed the caller's only through a weak link: a collection
@@ -872,38 +872,52 @@ describe("routeVendorFetch and the caller's abort", () => {
       stubOrigin: 'http://127.0.0.1:9',
       onOffBox: () => undefined,
     });
-    try {
-      const outcomes: string[] = [];
-      for (const fetchImpl of [globalThis.fetch, routed]) {
-        const controller = new AbortController();
-        const response = await fetchImpl(`http://127.0.0.1:${port}/events`, {
-          signal: controller.signal,
-        });
-        const reader = response.body?.getReader();
-        if (reader === undefined) throw new Error('the tail has no body');
-        await reader.read();
-        await collectGarbage();
-        controller.abort();
-        const ended = (async (): Promise<string> => {
-          try {
-            for (;;) {
-              if ((await reader.read()).done) return 'ended';
-            }
-          } catch (error) {
-            return error instanceof Error ? error.name : String(error);
+    /** How the tail ends when its caller aborts after a collection:
+     * `AbortError` once the abort reaches it. */
+    const outcomeOfAbort = async (
+      fetchImpl: typeof globalThis.fetch,
+    ): Promise<string> => {
+      const controller = new AbortController();
+      const response = await fetchImpl(`http://127.0.0.1:${port}/events`, {
+        signal: controller.signal,
+      });
+      const reader = response.body?.getReader();
+      if (reader === undefined) throw new Error('the tail has no body');
+      await reader.read();
+      await collectGarbage();
+      controller.abort();
+      const ended = (async (): Promise<string> => {
+        try {
+          for (;;) {
+            if ((await reader.read()).done) return 'ended';
           }
-        })();
-        const outcome = await Promise.race([
-          ended,
-          new Promise<string>((resolve) => {
-            setTimeout(() => resolve('still open 2 s after the abort'), 2_000);
-          }),
-        ]);
-        // A tail the abort missed is ended by hand; an aborted one is errored.
-        if (outcome !== 'AbortError') await reader.cancel();
-        outcomes.push(outcome);
+        } catch (error) {
+          return error instanceof Error ? error.name : String(error);
+        }
+      })();
+      const outcome = await Promise.race([
+        ended,
+        new Promise<string>((resolve) => {
+          setTimeout(() => resolve('still open 2 s after the abort'), 2_000);
+        }),
+      ]);
+      // A tail the abort missed is ended by hand; an aborted one is errored.
+      if (outcome !== 'AbortError') await reader.cancel();
+      return outcome;
+    };
+    try {
+      // The control: fetch itself. The Unit job runs whatever Node its image
+      // brings, and an undici without the fix for nodejs/undici#4627 loses
+      // this abort too (#4152). The boundary cannot be held to more than
+      // fetch does, so that runtime skips the test, saying why, instead of
+      // failing it.
+      const native = await outcomeOfAbort(globalThis.fetch);
+      if (native !== 'AbortError') {
+        const note = `fetch itself lost the abort after a collection (${native}) on Node ${process.versions.node} with undici ${process.versions.undici ?? 'unknown'}: an undici without the fix for nodejs/undici#4627, so the boundary cannot be judged here`;
+        console.warn(`[test] ${note}`);
+        ctx.skip(note);
       }
-      expect(outcomes).toEqual(['AbortError', 'AbortError']);
+      expect(await outcomeOfAbort(routed)).toBe('AbortError');
     } finally {
       server.closeAllConnections();
       server.close();
