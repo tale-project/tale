@@ -16,6 +16,8 @@ import { SettingsSection } from '@/app/features/settings/components/settings-sec
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
 import { useBackendAction } from '@/app/hooks/use-backend-action';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { useT } from '@/lib/i18n/client';
@@ -36,23 +38,26 @@ interface SandboxesSettingsProps {
   organizationId: string;
 }
 
-function formatCents(cents: number | undefined): string {
-  if (cents === undefined) return '—';
-  return `$${(cents / 100).toFixed(2)}`;
-}
-
 export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
   const { t } = useT('sandboxes');
   const { toast } = useToast();
+  const { formatCostCents } = useFormatNumber();
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
   const canRead = ability.can('read', 'developerSettings');
   const canManage = ability.can('write', 'orgSettings');
 
-  const { data, isLoading, error } = useBackendQuery(
+  const { data, isLoading, error, refetch } = useBackendQuery(
     'sandbox/session_queries_public:listSandboxesForOrg',
     canManage ? { organizationId } : 'skip',
   );
+  // Try again in the table's error state re-reads the workspaces; the
+  // section takes the focus the button held while the table loads again.
+  const sessionsRecovery = useListReadRecovery<HTMLElement>({
+    error,
+    results: data?.sessions ?? [],
+    retry: refetch,
+  });
 
   const capacity = useBackendQuery(
     'sandbox/session_queries_public:getSandboxCapacity',
@@ -335,10 +340,13 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         id: 'spend',
         size: 80,
         header: t('columns.spend'),
-        // Cumulative spend across every task this sandbox has run. `|| undefined`
-        // renders a never-billed sandbox as "—" rather than a misleading $0.00.
+        // Cumulative spend across every task this sandbox has run, in the
+        // reader's locale. A never-billed sandbox reads "—" rather than a
+        // misleading $0.00.
         cell: ({ row }) =>
-          formatCents(row.original.totalSpentCents || undefined),
+          row.original.totalSpentCents
+            ? formatCostCents(row.original.totalSpentCents)
+            : '—',
       },
       {
         accessorKey: 'createdAt',
@@ -423,6 +431,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
     ],
     [
       t,
+      formatCostCents,
       organizationId,
       pendingId,
       stopTask,
@@ -472,6 +481,8 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       {canManage && <WorkspaceCleanupEditor organizationId={organizationId} />}
       {canManage && (
         <SettingsSection
+          ref={sessionsRecovery.regionRef}
+          tabIndex={-1}
           title={t('sessionsTitle')}
           description={t('description')}
         >
@@ -480,6 +491,8 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
             data={data?.sessions ?? []}
             isLoading={isLoading}
             error={error}
+            onRetry={sessionsRecovery.retryRead}
+            onErrorFocusLost={sessionsRecovery.focusRegion}
             approxRowCount={data?.sessions.length}
             getRowId={(row) => row.sessionId}
             emptyState={{

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
 import { EmptyState } from '@tale/ui/empty-state';
 import { ProgressBar } from '@tale/ui/progress-bar';
@@ -9,7 +10,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { Link } from '@tanstack/react-router';
 import { Gauge } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { type ReactNode, useCallback, useRef } from 'react';
 
 import { useUploadUsage } from '@/app/features/documents/hooks/queries';
 import {
@@ -24,6 +25,7 @@ import {
 } from '@/app/features/settings/governance/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 import { formatBytes } from '@/lib/utils/format/number';
 
@@ -281,13 +283,33 @@ function PlaceholderMeter({ seed }: { seed: number }) {
   );
 }
 
+/**
+ * The member's upload quota. A failed read says so, with **Try again**, and
+ * never reads as "no storage limit" (#4832): that sentence is a read that
+ * answered with no limit.
+ */
 function StorageSection({ organizationId }: { organizationId: string }) {
   const { t } = useT('settings');
   const { locale } = useFormatNumber();
-  const { data: storage, isLoading } = useUploadUsage(organizationId);
+  const storageQuery = useUploadUsage(organizationId);
+  const { data: storage, refetch } = storageQuery;
+  const { unavailable, stale, retrying, failureCount } =
+    readStateOf(storageQuery);
   const label = t('usage.storage.label');
+  // Masked until the read answers. A failed read is not masked, also while
+  // Try again runs (react-query puts it back to pending then): its notice
+  // stays readable.
+  const loading = storage === undefined && !unavailable;
 
-  let body: ReactNode;
+  // A retry that works takes the notice away, and with it a Try again that
+  // held the focus: the focus goes to the section, which keeps its name,
+  // instead of dropping to the page.
+  const sectionRef = useRef<HTMLElement>(null);
+  const focusSection = useCallback(() => {
+    sectionRef.current?.focus();
+  }, []);
+
+  let body: ReactNode = null;
   if (storage?.limited && storage.limitBytes !== null) {
     body = (
       <SettingsFieldList>
@@ -303,7 +325,7 @@ function StorageSection({ organizationId }: { organizationId: string }) {
         </SettingsFieldRow>
       </SettingsFieldList>
     );
-  } else if (isLoading) {
+  } else if (loading) {
     // Most organizations cap storage (the default upload policy does), so
     // the first paint takes the metered shape.
     body = (
@@ -313,7 +335,7 @@ function StorageSection({ organizationId }: { organizationId: string }) {
         </SettingsFieldRow>
       </SettingsFieldList>
     );
-  } else {
+  } else if (storage !== undefined) {
     body = (
       <p className="text-muted-foreground text-sm">
         {t('usage.storage.unlimited')}
@@ -322,11 +344,29 @@ function StorageSection({ organizationId }: { organizationId: string }) {
   }
 
   return (
-    <Skeletonize loading={isLoading} label={t('usage.storage.title')}>
+    <Skeletonize loading={loading} label={t('usage.storage.title')}>
       <SettingsSection
+        ref={sectionRef}
+        tabIndex={-1}
+        className="outline-none"
         title={t('usage.storage.title')}
         description={t('usage.storage.description')}
       >
+        {(unavailable || stale) && (
+          <CatalogLoadError
+            // Each failure is announced again; Try again keeps its node, and
+            // the focus on it, while a retry runs and when it fails again.
+            failureKey={failureCount}
+            onFocusLost={focusSection}
+            message={t(
+              stale
+                ? 'usage.storage.refreshFailed'
+                : 'usage.storage.loadFailed',
+            )}
+            onRetry={() => void refetch()}
+            isRetrying={retrying}
+          />
+        )}
         {body}
       </SettingsSection>
     </Skeletonize>

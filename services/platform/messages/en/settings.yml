@@ -108,6 +108,7 @@ modelEndpoints:
   description: Use the organization's models from your own tools — opencode,
     Claude Code, the OpenAI and Anthropic SDKs — with a personal API key.
   loadFailed: Couldn't load the model endpoints' status.
+  organizationReadFailed: The organization details could not be loaded, so the organization slug and the setup examples are unavailable.
   governanceNote: Every call counts against your budgets and passes the
     organization's input guardrails; the models' answers are not filtered.
   disabled:
@@ -238,6 +239,8 @@ usage:
       is reached, new document uploads are refused.
     label: Uploaded files
     unlimited: No storage limit applies to you.
+    loadFailed: Couldn't load your storage usage.
+    refreshFailed: Couldn't refresh your storage usage. What's shown may be out of date.
 organization:
   title: Organization name
   detailsTitle: Organization details

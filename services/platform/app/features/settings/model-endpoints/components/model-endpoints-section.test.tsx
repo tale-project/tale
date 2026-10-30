@@ -33,6 +33,11 @@ const state = vi.hoisted(() => ({
         },
     refetch: vi.fn(),
   },
+  organization: {
+    data: undefined as undefined | { slug: string },
+    isError: false,
+    refetch: vi.fn(),
+  },
   admin: true,
 }));
 
@@ -61,7 +66,7 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 vi.mock('@/app/features/organization/hooks/queries', () => ({
-  useOrganization: () => ({ data: { slug: 'northlight' } }),
+  useOrganization: () => state.organization,
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({
@@ -80,6 +85,9 @@ beforeEach(() => {
   state.access.isLoading = false;
   state.access.data = { enabled: true, allowed: true, models: MODELS };
   state.access.refetch.mockReset();
+  state.organization.data = { slug: 'northlight' };
+  state.organization.isError = false;
+  state.organization.refetch.mockReset();
   state.admin = true;
 });
 
@@ -189,6 +197,40 @@ describe('ModelEndpointsSection', () => {
 
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(state.access.refetch).toHaveBeenCalled();
+  });
+
+  // #4832: a failed organization read put "<org-slug>" into every snippet.
+  it('says the organization could not be read, with Try again, and hands out no setup', async () => {
+    state.organization.data = undefined;
+    state.organization.isError = true;
+    const { user, container } = render(
+      <ModelEndpointsSection organizationId="org-1" />,
+    );
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'The organization details could not be loaded, so the organization slug and the setup examples are unavailable.',
+    );
+    expect(screen.queryByText(/<org-slug>/)).toBeNull();
+    for (const setup of ['opencode', 'Claude Code', 'OpenAI SDK (Python)']) {
+      expect(screen.queryByRole('heading', { name: setup })).toBeNull();
+    }
+    expect(screen.queryByText('Organization slug')).toBeNull();
+    // What does not depend on the organization stays.
+    expect(
+      screen.getByText('https://tale.example.com/api/v1/openai'),
+    ).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(state.organization.refetch).toHaveBeenCalledTimes(1);
+    await checkAccessibility(container);
+  });
+
+  it('hands out no placeholder slug while the organization loads', () => {
+    state.organization.data = undefined;
+    render(<ModelEndpointsSection organizationId="org-1" />);
+
+    expect(screen.queryByText(/<org-slug>/)).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('marks the page busy while the status loads', () => {

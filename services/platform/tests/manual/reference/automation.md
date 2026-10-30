@@ -338,6 +338,24 @@ cached run controls survive a failed background read. These cases are owned
 by `app/features/tasks/components/task-agent-run-entry.test.tsx` (#3829).
 Real-browser focus, speech and narrow-screen layout remain manual.
 
+Settings > Usage tells a failed storage read apart from no limit (#4832): an
+EN/DE/FR alert with Try again stands in place of **No storage limit applies to
+you.**, with no meter and no loading mask; the alert and a busy Try again hold
+through the retry, and a failed refresh keeps the last meter under a notice
+that it may be out of date. These cases are owned by
+`app/features/settings/usage/components/usage-settings.test.tsx`. On Settings >
+Sandboxes, Try again in the workspaces' and the devices' table error state reads
+the list again and leaves the focus on its section, and the Spend column is
+written in the reader's language by the shared cost formatter (`1.234,50 $` in
+German), owned by `app/features/settings/sandboxes/sandboxes-settings.test.tsx`
+and `app/features/settings/sandboxes/sandbox-devices.test.tsx`. Settings > API >
+Models answers a failed organization read with an EN/DE/FR alert and Try again
+and hands out no slug row and no setup snippet, never `<org-slug>`, nor while
+the read is pending; owned by
+`app/features/settings/model-endpoints/components/model-endpoints-section.test.tsx`.
+The real disconnected-backend interaction, browser layout and screen-reader
+announcements remain manual.
+
 A Documents folder list that never answers is named above the table in
 EN/DE/FR (`documents.foldersLoadFailed`) with Try again, never as an empty
 library: at the hub root with no unfiled documents **No documents yet** stays

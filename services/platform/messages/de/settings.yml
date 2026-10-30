@@ -110,6 +110,7 @@ modelEndpoints:
     API-Schlüssel aus deinen eigenen Werkzeugen — opencode, Claude Code,
     den OpenAI- und Anthropic-SDKs.
   loadFailed: Der Status der Modell-Endpunkte konnte nicht geladen werden.
+  organizationReadFailed: Die Organisationsdaten konnten nicht geladen werden; der Organisations-Slug und die Einrichtungsbeispiele sind nicht verfügbar.
   governanceNote: Jeder Aufruf zählt gegen deine Budgets und durchläuft die
     Eingabe-Guardrails der Organisation; die Antworten der Modelle werden
     nicht gefiltert.
@@ -244,6 +245,8 @@ usage:
       Limit erreicht, werden neue Dokument-Uploads abgelehnt.
     label: Hochgeladene Dateien
     unlimited: Für dich gilt kein Speicherlimit.
+    loadFailed: Deine Speichernutzung konnte nicht geladen werden.
+    refreshFailed: Deine Speichernutzung konnte nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
 organization:
   title: Organisationsname
   loadFailed: Die Organisationsdetails konnten nicht geladen werden.
