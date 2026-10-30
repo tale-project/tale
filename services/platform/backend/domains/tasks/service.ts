@@ -3729,7 +3729,10 @@ export interface TaskListFilters {
   status?: string;
   statuses?: string[];
   assigneeId?: string;
-  /** The person named to review the task's result (`reviewer_user_id`). */
+  /** The person whose review the task waits on: the one its pending review
+   * asks (the named reviewer, or whom the review fell back to, such as the
+   * task's creator), else, while no review is pending, the person named as
+   * reviewer (`reviewer_user_id`). */
   reviewerId?: string;
   externalSystem?: string;
   /** The toolbar's search: the palette's token-AND match, applied with the
