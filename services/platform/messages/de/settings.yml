@@ -48,7 +48,7 @@ menu:
       Organisation liegen und welches Embedding-Modell sie verarbeitet.
 mcpConnect:
   title: Coding-Agent verbinden
-  description: Claude Code, Codex und andere Coding-Agents arbeiten über den MCP-Server von Tale in dieser Organisation. Du wählst bei der Anmeldung, was ein Agent darf, und er darf nie mehr als du.
+  description: Claude Code, Codex und andere Coding-Agenten arbeiten über den MCP-Server von Tale in dieser Organisation. Du wählst bei der Anmeldung, was ein Agent darf, und er darf nie mehr als du.
 mcpEndpoint:
   title: MCP-Endpunkt
   description: Verbinde einen MCP-Client mit diesem Deployment, um
@@ -271,7 +271,7 @@ organization:
   organizationCreated: Organisation erstellt!
   deleteDialogTitle: Organisation löschen
   deleteDialogDescription:
-    „{name}“ löschen? Damit werden Agents, Automatisierungen,
+    „{name}“ löschen? Damit werden Agenten, Automatisierungen,
     Anbieter und Connectors entfernt. Mitglieder verlieren den Zugriff.
     Dies kann nicht rückgängig gemacht werden.
   dangerZoneTitle: Gefahrenzone
@@ -1382,7 +1382,7 @@ logs:
       api_key.updated: API-Schlüssel aktualisiert
       api_key.revoked: API-Schlüssel widerrufen
       agent_connection.created: Coding-Agent verbunden
-      agent_connection.updated: Zugriff eines Coding-Agents geändert
+      agent_connection.updated: Zugriff eines Coding-Agenten geändert
       agent_connection.revoked: Coding-Agent getrennt
       webdav_app_password.created: WebDAV-App-Passwort erstellt
       webdav_app_password.revoked: WebDAV-App-Passwort widerrufen
@@ -1645,7 +1645,7 @@ logs:
       connector_operation: Connector-Vorgang
       connector_credential: Connector-Zugangsdaten
       api_key: API-Schlüssel
-      agent_connection: Verbindung eines Coding-Agents
+      agent_connection: Verbindung eines Coding-Agenten
       webdav_app_password: WebDAV-App-Passwort
       sso_provider: SSO-Anbieter
       video_link: Video-Link
@@ -1667,7 +1667,7 @@ logs:
       audit_log: Audit-Log
       chat_filter_event: Chat-Filter-Ereignis
       memory_audit: Speicher-Audit
-      governance_policy: Governance-Richtlinie
+      governance_policy: Richtlinie
       legal_matter: Legal Matter
       legal_hold: Legal Hold
       legal_hold_batch: Legal-Hold-Batch

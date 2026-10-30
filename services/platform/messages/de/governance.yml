@@ -7,7 +7,7 @@ toastSaveFailedTitle: Änderungen konnten nicht gespeichert werden
 systemPrompt:
   title: Benutzerdefinierte Anweisungen
   description:
-    Dieser Text steht in diesem Arbeitsbereich vor den Anweisungen jedes Agents.
+    Dieser Text steht in diesem Arbeitsbereich vor den Anweisungen jedes Agenten.
     Nutzer können ihn nicht überschreiben.
   enabled: Benutzerdefinierte Anweisungen
   instructionsPlaceholder: Verbindliche Anweisungen eingeben...
@@ -430,7 +430,7 @@ retentionPolicy:
     helper: Benachrichtigungen, die älter als dies sind, werden gelöscht.
   chatHistory:
     title: Chat-Verlauf
-    description: Konversationen mit Agents (Chat-Threads), die älter als die
+    description: Konversationen mit Agenten (Chat-Threads), die älter als die
       Aufbewahrungsfrist sind, automatisch löschen. Nachrichteninhalte in der
       Agent-Komponente werden archiviert. Die Löschung ist unumkehrbar.
     placeholder: z. B. 90
@@ -455,7 +455,7 @@ retentionPolicy:
     helper: Temporäre Dateien, die älter sind, werden gelöscht.
   agentTemp:
     title: Bereinigung temporärer Agent-Dateien
-    description: Dateien, die von Agents erzeugt, aber nie in einem Dokument
+    description: Dateien, die von Agenten erzeugt, aber nie in einem Dokument
       gespeichert wurden (z. B. Zwischenresultate, Wissensdateien),
       automatisch löschen.
     placeholder: z. B. 24
@@ -1602,8 +1602,8 @@ dataSubjectRequests:
     subscriptions: Gefolgte Aufgaben
     feedback: Nachrichten-Feedback
     memories: Persönliche Memos
-    mcpActivity: Aktivität der Coding-Agents
-    agentConnections: Verbindungen der Coding-Agents
+    mcpActivity: Aktivität der Coding-Agenten
+    agentConnections: Verbindungen der Coding-Agenten
     directCalls: Direkte Modellaufrufe
     videoLinks: Videolinks
     cloudGrants: Cloud-Import-Autorisierungen
@@ -1730,7 +1730,7 @@ dataSubjectRequests:
       'Doppelfreigabe erforderlich: Die einreichende Person kann
       ihre eigene Anfrage nicht freigeben.'
 dsarPolicy:
-  title: Governance für Anfragen betroffener Personen
+  title: Richtlinie für Anfragen betroffener Personen
   description: Karenzzeit, Doppelfreigabe und tägliches Limit pro Admin für
     DSGVO-Art.-17-Löschungsanfragen.
   coolingOffHours:
@@ -1752,8 +1752,8 @@ dsarPolicy:
       'Maximale Anzahl an Löschungsanfragen, die ein einzelner Admin pro
       Tag einreichen darf. Begrenzt den Schaden bei kompromittierten
       Admin-Zugängen. Bereich: 1–50.'
-  saved: Governance für Anfragen betroffener Personen aktualisiert.
-  saveFailed: Governance-Richtlinie konnte nicht gespeichert werden. Versuch es nochmal.
+  saved: Richtlinie für Anfragen betroffener Personen aktualisiert.
+  saveFailed: Richtlinie konnte nicht gespeichert werden. Versuch es nochmal.
   invalidCoolingOffHours: Die Karenzzeit muss eine ganze Zahl zwischen 0 und 72 sein.
   invalidDailyLimit: Das tägliche Limit muss eine ganze Zahl zwischen 1 und 50 sein.
   ownerOnlyNotice:

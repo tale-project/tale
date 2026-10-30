@@ -1,6 +1,9 @@
 /**
  * JSON walker — emits one `Fragment` per string leaf in the parsed JSON
- * tree, with dotted key path and mask-applied text.
+ * tree, with dotted key path and mask-applied text. The strings of a list
+ * item (a FAQ entry, a tour stage) are leaves like any other: their keys name
+ * its index, as in `faq.items.0.q`. Its `id` and `path` are left out
+ * (`LIST_ITEM_VALUE_KEYS`).
  *
  * Line numbers for JSON fragments are computed by re-walking the raw source
  * text and finding each string literal's offset; this gives the reviewer a
@@ -23,18 +26,30 @@ interface FlatEntry {
   readonly value: string;
 }
 
+/**
+ * The fields of a list item that hold a value the code reads, not text a
+ * reader sees: the `id` a tour stage's copy is found by and the `path` a docs
+ * entry links to. Outside a list, a key of the same name is a label
+ * (`editor.fields.id: ID`), so it is read.
+ */
+const LIST_ITEM_VALUE_KEYS = new Set(['id', 'path']);
+
 function flatten(
   node: unknown,
   prefix = '',
   out: FlatEntry[] = [],
+  listItem = false,
 ): FlatEntry[] {
   if (typeof node === 'string') {
     out.push({ key: prefix, value: node });
     return out;
   }
-  if (node && typeof node === 'object' && !Array.isArray(node)) {
+  if (node && typeof node === 'object') {
+    // A list's entries are its indices, so its items read as `<list>.<index>`.
+    const list = Array.isArray(node);
     for (const [k, v] of Object.entries(node)) {
-      flatten(v, prefix ? `${prefix}.${k}` : k, out);
+      if (listItem && LIST_ITEM_VALUE_KEYS.has(k)) continue;
+      flatten(v, prefix ? `${prefix}.${k}` : k, out, list);
     }
   }
   return out;
