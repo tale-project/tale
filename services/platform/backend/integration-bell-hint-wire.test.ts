@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
 import ts from 'typescript';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { withCleanup } from './integration-lane-helpers.ts';
 
 type Lane = (
   sql: unknown,
@@ -42,6 +44,10 @@ function bellLane(globals: Record<string, unknown>): Lane {
 }
 
 describe('the actual bell lane cleans up on failure (#4077, #4133)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it.each([false, true])(
     'deletes its project even when closing a tail fails: %s',
     async (closeFails) => {
@@ -65,25 +71,33 @@ describe('the actual bell lane cleans up on failure (#4077, #4133)', () => {
         .fn()
         .mockReturnValueOnce({ close: ownerClose })
         .mockReturnValueOnce({ close: mateClose });
+      const warn = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
       const lane = bellLane({
         signUpUser: async () => ({ cookie: 'mate-cookie', userId: 'mate' }),
         fetch: async () => ({ ok: true }),
         connectSse,
         sleep: async () => undefined,
         latestOutboxId: async () => '0',
+        withCleanup,
       });
 
+      // The lane's own failure propagates; a tail that will not close is
+      // only logged, so it cannot hide that failure (#4152).
       await expect(
         lane(sql, 'http://example.invalid', {
           cookie: 'owner-cookie',
           orgId: 'org-synthetic',
           userId: 'owner',
         }),
-      ).rejects.toThrow(
-        closeFails
-          ? 'Synthetic tail close failure'
-          : 'Synthetic task insert failure',
-      );
+      ).rejects.toThrow('Synthetic task insert failure');
+      expect(
+        warn.mock.calls
+          .flat()
+          .join('\n')
+          .includes('Synthetic tail close failure'),
+      ).toBe(closeFails);
 
       expect(ownerClose).toHaveBeenCalledTimes(1);
       expect(mateClose).toHaveBeenCalledTimes(1);
