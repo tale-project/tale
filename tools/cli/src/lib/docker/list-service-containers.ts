@@ -33,8 +33,18 @@ export interface ComposeContainer {
   service: string;
   /** Replica index within that service (1-based; 1 for an unscaled one). */
   index: number;
-  /** Whether it is running right now (as opposed to created/exited). */
+  /**
+   * Whether its state is exactly `running`. A replica waiting out a restart
+   * backoff (`restarting`) or `paused` is `false` here, though the first
+   * starts again by itself and the second resumes on `docker unpause`; read
+   * `state` to tell them apart.
+   */
   running: boolean;
+  /**
+   * Docker's state word (`docker ps` `{{.State}}`): `created`, `running`,
+   * `restarting`, `paused`, `removing`, `exited` or `dead`.
+   */
+  state: string;
 }
 
 const PROJECT_LABEL = 'com.docker.compose.project';
@@ -94,6 +104,7 @@ export async function listComposeContainers(
           service: svc ?? '',
           index: Number.parseInt(number ?? '', 10),
           running: state === 'running',
+          state: state ?? '',
           oneoff: (oneoff ?? '').toLowerCase() === 'true',
         };
       })

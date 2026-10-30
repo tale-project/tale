@@ -241,6 +241,7 @@ describe('awaitRunningColorHealthy', () => {
     service: 'backend-api',
     index,
     running,
+    state: running ? 'running' : 'exited',
   });
   const args = {
     color: 'green' as const,

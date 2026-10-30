@@ -739,7 +739,7 @@ Mit `--json` führt der Bericht jede Prüfung mit Status (`pass`, `fail` oder `s
 
 `tale restore [snapshot-id]` — einen Snapshot wiederherstellen; ohne ID werden die verfügbaren Snapshots aufgelistet.
 
-- `--stop` — laufende Projekt-Container vor dem Wiederherstellen stoppen.
+- `--stop` — vor dem Wiederherstellen die Projekt-Container stoppen, die laufen, gerade neu gestartet werden oder pausiert sind. Ohne die Option verweigert die CLI die Wiederherstellung und nennt diese Container.
 - `-y, --yes` — die Bestätigungsabfrage überspringen.
 
 `tale rollback` — auf die vorherige Patch-Version zurückrollen (nur Patch-Ebene). Fragt vorher nach Bestätigung.

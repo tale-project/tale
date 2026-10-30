@@ -58,19 +58,48 @@ describe('listComposeContainers', () => {
         service: 'backend-api',
         index: 1,
         running: true,
+        state: 'running',
       },
       {
         name: 'tale-blue-backend-api-2',
         service: 'backend-api',
         index: 2,
         running: true,
+        state: 'running',
       },
       {
         name: 'tale-blue-platform-1',
         service: 'platform',
         index: 1,
         running: true,
+        state: 'running',
       },
+    ]);
+  });
+
+  // `running` keeps its narrow meaning for the callers that wait on healthy
+  // replicas; `state` is what tells a crash-looping or paused replica, which
+  // still starts or resumes by itself, from one that is down.
+  test("carries each replica's state word, and is running only for running", async () => {
+    const states = [
+      'created',
+      'running',
+      'restarting',
+      'paused',
+      'removing',
+      'exited',
+      'dead',
+    ];
+    psReturns(
+      states.map((state, i) =>
+        row(`tale-blue-backend-api-${i + 1}`, 'backend-api', `${i + 1}`, state),
+      ),
+    );
+
+    const found = await listComposeContainers('tale-blue', 'backend-api');
+    expect(found.map((c) => c.state)).toEqual(states);
+    expect(found.filter((c) => c.running).map((c) => c.state)).toEqual([
+      'running',
     ]);
   });
 

@@ -26,7 +26,7 @@ import {
 } from '../compose/types';
 import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
-import { isContainerRunning } from '../docker/is-container-running';
+import { getContainerState } from '../docker/get-container-state';
 import { listComposeContainers } from '../docker/list-service-containers';
 import { stopContainer } from '../docker/stop-container';
 import { withLock } from '../state/with-lock';
@@ -35,7 +35,7 @@ interface RestoreOptions {
   env: DeploymentEnv;
   /** Omitted = list available snapshots and exit. */
   snapshotId?: string;
-  /** Stop running project containers instead of refusing. */
+  /** Stop live project containers instead of refusing. */
   stop?: boolean;
   /** Non-interactive: skip the confirmation prompt. */
   assumeYes?: boolean;
@@ -52,7 +52,7 @@ export interface RestoreDeps {
   listSnapshots: typeof listSnapshots;
   resolveSnapshotPrefix: typeof resolveSnapshotPrefix;
   verifySnapshot: typeof verifySnapshot;
-  isContainerRunning: typeof isContainerRunning;
+  getContainerState: typeof getContainerState;
   listComposeContainers: typeof listComposeContainers;
   stopContainer: typeof stopContainer;
 }
@@ -61,22 +61,48 @@ const DEFAULT_DEPS: RestoreDeps = {
   listSnapshots,
   resolveSnapshotPrefix,
   verifySnapshot,
-  isContainerRunning,
+  getContainerState,
   listComposeContainers,
   stopContainer,
 };
 
 /**
- * Every container this project can be running: the stateful tier and the dev
- * stack by their pinned names, and both colours by their compose project —
- * a colour is a replica set with compose-numbered names, so the project
- * label is the only handle that finds all of them.
+ * The Docker states in which a container has no process and none on the way:
+ * never started, stopped, or left over from a failed removal. Every other
+ * state is live for a restore — `running`, but also `restarting` (an
+ * `unless-stopped` replica between crash-loop attempts starts again by
+ * itself), `paused` (it resumes on `docker unpause`), `removing`, and any
+ * state a newer Docker adds.
  */
-async function findRunningProjectContainers(
+const STOPPED_STATES: ReadonlySet<string> = new Set([
+  'created',
+  'exited',
+  'dead',
+]);
+
+function isLive(state: string): boolean {
+  return !STOPPED_STATES.has(state);
+}
+
+interface LiveContainer {
+  name: string;
+  /** Docker's state word, which the refusal names. */
+  state: string;
+}
+
+/**
+ * Every live container of this project: the stateful tier and the dev stack
+ * by their pinned names, and both colours by their compose project — a
+ * colour is a replica set with compose-numbered names, so the project label
+ * is the only handle that finds all of them. Both are judged by one state
+ * word and one predicate, so a replica that is restarting or paused is
+ * refused and stopped like the stateful tier already was.
+ */
+async function findLiveProjectContainers(
   deps: RestoreDeps,
-): Promise<string[]> {
+): Promise<LiveContainer[]> {
   const projectId = getProjectId();
-  const running: string[] = [];
+  const live: LiveContainer[] = [];
   const named: string[] = [];
   for (const service of [...STATEFUL_SERVICES, ...SIDECAR_SERVICES]) {
     named.push(`${projectId}-${service}`);
@@ -87,18 +113,20 @@ async function findRunningProjectContainers(
     named.push(`${projectId}-${service}`);
   }
   for (const name of named) {
-    if (await deps.isContainerRunning(name)) {
-      running.push(name);
-    }
+    // `null`: no such container, so nothing to refuse or stop.
+    const state = await deps.getContainerState(name);
+    if (state !== null && isLive(state)) live.push({ name, state });
   }
   for (const color of ['blue', 'green'] as const) {
     for (const container of await deps.listComposeContainers(
       `${projectId}-${color}`,
     )) {
-      if (container.running) running.push(container.name);
+      if (isLive(container.state)) {
+        live.push({ name: container.name, state: container.state });
+      }
     }
   }
-  return running;
+  return live;
 }
 
 function totalSizeBytes(manifest: SnapshotManifest): number {
@@ -174,16 +202,18 @@ export async function restore(
 
     // Restoring under a live stack guarantees corruption — Postgres would
     // be rewritten underneath a running postmaster. Refuse unless stopped.
-    const running = await findRunningProjectContainers(deps);
-    if (running.length > 0) {
+    const live = await findLiveProjectContainers(deps);
+    if (live.length > 0) {
       if (!options.stop) {
         throw new Error(
-          `Refusing to restore while project containers are running: ${running.join(', ')}.\n` +
+          `Refusing to restore while project containers are live: ${live.map(({ name, state }) => `${name} (${state})`).join(', ')}.\n` +
             '  Stop them first, or re-run with --stop.',
         );
       }
-      logger.step('Stopping running project containers...');
-      for (const name of running) {
+      // `docker stop` also ends a restart loop and stops a paused container;
+      // `unless-stopped` then keeps either down, even across a daemon restart.
+      logger.step('Stopping live project containers...');
+      for (const { name } of live) {
         const stopped = await deps.stopContainer(name);
         if (!stopped) {
           throw new Error(`Failed to stop ${name} — aborting restore.`);

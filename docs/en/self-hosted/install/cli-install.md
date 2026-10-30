@@ -734,7 +734,7 @@ With `--json`, the report lists each check with its status (`pass`, `fail` or `s
 
 `tale restore [snapshot-id]` — restore a snapshot; omit the id to list available snapshots.
 
-- `--stop` — stop running project containers before restoring.
+- `--stop` — before restoring, stop the project containers that are running, restarting or paused. Without it, the restore refuses and names them.
 - `-y, --yes` — skip the confirmation prompt.
 
 `tale rollback` — roll back to the previous patch version (patch-level only). Prompts for confirmation before it touches anything.
