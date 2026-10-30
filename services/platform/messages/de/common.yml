@@ -5,6 +5,8 @@ import:
   moreRows: '… und {count} weitere'
   tooManyRows: Diese Datei enthält {count} Zeilen zum Importieren, Tale importiert aber höchstens {max} auf einmal. Teile sie in kleinere Dateien auf und importiere jede einzeln.
   unpairedQuotes: 'Die Anführungszeichen in dieser Zeile passen nicht zusammen. Setze jede Zelle in ein Paar Anführungszeichen und schreibe ein Anführungszeichen darin doppelt ("").'
+  missingColumns: '{count, plural, one {Dieser Datei fehlt die Spalte {columns}.} other {Dieser Datei fehlen die Spalten {columns}.}} {foundCount, plural, =0 {In der ersten Zeile steht kein Spaltenname.} one {Vorhanden ist nur die Spalte {found}.} other {Vorhanden sind die Spalten {found}.}}'
+  unreadable: Tale konnte diese Datei nicht lesen. Öffne sie in einer Tabellenkalkulation, speichere sie als .xlsx oder .csv und importiere sie erneut.
   fields:
     name: Name
     price: Preis

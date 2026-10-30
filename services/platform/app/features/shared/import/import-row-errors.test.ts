@@ -5,9 +5,11 @@ import {
   IMPORT_ROW_FIELDS,
   IMPORT_ROW_REASONS,
 } from '@/lib/utils/file-parsing';
+import { i18n } from '@/tests/utils/i18n-all-languages';
 import { deMessages, enMessages, frMessages } from '@/tests/utils/messages';
 
 import {
+  importFileErrorMessage,
   importRowErrorLine,
   importRowErrorMessage,
   mergeImportRowErrors,
@@ -19,6 +21,7 @@ type Bundle = {
       fields: Record<string, string>;
       reasons: Record<string, string>;
       unpairedQuotes: string;
+      unreadable: string;
     };
   };
 };
@@ -140,6 +143,98 @@ describe('importRowErrorMessage', () => {
           .replace('{options}', 'active, draft');
         expect(rendered).not.toMatch(/\{\w+\}/);
       }
+    },
+  );
+});
+
+describe('importFileErrorMessage (#4841)', () => {
+  const tCommon = ((key: string, params?: Record<string, unknown>) =>
+    params
+      ? `${key} ${Object.entries(params)
+          .map(([k, v]) => `${k}=${String(v)}`)
+          .join(' ')}`
+      : key) as unknown as TFunction;
+
+  it('words a missing column from its code, the columns and the headers found', () => {
+    expect(
+      importFileErrorMessage(tCommon, {
+        code: 'missingColumns',
+        columns: ['price', 'stock'],
+        found: ['name', 'preis'],
+      }),
+    ).toBe(
+      'import.missingColumns count=2 columns=price, stock foundCount=2 found=name, preis',
+    );
+  });
+
+  it('words a file of another format and a file it could not read', () => {
+    expect(importFileErrorMessage(tCommon, { code: 'unsupportedFormat' })).toBe(
+      'validation.unsupportedFileType',
+    );
+    expect(importFileErrorMessage(tCommon, { code: 'unreadable' })).toBe(
+      'import.unreadable',
+    );
+  });
+
+  // The catalogs' ICU, rendered: one missing column or several, beside no
+  // header, one, or several. The column names stay the headers the parser
+  // accepts, untranslated.
+  const SENTENCES = {
+    en: [
+      'This file is missing the column email. Its columns are e-mail-adresse, name.',
+      'This file is missing the columns price, stock. Its only column is name.',
+      'This file is missing the columns name, price, stock. Its first row names no columns.',
+    ],
+    de: [
+      'Dieser Datei fehlt die Spalte email. Vorhanden sind die Spalten e-mail-adresse, name.',
+      'Dieser Datei fehlen die Spalten price, stock. Vorhanden ist nur die Spalte name.',
+      'Dieser Datei fehlen die Spalten name, price, stock. In der ersten Zeile steht kein Spaltenname.',
+    ],
+    fr: [
+      'Ce fichier ne contient pas la colonne email. Il contient les colonnes e-mail-adresse, name.',
+      'Ce fichier ne contient pas les colonnes price, stock. Il contient seulement la colonne name.',
+      'Ce fichier ne contient pas les colonnes name, price, stock. Sa première ligne ne contient aucun nom de colonne.',
+    ],
+  } as const;
+
+  it.each(Object.entries(SENTENCES))(
+    'renders a missing column in %s',
+    (locale, [oneOfTwo, twoOfOne, threeOfNone]) => {
+      const t = i18n.getFixedT(locale, 'common');
+      expect(
+        importFileErrorMessage(t, {
+          code: 'missingColumns',
+          columns: ['email'],
+          found: ['e-mail-adresse', 'name'],
+        }),
+      ).toBe(oneOfTwo);
+      expect(
+        importFileErrorMessage(t, {
+          code: 'missingColumns',
+          columns: ['price', 'stock'],
+          found: ['name'],
+        }),
+      ).toBe(twoOfOne);
+      expect(
+        importFileErrorMessage(t, {
+          code: 'missingColumns',
+          columns: ['name', 'price', 'stock'],
+          found: [],
+        }),
+      ).toBe(threeOfNone);
+    },
+  );
+
+  it.each(Object.entries(LOCALES))(
+    'has a %s sentence for a file it could not read and one of another format',
+    (locale, bundle) => {
+      const t = i18n.getFixedT(locale, 'common');
+      const unreadable = importFileErrorMessage(t, { code: 'unreadable' });
+      expect(unreadable).toBe(bundle.common.import.unreadable);
+      expect(unreadable).toMatch(/\.xlsx .*\.csv/);
+      expect(importFileErrorMessage(t, { code: 'unsupportedFormat' })).not.toBe(
+        'validation.unsupportedFileType',
+      );
     },
   );
 });

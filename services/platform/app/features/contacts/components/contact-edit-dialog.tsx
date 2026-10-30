@@ -8,7 +8,10 @@ import { type RefObject, useEffect, useRef } from 'react';
 
 import type { ContactDoc } from '@/app/lib/backend/contract/docs';
 import { useT } from '@/lib/i18n/client';
-import { backendRefusalReason } from '@/lib/utils/backend-error';
+import {
+  backendErrorCode,
+  backendRefusalReason,
+} from '@/lib/utils/backend-error';
 
 import { useUpdateContact } from '../hooks/mutations';
 import {
@@ -98,8 +101,13 @@ export function ContactEditDialog({
       console.error('Update error:', error);
       toast({
         title: tContacts('updateError'),
+        // A changed email meets the create's uniqueness rule, and its 409
+        // carries the code alone, so it gets the create's sentence (#4841).
         // A refused body names its field ("phone: …"); keep it.
-        description: backendRefusalReason(error),
+        description:
+          backendErrorCode(error) === 'CONTACT_DUPLICATE_EMAIL'
+            ? tContacts('create.duplicateEmail')
+            : backendRefusalReason(error),
         variant: 'destructive',
       });
     }

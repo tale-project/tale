@@ -9,6 +9,7 @@ import {
   parseImportFile,
   parseCSVWithMapper,
   type FileParseResult,
+  type ImportFileError,
   type RequiredColumn,
 } from '@/lib/utils/file-parsing';
 
@@ -33,7 +34,7 @@ export interface UseFileImportReturn<T> {
   /** Whether a parse operation is in progress */
   isParsing: boolean;
   /** The last parse error, if any */
-  error: string | null;
+  error: ImportFileError | null;
   /** Clear the error state */
   clearError: () => void;
 }
@@ -68,7 +69,7 @@ export function useFileImport<T>({
   requiredColumns,
 }: UseFileImportOptions<T>): UseFileImportReturn<T> {
   const [isParsing, setIsParsing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ImportFileError | null>(null);
 
   const parseFile = useCallback(
     async (file: File): Promise<FileParseResult<T>> => {
@@ -86,10 +87,10 @@ export function useFileImport<T>({
 
         return result;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'Failed to parse file';
-        setError(errorMessage);
-        return { data: [], rows: [], errors: [errorMessage], rowErrors: [] };
+        console.warn('Could not parse the import file:', err);
+        const unreadable: ImportFileError = { code: 'unreadable' };
+        setError(unreadable);
+        return { data: [], rows: [], errors: [unreadable], rowErrors: [] };
       } finally {
         setIsParsing(false);
       }
@@ -110,10 +111,10 @@ export function useFileImport<T>({
 
         return result;
       } catch (err) {
-        const errorMessage =
-          err instanceof Error ? err.message : 'Failed to parse CSV';
-        setError(errorMessage);
-        return { data: [], rows: [], errors: [errorMessage], rowErrors: [] };
+        console.warn('Could not parse the CSV text:', err);
+        const unreadable: ImportFileError = { code: 'unreadable' };
+        setError(unreadable);
+        return { data: [], rows: [], errors: [unreadable], rowErrors: [] };
       }
     },
     [csvMapper],

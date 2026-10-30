@@ -1,8 +1,12 @@
 import type { TFunction } from 'i18next';
 
-import type { FileParseResult, ImportRowError } from '@/lib/utils/file-parsing';
+import type {
+  FileParseResult,
+  ImportFileError,
+  ImportRowError,
+} from '@/lib/utils/file-parsing';
 
-export type { ImportRowError };
+export type { ImportFileError, ImportRowError };
 
 /** One refused row as a bulk door answers it, at the index the row was sent. */
 export interface BulkRowError {
@@ -62,4 +66,33 @@ export function importRowErrorLine(
     row: entry.row,
     message: importRowErrorMessage(tCommon, entry),
   });
+}
+
+/**
+ * Why a file was refused whole, in the reader's language: a missing
+ * required column is `common.import.missingColumns`, naming the columns by
+ * the header the parser accepts (a translated name would be refused too) and
+ * the headers the file has. `tCommon` is the `common` namespace's `t`.
+ */
+export function importFileErrorMessage(
+  tCommon: TFunction,
+  error: ImportFileError,
+): string {
+  switch (error.code) {
+    case 'missingColumns':
+      return tCommon('import.missingColumns', {
+        count: error.columns.length,
+        columns: error.columns.join(', '),
+        foundCount: error.found.length,
+        found: error.found.join(', '),
+      });
+    case 'unsupportedFormat':
+      return tCommon('validation.unsupportedFileType');
+    case 'unreadable':
+      return tCommon('import.unreadable');
+    default: {
+      const _exhaustive: never = error;
+      return _exhaustive;
+    }
+  }
 }

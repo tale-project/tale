@@ -45,13 +45,25 @@ export type ImportRowError =
       values?: Record<string, string | number>;
     };
 
+/** Why the parser refused the whole file, as a code the dialog words in the
+ * reader's language, never an English sentence (#4841). `missingColumns`
+ * names each required column no header matched by the header the file must
+ * carry (`email`, whatever the reader's language), and the headers it found;
+ * `unsupportedFormat` is neither CSV nor Excel; `unreadable` could not be
+ * read or opened as the workbook its name says. */
+export type ImportFileError =
+  | { code: 'missingColumns'; columns: string[]; found: string[] }
+  | { code: 'unsupportedFormat' }
+  | { code: 'unreadable' };
+
 export type FileParseResult<T> = {
   data: T[];
   /** The spreadsheet line each `data` entry came from, by position — what
    * maps a server's per-row refusal (`errors[].index`) back to the file. */
   rows: number[];
-  /** File-level failures: format, a missing required column. */
-  errors: string[];
+  /** File-level failures: a missing required column, a format, a file that
+   * could not be read. */
+  errors: ImportFileError[];
   /** Rows the mapper refused; the rest of the file still parsed. */
   rowErrors: ImportRowError[];
 };
@@ -113,7 +125,7 @@ function refusedRow(row: number, error: unknown): ImportRowError {
   };
 }
 
-function emptyResult<T>(errors: string[] = []): FileParseResult<T> {
+function emptyResult<T>(errors: ImportFileError[] = []): FileParseResult<T> {
   return { data: [], rows: [], errors, rowErrors: [] };
 }
 
@@ -139,9 +151,13 @@ function detectMissingColumns(
     .map((col) => col.label);
 }
 
-function missingColumnsError(missing: string[], headers: string[]): string {
-  const found = headers.length > 0 ? headers.join(', ') : '(none)';
-  return `Missing required column(s): ${missing.join(', ')}. Found columns: ${found}.`;
+function missingColumnsError(
+  missing: string[],
+  headers: string[],
+): ImportFileError {
+  // A blank header cell names no column the reader could look for.
+  const found = headers.filter((header) => header !== '');
+  return { code: 'missingColumns', columns: missing, found };
 }
 
 type CSVParseOptions = {
@@ -541,13 +557,12 @@ export async function parseImportFile<T>(
       });
       return result;
     } else {
-      return emptyResult([
-        'Unsupported file format. Please use CSV or Excel files.',
-      ]);
+      return emptyResult([{ code: 'unsupportedFormat' }]);
     }
   } catch (error) {
-    return emptyResult([
-      error instanceof Error ? error.message : 'Failed to parse file',
-    ]);
+    // FileReader's or SheetJS's English text helps nobody fix the file: the
+    // dialog says it could not be read, and the cause goes to the console.
+    console.warn('Could not read the import file:', error);
+    return emptyResult([{ code: 'unreadable' }]);
   }
 }

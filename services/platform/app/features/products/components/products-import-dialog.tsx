@@ -10,6 +10,7 @@ import { z } from 'zod';
 
 import {
   type ImportRowError,
+  importFileErrorMessage,
   importRowErrorLine,
   mergeImportRowErrors,
 } from '@/app/features/shared/import/import-row-errors';
@@ -135,9 +136,12 @@ export function ProductsImportDialog({
         const parsed = await parseFile(values.file);
         const { data: products, errors } = parsed;
 
+        // A file refused whole (e.g. a missing required column) says why
+        // under the dialog's title, in the reader's language (#4841).
         if (errors.length > 0) {
           toast({
-            title: errors[0],
+            title: t('noValidData'),
+            description: importFileErrorMessage(tCommon, errors[0]),
             variant: 'destructive',
           });
           return;
