@@ -124,7 +124,7 @@ export function ProjectCreateDialog({
     defaultValues: { name: '', key: '', description: '' },
   });
 
-  // The key auto-tracks the name (e.g. "Tale Platform" → "TAL") until the user
+  // The key auto-tracks the name (e.g. "Tale Platform" → "TP") until the user
   // types in the key field — after that it's theirs to control.
   const keyEditedRef = useRef(false);
   const name = watch('name');

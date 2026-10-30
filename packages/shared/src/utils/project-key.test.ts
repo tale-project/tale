@@ -27,6 +27,35 @@ describe('project_key', () => {
       expect(deriveProjectKey('   ')).toBe('');
       expect(deriveProjectKey('!!!')).toBe('');
     });
+
+    // The regression: an accented letter ended a word, so "Société Générale"
+    // was read as Soci·t·G·n·rale and suggested STG, a prefix a project keeps
+    // for good.
+    it('takes one initial per word when the words carry accents', () => {
+      expect(deriveProjectKey('Societe Generale')).toBe('SG');
+      expect(deriveProjectKey('Société Générale')).toBe('SG');
+      expect(deriveProjectKey('Société Générale'.normalize('NFD'))).toBe('SG');
+      expect(deriveProjectKey('Projet Sécurité')).toBe('PS');
+      expect(deriveProjectKey('Équipe Été')).toBe('EE');
+    });
+
+    it('spells out the letters NFKD cannot take apart instead of splitting on them', () => {
+      expect(deriveProjectKey('Straße Nord')).toBe('SN');
+      expect(deriveProjectKey('Łódź Port')).toBe('LP');
+      expect(deriveProjectKey('Wrocław Główny')).toBe('WG');
+      expect(deriveProjectKey('Øresund Bridge')).toBe('OB');
+    });
+
+    it('takes the leading letters of a single accented word without its accents', () => {
+      expect(deriveProjectKey('École')).toBe('ECO');
+      expect(deriveProjectKey('Größe')).toBe('GRO');
+      expect(deriveProjectKey('Łódź')).toBe('LOD');
+    });
+
+    it('counts a word with no Latin letter or digit for nothing', () => {
+      expect(deriveProjectKey('发票 Report')).toBe('REP');
+      expect(deriveProjectKey('发票提醒')).toBe('');
+    });
   });
 
   describe('normalizeProjectKey', () => {
