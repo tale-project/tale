@@ -218,8 +218,8 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 
 ## A green check is not always a run
 
-The seven workflow-specific **CI ready** terminal jobs judge complete native PR/merge-group
-dependencies and validated scope. Their source contract, conditional/advisory limits and
+The eight workflow-specific **CI ready** terminal jobs judge complete native PR/merge-group
+dependencies and validated scope. Their source contract, conditional limits and
 separate required-check activation procedure are in [`.github/CI.md`](../.github/CI.md).
 They do not replace independent review or the release-candidate gate.
 

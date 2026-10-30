@@ -27,8 +27,8 @@ function fixture(workflow: keyof typeof CI_JOBS, event = 'pull_request') {
   const needs: Record<string, Job> = Object.fromEntries(
     CI_JOBS[workflow].map((id) => [id, { result: 'success', outputs: {} }]),
   );
-  needs['candidate-source']!.result = 'skipped';
-  needs['candidate-gate']!.result = 'skipped';
+  if (needs['candidate-source']) needs['candidate-source'].result = 'skipped';
+  if (needs['candidate-gate']) needs['candidate-gate'].result = 'skipped';
   if (needs.release) needs.release.result = 'skipped';
   if (needs['pr-scope']) {
     needs['pr-scope'].result = event === 'pull_request' ? 'success' : 'skipped';
@@ -93,11 +93,7 @@ describe('native CI readiness', () => {
           ]) {
             const input = fixture(workflow, event);
             const original = input.needs[id]!.result;
-            if (
-              result === original ||
-              (id === 'vulnerability-scan' && result === 'failure')
-            )
-              continue;
+            if (result === original) continue;
             input.needs[id]!.result = result;
             expect(evaluateReadiness(input).passed, `${id}/${result}`).toBe(
               false,
@@ -317,18 +313,42 @@ describe('native CI readiness', () => {
     expect(evaluateReadiness(contradictory).passed).toBe(false);
   });
 
-  test('Build allows only its existing image-scan advisory failure without claiming scanner success', () => {
+  test('Build requires every image scan it starts to finish', () => {
     const input = fixture('build');
-    input.needs['vulnerability-scan']!.result = 'failure';
     const verdict = evaluateReadiness(input);
     expect(verdict.passed).toBe(true);
     expect(
       verdict.jobs.find((job) => job.job === 'vulnerability-scan')?.policy,
-    ).toContain('advisory');
-    for (const result of ['skipped', 'cancelled', 'unknown']) {
+    ).toBe('required');
+    for (const result of ['failure', 'skipped', 'cancelled', 'unknown']) {
       input.needs['vulnerability-scan']!.result = result;
-      expect(evaluateReadiness(input).passed).toBe(false);
+      expect(evaluateReadiness(input).passed, result).toBe(false);
     }
+  });
+
+  test('Sandbox Incus E2E requires the lab for its paths and never runs a fork', () => {
+    const input = fixture('sandbox-incus-e2e');
+    expect(evaluateReadiness(input).passed).toBe(true);
+    input.needs.incus!.result = 'skipped';
+    expect(evaluateReadiness(input).passed).toBe(false);
+    input.needs['pr-scope']!.outputs.run = 'false';
+    expect(evaluateReadiness(input).passed).toBe(true);
+    input.needs.incus!.result = 'success';
+    expect(evaluateReadiness(input).passed).toBe(false);
+
+    const fork = fixture('sandbox-incus-e2e');
+    fork.payload.pull_request.head.repo.fork = true;
+    fork.needs.incus!.result = 'skipped';
+    const verdict = evaluateReadiness(fork);
+    expect(verdict.passed).toBe(true);
+    expect(verdict.jobs.find((job) => job.job === 'incus')?.policy).toBe(
+      'not run for a fork',
+    );
+
+    const group = fixture('sandbox-incus-e2e', 'merge_group');
+    expect(evaluateReadiness(group).passed).toBe(true);
+    group.needs.incus!.result = 'skipped';
+    expect(evaluateReadiness(group).passed).toBe(false);
   });
 
   test('malformed and incomplete Build scope never means no work', () => {

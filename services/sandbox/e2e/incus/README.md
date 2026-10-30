@@ -9,7 +9,8 @@ to build one.
 
 It runs in CI (`.github/workflows/sandbox-incus-e2e.yml`) on a Linux runner, on
 pull requests that touch the spawner, the runtime image or the egress proxy, and
-on demand. A draft pull request is held, as the other heavy workflows hold it;
+on demand; `CI ready (Sandbox Incus E2E)` is a required check (see "A required
+check"). A draft pull request is held, as the other heavy workflows hold it;
 to try a draft, dispatch the workflow on its branch (see "Running it"). It
 reconfigures its host (packages, a ZFS pool, the firewall, Incus itself), so it
 is only ever run on a throwaway machine: CI, or a VM you can lose, with
@@ -105,10 +106,12 @@ so the workspace's ordinary test run never needs a node.
 ## Pins
 
 Everything third-party is pinned in `lab.sh`: Zabbly's signing key by
-fingerprint, the exact Incus build (Zabbly keeps two builds per channel, so a
-pin ages out in weeks and `install` then lists what the index has), and the
-registry image by digest. The runner's own Ubuntu decides which of the two
-Incus builds applies. A bump is a change to those lines and a green run.
+fingerprint, the exact Incus build, and the registry image by digest. Zabbly
+keeps two builds per channel, so a pin ages out in weeks: `install` then takes
+the channel's newest build of the same Incus version and leaves a warning on the
+run to pin it, and fails, listing what the index has, only when no build of that
+version is left. The runner's own Ubuntu decides which of the two Incus builds
+applies. A bump is a change to those lines and a green run.
 
 ## What it does not prove
 
@@ -118,22 +121,14 @@ driver than a hosted runner's (ZFS on a file), a long soak, many concurrent
 sessions, and a restricted certificate against a node with other tenants. The
 manual list in docs/incus.md names what is left for a first real node.
 
-## Making it a required check
+## A required check
 
-It is a standalone workflow on purpose: it takes about half an hour and
-depends on a third party's package index. To require it, do what the other
-validation workflows do, in one change:
-
-1. Give the workflow a `merge_group:` trigger and a `ci-ready` job like the one
-   in `.github/workflows/checks.yml` (named `CI ready (Sandbox Incus E2E)`,
-   `needs` the `incus` job, `if: always() && (github.event_name ==
-   'pull_request' || github.event_name == 'merge_group')`, running
-   `./.github/actions/ci-ready` with `workflow: sandbox-incus-e2e`).
-2. Register the workflow in `tools/cli/scripts/ci-ready.ts`: its job ids in
-   `CI_JOBS` and its context in `CI_CONTEXTS` (the tests next to it hold every id
-   to the YAML).
-3. Add `CI ready (Sandbox Incus E2E)` to the repository's required checks (the
-   branch protection or ruleset of `main`).
-
-Until then it reports on the pull request once it is ready for review, runs on
-demand for a draft (see "Running it"), and blocks nothing.
+`CI ready (Sandbox Incus E2E)` judges each run the way the other validation
+workflows' `CI ready` jobs do (`tools/cli/scripts/ci-ready.ts`), and the ruleset
+of `main` requires it. A required check that never reports holds a pull request,
+so every pull request starts the workflow, and its `PR scope` job runs the lab
+only for the paths of the `sandbox-incus` filter in `.github/ci-scope.yml`;
+another pull request skips the lab and passes. A fork's pull request skips it
+too: its code is never run on a lab that is root on the runner. It is no release
+workflow: a release candidate does not run it. It takes about half an hour, so
+it runs beside the other workflows, never before them.

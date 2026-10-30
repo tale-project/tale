@@ -143,7 +143,6 @@ check.
 
 | What | On Forgejo | Why it stays |
 | --- | --- | --- |
-| `continue-on-error: true` on the job of an advisory scan (Build's `vulnerability-scan`) | the server ignores it, so a failing scan is a red context of its own | `ci-ready.ts` reads that job as advisory, a success or a failure, so `CI ready (Build)` stays green and the merge train, which waits for the seven checks only, never reads the scan |
 | `$GITHUB_STEP_SUMMARY` | Forgejo 15.0.9 discards the summary | the readiness job prints its verdict table to the job log |
 | SARIF uploads to the Security tab | dropped with `github/codeql-action/upload-sarif`: Forgejo has no code scanning | a job that already retains the SARIF as an artifact keeps doing so |
 | Comments that describe GitHub's behaviour | carried through unchanged | they are read and tidied by hand in the cut-over commit |

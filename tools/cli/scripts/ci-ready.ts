@@ -61,6 +61,8 @@ export const CI_JOBS = {
     'storybook',
     'candidate-gate',
   ],
+  // No release workflow: a release candidate never runs it.
+  'sandbox-incus-e2e': ['pr-scope', 'incus'],
 } as const;
 
 export const CI_CONTEXTS = {
@@ -71,6 +73,7 @@ export const CI_CONTEXTS = {
   cli: 'CI ready (CLI)',
   e2e: 'CI ready (E2E)',
   build: 'CI ready (Build)',
+  'sandbox-incus-e2e': 'CI ready (Sandbox Incus E2E)',
 } as const;
 
 /** Release receipts keep their existing required graph. New ordinary-only
@@ -330,8 +333,9 @@ export function evaluateReadiness(input: {
       if (result !== expected)
         reasons.push(`${id}: expected ${expected}, got ${result}`);
     };
-    requireResult('candidate-source', 'skipped', 'candidate event only');
-    requireResult('candidate-gate', 'skipped', 'candidate event only');
+    for (const id of ['candidate-source', 'candidate-gate'])
+      if (ids.some((job) => job === id))
+        requireResult(id, 'skipped', 'candidate event only');
     if (workflow === 'cli')
       requireResult('release', 'skipped', 'manual publication only');
 
@@ -408,19 +412,20 @@ export function evaluateReadiness(input: {
           services.includes(service) ? 'success' : 'skipped',
         );
       requireResult('storybook', storybook ? 'success' : 'skipped');
-      if (scans.length > 0 && !fork) {
-        const result = results.get('vulnerability-scan')!;
-        rows.push({
-          job: 'vulnerability-scan',
-          result,
-          policy: 'advisory; native aggregate is not proof of scanner findings',
-        });
-        if (!['success', 'failure'].includes(result))
-          reasons.push(
-            `vulnerability-scan: expected completed advisory execution, got ${result}`,
-          );
-      } else requireResult('vulnerability-scan', 'skipped');
+      // Every scan must finish. Its findings go to code scanning and do not
+      // fail the job, so a pass means the image was scanned, not that it is clean.
+      requireResult(
+        'vulnerability-scan',
+        scans.length > 0 && !fork ? 'success' : 'skipped',
+      );
     }
+    if (workflow === 'sandbox-incus-e2e')
+      // A fork's code is never run on the root-owned lab.
+      requireResult(
+        'incus',
+        applicable && !fork ? 'success' : 'skipped',
+        fork ? 'not run for a fork' : undefined,
+      );
     for (const id of ids) {
       if (!rows.some((row) => row.job === id))
         requireResult(id, applicable ? 'success' : 'skipped');

@@ -40,12 +40,14 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # ---- pins ----------------------------------------------------------------------
 # Zabbly's `stable` channel, the one the application node runs: native OCI
 # containers take static addresses only from 7.2. Its signing key by
-# fingerprint, and the exact builds read from its package index (it keeps two
-# builds per channel, so a pin that ages out fails loudly in `install`, which
-# lists what the index has now).
+# fingerprint, and the exact builds read from its package index. It keeps two
+# builds per channel: when a pin ages out, `install` takes the channel's newest
+# build of the same Incus version and warns to re-pin, so a required check does
+# not fail on the index alone; another Incus version still fails, listing what
+# the index has now.
 readonly ZABBLY_KEY_FINGERPRINT=4EFC590696CB15B87C73A3AD82CC8797C838DCFD
-readonly INCUS_VERSION_NOBLE="${INCUS_VERSION_NOBLE:-1:7.5.1-ubuntu24.04-202610160649}"
-readonly INCUS_VERSION_RESOLUTE="${INCUS_VERSION_RESOLUTE:-1:7.5.1-ubuntu26.04-202610160649}"
+readonly INCUS_VERSION_NOBLE="${INCUS_VERSION_NOBLE:-1:7.5.1-ubuntu24.04-202610270033}"
+readonly INCUS_VERSION_RESOLUTE="${INCUS_VERSION_RESOLUTE:-1:7.5.1-ubuntu26.04-202610262256}"
 # The CNCF distribution registry, by digest.
 readonly REGISTRY_IMAGE='ghcr.io/distribution/distribution:3.0.0@sha256:4ba3adf47f5c866e9a29288c758c5328ef03396cb8f5f6454463655fa8bc83e2'
 
@@ -131,7 +133,7 @@ phase() {
 # ---- install ---------------------------------------------------------------------
 
 install_incus() {
-  local codename version key fingerprint builds
+  local codename version key fingerprint builds upstream newest
   # shellcheck source=/dev/null
   codename="$(. /etc/os-release && echo "$VERSION_CODENAME")"
   case "$codename" in
@@ -156,8 +158,15 @@ install_incus() {
   # Read whole, then searched: `grep -q` leaving early would fail the pipe.
   builds="$(apt-cache madison incus)"
   if ! grep -qF "| $version |" <<<"$builds"; then
-    echo "$builds" >&2
-    die "Zabbly's stable channel no longer has incus $version: read the builds above, take a current one and pin it in lab.sh"
+    # The pin without its build stamp: `1:7.5.1-ubuntu26.04`.
+    upstream="${version%-*}"
+    newest="$(awk -F'|' -v prefix="$upstream-" '{ gsub(/ /, "", $2) } index($2, prefix) == 1 { print $2 }' <<<"$builds" | sort -V | tail -n 1)"
+    if [ -z "$newest" ]; then
+      echo "$builds" >&2
+      die "Zabbly's stable channel no longer has incus $version or another build of $upstream: read the builds above, take a current one and pin it in lab.sh"
+    fi
+    printf '::warning::%s\n' "Zabbly's stable channel no longer has incus $version; installing its build $newest instead. Pin $newest in lab.sh."
+    version="$newest"
   fi
   # skopeo is what Incus pulls an OCI image with; zfsutils-linux the pool's.
   sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q --no-install-recommends \
