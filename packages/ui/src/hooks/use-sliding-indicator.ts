@@ -3,11 +3,12 @@
 import {
   useCallback,
   useLayoutEffect,
+  useRef,
   useState,
   type CSSProperties,
 } from 'react';
 
-interface IndicatorBox {
+export interface IndicatorBox {
   readonly x: number;
   readonly y: number;
   readonly width: number;
@@ -55,7 +56,17 @@ export function useSlidingIndicator<Container extends HTMLElement>(
   /** Anything that can move the active item without changing its key — a
    * list that grew above it, a label that changed width. */
   layoutVersion: unknown = null,
+  /**
+   * Where the active item will stand once a transition of its own has ended
+   * (a label opening inside it, a neighbour closing before it), given where
+   * it stands now. Without it the indicator re-aims at every frame of that
+   * transition and trails behind; with it, it glides straight to where the
+   * item lands, on the same timing.
+   */
+  settle?: (item: HTMLElement, box: IndicatorBox) => IndicatorBox,
 ): SlidingIndicator<Container> {
+  const settleRef = useRef(settle);
+  settleRef.current = settle;
   const [container, setContainer] = useState<Container | null>(null);
   const [box, setBox] = useState<IndicatorBox | null>(null);
   const [visible, setVisible] = useState(false);
@@ -79,27 +90,25 @@ export function useSlidingIndicator<Container extends HTMLElement>(
     const measure = () => {
       const outer = container.getBoundingClientRect();
       const inner = item.getBoundingClientRect();
-      setBox((previous) => {
-        // Relative to the padding box — where an absolute child's origin
-        // sits — so a bordered container does not shift the highlight.
-        const next = {
-          x:
-            inner.left -
-            outer.left -
-            container.clientLeft +
-            container.scrollLeft,
-          y: inner.top - outer.top - container.clientTop + container.scrollTop,
-          width: inner.width,
-          height: inner.height,
-        };
-        return previous !== null &&
-          previous.x === next.x &&
-          previous.y === next.y &&
-          previous.width === next.width &&
-          previous.height === next.height
+      // Relative to the padding box — where an absolute child's origin
+      // sits — so a bordered container does not shift the highlight.
+      const measured = {
+        x:
+          inner.left - outer.left - container.clientLeft + container.scrollLeft,
+        y: inner.top - outer.top - container.clientTop + container.scrollTop,
+        width: inner.width,
+        height: inner.height,
+      };
+      const next = settleRef.current?.(item, measured) ?? measured;
+      setBox((previous) =>
+        previous !== null &&
+        previous.x === next.x &&
+        previous.y === next.y &&
+        previous.width === next.width &&
+        previous.height === next.height
           ? previous
-          : next;
-      });
+          : next,
+      );
     };
     measure();
     setVisible(true);
