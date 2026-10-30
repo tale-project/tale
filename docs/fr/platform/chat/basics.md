@@ -13,11 +13,11 @@ Utilise le chat pour poser une question, comprendre un document ou rechercher un
 
 ## Envoyer un premier message
 
-Ouvre **Accueil**. Sur ordinateur, un nouveau chat s’ouvre, et le panneau latéral d’**Accueil**, à côté, liste tes chats précédents ; sur téléphone, choisis **Chats**, puis **Nouveau chat**. Pour aborder un autre sujet plus tard, choisis **Nouveau chat** ou, sur ordinateur, à nouveau **Accueil**. Écris dans le champ de message. Appuie sur **Entrée** pour envoyer ou sur **Maj+Entrée** pour aller à la ligne. Une suggestion de départ joue le même rôle que ta propre question : précise la source, le sujet et le type de réponse attendu.
+Ouvre **Accueil**. Sur ordinateur, un nouveau chat s’ouvre, et le panneau latéral d’**Accueil**, à côté, liste tes chats précédents ; sur téléphone, choisis **Chats**, puis **Nouveau chat**. Pour aborder un autre sujet plus tard, choisis **Nouveau chat** ou, sur ordinateur, à nouveau **Accueil**. Écris dans le champ de message. Appuie sur **Entrée** pour envoyer ou sur **Maj+Entrée** pour aller à la ligne. Le champ s’agrandit avec ton message jusqu’à occuper les deux cinquièmes de la fenêtre ; au-delà, le texte défile à l’intérieur. Une suggestion de départ joue le même rôle que ta propre question : précise la source, le sujet et le type de réponse attendu.
 
 Par exemple : « Retrouve les retours d’onboarding et résume les trois problèmes les plus fréquents. Cite les documents et sépare les problèmes signalés de tes suggestions. »
 
-Si ton organisation a activé un avis de confidentialité, il s’affiche sous le champ de message pour te rappeler ce qu’il ne faut pas partager dans le chat.
+Si ton organisation a activé un avis de confidentialité, il s’affiche sous le champ de message pour te rappeler ce qu’il ne faut pas partager dans le chat. Dans une fenêtre peu haute, comme sur un ordinateur portable, l’avis tient sur une ligne. S’il est coupé, choisis la flèche à côté pour le lire en entier.
 
 Pendant la génération, la commande d’envoi devient une commande d’arrêt. L’arrêter conserve le texte déjà reçu, même s’il se termine au milieu d’une phrase. Pose une question de suivi pour clarifier la demande ou obtenir un détail manquant.
 

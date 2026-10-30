@@ -1,3 +1,5 @@
 default: KI kann Fehler machen – prüfe Antworten und teile keine sensiblen Daten.
 footer:
   ariaLabel: Vertraulichkeitshinweis
+  expand: Ganzen Hinweis anzeigen
+  collapse: Hinweis einzeilig anzeigen

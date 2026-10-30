@@ -36,6 +36,14 @@
    same query for the scripts that must agree with it. */
 @custom-variant short-viewport (@media (max-height: 30rem));
 
+/* A viewport under 50rem tall — a laptop screen at its usual display scaling
+   (a 1080p panel at 125–150 % leaves 600–750px for the page). A
+   conversation's composer takes its compact sizes there — a one-line empty
+   field, tighter padding, a one-line notice — where its roomy ones covered a
+   third of the window. Page layout keeps to `short-viewport`: a laptop still
+   bounds its tables and sticks its headers. */
+@custom-variant compact-height (@media (max-height: 50rem));
+
 /*
  * Canonical shared stylesheet for the Tale monorepo. Every other globals.css
  * (platform, web, docs, templates) is a single-line import of this file.

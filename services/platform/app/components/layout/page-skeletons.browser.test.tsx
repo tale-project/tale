@@ -8,7 +8,16 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { ThreadHeader } from '@tale/ui/thread-header';
 import { ThreadDayDivider } from '@tale/ui/thread/thread-day-divider';
 import { cleanup } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
+import { page } from 'vitest/browser';
 
 import { Composer } from '@/app/features/chat/components/composer';
 import { ConversationSkeleton } from '@/app/features/chat/components/conversation-skeleton';
@@ -199,55 +208,31 @@ describe('page skeleton geometry in Chromium', () => {
     }
   }
 
-  it.each([320, 900])(
-    'matches the empty chat composer frame at %ipx',
-    (width) => {
-      document.documentElement.classList.add('boot-chat');
-      const { rerender } = render(
-        <div data-testid="fixture" style={{ width }} className="px-4 pb-4">
-          <Composer
-            draftKey={`geometry-${width}`}
-            models={[]}
-            selection={{}}
-            onSelectionChange={() => {}}
-            onSend={() => {}}
-            onAttachFiles={() => {}}
-            onVoiceOutputChange={() => {}}
-          />
-        </div>,
-      );
-      const live = requireElement(screen.getByTestId('fixture'), 'section');
-      const frame = size(live);
-      const field = size(requireElement(live, 'textarea'));
-      rerender(
-        <div data-testid="fixture" style={{ width }}>
-          <ChatComposerPlaceholder />
-        </div>,
-      );
-      const placeholder = requireElement(
-        screen.getByTestId('fixture'),
-        '.border',
-      );
-      expect(size(placeholder)).toEqual(frame);
-      expect(
-        size(requireElement(placeholder, '.sm\\:min-h-\\[100px\\]')),
-      ).toEqual(field);
-      expect(getComputedStyle(placeholder).rowGap).toBe('8px');
-    },
-  );
+  // A laptop-height window (`compact-height`) gives the composer and the
+  // notice their compact sizes; the skeleton must take the same ones.
+  describe.each([
+    ['the test window', undefined],
+    ['a laptop-height window', [1280, 720]],
+  ] as const)('in %s', (_window, viewport) => {
+    let initialViewport: [number, number];
+    beforeAll(() => {
+      initialViewport = [window.innerWidth, window.innerHeight];
+    });
+    beforeEach(async () => {
+      if (viewport !== undefined) await page.viewport(...viewport);
+    });
+    afterEach(async () => {
+      await page.viewport(...initialViewport);
+    });
 
-  // The remembered notice sizes the skeleton's row (see data-notice-boot.ts):
-  // at a width where the notice wraps and one where it fits a line, the
-  // placeholder must be exactly as tall as the live composer + notice, so the
-  // composer does not move when the skeleton is replaced.
-  it.each([320, 900])(
-    'reserves the confidentiality notice row at %ipx',
-    (width) => {
-      const { rerender } = render(
-        <div data-testid="fixture" style={{ width }}>
-          <div className="px-4 pb-4">
+    it.each([320, 900])(
+      'matches the empty chat composer frame at %ipx',
+      (width) => {
+        document.documentElement.classList.add('boot-chat');
+        const { rerender } = render(
+          <div data-testid="fixture" style={{ width }} className="px-4 pb-4">
             <Composer
-              draftKey={`notice-geometry-${width}`}
+              draftKey={`geometry-${width}`}
               models={[]}
               selection={{}}
               onSelectionChange={() => {}}
@@ -255,62 +240,107 @@ describe('page skeleton geometry in Chromium', () => {
               onAttachFiles={() => {}}
               onVoiceOutputChange={() => {}}
             />
+          </div>,
+        );
+        const live = requireElement(screen.getByTestId('fixture'), 'section');
+        const frame = size(live);
+        const field = size(requireElement(live, 'textarea'));
+        rerender(
+          <div data-testid="fixture" style={{ width }}>
+            <ChatComposerPlaceholder />
+          </div>,
+        );
+        const placeholder = requireElement(
+          screen.getByTestId('fixture'),
+          '.border',
+        );
+        expect(size(placeholder)).toEqual(frame);
+        expect(size(requireElement(placeholder, '.min-h-\\[2lh\\]'))).toEqual(
+          field,
+        );
+        expect(getComputedStyle(placeholder).rowGap).toBe('8px');
+      },
+    );
+
+    // The remembered notice sizes the skeleton's row (see data-notice-boot.ts):
+    // at a width where the notice wraps and one where it fits a line, the
+    // placeholder must be exactly as tall as the live composer + notice, so the
+    // composer does not move when the skeleton is replaced.
+    it.each([320, 900])(
+      'reserves the confidentiality notice row at %ipx',
+      (width) => {
+        const { rerender } = render(
+          <div data-testid="fixture" style={{ width }}>
+            <div className="px-4 pb-4">
+              <Composer
+                draftKey={`notice-geometry-${width}`}
+                models={[]}
+                selection={{}}
+                onSelectionChange={() => {}}
+                onSend={() => {}}
+                onAttachFiles={() => {}}
+                onVoiceOutputChange={() => {}}
+              />
+              <DataNoticeFooter
+                organizationId="org_test"
+                className="pt-1 pb-1"
+              />
+            </div>
+          </div>,
+        );
+        const fixture = screen.getByTestId('fixture');
+        const liveBlock = size(requireElement(fixture, 'div'));
+        const liveNotice = size(screen.getByRole('note'));
+
+        rerender(
+          <div data-testid="fixture" style={{ width }}>
+            <ChatComposerPlaceholder />
+          </div>,
+        );
+        // After the rerender: unmounting the live footer clears the marker.
+        const root = document.documentElement;
+        root.classList.add('boot-chat', 'boot-chat-notice');
+        root.style.setProperty('--boot-chat-notice', toCssString(NOTICE_TEXT));
+
+        const placeholder = requireElement(fixture, 'div');
+        const noticeRow = requireElement(
+          placeholder,
+          '[class*="boot-chat-notice"]',
+        );
+        expect(size(placeholder)).toEqual(liveBlock);
+        expect(size(noticeRow)).toEqual(liveNotice);
+      },
+    );
+
+    // Until its read settles on a reload, the live footer holds the remembered
+    // row, so the composer that replaced the skeleton does not drop into the
+    // gap and jump back up when the notice arrives.
+    it.each([320, 900])(
+      'holds the notice row while the policy read settles at %ipx',
+      (width) => {
+        const footer = (
+          <div data-testid="fixture" style={{ width }}>
             <DataNoticeFooter organizationId="org_test" className="pt-1 pb-1" />
           </div>
-        </div>,
-      );
-      const fixture = screen.getByTestId('fixture');
-      const liveBlock = size(requireElement(fixture, 'div'));
-      const liveNotice = size(screen.getByRole('note'));
+        );
+        const { rerender } = render(footer);
+        const settled = size(screen.getByRole('note'));
 
-      rerender(
-        <div data-testid="fixture" style={{ width }}>
-          <ChatComposerPlaceholder />
-        </div>,
-      );
-      // After the rerender: unmounting the live footer clears the marker.
-      const root = document.documentElement;
-      root.classList.add('boot-chat', 'boot-chat-notice');
-      root.style.setProperty('--boot-chat-notice', toCssString(NOTICE_TEXT));
+        noticeRead.settled = false;
+        window.localStorage.setItem(
+          dataNoticeBootKey('org_test'),
+          toCssString(NOTICE_TEXT),
+        );
+        rerender(<div key="loading">{footer}</div>);
 
-      const placeholder = requireElement(fixture, 'div');
-      const noticeRow = requireElement(
-        placeholder,
-        '[class*="boot-chat-notice"]',
-      );
-      expect(size(placeholder)).toEqual(liveBlock);
-      expect(size(noticeRow)).toEqual(liveNotice);
-    },
-  );
-
-  // Until its read settles on a reload, the live footer holds the remembered
-  // row, so the composer that replaced the skeleton does not drop into the
-  // gap and jump back up when the notice arrives.
-  it.each([320, 900])(
-    'holds the notice row while the policy read settles at %ipx',
-    (width) => {
-      const footer = (
-        <div data-testid="fixture" style={{ width }}>
-          <DataNoticeFooter organizationId="org_test" className="pt-1 pb-1" />
-        </div>
-      );
-      const { rerender } = render(footer);
-      const settled = size(screen.getByRole('note'));
-
-      noticeRead.settled = false;
-      window.localStorage.setItem(
-        dataNoticeBootKey('org_test'),
-        toCssString(NOTICE_TEXT),
-      );
-      rerender(<div key="loading">{footer}</div>);
-
-      const reserve = requireElement(
-        screen.getByTestId('fixture'),
-        '[aria-hidden="true"]',
-      );
-      expect(size(reserve)).toEqual(settled);
-    },
-  );
+        const reserve = requireElement(
+          screen.getByTestId('fixture'),
+          '[aria-hidden="true"]',
+        );
+        expect(size(reserve)).toEqual(settled);
+      },
+    );
+  });
 
   it('matches conversation column clearance and user bubble shape', () => {
     const fixture = (loading: boolean) => (

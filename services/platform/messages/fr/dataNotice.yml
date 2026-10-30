@@ -3,3 +3,5 @@ default:
   données sensibles.
 footer:
   ariaLabel: Avis de confidentialité
+  expand: Afficher l'avis en entier
+  collapse: Afficher l'avis sur une ligne
