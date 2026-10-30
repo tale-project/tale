@@ -1,7 +1,10 @@
 import { act, render, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { useSlidingIndicator } from './use-sliding-indicator';
+import {
+  type IndicatorBox,
+  useSlidingIndicator,
+} from './use-sliding-indicator';
 
 // jsdom lays nothing out: give each element the box a browser would.
 function box(element: Element, rect: Partial<DOMRect>) {
@@ -19,8 +22,14 @@ function box(element: Element, rect: Partial<DOMRect>) {
   } as DOMRect);
 }
 
-function Probe({ active }: { active: string | null }) {
-  const indicator = useSlidingIndicator<HTMLDivElement>(active);
+function Probe({
+  active,
+  settle,
+}: {
+  active: string | null;
+  settle?: (item: HTMLElement, measured: IndicatorBox) => IndicatorBox;
+}) {
+  const indicator = useSlidingIndicator<HTMLDivElement>(active, null, settle);
   return (
     <div
       data-testid="container"
@@ -83,6 +92,26 @@ describe('useSlidingIndicator', () => {
     expect(getByTestId('indicator').style.transform).toBe(
       'translate3d(0px, 80px, 0)',
     );
+  });
+
+  it('heads for where the item will stand when told how it settles', () => {
+    // An item whose label is still opening: measured now it is 36px wide at
+    // the top, but it will land 60px wide and 12px further in.
+    const settle = vi.fn((_item: HTMLElement, measured: IndicatorBox) => ({
+      ...measured,
+      x: measured.x + 12,
+      width: 60,
+    }));
+    const { getByTestId } = render(<Probe active="b" settle={settle} />);
+    const indicator = getByTestId('indicator');
+    expect(settle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dataset: expect.objectContaining({ indicatorKey: 'b' }),
+      }),
+      { x: 0, y: 40, width: 36, height: 36 },
+    );
+    expect(indicator.style.transform).toBe('translate3d(12px, 40px, 0)');
+    expect(indicator.style.width).toBe('60px');
   });
 
   it('fades out where it stood when nothing is active', () => {
