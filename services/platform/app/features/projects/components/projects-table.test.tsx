@@ -4,7 +4,8 @@ import {
   ACTIONS_COLUMN_SIZE,
   SELECT_COLUMN_SIZE,
 } from '@tale/ui/data-table/column-builders';
-import { describe, expect, it, vi } from 'vitest';
+import { LOCALE_STORAGE_KEY } from '@tale/ui/i18n/detect-locale';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AbilityContext } from '@/app/context/ability-context';
 import { defineAbilityFor } from '@/lib/permissions/ability';
@@ -111,6 +112,7 @@ interface RowOverrides {
   overdueTaskCount?: number;
   projectAgentCount?: number;
   teamIds?: string[];
+  updatedAt?: number;
 }
 
 function row(overrides: RowOverrides = {}) {
@@ -126,7 +128,7 @@ function row(overrides: RowOverrides = {}) {
     teamIds: overrides.teamIds ?? [],
     createdBy: 'user_1',
     createdAt: 0,
-    updatedAt: Date.now(),
+    updatedAt: overrides.updatedAt ?? Date.now(),
     archivedAt: undefined,
     isOrgWide: (overrides.teamIds ?? []).length === 0,
     canEdit: true,
@@ -399,6 +401,34 @@ describe('ProjectsTable', () => {
     ]);
 
     await checkAccessibility(container);
+  });
+});
+
+// #4892 (addendum): Last activity was worded in the browser's language
+// (`navigator.language`), not the app's, and never went past days.
+describe('ProjectsTable — Last activity', () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  afterEach(() => {
+    localStorage.removeItem(LOCALE_STORAGE_KEY);
+    vi.restoreAllMocks();
+  });
+
+  it("reads in the app's language, not the browser's", async () => {
+    vi.spyOn(window.navigator, 'language', 'get').mockReturnValue('en-US');
+    localStorage.setItem(LOCALE_STORAGE_KEY, 'de');
+
+    renderTable([row({ updatedAt: Date.now() - 3 * DAY_MS })]);
+
+    expect(await screen.findByText('vor 3 Tagen')).toBeInTheDocument();
+    expect(screen.queryByText('3 days ago')).not.toBeInTheDocument();
+  });
+
+  it('reads an old project in months or years, never hundreds of days', async () => {
+    renderTable([row({ updatedAt: Date.now() - 400 * DAY_MS })]);
+
+    expect(await screen.findByText('a year ago')).toBeInTheDocument();
+    expect(screen.queryByText('400 days ago')).not.toBeInTheDocument();
   });
 });
 
