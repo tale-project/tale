@@ -225,8 +225,9 @@ function AutomationDetailFrame({
         }
       >
         {/* Fill the layout's content height so the Editor tab's workbench can
-          take the room the strip leaves; the Runs list sizes to content and
-          top-aligns as before. */}
+          take the room the strip leaves, and the Runs tab's list frame can
+          bound its table to it: the runs scroll inside the table, not the
+          page. */}
         <Skeletonize
           loading={automationQuery.isPending}
           label={t('title')}
