@@ -33,6 +33,10 @@ orgSwitcher:
   switching: Changement en cours…
   switchingTo: Passage à {name}…
   switchingLabel: Changement d'organisation
+  switchFailed: Impossible de passer à {name}.
+  switchFailedUnnamed: Impossible de changer d'organisation.
+  switchTimedOut: Le changement prend plus de temps que prévu.
+  backTo: Retour à {name}
 aria:
   primaryNavigation: Navigation principale
   unreadConversations: '{count, plural, one {# conversation non lue} other {# conversations non lues}}'

@@ -33,6 +33,10 @@ orgSwitcher:
   switching: Switching…
   switchingTo: Switching to {name}…
   switchingLabel: Switching organization
+  switchFailed: "Couldn't switch to {name}."
+  switchFailedUnnamed: "Couldn't switch organization."
+  switchTimedOut: Switching is taking longer than it should.
+  backTo: Back to {name}
 aria:
   primaryNavigation: Primary navigation
   unreadConversations: '{count, plural, one {# unread conversation} other {# unread conversations}}'

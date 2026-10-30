@@ -11,19 +11,23 @@ import { useT } from '@/lib/i18n/client';
 
 /**
  * The page a signed-in person sees when the way into the dashboard failed:
- * the layout's account read (`routes/dashboard.tsx`), or the organization
- * list and the entry into an organization (`routes/dashboard/index.tsx`).
- * Each held its frame forever before, with no word and no way out; this
- * says what failed and offers the ways on. Signing in again ends the
- * session first: the sign-in page sends a live session straight back to
- * the dashboard. A session an authenticating proxy asserted is the proxy's
- * to end, as the account menu has it, so it is offered Try again alone.
+ * the layout's account read (`routes/dashboard.tsx`), the organization list
+ * and the entry into an organization (`routes/dashboard/index.tsx`), or a
+ * switch to another organization (`OrgSwitchFailure`). Each held its frame
+ * or its spinner forever before, with no word and no way out; this says what
+ * failed and offers the ways on. Signing in again ends the session first:
+ * the sign-in page sends a live session straight back to the dashboard. A
+ * session an authenticating proxy asserted is the proxy's to end, as the
+ * account menu has it, so it is offered Try again alone. A failure with a
+ * way back that keeps the session, such as the organization a failed switch
+ * left the person in, offers that instead of signing in again.
  */
 export function DashboardEntryFailure({
   title,
   description,
   onRetry,
   retrying,
+  wayBack,
 }: {
   /** What failed, above its detail. */
   title?: string;
@@ -31,6 +35,8 @@ export function DashboardEntryFailure({
   onRetry: () => void;
   /** The retry is under way: Try again shows it is busy. */
   retrying: boolean;
+  /** A way back that keeps the session; it stands where Sign in again would. */
+  wayBack?: ReactNode;
 }) {
   const { signOut, proxied } = useAuth();
   const { t } = useT('auth');
@@ -60,15 +66,16 @@ export function DashboardEntryFailure({
         <Button variant="secondary" isLoading={retrying} onClick={onRetry}>
           {tCommon('actions.tryAgain')}
         </Button>
-        {!proxied && (
-          <Button
-            variant="secondary"
-            isLoading={leaving}
-            onClick={() => void signInAgain()}
-          >
-            {t('accountUnavailable.signInAgain')}
-          </Button>
-        )}
+        {wayBack ??
+          (!proxied && (
+            <Button
+              variant="secondary"
+              isLoading={leaving}
+              onClick={() => void signInAgain()}
+            >
+              {t('accountUnavailable.signInAgain')}
+            </Button>
+          ))}
       </VStack>
     </FullPageCenter>
   );

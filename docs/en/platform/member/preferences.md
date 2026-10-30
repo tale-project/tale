@@ -25,6 +25,10 @@ Set up an authenticator under **Two-factor authentication** or add a passkey und
 
 Open the profile menu from your avatar. **Language** changes the interface language. When you belong to several organizations, **Organization** switches the workspace. The **Teams** row names the teams you are in and opens the account page; it switches nothing, because a team is not a workspace.
 
+Each organization in the **Organization** list shows your role in it, such as **Owner** or **Member**. If the list can't be loaded, it says so; choose **Try again** to load it.
+
+If a switch fails, nothing is switched: Tale names the organization it couldn't switch to and, when it can, says why. Choose **Try again**, or **Back to** with the name of the organization you were in. A switch that hasn't finished after 20 seconds is reported the same way, as taking longer than it should; if it still completes, that organization opens.
+
 Check the organization name before changing settings or adding content.
 
 ## See your role {#role}

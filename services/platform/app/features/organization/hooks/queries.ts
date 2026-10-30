@@ -6,6 +6,7 @@ import {
   organizationCapabilitiesQuery,
   userOrganizationsQuery,
 } from '@/app/lib/backend/org';
+import { readStateOf } from '@/app/lib/backend/read-state';
 
 export function useUserOrganizations() {
   const { data, isLoading } = useQuery(userOrganizationsQuery());
@@ -16,16 +17,24 @@ export function useUserOrganizations() {
   };
 }
 
+/**
+ * The organizations the signed-in person belongs to, with how the read
+ * stands (`readStateOf`): a failed read is the caller's to name and retry,
+ * never a person in no organization.
+ */
 export function useUserOrganizationsWithDetails() {
   const { isLoading: isAuthLoading, isAuthenticated } = useAuth();
 
-  const { data, isLoading } = useQuery(userOrganizationsQuery());
+  const query = useQuery(userOrganizationsQuery());
+  const { refetch } = query;
 
   return {
-    organizations: data,
-    isLoading: isLoading,
+    organizations: query.data,
+    isLoading: query.isLoading,
     isAuthenticated,
     isAuthLoading,
+    ...readStateOf(query),
+    retry: () => void refetch(),
   };
 }
 

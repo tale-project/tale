@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { DashboardEntryFailure } from '@/app/components/layout/dashboard-entry-failure';
 import { DashboardShellFrame } from '@/app/components/layout/dashboard-shell-frame';
-import { authClientError } from '@/app/lib/auth/auth-client-error';
 import { sessionQueryOptions } from '@/app/lib/auth/session-query';
+import { setActiveOrganization } from '@/app/lib/auth/set-active-organization';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import {
   lastActiveOrgQuery,
@@ -98,11 +98,7 @@ function DashboardIndex() {
         first;
 
       try {
-        // Better Auth answers a refusal instead of throwing it.
-        const result = await authClient.organization.setActive({
-          organizationId: target.organizationId,
-        });
-        if (result.error) throw authClientError(result.error);
+        await setActiveOrganization(target.organizationId);
         await queryClient.invalidateQueries({ queryKey: ['auth', 'session'] });
         try {
           await recordOrgSwitch(target.organizationId);

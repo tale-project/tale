@@ -25,6 +25,10 @@ Richte unter **Zwei-Faktor-Authentifizierung** eine Authenticator-App ein oder e
 
 Öffne das Profilmenü über deinen Avatar. Unter **Sprache** änderst du die Oberflächensprache. Bist du in mehreren Organisationen, wechselst du mit **Organisation** den Arbeitsbereich. Die Zeile **Teams** nennt deine Teams und öffnet die Kontoseite; sie wechselt nichts, denn ein Team ist kein Arbeitsbereich.
 
+Jede Organisation in der Liste **Organisation** zeigt deine Rolle darin, etwa **Inhaber** oder **Mitglied**. Kann die Liste nicht geladen werden, steht das dort; mit **Erneut versuchen** lädst du sie noch einmal.
+
+Schlägt ein Wechsel fehl, bleibt alles, wie es war: Tale nennt die Organisation, zu der nicht gewechselt werden konnte, und wenn möglich den Grund. Wähle **Erneut versuchen** oder **Zurück zu** mit dem Namen der Organisation, in der du warst. Ein Wechsel, der nach 20 Sekunden nicht abgeschlossen ist, wird genauso gemeldet: Er dauert länger als vorgesehen. Wird er doch noch abgeschlossen, öffnet sich die Organisation.
+
 Prüfe den Organisationsnamen, bevor du Einstellungen änderst oder Inhalte hinzufügst.
 
 ## Deine Rolle sehen {#role}
