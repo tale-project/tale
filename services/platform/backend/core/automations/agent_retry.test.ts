@@ -16,6 +16,7 @@ import {
   SANDBOX_ROOM_RETRY_CEILING_MS,
   isWorkflowAgentRetryable,
   planWorkflowAgentRetry,
+  resourceExhaustedRekickAtMs,
   retryResumePrompt,
   sandboxRoomRetryAtMs,
   workflowAgentRetryResume,
@@ -641,5 +642,21 @@ describe('isWorkflowAgentRetryable', () => {
     expect(isWorkflowAgentRetryable('sandbox_destroying')).toBe(false);
     expect(isWorkflowAgentRetryable('sandbox_capacity')).toBe(true);
     expect(isWorkflowAgentRetryable('start_failed')).toBe(true);
+  });
+});
+
+describe('resourceExhaustedRekickAtMs', () => {
+  it('re-kicks a node whose sandbox ran out of memory 2, then 10, then 30 minutes after its hold began, as a task run is retried', () => {
+    const heldSince = 1_000_000;
+    expect(
+      [undefined, 1, 2, 3].map((attempt) =>
+        resourceExhaustedRekickAtMs({ attempt }, heldSince),
+      ),
+    ).toEqual([
+      heldSince + 2 * 60_000,
+      heldSince + 10 * 60_000,
+      heldSince + 30 * 60_000,
+      heldSince + 30 * 60_000,
+    ]);
   });
 });
