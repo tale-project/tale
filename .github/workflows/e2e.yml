@@ -19,6 +19,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
+      - 'release/**'
   schedule:
     # Nightly at 02:30 UTC.
     - cron: '30 2 * * *'

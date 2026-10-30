@@ -42,6 +42,7 @@ const sparseInputs = (files: string[]) => ({
 });
 type Step = {
   id?: string;
+  name?: string;
   uses?: string;
   if?: string;
   env?: Record<string, string>;
@@ -57,7 +58,15 @@ type Job = {
   'continue-on-error'?: boolean;
 };
 type Workflow = {
-  on: Record<string, { paths?: string[]; types?: string[] } | null>;
+  on: Record<
+    string,
+    {
+      branches?: string[];
+      'branches-ignore'?: string[];
+      paths?: string[];
+      types?: string[];
+    } | null
+  >;
   jobs: Record<string, Job>;
 };
 const yaml = async (relative: string) =>
@@ -145,6 +154,53 @@ describe('eight complete native merge gates', () => {
     expect(body).toContain('process.env.GITHUB_RUN_ATTEMPT');
     expect(body).toContain('context.sha');
     expect(body).toContain('core.setFailed');
+  });
+
+  test('a pull request into main or a release line starts all eight, and a push starts them on main alone', async () => {
+    for (const stem of Object.keys(CI_JOBS)) {
+      const triggers = (await workflow(stem)).on;
+      expect(triggers.pull_request?.['branches-ignore'], stem).toBeUndefined();
+      // CLI and SAST start for a pull request into any branch.
+      if (stem === 'cli' || stem === 'sast')
+        expect(triggers.pull_request?.branches, stem).toBeUndefined();
+      else
+        expect(triggers.pull_request?.branches, stem).toEqual([
+          'main',
+          'release/**',
+        ]);
+      if (triggers.push) expect(triggers.push.branches, stem).toEqual(['main']);
+    }
+  });
+
+  test('scope, readiness and commit ranges compare a pull request with its own base, never with main', async () => {
+    // A pull request into release/0.6 is scoped and judged against
+    // release/0.6: nothing on these paths may name main.
+    const main = /(?<![.\w])main\b|default_branch/;
+    for (const file of [
+      '.github/actions/ci-scope/action.yml',
+      '.github/actions/ci-ready/action.yml',
+      'tools/cli/scripts/ci-ready.ts',
+    ])
+      expect(await readFile(`${root}/${file}`, 'utf8'), file).not.toMatch(main);
+    let jobs = 0;
+    for (const stem of Object.keys(CI_JOBS)) {
+      for (const [id, job] of Object.entries((await workflow(stem)).jobs)) {
+        const uses = job.steps?.map((step) => step.uses) ?? [];
+        if (
+          !uses.includes('./.github/actions/ci-scope') &&
+          !uses.includes('./.github/actions/ci-ready')
+        )
+          continue;
+        jobs++;
+        expect(JSON.stringify(job), `${stem} ${id}`).not.toMatch(main);
+      }
+    }
+    // Five PR scopes, Checks' integration scope and eight verdicts.
+    expect(jobs).toBe(14);
+    const commitlint = (await workflow('commitlint')).jobs.commitlint!.steps!;
+    expect(
+      commitlint.find((step) => step.name === 'Run commitlint')?.env?.PR_BASE,
+    ).toBe('${{ github.event.pull_request.base.sha }}');
   });
 
   test('all current native matrix legs and fork dispositions survive', async () => {

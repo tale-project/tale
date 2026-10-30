@@ -278,12 +278,12 @@ describe('the command line', () => {
     expect(err.join('\n')).toContain('holds the lines of the edit nowhere');
   });
 
-  test('generate compares the link check with the merge base with main, and check fails when its step is no longer the one the rule finds', () => {
+  test('generate compares the link check with the merge base with the branch a pull request targets, and check fails when its step is no longer the one the rule finds', () => {
     const root = repository();
     const generated = generate(readSources(root, SMALL), SMALL);
     const text = generated.files.get('.forgejo/workflows/checks.yml') ?? '';
     expect(text).toContain('LINT_LINKS_BASE="$base" bun run lint:links');
-    expect(text).toContain('git merge-base HEAD origin/main');
+    expect(text).toContain('git merge-base HEAD "origin/$GITHUB_BASE_REF"');
     expect(text).toContain('fetch-depth: 0');
     expect(text).not.toContain('fetch-depth: 2');
     run(root, 'checks', '--write');

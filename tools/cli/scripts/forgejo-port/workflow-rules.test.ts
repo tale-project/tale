@@ -269,12 +269,14 @@ jobs:
     return { work, env, git, commit };
   }
 
-  test('compares a pull request with the merge base with main, with the history to find it', () => {
+  test('compares a pull request with the merge base with the branch it targets, with the history to find it', () => {
     const { text, report } = run(SOURCE, [lintLinksBase], 'checks.yml');
     expect(text).toContain('fetch-depth: 0');
     expect(text).not.toContain('fetch-depth: 2');
     expect(text).not.toContain('compares a change with HEAD^1');
     expect(text).toContain('if [ "$GITHUB_EVENT_NAME" = pull_request ]; then');
+    expect(text).toContain('git merge-base HEAD "origin/$GITHUB_BASE_REF"');
+    expect(text).not.toContain('origin/main');
     expect(text).toContain('LINT_LINKS_BASE="$base" bun run lint:links');
     expect(report.changes.map((change) => change.rule)).toEqual([
       'lint-links-base',
@@ -309,6 +311,7 @@ jobs:
         ...env,
         GITHUB_ACTIONS: 'true',
         GITHUB_EVENT_NAME: 'pull_request',
+        GITHUB_BASE_REF: 'main',
       },
       encoding: 'utf8',
     });
@@ -316,6 +319,32 @@ jobs:
     // `HEAD^1` is the first commit, which hides what that commit retired.
     expect(git('rev-parse', 'HEAD^1')).toBe(first);
     expect(result.stdout).toBe(main);
+  });
+
+  test('gives a pull request into a release line the commit it branched from on that line, not on main', () => {
+    const { work, env, git, commit } = repository();
+    const main = commit('main.txt');
+    git('update-ref', 'refs/remotes/origin/main', main);
+    git('checkout', '--quiet', '-b', 'line');
+    const line = commit('feature.txt');
+    git('update-ref', 'refs/remotes/origin/release/0.6', line);
+    git('checkout', '--quiet', '-b', 'change');
+    commit('first.txt');
+    commit('second.txt');
+    const result = spawnSync('bash', ['-e', '-c', probe()], {
+      cwd: work,
+      env: {
+        ...env,
+        GITHUB_ACTIONS: 'true',
+        GITHUB_EVENT_NAME: 'pull_request',
+        GITHUB_BASE_REF: 'release/0.6',
+      },
+      encoding: 'utf8',
+    });
+    expect(result.status).toBe(0);
+    // The merge base with main would hand the line's own commit to the change.
+    expect(git('merge-base', 'HEAD', 'origin/main')).toBe(main);
+    expect(result.stdout).toBe(line);
   });
 
   test('gives a push to main the commit before it, as GitHub does', () => {
@@ -341,19 +370,24 @@ jobs:
         .format.steps[1]?.run ?? '';
     const { work, env, commit } = repository();
     commit('main.txt');
-    // A pull request without main to branch from, and a push without a commit before it.
-    for (const event of ['pull_request', 'push']) {
+    // A pull request without its base branch to branch from, one that names no
+    // base branch, and a push without a commit before it.
+    for (const [event, base] of [
+      ['pull_request', 'main'],
+      ['pull_request', ''],
+      ['push', ''],
+    ] as const) {
       const result = spawnSync(
         'bash',
         ['-e', '-c', script.replace('bun run lint:links', 'echo ran')],
         {
           cwd: work,
-          env: { ...env, GITHUB_EVENT_NAME: event },
+          env: { ...env, GITHUB_EVENT_NAME: event, GITHUB_BASE_REF: base },
           encoding: 'utf8',
         },
       );
-      expect(result.status, event).not.toBe(0);
-      expect(result.stdout, event).not.toContain('ran');
+      expect(result.status, `${event} ${base}`).not.toBe(0);
+      expect(result.stdout, `${event} ${base}`).not.toContain('ran');
     }
   });
 

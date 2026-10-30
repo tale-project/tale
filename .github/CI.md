@@ -855,7 +855,7 @@ CLI install was rejected because modest size savings did not establish a reliabl
 
 ## Pull-request CI readiness
 
-Each validation workflow emits one direct terminal context on every PR:
+Each validation workflow emits one direct terminal context on every PR into `main` or `release/**`:
 `CI ready (Checks)`, `CI ready (Commitlint)`, `CI ready (SAST)`, `CI ready (Security)`,
 `CI ready (CLI)`, `CI ready (E2E)`, `CI ready (Build)`, and `CI ready (Sandbox Incus E2E)`.
 The terminal job always runs
@@ -947,9 +947,13 @@ for the repair) while its train collects the next, which departs only after it l
 landing, the train is rebased onto the branch it landed on, keeping only the commits that
 landed after the departure. Whenever `main` moved and no feature-train pull request is open, the
 feature-train role rebases `release/0.6` onto `main`, and `feature-train` with it, so every fix
-reaches the feature line without a merge. The pull-request workflows still name only `main` in
-their `pull_request` branches (and `.github/release-candidate-contract.json` holds them to it):
-until they also run for `release/**`, the feature train collects and does not depart.
+reaches the feature line without a merge. A pull request into `release/**` runs the same checks
+as one into `main` and reports the same eight `CI ready (…)` contexts: the pull-request workflows
+name both in their `pull_request` branches (CLI and SAST name none and run for every pull
+request), pushes stay on `main` alone, and `.github/release-candidate-contract.json` and
+`tools/cli/scripts/ci-ready-workflows.test.ts` hold them to it. Scope, readiness and commit
+ranges compare a pull request with its own base, so one into `release/0.6` is judged against
+`release/0.6`, never against `main`.
 
 **A pull request of its own** (a person's, Renovate's) squash-merges once the eight
 `CI ready (…)` contexts pass on its head and its review approves, with

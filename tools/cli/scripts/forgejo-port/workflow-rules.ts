@@ -200,9 +200,10 @@ const LINT_LINKS = 'bun run lint:links';
  * because GitHub checks a pull request out as a merge commit whose first parent is the base
  * branch. Here a pull request is checked out as its own head, so `HEAD^1` is the previous
  * commit of the pull request: a page retired without a redirect in any earlier commit would
- * never be seen. A pull request's base is the merge base with main, which needs the history
- * down to it. A push to main keeps the commit before it, as on GitHub: main's merge base with
- * itself is the pushed commit, and a push compared with itself retires nothing.
+ * never be seen. A pull request's base is the merge base with the branch it targets
+ * (`GITHUB_BASE_REF`, main or a release line), which needs the history down to it. A push to
+ * main keeps the commit before it, as on GitHub: main's merge base with itself is the pushed
+ * commit, and a push compared with itself retires nothing.
  */
 export const lintLinksBase: Rule = (doc, context) => {
   if (context.file !== 'checks.yml') return;
@@ -223,9 +224,10 @@ export const lintLinksBase: Rule = (doc, context) => {
     if (!isMap(checkout)) break;
 
     const comment =
-      ' lint:links compares a pull request with the commit it branched from, the merge base with main,\n' +
-      ' and a push with the commit before it: a pull request is checked out as its own head here, not as\n' +
-      ' a merge commit, so a page one of its earlier commits retired is only seen from the whole history.';
+      ' lint:links compares a pull request with the commit it branched from, the merge base with the\n' +
+      ' branch it targets, and a push with the commit before it: a pull request is checked out as its own\n' +
+      ' head here, not as a merge commit, so a page one of its earlier commits retired is only seen from\n' +
+      ' the whole history.';
     const existing = checkout.get('with');
     const inputs = isMap(existing) ? existing : new YAMLMap();
     if (!isMap(existing)) checkout.set('with', inputs);
@@ -241,7 +243,7 @@ export const lintLinksBase: Rule = (doc, context) => {
       'run',
       literal(
         'if [ "$GITHUB_EVENT_NAME" = pull_request ]; then\n' +
-          '  base="$(git merge-base HEAD origin/main)"\n' +
+          '  base="$(git merge-base HEAD "origin/$GITHUB_BASE_REF")"\n' +
           'else\n' +
           '  base="$(git rev-parse HEAD^1)"\n' +
           'fi\n' +
@@ -253,7 +255,7 @@ export const lintLinksBase: Rule = (doc, context) => {
       at: `${at}.steps[${index}]`,
       rule: 'lint-links-base',
       detail:
-        'compares a pull request with the merge base with main: it is checked out as its own head, not as a merge commit',
+        'compares a pull request with the merge base with the branch it targets: it is checked out as its own head, not as a merge commit',
     });
     return;
   }

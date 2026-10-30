@@ -26,6 +26,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
+      - 'release/**'
   # A draft is held, as the other heavy workflows hold it (e2e.yml): to try a
   # draft of the backend, dispatch this workflow on its branch.
   workflow_dispatch:
