@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DropdownMenu } from '@tale/ui/dropdown-menu';
 import { EmptyState } from '@tale/ui/empty-state';
 import { IconButton } from '@tale/ui/icon-button';
@@ -240,7 +241,9 @@ export function TestsPanelActions({
  * did not finish, and one row per test in the document's order — its
  * status, name, first failure in words, duration and what it simulates.
  * A row opens its test; its menu runs, copies or deletes it. A deleted
- * test comes back with the draft's Discard.
+ * test comes back with the draft's Discard. While the version's results
+ * could not be read, it says so with Try again in their place: a list
+ * would call every test not run yet.
  */
 export function TestsPanelContent({
   tests,
@@ -371,20 +374,33 @@ export function TestsPanelContent({
     setFocusAfterDelete(row.index);
   };
 
+  const reportFailure = tests.reportFailure;
   return (
     <div className="flex flex-col">
-      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 pt-2">
-        <p className="text-muted-foreground text-xs">{tests.source}</p>
-        {coverage !== undefined && (
-          <TestCoverage
-            covered={coverage.covered}
-            total={coverage.total}
-            {...(coverage.onShowPaths !== undefined && {
-              onActivate: coverage.onShowPaths,
-            })}
+      {reportFailure === null ? (
+        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-3 pt-2">
+          <p className="text-muted-foreground text-xs">{tests.source}</p>
+          {coverage !== undefined && (
+            <TestCoverage
+              covered={coverage.covered}
+              total={coverage.total}
+              {...(coverage.onShowPaths !== undefined && {
+                onActivate: coverage.onShowPaths,
+              })}
+            />
+          )}
+        </div>
+      ) : (
+        <div className="px-3 pt-2">
+          <CatalogLoadError
+            message={t('tests.reportFailed')}
+            failureKey={reportFailure.failureCount}
+            isRetrying={reportFailure.retrying}
+            onRetry={reportFailure.retry}
+            onFocusLost={() => listRef.current?.focus()}
           />
-        )}
-      </div>
+        </div>
+      )}
       {tests.failure !== null && (
         <div className="px-3 pt-2">
           <Alert
@@ -409,18 +425,20 @@ export function TestsPanelContent({
           )}
         </div>
       )}
-      <TestResultList
-        ref={listRef}
-        items={items}
-        aria-label={t('tests.listLabel')}
-        activeId={active}
-        status={tests.status === 'running' ? 'running' : 'ready'}
-        onActivate={(item) => {
-          const row = byId.get(item.id);
-          if (row !== undefined) onOpen(row.index);
-        }}
-        renderActions={(item, row) => rowActions(item, row.tabIndex)}
-      />
+      {reportFailure === null && (
+        <TestResultList
+          ref={listRef}
+          items={items}
+          aria-label={t('tests.listLabel')}
+          activeId={active}
+          status={tests.status === 'running' ? 'running' : 'ready'}
+          onActivate={(item) => {
+            const row = byId.get(item.id);
+            if (row !== undefined) onOpen(row.index);
+          }}
+          renderActions={(item, row) => rowActions(item, row.tabIndex)}
+        />
+      )}
     </div>
   );
 }
@@ -476,7 +494,14 @@ export function AutomationTestsSheet({
       closeLabel={t('tests.hide')}
       preventCloseAutoFocus={handingOn}
       onOpenAutoFocus={(event) => {
-        if (panel.tests.tests.length === 0) return;
+        // No list to focus — no tests, or results that could not be read:
+        // the sheet focuses its first control.
+        if (
+          panel.tests.tests.length === 0 ||
+          panel.tests.reportFailure !== null
+        ) {
+          return;
+        }
         event.preventDefault();
         panel.listRef.current?.focus();
       }}

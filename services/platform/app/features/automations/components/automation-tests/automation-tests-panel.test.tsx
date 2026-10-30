@@ -51,6 +51,7 @@ function controller(overrides: Partial<AutomationTests> = {}): AutomationTests {
     status: 'idle',
     running: new Set(),
     failure: null,
+    reportFailure: null,
     source: 'Run on your draft',
     announceKey: 0,
     runDisabledReason: undefined,
@@ -284,6 +285,31 @@ describe('the Tests panel', () => {
     expect(screen.getByText('The connection to Tale was lost.')).toBeVisible();
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     expect(tests.retry).toHaveBeenCalledOnce();
+  });
+
+  it('says the results could not be loaded, with Try again, in place of a list that would call every test not run yet', async () => {
+    const retry = vi.fn();
+    const tests = controller({
+      rows: [row({ index: 0, name: 'smoke' }), row({ index: 1, name: 'big' })],
+      counts: { passed: 0, failed: 0, error: 0, notRun: 0, stale: 0, total: 2 },
+      source: 'Not run yet',
+      reportFailure: { failureCount: 1, retrying: false, retry },
+    });
+    const { user } = renderPanel(tests, {
+      coverage: { covered: 0, total: 3 },
+    });
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load the test results",
+    );
+    expect(screen.queryByText(/Not run yet/)).toBeNull();
+    expect(screen.queryByText(/Covers 0 of 3 paths/)).toBeNull();
+    expect(
+      screen.queryByRole('list', { name: 'Tests of this automation' }),
+    ).toBeNull();
+    // What does not need the results stays: running the tests, adding one.
+    expect(screen.getByRole('button', { name: 'Run all' })).toBeVisible();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(retry).toHaveBeenCalledOnce();
   });
 
   it('adds a blank test, one from the trigger, or one for an untested path', async () => {

@@ -78,6 +78,7 @@ function controller(
     status: 'idle',
     running: new Set(),
     failure: null,
+    reportFailure: null,
     source: 'Run on your draft',
     announceKey: 0,
     runDisabledReason: undefined,

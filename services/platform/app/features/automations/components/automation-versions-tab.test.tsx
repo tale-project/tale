@@ -2,12 +2,43 @@
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen, waitFor } from '@/tests/utils/render';
+import { BackendApiError } from '@/app/lib/backend/api-client';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { AutomationVersionsTab } from './automation-versions-tab';
 
 const ensure = vi.hoisted(() => vi.fn());
 const download = vi.hoisted(() => vi.fn());
+/** The automation's read, and the member directory's — what the real
+ * `useMembers` reads — each answered or failed by a test. */
+const reads = vi.hoisted(() => ({
+  automation: {} as Record<string, unknown>,
+  members: {} as Record<string, unknown>,
+}));
+const refetch = vi.hoisted(() => ({ automation: vi.fn(), members: vi.fn() }));
+
+/** A read that answered. */
+const answered = (data: unknown, again: () => void) => ({
+  data,
+  isPending: false,
+  isLoading: false,
+  isError: false,
+  error: null,
+  isFetching: false,
+  errorUpdateCount: 0,
+  refetch: again,
+});
+/** A read that never answered: a 500 the retry policy gave up on. */
+const failed = (again: () => void) => ({
+  data: undefined,
+  isPending: false,
+  isLoading: false,
+  isError: true,
+  error: new BackendApiError(500, 'Internal Server Error'),
+  isFetching: false,
+  errorUpdateCount: 1,
+  refetch: again,
+});
 
 function version(n: number, over: Record<string, unknown> = {}) {
   return {
@@ -43,14 +74,7 @@ const paginated = (results: unknown[]) => ({
 });
 
 vi.mock('../hooks/queries', () => ({
-  useAutomation: () => ({
-    data: {
-      name: 'ops/digest',
-      version: 3,
-      latestVersion: 3,
-      deployedVersion: 2,
-    },
-  }),
+  useAutomation: () => reads.automation,
   useAutomationLiveDeployment: () => ({
     isPending: false,
     isError: false,
@@ -80,7 +104,12 @@ vi.mock('../hooks/queries', () => ({
     },
   }),
   useAutomationVersionHistory: () =>
-    paginated([version(3), version(2), version(1)]),
+    paginated([
+      version(3),
+      version(2),
+      // Saved by another member, whom only the directory can name.
+      version(1, { createdBy: 'user-ada' }),
+    ]),
   useAutomationDeployments: () =>
     paginated([
       {
@@ -122,8 +151,12 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await import('@/tests/utils/router-link-stub')).routerLinkStub,
   useNavigate: () => vi.fn(),
 }));
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({ members: [] }),
+// The member directory's own hook runs; only its read is answered here.
+vi.mock('@/app/hooks/use-backend-query', () => ({
+  useBackendQuery: (name: string) =>
+    name === 'members/queries:listByOrganization'
+      ? reads.members
+      : answered(undefined, vi.fn()),
 }));
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { userId: 'user-me' } }),
@@ -146,6 +179,16 @@ beforeEach(() => {
   ensure.mockReset();
   download.mockReset();
   onViewChange.mockReset();
+  refetch.automation.mockReset();
+  refetch.members.mockReset();
+  reads.automation = answered(
+    { name: 'ops/digest', version: 3, latestVersion: 3, deployedVersion: 2 },
+    refetch.automation,
+  );
+  reads.members = answered(
+    [{ userId: 'user-ada', displayName: 'Ada Lovelace', email: 'ada@x.test' }],
+    refetch.members,
+  );
 });
 
 describe('AutomationVersionsTab', () => {
@@ -201,5 +244,47 @@ describe('AutomationVersionsTab', () => {
     expect(
       screen.getByText(/Tale saves a copy of v1 as v4\. v2 to v3 stay/),
     ).toBeVisible();
+  });
+
+  it('names who saved each version from the member directory', () => {
+    renderTab();
+    expect(
+      within(screen.getByRole('row', { name: /^v1/ })).getByText(
+        'Ada Lovelace',
+      ),
+    ).toBeVisible();
+  });
+
+  it('offers no restore while the automation read has failed, and says so with Try again', async () => {
+    reads.automation = failed(refetch.automation);
+    const { user } = renderTab();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load the automation",
+    );
+    // The versions themselves still list, with what else they offer.
+    await user.click(screen.getByRole('button', { name: 'Actions for v1' }));
+    expect(
+      screen.getByRole('menuitem', { name: 'Download YAML' }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole('menuitem', { name: 'Restore as new version' }),
+    ).toBeNull();
+    await user.keyboard('{Escape}');
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(refetch.automation).toHaveBeenCalledOnce();
+  });
+
+  it('names an author as Someone, never a placeholder that waits forever, while the member directory read has failed', async () => {
+    reads.members = failed(refetch.members);
+    const { container, user } = renderTab();
+    const saved = within(screen.getByRole('row', { name: /^v1/ }));
+    expect(saved.getByText('Someone')).toBeVisible();
+    expect(saved.getByText('in the app')).toBeVisible();
+    expect(container.querySelector('[data-slot="author-pending"]')).toBeNull();
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      "Couldn't load member names",
+    );
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(refetch.members).toHaveBeenCalledOnce();
   });
 });

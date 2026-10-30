@@ -2,16 +2,24 @@ import { useDebounce } from '@tale/ui/use-debounce';
 import * as z from 'zod';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { readStateOf } from '@/app/lib/backend/read-state';
 
+/**
+ * The organization's member directory, with how the read stands
+ * (`readStateOf`): a failed read is the caller's to name and retry, never
+ * a directory that lists nobody.
+ */
 export function useMembers(organizationId: string) {
-  const { data, isLoading } = useBackendQuery(
-    'members/queries:listByOrganization',
-    { organizationId },
-  );
+  const query = useBackendQuery('members/queries:listByOrganization', {
+    organizationId,
+  });
+  const { data, isLoading, refetch } = query;
 
   return {
     members: data,
     isLoading,
+    ...readStateOf(query),
+    retry: () => void refetch(),
   };
 }
 

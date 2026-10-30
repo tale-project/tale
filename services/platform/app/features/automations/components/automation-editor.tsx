@@ -1823,8 +1823,10 @@ function AutomationEditorScope({
     (shown === 'tests' ? testsButtonRef : problemsButtonRef).current?.focus();
   };
   // Which paths the tests go down: the Tests panel counts them, and the
-  // Paths list says it per path.
+  // Paths list says it per path. Unknown while the version's results could
+  // not be read: no path is called tested or untested then.
   const coverage = useMemo(() => pathCoverage(tests.rows), [tests.rows]);
+  const coverageKnown = tests.reportFailure === null;
   const listed =
     flowFacts !== null && !flowFacts.truncated && flowFacts.paths.length > 1
       ? { facts: flowFacts, paths: flowFacts.paths }
@@ -1871,7 +1873,8 @@ function AutomationEditorScope({
         }),
     }),
     ...(listed !== null &&
-      automation !== null && {
+      automation !== null &&
+      coverageKnown && {
         paths: listed.paths.flatMap((path, at) => {
           if (coverage.has(path.id)) return [];
           const number = at + 1;
@@ -1942,7 +1945,8 @@ function AutomationEditorScope({
     onAdd: () => addTest(),
     addFrom,
     ...(listedPaths !== null &&
-      tests.tests.length > 0 && {
+      tests.tests.length > 0 &&
+      coverageKnown && {
         coverage: {
           covered: coveredCount(coverage, listedPaths),
           total: listedPaths.length,
@@ -3097,7 +3101,8 @@ function AutomationEditorScope({
                   {transientBanner}
                   <AutomationCanvas
                     automation={canvasDocument}
-                    {...(tests.tests.length > 0 && { pathCoverage: coverage })}
+                    {...(tests.tests.length > 0 &&
+                      coverageKnown && { pathCoverage: coverage })}
                     pathsOpen={pathsOpen}
                     onPathsOpenChange={setPathsOpen}
                     layoutKey={layoutKey}
