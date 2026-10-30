@@ -8,8 +8,8 @@ import type { HTMLAttributes, ReactNode } from 'react';
  * The section-divider rule for configuration surfaces: every
  * `SettingsSection` after the first is separated from its predecessor by one
  * hairline. `SettingsPage` applies it for the whole settings area; other
- * configuration surfaces built from `SettingsSection` — the project overview
- * page, for one — apply it to their own section container instead of
+ * configuration surfaces built from `SettingsSection` — an automation's
+ * General tab, for one — apply it to their own section container instead of
  * hand-rolling `border-t pt-8` on individual sections, so all of them share
  * one rhythm and none can forget a line on a single sibling.
  *
@@ -62,10 +62,10 @@ interface SettingsPageProps extends HTMLAttributes<HTMLDivElement> {
  * pure layout shell: a consistent stack between sections (gap-8 = 32px) so
  * the visual rhythm is the same on every page in the settings area.
  *
- * Content is capped at `max-w-3xl` and left-aligned by default — the same
- * width as the agent editor's Tools/Starters tabs — so every settings
- * surface shares one measure (#2567). Pass `fullWidth` for the documented
- * exceptions that host a wider `DataTable`.
+ * Content is capped at `max-w-3xl` and centred by default — the column
+ * `ContentArea`'s `narrow` frame shows too (a project's tabs, an automation's
+ * pages) — so every settings surface shares one measure (#2567, #2794). Pass
+ * `fullWidth` for the documented exceptions that host a wider `DataTable`.
  *
  * It also declares the settings field layout: every labelled control beneath
  * it reads label-left / control-right from `sm` up (see `FieldShell`), the
