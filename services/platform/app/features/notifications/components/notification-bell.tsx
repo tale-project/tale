@@ -149,7 +149,9 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
         </PopoverPrimitive.Portal>
       </PopoverPrimitive.Root>
       {/* Expanded view: the same panel in a large modal — the title lives in
-          the dialog header; the panel keeps its own tabs + mark-all controls. */}
+          the dialog header; the panel keeps its own tabs + mark-all controls.
+          A row that navigates closes the modal, as it closes the popover, so
+          the destination is not left behind it (#3903). */}
       {expanded && (
         <Dialog
           open={expanded}
@@ -159,6 +161,7 @@ export function NotificationBell({ organizationId }: NotificationBellProps) {
           className="md:h-[85dvh] md:max-h-[85dvh]"
         >
           <NotificationListPanel
+            onNavigate={() => setExpanded(false)}
             organizationId={organizationId}
             layout="expanded"
             className="-mx-2 -my-1 min-h-0 flex-1"

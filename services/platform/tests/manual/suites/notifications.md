@@ -1,6 +1,6 @@
 # Notifications (bell)
 
-> **Prefix** `NOTIF-` · **Reset** none · **Cost** 33 boxes
+> **Prefix** `NOTIF-` · **Reset** none · **Cost** 35 boxes
 
 Exercise the notification center (the **bell** in the app sidebar's footer +
 its popover panel). Review decisions happen on the task itself (Status →
@@ -219,6 +219,13 @@ their own action, so a single account cannot generate those rows.
   and let a run you started fail for good (`TASK-F57`) → no **Agent run
   failed** (`inbox.agentRunFailed`) row arrives; turn it on and fail another →
   the row arrives.
+- [ ] `NOTIF-F22` · **Deep-link from the expanded view** — With a
+  notification that has a target, open the bell, click **Expand**
+  (`notifications.expand`) and click the row's body → URL changes to the
+  linked item; the **Notifications** dialog (`notifications.title`) closes, as
+  the popover does in NOTIF-F3, so the destination is in view and takes clicks
+  and keys at once; the row becomes read. Clicking a row's trailing **Mark as
+  read** (`notifications.markAsRead`) instead keeps the dialog open.
 
 ## Boundary & error tests
 

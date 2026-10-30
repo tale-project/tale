@@ -22,8 +22,8 @@ interface NotificationRowProps {
   target: NotificationTarget | null;
   /**
    * Invoked when the body is activated (clicked). Marks the row read and, when
-   * a `target` exists, closes the host popover. Navigation itself is handled by
-   * the `<Link>` — this is the side-effect hook.
+   * a `target` exists, closes the host surface (popover or expanded dialog).
+   * Navigation itself is handled by the `<Link>` — this is the side-effect hook.
    */
   onActivate: () => void;
   /** Marks the row read WITHOUT navigating — the trailing icon button. */
