@@ -620,6 +620,27 @@ compute codes from the enrollment secret.
   organization and access choices, and **Connect** works. Answer it with `404`
   instead → the same notice with **Connect** unavailable and **Cancel** alone,
   since asking again would not change the answer.
+- [ ] `AUTH-B23` · **A dashboard entry that cannot read or open your
+  organizations** — Signed in as an admin of two organizations, with a proxy
+  rule or local override that answers `/api/app/organizations` with `500`,
+  open `/dashboard` → after a few seconds (the read and its three retries) the
+  page says **Your organizations could not be loaded.**
+  (`auth.dashboardEntry.organizationsFailed`) with **Try again**
+  (`common.actions.tryAgain`) and **Sign in again**
+  (`auth.accountUnavailable.signInAgain`), never a loading frame that stays.
+  Answer it with `403` and `{"error":"FORBIDDEN","message":"Not here."}`
+  instead and reload → the same notice with **Not here.** under it, at once.
+  Lift the rule and choose **Try again** → the notice stays, with **Try
+  again** busy, until the list is back, then the organization you used last
+  opens. Then, in Chromium's devtools → **Network**, block
+  `*/api/auth/organization/set-active*` and open `/dashboard` → the page says
+  that organization, by name, could not be opened
+  (`auth.dashboardEntry.openFailed`, **Acme could not be opened.** for Acme)
+  with **Couldn't reach Tale. Check your connection and try again.**
+  (`common.errors.connectionLost`) under it; unblock and choose **Try
+  again** → that organization opens. Block it again, reload and choose
+  **Sign in again** → the log-in form shows and stays. Repeat with Deutsch
+  and Français → the notices and both actions are localized.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -8,6 +8,9 @@ sessionLapse:
 accountUnavailable:
   description: Your account could not be loaded.
   signInAgain: Sign in again
+dashboardEntry:
+  organizationsFailed: Your organizations could not be loaded.
+  openFailed: '{organization} could not be opened.'
 oauth:
   title: 'Continue with Tale'
   request: '{application} wants to sign you in with Tale.'

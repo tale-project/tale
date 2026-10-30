@@ -1,8 +1,3 @@
-import { Alert } from '@tale/ui/alert';
-import { Button } from '@tale/ui/button';
-import { FullPageCenter } from '@tale/ui/full-page-center';
-import { VStack } from '@tale/ui/layout';
-import { toast } from '@tale/ui/use-toast';
 import { useQueryClient } from '@tanstack/react-query';
 import {
   Outlet,
@@ -12,13 +7,14 @@ import {
 } from '@tanstack/react-router';
 import { useEffect, useRef, useState } from 'react';
 
+import { DashboardEntryFailure } from '@/app/components/layout/dashboard-entry-failure';
 import { DashboardShellFrame } from '@/app/components/layout/dashboard-shell-frame';
 import { SessionLapseRecovery } from '@/app/components/session-lapse-recovery';
 import { useTwoFactorStatus } from '@/app/context/account-bootstrap-context';
 import { AccountBootstrapProvider } from '@/app/context/account-bootstrap-provider';
 import { useSessionIdleWatchdog } from '@/app/hooks/use-session-idle-watchdog';
 import { useSessionLapseRedirect } from '@/app/hooks/use-session-lapse-redirect';
-import { useAuth, useSessionUser } from '@/app/hooks/use-session-user';
+import { useSessionUser } from '@/app/hooks/use-session-user';
 import { redirectToLogIn } from '@/app/lib/auth/log-in-redirect';
 import { reportSessionLapsed } from '@/app/lib/auth/session-lapse';
 import {
@@ -269,19 +265,12 @@ function DashboardRedirect() {
  * A session Better Auth still calls live while the backend's `/users/me`
  * names nobody, after the one recovery reload. The pages under the layout
  * wait on that user — the create-organization page held its frame forever —
- * so the layout says what happened and offers the ways on. Signing in again
- * ends the session first: the sign-in page sends a live session straight
- * back to the dashboard. A session an authenticating proxy asserted is the
- * proxy's to end, as the account menu has it, so it is offered Try again
- * alone.
+ * so the layout says what happened and offers the ways on.
  */
 function AccountUnavailable() {
   const queryClient = useQueryClient();
-  const { signOut, proxied } = useAuth();
   const { t } = useT('auth');
-  const { t: tCommon } = useT('common');
   const [retrying, setRetrying] = useState(false);
-  const [leaving, setLeaving] = useState(false);
 
   const retry = () => {
     setRetrying(true);
@@ -292,43 +281,12 @@ function AccountUnavailable() {
       .finally(() => setRetrying(false));
   };
 
-  const signInAgain = async () => {
-    setLeaving(true);
-    try {
-      await signOut();
-    } catch (error) {
-      console.warn('[auth] Ending the session to sign in again failed', error);
-      setLeaving(false);
-      toast({
-        title: t('userButton.toast.signOutFailed'),
-        variant: 'destructive',
-      });
-      return;
-    }
-    redirectToLogIn();
-  };
-
   return (
-    <FullPageCenter>
-      <VStack gap={3}>
-        <Alert
-          variant="destructive"
-          description={t('accountUnavailable.description')}
-        />
-        <Button variant="secondary" isLoading={retrying} onClick={retry}>
-          {tCommon('actions.tryAgain')}
-        </Button>
-        {!proxied && (
-          <Button
-            variant="secondary"
-            isLoading={leaving}
-            onClick={() => void signInAgain()}
-          >
-            {t('accountUnavailable.signInAgain')}
-          </Button>
-        )}
-      </VStack>
-    </FullPageCenter>
+    <DashboardEntryFailure
+      description={t('accountUnavailable.description')}
+      onRetry={retry}
+      retrying={retrying}
+    />
   );
 }
 

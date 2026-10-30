@@ -1,0 +1,8 @@
+# Auth & account — boxes a spec took over
+
+Rows for [`auth`](../../suites/auth.md) boxes that moved out of the suite. Read
+[`../automation.md`](../automation.md) for the rest of the coverage map.
+
+| Suite | Automated slice | Coverage | Specs |
+| --- | --- | --- | --- |
+| [auth](../../suites/auth.md) | `AUTH-B23` (the component half, #4825): `/dashboard` shows its frame only while the organization list and the entry are pending. A list read that fails is named (`auth.dashboardEntry.organizationsFailed`) once its retries give up, after four requests for a 503 or a request that gets no answer and after one for a 403 refusal, whose words stand under the title while a fault's payload never does. An entry that fails is named with its organization (`auth.dashboardEntry.openFailed`), whether `setActive` rejects or Better Auth answers a refusal, and no longer goes on into the organization. Both offer **Try again**, busy while it runs with the notice kept, and **Sign in again**, which ends the session before it loads `/log-in?redirectTo=%2Fdashboard`. Try again on a failed entry reads the list again and enters what it now holds. The session, the last-used organization and the first membership are tried in that order, a session read that gets no answer falls back to the next, and an empty list opens the wizard | ✅ component | `app/routes/dashboard/index.test.tsx` (the real organization and last-used reads and their retry policy, a real query cache, a stubbed `fetch` and Better Auth client). Not automated: a real backend failure, the layout, and the wording in German and French (`AUTH-B23`) |

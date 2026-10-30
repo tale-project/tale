@@ -8,6 +8,9 @@ sessionLapse:
 accountUnavailable:
   description: Ton compte n'a pas pu être chargé.
   signInAgain: Se reconnecter
+dashboardEntry:
+  organizationsFailed: Impossible de charger tes organisations.
+  openFailed: Impossible d'ouvrir {organization}.
 oauth:
   title: 'Continuer avec Tale'
   request: '{application} souhaite te connecter avec Tale.'
