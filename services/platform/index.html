@@ -113,11 +113,13 @@
          keeps the class in step). `boot-chat` gates the composer stand-in
          (ChatComposerPlaceholder) on a chat route or org root; shared-chat
          snapshots are neither. `boot-chat-notice` reserves the
-         confidentiality notice's row under the composer stand-in when this
-         device last saw the org show one: `chat-data-notice-<orgId>`
-         (written by DataNoticeFooter, see data-notice-boot.ts) holds its text
-         as a ready-escaped CSS string, copied to `--boot-chat-notice` so the
-         row wraps like the live notice. -->
+         confidentiality notice's row under the composer stand-in on a new
+         chat (an open conversation carries the notice on its last message)
+         when this device last saw the org show one:
+         `chat-data-notice-<orgId>` (written by DataNoticeFooter, see
+         data-notice-boot.ts) holds its text as a ready-escaped CSS string,
+         copied to `--boot-chat-notice` so the row wraps like the live
+         notice. -->
     <script>
       (function () {
         try {
@@ -171,6 +173,9 @@
           }
           if (!chat) return;
           root.classList.add('boot-chat');
+          // A conversation's id follows `chat`: an open one shows the notice
+          // on its last message, not under the composer.
+          if (match[3] !== undefined) return;
           var notice = localStorage.getItem('chat-data-notice-' + org);
           if (notice) {
             root.classList.add('boot-chat-notice');
