@@ -1,3 +1,5 @@
 default: AI can make mistakes—verify responses and do not share sensitive data.
 footer:
   ariaLabel: Confidentiality notice
+  expand: Show the whole notice
+  collapse: Show the notice on one line

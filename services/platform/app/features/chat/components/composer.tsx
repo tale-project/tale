@@ -36,9 +36,11 @@ import { Textarea } from '@tale/ui/textarea';
 import {
   THREAD_COMPOSER_FIELD_CLASS,
   THREAD_COMPOSER_FRAME_CLASS,
+  THREAD_COMPOSER_TOOLBAR_CLASS,
 } from '@tale/ui/thread/layout';
 import { Tooltip } from '@tale/ui/tooltip';
 import { TypeaheadListbox } from '@tale/ui/typeahead-listbox';
+import { useAutoGrow } from '@tale/ui/use-auto-grow';
 import { useImeComposition } from '@tale/ui/use-ime-composition';
 import { toast } from '@tale/ui/use-toast';
 import { BookOpen, CircleStop, Loader2 } from 'lucide-react';
@@ -248,6 +250,9 @@ export const Composer = memo(
     const [text, setText] = usePersistedState(draftKey, '');
     const dictationRef = useRef<DictationButtonHandle>(null);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+    // The field starts at its empty size and grows with the draft up to its
+    // cap, then scrolls inside (`THREAD_COMPOSER_FIELD_CLASS`).
+    useAutoGrow(textareaRef, text);
     const fileInputRef = useRef<HTMLInputElement>(null);
     // Names pasted images `pasted-image-N.<ext>` — monotonic for the
     // composer's life, so two pastes of the same screenshot stay two
@@ -620,6 +625,7 @@ export const Composer = memo(
                 // The placeholder renders as the overlay below so it can carry the
                 // Enter-to-send hint; the attribute stays empty.
                 placeholder=""
+                rows={1}
                 disabled={disabled}
                 // Chromeless inside the composer's own frame: the field must not
                 // draw its own border or focus ring — ring-0 alone still paints the
@@ -700,7 +706,7 @@ export const Composer = memo(
               gap={2}
               justify="between"
               align="center"
-              className="min-w-0 pb-3 sm:gap-4"
+              className={THREAD_COMPOSER_TOOLBAR_CLASS}
             >
               <Row
                 gap={1}

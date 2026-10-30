@@ -63,7 +63,11 @@ what is there, and the page shows the one thing you opened.
 - **Conversation pages** — a chat, a task and a customer conversation open in one frame:
   `ThreadHeader` (the Home panel toggle, a 32px identity mark, the title, one quiet line of context,
   then the actions), a centred reading column, and the composer pinned at the foot in the same frame
-  for all three (`THREAD_COMPOSER_FRAME_CLASS`, `@tale/ui/thread/layout`). A task is a structured chat: its brief (description,
+  for all three (`THREAD_COMPOSER_FRAME_CLASS`, `@tale/ui/thread/layout`). The chat composer's field
+  starts at two lines and grows with the draft to two-fifths of the window, then scrolls inside
+  (`useAutoGrow`). A window under 50rem tall (`compact-height:`, a laptop screen) starts it at one
+  line, closes up the frame's padding and keeps the confidentiality notice under it to one line, with
+  a toggle that unfolds a notice cut short. A task is a structured chat: its brief (description,
   files, subtasks) opens the thread as a card, comments and history follow oldest first under day
   pills (one `ThreadDayDivider`, pinned while its day scrolls by, shared by chats, tasks and the
   inbox), and its structure (status, owner, dates…) lives in a details panel that folds away. The
@@ -164,7 +168,8 @@ what is there, and the page shows the one thing you opened.
   instead of stretching. Tables embedded in a scrolling settings page are the exception and take
   neither. A short viewport (`short-viewport:`, under 30rem — a phone held sideways, a laptop at
   200 %) lifts the bound: the frame grows with its rows, the page scrolls, page headers stop
-  sticking, and the embedding banner keeps to its title and link.
+  sticking, and the embedding banner keeps to its title and link. A laptop screen is not short:
+  under 50rem only a conversation's composer takes its compact sizes (`compact-height:`).
 - **Layout answers to its column, not the window** — viewport breakpoints (`sm`, `md`, `lg`)
   decide the shell only: rail or tab bar, a panel or not. Beside the rail and a section panel a
   page column is ~400px on a 768px window and ~660px on a 1024px one, so whatever a page lays out

@@ -32,12 +32,20 @@ export const THREAD_OWN_BUBBLE_SURFACE_CLASS =
 /** The viewer's own message: a right-aligned muted bubble. */
 export const THREAD_OWN_BUBBLE_CLASS = `${THREAD_OWN_BUBBLE_WIDTH_CLASS} ${THREAD_OWN_BUBBLE_SURFACE_CLASS}`;
 
-/** The composer pinned at the foot of every conversation. */
+/** The composer pinned at the foot of every conversation. On a
+ * `compact-height` viewport (a laptop screen) its top padding closes up. */
 export const THREAD_COMPOSER_FRAME_CLASS =
-  'border-border sm:border-muted-foreground/50 bg-background relative w-full rounded-xl border px-3 pt-3 shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.15)] sm:rounded-2xl sm:px-5 sm:pt-4 dark:shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.5)]';
+  'border-border sm:border-muted-foreground/50 bg-background relative w-full rounded-xl border px-3 pt-3 shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.15)] sm:rounded-2xl sm:px-5 sm:pt-4 compact-height:pt-3 dark:shadow-[0_-6px_16px_-8px_rgb(0_0_0/0.5)]';
 
-/** The composer's field: two lines on a short viewport (a phone held
- * sideways, a laptop at 200 %), where 100px of empty field left the thread
- * above it no room at all. */
+/** The composer's field: two lines when empty, one on a `compact-height`
+ * viewport, where 100px of empty field and the chrome around it covered a
+ * third of a laptop's window. It grows with the draft up to two-fifths of the
+ * viewport, then scrolls inside (`useAutoGrow`). It sets its own type size,
+ * so the loading placeholder's lines measure what the field's do. */
 export const THREAD_COMPOSER_FIELD_CLASS =
-  'min-h-[72px] sm:min-h-[100px] short-viewport:min-h-12';
+  'min-h-[2lh] max-h-[40dvh] text-base md:text-sm compact-height:min-h-[1lh]';
+
+/** The composer's controls row under the field; its bottom padding closes
+ * the frame. */
+export const THREAD_COMPOSER_TOOLBAR_CLASS =
+  'min-w-0 pb-3 sm:gap-4 compact-height:pb-2';

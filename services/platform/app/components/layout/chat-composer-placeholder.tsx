@@ -4,6 +4,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import {
   THREAD_COMPOSER_FIELD_CLASS,
   THREAD_COMPOSER_FRAME_CLASS,
+  THREAD_COMPOSER_TOOLBAR_CLASS,
 } from '@tale/ui/thread/layout';
 
 /**
@@ -43,7 +44,7 @@ export function ChatComposerPlaceholder() {
               gap={2}
               justify="between"
               align="center"
-              className="min-w-0 pb-3 sm:gap-4"
+              className={THREAD_COMPOSER_TOOLBAR_CLASS}
             >
               <Row
                 gap={1}
@@ -70,16 +71,17 @@ export function ChatComposerPlaceholder() {
         {/* The confidentiality notice's row — DataNoticeFooter as the chat
             surface renders it: beside the composer's centered frame at the
             column's full width, `px-3 pt-1 pb-1`, a 14px icon, caption
-            text. Shown only under `boot-chat-notice`; its text is the
+            text, and on a `compact-height` viewport one line with no bottom
+            padding. Shown only under `boot-chat-notice`; its text is the
             generated content of `--boot-chat-notice`, so the served shell
             carries no text node and the masked line wraps exactly like the
             notice. */}
-        <div className="hidden items-center justify-center gap-1.5 px-3 pt-1 pb-1 [.boot-chat-notice_&]:flex">
+        <div className="compact-height:pb-0 hidden items-center justify-center gap-1.5 px-3 pt-1 pb-1 [.boot-chat-notice_&]:flex">
           <SkeletonCircle asChild>
             <div className="size-3.5 shrink-0" />
           </SkeletonCircle>
           <SkeletonBox asChild>
-            <p className="text-xs leading-tight after:content-(--boot-chat-notice)" />
+            <p className="compact-height:truncate min-w-0 text-xs leading-tight after:content-(--boot-chat-notice)" />
           </SkeletonBox>
         </div>
       </Skeletonize>
