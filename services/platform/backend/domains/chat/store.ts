@@ -120,34 +120,52 @@ export async function assertThreadWriteScope(
   }
 }
 
+/** A message {@link appendMessageRow} adds to a thread. */
+interface AppendedMessage {
+  /** A caller-minted id — the REST door names the assistant placeholder
+   * in its 202 before the turn runs, so the row must land under it. */
+  id?: string;
+  organizationId: string;
+  threadId: string;
+  role: string;
+  parts: unknown;
+  text?: string;
+  model?: string;
+  providerSlug?: string;
+  usage?: unknown;
+  blockedReason?: string;
+  error?: string;
+  truncation?: { droppedMessages: number };
+  status?: string;
+  /** The API key that sent a user message: naming the thread it opens is
+   * the key's spend too. */
+  apiKeyId?: string;
+  /** A guardrail refused the user message: the thread it opens is named
+   * from its own words, with no model call. */
+  nameWithoutModel?: boolean;
+  /** What names the thread this message opens, where that is not its
+   * text: the words after the skills it chose. */
+  titleText?: string;
+}
+
 export async function appendMessageRow(
   sql: Sql,
-  message: {
-    /** A caller-minted id — the REST door names the assistant placeholder
-     * in its 202 before the turn runs, so the row must land under it. */
-    id?: string;
-    organizationId: string;
-    threadId: string;
-    role: string;
-    parts: unknown;
-    text?: string;
-    model?: string;
-    providerSlug?: string;
-    usage?: unknown;
-    blockedReason?: string;
-    error?: string;
-    truncation?: { droppedMessages: number };
-    status?: string;
-    /** The API key that sent a user message: naming the thread it opens is
-     * the key's spend too. */
-    apiKeyId?: string;
-    /** A guardrail refused the user message: the thread it opens is named
-     * from its own words, with no model call. */
-    nameWithoutModel?: boolean;
-    /** What names the thread this message opens, where that is not its
-     * text: the words after the skills it chose. */
-    titleText?: string;
-  },
+  message: AppendedMessage,
+  slot: SlotClaimOptions = {},
+): Promise<{ id: string; sequence: number }> {
+  const row = await insertMessageRow(sql, message, slot);
+  const thread = await touchThread(sql, {
+    threadId: message.threadId,
+    reply: message.role === 'assistant',
+  });
+  await queueThreadTitle(sql, message, row, thread);
+  return row;
+}
+
+/** Insert one message at the thread's next (order, step) slot. */
+async function insertMessageRow(
+  sql: Sql,
+  message: AppendedMessage,
   slot: SlotClaimOptions = {},
 ): Promise<{ id: string; sequence: number }> {
   // The slot is UNIQUE: two turns appending to one thread at once both read
@@ -177,31 +195,45 @@ export async function appendMessageRow(
     `;
     return rows[0]; // undefined: the slot went to a concurrent append
   }, slot);
-  // A turn just wrote to the thread; keep its list ordering fresh. An
-  // assistant row also stamps the unread watermark; activity on a hidden
-  // branch surfaces on its ROOT — the row the sidebar shows for the lineage.
+  return { id: row.id, sequence: row.order };
+}
+
+/** The thread's sidecar as {@link touchThread} read it. */
+interface TouchedThread {
+  branchRootId: string | null;
+  chatType: string;
+  userId: string;
+  arenaRole: string | null;
+}
+
+/**
+ * Messages were just written to the thread: keep its list ordering fresh,
+ * and for a reply stamp the unread watermark too. Activity on a hidden
+ * branch surfaces on its ROOT — the row the sidebar shows for the lineage.
+ * `updated_at_ms` is a key of `threads_org` and `threads_org_user`, so a
+ * bump is never a HOT update: each one writes a new entry into every index
+ * of the table. A write that adds several messages touches the thread once,
+ * after the last of them.
+ */
+async function touchThread(
+  sql: Sql,
+  args: { threadId: string; reply: boolean },
+): Promise<TouchedThread | undefined> {
   const now = Date.now();
   await sql`
     UPDATE app.threads SET updated_at_ms = ${now}
-    WHERE id = ${message.threadId}
+    WHERE id = ${args.threadId}
   `;
-  const meta = await sql<
-    {
-      branchRootId: string | null;
-      chatType: string;
-      userId: string;
-      arenaRole: string | null;
-    }[]
-  >`
+  const meta = await sql<TouchedThread[]>`
     SELECT branch_root_id AS "branchRootId", chat_type AS "chatType",
            user_id AS "userId", arena ->> 'role' AS "arenaRole"
-    FROM app.thread_metadata WHERE thread_id = ${message.threadId}
+    FROM app.thread_metadata WHERE thread_id = ${args.threadId}
     LIMIT 1
   `;
-  if (message.role === 'assistant') {
+  if (args.reply) {
     await sql`
       UPDATE app.thread_metadata SET last_reply_at_ms = ${now}
-      WHERE thread_id = ${message.threadId}
+      WHERE thread_id = ${args.threadId}
     `;
   }
   const rootId = meta[0]?.branchRootId ?? null;
@@ -209,49 +241,54 @@ export async function appendMessageRow(
     await sql`
       UPDATE app.threads SET updated_at_ms = ${now} WHERE id = ${rootId}
     `;
-    if (message.role === 'assistant') {
+    if (args.reply) {
       await sql`
         UPDATE app.thread_metadata SET last_reply_at_ms = ${now}
         WHERE thread_id = ${rootId}
       `;
     }
   }
-  // The thread's first user message names the conversation: fire the AI
-  // title generation exactly once — for the opening user message of an
-  // untitled thread (a branch copy or an explicitly titled thread keeps
-  // what it has). The hidden column of a model comparison takes the title
-  // its visible partner is given (`setThreadTitleIfAbsent`): naming it too
-  // would pay for a second title nobody reads.
+  return meta[0];
+}
+
+/**
+ * The thread's first user message names the conversation: fire the AI
+ * title generation exactly once — for the opening user message of an
+ * untitled thread (a branch copy or an explicitly titled thread keeps
+ * what it has). The hidden column of a model comparison takes the title
+ * its visible partner is given (`setThreadTitleIfAbsent`): naming it too
+ * would pay for a second title nobody reads.
+ */
+async function queueThreadTitle(
+  sql: Sql,
+  message: AppendedMessage,
+  row: { sequence: number },
+  thread: TouchedThread | undefined,
+): Promise<void> {
   if (
-    message.role === 'user' &&
-    row.order === 0 &&
-    meta[0] !== undefined &&
-    meta[0].arenaRole !== 'b'
+    message.role !== 'user' ||
+    row.sequence !== 0 ||
+    thread === undefined ||
+    thread.arenaRole === 'b'
   ) {
-    const firstMessage = (message.titleText ?? message.text ?? '').trim();
-    if (firstMessage.length > 0) {
-      const untitled = await sql<{ id: string }[]>`
-        SELECT id FROM app.threads
-        WHERE id = ${message.threadId} AND title IS NULL
-        LIMIT 1
-      `;
-      if (untitled.length > 0) {
-        await addJobInTx(sql, 'chat.generate_title', {
-          organizationId: message.organizationId,
-          threadId: message.threadId,
-          userId: meta[0].userId,
-          firstMessage,
-          ...(message.apiKeyId !== undefined
-            ? { apiKeyId: message.apiKeyId }
-            : {}),
-          ...(message.nameWithoutModel === true
-            ? { nameWithoutModel: true }
-            : {}),
-        });
-      }
-    }
+    return;
   }
-  return { id: row.id, sequence: row.order };
+  const firstMessage = (message.titleText ?? message.text ?? '').trim();
+  if (firstMessage.length === 0) return;
+  const untitled = await sql<{ id: string }[]>`
+    SELECT id FROM app.threads
+    WHERE id = ${message.threadId} AND title IS NULL
+    LIMIT 1
+  `;
+  if (untitled.length === 0) return;
+  await addJobInTx(sql, 'chat.generate_title', {
+    organizationId: message.organizationId,
+    threadId: message.threadId,
+    userId: thread.userId,
+    firstMessage,
+    ...(message.apiKeyId !== undefined ? { apiKeyId: message.apiKeyId } : {}),
+    ...(message.nameWithoutModel === true ? { nameWithoutModel: true } : {}),
+  });
 }
 
 /**
@@ -557,28 +594,32 @@ function pgTurnStore(
             threadId: setup.threadId,
           });
         }
-        let userMessage: { id: string; sequence: number } | undefined;
-        if (setup.userParts !== undefined) {
-          userMessage = await appendMessageRow(tx, {
-            organizationId: setup.organizationId,
-            threadId: setup.threadId,
-            role: 'user',
-            parts: setup.userParts,
-            text: setup.userParts
-              .map((part) => (part.type === 'text' ? part.text : ''))
-              .join(''),
-            ...(setup.truncation !== undefined
-              ? { truncation: setup.truncation }
-              : {}),
-            ...(setup.spend?.apiKeyId !== undefined
-              ? { apiKeyId: setup.spend.apiKeyId }
-              : {}),
-            ...(setup.titleText !== undefined
-              ? { titleText: setup.titleText }
-              : {}),
-          });
-        }
-        const assistantMessage = await appendMessageRow(tx, {
+        const userRow: AppendedMessage | undefined =
+          setup.userParts === undefined
+            ? undefined
+            : {
+                organizationId: setup.organizationId,
+                threadId: setup.threadId,
+                role: 'user',
+                parts: setup.userParts,
+                text: setup.userParts
+                  .map((part) => (part.type === 'text' ? part.text : ''))
+                  .join(''),
+                ...(setup.truncation !== undefined
+                  ? { truncation: setup.truncation }
+                  : {}),
+                ...(setup.spend?.apiKeyId !== undefined
+                  ? { apiKeyId: setup.spend.apiKeyId }
+                  : {}),
+                ...(setup.titleText !== undefined
+                  ? { titleText: setup.titleText }
+                  : {}),
+              };
+        const userMessage =
+          userRow === undefined
+            ? undefined
+            : await insertMessageRow(tx, userRow);
+        const assistantMessage = await insertMessageRow(tx, {
           ...(placeholderId !== undefined ? { id: placeholderId } : {}),
           organizationId: setup.organizationId,
           threadId: setup.threadId,
@@ -586,6 +627,17 @@ function pgTurnStore(
           parts: [],
           status: 'pending',
         });
+        // One touch for both rows: a touch per row wrote two versions of the
+        // thread row (and of a branch's root) in this one transaction. The
+        // placeholder is a reply, so the touch stamps the unread watermark
+        // as the placeholder's own append did.
+        const thread = await touchThread(tx, {
+          threadId: setup.threadId,
+          reply: true,
+        });
+        if (userRow !== undefined && userMessage !== undefined) {
+          await queueThreadTitle(tx, userRow, userMessage, thread);
+        }
         const now = Date.now();
         // The claim. The row's existence is the at-most-one-turn fact every
         // lane reads; a conflict means another turn holds the thread, and
@@ -660,10 +712,11 @@ function pgTurnStore(
       try {
         await waitOutDatabaseOutage(() =>
           sql.begin(async (tx) => {
-            await tx`
+            const ended = await tx<{ messageId: string | null }[]>`
               DELETE FROM app.generations
               WHERE thread_id = ${generation.threadId}
                 AND org_id = ${generation.organizationId}
+              RETURNING message_id AS "messageId"
             `;
             await tx`
               UPDATE app.thread_metadata SET
@@ -675,16 +728,22 @@ function pgTurnStore(
             // write precedes this on every path (completed, refused,
             // cancelled, paused, failed), so a row still pending here is one
             // whose finalize itself failed — and with the generation row
-            // gone, nothing else would ever mark it. The claim above makes
-            // this turn's placeholder the only pending row the thread can
-            // hold.
-            await tx`
-              UPDATE app.messages SET status = 'failed',
-                error = coalesce(error, ${UNSETTLED_TURN_ERROR})
-              WHERE thread_id = ${generation.threadId}
-                AND org_id = ${generation.organizationId}
-                AND status = 'pending'
-            `;
+            // gone, nothing else would ever mark it. The row names that
+            // placeholder (the open stamps `message_id`), so the stamp finds
+            // it by primary key; a `status = 'pending'` filter on the thread
+            // read every message of the thread on every turn. A row already
+            // gone was taken by the generation sweep or a stopping process,
+            // and both settle the placeholder themselves.
+            const namedPlaceholderId = ended[0]?.messageId ?? null;
+            if (namedPlaceholderId !== null) {
+              await tx`
+                UPDATE app.messages SET status = 'failed',
+                  error = coalesce(error, ${UNSETTLED_TURN_ERROR})
+                WHERE id = ${namedPlaceholderId}
+                  AND org_id = ${generation.organizationId}
+                  AND status = 'pending'
+              `;
+            }
           }),
         );
       } finally {
