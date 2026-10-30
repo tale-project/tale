@@ -367,10 +367,41 @@ fails the candidate. Work in this order.
    the tag's time, the Release, CLI and Publish packages run ids, the image revision
    check, and how each hold stood. An agent that reconciles the release later needs
    exactly those identities and has no other way to find them.
-5. **Hand it to Ops.** A published version is not a deployment. Ops adopts it with its
-   release adopter, or by hand when the adopter is blocked or the owner asks:
-   `tools/release-adoption/README.md` in `tale-project/ops`, section "Adopting a
-   release by hand".
+5. **Hand it to Ops.** A published version is not a deployment. Ops adopts it through its
+   release adopter (`tools/release-adoption/README.md` in `tale-project/ops`). When the
+   adopter is blocked, or the owner asks, the platform environments are adopted by hand
+   with their deploy workflows; their runbooks, `deployments/tale/platform/pr/README.md`
+   included, say how a pending bundle is recovered first. The deploy tool is the pinned CLI
+   (`TALE_CLI_REF`), so a release whose CLI has a defect needs a newer CLI pinned before any
+   host can take it.
+
+6. **Check the runner pool before you tag, and again if the Release run crawls.** Release, the
+   merge queue and every pull request share the repository's hosted runners, about 20 jobs at
+   once on the free plan ([CI guide](CI.md#merge-queue)), and GitHub does not serve them
+   oldest-first: on 2026-10-13 the Release's 13 waiting jobs were the oldest in the pool and
+   still waited behind about 275 others. v0.5.87 published in 11 minutes; v0.5.88 took 91.
+   A run marked `queued` can hold running jobs, so count jobs, not runs:
+
+   ```bash
+   gh api graphql -f query='query { repository(owner:"tale-project", name:"tale") { mergeQueue(branch:"main") { entries(first:40) { totalCount nodes { state pullRequest { number } } } } } }'
+   gh api 'repos/tale-project/tale/actions/runs?status=queued&per_page=100' --jq '.workflow_runs | group_by(.event) | map({(.[0].event): length}) | add'
+   ```
+
+   If the queue or the pull-request runs are the load, ask whoever feeds them to hold. A release
+   is not a reason to cancel anyone's runs, but it is a reason to stop adding to them. **Taking
+   PRs out of the merge queue does not stop their merge-group runs**: GitHub leaves a deleted
+   revision running ([CI guide](CI.md#retiring-a-deleted-merge-group-revision)). Retire each one
+   with the maintained tool, which refuses anything still in the queue or on a live ref:
+
+   ```bash
+   bun tools/cli/scripts/ci-retire-merge-group.ts --run <run id>                 # read-only decision
+   bun tools/cli/scripts/ci-retire-merge-group.ts --run <run id> --apply --receipt /abs/private/run-<id>.jsonl
+   ```
+
+   Never replay a receipt. The aggregates an ordinary cancellation leaves queued cost almost
+   nothing; the finishing mode in the guide is a separate decision. A burst of pushes also spends
+   CI's GitHub API budget, 5,000 an hour: on 2026-10-13 it ran out for about ten minutes and
+   steps that call the API failed with "API rate limit exceeded for installation".
 
 ## Failure, resume and idempotency
 
@@ -437,6 +468,15 @@ fails the candidate. Work in this order.
   For a published version, or a failure that needs a source change, recover forward: fix
   `main` where needed, then validate a new candidate and release it as the next version
   (steps 1–5).
+
+- **The tag-bound CLI run fails at `Attach to release`.** Its `Wait for release to exist` step
+  treats any failed `gh release view` as a missing release, so an API outage or an exhausted API
+  budget reads as "not found" after ten tries, although the five builds were fine and the release
+  exists. No asset is attached. Confirm the release exists, then dispatch the publication again on
+  the tag ref, never on `main`: `gh workflow run cli.yml --ref vX.Y.Z -f release_tag=vX.Y.Z`.
+  Prefer that to a failed-job-only rerun: the adopter reads the newest run for the tag and requires
+  its complete job matrix from one attempt. Check the assets and that each binary's GitHub digest
+  equals its line in `tale_checksums.txt`.
 
 ## Merging during a release, and the release lease
 
