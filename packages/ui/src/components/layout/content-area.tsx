@@ -43,11 +43,16 @@ const contentAreaVariants = cva(
         // the frame grows with its rows and the page scrolls instead, since
         // bounded, the table's own scrollport shrank to a sliver.
         list: 'short-viewport:flex-none min-h-0 flex-1 px-4 pt-4',
-        // `max-w-3xl` is the settings measure (`SettingsPage`, #2567): every
+        // The settings measure (`SettingsPage`, #2567) for a frame that pads
+        // itself: a settings page's column is `max-w-3xl` with its frame's
+        // `px-4` outside it, so this cap is that measure plus the same `px-4`
+        // on both sides. Capped at `max-w-3xl`, the padding came out of the
+        // column, 32px narrower than a settings page's (#2794). Every
         // configuration surface — org settings, project tabs, automation
-        // settings — shares one content width so switching between them
-        // doesn't reflow the reading column.
-        narrow: 'mx-auto max-w-3xl px-4 pt-4',
+        // settings — shares one content width, at every window width, so
+        // switching between them doesn't reflow the reading column.
+        narrow:
+          'mx-auto max-w-[calc(var(--container-3xl)+--spacing(8))] px-4 pt-4',
         panel: 'px-6 pt-4',
       },
       gap: {
