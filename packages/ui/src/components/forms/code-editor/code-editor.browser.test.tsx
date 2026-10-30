@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import { completionStatus } from '@codemirror/autocomplete';
 import { EditorView } from '@codemirror/view';
 import { cleanup } from '@testing-library/react';
 import axe from 'axe-core';
@@ -949,12 +950,21 @@ const SHAPES: CodeEditorProviders = {
 };
 
 /**
- * The open completion list, once it takes keys: CodeMirror ignores keys for
- * its first 75 ms, so a list that opens under fast typing is not chosen from
- * by accident.
+ * The open completion list, once it is settled and takes keys. A pause in
+ * typing can open a list early ("nodes" of "nodes."), and the answer for the
+ * rest then replaces it with a new one, so this waits until no answer is
+ * pending. CodeMirror ignores keys for a list's first 75 ms, so a list that
+ * opens under fast typing is not chosen from by accident.
  */
-async function listbox(): Promise<HTMLElement> {
-  const list = await screen.findByRole('listbox', {}, { timeout: 5000 });
+async function listbox(box: HTMLElement): Promise<HTMLElement> {
+  const view = viewOf(box);
+  const list = await waitFor(
+    () => {
+      expect(completionStatus(view.state)).toBe('active');
+      return screen.getByRole('listbox');
+    },
+    { timeout: 5000 },
+  );
   await new Promise((resolve) => setTimeout(resolve, 120));
   return list;
 }
@@ -972,18 +982,14 @@ describe('CodeEditor completion', () => {
     const box = await content('Code');
     await userEvent.click(box);
     await userEvent.keyboard('nodes.');
-    const list = await listbox();
+    const list = await listbox(box);
     expect(box).toHaveAttribute('aria-autocomplete', 'list');
-    // The list opens on "nodes" while typing; on a loaded runner the
-    // update after the dot can land a moment later.
-    await waitFor(() =>
-      expect(
-        [...list.querySelectorAll('[role="option"]')].map(
-          (option) => option.querySelector('.cm-completionLabel')?.textContent,
-        ),
-      ).toEqual(['score', 'open issues']),
-    );
     const options = [...list.querySelectorAll('[role="option"]')];
+    expect(
+      options.map(
+        (option) => option.querySelector('.cm-completionLabel')?.textContent,
+      ),
+    ).toEqual(['score', 'open issues']);
     expect(box.getAttribute('aria-activedescendant')).toBe(options[0].id);
     await userEvent.keyboard('{ArrowDown}');
     expect(box.getAttribute('aria-activedescendant')).toBe(options[1].id);
@@ -1003,7 +1009,7 @@ describe('CodeEditor completion', () => {
     const box = await content('Code');
     await userEvent.click(box);
     await userEvent.keyboard('nodes.');
-    await listbox();
+    await listbox(box);
     await userEvent.keyboard('{ArrowDown}{Tab}');
     expect(screen.getByTestId('value').textContent).toBe(
       'nodes["open issues"]',
@@ -1022,7 +1028,7 @@ describe('CodeEditor completion', () => {
     const box = await content('Code');
     await userEvent.click(box);
     await userEvent.keyboard('{End}.');
-    await listbox();
+    await listbox(box);
     const info = await screen.findByText('What the node returns.');
     expect(info.closest('.cm-completionInfo')?.textContent).toContain('total');
   });
@@ -1039,7 +1045,7 @@ describe('CodeEditor completion', () => {
     const box = await content('Code');
     await userEvent.click(box);
     await userEvent.keyboard('{Control>} {/Control}');
-    const list = await listbox();
+    const list = await listbox(box);
     expect(list.textContent).toContain('nodes');
   });
 
@@ -1055,7 +1061,7 @@ describe('CodeEditor completion', () => {
     const box = await content('Code');
     await userEvent.click(box);
     await userEvent.keyboard('{End}{{{{');
-    const list = await listbox();
+    const list = await listbox(box);
     expect(list.textContent).toContain('input');
   });
 
@@ -1091,13 +1097,18 @@ describe('CodeEditor completion', () => {
       const box = await content('Code');
       await new Promise((resolve) => setTimeout(resolve, 600));
       await userEvent.click(box);
-      await userEvent.keyboard('nodes.');
-      const list = await listbox();
-      // The list sits inside the sheet. CodeMirror places it a frame after it
-      // appears, so a busy machine can read it still unplaced.
+      // A list that opens on a pause in typing ("nodes") gives way to a new
+      // one after the dot. A busy runner can pause anywhere, so the test
+      // pauses there every time and checks the list that takes its place.
+      await userEvent.keyboard('nodes');
+      await listbox(box);
+      await userEvent.keyboard('.');
+      await listbox(box);
+      // The list sits inside the sheet. CodeMirror places a list a frame after
+      // it appears, so the check reads the list on screen until it is placed.
       const sheet = box.closest('[role="dialog"]') as HTMLElement;
       await waitFor(() => {
-        const listBox = list.getBoundingClientRect();
+        const listBox = screen.getByRole('listbox').getBoundingClientRect();
         const sheetBox = sheet.getBoundingClientRect();
         expect(listBox.top).toBeGreaterThanOrEqual(sheetBox.top);
         expect(listBox.bottom).toBeLessThanOrEqual(sheetBox.bottom + 1);
@@ -1149,7 +1160,7 @@ describe('CodeEditor completion in German', () => {
     const box = await content();
     await userEvent.click(box);
     await userEvent.keyboard('nodes.');
-    const list = await listbox();
+    const list = await listbox(box);
     expect(list).toHaveAttribute('aria-label', 'Vorschläge');
   });
 });
@@ -1536,7 +1547,7 @@ describe.each(['light', 'dark'])('CodeEditor popups (%s)', (theme) => {
     await screen.findByText('MAYBE_NULL', {}, { timeout: 3000 });
     await userEvent.click(box);
     await userEvent.keyboard('{End}.');
-    await listbox();
+    await listbox(box);
     await new Promise((resolve) => setTimeout(resolve, 300));
     const result = await axe.run(document.body, {
       runOnly: [
@@ -1572,7 +1583,7 @@ describe('CodeEditor under reduced motion', () => {
     const box = await content('Code');
     await userEvent.click(box);
     await userEvent.keyboard('nodes.');
-    await listbox();
+    await listbox(box);
     const tooltip = document.querySelector(
       '.cm-tooltip-autocomplete',
     ) as HTMLElement;
