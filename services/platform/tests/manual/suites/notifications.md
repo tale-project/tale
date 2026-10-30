@@ -1,6 +1,6 @@
 # Notifications (bell)
 
-> **Prefix** `NOTIF-` · **Reset** none · **Cost** 32 boxes
+> **Prefix** `NOTIF-` · **Reset** none · **Cost** 33 boxes
 
 Exercise the notification center (the **bell** in the app sidebar's footer +
 its popover panel). Review decisions happen on the task itself (Status →
@@ -234,6 +234,20 @@ their own action, so a single account cannot generate those rows.
   was already decided elsewhere, click the row body → No crash; the task sheet
   opens normally and no **Waiting on** chip remains on the board card — the
   row simply becomes read.
+- [ ] `NOTIF-B4` · **A failed read is named, never "caught up"** — Block
+  `*/api/app/notifications?*` and `*/api/app/collab/notifications?*` in
+  DevTools (Network → request blocking), reload the page and open the bell →
+  once the reads' retries give up (a few seconds; a blocked request reads as a
+  lost connection, so the offline notice may cover the page meanwhile) the
+  panel shows `notifications.loadFailed` with **Try again**
+  (`common.actions.tryAgain`), never **You're all caught up**
+  (`notifications.emptyCaughtUpTitle`) on Unread nor **No notifications yet**
+  (`notifications.emptyAllTitle`) on All. Unblock, Tab to **Try again** and
+  press Enter → the notifications appear without a reload, and the focus is
+  on the list, not lost to the page. Then block only
+  `*/api/app/notifications?*` with a personal notification in the stream
+  (see Preconditions), reload and open the bell → its row shows under
+  `notifications.loadPartlyFailed` with **Try again**.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { cn } from '@tale/ui/cn';
 import { ExternalLink } from '@tale/ui/external-link';
 import { IconButton } from '@tale/ui/icon-button';
@@ -138,7 +139,8 @@ export function NotificationListPanel({
   const { t: tCommon } = useT('common');
   const { t: tTasks } = useT('tasks');
 
-  const { results, status, loadMore } = useNotificationsList(organizationId);
+  const orgList = useNotificationsList(organizationId);
+  const { results, status, loadMore } = orgList;
   const { data: unread } = useNotificationsUnreadCount(organizationId);
   const markRead = useMarkNotificationRead();
   const markAllRead = useMarkAllNotificationsRead();
@@ -147,14 +149,49 @@ export function NotificationListPanel({
   // interleaved with the org stream — one panel for everything, with inline
   // review actions and task deep links. It is paginated like the org stream so
   // "Load more" walks both, rather than capping the personal inbox.
+  const personalList = useMyNotificationsList(organizationId);
   const {
     results: myNotifications,
     status: myStatus,
     loadMore: loadMoreMy,
-  } = useMyNotificationsList(organizationId);
+  } = personalList;
   const myUnread = useUnreadNotificationCount(organizationId);
   const markMyRead = useMarkMyNotificationRead();
   const markAllMyRead = useMarkAllMyNotificationsRead();
+
+  // A read that failed is named with Try again, never passed off as an empty
+  // panel (#4665): the paginated hook reads a first page that failed as an
+  // exhausted empty list, and "You're all caught up" would tell the reader
+  // there is nothing to act on. A stream's failure stands while its first
+  // page never answered (`unavailable`, through a retry too) or its latest
+  // refresh or next page failed (`error`); the other stream's rows stay.
+  // While one stands no empty state shows: it would claim that a list nobody
+  // could read is empty, or caught up.
+  const orgReadFailed = orgList.unavailable || orgList.error !== null;
+  const personalReadFailed =
+    personalList.unavailable || personalList.error !== null;
+  const readFailed = orgReadFailed || personalReadFailed;
+  const { retry: retryOrg, isRetrying: orgRetrying } = orgList;
+  const { retry: retryPersonal, isRetrying: personalRetrying } = personalList;
+  // Asks again for each failed read not already being asked for — never for
+  // one that answered.
+  const retryFailedReads = useCallback(() => {
+    if (orgReadFailed && !orgRetrying) retryOrg();
+    if (personalReadFailed && !personalRetrying) retryPersonal();
+  }, [
+    orgReadFailed,
+    orgRetrying,
+    retryOrg,
+    personalReadFailed,
+    personalRetrying,
+    retryPersonal,
+  ]);
+  // Where a Try again that worked hands its focus as its notice goes: the
+  // list it brought back, not the page.
+  const listRegionRef = useRef<HTMLDivElement>(null);
+  const focusListRegion = useCallback(() => {
+    listRegionRef.current?.focus();
+  }, []);
 
   // Pagination walks each stream's read and unread rows together, so an older
   // unread row can sit on a page not loaded yet: its count says so, the loaded
@@ -411,9 +448,18 @@ export function NotificationListPanel({
   const unreadCount = orgUnread + myUnread;
   // Drive one "Load more" affordance off BOTH streams: it's enabled while
   // either has another page, shows progress while either is fetching, and a
-  // click advances every stream that still has more.
-  const canLoadMore = status === 'CanLoadMore' || myStatus === 'CanLoadMore';
+  // click advances every stream that still has more. A stream whose read
+  // failed loads no further until Try again (`useListPage`'s rule): its hook
+  // refuses the page after a failed one, so the click would do nothing.
+  const orgCanLoadMore = status === 'CanLoadMore' && !orgReadFailed;
+  const personalCanLoadMore = myStatus === 'CanLoadMore' && !personalReadFailed;
+  const canLoadMore = orgCanLoadMore || personalCanLoadMore;
   const isLoadingMore = status === 'LoadingMore' || myStatus === 'LoadingMore';
+  // A first page in flight. A failed one asked for again is not: its notice
+  // and Try again hold while the retry runs.
+  const loadingFirstPage =
+    (status === 'LoadingFirstPage' && !orgList.unavailable) ||
+    (myStatus === 'LoadingFirstPage' && !personalList.unavailable);
   const hasVisibleItems = items.length > 0 || myItems.length > 0;
   // Unread rows wait on a page not loaded yet: the Unread tab must not claim
   // you're caught up while one does, and only a stream with pages left can
@@ -431,9 +477,9 @@ export function NotificationListPanel({
     (canLoadMore || isLoadingMore) &&
     (hasVisibleItems || filter === 'all' || unreadBeyondLoaded);
   const handleLoadMore = useCallback(() => {
-    if (status === 'CanLoadMore') loadMore(LOAD_MORE_NUM_ITEMS);
-    if (myStatus === 'CanLoadMore') loadMoreMy(LOAD_MORE_NUM_ITEMS);
-  }, [status, loadMore, myStatus, loadMoreMy]);
+    if (orgCanLoadMore) loadMore(LOAD_MORE_NUM_ITEMS);
+    if (personalCanLoadMore) loadMoreMy(LOAD_MORE_NUM_ITEMS);
+  }, [orgCanLoadMore, loadMore, personalCanLoadMore, loadMoreMy]);
 
   // Radix force-closes a tooltip the moment its trigger is clicked — which is
   // exactly when this toggle's tip starts announcing the NEW order. And once
@@ -585,9 +631,35 @@ export function NotificationListPanel({
           )}
         </div>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+      {/* The list's region: a Try again that worked hands its focus here as
+          its notice goes. */}
+      <div
+        ref={listRegionRef}
+        role="region"
+        aria-label={t('title')}
+        tabIndex={-1}
+        className="flex min-h-0 flex-1 flex-col overflow-y-auto outline-none"
+      >
+        {readFailed && (
+          <div className="shrink-0 px-4 pt-3">
+            <CatalogLoadError
+              // Each failure is announced again; Try again keeps its node,
+              // and the focus on it, while a retry runs and when it fails
+              // again.
+              failureKey={orgList.errorCount + personalList.errorCount}
+              onFocusLost={focusListRegion}
+              message={t(
+                results.length === 0 && myNotifications.length === 0
+                  ? 'loadFailed'
+                  : 'loadPartlyFailed',
+              )}
+              onRetry={retryFailedReads}
+              isRetrying={orgRetrying || personalRetrying}
+            />
+          </div>
+        )}
         {items.length === 0 && myItems.length === 0 ? (
-          status === 'LoadingFirstPage' || myStatus === 'LoadingFirstPage' ? (
+          loadingFirstPage ? (
             // Short-lived async load — a centered spinner + label reads
             // cleaner than a fake-content skeleton when items typically
             // arrive in under a second.
@@ -602,7 +674,7 @@ export function NotificationListPanel({
               />
               <p className="text-xs">{t('loading')}</p>
             </div>
-          ) : filter === 'unread' && unreadBeyondLoaded ? (
+          ) : readFailed ? null : filter === 'unread' && unreadBeyondLoaded ? (
             // The count proves unread rows the loaded pages don't hold yet;
             // "Load more" below walks to them.
             <div className="text-muted-foreground flex flex-1 flex-col items-center justify-center gap-2 px-6 py-10 text-center">
