@@ -81,7 +81,7 @@ Chat answers questions; it doesn't produce files. When the answer should become 
 3. Under **Assignee**, choose one of the project's agents if none is chosen yet; in a project without agents of its own, the standard agent already is. Then select **Create and start agent**.
 4. Follow the run above the chat's message box; **Open** there takes you to the task.
 
-When the run ends, the agent's report is in the task's comments, the file is under **Deliverables**, and the task waits in **In review**. Mention the agent with `@` in a comment to ask for changes, and move the task to **Done** when the result meets the description.
+When the run ends, the agent's report is in the task's comments, the file is under **Deliverables**, and the task waits in **In review**. Mention the agent with `@` in a comment to ask for changes, and move the task to **Done** when the result meets the description. If your organization requires an independent reviewer, you cannot accept the result of a run you started: Tale refuses the move to **Done**, so ask an Editor or higher to accept it. That includes a run your `@` mention started, for example to ask for changes, or restarted to take in your comment. You can still accept the result of a run that an Editor or higher started on your task; [Choose an owner and a reviewer](/platform/projects/tasks#choose-an-owner-and-a-reviewer) explains who can accept a result.
 
 Any member can create tasks in a project they can open. A run that a Member starts keeps to that task and its subtasks and works without the agent's secrets; [Agent runs a Member starts](/platform/projects/tasks#agent-runs-a-member-starts) lists the limits.
 
