@@ -59,18 +59,22 @@ budgets:
   selectTeam: Select team...
   searchTeams: Search teams
   noTeamsFound: No teams found
+  teamsLoadFailed: Couldn't load teams.
   selectTeamAriaLabel: Select team
   project: Project
   selectProject: Select project...
   searchProjects: Search projects
   noProjectsFound: No projects found
+  projectsLoadFailed: Couldn't load projects.
   selectProjectAriaLabel: Select project
   projectDeleted: Deleted project
   projectDeletedHint: This project no longer exists, so the rule limits nothing. Choose a project or remove the rule.
+  projectNotLoaded: Project not loaded
   apiKey: API key
   selectApiKey: Select API key...
   searchApiKeys: Search API keys
   noApiKeysFound: No API keys found
+  apiKeysLoadFailed: Couldn't load API keys.
   selectApiKeyAriaLabel: Select API key
   saved: Budget rules updated
   saveFailed: Couldn't save budget rules

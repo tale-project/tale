@@ -1,10 +1,10 @@
 import { AppShell } from '@tale/ui/app-shell';
 import { cleanup, render as renderWithProviders } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n } from '@/tests/utils/i18n-all-languages';
-import { render, screen, within } from '@/tests/utils/render';
+import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: vi.fn() }),
@@ -30,9 +30,32 @@ vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
   useMembers: () => STABLE_MEMBERS,
 }));
 
+// Every target list answers unless a test makes its read fail (#4605); each
+// failed read's retry is a spy, so a test sees Try again reach it.
+const failing = vi.hoisted(() => ({
+  projects: false,
+  teams: false,
+  apiKeys: false,
+}));
+const refetch = vi.hoisted(() => ({
+  projects: vi.fn(),
+  teams: vi.fn(),
+  apiKeys: vi.fn(),
+}));
+
 const STABLE_TEAMS = { teams: [] };
+// The teams read after it settled in error (`readStateOf`).
+const FAILED_TEAMS = {
+  teams: undefined,
+  isLoading: false,
+  unavailable: true,
+  stale: false,
+  retrying: false,
+  failureCount: 1,
+  retry: refetch.teams,
+};
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
-  useOrgTeams: () => STABLE_TEAMS,
+  useOrgTeams: () => (failing.teams ? FAILED_TEAMS : STABLE_TEAMS),
 }));
 
 // The apiKey budget scope's picker reads every member's API key (the
@@ -122,14 +145,28 @@ const STABLE_PROJECTS = {
   ] as unknown[],
   isLoading: false,
 };
+// A read that settled in error without ever answering, as react-query hands
+// it back: no data, and a failure counted.
+const FAILED_READ = {
+  data: undefined,
+  isLoading: false,
+  isError: true,
+  isFetching: false,
+  errorUpdateCount: 1,
+};
+const FAILED_PROJECTS = { ...FAILED_READ, refetch: refetch.projects };
+const FAILED_API_KEYS = { ...FAILED_READ, refetch: refetch.apiKeys };
 const backendQueryRefs = vi.hoisted(() => [] as unknown[]);
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: (ref: unknown) => {
     backendQueryRefs.push(ref);
-    if (ref === 'projects/queries:listProjects') return STABLE_PROJECTS;
-    return ref === 'governance/api_keys:listOrgApiKeys'
-      ? STABLE_API_KEYS
-      : { data: undefined, isLoading: false };
+    if (ref === 'projects/queries:listProjects') {
+      return failing.projects ? FAILED_PROJECTS : STABLE_PROJECTS;
+    }
+    if (ref === 'governance/api_keys:listOrgApiKeys') {
+      return failing.apiKeys ? FAILED_API_KEYS : STABLE_API_KEYS;
+    }
+    return { data: undefined, isLoading: false };
   },
 }));
 
@@ -201,6 +238,15 @@ function setLoading() {
   state.config = undefined;
   state.projectConfig = null;
   refreshPolicy();
+}
+/** Every target list answers again, and no retry was asked for yet. */
+function readAllTargets() {
+  failing.projects = false;
+  failing.teams = false;
+  failing.apiKeys = false;
+  refetch.projects.mockClear();
+  refetch.teams.mockClear();
+  refetch.apiKeys.mockClear();
 }
 
 describe('BudgetEditor', () => {
@@ -867,6 +913,138 @@ describe('BudgetEditor', () => {
         screen.getByText(/no budget rules configured/i),
       ).toBeInTheDocument();
     });
+
+    // A project list that failed to load is not an empty one: it proves
+    // nothing about the project a rule caps, which may well exist — and the
+    // server still enforces the rule (#4605).
+    describe('when the project list fails to load (#4605)', () => {
+      afterEach(readAllTargets);
+
+      it('never calls a rule’s project deleted, and offers to load the list again', async () => {
+        failing.projects = true;
+        setLoaded([], [PROJECT_RULE]);
+        const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+        expect(
+          screen.queryByRole('cell', { name: 'Deleted project' }),
+        ).not.toBeInTheDocument();
+        expect(
+          screen.getByRole('cell', { name: 'Project not loaded' }),
+        ).toBeInTheDocument();
+        expect(screen.getByText("Couldn't load projects.")).toBeInTheDocument();
+
+        await user.click(screen.getByRole('button', { name: 'Try again' }));
+        expect(refetch.projects).toHaveBeenCalledTimes(1);
+      });
+
+      it('hands the focus to the table once the list answers', async () => {
+        failing.projects = true;
+        setLoaded([], [PROJECT_RULE]);
+        const { rerender } = render(<BudgetEditor organizationId="org-1" />);
+        screen.getByRole('button', { name: 'Try again' }).focus();
+
+        failing.projects = false;
+        rerender(<BudgetEditor organizationId="org-1" />);
+
+        expect(
+          screen.getByRole('cell', { name: 'Website relaunch' }),
+        ).toBeInTheDocument();
+        await waitFor(() => expect(screen.getByRole('table')).toHaveFocus());
+      });
+
+      it('keeps quiet while no rule caps a project', () => {
+        failing.projects = true;
+        setLoaded([DEFAULT_RULE]);
+        render(<BudgetEditor organizationId="org-1" />);
+
+        expect(
+          screen.queryByText("Couldn't load projects."),
+        ).not.toBeInTheDocument();
+      });
+
+      it('never tells to remove a rule whose project it could not read', async () => {
+        failing.projects = true;
+        setLoaded([], [PROJECT_RULE]);
+        const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+        await user.click(screen.getByRole('button', { name: /edit rule/i }));
+        const dialog = within(await screen.findByRole('dialog'));
+        expect(
+          dialog.queryByText(/This project no longer exists/),
+        ).not.toBeInTheDocument();
+        expect(dialog.getByText("Couldn't load projects.")).toBeInTheDocument();
+        // The rule keeps its project: the field never reads as unset.
+        const picker = dialog.getByRole('button', { name: /Project/ });
+        expect(picker).toHaveTextContent('Project not loaded');
+
+        await user.click(dialog.getByRole('button', { name: 'Try again' }));
+        expect(refetch.projects).toHaveBeenCalledTimes(1);
+
+        await user.click(picker);
+        const list = within(await screen.findByRole('listbox'));
+        expect(list.getByText("Couldn't load projects.")).toBeInTheDocument();
+        expect(list.queryByText('No projects found')).not.toBeInTheDocument();
+      });
+
+      it('hands the focus to the project field once the list answers', async () => {
+        failing.projects = true;
+        setLoaded([], [PROJECT_RULE]);
+        const { user, rerender } = render(
+          <BudgetEditor organizationId="org-1" />,
+        );
+        await user.click(screen.getByRole('button', { name: /edit rule/i }));
+        const dialog = within(await screen.findByRole('dialog'));
+        dialog.getByRole('button', { name: 'Try again' }).focus();
+
+        failing.projects = false;
+        rerender(<BudgetEditor organizationId="org-1" />);
+
+        const picker = dialog.getByRole('button', { name: /Project/ });
+        expect(picker).toHaveTextContent('Website relaunch');
+        await waitFor(() => expect(picker).toHaveFocus());
+      });
+    });
+  });
+
+  // The team and API-key pickers read lists of their own: one that failed
+  // to load says so and loads again, never "none found" (#4605).
+  describe('a target list that fails to load', () => {
+    afterEach(readAllTargets);
+
+    it.each([
+      {
+        list: 'teams',
+        rule: { scope: 'team', scopeId: 'team-1' },
+        picker: /Team/,
+        failed: "Couldn't load teams.",
+        empty: 'No teams found',
+      },
+      {
+        list: 'apiKeys',
+        rule: { scope: 'apiKey', apiKeyId: 'key-1' },
+        picker: /API key/,
+        failed: "Couldn't load API keys.",
+        empty: 'No API keys found',
+      },
+    ] as const)(
+      'says the $list could not load, and loads them again',
+      async ({ list, rule, picker, failed, empty }) => {
+        failing[list] = true;
+        setLoaded([{ ...rule, period: 'monthly', maxRequests: 100 }]);
+        const { user } = render(<BudgetEditor organizationId="org-1" />);
+
+        await user.click(screen.getByRole('button', { name: /edit rule/i }));
+        const dialog = within(await screen.findByRole('dialog'));
+        expect(dialog.getByText(failed)).toBeInTheDocument();
+        await user.click(dialog.getByRole('button', { name: 'Try again' }));
+        expect(refetch[list]).toHaveBeenCalledTimes(1);
+
+        await user.click(dialog.getByRole('button', { name: picker }));
+        const options = within(await screen.findByRole('listbox'));
+        expect(options.getByText(failed)).toBeInTheDocument();
+        expect(options.queryByText(empty)).not.toBeInTheDocument();
+      },
+    );
   });
 
   describe('structural parity (skeleton matches content)', () => {

@@ -1006,6 +1006,31 @@ agent.
   `0, 2`. Repeat with `1, 2` → whole-second delays remain unchanged too.
   Restore the original schedule, attempt limit and enabled state.
 
+- [ ] `GOV-B23` · **A project list that fails to load deletes no project** —
+  Keep a GOV-F54 **Project** rule on a live project, block
+  `*/api/app/projects?includeArchived=true*` in DevTools (Network → request
+  blocking) and reload `policies-limits` → after the retries (a few seconds)
+  the rule's **Target** reads **Project not loaded**
+  (`governance.budgets.projectNotLoaded`), never **Deleted project**
+  (`governance.budgets.projectDeleted`), and an alert above the rules table
+  reads **Couldn't load projects.** (`governance.budgets.projectsLoadFailed`)
+  with **Try again** (`common.actions.tryAgain`); a screen reader announces
+  it. **Edit rule** → the **Project** field reads **Project not loaded**
+  under the same alert, never **This project no longer exists…**
+  (`governance.budgets.projectDeletedHint`), and its list reads **Couldn't
+  load projects.**, never **No projects found**
+  (`governance.budgets.noProjectsFound`); **Try again** pressed while still
+  blocked stays focused (busy) and announces the failure again. Unblock →
+  **Try again** → the field names the project without a reload and the
+  focus lands on it. Cancel, block again and reload, unblock → **Try again**
+  above the table from the keyboard → the row names its project and the
+  focus lands on the rules table. A **Team** or **API key** rule's dialog
+  with `*/api/app/teams` or `*/api/app/governance/api-keys` blocked reads
+  **Couldn't load teams.** (`governance.budgets.teamsLoadFailed`) or
+  **Couldn't load API keys.** (`governance.budgets.apiKeysLoadFailed`) with
+  **Try again**, and its list never **No teams found** or **No API keys
+  found**. No toast; every label reads in German and French too.
+
 ## Accessibility (WCAG 2.1 AA)
 
 - [ ] `GOV-A1` · **Toggles** → Each governance switch (voice output, content
