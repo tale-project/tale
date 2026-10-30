@@ -61,7 +61,8 @@ if you want to keep a write.
 > `common.aria.mainNavigation` ("Main navigation") and is `display:none`
 > (hidden) at `< md`. The tabs are buttons named by their section (the Home
 > tab's name also carries the unread count, so match it by its leading word).
-> The Home list is anchored by its **Show** radiogroup (`home.views.label`).
+> The Home list is anchored by its **Show** radiogroup (`home.views.label`); its
+> views are icons, each a `radio` named in full by its label.
 > To prove "no horizontal overflow", assert
 > `document.documentElement.scrollWidth === clientWidth`.
 > Chat turns are not needed here — the chat input just has to render and be
@@ -118,7 +119,8 @@ if you want to keep a write.
   the header reads **Home** (`home.title`) with **Search**
   (`navigation.sidebar.search`), which opens the search palette the desktop
   rail opens, and no **New chat** button; below it the list the desktop
-  panel holds — the **Show** switcher (`home.views.label`), the **Projects**
+  panel holds — the **Show** switcher (`home.views.label`, an icon per view
+  with the open one named beside it), the **Projects**
   section (`home.projects.title`) with **All projects**
   (`home.projects.allProjects`) as a text link and no **New project** button,
   the banded list and the **Archived** drawer
