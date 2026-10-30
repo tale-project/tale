@@ -226,7 +226,9 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   showed why (2026-09).
 - **A patched dependency stays pinned, proven and dated** — `patches/` holds the Bun
   `patchedDependencies` patches (today postgres.js 3.4.7: a killed server process, #4041, and a
-  `begin()` that fills a connection's pipeline, porsager/postgres#1189), and
+  `begin()` that fills a connection's pipeline, porsager/postgres#1189; router-core 1.168.9: a
+  preload reading the match a navigation dropped while the route's chunk or loader was pending,
+  TanStack/router#7759; zod 4.6.6: four behaviours kept as 4.3.6 had them), and
   [`patches/README.md`](../patches/README.md) says for each why it exists, which test proves it and
   when to remove it. Every Dockerfile that installs from the root manifests copies `patches/`
   (`bun install` fails without a listed patch), and bumping a patched package regenerates or

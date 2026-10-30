@@ -122,31 +122,50 @@ is an upgrade of its own.
 
 ## `@tanstack%2Frouter-core@1.168.9.patch`
 
-**Why.** The platform build splits every route component outside the sign-in pages and the landing
-into a chunk of its own (`services/platform/vite.config.ts`, `ENTRY_ROUTES`;
-[#4089](https://github.com/tale-project/tale/issues/4089)), so preloading such a route waits on its
-chunk. When a navigation commits during that wait, `clearExpiredCache` drops the cached matches of
-routes without a loader, and `loadRouteMatch` then reads the vanished match: `TypeError: Cannot read
-properties of undefined (reading '_nonReactive')`, which `preloadRoute` logs. The sidebar's links
-preload their sections on render, so every landing through `/` or `/dashboard` logged it three
-times. Router-core already returns early when the match is gone before its loader runs
-(`shouldSkipLoader`); only the two reads after an await lacked the check. 1.168.18, the last 1.168
-release, reads them the same way; 1.171.34 has a rewritten loader (`load-client.js`).
+**Why.** `loadRouteMatch` reads a preload's match again once the preload's wait ends, and a
+navigation in the meantime can have dropped it: `TypeError: Cannot read properties of undefined
+(reading '_nonReactive')`, which `preloadRoute` logs. Router-core already returns early when the
+match is gone before its loader runs (`shouldSkipLoader`); only the two reads after an await lacked
+the check. A preload gets there two ways:
+
+- **A split route without a loader.** The platform build splits every route component outside the
+  sign-in pages and the landing into a chunk of its own (`services/platform/vite.config.ts`,
+  `ENTRY_ROUTES`; [#4089](https://github.com/tale-project/tale/issues/4089)), so preloading such a
+  route waits on its chunk. When a navigation commits during that wait, `clearExpiredCache` drops
+  the cached matches of routes without a loader. The sidebar's links preload their sections on
+  render, so every landing through `/` or `/dashboard` logged it three times.
+- **A loader the router awaits**, which needs no split
+  ([#4911](https://github.com/tale-project/tale/issues/4911)). Opening a route while its preload's
+  loader runs moves the preload's match out of the cache into the navigation's pending matches, and
+  leaving before the loader answers drops it from those too. The project page
+  (`/dashboard/$id/projects/$projectId`) awaits its project in its loader for the document title,
+  and the projects list preloads it on row hover. A route left without being opened logs nothing:
+  the cache keeps the match of a route with a loader until its `preloadGcTime`.
+
+Upstream tracks both as [TanStack/router#7759](https://github.com/TanStack/router/issues/7759),
+closed by the loader rewrite in
+[TanStack/router#7805](https://github.com/TanStack/router/pull/7805); router-core 1.171.16 is the
+first release with it (`load-client.js` in place of `load-matches.js`). 1.168.18, the last 1.168
+release, reads the matches the same way as 1.168.9.
 
 **What.** In `loadRouteMatch` (`dist/esm/load-matches.js` and `dist/cjs/load-matches.cjs`), each
 `inner.router.getMatch(matchId)` after an await returns `inner.matches[index]` when the match is
 gone, as the branch that skips the loader does. The hunks are marked `Tale:`.
 
-**Proof.** `services/platform/app/lib/router-split-preload.test.ts` preloads a split route without a
-loader, navigates elsewhere while its chunk is pending, then delivers the chunk: unpatched, the
-preload logs the `TypeError`; patched, it settles quietly, and an uninterrupted preload still loads
-the route.
+**Proof.** `services/platform/app/lib/router-split-preload.test.ts` takes both ways in. It preloads
+a split route without a loader, navigates elsewhere while its chunk is pending, then delivers the
+chunk. And it preloads a route whose loader is pending, opens it, leaves, then lets the loader
+answer. Unpatched, each preload logs the `TypeError` from `load-matches.js:489`; patched, each
+settles quietly, an uninterrupted preload still loads the split route, and the route that was left
+opens again. Both cases fail with the second hunk alone removed and pass with the first alone
+removed: no case reaches the first hunk's read, which follows a wait on a load that another preload
+or navigation started.
 
 **Behaviour change.** None beyond the missing error: the dropped match was never going to be used.
 
-**Remove it when** the router packages move to a release whose loader passes the test unpatched
-(1.171's rewrite is the candidate). Bump `@tanstack/react-router` and the router plugin together,
-delete this entry and its `patchedDependencies` line, and keep the test.
+**Remove it when** the router packages move to a release on which both cases pass unpatched
+(router-core 1.171.16 or later is the candidate). Bump `@tanstack/react-router` and the router
+plugin together, delete this entry and its `patchedDependencies` line, and keep the test.
 
 ## `zod@4.6.6.patch`
 
