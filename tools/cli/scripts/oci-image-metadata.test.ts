@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import {
   chmod,
+  copyFile,
   mkdir,
   mkdtemp,
   readFile,
@@ -10,7 +11,7 @@ import {
   writeFile,
 } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 
 import { parse } from 'yaml';
 
@@ -430,7 +431,8 @@ describe('the release publishes one annotated OCI image index per service', () =
   /**
    * A registry holding the two native images, behind a stand-in `docker` that
    * answers the reads `docker buildx imagetools` would make and records every
-   * call. `docker manifest` is deliberately absent: it exits non-zero.
+   * call. `docker manifest` is deliberately absent: it exits non-zero. A
+   * stand-in `gh` lists the published releases the latest decision reads.
    */
   async function fixture(
     options: {
@@ -483,33 +485,92 @@ esac
 `,
     );
     await chmod(join(directory, 'bin/docker'), 0o755);
+    await writeFile(
+      join(directory, 'bin/gh'),
+      `#!/usr/bin/env bash
+set -euo pipefail
+[ "$1 $2 $3" = 'api --paginate repos/tale-project/tale/releases?per_page=100' ] || {
+  echo "unexpected gh call: $*" >&2; exit 99; }
+cat "$STATE/releases"
+`,
+    );
+    await chmod(join(directory, 'bin/gh'), 0o755);
     return directory;
   }
 
-  async function publish(directory: string, sitesOnly: boolean) {
+  /**
+   * One manifest leg: the latest decision, run from a checkout of its script
+   * alone while `published` are the published releases, then the publication
+   * with the decision's output.
+   */
+  async function publish(
+    directory: string,
+    {
+      sitesOnly = false,
+      published = ['v1.2.2'],
+    }: { sitesOnly?: boolean; published?: string[] } = {},
+  ) {
     const file = await workflow('release');
+    const decision = step(
+      file,
+      'manifest',
+      'Decide whether this release moves latest',
+    );
     const publication = step(
       file,
       'manifest',
       'Create and push the OCI image index',
     );
-    // The step's own env is expressions; the fixture resolves each of them.
+    // The steps' own env is expressions; the fixture resolves each of them.
+    expect(Object.keys(decision.env ?? {}).toSorted()).toEqual([
+      'GH_TOKEN',
+      'REPOSITORY',
+      'SITES_ONLY',
+      'TAG',
+    ]);
     expect(Object.keys(publication.env ?? {}).toSorted()).toEqual([
       'IMAGE',
+      'MOVE_LATEST',
       'SERVICE',
-      'SITES_ONLY',
       'SOURCE_SHA',
       'VERSION',
     ]);
+    const script = 'tools/cli/scripts/release-latest.ts';
+    await mkdir(join(directory, dirname(script)), { recursive: true });
+    await copyFile(join(repository, script), join(directory, script));
+    await writeFile(
+      join(directory, 'releases'),
+      published
+        .map((tag) =>
+          JSON.stringify([tag, false, false, '2026-01-01T00:00:00Z']),
+        )
+        .join('\n'),
+    );
+    await writeFile(join(directory, 'decision'), '');
+    const PATH = `${join(directory, 'bin')}:${dirname(process.execPath)}:${process.env.PATH}`;
+    const decided = await runScript(decision.run!, directory, {
+      PATH,
+      HOME: directory,
+      STATE: directory,
+      GH_TOKEN: 'stand-in',
+      REPOSITORY: 'tale-project/tale',
+      TAG: `v${VERSION}`,
+      SITES_ONLY: String(sitesOnly),
+      GITHUB_OUTPUT: join(directory, 'decision'),
+    });
+    expect(decided.code, decided.output).toBe(0);
+    const move = /^move=(.*)$/m.exec(
+      await readFile(join(directory, 'decision'), 'utf8'),
+    )?.[1];
     const { code, output } = await runScript(publication.run!, directory, {
-      PATH: `${join(directory, 'bin')}:${process.env.PATH}`,
+      PATH,
       STATE: directory,
       OCI_METADATA_KEYS: file.env!.OCI_METADATA_KEYS!,
       SERVICE: 'db',
       IMAGE,
       VERSION,
       SOURCE_SHA: REVISION,
-      SITES_ONLY: String(sitesOnly),
+      MOVE_LATEST: move ?? '',
       GITHUB_STEP_SUMMARY: join(directory, 'summary.md'),
     });
     const calls = (await readFile(join(directory, 'calls'), 'utf8'))
@@ -518,7 +579,7 @@ esac
       .map((line) => line.replace(/\t$/, '').split('\t'));
     return {
       code,
-      output,
+      output: decided.output + output,
       calls,
       create: calls.find(
         (call) => call.slice(0, 3).join(' ') === 'buildx imagetools create',
@@ -544,7 +605,7 @@ esac
   test.skipIf(process.platform === 'win32')(
     'a full release writes :version and :latest in one call, annotated with the image labels',
     async () => {
-      const result = await publish(await fixture(), false);
+      const result = await publish(await fixture());
       expect(result.code, result.output).toBe(0);
       expect(result.create).toBeDefined();
       expect(
@@ -574,14 +635,32 @@ esac
     'a content-site release leaves :latest alone',
     async () => {
       // :latest names another index here; a content-site release never reads it.
-      const result = await publish(
-        await fixture({ latest: digest('d') }),
-        true,
-      );
+      const result = await publish(await fixture({ latest: digest('d') }), {
+        sitesOnly: true,
+      });
       expect(result.code, result.output).toBe(0);
       expect(flagValues(result.create!, '--tag')).toEqual([
         `${IMAGE}:${VERSION}`,
       ]);
+    },
+  );
+
+  test.skipIf(process.platform === 'win32')(
+    'a re-run of an older version publishes it and leaves :latest alone',
+    async () => {
+      // v0.5.79 re-run after v0.5.82 moved :latest back to v0.5.79 (#4740).
+      // :latest names the newer index here, and is neither written nor read.
+      const result = await publish(await fixture({ latest: digest('d') }), {
+        published: ['v1.2.2', 'v1.2.3', 'v1.2.4'],
+      });
+      expect(result.code, result.output).toBe(0);
+      expect(result.output).toContain('v1.2.4 is published and higher');
+      expect(flagValues(result.create!, '--tag')).toEqual([
+        `${IMAGE}:${VERSION}`,
+      ]);
+      expect(
+        result.calls.flat().filter((argument) => argument.endsWith(':latest')),
+      ).toEqual([]);
     },
   );
 
@@ -591,7 +670,7 @@ esac
       for (const key of METADATA_KEYS) {
         const config = labels();
         delete config[`${OCI}.${key}`];
-        const result = await publish(await fixture({ config }), false);
+        const result = await publish(await fixture({ config }));
         expect(result.code, key).not.toBe(0);
         expect(result.output, key).toContain(`::error::`);
         expect(result.create, `${key}: nothing is published`).toBeUndefined();
@@ -623,7 +702,7 @@ esac
     ],
     ['an arm64 image pushed after the index', { arm64: digest('e') }],
   ])('the proof refuses %s', async (_label, options) => {
-    const result = await publish(await fixture(options), false);
+    const result = await publish(await fixture(options));
     expect(result.code, result.output).not.toBe(0);
     expect(result.output).toContain('::error::');
   });
@@ -631,10 +710,7 @@ esac
   test.skipIf(process.platform === 'win32')(
     'the proof refuses a :latest that names another index',
     async () => {
-      const result = await publish(
-        await fixture({ latest: digest('d') }),
-        false,
-      );
+      const result = await publish(await fixture({ latest: digest('d') }));
       expect(result.code, result.output).not.toBe(0);
       expect(result.output).toContain(`${IMAGE}:latest does not name`);
     },
