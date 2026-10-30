@@ -164,6 +164,13 @@ export interface AgentCursor {
   /** The refusals in a row of that wait: the next start's delay grows with
    * them (`sandboxRoomRetryAtMs`). */
   roomRefusals?: number;
+  /** When the stepper first met this attempt's failure and began holding its
+   * re-kick: the attempt's sandbox ran out of memory (`resource_exhausted`),
+   * and a re-kick at once would meet the same limit. The run waits parked on
+   * this cursor, its settled `result` in place and no op row, until the
+   * task lane's wait for the attempt (`resourceExhaustedRetryDelayMs`) has
+   * passed since; the retry is planned by this clock (`stepAgentNode`). */
+  rekickHeldSince?: number;
   /** The exec this turn ran on before an answer to its question moved it to
    * `execId` (`retargetAgentCursor`): a walker that loaded the cursor before
    * the move parks with that exec, and the park keeps this cursor instead. */
@@ -366,9 +373,12 @@ export function parksAgentTurn(cursor: unknown): boolean {
 }
 
 /** Whether the cursor a park wrote carries its agent turn's settled result:
- * the next walker has something to consume, so nothing need wait. */
+ * the next walker has something to consume, so nothing need wait — unless
+ * the stepper holds the turn's re-kick (`rekickHeldSince`): that park is the
+ * wait, and its poll comes back when the hold ends. */
 export function parkedAgentSettled(cursor: unknown): boolean {
-  return parkedAgentTurn(cursor)?.agent.result !== undefined;
+  const agent = parkedAgentTurn(cursor)?.agent;
+  return agent?.result !== undefined && agent.rekickHeldSince === undefined;
 }
 
 /**
