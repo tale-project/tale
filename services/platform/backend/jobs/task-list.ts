@@ -1288,6 +1288,18 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         );
       }
     },
+    'chat.send_idempotency_gc': async (_payload, context) => {
+      const { sweepExpiredSendKeys } =
+        await import('../domains/chat/send-idempotency.ts');
+      const { deleted, drained } = await sweepExpiredSendKeys(deps.sql, {
+        signal: context?.signal,
+      });
+      if (deleted > 0 || !drained) {
+        console.log(
+          `[chat] send_idempotency_gc removed ${deleted} expired send keys${drained ? '' : ' (stopped before draining; the next run carries on)'}`,
+        );
+      }
+    },
     'documents.replacement_cleanup': async () => {
       const { runReplacementCleanup } =
         await import('../domains/documents/replacement.ts');

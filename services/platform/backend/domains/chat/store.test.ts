@@ -41,6 +41,7 @@ vi.mock('./budget-admission.ts', () => ({
 }));
 
 import { ThreadBusyError } from '../../../lib/chat/turn.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { liveTurnCount } from './live-turns.ts';
 import {
   createPgTurnStore,
@@ -264,6 +265,14 @@ function fakeChatSql(
     failTextWrites?: number;
     /** Statements containing `includes` that fail the first `times` times. */
     failures?: { includes: string; times: number; error: Error };
+    /** The thread is a hidden branch of this root. */
+    branchRootId?: string;
+    /** The thread has no title yet, so its opening message names it. */
+    untitled?: boolean;
+    /** What the end of a turn deletes: its generation row, naming the
+     * placeholder (`msg_2` unless given), or nothing (`null`) when the sweep
+     * or a stopping process took the row first. */
+    generation?: { messageId: string | null } | null;
   } = {},
 ): {
   sql: Sql;
@@ -301,7 +310,23 @@ function fakeChatSql(
       return [{ id: `msg_${messageRows}`, order: messageRows - 1 }];
     }
     if (text.includes('FROM app.thread_metadata WHERE thread_id')) {
-      return [{ branchRootId: null, chatType: 'chat', userId: 'user_1' }];
+      return [
+        {
+          branchRootId: options.branchRootId ?? null,
+          chatType: 'chat',
+          userId: 'user_1',
+        },
+      ];
+    }
+    if (text.includes('AND title IS NULL')) {
+      return options.untitled === true ? [{ id: 'thread_1' }] : [];
+    }
+    if (text.includes('DELETE FROM app.generations')) {
+      const generation =
+        options.generation === undefined
+          ? { messageId: 'msg_2' }
+          : options.generation;
+      return generation === null ? [] : [generation];
     }
     if (text.includes('INSERT INTO app.generations')) {
       return options.threadHeld === true ? [] : [{ threadId: 'thread_1' }];
@@ -622,6 +647,96 @@ describe('createPgTurnStore.beginTurn', () => {
   });
 });
 
+/**
+ * A turn's open writes its user row and its placeholder in one transaction,
+ * and touches the thread once for both: `updated_at_ms` is a key of
+ * `threads_org` and `threads_org_user`, so every touch writes the thread row
+ * and every index of the table again (#4709).
+ */
+describe('createPgTurnStore.beginTurn — one touch of the thread per turn', () => {
+  const touched = (statements: Statement[]): unknown[] =>
+    statements
+      .filter((statement) =>
+        statement.text.includes('UPDATE app.threads SET updated_at_ms'),
+      )
+      .map((statement) => statement.values.at(-1));
+  const replyStamped = (statements: Statement[]): unknown[] =>
+    statements
+      .filter((statement) => statement.text.includes('SET last_reply_at_ms'))
+      .map((statement) => statement.values.at(-1));
+
+  it('touches the thread once, after the user row and the placeholder are both in', async () => {
+    const f = fakeChatSql();
+    await createPgTurnStore(f.sql).beginTurn(OPEN);
+
+    expect(touched(f.tx)).toEqual(['thread_1']);
+    const touch = f.tx.findIndex((statement) =>
+      statement.text.includes('UPDATE app.threads SET updated_at_ms'),
+    );
+    const inserts = f.tx.flatMap((statement, index) =>
+      statement.text.includes('INSERT INTO app.messages') ? [index] : [],
+    );
+    expect(inserts).toHaveLength(2);
+    expect(touch).toBeGreaterThan(Math.max(...inserts));
+    // The placeholder is a reply: the touch stamps the unread watermark once,
+    // as the placeholder's own append did, and reads the sidecar once.
+    expect(replyStamped(f.tx)).toEqual(['thread_1']);
+    expect(
+      f.tx.filter((statement) =>
+        statement.text.includes('FROM app.thread_metadata WHERE thread_id'),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it('touches a branch thread and its root once each', async () => {
+    const f = fakeChatSql({ branchRootId: 'root_1' });
+    await createPgTurnStore(f.sql).beginTurn(OPEN);
+
+    expect(touched(f.tx)).toEqual(['thread_1', 'root_1']);
+    expect(replyStamped(f.tx)).toEqual(['thread_1', 'root_1']);
+  });
+
+  it('touches the thread once on a regenerate, which opens with the placeholder alone', async () => {
+    const f = fakeChatSql();
+    const opened = await createPgTurnStore(f.sql).beginTurn({
+      organizationId: 'org_1',
+      threadId: 'thread_1',
+    });
+
+    expect(opened.userMessage).toBeUndefined();
+    expect(touched(f.tx)).toEqual(['thread_1']);
+  });
+
+  it('still names an untitled thread from its opening user message', async () => {
+    const f = fakeChatSql({ untitled: true });
+    await createPgTurnStore(f.sql).beginTurn(OPEN);
+
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+    expect(addJobInTx).toHaveBeenCalledWith(
+      expect.anything(),
+      'chat.generate_title',
+      {
+        organizationId: 'org_1',
+        threadId: 'thread_1',
+        userId: 'user_1',
+        firstMessage: 'hello',
+      },
+    );
+  });
+
+  it('touches the thread once for a message appended on its own', async () => {
+    const f = fakeChatSql();
+    await createPgTurnStore(f.sql).appendMessage({
+      organizationId: 'org_1',
+      threadId: 'thread_1',
+      role: 'user',
+      parts: [{ type: 'text', text: 'hello' }],
+    });
+
+    expect(touched(f.pool)).toEqual(['thread_1']);
+  });
+});
+
 describe('createPgTurnStore.appendMessage', () => {
   it('also guards pre-open refusal messages against a thread move', async () => {
     const f = fakeChatSql({ scopeChanged: true });
@@ -678,6 +793,59 @@ describe('createPgTurnStore.endGeneration', () => {
           t.includes("status = 'failed'") && t.includes("status = 'pending'"),
       ),
     ).toBe(true);
+  });
+
+  it('finds the placeholder by the id its generation row names, never by reading the thread', async () => {
+    const f = fakeChatSql({ generation: { messageId: 'msg_7' } });
+    await createPgTurnStore(f.sql).endGeneration({
+      organizationId: 'org_1',
+      threadId: 'thread_1',
+    });
+
+    const close = f.tx.find((statement) =>
+      statement.text.includes('DELETE FROM app.generations'),
+    );
+    expect(close?.text).toContain('RETURNING message_id');
+    const stamps = f.tx.filter((statement) =>
+      statement.text.includes('UPDATE app.messages'),
+    );
+    expect(stamps).toHaveLength(1);
+    expect(stamps[0]?.text).toContain('WHERE id = ?');
+    expect(stamps[0]?.text).toContain("AND status = 'pending'");
+    // A filter on the thread read every message of the thread, every turn.
+    expect(stamps[0]?.text).not.toContain('thread_id');
+    expect(stamps[0]?.values.slice(1)).toEqual(['msg_7', 'org_1']);
+  });
+
+  it('stamps no message when the sweep or a stopping process already took the generation row', async () => {
+    const f = fakeChatSql({ generation: null });
+    await createPgTurnStore(f.sql).endGeneration({
+      organizationId: 'org_1',
+      threadId: 'thread_1',
+    });
+
+    expect(f.transactions).toEqual(['commit']);
+    expect(
+      f.tx.some((statement) => statement.text.includes('UPDATE app.messages')),
+    ).toBe(false);
+    expect(
+      f.tx.some((statement) =>
+        statement.text.includes("generation_status = 'idle'"),
+      ),
+    ).toBe(true);
+  });
+
+  it('stamps no message when the generation row names no placeholder', async () => {
+    const f = fakeChatSql({ generation: { messageId: null } });
+    await createPgTurnStore(f.sql).endGeneration({
+      organizationId: 'org_1',
+      threadId: 'thread_1',
+    });
+
+    expect(f.transactions).toEqual(['commit']);
+    expect(
+      f.tx.some((statement) => statement.text.includes('UPDATE app.messages')),
+    ).toBe(false);
   });
 });
 
