@@ -1004,7 +1004,11 @@ export function holdTargetsQuery(organizationId: string, targetType: string) {
 }
 
 /** The shared-thread snapshot by its token (org-membership + token) —
- * typed off the 0.4 query, the drift-proof way. */
+ * typed off the 0.4 query, the drift-proof way. `null` when the link serves
+ * this reader nothing: the share is unknown, withdrawn, trashed or another
+ * organization's (404), or the organization door refuses a reader who is not
+ * its member (403) — one never-shared answer. Any other failure stays an
+ * error, which the view names with Try again (#4535). */
 export function sharedThreadQuery(organizationId: string, token: string) {
   return queryOptions({
     queryKey: backendKey(organizationId, 'chat_thread', 'shared', token),
@@ -1018,7 +1022,10 @@ export function sharedThreadQuery(organizationId: string, token: string) {
       ).then(
         (body) => body,
         (error: unknown) => {
-          if (error instanceof BackendApiError && error.status === 404) {
+          if (
+            error instanceof BackendApiError &&
+            (error.status === 404 || error.status === 403)
+          ) {
             return null;
           }
           throw error;

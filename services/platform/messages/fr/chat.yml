@@ -429,6 +429,8 @@ share:
   sharedChat: Chat partagé
   byline: Partagé par {name} le {date}
   notFound: Ce chat partagé n'est plus disponible.
+  loadFailed: Impossible de charger ce chat partagé.
+  refreshFailed: Impossible d'actualiser ce chat partagé. Les messages affichés peuvent être obsolètes.
 arena:
   label: Mode Arène
   enable: Activer le mode Arène
