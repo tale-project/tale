@@ -459,6 +459,9 @@ describe('run_code', () => {
       'skills/docx/SKILL.md',
       'skills/docx/scripts/pack.py',
     ]);
+    // The input's size rides along, so a few large inputs never share one
+    // stage request's deadline.
+    expect(files?.[1]?.expectedBytes).toBe(900);
     expect(options).toEqual({ reuse: true, replaceRoots: ['skills/docx'] });
     expect(result).toMatchObject({
       inputs: ['/agent/inputs/Q3 numbers.xlsx'],
