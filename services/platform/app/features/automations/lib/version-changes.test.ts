@@ -10,6 +10,8 @@ import {
   nodeChangeSummary,
   referencesUpdatedBy,
   renamedGates,
+  testChangeSummary,
+  testFieldName,
   versionBefore,
 } from './version-changes';
 
@@ -122,6 +124,95 @@ describe('the words of a comparison', () => {
     const use = renamed.nodes.find((node) => node.id === 'use');
     expect(use?.referencesOnly).toBe(true);
     expect(nodeChangeSummary(use!, ctx)).toBe('compare.summary.references');
+  });
+});
+
+describe('the words of a changed test', () => {
+  const nodes = [{ id: 'collect', type: 'transform', code: "return 'a';" }];
+  const withTest = (test: Record<string, unknown>) =>
+    doc(nodes, '{{ nodes.collect.output }}', { tests: [test] });
+
+  it('names each field the way the test form labels it, never by its key', () => {
+    expect(
+      [
+        'description',
+        'input',
+        'mocks',
+        'failures',
+        'expect.output',
+        'expect.outputIncludes',
+        'expect.effects',
+        'expect.nodes',
+        'expect.failure',
+      ].map((field) => testFieldName(t, field)),
+    ).toEqual([
+      'tests.fields.description',
+      'tests.fields.input',
+      'tests.fields.mocks',
+      'tests.fields.failures',
+      'tests.fields.expectOutput',
+      'tests.fields.expectOutput',
+      'tests.fields.expectActions',
+      'tests.fields.expectNodes',
+      'tests.fields.mustFail',
+    ]);
+  });
+
+  it('reads any other expectation as one of the Expectations, and a key the grammar does not know as written', () => {
+    expect(testFieldName(t, 'expect')).toBe('tests.fields.expect');
+    expect(testFieldName(t, 'expect.later')).toBe('tests.fields.expect');
+    expect(testFieldName(t, 'owner')).toBe('owner');
+    expect(testFieldName(t, 'constructor')).toBe('constructor');
+  });
+
+  it('says which fields of a changed test changed, in words', () => {
+    const [test] = diffAutomationDocuments(
+      withTest({
+        name: 'greets',
+        input: {},
+        mocks: { collect: 'hi' },
+        expect: { output: 'hi' },
+      }),
+      withTest({
+        name: 'greets',
+        input: {},
+        mocks: { collect: 'hello' },
+        expect: { output: 'hello' },
+      }),
+    ).tests;
+    expect(testChangeSummary(test!, ctx)).toBe(
+      'compare.summary.node:{"fields":"tests.fields.mocks and tests.fields.expectOutput","count":2}',
+    );
+  });
+
+  it('names the output once when a test checks it the other way', () => {
+    const [test] = diffAutomationDocuments(
+      withTest({ name: 'greets', input: {}, expect: { output: 'hi' } }),
+      withTest({
+        name: 'greets',
+        input: {},
+        expect: { outputIncludes: { text: 'hi' } },
+      }),
+    ).tests;
+    expect(test?.fields.map((field) => field.field)).toEqual([
+      'expect.output',
+      'expect.outputIncludes',
+    ]);
+    expect(testChangeSummary(test!, ctx)).toBe(
+      'compare.summary.node:{"fields":"tests.fields.expectOutput","count":1}',
+    );
+  });
+
+  it('says nothing for a test added or removed: its row shows the whole test', () => {
+    const tests = diffAutomationDocuments(
+      withTest({ name: 'greets', input: {} }),
+      withTest({ name: 'welcomes', input: {} }),
+    ).tests;
+    expect(tests.map((test) => test.kind)).toEqual(['removed', 'added']);
+    expect(tests.map((test) => testChangeSummary(test, ctx))).toEqual([
+      undefined,
+      undefined,
+    ]);
   });
 });
 

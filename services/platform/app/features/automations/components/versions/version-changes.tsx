@@ -33,9 +33,10 @@ import {
   nodeTitle,
 } from '../../lib/node-face';
 import {
-  fieldList,
   nodeChangeSummary,
   referencesUpdatedBy,
+  testChangeSummary,
+  testFieldName,
 } from '../../lib/version-changes';
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -87,17 +88,20 @@ function codeLanguageOf(
 /** One field's change, shown the way its kind of value reads best. */
 function FieldRow({
   change,
+  label,
   node,
   labels,
   note,
 }: {
   change: FieldChange;
+  /** The field's name where it is edited: a node's field as its inspector
+   * labels it, a test's as the test form does, a part of the version by its
+   * row's title. */
+  label: string;
   node: NodeDef | null;
   labels: CompareLabels;
   note?: ReactNode;
 }) {
-  const { t } = useT('automations');
-  const label = fieldName(t, change.field);
   const values = {
     ...(change.before !== undefined && { before: asText(change.before) }),
     ...(change.after !== undefined && { after: asText(change.after) }),
@@ -308,6 +312,7 @@ export function useVersionChangeSections({
               <FieldRow
                 key={field.field}
                 change={field}
+                label={fieldName(t, field.field)}
                 node={otherSide}
                 labels={labels}
               />
@@ -344,7 +349,9 @@ export function useVersionChangeSections({
       icon,
       // The output is shown on End; package data has no box.
       ...(graphBoxOf(id) === null && { activatable: false }),
-      detail: <FieldRow change={change} node={null} labels={labels} />,
+      detail: (
+        <FieldRow change={change} label={title} node={null} labels={labels} />
+      ),
     });
 
     const start: ChangeItem[] = diff.inputs.map((input) => {
@@ -397,8 +404,7 @@ export function useVersionChangeSections({
           ]),
     ];
     const tests: ChangeItem[] = diff.tests.map((test) => {
-      const changed =
-        test.kind === 'changed' ? fieldList(test.fields, { t, locale }) : null;
+      const summary = testChangeSummary(test, { t, locale });
       const definition =
         test.kind === 'removed'
           ? before?.tests?.[test.beforeIndex ?? -1]
@@ -410,12 +416,7 @@ export function useVersionChangeSections({
         icon: FlaskConical,
         // A test has no box on the graph.
         activatable: false,
-        ...(changed !== null && {
-          summary: t('compare.summary.node', {
-            fields: changed.text,
-            count: changed.count,
-          }),
-        }),
+        ...(summary !== undefined && { summary }),
         detail:
           test.kind === 'changed' ? (
             <div className="flex flex-col gap-3">
@@ -423,6 +424,7 @@ export function useVersionChangeSections({
                 <FieldRow
                   key={field.field}
                   change={field}
+                  label={testFieldName(t, field.field)}
                   node={null}
                   labels={labels}
                 />

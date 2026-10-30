@@ -4,8 +4,10 @@ import type {
   AutomationDiff,
   FieldChange,
   NodeDiff,
+  TestDiff,
 } from '@/lib/engine/core/diff/automation';
 import type { ChangeSummary } from '@/lib/engine/core/diff/changes';
+import type { AutomationTest, TestExpectation } from '@/lib/engine/core/types';
 
 import { gateIdOf } from './flow-ids';
 import { fieldName } from './issue-text';
@@ -14,7 +16,8 @@ import { nodeTitle } from './node-face';
 /**
  * What changed between two versions, in the words the Versions tab and the
  * compare page say it: the parts a summary flags, what a changed node's box
- * says, and the versions a comparison offers to compare with.
+ * and a changed test's row say, and the versions a comparison offers to
+ * compare with.
  */
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -31,15 +34,53 @@ export function changeFlags(changes: ChangeSummary, t: Translate): string[] {
   ].filter((flag) => flag !== false);
 }
 
+/** A test's fields as the diff names them: `expect` split into its parts. */
+type TestField =
+  | Exclude<keyof AutomationTest, 'name' | 'expect'>
+  | `expect.${keyof TestExpectation}`;
+
+/** Every field of a test as the test form labels it — the types refuse a
+ * field without one; `output` and `outputIncludes` are its one Output field,
+ * checked one way or the other. */
+const TEST_FIELD_KEYS: Readonly<Record<TestField, string>> = {
+  description: 'tests.fields.description',
+  input: 'tests.fields.input',
+  mocks: 'tests.fields.mocks',
+  failures: 'tests.fields.failures',
+  'expect.output': 'tests.fields.expectOutput',
+  'expect.outputIncludes': 'tests.fields.expectOutput',
+  'expect.effects': 'tests.fields.expectActions',
+  'expect.nodes': 'tests.fields.expectNodes',
+  'expect.failure': 'tests.fields.mustFail',
+};
+
+function isTestField(field: string): field is TestField {
+  return Object.hasOwn(TEST_FIELD_KEYS, field);
+}
+
+/**
+ * A test's field as the diff names it (`mocks`, `expect.output`, …), in the
+ * words the test form labels it with ("Simulated outputs", "Output"). Any
+ * other part of `expect` reads as one of the test's Expectations; a key the
+ * grammar does not know reads as written.
+ */
+export function testFieldName(t: Translate, field: string): string {
+  if (isTestField(field)) return t(TEST_FIELD_KEYS[field]);
+  if (field === 'expect' || field.startsWith('expect.')) {
+    return t('tests.fields.expect');
+  }
+  return field;
+}
+
 /** The fields a change names, in words and in the reader's list form:
- * "Prompt and model". */
+ * "Prompt and model". A node's fields are named the way its inspector
+ * labels them; `nameOf` names another kind of field, such as a test's. */
 export function fieldList(
   fields: readonly FieldChange[],
   ctx: { t: Translate; locale: string },
+  nameOf: (t: Translate, field: string) => string = fieldName,
 ): { text: string; count: number } {
-  const names = [
-    ...new Set(fields.map((field) => fieldName(ctx.t, field.field))),
-  ];
+  const names = [...new Set(fields.map((field) => nameOf(ctx.t, field.field)))];
   return {
     text: new Intl.ListFormat(ctx.locale, { type: 'conjunction' }).format(
       names,
@@ -61,6 +102,20 @@ export function nodeChangeSummary(
   if (node.referencesOnly === true) return ctx.t('compare.summary.references');
   if (node.fields.length === 0) return undefined;
   const { text, count } = fieldList(node.fields, ctx);
+  return ctx.t('compare.summary.node', { fields: text, count });
+}
+
+/**
+ * What a changed test's row says: the fields that changed, in the words the
+ * test form labels them with ("Simulated outputs and Output changed").
+ * Nothing for a test added or removed — its row shows the whole test.
+ */
+export function testChangeSummary(
+  test: TestDiff,
+  ctx: { t: Translate; locale: string },
+): string | undefined {
+  if (test.fields.length === 0) return undefined;
+  const { text, count } = fieldList(test.fields, ctx, testFieldName);
   return ctx.t('compare.summary.node', { fields: text, count });
 }
 
