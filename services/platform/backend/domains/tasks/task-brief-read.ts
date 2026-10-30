@@ -18,6 +18,8 @@ import { readAgentTaskLabels } from './agent-labels.ts';
 export interface TaskBriefFile {
   fileId: string;
   fileName: string;
+  /** The size its entry records, when it records one. */
+  fileSize?: number;
 }
 
 export interface TaskBriefRead extends TaskBriefFacts {
@@ -38,13 +40,19 @@ function fileList(value: unknown): TaskBriefFile[] {
   if (!Array.isArray(value)) return [];
   return value
     .filter(
-      (entry): entry is { fileId: unknown; fileName: unknown } =>
+      (
+        entry,
+      ): entry is { fileId: unknown; fileName: unknown; fileSize: unknown } =>
         entry !== null && typeof entry === 'object',
     )
-    .map((entry) => ({
-      fileId: typeof entry.fileId === 'string' ? entry.fileId : '',
-      fileName: typeof entry.fileName === 'string' ? entry.fileName : '',
-    }))
+    .map((entry) => {
+      const file: TaskBriefFile = {
+        fileId: typeof entry.fileId === 'string' ? entry.fileId : '',
+        fileName: typeof entry.fileName === 'string' ? entry.fileName : '',
+      };
+      if (typeof entry.fileSize === 'number') file.fileSize = entry.fileSize;
+      return file;
+    })
     .filter((entry) => entry.fileId !== '' && entry.fileName !== '');
 }
 
