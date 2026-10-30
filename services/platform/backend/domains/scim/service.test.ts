@@ -842,3 +842,63 @@ describe('SCIM writes emit their invalidation hints', () => {
     expect(hints(queries)).toEqual([]);
   });
 });
+
+/**
+ * A Group PATCH may set the provider's `externalId` (RFC 7644 §3.5.2): it is
+ * kept in the group's link row, as `replaceGroup` keeps the one a PUT sends,
+ * and a PATCH that does not name it leaves the row alone (#4773).
+ */
+describe('patchGroup — the externalId a PATCH sets', () => {
+  const team = {
+    id: 't-1',
+    name: 'Squad',
+    organizationId: 'org-1',
+    createdAt: new Date(0),
+    updatedAt: null,
+  };
+  const LINK_READ = 'SELECT external_id AS "externalId"';
+  const LINK_WRITE = 'INSERT INTO app.sso_provisioning_links';
+
+  it('stores it in the link and answers it, with no hint', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith(TEAM_BY_ID)) return [team];
+      if (text.startsWith(LINK_READ)) {
+        return [{ externalId: 'idp-g', lastActiveRole: null }];
+      }
+      return [];
+    });
+
+    const result = await patchGroup(sql, {
+      organizationId: 'org-1',
+      teamId: 't-1',
+      addMembers: [],
+      removeMembers: [],
+      externalId: 'idp-g',
+    });
+
+    const link = queries.find((q) => q.text.startsWith(LINK_WRITE));
+    expect(link?.values).toEqual(
+      expect.arrayContaining(['org-1', 'Group', 't-1', 'idp-g']),
+    );
+    expect(result?.externalId).toBe('idp-g');
+    // As on PUT: the provider's id for the team is no change of the team
+    // itself, so no open page is told to refetch it.
+    expect(hints(queries)).toEqual([]);
+  });
+
+  it('leaves the link alone when the PATCH does not name it', async () => {
+    const { sql, queries } = fakeSql((text) =>
+      text.startsWith(TEAM_BY_ID) ? [team] : [],
+    );
+
+    await patchGroup(sql, {
+      organizationId: 'org-1',
+      teamId: 't-1',
+      displayName: 'Renamed',
+      addMembers: [],
+      removeMembers: [],
+    });
+
+    expect(queries.some((q) => q.text.startsWith(LINK_WRITE))).toBe(false);
+  });
+});

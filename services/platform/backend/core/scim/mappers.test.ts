@@ -185,6 +185,32 @@ describe('parseUserPatch', () => {
     });
     expect(patch).toMatchObject({ givenName: 'Ada', displayName: 'Ada L' });
   });
+  it('reads externalId by path, in any case, and from a path-less value', () => {
+    expect(
+      parseUserPatch({
+        Operations: [{ op: 'replace', path: 'externalId', value: 'idp-9' }],
+      }).externalId,
+    ).toBe('idp-9');
+    expect(
+      parseUserPatch({
+        Operations: [{ op: 'Add', path: 'externalID', value: 'idp-9' }],
+      }).externalId,
+    ).toBe('idp-9');
+    expect(
+      parseUserPatch({
+        Operations: [
+          { op: 'Replace', value: { externalId: 'idp-9', active: 'True' } },
+        ],
+      }),
+    ).toMatchObject({ externalId: 'idp-9', active: true });
+  });
+  it('carries no externalId when no operation names it', () => {
+    expect(
+      parseUserPatch({
+        Operations: [{ op: 'replace', path: 'displayName', value: 'Ada L' }],
+      }),
+    ).not.toHaveProperty('externalId');
+  });
 });
 
 describe('resolvePatchedName', () => {
@@ -235,5 +261,29 @@ describe('parseGroupPatch', () => {
       Operations: [{ op: 'remove', path: 'members' }],
     });
     expect(patch.replaceMembers).toEqual([]);
+  });
+  it('reads externalId by path and from a path-less value', () => {
+    expect(
+      parseGroupPatch({
+        Operations: [{ op: 'replace', path: 'externalId', value: 'idp-g' }],
+      }).externalId,
+    ).toBe('idp-g');
+    expect(
+      parseGroupPatch({
+        Operations: [
+          {
+            op: 'replace',
+            value: { externalId: 'idp-g', displayName: 'Platform' },
+          },
+        ],
+      }),
+    ).toMatchObject({ externalId: 'idp-g', displayName: 'Platform' });
+  });
+  it('carries no externalId when no operation names it', () => {
+    expect(
+      parseGroupPatch({
+        Operations: [{ op: 'replace', path: 'displayName', value: 'Platform' }],
+      }),
+    ).not.toHaveProperty('externalId');
   });
 });

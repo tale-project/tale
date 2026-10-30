@@ -276,6 +276,7 @@ export function parseUserPatch(body: unknown): UserPatch {
       else if (p === 'name.givenname') patch.givenName = asString(value);
       else if (p === 'name.familyname') patch.familyName = asString(value);
       else if (p === 'username') patch.email = asString(value);
+      else if (p === 'externalid') patch.externalId = asString(value);
       else if (p.startsWith('emails')) {
         const email = extractEmailValue(value);
         if (email) patch.email = email;
@@ -287,6 +288,8 @@ export function parseUserPatch(body: unknown): UserPatch {
     if ('active' in value) patch.active = coerceBoolean(value.active);
     const displayName = asString(value.displayName);
     if (displayName) patch.displayName = displayName;
+    const externalId = asString(value.externalId);
+    if (externalId) patch.externalId = externalId;
     if (isRecord(value.name)) {
       const given = asString(value.name.givenName);
       const family = asString(value.name.familyName);
@@ -314,6 +317,9 @@ export function parseGroupPatch(body: unknown): GroupPatch {
       if (lower === 'displayname') {
         const displayName = asString(value);
         if (displayName) patch.displayName = displayName;
+      } else if (lower === 'externalid') {
+        const externalId = asString(value);
+        if (externalId) patch.externalId = externalId;
       } else if (lower === 'members') {
         const ids = extractMemberIds(value);
         if (verb === 'add') patch.addMembers.push(...ids);
@@ -336,6 +342,8 @@ export function parseGroupPatch(body: unknown): GroupPatch {
     if (!isRecord(value)) continue;
     const displayName = asString(value.displayName);
     if (displayName) patch.displayName = displayName;
+    const externalId = asString(value.externalId);
+    if (externalId) patch.externalId = externalId;
     const ids = extractMemberIds(value.members);
     if (ids.length) {
       if (verb === 'add') patch.addMembers.push(...ids);
