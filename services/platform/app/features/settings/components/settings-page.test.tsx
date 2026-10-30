@@ -26,9 +26,9 @@ describe('SettingsPage', () => {
       expect(container.firstChild).toHaveClass('min-h-0', 'flex-1');
     });
 
-    // #2567: every settings page shares the agent editor's Tools/Starters
-    // `max-w-3xl` width by default, so none regress to a narrower or
-    // inconsistent container.
+    // #2567: every settings page shares one `max-w-3xl` column by default —
+    // the one a narrow frame shows too (#2794) — so none regress to a
+    // narrower or inconsistent container.
     it('caps content at max-w-3xl by default', () => {
       const { container } = render(<SettingsPage />);
       expect(container.firstChild).toHaveClass('mx-auto', 'max-w-3xl');
@@ -39,10 +39,10 @@ describe('SettingsPage', () => {
       expect(container.firstChild).not.toHaveClass('mx-auto', 'max-w-3xl');
     });
 
-    // The divider rule is exported so other configuration surfaces (the
-    // project overview) reuse the exact same marker-driven selectors instead
-    // of hand-rolling `border-t pt-8`. Assert the page still applies what it
-    // exports, so the two can never drift apart.
+    // The divider rule is exported so other configuration surfaces (an
+    // automation's General tab) reuse the exact same marker-driven selectors
+    // instead of hand-rolling `border-t pt-8`. Assert the page still applies
+    // what it exports, so the two can never drift apart.
     it('applies the exported section-divider rule', () => {
       const { container } = render(<SettingsPage />);
       expect(SECTION_DIVIDER_CLASS).toContain('data-settings-section');
