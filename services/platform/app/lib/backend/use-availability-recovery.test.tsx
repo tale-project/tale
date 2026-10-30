@@ -4,11 +4,20 @@ import {
   QueryClientProvider,
   useQuery,
 } from '@tanstack/react-query';
-import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
-import type { ReactNode } from 'react';
+import {
+  act,
+  cleanup,
+  render,
+  renderHook,
+  waitFor,
+} from '@testing-library/react';
+import { type ReactNode, useEffect } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { useAvailabilityRecovery } from './use-availability-recovery';
+import {
+  hasPendingAvailabilityRecovery,
+  useAvailabilityRecovery,
+} from './use-availability-recovery';
 
 const connection = vi.hoisted(() => ({ reachable: true }));
 vi.mock('./connection-state', () => ({
@@ -69,5 +78,54 @@ describe('availability recovery', () => {
     });
     expect(read).toHaveBeenCalledTimes(2);
     client.clear();
+  });
+
+  it('stays pending from the outage until its refresh is issued', () => {
+    const client = new QueryClient();
+    const invalidate = vi.spyOn(client, 'invalidateQueries');
+    const seen: boolean[] = [];
+    // Its effect runs in the commit that ends the outage, before the
+    // recovery's own: the refresh is still owed at that point.
+    function Reader({ reachable }: { reachable: boolean }) {
+      useEffect(() => {
+        if (reachable) seen.push(hasPendingAvailabilityRecovery(client));
+      }, [reachable]);
+      return null;
+    }
+    function Recovery() {
+      useAvailabilityRecovery();
+      return null;
+    }
+    const tree = () => (
+      <QueryClientProvider client={client}>
+        <Reader reachable={connection.reachable} />
+        <Recovery />
+      </QueryClientProvider>
+    );
+    connection.reachable = false;
+    const { rerender } = render(tree());
+    expect(hasPendingAvailabilityRecovery(client)).toBe(true);
+
+    connection.reachable = true;
+    rerender(tree());
+    expect(seen).toEqual([true]);
+    expect(invalidate).toHaveBeenCalledExactlyOnceWith({
+      queryKey: ['backend'],
+    });
+    expect(hasPendingAvailabilityRecovery(client)).toBe(false);
+  });
+
+  it('owes nothing once it unmounts', () => {
+    const client = new QueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    );
+    connection.reachable = false;
+    const { unmount } = renderHook(() => useAvailabilityRecovery(), {
+      wrapper,
+    });
+    expect(hasPendingAvailabilityRecovery(client)).toBe(true);
+    unmount();
+    expect(hasPendingAvailabilityRecovery(client)).toBe(false);
   });
 });

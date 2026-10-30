@@ -516,6 +516,81 @@ describe.each(['Board', 'List'])('%s with thousands of tasks', (layout) => {
     });
     expect(onOpenTask).not.toHaveBeenCalled();
   });
+
+  it('hands focus back to a task carried out of its window and into another status when the drag is cancelled', async () => {
+    await page.viewport(1280, 900);
+    const statusTasks = (status: TaskRow['status'], name: string) =>
+      Array.from({ length: 150 }, (_, index) =>
+        makeTask(
+          `${status}-${index}`,
+          `${name} ${index}`,
+          `a${String(index).padStart(6, '0')}`,
+          undefined,
+          { status },
+        ),
+      );
+    const tasks = [
+      ...statusTasks('todo', 'Queued task'),
+      ...statusTasks('in_progress', 'Running task'),
+    ];
+    const { container } = render(
+      <div className="h-100 w-full">
+        {layout === 'Board' ? (
+          <KanbanBoard tasks={tasks} canWorkTask={() => true} />
+        ) : (
+          <TasksList tasks={tasks} canWorkTask={() => true} />
+        )}
+      </div>,
+    );
+    // The Board carries its lane's first card down the lane and then into
+    // the next lane; the List carries a row past the end of its section and
+    // down the next one. Either way the source's own window moves on (a
+    // section scrolled past still mounts its last rows, so the List's row
+    // starts ten before the end).
+    const carry =
+      layout === 'Board'
+        ? {
+            source: 'Queued task 0',
+            neighbour: 'Queued task 1',
+            keys: [
+              ...Array.from({ length: 12 }, () => '{ArrowDown}'),
+              '{ArrowRight}',
+            ],
+          }
+        : {
+            source: 'Queued task 140',
+            neighbour: 'Queued task 141',
+            keys: Array.from({ length: 31 }, () => '{ArrowDown}'),
+          };
+    if (layout === 'List') {
+      const scroller =
+        container.querySelector<HTMLDivElement>('.overflow-auto');
+      if (!scroller) throw new Error('The list has no scrollport');
+      scroller.scrollTop = 140 * 41;
+      await expect
+        .element(page.getByRole('button', { name: carry.source, exact: true }))
+        .toBeInTheDocument();
+    }
+    const said = recordAnnouncements();
+    screen.getByRole('button', { name: carry.source }).focus();
+    for (const key of [' ', ...carry.keys]) {
+      const before = said.lines.length;
+      await userEvent.keyboard(key);
+      await expect.poll(() => said.lines.length).toBeGreaterThan(before);
+    }
+    expect(
+      screen.queryByRole('button', { name: carry.neighbour }),
+    ).not.toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    await expect
+      .poll(() => said.lines.at(-1))
+      .toMatch(/^Cancelled moving TAL-1\. It stays in status To do/);
+    await expect
+      .poll(() => document.activeElement?.textContent)
+      .toBe(carry.source);
+    said.stop();
+    expect(mutations.move).not.toHaveBeenCalled();
+  });
 });
 
 it.each([400, 1280])(

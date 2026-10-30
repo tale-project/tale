@@ -13,6 +13,7 @@ import {
   orgApiKeyListKey,
   projectCapabilityCatalogKey,
 } from './query-keys';
+import { hasPendingAvailabilityRecovery } from './use-availability-recovery';
 
 /** Pending-hint slot shared by every project capability catalog refresh. */
 const PROJECT_CAPABILITY_HINT = 'project_capability';
@@ -73,7 +74,9 @@ export function reconnectDelayMs(
  * A reopened source carries no `Last-Event-ID`, so hints emitted while it was
  * down are gone for good — the whole org scope refetches on the first open
  * after a forced reconnect, the same contract `resync` has when the server
- * cannot replay a cursor. `forbidden` stays terminal: the server re-proves
+ * cannot replay a cursor. When that open ends an outage the availability
+ * recovery saw, its refresh of every read covers the gap, and the stream
+ * leaves the refetch to it. `forbidden` stays terminal: the server re-proves
  * membership and the session while the stream is open and ends it once
  * either is gone, so reopening would only meet a guaranteed 401/403.
  */
@@ -219,6 +222,15 @@ export function useBackendHints(orgId: string | undefined): void {
     const onOpen = (): void => {
       attempt = 0;
       reportBackendReachable();
+      // An outage the availability recovery saw ends with this verdict, and
+      // that recovery refreshes every read, failed ones included. Refreshing
+      // here as well would send each active read twice to a backend that has
+      // just come back.
+      if (hasPendingAvailabilityRecovery(queryClient)) {
+        replayLost = false;
+        clearHints();
+        return;
+      }
       if (replayLost) {
         replayLost = false;
         clearHints();
