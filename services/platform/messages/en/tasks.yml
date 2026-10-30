@@ -594,6 +594,9 @@ metrics:
   title: Project metrics
   description: Delivery, intervention, and cost metrics for this project's tasks.
   cappedNotice: Showing the most recent 5,000 rows of each source in this window — older activity in the period is not counted.
+  errors:
+    loadFailed: Couldn't load project metrics.
+    refreshFailed: Couldn't refresh project metrics. The figures shown may be out of date.
   noData: No data
   noFlowDescription: No tasks were open at the end of any day in this period.
   noThroughputDescription: No tasks were created or completed in this period.

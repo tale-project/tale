@@ -602,6 +602,9 @@ metrics:
     de ce projet.
   cappedNotice: Affichage des 5 000 dernières lignes de chaque source pour
     cette période — l'activité plus ancienne n'est pas comptée.
+  errors:
+    loadFailed: Impossible de charger les métriques du projet.
+    refreshFailed: Impossible d'actualiser les métriques du projet. Les chiffres affichés peuvent être obsolètes.
   noData: Aucune donnée
   noFlowDescription: Aucune tâche n'était ouverte à la fin d'une journée de cette période.
   noThroughputDescription: Aucune tâche n'a été créée ou terminée pendant cette période.

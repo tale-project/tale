@@ -52,6 +52,8 @@ The charts below show the open tasks by status at the end of each day, the tasks
 
 A rising intervention rate with a steady number of runs means people are sending more work back or agents are asking more questions. Escalations come from agent steps in automations working on the project, and each one counts on the day it is raised, whether or not anyone answers. For work sent back, read the tasks in review before changing an agent's instructions under [Project agents](/platform/projects/project-agents); for questions, read the runs of the automation that asked them, as [Read automation runs](/platform/automations/execution-logs) explains.
 
+If the figures cannot be loaded, the page says so and offers **Try again** instead of showing zero completed tasks and charts that say **No data**; the project and period you chose stay. If a refresh fails, the figures already shown stay, with a note that they may be out of date.
+
 ## Read the figures correctly
 
 - Every dashboard works from the records Tale keeps. Retention settings and deletions shorten the history, so an empty period can mean the records are gone rather than that nothing happened.

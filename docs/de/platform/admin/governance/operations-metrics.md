@@ -52,6 +52,8 @@ Die Diagramme darunter zeigen die offenen Aufgaben nach Status am Ende jedes Tag
 
 Steigt die Eingriffsquote bei gleichbleibender Zahl von Läufen, schicken Menschen mehr Arbeit zurück oder stellen Agenten mehr Fragen. Eskalationen stammen von Agent-Schritten in Automatisierungen, die am Projekt arbeiten, und jede zählt an dem Tag, an dem sie entsteht, auch wenn niemand antwortet. Geht es um zurückgeschickte Arbeit, lies die Aufgaben in der Prüfung, bevor du die Anweisungen eines Agenten unter [Projektagenten](/de/platform/projects/project-agents) änderst; geht es um Fragen, lies die Läufe der Automatisierung, die sie gestellt hat, wie [Automatisierungsläufe prüfen und Fehler beheben](/de/platform/automations/execution-logs) es beschreibt.
 
+Lassen sich die Zahlen nicht laden, sagt die Seite das und bietet **Erneut versuchen** an, statt null abgeschlossene Aufgaben und Diagramme mit **Keine Daten** zu zeigen; das gewählte Projekt und der gewählte Zeitraum bleiben. Schlägt eine Aktualisierung fehl, bleiben die bereits angezeigten Zahlen stehen, mit dem Hinweis, dass sie womöglich veraltet sind.
+
 ## Die Werte richtig lesen
 
 - Jede Übersicht rechnet mit den Einträgen, die Tale aufbewahrt. Aufbewahrungsregeln und Löschungen verkürzen den Verlauf: Ein leerer Zeitraum kann heißen, dass die Einträge fehlen, nicht dass nichts geschehen ist.
