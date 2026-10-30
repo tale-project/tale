@@ -37,6 +37,7 @@ import {
 } from '@/app/features/auth/lib/proxy-handoff';
 import { resumeOAuthSignIn } from '@/app/features/auth/lib/resume-oauth';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
+import { authSessionRefusalMessage } from '@/app/lib/auth/auth-client-error';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
@@ -220,7 +221,12 @@ export function LogInPage() {
 
   const handleAuthError = useCallback(
     (ctx?: {
-      error?: { status?: number; retryAfter?: unknown } | null;
+      error?: {
+        status?: number;
+        code?: string;
+        message?: string;
+        retryAfter?: unknown;
+      } | null;
       response?: Response;
     }) => {
       const status = ctx?.error?.status;
@@ -250,6 +256,23 @@ export function LogInPage() {
         // nothing about the password, so it must not read as a wrong one, nor
         // warn about a lockout the attempt did not count toward.
         setLoginError(t('login.temporarilyUnavailable'));
+        setShowLockoutHint(false);
+        return;
+      }
+      // The session this browser still presents refused the sign-in before
+      // any password was checked: the same person's organization-limited one
+      // (another person's sign-in replaces it, #4919). Its own sentence, then:
+      // it is not a wrong password, and the attempt counted toward no lockout.
+      const sessionRefusal =
+        status === undefined
+          ? undefined
+          : authSessionRefusalMessage({
+              status,
+              code: ctx?.error?.code,
+              message: ctx?.error?.message,
+            });
+      if (sessionRefusal !== undefined) {
+        setLoginError(sessionRefusal);
         setShowLockoutHint(false);
         return;
       }

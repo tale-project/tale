@@ -24,7 +24,9 @@ vi.mock('../lib/org-config.ts', async (original) => ({
   readGovernancePolicy: vi.fn(async () => null),
 }));
 
+import { SESSION_ORGANIZATION_MESSAGE } from '../../lib/shared/constants/session-authority.ts';
 import { createAuth } from './auth.ts';
+import { setSessionMintAuthority } from './passkey-authority.ts';
 
 const BASE = 'https://tale.example.test';
 const PASSWORD = 'Session-authority-fixture!8';
@@ -97,6 +99,49 @@ describe('the production scoped-session plugin after every identity injector', (
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       }),
     );
+
+  /** A personal key of the signed-in person, in plaintext. */
+  const createKey = async (name: string): Promise<string> => {
+    const created = await call('/api-key/create', { name });
+    expect(created.status).toBe(200);
+    const body: unknown = await created.json();
+    if (
+      body === null ||
+      typeof body !== 'object' ||
+      !('key' in body) ||
+      typeof body.key !== 'string'
+    ) {
+      throw new Error('The fixture key response was unreadable');
+    }
+    return body.key;
+  };
+
+  /** The session a sign-in answered with, found by the token it returned. */
+  const signedInSession = async (response: Response): Promise<Row> => {
+    const body: unknown = await response.json();
+    if (
+      body === null ||
+      typeof body !== 'object' ||
+      !('token' in body) ||
+      typeof body.token !== 'string'
+    ) {
+      throw new Error('The sign-in response named no session');
+    }
+    const token = body.token;
+    const session = db.session?.find((entry) => entry.token === token);
+    if (session === undefined)
+      throw new Error('The signed-in session was missing');
+    return session;
+  };
+
+  /** What a session holds that a presented one could lend a new one. */
+  const authorityOf = (session: Row) => ({
+    userId: session.userId,
+    trustedOrganizationId: session.trustedOrganizationId ?? null,
+    trustedRole: session.trustedRole ?? null,
+    activeOrganizationId: session.activeOrganizationId ?? null,
+    activeTeamId: session.activeTeamId ?? null,
+  });
 
   beforeEach(async () => {
     vi.stubEnv('TALE_ORG_SESSION_CUTOVER_AT', '');
@@ -220,19 +265,9 @@ describe('the production scoped-session plugin after every identity injector', (
   });
 
   it('does not let the real API-key plugin injection mint another key or factor', async () => {
-    const created = await call('/api-key/create', { name: 'existing key' });
-    expect(created.status).toBe(200);
-    const body: unknown = await created.json();
-    if (
-      body === null ||
-      typeof body !== 'object' ||
-      !('key' in body) ||
-      typeof body.key !== 'string'
-    ) {
-      throw new Error('The fixture key response was unreadable');
-    }
+    const key = await createKey('existing key');
     cookie = '';
-    const headers = { 'x-api-key': body.key };
+    const headers = { 'x-api-key': key };
     expect(
       (await call('/api-key/create', { name: 'derived key' }, headers)).status,
     ).toBe(403);
@@ -305,4 +340,148 @@ describe('the production scoped-session plugin after every identity injector', (
       (await call('/organization/set-active-team', { teamId: null })).status,
     ).toBe(200);
   });
+
+  it.each([
+    ['a global session with a role', 'global'],
+    ['an organization-limited session', 'organization'],
+    ['an API key', 'key'],
+  ] as const)(
+    'signs another person in over %s as from an empty cookie jar (#4919)',
+    async (_held, door) => {
+      const ada = db.session?.[0];
+      if (ada === undefined) throw new Error('The fixture session was missing');
+      const grace = { email: 'grace@example.invalid', password: PASSWORD };
+      const emptyJar = { cookie: '' };
+      expect(
+        (await call('/sign-up/email', { name: 'Grace', ...grace }, emptyJar))
+          .status,
+      ).toBe(200);
+      const alone = await call('/sign-in/email', grace, emptyJar);
+      expect(alone.status).toBe(200);
+      const expected = authorityOf(await signedInSession(alone));
+      expect(expected).toMatchObject({
+        trustedOrganizationId: null,
+        trustedRole: null,
+      });
+
+      let headers: Record<string, string> = {};
+      if (door === 'key') {
+        headers = { 'x-api-key': await createKey('Ada key') };
+        cookie = '';
+      } else {
+        Object.assign(ada, {
+          trustedRole: 'member',
+          ...(door === 'organization'
+            ? {
+                trustedOrganizationId: 'org-a',
+                activeOrganizationId: 'org-a',
+                independentIdentityVerifiedAt: new Date(),
+              }
+            : {}),
+        });
+      }
+      const held = { ...ada };
+
+      const signedIn = await call('/sign-in/email', grace, headers);
+      expect(signedIn.status).toBe(200);
+      const session = await signedInSession(signedIn);
+      expect(authorityOf(session)).toEqual(expected);
+      expect(session.independentIdentityVerifiedAt).toBeInstanceOf(Date);
+      // The session and key Ada presented stay Ada's to end; the browser now
+      // carries Grace's session.
+      expect(db.session?.find((entry) => entry.id === held.id)).toEqual(held);
+      expect(db.apikey).toHaveLength(door === 'key' ? 1 : 0);
+      cookie = cookies(signedIn);
+      expect(await (await call('/get-session')).json()).toMatchObject({
+        user: { email: grace.email },
+      });
+    },
+  );
+
+  it("still carries the presented session's authority into the same person's sign-in", async () => {
+    Object.assign(db.session?.[0] ?? {}, { trustedRole: 'member' });
+    const signedIn = await call('/sign-in/email', {
+      email: 'ada@example.invalid',
+      password: PASSWORD,
+    });
+    expect(signedIn.status).toBe(200);
+    expect(authorityOf(await signedInSession(signedIn))).toMatchObject({
+      userId: db.user?.[0]?.id,
+      trustedOrganizationId: null,
+      trustedRole: 'member',
+    });
+  });
+
+  it.each(['ada@example.invalid', 'ADA@EXAMPLE.INVALID'])(
+    'still refuses the same person (%s) a sign-in over their organization-limited session',
+    async (email) => {
+      Object.assign(db.session?.[0] ?? {}, {
+        trustedOrganizationId: 'org-a',
+        trustedRole: 'member',
+        activeOrganizationId: 'org-a',
+      });
+      const refused = await call('/sign-in/email', {
+        email,
+        password: PASSWORD,
+      });
+      expect(refused.status).toBe(403);
+      expect(await refused.json()).toMatchObject({
+        code: 'ORG_FORBIDDEN',
+        message: SESSION_ORGANIZATION_MESSAGE,
+      });
+      expect(db.session).toHaveLength(1);
+    },
+  );
+
+  it.each([
+    '/reauthenticate',
+    '/two-factor/verify-totp',
+    '/two-factor/verify-backup-code',
+    '/sign-in/email',
+  ])(
+    'still refuses %s a session for another person than the presented one',
+    async (path) => {
+      const before = factory.options.databaseHooks?.session?.create?.before;
+      if (typeof before !== 'function')
+        throw new Error('The session-create hook was missing');
+      const ctx = {
+        path,
+        request: new Request(`${BASE}/api/auth${path}`, { method: 'POST' }),
+        context: {},
+      };
+      // What the presented session lends the request it arrived with.
+      setSessionMintAuthority(ctx, {
+        userId: 'user-ada',
+        organizationId: 'org-a',
+        trustedRole: 'member',
+        independentIdentityVerifiedAt: null,
+      });
+      const sessionOf = (userId: string) => ({
+        id: `session-${userId}`,
+        token: `token-${userId}`,
+        userId,
+        expiresAt: new Date(Date.now() + 60_000),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      await expect(
+        Promise.resolve().then(() =>
+          before(sessionOf('user-grace'), ctx as never),
+        ),
+      ).rejects.toMatchObject({
+        statusCode: 403,
+        body: { code: 'ORG_FORBIDDEN' },
+      });
+      await expect(
+        before(sessionOf('user-ada'), ctx as never),
+      ).resolves.toMatchObject({
+        data: {
+          userId: 'user-ada',
+          trustedOrganizationId: 'org-a',
+          trustedRole: 'member',
+          activeOrganizationId: 'org-a',
+        },
+      });
+    },
+  );
 });
