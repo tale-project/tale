@@ -951,6 +951,16 @@ providers:
     modelsDiscoverHelp: Lit /models de l'endpoint avec la clé de cet identifiant.
     modelsManual: Saisir les ID de modèles
     modelsManualHelp: Pour un endpoint qui ne sait pas lister ses modèles.
+    modelFacts:
+      title: Détails des modèles
+      description: >-
+        Laisse une fenêtre de contexte vide pour compter 128 000 tokens.
+        Coche les modèles qui lisent les images ; les autres sont traités
+        comme des modèles texte seul.
+      contextWindow: Fenêtre de contexte
+      tokens: tokens
+      contextWindowInvalid: Saisis un nombre entier de tokens, par exemple 200000.
+      readsImages: Lit les images
     check: Vérifier les modèles
     checkOk: '{name} : {count, plural, =0 {aucun modèle listé} one {# modèle listé} other {# modèles listés}}'
     checkFailed: 'Impossible de lister les modèles de {name} : {error}'
