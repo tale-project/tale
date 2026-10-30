@@ -35,6 +35,7 @@ import {
   type Ref,
 } from 'react';
 
+import { DataNoticeInline } from '@/app/features/governance/components/data-notice-inline';
 import { useClockOffset } from '@/app/hooks/use-clock-offset';
 import { useT } from '@/lib/i18n/client';
 import { isStoppedReason } from '@/lib/shared/chat-errors';
@@ -141,6 +142,9 @@ interface MessageItemProps {
   /** An older row of a long transcript: it mounts dormant — its words only —
    * and renders in full once it nears the viewport (see use-row-wake). */
   deferred?: boolean;
+  /** The row carries the org's confidentiality notice — the newest row only
+   * (see MessageThread's `dataNotice`). */
+  dataNotice?: boolean;
 }
 
 function MessageItemComponent({ deferred, ...props }: MessageItemProps) {
@@ -221,6 +225,7 @@ function MessageBody({
   speakAvailable,
   voicePillForced,
   isFreshSinceMount,
+  dataNotice,
 }: Omit<MessageItemProps, 'deferred' | 'region' | 'rootRef'>) {
   const { t } = useT('chat');
   const isUser = message.role === 'user';
@@ -278,6 +283,7 @@ function MessageBody({
           voicePillForced={voicePillForced}
           isFreshSinceMount={isFreshSinceMount}
           errorSlot={errorNode}
+          dataNotice={dataNotice}
         />
       ) : (
         <MessageParts parts={message.parts} />
@@ -293,6 +299,11 @@ function MessageBody({
         !stopped &&
         !blockedSubstitutes && <BlockedNotice />}
       {!errorInBody && errorNode}
+      {/* A reply shows the notice under its own toolbar (AssistantBody);
+          any other row ends with it. */}
+      {dataNotice === true && !errorInBody && (
+        <DataNoticeInline organizationId={organizationId} />
+      )}
     </>
   );
 }
@@ -326,7 +337,8 @@ export const MessageItem = memo(
     prevProps.voiceEnabled === nextProps.voiceEnabled &&
     prevProps.speakAvailable === nextProps.speakAvailable &&
     prevProps.voicePillForced === nextProps.voicePillForced &&
-    prevProps.isFreshSinceMount === nextProps.isFreshSinceMount,
+    prevProps.isFreshSinceMount === nextProps.isFreshSinceMount &&
+    prevProps.dataNotice === nextProps.dataNotice,
 );
 
 /** The user's turn: a right-aligned bubble, clamped when it runs long, with
@@ -446,6 +458,7 @@ function AssistantBody({
   voicePillForced,
   isFreshSinceMount,
   errorSlot,
+  dataNotice,
 }: {
   message: ChatMessageItem;
   isLast: boolean;
@@ -460,6 +473,8 @@ function AssistantBody({
   isFreshSinceMount?: boolean;
   /** The turn's failure, drawn after the answer and before the toolbar. */
   errorSlot?: ReactNode;
+  /** Show the confidentiality notice under the toolbar. */
+  dataNotice?: boolean;
 }) {
   const { t } = useT('chat');
   const { text, isStreaming } = message;
@@ -598,6 +613,7 @@ function AssistantBody({
   // the arena's forced pill) mounts one.
   const showVoicePill =
     voiceEnabled === true || voicePillForced === true || onDemand.requested;
+  const chromeSettled = !isStreaming && (revealDone || text.length === 0);
 
   return (
     <div className="w-full min-w-0" onCopy={handleCopySelection}>
@@ -688,7 +704,7 @@ function AssistantBody({
           watched the reply stream in, enters with the same fade+lift the
           stream segments used. A reply that settled without text — failed,
           stopped or unanswered — has no reveal to wait for. */}
-      {!isStreaming && (revealDone || text.length === 0) && (
+      {chromeSettled && (
         <MessageToolbar
           message={message}
           alwaysVisible={isLast}
@@ -711,6 +727,11 @@ function AssistantBody({
               : undefined
           }
         />
+      )}
+      {/* The notice waits with the toolbar, so it never sits inside a reply
+          still being written. */}
+      {chromeSettled && dataNotice === true && (
+        <DataNoticeInline organizationId={organizationId} />
       )}
     </div>
   );
