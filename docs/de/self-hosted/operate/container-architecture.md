@@ -55,7 +55,7 @@ Lade den Daemon danach mit `sudo systemctl reload docker` neu, oder sende auf ei
 
 ## Reparaturen des Wissensindex erkennen
 
-Ein beschädigter BM25-Index kann Importe scheitern lassen, obwohl die Dokumenttabellen noch lesbar sind. Das Backend prüft Wissensindizes mit `pdb.verify_index`. Ein Advisory Lock koordiniert Reparaturversuche pro Datenbank. Organisationsspezifische Datenbanken werden bei ihrer ersten Verwendung geprüft.
+Ein beschädigter BM25-Index kann Importe scheitern lassen, obwohl die Dokumenttabellen noch lesbar sind. Das Backend prüft Wissensindizes mit `pdb.verify_index`. Ein Advisory Lock koordiniert Reparaturversuche pro Datenbank. Die Wissensdatenbank des Deployments prüft jeder Backend-Prozess bei seinem Start; organisationsspezifische Datenbanken werden bei ihrer ersten Verwendung geprüft.
 
 | Ergebnis | Verhalten des Backends | Deine Reaktion |
 | --- | --- | --- |
@@ -63,6 +63,7 @@ Ein beschädigter BM25-Index kann Importe scheitern lassen, obwohl die Dokumentt
 | Beschädigter Index bis `KNOWLEDGE_INDEX_REPAIR_INLINE_MAX_BYTES` | Direkt neu aufbauen und erneut prüfen; die Standardgrenze beträgt 1 GiB. | Mit längerem Start rechnen und das Endergebnis prüfen. |
 | Größerer beschädigter Index | Gleichzeitigen Neuaufbau im Hintergrund einplanen; betroffene Indexierung kann mit entsprechendem Grund warten. | Worker-Fortschritt und abschließende Prüfung beobachten. |
 | Reparatur scheitert oder Zustand bleibt ungeklärt | Fehler festhalten; betroffene Korpusoperationen können unverfügbar bleiben. | Ursache, Datenbankrechte und Speicherzustand vor einer manuellen Reparatur prüfen. |
+| Wissensdatenbank beim Start nicht erreichbar | Bis zu etwa einer Minute auf sie warten; danach ohne die Prüfung starten, eine Warnung protokollieren und einen Fehler melden. | Backend neu starten, sobald die Wissensdatenbank antwortet, damit die Prüfung läuft. |
 
 Reparaturen können die Audit-Aktionen `knowledge_index_repaired`, `knowledge_index_rebuild_scheduled` oder `knowledge_index_repair_failed` und Admin-Benachrichtigungen auslösen. Ein fehlgeschlagener Neuaufbau beweist keinen Verlust der Quelldokumente. Ein erfolgreicher Neuaufbau ersetzt kein Datenbank-Backup.
 

@@ -55,7 +55,7 @@ Then reload the daemon with `sudo systemctl reload docker`, or send `SIGHUP` to 
 
 ## Recognize knowledge-index repair
 
-A damaged BM25 index can cause ingestion failures even when the underlying document tables remain readable. The backend checks knowledge indexes with `pdb.verify_index`; an advisory lock coordinates repair attempts for a database. Organization-specific databases are checked when they are first used.
+A damaged BM25 index can cause ingestion failures even when the underlying document tables remain readable. The backend checks knowledge indexes with `pdb.verify_index`; an advisory lock coordinates repair attempts for a database. The deployment's knowledge database is checked each time a backend process starts; organization-specific databases are checked when they are first used.
 
 | Result | Backend behavior | Operator response |
 | --- | --- | --- |
@@ -63,6 +63,7 @@ A damaged BM25 index can cause ingestion failures even when the underlying docum
 | Damaged index at or below `KNOWLEDGE_INDEX_REPAIR_INLINE_MAX_BYTES` | Rebuild inline and verify again; the default limit is 1 GiB. | Allow for slower startup and inspect the final result. |
 | Larger damaged index | Schedule a concurrent background rebuild; affected indexing can wait with an index-rebuilding reason. | Watch worker progress and the final verification. |
 | Repair fails or verification cannot establish health | Record the failure; affected corpus operations can remain unavailable. | Inspect the exact cause, database permissions, and storage health before attempting manual repair. |
+| Knowledge database unreachable at start | Wait up to about a minute for it; past that, start without the check, log a warning, and report one error. | Restart the backend once the knowledge database answers, so that the check runs. |
 
 Repair events can produce `knowledge_index_repaired`, `knowledge_index_rebuild_scheduled`, or `knowledge_index_repair_failed` audit entries and administrator notifications. A failed rebuild is not proof that source documents are lost, and a successful rebuild does not replace a database backup.
 

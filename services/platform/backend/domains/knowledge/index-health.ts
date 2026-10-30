@@ -26,6 +26,7 @@ import {
   RAG_ERROR_INDEX_REBUILDING,
   RAG_ERROR_INDEX_REPAIR_FAILED,
 } from '../../core/knowledge/rag_error_codes.ts';
+import type { BootDatabaseWait } from '../../db/boot-wait.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import type { CreateAuditLogArgs } from '../audit_logs/types.ts';
@@ -129,14 +130,21 @@ function labelFor(scope: CorpusScope): string {
 /**
  * The boot step: verify (and repair) the deployment-default corpus's BM25
  * indexes, then act on the report. Every role runs it before it serves or
- * consumes jobs; never throws past the report's own logging.
+ * consumes jobs (`boot.ts`); never throws past the report's own logging.
+ * `wait` waits out a knowledge database that is unavailable as the process
+ * boots, for the scan only: the effects run once, on the app database.
  */
 export async function verifyDefaultKnowledgeIndexes(
   sql: Sql,
   effects: IndexHealthEffects = productionEffects(sql),
+  wait?: BootDatabaseWait,
 ): Promise<IndexHealthReport> {
   const url = defaultKnowledgeUrl();
-  const report = await healBm25Indexes({ url, label: DEFAULT_LABEL });
+  const report = await healBm25Indexes({
+    url,
+    label: DEFAULT_LABEL,
+    ...(wait === undefined ? {} : { wait }),
+  });
   await applyIndexHealthReport(report, { kind: 'default' }, url, effects);
   return report;
 }

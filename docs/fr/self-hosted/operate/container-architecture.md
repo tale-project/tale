@@ -55,7 +55,7 @@ Recharge ensuite le daemon avec `sudo systemctl reload docker`, ou envoie `SIGHU
 
 ## Reconnaître une réparation d’index de connaissances
 
-Un index BM25 endommagé peut faire échouer l’ingestion alors que les tables de documents restent lisibles. Le backend vérifie les index avec `pdb.verify_index` ; un verrou consultatif coordonne les tentatives de réparation par base. Les bases propres aux organisations sont vérifiées à leur première utilisation.
+Un index BM25 endommagé peut faire échouer l’ingestion alors que les tables de documents restent lisibles. Le backend vérifie les index avec `pdb.verify_index` ; un verrou consultatif coordonne les tentatives de réparation par base. La base de connaissances du déploiement est vérifiée à chaque démarrage d’un processus backend ; les bases propres aux organisations le sont à leur première utilisation.
 
 | Résultat | Comportement du backend | Réponse de l’opérateur |
 | --- | --- | --- |
@@ -63,6 +63,7 @@ Un index BM25 endommagé peut faire échouer l’ingestion alors que les tables 
 | Index endommagé jusqu’à `KNOWLEDGE_INDEX_REPAIR_INLINE_MAX_BYTES` | Reconstruire immédiatement et vérifier à nouveau ; la limite par défaut est 1 GiB. | Prévoir un démarrage plus long et examiner le résultat final. |
 | Index endommagé plus volumineux | Planifier une reconstruction concurrente en arrière-plan ; l’indexation affectée peut attendre avec un motif de reconstruction. | Suivre le worker et la vérification finale. |
 | Échec de réparation ou état non établi | Enregistrer l’échec ; les opérations du corpus peuvent rester indisponibles. | Examiner la cause, les permissions de base et le stockage avant une réparation manuelle. |
+| Base de connaissances injoignable au démarrage | L’attendre jusqu’à une minute environ ; au-delà, démarrer sans la vérification, écrire un avertissement dans le journal et signaler une erreur. | Redémarrer le backend dès que la base de connaissances répond, pour que la vérification ait lieu. |
 
 Une réparation peut produire les actions d’audit `knowledge_index_repaired`, `knowledge_index_rebuild_scheduled` ou `knowledge_index_repair_failed`, ainsi que des notifications aux administrateurs. L’échec d’une reconstruction ne prouve pas que les documents sources sont perdus. Sa réussite ne remplace pas une sauvegarde de la base.
 

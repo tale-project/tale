@@ -11,7 +11,9 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * (`realtime/sse.ts`), a job fails for pg-boss to retry (`jobs/runner.ts`),
  * pg-boss's failing polls log one line per outage (`jobs/boss.ts`), a process
  * that starts meanwhile waits for the database before it migrates
- * (`db/migrate.ts`), and none of them reports an error.
+ * (`db/migrate.ts`) and for the knowledge database before it checks the
+ * search indexes there (`domains/knowledge/boot.ts`), and none of them
+ * reports an error.
  *
  * Deliberately narrower than its two neighbours. `isTransientDbError`
  * (`@tale/shared/db/retry`) decides whether to rerun an operation in place
@@ -26,7 +28,9 @@ import { AsyncLocalStorage } from 'node:async_hooks';
  * restart: only logged, never reported. `/events` reports an outage that
  * outlasts it, once, at warning level (`realtime/sse.ts`); a process that
  * starts during an outage waits this long for the database before its boot
- * fails and is reported (`db/migrate.ts`).
+ * fails and is reported (`db/migrate.ts`), and this long for the knowledge
+ * database before it boots without the steps that need it and reports that
+ * once (`domains/knowledge/boot.ts`).
  */
 export const ROUTINE_RESTART_MS = 60_000;
 
