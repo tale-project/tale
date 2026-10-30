@@ -1,6 +1,6 @@
 # Navigation
 
-> **Prefix** `NAV-` · **Reset** none · **Cost** 28 boxes
+> **Prefix** `NAV-` · **Reset** none · **Cost** 29 boxes
 
 Exercise every way a reader moves through the docs — the navigation rail
 (`docs/nav.json`), collapsible sub-groups, the header strip's breadcrumb trail,
@@ -27,7 +27,7 @@ guide ([search.md](search.md)).
 ## Preconditions
 
 Bring the site up per [SETUP.md](../setup.md) — either mode for
-NAV-F1–NAV-F8/NAV-B1–NAV-B3. The redirect rows (NAV-F9/NAV-F10/NAV-F16–NAV-F21) and the PWA
+NAV-F1–NAV-F8/NAV-B1–NAV-B3. The redirect rows (NAV-F9/NAV-F10/NAV-F16–NAV-F22) and the PWA
 rows (NAV-F11/NAV-F12) need the **built** server (mode A, or `build` + `start`
 per SETUP.md) — the vite dev server serves no 301s, no prerendered stubs, and
 registers no service worker. The rail tree is build-time static;
@@ -186,18 +186,35 @@ this guide focuses on **behaviour**, not link rot.
   `…/de/tutorials/admin/connect-local-provider`,
   `…/fr/platform/automations/concepts`. **Verwaltung** labels two groups: on
   its own it lands in **Platform**, under `tutorials/` in the tutorials. A
-  label with an unknown page under it (`{base}/de/verwaltung/xyz`) still
-  answers **404**.
+  label with an unknown page under it (`{base}/de/verwaltung/xyz`) lands on
+  the group's first page too (`NAV-F22`).
+- [ ] `NAV-F22` · **Paths translated whole** — Built server only — `curl -sI`
+  the addresses a language model wrote by translating every segment:
+  `{base}/de/plattform/skills`, `{base}/de/plattform/wissen/webseiten`,
+  `{base}/fr/plateforme/agents` and `{base}/de/plattform/verwaltung/anbieter`
+  → Each answers **HTTP 302** to the page it means in the section its folders
+  name — `…/de/platform/workspace/skills`,
+  `…/de/platform/knowledge/crawling`, `…/fr/platform/agents/concepts`,
+  `…/de/platform/admin/providers` — never to a page of another section. A
+  leaf no page there matches (`{base}/de/verwaltung/xyz`,
+  `{base}/platform/chat/zzzz`) answers **HTTP 302** to the section's first
+  page (`…/de/platform/admin/overview`, `…/platform/chat/overview`); an
+  address that names no section (`{base}/de/foo/bar-baz`) still answers
+  **404**, its body naming `/llms.txt`.
 
 ## Boundary & error tests
 
-- [ ] `NAV-B1` · **Unknown URL** — Open `{base}/platform/chat/zzzz` (no page is
-  close; a near miss like `…/basicz` lands on its page instead, `NAV-F19`) →
-  The styled 404 renders **inside the docs shell**: heading **Page not found**
-  (`docs.notFound.title`), body `docs.notFound.body`, a **Did you mean** list
+- [ ] `NAV-B1` · **Unknown URL** — Open `{base}/chat-zzzz` (no page is close
+  and no folder names a section; a near miss like `…/platform/chat/basicz`
+  lands on its page instead, `NAV-F19`, and `…/platform/chat/zzzz` on the
+  Chat section, `NAV-F22`) → The styled 404 renders **inside the docs shell**:
+  heading **Page not found** (`docs.notFound.title`), body
+  `docs.notFound.body`, the line **Every page of these docs is listed with
+  its address in** (`docs.notFound.pageIndex`) ending in a link to
+  `{base}/llms.txt` that opens the plain-text index, a **Did you mean** list
   (`docs.notFound.suggestions`) ranked by the server's near-miss scorer — the
-  Chat pages, `platform/chat/basics` among them — and a **Back to docs home** button
-  (`docs.notFound.backHome`)
+  Chat pages, `platform/chat/basics` among them — and a **Back to docs home**
+  button (`docs.notFound.backHome`)
 - [ ] `NAV-B2` · **Deep garbage URL** — Open `{base}/x/y/z/deep/garbage` →
   Same 404 page; suggestions still render (fallback list); no crash, no blank
   screen.

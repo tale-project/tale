@@ -85,6 +85,7 @@ docs:
   notFound:
     title: Page introuvable
     body: Nous n'avons pas trouvé cette page. Une des suggestions ci-dessous correspond peut-être – sinon, lance la recherche.
+    pageIndex: Toutes les pages de cette documentation sont listées avec leur adresse dans
     suggestions: Tu voulais dire
     backHome: Retour à l'accueil de la documentation
   search:

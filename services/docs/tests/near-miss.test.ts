@@ -143,12 +143,158 @@ describe('near misses on the real docs', () => {
   it.each([
     '/wp-login.php',
     '/de/foo/bar-baz',
-    '/de/verwaltung/xyz',
     '/de/xyz/verwaltung',
+    '/chat-zzzz',
+    '/x/y/z/deep/garbage',
     '/assets/index-0000.js',
     '/.env',
   ])('leaves %s to the 404 page', (address) => {
     expect(resolveMissingDocsPath(address, paths)).toBeNull();
+  });
+});
+
+/**
+ * Addresses a model writes by translating a whole path (#5037): each folder
+ * is read as the site's own under its sidebar label, the leaf as a page or
+ * section there. The first two were reported from a pilot.
+ */
+describe('guesses that translate a whole path', () => {
+  // Each answered 404 before the folders were read as the site's own.
+  it.each([
+    ['/de/plattform/skills', '/de/platform/workspace/skills'],
+    ['/de/plattform/wissen/webseiten', '/de/platform/knowledge/crawling'],
+    ['/platform/skills', '/platform/workspace/skills'],
+    ['/fr/plateforme/skills', '/fr/platform/workspace/skills'],
+    ['/de/wissen/webseiten', '/de/platform/knowledge/crawling'],
+    [
+      '/de/plattform/wissen/wissenseintraege',
+      '/de/platform/knowledge/knowledge-entries',
+    ],
+    ['/de/plattform/projekte/aufgaben', '/de/platform/projects/tasks'],
+    [
+      '/de/plattform/projekte/projektagenten',
+      '/de/platform/projects/project-agents',
+    ],
+    ['/de/plattform/konnektoren', '/de/platform/connectors/overview'],
+    ['/fr/plateforme/connecteurs', '/fr/platform/connectors/overview'],
+  ])('lands %s on %s', (guess, page) => {
+    expect(resolveMissingDocsPath(guess, paths)).toEqual({
+      location: page,
+      permanent: false,
+    });
+  });
+
+  // Each landed on a page of another section, one the guess's folders do
+  // not hold, which ends in the same leaf or carries the title.
+  it.each([
+    ['/fr/plateforme/agents', '/fr/platform/agents/concepts'],
+    ['/de/plattform/connectors', '/de/platform/connectors/overview'],
+    ['/de/plattform/verwaltung/anbieter', '/de/platform/admin/providers'],
+    [
+      '/fr/plateforme/automatisations/modeles',
+      '/fr/platform/automations/templates',
+    ],
+  ])('keeps %s in the section it names: %s', (guess, page) => {
+    expect(resolveMissingDocsPath(guess, paths)).toEqual({
+      location: page,
+      permanent: false,
+    });
+  });
+
+  // Translations that already landed, kept landing.
+  it.each([
+    ['/de/plattform/agenten', '/de/platform/agents/concepts'],
+    ['/de/plattform/agenten/skills', '/de/platform/agents/skills'],
+    ['/de/plattform/wissen', '/de/platform/knowledge/overview'],
+    ['/de/plattform/wissen/dokumente', '/de/platform/knowledge/documents'],
+    ['/de/plattform/projekte', '/de/platform/projects/overview'],
+    [
+      '/de/plattform/automatisierungen/vorlagen',
+      '/de/platform/automations/templates',
+    ],
+    ['/de/plattform/chat/sprachmodus', '/de/platform/chat/voice-mode'],
+    ['/de/plattform/genehmigungen', '/de/platform/approvals/concepts'],
+    ['/de/verwaltung/api-schluessel', '/de/platform/admin/api-keys'],
+    ['/de/plattform/verwaltung/teams', '/de/platform/admin/teams'],
+    [
+      '/de/plattform/verwaltung/papierkorb',
+      '/de/platform/admin/governance/trash',
+    ],
+    ['/de/plattform/mitglied/einstellungen', '/de/platform/member/preferences'],
+    [
+      '/de/selbst-gehostet/installation/kubernetes',
+      '/de/self-hosted/install/kubernetes',
+    ],
+    [
+      '/de/selbst-gehostet/konfiguration/umgebungsvariablen',
+      '/de/self-hosted/configuration/environment-reference',
+    ],
+    [
+      '/de/selbst-gehostet/betrieb/backups',
+      '/de/self-hosted/operate/backups-and-restore',
+    ],
+    ['/de/entwicklung/api-referenz', '/de/develop/api-reference'],
+    ['/de/cloud/abrechnung', '/de/cloud/billing'],
+    [
+      '/fr/plateforme/connaissances/sites-web',
+      '/fr/platform/knowledge/crawling',
+    ],
+    [
+      '/fr/plateforme/administration/membres-et-roles',
+      '/fr/platform/admin/members-and-roles',
+    ],
+    ['/fr/plateforme/administration/cles-api', '/fr/platform/admin/api-keys'],
+    [
+      '/fr/auto-heberge/configuration/fournisseurs',
+      '/fr/self-hosted/configuration/providers',
+    ],
+    ['/fr/developpement/reference-api', '/fr/develop/api-reference'],
+    ['/platform/knowledge/websites', '/platform/knowledge/crawling'],
+  ])('still lands %s on %s', (guess, page) => {
+    expect(resolveMissingDocsPath(guess, paths)).toEqual({
+      location: page,
+      permanent: false,
+    });
+  });
+
+  it('follows a moved page its translated folders name', () => {
+    // `platform/automations/workflows` moved to the editor's page.
+    expect(
+      resolveMissingDocsPath(
+        '/de/plattform/automatisierungen/workflows',
+        paths,
+      ),
+    ).toEqual({
+      location: '/de/platform/automations/editor',
+      permanent: false,
+    });
+  });
+
+  it('finds a page the guess files under the wrong section', () => {
+    expect(
+      resolveMissingDocsPath('/de/plattform/installation/kubernetes', paths),
+    ).toEqual({
+      location: '/de/self-hosted/install/kubernetes',
+      permanent: false,
+    });
+  });
+
+  // A section the folders name, nothing in it the leaf names: the section's
+  // first page lists what it holds, where a 404 left the reader stranded.
+  it.each([
+    ['/de/verwaltung/xyz', '/de/platform/admin/overview'],
+    ['/de/plattform/xyz', '/de/platform'],
+    ['/platform/chat/zzzz', '/platform/chat/overview'],
+    [
+      '/de/selbst-gehostet/konfiguration/xyz',
+      '/de/self-hosted/configuration/environment-reference',
+    ],
+    ['/de/plattform/wissen/xyz.md', '/de/platform/knowledge/overview.md'],
+  ])('sends %s to the section it names, %s', (guess, page) => {
+    expect(resolveMissingDocsPath(guess, paths)).toEqual({
+      location: page,
+      permanent: false,
+    });
   });
 });
 
@@ -175,6 +321,14 @@ describe('near-miss route', () => {
     [
       '/de/automatisierungen/erstellen.md?ref=chat',
       '/docs/de/platform/automations/catalog.md?ref=chat',
+    ],
+    [
+      '/de/plattform/wissen/webseiten?ref=chat',
+      '/docs/de/platform/knowledge/crawling?ref=chat',
+    ],
+    [
+      '/de/verwaltung/xyz?ref=chat',
+      '/docs/de/platform/admin/overview?ref=chat',
     ],
   ])(
     'keeps the repaired guess %s through the route boundary',

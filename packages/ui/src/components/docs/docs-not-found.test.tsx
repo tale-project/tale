@@ -54,9 +54,37 @@ describe('DocsNotFound', () => {
     ).toBeNull();
   });
 
-  it('has no accessibility violations', async () => {
+  // A model that guessed an address reads this page as text: the index of
+  // every real address is its way back.
+  it('names the page index where every address is listed', () => {
+    render(
+      <DocsNotFound
+        home={HOME}
+        suggestions={SUGGESTIONS}
+        pageIndex="/docs/llms.txt"
+      />,
+    );
+    const link = screen.getByRole('link', { name: '/docs/llms.txt' });
+    expect(link).toHaveAttribute('href', '/docs/llms.txt');
+    expect(link.closest('p')).toHaveTextContent(
+      'Every page of these docs is listed with its address in /docs/llms.txt.',
+    );
+  });
+
+  it('leaves the index out for a site that serves none', () => {
     const { container } = render(
       <DocsNotFound home={HOME} suggestions={SUGGESTIONS} />,
+    );
+    expect(container).not.toHaveTextContent('llms.txt');
+  });
+
+  it('has no accessibility violations', async () => {
+    const { container } = render(
+      <DocsNotFound
+        home={HOME}
+        suggestions={SUGGESTIONS}
+        pageIndex="/llms.txt"
+      />,
     );
     await checkAccessibility(container);
   });

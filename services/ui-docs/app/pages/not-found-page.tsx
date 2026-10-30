@@ -15,6 +15,10 @@ function pathnameToSlug(pathname: string): string {
   return pathname.replace(/^\/+|\/+$/g, '').replace(/^docs(?:\/|$)/, '');
 }
 
+// Every guide with its address, under the deploy mount (Vite's BASE_URL,
+// always trailing-slashed): the way back for a model that guessed one.
+const PAGE_INDEX = `${import.meta.env.BASE_URL ?? '/'}llms.txt`;
+
 /**
  * The 404, inside the same docs frame as every page: most ways to land here
  * are a stale link to a page that used to exist under `/docs`, so the closest
@@ -52,6 +56,7 @@ export function NotFoundPage() {
     <DocsNotFound
       home={{ href: docPath(firstNavSlug()), label: t('home') }}
       suggestions={suggestions}
+      pageIndex={PAGE_INDEX}
     />
   );
 }

@@ -14,6 +14,10 @@ interface NotFoundPageProps {
   locale: SupportedLocale;
 }
 
+// Every page with its address, under the deploy mount (Vite's BASE_URL,
+// always trailing-slashed): the way back for a model that guessed one.
+const PAGE_INDEX = `${import.meta.env.BASE_URL ?? '/'}llms.txt`;
+
 /** Strip leading locale prefix + slashes so we compare slug-to-slug. */
 function pathnameToSlug(pathname: string, locale: SupportedLocale): string {
   let p = pathname.replace(/^\/+|\/+$/g, '');
@@ -59,6 +63,7 @@ export function NotFoundPage({ locale }: NotFoundPageProps) {
     <DocsNotFound
       home={{ href: docPath(locale, firstNavSlug()), label: home }}
       suggestions={suggestions}
+      pageIndex={PAGE_INDEX}
     />
   );
 }

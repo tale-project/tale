@@ -15,15 +15,26 @@ export interface DocsNotFoundProps {
   home: DocsNavPage;
   /** Pages close to the one the reader asked for, closest first. */
   suggestions: readonly DocsNavPage[];
+  /**
+   * The site's plain-text index of every page (`/llms.txt` under its base),
+   * named on the page so a reader or a language model that guessed an
+   * address can look the real one up.
+   */
+  pageIndex?: string;
 }
 
 /**
  * The documentation 404, inside the docs chrome: the header strip names the
- * page, then a heading that says what happened, the closest pages as cards
- * and one route back to the front door. Most ways to land here are a stale
- * link, so the suggestions usually hold the page the reader wanted.
+ * page, then a heading that says what happened, where every page is listed,
+ * the closest pages as cards and one route back to the front door. Most ways
+ * to land here are a stale link, so the suggestions usually hold the page
+ * the reader wanted.
  */
-export function DocsNotFound({ home, suggestions }: DocsNotFoundProps) {
+export function DocsNotFound({
+  home,
+  suggestions,
+  pageIndex,
+}: DocsNotFoundProps) {
   const { t } = useT('docs');
 
   return (
@@ -37,6 +48,18 @@ export function DocsNotFound({ home, suggestions }: DocsNotFoundProps) {
           <Text variant="muted" className="mt-3 text-base leading-relaxed">
             {t('notFound.body')}
           </Text>
+          {pageIndex ? (
+            <Text variant="muted" className="mt-3 text-base leading-relaxed">
+              {t('notFound.pageIndex')}{' '}
+              <a
+                href={pageIndex}
+                className="text-fg-base underline underline-offset-4 hover:no-underline"
+              >
+                {pageIndex}
+              </a>
+              .
+            </Text>
+          ) : null}
 
           {suggestions.length > 0 ? (
             <nav aria-label={t('notFound.suggestions')} className="mt-8">
