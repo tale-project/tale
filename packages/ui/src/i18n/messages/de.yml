@@ -85,6 +85,7 @@ docs:
   notFound:
     title: Seite nicht gefunden
     body: Diese Seite konnten wir nicht finden. Vielleicht hilft eine der folgenden Seiten weiter – oder nutze die Suche.
+    pageIndex: Alle Seiten dieser Doku samt Adresse findest du in
     suggestions: Meintest du
     backHome: Zurück zur Doku-Startseite
   search:

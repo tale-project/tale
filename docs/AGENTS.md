@@ -22,9 +22,11 @@ reference lives in [`services/docs/tests/AGENTS.md`](../services/docs/tests/AGEN
   served, append-only (the docs build records new pages; never delete a line). Each must keep
   answering in every locale, as a page or through `redirects.json`: a page that goes away without
   a redirect fails `tests/published.test.ts`. The retired `de-CH`, `de-AT` and `fr-CH` trees and
-  guessed addresses (a title turned into a slug, a translated folder, a sidebar group's label such
-  as `/de/verwaltung`) are answered by the server's near-miss resolver (`lib/near-miss.ts`), not by
-  entries here.
+  guessed addresses (a title turned into a slug, a path translated whole such as
+  `/de/plattform/wissen/webseiten`, a sidebar group's label such as `/de/verwaltung`) are answered
+  by the server's near-miss resolver (`lib/near-miss.ts`), not by entries here; a guess no page
+  clearly wins lands on the section its folders name, and one that names no section gets the 404,
+  which points to `/llms.txt`.
 - The site: `services/docs/` (Vite + React + TanStack Router, prerendered static HTML). The root
   and locale roots open the first guide in `docs/nav.json`, with the same shared documentation
   frame as every deep guide. There is no separate locale-root `index.md`; legacy root Markdown

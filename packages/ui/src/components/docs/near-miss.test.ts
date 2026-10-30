@@ -339,6 +339,159 @@ describe('resolveNearMiss', () => {
   });
 });
 
+describe('a guess that translates a whole path', () => {
+  // The pages Tale's chat agent guessed past: two end in `skills`, and the
+  // German titles keep the loanwords `Websites` and `Skills`.
+  const pages: NearMissPage[] = [
+    { route: 'platform', titles: ['Platform', 'Plattform', 'Plateforme'] },
+    {
+      route: 'platform/agents/concepts',
+      titles: ['Understand project agents', 'Projektagenten verstehen'],
+    },
+    {
+      route: 'platform/agents/skills',
+      titles: [
+        'Equip agents with skills',
+        'Agenten mit Skills ausrüsten',
+        'Équiper les agents avec des skills',
+      ],
+    },
+    {
+      route: 'platform/knowledge/overview',
+      titles: ['Knowledge', 'Wissen', 'Connaissances'],
+    },
+    {
+      route: 'platform/knowledge/knowledge-entries',
+      titles: ['Knowledge entries', 'Wissenseinträge'],
+    },
+    {
+      route: 'platform/knowledge/crawling',
+      titles: [
+        'Add websites to knowledge',
+        'Websites zum Wissen hinzufügen',
+        'Ajouter des sites aux connaissances',
+      ],
+    },
+    {
+      route: 'platform/workspace/skills',
+      titles: ['Skill library', 'Skill-Bibliothek', 'Bibliothèque de skills'],
+    },
+    {
+      route: 'platform/connectors/overview',
+      titles: ['Connect Tale to external services'],
+    },
+    { route: 'platform/admin/overview', titles: ['Admin', 'Administration'] },
+    {
+      route: 'platform/admin/agents',
+      titles: ['Govern project agents', 'Projektagenten verwalten'],
+    },
+    {
+      route: 'platform/admin/providers',
+      titles: ['AI providers', 'KI-Anbieter', 'Fournisseurs IA'],
+    },
+    {
+      route: 'self-hosted/configuration/providers',
+      titles: ['Providers', 'Anbieter', 'Fournisseurs'],
+    },
+    { route: 'develop/connectors', titles: ['Connectors'] },
+  ];
+  const groups: NearMissNavGroup[] = [
+    {
+      labels: ['Platform', 'Plattform', 'Plateforme'],
+      entries: [
+        'platform',
+        {
+          labels: ['Agents'],
+          entries: ['platform/agents/concepts', 'platform/agents/skills'],
+        },
+        {
+          labels: ['Knowledge', 'Wissen', 'Connaissances'],
+          entries: [
+            'platform/knowledge/overview',
+            'platform/knowledge/knowledge-entries',
+            'platform/knowledge/crawling',
+          ],
+        },
+        {
+          labels: ['Workspace', 'Arbeitsbereich'],
+          entries: ['platform/workspace/skills'],
+        },
+        { labels: ['Connectors'], entries: ['platform/connectors/overview'] },
+        {
+          labels: ['Admin', 'Verwaltung', 'Administration'],
+          entries: [
+            'platform/admin/overview',
+            'platform/admin/agents',
+            'platform/admin/providers',
+          ],
+        },
+      ],
+    },
+    {
+      labels: ['Self-hosted', 'Selbst gehostet'],
+      entries: [
+        {
+          labels: ['Configuration', 'Konfiguration'],
+          entries: ['self-hosted/configuration/providers'],
+        },
+      ],
+    },
+    {
+      labels: ['Development', 'Entwicklung'],
+      entries: ['develop/connectors'],
+    },
+  ];
+  const index = buildNearMissIndex(pages, groups);
+
+  // Each answered 404 before the folders were read as the site's own.
+  it.each([
+    ['plattform/skills', 'platform/workspace/skills'],
+    ['plateforme/skills', 'platform/workspace/skills'],
+    ['plattform/wissen/webseiten', 'platform/knowledge/crawling'],
+    ['wissen/webseiten', 'platform/knowledge/crawling'],
+    [
+      'plattform/wissen/wissenseintraege',
+      'platform/knowledge/knowledge-entries',
+    ],
+    ['plattform/konnektoren', 'platform/connectors/overview'],
+    ['plateforme/connecteurs', 'platform/connectors/overview'],
+  ])('lands the guess %s on %s', (guess, page) => {
+    expect(resolveNearMiss(guess, index)).toBe(page);
+  });
+
+  // Each landed on a page of another section: the same leaf, or the title,
+  // of a page the guess's folders do not hold.
+  it.each([
+    ['plateforme/agents', 'platform/agents/concepts'],
+    ['plattform/connectors', 'platform/connectors/overview'],
+    ['plattform/verwaltung/anbieter', 'platform/admin/providers'],
+  ])('keeps the guess %s in the folders it names: %s', (guess, page) => {
+    expect(resolveNearMiss(guess, index)).toBe(page);
+  });
+
+  it('picks, of two pages ending in the leaf, the one its title names', () => {
+    // `skills` is half of `Skill library`, a third of `Equip agents with
+    // skills`.
+    expect(resolveNearMiss('skills', index)).toBe('platform/workspace/skills');
+    expect(resolveNearMiss('platform/skills', index)).toBe(
+      'platform/workspace/skills',
+    );
+  });
+
+  it('finds a page the guess files under the wrong folder', () => {
+    expect(resolveNearMiss('verwaltung/crawling', index)).toBe(
+      'platform/knowledge/crawling',
+    );
+  });
+
+  it('keeps a page title ahead of a section label for a leaf alone', () => {
+    expect(resolveNearMiss('connectors', index)).toBe('develop/connectors');
+    expect(resolveNearMiss('anbieter', index)).toBe(
+      'self-hosted/configuration/providers',
+    );
+  });
+});
+
 describe('a crafted guess', () => {
   it('is scored on a bounded number of words', () => {
     const guess = Array.from({ length: 40 }, (_, i) => `word${i}`).join('-');
@@ -363,6 +516,7 @@ const PAGES = new Set(INDEX.pages.map(({ route }) => route));
 const REDIRECTS = new Map([
   ['/old/page', '/platform/chat/basics'],
   ['/de/old/page', '/de/platform/chat/basics'],
+  ['/de/platform/chat/legacy', '/de/platform/chat/arena-mode'],
   ['/legal/terms', 'https://tale.dev/legal/terms-of-service'],
 ]);
 
@@ -378,6 +532,7 @@ const DOCS_SITE: MissingAddressSite = {
   isPage: (_locale, route) => PAGES.has(route),
   redirectFor: (path) => REDIRECTS.get(path),
   index: INDEX,
+  closestSection: true,
 };
 
 describe('resolveMissingAddress', () => {
@@ -418,6 +573,40 @@ describe('resolveMissingAddress', () => {
     });
   });
 
+  it('sends a guess no page wins to the section its folders name', () => {
+    expect(resolveMissingAddress('/de/verwaltung/xyz', DOCS_SITE)).toEqual({
+      location: '/de/platform/admin/overview',
+      permanent: false,
+    });
+    expect(resolveMissingAddress('/de/plattform/zzzz', DOCS_SITE)).toEqual({
+      location: '/de/platform',
+      permanent: false,
+    });
+    expect(
+      resolveMissingAddress('/self-hosted/konfiguration/xyz.md', DOCS_SITE),
+    ).toEqual({
+      location: '/self-hosted/configuration/environment-reference.md',
+      permanent: false,
+    });
+  });
+
+  it('keeps the 404 for a site whose sections open on a guide', () => {
+    const guides = { ...DOCS_SITE, closestSection: false };
+    expect(resolveMissingAddress('/de/verwaltung/xyz', guides)).toBeNull();
+    expect(
+      resolveMissingAddress('/de/verwaltung/mitglieder-und-rollen', guides),
+    ).toEqual({
+      location: '/de/platform/admin/members-and-roles',
+      permanent: false,
+    });
+  });
+
+  it('follows the redirect of a moved page its translated folders name', () => {
+    expect(
+      resolveMissingAddress('/de/plattform/chat/legacy', DOCS_SITE),
+    ).toEqual({ location: '/de/platform/chat/arena-mode', permanent: false });
+  });
+
   it('never guesses at a file, a malformed path or an unknown address', () => {
     for (const path of [
       '/assets/index-3f2a.js',
@@ -425,6 +614,7 @@ describe('resolveMissingAddress', () => {
       '/favicon.png',
       '/%E0%A4%A',
       '/de/foo/bar-baz',
+      '/de/xyz/verwaltung',
       '/platform/chat/basics\\x',
     ]) {
       expect(resolveMissingAddress(path, DOCS_SITE), path).toBeNull();

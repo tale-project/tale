@@ -52,6 +52,14 @@ describe('NotFoundPage', () => {
     ).toHaveAttribute('href', '/docs/getting-started/introduction');
   });
 
+  it('names the index where every guide is listed with its address', () => {
+    renderPage();
+    expect(screen.getByRole('link', { name: '/llms.txt' })).toHaveAttribute(
+      'href',
+      '/llms.txt',
+    );
+  });
+
   it('keeps the documentation rail beside the message', () => {
     renderPage();
     expect(

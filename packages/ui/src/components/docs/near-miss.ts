@@ -18,10 +18,20 @@
  * label must match the section's context. When added label context makes
  * fuzzy candidates ambiguous, a clear title/route match remains usable.
  *
+ * A guess translates a whole path, not one segment: a model asking German
+ * docs for `platform/knowledge/websites` writes
+ * `/de/plattform/wissen/webseiten`. Each folder of a guess is therefore
+ * placed on the site's own folders, by the folder's name or by its group's
+ * label in any locale, and the pages under the folder it reaches are
+ * searched before the rest of the site — so `plattform/agents` means the
+ * Agents section, not the admin page that ends in `agents`.
+ *
  * Deliberately conservative: an exact alias (the page's last segment, a
  * slugified title, a section's label, a generic `overview` under a section)
  * resolves; a fuzzy match only when it beats every other page by a margin.
- * Everything else stays a 404 with suggestions.
+ * On a site whose sections mostly open on an overview, a guess no page
+ * clearly wins lands on the section its folders name (`/de/verwaltung/xyz`
+ * → the admin overview). Everything else stays a 404 with suggestions.
  */
 
 import { redirectLocation } from './redirects';
@@ -50,6 +60,8 @@ interface IndexedPage {
   segments: readonly string[];
   leaf: string;
   tokens: ReadonlySet<string>;
+  /** Each of the page's titles as its stopword-free, stemmed words. */
+  titleWords: readonly (readonly string[])[];
   /** The labels of the sections above the page: folders a guess may name. */
   context: ReadonlySet<string>;
 }
@@ -72,6 +84,15 @@ export interface NearMissIndex {
   readonly sectionSlugs: ReadonlyMap<string, readonly IndexedSection[]>;
   /** Stopword-free, stemmed section label → its sections, in reading order. */
   readonly sectionKeys: ReadonlyMap<string, readonly IndexedSection[]>;
+  /**
+   * A name a guess may give a folder → the folders it names, in reading
+   * order: the folder's own segment (`admin`) and the labels of the group
+   * whose pages it holds, in every locale (`verwaltung`, `administration`),
+   * each folded (`selbst-gehostet`) and as stemmed words (`automation`).
+   */
+  readonly folderNames: ReadonlyMap<string, readonly string[]>;
+  /** A group's folder → the group's front page (`platform/admin/overview`). */
+  readonly folderFronts: ReadonlyMap<string, string>;
 }
 
 export interface NearMissCandidate {
@@ -188,6 +209,23 @@ const GENERIC_LEAVES: ReadonlySet<string> = new Set([
   'presentation',
 ]);
 
+/**
+ * Everyday words for English loanwords the documentation keeps: German
+ * titles say `Websites` and `Connectors` where German prose, and a model
+ * writing German, says `Webseiten` and `Konnektoren`, as French prose says
+ * `connecteurs`. Folded like a guess is, and read on both sides.
+ */
+const LOANWORDS: ReadonlyMap<string, string> = new Map([
+  // de
+  ['konnektor', 'connector'],
+  ['konnektoren', 'connectors'],
+  ['webseite', 'website'],
+  ['webseiten', 'websites'],
+  // fr
+  ['connecteur', 'connector'],
+  ['connecteurs', 'connectors'],
+]);
+
 /** Accents off, `ß` spelled out, lower case: `Übersicht` → `ubersicht`. */
 function fold(text: string): string {
   return text
@@ -217,10 +255,21 @@ function stem(word: string): string {
   return word;
 }
 
+/**
+ * An umlaut spelled out the way an address spells it (`eintraege`,
+ * `schluessel`) onto the bare vowel a folded title keeps (`eintrage`). The
+ * page goes through it as well, so a word that merely contains the pair
+ * (`request`) still meets itself.
+ */
+function unspell(word: string): string {
+  return word.replace(/([aou])e/g, '$1');
+}
+
 function meaningful(text: string): string[] {
   return words(text)
+    .map(unspell)
     .filter((word) => !STOPWORDS.has(word))
-    .map(stem);
+    .map((word) => stem(LOANWORDS.get(word) ?? word));
 }
 
 function addTo(
@@ -253,6 +302,37 @@ function frontPage(group: NearMissNavGroup): string | undefined {
     if (route !== undefined) return route;
   }
   return undefined;
+}
+
+/** Every page route under a group, its nested groups' included. */
+function routesUnder(group: NearMissNavGroup): string[] {
+  return group.entries.flatMap((entry) =>
+    typeof entry === 'string' ? [entry] : routesUnder(entry),
+  );
+}
+
+/**
+ * The folder a group's pages share, `platform/admin` for the admin group, or
+ * `''` when they share none. A group of one page holds the folder above it.
+ */
+function groupFolder(group: NearMissNavGroup): string {
+  const [first, ...rest] = routesUnder(group).map((route) =>
+    route ? route.split('/') : [],
+  );
+  if (first === undefined) return '';
+  let shared = rest.length === 0 ? first.slice(0, -1) : first;
+  for (const segments of rest) {
+    let length = 0;
+    while (length < shared.length && shared[length] === segments[length]) {
+      length++;
+    }
+    shared = shared.slice(0, length);
+  }
+  return shared.join('/');
+}
+
+function depthOf(folder: string): number {
+  return folder.split('/').length;
 }
 
 const NO_CONTEXT: ReadonlySet<string> = new Set();
@@ -313,6 +393,7 @@ export function buildNearMissIndex(
       segments,
       leaf: segments.at(-1) ?? '',
       tokens,
+      titleWords: page.titles.map(meaningful),
       context: contextByRoute.get(page.route) ?? NO_CONTEXT,
     };
     indexed.push(entry);
@@ -322,6 +403,47 @@ export function buildNearMissIndex(
       addTo(titleKeys, meaningful(title).join('-'), page.route);
     }
   }
+
+  // Every folder a page sits in, named by its own segment and by the labels
+  // of the group whose pages it holds; the pages come in reading order, so
+  // each name lists its folders in that order.
+  const folderNames = new Map<string, string[]>();
+  const nameFolder = (name: string, folder: string) => {
+    if (!folder) return;
+    for (const key of [words(name).join('-'), meaningful(name).join('-')]) {
+      if (!key) continue;
+      const folders = folderNames.get(key) ?? [];
+      if (!folders.includes(folder)) folders.push(folder);
+      folderNames.set(key, folders);
+    }
+  };
+  for (const page of indexed) {
+    for (let depth = 1; depth < page.segments.length; depth++) {
+      nameFolder(
+        page.segments[depth - 1] ?? '',
+        page.segments.slice(0, depth).join('/'),
+      );
+    }
+  }
+  const folderFronts = new Map<string, string>();
+  const nameGroup = (group: NearMissNavGroup) => {
+    const folder = groupFolder(group);
+    for (const label of group.labels) nameFolder(label, folder);
+    const front = frontPage(group);
+    if (folder && front !== undefined && !folderFronts.has(folder)) {
+      folderFronts.set(folder, front);
+    }
+    for (const entry of group.entries) {
+      if (typeof entry !== 'string') nameGroup(entry);
+    }
+  };
+  for (const group of groups) nameGroup(group);
+  // Nearest first: a name both a folder and one of its subfolders answer to
+  // means the folder.
+  for (const folders of folderNames.values()) {
+    folders.sort((a, b) => depthOf(a) - depthOf(b));
+  }
+
   return {
     pages: indexed,
     byRoute,
@@ -329,6 +451,8 @@ export function buildNearMissIndex(
     titleKeys,
     sectionSlugs,
     sectionKeys,
+    folderNames,
+    folderFronts,
   };
 }
 
@@ -455,18 +579,49 @@ function folderOverlap(parsed: ParsedQuery, page: IndexedPage): number {
     .length;
 }
 
-/** The single best of `pages` by folder overlap, or null on a tie. */
-function bestByFolders(
+/**
+ * Of pages that all end in the guessed leaf, the one whose title the leaf
+ * names: `skills` is half of `Skill library` and a third of `Equip agents
+ * with skills`. Null when no title carries the leaf, or two carry it alike.
+ */
+function namedByLeaf(
   parsed: ParsedQuery,
   pages: readonly IndexedPage[],
 ): string | null {
   if (pages.length === 1) return pages[0]?.route ?? null;
-  const ranked = pages
-    .map((page) => ({ page, overlap: folderOverlap(parsed, page) }))
-    .sort((a, b) => b.overlap - a.overlap);
-  const [first, second] = ranked;
-  if (!first || (second && second.overlap === first.overlap)) return null;
-  return first.page.route;
+  let best: { route: string; share: number } | null = null;
+  let tied = false;
+  for (const page of pages) {
+    let share = 0;
+    for (const title of page.titleWords) {
+      if (title.length === 0) continue;
+      const named = title.filter((word) => parsed.leafWords.includes(word));
+      share = Math.max(share, named.length / title.length);
+    }
+    if (best === null || share > best.share) {
+      best = { route: page.route, share };
+      tied = false;
+    } else if (share === best.share) {
+      tied = true;
+    }
+  }
+  return best !== null && best.share > 0 && !tied ? best.route : null;
+}
+
+/**
+ * The single best of `pages` by folder overlap, the title deciding between
+ * pages that share as many folders; null on a tie.
+ */
+function bestByFolders(
+  parsed: ParsedQuery,
+  pages: readonly IndexedPage[],
+): string | null {
+  const overlaps = pages.map((page) => folderOverlap(parsed, page));
+  const most = Math.max(...overlaps);
+  return namedByLeaf(
+    parsed,
+    pages.filter((_, i) => overlaps[i] === most),
+  );
 }
 
 /** A section's front page: the page at `route`, else the first under it. */
@@ -476,6 +631,113 @@ function sectionPage(route: string, index: NearMissIndex): string | null {
   return (
     index.pages.find((page) => page.route.startsWith(prefix))?.route ?? null
   );
+}
+
+/**
+ * Where a folder opens: the front page of the sidebar group that holds it
+ * (`platform/admin/overview`), else its own page or the first one under it.
+ */
+function folderFront(folder: string, index: NearMissIndex): string | null {
+  return index.folderFronts.get(folder) ?? sectionPage(folder, index);
+}
+
+/** The folders under `parent` a guessed segment names, nearest first. */
+function foldersNamed(
+  segment: string,
+  parent: string,
+  index: NearMissIndex,
+): string[] {
+  const prefix = parent ? `${parent}/` : '';
+  const found: string[] = [];
+  for (const key of [segment, meaningful(segment).join('-')]) {
+    for (const folder of index.folderNames.get(key) ?? []) {
+      if (folder.startsWith(prefix) && !found.includes(folder)) {
+        found.push(folder);
+      }
+    }
+  }
+  return found.sort((a, b) => depthOf(a) - depthOf(b));
+}
+
+/** A guess read in the site's own folders. */
+interface Placement {
+  /** The guess spelled in them: a page, a folder, or one a redirect knows. */
+  route: string;
+  /** The folders it reached, nearest first; their pages are searched first. */
+  folders: readonly string[];
+}
+
+/**
+ * A guess read in the site's folders: each folder of the guess placed on the
+ * one it names under the folder before it (`plattform/wissen` →
+ * `platform/knowledge`), one that names none passed over, and the leaf read
+ * as a page or a folder there (`plattform/agents` → `platform/agents`).
+ * Null when no folder of the guess names one: a leaf alone keeps the
+ * existing order, a page title ahead of a section label.
+ */
+function place(parsed: ParsedQuery, index: NearMissIndex): Placement | null {
+  let parents: readonly string[] = [''];
+  for (const segment of parsed.segments.slice(0, -1)) {
+    const named = [
+      ...new Set(
+        parents.flatMap((parent) => foldersNamed(segment, parent, index)),
+      ),
+    ];
+    if (named.length > 0) parents = named;
+  }
+  const [nearest = ''] = parents;
+  if (nearest === '') return null;
+  const leaf = parsed.segments.at(-1) ?? '';
+  for (const parent of parents) {
+    const route = `${parent}/${leaf}`;
+    if (index.byRoute.has(route)) return { route, folders: [parent] };
+  }
+  for (const parent of parents) {
+    const [folder] = foldersNamed(leaf, parent, index);
+    if (folder !== undefined) return { route: folder, folders: [folder] };
+  }
+  return { route: `${nearest}/${leaf}`, folders: parents };
+}
+
+/** The routes in `routes` that `within` admits. */
+function inside(
+  routes: ReadonlySet<string> | undefined,
+  within: (route: string) => boolean,
+): ReadonlySet<string> {
+  return new Set([...(routes ?? [])].filter(within));
+}
+
+/**
+ * The page a guess means among the pages under the folders it was placed
+ * in, or null: a generic leaf is the section itself, then the page's own
+ * last segment, a title and the fuzzy score, as across the whole site.
+ */
+function resolveWithin(
+  parsed: ParsedQuery,
+  index: NearMissIndex,
+  folders: readonly string[],
+): string | null {
+  const within = (route: string) =>
+    folders.some(
+      (folder) => route === folder || route.startsWith(`${folder}/`),
+    );
+  const leaf = parsed.segments.at(-1) ?? '';
+  if (GENERIC_LEAVES.has(leaf)) return folderFront(folders[0] ?? '', index);
+  const sameLeaf = index.pages.filter(
+    (page) => page.leaf === leaf && within(page.route),
+  );
+  if (sameLeaf.length > 0) {
+    const picked = namedByLeaf(parsed, sameLeaf);
+    if (picked !== null) return picked;
+  }
+  const byTitle =
+    only(inside(index.titleSlugs.get(leaf), within)) ??
+    only(inside(index.titleKeys.get(parsed.leafWords.join('-')), within));
+  if (byTitle !== null) return byTitle;
+  if (parsed.leafWords.length === 0) return null;
+  // The folders are spent on getting here, and every page here matches them
+  // alike: only the leaf tells these pages apart.
+  return scoredPage({ ...parsed, folderWords: [] }, index, false, within);
 }
 
 /**
@@ -515,15 +777,20 @@ function labelledSection(
 const MIN_SCORE = 0.6;
 const MIN_MARGIN = 0.15;
 
-/** A fuzzy winner, with the same confidence floor with or without labels. */
+/**
+ * A fuzzy winner among the pages `within` admits, with the same confidence
+ * floor with or without labels.
+ */
 function scoredPage(
   parsed: ParsedQuery,
   index: NearMissIndex,
   includeSectionContext: boolean,
+  within: (route: string) => boolean = () => true,
 ): string | null {
   let best: { route: string; score: number } | null = null;
   let runnerUp = 0;
   for (const page of index.pages) {
+    if (!within(page.route)) continue;
     const { score, leafCredit } = scorePage(
       parsed,
       page,
@@ -556,6 +823,34 @@ export function resolveNearMiss(
   if (!parsed) return null;
   const route = parsed.segments.join('/');
   if (index.byRoute.has(route)) return route;
+
+  // The folders the guess names, translated or moved (`plattform/wissen/…`):
+  // the page or section it spells there answers outright.
+  const placed = place(parsed, index);
+  if (placed !== null) {
+    if (index.byRoute.has(placed.route)) return placed.route;
+    const front = folderFront(placed.route, index);
+    if (front !== null) return front;
+  }
+  const anywhere = resolveAnywhere(parsed, index);
+  if (placed === null) return anywhere;
+  // A page in those folders beats one elsewhere, which stays the answer
+  // only when they hold none: `plattform/verwaltung/anbieter` means the
+  // admin section's AI providers, not the self-hosted page titled Anbieter,
+  // while `plattform/installation/kubernetes` still finds its page.
+  const inPlace = (found: string) =>
+    placed.folders.some(
+      (folder) => found === folder || found.startsWith(`${folder}/`),
+    );
+  if (anywhere !== null && inPlace(anywhere)) return anywhere;
+  return resolveWithin(parsed, index, placed.folders) ?? anywhere;
+}
+
+/** The page a guess means across the whole site, or null. */
+function resolveAnywhere(
+  parsed: ParsedQuery,
+  index: NearMissIndex,
+): string | null {
   const leaf = parsed.segments.at(-1) ?? '';
 
   // `/platform/overview`, `/self-hosted/install/introduction`: the section,
@@ -619,6 +914,14 @@ export interface MissingAddressSite {
   redirectFor: (path: string) => string | undefined;
   /** Titles and slugs every guess is scored against. */
   index: NearMissIndex;
+  /**
+   * Answer a guess no page clearly wins with the page the section its
+   * folders name opens on (`/de/verwaltung/xyz` → the admin overview)
+   * instead of the 404. For a site whose sections mostly open on an
+   * overview; a site of independent guides keeps the 404, so a missing
+   * `components/select` never lands on the button guide.
+   */
+  closestSection?: boolean;
 }
 
 export interface MissingAddressAnswer {
@@ -646,8 +949,11 @@ function localeOf(
  * The answer to an address that names no page, redirect or file: a
  * normalized spelling of a real address (a retired regional tree like
  * `/de-CH/…`, capitals, a trailing `index`, `.html`) is a 301; a near miss
- * is a 302; anything else is null and the site answers its 404. Asset-like
- * paths are never guessed at — a stale script chunk must stay a 404.
+ * is a 302, and so, where the site asks for it (`closestSection`), is a
+ * guess whose folders name a section but no page in it, to that section's
+ * first page; anything else is null and the site answers its 404.
+ * Asset-like paths are never guessed at — a stale script chunk must stay a
+ * 404.
  */
 export function resolveMissingAddress(
   pathname: string,
@@ -706,7 +1012,23 @@ export function resolveMissingAddress(
     site.redirectFor(site.pagePath(locale, route));
   if (moved !== undefined) return answer(withExport(moved), true);
 
-  const guess = resolveNearMiss(route, site.index);
+  // Read in the site's folders, the guess may name a moved page
+  // (`plattform/automatisierungen/workflows`): its redirect answers.
+  const parsed = parseQuery(route);
+  const placed = parsed === null ? null : place(parsed, site.index);
+  if (placed !== null && placed.route !== route) {
+    const movedThere = site.redirectFor(site.pagePath(locale, placed.route));
+    if (movedThere !== undefined) return answer(withExport(movedThere), false);
+  }
+
+  // No page clearly wins: the section the guess's folders name lists what
+  // there is, which serves a reader, or a model, better than a 404.
+  const [section] = placed?.folders ?? [];
+  const guess =
+    resolveNearMiss(route, site.index) ??
+    (site.closestSection && section !== undefined
+      ? folderFront(section, site.index)
+      : null);
   if (guess === null || !site.isPage(locale, guess)) return null;
   return answer(withExport(site.pagePath(locale, guess)), false);
 }

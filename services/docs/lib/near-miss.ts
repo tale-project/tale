@@ -9,10 +9,13 @@
  * still finds its page. The sidebar's group labels, read from the message
  * catalogs, name their section's front page the same way: `/de/verwaltung`
  * is the label of the `platform/admin` group, which no page carries as a
- * title. A retired regional tree (`/de-CH/…`, `/fr-CH/…`), capitals or a
- * trailing `index` fold onto the real address with a 301; a guess answers a
- * 302 to the page that clearly wins. The 404 page ranks its "did you mean"
- * list with the same pages, titles and labels.
+ * title. A path translated whole (`/de/plattform/wissen/webseiten`) is read
+ * in the site's folders through the same labels. A retired regional tree
+ * (`/de-CH/…`, `/fr-CH/…`), capitals or a trailing `index` fold onto the real
+ * address with a 301; a guess answers a 302 to the page that clearly wins,
+ * or, when none does, to the section its folders name (`/de/verwaltung/xyz`
+ * → the admin overview). The 404 page ranks its "did you mean" list with the
+ * same pages, titles and labels, and names `/llms.txt`.
  */
 
 import {
@@ -155,6 +158,10 @@ export function resolveMissingDocsPath(
     isPage: isDocsPage,
     redirectFor: (path) => lookupRedirect(path, paths),
     index: docsNearMissIndex(),
+    // A section answers with the page its own address opens, mostly an
+    // overview or concepts page: a better answer to `/de/verwaltung/xyz`
+    // than the 404.
+    closestSection: true,
   });
 }
 
