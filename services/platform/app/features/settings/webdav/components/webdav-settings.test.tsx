@@ -42,8 +42,18 @@ const { revoke, listed } = vi.hoisted(() => ({
   listed: { rows: [] as WebdavAppPasswordRow[] },
 }));
 
+// A list read that answered `listed.rows`; a failed one has its own suite
+// (`webdav-settings.read-failure.test.tsx`).
 vi.mock('../hooks/use-webdav-app-passwords', () => ({
-  useWebdavAppPasswords: () => listed.rows,
+  useWebdavAppPasswords: () => ({
+    rows: listed.rows,
+    error: null,
+    unavailable: false,
+    stale: false,
+    retrying: false,
+    failureCount: 0,
+    retry: () => {},
+  }),
   useCreateWebdavAppPassword: () => vi.fn(),
   useRevokeWebdavAppPassword: () => revoke,
 }));

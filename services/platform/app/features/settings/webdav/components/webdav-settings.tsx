@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { CopyableField } from '@tale/ui/copyable-field';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { DeleteDialog } from '@tale/ui/dialog/delete-dialog';
@@ -21,6 +22,7 @@ import {
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { extractErrorCode } from '@/app/features/shared/lib/extract-error-code';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { useAuth } from '@/app/hooks/use-session-user';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
@@ -44,11 +46,21 @@ type RevealedPassword = { password: string; prefix: string } | null;
  * WebDAV settings — rebuilt on the shared settings UI (SettingsSection,
  * CopyableField, DataTable, FormDialog, DeleteDialog) so it matches every
  * other settings page instead of carrying bespoke table / form / copy chrome.
+ *
+ * A failed list read is never a skeleton that never ends (#4652): with no
+ * app-password loaded the table shows its error state with Try again, which
+ * moves the focus to the list's section before the table turns back into its
+ * loading state; rows a failed refresh left stay, still revocable, and the
+ * failure is named above them.
  */
 export function WebdavSettings(props: WebdavSettingsProps) {
   const { t } = useT('webdav');
   const { user } = useAuth();
-  const rows = useWebdavAppPasswords(props.organizationId);
+  const { rows, error, retry, retrying, failureCount } = useWebdavAppPasswords(
+    props.organizationId,
+  );
+  const { regionRef, retryRead, focusRegion, failedWithRows } =
+    useListReadRecovery<HTMLElement>({ error, results: rows ?? [], retry });
   const [createOpen, setCreateOpen] = useState(false);
   const [revealed, setRevealed] = useState<RevealedPassword>(null);
 
@@ -89,11 +101,13 @@ export function WebdavSettings(props: WebdavSettingsProps) {
       </SettingsSection>
 
       <SettingsSection
+        ref={regionRef}
         title={t('list.title')}
         description={t('create.description')}
         // A revoked row stays, without its Revoke button: when no other row
         // has one, the focus that button held lands on this named section
-        // (`DataTable`'s last resort), not on the page.
+        // (`DataTable`'s last resort), not on the page. So does the focus of
+        // a Try again that gave way.
         tabIndex={-1}
         className="outline-none"
         action={
@@ -102,7 +116,23 @@ export function WebdavSettings(props: WebdavSettingsProps) {
           </Button>
         }
       >
-        <WebdavAppPasswordsTable rows={rows} />
+        {failedWithRows && (
+          <CatalogLoadError
+            // Each failure is announced again; Try again keeps its node, and
+            // the focus on it, while a retry runs and when it fails again.
+            failureKey={failureCount}
+            onFocusLost={focusRegion}
+            message={t('list.refreshFailed')}
+            onRetry={retry}
+            isRetrying={retrying}
+          />
+        )}
+        <WebdavAppPasswordsTable
+          rows={rows}
+          error={error}
+          onRetry={retryRead}
+          onErrorFocusLost={focusRegion}
+        />
       </SettingsSection>
 
       <CreateAppPasswordDialog
@@ -121,10 +151,22 @@ export function WebdavSettings(props: WebdavSettingsProps) {
 
 function WebdavAppPasswordsTable({
   rows,
+  error,
+  onRetry,
+  onErrorFocusLost,
 }: {
   rows: WebdavAppPasswordRow[] | undefined;
+  /** The list read's settled failure. With no app-password loaded the table
+   * shows its error state with `onRetry`; rows already loaded stay, and the
+   * section names the failure above them. */
+  error: Error | null;
+  onRetry: () => void;
+  /** Takes the focus the error state held when a refresh replaces it. */
+  onErrorFocusLost: () => void;
 }) {
   const { t } = useT('webdav');
+  // A read that has not answered is pending, or failed — the error state
+  // below wins then; never an empty list.
   const isLoading = rows === undefined;
 
   // Newest first — the just-generated row is the one users most want to find.
@@ -206,6 +248,9 @@ function WebdavAppPasswordsTable({
       columns={columns}
       data={sortedRows}
       isLoading={isLoading}
+      error={sortedRows.length > 0 ? null : error}
+      onRetry={onRetry}
+      onErrorFocusLost={onErrorFocusLost}
       approxRowCount={3}
       getRowId={(row) => row._id}
       emptyState={{

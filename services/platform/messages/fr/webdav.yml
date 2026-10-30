@@ -28,6 +28,7 @@ list:
   title: Mots de passe applicatifs
   empty: Aucun mot de passe applicatif pour l'instant.
   emptyDescription: Génère un mot de passe applicatif ci-dessous pour monter les documents Tale comme lecteur réseau.
+  refreshFailed: "Impossible de charger les derniers mots de passe applicatifs. La liste est peut-être incomplète ou obsolète."
   label: Libellé
   prefix: Préfixe
   lastUsed: Dernière utilisation

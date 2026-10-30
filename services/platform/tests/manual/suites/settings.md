@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 143 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 144 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -1149,6 +1149,25 @@ Restore any toggled setting after the run.
   caps typing at 64 chars (`maxLength`) — the server guard is unreachable from
   the UI; no app-password is created. (Optional, heavy: creating at the cap →
   `webdav.create.errorLimit`)
+- [ ] `SET-B41` · **App-passwords when the list read fails** — With an
+  app-password from `SET-F34`, block `*/api/app/webdav/app-passwords?orgId=*`
+  in DevTools (Network → request blocking) and reload
+  `/dashboard/{org}/settings/api/webdav` → once the read's retries give up (a
+  few seconds; a blocked request reads as a lost connection, so the offline
+  notice may cover the page meanwhile) the **App-passwords** section
+  (`webdav.list.title`) shows the table's error state
+  (`common.errors.somethingWentWrong`) with **Try again**
+  (`common.errors.tryAgain`) instead of skeleton rows that never end, and
+  never `webdav.list.empty`. Unblock, Tab to **Try again** and press Enter →
+  the passwords appear without a reload, and the focus is on the
+  **App-passwords** section, not lost to the page. Block the list again and
+  **Revoke** a password (the pattern leaves the revoke through) → the rows
+  stay, each active one with its **Revoke**, and above them
+  `webdav.list.refreshFailed` shows with **Try again**
+  (`common.actions.tryAgain`). Unblock → **Try again** → the notice leaves,
+  the row reads `webdav.list.revoked`, and the focus is on the section. At a
+  375 px viewport the error state and the notice wrap inside the page with
+  **Try again** fully visible.
 - [ ] `SET-B10` · **SSO form guards** — On
   `/dashboard/{org}/settings/enterprise-sso`: **Test connection** with
   required fields empty; enter a malformed issuer (no scheme) → The empty test
