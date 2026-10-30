@@ -1,6 +1,6 @@
 # Forms
 
-> **Prefix** `FORM-` · **Reset** none · **Cost** 21 boxes
+> **Prefix** `FORM-` · **Reset** none · **Cost** 22 boxes
 
 Exercise the two marketing forms — **Contact** and **Request demo** —
 end-to-end: client validation, the `/api/forms/submit` endpoint, the anti-spam
@@ -14,7 +14,7 @@ returns **503** whenever `WEB_DISCORD_WEBHOOK_URL` is unset.
 | ------------ | ------------------------------------------------------------------------------------------------------------------------- |
 | Contact form | `/contact` (also `/{lang}/contact`)                                                                                       |
 | Demo form    | `/request-demo` (also `/{lang}/request-demo`)                                                                             |
-| Submit API   | `POST /api/forms/submit` (`server.ts` → `lib/forms/schemas.ts`, `lib/forms/rate-limit.ts`, `lib/forms/discord-embeds.ts`) |
+| Submit API   | `POST /api/forms/submit` (`server.ts` → `lib/forms/rate-limit.ts`, `lib/forms/submit-body.ts`, `lib/forms/schemas.ts`, `lib/forms/discord-embeds.ts`) |
 
 ## Preconditions
 
@@ -108,10 +108,10 @@ true }`) but **silently discarded**, so nothing is delivered. A **503**
   header; the UI shows **Too many submissions. Wait a moment, then try
   again.** (`forms.errors.rateLimited`); after the window it succeeds again
   (limit: 5/min/IP)
-- [ ] `FORM-B7` · **Oversize payload** — curl a body > 4 KiB (e.g. a 5000-char
-  `message`) → HTTP **413** `Payload too large`; via the UI the 2000-char Zod
-  cap yields field-specific localized length guidance first (e.g.
-  `forms.validation.messageTooLong`).
+- [ ] `FORM-B7` · **Oversize payload** — curl a body > 32 KiB (e.g. a
+  33,000-char `message`) → HTTP **413** `Payload too large`; via the UI the
+  2000-char Zod cap yields field-specific localized length guidance first
+  (e.g. `forms.validation.messageTooLong`).
 - [ ] `FORM-B8` · **Malformed JSON** — `curl -X POST {base}/api/forms/submit
   -d 'not json'` → HTTP **400** `Invalid JSON`; a schema-invalid JSON body
   returns **400** `Validation failed`; `GET` returns **405**.
@@ -128,6 +128,11 @@ true }`) but **silently discarded**, so nothing is delivered. A **503**
   proxy mid-deploy) still shows `forms.errors.serverUnavailable`. With
   `WEB_FORMS_REQUIRED=true`, `GET /api/health` also returns **503** and
   `checks.forms.ok: false`
+- [ ] `FORM-B11` · **Long message in a non-Latin script** — Mode B: fill a
+  valid contact form whose **Message** is 2,000 characters of Japanese (or
+  Russian), wait ≥ 3 s, submit; repeat on `/request-demo` with the same text in
+  **Additional comment** → Both succeed as in FORM-F1, and each Discord embed
+  carries the whole message.
 
 ## Accessibility (WCAG 2.1 AA)
 

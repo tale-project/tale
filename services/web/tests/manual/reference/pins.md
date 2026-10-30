@@ -24,3 +24,4 @@ time you are tempted to shorten one.
 
 | Box | What it pins |
 |---|---|
+| `FORM-B11` | The server once capped a submission at a fixed 4 KiB while the schemas allow 2,000 UTF-16 units per field, and a typed character takes up to three UTF-8 bytes per unit: a 2,000-character message in Russian (about 4.2 KB) or Japanese (about 6.2 KB) passed client validation and was refused with 413, shown as the generic error (#4677). The cap now covers the largest valid submission, held by `lib/forms/submit-body.test.ts`. |

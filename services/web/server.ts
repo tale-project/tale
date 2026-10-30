@@ -25,6 +25,7 @@ import { buildDiscordPayload } from './lib/forms/discord-embeds';
 import { webHealthStatus } from './lib/forms/health';
 import { checkRateLimit } from './lib/forms/rate-limit';
 import { MIN_SUBMIT_DELAY_MS, submitRequest } from './lib/forms/schemas';
+import { readSubmitBody } from './lib/forms/submit-body';
 import { handleWebRedirect } from './lib/redirects';
 import { createReleaseFeed, releaseFeedHealth } from './lib/releases/feed';
 import { handleReleasesRequest, RELEASES_ROUTES } from './lib/releases/route';
@@ -43,7 +44,6 @@ const monitoring = initServerMonitoring({
 
 const DISCORD_WEBHOOK_URL = process.env.WEB_DISCORD_WEBHOOK_URL ?? '';
 const FORMS_REQUIRED = process.env.WEB_FORMS_REQUIRED === 'true';
-const MAX_BODY_BYTES = 4 * 1024;
 const DISCORD_WEBHOOK_TIMEOUT_MS = 10_000;
 
 if (!DISCORD_WEBHOOK_URL) {
@@ -107,16 +107,8 @@ async function handleFormSubmit(request: Request): Promise<Response> {
     );
   }
 
-  const contentLength = request.headers.get('content-length');
-  if (contentLength && Number(contentLength) > MAX_BODY_BYTES) {
-    return Response.json(
-      { ok: false, error: 'Payload too large' },
-      { status: 413 },
-    );
-  }
-
-  const raw = await request.text();
-  if (raw.length > MAX_BODY_BYTES) {
+  const raw = await readSubmitBody(request);
+  if (raw === null) {
     return Response.json(
       { ok: false, error: 'Payload too large' },
       { status: 413 },
