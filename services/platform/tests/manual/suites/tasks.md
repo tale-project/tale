@@ -994,6 +994,14 @@ otherwise. Mark them **ENVIRONMENT** without a runnable harness.
   (`tasks.detail.addSubtask`) and set the parent to Done → The parent is
   blocked with **Finish all subtasks before closing this task.**
   (`tasks.detail.parentCloseGuard`) and keeps its status after reload.
+- [ ] `TASK-B4a` · **A refused drag goes back** — Give a task an open subtask
+  (`tasks.detail.addSubtask`), then on **Board** drag the parent's card to
+  **Done** (`tasks.status.done`), once with the pointer and once from the
+  keyboard → **Couldn't finish that action** (`toast.error.generic.title`)
+  says **Finish all subtasks before closing this task.**
+  (`tasks.detail.parentCloseGuard`), and the card is back in the column it
+  left at once, without a reload, its title keeping the focus after the
+  keyboard drop; after a reload it is still there.
 - [ ] `TASK-B5` · **Spend cap refuses a run** — Under **Settings > Governance
   > Policies & Limits**, add an org-scoped monthly budget rule whose max cost
   is below the org's spend so far this month; then **Start agent** on a task
