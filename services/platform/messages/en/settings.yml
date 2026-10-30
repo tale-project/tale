@@ -806,7 +806,7 @@ enterpriseSso:
       s5:
         Enter them above with the Issuer URL https://accounts.google.com — the
         endpoints are discovered automatically.
-      groupsNote: Google's standard OIDC doesn't return group memberships — group→team sync needs the Admin SDK / Cloud Identity API with a Workspace admin.
+      groupsNote: Google's standard OIDC doesn't return group memberships — group→team sync needs the Admin SDK / Cloud Identity API with a Google Workspace admin.
     oauth2:
       intro: For providers without OIDC discovery, configure the endpoints manually.
       s1:

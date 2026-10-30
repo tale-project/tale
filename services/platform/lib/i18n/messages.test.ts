@@ -40,7 +40,11 @@ defineI18nTests({
     'pronouns-formal': 'report',
     'terminology-loanword': 'report',
     'terminology-half-compound': 'report',
-    'terminology-ui-label': 'report',
+    // A feature, role or entity named unlike the label its locale ships
+    // (`Workspace` where the UI says `Arbeitsbereich`, the #4484 class).
+    // Enforced once the catalogs agreed; a name that only contains the term,
+    // such as `Google Workspace`, goes in the glossary term's `_allow`.
+    'terminology-ui-label': 'enforce',
     'voice-strikes': 'report',
     'voice-drift': 'report',
     'grammar-articles': 'report',

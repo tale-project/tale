@@ -852,8 +852,8 @@ enterpriseSso:
       groupsNote: >-
         Das Standard-OIDC von Google liefert keine Gruppenmitgliedschaften — die
         Gruppen-zu-Team-Synchronisierung benötigt das Admin SDK / die Cloud Identity API
-        mit einem Workspace-Administrator. Andere OIDC-Anbieter (Okta, Auth0, Keycloak)
-        funktionieren genauso: Issuer-URL und Client-Anmeldedaten eintragen.
+        mit einem Google-Workspace-Administrator. Andere OIDC-Anbieter (Okta, Auth0,
+        Keycloak) funktionieren genauso: Issuer-URL und Client-Anmeldedaten eintragen.
     oauth2:
       intro: Für Anbieter ohne OIDC-Discovery konfigurieren Sie die Endpunkte manuell.
       s1:
