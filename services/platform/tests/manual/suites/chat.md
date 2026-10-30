@@ -505,12 +505,23 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   instead of walking the project list.
 - [ ] `CHAT-F37` · **Confidentiality notice** — With the org's notice on and
   an English text saved (governance.md `GOV-F19`), open a new chat, send a
-  message, then archive the thread; in a second tab, turn the notice off →
-  Under the composer a note labelled **Confidentiality notice**
-  (`dataNotice.footer.ariaLabel`) reads the saved text on the new chat and in
-  the thread; the archived thread, whose banner replaces the composer, shows
-  no note; after the switch turns off, an open chat drops the note without a
-  reload.
+  message, send a second one once the reply settles, then archive the thread;
+  in a second tab, turn the notice off → A note labelled **Confidentiality
+  notice** (`dataNotice.ariaLabel`) reads the saved text under the composer of
+  the new chat; once the conversation has a message it leaves the composer
+  and sits under the last reply, below its toolbar, appearing only when the
+  reply settles and moving to each newer reply; the archived thread, whose
+  banner replaces the composer, shows no note; after the switch turns off, an
+  open chat drops the note without a reload.
+- [ ] `CHAT-F82` · **Don't show the notice again** — With the org's notice on,
+  open a conversation with a settled reply, Tab past the reply's toolbar to
+  **Don't show again** (`dataNotice.inline.dismiss`) at the end of the note
+  and press Enter → The control shows a visible focus ring; the note leaves
+  and focus stays on the reply's last toolbar action. Reload, open another
+  conversation and a new chat → no note under any message or composer, and
+  the new chat's loading skeleton reserves no notice row. Sign in as another
+  member in the same browser → they still see the note. As an admin, change
+  the English text (`GOV-F19`) → the first member sees the new text again.
 - [ ] `CHAT-F38` · **Sticky pick keeps its provider** — With two providers
   listing the same model id (a shipped provider plus a custom provider on
   another endpoint of the same vendor, settings.md `SET-F43`), open the picker
@@ -870,8 +881,9 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   `chat.providerSetup.descriptionMember` — this is a designed state, not a
   defect.
 - [ ] `CHAT-B9` · **No notice by default** — On a freshly created org, open
-  chat → No **Confidentiality notice** note (`dataNotice.footer.ariaLabel`)
-  sits under the composer: the notice is off until an admin turns it on.
+  chat and send a message → No **Confidentiality notice** note
+  (`dataNotice.ariaLabel`) sits under the composer or under any message: the
+  notice is off until an admin turns it on.
 - [ ] `CHAT-B10` · **Budget refusal on every send path** — Reach a cap the
   open page does not know about yet (lower the rule in a second tab, or let
   another member spend a shared cap), then try a regenerate, an edit, an arena
@@ -1151,9 +1163,11 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
 - [ ] `CHAT-P4` · **Long-thread scroll** → A 50+ message thread scrolls
   without visible jank; the timeline/source folds stay responsive.
 - [ ] `CHAT-P5` · **Notice holds its place on reload** — With the org's
-  notice on, open chat once, then reload at desktop width → The loading
+  notice on, open a new chat once, then reload at desktop width → The loading
   composer skeleton already carries the notice's row, and neither the
   composer nor the notice moves when the live ones replace the skeleton.
+  Reload an open conversation → its skeleton carries no notice row and the
+  composer does not move either.
 - [ ] `CHAT-P6` · **Your messages land where their placeholders sat** — With
   the network throttled to Slow 4G in DevTools, open a chat with several of
   your messages from the Home panel, at 1440 px and at 390 px → The loading
