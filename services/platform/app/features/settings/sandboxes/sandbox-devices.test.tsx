@@ -76,13 +76,15 @@ function renderSection(props: {
   view?: SandboxDevicesView;
   canManage?: boolean;
   onRefresh?: () => void;
+  error?: Error;
 }) {
   return render(
     <SandboxDevicesSection
       organizationId="org-1"
-      view={props.view ?? view([])}
+      // A failed read has no view to show.
+      view={props.error === undefined ? (props.view ?? view([])) : undefined}
       isLoading={false}
-      error={null}
+      error={props.error ?? null}
       canManage={props.canManage ?? true}
       onRefresh={props.onRefresh ?? vi.fn()}
     />,
@@ -102,6 +104,25 @@ beforeEach(() => {
 });
 
 describe('SandboxDevicesSection', () => {
+  // #4832: Try again in the table's error state did nothing.
+  it('reads the devices again when Try again is pressed after a failed read', async () => {
+    const onRefresh = vi.fn();
+    const { user } = renderSection({
+      error: new Error('sandbox_devices/queries:list failed'),
+      onRefresh,
+    });
+
+    const devices = screen.getByRole('region', { name: 'Devices' });
+    await user.click(
+      within(devices).getByRole('button', { name: 'Try again' }),
+    );
+
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+    // The button goes with the error state while the table loads again:
+    // the focus it held waits on the section.
+    expect(devices).toHaveFocus();
+  });
+
   it('lists each device with its state, machine and load', () => {
     renderSection({
       view: view([

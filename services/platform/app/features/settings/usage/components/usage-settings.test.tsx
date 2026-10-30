@@ -13,7 +13,14 @@ const state = vi.hoisted(() => ({
     isLoading: false,
     isError: false,
   },
-  storage: { data: undefined as unknown, isLoading: false },
+  storage: {
+    data: undefined as unknown,
+    isLoading: false,
+    isError: false,
+    isFetching: false,
+    errorUpdateCount: 0,
+  },
+  refetchStorage: vi.fn(),
   canReadOrgSettings: false,
 }));
 
@@ -22,7 +29,7 @@ vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
 }));
 
 vi.mock('@/app/features/documents/hooks/queries', () => ({
-  useUploadUsage: () => state.storage,
+  useUploadUsage: () => ({ ...state.storage, refetch: state.refetchStorage }),
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({
@@ -78,7 +85,11 @@ describe('UsageSettings', () => {
     state.storage = {
       data: { limited: false, usedBytes: 0, limitBytes: null },
       isLoading: false,
+      isError: false,
+      isFetching: false,
+      errorUpdateCount: 0,
     };
+    state.refetchStorage.mockReset();
     state.canReadOrgSettings = false;
   });
 
@@ -222,9 +233,91 @@ describe('UsageSettings', () => {
     ).toBeInTheDocument();
   });
 
+  // #4832: a read that failed said "No storage limit applies to you."
+  it('reports a failed storage read, with Try again, instead of claiming no limit applies', async () => {
+    state.storage = {
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      isFetching: false,
+      errorUpdateCount: 1,
+    };
+
+    const { user, container } = render(
+      <UsageSettings organizationId="org-1" />,
+    );
+
+    const storage = section('Storage');
+    expect(within(storage).getByRole('alert')).toHaveTextContent(
+      "Couldn't load your storage usage.",
+    );
+    expect(screen.queryByText('No storage limit applies to you.')).toBeNull();
+    // Nothing about the quota is known: no meter, and nothing masked.
+    expect(within(storage).queryByText('Uploaded files')).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+
+    await user.click(
+      within(storage).getByRole('button', { name: 'Try again' }),
+    );
+    expect(state.refetchStorage).toHaveBeenCalledTimes(1);
+    await checkAccessibility(container);
+  });
+
+  it('keeps the failure and a busy Try again on screen while the retry runs', () => {
+    // react-query puts a read that never answered back to pending for the
+    // retry: not in error, loading, with its failure still counted.
+    state.storage = {
+      data: undefined,
+      isLoading: true,
+      isError: false,
+      isFetching: true,
+      errorUpdateCount: 1,
+    };
+
+    render(<UsageSettings organizationId="org-1" />);
+
+    const storage = section('Storage');
+    expect(within(storage).getByRole('alert')).toHaveTextContent(
+      "Couldn't load your storage usage.",
+    );
+    expect(
+      within(storage).getByRole('button', { name: 'Try again' }),
+    ).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByText('No storage limit applies to you.')).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
+  });
+
+  it('keeps the last answer under a notice when a refresh fails', () => {
+    state.storage = {
+      data: {
+        limited: true,
+        usedBytes: 1.5 * 1024 ** 3,
+        limitBytes: 10 * 1024 ** 3,
+      },
+      isLoading: false,
+      isError: true,
+      isFetching: false,
+      errorUpdateCount: 1,
+    };
+
+    render(<UsageSettings organizationId="org-1" />);
+
+    const storage = section('Storage');
+    expect(within(storage).getByRole('alert')).toHaveTextContent(
+      "Couldn't refresh your storage usage. What's shown may be out of date.",
+    );
+    expect(within(storage).getByText('1.5 GB of 10 GB')).toBeInTheDocument();
+  });
+
   it('holds the shape most members get, masked, while loading', () => {
     state.budget = { data: undefined, isLoading: true, isError: false };
-    state.storage = { data: undefined, isLoading: true };
+    state.storage = {
+      data: undefined,
+      isLoading: true,
+      isError: false,
+      isFetching: true,
+      errorUpdateCount: 0,
+    };
 
     render(<UsageSettings organizationId="org-1" />);
 

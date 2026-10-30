@@ -609,8 +609,9 @@ describe('SandboxesSettings workspace rows', () => {
       within(row as HTMLElement).getByText('d01a4b15'),
     ).toBeInTheDocument();
     expect(within(row as HTMLElement).queryByText('3be051fb')).toBeNull();
-    // Lifetime spend of the workspace, in dollars.
-    expect(within(row as HTMLElement).getByText('$0.13')).toBeInTheDocument();
+    // Lifetime spend of the workspace, in dollars, to three significant
+    // digits below one dollar like every other spend column.
+    expect(within(row as HTMLElement).getByText('$0.125')).toBeInTheDocument();
     expect(
       within(row as HTMLElement).getByText('claude-code'),
     ).toBeInTheDocument();
@@ -708,6 +709,68 @@ describe('SandboxesSettings workspace rows', () => {
       'Row actions',
     ]);
     expect(screen.queryByText('Actions')).not.toBeInTheDocument();
+  });
+});
+
+// #4832: the spend read "$1234.50" in every language.
+describe('SandboxesSettings spend', () => {
+  beforeEach(() => {
+    state.canManage = true;
+  });
+  afterEach(forgetSavedLocale);
+
+  it('writes a workspace’s spend in the reader’s language', async () => {
+    saveLocale('de');
+    const reads = query.getMockImplementation();
+    query.mockImplementation((name: string) => {
+      const answer = reads?.(name);
+      return name.endsWith(':listSandboxesForOrg')
+        ? { ...answer, data: view([{ ...aliceRow, totalSpentCents: 123_450 }]) }
+        : answer;
+    });
+
+    renderSettings();
+    await waitFor(() => expect(i18n.language).toBe('de'));
+
+    const row = screen.getByText('Alice').closest('tr') as HTMLElement;
+    expect(within(row).getByText('1.234,50 $')).toBeInTheDocument();
+    expect(within(row).queryByText('$1234.50')).toBeNull();
+  });
+});
+
+// #4832: Try again in the table's error state did nothing.
+describe('SandboxesSettings failed workspace read', () => {
+  beforeEach(() => {
+    state.canManage = true;
+  });
+
+  it('reads the workspaces again when Try again is pressed', async () => {
+    const refetchSessions = vi.fn();
+    const reads = query.getMockImplementation();
+    query.mockImplementation((name: string) => {
+      const answer = reads?.(name);
+      return name.endsWith(':listSandboxesForOrg')
+        ? {
+            ...answer,
+            data: undefined,
+            isError: true,
+            error: new Error('listSandboxesForOrg failed'),
+            refetch: refetchSessions,
+          }
+        : answer;
+    });
+
+    const { user } = renderSettings();
+
+    const workspaces = screen.getByRole('region', { name: 'Workspaces' });
+    await user.click(
+      within(workspaces).getByRole('button', { name: 'Try again' }),
+    );
+
+    expect(refetchSessions).toHaveBeenCalledTimes(1);
+    // The button goes with the error state while the table loads again:
+    // the focus it held waits on the section.
+    expect(workspaces).toHaveFocus();
   });
 });
 
