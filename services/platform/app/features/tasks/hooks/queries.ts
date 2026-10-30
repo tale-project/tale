@@ -119,7 +119,8 @@ export function useTasksByProject(
 /** All-projects board: every task in projects the caller can read. */
 export function useTasksAcrossProjects(
   options?: BoardReadOptions & {
-    /** Only tasks naming this person as the reviewer of their result. */
+    /** Only tasks waiting on this person's review: their pending review asks
+     * them, or, while none is pending, they name this person as reviewer. */
     reviewerId?: string;
     /** When false the query is skipped (single-project mode owns the board). */
     enabled?: boolean;

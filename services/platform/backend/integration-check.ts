@@ -2423,9 +2423,10 @@ async function checkTasks(
   // ---- reviewer filter: Home's "waiting on my review" read -------------
   // Home lists the tasks waiting on the caller's review whoever they are
   // assigned to: `reviewerId` narrows the all-projects read to the tasks
-  // naming that person as reviewer, and composes with the status filter. The
-  // probe lives in a project of its own, so the board rollups asserted below
-  // never count it.
+  // whose pending review asks that person (or, while none is pending, that
+  // name them as reviewer), and composes with the status filter. The probes
+  // live in a project of their own, so the board rollups asserted below
+  // never count them.
   const reviewProject = z.object({ projectId: z.string() }).safeParse(
     await (
       await send('POST', `/api/app/projects?orgId=${orgId}`, {
@@ -2468,6 +2469,206 @@ async function checkTasks(
       othersToReview.success &&
       othersToReview.data.tasks.length === 0,
     `mine=${mineToReview.success ? mineToReview.data.tasks.length : 'ERR'}, others=${othersToReview.success ? othersToReview.data.tasks.length : 'ERR'}`,
+  );
+
+  // A review asks the task's creator when nobody is named, and again once
+  // the reviewer is set back to Project default (what Clear reviewer became).
+  // The task then names nobody, so a read that matched the stored
+  // designation (`reviewer_user_id`, before #4076) left the review off the
+  // creator's Home while their bell and the board asked them (#3790). Both
+  // cases assert that empty designation, so that read fails them; the third
+  // task names the creator, the control either read lists. The creator
+  // assigns all three to an editor, who moves them to In review — people of
+  // their own, so no bell reaches the shared user.
+  const reviewCreator = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'review-creator',
+    'editor',
+  );
+  const reviewAssignee = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'review-assignee',
+    'editor',
+  );
+  const formerReviewer = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'review-former',
+    'editor',
+  );
+  const postAs = (
+    person: { cookie: string },
+    path2: string,
+    body: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${path2}`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: person.cookie,
+        origin: base,
+      },
+      body: JSON.stringify(body),
+    });
+  const getAs = async (
+    person: { cookie: string },
+    path2: string,
+  ): Promise<unknown> =>
+    (
+      await fetch(`${base}${path2}`, { headers: { cookie: person.cookie } })
+    ).json();
+  /** A task the creator assigns to the assignee, naming `reviewerUserId` (or
+   * nobody), which the assignee then moves to In review. */
+  const submitForReview = async (
+    title: string,
+    reviewerUserId: string | null,
+  ): Promise<{ taskId: string; moved: number }> => {
+    const created = z.object({ taskId: z.string() }).safeParse(
+      await (
+        await postAs(reviewCreator, `/api/app/tasks?orgId=${orgId}`, {
+          projectId: reviewProject.success ? reviewProject.data.projectId : '',
+          title,
+          status: 'todo',
+          assigneeType: 'user',
+          assigneeId: reviewAssignee.userId,
+        })
+      ).json(),
+    );
+    const taskId = created.success ? created.data.taskId : '';
+    if (reviewerUserId !== null) {
+      await postAs(reviewCreator, `/api/app/tasks/${taskId}?orgId=${orgId}`, {
+        reviewerUserId,
+      });
+    }
+    const moved = await postAs(
+      reviewAssignee,
+      `/api/app/tasks/${taskId}/status?orgId=${orgId}`,
+      { status: 'in_review' },
+    );
+    return { taskId, moved: moved.status };
+  };
+  const fallback = await submitForReview('Fallback review probe', null);
+  const handedBack = await submitForReview(
+    'Handed-back review probe',
+    formerReviewer.userId,
+  );
+  const namedCreator = await submitForReview(
+    'Named creator review probe',
+    reviewCreator.userId,
+  );
+  // The task's reviewer read: its designation (`inherit` when it names
+  // nobody) and its pending review with whom that asks, the review the gate
+  // card and the board's chip read.
+  const recipient = z
+    .object({ kind: z.string(), userId: z.string().optional() })
+    .loose();
+  const reviewerRead = z.object({
+    reviewer: recipient,
+    pendingReview: z
+      .object({
+        approvalId: z.string(),
+        runId: z.string().nullable(),
+        reviewer: recipient.nullable(),
+      })
+      .loose()
+      .nullable(),
+  });
+  const readReviewer = async (taskId: string) =>
+    reviewerRead.safeParse(
+      await getAs(
+        reviewCreator,
+        `/api/app/tasks/${taskId}/reviewer?orgId=${orgId}`,
+      ),
+    );
+  const beforeHandBack = await readReviewer(handedBack.taskId);
+  // Project default as the picker sends it: with the review it read.
+  const handBack = await postAs(
+    reviewCreator,
+    `/api/app/tasks/${handedBack.taskId}/reviewer?orgId=${orgId}`,
+    {
+      reviewer: { kind: 'inherit' },
+      expected: {
+        reviewer: beforeHandBack.success
+          ? beforeHandBack.data.reviewer
+          : { kind: 'inherit' },
+        pendingReview:
+          beforeHandBack.success && beforeHandBack.data.pendingReview !== null
+            ? {
+                approvalId: beforeHandBack.data.pendingReview.approvalId,
+                runId: beforeHandBack.data.pendingReview.runId,
+                reviewer: beforeHandBack.data.pendingReview.reviewer,
+              }
+            : null,
+      },
+    },
+  );
+  const fallbackRead = await readReviewer(fallback.taskId);
+  const handedBackRead = await readReviewer(handedBack.taskId);
+  const namedCreatorRead = await readReviewer(namedCreator.taskId);
+  // Home's read, each person with their own session.
+  const waitingOn = async (person: { cookie: string; userId: string }) =>
+    reviewList.safeParse(
+      await getAs(
+        person,
+        `/api/app/tasks?orgId=${orgId}&reviewerId=${encodeURIComponent(person.userId)}&status=in_review`,
+      ),
+    );
+  const creatorsHome = await waitingOn(reviewCreator);
+  const formerReviewersHome = await waitingOn(formerReviewer);
+  const lists = (home: typeof creatorsHome, taskId: string): boolean =>
+    home.success && home.data.tasks.some((task) => task.id === taskId);
+  const who = (id: string | undefined): string =>
+    id === reviewCreator.userId
+      ? 'creator'
+      : id === formerReviewer.userId
+        ? 'former reviewer'
+        : 'someone else';
+  const names = (read: typeof fallbackRead): string =>
+    !read.success
+      ? 'ERR'
+      : read.data.reviewer.kind === 'user'
+        ? who(read.data.reviewer.userId)
+        : read.data.reviewer.kind;
+  const asks = (read: typeof fallbackRead): string =>
+    !read.success
+      ? 'ERR'
+      : read.data.pendingReview === null
+        ? 'no review'
+        : read.data.pendingReview.reviewer?.kind === 'user'
+          ? who(read.data.pendingReview.reviewer.userId)
+          : (read.data.pendingReview.reviewer?.kind ?? 'nobody');
+  record(
+    'task list reviewer filter lists a review that falls back to the creator (#3790)',
+    fallback.moved === 200 &&
+      names(fallbackRead) === 'inherit' &&
+      asks(fallbackRead) === 'creator' &&
+      lists(creatorsHome, fallback.taskId),
+    `move → ${fallback.moved} (want 200), names=${names(fallbackRead)} (want inherit), asks=${asks(fallbackRead)} (want creator), creator's list has it=${lists(creatorsHome, fallback.taskId)} (want true)`,
+  );
+  record(
+    'task list reviewer filter follows a review handed back to the creator (#3790)',
+    handedBack.moved === 200 &&
+      asks(beforeHandBack) === 'former reviewer' &&
+      handBack.status === 200 &&
+      names(handedBackRead) === 'inherit' &&
+      asks(handedBackRead) === 'creator' &&
+      lists(creatorsHome, handedBack.taskId) &&
+      formerReviewersHome.success &&
+      !lists(formerReviewersHome, handedBack.taskId),
+    `move → ${handedBack.moved} (want 200), asked=${asks(beforeHandBack)} (want former reviewer), Project default → ${handBack.status} (want 200), names=${names(handedBackRead)} (want inherit), asks=${asks(handedBackRead)} (want creator), creator's list has it=${lists(creatorsHome, handedBack.taskId)} (want true), former reviewer's list has it=${formerReviewersHome.success ? lists(formerReviewersHome, handedBack.taskId) : 'ERR'} (want false)`,
+  );
+  record(
+    'task list reviewer filter lists the creator named as reviewer (control)',
+    namedCreator.moved === 200 &&
+      names(namedCreatorRead) === 'creator' &&
+      asks(namedCreatorRead) === 'creator' &&
+      lists(creatorsHome, namedCreator.taskId),
+    `move → ${namedCreator.moved} (want 200), names=${names(namedCreatorRead)} (want creator), asks=${asks(namedCreatorRead)} (want creator), creator's list has it=${lists(creatorsHome, namedCreator.taskId)} (want true)`,
   );
 
   // ---- attachments: the dialog's files are stored, owned, and released ---
