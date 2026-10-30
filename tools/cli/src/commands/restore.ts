@@ -13,7 +13,10 @@ export function createRestoreCommand(): Command {
         '(the stack must be stopped)',
     )
     .argument('[snapshot-id]', 'snapshot to restore; omit to list snapshots')
-    .option('--stop', 'stop running project containers before restoring')
+    .option(
+      '--stop',
+      'before restoring, stop project containers that are running, restarting or paused',
+    )
     .option('-y, --yes', 'non-interactive: skip the confirmation prompt')
     .action(
       action(

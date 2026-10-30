@@ -18,7 +18,7 @@ setProjectId('tale');
 const listSnapshotsMock = mock();
 const resolveSnapshotPrefixMock = mock();
 const verifySnapshotMock = mock();
-const isContainerRunningMock = mock();
+const getContainerStateMock = mock();
 const listComposeContainersMock = mock();
 const stopContainerMock = mock();
 const ensureVolumesMock = mock();
@@ -57,7 +57,7 @@ const deps: RestoreDeps = {
   listSnapshots: listSnapshotsMock,
   resolveSnapshotPrefix: resolveSnapshotPrefixMock,
   verifySnapshot: verifySnapshotMock,
-  isContainerRunning: isContainerRunningMock,
+  getContainerState: getContainerStateMock,
   // A colour's replicas are compose-numbered, so the running-stack probe
   // finds them by project label rather than by name.
   listComposeContainers: listComposeContainersMock,
@@ -150,7 +150,7 @@ afterEach(() => {
   listSnapshotsMock.mockReset();
   resolveSnapshotPrefixMock.mockReset();
   verifySnapshotMock.mockReset();
-  isContainerRunningMock.mockReset();
+  getContainerStateMock.mockReset();
   listComposeContainersMock.mockReset();
   listComposeContainersMock.mockResolvedValue([]);
   stopContainerMock.mockReset();
@@ -198,14 +198,14 @@ describe('restore', () => {
   test('refuses while project containers are running without --stop', async () => {
     resolveSnapshotPrefixMock.mockResolvedValue('tale_');
     listSnapshotsMock.mockResolvedValue([MANIFEST]);
-    isContainerRunningMock.mockImplementation((name: string) =>
-      Promise.resolve(name === 'tale-db'),
+    getContainerStateMock.mockImplementation((name: string) =>
+      Promise.resolve(name === 'tale-db' ? 'running' : null),
     );
 
     await expect(
       run({ env, snapshotId: MANIFEST.id, assumeYes: true }),
     ).rejects.toThrow(
-      'Refusing to restore while project containers are running',
+      'Refusing to restore while project containers are live: tale-db (running).',
     );
     expect(execMock).not.toHaveBeenCalled();
     expect(stopContainerMock).not.toHaveBeenCalled();
@@ -214,8 +214,8 @@ describe('restore', () => {
   test('stops the stack with --stop, verifies, and restores each volume', async () => {
     resolveSnapshotPrefixMock.mockResolvedValue('tale_');
     listSnapshotsMock.mockResolvedValue([MANIFEST]);
-    isContainerRunningMock.mockImplementation((name: string) =>
-      Promise.resolve(name === 'tale-db'),
+    getContainerStateMock.mockImplementation((name: string) =>
+      Promise.resolve(name === 'tale-db' ? 'running' : null),
     );
     stopContainerMock.mockResolvedValue(true);
     verifySnapshotMock.mockResolvedValue(undefined);
@@ -237,7 +237,7 @@ describe('restore', () => {
     expect(stopContainerMock).toHaveBeenCalledWith('tale-db');
     // The bgutil-provider sidecar is a stop candidate like the stateful tier:
     // left running it keeps the volumes' network alive across the restore.
-    expect(isContainerRunningMock).toHaveBeenCalledWith('tale-bgutil-provider');
+    expect(getContainerStateMock).toHaveBeenCalledWith('tale-bgutil-provider');
     expect(verifySnapshotMock).toHaveBeenCalledWith('tale_', MANIFEST);
     // One wipe+extract per volume in the manifest.
     expect(execMock).toHaveBeenCalledTimes(2);
@@ -256,7 +256,7 @@ describe('restore', () => {
   test('treats the global `tale -y` as consent when the local flag is absent', async () => {
     resolveSnapshotPrefixMock.mockResolvedValue('tale_');
     listSnapshotsMock.mockResolvedValue([MANIFEST]);
-    isContainerRunningMock.mockResolvedValue(false);
+    getContainerStateMock.mockResolvedValue(null);
     verifySnapshotMock.mockResolvedValue(undefined);
     ensureVolumesMock.mockResolvedValue(true);
     execMock.mockResolvedValue({
@@ -280,7 +280,7 @@ describe('restore', () => {
   test('aborts when the confirmation prompt is declined', async () => {
     resolveSnapshotPrefixMock.mockResolvedValue('tale_');
     listSnapshotsMock.mockResolvedValue([MANIFEST]);
-    isContainerRunningMock.mockResolvedValue(false);
+    getContainerStateMock.mockResolvedValue(null);
     confirmMock.mockResolvedValue(false);
 
     await expect(run({ env, snapshotId: MANIFEST.id })).rejects.toThrow(
@@ -290,11 +290,185 @@ describe('restore', () => {
     expect(execMock).not.toHaveBeenCalled();
   });
 
+  // A colour replica runs under `unless-stopped`: one that crashes waits out
+  // Docker's backoff as `restarting` and then starts again on its own, and a
+  // `paused` one resumes on `docker unpause`. Either can reach the volumes
+  // while the snapshot is extracted into them, so neither may pass for
+  // stopped just because its state is not the word `running`.
+  describe('a colour replica that is not plainly running', () => {
+    /** A replica as `listComposeContainers` reports it. */
+    const replica = (name: string, service: string, state: string) => ({
+      name,
+      service,
+      index: 1,
+      running: state === 'running',
+      state,
+    });
+
+    const colours = (byProject: Record<string, ReturnType<typeof replica>[]>) =>
+      listComposeContainersMock.mockImplementation((project: string) =>
+        Promise.resolve(byProject[project] ?? []),
+      );
+
+    const restoreReady = () => {
+      resolveSnapshotPrefixMock.mockResolvedValue('tale_');
+      listSnapshotsMock.mockResolvedValue([MANIFEST]);
+      getContainerStateMock.mockResolvedValue(null);
+      verifySnapshotMock.mockResolvedValue(undefined);
+      ensureVolumesMock.mockResolvedValue(true);
+      execMock.mockResolvedValue({
+        success: true,
+        stdout: '',
+        stderr: '',
+        exitCode: 0,
+      });
+    };
+
+    test('makes the restore refuse without --stop, named with its state', async () => {
+      restoreReady();
+      colours({
+        'tale-blue': [
+          replica('tale-blue-backend-api-1', 'backend-api', 'restarting'),
+        ],
+      });
+
+      await expect(
+        run({ env, snapshotId: MANIFEST.id, assumeYes: true }),
+      ).rejects.toThrow(
+        'Refusing to restore while project containers are live: tale-blue-backend-api-1 (restarting).',
+      );
+      expect(stopContainerMock).not.toHaveBeenCalled();
+      expect(verifySnapshotMock).not.toHaveBeenCalled();
+      expect(execMock).not.toHaveBeenCalled();
+    });
+
+    test('is stopped by --stop before anything is extracted', async () => {
+      restoreReady();
+      colours({
+        'tale-blue': [
+          replica('tale-blue-backend-api-1', 'backend-api', 'restarting'),
+          replica('tale-blue-backend-worker-1', 'backend-worker', 'exited'),
+        ],
+        'tale-green': [replica('tale-green-platform-1', 'platform', 'paused')],
+      });
+      const order: string[] = [];
+      stopContainerMock.mockImplementation((name: string) => {
+        order.push(`stop ${name}`);
+        return Promise.resolve(true);
+      });
+      execMock.mockImplementation(() => {
+        order.push('extract');
+        return Promise.resolve({
+          success: true,
+          stdout: '',
+          stderr: '',
+          exitCode: 0,
+        });
+      });
+
+      await run({ env, snapshotId: MANIFEST.id, stop: true, assumeYes: true });
+
+      // The exited replica has nothing to stop; the other two are stopped,
+      // and both before the first volume is touched.
+      expect(order).toEqual([
+        'stop tale-blue-backend-api-1',
+        'stop tale-green-platform-1',
+        'extract',
+        'extract',
+      ]);
+    });
+
+    test('aborts the restore before any extract when its stop fails', async () => {
+      restoreReady();
+      colours({
+        'tale-blue': [
+          replica('tale-blue-backend-api-1', 'backend-api', 'restarting'),
+        ],
+      });
+      stopContainerMock.mockResolvedValue(false);
+
+      await expect(
+        run({ env, snapshotId: MANIFEST.id, stop: true, assumeYes: true }),
+      ).rejects.toThrow(
+        'Failed to stop tale-blue-backend-api-1 — aborting restore.',
+      );
+      expect(verifySnapshotMock).not.toHaveBeenCalled();
+      expect(execMock).not.toHaveBeenCalled();
+    });
+
+    test('counts as live in every state but created, exited and dead', async () => {
+      restoreReady();
+      colours({
+        'tale-blue': [
+          replica('tale-blue-backend-api-1', 'backend-api', 'running'),
+          replica('tale-blue-backend-api-2', 'backend-api', 'restarting'),
+          replica('tale-blue-backend-api-3', 'backend-api', 'paused'),
+          replica('tale-blue-backend-api-4', 'backend-api', 'removing'),
+          // A state a newer Docker might add is live until proven otherwise.
+          replica('tale-blue-backend-api-5', 'backend-api', 'hibernating'),
+        ],
+        'tale-green': [
+          replica('tale-green-backend-api-1', 'backend-api', 'created'),
+          replica('tale-green-backend-api-2', 'backend-api', 'exited'),
+          replica('tale-green-backend-api-3', 'backend-api', 'dead'),
+        ],
+      });
+
+      await expect(
+        run({ env, snapshotId: MANIFEST.id, assumeYes: true }),
+      ).rejects.toThrow(
+        'Refusing to restore while project containers are live: ' +
+          'tale-blue-backend-api-1 (running), ' +
+          'tale-blue-backend-api-2 (restarting), ' +
+          'tale-blue-backend-api-3 (paused), ' +
+          'tale-blue-backend-api-4 (removing), ' +
+          'tale-blue-backend-api-5 (hibernating).',
+      );
+      expect(execMock).not.toHaveBeenCalled();
+    });
+
+    // The pinned names were judged by `{{.State.Running}}`, the colours by
+    // `{{.State}} === 'running'`; both now answer the same question.
+    test('is judged like a pinned container, by the same predicate', async () => {
+      restoreReady();
+      const pinned: Record<string, string> = {
+        'tale-db': 'restarting',
+        'tale-object-store': 'exited',
+        'tale-proxy': 'paused',
+        'tale-sandbox-llm-gateway': 'created',
+        'tale-bgutil-provider': 'dead',
+        // The dev stack pins its rotatable services' names.
+        'tale-platform': 'running',
+      };
+      getContainerStateMock.mockImplementation((name: string) =>
+        Promise.resolve(pinned[name] ?? null),
+      );
+      colours({
+        'tale-green': [
+          replica(
+            'tale-green-backend-worker-1',
+            'backend-worker',
+            'restarting',
+          ),
+        ],
+      });
+
+      await expect(
+        run({ env, snapshotId: MANIFEST.id, assumeYes: true }),
+      ).rejects.toThrow(
+        'Refusing to restore while project containers are live: ' +
+          'tale-db (restarting), tale-proxy (paused), tale-platform (running), ' +
+          'tale-green-backend-worker-1 (restarting).',
+      );
+      expect(execMock).not.toHaveBeenCalled();
+    });
+  });
+
   describe('the blob archive', () => {
     test('is restored into the blob volume when the snapshot carries one', async () => {
       resolveSnapshotPrefixMock.mockResolvedValue('tale_');
       listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_BLOBS, MANIFEST]);
-      isContainerRunningMock.mockResolvedValue(false);
+      getContainerStateMock.mockResolvedValue(null);
       verifySnapshotMock.mockResolvedValue(undefined);
       ensureVolumesMock.mockResolvedValue(true);
       execMock.mockResolvedValue({
@@ -331,7 +505,7 @@ describe('restore', () => {
     test('is noted as absent when an older snapshot predates blob capture, and the rest restores', async () => {
       resolveSnapshotPrefixMock.mockResolvedValue('tale_');
       listSnapshotsMock.mockResolvedValue([MANIFEST_WITH_BLOBS, MANIFEST]);
-      isContainerRunningMock.mockResolvedValue(false);
+      getContainerStateMock.mockResolvedValue(null);
       verifySnapshotMock.mockResolvedValue(undefined);
       ensureVolumesMock.mockResolvedValue(true);
       execMock.mockResolvedValue({
@@ -371,7 +545,7 @@ describe('restore', () => {
   describe('the model gateway archive', () => {
     const restoreReady = () => {
       resolveSnapshotPrefixMock.mockResolvedValue('tale_');
-      isContainerRunningMock.mockResolvedValue(false);
+      getContainerStateMock.mockResolvedValue(null);
       verifySnapshotMock.mockResolvedValue(undefined);
       ensureVolumesMock.mockResolvedValue(true);
       execMock.mockResolvedValue({
@@ -513,7 +687,7 @@ describe('restore', () => {
   describe('the config archive', () => {
     const restoreReady = () => {
       resolveSnapshotPrefixMock.mockResolvedValue('tale_');
-      isContainerRunningMock.mockResolvedValue(false);
+      getContainerStateMock.mockResolvedValue(null);
       verifySnapshotMock.mockResolvedValue(undefined);
       ensureVolumesMock.mockResolvedValue(true);
       execMock.mockResolvedValue({
