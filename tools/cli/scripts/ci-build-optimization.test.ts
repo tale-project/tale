@@ -1670,8 +1670,10 @@ test('SARIF preserves all findings while direct SBOM analysis retains package ha
     scanners: 'vuln,secret',
     severity: 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL',
     trivyignores: '.trivyignore.yaml',
+    timeout: '15m',
   });
-  expect(scan['continue-on-error']).toBe(true);
+  // CI ready (Build) requires every scan to finish: a failed scan fails it.
+  expect(scan['continue-on-error']).toBeUndefined();
   const inventory = findStep(scan, 'Generate SBOM (CycloneDX)');
   expect(inventory.with).toEqual({
     version: 'v0.70.0',
@@ -1681,6 +1683,7 @@ test('SARIF preserves all findings while direct SBOM analysis retains package ha
     'image-ref': imageScans[0]!.with!['image-ref'],
     format: 'cyclonedx',
     output: '${{ matrix.service }}-sbom.cdx.json',
+    timeout: '15m',
   });
   // Trivy's persistent analysis-cache key omits its file-checksum option.
   // Reusing an earlier JSON entry would silently discard package hashes.

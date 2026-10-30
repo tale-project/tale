@@ -104,20 +104,21 @@ GitHub-hosted runners.
   suites use two workers. Ordinary interactive web journeys await a test-only root
   snapshot marker being removed by the client commit, so prerendered nodes cannot
   satisfy their readiness check. Cold-start tests still exercise the transition itself.
-- **Sandbox Incus E2E** stands alone: it is no part of CI ready, the candidate
-  receipts or the required checks. On a runner it builds the Incus node
-  `services/sandbox/docs/incus.md` describes (Zabbly's pinned build, a ZFS pool on a
-  file, and the document's own operator block, run verbatim), builds the runtime and
-  egress images from the checkout into a local registry that Incus pulls from, starts
-  the spawner from the checkout and drives its signed HTTP API through the session
-  contract. Path-filtered to the sandbox, runtime and egress services and its own
-  file, a pull request runs it on GitHub's runner once it is ready for review; a draft
-  is held, as in the other heavy workflows, so a draft is tried by dispatching the
-  workflow on its branch, which names its runner (a Ubicloud label by default) and,
-  if wanted, a few suites. It reads Build's layer caches and writes none. Each suite
-  leaves its log as an artifact the moment it ends, so a run in progress can be read;
-  the job summary holds the timings. `services/sandbox/e2e/incus/README.md` says what
-  each suite proves and how to make the workflow required.
+- **Sandbox Incus E2E** is a required check (`CI ready (Sandbox Incus E2E)`) but no
+  part of the candidate receipts: a release candidate does not run it. On a runner it
+  builds the Incus node `services/sandbox/docs/incus.md` describes (Zabbly's pinned
+  build, a ZFS pool on a file, and the document's own operator block, run verbatim),
+  builds the runtime and egress images from the checkout into a local registry that
+  Incus pulls from, starts the spawner from the checkout and drives its signed HTTP API
+  through the session contract. Every pull request starts it; its PR scope runs the lab
+  on GitHub's runner only for the `sandbox-incus` paths of `.github/ci-scope.yml` (the
+  sandbox, runtime and egress services and its own file), once the pull request is
+  ready for review and not from a fork. A draft is held, as in the other heavy
+  workflows, so a draft is tried by dispatching the workflow on its branch, which names
+  its runner (a Ubicloud label by default) and, if wanted, a few suites. It reads
+  Build's layer caches and writes none. Each suite leaves its log as an artifact the
+  moment it ends, so a run in progress can be read; the job summary holds the timings.
+  `services/sandbox/e2e/incus/README.md` says what each suite proves.
 - **Build** distinguishes the platform stack from standalone sites. Site-only changes run
   their container tests without building the eight-image platform stack. Shared package,
   dependency, toolchain and test-harness inputs expand to full coverage. Release candidates
@@ -851,7 +852,8 @@ CLI install was rejected because modest size savings did not establish a reliabl
 
 Each validation workflow emits one direct terminal context on every PR and merge group:
 `CI ready (Checks)`, `CI ready (Commitlint)`, `CI ready (SAST)`, `CI ready (Security)`,
-`CI ready (CLI)`, `CI ready (E2E)`, and `CI ready (Build)`. The terminal job always runs
+`CI ready (CLI)`, `CI ready (E2E)`, `CI ready (Build)`, and `CI ready (Sandbox Incus E2E)`.
+The terminal job always runs
 after its native dependencies, including failed or skipped dependencies. It reads only that
 workflow's `needs` results, not another workflow's API or a previously stored green verdict.
 Its summary records source, run and attempt. The source graph guard requires every actual
@@ -886,10 +888,11 @@ E2E platform, web and docs decisions use the same frozen discovery. The existing
 job validates the service outputs before scheduling its four platform shards or selected
 static-site matrix; failed scope discovery and incomplete full coverage hold readiness.
 Existing fork PRs use local
-smoke/image validation without new write privileges. Image vulnerability scans retain their
-existing **advisory** policy: their native aggregate is recorded as advisory, never proof
-that every scanner passed or found no vulnerabilities. Security's Bun audit/Trivy gates and
-SAST's Opengrep remain blocking. Recovered Playwright retries still need their diagnostic
+smoke/image validation without new write privileges. Every image vulnerability scan a non-fork
+PR starts must finish: a scan that fails or times out (Trivy's limit is 15 minutes) fails
+`CI ready (Build)`. A finished scan still proves only that the image was scanned: its
+findings go to code scanning and fail nothing. Security's Bun audit/Trivy gates and SAST's
+Opengrep remain the blocking vulnerability checks. Recovered Playwright retries still need their diagnostic
 artifact review as described in the repo contract.
 
 Scope and verdict actions use the repository-pinned `actions/github-script` Node 24 runtime
@@ -910,7 +913,7 @@ Source alone does not activate branch protection. Before requiring these context
 their exact live names and GitHub Actions application identity (15368), positive and negative
 PR cases, and failed/latest rerun behavior. `main` has no merge queue (see
 [Landing on main](#landing-on-main)); the source guards for the `merge_group` event and its
-full scope stay until its triggers are removed. Bind the seven contexts to that app; generic candidate or skipped execution
+full scope stay until its triggers are removed. Bind the eight contexts to that app; generic candidate or skipped execution
 jobs cannot substitute for them. Keep the coordinator's
 exact-head checks and independent review until enforcement is active and observed. Independent
 review remains a separate obligation; a CI readiness result does not certify it.
@@ -926,13 +929,13 @@ commit on top of `train`, and that commit is pushed only if the fast gate passes
 (formatting, `bunx turbo run typecheck build`). Every eight hours `train`'s head departs as
 `train-<YYYYMMDD-HHMM>` (UTC) with one pull request into `main` (label `merge-train`,
 `gh pr merge --rebase --auto`). The full CI runs once for the whole train instead of once per
-task, and the pull request rebase-merges when the seven `CI ready (…)` contexts pass, so each
+task, and the pull request rebase-merges when the eight `CI ready (…)` contexts pass, so each
 task stays one commit on `main`. One train pull request is open at a time: a red one is repaired
 on its own branch (a fix, or a task's commit taken out) while `train` collects the next, which
 departs only after it merges. After the merge, `train` is rebased onto `main`, keeping only the
 commits that landed after the departure.
 
-**A pull request of its own** (a person's, Renovate's) squash-merges once the seven
+**A pull request of its own** (a person's, Renovate's) squash-merges once the eight
 `CI ready (…)` contexts pass on its head and its review approves, with
 `gh pr merge <n> --squash --auto`. It runs every suite its paths owe, the heavy ones included,
 so a red shows on the pull request where its author is.

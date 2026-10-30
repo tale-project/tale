@@ -88,7 +88,7 @@ runs:
       with:
         script: |
           const { BUILD_FILTERS, E2E_SERVICES, buildScope, e2eScope, requiresFullScope, scopeBoolean, validateScope } = await import(require('node:url').pathToFileURL(`${process.env.GITHUB_WORKSPACE}/tools/cli/scripts/ci-ready.ts`).href);
-          if (!['integration', 'build', 'e2e', 'cli', 'security'].includes(process.env.SCOPE_FILTER)) throw new Error('Unknown scope filter');
+          if (!['integration', 'build', 'e2e', 'cli', 'security', 'sandbox-incus'].includes(process.env.SCOPE_FILTER)) throw new Error('Unknown scope filter');
           let decision = { run: true, full: true };
           const full = scopeBoolean(process.env.SCOPE_FULL);
           if (context.eventName === 'pull_request') {

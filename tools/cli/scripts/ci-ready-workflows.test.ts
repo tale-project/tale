@@ -67,7 +67,7 @@ const workflow = async (stem: string): Promise<Workflow> =>
 const actions = async (name: string): Promise<Step[]> =>
   (await yaml(`.github/actions/${name}/action.yml`)).runs.steps;
 
-describe('seven complete native merge gates', () => {
+describe('eight complete native merge gates', () => {
   test('unique direct contexts cover every actual job, including explicit event-only lanes', async () => {
     const names: string[] = [];
     for (const [stem, expected] of Object.entries(CI_JOBS)) {
@@ -75,7 +75,7 @@ describe('seven complete native merge gates', () => {
       const gate = file.jobs['ci-ready']!;
       expect(gate.name).toBe(CI_CONTEXTS[stem as keyof typeof CI_CONTEXTS]);
       expect(gate.name).toMatch(
-        /^CI ready \((Checks|Commitlint|SAST|Security|CLI|E2E|Build)\)$/,
+        /^CI ready \((Checks|Commitlint|SAST|Security|CLI|E2E|Build|Sandbox Incus E2E)\)$/,
       );
       names.push(gate.name);
       expect(gate.if).toBe(
@@ -101,22 +101,25 @@ describe('seven complete native merge gates', () => {
       expect(file.on.pull_request?.paths).toBeUndefined();
       expect(file.on.pull_request?.types).toContain('ready_for_review');
       expect(Object.hasOwn(file.on, 'merge_group')).toBe(true);
-      expect(file.jobs['candidate-gate']!.needs).toEqual(
-        expect.arrayContaining(CANDIDATE_JOBS[stem]!.ids),
-      );
-      expect([file.jobs['candidate-gate']!.needs].flat()).not.toContain(
-        'ci-ready',
-      );
-      expect([file.jobs['candidate-gate']!.needs].flat()).not.toContain(
-        'pr-scope',
-      );
-      for (const [id, job] of Object.entries(file.jobs)) {
-        if (stem === 'build' && id === 'vulnerability-scan')
-          expect(job['continue-on-error']).toBe(true);
-        else expect([undefined, false]).toContain(job['continue-on-error']);
+      if (stem === 'sandbox-incus-e2e') {
+        // No release workflow: a release candidate never runs it.
+        expect(CANDIDATE_JOBS[stem]).toBeUndefined();
+        expect(file.jobs['candidate-gate']).toBeUndefined();
+      } else {
+        expect(file.jobs['candidate-gate']!.needs).toEqual(
+          expect.arrayContaining(CANDIDATE_JOBS[stem]!.ids),
+        );
+        expect([file.jobs['candidate-gate']!.needs].flat()).not.toContain(
+          'ci-ready',
+        );
+        expect([file.jobs['candidate-gate']!.needs].flat()).not.toContain(
+          'pr-scope',
+        );
       }
+      for (const job of Object.values(file.jobs))
+        expect([undefined, false]).toContain(job['continue-on-error']);
     }
-    expect(new Set(names).size).toBe(7);
+    expect(new Set(names).size).toBe(8);
     const observed: string[] = [];
     for (const file of await readdir(`${root}/.github/workflows`)) {
       if (!/\.ya?ml$/.test(file)) continue;
@@ -147,7 +150,7 @@ describe('seven complete native merge gates', () => {
     expect(body).toContain('core.setFailed');
   });
 
-  test('all current native matrix legs and fork/advisory dispositions survive', async () => {
+  test('all current native matrix legs and fork dispositions survive', async () => {
     const build = await workflow('build');
     expect(build.jobs.build!.strategy?.matrix.service).toEqual(IMAGE_SERVICES);
     expect<readonly string[]>(COMPOSE_SERVICES).toEqual(IMAGE_SERVICES);
@@ -186,7 +189,6 @@ describe('seven complete native merge gates', () => {
         'github.event.pull_request.head.repo.fork == true',
       );
     }
-    expect(build.jobs['vulnerability-scan']!['continue-on-error']).toBe(true);
     expect(cli.jobs.release!.if).toContain(
       "github.event_name == 'workflow_dispatch'",
     );
@@ -539,7 +541,14 @@ describe('real non-cone scope and readiness checkouts', () => {
         head: { sha: B },
         changed_files: 2,
       });
-      for (const filter of ['integration', 'build', 'e2e', 'cli', 'security']) {
+      for (const filter of [
+        'integration',
+        'build',
+        'e2e',
+        'cli',
+        'security',
+        'sandbox-incus',
+      ]) {
         expect(filters[filter].length).toBeGreaterThan(0);
         const env = {
           SCOPE_FILTER: filter,

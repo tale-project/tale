@@ -15,21 +15,19 @@ name: Sandbox Incus E2E
 # services/sandbox/e2e/incus/README.md says what each suite proves and what
 # only production can.
 #
-# Not a required check (it takes 22 to 24 minutes and depends on a third
-# party's package index); the README says how to make it one.
+# A required check: `CI ready (Sandbox Incus E2E)` judges the run. Every pull
+# request starts it, because a required check that a path filter skips never
+# reports; PR scope runs the lab only for the paths of the `sandbox-incus`
+# filter in .github/ci-scope.yml (the spawner, the image its sessions run and
+# the proxy they go out through).
 
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - main
-    # Everything that decides whether the backend works on a node: the spawner,
-    # the image its sessions run and the proxy they go out through.
-    paths:
-      - 'services/sandbox/**'
-      - 'services/sandbox-runtime/**'
-      - 'services/sandbox-egress/**'
-      - '.github/workflows/sandbox-incus-e2e.yml'
+  merge_group:
+    types: [checks_requested]
   # A draft is held, as the other heavy workflows hold it (e2e.yml): to try a
   # draft of the backend, dispatch this workflow on its branch.
   workflow_dispatch:
@@ -64,11 +62,45 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  pr-scope:
+    name: PR scope
+    if: github.event_name == 'pull_request'
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      run: ${{ steps.scope.outputs.run }}
+      full: ${{ steps.scope.outputs.full }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-scope/action.yml
+            /.github/ci-scope.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
+      - name: Decide applicability
+        id: scope
+        uses: ./.github/actions/ci-scope
+        with:
+          filter: sandbox-incus
+
   incus:
     name: Sandbox on Incus
-    # A draft is held, and so is a fork's pull request (its token cannot read
-    # the layer caches, and it is not trusted with a root-owned lab).
-    if: ${{ github.event_name != 'pull_request' || (github.event.pull_request.draft != true && github.event.pull_request.head.repo.fork != true) }}
+    needs: pr-scope
+    # A pull request runs the lab only when PR scope finds a path it covers. A
+    # draft is held, and so is a fork's pull request (its token cannot read the
+    # layer caches, and it is not trusted with a root-owned lab).
+    if: >-
+      !cancelled() &&
+      (github.event_name != 'pull_request' ||
+      (needs.pr-scope.outputs.run == 'true' &&
+      github.event.pull_request.draft != true &&
+      github.event.pull_request.head.repo.fork != true))
     # A pull request runs on GitHub's own runner; a dispatch names its runner.
     runs-on: ${{ inputs.runner || 'ubuntu-latest' }}
     timeout-minutes: 90
@@ -449,3 +481,27 @@ jobs:
             ${{ env.INCUS_E2E_DIR }}/lab.json
           retention-days: 14
           if-no-files-found: warn
+
+  # A required context must execute even when an upstream check failed/skipped.
+  ci-ready:
+    name: CI ready (Sandbox Incus E2E)
+    if: always() && (github.event_name == 'pull_request' || github.event_name == 'merge_group')
+    needs: [pr-scope, incus]
+    runs-on: ${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 3
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout verdict policy
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/ci-ready/action.yml
+            /tools/cli/scripts/ci-ready.ts
+          sparse-checkout-cone-mode: false
+      - name: Evaluate native workflow
+        uses: ./.github/actions/ci-ready
+        with:
+          workflow: sandbox-incus-e2e
+          jobs: ${{ toJSON(needs) }}

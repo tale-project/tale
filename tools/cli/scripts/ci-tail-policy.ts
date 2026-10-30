@@ -81,9 +81,15 @@ export function decideTail(snapshot: TailSnapshot, now: number): TailDecision {
   )
     return preserve('stale_observation');
   const { pull, older, replacement, olderJobs, replacementJobs } = snapshot;
-  const workflow = older.name.toLowerCase();
-  if (!Object.hasOwn(CI_CONTEXTS, workflow))
-    return preserve('unknown_workflow');
+  // A context names its workflow, in any case: `CI ready (Sandbox Incus E2E)`
+  // is the run of `sandbox-incus-e2e.yml` named `Sandbox Incus E2E`.
+  const workflow = Object.keys(CI_CONTEXTS).find(
+    (stem) =>
+      CI_CONTEXTS[stem as keyof typeof CI_CONTEXTS]
+        .slice(10, -1)
+        .toLowerCase() === older.name.toLowerCase(),
+  );
+  if (workflow === undefined) return preserve('unknown_workflow');
   const context = CI_CONTEXTS[workflow as keyof typeof CI_CONTEXTS];
   if (
     older.name !== context.slice(10, -1) ||

@@ -1156,7 +1156,8 @@ jobs:
         run: echo "## Image validation (fork PR) complete" >> "$GITHUB_STEP_SUMMARY"
 
   # ---------------------------------------------------------------------------
-  # Trivy vulnerability scan per changed service (non-blocking).
+  # Trivy vulnerability scan per changed service. CI ready (Build) requires
+  # every scan to finish; its findings go to code scanning and fail nothing.
   # Runs on push-to-main and on non-fork PRs (fork PRs can't push images, so
   # there's nothing to pull and scan). Without the PR run, GHAS's aggregated
   # "Code scanning results / Trivy" check flags `8 configurations not found`
@@ -1177,8 +1178,7 @@ jobs:
       contents: read
       security-events: write
       packages: read
-    continue-on-error: true
-    timeout-minutes: 15
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -1213,6 +1213,9 @@ jobs:
           # its nominal HIGH,CRITICAL input. Preserve that reporting policy.
           severity: 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
           trivyignores: '.trivyignore.yaml'
+          # Trivy stops at 5 minutes by default; on a busy runner one large
+          # image's analysis took longer, and an unfinished scan fails the job.
+          timeout: '15m'
 
       - name: Generate SARIF
         env:
@@ -1249,6 +1252,7 @@ jobs:
           image-ref: ${{ env.REGISTRY }}/${{ github.repository }}/tale-${{ matrix.service }}:${{ needs.changes.outputs.image_tag }}
           format: 'cyclonedx'
           output: '${{ matrix.service }}-sbom.cdx.json'
+          timeout: '15m'
 
       - name: Checkout SBOM hash guard
         if: matrix.service == fromJSON(needs.changes.outputs.scannable_services)[0]

@@ -23,7 +23,13 @@ const wasSkipped: JobResult = { result: 'skipped', outputs: {} };
 const neverRan: RemovedJob = { pull_request: wasSkipped, push: wasSkipped };
 
 /** The workflows whose scope job a pull request answers from its paths; this one touches them all. */
-const SCOPED = new Set<Workflow>(['build', 'e2e', 'cli', 'security']);
+const SCOPED = new Set<Workflow>([
+  'build',
+  'e2e',
+  'cli',
+  'security',
+  'sandbox-incus-e2e',
+]);
 
 /** What the port took out of each workflow, and what each job would have said. */
 function removedFor(workflow: Workflow): Record<string, RemovedJob> {
@@ -141,7 +147,6 @@ describe('judgeReadiness', () => {
         if (!job || job.result === 'skipped') continue;
         for (const result of ['failure', 'cancelled', 'skipped', '']) {
           job.result = result;
-          if (id === 'vulnerability-scan' && result === 'failure') continue;
           expect(
             judgeReadiness(onBatch(workflow, { needs })).passed,
             `${id}/${result}`,
