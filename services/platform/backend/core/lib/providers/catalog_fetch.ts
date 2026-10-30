@@ -48,7 +48,6 @@ import { ALLOWLIST_CATALOG_CONTEXT_WINDOW } from '../../../../lib/shared/provide
 import {
   normalizeCatalogPayload,
   readImageGenerationFactsListing,
-  type KnownModel,
   type NormalizeCatalogOptions,
 } from '../../../../lib/shared/providers/catalog_normalize';
 import {
@@ -620,7 +619,7 @@ function modelsEndpointUrl(baseUrl: string): string {
  */
 function knownModelLookup(
   options: LoadSystemConfigOptions,
-): (id: string) => KnownModel | undefined {
+): (id: string) => ModelCatalogEntry | undefined {
   let index: Map<string, ModelCatalogEntry> | undefined;
   return (id) => {
     if (index === undefined) {
@@ -644,6 +643,17 @@ function knownModelLookup(
     }
     return index.get(modelIdMatchKey(id));
   };
+}
+
+/** What Tale's shipped catalogs know about one model, by id, through the
+ * same lookup: the whole entry, the vendor's wire facts included. A gateway's
+ * listing row never takes those facts; the direct chat call reads them to
+ * pick the API it asks a gateway on (`chat/gateway_wire.ts`). */
+export function knownModel(
+  id: string,
+  options: LoadSystemConfigOptions = {},
+): ModelCatalogEntry | undefined {
+  return knownModelLookup(options)(id);
 }
 
 /**
