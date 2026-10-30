@@ -167,28 +167,43 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
   not as a rule.
 - **Pencil**: `design/docs/comments.md` is strictly designer↔developer UI communication. Put
   code-level bug analysis in a GitHub issue, never there.
-- **Git**: never commit to `main`; two lanes land on it, both linear
-  ([CI guide](../.github/CI.md#landing-on-main)):
-  - **The merge train** carries the autonomous development cycle's work. A task branch starts
-    from `train` (the open train) and opens no pull request: once reviewed, it is squashed into
-    one commit on `train` and pushed only if the fast gate passes on that commit (`oxfmt --check`,
-    the ruff format check, `bunx turbo run typecheck build`). Every 8 hours `train` departs as
-    `train-<YYYYMMDD-HHMM>` (UTC) with one pull request into `main` (label `merge-train`) that runs
-    the full CI and rebase-merges once green, one commit per task, while `train` collects the
-    next. One train pull request is open at a time. `train` and `train-*` belong to the train,
-    and a task branch is deleted once it lands on `train`.
-  - **A pull request of its own** (a person's, Renovate's): branch off `main`; it squash-merges,
-    so its title must itself be commitlint-shaped, with `gh pr merge --squash --auto` once its
-    checks and review pass; its own CI runs every suite its paths owe.
+- **Git**: never commit to `main`. Two release lines are open at once, each linear
+  ([CI guide](../.github/CI.md#landing-on-main)): **`main`, the stable line** (0.5.x, next
+  0.5.95), takes fixes alone — a `fix`, or a `test`, `docs` or `ci` change about what `main`
+  already ships; **`release/0.6`, the feature line** (0.6.x, next 0.6.0), takes everything else
+  and is `main` plus its own commits, rebased onto `main` whenever `main` moves, so every fix
+  reaches it without a merge. When in doubt, a change belongs to the feature line. Once a person
+  makes the feature line stable with its release, `main` takes its commits, the 0.5.x line ends
+  and `release/0.7` opens. The lanes:
+  - **The merge trains** carry the autonomous development cycle's work. A task branch starts
+    from its line's open train, `train` (stable) or `feature-train` (feature), and opens no pull
+    request: once reviewed, it is squashed into one commit on that train and pushed only if the
+    fast gate passes on that commit (`oxfmt --check`, the ruff format check,
+    `bunx turbo run typecheck build`). Every 8 hours each train departs (UTC): `train` as
+    `train-<YYYYMMDD-HHMM>` with one pull request into `main`, `feature-train` as
+    `feature-train-<YYYYMMDD-HHMM>` with one into `release/0.6` (label `merge-train`). The pull
+    request runs the full CI and lands by rebase once green, one commit per task, while its train
+    collects the next. One train pull request per line is open at a time. `train`,
+    `feature-train` and their departed branches belong to the trains, `release/*` to the lines,
+    and a task branch is deleted once it lands on its train.
+  - **A pull request of its own** (a person's, Renovate's): a fix branches off `main` and
+    squash-merges with `gh pr merge --squash --auto` once its checks and review pass; anything
+    else goes to the feature line, through the cycle or as a pull request into `release/0.6`
+    that a person squash-merges once its `CI ready (…)` checks pass (no ruleset holds the line,
+    whose rebase onto `main` rewrites it; rebase an open pull request after the line moved).
+    Either way its title must itself be commitlint-shaped, and its own CI runs every suite its
+    paths owe. Renovate's pull requests stay on `main`, which they keep patched, and reach the
+    feature line with its next rebase.
 
-  No branch has to be up to date with `main` — never rebase, merge `main` in or
+  No branch has to be up to date with its base — never rebase, merge `main` in or
   `gh pr update-branch` just because a PR reads *behind*; rebase only for a real conflict
   (`git merge-tree --write-tree --name-only origin/main HEAD`), and never admin-merge past a red
   or pending check.
 - **A release tags one validated candidate** — a version tag goes only on the full `main` SHA
   whose `build.yml` candidate run and release gate
   (`tools/cli/scripts/release-candidate-gate.ts`) passed, and merging never freezes for it:
-  [`.github/RELEASING.md`](../.github/RELEASING.md). No per-day limit holds a release back;
+  [`.github/RELEASING.md`](../.github/RELEASING.md). That is the stable line's release; the
+  feature line's from `release/0.6` waits until the release lane knows two lines. No per-day limit holds a release back;
   a red `main` does, so read and repair it first
   ([a release that has to go out](../.github/RELEASING.md#a-release-that-has-to-go-out)).
 - **No conflict markers** — `bun run lint:conflicts` (`scripts/check-conflict-markers.ts`)
