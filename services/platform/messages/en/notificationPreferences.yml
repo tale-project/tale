@@ -6,6 +6,10 @@ deliveryDescription: Actionable alerts (assignments, mentions, reviews,
   escalations) can also reach your inbox when this organization has a
   connected mailbox.
 saveFailed: Couldn't save your notification preferences.
+# A read that failed is never every switch on (#4653). Try again is
+# common.actions.tryAgain.
+loadFailed: "Couldn't load your notification preferences."
+refreshFailed: "Couldn't refresh your notification preferences. What's shown may be out of date."
 fields:
   actionableEmail:
     label: Email me actionable alerts

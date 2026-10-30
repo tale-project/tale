@@ -320,6 +320,9 @@ teams:
   noMembersToAdd: All organization members are already in this team
   noTeamMembers: No members in this team yet
   sectionDescription: Organize members into teams for scoped access to agents and resources.
+  # A failed refresh keeps the rows it left and is named above them;
+  # a failed first read is the table's error state (#4653).
+  refreshFailed: "Couldn't load the latest teams. What's listed may be incomplete or out of date."
   memberCount: '{count} {count, plural, one {member} other {members}}'
   teamName: Team name
   teamNamePlaceholder: Enter team name...
@@ -539,6 +542,10 @@ connectors:
     endpointHelpGeneric: The https origin of the instance this credential belongs to.
 enterpriseSso:
   connected: Sign-in is enabled.
+  # A read that failed is never a blank form; the failure's own words
+  # (failureDetail) follow the sentence (#4653).
+  loadFailed: "Couldn't load the SSO connection."
+  refreshFailed: "Couldn't refresh the SSO connection. What's shown may be out of date."
   copy: Copy
   protocolLabel: Protocol
   protocolHelp: Choose how users sign in. OIDC endpoints are discovered automatically.

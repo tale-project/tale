@@ -23,6 +23,13 @@ import { TeamDetailDialog } from './team-detail-dialog';
 interface TeamsTableProps {
   teams: Team[] | undefined;
   organizationId: string;
+  /** The teams read's settled failure. With no team loaded the table shows
+   * its error state with `onRetry` — never a skeleton that never ends; rows
+   * already loaded stay, and the page names the failure above them. */
+  error?: Error | null;
+  onRetry?: () => void;
+  /** Takes the focus the error state held when a refresh replaces it. */
+  onErrorFocusLost?: () => void;
 }
 
 /**
@@ -44,7 +51,13 @@ function TeamMemberSubscription({ teamId }: { teamId: string }) {
   return null;
 }
 
-export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
+export function TeamsTable({
+  teams,
+  organizationId,
+  error,
+  onRetry,
+  onErrorFocusLost,
+}: TeamsTableProps) {
   const { t: tEmpty } = useT('emptyStates');
   const { t: tSettings } = useT('settings');
   const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
@@ -89,7 +102,7 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
     useTeamsTableConfig(organizationId, handleViewTeam);
 
   const list = useListPage<Team>({
-    dataSource: { type: 'query', data: teams },
+    dataSource: { type: 'query', data: teams, error, retry: onRetry },
     pageSize,
     search: { fields: ['name'], placeholder: searchPlaceholder },
     getRowId: (row) => row.id,
@@ -129,6 +142,7 @@ export function TeamsTable({ teams, organizationId }: TeamsTableProps) {
         }}
         onRowClick={(row) => setSelectedTeamId(row.original.id)}
         clickableRows
+        onErrorFocusLost={onErrorFocusLost}
         footer={
           <BulkDeleteBar
             rowSelection={rowSelection}

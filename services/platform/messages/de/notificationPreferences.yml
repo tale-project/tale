@@ -6,6 +6,8 @@ deliveryDescription: Handlungsrelevante Alerts (Zuweisungen, Erwähnungen,
   Reviews, Eskalationen) können zusätzlich an deine Konto-E-Mail gehen, wenn
   die Organisation ein verbundenes Postfach hat.
 saveFailed: Deine Benachrichtigungseinstellungen konnten nicht gespeichert werden.
+loadFailed: "Deine Benachrichtigungseinstellungen konnten nicht geladen werden."
+refreshFailed: "Deine Benachrichtigungseinstellungen konnten nicht aktualisiert werden. Die Anzeige ist womöglich veraltet."
 fields:
   actionableEmail:
     label: Handlungsrelevante Alerts per E-Mail

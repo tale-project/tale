@@ -77,6 +77,9 @@ export function useTeams() {
  * The teams the signed-in member may ASSIGN — their own, every team for an
  * admin — with how the read stands (`readStateOf`): a failed read is the
  * caller's to name and retry, never an organization without teams (#3766).
+ * `error` is the read's settled failure, for a list's data source
+ * (`useListPage`); react-query clears it while it retries a read that never
+ * answered.
  */
 export function useOrgTeams() {
   const organizationId = useOrganizationId();
@@ -89,6 +92,7 @@ export function useOrgTeams() {
   return {
     teams: query.data ?? undefined,
     isLoading: query.isLoading,
+    error: query.error,
     ...readStateOf(query),
     retry: () => void refetch(),
   };

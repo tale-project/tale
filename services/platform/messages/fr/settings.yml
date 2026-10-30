@@ -344,6 +344,7 @@ teams:
   noTeamMembers: Aucun membre dans cette équipe pour l'instant
   sectionDescription: Organise les membres en équipes pour un accès ciblé aux
     agents et aux ressources.
+  refreshFailed: "Impossible de charger les dernières équipes. La liste est peut-être incomplète ou obsolète."
   memberCount: '{count} {count, plural, one {membre} other {membres}}'
   teamName: Nom de l'équipe
   teamNamePlaceholder: Entre le nom de l'équipe...
@@ -575,6 +576,8 @@ connectors:
     endpointHelpGeneric: L'origine https de l'instance à laquelle appartiennent ces identifiants.
 enterpriseSso:
   connected: La connexion est activée.
+  loadFailed: "Impossible de charger la connexion SSO."
+  refreshFailed: "Impossible d’actualiser la connexion SSO. L’affichage n’est peut-être plus à jour."
   copy: Copier
   protocolLabel: Protocole
   protocolHelp:

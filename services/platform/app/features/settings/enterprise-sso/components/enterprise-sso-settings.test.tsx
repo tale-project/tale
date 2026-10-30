@@ -1,18 +1,28 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, within } from '@/tests/utils/render';
 
 import { EnterpriseSsoSettings } from './enterprise-sso-settings';
 
 const read = vi.hoisted((): { isLoading: boolean; error?: Error } => ({
   isLoading: true,
 }));
+const refetch = vi.hoisted(() => vi.fn());
 
+// The parts of the query result the page reads; a failed read never
+// answered (`readStateOf` reads it as unavailable).
 vi.mock('../hooks/use-enterprise-sso', () => ({
   useEnterpriseSso: () => ({
-    data: read.isLoading ? undefined : { configured: false },
+    data:
+      read.isLoading || read.error !== undefined
+        ? undefined
+        : { configured: false },
     isLoading: read.isLoading,
-    error: read.error,
+    isError: read.error !== undefined,
+    error: read.error ?? null,
+    isFetching: read.isLoading,
+    errorUpdateCount: read.error === undefined ? 0 : 1,
+    refetch,
   }),
 }));
 
@@ -37,6 +47,7 @@ describe('EnterpriseSsoSettings', () => {
   beforeEach(() => {
     read.isLoading = true;
     read.error = undefined;
+    refetch.mockClear();
   });
 
   it('masks the connection form in place while it loads', () => {
@@ -55,17 +66,19 @@ describe('EnterpriseSsoSettings', () => {
     expect(screen.getByText('Connection form')).toBeInTheDocument();
   });
 
-  it('shows a repair state when the saved connection cannot be read', () => {
+  it('names a saved connection it cannot read, with its repair words and Try again', async () => {
     read.isLoading = false;
     read.error = new Error(
       'The SSO connection configuration for acme could not be read; repair connection.yml before continuing.',
     );
-    render(<EnterpriseSsoSettings organizationId="org-1" />);
+    const { user } = render(<EnterpriseSsoSettings organizationId="org-1" />);
 
-    expect(
-      screen.getByText('Saved SSO connection needs repair'),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/repair connection\.yml/)).toBeInTheDocument();
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent("Couldn't load the SSO connection.");
+    expect(alert).toHaveTextContent(/repair connection\.yml/);
     expect(screen.queryByText('Connection form')).toBeNull();
+
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }));
+    expect(refetch).toHaveBeenCalledTimes(1);
   });
 });
