@@ -114,6 +114,22 @@ describe('chatAssistantFor — the persona a work loadout runs as', () => {
     );
   });
 
+  it('tells the assistant that pictures cannot be made while image generation is off, and who turns it on [CHAT-R32]', () => {
+    // The organization's defaults: every chat tool on, image generation off.
+    const text =
+      chatAssistantFor({ ...ALL, generateImage: false }).instructions ?? '';
+    expect(text).toMatch(/MAKING THINGS/);
+    expect(text).not.toMatch(/generate_image/);
+    expect(text).toMatch(/Image generation is not available/);
+    expect(text).toMatch(/an Admin or Owner can turn it on/);
+    expect(text).toContain('Settings → Governance → Models → Image generation');
+    expect(text).toMatch(/Never pass off an SVG/);
+    // With image generation on, it has the image tool and is told nothing of it.
+    const on = chatAssistantFor(ALL).instructions ?? '';
+    expect(on).toMatch(/generate_image/);
+    expect(on).not.toMatch(/Image generation is not available/);
+  });
+
   it('is the tool-less persona when the host offers no work tool at all', () => {
     expect(chatAssistantFor(undefined)).toBe(CHAT_ASSISTANT);
   });

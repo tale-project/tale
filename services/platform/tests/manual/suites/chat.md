@@ -799,6 +799,17 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   leaves the same models out of its model list. With **Image generation** on
   (GOV-F38), keep **Auto** and ask for a picture → it appears under the reply,
   made by the image model the Models page names.
+- [ ] `CHAT-F81` · **Ask for a photo while image generation is off** — Mode B
+  with **Image generation** off (GOV-F38) and every Chat tool on (GOV-F65): in
+  a new chat ask "Make a photorealistic image of a lighthouse at dusk" → The
+  reply says that image generation is not available and that an Admin or Owner
+  can turn it on under **Settings → Governance → Models** (**Image
+  generation**). No SVG or other file arrives as the photo, and the timeline
+  shows no **Writing …** step (`chat.thinking.writingFile`) for one. Then ask
+  "Draw a simple SVG icon of a lighthouse instead" → the assistant writes the
+  `.svg` file. Turn image generation on and ask the first prompt again in a
+  new chat → **Generating an image** (`chat.thinking.generatingImages`), as
+  in GOV-F66. Restore: switch image generation off.
 
 ## Boundary & error tests
 
