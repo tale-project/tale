@@ -15,15 +15,14 @@
  */
 import { Alert } from '@tale/ui/alert';
 import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
-import { ContentArea } from '@tale/ui/content-area';
 import {
   EnvVarListEditor,
   type LoadedEnvVar,
 } from '@tale/ui/env-var-list-editor';
-import { StickySectionHeader } from '@tale/ui/sticky-section-header';
 import { ShieldAlert } from 'lucide-react';
 import { useCallback, useRef } from 'react';
 
+import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { backendErrorCode } from '@/lib/utils/backend-error';
@@ -36,6 +35,7 @@ import {
 } from '../hooks/secrets';
 import { ProjectReadOnlyBanner } from './project-read-only-banner';
 import { ProjectSecretsLayout } from './project-secrets-layout';
+import { ProjectSettingsPage } from './project-settings-page';
 
 export function ProjectSecretsTab({
   organizationId,
@@ -65,10 +65,10 @@ export function ProjectSecretsTab({
   const { project } = useProject(projectId);
   const isArchived = project?.archivedAt !== undefined;
   // Where the focus goes when the failure notice holding it leaves: a read
-  // that answered on Try again put the editor in its place.
-  const bodyRef = useRef<HTMLDivElement>(null);
-  const focusBody = useCallback(() => {
-    bodyRef.current?.focus();
+  // that answered on Try again put the editor in its place, in this section.
+  const sectionRef = useRef<HTMLElement>(null);
+  const focusSection = useCallback(() => {
+    sectionRef.current?.focus();
   }, []);
 
   // The tab is gated on `project.canAdminister` in the project layout, but a
@@ -83,22 +83,20 @@ export function ProjectSecretsTab({
 
   if (isAccessDenied) {
     return (
-      <ContentArea variant="narrow" gap={6}>
-        <StickySectionHeader
-          title={t('title')}
-          description={t('description')}
-        />
-        <Alert
-          variant="destructive"
-          icon={ShieldAlert}
-          title={t('errors.accessDeniedTitle')}
-          description={
-            accessErrorCode === 'PROJECT_NOT_FOUND'
-              ? t('errors.PROJECT_NOT_FOUND')
-              : t('errors.PROJECT_FORBIDDEN')
-          }
-        />
-      </ContentArea>
+      <ProjectSettingsPage title={t('title')}>
+        <SettingsSection title={t('title')} description={t('description')}>
+          <Alert
+            variant="destructive"
+            icon={ShieldAlert}
+            title={t('errors.accessDeniedTitle')}
+            description={
+              accessErrorCode === 'PROJECT_NOT_FOUND'
+                ? t('errors.PROJECT_NOT_FOUND')
+                : t('errors.PROJECT_FORBIDDEN')
+            }
+          />
+        </SettingsSection>
+      </ProjectSettingsPage>
     );
   }
 
@@ -124,63 +122,57 @@ export function ProjectSecretsTab({
     );
 
   return (
-    <ProjectSecretsLayout>
-      {isArchived ? <ProjectReadOnlyBanner reason="archived" /> : null}
-      <div
-        ref={bodyRef}
-        role="group"
-        aria-label={t('title')}
-        tabIndex={-1}
-        className="flex flex-col gap-3 outline-none"
-      >
-        {unavailable || stale ? (
-          <CatalogLoadError
-            // Each failure is announced again; Try again keeps its node.
-            failureKey={failureCount}
-            onFocusLost={focusBody}
-            message={
-              unavailable ? t('errors.loadFailed') : t('errors.refreshFailed')
+    <ProjectSecretsLayout
+      banner={isArchived ? <ProjectReadOnlyBanner reason="archived" /> : null}
+      sectionRef={sectionRef}
+    >
+      {unavailable || stale ? (
+        <CatalogLoadError
+          // Each failure is announced again; Try again keeps its node.
+          failureKey={failureCount}
+          onFocusLost={focusSection}
+          message={
+            unavailable ? t('errors.loadFailed') : t('errors.refreshFailed')
+          }
+          onRetry={retry}
+          isRetrying={retrying}
+        />
+      ) : null}
+      {/* Never an editor over a read that did not answer: its empty list
+          would offer to add, and so overwrite, a stored secret it cannot
+          show. A failed refresh keeps the last answer and any draft. */}
+      {unavailable ? null : (
+        <EnvVarListEditor
+          forceSecret
+          projectSecretNameRule
+          rows={rows}
+          isLoading={isLoading}
+          disabled={isArchived}
+          onSet={async ({ key, value }) => {
+            try {
+              await setSecret.mutateAsync({
+                organizationId,
+                projectId,
+                name: key,
+                value,
+              });
+            } catch (error) {
+              throw saveFailure(error);
             }
-            onRetry={retry}
-            isRetrying={retrying}
-          />
-        ) : null}
-        {/* Never an editor over a read that did not answer: its empty list
-            would offer to add, and so overwrite, a stored secret it cannot
-            show. A failed refresh keeps the last answer and any draft. */}
-        {unavailable ? null : (
-          <EnvVarListEditor
-            forceSecret
-            projectSecretNameRule
-            rows={rows}
-            isLoading={isLoading}
-            disabled={isArchived}
-            onSet={async ({ key, value }) => {
-              try {
-                await setSecret.mutateAsync({
-                  organizationId,
-                  projectId,
-                  name: key,
-                  value,
-                });
-              } catch (error) {
-                throw saveFailure(error);
-              }
-            }}
-            onDelete={async (key) => {
-              try {
-                await deleteSecret.mutateAsync({
-                  organizationId,
-                  projectId,
-                  name: key,
-                });
-              } catch (error) {
-                throw saveFailure(error);
-              }
-            }}
-          />
-        )}
-      </div>
+          }}
+          onDelete={async (key) => {
+            try {
+              await deleteSecret.mutateAsync({
+                organizationId,
+                projectId,
+                name: key,
+              });
+            } catch (error) {
+              throw saveFailure(error);
+            }
+          }}
+        />
+      )}
     </ProjectSecretsLayout>
   );
 }
