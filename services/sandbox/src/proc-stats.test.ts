@@ -1,6 +1,7 @@
 import { expect, test } from 'bun:test';
 
 import {
+  busyCpuShare,
   parseCpuCounters,
   parseLoadAverage,
   parseMemory,
@@ -16,6 +17,16 @@ test('CPU counter parsing ignores already-accounted guest time and handles reset
   expect(parsed).toEqual({ total: 110, idle: 80, cores: 1 });
   expect(usedCpuCores({ total: 120, idle: 90, cores: 1 }, parsed!)).toBeNull();
   expect(parseCpuCounters('cpu broken')).toBeNull();
+});
+
+test('the busy share is the part of the CPU time between two counters not spent idle', () => {
+  const before = { total: 1_000, idle: 600 };
+  expect(busyCpuShare(before, { total: 5_000, idle: 2_200 })).toBe(0.6);
+  // Counters that did not move or went backwards say nothing.
+  expect(busyCpuShare(before, before)).toBeNull();
+  expect(busyCpuShare(before, { total: 500, idle: 600 })).toBeNull();
+  expect(busyCpuShare(before, { total: 5_000, idle: 500 })).toBeNull();
+  expect(busyCpuShare(before, { total: 2_000, idle: 1_700 })).toBeNull();
 });
 
 test('memory pressure uses MemAvailable, including genuinely zero available bytes', () => {

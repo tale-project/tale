@@ -86,6 +86,9 @@ export interface AdmissionEvidence {
   pressure: {
     first: HostPressureReading | null;
     last: HostPressureReading | null;
+    /** How busy the host's CPUs were between the two readings, in percent:
+     * how much of the CPU stall counts. */
+    cpuBusy: number | null;
     score: number | null;
     pressured: boolean;
     thresholds: PressureThresholds;
@@ -389,6 +392,7 @@ export class HostAdmission {
       pressure: {
         first: assessment.evidence.first,
         last: assessment.evidence.last,
+        cpuBusy: assessment.evidence.cpuBusy,
         score: assessment.score,
         pressured: assessment.pressured,
         thresholds: this.effective(requested).thresholds,
@@ -473,12 +477,17 @@ export class HostAdmission {
     const signal = dominantSignal(assessment);
     const evidence =
       signal === null ? null : assessment.evidence.signals[signal];
+    const { cpuBusy } = assessment.evidence;
+    const busy =
+      signal === 'cpu' && cpuBusy !== null
+        ? `, its CPUs ${Math.round(cpuBusy)}% busy`
+        : '';
     const detail =
       evidence === null ||
       evidence.ratio === null ||
       evidence.threshold === null
         ? ''
-        : ` (${signal} at ${Math.round(evidence.ratio * 100)}% of its ${evidence.threshold} threshold)`;
+        : ` (${signal} at ${Math.round(evidence.ratio * 100)}% of its ${evidence.threshold} threshold${busy})`;
     if (assessment.pressured) {
       console.warn(
         `[sandbox] the host is under pressure${detail}: sessions start one at a time until it eases (SANDBOX_ADMISSION_PRESET)`,

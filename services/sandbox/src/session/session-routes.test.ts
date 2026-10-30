@@ -7305,6 +7305,8 @@ describe('memory-aware admission', () => {
           cpuPsi: pressure(),
           memoryPsi: 0,
           ioPsi: 0,
+          cpuTicks: null,
+          idleTicks: null,
           ...other(),
         };
         return [
@@ -7455,6 +7457,8 @@ describe('memory-aware admission', () => {
                 cpuPsi: 95,
                 memoryPsi: 0,
                 ioPsi: 0,
+                cpuTicks: null,
+                idleTicks: null,
               },
               {
                 atMs: Date.now() - 60_000,
@@ -7463,6 +7467,8 @@ describe('memory-aware admission', () => {
                 cpuPsi: 95,
                 memoryPsi: 0,
                 ioPsi: 0,
+                cpuTicks: null,
+                idleTicks: null,
               },
             ],
           },
@@ -9363,6 +9369,8 @@ describe('host admission routes', () => {
         cpuPsi: 1,
         memoryPsi: 0,
         ioPsi: 0,
+        cpuTicks: null,
+        idleTicks: null,
         ...values(),
       };
       return [

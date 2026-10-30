@@ -26,6 +26,8 @@ function reading(
     cpuPsi: 0,
     memoryPsi: 0,
     ioPsi: 0,
+    cpuTicks: null,
+    idleTicks: null,
     ...values,
   };
 }
@@ -351,5 +353,107 @@ describe('assessHostPressure', () => {
     ]);
     expect(dominantSignal(tie)).toBe('cpu');
     expect(dominantSignal(assess([]))).toBeNull();
+  });
+});
+
+describe("the CPU stall counts only as far as the host's CPUs were busy", () => {
+  /** What a heavy-phase lease judges by: the deployment's thresholds,
+   * tightened by the conservative preset. */
+  const LEASE = tightenThresholds(DEFAULT, CONSERVATIVE);
+
+  /** Two readings ten seconds apart at `cpuPsi`, the host's CPU time
+   * `busyPercent` busy between them: 4,000 ticks of its four CPUs. */
+  const pair = (cpuPsi: number, busyPercent: number) => [
+    reading(10_000, { cpuPsi, cpuTicks: 1_000_000, idleTicks: 400_000 }),
+    reading(0, {
+      cpuPsi,
+      cpuTicks: 1_004_000,
+      idleTicks: 400_000 + 40 * (100 - busyPercent),
+    }),
+  ];
+
+  // Sessions held back by their quota of two CPUs on a host of twelve: one
+  // building (17 % busy), two (33 %), and the thirteen of agents.tale.dev on
+  // 2026-10-30 (60 %), each reading as most of the host's time stalled.
+  test.each([
+    [70, 17],
+    [89, 33],
+    [87, 60],
+  ])(
+    'a stall of %d percent beside CPUs %d percent busy admits starts and leases, a pressed host too',
+    (cpuPsi, busy) => {
+      for (const thresholds of [DEFAULT, LEASE]) {
+        for (const pressured of [false, true]) {
+          const result = assess(pair(cpuPsi, busy), thresholds, { pressured });
+          expect(result).toMatchObject({
+            verdict: 'admit',
+            reason: null,
+            pressured: false,
+          });
+          expect(result.evidence.cpuBusy).toBeCloseTo(busy);
+          expect(result.evidence.signals.cpu.ratio).toBe(0);
+        }
+      }
+    },
+  );
+
+  test.each([
+    [70, 95],
+    [89, 100],
+  ])(
+    'a stall of %d percent with the CPUs %d percent busy holds starts and leases',
+    (cpuPsi, busy) => {
+      for (const thresholds of [DEFAULT, LEASE]) {
+        const result = assess(pair(cpuPsi, busy), thresholds);
+        expect(result).toMatchObject({
+          verdict: 'hold',
+          reason: 'pressure',
+          pressured: true,
+        });
+        expect(result.evidence.signals.cpu.ratio).toBeCloseTo(
+          cpuPsi / (thresholds.cpuPsi ?? 0),
+        );
+        expect(dominantSignal(result)).toBe('cpu');
+      }
+    },
+  );
+
+  test('between 80 and 90 % busy the stall counts in proportion', () => {
+    const ratio = (busy: number) =>
+      assess(pair(50, busy), LEASE).evidence.signals.cpu.ratio;
+    expect(ratio(80)).toBeCloseTo(0);
+    expect(ratio(85)).toBeCloseTo(1.25);
+    expect(ratio(90)).toBeCloseTo(2.5);
+    expect(assess(pair(50, 85), LEASE).verdict).toBe('hold');
+    expect(assess(pair(50, 85), DEFAULT).verdict).toBe('admit');
+  });
+
+  test('an unknown busy share counts the stall as it reads', () => {
+    const counted = [
+      reading(10_000, { cpuPsi: 70, cpuTicks: 1_000_000, idleTicks: 400_000 }),
+      reading(0, { cpuPsi: 70, cpuTicks: 1_004_000, idleTicks: 402_000 }),
+    ] as const;
+    for (const readings of [
+      // Neither reading has the counters, or one lacks them…
+      [reading(10_000, { cpuPsi: 70 }), reading(0, { cpuPsi: 70 })],
+      [counted[0], reading(0, { cpuPsi: 70 })],
+      // …or they went backwards, or did not move.
+      [
+        reading(10_000, {
+          cpuPsi: 70,
+          cpuTicks: 2_000_000,
+          idleTicks: 400_000,
+        }),
+        counted[1],
+      ],
+      [counted[0], { ...counted[0], atMs: NOW }],
+    ]) {
+      const result = assess(readings, DEFAULT);
+      expect(result).toMatchObject({ verdict: 'hold', reason: 'pressure' });
+      expect(result.evidence.cpuBusy).toBeNull();
+    }
+    // The same stall with half the host's CPU time idle counts not at all.
+    expect(assess([...counted], DEFAULT).evidence.cpuBusy).toBe(50);
+    expect(assess([...counted], DEFAULT).verdict).toBe('admit');
   });
 });

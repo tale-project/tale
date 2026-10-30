@@ -1,7 +1,9 @@
 // The host's pressure, sampled every five seconds into a ring of the last two
-// minutes: the one-minute load average and the CPUs online, and the kernel's
+// minutes: the one-minute load average and the CPUs online, the kernel's
 // pressure stall shares of CPU, memory and I/O (`some avg10` of
-// /proc/pressure/{cpu,memory,io}). Only where /proc describes the Docker host
+// /proc/pressure/{cpu,memory,io}), and the CPU time the host has spent and
+// left idle (/proc/stat), whose busy share between two readings says how much
+// of the CPU stall is contention. Only where /proc describes the Docker host
 // — the memory probe's judgement: the standard local socket, the same kernel
 // and total as the daemon reports — since anywhere else these files describe
 // another machine. Elsewhere the ring stays empty and admission reads the
@@ -13,6 +15,7 @@
 
 import type { HostPressureReading } from './host-pressure-assessment.ts';
 import {
+  parseCpuCounters,
   parseLoadAverage,
   parseOnlineCpus,
   parsePressureSomeAvg10,
@@ -37,7 +40,7 @@ export interface HostPressureSource {
 
 export const NO_HOST_PRESSURE: HostPressureSource = { readings: () => [] };
 
-type SignalName = 'load' | 'cpus' | 'cpu' | 'memory' | 'io';
+type SignalName = 'load' | 'cpus' | 'cpu' | 'memory' | 'io' | 'cpuTime';
 
 const SIGNAL_FILES: Record<SignalName, { path: string; what: string }> = {
   load: { path: '/proc/loadavg', what: 'load average' },
@@ -45,6 +48,7 @@ const SIGNAL_FILES: Record<SignalName, { path: string; what: string }> = {
   cpu: { path: '/proc/pressure/cpu', what: 'CPU pressure' },
   memory: { path: '/proc/pressure/memory', what: 'memory pressure' },
   io: { path: '/proc/pressure/io', what: 'I/O pressure' },
+  cpuTime: { path: '/proc/stat', what: 'CPU time' },
 };
 
 export interface HostPressureSamplerDeps {
@@ -130,12 +134,13 @@ export class HostPressureSampler implements HostPressureSource {
       return;
     }
     this.local = true;
-    const [load1, cpus, cpuPsi, memoryPsi, ioPsi] = await Promise.all([
+    const [load1, cpus, cpuPsi, memoryPsi, ioPsi, cpuTime] = await Promise.all([
       this.readSignal('load', parseLoadAverage),
       this.readSignal('cpus', parseOnlineCpus),
       this.readSignal('cpu', parsePressureSomeAvg10),
       this.readSignal('memory', parsePressureSomeAvg10),
       this.readSignal('io', parsePressureSomeAvg10),
+      this.readSignal('cpuTime', parseCpuCounters),
     ]);
     // A clock that went back leaves no reading stamped after this one.
     this.ring = [
@@ -143,7 +148,16 @@ export class HostPressureSampler implements HostPressureSource {
         (reading) =>
           reading.atMs < atMs && atMs - reading.atMs <= PRESSURE_RING_MS,
       ),
-      { atMs, load1, cpus, cpuPsi, memoryPsi, ioPsi },
+      {
+        atMs,
+        load1,
+        cpus,
+        cpuPsi,
+        memoryPsi,
+        ioPsi,
+        cpuTicks: cpuTime?.total ?? null,
+        idleTicks: cpuTime?.idle ?? null,
+      },
     ].slice(-RING_CAP);
     for (const listener of this.listeners) {
       try {
@@ -157,10 +171,10 @@ export class HostPressureSampler implements HostPressureSource {
   /** One signal, or null when its file cannot be read or holds no reading
    * (a kernel built without pressure stall information, or booted with
    * `psi=0`): unknown, never 0. Said once per signal. */
-  private async readSignal(
+  private async readSignal<T>(
     name: SignalName,
-    parse: (text: string) => number | null,
-  ): Promise<number | null> {
+    parse: (text: string) => T | null,
+  ): Promise<T | null> {
     const { path, what } = SIGNAL_FILES[name];
     try {
       const value = parse(await this.readFile(path));

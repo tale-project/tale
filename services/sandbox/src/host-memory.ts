@@ -41,8 +41,9 @@ const SESSION_WORKING_SET_BYTES = {
 const SIZING_BYTES_PER_SESSION = 768 * MIB;
 const AUTO_MIN_SESSIONS = 8;
 const AUTO_MAX_SESSIONS = 256;
-/** The CPU pressure (PSI `some avg10`, in percent) from which admission lets
- * sessions start one at a time under the `default` preset, unless
+/** The CPU pressure (PSI `some avg10`, in percent, counted as far as the
+ * host's CPUs are busy) from which admission lets sessions start one at a
+ * time under the `default` preset, unless
  * SANDBOX_CPU_PRESSURE_PERCENT says otherwise. */
 export const DEFAULT_CPU_PRESSURE_PERCENT = 60;
 
