@@ -80,10 +80,10 @@ budgets:
   selectApiKeyAriaLabel: Sélectionner une clé API
   saved: Les règles de budget ont été mises à jour
   saveFailed: Échec de l'enregistrement des règles de budget
-  targetRequired: Sélectionnez une cible pour cette portée, sinon la règle ne
+  targetRequired: Sélectionne une cible pour cette portée, sinon la règle ne
     s'appliquera jamais.
   limitRequired:
-    Définissez au moins une limite (jetons, coût ou requêtes) pour
+    Définis au moins une limite (jetons, coût ou requêtes) pour
     que la règle puisse s'appliquer.
   invalidTokenLimit: La limite de jetons doit être supérieure à zéro.
   invalidCostLimit: La limite de coût doit être supérieure à zéro.
@@ -1805,7 +1805,7 @@ dsarPolicy:
       effet.
     cancel: Annuler la modification en attente
 errors:
-  saveForbidden: Vous n'avez pas l'autorisation de modifier ce paramètre.
+  saveForbidden: Tu n'as pas l'autorisation de modifier ce paramètre.
 conversationRouting:
   title: Routage des conversations
   description: 'Achemine les nouvelles conversations vers une équipe ou une personne selon leur point d''arrivée : une boîte, l''adresse à laquelle elles ont été envoyées ou une app API. Les règles s''appliquent automatiquement dès qu''une conversation arrive.'

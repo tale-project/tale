@@ -566,7 +566,7 @@ enterpriseSso:
   copy: Kopieren
   protocolLabel: Protokoll
   protocolHelp:
-    Legen Sie fest, wie sich Benutzer anmelden. OIDC-Endpunkte werden
+    Lege fest, wie sich Benutzer anmelden. OIDC-Endpunkte werden
     automatisch erkannt.
   displayNameLabel: Anzeigename
   signInSection: Anmeldung
@@ -660,11 +660,11 @@ enterpriseSso:
   scim:
     section: SCIM-Bereitstellung
     help:
-      Lassen Sie Ihren IdP Benutzer und Gruppen automatisch übertragen (anlegen,
+      Lass deinen IdP Benutzer und Gruppen automatisch übertragen (anlegen,
       aktualisieren, deaktivieren).
     enabled: Aktiviert
     disabled: Deaktiviert
-    tokenCreatedHelp: Kopieren Sie dieses Token jetzt – es wird nicht erneut angezeigt.
+    tokenCreatedHelp: Kopiere dieses Token jetzt – es wird nicht erneut angezeigt.
     regenerate: Token neu generieren
     generate: Token generieren
     disable: Deaktivieren
@@ -788,13 +788,13 @@ enterpriseSso:
     claimHelp: Punktpfad in die Token-Claims, z. B. realm_access.roles.
   redirectUrlLabel: In Entra zu registrierende Weiterleitungs-URL
   redirectUrlHelp:
-    Registrieren Sie genau diese URL als "Web"-Weiterleitungs-URI
-    in Ihrer App-Registrierung — sie muss exakt übereinstimmen (Schema,
+    Registriere genau diese URL als "Web"-Weiterleitungs-URI
+    in deiner App-Registrierung — sie muss exakt übereinstimmen (Schema,
     Host, Pfad, kein abschließender Schrägstrich), sonst schlägt die
     Anmeldung mit AADSTS50011 fehl.
   additionalDomainsHint:
-    Dieses Deployment antwortet auch auf weiteren Domains. Registrieren
-    Sie diese URL ebenfalls — wer sich dort anmeldet, wird auch dorthin
+    Dieses Deployment antwortet auch auf weiteren Domains. Registriere
+    diese URL ebenfalls — wer sich dort anmeldet, wird auch dorthin
     zurückgeführt und nicht auf die kanonische Domain.
   deploymentWarning:
     title: Deployment für SSO nicht vollständig konfiguriert
@@ -809,48 +809,48 @@ enterpriseSso:
   guide:
     title: Einrichtungsleitfaden
     redirectLabel: Weiterleitungs-/Callback-URL
-    samlIntro: Erstellen Sie in Ihrem IdP eine SAML-App mit der oben im
+    samlIntro: Erstelle in deinem IdP eine SAML-App mit der oben im
       Anmeldebereich angezeigten SP-Metadaten-URL und ACS-URL.
     entra:
       intro:
-        Registrieren Sie eine App im Microsoft Entra Admin Center und tragen Sie
-        die Daten unten ein.
+        Registriere eine App im Microsoft Entra Admin Center und trage die
+        Daten unten ein.
       s1:
-        Melden Sie sich im Microsoft Entra Admin Center (entra.microsoft.com)
+        Melde dich im Microsoft Entra Admin Center (entra.microsoft.com)
         mindestens als Anwendungsentwickler an.
       s2:
-        Gehen Sie zu Entra ID › App-Registrierungen › Neue Registrierung; benennen
-        Sie sie und wählen Sie „Einzelner Mandant".
+        Gehe zu Entra ID › App-Registrierungen › Neue Registrierung; benenne sie
+        und wähle „Einzelner Mandant".
       s3:
-        Wählen Sie unter Umleitungs-URI die Plattform „Web", fügen Sie die oben
-        angezeigte Weiterleitungs-URL ein und klicken Sie auf Registrieren.
+        Wähle unter Umleitungs-URI die Plattform „Web", füge die oben
+        angezeigte Weiterleitungs-URL ein und klicke auf Registrieren.
       s4:
-        Kopieren Sie auf der Übersichtsseite die Anwendungs-(Client-)ID und die
+        Kopiere auf der Übersichtsseite die Anwendungs-(Client-)ID und die
         Verzeichnis-(Mandanten-)ID. Die Issuer-URL lautet
         https://login.microsoftonline.com/{tenant-id}/v2.0.
       s5:
-        Gehen Sie zu Zertifikate & Geheimnisse › Neues Clientgeheimnis und kopieren
-        Sie den Geheimnis-Wert (nicht die Geheimnis-ID).
-      s6: Tragen Sie Client-ID, Clientgeheimnis und Issuer-URL in die Felder oben ein.
+        Gehe zu Zertifikate & Geheimnisse › Neues Clientgeheimnis und kopiere
+        den Geheimnis-Wert (nicht die Geheimnis-ID).
+      s6: Trage Client-ID, Clientgeheimnis und Issuer-URL in die Felder oben ein.
       s7:
-        Für die Gruppen-zu-Team-Synchronisierung fügen Sie unter API-Berechtigungen
+        Für die Gruppen-zu-Team-Synchronisierung füge unter API-Berechtigungen
         die Microsoft-Graph-Berechtigung GroupMember.Read.All hinzu und
-        erteilen Sie die Administratorzustimmung.
+        erteile die Administratorzustimmung.
       s8: Der Microsoft-365-Dateiimport hat einen eigenen Zustimmungsablauf im Wissensbereich. Füge Files.Read oder Sites.Read.All nicht zu den SSO-Scopes für die Anmeldung hinzu. Richte den Importzugriff über die OAuth-App-Einstellungen der Konnektoren ein.
     google:
       intro:
-        Erstellen Sie einen OAuth-Client in der Google Cloud Console und tragen
-        Sie die Daten unten ein.
+        Erstelle einen OAuth-Client in der Google Cloud Console und trage die
+        Daten unten ein.
       s1:
-        Öffnen Sie in der Google Cloud Console APIs & Dienste › Anmeldedaten ›
+        Öffne in der Google Cloud Console APIs & Dienste › Anmeldedaten ›
         Anmeldedaten erstellen › OAuth-Client-ID.
-      s2: Wählen Sie den Anwendungstyp „Webanwendung".
-      s3: Fügen Sie unter Autorisierte Weiterleitungs-URIs die oben angezeigte
-        Weiterleitungs-URL hinzu und speichern Sie.
-      s4: Kopieren Sie die Client-ID und das Clientgeheimnis oben auf der
+      s2: Wähle den Anwendungstyp „Webanwendung".
+      s3: Füge unter Autorisierte Weiterleitungs-URIs die oben angezeigte
+        Weiterleitungs-URL hinzu und speichere.
+      s4: Kopiere die Client-ID und das Clientgeheimnis oben auf der
         Client-Seite.
       s5:
-        Tragen Sie sie oben mit der Issuer-URL https://accounts.google.com ein – die
+        Trage sie oben mit der Issuer-URL https://accounts.google.com ein – die
         Endpunkte werden automatisch erkannt.
       groupsNote: >-
         Das Standard-OIDC von Google liefert keine Gruppenmitgliedschaften — die
@@ -858,30 +858,30 @@ enterpriseSso:
         mit einem Google-Workspace-Administrator. Andere OIDC-Anbieter (Okta, Auth0,
         Keycloak) funktionieren genauso: Issuer-URL und Client-Anmeldedaten eintragen.
     oauth2:
-      intro: Für Anbieter ohne OIDC-Discovery konfigurieren Sie die Endpunkte manuell.
+      intro: Für Anbieter ohne OIDC-Discovery konfiguriere die Endpunkte manuell.
       s1:
-        Registrieren Sie eine Web-/OAuth2-Anwendung bei Ihrem Anbieter und fügen Sie
-        die oben angezeigte Weiterleitungs-URL hinzu.
-      s2: Kopieren Sie Client-ID und Clientgeheimnis.
+        Registriere eine Web-/OAuth2-Anwendung bei deinem Anbieter und füge die
+        oben angezeigte Weiterleitungs-URL hinzu.
+      s2: Kopiere Client-ID und Clientgeheimnis.
       s3:
-        Tragen Sie die URLs für Autorisierungs-, Token- und Userinfo-Endpunkt aus
-        der Dokumentation Ihres Anbieters ein.
-      s4: Falls Ihr Anbieter abweichende Claim-Namen verwendet, ordnen Sie
+        Trage die URLs für Autorisierungs-, Token- und Userinfo-Endpunkt aus
+        der Dokumentation deines Anbieters ein.
+      s4: Falls dein Anbieter abweichende Claim-Namen verwendet, ordne
         E-Mail/Name/Gruppen unter „Erweitert" zu.
     saml:
       intro:
-        Konfigurieren Sie in Ihrem IdP eine SAML-2.0-Anwendung und tragen Sie die
-        Daten unten ein.
-      s1: Erstellen Sie in Ihrem IdP eine neue SAML-2.0-Anwendung.
-      s2: Setzen Sie die ACS-URL (Assertion Consumer Service) und die
-        Entity-ID/Audience auf die oben angezeigten SP-Werte oder laden Sie
-        die SP-Metadaten-URL hoch.
-      s3: Setzen Sie das Name-ID-Format auf E-Mail-Adresse.
-      s4: Kopieren Sie die IdP-Entity-ID, die IdP-Anmelde-URL und das
+        Konfiguriere in deinem IdP eine SAML-2.0-Anwendung und trage die Daten
+        unten ein.
+      s1: Erstelle in deinem IdP eine neue SAML-2.0-Anwendung.
+      s2: Setze die ACS-URL (Assertion Consumer Service) und die
+        Entity-ID/Audience auf die oben angezeigten SP-Werte oder lade die
+        SP-Metadaten-URL hoch.
+      s3: Setze das Name-ID-Format auf E-Mail-Adresse.
+      s4: Kopiere die IdP-Entity-ID, die IdP-Anmelde-URL und das
         IdP-Signaturzertifikat (PEM) in die Felder oben.
       s5:
-        Ordnen Sie in Ihrem IdP die Attribute für E-Mail, Name und Gruppe zu;
-        weichen die Namen ab, tragen Sie die passenden Attributnamen unter
+        Ordne in deinem IdP die Attribute für E-Mail, Name und Gruppe zu;
+        weichen die Namen ab, trage die passenden Attributnamen unter
         „Erweitert" ein.
   disableConfirmTitle: SSO-Anmeldung deaktivieren?
   disableConfirmDescription:

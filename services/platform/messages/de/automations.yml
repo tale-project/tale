@@ -135,14 +135,14 @@ templates:
     whatItChanges: 'Was sie ändert'
     whenItRuns: 'Wann sie läuft'
     whatItNeeds: 'Was sie braucht'
-    needsNothing: 'Nichts zu verbinden: Sie arbeitet mit dem, was Tale schon hat.'
-    needsPartner: 'Hier ist nichts zu verbinden: Sie arbeitet mit dem, was eine der Vorlagen unter „Passt zu“ hereinholt.'
+    needsNothing: 'Nichts zu verbinden: Die Automatisierung arbeitet mit dem, was Tale schon hat.'
+    needsPartner: 'Hier ist nichts zu verbinden: Die Automatisierung arbeitet mit dem, was eine der Vorlagen unter „Passt zu“ hereinholt.'
     connected: 'Verbunden'
     notConnected: 'Nicht verbunden'
     connect: 'Verbinden'
     worksWith: 'Passt zu'
     workflow: 'Ablauf'
-    workflowHint: 'Ihre Schritte so, wie der Editor sie zeigen wird. Nur zum Lesen: Du änderst sie, sobald sie deine ist.'
+    workflowHint: 'Die Schritte der Automatisierung so, wie der Editor sie zeigen wird. Nur zum Lesen: Du änderst sie, sobald sie deine ist.'
   backToCatalog: 'Alle Vorlagen'
   backToPreview: 'Zurück zur Vorschau'
   loadingTemplate: 'Die Vorlage wird noch geladen.'
@@ -199,7 +199,7 @@ detail:
   # Eine gelöschte Automatisierung behält ihre Laufhistorie, bis die
   # Aufbewahrung sie entfernt; die Läufe-Seiten öffnen unter diesem Banner.
   deleted:
-    banner: 'Diese Automatisierung wurde am {date} gelöscht. Ihre Laufhistorie bleibt, bis die Aufbewahrung sie entfernt.'
+    banner: 'Diese Automatisierung wurde am {date} gelöscht. Die Laufhistorie bleibt, bis die Aufbewahrung sie entfernt.'
     title: Automatisierung gelöscht
     description: Es gibt nichts mehr zu bearbeiten oder zu veröffentlichen; die aufgezeichneten Läufe sind weiterhin lesbar.
     openRuns: Laufhistorie öffnen
@@ -399,7 +399,7 @@ trigger:
     event: 'Die Ereignisdaten kommen als payload an. Sie enthalten IDs; lies den vollständigen Datensatz mit einem Schritt.'
     accepted: 'Version {version} akzeptiert diese Eingabe.'
     refusedTitle: 'Version {version} akzeptiert diese Eingabe nicht'
-    refusedBody: 'Ihre Eingaben lehnen ab, was dieser Trigger sendet, also würde jeder Start ausgelassen. Ergänze die fehlenden Felder in der festen Eingabe oder passe die Eingaben im Editor an.'
+    refusedBody: 'Die Eingaben der Version lehnen ab, was dieser Trigger sendet, also würde jeder Start ausgelassen. Ergänze die fehlenden Felder in der festen Eingabe oder passe die Eingaben im Editor an.'
   runNow:
     label: 'Jetzt ausführen'
     unsaved: 'Speichere zuerst deine Änderungen am Trigger.'
@@ -428,7 +428,7 @@ trigger:
     empty: 'Kein passendes Ereignis'
     scopeOrg: 'Startet bei passenden Ereignissen in allen Projekten und bei Ereignissen, die zu keinem Projekt gehören.'
     scopeProjects: 'Startet bei passenden Ereignissen in {projects} und bei Ereignissen, die zu keinem Projekt gehören, etwa Kontakten.'
-    loopBounded: 'Ihre eigenen Läufe starten sie nie erneut, und ein Lauf, den ein Ereignis gestartet hat, startet keine weiteren Automatisierungen.'
+    loopBounded: 'Die eigenen Läufe der Automatisierung starten sie nie erneut, und ein Lauf, den ein Ereignis gestartet hat, startet keine weiteren Automatisierungen.'
     group:
       tasks: 'Aufgaben'
       comments: 'Kommentare'
@@ -647,7 +647,7 @@ editor:
   explain:
     when: 'Läuft nur, wenn {condition}. Sonst wird sie übersprungen, ebenso jede Node, die ihre Ausgabe liest.'
     whenRaw: 'Läuft nur, wenn diese Bedingung zutrifft. Sonst wird sie übersprungen, ebenso jede Node, die ihre Ausgabe liest.'
-    forEach: 'Läuft einmal für jedes Element von {list}. Ihre Ausgabe ist die Liste der Ergebnisse.'
+    forEach: 'Läuft einmal für jedes Element von {list}. Die Ausgabe ist die Liste der Ergebnisse.'
     repeatUntil: 'Läuft erneut, bis {condition}, insgesamt höchstens {max}-mal.'
     elseOf: 'Läuft nur, wenn {node} durch ihre eigene Bedingung übersprungen wird.'
   shape:
@@ -1486,4 +1486,4 @@ stepTest:
   run: Node testen
   upToTitle: 'Bis {node} testen'
   upToDescription: Führt den Entwurf bis zu dieser Node aus – was sie braucht, und nichts danach. Nichts wird gespeichert.
-  whenWouldSkip: Ihre Bedingung ist mit diesen Daten falsch; der Test hat sie trotzdem ausgeführt.
+  whenWouldSkip: Die Bedingung ist mit diesen Daten falsch; der Test hat die Node trotzdem ausgeführt.

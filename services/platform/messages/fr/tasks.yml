@@ -380,7 +380,7 @@ assignee:
   liveRunGuard: Cette tâche a une exécution en cours — annule-la avant de réassigner.
   handoffConfirmAction: Réassigner
   unassign: Désassigner
-  you: Vous
+  you: Toi
   search: Rechercher des personnes
   liveAgentsOnly:
     Seuls les agents de ce projet apparaissent ici — crée-les dans

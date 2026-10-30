@@ -27,7 +27,7 @@ enterpriseSso:
     errorTooLarge: Das Metadaten-Dokument ist zu gross (max. 1 MB).
     errorFetchFailed: Die Metadaten-URL liess sich nicht abrufen. Prüfe die Adresse oder lade
       die Datei herunter und lade sie hier hoch.
-  redirectUrlHelp: Registrieren Sie genau diese URL als "Web"-Weiterleitungs-URI in Ihrer
+  redirectUrlHelp: Registriere genau diese URL als "Web"-Weiterleitungs-URI in deiner
     App-Registrierung — sie muss exakt übereinstimmen (Schema, Host, Pfad, kein
     abschliessender Schrägstrich), sonst schlägt die Anmeldung mit AADSTS50011
     fehl.
