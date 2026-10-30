@@ -10,11 +10,13 @@ import {
   fullCoverageBlockers,
   isSkippedCheck,
   itestObjectStore,
+  recordOpenStreams,
   recordSkip,
   requestedLanes,
   settleTeardown,
+  withCleanup,
 } from './integration-lane-helpers';
-import { createEventsHandler } from './realtime/sse';
+import { createEventsHandler, liveStreamCount } from './realtime/sse';
 
 const store = {
   ITEST_S3_ENDPOINT: 'http://127.0.0.1:9000',
@@ -361,6 +363,122 @@ describe('settleTeardown', () => {
         if ('closeAllConnections' in server) server.closeAllConnections();
       }
       await tail.close();
+    }
+  });
+});
+
+describe('withCleanup', () => {
+  it("reports the body's error when a cleanup step fails too, and runs every step", async () => {
+    // The bell-wire lane's shape (#4152): the lane fails, then a tail will
+    // not close. A plain `finally` reported the tail; the lane's error won.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const lane = new Error('the recipient never heard the hint');
+      const ran: string[] = [];
+      await expect(
+        withCleanup(
+          [
+            [
+              "closes the owner's tail",
+              () => Promise.reject(new Error('the tail did not settle')),
+            ],
+            ['deletes the project', () => Promise.resolve(ran.push('delete'))],
+          ],
+          () => Promise.reject(lane),
+        ),
+      ).rejects.toBe(lane);
+      expect(ran).toEqual(['delete']);
+      expect(warn.mock.calls).toEqual([
+        [
+          "[itest] the cleanup step that closes the owner's tail failed: Error: the tail did not settle (logged only: the lane fails with the error before it)",
+        ],
+      ]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('fails a passing body with its first cleanup failure, naming the step', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const ran: string[] = [];
+      await expect(
+        withCleanup(
+          [
+            ["closes the owner's tail", () => Promise.reject(new Error('one'))],
+            ["closes the mate's tail", () => Promise.reject(new Error('two'))],
+            ['deletes the project', () => Promise.resolve(ran.push('delete'))],
+          ],
+          () => Promise.resolve('passed'),
+        ),
+      ).rejects.toThrow(
+        "the cleanup step that closes the owner's tail failed: Error: one",
+      );
+      expect(ran).toEqual(['delete']);
+      expect(warn.mock.calls).toEqual([
+        [
+          "[itest] the cleanup step that closes the mate's tail failed: Error: two (logged only: the lane fails with the error before it)",
+        ],
+      ]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("returns the body's value once every step has run", async () => {
+    const ran: string[] = [];
+    await expect(
+      withCleanup(
+        [['deletes the project', () => Promise.resolve(ran.push('delete'))]],
+        () => Promise.resolve('passed'),
+      ),
+    ).resolves.toBe('passed');
+    expect(ran).toEqual(['delete']);
+  });
+});
+
+describe('recordOpenStreams', () => {
+  it('fails a lane that passed with an /events tail still open, naming it, and ends the stream', async () => {
+    // Since #4133 the teardown's graceful close ended such a tail without a
+    // word, and the run exited 0 (#4152).
+    const { server, origin } = await serveEvents();
+    try {
+      const tail = connectSse(`${origin}/events?orgId=org1`, {});
+      while (tail.events.length === 0) await sleep(10);
+      const { checks, record } = recorder();
+      await recordOpenStreams('checkLeakyLane', record, 200);
+
+      expect(checks).toEqual([
+        {
+          name: 'harness: checkLeakyLane leaves no SSE stream open',
+          ok: false,
+          detail: expect.stringMatching(
+            /^1 SSE stream\(s\) still open on the backend 0\.2 s after it returned/,
+          ),
+        },
+      ]);
+      expect(liveStreamCount()).toBe(0);
+      // The harness ended the stream: the tail is over, not stuck.
+      await tail.close();
+    } finally {
+      await closeServerGracefully(server, { forceAfterMs: 3_000 });
+    }
+  });
+
+  it('records nothing for a lane that closed its tail', async () => {
+    const { server, origin } = await serveEvents();
+    try {
+      const tail = connectSse(`${origin}/events?orgId=org1`, {});
+      while (tail.events.length === 0) await sleep(10);
+      await tail.close();
+      const { checks, record } = recorder();
+      // At once: the stream may not have left the backend yet.
+      await recordOpenStreams('checkTidyLane', record);
+
+      expect(checks).toEqual([]);
+      expect(liveStreamCount()).toBe(0);
+    } finally {
+      await closeServerGracefully(server, { forceAfterMs: 3_000 });
     }
   });
 });
