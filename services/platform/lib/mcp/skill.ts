@@ -317,6 +317,10 @@ export const SKILL_SECTIONS: readonly SkillSection[] = [
         tools: [],
       },
       {
+        text: "| DATABASE_UNAVAILABLE | Tale's database is restarting: wait data.retryAfterMs, then call again. |",
+        tools: [],
+      },
+      {
         text: '| INTERNAL_ERROR | Tell the person data.requestId; whoever runs Tale can look it up. |',
         tools: [],
       },

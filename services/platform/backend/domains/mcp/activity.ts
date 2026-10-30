@@ -41,8 +41,9 @@ export function isRecordedMethod(method: string): method is McpRecordedMethod {
 }
 
 /** How one answered call went: `ok`; `refused` — a tool error the agent can
- * read (arguments, role, budget, a refusal the engine answered) or a
- * protocol error; `error` — an unexpected failure (`INTERNAL_ERROR`). */
+ * read (arguments, role, budget, a database that is restarting, a refusal
+ * the engine answered) or a protocol error; `error` — an unexpected failure
+ * (`INTERNAL_ERROR`). */
 export type McpCallOutcome = 'ok' | 'refused' | 'error';
 
 /** One answered call, as the protocol layer reports it. */

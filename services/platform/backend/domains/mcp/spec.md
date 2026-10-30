@@ -508,12 +508,27 @@ never repeated back. Nothing runs.
 
 A refusal the engine or a store throws instead of answering is still a tool error with its own code
 and sentence; a structured refusal is answered in its own words, never as its serialized payload.
-Anything else that goes wrong is answered as `INTERNAL_ERROR` with the request id the agent can
-quote, and the error itself is logged and reported on the server, never sent to the agent.
+Anything else that goes wrong, but a database that is not answering (MCP-R43), is answered as
+`INTERNAL_ERROR` with the request id the agent can quote, and the error itself is logged and
+reported on the server, never sent to the agent.
 
-- **Example**: Ada's agent cancels a run while the database is unreachable → the answer is
-  `INTERNAL_ERROR` with `data.requestId`, and nothing about the database; the operator finds the
-  error under that request id.
+- **Example**: Ada's agent cancels a run and the run store fails on a bug → the answer is
+  `INTERNAL_ERROR` with `data.requestId`, and nothing about the bug; the operator finds the error
+  under that request id.
+
+### MCP-R43 · A call the database could not serve answers a wait and is never reported
+
+While the platform's database restarts, fails over or cannot be reached, a call that needed it is
+answered `DATABASE_UNAVAILABLE` with how long to wait (`data.retryAfterMs`: the five seconds the
+REST API's `Retry-After` names for the same outage), never `INTERNAL_ERROR`, so the agent waits and
+calls again without asking a person. A settings change stops there and says what landed before it
+(MCP-R11). A resource or a prompt read meanwhile is refused with the same code, as `-32603`, never
+as "resource not found". The server logs one warning line and reports nothing to the error tracker,
+as the REST API does for its `503`; any other failure stays a fault (MCP-R8).
+
+- **Example**: Ada's agent reads a run while Tale's database restarts for an upgrade → the answer is
+  `DATABASE_UNAVAILABLE` with a five-second wait; the agent waits, reads the run, and the
+  operator's error tracker shows nothing for it.
 
 ## Requests and batches
 

@@ -12,7 +12,9 @@
  * Resources have no `isError`: a refusal becomes a JSON-RPC error — an
  * address that reads nothing is -32002 (resource not found) with the
  * refusal's own code under `data.code`, an address that cannot be one is
- * -32602, and a fault is -32603 with the request id.
+ * -32602, and a fault is -32603 with the request id. A database that is not
+ * answering is -32603 too, with its code and the wait (`data.retryAfterMs`):
+ * it says nothing about the address.
  */
 
 import { z } from 'zod';
@@ -74,10 +76,14 @@ const refusalShape = z.looseObject({
   data: z.record(z.string(), z.unknown()).optional(),
 });
 
+/** How a read that could not be made is answered. */
+const INTERNAL = { code: -32603, label: 'Internal error' };
+
 /**
  * A tool answer that refused, as the JSON-RPC error a resource or prompt
  * method answers: arguments the address could not supply are -32602, a
- * fault is -32603 with its request id, and every other refusal — a name
+ * fault is -32603 with its request id, a database that is not answering is
+ * -32603 with the wait beside its code, and every other refusal — a name
  * nobody saved, a run that does not exist, an automation the person cannot
  * see — is `otherwise` (for a read, -32002 "Resource not found") with the
  * refusal's code and words.
@@ -90,8 +96,8 @@ function refusalAsError(
   const refusal = refusalShape.safeParse(answer.value);
   if (answer.outcome === 'error' || !refusal.success) {
     return methodError(
-      -32603,
-      'Internal error: the read failed unexpectedly',
+      INTERNAL.code,
+      `${INTERNAL.label}: the read failed unexpectedly`,
       {
         ...context,
         code: refusal.success ? refusal.data.code : 'INTERNAL_ERROR',
@@ -101,6 +107,15 @@ function refusalAsError(
     );
   }
   const { error, code, hint, data } = refusal.data;
+  // Not "not found": the address may well read once the database answers.
+  if (code === 'DATABASE_UNAVAILABLE') {
+    return methodError(INTERNAL.code, `${INTERNAL.label}: ${error}`, {
+      ...context,
+      code,
+      ...(hint === undefined ? {} : { hint }),
+      ...data,
+    });
+  }
   const invalid = code === 'INVALID_ARGUMENTS';
   return methodError(
     invalid ? -32602 : otherwise.code,
@@ -264,11 +279,7 @@ export async function listResources(
   const reply = await callTool(caller, tool, {}, context);
   if (reply.kind === 'admission') return reply;
   if (reply.answer.result.isError) {
-    return refusalAsError(
-      reply.answer,
-      { code: -32603, label: 'Internal error' },
-      {},
-    );
+    return refusalAsError(reply.answer, INTERNAL, {});
   }
   const parsed = automationsShape.safeParse(reply.answer.value);
   const names = (parsed.success ? parsed.data.automations : [])

@@ -26,6 +26,7 @@ import { MCP_SERVER_INFO } from '../../../lib/mcp/server';
 import { MCP_TOOLS } from '../../../lib/mcp/tools';
 import { API_CONTRACT_VERSION } from '../../../lib/shared/constants/api-contract';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { reportError } from '../../error-reporting';
 import { currentRequestChannel } from '../../lib/request-channel';
 import type { McpCaller } from './caller';
 import {
@@ -33,6 +34,13 @@ import {
   MAX_BATCH_MESSAGES,
   type McpRequestOptions,
 } from './protocol';
+
+// A fault reaches the error tracker through this; a database that is not
+// answering never does (MCP-R43).
+vi.mock('../../error-reporting', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../error-reporting')>()),
+  reportError: vi.fn(),
+}));
 
 const ORG = 'org_mcp_1';
 const USER = 'user_mcp_1';
@@ -655,6 +663,7 @@ describe('tools/call — the engine surface', () => {
 
   it('answers a fault with the request id only, and reports it server-side [MCP-R8]', async () => {
     const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(reportError).mockClear();
     const fault = new Error('connect ECONNREFUSED 10.0.0.7:5432');
     const response = await handleMcpRequest(
       { ...keyCaller(), requestId: 'req-fault' },
@@ -687,11 +696,19 @@ describe('tools/call — the engine surface', () => {
       expect.stringContaining('req-fault'),
       fault,
     );
+    expect(reportError).toHaveBeenCalledExactlyOnceWith(fault, {
+      tags: { 'mcp.tool': 'get_run' },
+      extra: { requestId: 'req-fault' },
+    });
     quiet.mockRestore();
   });
 
-  it("answers Ada's cancel while the database is unreachable as INTERNAL_ERROR through the real dispatch, counted as a failure [MCP-R8]", async () => {
+  // A refused socket counts as the database only on a database client's
+  // query (postgres.js stamps its own): this one names no client, so it may
+  // be a model provider's or the sandbox's, and stays a fault.
+  it("answers Ada's cancel as INTERNAL_ERROR through the real dispatch when a refused socket names no database client, counted as a failure [MCP-R8]", async () => {
     const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.mocked(reportError).mockClear();
     const fault = Object.assign(
       new Error(
         'connect ECONNREFUSED 10.0.0.5:5432 password authentication failed for user "tale_app"',
@@ -752,7 +769,130 @@ describe('tools/call — the engine surface', () => {
       expect.stringContaining('req-down'),
       fault,
     );
+    expect(reportError).toHaveBeenCalledOnce();
     quiet.mockRestore();
+  });
+});
+
+describe('tools/call — a database that is not answering [MCP-R43]', () => {
+  /** What a statement in flight is refused with while the database
+   * restarts. */
+  const restart = () =>
+    Object.assign(
+      new Error('terminating connection due to administrator command'),
+      { code: '57P01' },
+    );
+
+  it('answers the wait the REST door answers, logged as one warning and never reported', async () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const failed = vi.spyOn(console, 'error');
+    vi.mocked(reportError).mockClear();
+    const recorded: unknown[] = [];
+    const response = await handleMcpRequest(
+      { ...keyCaller(), requestId: 'req-restart' },
+      rpc({
+        jsonrpc: '2.0',
+        id: 11,
+        method: 'tools/call',
+        params: { name: 'get_run', arguments: { runId: 'r1' } },
+      }),
+      {
+        host: {
+          engine: vi.fn().mockRejectedValue(restart()),
+          platform: vi.fn(),
+          capability: vi.fn(),
+        },
+        observe: async (record) => {
+          recorded.push(record);
+        },
+      },
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every JSON-RPC body is an object
+    const payload = (await response.json()) as Record<string, unknown>;
+    expect(response.status).toBe(200);
+    expect(isErrorFlag(payload)).toBe(true);
+    expect(refusalOf(payload)).toEqual({
+      error:
+        'get_run could not reach the platform’s database, which is not answering right now — it may be restarting; retry in 5 s',
+      code: 'DATABASE_UNAVAILABLE',
+      hint: 'wait data.retryAfterMs, then call again',
+      data: { retryAfterMs: 5000, requestId: 'req-restart' },
+    });
+    expect(resultText(payload)).not.toContain('administrator command');
+    // A wait the agent acts on, counted as a refusal — not a failure.
+    expect(recorded).toEqual([
+      expect.objectContaining({
+        method: 'tools/call',
+        tool: 'get_run',
+        outcome: 'refused',
+        code: 'DATABASE_UNAVAILABLE',
+      }),
+    ]);
+    expect(warned).toHaveBeenCalledExactlyOnceWith(
+      '[mcp] database unavailable — get_run (request req-restart): 57P01 terminating connection due to administrator command',
+    );
+    expect(failed).not.toHaveBeenCalled();
+    expect(reportError).not.toHaveBeenCalled();
+    warned.mockRestore();
+    failed.mockRestore();
+  });
+
+  it("answers Ada's cancel through the real dispatch when the database refuses the store's connection", async () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const failed = vi.spyOn(console, 'error');
+    vi.mocked(reportError).mockClear();
+    // postgres.js stamps every query it rejects — a refused connection
+    // included — with the statement and its parameters.
+    const refused = Object.assign(
+      new Error('connect ECONNREFUSED 10.0.0.5:5432'),
+      {
+        code: 'ECONNREFUSED',
+        query: 'UPDATE app.automation_runs SET status = $1 WHERE id = $2',
+        parameters: ['cancelled', 'run_1'],
+      },
+    );
+    const store: DispatchStore = {
+      list: async () => [],
+      get: async () => null,
+      deployedVersion: async () => null,
+      save: async () => ({ name: 'x', version: 1 }),
+      deploy: async () => ({ name: 'x', version: 1 }),
+      cancelRun: async () => {
+        throw refused;
+      },
+    };
+    const response = await handleMcpRequest(
+      { ...keyCaller(), requestId: 'req-refused' },
+      rpc({
+        jsonrpc: '2.0',
+        id: 12,
+        method: 'tools/call',
+        params: { name: 'cancel_run', arguments: { runId: 'run_1' } },
+      }),
+      {
+        host: {
+          engine: async (_caller, method, params) =>
+            engineDispatch(method, params, { store }),
+          platform: vi.fn(),
+          capability: vi.fn(),
+        },
+      },
+    );
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every JSON-RPC body is an object
+    const payload = (await response.json()) as Record<string, unknown>;
+    expect(isErrorFlag(payload)).toBe(true);
+    expect(refusalOf(payload)).toMatchObject({
+      code: 'DATABASE_UNAVAILABLE',
+      data: { retryAfterMs: 5000, requestId: 'req-refused' },
+    });
+    for (const leaked of ['ECONNREFUSED', '10.0.0.5', 'automation_runs']) {
+      expect(JSON.stringify(payload)).not.toContain(leaked);
+    }
+    expect(warned).toHaveBeenCalledOnce();
+    expect(failed).not.toHaveBeenCalled();
+    expect(reportError).not.toHaveBeenCalled();
+    warned.mockRestore();
+    failed.mockRestore();
   });
 });
 
