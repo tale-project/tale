@@ -573,6 +573,8 @@ describe.each(['Board', 'List'])('%s with thousands of tasks', (layout) => {
     }
     const said = recordAnnouncements();
     screen.getByRole('button', { name: carry.source }).focus();
+    // Each key waits for the region to speak: the List's 32 steps outlast the
+    // 15s browser default on a loaded runner, hence the 30s ceiling below.
     for (const key of [' ', ...carry.keys]) {
       const before = said.lines.length;
       await userEvent.keyboard(key);
@@ -590,7 +592,7 @@ describe.each(['Board', 'List'])('%s with thousands of tasks', (layout) => {
       .toBe(carry.source);
     said.stop();
     expect(mutations.move).not.toHaveBeenCalled();
-  });
+  }, 30_000);
 });
 
 it.each([400, 1280])(
