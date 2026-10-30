@@ -75,7 +75,7 @@ export function testFieldName(t: Translate, field: string): string {
 /** The fields a change names, in words and in the reader's list form:
  * "Prompt and model". A node's fields are named the way its inspector
  * labels them; `nameOf` names another kind of field, such as a test's. */
-export function fieldList(
+function fieldList(
   fields: readonly FieldChange[],
   ctx: { t: Translate; locale: string },
   nameOf: (t: Translate, field: string) => string = fieldName,
