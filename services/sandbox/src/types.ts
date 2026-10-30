@@ -285,8 +285,9 @@ export interface SessionConfig {
   /** Memory admission always leaves free on the host (SANDBOX_MIN_FREE_MEMORY);
    * unset is a tenth of the host, at least 1 GiB. */
   minFreeMemoryBytes?: number;
-  /** CPU pressure (the host's PSI `some avg10`, in percent) at and above
-   * which admission lets sessions start only one at a time
+  /** CPU pressure (the host's PSI `some avg10`, in percent, counted as far
+   * as its CPUs are busy) at and above which admission lets sessions start
+   * only one at a time
    * (SANDBOX_CPU_PRESSURE_PERCENT; 0 turns the gate off); unset is 60. Read
    * where the host's memory is. */
   cpuPressurePercent?: number;

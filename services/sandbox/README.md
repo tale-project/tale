@@ -109,9 +109,9 @@ operator must size it from measured peaks. An impossible memory reserve (at or a
 total host memory) fails adaptive sizing at boot when the host is readable, or
 is reported when sizing is retried later. While the host is under pressure by
 the deployment's admission preset — under `default` its CPU pressure (PSI
-`some avg10` of `/proc/pressure/cpu`) at or above
-`SANDBOX_CPU_PRESSURE_PERCENT` (60; `0` turns it off), under `conservative`
-also its load per CPU and its memory and I/O pressure (see
+`some avg10` of `/proc/pressure/cpu`, counted only as far as its CPUs are
+busy) at or above `SANDBOX_CPU_PRESSURE_PERCENT` (60; `0` turns it off), under
+`conservative` also its load per CPU and its memory and I/O pressure (see
 [Host admission](#host-admission)) — creates and warm acquisitions start one
 at a time, one every ten seconds from the front of the line, and the rest
 answer 429 `host_cpu`, or `host_pressure` where load, memory or I/O presses
@@ -244,8 +244,9 @@ for release ordering and failure handling.
 
 Where the spawner can read the Docker host's memory, it also samples the
 host's pressure every five seconds into a ring of the last two minutes: the
-one-minute load average per online CPU and the kernel's CPU, memory and I/O
-pressure stall shares (`src/host-pressure.ts`, the only reader of
+one-minute load average per online CPU, the kernel's CPU, memory and I/O
+pressure stall shares, and the CPU time the host spent and left idle, from
+`/proc/stat` (`src/host-pressure.ts`, the only reader of
 `/proc/pressure`). One admission service judges those readings for every
 question (`src/host-admission.ts`; the verdict itself is the pure
 `src/host-pressure-assessment.ts`): two readings at least ten seconds apart,
@@ -256,6 +257,18 @@ thresholds — `default`, the CPU alone at `SANDBOX_CPU_PRESSURE_PERCENT`, or
 pressure — and `SANDBOX_ADMISSION_LOAD_PER_CPU`, `SANDBOX_ADMISSION_CPU_PSI`,
 `SANDBOX_ADMISSION_MEMORY_PSI`, `SANDBOX_ADMISSION_IO_PSI` and
 `SANDBOX_ADMISSION_RECOVER` override them.
+
+The CPU signal measures contention for the host's CPUs, not the sessions' own
+quotas: the CPU stall counts only as far as the host's CPUs were busy between
+the two readings (`/proc/stat`), in full from 90 % busy, not at all at 80 % or
+less, in proportion between. A task its session's CPU quota
+(`SANDBOX_AGENT_CPUS`) holds back stays runnable, and the kernel counts it as
+stalled until its next quota period, beside an idle CPU as much as behind a
+busy one: one session building at its quota reads as most of the host's time
+stalled while most of its CPUs sit idle. A throttled task does not run, so it
+cannot raise the busy share. A stall beside idle CPUs therefore holds neither
+a start nor a lease, while a host whose CPUs are all busy is judged by its
+stall as before; where the CPU time cannot be read, the stall counts as read.
 
 `GET /v1/admission?organizationId=&kind=start|heavy&preset=` tells the
 platform, always with a 200, whether the host takes more work now: the

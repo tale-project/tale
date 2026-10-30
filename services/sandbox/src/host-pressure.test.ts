@@ -22,6 +22,9 @@ function sampler(scenario: {
     '/proc/pressure/cpu': () => psi('12.50'),
     '/proc/pressure/memory': () => psi('0.40'),
     '/proc/pressure/io': () => psi('3.00'),
+    // 10,000 ticks of CPU time, 6,000 of them idle or waiting for I/O.
+    '/proc/stat': () =>
+      'cpu  3000 0 1000 5000 1000 0 0 0 0 0\ncpu0 3000 0 1000 5000 1000 0 0 0 0 0\n',
     ...scenario.files,
   };
   let judged = 0;
@@ -43,7 +46,7 @@ function sampler(scenario: {
 }
 
 describe('HostPressureSampler', () => {
-  test('reads the load, the CPUs online and the three pressure stall shares of a local host', async () => {
+  test('reads the load, the CPUs online, the three pressure stall shares and the CPU time of a local host', async () => {
     const now = 1_000_000;
     const { instance, reads } = sampler({ now: () => now });
     expect(instance.describesHost()).toBeNull();
@@ -57,6 +60,8 @@ describe('HostPressureSampler', () => {
         cpuPsi: 12.5,
         memoryPsi: 0.4,
         ioPsi: 3,
+        cpuTicks: 10_000,
+        idleTicks: 6_000,
       },
     ]);
     expect(reads.toSorted()).toEqual([
@@ -64,6 +69,7 @@ describe('HostPressureSampler', () => {
       '/proc/pressure/cpu',
       '/proc/pressure/io',
       '/proc/pressure/memory',
+      '/proc/stat',
       '/sys/devices/system/cpu/online',
     ]);
   });
@@ -122,6 +128,7 @@ describe('HostPressureSampler', () => {
           // A kernel booted with psi=0 keeps the file without the line.
           '/proc/pressure/io': () => '',
           '/sys/devices/system/cpu/online': () => 'garbage',
+          '/proc/stat': () => 'cpu broken\n',
         },
       });
       await instance.sample();
@@ -134,6 +141,8 @@ describe('HostPressureSampler', () => {
         cpuPsi: 12.5,
         memoryPsi: null,
         ioPsi: null,
+        cpuTicks: null,
+        idleTicks: null,
       });
       const said = warn.mock.calls.map((call) => String(call[0]));
       expect(
@@ -145,6 +154,7 @@ describe('HostPressureSampler', () => {
       expect(said.filter((line) => line.includes('online CPUs'))).toHaveLength(
         1,
       );
+      expect(said.filter((line) => line.includes('CPU time'))).toHaveLength(1);
     } finally {
       warn.mockRestore();
     }

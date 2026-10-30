@@ -11,6 +11,18 @@
 // over a threshold presses the host. Once pressed, the host stays pressed
 // until the score falls below the recover share of the thresholds: a host
 // that just dropped under a threshold is not admitted straight back over it.
+//
+// The CPU stall counts only as far as the host's CPUs were busy between the
+// two readings. A task its session's CPU quota holds back stays runnable, so
+// the kernel counts it as stalled while it waits for its next quota period —
+// beside an idle CPU as much as behind a busy one. One session building at
+// its quota reads as a stall of most of the host's time while most of its
+// CPUs sit idle. A task that could run would take an idle CPU, so a stall
+// beside idle CPUs is the sessions' quotas, not contention for the host's
+// CPUs; the busy share (/proc/stat) cannot be raised by a throttled task,
+// which does not run.
+
+import { busyCpuShare } from './proc-stats.ts';
 
 /** One reading of the host, as the pressure sampler takes it every few
  * seconds. Every value is null when it could not be read, never 0. */
@@ -25,6 +37,10 @@ export interface HostPressureReading {
   cpuPsi: number | null;
   memoryPsi: number | null;
   ioPsi: number | null;
+  /** The CPU time the host has spent since boot and the idle part of it, in
+   * clock ticks (the `cpu` line of /proc/stat; I/O wait counts as idle). */
+  cpuTicks: number | null;
+  idleTicks: number | null;
 }
 
 export type AdmissionPresetName = 'default' | 'conservative';
@@ -65,6 +81,14 @@ export const CONSERVATIVE_THRESHOLDS: PressureThresholds = {
   ioPsi: 10,
   recover: DEFAULT_RECOVER,
 };
+
+/** The CPU stall counts in full where the host's CPUs were busy at least
+ * this share of their time between the two readings (percent)… */
+const CPU_CONTENDED_PERCENT = 90;
+/** …not at all at this share or less, where a fifth of their time sat idle,
+ * and in proportion between, so the score moves smoothly with the busy
+ * share. */
+const CPU_IDLE_ROOM_PERCENT = 80;
 
 /** The two readings of a verdict lie at least this far apart… */
 const MIN_SPAN_MS = 10_000;
@@ -160,11 +184,51 @@ function signalThreshold(
   return thresholds[THRESHOLD_FIELD[signal]];
 }
 
-/** A reading's value of one signal; the load counts per online CPU. */
+/** The share of the host's CPU time that was busy between two readings, in
+ * percent; null where either lacks the counters or they went backwards. */
+function cpuBusyPercent(
+  first: HostPressureReading,
+  last: HostPressureReading,
+): number | null {
+  const { cpuTicks: totalBefore, idleTicks: idleBefore } = first;
+  const { cpuTicks: totalAfter, idleTicks: idleAfter } = last;
+  if (
+    totalBefore === null ||
+    idleBefore === null ||
+    totalAfter === null ||
+    idleAfter === null
+  ) {
+    return null;
+  }
+  const share = busyCpuShare(
+    { total: totalBefore, idle: idleBefore },
+    { total: totalAfter, idle: idleAfter },
+  );
+  return share === null ? null : share * 100;
+}
+
+/** How much of the CPU stall counts at a busy share: none while the host had
+ * idle CPUs to spare, all of it once they were nearly all busy. An unknown
+ * busy share counts the stall as it reads. */
+function contendedShare(busyPercent: number | null): number {
+  if (busyPercent === null) return 1;
+  const share =
+    (busyPercent - CPU_IDLE_ROOM_PERCENT) /
+    (CPU_CONTENDED_PERCENT - CPU_IDLE_ROOM_PERCENT);
+  return Math.min(1, Math.max(0, share));
+}
+
+/** A reading's value of one signal: the load counts per online CPU, and the
+ * CPU stall by the share of it that `cpuShare` says the busy CPUs account
+ * for. */
 function signalValue(
   reading: HostPressureReading,
   signal: PressureSignal,
+  cpuShare: number,
 ): number | null {
+  if (signal === 'cpu') {
+    return reading.cpuPsi === null ? null : reading.cpuPsi * cpuShare;
+  }
   if (signal !== 'load') return reading[PSI_FIELD[signal]];
   const { load1, cpus } = reading;
   return load1 === null || cpus === null || cpus <= 0 ? null : load1 / cpus;
@@ -194,6 +258,10 @@ export interface PressureAssessment {
   evidence: {
     first: HostPressureReading | null;
     last: HostPressureReading | null;
+    /** The share of the host's CPU time that was busy between the two
+     * readings, in percent, which decides how much of the CPU stall counts;
+     * null when it is not known. */
+    cpuBusy: number | null;
     signals: Record<PressureSignal, SignalEvidence>;
   };
 }
@@ -266,7 +334,13 @@ export function assessHostPressure(
     pressured: reason === null ? false : input.pressured,
     score: null,
     retryAfterMs,
-    evidence: { first, last, signals },
+    evidence: {
+      first,
+      last,
+      cpuBusy:
+        first === null || last === null ? null : cpuBusyPercent(first, last),
+      signals,
+    },
   });
   if (enabled.length === 0) return unjudged(null, null, null, null);
 
@@ -280,11 +354,13 @@ export function assessHostPressure(
 
   // A signal switched on that either reading lacks leaves the host unjudged:
   // judging it on the others would read an unknown as no pressure.
+  const cpuBusy = cpuBusyPercent(first, last);
+  const cpuShare = contendedShare(cpuBusy);
   const values = enabled.map(({ signal, threshold }) => ({
     signal,
     threshold,
-    before: signalValue(first, signal),
-    after: signalValue(last, signal),
+    before: signalValue(first, signal, cpuShare),
+    after: signalValue(last, signal, cpuShare),
   }));
   if (values.some(({ before, after }) => before === null || after === null)) {
     return unjudged('unavailable', UNAVAILABLE_RETRY_MS, first, last);
@@ -297,7 +373,7 @@ export function assessHostPressure(
   }
   const pressured =
     score >= 1 || (input.pressured && score >= thresholds.recover);
-  const evidence = { first, last, signals };
+  const evidence = { first, last, cpuBusy, signals };
   if (pressured) {
     return {
       verdict: 'hold',

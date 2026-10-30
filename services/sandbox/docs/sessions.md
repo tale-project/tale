@@ -623,11 +623,13 @@ hard aggregate memory limit on already-running work.
 Where that memory reading is trusted, the spawner also samples the host's
 pressure every five seconds into a ring of the last two minutes
 (`host-pressure.ts`): the one-minute load average with the CPUs online
-(`/proc/loadavg`, `/sys/devices/system/cpu/online`) and the kernel's pressure
+(`/proc/loadavg`, `/sys/devices/system/cpu/online`), the kernel's pressure
 stall shares, `some avg10` of `/proc/pressure/cpu`, `memory` and `io` — the
 share of the last ten seconds in which some task waited for a CPU, for
-memory, or for I/O. It is the only reader of those files. Admission judges
-them by the deployment's preset (`SANDBOX_ADMISSION_PRESET`, see
+memory, or for I/O — and the CPU time the host has spent and left idle (the
+`cpu` line of `/proc/stat`). It is the only reader of those files but
+`/proc/stat`. Admission judges them by the deployment's preset
+(`SANDBOX_ADMISSION_PRESET`, see
 [host admission](#host-admission-and-heavy-phase-leases)): `default` watches
 the CPU alone, at `SANDBOX_CPU_PRESSURE_PERCENT` (60; `0` turns the check
 off), and `conservative` adds load per CPU, memory and I/O. While the host is
@@ -743,7 +745,14 @@ most thirty seconds old. The score is the worst ratio of a reading to its
 threshold across both readings and every signal the thresholds switch on: a
 score of 1 presses the host, and a pressed host stays pressed until the score
 falls below the recover share of the thresholds (half unless
-`SANDBOX_ADMISSION_RECOVER` says otherwise). The hysteresis of each set of
+`SANDBOX_ADMISSION_RECOVER` says otherwise). The CPU stall counts only as far
+as the host's CPUs were busy between the two readings: in full from 90 % of
+their time, not at all at 80 % or less, in proportion between. A task its
+session's CPU quota holds back stays runnable and reads to the kernel as
+stalled even beside idle CPUs, but it does not run, so it cannot raise the
+busy share: the CPU signal measures contention for the host's CPUs, not the
+sessions' quotas. Where the busy share cannot be had (counters missing, or
+gone backwards), the stall counts as read. The hysteresis of each set of
 thresholds follows every new reading, not the moments someone asks. Too few
 or too old readings are `stale`; no readings, or a signal switched on that a
 reading lacks, are `unavailable`.
@@ -776,7 +785,7 @@ signed like the session routes, always answers 200 (a malformed question is a
   preset: 'default' | 'conservative',          // the preset judged by
   observedAtMs: number,                        // when the spawner decided
   evidence: {
-    pressure: { first, last, score, pressured, thresholds },
+    pressure: { first, last, cpuBusy, score, pressured, thresholds },
     memory: { availableBytes, reserveBytes, totalBytes } | null,
     disk: { freeBytes, floorBytes, short } | null,
     sessions: { running, starting, limit },
@@ -785,7 +794,10 @@ signed like the session routes, always answers 200 (a malformed question is a
 
 A hold carries a `retry-after` header in whole seconds, rounded up. `first`
 and `last` are the readings judged (`{ atMs, load1, cpus, cpuPsi, memoryPsi,
-ioPsi }`, every value null when it could not be read), `thresholds` the
+ioPsi, cpuTicks, idleTicks }`, every value null when it could not be read;
+the two counters are the host's CPU time since boot and the part of it
+spent idle, in clock ticks), `cpuBusy` the percent of the CPU time between
+them that was busy (null when the counters cannot tell), `thresholds` the
 effective ones. `kind=start`, the default, asks whether to start more work:
 it holds for `disk` or `memory` where session admission would refuse an agent
 session's create now (asking again after 60 s and 15 s), for `pressure`

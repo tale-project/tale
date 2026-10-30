@@ -37,6 +37,8 @@ function host(initial: Values = {}) {
       cpuPsi: 1,
       memoryPsi: 0,
       ioPsi: 0,
+      cpuTicks: null,
+      idleTicks: null,
       ...values,
     });
   };
@@ -304,6 +306,7 @@ describe('the admission answer', () => {
         pressure: {
           first: expect.objectContaining({ atMs: NOW }),
           last: expect.objectContaining({ atMs: NOW + 10_000 }),
+          cpuBusy: null,
           score: 1 / 60,
           pressured: false,
           thresholds: instance.settings.thresholds,
@@ -491,6 +494,38 @@ describe('heavy-phase leases', () => {
         evidence: { pressure: { pressured: true } },
       },
     );
+  });
+
+  test("a stall of sessions held back by their CPU quota lets starts and leases in while the host's CPUs idle, not once they are busy", () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      // Four CPUs read fifteen seconds apart spend 6,000 ticks; the
+      // stall reads 88 % either way.
+      const at = (idleTicks: number) => {
+        const h = host({ cpuPsi: 88, cpuTicks: 0, idleTicks: 0 });
+        const { instance } = admission(config(), { host: h });
+        h.tick({ cpuPsi: 88, cpuTicks: 6_000, idleTicks });
+        return instance;
+      };
+      const idle = at(2_400);
+      expect(idle.startPressure()).toEqual({ pressured: false, signal: null });
+      expect(idle.acquireLease('ses-1', LEASE, ROOMY.sessions)).toMatchObject({
+        granted: true,
+      });
+      expect(warn).not.toHaveBeenCalled();
+      const busy = at(0);
+      expect(busy.startPressure()).toEqual({ pressured: true, signal: 'cpu' });
+      expect(busy.acquireLease('ses-1', LEASE, ROOMY.sessions)).toMatchObject({
+        granted: false,
+        reason: 'pressure',
+        evidence: { pressure: { cpuBusy: 100, pressured: true } },
+      });
+      expect(String(warn.mock.calls[0]?.[0])).toContain(
+        'cpu at 147% of its 60 threshold, its CPUs 100% busy',
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   test('a host that cannot be judged refuses', () => {

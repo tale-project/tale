@@ -33,15 +33,25 @@ export function parseCpuCounters(stat: string): CpuCounters | null {
   };
 }
 
+/** The busy part of the CPU time between two counters, from 0 to 1; null
+ * where they did not move forward or went backwards (a reset). */
+export function busyCpuShare(
+  before: Pick<CpuCounters, 'total' | 'idle'>,
+  after: Pick<CpuCounters, 'total' | 'idle'>,
+): number | null {
+  const total = after.total - before.total;
+  const idle = after.idle - before.idle;
+  if (total <= 0 || idle < 0 || idle > total) return null;
+  return (total - idle) / total;
+}
+
 export function usedCpuCores(
   before: CpuCounters | null,
   after: CpuCounters,
 ): number | null {
   if (before === null || before.cores !== after.cores) return null;
-  const total = after.total - before.total;
-  const idle = after.idle - before.idle;
-  if (total <= 0 || idle < 0 || idle > total) return null;
-  return ((total - idle) / total) * after.cores;
+  const share = busyCpuShare(before, after);
+  return share === null ? null : share * after.cores;
 }
 
 /** MemAvailable includes reclaimable cache; MemFree alone exaggerates usage. */
