@@ -203,14 +203,15 @@ describe('VersionComparePage', () => {
     await waitFor(
       () => expect(within(panel).getByText('Summarize')).toBeVisible(),
       // The suite runs beside other heavy ones: the settling can take longer
-      // than the default second.
+      // than the default second, and the test's 15s ceiling leaves it room
+      // (the 5s default ended the test while the panel was still settling).
       { timeout: 10_000 },
     );
     renderPage(2, { node: 'collect' });
     expect(
       screen.getAllByText('This node did not change.').at(-1),
     ).toBeVisible();
-  });
+  }, 15_000);
 
   it('says when two versions do not differ, and when only the message does', () => {
     renderPage(4);
