@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test';
-import { CLIENT_PAGE_SNAPSHOT, gotoClientPage } from '@tale/e2e/client-page';
+import { gotoClientPage } from '@tale/e2e/client-page';
 import { createI18n } from '@tale/e2e/i18n';
+
+import { gotoClientPageWithLateBody } from '../helpers/late-page-body';
 
 /** Enter on the first framed screenshot opens it full size; Escape closes it
  * and hands focus back to the image. */
@@ -43,73 +45,29 @@ for (const locale of ['en', 'de', 'fr'] as const) {
       page,
     }) => {
       await page.setViewportSize({ width: 390, height: 844 });
-      await page.addInitScript(() => {
-        const gate = new Promise<void>((resolve) => {
-          window.addEventListener('release-page-body', () => resolve(), {
-            once: true,
-          });
-        });
-        Object.assign(window, { testPageBodyGate: gate });
-      });
-      const requested = Promise.withResolvers<void>();
-      // main.tsx renders only after the `$.tsx` loader has imported this
-      // page's Markdown chunk. Hold the chunk's evaluation, not its fetch, so
-      // `load` fires while #root still holds the document's own markup.
-      await page.route(
+      const prerendered = await gotoClientPageWithLateBody(
+        page,
+        documentsPath,
         /\/assets\/documents-[^/]+\.js(?:\?|$)/,
-        async (route) => {
-          const response = await route.fetch();
-          const headers = { ...response.headers() };
-          delete headers['content-encoding'];
-          delete headers['content-length'];
-          await route.fulfill({
-            response,
-            headers,
-            body: `await window.testPageBodyGate;\n${await response.text()}`,
-          });
-          requested.resolve();
+        async () => {
+          // The complete build CI previews already shows a prerendered figure
+          // here (vite preview answers this URL with the root page's
+          // prerender), whose image button has no handlers: Enter on it
+          // opened nothing (#4536).
+          const button = page
+            .locator('main figure')
+            .first()
+            .getByRole('button');
+          return (await button.count()) > 0 ? button.elementHandle() : null;
         },
       );
-
-      let committed = false;
-      const navigation = gotoClientPage(page, documentsPath).then(() => {
-        committed = true;
-      });
-      try {
-        await requested.promise;
-        // Negative control: `load` is not the client commit. The complete
-        // build CI previews already shows a prerendered figure here (vite
-        // preview answers this URL with the root page's prerender), whose
-        // image button has no handlers: Enter on it opened nothing (#4536).
-        await page.waitForLoadState('load');
-        expect(committed).toBe(false);
-        await expect(page.locator(CLIENT_PAGE_SNAPSHOT)).toBeAttached();
-        const button = page.locator('main figure').first().getByRole('button');
-        const prerendered =
-          (await button.count()) > 0 ? await button.elementHandle() : null;
-
-        await page.evaluate(() =>
-          window.dispatchEvent(new Event('release-page-body')),
-        );
-        await navigation;
-        if (prerendered) {
-          // The commit replaced it, with whatever focus it held.
-          expect(await prerendered.evaluate((node) => node.isConnected)).toBe(
-            false,
-          );
-        }
-        await zoomFirstFigureWithKeyboard(page);
-      } finally {
-        // A failed step above leaves the gate shut and the navigation open.
-        await page
-          .evaluate(() => window.dispatchEvent(new Event('release-page-body')))
-          .catch((error: unknown) =>
-            console.warn('Could not release the held page body', error),
-          );
-        await navigation.catch((error: unknown) =>
-          console.warn('The held client navigation failed', error),
+      if (prerendered) {
+        // The commit replaced it, with whatever focus it held.
+        expect(await prerendered.evaluate((node) => node.isConnected)).toBe(
+          false,
         );
       }
+      await zoomFirstFigureWithKeyboard(page);
     });
 
     test('keeps long inline paths inside the phone viewport without changing their text', async ({
