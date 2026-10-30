@@ -839,3 +839,176 @@ describe('the stepper re-kicking a failed agent attempt', () => {
     });
   });
 });
+
+describe('the stepper holding the re-kick of a node whose sandbox ran out of memory', () => {
+  /** What an attempt the OOM killer ended settles. */
+  const outOfMemory = {
+    errored: true,
+    reason:
+      "The agent's sandbox ran out of memory: the kernel's OOM killer ended the agent.",
+    failureCode: 'resource_exhausted',
+    agentSessionId: 'conv-1',
+    text: '',
+    files: [],
+  };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** The cursor a park wrote, which the next turn of the run reads back. */
+  function parkedOrThrow(
+    suspended: Array<Record<string, unknown>>,
+  ): AgentCursor {
+    const agent = parkedCursor(suspended);
+    if (agent === undefined) throw new Error('the node did not park');
+    return agent;
+  }
+
+  it.each([
+    [0, 2],
+    [1, 10],
+    [2, 30],
+  ])(
+    'parks the node after attempt %i for %i minutes, kicking nothing and so writing no op row',
+    async (attempt, minutes) => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      const { ctx, kicks, suspended, finished } = harness(
+        parkedAttempt({ attempt, result: outOfMemory }),
+      );
+
+      await stepRunImpl(ctx, RUN);
+
+      expect(kicks).toEqual([]);
+      expect(finished).toEqual([]);
+      expect(suspended).toHaveLength(1);
+      expect(suspended[0]).toMatchObject({
+        detail: 'agent:repair',
+        resumeInMs: minutes * 60_000,
+        // Nothing is charged while the node waits.
+        executions: 1,
+      });
+      // The failed attempt stays parked with its settle: the stalled-turn
+      // sweep lists only turns without a result.
+      expect(parkedCursor(suspended)).toMatchObject({
+        execId: 'exec-1',
+        attempt,
+        rekickHeldSince: Date.now(),
+        result: { failureCode: 'resource_exhausted' },
+      });
+    },
+  );
+
+  it('waits 2, then 10, then 30 minutes over three failures in a row, re-kicking each time the hold ends', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    let failed = parkedAttempt({ result: outOfMemory });
+    const holds: number[] = [];
+    for (let retry = 1; retry <= 3; retry += 1) {
+      const held = harness(failed);
+      await stepRunImpl(held.ctx, RUN);
+      expect(held.kicks).toEqual([]);
+      const hold = Number(held.suspended[0]?.resumeInMs);
+      holds.push(hold);
+
+      // The hold's poll wakes the node: it re-kicks at once, counting the
+      // attempt.
+      vi.setSystemTime(Date.now() + hold);
+      const woken = harness(parkedOrThrow(held.suspended));
+      await stepRunImpl(woken.ctx, RUN);
+      expect(woken.kicks).toHaveLength(1);
+      expect(woken.kicks[0]).not.toHaveProperty('notBefore');
+      const next = parkedOrThrow(woken.suspended);
+      expect(next).toMatchObject({ execId: 'exec-2', attempt: retry });
+      expect(next).not.toHaveProperty('rekickHeldSince');
+
+      // The new attempt works a minute and runs out of memory too.
+      vi.setSystemTime(Date.now() + 60_000);
+      failed = {
+        ...next,
+        execId: `exec-oom-${retry}`,
+        launchedAt: Date.now() - 60_000,
+        result: outOfMemory,
+      };
+    }
+    expect(holds).toEqual([2 * 60_000, 10 * 60_000, 30 * 60_000]);
+  });
+
+  it('parks again for the rest of its hold when woken before it ends', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const heldSince = Date.now() - 60_000;
+    const { ctx, kicks, suspended } = harness(
+      parkedAttempt({
+        attempt: 1,
+        rekickHeldSince: heldSince,
+        result: outOfMemory,
+      }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toEqual([]);
+    expect(suspended[0]).toMatchObject({ resumeInMs: 9 * 60_000 });
+    expect(parkedCursor(suspended)).toMatchObject({
+      rekickHeldSince: heldSince,
+    });
+  });
+
+  it('re-kicks once the hold has passed, planning and recording the retry by the clock the hold began on', async () => {
+    // The third attempt ran a minute, then waited out its 30-minute hold:
+    // read as work, the hold would pass the progress threshold and refresh
+    // the budget, and the node would never run out of retries.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    const heldSince = Date.now() - 31 * 60_000;
+    const { ctx, kicks, suspended } = harness(
+      parkedAttempt({
+        attempt: 2,
+        launchedAt: heldSince - 60_000,
+        rekickHeldSince: heldSince,
+        result: outOfMemory,
+      }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toHaveLength(1);
+    expect(kicks[0]).not.toHaveProperty('notBefore');
+    expect(kicks[0]).toMatchObject({ resume: { agentSessionId: 'conv-1' } });
+    expect(suspended[0]).toMatchObject({
+      detail: 'agent:repair',
+      executions: 2,
+    });
+    expect(parkedCursor(suspended)).toMatchObject({
+      execId: 'exec-2',
+      attempt: 3,
+    });
+    expect(parkedCursor(suspended)).not.toHaveProperty('rekickHeldSince');
+    const rows = suspended[0]?.nodeRuns as
+      | Array<{ record: { nodeId: string; attempts: unknown[] } }>
+      | undefined;
+    const step = rows?.find((row) => row.record.nodeId === 'repair');
+    expect(step?.record.attempts).toEqual([
+      {
+        n: 3,
+        startedAt: heldSince,
+        endedAt: heldSince,
+        outcome: 'retried',
+        failureCode: 'resource_exhausted',
+      },
+    ]);
+  });
+
+  it('fails at once, without a hold, once the budget is spent', async () => {
+    const { ctx, kicks, suspended, finished } = harness(
+      parkedAttempt({ attempt: AUTO_RETRY_MAX_ATTEMPTS, result: outOfMemory }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toEqual([]);
+    expect(suspended).toEqual([]);
+    expect(finished[0]).toMatchObject({
+      status: 'failed',
+      failureCode: 'turn_crashed',
+    });
+  });
+});
