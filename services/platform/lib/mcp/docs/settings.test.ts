@@ -97,7 +97,12 @@ describe('the settings reference', () => {
     for (const code of listed) {
       expect(
         sources.includes(`'${code}'`) ||
-          ['FORBIDDEN', 'RATE_LIMITED', 'INTERNAL_ERROR'].includes(code),
+          [
+            'FORBIDDEN',
+            'RATE_LIMITED',
+            'DATABASE_UNAVAILABLE',
+            'INTERNAL_ERROR',
+          ].includes(code),
         code,
       ).toBe(true);
     }

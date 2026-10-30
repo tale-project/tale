@@ -126,6 +126,33 @@ describe('prompts/get [MCP-R24]', () => {
     );
   });
 
+  it('refuses a prompt while the database restarts, never saying the automation does not exist [MCP-R43]', async () => {
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const engine = vi.fn<Engine>(async () => {
+        throw Object.assign(
+          new Error('terminating connection due to administrator command'),
+          { code: '57P01' },
+        );
+      });
+      const { result, error } = await rpc(engine, 'prompts/get', {
+        name: 'edit_automation',
+        arguments: { name: 'hr/onboarding' },
+      });
+      expect(result).toBeUndefined();
+      expect(error).toMatchObject({
+        code: -32603,
+        data: {
+          code: 'DATABASE_UNAVAILABLE',
+          retryAfterMs: 5000,
+          uri: 'tale://automations/hr%2Fonboarding',
+        },
+      });
+    } finally {
+      warned.mockRestore();
+    }
+  });
+
   it('refuses a prompt whose run the caller cannot read, with the read’s own code', async () => {
     const engine = vi.fn<Engine>(async () => ({
       error: 'no run "run_9"',

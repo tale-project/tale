@@ -187,8 +187,9 @@ export function reportRequestError(err: Error, c: Context): void {
 
 /** The wait a request the database could not serve asks for, in seconds —
  * the edge's own `UPSTREAM_UNAVAILABLE` hint (services/proxy/Caddyfile): a
- * restart is usually over within seconds. */
-const DATABASE_RETRY_AFTER_SECONDS = 5;
+ * restart is usually over within seconds. An MCP call the database could not
+ * serve asks for the same (`domains/mcp/refusals.ts`). */
+export const DATABASE_RETRY_AFTER_SECONDS = 5;
 
 /**
  * The 503 a request answers when the database is unavailable

@@ -140,6 +140,10 @@ const REFUSALS: ReadonlyArray<readonly [code: string, meaning: string]> = [
     "apply_settings drew on the key holder's settings budget once too often: wait data.retryAfterMs.",
   ],
   [
+    'DATABASE_UNAVAILABLE',
+    "Tale's database is restarting: wait data.retryAfterMs, then read what landed with get_settings before applying again.",
+  ],
+  [
     'INTERNAL_ERROR',
     'A writer failed unexpectedly: read what landed with get_settings, and give data.requestId to whoever runs Tale.',
   ],

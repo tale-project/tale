@@ -11,6 +11,7 @@ import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { ConfigurationError } from '../../../core/lib/config_store/precondition';
+import { reportError } from '../../../error-reporting.ts';
 import { runInRequestChannel } from '../../../lib/request-channel';
 import type { McpCaller } from '../caller';
 import { applySettings } from './apply';
@@ -42,6 +43,13 @@ vi.mock('@tale/shared/schemas/settings-kinds', async (importOriginal) => {
   };
 });
 
+// A writer that broke is reported to the error tracker; one the database
+// could not serve never is (MCP-R43).
+vi.mock('../../../error-reporting.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../error-reporting.ts')>()),
+  reportError: vi.fn(),
+}));
+
 /** A fake stored secret: no answer may ever carry it. */
 const SENTINEL = 'SENTINEL-provider-secret-0001';
 
@@ -71,7 +79,8 @@ interface Fake {
  * Three kinds in memory: providers by name (one secret each), governance
  * policies by key, and the organization's one branding. Changing a policy
  * named `password_policy` may lock members out; a provider named
- * `refused` is refused by its writer, and one named `broken` breaks it.
+ * `refused` is refused by its writer, one named `broken` breaks it, and
+ * one named `restarting` meets a database that is restarting.
  */
 function fake(): Fake {
   const store = new Map<string, unknown>();
@@ -142,6 +151,12 @@ function fake(): Fake {
           );
         }
         if (id === 'broken') throw new Error('disk full at /var/lib/tale');
+        if (id === 'restarting') {
+          throw Object.assign(
+            new Error('terminating connection due to administrator command'),
+            { code: '57P01' },
+          );
+        }
         if ((resource(id)?.hash ?? null) !== expectedHash) {
           throw new ConfigurationError(
             'CONFIG_VERSION_CONFLICT',
@@ -905,6 +920,7 @@ describe('apply_settings', () => {
   it('answers a writer that broke with the request id alone, after what landed', async () => {
     const state = seeded();
     state.store.set('provider/broken', { name: 'broken' });
+    vi.mocked(reportError).mockClear();
     const logged = vi
       .spyOn(console, 'error')
       .mockImplementation(() => undefined);
@@ -942,6 +958,64 @@ describe('apply_settings', () => {
     });
     expect(JSON.stringify(answer)).not.toContain('disk full');
     expect(logged).toHaveBeenCalledOnce();
+    expect(reportError).toHaveBeenCalledExactlyOnceWith(expect.any(Error), {
+      tags: { 'mcp.settings.kind': 'provider' },
+    });
+  });
+
+  it('answers a writer the database could not serve with the wait, after what landed, and reports nothing [MCP-R43]', async () => {
+    const state = seeded();
+    state.store.set('provider/restarting', { name: 'restarting' });
+    vi.mocked(reportError).mockClear();
+    const warned = vi
+      .spyOn(console, 'warn')
+      .mockImplementation(() => undefined);
+    const failed = vi.spyOn(console, 'error');
+    const answer = await runInRequestChannel(
+      { via: 'mcp', requestId: 'req-10' },
+      () =>
+        applySettings(
+          contextFor(),
+          state.registry,
+          [
+            { kind: 'branding', op: 'set', config: { accentColor: '#000000' } },
+            {
+              kind: 'provider',
+              id: 'second',
+              op: 'set',
+              config: { name: 'second' },
+            },
+            {
+              kind: 'provider',
+              id: 'restarting',
+              op: 'set',
+              config: { name: 'restarting', x: 1 },
+            },
+          ],
+          {
+            branding: hashOf(state, 'branding'),
+            'provider/second': null,
+            'provider/restarting': hashOf(state, 'provider/restarting'),
+          },
+        ),
+    );
+    expect(answer).toMatchObject({
+      error:
+        'changing provider/restarting could not reach the platform’s database, which is not answering right now — it may be restarting; retry in 5 s',
+      code: 'DATABASE_UNAVAILABLE',
+      hint: 'wait data.retryAfterMs, then read what landed with get_settings before applying again',
+      data: { retryAfterMs: 5000, requestId: 'req-10' },
+      applied: [{ key: 'provider/second', action: 'create' }],
+      failed: { key: 'provider/restarting', code: 'DATABASE_UNAVAILABLE' },
+      skipped: [{ key: 'branding' }],
+    });
+    expect(JSON.stringify(answer)).not.toContain('administrator command');
+    expect(state.store.get('provider/second')).toEqual({ name: 'second' });
+    expect(warned).toHaveBeenCalledExactlyOnceWith(
+      '[mcp] database unavailable — changing provider/restarting (request req-10): 57P01 terminating connection due to administrator command',
+    );
+    expect(failed).not.toHaveBeenCalled();
+    expect(reportError).not.toHaveBeenCalled();
   });
 
   it('writes nothing for a change that already is so', async () => {

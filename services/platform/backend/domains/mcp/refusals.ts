@@ -2,12 +2,18 @@
  * A refusal as a coding agent reads it, and how one is read from what a
  * surface threw: every MCP surface that runs a domain writer — the tool
  * call itself (`tools.ts`), the settings tools — turns a thrown refusal
- * into the same `{error, code, hint?, data?}` the agent branches on, and
- * leaves anything else to be answered as a fault.
+ * into the same `{error, code, hint?, data?}` the agent branches on, a
+ * database that is not answering into the wait it asks for, and leaves
+ * anything else to be answered as a fault.
  */
 
 import { isCodedRefusal } from '../../../lib/engine/api/refusal';
 import { isRecord } from '../../../lib/utils/type-utils';
+import {
+  databaseUnavailableCause,
+  describeDatabaseError,
+} from '../../db/unavailable';
+import { DATABASE_RETRY_AFTER_SECONDS } from '../../error-reporting';
 import { codedAppError } from '../../lib/app-error-response';
 import { rateLimitExceededCause } from '../../lib/rate-limit-response';
 
@@ -64,5 +70,40 @@ export function refusalFromThrown(error: unknown): McpRefusal | null {
     code,
     ...(typeof hint === 'string' && hint !== '' ? { hint } : {}),
     ...(data === undefined ? {} : { data }),
+  };
+}
+
+/**
+ * What a call answers when the database could not serve it — restarting,
+ * failing over, a host that is down (`db/unavailable.ts`) — or null when the
+ * database is not why it failed. A restart is routine, not a defect: like the
+ * REST door's 503 (`databaseUnavailableResponse`), this writes one warning
+ * line, reports nothing, and asks the agent to wait as long as that door's
+ * `Retry-After`. `failed` names what could not finish, `retry` what the agent
+ * does once it has waited.
+ *
+ * A bare socket error counts only on a database client's query (postgres.js
+ * stamps its own): the same `ECONNREFUSED` from a model provider or the
+ * sandbox stays a fault.
+ */
+export function databaseUnavailableRefusal(
+  error: unknown,
+  failed: string,
+  retry: string,
+  requestId: string | null,
+): McpRefusal | null {
+  const cause = databaseUnavailableCause(error);
+  if (cause === undefined) return null;
+  console.warn(
+    `[mcp] database unavailable — ${failed}${requestId === null ? '' : ` (request ${requestId})`}: ${describeDatabaseError(cause)}`,
+  );
+  return {
+    error: `${failed} could not reach the platform’s database, which is not answering right now — it may be restarting; retry in ${DATABASE_RETRY_AFTER_SECONDS} s`,
+    code: 'DATABASE_UNAVAILABLE',
+    hint: `wait data.retryAfterMs, then ${retry}`,
+    data: {
+      retryAfterMs: DATABASE_RETRY_AFTER_SECONDS * 1000,
+      ...(requestId === null ? {} : { requestId }),
+    },
   };
 }

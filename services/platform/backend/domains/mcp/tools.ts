@@ -11,7 +11,9 @@
  * (its audit rows name the door), and the answer is shaped. A refusal is
  * data: whether the surface answered it (`{error, code, hint}`) or threw it
  * (a store's `AutomationError`, an `AppError`), the agent reads its code and
- * its own sentence — never an error's serialized payload. Anything else that
+ * its own sentence — never an error's serialized payload. A database that is
+ * not answering — a restart — is a wait, answered as `DATABASE_UNAVAILABLE`
+ * with the time to wait, logged once and never reported. Anything else that
  * throws is a fault, answered as `INTERNAL_ERROR` with the request id and
  * reported server-side.
  */
@@ -27,7 +29,11 @@ import { requestChannelOf } from '../../lib/write-origin';
 import { houseIssueMessage } from '../../rest/shared';
 import type { McpCallOutcome } from './activity';
 import { callerOrigin, type McpCaller } from './caller';
-import { MAX_ARGUMENT_ISSUES, refusalFromThrown } from './refusals';
+import {
+  databaseUnavailableRefusal,
+  MAX_ARGUMENT_ISSUES,
+  refusalFromThrown,
+} from './refusals';
 import { scopeRefusal, scopeVerdict } from './scopes';
 
 /** The whole inventory, in the advertised order. */
@@ -402,7 +408,14 @@ export async function callTool(
         : await runInRequestChannel(channel, call);
     return { kind: 'answer', answer: answer(tool, value) };
   } catch (error) {
-    const refusal = refusalFromThrown(error);
+    const refusal =
+      refusalFromThrown(error) ??
+      databaseUnavailableRefusal(
+        error,
+        tool.name,
+        'call again',
+        context.requestId,
+      );
     if (refusal !== null) {
       return { kind: 'answer', answer: answer(tool, refusal) };
     }
