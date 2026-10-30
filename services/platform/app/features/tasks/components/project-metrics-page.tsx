@@ -1,6 +1,7 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { ChartCard } from '@tale/ui/chart-card';
 import { ChartLegend } from '@tale/ui/chart-legend';
 import { CHART_COLORS, getChartSeriesColor } from '@tale/ui/chart-theme';
@@ -25,11 +26,13 @@ import { StatCard, StatCardGrid } from '@tale/ui/stat-card-grid';
 import { Text } from '@tale/ui/text';
 import { TrendIndicator } from '@tale/ui/trend-indicator';
 import { AlertTriangle, BarChart3 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useCallback, useRef, type ReactNode } from 'react';
 
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
 type ProjectMetricsDay =
@@ -130,7 +133,10 @@ interface ProjectMetricsPageProps {
  * period still has a flow band and an empty throughput. All charts share
  * the chart-theme tokens (theme-aware in dark mode). Padding-agnostic like
  * every metrics page — the host route owns the outer container and any
- * surrounding chrome (back link, picker).
+ * surrounding chrome (back link, picker). A read that never answered has no
+ * figures to show: it is named with Try again in their place, never folded
+ * into an idle project's zeros and empty charts (#4588); a refresh that
+ * fails keeps the last figures under a notice that they may be out of date.
  */
 export function ProjectMetricsPage({
   organizationId,
@@ -142,11 +148,25 @@ export function ProjectMetricsPage({
   const { t } = useT('tasks');
   const { formatCostCents } = useFormatNumber();
 
-  const { data, isLoading } = useBackendQuery(
+  const metrics = useBackendQuery(
     'tasks/queries:getProjectTaskMetrics',
     { organizationId, projectId, periodDays },
     { enabled: organizationId !== '' && projectId !== '' },
   );
+  const { data, isLoading, refetch } = metrics;
+  const read = readStateOf(metrics);
+  const regionRef = useRef<HTMLDivElement>(null);
+  const focusRegion = useCallback(() => regionRef.current?.focus(), []);
+  const retry = useCallback(() => void refetch(), [refetch]);
+  const failureMessage = [
+    t(
+      read.stale ? 'metrics.errors.refreshFailed' : 'metrics.errors.loadFailed',
+    ),
+    failureDetail(metrics.error),
+  ]
+    .filter(Boolean)
+    .join(' ');
+
   const daily: ProjectMetricsDay[] = data?.daily ?? [];
   const previousDaily: ProjectMetricsDay[] = data?.previousDaily ?? [];
 
@@ -238,238 +258,276 @@ export function ProjectMetricsPage({
     },
   ];
 
+  const readFailure =
+    read.unavailable || read.stale ? (
+      <CatalogLoadError
+        failureKey={read.failureCount}
+        message={failureMessage}
+        onRetry={retry}
+        isRetrying={read.retrying}
+        onFocusLost={focusRegion}
+      />
+    ) : undefined;
+  const capped = !isLoading && totals.capped;
+
   return (
-    <Skeletonize loading={isLoading} label={t('metrics.title')}>
-      <MetricsLayout
-        as="h3"
-        title={t('metrics.title')}
-        description={t('metrics.description')}
-        toolbar={
-          <>
-            {scopeControl}
-            <MetricsPeriodSelect
-              value={String(periodDays)}
-              onValueChange={(v) => onChangePeriod(parseMetricsPeriodDays(v))}
-            />
-          </>
-        }
-        notice={
-          !isLoading && totals.capped ? (
-            <Alert
-              variant="warning"
-              icon={AlertTriangle}
-              title={t('metrics.cappedNotice')}
-            />
-          ) : undefined
-        }
+    <div
+      ref={regionRef}
+      role="region"
+      aria-label={t('metrics.title')}
+      tabIndex={-1}
+      className="outline-none"
+    >
+      <Skeletonize
+        loading={isLoading && !read.unavailable}
+        label={t('metrics.title')}
       >
-        <StatCardGrid cols={4}>
-          <StatCard
-            label={t('metrics.completed', { days: periodDays })}
-            value={String(totals.completed)}
-          >
-            <Stack gap={1} className="mt-0.5">
-              <TrendIndicator
-                value={totals.completed}
-                previous={prev.completed}
+        <MetricsLayout
+          as="h3"
+          title={t('metrics.title')}
+          description={t('metrics.description')}
+          toolbar={
+            <>
+              {scopeControl}
+              <MetricsPeriodSelect
+                value={String(periodDays)}
+                onValueChange={(v) => onChangePeriod(parseMetricsPeriodDays(v))}
               />
-              <SkeletonBox>
-                <Text as="p" variant="muted" className="text-xs">
-                  {t('metrics.completedDetail', {
-                    agent: totals.agent,
-                    human: totals.human,
-                  })}
-                </Text>
-              </SkeletonBox>
-              {totals.completed > 0 && daily.length > 1 ? (
-                <Sparkline
-                  data={daily.map((day) => day.tasksCompleted)}
-                  filled
-                  color="var(--color-chart-success)"
-                  className="mt-1"
-                />
-              ) : null}
-            </Stack>
-          </StatCard>
-
-          <StatCard
-            label={t('metrics.cycleTime')}
-            value={cycleHours !== undefined ? `${cycleHours.toFixed(1)}h` : '—'}
-          >
-            <Stack gap={1} className="mt-0.5">
-              {cycleHours !== undefined ? (
-                <TrendIndicator
-                  value={cycleHours}
-                  previous={prevCycleHours}
-                  inverted
-                />
-              ) : null}
-              <SkeletonBox>
-                <Text as="p" variant="muted" className="text-xs">
-                  {t('metrics.created', { count: totals.created })}
-                </Text>
-              </SkeletonBox>
-            </Stack>
-          </StatCard>
-
-          <StatCard
-            label={t('metrics.intervention')}
-            value={`${interventionRate}%`}
-          >
-            <Stack gap={1} className="mt-0.5">
-              <TrendIndicator
-                value={interventionRate}
-                previous={prevInterventionRate}
-                inverted
-              />
-              <SkeletonBox>
-                <Text as="p" variant="muted" className="text-xs">
-                  {t('metrics.interventionDetail', {
-                    changes: totals.changes,
-                    escalations: totals.escalations,
-                  })}
-                </Text>
-              </SkeletonBox>
-            </Stack>
-          </StatCard>
-
-          <StatCard
-            label={t('metrics.cost', { days: periodDays })}
-            value={formatCostCents(totals.cost)}
-          >
-            <Stack gap={1} className="mt-0.5">
-              <TrendIndicator
-                value={totals.cost}
-                previous={prev.cost}
-                inverted
-              />
-              <SkeletonBox>
-                <Text as="p" variant="muted" className="text-xs">
-                  {t('metrics.costDetail', {
-                    runs: totals.runs,
-                    failed: totals.failed,
-                  })}
-                </Text>
-              </SkeletonBox>
-            </Stack>
-          </StatCard>
-        </StatCardGrid>
-
-        <ChartCard
-          title={t('metrics.cumulativeFlow')}
-          bodyClassName="h-52"
-          loading={isLoading}
-          isEmpty={noFlow}
-          emptyIcon={BarChart3}
-          emptyTitle={emptyTitle}
-          emptyDescription={t('metrics.noFlowDescription')}
-          legend={<ChartLegend items={seriesToLegend(flowSeries)} />}
+            </>
+          }
+          notice={
+            readFailure || capped ? (
+              <>
+                {readFailure}
+                {capped ? (
+                  <Alert
+                    variant="warning"
+                    icon={AlertTriangle}
+                    title={t('metrics.cappedNotice')}
+                  />
+                ) : null}
+              </>
+            ) : undefined
+          }
         >
-          <TrendAreaChart
-            data={flowData}
-            series={flowSeries}
-            xKey="dateKey"
-            xTickFormatter={shortDay}
-          />
-        </ChartCard>
+          {read.unavailable ? null : (
+            <>
+              <StatCardGrid cols={4}>
+                <StatCard
+                  label={t('metrics.completed', { days: periodDays })}
+                  value={String(totals.completed)}
+                >
+                  <Stack gap={1} className="mt-0.5">
+                    <TrendIndicator
+                      value={totals.completed}
+                      previous={prev.completed}
+                    />
+                    <SkeletonBox>
+                      <Text as="p" variant="muted" className="text-xs">
+                        {t('metrics.completedDetail', {
+                          agent: totals.agent,
+                          human: totals.human,
+                        })}
+                      </Text>
+                    </SkeletonBox>
+                    {totals.completed > 0 && daily.length > 1 ? (
+                      <Sparkline
+                        data={daily.map((day) => day.tasksCompleted)}
+                        filled
+                        color="var(--color-chart-success)"
+                        className="mt-1"
+                      />
+                    ) : null}
+                  </Stack>
+                </StatCard>
 
-        {/* Two charts side by side once the page column is 42rem wide —
-            the column, not the viewport: the Home panel sits beside it. */}
-        <div className="@container">
-          <Grid className="@2xl:grid-cols-2">
-            <ChartCard
-              title={t('metrics.throughput')}
-              bodyClassName="h-44"
-              loading={isLoading}
-              isEmpty={noThroughput}
-              emptyIcon={BarChart3}
-              emptyTitle={emptyTitle}
-              emptyDescription={t('metrics.noThroughputDescription')}
-              legend={<ChartLegend items={seriesToLegend(throughputSeries)} />}
-            >
-              <TrendBarChart
-                data={throughputData}
-                series={throughputSeries}
-                xKey="dateKey"
-                xTickFormatter={shortDay}
-              />
-            </ChartCard>
+                <StatCard
+                  label={t('metrics.cycleTime')}
+                  value={
+                    cycleHours !== undefined ? `${cycleHours.toFixed(1)}h` : '—'
+                  }
+                >
+                  <Stack gap={1} className="mt-0.5">
+                    {cycleHours !== undefined ? (
+                      <TrendIndicator
+                        value={cycleHours}
+                        previous={prevCycleHours}
+                        inverted
+                      />
+                    ) : null}
+                    <SkeletonBox>
+                      <Text as="p" variant="muted" className="text-xs">
+                        {t('metrics.created', { count: totals.created })}
+                      </Text>
+                    </SkeletonBox>
+                  </Stack>
+                </StatCard>
 
-            <ChartCard
-              title={t('metrics.cycleTimeTrend')}
-              bodyClassName="h-44"
-              loading={isLoading}
-              isEmpty={noCycleTimes}
-              emptyIcon={BarChart3}
-              emptyTitle={emptyTitle}
-              emptyDescription={t('metrics.noCycleTimeDescription')}
-            >
-              <TrendLineChart
-                data={cycleTimeData}
-                series={[
-                  {
-                    key: 'hours',
-                    label: t('metrics.cycleHoursLabel'),
-                    color: getChartSeriesColor(3),
-                  },
-                ]}
-                xKey="dateKey"
-                xTickFormatter={shortDay}
-                valueFormatter={(v) => `${v.toFixed(1)}h`}
-              />
-            </ChartCard>
-          </Grid>
-        </div>
+                <StatCard
+                  label={t('metrics.intervention')}
+                  value={`${interventionRate}%`}
+                >
+                  <Stack gap={1} className="mt-0.5">
+                    <TrendIndicator
+                      value={interventionRate}
+                      previous={prevInterventionRate}
+                      inverted
+                    />
+                    <SkeletonBox>
+                      <Text as="p" variant="muted" className="text-xs">
+                        {t('metrics.interventionDetail', {
+                          changes: totals.changes,
+                          escalations: totals.escalations,
+                        })}
+                      </Text>
+                    </SkeletonBox>
+                  </Stack>
+                </StatCard>
 
-        {/* Two charts side by side once the page column is 42rem wide —
-            the column, not the viewport: the Home panel sits beside it. */}
-        <div className="@container">
-          <Grid className="@2xl:grid-cols-2">
-            <ChartCard
-              title={t('metrics.agentVsHuman')}
-              bodyClassName="h-44"
-              loading={isLoading}
-              isEmpty={noCompletions}
-              emptyIcon={BarChart3}
-              emptyTitle={emptyTitle}
-              emptyDescription={t('metrics.noCompletionsDescription')}
-              legend={<ChartLegend items={seriesToLegend(completionsSeries)} />}
-            >
-              <TrendBarChart
-                data={completionsData}
-                series={completionsSeries}
-                xKey="dateKey"
-                xTickFormatter={shortDay}
-              />
-            </ChartCard>
+                <StatCard
+                  label={t('metrics.cost', { days: periodDays })}
+                  value={formatCostCents(totals.cost)}
+                >
+                  <Stack gap={1} className="mt-0.5">
+                    <TrendIndicator
+                      value={totals.cost}
+                      previous={prev.cost}
+                      inverted
+                    />
+                    <SkeletonBox>
+                      <Text as="p" variant="muted" className="text-xs">
+                        {t('metrics.costDetail', {
+                          runs: totals.runs,
+                          failed: totals.failed,
+                        })}
+                      </Text>
+                    </SkeletonBox>
+                  </Stack>
+                </StatCard>
+              </StatCardGrid>
 
-            <ChartCard
-              title={t('metrics.costTrend')}
-              bodyClassName="h-44"
-              loading={isLoading}
-              isEmpty={noCost}
-              emptyIcon={BarChart3}
-              emptyTitle={emptyTitle}
-              emptyDescription={t('metrics.noCostDescription')}
-            >
-              <TrendBarChart
-                data={costData}
-                series={[
-                  {
-                    key: 'cost',
-                    label: t('metrics.costLabel'),
-                    color: CHART_COLORS.warning,
-                  },
-                ]}
-                xKey="dateKey"
-                xTickFormatter={shortDay}
-                allowDecimals
-                valueFormatter={(v) => formatCostCents(v * 100)}
-              />
-            </ChartCard>
-          </Grid>
-        </div>
-      </MetricsLayout>
-    </Skeletonize>
+              <ChartCard
+                title={t('metrics.cumulativeFlow')}
+                bodyClassName="h-52"
+                loading={isLoading}
+                isEmpty={noFlow}
+                emptyIcon={BarChart3}
+                emptyTitle={emptyTitle}
+                emptyDescription={t('metrics.noFlowDescription')}
+                legend={<ChartLegend items={seriesToLegend(flowSeries)} />}
+              >
+                <TrendAreaChart
+                  data={flowData}
+                  series={flowSeries}
+                  xKey="dateKey"
+                  xTickFormatter={shortDay}
+                />
+              </ChartCard>
+
+              {/* Two charts side by side once the page column is 42rem wide —
+                  the column, not the viewport: the Home panel sits beside it. */}
+              <div className="@container">
+                <Grid className="@2xl:grid-cols-2">
+                  <ChartCard
+                    title={t('metrics.throughput')}
+                    bodyClassName="h-44"
+                    loading={isLoading}
+                    isEmpty={noThroughput}
+                    emptyIcon={BarChart3}
+                    emptyTitle={emptyTitle}
+                    emptyDescription={t('metrics.noThroughputDescription')}
+                    legend={
+                      <ChartLegend items={seriesToLegend(throughputSeries)} />
+                    }
+                  >
+                    <TrendBarChart
+                      data={throughputData}
+                      series={throughputSeries}
+                      xKey="dateKey"
+                      xTickFormatter={shortDay}
+                    />
+                  </ChartCard>
+
+                  <ChartCard
+                    title={t('metrics.cycleTimeTrend')}
+                    bodyClassName="h-44"
+                    loading={isLoading}
+                    isEmpty={noCycleTimes}
+                    emptyIcon={BarChart3}
+                    emptyTitle={emptyTitle}
+                    emptyDescription={t('metrics.noCycleTimeDescription')}
+                  >
+                    <TrendLineChart
+                      data={cycleTimeData}
+                      series={[
+                        {
+                          key: 'hours',
+                          label: t('metrics.cycleHoursLabel'),
+                          color: getChartSeriesColor(3),
+                        },
+                      ]}
+                      xKey="dateKey"
+                      xTickFormatter={shortDay}
+                      valueFormatter={(v) => `${v.toFixed(1)}h`}
+                    />
+                  </ChartCard>
+                </Grid>
+              </div>
+
+              {/* Two charts side by side once the page column is 42rem wide —
+                  the column, not the viewport: the Home panel sits beside it. */}
+              <div className="@container">
+                <Grid className="@2xl:grid-cols-2">
+                  <ChartCard
+                    title={t('metrics.agentVsHuman')}
+                    bodyClassName="h-44"
+                    loading={isLoading}
+                    isEmpty={noCompletions}
+                    emptyIcon={BarChart3}
+                    emptyTitle={emptyTitle}
+                    emptyDescription={t('metrics.noCompletionsDescription')}
+                    legend={
+                      <ChartLegend items={seriesToLegend(completionsSeries)} />
+                    }
+                  >
+                    <TrendBarChart
+                      data={completionsData}
+                      series={completionsSeries}
+                      xKey="dateKey"
+                      xTickFormatter={shortDay}
+                    />
+                  </ChartCard>
+
+                  <ChartCard
+                    title={t('metrics.costTrend')}
+                    bodyClassName="h-44"
+                    loading={isLoading}
+                    isEmpty={noCost}
+                    emptyIcon={BarChart3}
+                    emptyTitle={emptyTitle}
+                    emptyDescription={t('metrics.noCostDescription')}
+                  >
+                    <TrendBarChart
+                      data={costData}
+                      series={[
+                        {
+                          key: 'cost',
+                          label: t('metrics.costLabel'),
+                          color: CHART_COLORS.warning,
+                        },
+                      ]}
+                      xKey="dateKey"
+                      xTickFormatter={shortDay}
+                      allowDecimals
+                      valueFormatter={(v) => formatCostCents(v * 100)}
+                    />
+                  </ChartCard>
+                </Grid>
+              </div>
+            </>
+          )}
+        </MetricsLayout>
+      </Skeletonize>
+    </div>
   );
 }

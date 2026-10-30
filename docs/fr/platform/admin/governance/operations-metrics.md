@@ -52,6 +52,8 @@ Les graphiques en dessous montrent les tâches ouvertes par statut à la fin de 
 
 Si le taux d’intervention augmente alors que le nombre d’exécutions reste stable, les personnes renvoient davantage de travail ou les agents posent davantage de questions. Les escalades viennent des étapes d’agent des automatisations qui travaillent sur le projet, et chacune compte le jour où elle est émise, qu’elle reçoive une réponse ou non. Pour le travail renvoyé, lis les tâches en revue avant de modifier les instructions d’un agent dans [Créer et gérer des agents de projet](/fr/platform/projects/project-agents) ; pour les questions, lis les exécutions de l’automatisation qui les a posées, comme l’explique [Examiner les exécutions et corriger les échecs](/fr/platform/automations/execution-logs).
 
+Si les chiffres ne peuvent pas être chargés, la page le signale et propose **Réessayer** au lieu d’afficher zéro tâche terminée et des graphiques marqués **Aucune donnée** ; le projet et la période choisis restent en place. Si une actualisation échoue, les chiffres déjà affichés restent, avec une note indiquant qu’ils ne sont peut-être plus à jour.
+
 ## Bien lire les chiffres
 
 - Chaque tableau de bord s’appuie sur les enregistrements que Tale conserve. Les règles de conservation et les suppressions raccourcissent l’historique : une période vide peut signifier que les enregistrements ont disparu, et non qu’il ne s’est rien passé.

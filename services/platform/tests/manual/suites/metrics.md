@@ -1,6 +1,6 @@
 # Metrics
 
-> **Prefix** `MET-` · **Reset** none · **Cost** 20 boxes
+> **Prefix** `MET-` · **Reset** none · **Cost** 21 boxes
 
 Exercise the org metrics section under Settings — six tabs (Usage, Feedback,
 Chat health, Harness turns, Automations, Projects), each with the shared
@@ -220,6 +220,19 @@ rollups**, so figures may legitimately lag same-day activity.
   appear without a reload, and `document.activeElement` is the region named
   **Usage metrics**, not the page body. At a 375 px viewport the alert wraps
   inside the page with **Try again** fully visible. No toast.
+- [ ] `MET-B4` · **A project metrics read that fails is not an idle project** —
+  Pick a project with tasks on `/dashboard/{org}/settings/metrics/projects`,
+  block `*/api/app/tasks/metrics/by-project/*` in DevTools (Network → request
+  blocking) and reload → after the retries (a few seconds) an alert reads
+  **Couldn't load project metrics.** (`tasks.metrics.errors.loadFailed`, then
+  why when the failure says, e.g. `common.errors.connectionLost`) with **Try
+  again** (`common.actions.tryAgain`) where the cards and charts were — no
+  **Completed** card reading `0`, no `—` for the cycle time and no chart
+  saying `tasks.metrics.noData`; the heading, the project picker and
+  **Filter** stay. Unblock → **Try again** → the figures appear without a
+  reload, and `document.activeElement` is the region named **Project
+  metrics**, not the page body. At a 375 px viewport the alert wraps inside
+  the page with **Try again** fully visible. No toast.
 
 ## Accessibility (WCAG 2.1 AA)
 

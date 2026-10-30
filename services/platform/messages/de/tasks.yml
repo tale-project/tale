@@ -601,6 +601,9 @@ metrics:
   cappedNotice:
     Es werden die letzten 5.000 Zeilen jeder Quelle in diesem Zeitraum
     gezeigt — ältere Aktivität im Zeitraum wird nicht gezählt.
+  errors:
+    loadFailed: Die Projekt-Metriken konnten nicht geladen werden.
+    refreshFailed: Die Projekt-Metriken konnten nicht aktualisiert werden. Die angezeigten Zahlen sind möglicherweise veraltet.
   noData: Keine Daten
   noFlowDescription: An keinem Tagesende dieses Zeitraums war eine Aufgabe offen.
   noThroughputDescription: In diesem Zeitraum wurde keine Aufgabe erstellt oder abgeschlossen.
