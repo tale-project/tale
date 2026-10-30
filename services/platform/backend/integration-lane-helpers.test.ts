@@ -4,19 +4,23 @@ import { join } from 'node:path';
 
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
+import type { Sql, TransactionSql } from 'postgres';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { AuthEnv } from './auth/session';
 import { closeServerGracefully } from './http-shutdown';
 import {
   connectSse,
+  dropOwnedDatabase,
   everyLaneRequired,
   fullCoverageBlockers,
   isSkippedCheck,
   itestObjectStore,
+  ownedDatabaseAdmin,
   recordOpenStreams,
   recordSkip,
   requestedLanes,
+  setOwnedDatabaseBudgetInTx,
   settleTeardown,
   videoLaneFfmpegLocation,
   withCleanup,
@@ -547,6 +551,116 @@ describe('recordOpenStreams', () => {
       expect(liveStreamCount()).toBe(0);
     } finally {
       await closeServerGracefully(server, { forceAfterMs: 3_000 });
+    }
+  });
+});
+
+describe('ownedDatabaseAdmin', () => {
+  it('gives the DDL two minutes of statement and lock timeout', async () => {
+    const admin = ownedDatabaseAdmin(
+      'postgres://tale:secret@127.0.0.1:5432/tale_app',
+    );
+    try {
+      expect(String(admin.options.connection.options).trim()).toBe(
+        '-c statement_timeout=120000 -c lock_timeout=120000',
+      );
+      expect(admin.options.max).toBe(1);
+    } finally {
+      await admin.end();
+    }
+  });
+
+  it("sets its timeouts after the caller's own options, so they win", async () => {
+    const admin = ownedDatabaseAdmin(
+      'postgres://tale:secret@127.0.0.1:5432/tale_app?options=-c%20statement_timeout%3D8000%20-c%20search_path%3Dtale',
+    );
+    try {
+      expect(admin.options.connection.options).toBe(
+        '-c statement_timeout=8000 -c search_path=tale -c statement_timeout=120000 -c lock_timeout=120000',
+      );
+    } finally {
+      await admin.end();
+    }
+  });
+});
+
+describe('setOwnedDatabaseBudgetInTx', () => {
+  it('lifts both timeouts for the rest of its transaction only', async () => {
+    // `true` makes each setting the transaction's own: the statements under
+    // test, after the commit, run on the connection's timeouts again.
+    const queries: { text: string; values: unknown[] }[] = [];
+    const tx = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      queries.push({
+        text: strings.join('$?').replace(/\s+/g, ' ').trim(),
+        values,
+      });
+      return Promise.resolve([]);
+    };
+    await setOwnedDatabaseBudgetInTx(tx as unknown as TransactionSql);
+
+    expect(queries).toEqual([
+      {
+        text: "SELECT set_config('statement_timeout', $?, true), set_config('lock_timeout', $?, true)",
+        values: ['120000', '120000'],
+      },
+    ]);
+  });
+});
+
+describe('dropOwnedDatabase', () => {
+  function fakeAdmin(answer: () => Promise<unknown>): {
+    admin: Sql;
+    statements: { text: string; values: unknown[] }[];
+  } {
+    const statements: { text: string; values: unknown[] }[] = [];
+    const sql = (
+      first: TemplateStringsArray | string,
+      ...values: unknown[]
+    ): unknown => {
+      // `admin(name)` quotes an identifier; a template is a statement.
+      if (typeof first === 'string') return { identifier: first };
+      statements.push({ text: first.join('$?'), values });
+      return answer();
+    };
+    return { admin: sql as unknown as Sql, statements };
+  }
+
+  it('drops the named database and logs how long the drop took', async () => {
+    const { admin, statements } = fakeAdmin(() => Promise.resolve([]));
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      await dropOwnedDatabase(admin, 'itest_legacy_0001');
+
+      expect(statements).toEqual([
+        {
+          text: 'DROP DATABASE $?',
+          values: [{ identifier: 'itest_legacy_0001' }],
+        },
+      ]);
+      expect(log.mock.calls).toEqual([
+        [
+          expect.stringMatching(
+            /^\[itest\] dropped database itest_legacy_0001 in \d+\.\d s of its 2 min budget$/,
+          ),
+        ],
+      ]);
+    } finally {
+      log.mockRestore();
+    }
+  });
+
+  it('throws a failed drop unchanged and logs no drop', async () => {
+    // The run must still fail on a drop that does not complete (#5133).
+    const timeout = new Error('canceling statement due to statement timeout');
+    const { admin } = fakeAdmin(() => Promise.reject(timeout));
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+    try {
+      await expect(dropOwnedDatabase(admin, 'itest_legacy_0001')).rejects.toBe(
+        timeout,
+      );
+      expect(log).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
     }
   });
 });

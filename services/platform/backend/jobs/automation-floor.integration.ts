@@ -26,6 +26,10 @@ import {
 } from '../../../../tools/cli/src/lib/deployment/automation-floor.ts';
 import { AUTOMATION_PROTOCOL_MIGRATION } from '../../../../tools/cli/src/lib/deployment/automation-model.ts';
 import { resolvePostgresConnection } from '../db/ssl.ts';
+import {
+  dropOwnedDatabase,
+  ownedDatabaseAdmin,
+} from '../integration-lane-helpers.ts';
 
 type Recorder = (name: string, ok: boolean, detail: string) => void;
 
@@ -264,7 +268,7 @@ export async function checkAutomationProtocolFloor(
   databaseUrl: string,
   record: Recorder,
 ): Promise<void> {
-  const admin = connect(databaseUrl);
+  const admin = ownedDatabaseAdmin(databaseUrl);
   const name = `itest_floor_${randomUUID().replaceAll('-', '')}`;
   const target = new URL(databaseUrl);
   target.pathname = `/${name}`;
@@ -344,7 +348,7 @@ export async function checkAutomationProtocolFloor(
     }
     if (owned && stopped) {
       try {
-        await admin`DROP DATABASE ${admin(name)}`;
+        await dropOwnedDatabase(admin, name);
       } catch (error) {
         failure ??= error;
       }

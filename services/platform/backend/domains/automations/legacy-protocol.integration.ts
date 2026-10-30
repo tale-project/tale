@@ -19,6 +19,11 @@ import {
   runBootMigrations,
 } from '../../db/migrate.ts';
 import { resolvePostgresConnection } from '../../db/ssl.ts';
+import {
+  dropOwnedDatabase,
+  ownedDatabaseAdmin,
+  setOwnedDatabaseBudgetInTx,
+} from '../../integration-lane-helpers.ts';
 import { eraseSubjectAutomationRuns } from '../erasure/service.ts';
 import {
   assertNoLegacyAutomationHolds,
@@ -142,7 +147,10 @@ export async function checkLegacyAutomationProtocol(
   databaseUrl: string,
   record: Recorder,
 ): Promise<void> {
-  const admin = connect(databaseUrl);
+  // Creates the fixture database, watches the cutover from outside it and
+  // drops it. None of that waits on the code under test, whose statements
+  // keep connect()'s 8 s.
+  const admin = ownedDatabaseAdmin(databaseUrl);
   const name = `itest_legacy_${randomUUID().replaceAll('-', '')}`;
   const target = new URL(databaseUrl);
   target.pathname = `/${name}`;
@@ -159,13 +167,17 @@ export async function checkLegacyAutomationProtocol(
     owned = true;
     await admin`ALTER DATABASE ${admin(name)} SET search_path TO tale, public`;
     sql = connect(target.toString());
-    await sql`CREATE SCHEMA tale`;
-    await sql`CREATE TABLE app_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`;
+    await sql.begin(async (tx) => {
+      await setOwnedDatabaseBudgetInTx(tx);
+      await tx`CREATE SCHEMA tale`;
+      await tx`CREATE TABLE app_migrations (name text PRIMARY KEY, applied_at timestamptz NOT NULL DEFAULT now())`;
+    });
     const files = (await readdir(migrationRoot)).filter(isMigrationFile).sort();
     for (const file of files.filter(
       (entry) => entry < '0163_automation_legacy_protocol.sql',
     )) {
       await sql.begin(async (tx) => {
+        await setOwnedDatabaseBudgetInTx(tx);
         await applyMigrationFileInTx(tx, file);
         await tx`INSERT INTO app_migrations (name) VALUES (${file})`;
       });
@@ -835,7 +847,7 @@ export async function checkLegacyAutomationProtocol(
     try {
       // Do not force-drop a database if a connection fails to settle.
       await sql?.end({ timeout: 8 });
-      if (owned) await admin`DROP DATABASE ${admin(name)}`;
+      if (owned) await dropOwnedDatabase(admin, name);
     } finally {
       await admin.end({ timeout: 8 });
     }

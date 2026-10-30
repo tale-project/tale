@@ -198,8 +198,13 @@ invalidate the proof.
 The automation protocol proofs also require `CREATE DATABASE` on this disposable
 server. They create nonce-named databases, use every real pre-cutover migration
 and the normal boot migrator, and remove only their own databases after closing
-their connections. Missing privileges fail the proof; there is no fallback to an
-existing application database. They exercise old transaction snapshots, the
+their connections. Building and removing those databases (`CREATE`, `ALTER` and
+`DROP DATABASE`, and the migrations applied to them) runs on a two-minute
+statement and lock timeout, because `DROP DATABASE` waits for a checkpoint of the
+whole server; the statements the proofs test keep their 8 s. Each drop logs
+`[itest] dropped database <name> in <n> s of its 2 min budget`, and a drop that
+fails still fails the run. Missing privileges fail the proof; there is no fallback
+to an existing application database. They exercise old transaction snapshots, the
 actual `app_migrations` relation (including a `tale,public` search path), conditional
 held-task/evidence refusal and the CLI's installed protocol query. The retained
 legacy function fixtures are excluded from production images. Complete released
