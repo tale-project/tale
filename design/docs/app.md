@@ -164,13 +164,13 @@ what is there, and the page shows the one thing you opened.
   elements mounted as loading resolves.
 - **Settings pages have no page titles** — the rail/tab already names the page; content starts at the
   first section header.
-- **A collection screen scrolls its rows, never the page** — Automations, Projects and every
-  Knowledge tab are one shape: `ContentArea variant="list"` bounds the body and the `DataTable`
-  takes `stickyLayout`, so search, the create button, the column header row and the count footer
-  hold their place while only the rows move. Both parts, every time; a short list hugs its rows
-  instead of stretching. Tables embedded in a scrolling settings page are the exception and take
-  neither. A short viewport (`short-viewport:`, under 30rem — a phone held sideways, a laptop at
-  200 %) lifts the bound: the frame grows with its rows, the page scrolls, page headers stop
+- **A collection screen scrolls its rows, never the page** — Automations, Projects, every Knowledge
+  tab and an automation's Runs tab are one shape: `ContentArea variant="list"` bounds the body and
+  the `DataTable` takes `stickyLayout`, so search, the create button, the column header row and the
+  count footer hold their place while only the rows move. Both parts, every time; a short list hugs
+  its rows instead of stretching. Tables embedded in a scrolling settings page are the exception and
+  take neither. A short viewport (`short-viewport:`, under 30rem — a phone held sideways, a laptop
+  at 200 %) lifts the bound: the frame grows with its rows, the page scrolls, page headers stop
   sticking, and the embedding banner keeps to its title and link. A laptop screen is not short:
   under 50rem only a conversation's composer takes its compact sizes (`compact-height:`).
 - **Layout answers to its column, not the window** — viewport breakpoints (`sm`, `md`, `lg`)
