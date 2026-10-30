@@ -19,7 +19,7 @@ Donne à une organisation son logo, ses icônes d’onglet et sa couleur d’acc
 | **Favicon** | Une petite icône d’onglet reconnaissable. Tu peux fournir une variante claire et une variante sombre. |
 | **Couleur d'accentuation** | La couleur hexadécimale de ta marque, à vérifier dans les deux thèmes. Tale en dérive la palette affichée pour le thème courant. |
 
-En l’absence de logo, le nom de l’organisation sert de marque textuelle. Modifie-le dans **Paramètres > Organisation** ; la page de personnalisation n’a pas de champ distinct pour le nom de l’application.
+En l’absence de logo, le nom de l’organisation sert de marque textuelle. Pour le modifier, [renomme l’organisation](/fr/platform/admin/organization#rename-the-organization) dans **Paramètres > Organisation** ; la page de personnalisation n’a pas de champ distinct pour le nom de l’application.
 
 ## Charger un logo ou une favicon
 

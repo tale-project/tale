@@ -29,6 +29,7 @@ Owners and Admins manage organization settings. Developers can reach the technic
 | Find failing chat replies, agent turns, or automation runs | [Operations metrics](/platform/admin/governance/operations-metrics) |
 | Recover retained data or preserve it against deletion | [Trash](/platform/admin/governance/trash) or [legal hold](/platform/admin/governance/legal-hold) |
 | Review an erasure request | [Data subject requests](/platform/admin/governance/data-subject-requests) |
+| Rename the organization, set its agents' default language, or delete it | [Organization settings](/platform/admin/organization) |
 
 ## Sign-in, integrations, and appearance
 

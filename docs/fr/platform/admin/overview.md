@@ -29,6 +29,7 @@ Les propriétaires et les admins gèrent les paramètres de l’organisation. Le
 | Repérer les réponses de chat, tours d’agent ou exécutions d’automatisation qui échouent | [Métriques d’exploitation](/fr/platform/admin/governance/operations-metrics) |
 | Récupérer des données conservées ou empêcher leur suppression | [Corbeille](/fr/platform/admin/governance/trash) ou [conservation légale](/fr/platform/admin/governance/legal-hold) |
 | Traiter une demande d’effacement | [Demandes des personnes concernées](/fr/platform/admin/governance/data-subject-requests) |
+| Renommer l’organisation, définir la langue par défaut de ses agents ou la supprimer | [Paramètres de l’organisation](/fr/platform/admin/organization) |
 
 ## Connexion, intégrations et apparence
 

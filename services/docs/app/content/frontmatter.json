@@ -380,6 +380,14 @@
       "description": "Füge Personen hinzu, wähle ihre Rechte und verwalte den Kontozugriff."
     }
   },
+  "de:platform/admin/organization": {
+    "slug": "platform/admin/organization",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Organisationseinstellungen",
+      "description": "Benenne die Organisation um, wähle die Sprache, auf die ihre Agenten zurückgreifen, kopiere die Organisations-ID und lösche die Organisation."
+    }
+  },
   "de:platform/admin/overview": {
     "slug": "platform/admin/overview",
     "locale": "de",
@@ -1615,6 +1623,14 @@
       "description": "Add people, choose their permissions, and manage account access."
     }
   },
+  "en:platform/admin/organization": {
+    "slug": "platform/admin/organization",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Organization settings",
+      "description": "Rename the organization, choose the language its agents fall back to, copy the organization ID, and delete the organization."
+    }
+  },
   "en:platform/admin/overview": {
     "slug": "platform/admin/overview",
     "locale": "en",
@@ -2845,6 +2861,14 @@
     "frontmatter": {
       "title": "Membres et rôles",
       "description": "Ajoute des personnes, choisis leurs permissions et gère les accès aux comptes."
+    }
+  },
+  "fr:platform/admin/organization": {
+    "slug": "platform/admin/organization",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Paramètres de l’organisation",
+      "description": "Renomme l’organisation, choisis la langue que ses agents utilisent par défaut, copie l’ID de l’organisation et supprime l’organisation."
     }
   },
   "fr:platform/admin/overview": {
