@@ -1,10 +1,11 @@
 /**
- * Email — data regex plus the RFC 5321 length gate.
+ * Email — data regex plus the RFC 5321 domain length gate.
  *
- * The wide-net regex lives in the pattern file; this code half only
- * rejects candidates whose local part exceeds 64 characters or whose
- * domain exceeds 255 — lengths a character-class regex cannot express
- * without exploding. Locale-independent: the factory ignores its argument.
+ * The regex lives in the pattern file and bounds the local part itself at
+ * 64 characters, a bound that also keeps its scan linear; this code half
+ * only rejects candidates whose domain exceeds 255 — a length the regex's
+ * open domain run does not express. Locale-independent: the factory
+ * ignores its argument.
  */
 
 import type { PiiPattern } from '../core/types';
@@ -17,12 +18,7 @@ export const buildEmailPattern: NativePatternBuilder = (file) => {
   const pattern: PiiPattern = {
     name: file.name,
     regex,
-    validate: (m) => {
-      const atIdx = m.indexOf('@');
-      if (atIdx > 64) return false;
-      if (m.length - atIdx > 255) return false;
-      return true;
-    },
+    validate: (m) => m.length - m.indexOf('@') <= 255,
     replacement: file.replacement,
   };
   return () => [pattern];

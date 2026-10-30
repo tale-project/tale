@@ -250,9 +250,9 @@ describe('createScrubber — input clamp', () => {
   it('reports a clamped input as truncated even when nothing matched', () => {
     // A clean prefix says nothing about the tail past the clamp; a caller
     // reading a bare pass as "whole input clean" would index that tail.
-    // Word-broken filler: one unbroken 50k-char "word" sends the email
-    // pattern quadratic (each position scans ahead for a `@` that never
-    // comes) and the scan past vitest's 5s budget on a loaded runner.
+    // Word-broken filler keeps the scan cheap: the email pattern retries at
+    // every position of an unbroken word, reading up to 64 characters ahead
+    // for a `@` that never comes.
     const o = scrubber.scrub(
       `${'xxxx '.repeat(MAX_MESSAGE_BYTES / 5)}write to ada@example.com`,
     );
@@ -435,8 +435,11 @@ describe('normalization defenses', () => {
     );
   });
 
-  it('survives an NFD-decomposed email without crashing', () => {
-    expect(scrubber.scrub('mu\u0308ller@example.com').kind).toBe('modified');
+  it('masks an NFD-decomposed email whole', () => {
+    const o = scrubber.scrub('mu\u0308ller@example.com');
+    expect(o.kind).toBe('modified');
+    if (o.kind !== 'modified') return;
+    expect(o.text).toBe('[EMAIL]');
   });
 });
 

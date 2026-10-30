@@ -1,13 +1,35 @@
-# Built-in PII pattern. `impl: native` — the wide-net regex below is the
-# data knob; the RFC 5321 length gate (local part ≤ 64, domain ≤ 255) is a
-# validator in the pii plugin (lib/pii/patterns/email.ts).
+# Built-in PII pattern. `impl: native` — the regex below is the data knob;
+# the RFC 5321 domain length gate (≤ 255) is a validator in the pii plugin
+# (lib/pii/patterns/email.ts).
+#
+# The local part is read back from the `@` over letters of any script,
+# combining marks and decimal digits (`\p{L}\p{M}\p{Nd}`), `._%+-`, and,
+# after its first character, the apostrophes ' and ’ (`\u0027\u2019`) of
+# names like O'Brien. A narrower class started the match after the last
+# character outside it and left the start of the address in the text:
+# `john.o'[EMAIL]`, `jörg.mü[EMAIL]` (#4777). The read stops at:
+#  - letters of scripts written without spaces between words, which run
+#    straight into an address (`お客様はmarylee@…`): Han and Hiragana by
+#    script extension, which adds the marks kana share, like the prolonged
+#    sound mark ー; Katakana, Thai, Lao, Khmer and Myanmar by script, since
+#    Katakana's and Thai's extensions reach the letter apostrophe ʼ and
+#    Latin combining marks;
+#  - 64 characters (`{0,63}` after the first), RFC 5321's local-part limit.
+#    The bound also keeps the scan linear: a match is tried at every
+#    position of a run, and an unbounded read made one long word quadratic.
 name: email
 description: >-
-  Email addresses in the pragmatic local@host.tld form that covers virtually
-  every real address. Punycode/IDNA and quoted local parts are accepted false
-  negatives — chasing RFC 5322 invites ReDoS-prone monster regexes.
+  Email addresses in the local@host.tld form, the local part in any
+  alphabet. Accepted false negatives — chasing RFC 5322 whole invites
+  ReDoS-prone monster regexes: an RFC 5322 special other than the
+  apostrophe (! # $ & * / = ? ^ ` { | } ~) ends the local part, since the
+  same characters delimit query strings, paths and markup, so
+  `list+john=example.org@lists.example.com` is masked from `example.org`; a
+  local part written in a script without spaces between words (Chinese,
+  Japanese, Thai, Lao, Khmer, Burmese) is not read; quoted local parts and
+  internationalized (IDNA) domains are not detected whole.
 replacement: '[EMAIL]'
 impl: native
 regex:
-  source: '[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
-  flags: g
+  source: '(?![\p{scx=Han}\p{scx=Hiragana}\p{sc=Katakana}\p{sc=Thai}\p{sc=Lao}\p{sc=Khmer}\p{sc=Myanmar}])[\p{L}\p{M}\p{Nd}._%+-](?:(?![\p{scx=Han}\p{scx=Hiragana}\p{sc=Katakana}\p{sc=Thai}\p{sc=Lao}\p{sc=Khmer}\p{sc=Myanmar}])[\p{L}\p{M}\p{Nd}._%+\u0027\u2019-]){0,63}@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+  flags: gu
