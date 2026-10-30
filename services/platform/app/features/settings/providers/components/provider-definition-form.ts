@@ -1,6 +1,7 @@
 import {
   providerDefinitionSchema,
   type ApiFormat,
+  type DeclaredModel,
   type ProviderDefinition,
 } from '@tale/shared/schemas/providers';
 
@@ -13,9 +14,10 @@ import { formatZodError } from '@/lib/shared/schemas/format-error';
 
 /**
  * The custom provider as the credential dialog authors it: the facts the
- * reader types beside the key (wire format, base URL, how models are listed)
- * and their projection into the native `providerDefinitionSchema` document
- * the backend writes.
+ * reader types beside the key (wire format, base URL, how models are listed,
+ * and — without a listing — what each allowlisted model can take) and their
+ * projection into the native `providerDefinitionSchema` document the backend
+ * writes.
  *
  * The rest of the schema (an `embedding` claim, a subscription-flavoured auth
  * method bound to a harness, a coding-agent endpoint) is a hand-authored fact
@@ -26,6 +28,13 @@ import { formatZodError } from '@/lib/shared/schemas/format-error';
 /** The picker's pinned "define your own" entry — never a real slug. */
 export const CUSTOM_VENDOR_KEY = '__custom-provider__';
 
+/** One model's facts as the dialog holds them: the window as typed (blank
+ * declares none) and whether the model reads images. */
+export interface ModelFactsDraft {
+  contextWindow: string;
+  supportsVision: boolean;
+}
+
 export interface CustomProviderFacts {
   /** The provider the facts belong to: {@link CUSTOM_VENDOR_KEY} while it
    * is being created, its slug once it exists. */
@@ -35,6 +44,10 @@ export interface CustomProviderFacts {
   /** `models-endpoint` discovers models from the endpoint's own listing;
    * `none` means the credential's allowlist names them. */
   catalogSource: 'models-endpoint' | 'none';
+  /** For `none`: what each model can take, by id. The dialog shows and saves
+   * the ids the allowlist names; the definition's facts for any other id
+   * ride along untouched. */
+  modelFacts: Readonly<Record<string, ModelFactsDraft>>;
 }
 
 export function emptyCustomProviderFacts(): CustomProviderFacts {
@@ -43,7 +56,128 @@ export function emptyCustomProviderFacts(): CustomProviderFacts {
     apiFormat: 'openai',
     baseUrl: '',
     catalogSource: 'models-endpoint',
+    modelFacts: {},
   };
+}
+
+const BLANK_MODEL_FACTS: ModelFactsDraft = {
+  contextWindow: '',
+  supportsVision: false,
+};
+
+/** The draft of one model: what was typed for it, else blank. */
+export function modelFactsDraft(
+  drafts: Readonly<Record<string, ModelFactsDraft>>,
+  id: string,
+): ModelFactsDraft {
+  return Object.hasOwn(drafts, id)
+    ? (drafts[id] ?? BLANK_MODEL_FACTS)
+    : BLANK_MODEL_FACTS;
+}
+
+/** The drafts a definition's declared models seed the dialog with — own
+ * keys only, so an id such as `__proto__` stays a model id. */
+export function modelFactsDrafts(
+  declared: readonly DeclaredModel[] | undefined,
+): Record<string, ModelFactsDraft> {
+  return Object.fromEntries(
+    (declared ?? []).map((model) => [
+      model.id,
+      {
+        contextWindow:
+          model.contextWindow === undefined ? '' : String(model.contextWindow),
+        supportsVision: model.supportsVision === true,
+      },
+    ]),
+  );
+}
+
+/**
+ * A typed context window: `undefined` for a blank field (no window
+ * declared), `null` for anything but a positive whole number of tokens.
+ */
+export function contextWindowOf(text: string): number | undefined | null {
+  const trimmed = text.trim();
+  if (trimmed === '') return undefined;
+  if (!/^\d+$/.test(trimmed)) return null;
+  const tokens = Number(trimmed);
+  return Number.isSafeInteger(tokens) && tokens > 0 ? tokens : null;
+}
+
+/** Whether every shown model's window is blank or a usable number. */
+export function modelFactsComplete(
+  ids: readonly string[],
+  drafts: Readonly<Record<string, ModelFactsDraft>>,
+): boolean {
+  return ids.every(
+    (id) => contextWindowOf(modelFactsDraft(drafts, id).contextWindow) !== null,
+  );
+}
+
+/** Whether two sets of drafts declare the same facts for the given ids. */
+export function sameModelFacts(
+  ids: readonly string[],
+  a: Readonly<Record<string, ModelFactsDraft>>,
+  b: Readonly<Record<string, ModelFactsDraft>>,
+): boolean {
+  return ids.every((id) => {
+    const left = modelFactsDraft(a, id);
+    const right = modelFactsDraft(b, id);
+    return (
+      left.contextWindow.trim() === right.contextWindow.trim() &&
+      left.supportsVision === right.supportsVision
+    );
+  });
+}
+
+/** One shown model as the definition declares it — `null` when the reader
+ * declared nothing for it. An unreadable window is never dropped quietly: it
+ * goes on as a number the schema refuses. */
+function declaredModel(
+  id: string,
+  draft: ModelFactsDraft,
+): DeclaredModel | null {
+  const tokens = contextWindowOf(draft.contextWindow);
+  if (tokens === undefined && !draft.supportsVision) return null;
+  return {
+    id,
+    ...(tokens !== undefined ? { contextWindow: tokens ?? Number.NaN } : {}),
+    ...(draft.supportsVision ? { supportsVision: true } : {}),
+  };
+}
+
+/**
+ * The models a catalog-less definition declares after the dialog's save: the
+ * stored declarations in their order, each shown id's replaced by what the
+ * dialog holds for it (or dropped once it declares nothing), then the shown
+ * ids declared for the first time, in allowlist order. An id the dialog does
+ * not show — another credential's, or one written into the file by hand —
+ * keeps its declaration.
+ */
+export function declaredModels(
+  stored: readonly DeclaredModel[],
+  shown: readonly string[],
+  drafts: Readonly<Record<string, ModelFactsDraft>>,
+): DeclaredModel[] {
+  const shownIds = new Set(shown);
+  const declared: DeclaredModel[] = [];
+  const placed = new Set<string>();
+  for (const model of stored) {
+    if (!shownIds.has(model.id)) {
+      declared.push(model);
+      continue;
+    }
+    placed.add(model.id);
+    const next = declaredModel(model.id, modelFactsDraft(drafts, model.id));
+    if (next !== null) declared.push(next);
+  }
+  for (const id of shown) {
+    if (placed.has(id)) continue;
+    placed.add(id);
+    const next = declaredModel(id, modelFactsDraft(drafts, id));
+    if (next !== null) declared.push(next);
+  }
+  return declared;
 }
 
 /** The slug a display name suggests: lower-case, dashes for everything else,
@@ -77,11 +211,30 @@ export function uniqueProviderSlug(
   }
 }
 
+/** The catalog a definition is saved with: a listing source as chosen, or
+ * no listing with the models the dialog and the stored file declare. */
+function catalogOf(
+  input: {
+    catalogSource: CustomProviderFacts['catalogSource'];
+    allowlist: readonly string[];
+    modelFacts: Readonly<Record<string, ModelFactsDraft>>;
+  },
+  existing: ProviderDefinition | undefined,
+): ProviderDefinition['catalog'] {
+  if (input.catalogSource !== 'none') return { source: input.catalogSource };
+  const stored =
+    existing?.catalog.source === 'none' ? (existing.catalog.models ?? []) : [];
+  const models = declaredModels(stored, input.allowlist, input.modelFacts);
+  return models.length > 0 ? { source: 'none', models } : { source: 'none' };
+}
+
 /**
  * The native document for a custom provider, or the reason the schema
  * refuses it. `existing` is the definition being edited: everything the
  * dialog has no field for rides along, except an `openai-modern` dialect
- * once the wire is no longer OpenAI's (the schema refuses that pair).
+ * once the wire is no longer OpenAI's (the schema refuses that pair). A
+ * provider without a listing declares the facts the dialog holds for the
+ * allowlisted ids, and keeps what the stored file declares for the others.
  */
 export function buildCustomProviderDefinition(
   input: {
@@ -90,6 +243,10 @@ export function buildCustomProviderDefinition(
     apiFormat: ApiFormat;
     baseUrl: string;
     catalogSource: CustomProviderFacts['catalogSource'];
+    /** The ids the credential's allowlist names — the models whose facts
+     * the dialog shows. */
+    allowlist: readonly string[];
+    modelFacts: Readonly<Record<string, ModelFactsDraft>>;
   },
   existing?: ProviderDefinition,
 ): { ok: true; config: ProviderDefinition } | { ok: false; message: string } {
@@ -105,7 +262,7 @@ export function buildCustomProviderDefinition(
       ? { wireDialect: existing.wireDialect }
       : {}),
     baseUrl: input.baseUrl.trim(),
-    catalog: { source: input.catalogSource },
+    catalog: catalogOf(input, existing),
     auth: existing?.auth ?? [
       { method: 'api-key' as const },
       { method: 'env' as const },
