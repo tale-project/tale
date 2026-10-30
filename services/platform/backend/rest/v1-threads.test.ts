@@ -1489,11 +1489,13 @@ describe('POST …/messages — Idempotency-Key', () => {
     expect(claim).toBeLessThan(marker);
     expect(remember).toBeGreaterThan(marker);
     expect(queries[remember]?.values).toContain(body.messageId);
+    // The send sweeps no expired keys: concurrent sends of one organization
+    // waited on each other's deletes. The hourly job sweeps them.
     expect(
       queries.some((q) =>
         q.text.startsWith('DELETE FROM app.chat_send_idempotency'),
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it('answers the remembered 202 with duplicate: true for the same request, and queues nothing [CHAT-R15]', async () => {
