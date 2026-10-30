@@ -1045,7 +1045,6 @@ competences:
   title: Kompetenzen
   description: Erlaube einem Mitglied eine einzelne, eng begrenzte Berechtigung ohne Admin-Rolle, oder halte eine Qualifikation fest, die deine Freigaberichtlinie verlangt. Jede Zuweisung und jeder Widerruf wird protokolliert, und wer aus der Organisation entfernt wird, verliert seine Zuweisungen.
   accessDenied: Nur Inhaber und Admins der Organisation können Kompetenzen verwalten.
-  formerMember: Ehemaliges Mitglied
   grantedBy: von {name}
   revokedBy: Widerrufen von {name}
   revokedBySystem: Nach dem Ablauf durch eine neue Zuweisung ersetzt

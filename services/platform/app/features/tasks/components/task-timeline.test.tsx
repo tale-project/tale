@@ -120,6 +120,8 @@ vi.mock('../hooks/use-actor-directory', () => ({
     resolveActor: (type: string, id: string) => ({
       type,
       id,
+      // An agent the project no longer has reads as deleted, as the real
+      // directory names it.
       name:
         (
           {
@@ -127,7 +129,7 @@ vi.mock('../hooks/use-actor-directory', () => ({
             'agent-manager': 'Fleet manager',
             'agent-worker': 'Implementer',
           } as Record<string, string>
-        )[id] ?? id,
+        )[id] ?? (type === 'agent' ? 'Deleted agent' : id),
       isAgent: type === 'agent',
     }),
     resolveAssigneeId: (id: string) =>

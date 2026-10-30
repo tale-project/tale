@@ -49,6 +49,7 @@ subject:
   stalled: This task is In progress but nothing is working on it — start it again.
   review: 'The {name} output is ready for review.'
   reviewWaitingOn: 'The {name} output is ready for review — waiting on {reviewer}.'
+  reviewWaitingOnFormerMember: 'The {name} output is ready for review — waiting on a former member.'
   approve: Approve
   approveConfirmTitle: 'Approve the output of {name}?'
   approved: Approved — the task is done.
@@ -433,6 +434,7 @@ review:
   needsReview: Needs review
   waitingOn: 'Waiting on {name}'
   waitingOnYou: Waiting on you
+  waitingOnFormerMember: Waiting on a former member
   filterTitle: Review
   needsMyReview: Needs my review
   independentReviewerRequired: Your organization requires an independent

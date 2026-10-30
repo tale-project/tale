@@ -74,6 +74,40 @@ describe('AssigneeAvatar', () => {
     expect(chip.className).not.toContain('bg-muted');
   });
 
+  it('never names a person by their raw id: without a name it is decorative', () => {
+    const { container, rerender } = render(
+      <AssigneeAvatar assigneeType="user" assigneeId="user-9" />,
+    );
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(container.innerHTML).not.toContain('user-9');
+
+    // The directory has not answered yet.
+    rerender(
+      <AssigneeAvatar
+        assigneeType="user"
+        assigneeId="user-9"
+        name=""
+        standing="pending"
+      />,
+    );
+    expect(screen.queryByRole('img')).not.toBeInTheDocument();
+    expect(container.innerHTML).not.toContain('user-9');
+  });
+
+  it('draws a former member as a person, named but without initials', () => {
+    render(
+      <AssigneeAvatar
+        assigneeType="user"
+        assigneeId="user-9"
+        name="Former member"
+        standing="former"
+      />,
+    );
+    const avatar = screen.getByRole('img', { name: 'Former member' });
+    expect(avatar).toHaveTextContent('');
+    expect(avatar.className).toContain('bg-muted');
+  });
+
   it('keeps the soft primary tint for agents even if isCurrentUser is set', () => {
     render(
       <AssigneeAvatar

@@ -104,6 +104,15 @@ const actorNames: Record<string, string> = {
   future: 'Future reviewer',
   reviewer: 'Review agent',
 };
+/** People the member directory does not name, as the real one answers:
+ * someone it no longer lists, and someone it has not answered about yet. */
+const unlistedPeople: Record<
+  string,
+  { name: string; standing: 'former' | 'pending' }
+> = {
+  gone: { name: 'Former member', standing: 'former' },
+  unread: { name: '', standing: 'pending' },
+};
 vi.mock('../hooks/use-actor-directory', () => ({
   useProvidedActorDirectory: () => undefined,
   ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
@@ -116,6 +125,7 @@ vi.mock('../hooks/use-actor-directory', () => ({
           ? (actorNames[id] ?? id)
           : id,
       isAgent: type === 'agent',
+      ...(type === 'user' ? unlistedPeople[id] : undefined),
     }),
   }),
 }));
@@ -1058,4 +1068,56 @@ it('shows a held subject without offering ordinary cancellation or replay', () =
   expect(screen.queryByRole('button', { name: /^Cancel$/ })).toBeNull();
   expect(screen.queryByRole('button', { name: /Start/ })).toBeNull();
   expect(container.querySelector('.animate-spin')).toBeNull();
+});
+
+describe('TaskSubjectPanel — a reviewer the member directory does not name', () => {
+  beforeEach(() => {
+    mocks.run = null;
+    mocks.runError = false;
+    mocks.pendingAsk = null;
+    mocks.inDoubt = null;
+    mocks.reviewerError = false;
+    mocks.reviewer = {
+      reviewer: { kind: 'inherit' },
+      resolvedReviewer: null,
+      projectReviewer: { kind: 'human_default' },
+      pendingReview: null,
+    };
+  });
+
+  it('says the output waits on a former member, never naming them by id', () => {
+    renderPanel(ownedBy(), true, 'in_review', 'gone');
+    expect(
+      screen.getByText(
+        'The Document verification desk output is ready for review — waiting on a former member.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/gone/)).not.toBeInTheDocument();
+  });
+
+  it('names a review captured on a former member', () => {
+    mocks.reviewer = capturedReview({ kind: 'user', userId: 'gone' });
+    renderPanel(ownedBy(), true, 'in_review', 'gone');
+    expect(
+      screen.getByText('Current review: Former member'),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ['designated', null],
+    ['captured', { kind: 'user', userId: 'unread' }],
+  ] as const)(
+    'leaves a %s reviewer out while the directory has not answered',
+    (_how, recipient) => {
+      if (recipient !== null) mocks.reviewer = capturedReview(recipient);
+      renderPanel(ownedBy(), true, 'in_review', 'unread');
+      expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+      expect(
+        screen.getByText(
+          'The Document verification desk output is ready for review.',
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/Current review/)).not.toBeInTheDocument();
+    },
+  );
 });

@@ -129,12 +129,12 @@ function TaskCardView({
   const reviewer = reviewRecipient(task._id);
   const reviewerIsMe =
     reviewer?.kind === 'user' && reviewer.userId === currentUserId;
-  const reviewerName =
+  const reviewerActor =
     reviewer !== undefined && !reviewerIsMe
       ? resolveActor(
           reviewer.kind,
           reviewer.kind === 'user' ? reviewer.userId : reviewer.agentId,
-        ).name
+        )
       : undefined;
 
   // The one thing on the card that is someone's move or in motion, said in
@@ -157,7 +157,7 @@ function TaskCardView({
     : reviewing
       ? {
           icon: Eye,
-          text: stateLabels.review(reviewerName, reviewerIsMe),
+          text: stateLabels.review(reviewerActor, reviewerIsMe),
           className: 'text-blue-700 dark:text-blue-400',
           pulse: false,
         }

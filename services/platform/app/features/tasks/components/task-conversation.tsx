@@ -271,7 +271,8 @@ function TaskConversationContent({
     organizationId,
     projectId,
   );
-  // Who a fold's events came from, each once, in order.
+  // Who a fold's events came from, each once, in order — leaving out a
+  // person the member directory has not named yet.
   const foldActors = (events: readonly EventEntry[]): string => {
     const names: string[] = [];
     for (const { item } of events) {
@@ -279,7 +280,7 @@ function TaskConversationContent({
         item.kind === 'agentRun'
           ? resolveAgentRunPreview(item.run).name
           : resolveActor(item.entry.actorType, item.entry.actorId).name;
-      if (!names.includes(name)) names.push(name);
+      if (name !== '' && !names.includes(name)) names.push(name);
     }
     return names.join(', ');
   };
@@ -394,6 +395,7 @@ function TaskConversationContent({
                   }
                   const firstAt = segment.events[0]?.at ?? 0;
                   const lastAt = segment.events.at(-1)?.at ?? firstAt;
+                  const actors = foldActors(segment.events);
                   return (
                     <li
                       key={segment.key}
@@ -407,8 +409,12 @@ function TaskConversationContent({
                             {t('timeline.updates', {
                               count: segment.events.length,
                             })}
-                            <span aria-hidden="true"> · </span>
-                            {foldActors(segment.events)}
+                            {actors !== '' && (
+                              <>
+                                <span aria-hidden="true"> · </span>
+                                {actors}
+                              </>
+                            )}
                           </>
                         }
                         time={

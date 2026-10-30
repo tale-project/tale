@@ -189,6 +189,7 @@ function TaskCommentViewContent({
             assigneeType={c.authorType}
             assigneeId={c.authorId}
             name={author.name}
+            standing={author.standing}
           />
         }
         author={<TaskActorName preview={preview} name={author.name} />}

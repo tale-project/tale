@@ -47,6 +47,7 @@ subject:
   stalled: Cette tâche est En cours mais personne ne travaille dessus — relance-la.
   review: 'Le résultat de {name} est prêt pour relecture.'
   reviewWaitingOn: 'Le résultat de {name} est prêt pour relecture — en attente de {reviewer}.'
+  reviewWaitingOnFormerMember: "Le résultat de {name} est prêt pour relecture — en attente d'un ancien membre."
   approve: Approuver
   approveConfirmTitle: 'Approuver le résultat de {name} ?'
   approved: Approuvé — la tâche est terminée.
@@ -435,6 +436,7 @@ review:
   needsReview: Revue requise
   waitingOn: 'En attente de {name}'
   waitingOnYou: En attente de ta relecture
+  waitingOnFormerMember: En attente d'un ancien membre
   filterTitle: Relecture
   needsMyReview: En attente de ma relecture
   independentReviewerRequired: Ton organisation exige une relecture

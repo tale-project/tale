@@ -68,6 +68,8 @@ status:
   disabled: Deaktiviert
   archived: Archiviert
 stepProgress: 'Schritt {current} von {total}: {label}'
+# Someone no longer in the organization, named where a member would be.
+formerMember: Ehemaliges Mitglied
 validation:
   required: '{field} ist erforderlich'
   maxLength: '{field} darf höchstens {max} Zeichen lang sein'

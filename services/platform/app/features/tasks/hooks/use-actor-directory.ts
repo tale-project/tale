@@ -38,14 +38,26 @@ import {
   useTaskContractAutomationsPending,
 } from './use-task-subject-contract';
 
+/**
+ * Where a person the member directory does not name stands: `pending` while
+ * it has not answered (it is loading, or its read failed) — nobody is a
+ * former member yet — and `former` once it has and they are not in it: a
+ * member who left, or one whose account holds no name and no e-mail.
+ */
+export type ActorStanding = 'pending' | 'former';
+
 export interface ResolvedActor {
   type: TaskCreatorType;
   id: string;
-  /** Human-readable display name. Falls back to the raw id when unresolved. */
+  /** Human-readable display name, never the raw id, which tells a reader
+   * nothing: a person the directory does not name reads as a former member
+   * once it has answered, and as `''` until then (see `standing`). */
   name: string;
   isAgent: boolean;
   /** Member email, when the actor is a resolved human. */
   email?: string;
+  /** Set only for a person the directory does not name. */
+  standing?: ActorStanding;
 }
 
 export interface AssignableActor {
@@ -87,13 +99,17 @@ const EMPTY_CATALOG = new Map<string, TaskActorCatalogEntry>();
  * for the assignee picker. Members come from the org directory; agents are
  * the PROJECT's user-created instances (`projectAgents` rows, from the
  * project Agents tab), so without a `projectId` no agent is assignable and a
- * historical/foreign agent actor resolves to its raw id. The retired
- * workflow catalog stays empty until automations grow a task-side directory.
+ * historical/foreign agent actor reads as a deleted agent. A person the
+ * directory does not name reads as a former member once it has answered;
+ * no actor is ever named by its raw id. The retired workflow catalog stays
+ * empty until automations grow a task-side directory.
  */
 export function useActorDirectory(organizationId: string, projectId?: string) {
   const { members } = useMembers(organizationId);
   const { data: me } = useCurrentMemberContext(organizationId);
   const { t } = useT('tasks');
+  const { t: tCommon } = useT('common');
+  const formerMember = tCommon('formerMember');
   const { locale } = useLocale();
   // An `app` actor IS an automation — the assignee chip, the subtask avatars
   // and the timeline all named it by its slug before this, which is addressing
@@ -140,11 +156,13 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
       (members ?? []).map((m) => ({
         type: 'user' as const,
         id: m.userId,
-        name: m.displayName || m.email || m.userId,
+        // An account that holds no name and no e-mail names nobody, as on
+        // the automation pages; its id would tell a reader nothing either.
+        name: m.displayName || m.email || formerMember,
         email: m.email,
         role: m.role,
       })),
-    [members],
+    [members, formerMember],
   );
 
   const { agents: projectAgents, isLoading: ownAgentsLoading } =
@@ -219,11 +237,16 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
   }, [projectAgents, servingAgents]);
   const workflowCatalog = EMPTY_CATALOG;
 
+  // The people the resolvers name: a listed member, by display name or else
+  // e-mail. Anyone else is a former member once the directory has answered.
   const memberMap = useMemo(() => {
-    const map = new Map<string, AssignableActor>();
-    for (const m of memberList) map.set(m.id, m);
+    const map = new Map<string, { name: string; email?: string }>();
+    for (const m of members ?? []) {
+      const name = m.displayName || m.email;
+      if (name) map.set(m.userId, { name, email: m.email });
+    }
     return map;
-  }, [memberList]);
+  }, [members]);
 
   const agentMap = useMemo(() => {
     const map = new Map<string, AssignableActor>();
@@ -231,6 +254,10 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
     return map;
   }, [agentList]);
 
+  // An id none of the lists names may still be one of theirs until all of
+  // them have answered.
+  const directoryPending =
+    members === undefined || agentsLoading || automationsPending;
   const resolveAssigneeId = useMemo(
     () =>
       (id: string): string => {
@@ -240,9 +267,20 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
         if (agent) return agent.name;
         const appName = appNames.get(id);
         if (appName) return appName;
-        return id;
+        // Named by nobody: a person who left the organization. The value
+        // carries no type, so an agent deleted before it ever ran on the
+        // task reads the same; one that ran is resolved as an agent by the
+        // caller, which knows its runs.
+        return directoryPending ? '' : formerMember;
       },
-    [memberMap, agentMap, agentCatalog, appNames],
+    [
+      memberMap,
+      agentMap,
+      agentCatalog,
+      appNames,
+      directoryPending,
+      formerMember,
+    ],
   );
 
   const resolveActor = useMemo(
@@ -301,15 +339,28 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
           };
         }
         const member = memberMap.get(id);
-        return {
-          type,
-          id,
-          name: member?.name ?? id,
-          isAgent: false,
-          email: member?.email,
-        };
+        if (member !== undefined) {
+          return {
+            type,
+            id,
+            name: member.name,
+            isAgent: false,
+            email: member.email,
+          };
+        }
+        // Someone the directory does not name: nobody yet while it has not
+        // answered, then a former member — never the raw id.
+        return members === undefined
+          ? { type, id, name: '', isAgent: false, standing: 'pending' }
+          : {
+              type,
+              id,
+              name: formerMember,
+              isAgent: false,
+              standing: 'former',
+            };
       },
-    [appNames, memberMap, agentMap, agentCatalog, t],
+    [appNames, memberMap, members, agentMap, agentCatalog, formerMember, t],
   );
 
   const resolveActorPreview = useMemo(
@@ -395,8 +446,8 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
       organizationId,
       // `useActorDirectory` stays org-wide — it also resolves *historical* actors
       // (comment authors, a current assignee who has since lost access), which a
-      // project filter would regress to raw ids. The project-scoped candidate
-      // lists for authoring live in `useAssignableActors` below.
+      // project filter would misname as former members. The project-scoped
+      // candidate lists for authoring live in `useAssignableActors` below.
       projectId,
     }),
     [

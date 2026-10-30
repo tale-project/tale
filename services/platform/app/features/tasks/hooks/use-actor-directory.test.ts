@@ -48,23 +48,33 @@ const MANAGED_AGENT: AgentRow = {
 /** What the project's agent list answers. */
 let projectAgentRows: AgentRow[] = PROJECT_AGENTS;
 
+interface MemberRow {
+  userId: string;
+  displayName?: string;
+  email?: string;
+  role: string;
+}
+
+const MEMBERS: MemberRow[] = [
+  {
+    userId: 'user-1',
+    displayName: 'Alex Doe',
+    email: 'alex@example.com',
+    role: 'member',
+  },
+  {
+    userId: 'user-2',
+    displayName: '',
+    email: 'kim@example.com',
+    role: 'admin',
+  },
+];
+
+/** What the member directory answers — undefined until it has answered. */
+let memberRows: MemberRow[] | undefined = MEMBERS;
+
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({
-    members: [
-      {
-        userId: 'user-1',
-        displayName: 'Alex Doe',
-        email: 'alex@example.com',
-        role: 'member',
-      },
-      {
-        userId: 'user-2',
-        displayName: '',
-        email: 'kim@example.com',
-        role: 'admin',
-      },
-    ],
-  }),
+  useMembers: () => ({ members: memberRows }),
 }));
 
 let standardAgent: { enabled: boolean; available: boolean } | undefined;
@@ -100,6 +110,8 @@ let servingAgents:
   | undefined;
 /** Whether `listServingAgents` is still being read. */
 let servingLoading = false;
+/** What the automation listings answer — undefined while they load. */
+let automationListing: unknown[] | undefined = [];
 
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: (name: string, args: unknown) => ({
@@ -116,7 +128,9 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
             ? projectRead
             : name === 'projects/queries:listServingAgents'
               ? servingAgents
-              : undefined,
+              : name === 'automations/queries:listAutomations'
+                ? automationListing
+                : undefined,
   }),
 }));
 
@@ -245,8 +259,97 @@ describe('useActorDirectory — members + project-agent instances', () => {
     const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
     expect(result.current.resolveAssigneeId('user-1')).toBe('Alex Doe');
     expect(result.current.resolveAssigneeId('pa_2')).toBe('Docs Writer');
-    expect(result.current.resolveAssigneeId('unknown-id')).toBe('unknown-id');
+    expect(result.current.resolveAssigneeId('unknown-id')).toBe('formerMember');
   });
+});
+
+/**
+ * A person the member directory does not list — a member who was removed —
+ * still appears on the tasks they touched. Their id names nobody to a
+ * reader, so the directory says what they are once it has answered, and
+ * nothing before it has.
+ */
+describe('useActorDirectory — people the directory does not list', () => {
+  beforeEach(() => {
+    memberRows = MEMBERS;
+    automationListing = [];
+    servingLoading = false;
+  });
+
+  afterEach(() => {
+    memberRows = MEMBERS;
+    automationListing = [];
+    servingLoading = false;
+  });
+
+  it('names a removed member as a former member, never by their id', () => {
+    const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
+    expect(result.current.resolveActor('user', 'user-gone')).toEqual({
+      type: 'user',
+      id: 'user-gone',
+      name: 'formerMember',
+      isAgent: false,
+      standing: 'former',
+    });
+    expect(result.current.resolveAssigneeId('user-gone')).toBe('formerMember');
+    // A listed member stands as no one in particular.
+    expect(result.current.resolveActor('user', 'user-1').standing).toBe(
+      undefined,
+    );
+  });
+
+  it('names a member whose account holds no name or e-mail as a former member', () => {
+    memberRows = [...MEMBERS, { userId: 'user-erased', role: 'member' }];
+    const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
+    expect(result.current.resolveActor('user', 'user-erased')).toMatchObject({
+      name: 'formerMember',
+      standing: 'former',
+    });
+    expect(result.current.resolveAssigneeId('user-erased')).toBe(
+      'formerMember',
+    );
+    // The pickers' list never offers the id as a name either.
+    expect(
+      result.current.members.find((member) => member.id === 'user-erased'),
+    ).toMatchObject({ name: 'formerMember' });
+  });
+
+  it('names nobody while the member directory has not answered', () => {
+    memberRows = undefined;
+    const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
+    expect(result.current.resolveActor('user', 'user-1')).toEqual({
+      type: 'user',
+      id: 'user-1',
+      name: '',
+      isAgent: false,
+      standing: 'pending',
+    });
+    expect(result.current.resolveAssigneeId('user-1')).toBe('');
+  });
+
+  it.each([
+    [
+      'the agents serving the board',
+      () => {
+        servingLoading = true;
+      },
+    ],
+    [
+      'the automations',
+      () => {
+        automationListing = undefined;
+      },
+    ],
+  ])(
+    'calls an id nobody lists a former member only once %s have answered too',
+    (_list, stillLoading) => {
+      stillLoading();
+      const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
+      // It may still be one of theirs.
+      expect(result.current.resolveAssigneeId('user-gone')).toBe('');
+      expect(result.current.resolveAssigneeId('user-1')).toBe('Alex Doe');
+    },
+  );
 });
 
 /**

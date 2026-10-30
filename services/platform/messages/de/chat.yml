@@ -429,6 +429,7 @@ share:
   unshareFailed: Teilen konnte nicht beendet werden
   sharedChat: Geteilter Chat
   byline: Geteilt von {name} am {date}
+  bylineFormerMember: Geteilt von einem ehemaligen Mitglied am {date}
   notFound: Dieser geteilte Chat ist nicht mehr verfügbar.
   loadFailed: Dieser geteilte Chat konnte nicht geladen werden.
   refreshFailed: Dieser geteilte Chat konnte nicht aktualisiert werden. Die angezeigten Nachrichten sind möglicherweise veraltet.

@@ -47,6 +47,7 @@ subject:
   stalled: Diese Aufgabe ist In Bearbeitung, aber niemand arbeitet daran — starte sie erneut.
   review: 'Das Ergebnis von {name} ist bereit zur Prüfung.'
   reviewWaitingOn: 'Das Ergebnis von {name} ist bereit zur Prüfung — es wartet auf {reviewer}.'
+  reviewWaitingOnFormerMember: 'Das Ergebnis von {name} ist bereit zur Prüfung — es wartet auf ein ehemaliges Mitglied.'
   approve: Freigeben
   approveConfirmTitle: 'Ergebnis von {name} freigeben?'
   approved: Freigegeben — die Aufgabe ist erledigt.
@@ -437,6 +438,7 @@ review:
   needsReview: Review ausstehend
   waitingOn: 'Wartet auf {name}'
   waitingOnYou: Wartet auf dein Review
+  waitingOnFormerMember: Wartet auf ein ehemaliges Mitglied
   filterTitle: Review
   needsMyReview: Wartet auf mein Review
   independentReviewerRequired: Deine Organisation verlangt ein unabhängiges

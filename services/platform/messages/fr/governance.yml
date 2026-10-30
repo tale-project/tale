@@ -1084,7 +1084,6 @@ competences:
   title: Compétences
   description: Permets à un membre une seule action bien délimitée sans rôle d'admin, ou enregistre une qualification exigée par ta politique de relecture. Chaque attribution et chaque révocation est auditée, et retirer un membre révoque ses attributions.
   accessDenied: Seuls les propriétaires et les admins de l'organisation peuvent gérer les compétences.
-  formerMember: Ancien membre
   grantedBy: par {name}
   revokedBy: Révoquée par {name}
   revokedBySystem: Remplacée par une nouvelle attribution après son expiration

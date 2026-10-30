@@ -39,6 +39,7 @@ export function useSkillAttribution(): {
   lastEditedBy: (skill: SkillEditorFacts) => string | null;
 } {
   const { t } = useT('skills');
+  const { t: tCommon } = useT('common');
   const createdBy = useCallback(
     (skill: SkillCreatorFacts): string => {
       if (skill.origin === 'release') {
@@ -47,9 +48,9 @@ export function useSkillAttribution(): {
           : t('attribution.releaseBy', { name: skill.ownerName });
       }
       if (skill.origin === 'builtin') return t('attribution.builtin');
-      return skill.ownerName ?? t('attribution.formerMember');
+      return skill.ownerName ?? tCommon('formerMember');
     },
-    [t],
+    [t, tCommon],
   );
   const creatorHint = useCallback(
     (skill: SkillCreatorFacts): string => {
@@ -63,9 +64,9 @@ export function useSkillAttribution(): {
   const lastEditedBy = useCallback(
     (skill: SkillEditorFacts): string | null => {
       if (skill.updatedBy === undefined) return null;
-      return skill.updatedByName ?? t('attribution.formerMember');
+      return skill.updatedByName ?? tCommon('formerMember');
     },
-    [t],
+    [tCommon],
   );
   return { createdBy, creatorHint, lastEditedBy };
 }

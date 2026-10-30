@@ -2112,6 +2112,7 @@ export function EditTaskBody({
                         assigneeType={subAssignee.type}
                         assigneeId={subAssignee.id}
                         name={subAssignee.name}
+                        standing={subAssignee.standing}
                         isCurrentUser={
                           subAssignee.type === 'user' &&
                           subAssignee.id === me?.userId
@@ -2388,6 +2389,7 @@ export function EditTaskBody({
             assigneeType={task.createdByType}
             assigneeId={task.createdBy}
             name={author.name}
+            standing={author.standing}
           />
           <span className="text-foreground min-w-0 truncate text-sm">
             {author.name}

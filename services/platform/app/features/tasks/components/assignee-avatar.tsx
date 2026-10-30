@@ -2,6 +2,7 @@ import { Avatar } from '@tale/ui/avatar';
 
 import { useT } from '@/lib/i18n/client';
 
+import type { ActorStanding } from '../hooks/use-actor-directory';
 import type { TaskCreatorType } from '../lib/display';
 
 /**
@@ -10,7 +11,10 @@ import type { TaskCreatorType } from '../lib/display';
  * User outline. A person shows their initials in the tint their name hashes
  * to — the same colour as in a conversation or a contact list — when a
  * resolved `name` is passed (via {@link useActorDirectory}), else a User
- * glyph. The accessible name prefers the resolved name over the raw id.
+ * glyph. The accessible name is that resolved name, never the raw id, which
+ * tells a reader nothing: without a name yet the avatar is decorative, and a
+ * former member keeps the User glyph under their label rather than initials
+ * of nobody.
  *
  * When `isCurrentUser` is set for a person, the chip uses the filled primary
  * surface so "assigned to me" is glanceable (agents keep the soft primary
@@ -20,6 +24,7 @@ export function AssigneeAvatar({
   assigneeType,
   assigneeId,
   name,
+  standing,
   isCurrentUser = false,
   size = 'sm',
   className,
@@ -28,6 +33,9 @@ export function AssigneeAvatar({
   assigneeId?: string;
   /** Resolved display name; enables initials + a human-readable tooltip. */
   name?: string;
+  /** The resolved actor's `standing`: set for a person the directory does
+   * not name. */
+  standing?: ActorStanding;
   /** True when this avatar is the signed-in viewer (self-assign / "you"). */
   isCurrentUser?: boolean;
   /** 20px (`sm`) or 28px (`md`). */
@@ -48,7 +56,7 @@ export function AssigneeAvatar({
     );
   }
 
-  const label = name ?? assigneeId;
+  const label = name !== undefined && name !== '' ? name : undefined;
   if (assigneeType === 'agent' || assigneeType === 'app') {
     return (
       <Avatar
@@ -64,7 +72,9 @@ export function AssigneeAvatar({
       kind="person"
       size={avatarSize}
       label={label}
-      {...(name !== undefined ? { name } : {})}
+      {...(label !== undefined && standing === undefined
+        ? { name: label }
+        : {})}
       {...(isCurrentUser ? { tone: 'strong' as const } : {})}
       className={className}
     />

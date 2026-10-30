@@ -1087,7 +1087,6 @@ apiKeys:
     team: Team {name}
     project: Project {name}
     organization: Organization
-    formerMember: Former member
     deletedTeam: Deleted team
     deletedProject: Deleted project
     actsAs: Acts as {role}
