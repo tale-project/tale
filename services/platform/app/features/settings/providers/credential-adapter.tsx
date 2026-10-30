@@ -213,6 +213,9 @@ function SecretFields({
               onChange={(e) =>
                 onChange({ ...value, accountId: e.target.value })
               }
+              description={
+                replacing ? t('providers.replace.accountIdKeep') : undefined
+              }
               disabled={disabled}
               required={!replacing}
             />
@@ -612,11 +615,13 @@ export const providerCredentialAdapter: CredentialAdapter<
       draft.accountId.length > 0 ||
       draft.envSuffix.length > 0 ||
       JSON.stringify(draft.broker) !== JSON.stringify(emptyBrokerDraft()),
-    isComplete: (method, draft, vendor) => {
+    isComplete: (method, draft, vendor, replacing) => {
       if (isSecretLike(method)) {
         return (
           draft.secret.trim().length > 0 &&
           (method !== 'subscription-key' ||
+            // A replacement that names no account ID keeps the stored one.
+            replacing === true ||
             !vendor?.catalog.authMethods.includes('subscription-key') ||
             vendor.catalog.subscriptionAccountIdVar === undefined ||
             draft.accountId.trim().length > 0)
@@ -627,13 +632,15 @@ export const providerCredentialAdapter: CredentialAdapter<
     },
     buildArgs: (t, method, draft) => {
       if (isSecretLike(method)) {
+        // Only a subscription key carries an account ID. The draft outlives a
+        // method change, and the server refuses one on any other method.
+        const accountId =
+          method === 'subscription-key' ? draft.accountId.trim() : '';
         return {
           ok: true,
           args: {
             secret: draft.secret.trim(),
-            ...(draft.accountId.trim() !== ''
-              ? { accountId: draft.accountId.trim() }
-              : {}),
+            ...(accountId !== '' ? { accountId } : {}),
           },
         };
       }

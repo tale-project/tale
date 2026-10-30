@@ -71,7 +71,8 @@ export function ReplaceSecretDialog<
   const title = method === null ? null : secret.replaceTitle(t, method);
   const note = method === null ? undefined : secret.replaceNote?.(t, method);
   const isValid =
-    method !== null && secret.isComplete(method, draft, vendor ?? undefined);
+    method !== null &&
+    secret.isComplete(method, draft, vendor ?? undefined, true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

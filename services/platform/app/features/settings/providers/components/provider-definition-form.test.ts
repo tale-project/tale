@@ -164,6 +164,9 @@ describe('mapProviderDefinitionError', () => {
       'providers.credential.inUseByEmbedding',
     );
     expect(
+      mapProviderDefinitionError(t, coded('CREDENTIAL_ACCOUNT_ID_INVALID')),
+    ).toBe('providers.credential.accountIdInvalid');
+    expect(
       mapProviderDefinitionError(t, coded('CONFIG_VERSION_CONFLICT')),
     ).toBe('providers.custom.errors.versionConflict');
     expect(mapProviderDefinitionError(t, coded('CONFIG_UNREADABLE'))).toBe(

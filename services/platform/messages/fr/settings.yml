@@ -1035,6 +1035,10 @@ providers:
       Le modèle d'embedding de la recherche de connaissances utilise ces
       identifiants. Choisis-en d'autres pour lui sous Paramètres →
       Résidence des données → Modèle d'embedding, puis supprime ceux-ci.
+    accountIdInvalid:
+      Seule une clé d'abonnement accepte un ID de compte. Choisis Clé
+      d'abonnement comme méthode d'authentification ou enregistre sans ID
+      de compte.
   replace:
     apiKeyTitle: Remplacer la clé API
     envTitle: Changer la variable d'environnement
@@ -1046,6 +1050,7 @@ providers:
       Les valeurs stockées du courtier ne peuvent pas être affichées.
       Saisis à nouveau la configuration complète — laisse le secret du
       courtier vide pour conserver celui qui est stocké.
+    accountIdKeep: Laisse le champ vide pour conserver l'ID de compte stocké.
   dialog:
     secret: Clé API
     subscriptionSecret: Clé d'abonnement

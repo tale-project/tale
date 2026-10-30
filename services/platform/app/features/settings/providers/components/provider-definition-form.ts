@@ -174,6 +174,8 @@ export function mapProviderDefinitionError(
       return t('providers.custom.errors.notFound');
     case 'CREDENTIAL_IN_USE':
       return t('providers.credential.inUseByEmbedding');
+    case 'CREDENTIAL_ACCOUNT_ID_INVALID':
+      return t('providers.credential.accountIdInvalid');
     case 'PROVIDER_CATALOG_UNAVAILABLE':
       return t('providers.custom.errors.catalogUnavailable');
     default:

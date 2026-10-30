@@ -1005,6 +1005,10 @@ providers:
       Das Embedding-Modell der Wissenssuche verwendet diese Zugangsdaten.
       Wähle dafür unter Einstellungen → Datenresidenz → Embedding-Modell
       andere Zugangsdaten und lösche diese danach.
+    accountIdInvalid:
+      Eine Konto-ID gibt es nur für einen Abo-Schlüssel. Wähle
+      Abo-Schlüssel als Authentifizierungsmethode oder speichere ohne
+      Konto-ID.
   replace:
     apiKeyTitle: API-Schlüssel ersetzen
     envTitle: Umgebungsvariable ändern
@@ -1016,6 +1020,7 @@ providers:
       Gespeicherte Broker-Werte können nicht angezeigt werden. Gib die
       Konfiguration vollständig neu ein — lasse das Broker-Secret leer, um das
       gespeicherte zu behalten.
+    accountIdKeep: Lass das Feld leer, um die gespeicherte Konto-ID zu behalten.
   dialog:
     secret: API-Schlüssel
     subscriptionSecret: Abo-Schlüssel
