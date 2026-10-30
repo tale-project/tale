@@ -58,7 +58,10 @@ interface NotificationListPanelProps {
    * (same panel, more vertical space; title lives in the page header).
    */
   layout?: 'compact' | 'expanded';
-  /** Called after a row navigates (deep link) so the host popover can close. */
+  /**
+   * Called after a row navigates (deep link) so the host surface — the bell's
+   * popover or its expanded dialog — can close.
+   */
   onNavigate?: () => void;
   /** Compact layout only — opens the full-page notifications view. */
   onExpand?: () => void;
