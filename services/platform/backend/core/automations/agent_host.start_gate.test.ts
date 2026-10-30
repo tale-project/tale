@@ -119,6 +119,165 @@ describe('workflowTurnStartRefusal', () => {
   });
 });
 
+describe('workflowTurnStartRefusal for a start the kick held', () => {
+  // A re-kick held until a model at capacity, a cooling pool or sandbox
+  // room might take it again. Long before it runs, the walker that kicked
+  // it has parked the run on it — unless that walker lost the run first,
+  // and then nothing would ever wait on the turn it launched.
+  const held = { ...keys, claimEpoch: 7 };
+  const predecessor = {
+    node: 'draft',
+    agent: agent({
+      execId: 'exec_1',
+      result: {
+        errored: true,
+        failureCode: 'model_capacity',
+        text: '',
+        files: [],
+      },
+    }),
+  };
+  const lostTheRun = {
+    reason: 'the walker that held it no longer holds the run',
+    runEnded: false,
+  };
+
+  it('runs once its run is parked on it, whoever claimed the run since', () => {
+    expect(
+      workflowTurnStartRefusal(
+        {
+          status: 'waiting',
+          claimEpoch: 9,
+          leased: false,
+          cursor: { node: 'draft', agent: agent() },
+        },
+        held,
+      ),
+    ).toBeNull();
+  });
+
+  it('runs before the park while the walker that held it still holds the run', () => {
+    expect(
+      workflowTurnStartRefusal(
+        { status: 'running', claimEpoch: 7, leased: true, cursor: predecessor },
+        held,
+      ),
+    ).toBeNull();
+  });
+
+  it('is refused once the walker that held it lost the run without parking it there', () => {
+    // Another walker took the run over: a newer claim, before or after its
+    // own re-kick of the same node.
+    expect(
+      workflowTurnStartRefusal(
+        { status: 'running', claimEpoch: 8, leased: true, cursor: predecessor },
+        held,
+      ),
+    ).toEqual(lostTheRun);
+    expect(
+      workflowTurnStartRefusal(
+        { status: 'running', claimEpoch: 8, leased: true },
+        held,
+      ),
+    ).toEqual(lostTheRun);
+    // The walker died before its park: its lease lapsed.
+    expect(
+      workflowTurnStartRefusal(
+        {
+          status: 'running',
+          claimEpoch: 7,
+          leased: false,
+          cursor: predecessor,
+        },
+        held,
+      ),
+    ).toEqual(lostTheRun);
+    // Its park was refused and the run waits on what it had before.
+    expect(
+      workflowTurnStartRefusal(
+        {
+          status: 'waiting',
+          claimEpoch: 7,
+          leased: false,
+          cursor: predecessor,
+        },
+        held,
+      ),
+    ).toEqual(lostTheRun);
+    // A run read without the claim (an older reader) is no proof either.
+    expect(
+      workflowTurnStartRefusal(
+        { status: 'running', cursor: predecessor },
+        held,
+      ),
+    ).toEqual(lostTheRun);
+  });
+
+  it('is refused like any start when the run ended, moved on, settled it or another turn superseded it', () => {
+    expect(
+      workflowTurnStartRefusal(
+        {
+          status: 'cancelled',
+          claimEpoch: 7,
+          leased: false,
+          cursor: { node: 'draft', agent: agent() },
+        },
+        held,
+      ),
+    ).toEqual({ reason: 'the run is cancelled', runEnded: true });
+    expect(
+      workflowTurnStartRefusal(
+        {
+          status: 'running',
+          claimEpoch: 7,
+          leased: true,
+          cursor: { node: 'send' },
+        },
+        held,
+      ),
+    ).toEqual({ reason: 'the run moved on to node send', runEnded: false });
+    expect(
+      workflowTurnStartRefusal(
+        {
+          status: 'waiting',
+          claimEpoch: 7,
+          leased: false,
+          cursor: {
+            node: 'draft',
+            agent: agent({ result: { errored: false, text: 'x', files: [] } }),
+          },
+        },
+        held,
+      ),
+    ).toEqual({ reason: 'this turn already settled', runEnded: false });
+    expect(
+      workflowTurnStartRefusal(
+        {
+          status: 'waiting',
+          claimEpoch: 7,
+          leased: false,
+          cursor: { node: 'draft', agent: agent({ execId: 'exec_3' }) },
+        },
+        held,
+      ),
+    ).toEqual({ reason: 'exec exec_3 superseded it', runEnded: false });
+  });
+
+  it('leaves a start the kick did not hold as lenient as before', () => {
+    expect(
+      workflowTurnStartRefusal(
+        {
+          status: 'running',
+          claimEpoch: 8,
+          leased: false,
+          cursor: predecessor,
+        },
+        keys,
+      ),
+    ).toBeNull();
+  });
+});
+
 describe('isWorkflowTurnLive', () => {
   it('is strict: the cursor must name this node and exec with no result', () => {
     expect(isWorkflowTurnLive(null, keys)).toBe(false);
@@ -221,6 +380,79 @@ describe('startWorkflowAgentTurnImpl', () => {
       status: 'cancelled',
     });
     expect(mutations[2]?.payload).toEqual({ executionId: 'run_1' });
+  });
+
+  it('cuts a held start whose walker lost the run before any side effect, leaving the run’s session to the run', async () => {
+    // The walker that kicked this capacity retry was taken over before its
+    // park: the newer walker owns the run and its re-kick.
+    const queries: string[] = [];
+    const mutations: Array<{ name: string; payload: unknown }> = [];
+    const ctx = {
+      runQuery: async (ref: unknown) => {
+        const name = functionRefName(ref);
+        queries.push(name);
+        if (name === 'automations/queries:readAgentCursor') {
+          return {
+            status: 'running',
+            claimEpoch: 8,
+            leased: true,
+            cursor: {
+              node: 'draft',
+              agent: agent({
+                execId: 'exec_1',
+                result: {
+                  errored: true,
+                  failureCode: 'model_capacity',
+                  text: '',
+                  files: [],
+                },
+              }),
+            },
+          };
+        }
+        if (name === 'sandbox/session_queries:getExternalTurnOpForFinalize') {
+          return { execId: 'exec_2' };
+        }
+        throw new Error(`unexpected query ${name}`);
+      },
+      runMutation: async (ref: unknown, payload: unknown) => {
+        const name = functionRefName(ref);
+        mutations.push({ name, payload });
+        if (name === 'sandbox/session_mutations:claimSessionOpFinalize') {
+          return true;
+        }
+        if (name === 'sandbox/session_mutations:upsertSessionOp') return null;
+        throw new Error(`unexpected mutation ${name}`);
+      },
+      runAction: async (ref: unknown) => {
+        throw new Error(`unexpected action ${functionRefName(ref)}`);
+      },
+      scheduler: {
+        runAfter: async () => {
+          throw new Error('a refused start schedules nothing');
+        },
+      },
+    } as unknown as ActionCtx;
+
+    await expect(
+      startWorkflowAgentTurnImpl(ctx, { ...startArgs(), claimEpoch: 7 }),
+    ).resolves.toBeNull();
+
+    // No session ensure, no staging, no mint, no exec, no settle.
+    expect(queries).toEqual([
+      'automations/queries:readAgentCursor',
+      'sandbox/session_queries:getExternalTurnOpForFinalize',
+    ]);
+    // The op row is finalized as cancelled; the session stays: the run is
+    // live and its newer walker's turn shares it.
+    expect(mutations.map((m) => m.name)).toEqual([
+      'sandbox/session_mutations:claimSessionOpFinalize',
+      'sandbox/session_mutations:upsertSessionOp',
+    ]);
+    expect(mutations[1]?.payload).toMatchObject({
+      execId: 'exec_2',
+      status: 'cancelled',
+    });
   });
 });
 

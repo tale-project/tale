@@ -215,6 +215,11 @@ export interface AutomationAgentHost {
     /** Hold the turn's start until then, epoch ms — a subscription broker
      * whose every account was cooling down has its first one back. */
     notBefore?: number;
+    /** The claim the kicking walker holds the run under (`claimRun`). A
+     * start held until `notBefore` carries it: it runs only while its run
+     * is parked on it or that claim still holds the run
+     * (`workflowTurnStartRefusal`). */
+    claimEpoch?: number;
   }): Promise<WorkflowAgentKick>;
   /** The settled result, or `null` while the turn still runs. Reads fresh —
    * the settle may land after the stepper's turn loaded its checkpoints. */
@@ -398,11 +403,14 @@ function runProjectGuidance(context: {
   );
 }
 
-/** The real agent door for one run's organization. */
+/** The real agent door for one run's organization. `resolveServing` stands
+ * in for the provider walk where a test has no provider to walk. */
 export function automationAgentHost(
   ctx: ActionCtx,
   organizationId: string,
+  options: { resolveServing?: typeof resolveWorkflowAgentServing } = {},
 ): AutomationAgentHost {
+  const resolveServing = options.resolveServing ?? resolveWorkflowAgentServing;
   return {
     kick: async ({
       runId,
@@ -411,6 +419,7 @@ export function automationAgentHost(
       excludeBrokerTokenHashes,
       resume,
       notBefore,
+      claimEpoch,
     }) => {
       const harness = request.harness ?? DEFAULT_HARNESS;
       if (!isManagedHarness(harness)) {
@@ -423,7 +432,7 @@ export function automationAgentHost(
       // sandbox session a start spends, and before the retries a refused
       // start would earn.
       withStagedInput(request.files, request.input);
-      const serving = await resolveWorkflowAgentServing(ctx, {
+      const serving = await resolveServing(ctx, {
         organizationId,
         model: request.model,
         ...(request.modelProvider !== undefined
@@ -467,10 +476,10 @@ export function automationAgentHost(
           : null;
       const execId = randomUUID();
       const sessionId = sessionIdForWorkflowExecution(runId);
-      // A cooldown ends a minute after its 429 at the latest, and a wait
-      // for sandbox room holds a start two minutes at most, so a held start
-      // stays far inside the stalled-turn sweep's window for the op row
-      // written below.
+      // A cooldown ends a minute after its 429 at the latest, a model at
+      // capacity is waited out for a minute, and a wait for sandbox room
+      // holds a start two minutes at most, so a held start stays far inside
+      // the stalled-turn sweep's window for the op row written below.
       const startDelayMs =
         notBefore === undefined
           ? 0
@@ -537,6 +546,12 @@ export function automationAgentHost(
             ? { excludeBrokerTokenHashes }
             : {}),
           ...(resume !== undefined ? { resume } : {}),
+          // A held start runs long after this kick, when the walker that
+          // kicked it may have lost the run: it runs only on that walker's
+          // park or claim. A start at once keeps the lenient gate.
+          ...(startDelayMs > 0 && claimEpoch !== undefined
+            ? { claimEpoch }
+            : {}),
           deadlineAt,
           request: {
             model: request.model,
@@ -1399,6 +1414,9 @@ export interface StartWorkflowAgentTurnArgs {
    * the exec resumes that harness session and opens with the retry prompt
    * instead of the node prompt. */
   resume?: WorkflowAgentRetryResume;
+  /** Set on a start the kick held: the claim of the walker that kicked it
+   * (`workflowTurnStartRefusal`). */
+  claimEpoch?: number;
   deadlineAt: number;
   request: {
     model: string;
@@ -1856,6 +1874,10 @@ async function readUndeliveredAnswer(
 export interface AgentCursorState {
   status: string;
   cursor?: Pick<NodeCursor, 'node'> & { agent?: AgentCursor };
+  /** The run's current claim (`claim_epoch`), and whether the walker that
+   * holds it holds a live lease now. */
+  claimEpoch?: number;
+  leased?: boolean;
 }
 
 const LIVE_RUN_STATUSES = new Set(['waiting', 'running', 'queued']);
@@ -1908,33 +1930,48 @@ function heldByNewerExec(
  * run's session the terminal hooks skipped), a cursor that moved on to
  * another node, this exec already settled (the watchdog got there first), or
  * a newer live exec for the same node.
+ *
+ * A start the kick HELD (`claimEpoch`) runs long after that window: by then
+ * the walker that kicked it has parked the run on it, or still holds the
+ * run on its way there — the same claim, its lease live. Anything else means
+ * that walker lost the run first (taken over, its park refused by the epoch
+ * fence, or dead before parking): no one would ever wait on the turn, and
+ * the walker that holds the run now re-kicks the node itself.
  */
 export function workflowTurnStartRefusal(
   state: AgentCursorState | null,
-  keys: { nodeId: string; execId: string },
+  keys: { nodeId: string; execId: string; claimEpoch?: number },
 ): { reason: string; runEnded: boolean } | null {
   if (state === null) return { reason: 'the run is gone', runEnded: true };
   if (!LIVE_RUN_STATUSES.has(state.status)) {
     return { reason: `the run is ${state.status}`, runEnded: true };
   }
   const cursor = state.cursor;
-  if (cursor === undefined) return null;
-  if (cursor.node !== keys.nodeId) {
+  if (cursor !== undefined && cursor.node !== keys.nodeId) {
     return {
       reason: `the run moved on to node ${cursor.node}`,
       runEnded: false,
     };
   }
-  const agent = cursor.agent;
-  if (agent === undefined) return null;
-  if (agent.execId === keys.execId) {
+  const agent = cursor?.agent;
+  if (agent?.execId === keys.execId) {
     return agent.result !== undefined
       ? { reason: 'this turn already settled', runEnded: false }
       : null;
   }
-  return agent.result === undefined
-    ? { reason: `exec ${agent.execId} superseded it`, runEnded: false }
-    : null;
+  if (agent !== undefined && agent.result === undefined) {
+    return { reason: `exec ${agent.execId} superseded it`, runEnded: false };
+  }
+  if (
+    keys.claimEpoch !== undefined &&
+    (state.claimEpoch !== keys.claimEpoch || state.leased !== true)
+  ) {
+    return {
+      reason: 'the walker that held it no longer holds the run',
+      runEnded: false,
+    };
+  }
+  return null;
 }
 
 /**

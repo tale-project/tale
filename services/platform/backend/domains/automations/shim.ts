@@ -406,10 +406,21 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
     'automations/queries:readAgentCursor': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as { organizationId: string; runId: string };
+      // The claim and its lease, as `claimRun` and `heartbeatRun` judge
+      // them: a start the kick held runs only on its walker's claim.
       const rows = await sql<
-        { status: string; detail: string | null; checkpoints: unknown }[]
+        {
+          status: string;
+          detail: string | null;
+          checkpoints: unknown;
+          claimEpoch: number;
+          leased: boolean;
+        }[]
       >`
-        SELECT status, detail, checkpoints FROM app.automation_runs
+        SELECT status, detail, checkpoints, claim_epoch AS "claimEpoch",
+               coalesce(lease_epoch = claim_epoch
+                 AND lease_expires_at_ms > ${Date.now()}, false) AS leased
+        FROM app.automation_runs
         WHERE id = ${args.runId} AND org_id = ${args.organizationId}
         LIMIT 1
       `;
@@ -426,6 +437,8 @@ export function automationShimHandlers(sql: Sql): ShimHandlers {
         ...(checkpoints.cursor !== undefined
           ? { cursor: checkpoints.cursor }
           : {}),
+        claimEpoch: row.claimEpoch,
+        leased: row.leased,
       };
     },
 
