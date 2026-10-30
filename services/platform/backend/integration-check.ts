@@ -230,6 +230,7 @@ import {
   requestedLanes,
   settleTeardown,
   signUpUser,
+  videoLaneFfmpegLocation,
   withCleanup,
   withinDeadline,
   type SseEvent,
@@ -40719,8 +40720,16 @@ exit 1
   await writeFile(path.join(binDir, 'yt-dlp'), fakeYtdlp, { mode: 0o755 });
   const savedBinDir = process.env.VIDEO_INGEST_BIN_DIR;
   process.env.VIDEO_INGEST_BIN_DIR = binDir;
+  const savedFfmpegLocation = process.env.VIDEO_INGEST_FFMPEG_LOCATION;
 
   try {
+    // The fake's audio step runs the ffmpeg yt-dlp is handed: the one on
+    // PATH, which the transcription half of the whisper path runs too,
+    // unless VIDEO_INGEST_FFMPEG_LOCATION names another.
+    const ffmpegLocation = await videoLaneFfmpegLocation();
+    if (ffmpegLocation !== null) {
+      process.env.VIDEO_INGEST_FFMPEG_LOCATION = ffmpegLocation;
+    }
     const send = (route: string, body?: unknown): Promise<Response> =>
       fetch(`${base}${route}`, {
         method: body === undefined ? 'GET' : 'POST',
@@ -40765,6 +40774,7 @@ exit 1
       captionTrackKind: string | null;
       captionLang: string | null;
       errorReasonCode: string | null;
+      errorMessage: string | null;
       attempts: number | null;
       storageRef: string | null;
       fileMetadataId: string | null;
@@ -40776,6 +40786,7 @@ exit 1
           captionTrackKind: string | null;
           captionLang: string | null;
           errorReasonCode: string | null;
+          errorMessage: string | null;
           attempts: number | null;
           storageRef: string | null;
           fileMetadataId: string | null;
@@ -40784,13 +40795,20 @@ exit 1
         SELECT status, transcript_source AS "transcriptSource",
                caption_track_kind AS "captionTrackKind",
                caption_lang AS "captionLang",
-               error_reason_code AS "errorReasonCode", attempts,
+               error_reason_code AS "errorReasonCode",
+               error_message AS "errorMessage", attempts,
                storage_ref AS "storageRef",
                file_metadata_id AS "fileMetadataId"
         FROM app.video_link_jobs WHERE id = ${jobId} LIMIT 1
       `;
       return rows[0] ?? null;
     };
+    // A job's error as a check's detail names it, so a whisper job that a
+    // toolchain fault left queued for its retry says what failed.
+    const jobError = (job: Awaited<ReturnType<typeof jobRow>>): string =>
+      job?.errorReasonCode
+        ? `${job.errorReasonCode}: ${(job.errorMessage ?? '').replace(/\s+/g, ' ').trim().slice(0, 200)}`
+        : 'none';
 
     // 1. Captions path end to end.
     const captUrl = 'https://www.youtube.com/watch?v=capt1';
@@ -41201,7 +41219,7 @@ exit 1
         capped.status === 429 &&
         staleAfter?.status === 'failed' &&
         staleAfter.errorReasonCode === 'transient',
-      `whisper: job=${whisJob?.status}/${whisJob?.transcriptSource} file=${whisFile[0]?.transcriptionStatus} startedAt=${whisFile[0]?.startedAt !== null} lease=${whisFile[0]?.runId === null} calls=${whisperCalls} chip=${whisChip.success ? whisChip.data.jobs.find((j) => j.jobId === whisJobId)?.displayStatus : 'ERR'}; gone=${goneJob?.status}/${goneJob?.errorReasonCode} retry=${retry.status}→${goneAfterRetry?.status}(attempts=${goneAfterRetry?.attempts}) cancel=${cancel.status}→${goneAfterCancel?.status}; cap=${capped.status}/429 watchdog=${staleAfter?.status}/${staleAfter?.errorReasonCode}`,
+      `whisper: job=${whisJob?.status}/${whisJob?.transcriptSource} error=${jobError(whisJob)} file=${whisFile[0]?.transcriptionStatus} startedAt=${whisFile[0]?.startedAt !== null} lease=${whisFile[0]?.runId === null} calls=${whisperCalls} chip=${whisChip.success ? whisChip.data.jobs.find((j) => j.jobId === whisJobId)?.displayStatus : 'ERR'}; gone=${goneJob?.status}/${goneJob?.errorReasonCode} retry=${retry.status}→${goneAfterRetry?.status}(attempts=${goneAfterRetry?.attempts}) cancel=${cancel.status}→${goneAfterCancel?.status}; cap=${capped.status}/429 watchdog=${staleAfter?.status}/${staleAfter?.errorReasonCode}`,
     );
 
     // 4. REGRESSION (transcription lifecycle): a whisper FAILURE must land
@@ -41238,7 +41256,7 @@ exit 1
         retryDoor.status === 200 &&
         whis2After?.status === 'completed' &&
         (whis2After.attempts ?? 0) === 1,
-      `failedRow=${whis2Failed?.status}/${whis2Failed?.errorReasonCode} (want failed/whisperFailed), retryDoor=${retryDoor.status} (want 200; the un-retryable dead-end 409s), afterRetry=${whis2After?.status} attempts=${whis2After?.attempts}`,
+      `failedRow=${whis2Failed?.status}/${whis2Failed?.errorReasonCode} (want failed/whisperFailed) error=${jobError(whis2Failed)}, retryDoor=${retryDoor.status} (want 200; the un-retryable dead-end 409s), afterRetry=${whis2After?.status} attempts=${whis2After?.attempts}`,
     );
 
     // 5. REGRESSION (slot cap): parked-but-settled handoff rows (the debt
@@ -41315,6 +41333,11 @@ exit 1
       delete process.env.VIDEO_INGEST_BIN_DIR;
     } else {
       process.env.VIDEO_INGEST_BIN_DIR = savedBinDir;
+    }
+    if (savedFfmpegLocation === undefined) {
+      delete process.env.VIDEO_INGEST_FFMPEG_LOCATION;
+    } else {
+      process.env.VIDEO_INGEST_FFMPEG_LOCATION = savedFfmpegLocation;
     }
   }
 }

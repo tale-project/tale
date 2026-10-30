@@ -23,6 +23,7 @@ import {
   downloadTo,
   provisionToolchain,
   run,
+  systemFfmpeg,
 } from './ytdlp_toolchain';
 
 /**
@@ -140,6 +141,8 @@ async function recorded(file: string): Promise<number[]> {
 
 let scratch: string;
 const servers: Server[] = [];
+/** PATH as the worker started, which {@link fakeOnPath} prepends to. */
+const originalPath = process.env.PATH;
 
 /** A process a test started, and the start time that tells it from a later one. */
 interface Stray {
@@ -258,6 +261,7 @@ beforeEach(async () => {
 
 afterEach(async () => {
   vi.useRealTimers();
+  process.env.PATH = originalPath;
   for (const server of servers.splice(0)) {
     server.closeAllConnections();
     server.close();
@@ -715,12 +719,16 @@ describe('monotonic accounting', () => {
   });
 });
 
-describe('provisionToolchain bounds', () => {
-  const originalPath = process.env.PATH;
-  afterEach(() => {
-    process.env.PATH = originalPath;
-  });
+/** Put a `/bin/sh` script running `body` first on PATH, as `name`. */
+async function fakeOnPath(name: string, body: string): Promise<void> {
+  const dir = join(scratch, 'fake-bin');
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, name), `#!/bin/sh\n${body}\n`);
+  await chmod(join(dir, name), 0o755);
+  process.env.PATH = `${dir}:${originalPath}`;
+}
 
+describe('provisionToolchain bounds', () => {
   /** A cache holding yt-dlp, deno and the plugin, so only the ffmpeg stages run. */
   async function warmCache(): Promise<string> {
     const cacheDir = join(scratch, 'cache');
@@ -731,14 +739,6 @@ describe('provisionToolchain bounds', () => {
     await writeFile(join(cacheDir, 'bin', 'yt-dlp'), '');
     await writeFile(join(cacheDir, 'bin', 'deno'), '');
     return cacheDir;
-  }
-
-  async function fakeOnPath(name: string, body: string): Promise<void> {
-    const dir = join(scratch, 'fake-bin');
-    await mkdir(dir, { recursive: true });
-    await writeFile(join(dir, name), `#!/bin/sh\n${body}\n`);
-    await chmod(join(dir, name), 0o755);
-    process.env.PATH = `${dir}:${originalPath}`;
   }
 
   it('rejects a stalled ffmpeg lookup by its stage and stops the lookup', async () => {
@@ -898,6 +898,30 @@ describe('provisionToolchain bounds', () => {
       ffmpegLocation: '/opt/fake/ffmpeg',
       pluginDir: join(cacheDir, 'plugins'),
     });
+  });
+});
+
+describe('systemFfmpeg', () => {
+  it('answers the ffmpeg on PATH', async () => {
+    await fakeOnPath(
+      'which',
+      'case "$1" in ffmpeg) echo /opt/fake/ffmpeg ;; *) exit 1 ;; esac',
+    );
+    await expect(systemFfmpeg()).resolves.toBe('/opt/fake/ffmpeg');
+  });
+
+  it('answers null when PATH has none, and installs nothing', async () => {
+    const asked = join(scratch, 'installers.asked');
+    // Every package manager is at hand, and writes down being run.
+    await fakeOnPath(
+      'which',
+      'case "$1" in ffmpeg) exit 1 ;; *) echo "/usr/bin/$1" ;; esac',
+    );
+    for (const installer of ['brew', 'sudo', 'apt-get']) {
+      await fakeOnPath(installer, `echo ${installer} >> '${asked}'`);
+    }
+    await expect(systemFfmpeg()).resolves.toBeNull();
+    expect(fs.existsSync(asked)).toBe(false);
   });
 });
 

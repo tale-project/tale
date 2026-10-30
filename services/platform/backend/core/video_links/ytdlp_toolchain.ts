@@ -17,7 +17,8 @@
  *   - ffmpeg: SYSTEM-FIRST — resolved via `which` over the FULL inherited PATH
  *     (so Homebrew's `/opt/homebrew/bin` counts), installed via brew/apt only
  *     when absent. Returned as an absolute path because yt-dlp receives it
- *     through `--ffmpeg-location`, which is PATH-independent.
+ *     through `--ffmpeg-location`, which is PATH-independent. `systemFfmpeg`
+ *     is the lookup alone, for a caller that must never install anything.
  *   - bgutil: PO-token-provider plugin → `plugins/bgutil/yt_dlp_plugins/`
  *     (nested — yt-dlp `--plugin-dirs` does `iterdir()` then looks for
  *     `yt_dlp_plugins/` under each child). Cheap; only exercised when a
@@ -38,8 +39,9 @@
  *
  * `'use node'`: this file lives under `convex/` (so the convex bundler analyses
  * it) and uses `node:child_process`/`node:fs` — the same runtime pin as
- * `ytdlp.ts`. It is imported only by the gated live test, never by a deployed
- * Convex function.
+ * `ytdlp.ts`. It is imported by the gated live test, by `bun dev`
+ * (`scripts/dev-engine.ts`) and, for `systemFfmpeg` alone, by the backend
+ * integration harness — never by a deployed Convex function.
  */
 
 import { spawn, type StdioOptions } from 'node:child_process';
@@ -278,6 +280,18 @@ async function ensureDeno(
 }
 
 /**
+ * The ffmpeg on the FULL inherited PATH, as an absolute path, or null when
+ * there is none: the system-first lookup of {@link ensureFfmpeg}, which installs
+ * nothing. The backend integration harness hands it to yt-dlp, which never
+ * looks at PATH itself.
+ */
+export async function systemFfmpeg(
+  clock: ProvisioningClock = new ProvisioningClock(VIDEO_TOOLCHAIN_DEADLINES),
+): Promise<string | null> {
+  return which('ffmpeg', clock);
+}
+
+/**
  * Resolve an absolute ffmpeg path (system-first). ffmpeg is passed to yt-dlp via
  * `--ffmpeg-location`, so it need NOT sit on the pinned spawn PATH — a Homebrew
  * `/opt/homebrew/bin/ffmpeg` is fine. If absent, install it with the platform
@@ -286,7 +300,7 @@ async function ensureDeno(
  * carrying the install stage's own failure (a timeout names its elapsed time).
  */
 async function ensureFfmpeg(clock: ProvisioningClock): Promise<string> {
-  const found = await which('ffmpeg', clock);
+  const found = await systemFfmpeg(clock);
   if (found) return found;
 
   const install = clock.deadlines.packageInstallMs;
@@ -334,7 +348,7 @@ async function ensureFfmpeg(clock: ProvisioningClock): Promise<string> {
     }
   }
 
-  const reResolved = await which('ffmpeg', clock);
+  const reResolved = await systemFfmpeg(clock);
   if (!reResolved) {
     const cause =
       installFailure instanceof Error ? ` (${installFailure.message})` : '';
