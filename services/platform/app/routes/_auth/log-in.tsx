@@ -1,12 +1,14 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Alert } from '@tale/ui/alert';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { Form } from '@tale/ui/form';
 import { FormSection } from '@tale/ui/form-section';
 import { MicrosoftIcon } from '@tale/ui/icons/microsoft-icon';
 import { Input } from '@tale/ui/input';
 import { Label } from '@tale/ui/label';
 import { Stack } from '@tale/ui/layout';
+import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useForm } from '@tale/ui/use-form';
 import { toast } from '@tale/ui/use-toast';
 import {
@@ -38,6 +40,7 @@ import {
 import { resumeOAuthSignIn } from '@/app/features/auth/lib/resume-oauth';
 import { useReactQueryClient } from '@/app/hooks/use-react-query-client';
 import { invalidateAuthState } from '@/app/lib/auth/session-query';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { authClient } from '@/lib/auth-client';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
@@ -79,6 +82,8 @@ type LogInFormData = {
   email: string;
   password: string;
 };
+
+const SSO_ORG_LIST_ID = 'sso-org-list';
 
 // Tale is offline-first — there is no self-service sign-up or forgot-password flow.
 // Users are created by admins (Settings → Members). To enable self-service login,
@@ -129,7 +134,10 @@ export function LogInPage() {
 
   const { data: hasUsers, isLoading: isLoadingUsers } = useHasAnyUsers();
   const { data: ssoConfig } = useIsSsoConfigured();
-  const { data: selectableOrgs } = useSsoSelectableOrgs();
+  const selectableOrgsQuery = useSsoSelectableOrgs();
+  const { data: selectableOrgs, refetch: refetchSelectableOrgs } =
+    selectableOrgsQuery;
+  const selectableOrgsRead = readStateOf(selectableOrgsQuery);
   const { data: proxyHandoff, isLoading: isLoadingProxyHandoff } =
     useTrustedHeadersHandoff();
 
@@ -429,19 +437,43 @@ export function LogInPage() {
   }
 
   // Dedicated SSO step: pick the organization, then redirect to its IdP.
+  // Only an answer says which organizations offer SSO: a list still loading
+  // is masked, and one that failed is named with Try again — neither may
+  // read as none being available (#4606).
   if (method === 'sso') {
     return (
       <AuthFormLayout title={t('login.ssoTitle')}>
         <FormSection description={t('login.ssoDescription')}>
-          {selectableOrgs && selectableOrgs.length > 0 ? (
-            <SsoOrgPicker orgs={selectableOrgs} onPick={handleSsoOrgPick} />
-          ) : (
+          {selectableOrgsRead.unavailable ? (
+            <CatalogLoadError
+              message={t('login.ssoOrganizationsFailed')}
+              failureKey={selectableOrgsRead.failureCount}
+              isRetrying={selectableOrgsRead.retrying}
+              onRetry={() => void refetchSelectableOrgs()}
+              // A retry that brings the list takes the alert away: the focus
+              // it held goes to the first organization, not the page.
+              onFocusLost={() =>
+                document
+                  .getElementById(SSO_ORG_LIST_ID)
+                  ?.querySelector<HTMLElement>('[role="option"]')
+                  ?.focus()
+              }
+            />
+          ) : selectableOrgs?.length === 0 ? (
             <p
               role="alert"
               className="text-muted-foreground text-center text-sm"
             >
               {t('login.ssoNoOrganizations')}
             </p>
+          ) : (
+            <Skeletonize loading={selectableOrgs === undefined}>
+              <SsoOrgPicker
+                id={SSO_ORG_LIST_ID}
+                orgs={selectableOrgs ?? []}
+                onPick={handleSsoOrgPick}
+              />
+            </Skeletonize>
           )}
         </FormSection>
       </AuthFormLayout>

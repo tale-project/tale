@@ -33,6 +33,7 @@ login:
   ssoOrgListLabel: Organizations
   ssoBackToLogin: Back to log in
   ssoNoOrganizations: No organizations are available for sign-in. Contact your administrator.
+  ssoOrganizationsFailed: Couldn't load the organizations.
   proxyHandoff:
     pending: Signing you in through your organization's sign-in service…
     stalled: Automatic sign-in did not complete. Sign in another way below, or try again.

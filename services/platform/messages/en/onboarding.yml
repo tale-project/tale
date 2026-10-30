@@ -3,6 +3,7 @@ subtitle: A few quick steps to get your workspace up and running.
 backToApp: Back to app
 stepsAriaLabel: Onboarding steps
 progress: 'Step {current} of {total}: {label}'
+statusFailed: Couldn't check whether this install is already set up.
 steps:
   account: Account
   workspace: Workspace

@@ -1,9 +1,14 @@
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 
+import { AuthFormLayout } from '@/app/features/auth/components/auth-form-layout';
+import { AuthPageLayout } from '@/app/features/auth/components/auth-page-layout';
 import { useHasAnyUsers } from '@/app/features/auth/hooks/queries';
 import { OnboardingWizard } from '@/app/features/organization/components/onboarding/onboarding-wizard';
 import { useAuth } from '@/app/hooks/use-session-user';
+import { readStateOf } from '@/app/lib/backend/read-state';
+import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
 /**
@@ -25,7 +30,14 @@ export const Route = createFileRoute('/setup')({
 
 function SetupPage() {
   const navigate = useNavigate();
-  const { data: hasUsers, isLoading: usersLoading } = useHasAnyUsers();
+  const { t } = useT('onboarding');
+  const usersQuery = useHasAnyUsers();
+  const {
+    data: hasUsers,
+    isLoading: usersLoading,
+    refetch: refetchHasUsers,
+  } = usersQuery;
+  const usersRead = readStateOf(usersQuery);
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [started, setStarted] = useState(false);
 
@@ -44,11 +56,28 @@ function SetupPage() {
       void navigate({ to: '/log-in' });
       return;
     }
-    // No users, no session → genuine first run. Lock the wizard in.
-    setStarted(true);
+    // No users, no session → genuine first run. Lock the wizard in. Only an
+    // answer says so: a read that failed knows nothing of this install, which
+    // may well have users, so it waits on Try again below (#4606).
+    if (hasUsers === false) setStarted(true);
   }, [started, authLoading, usersLoading, isAuthenticated, hasUsers, navigate]);
 
-  if (!started) return null;
+  if (started) return <OnboardingWizard mode="first-run" />;
 
-  return <OnboardingWizard mode="first-run" />;
+  if (usersRead.unavailable && !authLoading && !isAuthenticated) {
+    return (
+      <AuthPageLayout>
+        <AuthFormLayout title={t('title')}>
+          <CatalogLoadError
+            message={t('statusFailed')}
+            failureKey={usersRead.failureCount}
+            isRetrying={usersRead.retrying}
+            onRetry={() => void refetchHasUsers()}
+          />
+        </AuthFormLayout>
+      </AuthPageLayout>
+    );
+  }
+
+  return null;
 }

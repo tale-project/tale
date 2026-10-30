@@ -1,6 +1,6 @@
 # Auth & account
 
-> **Prefix** `AUTH-` · **Reset** none · **Cost** 65 boxes
+> **Prefix** `AUTH-` · **Reset** none · **Cost** 67 boxes
 
 Exercise sign-in, the account/security model (password policy, 2FA, passkeys,
 backup codes), the first-run and create-org wizards, the post-grace 2FA
@@ -665,6 +665,31 @@ compute codes from the enrollment secret.
   the first, then submit the password in the second → the same toast, and
   the second tab leaves the wall for the dashboard. Repeat with Deutsch and
   Français → the toasts are localized.
+- [ ] `AUTH-B25` · **The SSO step before its organization list answers** —
+  Signed out, on a deployment where two organizations enable SSO, block
+  `*/api/app/sso/discovery/selectable` in DevTools (Network → request
+  blocking) and open `/log-in?method=sso` → while the read and its retries
+  run, the picker shows masked rows; once they give up (a few seconds; a
+  blocked request reads as a lost connection, so the offline notice may cover
+  the page meanwhile) the step says **Couldn't load the organizations.**
+  (`auth.login.ssoOrganizationsFailed`) with **Try again**
+  (`common.actions.tryAgain`). At no point does it say that no organization is
+  available (`auth.login.ssoNoOrganizations`) or send you to an administrator.
+  Unblock, Tab to **Try again** and press Enter → the notice stays, with **Try
+  again** busy, until both organizations appear, and the focus is on the
+  first one, not lost to the page. Repeat with Deutsch and Français → the
+  notice is localized.
+- [ ] `AUTH-B26` · **First-run setup that cannot check the install** —
+  Signed out, on an install that already has accounts, block
+  `*/api/app/users/has-any` in DevTools (Network → request blocking) and open
+  `/setup` → once the read's retries give up (a few seconds) the page says
+  **Couldn't check whether this install is already set up.**
+  (`onboarding.statusFailed`) with **Try again** (`common.actions.tryAgain`),
+  never the first-run wizard's **Create your owner account**
+  (`onboarding.account.heading`). Unblock and choose **Try again** → the
+  notice stays, with **Try again** busy, until the read answers, then the
+  log-in form opens. Repeat with Deutsch and Français → the notice is
+  localized.
 
 ## Accessibility (WCAG 2.1 AA)
 

@@ -3,6 +3,7 @@ subtitle: Ein paar schnelle Schritte, bis dein Arbeitsbereich einsatzbereit ist.
 backToApp: Zurück zur App
 stepsAriaLabel: Onboarding-Schritte
 progress: 'Schritt {current} von {total}: {label}'
+statusFailed: Es konnte nicht geprüft werden, ob diese Installation bereits eingerichtet ist.
 steps:
   account: Konto
   workspace: Arbeitsbereich
