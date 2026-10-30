@@ -2766,7 +2766,7 @@
         {
           "path": ["jobs", "sast", "runs-on"],
           "kind": "value",
-          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_RUNNER || 'ubuntu-latest' }}"
+          "expected": "${{ github.event.pull_request.head.repo.fork && 'ubuntu-latest' || vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}"
         },
         {
           "path": ["jobs", "sast", "timeout-minutes"],
