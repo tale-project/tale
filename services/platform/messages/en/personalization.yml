@@ -15,6 +15,7 @@ errors:
   toggleFailed: "Your preference wasn't changed. Try again."
   saveFailed: Couldn't save. Try again.
   loadFailed: Couldn't load your preferences. Custom instructions are unavailable until they load.
+  orgDefaultLoadFailed: "Couldn't load your organization's default. Custom instructions are unavailable until it loads."
   tooLong: Custom instructions exceed {max} characters.
 toasts:
   preferencesUpdated: Preferences updated.
