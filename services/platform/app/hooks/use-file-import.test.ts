@@ -293,19 +293,23 @@ describe('product import column validation (PRODUCT_REQUIRED_COLUMNS)', () => {
   it('fails with a clear error when headers are wrong/misnamed', () => {
     const result = parse('col1,col2,col3\nWidget,9.99,100');
     expect(result.data).toHaveLength(0);
-    expect(result.errors[0]).toContain('Missing required column(s)');
-    expect(result.errors[0]).toContain('name');
-    expect(result.errors[0]).toContain('price');
-    expect(result.errors[0]).toContain('stock');
-    // Surfaces what was actually found so the user can correct the file.
-    expect(result.errors[0]).toContain('col1');
+    // Names every required column by the header the parser accepts, and
+    // surfaces what was actually found so the user can correct the file.
+    expect(result.errors).toEqual([
+      {
+        code: 'missingColumns',
+        columns: ['name', 'price', 'stock'],
+        found: ['col1', 'col2', 'col3'],
+      },
+    ]);
   });
 
   it('reports only the specific missing required column', () => {
     const result = parse('name,price\nWidget,9.99');
     expect(result.data).toHaveLength(0);
-    expect(result.errors[0]).toContain('stock');
-    expect(result.errors[0]).not.toContain('Missing required column(s): name');
+    expect(result.errors).toEqual([
+      { code: 'missingColumns', columns: ['stock'], found: ['name', 'price'] },
+    ]);
   });
 });
 

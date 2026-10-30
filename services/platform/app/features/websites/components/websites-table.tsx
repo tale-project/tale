@@ -11,6 +11,7 @@ import type { Row, RowSelectionState } from '@tanstack/react-table';
 import { Globe } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { useAbility } from '@/app/hooks/use-ability';
 import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { useViewedRecord } from '@/app/hooks/use-viewed-record';
 import { firstFailureDetail } from '@/app/lib/backend/adapters';
@@ -41,6 +42,11 @@ export function WebsitesTable({
   interval,
 }: WebsitesTableProps) {
   const navigate = useNavigate();
+  // Deleting a website takes `knowledgeWrite` (WEB-R1): a member gets no
+  // checkbox and no bulk bar, as on the other Knowledge tables (#4841).
+  const ability = useAbility();
+  const canWrite = ability.can('write', 'knowledgeWrite');
+  const canSelectRow = useCallback(() => canWrite, [canWrite]);
   const { t: tTables } = useT('tables');
   const { t: tEmpty } = useT('emptyStates');
   const { t: tWebsites } = useT('websites');
@@ -259,7 +265,7 @@ export function WebsitesTable({
         <DataTable
           columns={columns}
           stickyLayout
-          enableRowSelection
+          enableRowSelection={canSelectRow}
           rowSelection={rowSelection}
           onRowSelectionChange={setRowSelection}
           onRowClick={handleRowClick}
@@ -281,18 +287,20 @@ export function WebsitesTable({
             headingLevel: 2,
           }}
           footer={
-            <BulkDeleteBar
-              rowSelection={rowSelection}
-              onRowSelectionChange={setRowSelection}
-              getItemLabel={(id) =>
-                paginatedResult.results.find((item) => item._id === id)
-                  ?.domain ?? id
-              }
-              onClearSelection={handleClearSelection}
-              onDeleteItem={handleDeleteItem}
-              onDeleteComplete={handleClearSelection}
-              describeFailure={firstFailureDetail}
-            />
+            canWrite && (
+              <BulkDeleteBar
+                rowSelection={rowSelection}
+                onRowSelectionChange={setRowSelection}
+                getItemLabel={(id) =>
+                  paginatedResult.results.find((item) => item._id === id)
+                    ?.domain ?? id
+                }
+                onClearSelection={handleClearSelection}
+                onDeleteItem={handleDeleteItem}
+                onDeleteComplete={handleClearSelection}
+                describeFailure={firstFailureDetail}
+              />
+            )
           }
           {...list.tableProps}
         />

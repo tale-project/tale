@@ -5,6 +5,8 @@ import:
   moreRows: '…and {count} more'
   tooManyRows: This file has {count} rows to import, and Tale imports at most {max} at a time. Split it into smaller files and import each one.
   unpairedQuotes: 'The quotes in this row don''t pair up. Close each quoted cell, and write a quote inside one as two quotes ("").'
+  missingColumns: '{count, plural, one {This file is missing the column {columns}.} other {This file is missing the columns {columns}.}} {foundCount, plural, =0 {Its first row names no columns.} one {Its only column is {found}.} other {Its columns are {found}.}}'
+  unreadable: Tale couldn't read this file. Open it in a spreadsheet app, save it as .xlsx or .csv, and import it again.
   fields:
     name: Name
     price: Price

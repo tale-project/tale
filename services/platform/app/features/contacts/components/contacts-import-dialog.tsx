@@ -10,6 +10,7 @@ import { z } from 'zod';
 
 import {
   type ImportRowError,
+  importFileErrorMessage,
   importRowErrorLine,
   mergeImportRowErrors,
 } from '@/app/features/shared/import/import-row-errors';
@@ -125,8 +126,11 @@ export function ImportContactsDialog({
           toast({
             title: tContacts('import.noValidData'),
             // Surface the specific parse failure (e.g. a missing required
-            // column) instead of a generic message, so the user can fix it.
-            description: parsed.errors[0],
+            // column) instead of a generic message, so the user can fix it
+            // — in their language, never the parser's English (#4841).
+            description: parsed.errors[0]
+              ? importFileErrorMessage(tCommon, parsed.errors[0])
+              : undefined,
             variant: 'destructive',
           });
           return;

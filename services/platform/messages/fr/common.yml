@@ -5,6 +5,8 @@ import:
   moreRows: '… et {count} de plus'
   tooManyRows: Ce fichier contient {count} lignes à importer, et Tale en importe au plus {max} à la fois. Divise-le en fichiers plus petits et importe-les un par un.
   unpairedQuotes: 'Les guillemets de cette ligne ne vont pas par paires. Entoure chaque cellule d''une seule paire de guillemets et double un guillemet à l''intérieur ("").'
+  missingColumns: '{count, plural, one {Ce fichier ne contient pas la colonne {columns}.} many {Ce fichier ne contient pas les colonnes {columns}.} other {Ce fichier ne contient pas les colonnes {columns}.}} {foundCount, plural, =0 {Sa première ligne ne contient aucun nom de colonne.} one {Il contient seulement la colonne {found}.} many {Il contient les colonnes {found}.} other {Il contient les colonnes {found}.}}'
+  unreadable: Tale n'a pas pu lire ce fichier. Ouvre-le dans un tableur, enregistre-le au format .xlsx ou .csv, puis importe-le à nouveau.
   fields:
     name: Nom
     price: Prix

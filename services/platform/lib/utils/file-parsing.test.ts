@@ -76,8 +76,29 @@ describe('parseCSVWithMapper required-column validation (#1312, #1323)', () => {
       requiredColumns,
     });
     expect(result.data).toEqual([]);
-    expect(result.errors).toHaveLength(1);
-    expect(result.errors[0]).toContain('Missing required column(s): email');
+    // A code the dialog words in the reader's language, never an English
+    // sentence (#4841): the column by the header it needs, and what it found.
+    expect(result.errors).toEqual([
+      { code: 'missingColumns', columns: ['email'], found: ['name', 'locale'] },
+    ]);
+  });
+
+  it('leaves blank header cells out of the columns found', () => {
+    const named = parseCSVWithMapper('name,,locale\nAcme,,en', () => null, {
+      recordMapper,
+      requiredColumns,
+    });
+    expect(named.errors).toEqual([
+      { code: 'missingColumns', columns: ['email'], found: ['name', 'locale'] },
+    ]);
+
+    const blank = parseCSVWithMapper(',,\nAcme,,en', () => null, {
+      recordMapper,
+      requiredColumns,
+    });
+    expect(blank.errors).toEqual([
+      { code: 'missingColumns', columns: ['email'], found: [] },
+    ]);
   });
 
   it('does not validate when no required columns are configured', () => {
@@ -359,5 +380,95 @@ describe('Excel header validation', () => {
       { name: 'Full amounts', price: 12, stock: 3 },
     ]);
     expect(result.rows).toEqual([2, 3]);
+  });
+
+  const productColumns: RequiredColumn[] = [
+    { label: 'name', aliases: ['name', 'title'] },
+    { label: 'price', aliases: ['price'] },
+    { label: 'stock', aliases: ['stock'] },
+  ];
+
+  function workbookFile(rows: unknown[][]): File {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.aoa_to_sheet(rows),
+      'Products',
+    );
+    return new File(
+      [XLSX.write(workbook, { bookType: 'xlsx', type: 'array' })],
+      'products.xlsx',
+    );
+  }
+
+  it('names the missing columns and the headers it found (#4841)', async () => {
+    const result = await parseImportFile(
+      workbookFile([
+        ['Name', 'Preis', 'Bestand'],
+        ['Kessel', 12, 3],
+      ]),
+      () => null,
+      (record) => record,
+      { requiredColumns: productColumns },
+    );
+    expect(result.data).toEqual([]);
+    expect(result.errors).toEqual([
+      {
+        code: 'missingColumns',
+        columns: ['price', 'stock'],
+        found: ['name', 'preis', 'bestand'],
+      },
+    ]);
+  });
+
+  it('reads an empty sheet as a first row that names no columns', async () => {
+    const result = await parseImportFile(
+      workbookFile([]),
+      () => null,
+      (record) => record,
+      { requiredColumns: productColumns },
+    );
+    expect(result.errors).toEqual([
+      {
+        code: 'missingColumns',
+        columns: ['name', 'price', 'stock'],
+        found: [],
+      },
+    ]);
+  });
+});
+
+describe('parseImportFile file-level refusals (#4841)', () => {
+  it('refuses a file that is neither CSV nor Excel by code', async () => {
+    const result = await parseImportFile(
+      new File(['email\nuser@example.com'], 'contacts.txt'),
+      () => null,
+      (record) => record,
+    );
+    expect(result).toEqual({
+      data: [],
+      rows: [],
+      errors: [{ code: 'unsupportedFormat' }],
+      rowErrors: [],
+    });
+  });
+
+  it('refuses a workbook it cannot open by code, logging the cause', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // A ZIP signature over bytes that are no archive: what a truncated
+    // download of an .xlsx looks like.
+    const broken = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4, 5, 6]);
+    const result = await parseImportFile(
+      new File([broken], 'products.xlsx'),
+      () => null,
+      (record) => record,
+    );
+    expect(result.errors).toEqual([{ code: 'unreadable' }]);
+    expect(result.data).toEqual([]);
+    expect(warn).toHaveBeenCalledWith(
+      'Could not read the import file:',
+      expect.anything(),
+    );
+    warn.mockRestore();
   });
 });

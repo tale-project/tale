@@ -1,9 +1,17 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { runAdapted } from '@/app/lib/backend/adapters';
+import { backendApiErrorFromBody } from '@/app/lib/backend/api-client';
 import { AppError } from '@/lib/shared/errors/app-error';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import {
+  SHIPPED_LOCALES,
+  type ShippedLocale,
+  forgetSavedLocale,
+  saveLocale,
+} from '@/tests/utils/lapsed-session';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { ContactEditDialog } from './contact-edit-dialog';
@@ -383,3 +391,75 @@ describe('ContactEditDialog', () => {
     });
   });
 });
+
+// #4841: a changed email another contact already uses is refused with the
+// create's 409 `CONTACT_DUPLICATE_EMAIL`, whose body carries the code alone
+// (`{ error: code }`), so the toast said only "Couldn't update contact".
+const DUPLICATE: Record<
+  ShippedLocale,
+  { save: string; title: string; description: string }
+> = {
+  en: {
+    save: 'Save',
+    title: "Couldn't update contact",
+    description: 'A contact with this email already exists',
+  },
+  de: {
+    save: 'Speichern',
+    title: 'Kontakt konnte nicht aktualisiert werden',
+    description: 'Ein Kontakt mit dieser E-Mail existiert bereits',
+  },
+  fr: {
+    save: 'Enregistrer',
+    title: 'Échec de la mise à jour du contact',
+    description: 'Un contact avec cette adresse email existe déjà',
+  },
+};
+
+describe.each(SHIPPED_LOCALES)(
+  'ContactEditDialog with an email another contact uses (%s)',
+  (locale) => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+      saveLocale(locale);
+    });
+    afterEach(forgetSavedLocale);
+
+    it('names the duplicate under the update title', async () => {
+      mockMutateAsync.mockImplementationOnce(() =>
+        runAdapted(() =>
+          Promise.reject(
+            backendApiErrorFromBody(409, { error: 'CONTACT_DUPLICATE_EMAIL' }),
+          ),
+        ),
+      );
+      const onClose = vi.fn();
+      const { user } = render(
+        <ContactEditDialog
+          contact={makeContact({ name: 'John' })}
+          isOpen={true}
+          onClose={onClose}
+        />,
+      );
+
+      const email = screen.getByDisplayValue('test@example.com');
+      await user.clear(email);
+      await user.type(email, 'taken@example.com');
+      await user.click(
+        screen.getByRole('button', { name: DUPLICATE[locale].save }),
+      );
+
+      await waitFor(() =>
+        expect(mockToast).toHaveBeenCalledWith({
+          title: DUPLICATE[locale].title,
+          description: DUPLICATE[locale].description,
+          variant: 'destructive',
+        }),
+      );
+      expect(JSON.stringify(mockToast.mock.calls)).not.toContain(
+        'CONTACT_DUPLICATE_EMAIL',
+      );
+      expect(onClose).not.toHaveBeenCalled();
+    });
+  },
+);
