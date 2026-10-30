@@ -2485,10 +2485,14 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
             ? { retryAfterMs: roomWait.retryAfterMs }
             : {}),
           ...(roomWait?.roomQueued === true ? { roomQueued: true } : {}),
-          // Refused for room before anything launched, the delivery leaves
-          // the asking conversation as it was: the re-kick resumes it with
-          // this answer instead of starting the node over.
-          ...(roomWait !== undefined && !retargeted
+          // Refused for room, the delivery launched nothing and leaves the
+          // asking conversation as it was: the re-kick resumes it with this
+          // answer instead of starting the node over. That holds after the
+          // retarget too: an exec start the session refused for want of
+          // memory ran no harness, and neither the ask nor the conversation
+          // is keyed by an exec, so the settle under the fresh id carries
+          // both as the asking exec's would.
+          ...(roomWait !== undefined
             ? {
                 undeliveredAskId: ask._id,
                 ...(ask.agentSessionId !== undefined
