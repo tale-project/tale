@@ -147,7 +147,8 @@ function contrast(a: Rgb, b: Rgb): number {
  * The surfaces code sits on, with the template tint over the editor's. The
  * tint is the editor's chip behind a `{{ }}` expression; read-only blocks
  * draw none, and `muted` is a read-only surface only (the chat's code
- * blocks, the document preview).
+ * blocks, the document preview). The skill asset viewer sits on its
+ * dialog's `card`.
  */
 function surfaces(theme: 'light' | 'dark'): Array<[string, Rgb]> {
   const editor: Array<[string, Rgb]> = [
@@ -325,5 +326,15 @@ describe('the diff colours in forced colours', () => {
       expect(declared(forced, name), `--${name}`).toBe('transparent');
     for (const name of DIFF_COLOURS)
       expect(declared(forced, name), `--${name}`).toBe('CanvasText');
+  });
+});
+
+describe('the code line height', () => {
+  // One setting for every read-only code surface — the source previews, the
+  // markdown fences, the highlighted blocks and the diffs — and the gutter of
+  // a numbered row inherits it: the type scale's normal step, so mono 12px
+  // sits on an editor's 18px row.
+  it('is a theme token at 1.5, the normal step of the type scale', () => {
+    expect(declared(THEME_BLOCK, 'leading-code')).toBe('1.5');
   });
 });
