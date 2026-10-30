@@ -174,7 +174,10 @@ def server_file(path):
 def configured_in_env(env):
     """Whether the environment holds server settings the manifest, keyed by
     the arguments, did not see: PLAYWRIGHT_MCP_CAPS adds tools,
-    PLAYWRIGHT_MCP_CONFIG names a file of settings, and so on."""
+    PLAYWRIGHT_MCP_CONFIG names a file of settings, and so on. Any name with
+    the prefix counts, whether this server reads it or not: a name it ignores
+    costs only the lazy start, while a list of the names it reads would miss
+    one a later server adds, and answer from a stale manifest."""
     return any(key.startswith('PLAYWRIGHT_MCP_') and value for key, value in env.items())
 
 
@@ -397,7 +400,11 @@ class LazyServer:
                     deadline.cancel()
                     result = msg.get('result')
                     spoken = result.get('protocolVersion') if isinstance(result, dict) else None
-                    if spoken != self.told:
+                    if 'error' in msg:
+                        # The client was told the start succeeded: the turn
+                        # goes on, and each request gets the server's answer.
+                        log(f'the server refused its start: {json.dumps(msg["error"])}')
+                    elif spoken != self.told:
                         log(f'the server speaks {spoken}, the client was told {self.told}')
                     break
                 self.write(line)

@@ -22,6 +22,15 @@ const launcher = resolve(import.meta.dir, '../../tale-playwright-mcp');
 const python = Bun.which('python3') ?? 'python3';
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
+// The runner's environment, less the launcher's and the server's own settings:
+// a developer who exports one (TALE_PLAYWRIGHT_MCP_EAGER=1, PLAYWRIGHT_MCP_CAPS,
+// a PLAYWRIGHT_BROWSERS_PATH of their own) would otherwise see these tests fail.
+const runnerEnv = Object.fromEntries(
+  Object.entries(process.env).filter(
+    ([key]) => !/^(TALE_)?PLAYWRIGHT_MCP_|^PLAYWRIGHT_BROWSERS_PATH$/.test(key),
+  ),
+);
+
 describe('headless Playwright MCP launcher', () => {
   const bin = join(dir, 'echo-bin');
   mkdirSync(bin);
@@ -37,7 +46,7 @@ describe('headless Playwright MCP launcher', () => {
       ['-Es', launcher, '--headless', '--browser', 'chromium'],
       {
         env: {
-          ...process.env,
+          ...runnerEnv,
           PATH: bin,
           HTTPS_PROXY: proxy,
           NO_PROXY: bypass,
@@ -77,7 +86,7 @@ describe('headless Playwright MCP launcher', () => {
   test('runs through its own interpreter line', () => {
     const result = spawnSync(launcher, ['--headless'], {
       env: {
-        ...process.env,
+        ...runnerEnv,
         PATH: `${bin}:${process.env.PATH ?? ''}`,
         HTTPS_PROXY: '',
         NO_PROXY: '',
@@ -91,10 +100,12 @@ describe('headless Playwright MCP launcher', () => {
 });
 
 // A stand-in MCP server: it speaks two protocol versions (others when
-// STAND_IN_VERSIONS names them), lists one tool, asks the client for its roots
-// on a tool call when the client offered them, answers any other request as
-// the real server's SDK does, and writes every message it receives to its
-// log, behind a `started` line.
+// STAND_IN_VERSIONS names them), answers `initialize` after
+// STAND_IN_INIT_DELAY seconds (refuses it under STAND_IN_INIT_REFUSED),
+// lists one tool, asks the client for its roots on a tool call when the
+// client offered them, answers any other request as the real server's SDK
+// does, and writes every message it receives to its log, behind a `started`
+// line.
 const STAND_IN = String.raw`#!/usr/bin/env python3
 import json, os, sys, time
 log = open(os.environ['STAND_IN_LOG'], 'a')
@@ -114,8 +125,10 @@ for line in sys.stdin:
     log.write(json.dumps(msg) + '\n'); log.flush()
     method, id_ = msg.get('method'), msg.get('id')
     if method == 'initialize':
-        if os.environ.get('STAND_IN_HANG'):
-            time.sleep(30)
+        time.sleep(float(os.environ.get('STAND_IN_INIT_DELAY', '0')))
+        if os.environ.get('STAND_IN_INIT_REFUSED'):
+            send({'jsonrpc': '2.0', 'id': id_, 'error': {'code': -32602, 'message': 'Invalid params'}})
+            continue
         asked = msg['params']['protocolVersion']
         roots = 'roots' in msg['params'].get('capabilities', {})
         send({'jsonrpc': '2.0', 'id': id_, 'result': {
@@ -151,7 +164,7 @@ describe('the start of a turn without the server', () => {
     mode: 0o755,
   });
   const baseEnv = {
-    ...process.env,
+    ...runnerEnv,
     PATH: `${bin}:${process.env.PATH ?? ''}`,
     TALE_PLAYWRIGHT_MCP_MANIFESTS: manifests,
     STAND_IN_LOG: standInLog,
@@ -269,6 +282,21 @@ describe('the start of a turn without the server', () => {
     error: { code: -32601, message: 'Method not found' },
   });
 
+  // The launcher, with a start deadline of one second in place of its own.
+  const oneSecondDeadline = [
+    '-c',
+    [
+      'import importlib.machinery, importlib.util, sys',
+      "loader = importlib.machinery.SourceFileLoader('launcher', sys.argv[1])",
+      "launcher = importlib.util.module_from_spec(importlib.util.spec_from_loader('launcher', loader))",
+      'loader.exec_module(launcher)',
+      'launcher.START_TIMEOUT_S = 1',
+      'sys.argv = sys.argv[1:]',
+      'launcher.main()',
+    ].join('\n'),
+    launcher,
+  ];
+
   test('the image build records the server’s answer to each protocol version', () => {
     expect(written.status).toBe(0);
     const files = readdirSync(manifests).filter((name) =>
@@ -364,6 +392,46 @@ describe('the start of a turn without the server', () => {
     expect(received()).toEqual([]);
   });
 
+  test('Codex’s start is answered as the server would, still without it', async () => {
+    // Codex 0.160.0 (its MCP client is rmcp 3.2.0) asks for 2025-06-18 with
+    // capabilities of its own, then lists the tools once, with a progress
+    // token in the request's metadata, and sends nothing else before a tool
+    // call.
+    const mcp = client();
+    mcp.send({
+      jsonrpc: '2.0',
+      id: 0,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-06-18',
+        capabilities: {
+          experimental: { 'codex/auth-change': {} },
+          elicitation: { form: {}, url: {} },
+        },
+        clientInfo: {
+          name: 'codex-mcp-client',
+          title: 'Codex',
+          version: '0.160.0',
+        },
+      },
+    });
+    expect(await mcp.answer(0)).toMatchObject({
+      result: { protocolVersion: '2025-06-18' },
+    });
+    mcp.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+    mcp.send({
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'tools/list',
+      params: { _meta: { progressToken: 0 } },
+    });
+    expect(await mcp.answer(1)).toMatchObject({
+      result: { tools: [{ name: 'browser_navigate' }] },
+    });
+    expect(await mcp.close()).toBe(0);
+    expect(received()).toEqual([]);
+  });
+
   test('a list the server advertises is the server’s to answer', async () => {
     const advertised = join(dir, 'manifests-advertised');
     mkdirSync(advertised, { recursive: true });
@@ -421,6 +489,65 @@ describe('the start of a turn without the server', () => {
     expect(mcp.lines.map((line) => line.id)).toEqual([1, 2, 7]);
   });
 
+  test('a notification sent before the server starts reaches it after the replayed start', async () => {
+    const mcp = client();
+    mcp.send(initialize('2025-06-18', { roots: { listChanged: true } }));
+    await mcp.answer(1);
+    mcp.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+    // Held: a notification alone does not start the server.
+    mcp.send({ jsonrpc: '2.0', method: 'notifications/roots/list_changed' });
+    mcp.send({ jsonrpc: '2.0', id: 2, method: 'tools/list' });
+    await mcp.answer(2);
+    expect(received()).toEqual([]);
+    mcp.send(toolCall(3));
+    await mcp.answer('srv-roots');
+    mcp.send({ jsonrpc: '2.0', id: 'srv-roots', result: { roots: [] } });
+    await mcp.answer(3);
+    expect(await mcp.close()).toBe(0);
+    // The server hears of the change before the call that started it.
+    expect(
+      received()
+        .slice(1)
+        .map((line) => JSON.parse(line))
+        .map((msg) => msg.method ?? msg.id),
+    ).toEqual([
+      'initialize',
+      'notifications/initialized',
+      'notifications/roots/list_changed',
+      'tools/call',
+      'srv-roots',
+    ]);
+  });
+
+  test('a request sent while the server starts reaches it after the one that started it', async () => {
+    // The server answers its replayed start half a second late: the ping
+    // arrives while the launcher waits for that answer.
+    const mcp = client({ STAND_IN_INIT_DELAY: '0.5' });
+    mcp.send(initialize('2025-06-18'));
+    await mcp.answer(1);
+    mcp.send({ jsonrpc: '2.0', method: 'notifications/initialized' });
+    mcp.send(toolCall(2));
+    mcp.send({ jsonrpc: '2.0', id: 3, method: 'ping' });
+    expect(await mcp.answer(2)).toMatchObject({
+      result: { content: [{ text: 'navigated' }] },
+    });
+    expect(await mcp.answer(3)).toMatchObject({ result: {} });
+    expect(await mcp.close()).toBe(0);
+    // Both reached the server, in the order sent, and each was answered
+    // once, by it.
+    expect(
+      received()
+        .slice(1)
+        .map((line) => JSON.parse(line).method),
+    ).toEqual([
+      'initialize',
+      'notifications/initialized',
+      'tools/call',
+      'ping',
+    ]);
+    expect(mcp.lines.map((line) => line.id)).toEqual([1, 2, 3]);
+  });
+
   test('a request of the server and the client’s answer pass through', async () => {
     const mcp = client();
     mcp.send(initialize('2025-06-18', { roots: { listChanged: false } }));
@@ -476,6 +603,21 @@ describe('the start of a turn without the server', () => {
     );
   });
 
+  test('a started server refusing the replayed start is logged, and the turn goes on', async () => {
+    const mcp = client({ STAND_IN_INIT_REFUSED: '1' });
+    mcp.send(initialize('2025-06-18'));
+    await mcp.answer(1);
+    mcp.send(toolCall(2));
+    // The client was told the start succeeded: the server answers the call.
+    expect(await mcp.answer(2)).toMatchObject({
+      result: { content: [{ text: 'navigated' }] },
+    });
+    expect(await mcp.close()).toBe(0);
+    expect(await mcp.stderr()).toBe(
+      '[tale-playwright-mcp] the server refused its start: {"code": -32602, "message": "Invalid params"}\n',
+    );
+  });
+
   test('a server configured through PLAYWRIGHT_MCP_* starts at once', async () => {
     // Its tool list then depends on more than the arguments the manifest is
     // keyed by (PLAYWRIGHT_MCP_CAPS adds tools, PLAYWRIGHT_MCP_CONFIG names a
@@ -503,20 +645,7 @@ describe('the start of a turn without the server', () => {
   });
 
   test('a server that never answers the replayed start is ended at the deadline', async () => {
-    // The launcher, with a deadline of one second in place of its own.
-    const mcp = client({ STAND_IN_HANG: '1' }, [
-      '-c',
-      [
-        'import importlib.machinery, importlib.util, sys',
-        "loader = importlib.machinery.SourceFileLoader('launcher', sys.argv[1])",
-        "launcher = importlib.util.module_from_spec(importlib.util.spec_from_loader('launcher', loader))",
-        'loader.exec_module(launcher)',
-        'launcher.START_TIMEOUT_S = 1',
-        'sys.argv = sys.argv[1:]',
-        'launcher.main()',
-      ].join('\n'),
-      launcher,
-    ]);
+    const mcp = client({ STAND_IN_INIT_DELAY: '30' }, oneSecondDeadline);
     mcp.send(initialize('2025-06-18'));
     await mcp.answer(1);
     mcp.send(toolCall(2));
@@ -526,6 +655,22 @@ describe('the start of a turn without the server', () => {
     expect(await mcp.stderr()).toBe(
       '[tale-playwright-mcp] the server did not answer its start within 1 s, ending it\n',
     );
+  });
+
+  test('a server that answers the replayed start outlives the deadline', async () => {
+    const mcp = client({}, oneSecondDeadline);
+    mcp.send(initialize('2025-06-18'));
+    await mcp.answer(1);
+    mcp.send(toolCall(2));
+    await mcp.answer(2);
+    // Past the deadline, the server it started still answers.
+    await Bun.sleep(1500);
+    mcp.send(toolCall(3));
+    expect(await mcp.answer(3)).toMatchObject({
+      result: { content: [{ text: 'navigated' }] },
+    });
+    expect(await mcp.close()).toBe(0);
+    expect(await mcp.stderr()).toBe('');
   });
 
   test('a protocol version the manifest has no answer for gets the server at once', async () => {
