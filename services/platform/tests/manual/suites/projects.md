@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 71 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 72 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -594,7 +594,7 @@ projects-list row ⋯ menu.
   alert; **Try again** pressed while still blocked stays focused (busy) and
   announces the failure again. Unblock → **Try again** → the stored
   secret's row returns without a reload and the focus lands on the
-  **Environment** group. Network shows no write in either state.
+  **Environment** section. Network shows no write in either state.
 - [ ] `PROJ-B17` · **A project read that fails is not a project that is gone**
   — On a project you can edit, block the project's own read
   `*/api/app/projects/<its id>?*` in DevTools (Network → request blocking)
@@ -663,7 +663,7 @@ projects-list row ⋯ menu.
   the project's tasks, exactly like a pointer click on the row; the row
   click still works and does not navigate twice when the name itself is
   clicked.
-- [ ] `PROJ-A7` · **Sharing reads like Project** → On General
+- [ ] `PROJ-A7` · **Sharing reads like Project details** → On General
   (`…/{projectId}/overview`) as an owner of a project in an org with teams,
   in light and in dark: the **Audience** row (`projects.settings.audience`,
   help `projects.settings.audienceHelp`) under **Sharing**
@@ -691,6 +691,20 @@ projects-list row ⋯ menu.
   group included. With focus on **Try again** (not pressed), a background
   refresh that fails again leaves it there; one that works moves it to the
   **Files** group.
+- [ ] `PROJ-A10` · **Project settings read like Settings** → At one window
+  width, in light and in dark, open **Settings** › **Organization**, then a
+  project's **General** (`projects.navigation.overview`) and **Environment**
+  (`projectSecrets.title`) tabs as its administrator: their sections stand in
+  Organization's column — the same left edge, the same width; one hairline
+  and the same gap separate each pair of sections, none above the first or
+  under the last; General opens on **Project details**
+  (`projects.overview.projectSection`), Environment on its description, never
+  on a second **Environment** heading under the tab strip. Walk **General** →
+  **Chats** (`projects.navigation.threads`) → **Knowledge**
+  (`projects.navigation.files`) → **Agents** (`projects.navigation.agents`) →
+  **Dispatch** (`projects.dispatch.title`) → **Environment** → the column's
+  left and right edges never move; only **Tasks** (`tasks.title`), a board,
+  spans the page. At phone width both pages keep the same side margins.
 - [ ] `PROJ-B18` · **Names that make no plain handle** — Add agents named
   "发票助手", "🚀", "Büro Agent" and a 60-character name → their rows read
   `@agent`, `@agent-02`, `@buero-agent`, and a handle of at most 48 characters
