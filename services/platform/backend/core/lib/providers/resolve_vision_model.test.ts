@@ -516,6 +516,7 @@ describe('explicit vision policy boundaries', () => {
       });
       expect(mockedCatalog).toHaveBeenCalledExactlyOnceWith(
         expect.objectContaining({ name: 'local' }),
+        {},
       );
     },
   );
@@ -698,5 +699,69 @@ describe('resolveTurnVisionModel', () => {
         modelId: 'text-only',
       }),
     ).resolves.toBeNull();
+  });
+
+  describe('a model of a provider without a catalog', () => {
+    // An organization's own gateway lists nothing: what its definition
+    // declares about a model's image input is all there is to go by.
+    const gateway: ProviderDefinition = {
+      ...provider('claude-gateway'),
+      catalog: {
+        source: 'none',
+        models: [
+          { id: 'claude-sonnet-gw', supportsVision: true },
+          { id: 'claude-haiku-gw', contextWindow: 200_000 },
+        ],
+      },
+    };
+
+    function servedThroughGateway(): ActionCtx {
+      mockProviders([gateway, provider('alpha')]);
+      mockedCatalog.mockImplementation(async (listed) =>
+        listed.name === 'alpha'
+          ? [entry({ id: 'cheap-vl', inputPrice: 5 })]
+          : [],
+      );
+      return fakeCtx({
+        'claude-gateway': {
+          authMethod: 'api-key',
+          status: 'active',
+          modelAllowlist: ['claude-sonnet-gw', 'claude-haiku-gw'],
+        },
+        alpha: { authMethod: 'api-key', status: 'active' },
+      });
+    }
+
+    it('reads images itself when its provider declares that it does', async () => {
+      await expect(
+        resolveTurnVisionModel(servedThroughGateway(), 'org_1', {
+          providerSlug: 'claude-gateway',
+          modelId: 'claude-sonnet-gw',
+        }),
+      ).resolves.toEqual({
+        model: {
+          providerSlug: 'alpha',
+          modelId: 'cheap-vl',
+          source: 'cheapest',
+        },
+        polyfillReads: false,
+      });
+    });
+
+    it('reads images through the polyfill when its provider declares nothing about them', async () => {
+      await expect(
+        resolveTurnVisionModel(servedThroughGateway(), 'org_1', {
+          providerSlug: 'claude-gateway',
+          modelId: 'claude-haiku-gw',
+        }),
+      ).resolves.toEqual({
+        model: {
+          providerSlug: 'alpha',
+          modelId: 'cheap-vl',
+          source: 'cheapest',
+        },
+        polyfillReads: true,
+      });
+    });
   });
 });
