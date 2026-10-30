@@ -10,10 +10,14 @@
  * turn, and an unresolvable model leaves the harness to its own sizing.
  */
 
-import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
+import type {
+  DeclaredModel,
+  ModelCatalogEntry,
+} from '@tale/shared/schemas/providers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
+import { synthesizeAllowlistCatalog } from '../../../lib/shared/providers/allowlist_catalog';
 import type { ActionCtx } from '../lib/ctx';
 import { resolveModel } from '../lib/providers/resolve_model';
 import {
@@ -200,5 +204,71 @@ describe('buildExternalTurnExec carries the window to the harness', () => {
   it('leaves Claude Code to decide without one', () => {
     const exec = buildExternalTurnExec(base);
     expect(exec.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW).toBe('');
+  });
+});
+
+describe('a catalog-less provider’s declared window reaches Claude Code', () => {
+  // An organization's own Anthropic-format gateway lists no models, so the
+  // window comes from what its definition declares. Undeclared, every model
+  // got the synthesized 128,000, and each managed Claude Code run compacted
+  // near 95,000 tokens however large the model's real window (#5073).
+  const GATEWAY_TURN = {
+    ...TURN,
+    providerSlug: 'claude-gateway',
+    modelId: 'claude-sonnet-gw',
+  } as const;
+
+  /** The `CLAUDE_CODE_AUTO_COMPACT_WINDOW` a turn on the gateway's model
+   * launches with, when its definition declares `models`. */
+  async function compactWindowFor(
+    models: DeclaredModel[],
+  ): Promise<string | undefined> {
+    const [entry] = synthesizeAllowlistCatalog(
+      { name: GATEWAY_TURN.providerSlug, catalog: { source: 'none', models } },
+      [GATEWAY_TURN.modelId],
+    );
+    if (entry === undefined) throw new Error('the allowlisted id is served');
+    vi.mocked(resolveModel).mockResolvedValue({
+      entry,
+      connector: { name: GATEWAY_TURN.providerSlug } as never,
+    });
+    const { ctx } = governanceCtx({
+      attribution: { userId: 'user-1' },
+      cap: null,
+    });
+    const contextWindow = await resolveHarnessTurnContextWindow(
+      ctx,
+      GATEWAY_TURN,
+    );
+    return buildExternalTurnExec({
+      harness: 'claude-code',
+      gatewayModel: 'claude-gateway-org-window/claude-sonnet-gw',
+      serving: { kind: 'gateway', token: 'sk-bf-window' },
+      instructions: '',
+      prompt: 'Review the synthetic repository',
+      execId: GATEWAY_TURN.execId,
+      ...(contextWindow !== undefined ? { contextWindow } : {}),
+    }).env.CLAUDE_CODE_AUTO_COMPACT_WINDOW;
+  }
+
+  it.each([200_000, 1_000_000])(
+    'leaves Claude Code its own window for a declared %i tokens',
+    async (contextWindow) => {
+      await expect(
+        compactWindowFor([{ id: GATEWAY_TURN.modelId, contextWindow }]),
+      ).resolves.toBe('');
+    },
+  );
+
+  it('hands Claude Code a declared window below its own assumption', async () => {
+    await expect(
+      compactWindowFor([{ id: GATEWAY_TURN.modelId, contextWindow: 131_072 }]),
+    ).resolves.toBe('131072');
+  });
+
+  it('hands Claude Code the 128,000-token floor for a model the definition does not describe', async () => {
+    await expect(
+      compactWindowFor([{ id: 'claude-haiku-gw', contextWindow: 200_000 }]),
+    ).resolves.toBe('128000');
   });
 });
