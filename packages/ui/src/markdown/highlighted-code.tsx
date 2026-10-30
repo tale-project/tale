@@ -169,7 +169,7 @@ export const HighlightedCode = memo(function HighlightedCode({
             // The outer wrapper owns the background; Shiki's per-pre bg is
             // forced transparent so the same surface reaches every edge —
             // no visible double-padding ring.
-            '[&_.line:hover]:bg-fg-base/[0.04] overflow-x-auto p-4 text-sm [&_.line]:-mx-4 [&_.line]:inline-block [&_.line]:w-[calc(100%+2rem)] [&_.line]:px-4 [&_.line]:transition-colors [&>pre]:m-0 [&>pre]:bg-transparent! [&>pre]:p-0 [&>pre>code>.line]:leading-[1.6]',
+            '[&_.line:hover]:bg-fg-base/[0.04] [&>pre>code>.line]:leading-code overflow-x-auto p-4 text-sm [&_.line]:-mx-4 [&_.line]:inline-block [&_.line]:w-[calc(100%+2rem)] [&_.line]:px-4 [&_.line]:transition-colors [&>pre]:m-0 [&>pre]:bg-transparent! [&>pre]:p-0',
             showCopyButton && 'pr-12',
             numbered && 'code-block-numbered',
           )}
@@ -180,7 +180,7 @@ export const HighlightedCode = memo(function HighlightedCode({
       ) : (
         <pre
           className={cn(
-            'overflow-x-auto p-4 text-sm leading-[1.6]',
+            'leading-code overflow-x-auto p-4 text-sm',
             showCopyButton && 'pr-12',
           )}
         >
