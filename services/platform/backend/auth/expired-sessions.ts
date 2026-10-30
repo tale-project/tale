@@ -1,4 +1,4 @@
-import type { Sql } from 'postgres';
+import type { PendingQuery, Row, Sql } from 'postgres';
 
 /**
  * The expired-session reaper — the daily `maintenance.expired_sessions` job.
@@ -11,9 +11,8 @@ import type { Sql } from 'postgres';
  * The idle-revocation sweep (`domains/governance/session-idle.ts`) leaves an
  * expired row alone on purpose, and the trusted-header door mints a fresh
  * session beside an expired one rather than deleting it, so no other sweep
- * removes one. The pile also crowds the idle sweep itself: it reads a
- * bounded window of the least recently used sessions, and an expired row
- * takes a place there without ever qualifying.
+ * removes one. The pile also slows the idle sweep itself: it walks the least
+ * recently used sessions first, and passes every expired row on its way.
  *
  * Deleting a row this far past its expiry does early what Better Auth would
  * do on the next read, and changes no answer: the `/events` re-check
@@ -68,20 +67,33 @@ export async function reapExpiredSessions(
   let deleted = 0;
   for (let round = 0; round < maxBatches; round += 1) {
     if (options.signal?.aborted === true) return { deleted, drained: false };
-    // `SKIP LOCKED`: a row another transaction holds — a sign-in or a member
-    // removal touching the same user — is left for the next run rather than
-    // waited on.
-    const result = await sql`
-      DELETE FROM "session"
-      WHERE "id" IN (
-        SELECT "id" FROM "session"
-        WHERE "expiresAt" < ${cutoff}
-        LIMIT ${batch}
-        FOR UPDATE SKIP LOCKED
-      )
-    `;
+    const result = await expiredSessionBatch(sql, cutoff, batch);
     deleted += result.count;
     if (result.count < batch) return { deleted, drained: true };
   }
   return { deleted, drained: false };
+}
+
+/**
+ * One batch: at most `batch` rows expired before `cutoff`, taken by
+ * `session_expiresAt_idx` (`db/boot-indexes.ts`). Exported for the plan
+ * check (`expired-sessions.integration.ts`).
+ */
+export function expiredSessionBatch(
+  sql: Sql,
+  cutoff: Date,
+  batch: number,
+): PendingQuery<Row[]> {
+  // `SKIP LOCKED`: a row another transaction holds — a sign-in or a member
+  // removal touching the same user — is left for the next run rather than
+  // waited on.
+  return sql`
+    DELETE FROM "session"
+    WHERE "id" IN (
+      SELECT "id" FROM "session"
+      WHERE "expiresAt" < ${cutoff}
+      LIMIT ${batch}
+      FOR UPDATE SKIP LOCKED
+    )
+  `;
 }
