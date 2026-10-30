@@ -1,3 +1,7 @@
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { describe, expect, it, vi } from 'vitest';
@@ -14,6 +18,7 @@ import {
   recordSkip,
   requestedLanes,
   settleTeardown,
+  videoLaneFfmpegLocation,
   withCleanup,
 } from './integration-lane-helpers';
 import { createEventsHandler, liveStreamCount } from './realtime/sse';
@@ -78,6 +83,69 @@ describe('itestObjectStore', () => {
   it('is null without an endpoint', () => {
     expect(itestObjectStore({})).toBeNull();
     expect(itestObjectStore({ ...store, ITEST_S3_ENDPOINT: ' ' })).toBeNull();
+  });
+});
+
+describe('videoLaneFfmpegLocation', () => {
+  it('hands yt-dlp the ffmpeg on PATH while the variable is unset or blank (#4715)', async () => {
+    const onPath = vi.fn(async () => '/opt/homebrew/bin/ffmpeg');
+    expect(await videoLaneFfmpegLocation({}, onPath)).toBe(
+      '/opt/homebrew/bin/ffmpeg',
+    );
+    expect(
+      await videoLaneFfmpegLocation(
+        { VIDEO_INGEST_FFMPEG_LOCATION: '  ' },
+        onPath,
+      ),
+    ).toBe('/opt/homebrew/bin/ffmpeg');
+  });
+
+  it('leaves a variable someone set alone, without looking', async () => {
+    const onPath = vi.fn(async () => '/usr/local/bin/ffmpeg');
+    expect(
+      await videoLaneFfmpegLocation(
+        { VIDEO_INGEST_FFMPEG_LOCATION: '/opt/ffmpeg/bin/ffmpeg' },
+        onPath,
+      ),
+    ).toBeNull();
+    expect(onPath).not.toHaveBeenCalled();
+  });
+
+  it('leaves the product its default when PATH has no ffmpeg', async () => {
+    expect(await videoLaneFfmpegLocation({}, async () => null)).toBeNull();
+  });
+
+  it('leaves the product its default when the lookup fails, and says why', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      expect(
+        await videoLaneFfmpegLocation({}, async () => {
+          throw new Error('ffmpeg lookup: timed out after 10000 ms');
+        }),
+      ).toBeNull();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('ffmpeg lookup: timed out after 10000 ms'),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('looks on PATH the way the toolchain does by default', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'itest-ffmpeg-'));
+    await writeFile(
+      join(dir, 'which'),
+      '#!/bin/sh\n[ "$1" = ffmpeg ] && echo /opt/fake/ffmpeg\n',
+      { mode: 0o755 },
+    );
+    const inherited = process.env.PATH;
+    process.env.PATH = `${dir}:${inherited}`;
+    try {
+      expect(await videoLaneFfmpegLocation({})).toBe('/opt/fake/ffmpeg');
+    } finally {
+      process.env.PATH = inherited;
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
 

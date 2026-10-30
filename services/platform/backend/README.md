@@ -226,10 +226,12 @@ through `ITEST_S3_ENDPOINT`; its test credentials default to `minioadmin` and ca
 be overridden by `ITEST_S3_ACCESS_KEY` / `ITEST_S3_SECRET_KEY`. Without that
 endpoint the affected probes report skips, so do not describe the result as full
 storage coverage. The transcription probe runs the real `ffmpeg` and `ffprobe`
-from `PATH`. The video-link probe does not look at `PATH`: it hands yt-dlp an
-explicit `--ffmpeg-location`, which is `VIDEO_INGEST_FFMPEG_LOCATION` or else
-`/usr/bin/ffmpeg`. Set it whenever ffmpeg lives elsewhere, for example
-`VIDEO_INGEST_FFMPEG_LOCATION="$(command -v ffmpeg)"` on Homebrew.
+from `PATH`. yt-dlp does not look at `PATH`: the product hands it an explicit
+`--ffmpeg-location`, which is `VIDEO_INGEST_FFMPEG_LOCATION` or else the image's
+`/usr/bin/ffmpeg`. So the video-link probe sets that variable, when it is unset,
+to the ffmpeg on `PATH`, as `bun dev` does, and a Homebrew ffmpeg needs no
+setting. Set the variable only to hand yt-dlp a different ffmpeg. A whisper check
+that fails names the job's error.
 
 `ITEST_REQUIRE_ALL_LANES=1` asks for full coverage. The harness then refuses to
 start with a lane filter or without all three `ITEST_S3_*` variables, and a check

@@ -7,6 +7,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 
 import { z } from 'zod';
 
+import { systemFfmpeg } from './core/video_links/ytdlp_toolchain.ts';
 import { endAllEventStreams, liveStreamCount } from './realtime/sse.ts';
 
 /** The password every throwaway `itest-` user signs up with. */
@@ -79,6 +80,35 @@ export function itestObjectStore(
     accessKeyId: env.ITEST_S3_ACCESS_KEY ?? 'minioadmin',
     secretAccessKey: env.ITEST_S3_SECRET_KEY ?? 'minioadmin',
   };
+}
+
+/**
+ * The ffmpeg the video-link lane sets `VIDEO_INGEST_FFMPEG_LOCATION` to, or
+ * null to leave the variable as it is.
+ *
+ * yt-dlp never looks at PATH: the product names its ffmpeg, the variable or
+ * else the image's `/usr/bin/ffmpeg` (`ffmpegLocationFlags`), while the
+ * transcription half of the same whisper path spawns `ffmpeg` from PATH. On a
+ * host whose ffmpeg lives elsewhere (Homebrew, a `/usr/local/bin` build) the
+ * transcription lane passed and every audio extraction of the video lane
+ * failed as `transient`, its job left queued for a retry the lane does not
+ * wait for (#4715). So the lane fills the gap as `bun dev` does: a variable
+ * someone set wins, otherwise the ffmpeg on PATH. A lookup that fails leaves
+ * the product its default, and says why.
+ */
+export async function videoLaneFfmpegLocation(
+  env: NodeJS.ProcessEnv = process.env,
+  onPath: () => Promise<string | null> = systemFfmpeg,
+): Promise<string | null> {
+  if (env.VIDEO_INGEST_FFMPEG_LOCATION?.trim()) return null;
+  try {
+    return await onPath();
+  } catch (error) {
+    console.warn(
+      `[itest] video links: no ffmpeg from PATH for yt-dlp (${errorText(error)}); it gets the product's default`,
+    );
+    return null;
+  }
 }
 
 /**
