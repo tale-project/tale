@@ -513,7 +513,11 @@ async function runInSandbox(
         `"${file.name}" cannot be copied into the sandbox on this deployment.`,
       );
     }
-    staged.push({ path: `inputs/${paths.get(file.ref) ?? 'file'}`, url });
+    staged.push({
+      path: `inputs/${paths.get(file.ref) ?? 'file'}`,
+      url,
+      expectedBytes: file.sizeBytes,
+    });
   }
   const files = [...staged, ...skillFiles];
   const stage = await sessionStageFiles(

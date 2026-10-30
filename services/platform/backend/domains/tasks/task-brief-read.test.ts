@@ -29,7 +29,13 @@ const CATALOG: CatalogRow[] = [
 /** A `sql` stand-in for the brief's reads: one task of the Fleet project
  * wearing `labelIds`, no discussion, and `CATALOG` as the labels. Records
  * each statement and its values. */
-function briefSql(labelIds: string[]) {
+function briefSql(
+  labelIds: string[],
+  files: { attachments: unknown[]; outputs: unknown[] } = {
+    attachments: [],
+    outputs: [],
+  },
+) {
   const statements: { text: string; values: unknown[] }[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replace(/\s+/g, ' ').trim();
@@ -42,8 +48,8 @@ function briefSql(labelIds: string[]) {
           labelIds,
           number: 12,
           projectId: 'p-fleet',
-          attachments: [],
-          outputs: [],
+          attachments: files.attachments,
+          outputs: files.outputs,
           organizationId: 'org-1',
         },
       ]);
@@ -95,5 +101,34 @@ describe('the labels a run’s brief names [TASK-R83]', () => {
     expect(composeTaskBrief({ brief: foreign ?? { title: '' } })).not.toContain(
       'Labels:',
     );
+  });
+});
+
+describe('the files a run’s brief names', () => {
+  it('keeps the size each entry records, so the stager can pack by it', async () => {
+    const { sql } = briefSql([], {
+      attachments: [
+        {
+          fileId: 's3:org-1/a',
+          fileName: 'Afos.xlsx',
+          fileType: 'application/vnd.ms-excel',
+          fileSize: 2048,
+        },
+        { fileId: 's3:org-1/b', fileName: 'brief.pdf' },
+      ],
+      outputs: [
+        { fileId: 's3:org-1/c', fileName: 'report.docx', fileSize: 'large' },
+      ],
+    });
+    const brief = await readTaskBrief(sql, 't-1');
+    expect(brief?.attachments).toEqual([
+      { fileId: 's3:org-1/a', fileName: 'Afos.xlsx', fileSize: 2048 },
+      { fileId: 's3:org-1/b', fileName: 'brief.pdf' },
+    ]);
+    expect(brief?.attachments[1]).not.toHaveProperty('fileSize');
+    expect(brief?.outputs).toEqual([
+      { fileId: 's3:org-1/c', fileName: 'report.docx' },
+    ]);
+    expect(brief?.outputs[0]).not.toHaveProperty('fileSize');
   });
 });

@@ -1652,6 +1652,9 @@ export interface SessionStageFile {
   path: string;
   /** Presigned URL the daemon fetches (exactly one of url/contentBase64). */
   url?: string;
+  /** Bytes the daemon is expected to download from `url` — the size its blob
+   * row records. Packs batches only (chunkStageFiles); never sent. */
+  expectedBytes?: number;
   /** Inline bytes, base64 — for small control files (steer messages). */
   contentBase64?: string;
   /** Trusted immutable source identity. Runnerd verifies actual target bytes
@@ -1709,29 +1712,67 @@ const LEGACY_STAGE_INLINE_MAX_BYTES = 1024 * 1024;
 export const STAGE_SINGLE_FILE_BODY_BYTES = 6 * 1024 * 1024;
 const STAGE_MAX_FILES = 512;
 
+/** Client-side download budget per stage POST: the expected bytes of its URL
+ * entries. Runnerd gives a whole stage request one 25 s deadline and fetches
+ * at most 100 MiB for one entry (STAGE_TIMEOUT_MS and FETCH_MAX_BYTES in the
+ * daemon's file-ops.ts), so a batch packed to the same 100 MiB never needs a
+ * faster link than one largest file already does. A longer deadline on the
+ * request alone would not help: runnerd's own deadline still ends the batch. */
+export const STAGE_DOWNLOAD_BUDGET_BYTES = 100 * 1024 * 1024;
+
 // Serialized length of the request envelope around the files array:
 // `{"files":[` + `]}`.
 const STAGE_ENVELOPE_BYTES = Buffer.byteLength('{"files":[]}', 'utf8');
 
+/** The entry as a stage request carries it: `expectedBytes` stays here. */
+function stageWireFile({
+  expectedBytes: _expectedBytes,
+  ...file
+}: SessionStageFile): SessionStageFile {
+  return file;
+}
+
+/** What one entry asks the daemon to download: nothing for inline bytes or a
+ * source probe, the expected size for a URL, and the whole budget for a URL
+ * whose size is unknown — so it never shares a batch with another download. */
+function stageDownloadBytes(
+  file: SessionStageFile,
+  maxDownloadBytes: number,
+): number {
+  if (file.url === undefined) return 0;
+  const expected = file.expectedBytes;
+  return expected !== undefined && Number.isFinite(expected) && expected >= 0
+    ? expected
+    : maxDownloadBytes;
+}
+
 /**
  * Pack stage files into batches whose SERIALIZED request body stays under
- * `maxBodyBytes`, preserving order. Pure — exported for unit tests. Uses the
- * exact JSON length (per-entry serialized bytes + separating commas +
- * envelope), so a batch never exceeds the budget it was packed for. An entry
- * too large for the budget (an inline file of a few MB) travels alone, in a
- * request of up to `singleFileBodyBytes`; one larger than that throws:
- * chunking cannot help it, and posting it would just 413 downstream.
+ * `maxBodyBytes` and whose URL entries ask for at most `maxDownloadBytes` of
+ * download, preserving order. Pure — exported for unit tests. Uses the exact
+ * JSON length (per-entry serialized bytes + separating commas + envelope), so
+ * a batch never exceeds the budget it was packed for. An entry too large for
+ * the budget (an inline file of a few MB) travels alone, in a request of up to
+ * `singleFileBodyBytes`; one larger than that throws: chunking cannot help it,
+ * and posting it would just 413 downstream. A URL entry over the download
+ * budget, or of unknown size, travels in a batch of its own too: one download
+ * cannot be split.
  */
 export function chunkStageFiles(
   files: SessionStageFile[],
   maxBodyBytes: number = STAGE_BODY_BUDGET_BYTES,
   singleFileBodyBytes: number = STAGE_SINGLE_FILE_BODY_BYTES,
+  maxDownloadBytes: number = STAGE_DOWNLOAD_BUDGET_BYTES,
 ): SessionStageFile[][] {
   const batches: SessionStageFile[][] = [];
   let batch: SessionStageFile[] = [];
   let batchBytes = STAGE_ENVELOPE_BYTES;
+  let batchDownloadBytes = 0;
   for (const file of files) {
-    const entryBytes = Buffer.byteLength(JSON.stringify(file), 'utf8');
+    const entryBytes = Buffer.byteLength(
+      JSON.stringify(stageWireFile(file)),
+      'utf8',
+    );
     if (STAGE_ENVELOPE_BYTES + entryBytes > maxBodyBytes) {
       if (STAGE_ENVELOPE_BYTES + entryBytes > singleFileBodyBytes) {
         throw new Error(
@@ -1743,19 +1784,25 @@ export function chunkStageFiles(
       batches.push([file]);
       batch = [];
       batchBytes = STAGE_ENVELOPE_BYTES;
+      batchDownloadBytes = 0;
       continue;
     }
+    const downloadBytes = stageDownloadBytes(file, maxDownloadBytes);
     const commaBytes = batch.length > 0 ? 1 : 0;
     if (
       batch.length >= STAGE_MAX_FILES ||
-      batchBytes + commaBytes + entryBytes > maxBodyBytes
+      batchBytes + commaBytes + entryBytes > maxBodyBytes ||
+      (batchDownloadBytes > 0 &&
+        batchDownloadBytes + downloadBytes > maxDownloadBytes)
     ) {
       batches.push(batch);
       batch = [];
       batchBytes = STAGE_ENVELOPE_BYTES;
+      batchDownloadBytes = 0;
     }
     batch.push(file);
     batchBytes += (batch.length > 1 ? 1 : 0) + entryBytes;
+    batchDownloadBytes += downloadBytes;
   }
   if (batch.length > 0) batches.push(batch);
   return batches;
@@ -1770,7 +1817,10 @@ async function postStageFiles(
   callerSignal?: AbortSignal,
 ): Promise<SessionStageResult> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/stage`;
-  const bodyJson = JSON.stringify({ files, ...reconcile });
+  const bodyJson = JSON.stringify({
+    files: files.map(stageWireFile),
+    ...reconcile,
+  });
   if (
     Buffer.byteLength(bodyJson) >
     (files.length === 1
@@ -1823,12 +1873,15 @@ async function postStageFiles(
 
 /** POST /v1/sessions/:id/files/stage — write files into the session workspace.
  * Large payloads are auto-chunked into sequential POSTs, each packed under
- * STAGE_BODY_BUDGET_BYTES (a file too large for it travels alone), so callers
- * can hand over whole skill bundles without tripping the spawner's
- * request-body cap. Throws on transport/HTTP failure of any chunk; per-file
- * failures come back merged in `skipped`, an inline file over
- * STAGE_INLINE_MAX_BYTES among them (`too_large`, as runnerd says it) without
- * being sent. {@link describeStageSkips} words them for a person. */
+ * STAGE_BODY_BUDGET_BYTES of request (a file too large for it travels alone)
+ * and STAGE_DOWNLOAD_BUDGET_BYTES of expected download, so callers can hand
+ * over whole skill bundles and many large files without tripping the
+ * spawner's request-body cap or runnerd's per-request deadline. A URL entry
+ * should carry `expectedBytes`: one without it is staged in a request of its
+ * own. Throws on transport/HTTP failure of any chunk; per-file failures come
+ * back merged in `skipped`, an inline file over STAGE_INLINE_MAX_BYTES among
+ * them (`too_large`, as runnerd says it) without being sent.
+ * {@link describeStageSkips} words them for a person. */
 export async function sessionStageFiles(
   sessionId: string,
   files: SessionStageFile[],
