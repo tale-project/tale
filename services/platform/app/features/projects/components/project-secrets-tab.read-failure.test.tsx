@@ -122,7 +122,7 @@ function renderTab() {
 const t = (key: string) => i18n.t(key, { ns: 'projectSecrets' });
 const envEditor = (key: string) => i18n.t(key, { ns: 'envEditor' });
 const tryAgain = () => i18n.t('actions.tryAgain', { ns: 'common' });
-const environment = () => screen.getByRole('group', { name: t('title') });
+const environment = () => screen.getByRole('region', { name: t('title') });
 
 /** The live alert a message sits in. The page's agent-access notice is a
  * live alert too, so the failure is found by its words. */
@@ -246,7 +246,7 @@ describe('ProjectSecretsTab when its read fails', { timeout: 30_000 }, () => {
     expectNoEditor();
 
     // It answers: the editor shows what is stored, the alert goes, and its
-    // focus lands on the Environment group, not on the page.
+    // focus lands on the Environment section, not on the page.
     backend.on(SECRETS, storedSecrets('SYNTHETIC_API_TOKEN'));
     await user.keyboard('{Enter}');
     expect(

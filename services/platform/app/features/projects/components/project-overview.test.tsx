@@ -11,8 +11,8 @@ import {
 
 import { ProjectOverview } from './project-overview';
 
-// The general page opens directly with the "Project" section — the layout's
-// header already names the project, so the page renders no second name
+// The general page opens directly with the "Project details" section — the
+// layout's header already names the project, so the page renders no second name
 // heading, no stats line, and no New-chat CTA of its own. These tests pin
 // that shape plus the per-field hints under name / description /
 // instructions, the settings-section framing the shared dividers key on, and
@@ -107,11 +107,11 @@ describe('ProjectOverview', () => {
     };
   });
 
-  it('opens with the Project section — no duplicate name heading, stats line, or New-chat CTA', () => {
+  it('opens with the Project details section — no duplicate name heading, stats line, or New-chat CTA', () => {
     renderOverview();
 
     expect(
-      screen.getByRole('heading', { name: 'Project' }),
+      screen.getByRole('heading', { name: 'Project details' }),
     ).toBeInTheDocument();
     // The layout's header owns the project name; the page repeats neither it
     // nor the retired stats/CTA header.
@@ -158,7 +158,7 @@ describe('ProjectOverview', () => {
     );
   });
 
-  it('shows the read-only Project summary for viewers with a description', () => {
+  it('shows the read-only Project details summary for viewers with a description', () => {
     projectFixture = {
       name: 'Getting started',
       description: 'A tour of the platform.',
@@ -169,7 +169,7 @@ describe('ProjectOverview', () => {
     renderOverview();
 
     expect(
-      screen.getByRole('heading', { name: 'Project' }),
+      screen.getByRole('heading', { name: 'Project details' }),
     ).toBeInTheDocument();
     expect(screen.getByText('A tour of the platform.')).toBeInTheDocument();
   });
@@ -227,6 +227,19 @@ describe('ProjectOverview', () => {
     expect(container.querySelector('#project-danger')).toHaveAttribute(
       'data-settings-section',
     );
+  });
+
+  // #2794: General is a settings form, so its sections stand in the general
+  // settings page — Settings › Organization's reading column, 32px section
+  // rhythm and end clearance — not in a padded frame of their own, whose
+  // padding inside the cap left the column 32px narrower than the settings one.
+  it('lays its sections out as a general settings page', () => {
+    const { container } = renderOverview();
+
+    const section = container.querySelector('[data-settings-section]');
+    const page = section?.closest('[data-field-layout="row"]');
+    expect(page).toHaveClass('mx-auto', 'max-w-3xl', 'gap-8');
+    expect(page).not.toHaveClass('px-4');
   });
 
   // The Instructions section IS its one field: the section header is the

@@ -72,9 +72,8 @@ create:
     concernées par ce projet. Les admins le voient toujours.
 overview:
   newChatCta: Nouveau chat
-  projectSection: Projet
-  projectSectionDescription: Nom, description et instructions permanentes de
-    ce projet.
+  projectSection: Détails du projet
+  projectSectionDescription: Informations de base sur ce projet.
   sharingHeading: Partage
 identity:
   label: Icône et couleur

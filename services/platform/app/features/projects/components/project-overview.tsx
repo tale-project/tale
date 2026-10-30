@@ -22,7 +22,6 @@ import {
   SettingsFieldList,
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
-import { SECTION_DIVIDER_CLASS } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
 import { backendErrorCode } from '@/lib/utils/backend-error';
@@ -35,6 +34,7 @@ import { ProjectIdentityPicker } from './project-identity-picker';
 import { ProjectInstructionsEditor } from './project-instructions-editor';
 import { ProjectReadError } from './project-read-error';
 import { ProjectReadOnlyBanner } from './project-read-only-banner';
+import { ProjectSettingsPage } from './project-settings-page';
 import { ProjectSharingSection } from './project-sharing-section';
 import { ProjectTaskReviewerSection } from './project-task-reviewer-section';
 
@@ -223,11 +223,12 @@ function ProjectOverviewContent({
 
   return (
     // This page is a configuration surface built from `SettingsSection`, so it
-    // carries the shared section-divider rule instead of hand-rolled borders on
-    // individual sections: the rule keys on each section's marker, which is
+    // stands in the general settings page: its column, its 32px rhythm, and
+    // the shared section-divider rule instead of hand-rolled borders on
+    // individual sections — the rule keys on each section's marker, which is
     // what draws exactly one hairline between each pair of neighbours —
-    // Project, Instructions, Sharing — and nothing after the last one.
-    <ContentArea variant="narrow" gap={6} className={SECTION_DIVIDER_CLASS}>
+    // Project details, Instructions, Sharing — and nothing after the last one.
+    <ProjectSettingsPage title={t('navigation.overview')}>
       {isArchived ? (
         <ProjectReadOnlyBanner reason="archived" />
       ) : isViewerOnly ? (
@@ -368,6 +369,6 @@ function ProjectOverviewContent({
           projectName={project.name}
         />
       ) : null}
-    </ContentArea>
+    </ProjectSettingsPage>
   );
 }

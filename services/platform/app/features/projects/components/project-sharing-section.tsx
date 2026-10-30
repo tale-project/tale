@@ -228,9 +228,9 @@ export function ProjectSharingSection({
     );
   }
 
-  // The same field-row chrome as the Project section above it: label and help
-  // on the left, the control pinned in the shared control column on the
-  // right, so this page reads as one aligned list of rows.
+  // The same field-row chrome as the Project details section above it: label
+  // and help on the left, the control pinned in the shared control column on
+  // the right, so this page reads as one aligned list of rows.
   if (!assignableTeams || assignableTeams.length === 0) {
     return (
       <SettingsFieldList data-project-audience={projectId}>

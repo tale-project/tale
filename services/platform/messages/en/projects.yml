@@ -71,9 +71,8 @@ create:
   errorToast: Couldn't create project
 overview:
   newChatCta: New chat
-  projectSection: Project
-  projectSectionDescription: Name, description, and standing instructions for
-    this project.
+  projectSection: Project details
+  projectSectionDescription: Basic information about this project.
   sharingHeading: Sharing
 identity:
   label: Icon and color

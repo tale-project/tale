@@ -83,12 +83,20 @@ describe('ContentArea', () => {
     expect(container.firstElementChild).toHaveClass(DOCK_END_PAD);
   });
 
-  it('keeps the narrow variant on the settings width', () => {
+  it('caps the narrow variant’s content, not its padded box, at the settings measure', () => {
+    // A settings page's column is `max-w-3xl` itself (#2567). The narrow frame
+    // pads inside its cap, so the cap is that measure plus its own `px-4` on
+    // both sides: capped at `max-w-3xl`, its content came out 32px narrower,
+    // and moving between a project's tabs reflowed the column (#2794).
     const { container } = render(
       <ContentArea variant="narrow">
         <p>Narrow content</p>
       </ContentArea>,
     );
-    expect(container.firstElementChild).toHaveClass('max-w-3xl');
+    expect(container.firstElementChild).toHaveClass(
+      'max-w-[calc(var(--container-3xl)+--spacing(8))]',
+      'px-4',
+    );
+    expect(container.firstElementChild).not.toHaveClass('max-w-3xl');
   });
 });
