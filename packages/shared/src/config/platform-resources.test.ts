@@ -446,3 +446,104 @@ describe('the embedding floor in a declaration', () => {
     ).toBe(false);
   });
 });
+
+describe('a declared repeat window that spans the whole week', () => {
+  // A schedule is declared beside the definition and deployment it runs.
+  const definition = {
+    name: 'reports/quarter-hourly',
+    projectId: 'project-a',
+    document: {
+      name: 'reports/quarter-hourly',
+      nodes: [],
+      tests: [{ name: 'guard', input: {}, expect: {} }],
+    },
+    settings: null,
+    presentation: null,
+    taskContract: null,
+  };
+  const schedule = (repeat: object) => ({
+    projectId: definition.projectId,
+    name: definition.name,
+    repeat,
+    startDate: '2026-10-01',
+    timezone: 'UTC',
+    enabled: true,
+  });
+  const declaration = (repeat: object, ...resources: object[]) => ({
+    schemaVersion: 1,
+    resources: [
+      { kind: 'automation-definition', config: definition },
+      {
+        kind: 'automation-deployment',
+        config: {
+          name: definition.name,
+          projectId: definition.projectId,
+          definitionSha256: configurationHash(definition),
+        },
+      },
+      { kind: 'automation-schedule', config: schedule(repeat) },
+      ...resources,
+    ],
+  });
+  const wholeWeek = { weekdays: [0, 1, 2, 3, 4, 5, 6] };
+
+  test.each([
+    { frequency: 'minutely', interval: 15 },
+    { frequency: 'hourly', interval: 1, minute: 0 },
+  ])(
+    'is accepted on a $frequency rule and read as the rule without it',
+    (rule) => {
+      const declared = platformConfigurationSchema.parse(
+        declaration({ ...rule, window: wholeWeek }),
+      ).resources[2];
+      expect(declared).toEqual(
+        platformConfigurationSchema.parse(declaration(rule)).resources[2],
+      );
+      // The readback: the rule in the normal form the platform stores.
+      expect(resourceConverged(declared, schedule(rule))).toBe(true);
+    },
+  );
+
+  test.each([
+    {
+      key: 'password_policy',
+      spelled: { minLength: 14 },
+      misspelled: { minLenght: 14 },
+    },
+    {
+      // Inside a list the policy holds.
+      key: 'feature_flags',
+      spelled: {
+        enabled: true,
+        rules: [{ scope: 'default', maxContextTokens: 8192 }],
+      },
+      misspelled: {
+        enabled: true,
+        rules: [{ scope: 'default', maxContextToken: 8192 }],
+      },
+    },
+  ])(
+    'leaves a misspelled $key field declared beside it refused',
+    ({ key, spelled, misspelled }) => {
+      const accepted = (config: object) =>
+        platformConfigurationSchema.safeParse(
+          declaration(
+            { frequency: 'minutely', interval: 15, window: wholeWeek },
+            { kind: 'governance', key, config },
+          ),
+        ).success;
+      expect(accepted(spelled)).toBe(true);
+      expect(accepted(misspelled)).toBe(false);
+    },
+  );
+
+  test('leaves a misspelled field inside it refused', () => {
+    const accepted = (window: object) =>
+      platformConfigurationSchema.safeParse(
+        declaration({ frequency: 'minutely', interval: 15, window }),
+      ).success;
+    const hours = { from: '09:00', to: '17:00' };
+    expect(accepted({ ...wholeWeek, hours })).toBe(true);
+    expect(accepted({ ...wholeWeek, hourz: hours })).toBe(false);
+  });
+});
