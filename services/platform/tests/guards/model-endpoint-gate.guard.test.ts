@@ -22,7 +22,7 @@ const PLATFORM = path.join(
 
 const RESOLVES = /\bresolveProviderCredential\w*\s*\(/;
 const GATED =
-  /\b(assertModelEndpointAllowed|refuseModelEndpoint|modelEndpointRefusal|gatewayBuiltinRefusal)\b/;
+  /\b(assertModelEndpointAllowed|refuseModelEndpoint|modelEndpointRefusal|gatewayBuiltinRefusal|gatewayModelRefusal)\b/;
 
 const NOT_GATED: Readonly<Record<string, string>> = {
   'backend/core/provider_credentials/resolve_credential.ts':
@@ -31,12 +31,6 @@ const NOT_GATED: Readonly<Record<string, string>> = {
     'adapts the resolver and fetches model listings, which carry no prompt',
   'backend/integration-check.ts':
     'checks a deployment with its own fixtures, not an organization’s prompts',
-  'backend/core/node_only/sandbox/gateway_provisioning.ts':
-    'provisions the sandbox model gateway (#5186)',
-  'backend/core/automations/agent_host.ts':
-    'vends a subscription to an automation agent in a sandbox (#5186)',
-  'backend/core/tasks/agent_run_host.ts':
-    'vends a subscription to a task agent in a sandbox (#5186)',
 };
 
 function sources(dir: string): string[] {
