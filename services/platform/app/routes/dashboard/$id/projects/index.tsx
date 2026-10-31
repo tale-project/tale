@@ -10,10 +10,8 @@ import { z } from 'zod';
 
 import { HomeBackButton } from '@/app/features/home/components/home-back-button';
 import { ProjectsTable } from '@/app/features/projects/components/projects-table';
-import {
-  PROJECTS_PAGE_SIZE,
-  projectsOverviewArgs,
-} from '@/app/features/projects/hooks/queries';
+import { projectsOverviewArgs } from '@/app/features/projects/hooks/queries';
+import { PROJECTS_PAGE_SIZE } from '@/app/features/projects/projects-page-size';
 import {
   parseAudienceFilter,
   serializeAudienceFilter,
