@@ -3,14 +3,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MentionTriggerChips } from './mention-trigger-chips';
 
-const { useActorDirectory, requestedSlugs, preview } = vi.hoisted(() => ({
-  useActorDirectory: vi.fn(),
-  requestedSlugs: [] as string[][],
-  preview: {
-    willTrigger: true,
-    reason: 'ok' as 'ok' | 'standard_agent_unavailable',
-  },
-}));
+const { useActorDirectory, requestedSlugs, askedHandles, preview } = vi.hoisted(
+  () => ({
+    useActorDirectory: vi.fn(),
+    requestedSlugs: [] as string[][],
+    // The typed handles the member lookup was asked about.
+    askedHandles: [] as string[],
+    preview: {
+      willTrigger: true,
+      reason: 'ok' as 'ok' | 'standard_agent_unavailable',
+    },
+  }),
+);
 
 vi.mock('@/lib/i18n/client', () => ({
   useT: () => ({
@@ -40,8 +44,16 @@ beforeEach(() => {
   requestedSlugs.length = 0;
   preview.willTrigger = true;
   preview.reason = 'ok';
+  askedHandles.length = 0;
   useActorDirectory.mockReset();
-  useActorDirectory.mockReturnValue({ agents: [REVIEWER] });
+  useActorDirectory.mockReturnValue({
+    agents: [REVIEWER],
+    memberPending: (target: { handle?: string }) => {
+      if (target.handle !== undefined) askedHandles.push(target.handle);
+      return false;
+    },
+    mentionPending: () => false,
+  });
 });
 
 function renderChips(draft: string, baseline?: string) {
@@ -73,6 +85,31 @@ describe('MentionTriggerChips', () => {
       ),
     ).toBeInTheDocument();
     expect(requestedSlugs.at(-1)).toEqual(['agent-7f3a']);
+  });
+
+  it('asks about a typed handle only once typing settles, never per character', async () => {
+    const chips = (draft: string) => (
+      <MentionTriggerChips
+        organizationId="org-1"
+        projectId="project-1"
+        target={{ taskId: 'task-1' }}
+        draft={draft}
+      />
+    );
+    const { rerender } = render(chips('@p'));
+    for (const draft of ['@pr', '@pr.', '@pr.rev', '@pr.reviewer please']) {
+      rerender(chips(draft));
+    }
+
+    expect(
+      await screen.findByText(
+        'mentionPreview.willRespond:PR Reviewer',
+        {},
+        { timeout: 2000 },
+      ),
+    ).toBeInTheDocument();
+    expect([...new Set(askedHandles)]).toEqual(['pr.reviewer']);
+    expect(requestedSlugs).toEqual([['agent-7f3a']]);
   });
 
   it('previews an agent named by a stored mention', async () => {
