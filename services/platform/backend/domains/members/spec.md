@@ -4,8 +4,9 @@
 
 A member is a person's seat in an organization, with one role. These rules cover who can
 change a role or remove a member, which roles are protected, what removing a passkey or
-two-factor authentication does, and which role the app works with. Transferring ownership,
-disabling a member and what a removal takes with it are not covered; see Not yet.
+two-factor authentication does, which role the app works with, and how the people of an
+organization look each other up. Transferring ownership, disabling a member and what a removal
+takes with it are not covered; see Not yet.
 
 ## Changing a role and removing a member
 
@@ -92,6 +93,20 @@ the role and removal rules above.
 
 - **Example**: Ada sends a member removal to the sign-in handler → the route is closed,
   and Mia keeps her seat.
+
+## Looking members up
+
+### MEMBER-R11 · Members look each other up by id or handle, never seeing sign-in factors
+
+Any member can look up members of their organization by user id, or by a handle a plain
+`@mention` names a person by: their user id, the part of their email before the `@`, or their
+name with dots or without spaces. The answer holds the members of that organization who match,
+oldest seat first, each with their role, name and email, and nothing about their passkeys or
+two-factor authentication. One lookup names at most 100 user ids and handles together; a longer
+one, or a handle no mention could name, is refused (400).
+
+- **Example**: Mia, a member of Acme, looks up `@noah` → she gets Noah's seat at Acme, with his
+  name and email, but not a Noah of another organization, nor whether Noah has a passkey.
 
 ## Not yet
 

@@ -190,6 +190,45 @@ describe('FilterPanel', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('tells its owner each time the reader opens and closes it', async () => {
+    const onOpenChange = vi.fn();
+    const { user } = render(
+      <FilterPanel
+        filters={[tagFilter({ selectedValues: ['code'] })]}
+        onClearAll={vi.fn()}
+        onOpenChange={onOpenChange}
+      />,
+    );
+    const button = screen.getByRole('button', { name: 'Filter' });
+
+    await user.click(button);
+    expect(
+      await screen.findByRole('dialog', { name: 'Filters' }),
+    ).toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    );
+    await user.click(button);
+    await user.click(await screen.findByRole('button', { name: 'Clear all' }));
+
+    expect(onOpenChange.mock.calls).toEqual([[true], [false], [true], [false]]);
+  });
+
+  it('tells nobody it opened while it cannot open', async () => {
+    const onOpenChange = vi.fn();
+    const { user } = render(
+      <FilterPanel
+        filters={[tagFilter()]}
+        onClearAll={vi.fn()}
+        onOpenChange={onOpenChange}
+        disabled
+      />,
+    );
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    expect(onOpenChange).not.toHaveBeenCalled();
+  });
+
   it('cannot be opened when disabled', async () => {
     const { user } = render(
       <FilterPanel filters={[tagFilter()]} onClearAll={vi.fn()} disabled />,
