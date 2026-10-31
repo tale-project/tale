@@ -1,12 +1,13 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import React from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { act, fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
-import type { ChatProjectSummary, ChatThreadSummary } from '../types';
+import type { ChatThreadSummary } from '../types';
 
 const navigateMock = vi.hoisted(() => vi.fn());
 
@@ -45,6 +46,7 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 const renameMock = vi.hoisted(() => vi.fn(() => Promise.resolve(true)));
+const moveMock = vi.hoisted(() => vi.fn(() => Promise.resolve(true)));
 const setPinnedMock = vi.hoisted(() => vi.fn(() => Promise.resolve(true)));
 const setArchivedMock = vi.hoisted(() => vi.fn(() => Promise.resolve(true)));
 const trashMock = vi.hoisted(() => vi.fn(() => Promise.resolve(true)));
@@ -75,7 +77,7 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
     ...original,
     useThreadProjectMove: vi.fn(() => ({
       available: true,
-      move: vi.fn(() => Promise.resolve(true)),
+      move: moveMock,
     })),
   };
 });
@@ -96,30 +98,89 @@ const THREAD: ChatThreadSummary = {
 
 const NO_HELD = new Set<string>();
 
+/** The projects the server holds: Home's page of them and, past it, the
+ * rest, which its search and its read by id still reach (#5194). */
+const server = {
+  page: [] as { id: string; name: string }[],
+  pageIsDone: true,
+  beyond: [] as { id: string; name: string }[],
+  /** Every request the row made, in order. */
+  urls: [] as string[],
+};
+
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+function answer(url: string): Response {
+  server.urls.push(url);
+  const { pathname, searchParams } = new URL(url, 'http://localhost');
+  const every = [...server.page, ...server.beyond];
+  if (pathname === '/api/app/projects/sidebar') {
+    return json({ projects: server.page, isDone: server.pageIsDone });
+  }
+  if (pathname === '/api/app/projects/search') {
+    const query = (searchParams.get('q') ?? '').toLowerCase();
+    return json({
+      projects: every
+        .filter((row) => row.name.toLowerCase().includes(query))
+        .slice(0, 20),
+    });
+  }
+  const id = /^\/api\/app\/projects\/([^/]+)$/.exec(pathname)?.[1];
+  const row = every.find((project) => project.id === id);
+  return row === undefined
+    ? json({ error: 'PROJECT_NOT_FOUND' }, 404)
+    : json({ project: row });
+}
+
+let queryClient = new QueryClient();
+
+function rowTree(
+  thread: ChatThreadSummary,
+  variant?: 'default' | 'archived',
+  holds?: { orgHeld?: boolean; heldThreadIds?: ReadonlySet<string> },
+) {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThreadListFrameProvider
+        value={{
+          organizationId: 'org-1',
+          orgHeld: holds?.orgHeld ?? false,
+          heldThreadIds: holds?.heldThreadIds ?? NO_HELD,
+        }}
+      >
+        <ThreadDndProvider organizationId="org-1">
+          <ul>
+            <ThreadRow thread={thread} {...(variant ? { variant } : {})} />
+          </ul>
+        </ThreadDndProvider>
+      </ThreadListFrameProvider>
+    </QueryClientProvider>
+  );
+}
+
 function renderRow(
   thread: ChatThreadSummary,
   variant?: 'default' | 'archived',
   holds?: { orgHeld?: boolean; heldThreadIds?: ReadonlySet<string> },
-  projects: readonly ChatProjectSummary[] = [
-    { id: 'p1', name: 'Website revamp' },
-  ],
 ) {
-  return render(
-    <ThreadListFrameProvider
-      value={{
-        organizationId: 'org-1',
-        projects,
-        orgHeld: holds?.orgHeld ?? false,
-        heldThreadIds: holds?.heldThreadIds ?? NO_HELD,
-      }}
-    >
-      <ThreadDndProvider organizationId="org-1">
-        <ul>
-          <ThreadRow thread={thread} {...(variant ? { variant } : {})} />
-        </ul>
-      </ThreadDndProvider>
-    </ThreadListFrameProvider>,
-  );
+  return render(rowTree(thread, variant, holds));
+}
+
+/** A page of 100 projects that does not hold them all. */
+/** A page that does not hold every project. jsdom renders no row of a
+ * picker long enough to virtualize, so a test that reads rows past the page
+ * keeps it shorter than Home's 100. */
+function fullPage(count = 100) {
+  server.page = Array.from({ length: count }, (_, index) => ({
+    id: `project-${index}`,
+    name: `Project ${index}`,
+  }));
+  server.pageIsDone = false;
 }
 
 async function openRename() {
@@ -130,8 +191,29 @@ async function openRename() {
 }
 
 describe('ThreadRow', () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     renameMock.mockReset().mockResolvedValue(true);
+    moveMock.mockClear();
+    queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    server.page = [{ id: 'p1', name: 'Website revamp' }];
+    server.pageIsDone = true;
+    server.beyond = [];
+    server.urls = [];
+    fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation((input) =>
+        Promise.resolve(
+          answer(input instanceof Request ? input.url : String(input)),
+        ),
+      );
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
   });
 
   it('keeps a refused draft available for retry with an accessible error', async () => {
@@ -234,25 +316,64 @@ describe('ThreadRow', () => {
     ).toBeInTheDocument();
   });
 
-  it('leaves a large project catalog untouched until the Move submenu opens', async () => {
-    let namesRead = 0;
-    const projects = Array.from({ length: 100 }, (_, index) => ({
-      id: `project-${index}`,
-      get name() {
-        namesRead += 1;
-        return `Project ${index}`;
-      },
-    }));
-    const { user } = renderRow(THREAD, undefined, undefined, projects);
+  it('reads no project until the Move submenu opens, and then one page', async () => {
+    fullPage();
+    const { user } = renderRow(THREAD);
 
-    expect(namesRead).toBe(0);
     await user.click(screen.getByRole('button', { name: 'More actions' }));
-    expect(namesRead).toBe(0);
+    expect(server.urls).toEqual([]);
     await user.click(screen.getByRole('menuitem', { name: /Move to project/ }));
     expect(
       await screen.findByRole('menuitemradio', { name: /Project 99/ }),
     ).toBeInTheDocument();
-    expect(namesRead).toBeGreaterThan(0);
+    // Home's page of 100, never every project.
+    expect(server.urls).toHaveLength(1);
+    expect(server.urls[0]).toMatch(/^\/api\/app\/projects\/sidebar\?/);
+  });
+
+  it('moves the chat to a project past the page, found by its name', async () => {
+    fullPage();
+    server.beyond = [{ id: 'project-100', name: 'Project 100' }];
+    const { user } = renderRow(THREAD);
+
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(screen.getByRole('menuitem', { name: /Move to project/ }));
+    await screen.findByRole('menuitemradio', { name: /Project 99/ });
+    expect(screen.queryByRole('menuitemradio', { name: /Project 100/ })).toBe(
+      null,
+    );
+
+    // Typed and picked without moving the pointer off the submenu's trigger,
+    // which closes the submenu in jsdom.
+    fireEvent.change(screen.getByRole('textbox', { name: 'Search' }), {
+      target: { value: 'Project 100' },
+    });
+    fireEvent.click(
+      await screen.findByRole('menuitemradio', { name: /Project 100/ }),
+    );
+
+    expect(moveMock).toHaveBeenCalledWith('t1', 'project-100');
+    expect(server.urls).toContain(
+      '/api/app/projects/search?q=Project%20100&summary=true&orgId=org-1',
+    );
+  });
+
+  it('checks the chat’s own project when it lies past the page', async () => {
+    fullPage(30);
+    server.beyond = [{ id: 'project-150', name: 'Archive digitisation' }];
+    const { user } = renderRow({ ...THREAD, projectId: 'project-150' });
+
+    await user.click(screen.getByRole('button', { name: 'More actions' }));
+    await user.click(screen.getByRole('menuitem', { name: /Move to project/ }));
+
+    expect(
+      await screen.findByRole('menuitemradio', {
+        name: /Archive digitisation/,
+      }),
+    ).toHaveAttribute('aria-checked', 'true');
+    expect(
+      screen.getByRole('menuitemradio', { name: /Project 0$/ }),
+    ).toHaveAttribute('aria-checked', 'false');
   });
 
   it('offers the folders and the way out under Move to project', async () => {
@@ -422,24 +543,7 @@ describe('ThreadRow', () => {
     });
     expect(screen.getByRole('status', { name: 'New response' })).toBeVisible();
 
-    rerender(
-      <ThreadListFrameProvider
-        value={{
-          organizationId: 'org-1',
-          projects: [],
-          orgHeld: false,
-          heldThreadIds: NO_HELD,
-        }}
-      >
-        <ThreadDndProvider organizationId="org-1">
-          <ul>
-            <ThreadRow
-              thread={{ ...THREAD, lastReplyAt: 2000, lastReadAt: 3000 }}
-            />
-          </ul>
-        </ThreadDndProvider>
-      </ThreadListFrameProvider>,
-    );
+    rerender(rowTree({ ...THREAD, lastReplyAt: 2000, lastReadAt: 3000 }));
     expect(screen.queryByRole('status', { name: 'New response' })).toBeNull();
   });
 

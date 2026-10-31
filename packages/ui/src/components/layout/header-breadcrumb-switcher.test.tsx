@@ -61,6 +61,23 @@ describe('HeaderBreadcrumbSwitcher', () => {
     expect(onValueChange).not.toHaveBeenCalled();
   });
 
+  // A switcher that searches the server for siblings past its list hears
+  // what is typed, and the reset on close, which ends that search.
+  it('reports what is typed into the search, then its reset on close', async () => {
+    const onSearchChange = vi.fn();
+    const { user } = renderSwitcher({ onSearchChange });
+
+    await user.click(screen.getByRole('button', { name: /switch thing/i }));
+    await user.type(screen.getByRole('combobox'), 'Be');
+    expect(onSearchChange.mock.calls.map(([query]) => query)).toEqual([
+      'B',
+      'Be',
+    ]);
+
+    await user.keyboard('{Escape}');
+    expect(onSearchChange).toHaveBeenLastCalledWith('');
+  });
+
   it('renders the plain name while there is nothing to switch to', () => {
     renderSwitcher({ options: [] });
 

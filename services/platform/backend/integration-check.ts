@@ -2339,11 +2339,19 @@ async function checkProjects(
     .object({ projects: z.array(z.object({ id: z.string() })) })
     .safeParse(await get(`?orgId=${orgId}`));
   // #2999: the list hides an archived project, search still finds it and the
-  // row carries the stamp the palette turns into an "Archived" badge.
+  // row carries the stamp the palette turns into an "Archived" badge. A search
+  // row also carries the access flags a list row does (#5194): the pickers
+  // that search instead of listing read `canEdit` from it.
   const searchWhileArchived = z
     .object({
       projects: z.array(
-        z.object({ id: z.string(), archivedAt: z.number().nullish() }).loose(),
+        z
+          .object({
+            id: z.string(),
+            archivedAt: z.number().nullish(),
+            canEdit: z.boolean(),
+          })
+          .loose(),
       ),
     })
     .safeParse(await get(`/search?orgId=${orgId}&q=Integration`));
@@ -2352,7 +2360,9 @@ async function checkProjects(
     : undefined;
   const restored = await send('POST', `/${projectId}/restore?orgId=${orgId}`);
   const searched = z
-    .object({ projects: z.array(z.object({ id: z.string() })) })
+    .object({
+      projects: z.array(z.object({ id: z.string(), canEdit: z.boolean() })),
+    })
     .safeParse(await get(`/search?orgId=${orgId}&q=Integration`));
   record(
     'project archive/restore + search',
@@ -2361,9 +2371,10 @@ async function checkProjects(
       !listAfterArchive.data.projects.some((p) => p.id === projectId) &&
       archivedRow !== undefined &&
       typeof archivedRow.archivedAt === 'number' &&
+      !archivedRow.canEdit &&
       restored.ok &&
       searched.success &&
-      searched.data.projects.some((p) => p.id === projectId),
+      searched.data.projects.some((p) => p.id === projectId && p.canEdit),
     `archive → ${archived.status}, hidden=${listAfterArchive.success ? !listAfterArchive.data.projects.some((p) => p.id === projectId) : 'ERR'}, whileArchived=${JSON.stringify(archivedRow)}, search hits=${searched.success ? searched.data.projects.length : 'ERR'}`,
   );
 
