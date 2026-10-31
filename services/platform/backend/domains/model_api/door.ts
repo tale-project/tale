@@ -1,9 +1,17 @@
 import { randomUUID } from 'node:crypto';
 
+import type { ModelAccessConfig } from '@tale/shared/schemas/governance';
 import type { Sql } from 'postgres';
 
+import { isStandardGatewayProvider } from '../../../lib/shared/providers/gateway_standard_providers.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { evaluateModelAccess } from '../../core/governance/model_access_enforcement.ts';
+import {
+  gatewayBuiltinRefusal,
+  modelEndpointPolicyOf,
+  modelEndpointRefusal,
+} from '../../core/governance/model_endpoint_gate.ts';
+import { recordModelEndpointRefusal } from '../governance/model-endpoints.ts';
 import {
   type ModelApiCaller,
   type ModelApiGate,
@@ -25,6 +33,7 @@ import {
 import {
   listModelApiModels,
   type ModelApiModel,
+  ridesModelApiAnthropicLane,
   splitModelApiId,
 } from './models.ts';
 import {
@@ -48,8 +57,9 @@ import {
  *  2. the body is a request the door can govern (`openai.ts`,
  *     `anthropic.ts`);
  *  3. the model is one the holder may call: listed for them — the
- *     credential's allowlist and their model access applied — and allowed by
- *     the model-access rules read fresh;
+ *     credential's allowlist and their model access applied — allowed by the
+ *     model-access rules read fresh, and served from the EU/EEA when the
+ *     organization requires it;
  *  4. the model can read what is sent: images need a vision model, tools a
  *     model that takes them;
  *  5. the organization's input guardrails pass (and mask) every text the
@@ -161,6 +171,59 @@ async function resolveModel(
   return model;
 }
 
+/**
+ * The EU/EEA processing rule (GOV-R17): the endpoint the gateway would call
+ * must process in the region. For a custom provider that is its own
+ * endpoint, and on the Anthropic lane its native Anthropic endpoint; a
+ * vendor the gateway implements itself it reaches through its built-in
+ * connection, whatever endpoint the provider names. A refusal is audited and
+ * answered as a model the holder may not call, before anything is held or
+ * relayed.
+ */
+async function checkEndpointRegion(
+  sql: Sql,
+  caller: ModelApiRequestContext,
+  policy: ModelAccessConfig,
+  wire: ModelApiWire,
+  model: ModelApiModel,
+): Promise<void> {
+  const endpointPolicy = modelEndpointPolicyOf(policy);
+  const providerName = model.providerSlug;
+  const refusal = ridesModelApiAnthropicLane(wire, model)
+    ? modelEndpointRefusal(endpointPolicy, {
+        providerName,
+        baseUrl: model.connector.harnessEndpoint?.baseUrl,
+      })
+    : isStandardGatewayProvider(providerName)
+      ? gatewayBuiltinRefusal(endpointPolicy, providerName)
+      : modelEndpointRefusal(endpointPolicy, {
+          providerName,
+          baseUrl: model.connector.baseUrl,
+        });
+  if (refusal === undefined) return;
+  try {
+    await recordModelEndpointRefusal(sql, {
+      organizationId: caller.organizationId,
+      surface: 'model-api',
+      provider: providerName,
+      model: model.modelId,
+      ...(refusal.host !== undefined ? { host: refusal.host } : {}),
+      ...(refusal.reason !== undefined ? { reason: refusal.reason } : {}),
+      code: refusal.code,
+      message: refusal.message,
+      actor: { id: caller.userId, type: 'api' },
+    });
+  } catch (error) {
+    console.warn(
+      `[model-api] ${caller.organizationId}: the audit entry for a model call the EU/EEA rule refused could not be written:`,
+      error,
+    );
+  }
+  throw new ModelApiRefusal(403, 'MODEL_API_MODEL_FORBIDDEN', refusal.message, {
+    param: 'model',
+  });
+}
+
 function checkCapabilities(model: ModelApiModel, request: WireRequest): void {
   if (request.imageCount > 0 && !model.vision) {
     throw new ModelApiRefusal(
@@ -199,6 +262,7 @@ export async function relayModelApiRequest(
       ? inspectOpenAiChatRequest(rawBody)
       : inspectAnthropicMessagesRequest(rawBody);
   const model = await resolveModel(sql, caller, gate.policy, request.model);
+  await checkEndpointRegion(sql, caller, gate.policy, wire, model);
   checkCapabilities(model, request);
 
   // The request's own id — its op row, its gateway key's name, the key of

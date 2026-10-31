@@ -44,6 +44,10 @@ import PQueue from 'p-queue';
 import { logger } from '../../../lib/knowledge/logger';
 import type { QueryEmbedder } from '../../../lib/knowledge/retrieve';
 import type { EmbeddingModel } from '../../../lib/knowledge/types';
+import {
+  assertModelEndpointAllowed,
+  type ModelEndpointActor,
+} from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { directActiveCredential } from '../lib/providers/direct_credential';
@@ -955,7 +959,10 @@ export class Embedder implements QueryEmbedder {
  * Throws {@link EmbeddingNotConfigured} when no model is configured — knowledge
  * is unusable for that organization until one is, and saying so is better than
  * writing vectors nobody can search. Harness-only credentials are refused
- * before broker resolution and before the embeddings client is constructed.
+ * before broker resolution and before the embeddings client is constructed,
+ * and so is an endpoint the organization's EU/EEA rule refuses: the
+ * `ModelEndpointRefusal` is thrown, and audited, before any text is sent
+ * (GOV-R17).
  */
 export async function embedderForOrg(
   ctx: ActionCtx,
@@ -965,6 +972,8 @@ export async function embedderForOrg(
     readonly config: KnowledgeEmbeddingConfig | null;
     /** Whose spend the embedder's requests are (`EmbeddingMeter`). */
     readonly meter?: EmbeddingMeter;
+    /** Who the embedding is for, named in a refusal's audit entry. */
+    readonly actor?: ModelEndpointActor;
   },
 ): Promise<Embedder> {
   if (args.config === null) throw new EmbeddingNotConfigured(args.orgSlug);
@@ -1023,6 +1032,16 @@ export async function embedderForOrg(
       args.organizationId,
       args.config.providerSlug,
     ));
+  // Judged on the endpoint the SDK will call; with none named, the SDK's
+  // default host is not one the rule can vouch for.
+  await assertModelEndpointAllowed(ctx, {
+    organizationId: args.organizationId,
+    surface: 'embedding',
+    providerName: args.config.providerSlug,
+    modelId: args.config.model,
+    baseUrl,
+    ...(args.actor !== undefined && { actor: args.actor }),
+  });
 
   return new Embedder(
     {
