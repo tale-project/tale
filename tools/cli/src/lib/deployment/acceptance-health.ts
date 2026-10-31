@@ -6,7 +6,7 @@ import {
   servingProcessSchema,
   type ServingProcess,
 } from './acceptance-model';
-import { acceptanceRequest } from './acceptance-request';
+import { acceptanceRequest, HealthStepError } from './acceptance-request';
 
 const HEADER = 'Tale-Serving-Identity';
 export const SERVING_ENDPOINTS = {
@@ -89,8 +89,34 @@ export function localServingIdentity(
   }
 }
 
+/** What failed in a health check, for its refusal: the step and an authored
+ * detail. A network failure shows only its error code, an identifier such as
+ * `ENOTFOUND` or `CERT_HAS_EXPIRED`, never its message. */
+function healthFailure(
+  error: unknown,
+  step: HealthStepError['step'],
+  signal: AbortSignal,
+): string {
+  const failed = error instanceof HealthStepError ? error.step : step;
+  if (signal.aborted) return `${failed}: timed out`;
+  if (error instanceof HealthStepError) return error.message;
+  if (failed === 'identity') return 'identity: absent or invalid';
+  if (failed !== 'connect') return `${failed}: unreadable`;
+  const codes = [error, error instanceof Error ? error.cause : undefined].map(
+    (value) =>
+      value instanceof Object && 'code' in value ? value.code : undefined,
+  );
+  const code = codes.find(
+    (value): value is string =>
+      typeof value === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(value),
+  );
+  return `connect: ${code ?? 'failed'}`;
+}
+
 /** No redirect, cookies or credentials. The deployment's canonical HTTPS
- * origin must itself serve the selected version. Cancellation covers body reads. */
+ * origin must itself serve the selected version. Cancellation covers body reads.
+ * A refusal names the step that failed: connect, status, identity, body or
+ * version. */
 export async function acceptanceHealth(
   origin: string,
   expectedVersion: string,
@@ -109,6 +135,8 @@ export async function acceptanceHealth(
   let reader:
     | ReturnType<NonNullable<Response['body']>['getReader']>
     | undefined;
+  // The step in progress names a failure that is not one of its checks.
+  let step: HealthStepError['step'] = 'connect';
   try {
     response = request
       ? await request(`${origin}${endpoint.path}`, {
@@ -118,14 +146,17 @@ export async function acceptanceHealth(
           headers: { 'Cache-Control': 'no-cache' },
         })
       : await acceptanceRequest(`${origin}${endpoint.path}`, signal, address);
-    if (response.status !== 200 || !response.body)
-      throw new Error('health status');
+    if (response.status !== 200)
+      throw new HealthStepError('status', `HTTP ${response.status}`);
+    if (!response.body) throw new HealthStepError('body', 'empty');
+    step = 'identity';
     const observed = servingIdentity(
       response.headers.get(HEADER),
       expected.service,
     );
     if (observed.instance !== expected.instance)
-      throw new Error('health process');
+      throw new HealthStepError('identity', 'another serving process');
+    step = 'body';
     const bodyReader = response.body.getReader();
     reader = bodyReader;
     let bytes = 0;
@@ -134,30 +165,42 @@ export async function acceptanceHealth(
       const next = await bodyReader.read();
       if (next.done) break;
       bytes += next.value.byteLength;
-      if (bytes > 65536) throw new Error('health bound');
+      if (bytes > 65536) throw new HealthStepError('body', 'over 64 KiB');
       chunks.push(next.value);
     }
-    const body = JSON.parse(
-      new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)),
-    );
+    let body: unknown;
+    try {
+      body = JSON.parse(
+        new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks)),
+      );
+    } catch {
+      throw new HealthStepError('body', 'not UTF-8 JSON');
+    }
     if (expected.service === 'platform') {
       const serving = z
         .strictObject({
           status: z.literal('ok'),
           version: acceptanceVersionSchema,
         })
-        .parse(body);
-      if (serving.version !== expectedVersion)
-        throw new Error('health version');
-    } else
-      z.strictObject({
-        ok: z.literal(true),
-        service: z.literal('backend'),
-      }).parse(body);
+        .safeParse(body);
+      if (!serving.success)
+        throw new HealthStepError('body', 'not a ready health answer');
+      // Both versions are bounded semantic versions, safe to name.
+      if (serving.data.version !== expectedVersion)
+        throw new HealthStepError(
+          'version',
+          `${serving.data.version}, expected ${expectedVersion}`,
+        );
+    } else if (
+      !z
+        .strictObject({ ok: z.literal(true), service: z.literal('backend') })
+        .safeParse(body).success
+    )
+      throw new HealthStepError('body', 'not a ready health answer');
     return observed;
-  } catch {
+  } catch (error) {
     throw externalDepError(
-      'The declared origin did not prove the expected healthy serving version.',
+      `The declared origin did not prove the expected healthy serving version (${expected.service} ${healthFailure(error, step, signal)}).`,
     );
   } finally {
     if (reader) {

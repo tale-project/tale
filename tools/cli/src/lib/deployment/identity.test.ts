@@ -4,7 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { verifyProvisionIdentity } from '../../commands/deploy/provision';
-import { externalDepError, preconditionError } from '../../utils/fail';
+import {
+  CliError,
+  ExitCode,
+  externalDepError,
+  preconditionError,
+} from '../../utils/fail';
+import { ConfigError, NativeRequestError } from '../config/releases/model';
 import type { BreakGlassAccount } from './break-glass';
 import { deploymentBundleSchema } from './bundle';
 import {
@@ -1381,8 +1387,45 @@ describe('native instance provisioning over real local HTTP', () => {
       ).catch((value) => value);
       expect(called).toBe(1);
       expect(error.message).toBe('Native configuration provisioning failed.');
+      expect(error.info.code).toBe(ExitCode.ExternalDep);
       expect(f.calls.at(-1)?.path).toBe('/api/auth/sign-out');
     }));
+
+  test.each([
+    {
+      kind: 'CliError',
+      thrown: preconditionError('Native project target is missing.'),
+      code: ExitCode.Precondition,
+    },
+    {
+      kind: 'ConfigError',
+      thrown: new ConfigError('release artifact checksum mismatch'),
+      code: ExitCode.Precondition,
+    },
+    {
+      kind: 'NativeRequestError',
+      thrown: new NativeRequestError('Native configuration write was refused.'),
+      code: ExitCode.ExternalDep,
+    },
+  ])(
+    'callback $kind reaches the caller in its own words',
+    async ({ thrown, code }) =>
+      withFixture({ connection: ABSENT }, async (f) => {
+        const error = await configureInstance(
+          { ...INPUT, ssoEnabled: false },
+          {
+            fetchImpl: f.fetchImpl,
+            provision: async () => {
+              throw thrown;
+            },
+          },
+        ).catch((value) => value);
+        expect(error).toBeInstanceOf(CliError);
+        expect(error.message).toBe(thrown.message);
+        expect(error.info.code).toBe(code);
+        expect(f.calls.at(-1)?.path).toBe('/api/auth/sign-out');
+      }),
+  );
 
   test('cleanup failure never reports provisioning success', async () =>
     withFixture({ connection: ABSENT, cleanupFailure: true }, async (f) => {
@@ -2283,6 +2326,36 @@ describe('break-glass administrator over real local HTTP', () => {
 
 describe('configuration-only existing identity session', () => {
   const existingOnly = { userId: 'native-user', organizationId: 'org-example' };
+  test.each([
+    {
+      kind: 'an authored ConfigError',
+      thrown: new ConfigError('release artifact size mismatch'),
+      message: 'release artifact size mismatch',
+    },
+    {
+      kind: 'a plain error',
+      thrown: new Error(ENTRA.clientSecret),
+      message: 'Native configuration provisioning failed.',
+    },
+  ])(
+    'callback failure from $kind keeps only authored words',
+    async ({ thrown, message }) =>
+      withFixture({}, async (f) => {
+        const error = await configureInstance(
+          { ...INPUT, ...ENTRA },
+          {
+            fetchImpl: f.fetchImpl,
+            existingOnly,
+            provision: async () => {
+              throw thrown;
+            },
+          },
+        ).catch((value) => value);
+        expect(error.message).toBe(message);
+        expect(JSON.stringify(error)).not.toContain(ENTRA.clientSecret);
+        expect(f.calls.at(-1)?.path).toBe('/api/auth/sign-out');
+      }),
+  );
   test('uses only bounded native authentication and never reconciles SSO or clients', async () => {
     await withFixture({}, async (f) => {
       let calls = 0;

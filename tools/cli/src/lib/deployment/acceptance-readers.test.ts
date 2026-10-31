@@ -88,14 +88,22 @@ test('SQL transport is fixed, bounded, read-only and never emits credentials', (
     );
   }
 });
-for (const [status, body] of [
-  [503, { status: 'ok', version: '1.2.3' }],
-  [200, { status: 'ok', version: '1.2.2' }],
-  [200, { status: 'ok', version: '1.2.3', extra: 'not public receipt' }],
-  [200, { status: 'starting', version: '1.2.3' }],
-  [200, 'x'.repeat(65537)],
+for (const [status, body, step] of [
+  [503, { status: 'ok', version: '1.2.3' }, 'status: HTTP 503'],
+  [200, { status: 'ok', version: '1.2.2' }, 'version: 1.2.2, expected 1.2.3'],
+  [
+    200,
+    { status: 'ok', version: '1.2.3', extra: 'not public receipt' },
+    'body: not a ready health answer',
+  ],
+  [
+    200,
+    { status: 'starting', version: '1.2.3' },
+    'body: not a ready health answer',
+  ],
+  [200, 'x'.repeat(65537), 'body: over 64 KiB'],
 ] as const)
-  test(`health refuses status ${status} or invalid body`, async () => {
+  test(`health names the failing step: ${step}`, async () => {
     const request = (async (_url: string | URL | Request) =>
       typeof body === 'string'
         ? new Response(body, { status, headers })
@@ -108,8 +116,58 @@ for (const [status, body] of [
         1000,
         request,
       ),
-    ).rejects.toThrow('healthy serving version');
+    ).rejects.toThrow(
+      `did not prove the expected healthy serving version (platform ${step}).`,
+    );
   });
+for (const [answer, step] of [
+  [
+    () => Response.json({ status: 'ok' }, { status: 503, headers }),
+    'status: HTTP 503',
+  ],
+  [
+    () => Response.json({ status: 'ok', version: '1.2.3' }),
+    'identity: absent or invalid',
+  ],
+  [() => new Response('x'.repeat(65537), { headers }), 'body: over 64 KiB'],
+  [
+    () => Response.json({ status: 'ok', version: '1.2.2' }, { headers }),
+    'version: 1.2.2, expected 1.2.3',
+  ],
+] as const)
+  test(`health names the failing step of an actual answer: ${step}`, async () => {
+    const server = Bun.serve({ hostname: '127.0.0.1', port: 0, fetch: answer });
+    try {
+      await expect(
+        acceptanceHealth(
+          `http://127.0.0.1:${server.port}`,
+          '1.2.3',
+          frontend,
+          1000,
+        ),
+      ).rejects.toThrow(`(platform ${step}).`);
+    } finally {
+      await server.stop(true);
+    }
+  });
+test('health names a refused connection by its error code alone', async () => {
+  const server = Bun.serve({
+    hostname: '127.0.0.1',
+    port: 0,
+    fetch: () => new Response(null),
+  });
+  const origin = `http://127.0.0.1:${server.port}`;
+  await server.stop(true);
+  // Windows retries a refused loopback SYN for about two seconds.
+  const error = await acceptanceHealth(origin, '1.2.3', frontend, 5000).catch(
+    (value: unknown) => value,
+  );
+  expect(error).toBeInstanceOf(Error);
+  expect((error as Error).message).toMatch(
+    /healthy serving version \(platform connect: E[A-Z]+\)\.$/,
+  );
+  expect((error as Error).message).not.toContain(String(server.port));
+});
 test('health follows no redirects, sends no credentials and validates bounded success', async () => {
   let seen = false;
   const request = (async (url, options) => {
@@ -153,7 +211,7 @@ test('health cancels a stalled actual response under its deadline', async () => 
         frontend,
         50,
       ),
-    ).rejects.toThrow('healthy serving version');
+    ).rejects.toThrow('healthy serving version (platform body: timed out).');
   } finally {
     await server.stop(true);
   }

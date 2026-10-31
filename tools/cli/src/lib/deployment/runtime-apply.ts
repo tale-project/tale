@@ -1410,8 +1410,10 @@ export async function applyRuntime(
 }
 
 /** Inspect an already-ready destination without resolving deployment secrets,
- * preparing environment files or admitting a pending rollout. Export callers
- * hold the same outer deployment lock and reuse these runtime custody checks. */
+ * preparing environment files or admitting a pending rollout. Credential
+ * export, configuration-only apply, configuration activation and acceptance
+ * hold the same outer deployment lock and reuse these runtime custody checks,
+ * so a refusal names what is wrong with the runtime, not one caller's work. */
 export async function observeReadyState(
   options: Omit<ApplyRuntimeOptions, 'environment' | 'dryRun'>,
   dependencies: RuntimeDependencies = {},
@@ -1431,12 +1433,12 @@ export async function observeReadyState(
       receipt.revision === bundle.revision &&
       receipt.bundleSha256 === identity &&
       JSON.stringify(receipt.images) === JSON.stringify(bundle.images),
-    'Credential export requires the exact ready runtime receipt.',
+    'No ready runtime receipt matches this exact deployment bundle.',
   );
   for (const file of installedFiles)
     requireRuntime(
       currentHash(targetPath(options, file)) === receipt.files[file],
-      'Managed runtime file drift prevents credential export.',
+      'Managed runtime files drifted from the ready runtime receipt.',
     );
   const environment = parseRuntimeEnvironment(
     readRegular(join(options.stateDirectory, 'src', '.env')).toString('utf8'),
@@ -1447,7 +1449,7 @@ export async function observeReadyState(
       environment.HOST === new URL(options.origin).hostname &&
       environment.TLS_MODE === options.tlsMode &&
       sameAdditionalOrigins(environment, options.additionalOrigins),
-    'Managed runtime origin differs from the credential export target.',
+    'Managed runtime origin differs from the declared deployment origin.',
   );
   const destination = await runtimeCommand(
     ['info', '--format', '{{.OSType}}/{{.Architecture}}'],
@@ -1458,7 +1460,7 @@ export async function observeReadyState(
       .trim()
       .replace(/\/x86_64$/, '/amd64')
       .replace(/\/aarch64$/, '/arm64') === bundle.platform,
-    'Credential export destination architecture differs.',
+    'Destination architecture differs from the bundle platform.',
   );
   requireRuntime(
     await inspectSandboxNetwork(dependencies),
@@ -1470,10 +1472,12 @@ export async function observeReadyState(
   );
   assertContainerCustody(containers, compose, options);
   await assertFixedContainerNames(containers, compose, dependencies);
-  requireRuntime(
-    healthy(containers, bundle, compose),
-    'Credential export requires the complete healthy pinned runtime.',
-  );
+  if (!healthy(containers, bundle, compose)) {
+    const unsettled = unsettledServices(containers, compose);
+    throw preconditionError(
+      `The ready runtime is not complete and healthy on its pinned images${unsettled ? ` (${unsettled})` : ''}.`,
+    );
+  }
   for (const image of bundle.images)
     for (const reference of [image.reference, ...image.localAliases]) {
       const actual = await inspectRuntimeImage(
@@ -1485,7 +1489,7 @@ export async function observeReadyState(
       );
       requireRuntime(
         actual.digest === image.digest,
-        'Ready runtime image identity drift prevents credential export.',
+        'Ready runtime image identity differs from the bundle.',
       );
     }
   const backend = containers.find(
