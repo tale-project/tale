@@ -388,7 +388,6 @@ export async function resolveTranscriptionModel(
         surface: 'transcription',
         providerName: candidate.providerSlug,
         modelId: candidate.modelId,
-        baseUrl: candidate.resolved.baseUrl,
         ...(opts.actor !== undefined ? { actor: opts.actor } : {}),
       },
       refusal,

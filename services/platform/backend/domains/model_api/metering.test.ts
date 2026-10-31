@@ -13,6 +13,8 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ModelEndpointRefusal } from '../../core/governance/model_endpoint_gate.ts';
+
 const reserve = vi.hoisted(() => ({ reserveTurnBudget: vi.fn() }));
 vi.mock('../sandbox/turn-budget.ts', () => reserve);
 
@@ -229,6 +231,8 @@ describe('openModelApiLease', () => {
         budgetCents: 4,
         requestScoped: true,
         requestId: 'req-1',
+        surface: 'model-api',
+        actor: { id: 'user-1', type: 'api' },
       },
     );
     const stamp = statements.find((s) => s.text.includes('minted_key_id ='));
@@ -414,6 +418,37 @@ describe('openModelApiLease', () => {
       ).toBe(true);
     },
   );
+
+  it('answers a model the EU/EEA rule refuses at provisioning with the door’s 403, saying why, and releases the hold [GOV-R17]', async () => {
+    reserve.reserveTurnBudget.mockResolvedValue({
+      allowed: true,
+      budgetCents: 4,
+    });
+    const message =
+      'This organization processes prompts only in the EU/EEA, and api.deepseek.com is not an endpoint known to process there, so the call was not sent.';
+    provisioning.provisionSessionGatewayKey.mockRejectedValue(
+      new ModelEndpointRefusal({
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        message,
+        provider: 'deepseek',
+        host: 'api.deepseek.com',
+        reason: 'not-attested',
+      }),
+    );
+    const { sql, statements } = fakeSql();
+    const error = await openModelApiLease(sql, LEASE_ARGS).catch(
+      (caught: unknown) => caught,
+    );
+    expect(error).toBeInstanceOf(ModelApiRefusal);
+    expect(error).toMatchObject({
+      status: 403,
+      code: 'MODEL_API_MODEL_FORBIDDEN',
+      message,
+      param: 'model',
+    });
+    const close = statements.find((s) => s.text.includes('status = ?'));
+    expect(close?.values).toContain('failed');
+  });
 
   it('revokes a key it cannot record, and releases the hold', async () => {
     reserve.reserveTurnBudget.mockResolvedValue({
