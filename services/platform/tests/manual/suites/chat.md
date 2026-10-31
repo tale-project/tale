@@ -9,8 +9,8 @@ links and forking, arena mode, the chat header, the chat rows of the Home
 panel (pin, rename, move to a project, archive, delete), and the degraded
 states (backend unavailable, no provider, budget exceeded). There is **no
 agent picker** anymore: the composer picks a **model**, a reasoning effort and
-the skills a reply reads (CHAT-F73–CHAT-F75); agents and connectors are
-equipped per **project** (see [projects.md](projects.md)); chat reads skills
+the skills a reply reads (CHAT-F73–CHAT-F75, CHAT-F83); agents and connectors
+are equipped per **project** (see [projects.md](projects.md)); chat reads skills
 from the person's own skill library and makes files with its own tools
 (CHAT-F66–CHAT-F72, CHAT-F76, CHAT-F77). The Home panel itself — its views,
 bands and row anatomy — is [navigation.md](navigation.md)'s; there is no chat
@@ -781,6 +781,18 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   checked; check one there, then send the first message → after reload the new
   conversation still has it. With four checked, a fifth cannot be checked
   (`chat.picker.skillsLimit`).
+- [ ] `CHAT-F83` · **A skill about how replies read** — Mode B, with a skill
+  `sign-off` created per SKILL-F3, its description "How every chat reply
+  ends" and its instructions only "End every chat reply with 😎.". On two
+  models in turn, from two providers where the stack has them: in a new chat
+  check `sign-off` under **Skills** (CHAT-F75), ask "What is the capital of
+  France?", then "And of Italy?" → each reply starts with **Reading the
+  sign-off skill** (`chat.thinking.loadingSkill`) and ends with 😎. In a new
+  chat send `/sign-off What is the capital of France?` → the reply ends with
+  😎. In another new chat ask "Use my sign-off skill: what is the capital of
+  France?" → **Reading the sign-off skill**, and the reply ends with 😎.
+  Settings > Sandboxes lists no new **Light sandbox** row
+  (`sandboxes.lightSandbox`) for these chats.
 - [ ] `CHAT-F76` · **A failed step says why** — Mode A with the sandbox
   service, then stop the spawner and send `e2e:make-spreadsheet` → under
   **Running Python in a light sandbox** a red line reads **The sandbox service
