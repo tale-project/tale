@@ -99,6 +99,17 @@ Der Standardschalter für benutzerdefinierte Anweisungen legt die Organisationsv
 
 Alle drei sind eingeschaltet, bis du einen ausschaltest, und eine fehlende Richtliniendatei lässt sie eingeschaltet. Eine Richtliniendatei, die existiert, aber nicht gelesen werden kann, schaltet alle drei aus, bis sie repariert ist; so schaltet eine defekte Datei nichts wieder ein, was du ausgeschaltet hast, und diese Seite zeigt dann, dass die Richtlinie nicht gelesen werden konnte. Ändere die Schalter und speichere dann die offenen Änderungen der Seite in der Kopfzeile; die nächste Antwort in jedem Chat folgt ihnen. Bilder gehören nicht zu diesem Abschnitt: Der Chat erstellt sie nur, solange die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) eingeschaltet ist. Was Mitglieder sehen, zeigt [Im Chat Dateien erstellen und Skills nutzen](/de/platform/chat/files-and-skills).
 
+### Sehen, was der Chat nutzen kann {#chat-tool-status}
+
+**Status der Chat-Tools** unter den Schaltern zeigt Inhabern und Admins, ob der Chat deiner Organisation gerade Dateien erstellen, Code ausführen, Skills nutzen und Bilder erstellen kann. Jedes steht auf **Verfügbar**, **Eingeschränkt** oder **Nicht verfügbar**, mit dem, was im Weg steht:
+
+- **Dateien**, **Code** und **Skills** sind nicht verfügbar, solange ihr Schalter oben ausgeschaltet ist, und alle drei, solange die Richtliniendatei nicht gelesen werden kann.
+- **Code** braucht außerdem den Sandbox-Dienst des Deployments. Es ist nicht verfügbar, wenn keiner eingerichtet ist oder der Dienst nicht antwortet, und eingeschränkt, wenn der neueste Start einer leichten Sandbox in der letzten Woche fehlgeschlagen ist; der Status nennt dann den Zeitpunkt und den Grund, den der Schritt der Antwort gezeigt hat, etwa **Die Sandbox ist noch nicht bereit**.
+- **Skills** ist eingeschränkt, wenn ein eingebauter Dokument-Skill (`docx`, `pdf`, `pptx` oder `xlsx`) in der Skill-Bibliothek der Organisation fehlt, und nennt die fehlenden. Code kann diese Dateien weiterhin erstellen, nur ohne die Anleitung des Skills.
+- **Bilder** folgt der [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images): nicht verfügbar, solange sie ausgeschaltet ist, wenn kein verbundener Anbieter ein Bildmodell anbietet, wenn das gewählte Modell nicht genutzt werden kann oder wenn deine Organisation [Prompts nur in der EU/im EWR verarbeitet](/de/platform/admin/governance/content-models#eu-processing) und vom Endpunkt des Bildmodells nicht bekannt ist, dass er dort verarbeitet. Wenn verfügbar, nennt es das Modell, das eine Antwort nutzt.
+
+Der Status liest, was eine Antwort liest, und ändert nichts. Er prüft erneut, wenn du auf dieser Seite eine Richtlinie speicherst; **Erneut prüfen** sieht nach einer Änderung an anderer Stelle neu nach, etwa an Anbieter-Zugangsdaten. Für eine Support-Anfrage kann ein Inhaber oder Admin, der in Tale angemeldet ist, im selben Browser `/api/app/chat/work-tools?orgId=<Organisations-ID>` öffnen und das angezeigte JSON weitergeben.
+
 ## Einen Vertraulichkeitshinweis im Chat anzeigen
 
 **Vertraulichkeitshinweis** blendet für alle Mitglieder deiner Organisation eine kurze Zeile im Chat ein, etwa die Erinnerung, keine sensiblen Daten zu teilen: in einem neuen Chat unter dem Nachrichtenfeld und, sobald ein Chat Nachrichten enthält, unter der letzten Nachricht. Der Hinweis bleibt aus, bis du ihn einschaltest.

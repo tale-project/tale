@@ -70,6 +70,8 @@ type TranscriptionModelState =
   ReturnsOf<'lib/providers/transcription_actions:getTranscriptionModelState'>;
 type ImageGenerationState =
   ReturnsOf<'lib/providers/image_generation_actions:getImageGenerationState'>;
+type ChatWorkToolsStatusResult =
+  ReturnsOf<'chat/work_tools:getWorkToolsStatus'>;
 type ConnectorSummaryItem =
   ItemOf<'connector_credentials/connector_catalog:listConnectors'>;
 type ConnectorOauthAppItem = ItemOf<'connector_oauth_apps/queries:list'>;
@@ -383,6 +385,17 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
           `/governance/policies/${encodeURIComponent(policyType)}`,
           { orgId },
         ).then((body) => body.policy),
+    };
+  },
+  // Keyed under the policies it reads, so a Chat tools or Image generation
+  // change — saved here or in another session — checks the tools again.
+  'chat/work_tools:getWorkToolsStatus': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return {
+      queryKey: backendKey(orgId, 'governance_policy', 'chat-work-tools'),
+      queryFn: () =>
+        backendFetch<ChatWorkToolsStatusResult>('/chat/work-tools', { orgId }),
     };
   },
   'governance/queries:getMyBudgetStatus': (args, ctx) => {

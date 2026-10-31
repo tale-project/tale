@@ -9,6 +9,7 @@
 
 import type { ChatProposalView } from '@/lib/chat/settings-tools';
 import type { MessagePart } from '@/lib/chat/types';
+import type { ChatWorkToolsStatus } from '@/lib/chat/work-tools-status';
 
 export interface ChatContract {
   'chat/proposals:listThreadProposals': {
@@ -319,5 +320,10 @@ export interface ChatContract {
     kind: 'mutation';
     args: { shared: boolean; organizationId: string; threadId: string };
     returns: boolean;
+  };
+  'chat/work_tools:getWorkToolsStatus': {
+    kind: 'query';
+    args: { organizationId: string };
+    returns: ChatWorkToolsStatus;
   };
 }
