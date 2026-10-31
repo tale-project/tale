@@ -225,7 +225,7 @@ async function canReadProject(
  * every project the turn user reads, archived ones included. Read whole
  * until those legs join the readable relation themselves (#5207); the
  * knowledge scope above no longer carries them. */
-export async function resolveWorkProjects(
+async function resolveWorkProjects(
   sql: Sql,
   organizationId: string,
   userId: string,
