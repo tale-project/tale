@@ -24,6 +24,7 @@ export interface TestResult {
     | 'http_4xx'
     | 'http_5xx'
     | 'config'
+    | 'eu_processing'
     | 'unknown';
   circuitOpened?: boolean;
   hint?: string;

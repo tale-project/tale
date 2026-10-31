@@ -30,6 +30,7 @@ import {
 } from '../../../lib/pii';
 import { pass } from '../../../lib/pii/core/outcome';
 import type { ChatFilterEventInput } from '../governance/chat_filter_events';
+import type { ModelEndpointActor } from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 
@@ -173,6 +174,9 @@ export interface TurnGuardrailArgs {
    * apart from `threadId` (the model endpoints' `X-Request-Id`). */
   readonly requestId?: string;
   readonly policies: TurnPolicies;
+  /** Who the turn runs for — the audit entry of a moderation endpoint the
+   * EU/EEA processing rule refused names them. */
+  readonly actor?: ModelEndpointActor;
 }
 
 /** The audit facts a moderation round leaves for its event row. */
@@ -276,18 +280,34 @@ export function buildTurnGuardrails(
    * fires right after the moderation step — the chain runs its steps one at
    * a time, so the pair can never interleave. */
   let lastModeration: ModerationExtras | undefined;
+  /** A round the EU/EEA processing rule refused. The rule and the endpoint
+   * hold for the whole turn, so its later rounds — the reply's segments, a
+   * model endpoint's further chain runs — get the same answer without
+   * asking again: one audit entry per turn, not one per round. */
+  let refusedByRule: ModerationRun | undefined;
   const moderation = policies.moderation;
   if (moderation !== null && moderation.enabled) {
     const appliesTo = new Set(moderation.appliesTo);
     const backend: ModerationBackend = {
       async moderate(text, direction) {
         if (!appliesTo.has(direction)) return pass();
+        if (refusedByRule !== undefined) {
+          lastModeration = refusedByRule.extras;
+          return refusedByRule.outcome;
+        }
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the governance seam answers exactly this shape
         const run = (await ctx.runAction(
           internal.governance.internal_actions.runModerationProvider,
-          { organizationId, direction, text, config: moderation },
+          {
+            organizationId,
+            direction,
+            text,
+            config: moderation,
+            ...(args.actor !== undefined ? { actor: args.actor } : {}),
+          },
         )) as ModerationRun;
         lastModeration = run.extras;
+        if (run.extras.errorClass === 'eu_processing') refusedByRule = run;
         return run.outcome;
       },
     };
