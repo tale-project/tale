@@ -41,7 +41,13 @@ import {
   sanitizeUntrustedField,
   wrapUntrusted,
 } from '../../../lib/chat/untrusted-content';
-import { htmlTitle, htmlToText } from '../../../lib/knowledge/html-to-text';
+import { htmlTitle } from '../../../lib/knowledge/html-to-text';
+import {
+  readPageContent,
+  unreadablePage,
+  type PageContent,
+  type UnreadablePage,
+} from '../../../lib/knowledge/main-content';
 import { isMessageRef } from '../../../lib/knowledge/message-ref';
 import type { KnowledgeAccessScope } from '../../../lib/knowledge/types';
 import { botCheckOf } from '../../../lib/net/bot-check';
@@ -188,6 +194,39 @@ function cameThrough(via: OutboundProxyRef | undefined): string {
   return via === undefined
     ? 'directly'
     : `through outbound proxy entry ${via.entry} (${via.label})`;
+}
+
+/** What web_fetch tells the model about a page that answered with success
+ * and holds nothing to read, so it says why instead of guessing. The site's
+ * status text stays out of it: the site's words reach the model only inside
+ * the page it sent. */
+function unreadablePageFailure(
+  why: UnreadablePage,
+  status: number,
+): ToolFailure {
+  switch (why) {
+    case 'blocked':
+      return {
+        status: 'error',
+        message: `The site answered ${status} with nothing to read in place of the page, as sites that block automated access do, so it cannot be read here. Tell the user; they can open it in their browser.`,
+      };
+    case 'needs-browser':
+      return {
+        status: 'unavailable',
+        message:
+          'The page builds its content in the browser with scripts, which this tool does not run, so there is nothing to read here. Tell the user; they can open it in their browser.',
+      };
+    case 'empty':
+      return {
+        status: 'unavailable',
+        message:
+          'The page holds no text: the site sent an empty page, or one made only of images or embedded content.',
+      };
+    default: {
+      const _exhaustive: never = why;
+      return _exhaustive;
+    }
+  }
 }
 
 /** Snippet budget per rag_search row that carries a description — a task, a
@@ -2708,17 +2747,34 @@ export function createChatToolExecutor(
     }
 
     const title = isHtml ? htmlTitle(response.body) : null;
-    const text = isHtml ? htmlToText(response.body) : response.body;
+    // An HTML page is read for its main content, without the site's chrome.
+    const page: PageContent = isHtml
+      ? readPageContent(response.body, response.finalUrl)
+      : { text: response.body, canonicalUrl: null, needsBrowser: false };
+    const unreadable = unreadablePage(
+      response.status,
+      page.text,
+      page.needsBrowser,
+    );
+    if (unreadable !== null) {
+      const result = unreadablePageFailure(unreadable, response.status);
+      await recordDispatch('web_fetch', result.status, result.message);
+      return result;
+    }
     // Offsets index the EXTRACTED text, not response bytes — HTML positions
     // shift under extraction, so a Range request could never line up. Every
     // window therefore re-fetches the page and slices; the paging contract
     // (`offset`/`nextOffset`/`totalChars`) matches rag_fetch exactly.
-    const paged = windowText(text, offset, limit);
+    const paged = windowText(page.text, offset, limit);
     await recordDispatch('web_fetch', 'ok');
     return {
       status: 'ok',
       url: response.finalUrl,
       ...(title !== null ? { title } : {}),
+      // Where the page says it lives, when it was read at another address.
+      ...(page.canonicalUrl !== null && page.canonicalUrl !== response.finalUrl
+        ? { canonicalUrl: page.canonicalUrl }
+        : {}),
       totalChars: paged.totalChars,
       offset,
       ...(paged.nextOffset !== undefined
