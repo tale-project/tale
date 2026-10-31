@@ -7,7 +7,8 @@
  * grant is, while a known capability grants like any competence — and only
  * an admin grants it, so a member cannot delegate the right to itself.
  * `holdsCapability` vouches only for the one live, unexpired grant of the
- * asking organization's member.
+ * asking organization's member. `updateCompetence` changes an active grant's
+ * expiry and evidence in place, audited without the evidence text.
  */
 
 import type { Sql } from 'postgres';
@@ -18,6 +19,7 @@ import {
   grantCompetence,
   holdsCapability,
   PLATFORM_CAPABILITIES,
+  updateCompetence,
 } from './competence.ts';
 
 const { createAuditLog } = vi.hoisted(() => ({
@@ -201,5 +203,233 @@ describe('holdsCapability [GOV-R13]', () => {
     expect((await read([{ expiresAt: null, revokedAt: NOW - 1 }])).holds).toBe(
       false,
     );
+  });
+});
+
+describe('updateCompetence — an active grant changed in place [GOV-R18]', () => {
+  const DAY = 24 * 60 * 60 * 1000;
+
+  /** The locked record `record-1` as `row` describes it. */
+  function lockedRecord(row: object) {
+    return (text: string): object[] | undefined =>
+      text.includes('FROM app.competence_records') &&
+      text.includes('FOR UPDATE')
+        ? [
+            {
+              competence: 'tale:rest.act-as',
+              userId: 'u-1',
+              expiresAt: null,
+              revokedAt: null,
+              evidence: null,
+              ...row,
+            },
+          ]
+        : undefined;
+  }
+
+  it('changes the expiry and the evidence, and audits the old and new expiry without the evidence', async () => {
+    const before = Date.now() + DAY;
+    const after = Date.now() + 30 * DAY;
+    const { sql, queries } = fakeSql(
+      lockedRecord({ expiresAt: before, evidence: 'Course 2025' }),
+    );
+    await expect(
+      updateCompetence(sql, {
+        organizationId: 'org-1',
+        actor: { ...ADMIN, email: 'ada@example.com' },
+        recordId: 'record-1',
+        expiresAt: after,
+        evidence: '  Course 2026  ',
+      }),
+    ).resolves.toEqual({ changed: true });
+    const update = queries.find((query) =>
+      query.text.startsWith('UPDATE app.competence_records'),
+    );
+    expect(update?.values).toEqual([after, 'Course 2026', 'record-1']);
+    expect(queries[0]?.values).toEqual(['record-1', 'org-1']);
+    expect(createAuditLog).toHaveBeenCalledTimes(1);
+    expect(createAuditLog).toHaveBeenCalledWith(expect.anything(), {
+      organizationId: 'org-1',
+      actorId: 'admin-1',
+      actorEmail: 'ada@example.com',
+      actorType: 'user',
+      action: 'competence_updated',
+      category: 'security',
+      resourceType: 'competence_record',
+      resourceId: 'record-1',
+      resourceName: 'tale:rest.act-as',
+      status: 'success',
+      previousState: { userId: 'u-1', expiresAt: before },
+      newState: { userId: 'u-1', expiresAt: after },
+      changedFields: ['expiresAt', 'evidence'],
+    });
+    expect(JSON.stringify(createAuditLog.mock.calls)).not.toContain('Course');
+  });
+
+  it('makes a grant open-ended and clears its evidence', async () => {
+    const before = Date.now() + DAY;
+    const { sql, queries } = fakeSql(
+      lockedRecord({ expiresAt: before, evidence: 'Course 2025' }),
+    );
+    await expect(
+      updateCompetence(sql, {
+        organizationId: 'org-1',
+        actor: ADMIN,
+        recordId: 'record-1',
+        expiresAt: null,
+        evidence: '   ',
+      }),
+    ).resolves.toEqual({ changed: true });
+    expect(
+      queries.find((query) =>
+        query.text.startsWith('UPDATE app.competence_records'),
+      )?.values,
+    ).toEqual([null, null, 'record-1']);
+    expect(createAuditLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        previousState: { userId: 'u-1', expiresAt: before },
+        newState: { userId: 'u-1', expiresAt: null },
+        changedFields: ['expiresAt', 'evidence'],
+      }),
+    );
+  });
+
+  it('keeps a field it is not given, and names only what changed', async () => {
+    const before = Date.now() + DAY;
+    const { sql, queries } = fakeSql(
+      lockedRecord({ expiresAt: before, evidence: 'Course 2025' }),
+    );
+    await updateCompetence(sql, {
+      organizationId: 'org-1',
+      actor: ADMIN,
+      recordId: 'record-1',
+      evidence: 'Course 2026',
+    });
+    expect(
+      queries.find((query) =>
+        query.text.startsWith('UPDATE app.competence_records'),
+      )?.values,
+    ).toEqual([before, 'Course 2026', 'record-1']);
+    expect(createAuditLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        previousState: { userId: 'u-1', expiresAt: before },
+        newState: { userId: 'u-1', expiresAt: before },
+        changedFields: ['evidence'],
+      }),
+    );
+  });
+
+  it('writes and audits nothing when nothing changes', async () => {
+    const before = Date.now() + DAY;
+    const { sql, queries } = fakeSql(
+      lockedRecord({ expiresAt: before, evidence: 'Course 2025' }),
+    );
+    await expect(
+      updateCompetence(sql, {
+        organizationId: 'org-1',
+        actor: ADMIN,
+        recordId: 'record-1',
+        expiresAt: before,
+        evidence: 'Course 2025',
+      }),
+    ).resolves.toEqual({ changed: false });
+    expect(
+      queries.some((query) =>
+        query.text.startsWith('UPDATE app.competence_records'),
+      ),
+    ).toBe(false);
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('refuses a non-admin before reading the record, and audits the refusal', async () => {
+    const { sql, queries } = fakeSql(lockedRecord({}));
+    await expect(
+      updateCompetence(sql, {
+        organizationId: 'org-1',
+        actor: { userId: 'u-1', role: 'developer' },
+        recordId: 'record-1',
+        expiresAt: null,
+      }),
+    ).rejects.toMatchObject({ code: 'COMPETENCE_FORBIDDEN', status: 403 });
+    expect(createAuditLog).toHaveBeenCalledTimes(1);
+    expect(createAuditLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'competence_update_denied',
+        resourceId: 'record-1',
+        status: 'failure',
+        errorMessage: 'admin role required',
+      }),
+    );
+    expect(queries).toEqual([]);
+  });
+
+  it.each([
+    [
+      'a revoked grant',
+      { revokedAt: Date.now() - DAY },
+      'COMPETENCE_ALREADY_REVOKED',
+      409,
+    ],
+    [
+      'an expired grant',
+      { expiresAt: Date.now() - DAY },
+      'COMPETENCE_EXPIRED',
+      409,
+    ],
+  ])('refuses to change %s', async (_label, row, code, status) => {
+    const { sql, queries } = fakeSql(lockedRecord(row));
+    const failure = updateCompetence(sql, {
+      organizationId: 'org-1',
+      actor: ADMIN,
+      recordId: 'record-1',
+      expiresAt: Date.now() + DAY,
+    });
+    await expect(failure).rejects.toBeInstanceOf(CompetenceError);
+    await expect(failure).rejects.toMatchObject({ code, status });
+    expect(
+      queries.some((query) =>
+        query.text.startsWith('UPDATE app.competence_records'),
+      ),
+    ).toBe(false);
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('refuses a record of another organization as unknown', async () => {
+    const { sql } = fakeSql(() => undefined);
+    await expect(
+      updateCompetence(sql, {
+        organizationId: 'org-2',
+        actor: ADMIN,
+        recordId: 'record-1',
+        evidence: 'x',
+      }),
+    ).rejects.toMatchObject({ code: 'COMPETENCE_NOT_FOUND', status: 404 });
+  });
+
+  it('refuses an expiry in the past and evidence over the cap before reading the record', async () => {
+    const { sql, queries } = fakeSql(lockedRecord({}));
+    await expect(
+      updateCompetence(sql, {
+        organizationId: 'org-1',
+        actor: ADMIN,
+        recordId: 'record-1',
+        expiresAt: Date.now() - 1000,
+      }),
+    ).rejects.toMatchObject({ code: 'COMPETENCE_EXPIRY_IN_PAST', status: 400 });
+    await expect(
+      updateCompetence(sql, {
+        organizationId: 'org-1',
+        actor: ADMIN,
+        recordId: 'record-1',
+        evidence: 'x'.repeat(2001),
+      }),
+    ).rejects.toMatchObject({
+      code: 'COMPETENCE_EVIDENCE_TOO_LONG',
+      status: 400,
+    });
+    expect(queries).toEqual([]);
   });
 });

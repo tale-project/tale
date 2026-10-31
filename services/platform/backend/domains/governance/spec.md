@@ -206,6 +206,18 @@ It counts only in the organization it was granted in.
 - **Example**: Ada grants Mia the right to call the model API until the end of the month → on
   the first of next month Mia's calls are refused again.
 
+### GOV-R18 · An admin changes a live right's end date and evidence in place, and each change is audited
+
+Only an admin can change a grant, and the refusal of anyone else is written to the audit log
+(`COMPETENCE_FORBIDDEN`). Only a grant that still holds can be changed: a withdrawn one stays as
+it was (`COMPETENCE_ALREADY_REVOKED`), and one past its end date is granted again instead
+(`COMPETENCE_EXPIRED`). A new end date must lie in the future (`COMPETENCE_EXPIRY_IN_PAST`), or
+be none at all. Each change that changes something writes one entry to the audit log, with the
+old and the new end date and whether the evidence changed, but never the evidence itself.
+
+- **Example**: Mia's right to call the model API ends tomorrow. Ada moves its end to the end of
+  the year → Mia's calls go on, and the audit log shows Ada's change with both dates.
+
 ## Not yet
 
 - **Whose spend a piece of work is booked under**: the rules are in

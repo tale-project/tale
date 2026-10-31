@@ -26355,12 +26355,12 @@ async function checkCompetences(
   const { isRecord } = await import('../lib/utils/type-utils.ts');
   const api = (
     route: string,
-    init: { body?: unknown } = {},
+    init: { body?: unknown; method?: 'PATCH' } = {},
   ): Promise<Response> =>
     fetch(
       `${base}/api/app/governance${route}${route.includes('?') ? '&' : '?'}orgId=${orgId}`,
       {
-        method: init.body === undefined ? 'GET' : 'POST',
+        method: init.method ?? (init.body === undefined ? 'GET' : 'POST'),
         headers: { 'content-type': 'application/json', cookie, origin: base },
         ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
       },
@@ -26425,6 +26425,94 @@ async function checkCompetences(
       listed.success &&
       listed.data.records.some((row) => row.competence === 'iso-13485-auditor'),
     `granted=${granted.success}, duplicate=${duplicate.status}/${duplicateBody.success ? duplicateBody.data.error : 'ERR'} (want 409), regrantAfterExpiry=${regrant.status} (want 201), nonMember=${stranger.status}/${strangerBody.success ? strangerBody.data.error : 'ERR'} (want 400), listed=${listed.success ? listed.data.records.length : 'ERR'}`,
+  );
+
+  // An ACTIVE grant's expiry and evidence change in place, each change one
+  // audit row that names the expiries and the changed fields, never the
+  // evidence; an expired grant is granted again instead (GOV-R18).
+  const newExpiry = now + 30 * 86_400_000;
+  const edited = await api(`/competences/${recordId}`, {
+    method: 'PATCH',
+    body: {
+      expiresAt: newExpiry,
+      evidence: 'https://certs.example/iso-13485-renewed',
+    },
+  });
+  const editedBody = z
+    .object({ changed: z.boolean() })
+    .safeParse(await edited.json());
+  const editedRow = await sql<
+    { expiresAt: number | null; evidence: string | null }[]
+  >`
+    SELECT expires_at_ms::float8 AS "expiresAt", evidence
+    FROM app.competence_records WHERE id = ${recordId}
+  `;
+  const openEnded = await api(`/competences/${recordId}`, {
+    method: 'PATCH',
+    body: { expiresAt: null },
+  });
+  const unchanged = z.object({ changed: z.boolean() }).safeParse(
+    await (
+      await api(`/competences/${recordId}`, {
+        method: 'PATCH',
+        body: { expiresAt: null },
+      })
+    ).json(),
+  );
+  const pastExpiry = await api(`/competences/${recordId}`, {
+    method: 'PATCH',
+    body: { expiresAt: now - 1000 },
+  });
+  const expiredEdit = await sql<{ id: string }[]>`
+    INSERT INTO app.competence_records (
+      org_id, user_id, competence, granted_by, granted_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, ${userId}, 'expired-edit', ${userId}, ${now - 86_400_000},
+      ${now - 3_600_000}
+    )
+    RETURNING id
+  `;
+  const expiredRefused = await api(`/competences/${expiredEdit[0]?.id ?? ''}`, {
+    method: 'PATCH',
+    body: { evidence: 'renewed' },
+  });
+  const expiredRefusedBody = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await expiredRefused.json());
+  const editAudits = await sql<
+    { changedFields: unknown; previousState: unknown; newState: unknown }[]
+  >`
+    SELECT changed_fields AS "changedFields",
+           previous_state AS "previousState", new_state AS "newState"
+    FROM app.audit_logs
+    WHERE org_id = ${orgId} AND action = 'competence_updated'
+      AND resource_id = ${recordId}
+    ORDER BY chain_seq
+  `;
+  const auditText = JSON.stringify(editAudits);
+  const firstEdit = editAudits[0];
+  const firstNewState = isRecord(firstEdit?.newState) ? firstEdit.newState : {};
+  record(
+    'competences: an active grant changes in place, one audit row per change',
+    edited.status === 200 &&
+      editedBody.success &&
+      editedBody.data.changed &&
+      editedRow[0]?.expiresAt === newExpiry &&
+      editedRow[0]?.evidence === 'https://certs.example/iso-13485-renewed' &&
+      openEnded.status === 200 &&
+      unchanged.success &&
+      !unchanged.data.changed &&
+      pastExpiry.status === 400 &&
+      expiredRefused.status === 409 &&
+      expiredRefusedBody.success &&
+      expiredRefusedBody.data.error === 'COMPETENCE_EXPIRED' &&
+      editAudits.length === 2 &&
+      JSON.stringify(firstEdit?.changedFields) ===
+        JSON.stringify(['expiresAt', 'evidence']) &&
+      firstNewState.expiresAt === newExpiry &&
+      !auditText.includes('certs.example'),
+    `edit=${edited.status}/${editedBody.success ? editedBody.data.changed : 'ERR'}, row=${JSON.stringify(editedRow[0])}, openEnded=${openEnded.status}, unchanged=${unchanged.success ? unchanged.data.changed : 'ERR'} (want false), pastExpiry=${pastExpiry.status} (want 400), expired=${expiredRefused.status}/${expiredRefusedBody.success ? expiredRefusedBody.data.error : 'ERR'} (want 409 COMPETENCE_EXPIRED), audits=${auditText} (want 2, no evidence)`,
   );
 
   // A long revoked history must not push a grant that still vouches off the

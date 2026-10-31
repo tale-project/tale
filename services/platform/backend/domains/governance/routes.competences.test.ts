@@ -5,7 +5,8 @@
  * took any finite number: `9e15` (an instant no `Date` can hold) or a
  * fractional millisecond stored as the grant's expiry. The door now holds
  * it to `epochMsSchema` — whole epoch ms up to 8.64e15 — and refuses the
- * rest with its 400 before the register is touched.
+ * rest with its 400 before the register is touched. The edit door holds a
+ * changed expiry to the same bound, and passes on only what it is given.
  */
 
 import { EPOCH_MS_MAX } from '@tale/shared/schemas/epoch-ms';
@@ -14,11 +15,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
 
-const { grantCompetence } = vi.hoisted(() => ({ grantCompetence: vi.fn() }));
+const { grantCompetence, updateCompetence } = vi.hoisted(() => ({
+  grantCompetence: vi.fn(),
+  updateCompetence: vi.fn(),
+}));
 
 vi.mock('./competence.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./competence.ts')>()),
   grantCompetence,
+  updateCompetence,
 }));
 
 vi.mock('../../auth/session.ts', () => ({
@@ -58,8 +63,20 @@ async function grant(expiresAt: unknown): Promise<Response> {
   });
 }
 
+async function edit(body: unknown): Promise<Response> {
+  return await createGovernanceRoutes({
+    sql: {} as never,
+    auth: {} as never,
+  }).request('/competences/r1', {
+    method: 'PATCH',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
 beforeEach(() => {
   grantCompetence.mockReset().mockResolvedValue({ recordId: 'r1' });
+  updateCompetence.mockReset().mockResolvedValue({ changed: true });
 });
 
 describe('POST /competences holds expiresAt to the epoch bound', () => {
@@ -80,5 +97,61 @@ describe('POST /competences holds expiresAt to the epoch bound', () => {
       {},
       expect.objectContaining({ expiresAt: EPOCH_MS_MAX }),
     );
+  });
+});
+
+describe('PATCH /competences/:recordId changes a grant in place [GOV-R18]', () => {
+  it.each([
+    [{}],
+    [{ expiresAt: 9e15 }],
+    [{ expiresAt: 1_790_400_000_000.5 }],
+    [{ expiresAt: '1790400000000' }],
+    [{ evidence: 'x'.repeat(4001) }],
+    [{ evidence: 42 }],
+  ])('refuses %j with a 400 before the register is touched', async (body) => {
+    const res = await edit(body);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: 'invalid body' });
+    expect(updateCompetence).not.toHaveBeenCalled();
+  });
+
+  it('passes on the fields it is given, a null included, and only those', async () => {
+    const res = await edit({ expiresAt: null });
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ changed: true });
+    expect(updateCompetence).toHaveBeenCalledWith(
+      {},
+      {
+        organizationId: 'o1',
+        actor: { userId: 'u1', email: 'u@example.test', role: 'admin' },
+        recordId: 'r1',
+        expiresAt: null,
+      },
+    );
+  });
+
+  it('passes on a new expiry and evidence together', async () => {
+    await edit({ expiresAt: EPOCH_MS_MAX, evidence: 'Course 2026' });
+    expect(updateCompetence).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        expiresAt: EPOCH_MS_MAX,
+        evidence: 'Course 2026',
+      }),
+    );
+  });
+
+  it('answers a refusal of the register with its code and status', async () => {
+    const { CompetenceError } = await import('./competence.ts');
+    updateCompetence.mockRejectedValue(
+      new CompetenceError(
+        'COMPETENCE_EXPIRED',
+        'this competence record has expired — grant it again instead',
+        409,
+      ),
+    );
+    const res = await edit({ evidence: 'Course 2026' });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ error: 'COMPETENCE_EXPIRED' });
   });
 });
