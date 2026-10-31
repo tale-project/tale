@@ -73,9 +73,12 @@ export function CreateTaskFromChat({
   const { t: tTasks } = useT('tasks');
   const navigate = useNavigate();
   const projects = useChatProjects(organizationId);
+  // The draft is taken from the whole conversation, not the transcript's
+  // pages; the retry below re-reads it under the transcript's key.
   const messages = useChatMessages(
     organizationId,
     open ? viewThreadId : undefined,
+    { whole: true },
   );
 
   // The chat's own project unless the list says it is gone (an archived
