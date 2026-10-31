@@ -14,6 +14,7 @@ import {
   EMITTED_EVENT_TYPES,
   RESERVED_EVENT_TYPES,
 } from '../../../lib/shared/event-types.ts';
+import { mintCursorFor } from '../../core/lib/signed_cursor.ts';
 import type { McpCaller } from './caller.ts';
 
 const mocks = vi.hoisted(() => ({
@@ -24,10 +25,10 @@ const mocks = vi.hoisted(() => ({
   listConnectorSummaries: vi.fn(),
   listConnectedConnectorSlugs: vi.fn(),
   listAgentSecrets: vi.fn(),
-  listProjects: vi.fn(),
+  listProjectsPage: vi.fn(),
   getProjectAuthContext: vi.fn(),
   readableProject: vi.fn(),
-  listAutomations: vi.fn(),
+  installedAutomationNames: vi.fn(),
 }));
 
 vi.mock('../chat/composer.ts', () => ({
@@ -45,8 +46,9 @@ vi.mock('../connector_credentials/service.ts', () => ({
 vi.mock('../agent_secrets/service.ts', () => ({
   listAgentSecrets: mocks.listAgentSecrets,
 }));
-vi.mock('../projects/service.ts', () => ({
-  listProjects: mocks.listProjects,
+vi.mock('../projects/service.ts', async (original) => ({
+  ...(await original<typeof import('../projects/service.ts')>()),
+  listProjectsPage: mocks.listProjectsPage,
   getProjectAuthContext: mocks.getProjectAuthContext,
 }));
 vi.mock('../automations/project-visibility.ts', async (original) => ({
@@ -54,7 +56,7 @@ vi.mock('../automations/project-visibility.ts', async (original) => ({
   readableProject: mocks.readableProject,
 }));
 vi.mock('../automations/store.ts', () => ({
-  listAutomations: mocks.listAutomations,
+  installedAutomationNames: mocks.installedAutomationNames,
 }));
 vi.mock('../automations/metrics.ts', () => ({
   getOrgAutomationMetrics: vi.fn(),
@@ -74,6 +76,23 @@ const ada: McpCaller = {
   credential: { kind: 'api-key', apiKeyId: 'key_ada' },
 };
 const mia: McpCaller = { ...ada, userId: 'user_mia', role: 'member' };
+
+/** A project as the page read answers it: what list_projects reads of it. */
+function projectRow(
+  id: string,
+  name: string,
+  createdAt: number,
+  archivedAt: number | null = null,
+) {
+  return { id, name, createdAt, archivedAt, teamIds: [] };
+}
+
+/** The automations installed in each project, a project Mia cannot read
+ * among them. */
+const INSTALLED: Record<string, string[]> = {
+  proj_sales: ['sales/follow-up', 'sales/forecast'],
+  proj_hr: ['hr/onboarding', 'sales/forecast'],
+};
 
 const call = (
   caller: McpCaller,
@@ -136,6 +155,12 @@ beforeEach(() => {
       ...member,
       teamIds: [],
     }),
+  );
+  mocks.installedAutomationNames.mockImplementation(
+    async (_sql: unknown, _organizationId: string, projectIds: string[]) =>
+      new Map(
+        Object.entries(INSTALLED).filter(([id]) => projectIds.includes(id)),
+      ),
   );
 });
 
@@ -321,53 +346,143 @@ describe('the discovery tools answer only what the person may see [MCP-R23]', ()
     expect(mocks.listAgentSecrets).not.toHaveBeenCalled();
   });
 
-  it('lists the projects the person can read, with only the automations they may see [MCP-R23]', async () => {
-    mocks.listProjects.mockResolvedValue([
-      { id: 'proj_sales', name: 'Sales', archivedAt: null, canEdit: true },
-      { id: 'proj_old', name: 'Old sales', archivedAt: 5, canEdit: false },
-    ]);
-    mocks.listAutomations.mockResolvedValue([
-      { name: 'sales/follow-up', projectIds: ['proj_sales'] },
-      // Installed in Sales and in a project Mia cannot read: listed under
-      // Sales only.
-      { name: 'sales/forecast', projectIds: ['proj_sales', 'proj_hr'] },
-      { name: 'hr/onboarding', projectIds: ['proj_hr'] },
-      { name: 'org/digest', projectIds: [] },
-    ]);
-    const answer = await call(mia, 'list_projects', { includeArchived: true });
+  it('lists a page of the projects the person can read, with the automations installed in them alone [MCP-R23]', async () => {
+    const eve: McpCaller = { ...ada, userId: 'user_eve', role: 'editor' };
+    mocks.listProjectsPage.mockResolvedValue({
+      projects: [
+        projectRow('proj_sales', 'Sales', 2_000),
+        projectRow('proj_old', 'Old sales', 1_000, 5),
+      ],
+      hasMore: false,
+    });
+    const answer = await call(eve, 'list_projects', { includeArchived: true });
     expect(mocks.getProjectAuthContext).toHaveBeenCalledWith(sql, {
       organizationId: 'org_acme',
-      userId: 'user_mia',
-      role: 'member',
+      userId: 'user_eve',
+      role: 'editor',
     });
-    expect(mocks.listProjects).toHaveBeenCalledWith(
+    // The readable projects are the read's to choose, one page of them.
+    expect(mocks.listProjectsPage).toHaveBeenCalledWith(
       sql,
       expect.objectContaining({ organizationId: 'org_acme' }),
-      { includeArchived: true, summary: true },
+      {
+        archived: 'include',
+        limit: 50,
+        cursor: null,
+        summary: true,
+        name: '',
+      },
     );
-    expect(mocks.listAutomations).toHaveBeenCalledWith(sql, 'org_acme');
-    expect(answer.projects).toEqual([
-      {
-        id: 'proj_sales',
-        name: 'Sales',
-        archived: false,
-        writable: true,
-        automations: ['sales/follow-up', 'sales/forecast'],
-      },
-      {
-        id: 'proj_old',
-        name: 'Old sales',
-        archived: true,
-        writable: false,
-        automations: [],
-      },
-    ]);
+    // The automations of that page's projects, never the organization's.
+    expect(mocks.installedAutomationNames).toHaveBeenCalledExactlyOnceWith(
+      sql,
+      'org_acme',
+      ['proj_sales', 'proj_old'],
+    );
+    expect(answer).toMatchObject({
+      projects: [
+        {
+          id: 'proj_sales',
+          name: 'Sales',
+          archived: false,
+          writable: true,
+          automations: ['sales/follow-up', 'sales/forecast'],
+        },
+        {
+          id: 'proj_old',
+          name: 'Old sales',
+          archived: true,
+          // An archived project is read-only for everyone.
+          writable: false,
+          automations: [],
+        },
+      ],
+      nextCursor: null,
+    });
     expect(JSON.stringify(answer)).not.toContain('hr/onboarding');
     expect(JSON.stringify(answer)).not.toContain('proj_hr');
+  });
 
+  it('leaves archived projects out unless asked, and answers an empty page with no cursor', async () => {
+    mocks.listProjectsPage.mockResolvedValue({ projects: [], hasMore: false });
+    expect(await call(mia, 'list_projects')).toMatchObject({
+      projects: [],
+      nextCursor: null,
+    });
+    expect(mocks.listProjectsPage).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({ organizationId: 'org_acme' }),
+      expect.objectContaining({ archived: 'exclude', name: '' }),
+    );
+  });
+});
+
+describe('list_projects pages', () => {
+  it('searches the name in the read and goes on from the last project of a page', async () => {
+    mocks.listProjectsPage.mockResolvedValueOnce({
+      projects: [projectRow('proj_old', 'Old sales', 1_000, 5)],
+      hasMore: true,
+    });
+    const first = await call(mia, 'list_projects', { query: ' old ' });
+    expect(mocks.listProjectsPage).toHaveBeenLastCalledWith(
+      sql,
+      expect.anything(),
+      expect.objectContaining({ name: 'old', cursor: null }),
+    );
+    expect(first.nextCursor).toEqual(expect.any(String));
+
+    mocks.listProjectsPage.mockResolvedValueOnce({
+      projects: [projectRow('proj_older', 'Older sales', 500)],
+      hasMore: false,
+    });
+    const second = await call(mia, 'list_projects', {
+      query: 'old',
+      cursor: first.nextCursor,
+    });
+    expect(mocks.listProjectsPage).toHaveBeenLastCalledWith(
+      sql,
+      expect.anything(),
+      expect.objectContaining({
+        name: 'old',
+        cursor: { at: 1_000, id: 'proj_old' },
+      }),
+    );
+    expect(second).toMatchObject({
+      projects: [{ id: 'proj_older' }],
+      nextCursor: null,
+    });
+  });
+
+  it.each([
+    ['a made-up cursor', {}, 'p50'],
+    ['an unsigned position', {}, '1000:proj_old'],
+    [
+      "another search's cursor",
+      { query: 'new' },
+      mintCursorFor('org_acme', 'mcp-projects:active:old', '1000:proj_old'),
+    ],
+    [
+      'the cursor of the list without archived projects',
+      { includeArchived: true },
+      mintCursorFor('org_acme', 'mcp-projects:active:', '1000:proj_old'),
+    ],
+    [
+      "another organization's cursor",
+      {},
+      mintCursorFor('org_other', 'mcp-projects:active:', '1000:proj_old'),
+    ],
+    [
+      'a signed token that is no position',
+      {},
+      mintCursorFor('org_acme', 'mcp-projects:active:', 'p50'),
+    ],
+  ])('refuses %s, and reads nothing', async (_, params, cursor) => {
     expect(
-      (await call(mia, 'list_projects', { query: 'old' })).projects,
-    ).toEqual([expect.objectContaining({ id: 'proj_old' })]);
+      await call(mia, 'list_projects', { ...params, cursor }),
+    ).toMatchObject({ code: 'INVALID_CURSOR' });
+    expect(mocks.getProjectAuthContext).not.toHaveBeenCalled();
+    expect(mocks.listProjectsPage).not.toHaveBeenCalled();
+    expect(mocks.installedAutomationNames).not.toHaveBeenCalled();
   });
 });
 
