@@ -6,6 +6,13 @@ import {
   passwordHasher,
   type PasswordHasherStats,
 } from './auth/password-hasher.ts';
+import {
+  AGENT_RUN_FAILURE_LABELS,
+  AGENT_RUN_PARK_LABELS,
+  AGENT_RUN_WAKE_SOURCES,
+  type AgentRunCounterEvent,
+  readAgentRunCounters,
+} from './domains/tasks/agent-run-counters.ts';
 import { probeStores } from './store-health.ts';
 
 /**
@@ -390,6 +397,111 @@ export function registerPasswordHashCollectors(
   return [active, waiting, refused];
 }
 
+/**
+ * How project agents' runs wait for room: how often a run parked, how many
+ * parked runs a wake restarted and how many wakes failed, how many runs
+ * failed, and how many wait right now. The parks, wakes and failures happen
+ * in worker jobs, which serve no `/metrics`, so their running totals live in
+ * the database (`domains/tasks/agent-run-counters.ts`) and a scrape restates
+ * them. Every API replica reports the same deployment-wide numbers: a query
+ * across replicas takes their `max`, never their `sum`. Each label comes
+ * from a closed set, so no organization, task or run id becomes a series.
+ */
+export function registerAgentRunCollectors(sql: Sql): client.Metric[] {
+  const restated = (
+    config: { name: string; help: string; label: string },
+    event: AgentRunCounterEvent,
+    labels: readonly string[],
+  ) =>
+    new client.Counter({
+      name: config.name,
+      help: config.help,
+      labelNames: [config.label],
+      async collect() {
+        try {
+          const totals = await readAgentRunCounters(sql, event);
+          // Every known label, from zero, so an alert has a series before
+          // the first event.
+          this.reset();
+          for (const label of labels) {
+            this.inc({ [config.label]: label }, totals.get(label) ?? 0);
+          }
+        } catch (error) {
+          console.warn(`[metrics] ${config.name} failed:`, error);
+          // No sample rather than this replica's last totals: one scrape
+          // target can reach several replicas, and an older, lower total
+          // after a fresher one reads as a counter reset, which increase()
+          // and rate() count as a whole lifetime of events. A gap is not a
+          // decrease; the next good read on any replica restates the total.
+          this.reset();
+        }
+      },
+    });
+
+  const parks = restated(
+    {
+      name: 'tale_backend_agent_run_parks_total',
+      help: 'Project agent runs parked to wait for room, by why they wait.',
+      label: 'reason',
+    },
+    'park',
+    AGENT_RUN_PARK_LABELS,
+  );
+  const wakes = restated(
+    {
+      name: 'tale_backend_agent_run_wakes_total',
+      help: 'Parked project agent runs a wake restarted, by what woke them: a worker or slot given back (release), the run’s own timed wake (scheduled), or the watchdog’s sweep.',
+      label: 'source',
+    },
+    'wake',
+    AGENT_RUN_WAKE_SOURCES,
+  );
+  const wakeFailures = restated(
+    {
+      name: 'tale_backend_agent_run_wake_failures_total',
+      help: 'Wakes of parked project agent runs that failed, by what started them; the runs stay parked until the next wake.',
+      label: 'source',
+    },
+    'wake_failure',
+    AGENT_RUN_WAKE_SOURCES,
+  );
+  const failures = restated(
+    {
+      name: 'tale_backend_agent_run_failures_total',
+      help: 'Project agent runs that failed, by failure code (resource_exhausted: the workspace ran out of memory).',
+      label: 'code',
+    },
+    'failure',
+    AGENT_RUN_FAILURE_LABELS,
+  );
+
+  const waiting = new client.Gauge({
+    name: 'tale_backend_agent_runs_waiting',
+    help: 'Project agent runs parked right now to wait for room, by why they wait.',
+    labelNames: ['reason'] as const,
+    async collect() {
+      try {
+        // Loaded on first use: the sandbox sessions import this module
+        // through the sandbox client's tracing, so a static import here
+        // would close a cycle.
+        const { countWaitingAgentRunsAcrossOrganizations } =
+          await import('./domains/sandbox/sessions.ts');
+        const { byReason } =
+          await countWaitingAgentRunsAcrossOrganizations(sql);
+        for (const [reason, count] of Object.entries(byReason)) {
+          this.set({ reason }, count);
+        }
+      } catch (error) {
+        // Keeps its last values, as the job-state gauge does: a gauge has
+        // no reset to misread, and a vanished series would end an alert.
+        console.warn('[metrics] waiting agent runs gauge failed:', error);
+      }
+    },
+  });
+
+  return [parks, wakes, wakeFailures, failures, waiting];
+}
+
 /** Native completion read shared with the isolated real-Postgres proof. The
  * collector names exactly one queue, so no user/organization labels or IDs
  * enter metrics. The existing (name,id) index scopes this to that queue's
@@ -420,6 +532,7 @@ export function initBackendTelemetry(sql: Sql): void {
   client.register.registerMetric(httpDuration);
   registerSlaTargetMetrics();
   registerBackendCollectors(sql);
+  registerAgentRunCollectors(sql);
   registerPasswordHashCollectors(() => passwordHasher.stats());
   initialized = true;
 }
