@@ -39,11 +39,13 @@ Une adresse e-mail est reconnue en entier même lorsque la partie avant le `@` c
 
 Teste tes formats réels avec des valeurs fictives. La détection peut manquer des formats inhabituels et signaler à tort du texte ordinaire. Vérifie séparément l’entrée et la sortie.
 
-## Ajouter une modération externe
+## Ajouter une modération externe {#moderation}
 
 La couche de modération envoie du texte à un classificateur configuré, comme OpenAI, Azure, Perspective ou un point de terminaison personnalisé. Configure ses identifiants, catégories et actions, puis les directions à inspecter.
 
 Décide du comportement si le fournisseur est indisponible : fail-open laisse passer le message, fail-closed le refuse. Examine les erreurs fournisseur et les événements de circuit ouvert en cas de refus inattendus ou de messages non filtrés. Cette couche ajoute un service qui traite le texte. Utilise le fournisseur et l’adresse approuvés pour ton organisation.
+
+Tant que [Traiter les prompts uniquement dans l’UE/EEE](/fr/platform/admin/governance/content-models#eu-processing) est activé, le fournisseur ne reçoit du texte qu’à un endpoint que cet interrupteur laisse passer : l’endpoint dans l’UE d’un fournisseur, ou un hôte confirmé sous **Accès aux modèles**. L’enregistrement du fournisseur avec un autre endpoint est refusé, et le message indique quoi changer. Si l’interrupteur est activé alors que le fournisseur pointe ailleurs, aucun texte n’est envoyé : la vérification échoue comme si le fournisseur était indisponible, donc fail-open laisse passer le message et fail-closed le refuse. Son événement dans **Événements récents** indique la classe d’erreur `eu_processing`, et le refus est consigné dans le [journal d’audit](/fr/platform/admin/governance/audit-logs) comme **Accès au modèle refusé**. **Tester la connexion** donne la même raison.
 
 ## Définir les instructions de l’organisation
 
