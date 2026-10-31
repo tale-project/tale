@@ -97,6 +97,8 @@ export interface TeamScopeRetirement {
   documentsRetagged: number;
   conversationsUnassigned: number;
   syncConfigsUnscoped: number;
+  /** The team's live competence grants, revoked with it. */
+  competenceGrantsRevoked: number;
   /** Of the retagged rows, how many lost their LAST team — visible to the
    * whole organization from now on. */
   nowOrgWide: { projects: number; folders: number; documents: number };
@@ -115,6 +117,7 @@ function emptyRetirement(): TeamScopeRetirement {
     documentsRetagged: 0,
     conversationsUnassigned: 0,
     syncConfigsUnscoped: 0,
+    competenceGrantsRevoked: 0,
     nowOrgWide: { projects: 0, folders: 0, documents: 0 },
     touchedFileDocumentIds: [],
   };
@@ -127,7 +130,8 @@ function retirementTouchedRows(r: TeamScopeRetirement): boolean {
       r.foldersRetagged +
       r.documentsRetagged +
       r.conversationsUnassigned +
-      r.syncConfigsUnscoped >
+      r.syncConfigsUnscoped +
+      r.competenceGrantsRevoked >
     0
   );
 }
@@ -221,6 +225,23 @@ export async function retireTeamScopes(
     teamId,
   });
 
+  // So do the rights the team's members held through it: its live
+  // competence grants are stamped revoked by 'system', never deleted — the
+  // register is the trail (`removeMembershipCascade` does the same for a
+  // member's). The records of its admin-made memberships go with them.
+  const grants = await tx<{ id: string }[]>`
+    UPDATE app.competence_records
+    SET revoked_at_ms = ${now}, revoked_by = 'system'
+    WHERE org_id = ${organizationId} AND team_id = ${teamId}
+      AND revoked_at_ms IS NULL
+    RETURNING id
+  `;
+  result.competenceGrantsRevoked = grants.length;
+  await tx`
+    DELETE FROM app.admin_added_team_members
+    WHERE org_id = ${organizationId} AND team_id = ${teamId}
+  `;
+
   const hints: { entity: string; changed: number }[] = [
     { entity: 'project', changed: projects.length },
     { entity: 'folder', changed: folders.length },
@@ -272,7 +293,8 @@ export async function retireDeletedTeamScopes(
       `[teams] retired scopes of deleted team ${teamId} in org ${organizationId}: ` +
         `projects=${retirement.projectsRetagged}, folders=${retirement.foldersRetagged}, ` +
         `documents=${retirement.documentsRetagged}, conversations=${retirement.conversationsUnassigned}, ` +
-        `syncConfigs=${retirement.syncConfigsUnscoped}`,
+        `syncConfigs=${retirement.syncConfigsUnscoped}, ` +
+        `competenceGrants=${retirement.competenceGrantsRevoked}`,
     );
   }
   return retirement;
@@ -294,6 +316,8 @@ export interface TeamDeletionImpact {
   syncConfigs: { scoped: number };
   /** The team's own API keys, which stop working with it. */
   apiKeys: number;
+  /** The team's live competence grants, which end with it. */
+  competenceGrants: number;
 }
 
 export async function teamDeletionImpact(
@@ -315,6 +339,7 @@ export async function teamDeletionImpact(
       conversations: number;
       syncConfigs: number;
       apiKeys: number;
+      competenceGrants: number;
     }[]
   >`
     SELECT t."name",
@@ -353,7 +378,11 @@ export async function teamDeletionImpact(
       (SELECT count(*) FROM app.api_key_owners o
         WHERE o.org_id = ${organizationId} AND o.owner_kind = 'team'
           AND o.team_id = t."id" AND o.revoked_at_ms IS NULL)::int
-        AS "apiKeys"
+        AS "apiKeys",
+      (SELECT count(*) FROM app.competence_records g
+        WHERE g.org_id = ${organizationId} AND g.team_id = t."id"
+          AND g.revoked_at_ms IS NULL)::int
+        AS "competenceGrants"
     FROM "team" t
     WHERE t."id" = ${teamId} AND t."organizationId" = ${organizationId}
     LIMIT 1
@@ -370,6 +399,7 @@ export async function teamDeletionImpact(
     conversations: { queued: row.conversations },
     syncConfigs: { scoped: row.syncConfigs },
     apiKeys: row.apiKeys,
+    competenceGrants: row.competenceGrants,
   };
 }
 
