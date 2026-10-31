@@ -1161,6 +1161,7 @@ competences:
   grantDialog:
     title: Kompetenz zuweisen
     description: Wen du auswählst, hat sie in dieser Organisation, bis sie abläuft oder ein Admin sie widerruft. Die Mitglieder eines Teams haben sie, solange sie im Team sind.
+    fixedDescription: '{member} hat „{competence}“ in dieser Organisation, bis die Zuweisung abläuft oder ein Admin sie widerruft.'
     holderLabel: Zuweisen an
     holderOptions:
       member: Ein Mitglied

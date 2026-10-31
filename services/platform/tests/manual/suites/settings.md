@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 148 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 165 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -76,7 +76,10 @@ with the sandbox model gateway running. The Connected agents boxes (SET-F85–SE
 need coding agents connected as auth.md AUTH-F34–AUTH-F36 describe; the agent
 sign-in is on unless `TALE_MCP_CLIENT_METADATA_DOCUMENTS` and
 `TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` are both `false`, and the page itself is
-absent while it is off (SET-B38).
+absent while it is off (SET-B38). The member rights boxes (SET-F93–SET-F101,
+SET-B42–SET-B45, SET-A13–SET-A14) need a Member, an Editor, a Developer and
+a second Admin, one more account whose role is **Disabled**, and the model
+endpoints on as above.
 Restore any toggled setting after the run.
 
 > **Agent note**: pages on the header **Save** / **Discard** cluster
@@ -1116,6 +1119,138 @@ Restore any toggled setting after the run.
   the line gives way to a warning banner with the same figures and both
   settings (`sandboxes.limits.sessionMemoryExceedsHost`), which a screen
   reader does not announce as an alert; **Save** still saves a change.
+- [ ] `SET-F93` · **A member's rights, from the row menu** — As the owner on
+  `/dashboard/{org}/settings/members`, open the row menu (**Open menu**,
+  `common.actions.openMenu`) of a Member, then of your own row; as an Admin,
+  that of a Member, of your own row and of the owner → A Member's menu reads
+  **Edit** (`common.actions.edit`), **Rights**
+  (`settings.organization.memberRights.action`), **Transfer ownership**
+  (`settings.organization.transferOwnership`, shown to the owner only) and
+  **Delete** (`common.actions.delete`); your own row, and the owner's for an
+  Admin, offer **Rights** alone. **Rights** opens **Rights of {name}**
+  (`settings.organization.memberRights.title`) with
+  `settings.organization.memberRights.description`, listing **Call models
+  over the API**, **Export notifications**, **Act for another member** and
+  **Publish skills to the organization**
+  (`governance.competences.capabilities.*`) in that order, each with a badge
+  reading **Allowed** or **Not allowed**
+  (`settings.organization.memberRights.held` / `…memberRights.notHeld`), its
+  reasons in muted lines under it and a switch at its end. Each opening
+  reads the rights afresh: DevTools → Network shows a new
+  `/api/app/governance/members/…/rights?orgId=…` request every time.
+- [ ] `SET-F94` · **What each role carries, and why** — With the model
+  endpoints on (governance.md GOV-F41) and **Share skills with the
+  organization** at **Every member** (the default), open **Rights** for a
+  Member, an Editor, a Developer, an Admin, yourself as the owner and a
+  member whose role is **Disabled** (`roles.disabled`, set with **Edit**),
+  none holding a grant → Every switch is off. **Call models over the API**
+  opens its reasons with the endpoints line
+  (`settings.organization.memberRights.reasons.modelApiOn`) and **Publish
+  skills to the organization** with the sharing mode
+  (`…reasons.skillSharing`, naming **Every member**); the role comes next,
+  then the grant. Member and Editor: **Not allowed** for the first three,
+  each with `…reasons.roleGrant` naming the role and **Not granted.**
+  (`…reasons.noGrant`), and **Allowed** to publish with
+  `…reasons.roleAdmits`. Developer: the same, but **Call models over the
+  API** is **Allowed** with `…reasons.roleAdmits`. Admin and owner: all four
+  **Allowed** with `…reasons.roleAdmits`. Disabled: all four **Not allowed**
+  with `…reasons.roleRefuses` and no **Not granted.** line; grant this
+  member **Act for another member** from its switch (SET-F95) → the switch
+  turns on and the grant's line appears, but the badge stays **Not
+  allowed**. Revoke it afterwards.
+- [ ] `SET-F95` · **Grant a right from its switch** — In a Member's
+  **Rights**, turn on **Act for another member** → **Grant a competence**
+  (`governance.competences.grantDialog.title`) opens over it with
+  `governance.competences.grantDialog.fixedDescription` naming the member
+  and the right, the right's description in a muted line, no **Member** or
+  **Competence** picker, **Expires**
+  (`governance.competences.grantDialog.expiryLabel`) on **Never** and an
+  empty **Evidence** (`governance.competences.grantDialog.evidenceLabel`);
+  **Cancel** (`common.actions.cancel`) and Escape each close it with the
+  switch still off. Turn it on again, choose **In 30 days**
+  (`…expiryOptions.30days`) and note a line of evidence → **Grant**
+  (`governance.competences.grantDialog.submit`) → The toast **Competence
+  granted** (`governance.competences.toasts.granted`) shows, focus is back on
+  the switch, now on, the badge reads **Allowed** and **Not granted.** gives
+  way to `settings.organization.memberRights.reasons.grantActiveUntil` with
+  your name, today and the date 30 days out. On
+  `/dashboard/{org}/settings/governance/competences` the grant is **Active**
+  with **Until** that date (`governance.competences.statusDetail.until`),
+  **by** your name and the evidence; **Logs** lists `competence_granted`.
+  Grant **Export notifications** with **Never** the same way → its line
+  reads `…reasons.grantActive`.
+- [ ] `SET-F96` · **Revoke a right from its switch** — In the same
+  **Rights**, turn off **Act for another member** → **Revoke competence?**
+  (`governance.competences.revokeDialog.title`) asks first, naming the
+  member and the right (`governance.competences.revokeDialog.description`);
+  **Cancel** and Escape keep the grant and its switch on. Turn it off again
+  → **Revoke** (`governance.competences.revokeDialog.confirm`) → The
+  question closes only once the switch reads off, focus is back on it, the
+  toast **Competence revoked** (`governance.competences.toasts.revoked`)
+  shows, the badge reads **Not allowed** and **Not granted.** is back. The
+  register's **Filter** → **Status** → **Revoked** shows the grant revoked
+  today, and pointing at the date reads **Revoked by** your name
+  (`governance.competences.revokedBy`); **Logs** lists `competence_revoked`.
+- [ ] `SET-F97` · **The model endpoints switch answers for every role** —
+  Grant a Member **Call models over the API** from its switch, then turn off
+  **Model endpoints for API keys**
+  (`governance.modelAccess.modelApi.enabled`) on
+  `/dashboard/{org}/settings/governance/content-models` → Reopened, the
+  **Rights** of that Member, of a Developer and of an Admin read **Not
+  allowed** for it, opening with
+  `settings.organization.memberRights.reasons.modelApiOff`; their role lines
+  stay as they were, and the Member's switch stays on with its grant line.
+  Turn on an Editor's switch for it → **Grant a competence** warns with
+  `governance.competences.grantDialog.modelApiOff.description` and **Open
+  model access** (`…modelApiOff.link`, pointing at `content-models`), and
+  **Grant** still grants. Turn the endpoints back on → reopened, all four
+  read **Allowed** with `…reasons.modelApiOn`. Revoke both grants.
+- [ ] `SET-F98` · **Skill sharing decides who publishes** — On
+  `/dashboard/{org}/settings/governance/policies-limits` set **Share skills
+  with the organization** (`governance.skillSharing.label`) to **Editors and
+  above** (`governance.skillSharing.modes.editors`) and save → Reopened,
+  **Publish skills to the organization** names that mode in
+  `…reasons.skillSharing`; an Editor and a Developer read **Allowed** with
+  `…reasons.roleAdmits`, a Member **Not allowed** with `…reasons.roleGrant`
+  and **Not granted.** Save **Owners and admins only**
+  (`governance.skillSharing.modes.admins`) → the Editor and the Developer
+  need a grant too, and an Admin stays **Allowed**; granting the Member from
+  its switch makes it **Allowed** with its grant line. Revoke that grant and
+  save **Every member** (`governance.skillSharing.modes.everyone`) again.
+- [ ] `SET-F99` · **A grant that ran out** — Open a Member's **Rights**, copy
+  the member's user id and the `orgId` from its
+  `/api/app/governance/members/…/rights?orgId=…` request in DevTools →
+  Network, and grant **Act for another member** for one minute from the
+  console: `fetch('/api/app/governance/competences?orgId={orgId}', {method:
+  'POST', headers: {'content-type': 'application/json'}, body:
+  JSON.stringify({userId: '{userId}', competence: 'tale:rest.act-as',
+  expiresAt: Date.now() + 60000})})` → A minute later, reopened, it reads
+  **Not allowed** with its switch off, `…reasons.roleGrant` and
+  `settings.organization.memberRights.reasons.grantExpired` with your name
+  and today's date, and no **Not granted.** line; the register lists the
+  grant under **Filter** → **Status** → **Expired**. Turn the switch on and
+  grant with **Never** → the switch is on with `…reasons.grantActive`; the
+  expired grant now reads **Revoked**, and pointing at its date reads
+  **Replaced by a new grant after it expired**
+  (`governance.competences.revokedBySystem`).
+- [ ] `SET-F100` · **A grant whose granter has left** — As a second Admin,
+  grant a Member **Export notifications** from its switch; then, as the
+  owner, **Delete** that Admin → The Member's **Rights**, reopened, reads
+  `…reasons.grantActive` with **Former member** (`common.formerMember`) as
+  the granter; the badge stays **Allowed**, and the switch, still on,
+  revokes the grant as SET-F96 does.
+- [ ] `SET-F101` · **A right through a team** — On
+  `/dashboard/{org}/settings/teams` add a Member to a team, then on
+  `/dashboard/{org}/settings/governance/competences` grant that team **Act
+  for another member** (**Grant to** → **A team**) with **In 30 days** →
+  The Member's **Rights** reads **Allowed** for it with its switch off, and
+  `settings.organization.memberRights.reasons.teamGrantActiveUntil` names
+  the team, your name, today and the date 30 days out; there is no **Not
+  granted.** line. Turn the switch on and grant with **Never** → the switch
+  is on, `…reasons.grantActive` comes first and the team's line stays below
+  it. Remove the Member from the team and reopen **Rights** → only their own
+  grant is named; revoke it from the switch → **Not allowed**, with **Not
+  granted.**
 
 ## Boundary & error tests
 
@@ -1498,6 +1633,59 @@ Restore any toggled setting after the run.
   to the name of another credential of its provider → the dialog says
   `settings.credentials.errors.nameTaken` in German.
 
+- [ ] `SET-B42` · **A member's rights are for owners and admins** — Sign in
+  as a Developer, an Editor and a Member in turn and open
+  `/dashboard/{org}/settings/members` → each sees **Access denied**
+  (`accessDenied.title`) with `accessDenied.organization`, so no row menu
+  offers **Rights**. In each one's console, with the `orgId` of any
+  `…?orgId=` request in DevTools → Network and a member's user id copied in
+  the owner's session (SET-F99), run
+  `fetch('/api/app/governance/members/{userId}/rights?orgId={orgId}').then((r) => r.json())`
+  → status 403 with `{"error": "FORBIDDEN"}`. As the owner, the same call
+  answers the member's rights, and with the user id of a removed member, or
+  a made-up one, status 404 with `{"error": "MEMBER_NOT_FOUND"}`.
+
+- [ ] `SET-B43` · **Rights that cannot be read** — In DevTools block the
+  request URL `*/api/app/governance/members/*/rights*` (Network → request
+  blocking) and open a member's **Rights** → After the retries, a few
+  seconds in which the offline notice may show, the dialog says **Couldn't
+  load the rights.** (`settings.organization.memberRights.loadFailed`) with
+  **Try again** (`common.actions.tryAgain`) and shows no right and no
+  switch. Unblock it → **Try again** → the four rights appear in the same
+  dialog and focus moves to their list. Block it again with the rights
+  shown and grant a right from its switch → the rights stay, under
+  `settings.organization.memberRights.refreshFailed` with **Try again**;
+  unblock it and **Try again** → the notice leaves, focus moves to the
+  list and the switch reads on.
+  At 375 px both notices wrap inside the dialog.
+
+- [ ] `SET-B44` · **A switch behind another session's change** — With a
+  Member holding **Export notifications**, open their **Rights** in window
+  A and revoke the grant in window B on
+  `/dashboard/{org}/settings/governance/competences`. In A turn its switch
+  off → **Revoke** → The toast **Couldn't revoke the competence**
+  (`governance.competences.toasts.revokeFailed`) says
+  `governance.competences.errors.alreadyRevoked`, the question closes and
+  the switch reads off. Grant it again in B while A still shows it off; in
+  A turn it on → **Grant** → the dialog stays open with
+  `governance.competences.errors.alreadyGranted` and grants nothing; close
+  it and reopen **Rights** → the switch is on with B's grant.
+
+- [ ] `SET-B45` · **Policies that cannot be read** — On a disposable
+  organization with the model endpoints on, copy aside
+  `governance/model-access.yml` under `TALE_CONFIG_DIR/<org>/` and replace
+  its content with `modelApi: perhaps` → Reopened, **Call models over the
+  API** reads **Not allowed** for every member, an Admin too, with
+  `settings.organization.memberRights.reasons.modelApiUnreadable`, and the
+  backend logs that the model access policy cannot be read. Put the copy
+  back → `…reasons.modelApiOn` again. Write `orgWide: sometimes` as the
+  content of `governance/skill-sharing.yml` there → **Publish skills to the
+  organization** reads `…reasons.skillSharing` naming **Owners and admins
+  only**, an Editor and a Member read **Not allowed** with
+  `…reasons.roleGrant` and **Not granted.**, and an Admin stays
+  **Allowed**. Restore the file, or delete it if there was none → **Every
+  member** again.
+
 ## Accessibility (WCAG 2.1 AA)
 
 - [ ] `SET-A1` · **Settings rail** → The rail is a labelled `nav`
@@ -1579,6 +1767,29 @@ Restore any toggled setting after the run.
   1280 px in `en`, `de` and `fr` the dialog (a bottom sheet on a phone) never
   scrolls sideways and a long command wraps at its spaces; in the dark theme
   the blocks, the line and the prompt keep their contrast.
+
+- [ ] `SET-A13` · **Rights by keyboard and screen reader** — On
+  `/dashboard/{org}/settings/members`, Tab to a row's **Open menu**, press
+  Enter, arrow to **Rights** and press Enter → Focus moves into **Rights of
+  {name}** and stays there; the list is named by the title; Tab reaches each
+  switch with visible focus, and a screen reader names it by its right and
+  describes it with its badge and reasons. Space opens **Grant a
+  competence** or **Revoke competence?**, and **Cancel**, Escape, **Grant**
+  and **Revoke** each give focus back to that switch. With the rights
+  blocked (SET-B43) the failure is announced as an alert and **Try again**
+  is reachable by Tab. Escape closes **Rights** and gives focus back to the
+  row's **Open menu**. The badges say **Allowed** and **Not allowed** in
+  words, never by colour alone, and keep AA contrast in both themes.
+
+- [ ] `SET-A14` · **Rights at every width, in three languages** — Open
+  **Rights** for a member with a long display name who holds a grant with
+  an end date, at 320, 390, 768 and 1280 px in `en`, `de` and `fr` → The
+  dialog never scrolls sideways; the title, the right names, the badges and
+  the reasons wrap rather than clip, each switch stays beside its right and
+  within reach, and the row menu shows **Rights** (**Rechte**, **Droits**)
+  without clipping; in the dark theme the muted reasons and both badges keep
+  their contrast.
+
 ## Performance
 
 - [ ] `SET-P1` · **Rail navigation** → < 1 s to switch between two
