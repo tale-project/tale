@@ -2,6 +2,7 @@ import type { Sql, TransactionSql } from 'postgres';
 
 import { defineAbilityFor } from '../../lib/permissions/ability.ts';
 import type { PlatformCapability } from '../../lib/shared/competences.ts';
+import { vouchesForUser } from '../domains/governance/vouches-for.ts';
 
 /**
  * Who may create a personal API key.
@@ -22,7 +23,8 @@ import type { PlatformCapability } from '../../lib/shared/competences.ts';
  *   - an owner, admin or developer of any organization passes: a key is the
  *     person's, not an organization's, and works wherever they are a member;
  *   - so does a member holding a live grant of a key-using capability in an
- *     organization whose seat is not disabled;
+ *     organization whose seat is not disabled — their own, or one of a team
+ *     they belong to through a membership an admin made (`vouchesForUser`);
  *   - nobody else.
  */
 
@@ -69,12 +71,12 @@ export async function mayCreateApiKeys(
     .map((seat) => seat.organizationId);
   if (active.length === 0) return false;
   const grants = await sql<{ id: string }[]>`
-    SELECT id FROM app.competence_records
-    WHERE user_id = ${userId}
-      AND org_id IN ${sql(active)}
-      AND competence IN ${sql([...API_KEY_CAPABILITIES])}
-      AND revoked_at_ms IS NULL
-      AND (expires_at_ms IS NULL OR expires_at_ms > ${now})
+    SELECT c.id FROM app.competence_records c
+    WHERE c.org_id IN ${sql(active)}
+      AND c.competence IN ${sql([...API_KEY_CAPABILITIES])}
+      AND c.revoked_at_ms IS NULL
+      AND (c.expires_at_ms IS NULL OR c.expires_at_ms > ${now})
+      AND ${vouchesForUser(sql, userId)}
     LIMIT 1
   `;
   return grants.length > 0;
@@ -84,8 +86,9 @@ export async function mayCreateApiKeys(
  * Whether a person may connect a coding agent to one organization, by
  * signing in from the agent: the rule of holding a personal API key, read
  * for that organization alone. An owner, admin or developer there passes;
- * so does a member holding a live grant of a key-using capability in it,
- * while their seat is not disabled; nobody else. A connection works in the
+ * so does a member holding a live grant of a key-using capability in it —
+ * their own or their team's (`vouchesForUser`) — while their seat is not
+ * disabled; nobody else. A connection works in the
  * organization it was made for and nowhere else, so another organization's
  * role or grant never counts.
  */
@@ -97,12 +100,12 @@ export async function mayConnectAgentIn(
   if (defineAbilityFor(args.role).can('read', 'developerSettings')) return true;
   if (args.role.toLowerCase() === 'disabled') return false;
   const grants = await sql<{ id: string }[]>`
-    SELECT id FROM app.competence_records
-    WHERE user_id = ${args.userId}
-      AND org_id = ${args.organizationId}
-      AND competence IN ${sql([...API_KEY_CAPABILITIES])}
-      AND revoked_at_ms IS NULL
-      AND (expires_at_ms IS NULL OR expires_at_ms > ${now})
+    SELECT c.id FROM app.competence_records c
+    WHERE c.org_id = ${args.organizationId}
+      AND c.competence IN ${sql([...API_KEY_CAPABILITIES])}
+      AND c.revoked_at_ms IS NULL
+      AND (c.expires_at_ms IS NULL OR c.expires_at_ms > ${now})
+      AND ${vouchesForUser(sql, args.userId)}
     LIMIT 1
   `;
   return grants.length > 0;
