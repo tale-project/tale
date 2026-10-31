@@ -976,6 +976,10 @@ const AUTO_REFUSAL_REASONS: Record<ChatAutoResolutionRefusal, string> = {
     'No chat model is available for automatic selection — connect a provider with a direct credential, or pick a model explicitly.',
   'no-accessible-model':
     "Your organization's model-access policy leaves no model available for automatic selection.",
+  'no-eu-model':
+    'This organization processes prompts only in the EU/EEA, and no model available for automatic selection is served from an endpoint known to process there. An admin can serve one through a provider whose endpoint does.',
+  'model-policy-unreadable':
+    'The model access policy cannot be read, so no model is available for automatic selection until an admin restores it.',
   'no-vision-model':
     'None of the available models can view images. Remove the image attachments or pick a vision-capable model.',
 };

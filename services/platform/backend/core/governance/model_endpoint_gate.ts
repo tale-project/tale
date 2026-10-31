@@ -208,6 +208,33 @@ export function gatewayBuiltinRefusal(
   };
 }
 
+/** Why a list of models a person picks from left some out (GOV-R22): their
+ * endpoints may process outside the EU/EEA (`eu`), or the policy cannot be
+ * read, so every model is left out (`unreadable`). The chooser says which. */
+export type HiddenModelsRule = 'eu' | 'unreadable';
+
+/**
+ * `candidates` without the ones the organization's rule refuses — what a
+ * model chooser offers, so no one picks a model only to have the call
+ * refused (GOV-R22) — and, when it left any out, why. `refusalOf` asks the
+ * gate for one candidate: {@link modelEndpointRefusal} on the endpoint the
+ * call would go to, or {@link gatewayBuiltinRefusal} for the model gateway's
+ * built-in connection. Open, the list is returned as it was.
+ */
+export function withoutRefusedModels<T>(
+  policy: ModelEndpointPolicy,
+  candidates: readonly T[],
+  refusalOf: (candidate: T) => ModelEndpointRefusalData | undefined,
+): { readonly kept: T[]; readonly hiddenBy?: HiddenModelsRule } {
+  if (policy.kind === 'open') return { kept: [...candidates] };
+  const kept = candidates.filter(
+    (candidate) => refusalOf(candidate) === undefined,
+  );
+  return kept.length === candidates.length
+    ? { kept }
+    : { kept, hiddenBy: policy.kind };
+}
+
 /** Audit the refusal, then throw it. The entry is best effort: a write that
  * fails is logged and never turns the refusal into a call. */
 export async function refuseModelEndpoint(

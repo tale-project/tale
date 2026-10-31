@@ -3,14 +3,9 @@ import { randomUUID } from 'node:crypto';
 import type { ModelAccessConfig } from '@tale/shared/schemas/governance';
 import type { Sql } from 'postgres';
 
-import { isStandardGatewayProvider } from '../../../lib/shared/providers/gateway_standard_providers.ts';
 import { getUserTeamIds } from '../../auth/membership.ts';
 import { evaluateModelAccess } from '../../core/governance/model_access_enforcement.ts';
-import {
-  gatewayBuiltinRefusal,
-  modelEndpointPolicyOf,
-  modelEndpointRefusal,
-} from '../../core/governance/model_endpoint_gate.ts';
+import { modelEndpointPolicyOf } from '../../core/governance/model_endpoint_gate.ts';
 import { recordModelEndpointRefusal } from '../governance/model-endpoints.ts';
 import {
   type ModelApiCaller,
@@ -32,8 +27,9 @@ import {
 } from './metering.ts';
 import {
   listModelApiModels,
+  modelApiEndpointRefusal,
   type ModelApiModel,
-  ridesModelApiAnthropicLane,
+  offeredModelApiModels,
   splitModelApiId,
 } from './models.ts';
 import {
@@ -114,13 +110,18 @@ async function openDoor(
 }
 
 /** `GET /api/v1/openai/models` — the OpenAI list of what the holder may
- * call. `created` is 0: the catalog records no release date. */
+ * call on this wire, less what the EU/EEA processing rule refuses there
+ * (GOV-R22). `created` is 0: the catalog records no release date. */
 export async function listModelApiModelsForCaller(
   sql: Sql,
   caller: ModelApiRequestContext,
 ): Promise<Record<string, unknown>> {
-  await openDoor(sql, caller);
-  const models = await listModelApiModels(sql, caller);
+  const gate = await openDoor(sql, caller);
+  const models = offeredModelApiModels(
+    modelEndpointPolicyOf(gate.policy),
+    await listModelApiModels(sql, caller),
+    ['openai'],
+  ).kept;
   return {
     object: 'list',
     data: models.map((model) => ({
@@ -173,12 +174,9 @@ async function resolveModel(
 
 /**
  * The EU/EEA processing rule (GOV-R17): the endpoint the gateway would call
- * must process in the region. For a custom provider that is its own
- * endpoint, and on the Anthropic lane its native Anthropic endpoint; a
- * vendor the gateway implements itself it reaches through its built-in
- * connection, whatever endpoint the provider names. A refusal is audited and
- * answered as a model the holder may not call, before anything is held or
- * relayed.
+ * must process in the region (`modelApiEndpointRefusal`). A refusal is
+ * audited and answered as a model the holder may not call, before anything
+ * is held or relayed.
  */
 async function checkEndpointRegion(
   sql: Sql,
@@ -187,19 +185,12 @@ async function checkEndpointRegion(
   wire: ModelApiWire,
   model: ModelApiModel,
 ): Promise<void> {
-  const endpointPolicy = modelEndpointPolicyOf(policy);
   const providerName = model.providerSlug;
-  const refusal = ridesModelApiAnthropicLane(wire, model)
-    ? modelEndpointRefusal(endpointPolicy, {
-        providerName,
-        baseUrl: model.connector.harnessEndpoint?.baseUrl,
-      })
-    : isStandardGatewayProvider(providerName)
-      ? gatewayBuiltinRefusal(endpointPolicy, providerName)
-      : modelEndpointRefusal(endpointPolicy, {
-          providerName,
-          baseUrl: model.connector.baseUrl,
-        });
+  const refusal = modelApiEndpointRefusal(
+    modelEndpointPolicyOf(policy),
+    wire,
+    model,
+  );
   if (refusal === undefined) return;
   try {
     await recordModelEndpointRefusal(sql, {

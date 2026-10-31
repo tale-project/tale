@@ -17,6 +17,8 @@ import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { ChevronDown, Cpu } from 'lucide-react';
 import { useMemo } from 'react';
 
+import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
+import type { HiddenModelsRule } from '@/app/lib/backend/contract/lib';
 import { useT } from '@/lib/i18n/client';
 
 import { resolveSandboxAffordance } from '../lib/composer-execution';
@@ -31,6 +33,9 @@ interface ComposerModelPickerProps {
   selection: ComposerSelection;
   onSelectionChange: (next: ComposerSelection) => void;
   disabled?: boolean;
+  /** Set when the EU/EEA processing rule left models out of `models`
+   * (GOV-R22): the menu ends with the line that says why. */
+  modelsHiddenBy?: HiddenModelsRule;
 }
 
 /**
@@ -144,6 +149,7 @@ export function ComposerModelPicker({
   selection,
   onSelectionChange,
   disabled,
+  modelsHiddenBy,
 }: ComposerModelPickerProps) {
   const { t } = useT('chat');
 
@@ -191,7 +197,7 @@ export function ComposerModelPicker({
     // narrows to a single provider's direct-served models, and its header
     // says exactly whose wire those are) and the same model id is findable —
     // and PICKABLE — under each provider that serves it.
-    return providers.map((provider) => {
+    const groups = providers.map((provider) => {
       const group: DropdownMenuGroup = [
         {
           type: 'label' as const,
@@ -203,7 +209,21 @@ export function ComposerModelPicker({
       }
       return group;
     });
-  }, [models, selection, onSelectionChange]);
+    if (modelsHiddenBy !== undefined) {
+      groups.push([
+        {
+          type: 'custom',
+          content: (
+            <HiddenModelsNote
+              rule={modelsHiddenBy}
+              className="max-w-56 px-2 pt-1.5 pb-1 leading-snug"
+            />
+          ),
+        },
+      ]);
+    }
+    return groups;
+  }, [models, selection, onSelectionChange, modelsHiddenBy]);
 
   // Nothing selected is not the same as nothing to select: with options on
   // offer the trigger invites a pick; "no models" is reserved for a truly
