@@ -3,7 +3,7 @@ title: Prometheus und Grafana
 description: Erfasse Tale-Metriken mit einer Token-Datei, prüfe Scrape- und Alarmregeln und baue ein Dashboard aus vorhandenen Zeitreihen.
 ---
 
-Nutze eine vorhandene Prometheus- und Grafana-Installation, wenn du bereits eine betreibst. Das folgende Beispiel startet ein separates Compose-Projekt zur Überwachung und ruft Tale über den öffentlichen Proxy ab. Es umfasst dauerhaften Metrikspeicher, eine eingebundene Token-Datei und zwei erste Alarmregeln.
+Nutze eine vorhandene Prometheus- und Grafana-Installation, wenn du bereits eine betreibst. Das folgende Beispiel startet ein separates Compose-Projekt zur Überwachung und ruft Tale über den öffentlichen Proxy ab. Es umfasst dauerhaften Metrikspeicher, eine eingebundene Token-Datei und erste Alarmregeln.
 
 ## Zugriff und Dateien vorbereiten
 
@@ -99,11 +99,18 @@ groups:
         labels: { severity: ticket }
         annotations:
           summary: 'The dispatch of project {{ $labels.project }} has not passed for 15 minutes'
+      - alert: TaleAgentRunsOutOfMemory
+        expr: max(increase(tale_backend_agent_run_failures_total{code="resource_exhausted"}[1h])) > 0
+        labels: { severity: ticket }
+        annotations:
+          summary: 'An agent run ran out of memory in the last hour'
 ```
 
 Passe Dringlichkeit und Wartezeiten an deine Anforderungen an und richte die Zustellung über Alertmanager oder Grafana ein. Eine in Prometheus sichtbare Regel versendet für sich allein keine Benachrichtigung. Der Speicher-Alarm umfasst Bereitstellungsstandards, keine organisationsspezifischen Datenbanken oder Buckets.
 
 Der Alarm zur Arbeitsverteilung nennt ein Projekt, dessen Arbeitsverteilung eingeschaltet ist und seit 15 Minuten keinen Durchlauf abgeschlossen hat. Jede eingeschaltete Arbeitsverteilung läuft mindestens einmal pro Minute; ein Wert, der stehen bleibt, deutet auf angehaltene Job-Worker oder einen Durchlauf, der immer wieder fehlschlägt.
+
+Der Arbeitsspeicher-Alarm meldet, dass die Sandbox mindestens eines Agentenlaufs in der letzten Stunde an ihre Arbeitsspeichergrenze gestoßen ist. Ein solcher Lauf wird nach einer Pause wiederholt, wie [Wartende und fehlgeschlagene Läufe behandeln](/de/platform/projects/task-automation#handle-waiting-and-failed-runs) beschreibt, und jeder Versuch, dem der Arbeitsspeicher ausgeht, zählt erneut. Kommt der Alarm immer wieder, gib jeder Agentensitzung mit `SANDBOX_AGENT_MEMORY` mehr Arbeitsspeicher oder lass weniger Sitzungen gleichzeitig laufen, wie es die [Umgebungsreferenz](/de/self-hosted/configuration/environment-reference#sandbox-infrastructure) beschreibt.
 
 ## Erfassung starten und prüfen
 
@@ -131,5 +138,15 @@ docker compose -f compose.monitoring.yml up -d
 | Standardspeicher | `tale_backend_store_up` | Zwischengespeicherte Erreichbarkeit von `app_db`, `knowledge_db` und `object_store`. |
 | Bereitstellungs-Drain | `tale_backend_drain_active` | Ob das Entleeren vor einer Bereitstellung neue Turns zurückweist. |
 | Herzschlag der Arbeitsverteilung | `time() - tale_backend_dispatch_last_pass_timestamp_seconds` | Sekunden seit dem letzten abgeschlossenen Durchlauf jeder eingeschalteten Arbeitsverteilung eines Projekts. |
+| Wartende Agentenläufe | `max by (reason) (tale_backend_agent_runs_waiting)` | Agentenläufe, die gerade auf freien Platz warten, nach Grund. |
+| Neu wartende Agentenläufe | `max by (reason) (increase(tale_backend_agent_run_parks_total[1h]))` | Wie oft Agentenläufe in der letzten Stunde auf freien Platz warten mussten, nach Grund. |
+| Geweckte Agentenläufe | `max by (source) (increase(tale_backend_agent_run_wakes_total[1h]))` | Wartende Agentenläufe, die in der letzten Stunde neu gestartet wurden, nach Auslöser. `tale_backend_agent_run_wake_failures_total` zählt die fehlgeschlagenen Weckversuche; deren Läufe warten weiter auf den nächsten. |
+| Fehlgeschlagene Agentenläufe | `max by (code) (increase(tale_backend_agent_run_failures_total[1h]))` | Fehlgeschlagene Agentenläufe der letzten Stunde, nach Fehlercode. `resource_exhausted` heißt, dass einer Sandbox der Arbeitsspeicher ausgegangen ist. |
+
+Die Zeitreihen der Agentenläufe zählen die Aufgabenläufe von Projektagenten in allen Organisationen; Automatisierungsläufe zählen nicht mit. Ihre Summen liegen in der Datenbank, ein Neustart setzt sie also nicht zurück, und jedes API-Replikat meldet dieselben Werte für die ganze Bereitstellung: Fasse Replikate mit `max` zusammen, nie mit `sum`. Kann ein Replikat die Datenbank nicht lesen, meldet es bei diesem Scrape keine Summen; ein Diagramm zeigt dann eine Lücke statt eines Rückgangs. Ein Ereignis zählt, sobald es gespeichert ist; endet ein Prozess genau dazwischen, kann diese eine Zählung fehlen. Die Labels stammen aus festen Listen und nennen nie eine Organisation, eine Aufgabe oder einen Lauf:
+
+- `reason`: `org_limit` (alle Agenten-Worker der Organisation sind belegt), `host` (die Bereitstellung ist voll oder hat zu wenig Arbeitsspeicher oder Speicherplatz), `destroy_pending` (der Arbeitsbereich, den der Lauf nutzen würde, wird gerade gelöscht), `exec_limit` (seine Sandbox beendet noch einen früheren Prozess), `model_capacity` (sein KI-Modell ist ausgelastet) oder `unknown`. [Sandboxes](/de/platform/admin/sandboxes#einen-blockierten-start-klaeren) erklärt, wie du jedes Warten auflöst.
+- `source`: `release` (ein Worker oder Sandbox-Platz wurde freigegeben), `scheduled` (der für diesen Lauf geplante Weckruf wurde fällig, etwa weil er in der Warteschlange des Sandbox-Hosts an der Reihe war) oder `watchdog` (der regelmäßige Durchgang, der Läufe weckt, die sonst nichts geweckt hat).
+- `code`: der Fehlercode, mit dem der Lauf endete, oder `unknown`, wenn er keinen hat, den diese Version kennt.
 
 Einige Metriken lesen gemeinsame Datenbankzähler, andere beschreiben einen einzelnen Prozess. Erfasse bei mehreren Replikaten die Prozessmetriken einzeln über dein privates Monitoring-Netz und vermeide mehrfaches Zählen gemeinsamer Werte. [Betrieb überwachen](/de/self-hosted/operate/observability/operations) erklärt die Grenzen der Speicherprüfungen und die zusätzlichen Messungen für die SLA-Regelvorlage.
