@@ -3338,14 +3338,18 @@ export async function getProject(
   return stampAccessFlags(project, auth);
 }
 
-/** Case-insensitive name search across visible projects (bounded). */
+/**
+ * Case-insensitive name search across visible projects (bounded), with the
+ * access flags {@link listProjects} stamps: a picker that searches here
+ * instead of loading every project still knows which rows it may write to.
+ */
 export async function searchProjects(
   sql: Sql,
   auth: ProjectAuthContext,
   query: string,
   limit = 20,
   options: ProjectReadOptions = {},
-): Promise<ProjectRow[]> {
+): Promise<ProjectListRow[]> {
   const term = `%${query.trim()}%`;
   if (query.trim().length === 0) {
     return [];
@@ -3353,7 +3357,7 @@ export async function searchProjects(
   // #2999: an archived project stays searchable. `PROJECT_COLUMNS` already
   // carries `archived_at_ms`, so the caller labels the row from what it gets.
   // Archived rows sort last so they cannot fill the capped page.
-  return sql<ProjectRow[]>`
+  const rows = await sql<ProjectRow[]>`
     SELECT ${sql.unsafe(options.summary === true ? PROJECT_SUMMARY_COLUMNS : PROJECT_COLUMNS)} FROM app.projects
     WHERE org_id = ${auth.organizationId}
       AND name ILIKE ${term}
@@ -3361,6 +3365,7 @@ export async function searchProjects(
     ORDER BY (archived_at_ms IS NOT NULL), updated_at_ms DESC
     LIMIT ${Math.min(limit, 50)}
   `;
+  return rows.map((row) => stampAccessFlags(row, auth));
 }
 
 /**

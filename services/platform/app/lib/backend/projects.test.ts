@@ -6,9 +6,11 @@ import { AppError } from '@/lib/shared/errors/app-error';
 import { activeOrganizationId } from './adapters';
 import {
   projectActionQueryAdapters,
+  projectDetailQuery,
   projectPaginatedAdapters,
   projectReadAdapters,
   projectWriteAdapters,
+  searchProjectsQuery,
 } from './projects';
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -362,6 +364,48 @@ describe('project read adapters', () => {
       {},
     );
     await expect(row?.queryFn()).resolves.toBeNull();
+  });
+
+  it('reads a search row as a list row, access flags kept, under the adapter key', async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch').mockResolvedValue(
+      jsonResponse(200, {
+        projects: [wireProject({ archivedAt: 9000, canEdit: false })],
+      }),
+    );
+    const search = searchProjectsQuery({
+      organizationId: 'org-1',
+      query: 'Apo',
+    });
+    expect(search.queryKey).toEqual(
+      projectReadAdapters['projects/queries:searchProjects']?.(
+        { organizationId: 'org-1', query: 'Apo' },
+        {},
+      )?.queryKey,
+    );
+    await expect(search.queryFn()).resolves.toEqual([
+      expect.objectContaining({
+        _id: 'p1',
+        name: 'Apollo',
+        key: 'APO',
+        archivedAt: 9000,
+        isOrgWide: true,
+        canEdit: false,
+        canAdminister: false,
+      }),
+    ]);
+    expect(fetchSpy.mock.calls.at(-1)?.[0]).toBe(
+      '/api/app/projects/search?q=Apo&summary=true&orgId=org-1',
+    );
+    const detail = projectDetailQuery({
+      organizationId: 'org-1',
+      projectId: 'p1',
+    });
+    expect(detail.queryKey).toEqual(
+      projectReadAdapters['projects/queries:getProject']?.(
+        { organizationId: 'org-1', projectId: 'p1' },
+        {},
+      )?.queryKey,
+    );
   });
 
   it('projects the palette search hit with the 0.4 snippet', async () => {

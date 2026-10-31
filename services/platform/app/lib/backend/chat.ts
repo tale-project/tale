@@ -1189,46 +1189,6 @@ export async function setChatModelPreference(
   });
 }
 
-/** The chat sub-panel's project folders (a projection of the full rows). */
-export function chatProjectsQuery(organizationId: string) {
-  return queryOptions({
-    queryKey: backendKey(organizationId, 'project', 'chat-panel'),
-    queryFn: ({ signal }) =>
-      backendFetch<{
-        projects: {
-          id: string;
-          name: string;
-          key?: string | null;
-          icon?: string | null;
-          color?: string | null;
-          pinnedAt?: number | null;
-          projectAgentCount?: number;
-          managedAgentCount?: number;
-          canEdit?: boolean;
-        }[];
-      }>('/projects', { signal, orgId: organizationId }).then((body) =>
-        body.projects.map((row) =>
-          Object.assign(
-            { _id: row.id, name: row.name },
-            row.key != null ? { key: row.key } : {},
-            row.icon != null ? { icon: row.icon } : {},
-            row.color != null ? { color: row.color } : {},
-            row.pinnedAt != null ? { pinnedAt: row.pinnedAt } : {},
-            // The hand-over asks where work can go: which projects have an
-            // agent, and whether the reader may add one.
-            typeof row.projectAgentCount === 'number'
-              ? { projectAgentCount: row.projectAgentCount }
-              : {},
-            typeof row.managedAgentCount === 'number'
-              ? { managedAgentCount: row.managedAgentCount }
-              : {},
-            typeof row.canEdit === 'boolean' ? { canEdit: row.canEdit } : {},
-          ),
-        ),
-      ),
-  });
-}
-
 export async function setProjectPinnedRequest(
   organizationId: string,
   projectId: string,
