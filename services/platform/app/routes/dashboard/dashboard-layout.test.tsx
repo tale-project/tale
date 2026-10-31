@@ -35,6 +35,9 @@ globalThis.ResizeObserver =
 
 const mockUseParams = vi.fn(() => ({ id: 'test-org-id' }));
 const mockNavigate = vi.fn();
+// Where the shell stands; a test moves it to walk from page to page.
+const SHELL_PATH = '/dashboard/test-org-id';
+const routerLocation = vi.hoisted(() => ({ pathname: '' }));
 
 // The shell's outlet holds a probe that reports what a page under it reads
 // from the shell, unless a test mounts a real child layout there; that
@@ -81,7 +84,7 @@ vi.mock('@tanstack/react-router', () => ({
     children: React.ReactNode;
   }) => <a href={to.replace('$id', params?.id ?? '')}>{children}</a>,
   useNavigate: () => mockNavigate,
-  useLocation: () => ({ pathname: '/dashboard/test-org-id' }),
+  useLocation: () => ({ pathname: routerLocation.pathname, search: {} }),
   useParams: () => mockUseParams(),
   useBlocker: () => ({ status: 'idle', proceed: vi.fn(), reset: vi.fn() }),
 }));
@@ -246,6 +249,7 @@ let DashboardLayout: React.ComponentType;
 beforeEach(
   async () => {
     vi.clearAllMocks();
+    routerLocation.pathname = SHELL_PATH;
     mockUseParams.mockReturnValue({ id: 'test-org-id' });
     mockUseQuery.mockReturnValue({ data: undefined });
     mockSetActive.mockReset().mockResolvedValue({ data: {}, error: null });
@@ -727,6 +731,48 @@ describe('DashboardLayout', () => {
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
     expect(notice.className).not.toMatch(/\bfixed\b/);
+  });
+
+  // Another project, or another kind of Home page, shows at once beside the
+  // panel: nothing in the frame fades it in.
+  it('moves between Home pages without fading the page', () => {
+    mockUseConvexAuth.mockReturnValue({
+      isLoading: false,
+      isAuthenticated: true,
+    });
+    mockUseCurrentMemberContext.mockReturnValue({
+      data: {
+        status: 'ok',
+        role: 'admin',
+        memberId: 'm1',
+        organizationId: 'org-1',
+      },
+      isLoading: false,
+      isError: false,
+    });
+    // jsdom has no Web Animations API; a fade would play through it.
+    const animate = vi.fn();
+    Object.defineProperty(HTMLElement.prototype, 'animate', {
+      value: animate,
+      configurable: true,
+      writable: true,
+    });
+
+    try {
+      routerLocation.pathname = `${SHELL_PATH}/projects/project-a`;
+      const { rerender } = render(<DashboardLayout />);
+      expect(screen.getByTestId('home-panel')).toBeInTheDocument();
+
+      for (const page of ['projects/project-b', 'chat', 'tasks/task-1']) {
+        routerLocation.pathname = `${SHELL_PATH}/${page}`;
+        rerender(<DashboardLayout />);
+        expect(screen.getByTestId('outlet')).toBeInTheDocument();
+      }
+
+      expect(animate).not.toHaveBeenCalled();
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, 'animate');
+    }
   });
 });
 

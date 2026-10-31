@@ -684,8 +684,9 @@ Restore any toggled setting after the run.
   **Governance · Policies & Limits** (`navigation.governance` ·
   `governance.groups.policiesAndLimits`), then **Branding** — never a bare
   **Settings**, which the panel's own header already says; Branding's **Save**
-  / **Discard** cluster sits in that same page header; each switch fades the
-  new page in while the panel stays put, its scroll untouched.
+  / **Discard** cluster sits in that same page header; each switch shows the
+  new page at once, at its top and with no fade, while the panel stays put,
+  its scroll untouched.
 - [ ] `SET-F47` · **A page never prints its own name twice** — Desktop, as
   owner: open **Teams**, **Members** and **Notifications** in the Settings
   panel → Under the header **Teams** (`navigation.teams`) the page opens on
