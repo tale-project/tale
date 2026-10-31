@@ -56,10 +56,11 @@ export interface HomeData {
     readonly projects: boolean;
   };
   /**
-   * Per source: its read gave up with nothing to show (#4093). Its rows are
-   * missing, not absent — a view that lists them says so and offers
-   * `retry`, never its empty state — and it is not loading, through a retry
-   * either, so the notice holds until an answer replaces it.
+   * Per source: its read gave up with nothing to show (#4093), or — for the
+   * chats — on a page after the ones that loaded. Its rows are missing, not
+   * absent — a view that lists them says so and offers `retry`, never its
+   * empty state — and it is not loading, through a retry either, so the
+   * notice holds until an answer replaces it.
    */
   readonly failed: {
     readonly chats: boolean;
@@ -78,6 +79,18 @@ export interface HomeData {
     readonly chats: number | null;
     readonly tasks: number | null;
     readonly inbox: number | null;
+  };
+  /**
+   * The chat list arrives a page at a time, and everything above — the
+   * rows, `threadsById`, the chats' dot — covers the pages loaded so far:
+   * whether a page is left beyond them, whether one is loading, and the ask
+   * for the next. A page that failed is `failed.chats`, asked for again by
+   * `retry`; until it answers, no further page is offered.
+   */
+  readonly chatPaging: {
+    readonly canLoadMore: boolean;
+    readonly isLoadingMore: boolean;
+    readonly loadMore: () => void;
   };
 }
 
@@ -159,12 +172,13 @@ export function toHomeConversationItem(
 /**
  * Everything the Home stream lists, from the three feature reads it is made
  * of. Each source keeps its own access rule and cache — the chat list is the
- * caller's own threads, the tasks are the open ones assigned to them across
- * every project they can read, and the inbox is the first page of OPEN
- * conversations their inbox scope shows. Always open, whichever status the
- * Inbox view was left on: that view reads its own pages, and the stream and
- * the Inbox dot are about what still needs an answer. A read that fails is
- * reported as `failed`, with a `retry` for it, never as an empty source.
+ * caller's own threads, a page at a time (`chatPaging`), the tasks are the
+ * open ones assigned to them across every project they can read, and the
+ * inbox is the first page of OPEN conversations their inbox scope shows.
+ * Always open, whichever status the Inbox view was left on: that view reads
+ * its own pages, and the stream and the Inbox dot are about what still needs
+ * an answer. A read that fails is reported as `failed`, with a `retry` for
+ * it, never as an empty source.
  */
 export function useHomeData(
   organizationId: string,
@@ -296,8 +310,15 @@ export function useHomeData(
     threads.status === 'loading' ||
     (includeArchived && archivedThreads.status === 'loading');
   const chatsRetrying = chatRetryPending && chatsLoading;
+  // A page after the first that failed leaves the chats partial: the pages
+  // before it stay listed, and the failure is still named.
+  const chatPageFailed = threads.status === 'ready' && threads.pageFailed;
+  const chatPageRetrying = chatPageFailed && threads.isLoadingMore;
   const chatsFailed =
-    threadsUnavailable || archivedUnavailable || chatsRetrying;
+    threadsUnavailable ||
+    archivedUnavailable ||
+    chatsRetrying ||
+    chatPageFailed;
   // Either read failing leaves "my tasks" partial: what the other answered
   // stays listed, and the failure is still named.
   const tasksFailed =
@@ -305,6 +326,7 @@ export function useHomeData(
   const conversationsFailed = hasInbox && conversations.unavailable;
   const retrying =
     chatsRetrying ||
+    chatPageRetrying ||
     (tasksQuery.read.kind === 'failed' && tasksQuery.read.retrying) ||
     (reviewsQuery.read.kind === 'failed' && reviewsQuery.read.retrying) ||
     (conversationsFailed && conversations.isRetrying);
@@ -316,6 +338,7 @@ export function useHomeData(
     if (conversationsFailed && !conversations.isRetrying) {
       conversations.retry();
     }
+    if (chatPageFailed && !chatPageRetrying) threads.retryPage();
     if ((threadsUnavailable || archivedUnavailable) && !chatRetryPending) {
       setChatRetryPending(true);
       void retryChatLists({
@@ -356,6 +379,18 @@ export function useHomeData(
     return map;
   }, [activeThreadRows, archivedThreadRows]);
 
+  // While a page has failed, the notice names it and its Try again asks for
+  // it: the stream offers no further page, nor a spinner of its own.
+  const { canLoadMore, isLoadingMore, loadMore } = threads;
+  const chatPaging = useMemo(
+    () => ({
+      canLoadMore: canLoadMore && !chatPageFailed,
+      isLoadingMore: isLoadingMore && !chatPageFailed,
+      loadMore,
+    }),
+    [canLoadMore, isLoadingMore, loadMore, chatPageFailed],
+  );
+
   return {
     items,
     threadsById,
@@ -383,5 +418,6 @@ export function useHomeData(
     retry,
     hasInbox,
     attention,
+    chatPaging,
   };
 }

@@ -324,6 +324,15 @@ vi.mock('../data/branch-actions', () => ({
   useBranchActions: vi.fn(),
 }));
 
+/** The paging half of a thread list read whose last page is in. */
+const LAST_THREAD_PAGE = {
+  canLoadMore: false,
+  isLoadingMore: false,
+  loadMore: () => {},
+  pageFailed: false,
+  retryPage: () => {},
+};
+
 const editBranchActions = {
   available: true,
   branchForEdit: vi.fn(),
@@ -361,6 +370,7 @@ afterEach(() => {
     status: 'unavailable' as const,
   }));
   vi.mocked(useChatThreads).mockImplementation(() => ({
+    ...LAST_THREAD_PAGE,
     status: 'unavailable' as const,
   }));
   vi.mocked(useChatThread).mockImplementation(() => ({
@@ -556,7 +566,10 @@ describe('ChatSurface when the model listing answers and is empty', () => {
  */
 describe('ChatSurface while its reads are still loading', () => {
   beforeEach(() => {
-    vi.mocked(useChatThreads).mockReturnValue({ status: 'loading' as const });
+    vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
+      status: 'loading' as const,
+    });
     vi.mocked(useThreadView).mockReturnValue({
       status: 'loading',
       items: [],
@@ -617,6 +630,7 @@ describe('ChatSurface while its reads are still loading', () => {
 
   it('enables send once the reads settle', () => {
     vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
       status: 'ready' as const,
       data: [],
     });
@@ -654,7 +668,11 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
 
   beforeEach(() => {
     start.mockReset();
-    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
+      status: 'ready',
+      data: [],
+    });
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready',
       data: {
@@ -1747,6 +1765,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
 
     // The new row can arrive without the pick (the race this test locks).
     vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
       status: 'ready',
       data: [
         {
@@ -2364,7 +2383,11 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
  */
 describe('ChatSurface Home panel toggle', () => {
   beforeEach(() => {
-    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
+      status: 'ready',
+      data: [],
+    });
   });
 
   afterEach(() => {
@@ -2428,7 +2451,11 @@ describe('ChatSurface Home panel toggle', () => {
  */
 describe('ChatSurface header for a chat outside the list', () => {
   beforeEach(() => {
-    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
+      status: 'ready',
+      data: [],
+    });
     vi.mocked(useChatThread).mockReturnValue({
       status: 'ready',
       data: {
@@ -2455,10 +2482,86 @@ describe('ChatSurface header for a chat outside the list', () => {
   });
 });
 
+/**
+ * The list arrives a page at a time (#5153): one of the caller's own chats
+ * on a page not loaded yet keeps the owner's row actions, from the thread's
+ * own read — and a chat the list never holds still gets none.
+ */
+describe('ChatSurface header for an own chat on a page not loaded yet', () => {
+  const OWN_THREAD = {
+    id: 't-older',
+    title: 'Budget review',
+    kind: 'direct' as const,
+    archived: false,
+    createdAt: 1,
+    updatedAt: 2,
+    generating: false,
+    viewerIsOwner: true,
+  };
+
+  beforeEach(() => {
+    vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
+      canLoadMore: true,
+      status: 'ready',
+      data: [],
+    });
+    vi.mocked(useChatThread).mockReturnValue({
+      status: 'ready',
+      data: OWN_THREAD,
+    });
+  });
+
+  async function openConversationMenu(user: ReturnType<typeof render>['user']) {
+    const [menu] = screen.getAllByRole('button', {
+      name: 'Conversation actions',
+    });
+    if (menu === undefined) throw new Error('no conversation menu');
+    await user.click(menu);
+    await screen.findByRole('menuitem', { name: 'Export' });
+  }
+
+  it('offers the owner’s row actions in the conversation menu', async () => {
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="t-older" />,
+    );
+
+    await openConversationMenu(user);
+    expect(
+      screen.getByRole('menuitem', { name: 'Pin chat' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitem', { name: 'Archive' }),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    ['an archived chat', { archived: true }],
+    ['a teammate’s chat shared into a project', { viewerIsOwner: false }],
+    ['the last chat’s answer, held while this one loads', { id: 't-last' }],
+  ])('offers none for %s', async (_case, overrides) => {
+    vi.mocked(useChatThread).mockReturnValue({
+      status: 'ready',
+      data: { ...OWN_THREAD, ...overrides },
+    });
+    const { user } = render(
+      <ChatSurface organizationId="org-1" threadId="t-older" />,
+    );
+
+    await openConversationMenu(user);
+    expect(screen.queryByRole('menuitem', { name: 'Pin chat' })).toBeNull();
+    expect(screen.queryByRole('menuitem', { name: 'Archive' })).toBeNull();
+  });
+});
+
 describe('ChatSurface reads the budget standing of the chat’s project [GOV-R6]', () => {
   beforeEach(() => {
     vi.mocked(useMyBudgetStatus).mockClear();
-    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
+      status: 'ready',
+      data: [],
+    });
   });
 
   it('with the project a new chat is started in', () => {
@@ -2495,7 +2598,11 @@ describe('ChatSurface reads the budget standing of the chat’s project [GOV-R6]
 
 describe('ChatSurface on a dead thread link', () => {
   beforeEach(() => {
-    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
+      status: 'ready',
+      data: [],
+    });
     vi.mocked(useComposerModels).mockReturnValue({
       status: 'ready',
       data: {
@@ -2564,6 +2671,7 @@ describe('ChatSurface on a dead thread link', () => {
 describe('ChatSurface resume on the chat index', () => {
   it('opens the most recent thread when landing without a fresh intent', async () => {
     vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
       status: 'ready',
       data: [
         {
@@ -2600,6 +2708,7 @@ describe('ChatSurface resume on the chat index', () => {
 
   it('stays on the blank composer when startFresh is set', () => {
     vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
       status: 'ready',
       data: [
         {
@@ -2654,6 +2763,7 @@ describe('ChatSurface on an archived thread', () => {
 
   beforeEach(() => {
     vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
       status: 'ready',
       data: [ARCHIVED_THREAD],
     });
@@ -2773,7 +2883,11 @@ describe('ChatSurface on a conversation shared with the project', () => {
 
   beforeEach(() => {
     // Someone else's conversation is never a row of the reader's own list.
-    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
+      status: 'ready',
+      data: [],
+    });
     vi.mocked(useChatThread).mockReturnValue({
       status: 'ready',
       data: SHARED_THREAD,
@@ -2982,6 +3096,7 @@ describe('ChatSurface — the skills a conversation uses [CHAT-R29]', () => {
       pendingConsumed: false,
     } as never);
     vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
       status: 'ready',
       data: [
         {
@@ -3035,7 +3150,11 @@ describe('ChatSurface — the skills a conversation uses [CHAT-R29]', () => {
       streamingMessageId: undefined,
       pendingConsumed: false,
     } as never);
-    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
+      status: 'ready',
+      data: [],
+    });
     vi.mocked(useChatThread).mockReturnValue({
       status: 'ready',
       data: {
@@ -3066,6 +3185,7 @@ describe('ChatSurface — the skills a conversation uses [CHAT-R29]', () => {
       skills: [{ slug: 'docx' }],
     });
     vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
       status: 'ready',
       data: [
         {
@@ -3125,7 +3245,11 @@ describe('ChatSurface — the skills a conversation uses [CHAT-R29]', () => {
         ],
       },
     });
-    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
+      status: 'ready',
+      data: [],
+    });
     vi.mocked(useComposerSkills).mockReturnValue({
       enabled: true,
       skills: [{ slug: 'xlsx' }],
@@ -3167,7 +3291,11 @@ describe('ChatSurface — the skills a conversation uses [CHAT-R29]', () => {
 
   it('starts a new chat with the skills chosen for it', async () => {
     vi.mocked(useComposerModels).mockReturnValue(READY_MODELS);
-    vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
+    vi.mocked(useChatThreads).mockReturnValue({
+      ...LAST_THREAD_PAGE,
+      status: 'ready',
+      data: [],
+    });
     vi.mocked(useComposerSkills).mockReturnValue({
       enabled: true,
       skills: [{ slug: 'xlsx' }],
