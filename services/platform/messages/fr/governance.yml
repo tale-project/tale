@@ -1136,6 +1136,9 @@ competences:
     qualificationsGroup: Ton organisation
     qualificationOption: Qualification
     qualificationOptionDescription: Un nom exigé par ta politique de relecture
+    modelApiOff:
+      description: Les endpoints de modèles ne sont pas activés pour cette organisation. Le membre ne pourra appeler les modèles qu'après leur activation.
+      link: Ouvrir l'accès aux modèles
     qualificationLabel: Nom de la qualification
     qualificationDescription: Le nom utilisé par ta politique de relecture, par exemple tax-reviewer.
     expiryLabel: Expire
