@@ -35,7 +35,7 @@ vi.mock('../tasks/run-start.ts', () => ({
   mentionAutomationEnabled: vi.fn(),
 }));
 
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the reader hands the connection on, never queries it itself
+// The reader hands the connection on and never queries it itself.
 const sql = {} as Sql;
 const ARGS = { organizationId: 'org-a', userId: 'user-1' };
 

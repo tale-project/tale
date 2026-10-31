@@ -64,7 +64,6 @@ function fakeSql(rows: unknown[]): { sql: Sql; statements: Statement[] } {
     const fragment: Fragment = { [FRAGMENT]: true, text, values: flat };
     return Object.assign(Promise.resolve(rows), fragment);
   };
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double for the postgres.js tag
   const sql = Object.assign(run, {
     unsafe: (text: string) => text,
   }) as unknown as Sql;
