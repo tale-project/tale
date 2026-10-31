@@ -664,6 +664,54 @@ chatTools:
     Word-, Excel-, PowerPoint- und PDF-Dateien, Diagramme und Berechnungen.
     Zählt zum Limit für leichte Sandboxes unter Sandboxes.
   saveFailed: Die Chat-Tools konnten nicht gespeichert werden
+chatToolStatus:
+  title: Status der Chat-Tools
+  description:
+    Ob der Chat in dieser Organisation gerade Dateien erstellen, Code
+    ausführen, Skills nutzen und Bilder erstellen kann – und was im Weg
+    steht, wo nicht.
+  checkAgain: Erneut prüfen
+  checkedAt: Geprüft um {time}
+  loadFailed: Die Chat-Tools konnten nicht geprüft werden.
+  refreshFailed:
+    Die Chat-Tools konnten nicht erneut geprüft werden. Angezeigt wird die
+    letzte Prüfung.
+  images: Bilder
+  imageModel: Nutzt {model} von {provider}.
+  states:
+    available: Verfügbar
+    limited: Eingeschränkt
+    unavailable: Nicht verfügbar
+  reasons:
+    policyOff: Unter Chat-Tools auf dieser Seite ausgeschaltet.
+    policyUnreadable:
+      Die Richtlinie für Chat-Tools kann nicht gelesen werden. Bis sie
+      repariert ist, bleibt dieses Tool aus.
+    sandboxNotConfigured:
+      Für dieses Deployment ist kein Sandbox-Dienst eingerichtet, daher kann
+      kein Code laufen.
+    sandboxUnreachable:
+      Der Sandbox-Dienst hat gerade nicht geantwortet, daher kann kein Code
+      laufen.
+    sandboxStartFailed: 'Letzter Sandbox-Start, {when}: {failure}.'
+    skillLibraryUnreadable:
+      Die Skill-Bibliothek der Organisation kann nicht gelesen werden.
+    documentSkillsMissing:
+      'Dokument-Skills, die in der Skill-Bibliothek der Organisation fehlen:
+      {skills}.'
+    imageGenerationOff: Die Bildgenerierung ist unter Modelle ausgeschaltet.
+    imagePolicyUnreadable:
+      Die Richtlinie für die Bildgenerierung kann nicht gelesen werden.
+    noImageModel: Kein verbundener Anbieter bietet ein Bildmodell an.
+    imageModelUnavailable:
+      Das unter Modelle gewählte Bildmodell kann nicht genutzt werden.
+    imageModelOutsideEu:
+      Diese Organisation verarbeitet Prompts nur in der EU/im EWR, und vom
+      Endpunkt des Bildmodells ist nicht bekannt, dass er dort verarbeitet.
+    modelAccessUnreadable:
+      Die Modellzugriffsrichtlinie kann nicht gelesen werden, daher kann Tale
+      nicht erkennen, ob Prompts in der EU/im EWR bleiben müssen.
+    imageModelCheckFailed: Die Bildmodelle konnten nicht geprüft werden.
 skillSharing:
   title: Skill-Freigabe
   description: Lege fest, wer einen Skill mit der ganzen Organisation teilen

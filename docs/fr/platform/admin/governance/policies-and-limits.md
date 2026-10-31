@@ -99,6 +99,17 @@ Le commutateur par défaut des instructions personnalisées enregistre la valeur
 
 Les trois sont activés tant que tu n’en désactives pas un, et un fichier de politique absent les laisse activés. Un fichier de politique qui existe mais ne peut pas être lu désactive les trois jusqu’à sa réparation : un fichier défectueux ne réactive donc jamais ce que tu as désactivé, et cette page indique alors que la politique n’a pas pu être lue. Modifie les interrupteurs, puis enregistre les modifications en attente dans l’en-tête de la page ; la prochaine réponse de chaque chat les applique. Les images ne relèvent pas de cette section : le chat n’en crée que lorsque la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images) est activée. [Créer des fichiers et utiliser des skills dans le chat](/fr/platform/chat/files-and-skills) montre ce que voient les membres.
 
+### Voir ce que le chat peut utiliser {#chat-tool-status}
+
+**État des outils du chat**, sous les interrupteurs, montre aux propriétaires et aux admins si le chat de ton organisation peut en ce moment créer des fichiers, exécuter du code, utiliser des skills et créer des images. Chacun indique **Disponible**, **Limité** ou **Indisponible**, avec ce qui l’en empêche :
+
+- **Fichiers**, **Code** et **Skills** sont indisponibles tant que leur interrupteur ci-dessus est désactivé, et les trois tant que le fichier de politique est illisible.
+- **Code** a aussi besoin du service de sandbox du déploiement. Il est indisponible quand aucun n’est configuré ou que le service ne répond pas, et limité quand le dernier démarrage d’une sandbox légère de la semaine écoulée a échoué ; le panneau indique alors quand, et la raison que l’étape de la réponse a affichée, comme **La sandbox n'est pas encore prête**.
+- **Skills** est limité quand un skill de documents intégré (`docx`, `pdf`, `pptx` ou `xlsx`) manque dans la bibliothèque de skills de l’organisation, et nomme ceux qui manquent. Le code peut toujours créer ces fichiers, sans les instructions du skill.
+- **Images** suit la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images) : indisponible tant qu’elle est désactivée, quand aucun fournisseur connecté ne propose de modèle d’images, quand le modèle choisi est inutilisable ou quand ton organisation [ne traite les prompts que dans l’UE/EEE](/fr/platform/admin/governance/content-models#eu-processing) et que rien n’indique que l’endpoint du modèle d’images les y traite. Quand il est disponible, il nomme le modèle qu’une réponse utilise.
+
+Le panneau lit ce qu’une réponse lit et ne modifie rien. Il vérifie à nouveau quand tu enregistres une politique sur cette page ; **Vérifier à nouveau** regarde de nouveau après un changement ailleurs, par exemple d’identifiants fournisseur. Pour une demande d’assistance, un propriétaire ou un admin connecté à Tale peut ouvrir `/api/app/chat/work-tools?orgId=<ID de l’organisation>` dans le même navigateur et transmettre le JSON affiché.
+
 ## Afficher un avis de confidentialité dans le chat
 
 **Avis de confidentialité** ajoute une courte ligne au chat pour tous les membres de ton organisation, par exemple pour rappeler de ne pas partager de données sensibles : sous le champ de message d’un nouveau chat, puis sous le dernier message dès qu’un chat contient des messages. L’avis reste désactivé tant que tu ne l’actives pas.

@@ -17,6 +17,7 @@ import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
 import { MODEL_ENDPOINT_REFUSAL_CODES } from '../../core/governance/model_endpoint_gate.ts';
+import { isAdmin } from '../../core/lib/rls/helpers/role_helpers.ts';
 import { sanitizeError } from '../../core/lib/utils/sanitize_secrets.ts';
 import {
   invalidBodyIssuesResponse,
@@ -58,6 +59,7 @@ import { getOrgChatHealth } from './health.ts';
 import { listMessageViews } from './message-views.ts';
 import { runChatTurn } from './service.ts';
 import { appendMessageRow } from './store.ts';
+import { readChatWorkToolsStatus } from './work-tools-status.ts';
 import { listChatSkillChoices } from './work-tools.ts';
 
 /** The pre-turn refusals of the serving layer: the model is not available to
@@ -920,6 +922,16 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     return c.json(
       await getOrgChatHealth(deps.sql, c.get('orgId'), { periodDays }),
     );
+  });
+
+  /** Whether chat can use each work tool, and why not (the Governance
+   * page's Chat tool status; owners and admins). */
+  app.get('/work-tools', async (c) => {
+    if (!isAdmin(c.get('orgMember').role)) {
+      return c.json({ error: 'admin role required' }, 403);
+    }
+    c.header('Cache-Control', 'no-store');
+    return c.json(await readChatWorkToolsStatus(deps.sql, c.get('orgId')));
   });
 
   app.get('/composer/automation-capabilities', async (c) => {

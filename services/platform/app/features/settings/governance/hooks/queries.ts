@@ -53,6 +53,18 @@ export function useGovernancePolicy(
   });
 }
 
+/** Whether chat can make files, run code, use skills and make images, and
+ * why not. Owners and admins only: anyone else skips the read. */
+export function useChatWorkToolsStatus(
+  organizationId: string,
+  options: { enabled: boolean },
+) {
+  return useBackendQuery(
+    'chat/work_tools:getWorkToolsStatus',
+    options.enabled ? { organizationId } : 'skip',
+  );
+}
+
 export function useDsarPolicyForUi(organizationId: string) {
   return useBackendQuery('governance/dsar_policy:getDsarPolicyForUi', {
     organizationId,
