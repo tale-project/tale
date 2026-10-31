@@ -41,7 +41,7 @@ irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli
 
 Der Unix-Installer wählt die Datei für dein Betriebssystem und deine CPU. Er ersetzt standardmäßig eine vorhandene `tale`-Datei im `PATH` oder installiert sie unter `/usr/local/bin`. Nur wenn das Verzeichnis sonst nicht beschreibbar ist, fordert er `sudo` an. Unter Windows nutzt der Installer standardmäßig `%LOCALAPPDATA%\Programs\tale` und ergänzt den `PATH` deines Benutzers.
 
-Fertige Binärdateien gibt es für macOS mit Apple Silicon oder Intel, Linux mit x86_64 oder arm64 sowie Windows x64. Windows ARM benötigt die x64-Emulation. Bei einer nicht unterstützten Unix-Architektur verweist der Installer auf den Build aus dem Quellcode.
+Fertige Binärdateien gibt es für macOS mit Apple Silicon oder Intel, Linux mit x86_64 oder arm64 sowie Windows x64. Windows ARM benötigt die x64-Emulation. Auf einem anderen Unix-System oder einer anderen Architektur nennt der Installer die Schritte, mit denen du die CLI auf diesem Rechner mit Bun aus dem Quellcode baust, und wohin sie gehört.
 
 Mit `VERSION` legst du eine Release-Version fest, mit `INSTALL_DIR` ein anderes Zielverzeichnis. **Exportiere** diese Variablen in einer Unix-Shell vor dem Aufruf der Pipeline, damit auch `bash` sie erhält. Eine Zuweisung nur vor `curl` erreicht den Installer nicht. In PowerShell nutzt du `$env:VERSION` und `$env:INSTALL_DIR`.
 

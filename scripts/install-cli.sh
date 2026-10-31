@@ -22,10 +22,17 @@ info() { printf "\033[1;36m%s\033[0m\n" "$1"; }
 success() { printf "\033[1;32m%s\033[0m\n" "$1"; }
 error() { printf "\033[1;31mError: %s\033[0m\n" "$1" >&2; exit 1; }
 
+# How to get the CLI where no release binary fits: the build:host script of
+# tools/cli compiles it for the machine Bun runs on. Prints the hint.
+build_from_source_hint() {
+    echo "If Bun (https://bun.sh) runs on this machine, build the CLI from source: clone https://github.com/${REPO}, run 'bun install' and then 'bun run --filter @tale/cli build:host' in the clone, and move tools/cli/dist/tale into a directory on your PATH, such as ${DEFAULT_INSTALL_DIR}."
+}
+
 # Map `uname -s` + `uname -m` to the release asset for this machine. Releases
 # ship four Unix binaries — tale_macos (arm64), tale_macos_x64, tale_linux
-# (x86_64), tale_linux_arm64 — so anything else gets a build-from-source
-# pointer up front instead of a cryptic kernel exec error later.
+# (x86_64), tale_linux_arm64 — so any other system or architecture gets a
+# build-from-source pointer up front instead of a cryptic kernel exec error
+# later, and a Windows shell gets the PowerShell installer instead.
 # Sets the $PLATFORM and $ASSET_NAME globals.
 detect_platform() {
     local os arch
@@ -35,7 +42,9 @@ detect_platform() {
     case "$os" in
         linux*)  PLATFORM="linux" ;;
         darwin*) PLATFORM="macos" ;;
-        *)       error "Unsupported OS: $os" ;;
+        mingw* | msys* | cygwin*)
+            error "This installer is for macOS and Linux. On Windows, run the PowerShell installer: irm https://raw.githubusercontent.com/${REPO}/main/scripts/install-cli.ps1 | iex" ;;
+        *)       error "Unsupported OS: ${os}. $(build_from_source_hint)" ;;
     esac
 
     case "$PLATFORM-$arch" in
@@ -43,7 +52,7 @@ detect_platform() {
         macos-x86_64)                ASSET_NAME="${BINARY_NAME}_macos_x64" ;;
         linux-x86_64 | linux-amd64)  ASSET_NAME="${BINARY_NAME}_linux" ;;
         linux-aarch64 | linux-arm64) ASSET_NAME="${BINARY_NAME}_linux_arm64" ;;
-        *) error "No released binary for ${PLATFORM}/${arch}. Build from source instead: clone https://github.com/${REPO} and run 'bun run build' in tools/cli." ;;
+        *) error "No released binary for ${PLATFORM}/${arch}. $(build_from_source_hint)" ;;
     esac
 }
 
@@ -128,7 +137,7 @@ verify_checksum() {
 
 # Resolve the latest release tag from the releases/latest redirect. Consumes
 # no API quota, but cannot check assets — used only as the fallback when the
-# GitHub API is rate limited or unreachable. Prints the tag, or nothing.
+# GitHub API gives no release list. Prints the tag, or nothing.
 get_latest_tag_from_redirect() {
     local latest_url="https://github.com/${REPO}/releases/latest"
     local location=""
@@ -145,40 +154,59 @@ get_latest_tag_from_redirect() {
     esac
 }
 
+# Say why the release lookup failed once the redirect found no tag either:
+# 000 is no answer at all, and a 401 while GITHUB_TOKEN is set means GitHub
+# refused the token, which no retry fixes. Prints the message.
+get_lookup_failure() {
+    local http_code=$1
+    if [ "$http_code" = "000" ]; then
+        echo "Failed to fetch releases (network error). Check your connection to GitHub and try again."
+    elif [ "$http_code" = "401" ] && [ -n "${GITHUB_TOKEN:-}" ]; then
+        echo "Failed to fetch releases (HTTP 401). GitHub refused GITHUB_TOKEN, which may be wrong or expired: fix or unset it, then try again."
+    else
+        echo "Failed to fetch releases (HTTP ${http_code}). Try again later."
+    fi
+}
+
 # Find the first release whose assets include our platform binary. Walks the
 # JSON line-by-line: remembers the most recent tag_name and prints it the
 # moment the expected asset filename appears in the same release block.
-# Sends `Authorization: Bearer $GITHUB_TOKEN` when the env var is set; on a
-# rate-limited (403/429) or empty API response, falls back to the
-# releases/latest redirect before erroring.
+# Sends `Authorization: Bearer $GITHUB_TOKEN` when the env var is set. Only a
+# complete 200 is a release list: any other status (a refused token, a rate
+# limit, a server error), a failed transfer or an empty body falls back to the
+# releases/latest redirect, and the error names the status when that fails too.
 get_latest_tag() {
     local api_url="https://api.github.com/repos/${REPO}/releases"
     local asset_name="$ASSET_NAME"
-    local response releases_json http_code tag=""
+    local response releases_json http_code headers tag="" download_ok=true
 
     if [ "$DOWNLOADER" = "curl" ]; then
         # `-w` appends the HTTP status on its own line; peel it off the body.
         if [ -n "${GITHUB_TOKEN:-}" ]; then
-            response=$(curl -sL -w '\n%{http_code}' -H "Authorization: Bearer ${GITHUB_TOKEN}" "$api_url" 2>/dev/null || true)
+            response=$(curl -sL -w '\n%{http_code}' -H "Authorization: Bearer ${GITHUB_TOKEN}" "$api_url" 2>/dev/null) || download_ok=false
         else
-            response=$(curl -sL -w '\n%{http_code}' "$api_url" 2>/dev/null || true)
+            response=$(curl -sL -w '\n%{http_code}' "$api_url" 2>/dev/null) || download_ok=false
         fi
         http_code=$(printf '%s\n' "$response" | tail -n 1)
         releases_json=$(printf '%s\n' "$response" | sed '$d')
     else
-        # wget swallows the response body on HTTP errors, so an empty body
-        # doubles as the rate-limit signal here.
+        # wget prints the response headers on stderr and drops the body of an
+        # HTTP error; the last status line is the answer's.
+        headers=$(mktemp)
         if [ -n "${GITHUB_TOKEN:-}" ]; then
-            releases_json=$(wget -qO- --header="Authorization: Bearer ${GITHUB_TOKEN}" "$api_url" 2>/dev/null || true)
+            releases_json=$(wget -O- --server-response --header="Authorization: Bearer ${GITHUB_TOKEN}" "$api_url" 2>"$headers") || download_ok=false
         else
-            releases_json=$(wget -qO- "$api_url" 2>/dev/null || true)
+            releases_json=$(wget -O- --server-response "$api_url" 2>"$headers") || download_ok=false
         fi
-        http_code=""
+        http_code=$(awk '/^[[:space:]]*HTTP\// {code=$2} END {print (code==""?"000":code)}' "$headers")
+        rm -f "$headers"
     fi
 
-    if [ -z "$releases_json" ] || [ "$http_code" = "403" ] || [ "$http_code" = "429" ]; then
+    if [ "$http_code" != "200" ] || [ "$download_ok" = false ] || [ -z "$releases_json" ]; then
+        # A transfer that broke off after its 200 got no complete answer.
+        [ "$download_ok" = false ] && [ "$http_code" = "200" ] && http_code="000"
         tag=$(get_latest_tag_from_redirect)
-        [ -z "$tag" ] && error "Failed to fetch releases"
+        [ -z "$tag" ] && error "$(get_lookup_failure "${http_code:-000}")"
         echo "$tag"
         return
     fi

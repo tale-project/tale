@@ -170,7 +170,7 @@ function Verify-Checksum {
 
 # Resolve the latest release tag from the releases/latest redirect. Consumes
 # no API quota, but cannot check assets — used only as the fallback when the
-# GitHub API is rate limited or unreachable. Returns the tag, or $null.
+# GitHub API gives no release list. Returns the tag, or $null.
 function Get-LatestTagFromRedirect {
     $location = $null
     try {
@@ -198,10 +198,25 @@ function Get-LatestTagFromRedirect {
     return $null
 }
 
+# Say why the release lookup failed once the redirect found no tag either:
+# no status is no answer at all, and a 401 while GITHUB_TOKEN is set means
+# GitHub refused the token, which no retry fixes. Returns the message.
+function Get-LookupFailure {
+    param($statusCode)
+    if (-not $statusCode) {
+        return "Failed to fetch releases (network error). Check your connection to GitHub and try again."
+    }
+    if ($statusCode -eq 401 -and $env:GITHUB_TOKEN) {
+        return "Failed to fetch releases (HTTP 401). GitHub refused GITHUB_TOKEN, which may be wrong or expired: fix or unset it, then try again."
+    }
+    return "Failed to fetch releases (HTTP $statusCode). Try again later."
+}
+
 # Find the first release whose assets include our platform binary. Sends
-# `Authorization: Bearer $env:GITHUB_TOKEN` when the env var is set; on a
-# rate-limited (403/429) or empty API response, falls back to the
-# releases/latest redirect before erroring.
+# `Authorization: Bearer $env:GITHUB_TOKEN` when the env var is set. Only a
+# complete 200 is a release list: any other status (a refused token, a rate
+# limit, a server error), a failed transfer or an empty body falls back to the
+# releases/latest redirect, and the error names the status when that fails too.
 function Get-LatestTag {
     $assetName = "tale_${Platform}.exe"
     $headers = @{ "User-Agent" = "tale-installer/1.0" }
@@ -209,24 +224,21 @@ function Get-LatestTag {
         $headers["Authorization"] = "Bearer $($env:GITHUB_TOKEN)"
     }
     $releases = $null
+    $statusCode = 200
     try {
         $releases = Invoke-RestMethod "https://api.github.com/repos/$Repo/releases" -Headers $headers
     } catch {
+        # An error without a response got no answer at all.
         $statusCode = $null
         if ($_.Exception.Response) {
             try { $statusCode = [int]$_.Exception.Response.StatusCode }
             catch { $statusCode = $null }
         }
-        if ($statusCode -eq 403 -or $statusCode -eq 429 -or -not $statusCode) {
-            $tag = Get-LatestTagFromRedirect
-            if ($tag) { return $tag }
-        }
-        Write-Err "Failed to fetch releases. $_"
     }
     if (-not $releases) {
         $tag = Get-LatestTagFromRedirect
         if ($tag) { return $tag }
-        Write-Err "Failed to fetch releases."
+        Write-Err (Get-LookupFailure $statusCode)
     }
     foreach ($rel in $releases) {
         if ($rel.assets.name -contains $assetName) {

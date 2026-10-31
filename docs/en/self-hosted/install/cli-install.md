@@ -37,7 +37,7 @@ irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli
 
 The Unix installer selects the binary for your OS and CPU. By default, it replaces an existing `tale` executable found on `PATH`, or installs into `/usr/local/bin`; it requests `sudo` only when needed to write there. The Windows installer uses `%LOCALAPPDATA%\Programs\tale` by default and updates your user `PATH`.
 
-Release binaries cover macOS on Apple Silicon and Intel, Linux on x86_64 and arm64, and Windows x64. Windows ARM requires x64 emulation. An unsupported Unix architecture produces a build-from-source message.
+Release binaries cover macOS on Apple Silicon and Intel, Linux on x86_64 and arm64, and Windows x64. Windows ARM requires x64 emulation. On another Unix system or architecture, the installer prints the steps to build the CLI from source on that machine with Bun, and where to put it.
 
 Set `VERSION` to a release version to pin the install, and `INSTALL_DIR` to choose another destination. In a Unix shell, **export** these variables before running the pipeline so the `bash` process receives them; setting them only before `curl` does not pass them to the installer. In PowerShell, use `$env:VERSION` and `$env:INSTALL_DIR`.
 

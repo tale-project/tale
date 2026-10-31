@@ -233,6 +233,9 @@ describe.skipIf(process.platform === 'win32')('Unix CLI installer', () => {
     );
   });
 
+  const detectPlatform =
+    'uname() { if [ "$1" = "-s" ]; then echo "$TEST_OS"; else echo "$TEST_ARCH"; fi; }\ndetect_platform\necho "$ASSET_NAME"';
+
   for (const [os, arch, asset] of [
     ['Darwin', 'arm64', 'tale_macos'],
     ['Darwin', 'x86_64', 'tale_macos_x64'],
@@ -240,14 +243,213 @@ describe.skipIf(process.platform === 'win32')('Unix CLI installer', () => {
     ['Linux', 'aarch64', 'tale_linux_arm64'],
   ]) {
     test(`selects ${asset} for ${os}/${arch}`, () => {
-      const result = runBash(
-        'uname() { if [ "$1" = "-s" ]; then echo "$TEST_OS"; else echo "$TEST_ARCH"; fi; }\ndetect_platform\necho "$ASSET_NAME"',
-        { TEST_OS: os!, TEST_ARCH: arch! },
-      );
+      const result = runBash(detectPlatform, {
+        TEST_OS: os!,
+        TEST_ARCH: arch!,
+      });
       expect(result.exitCode, result.output).toBe(0);
       expect(result.output.trim()).toBe(asset!);
     });
   }
+
+  const buildFromSource =
+    "If Bun (https://bun.sh) runs on this machine, build the CLI from source: clone https://github.com/tale-project/tale, run 'bun install' and then 'bun run --filter @tale/cli build:host' in the clone, and move tools/cli/dist/tale into a directory on your PATH, such as /usr/local/bin.";
+
+  for (const [os, arch, text] of [
+    [
+      'Linux',
+      'armv7l',
+      `No released binary for linux/armv7l. ${buildFromSource}`,
+    ],
+    ['FreeBSD', 'amd64', `Unsupported OS: freebsd. ${buildFromSource}`],
+    [
+      'MINGW64_NT-10.0-26100',
+      'x86_64',
+      'This installer is for macOS and Linux. On Windows, run the PowerShell installer: irm https://raw.githubusercontent.com/tale-project/tale/main/scripts/install-cli.ps1 | iex',
+    ],
+  ]) {
+    test(`points ${os}/${arch} to an install that works there`, () => {
+      const result = runBash(detectPlatform, {
+        TEST_OS: os!,
+        TEST_ARCH: arch!,
+      });
+      expect(result.exitCode, result.output).toBe(1);
+      expect(result.output).toContain(text!);
+      expect(result.output).not.toContain("'bun run build'");
+    });
+  }
+
+  test('the build-from-source hint names a script that compiles for the host', async () => {
+    const build: string = JSON.parse(
+      await readFile(join(repository, 'tools/cli/package.json'), 'utf8'),
+    ).scripts['build:host'];
+    // The generated catalog is gitignored, deploy prepare refuses a binary
+    // without TALE_COMPILED, and a --target compiles for another machine.
+    expect(build).toStartWith('bun run generate && ');
+    expect(build).toContain('bun build --compile --define TALE_COMPILED=true ');
+    expect(build).toContain(' --outfile=dist/tale ');
+    expect(build).not.toContain('--target');
+    expect(build).toEndWith(' && bun run check:bundle');
+  });
+
+  // GitHub's release API answers $API_BODY with $API_STATUS (no status: no
+  // answer at all); the releases/latest redirect points to $LATEST_TAG (no
+  // tag: the redirect fails too).
+  const releaseLookup = (downloader: string) => `
+curl() {
+    case "$*" in
+        *api.github.com*)
+            if [ -z "$API_STATUS" ]; then printf '\\n000'; return 7; fi
+            printf '%s\\n%s' "$API_BODY" "$API_STATUS"
+            ;;
+        *releases/latest*)
+            [ -n "$LATEST_TAG" ] || return 6
+            printf 'HTTP/2 302\\r\\nlocation: https://github.com/tale-project/tale/releases/tag/%s\\r\\n\\r\\n' "$LATEST_TAG"
+            ;;
+        *) return 1 ;;
+    esac
+}
+wget() {
+    case "$*" in
+        *api.github.com*)
+            [ -n "$API_STATUS" ] || return 4
+            printf '  HTTP/1.1 %s Response\\n' "$API_STATUS" >&2
+            [ "$API_STATUS" = 200 ] || return 8
+            printf '%s' "$API_BODY"
+            ;;
+        *releases/latest*)
+            [ -n "$LATEST_TAG" ] || return 4
+            printf '  HTTP/1.1 302 Found\\n  Location: https://github.com/tale-project/tale/releases/tag/%s\\n' "$LATEST_TAG" >&2
+            return 8
+            ;;
+        *) return 1 ;;
+    esac
+}
+DOWNLOADER=${downloader}
+ASSET_NAME=tale_linux
+get_latest_tag`;
+  const apiError = (message: string, status: string) =>
+    JSON.stringify(
+      { message, documentation_url: 'https://docs.github.com/rest', status },
+      null,
+      2,
+    );
+
+  for (const scenario of [
+    { downloader: 'curl', status: '401', message: 'Bad credentials' },
+    { downloader: 'curl', status: '404', message: 'Not Found' },
+    { downloader: 'curl', status: '500', message: 'Server Error' },
+    { downloader: 'wget', status: '401', message: 'Bad credentials' },
+  ]) {
+    test(`${scenario.downloader}: takes the latest release redirect after an API ${scenario.status}`, () => {
+      const result = runBash(releaseLookup(scenario.downloader), {
+        API_STATUS: scenario.status,
+        API_BODY: apiError(scenario.message, scenario.status),
+        LATEST_TAG: 'v9.8.7',
+        GITHUB_TOKEN: 'expired-token',
+      });
+      expect(result.exitCode, result.output).toBe(0);
+      expect(result.output.trim()).toBe('v9.8.7');
+    });
+  }
+
+  const refusedToken =
+    'Failed to fetch releases (HTTP 401). GitHub refused GITHUB_TOKEN, which may be wrong or expired: fix or unset it, then try again.';
+  const noAnswer =
+    'Failed to fetch releases (network error). Check your connection to GitHub and try again.';
+  for (const scenario of [
+    {
+      name: 'a refused GITHUB_TOKEN',
+      downloader: 'curl',
+      status: '401',
+      token: 'expired-token',
+      text: refusedToken,
+    },
+    {
+      name: 'a 401 without a token',
+      downloader: 'curl',
+      status: '401',
+      token: '',
+      text: 'Failed to fetch releases (HTTP 401). Try again later.',
+    },
+    {
+      name: 'a 503',
+      downloader: 'curl',
+      status: '503',
+      token: '',
+      text: 'Failed to fetch releases (HTTP 503). Try again later.',
+    },
+    {
+      name: 'no answer',
+      downloader: 'curl',
+      status: '',
+      token: '',
+      text: noAnswer,
+    },
+    {
+      name: 'a refused GITHUB_TOKEN',
+      downloader: 'wget',
+      status: '401',
+      token: 'expired-token',
+      text: refusedToken,
+    },
+    {
+      name: 'no answer',
+      downloader: 'wget',
+      status: '',
+      token: '',
+      text: noAnswer,
+    },
+  ]) {
+    test(`${scenario.downloader}: names ${scenario.name} when the redirect fails too`, () => {
+      const result = runBash(releaseLookup(scenario.downloader), {
+        API_STATUS: scenario.status,
+        API_BODY: scenario.status
+          ? apiError('Bad credentials', scenario.status)
+          : '',
+        LATEST_TAG: '',
+        GITHUB_TOKEN: scenario.token,
+      });
+      expect(result.exitCode, result.output).toBe(1);
+      expect(result.output).toContain(scenario.text);
+      expect(result.output).not.toContain('No release found');
+    });
+  }
+
+  for (const downloader of ['curl', 'wget']) {
+    test(`${downloader}: takes the newest release that carries the asset from a release list`, () => {
+      const result = runBash(releaseLookup(downloader), {
+        API_STATUS: '200',
+        API_BODY: JSON.stringify(
+          [
+            { tag_name: 'v9.9.0', assets: [{ name: 'tale_linux_arm64' }] },
+            { tag_name: 'v9.8.7', assets: [{ name: 'tale_linux' }] },
+          ],
+          null,
+          2,
+        ),
+        LATEST_TAG: 'v9.9.0',
+        GITHUB_TOKEN: '',
+      });
+      expect(result.exitCode, result.output).toBe(0);
+      expect(result.output.trim()).toBe('v9.8.7');
+    });
+  }
+
+  test('reports a missing release only for a release list without the asset', () => {
+    const result = runBash(releaseLookup('curl'), {
+      API_STATUS: '200',
+      API_BODY: JSON.stringify(
+        [{ tag_name: 'v9.9.0', assets: [{ name: 'tale_linux_arm64' }] }],
+        null,
+        2,
+      ),
+      LATEST_TAG: 'v9.9.0',
+      GITHUB_TOKEN: '',
+    });
+    expect(result.exitCode, result.output).toBe(1);
+    expect(result.output).toContain('No release found with tale_linux binary');
+  });
 });
 
 const powershell =
@@ -381,6 +583,71 @@ Verify-Checksum $env:FIXTURE_BINARY v9.8.7
       );
       expect(result.exitCode, result.output).toBe(scenario.result);
       expect(result.output).toContain(scenario.text);
+    });
+  }
+
+  // GitHub's release API fails with $env:API_STATUS (no status: no answer at
+  // all); the releases/latest redirect points to $env:LATEST_TAG (no tag: the
+  // redirect fails too).
+  const releaseLookup = `
+class ApiFailure : System.Exception {
+    [object] $Response
+    ApiFailure([int] $status) : base("HTTP $status") {
+        $this.Response = [pscustomobject]@{ StatusCode = $status }
+    }
+}
+function Invoke-RestMethod {
+    if (-not $env:API_STATUS) { throw [System.Exception]::new('No such host is known.') }
+    throw [ApiFailure]::new([int]$env:API_STATUS)
+}
+function Get-LatestTagFromRedirect {
+    if ($env:LATEST_TAG) { return $env:LATEST_TAG }
+    return $null
+}
+Get-LatestTag
+`;
+
+  for (const status of ['401', '404', '500']) {
+    test(`takes the latest release redirect after an API ${status}`, async () => {
+      const result = await runPowerShell(releaseLookup, {
+        API_STATUS: status,
+        LATEST_TAG: 'v9.8.7',
+        GITHUB_TOKEN: 'expired-token',
+      });
+      expect(result.exitCode, result.output).toBe(0);
+      expect(result.output.trim()).toBe('v9.8.7');
+    });
+  }
+
+  for (const scenario of [
+    {
+      name: 'a refused GITHUB_TOKEN',
+      status: '401',
+      token: 'expired-token',
+      text: 'Failed to fetch releases (HTTP 401). GitHub refused GITHUB_TOKEN, which may be wrong or expired: fix or unset it, then try again.',
+    },
+    {
+      name: 'a 503',
+      status: '503',
+      token: '',
+      text: 'Failed to fetch releases (HTTP 503). Try again later.',
+    },
+    {
+      name: 'no answer',
+      status: '',
+      token: '',
+      text: 'Failed to fetch releases (network error). Check your connection to GitHub and try again.',
+    },
+  ]) {
+    test(`names ${scenario.name} when the redirect fails too`, async () => {
+      const result = await runPowerShell(releaseLookup, {
+        API_STATUS: scenario.status,
+        LATEST_TAG: '',
+        GITHUB_TOKEN: scenario.token,
+      });
+      expect(result.exitCode, result.output).toBe(1);
+      expect(result.output).toContain(`Error: ${scenario.text}`);
+      expect(result.output).not.toContain('No release found');
     });
   }
 
