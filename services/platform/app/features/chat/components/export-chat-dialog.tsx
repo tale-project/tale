@@ -2,8 +2,9 @@
 
 /**
  * Export the conversation: pick messages, then download Markdown or print
- * (the browser's print-to-PDF). Reads the already-warm message subscription —
- * no export backend, the transcript IS the data.
+ * (the browser's print-to-PDF). Reads the whole thread page by page while the
+ * dialog is open (the transcript holds only the pages read so far) — no
+ * export backend, the message rows ARE the data.
  */
 
 import { Button } from '@tale/ui/button';
@@ -61,7 +62,14 @@ export function ExportChatDialog({
 }: ExportChatDialogProps) {
   const { t } = useT('chat');
   const idPrefix = useId();
-  const messages = useChatMessages(organizationId, open ? threadId : undefined);
+  // The export offers the whole conversation, not the transcript's pages.
+  const messages = useChatMessages(
+    organizationId,
+    open ? threadId : undefined,
+    {
+      whole: true,
+    },
+  );
   // Deselected ids — "everything selected" is the default and survives new
   // rows arriving while the dialog is open.
   const [deselected, setDeselected] = useState<ReadonlySet<string>>(new Set());

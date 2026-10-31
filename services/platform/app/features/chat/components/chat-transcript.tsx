@@ -12,6 +12,7 @@ import { memo, type MutableRefObject } from 'react';
 
 import { useThreadView } from '../hooks/use-thread-view';
 import type { PendingSend } from '../utils/pending-messages';
+import { useChatEarlierMessages } from './chat-earlier-messages';
 import { MessageThread, type MessageThreadHandlers } from './message-thread';
 import { ChatProposalThreadContext } from './settings-proposal-cards';
 
@@ -67,6 +68,11 @@ export const ChatTranscript = memo(function ChatTranscript({
     threadRootId,
     { live },
   );
+  const { historyRef, earlier } = useChatEarlierMessages(
+    organizationId,
+    threadId,
+    view.items[0]?.id,
+  );
 
   return (
     // A shared chat's reader reads its proposals too, without the thread
@@ -86,6 +92,8 @@ export const ChatTranscript = memo(function ChatTranscript({
         voiceEnabled={voiceEnabled}
         speakAvailable={speakAvailable}
         dataNotice={dataNotice}
+        earlier={earlier}
+        historyRef={historyRef}
         className={className}
         {...handlers}
       />

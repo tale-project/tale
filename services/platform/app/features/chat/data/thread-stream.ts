@@ -10,8 +10,11 @@
  * Protocol (`GET /chat/threads/:id/stream`): an immediate `idle` when
  * nothing runs; `progress` whenever the generation row moves (messageId +
  * text + reasoning at the store's write throttle); `settled` with the final
- * message when the row disappears — at which point the store nudges the
- * message/thread reads so the transcript swaps to the durable row.
+ * message when the row disappears — at which point the store puts that row
+ * in the transcript's cache, so the transcript swaps to the durable row
+ * without re-reading the thread, and nudges the thread list. A settle with
+ * no row, or one racing a re-read still in flight, re-reads the transcript's
+ * newest page instead (`applySettledChatMessage`).
  *
  * The store also nudges the message and tray reads when a turn OPENS (the
  * first `progress` over an idle lane): the turn-open write persisted the
@@ -20,7 +23,8 @@
  * backend fired once its attachments were ready, a REST caller's, or another
  * tab's would otherwise show no user bubble and a "Queued" tray row for the
  * whole generation. An `idle` over a streaming lane is a reconnect that
- * missed `settled`, and nudges the same reads.
+ * missed `settled`, and nudges the same reads. A nudge re-reads the
+ * transcript's newest page only; the older pages it holds stay.
  */
 
 import type { QueryClient } from '@tanstack/react-query';
@@ -28,6 +32,7 @@ import { useCallback, useSyncExternalStore } from 'react';
 
 import { backendUrl } from '@/app/lib/backend/api-client';
 import {
+  applySettledChatMessage,
   invalidateChatMessages,
   invalidateChatThreads,
 } from '@/app/lib/backend/chat';
@@ -170,11 +175,21 @@ function openStream(
       console.warn('[chat-stream] unparseable progress event:', error);
     }
   });
-  source.addEventListener('settled', () => {
+  source.addEventListener('settled', (event: MessageEvent<string>) => {
+    let message: unknown = null;
+    try {
+      const data: unknown = JSON.parse(event.data);
+      if (data !== null && typeof data === 'object' && 'message' in data) {
+        message = data.message;
+      }
+    } catch (error) {
+      console.warn('[chat-stream] unparseable settled event:', error);
+    }
+    // The event carries the durable reply: put it in the transcript before
+    // the lane goes idle, instead of re-reading the thread (see the module
+    // doc), and let the list re-rank by recency.
+    applySettledChatMessage(queryClient, organizationId, threadId, message);
     publish(key, IDLE);
-    // The durable rows now carry the reply — swap the transcript over and
-    // let the list re-rank by recency.
-    invalidateChatMessages(queryClient, organizationId, threadId);
     invalidateChatThreads(queryClient, organizationId);
   });
   source.addEventListener('error', () => {
