@@ -335,7 +335,7 @@ describe('TaskModal — a member works their own task', () => {
     // project's editors.
     expect(screen.queryByRole('button', { name: 'Delete' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Manage labels' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Reviewer' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Reviewer/ })).toBeNull();
   });
 
   it('edits a subtask someone else added under their own task', async () => {
@@ -353,7 +353,7 @@ describe('TaskModal — a member works their own task', () => {
       await screen.findByRole('textbox', { name: 'Title' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Status' })).toBeEnabled();
-    expect(screen.queryByRole('button', { name: 'Reviewer' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Reviewer/ })).toBeNull();
   });
 
   it("reads someone else's task without a control to change it", async () => {
@@ -366,7 +366,7 @@ describe('TaskModal — a member works their own task', () => {
     expect(screen.queryByRole('textbox', { name: 'Title' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Status' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Archive' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Reviewer' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Reviewer/ })).toBeNull();
   });
 });
 
@@ -380,7 +380,9 @@ describe('TaskModal — an editor, as before', () => {
       await screen.findByRole('textbox', { name: 'Title' }),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Status' })).toBeEnabled();
-    expect(screen.getByRole('button', { name: 'Reviewer' })).toBeEnabled();
+    expect(
+      screen.getByRole('button', { name: 'Reviewer: No reviewer' }),
+    ).toBeEnabled();
     expect(
       screen.getByRole('button', { name: 'Manage labels' }),
     ).toBeInTheDocument();
