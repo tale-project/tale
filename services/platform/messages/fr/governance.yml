@@ -695,6 +695,53 @@ chatTools:
     des fichiers Word, Excel, PowerPoint et PDF, des graphiques et des
     calculs. Compte dans la limite des sandboxes légères sous Sandboxes.
   saveFailed: Impossible d'enregistrer les outils du chat
+chatToolStatus:
+  title: État des outils du chat
+  description:
+    Indique si le chat de cette organisation peut en ce moment créer des
+    fichiers, exécuter du code, utiliser des skills et créer des images, et
+    ce qui l'en empêche sinon.
+  checkAgain: Vérifier à nouveau
+  checkedAt: Vérifié à {time}
+  loadFailed: Impossible de vérifier les outils du chat.
+  refreshFailed:
+    Impossible de vérifier à nouveau les outils du chat. La dernière
+    vérification reste affichée.
+  images: Images
+  imageModel: Utilise {model} de {provider}.
+  states:
+    available: Disponible
+    limited: Limité
+    unavailable: Indisponible
+  reasons:
+    policyOff: Désactivé sous Outils du chat sur cette page.
+    policyUnreadable:
+      'La politique des outils du chat est illisible : cet outil reste
+      désactivé jusqu''à ce qu''elle soit réparée.'
+    sandboxNotConfigured:
+      'Aucun service de sandbox n''est configuré pour ce déploiement : aucun
+      code ne peut s''exécuter.'
+    sandboxUnreachable:
+      'Le service de sandbox n''a pas répondu à l''instant : aucun code ne
+      peut s''exécuter.'
+    sandboxStartFailed: 'Dernier démarrage de sandbox, {when} : {failure}.'
+    skillLibraryUnreadable:
+      La bibliothèque de skills de l'organisation est illisible.
+    documentSkillsMissing:
+      'Skills de documents absents de la bibliothèque de skills de
+      l''organisation : {skills}.'
+    imageGenerationOff: La génération d'images est désactivée sous Modèles.
+    imagePolicyUnreadable: La politique de génération d'images est illisible.
+    noImageModel: Aucun fournisseur connecté ne propose de modèle d'images.
+    imageModelUnavailable:
+      Le modèle d'images choisi sous Modèles est inutilisable.
+    imageModelOutsideEu:
+      Cette organisation ne traite les prompts que dans l'UE/EEE, et rien
+      n'indique que l'endpoint du modèle d'images les traite dans cette zone.
+    modelAccessUnreadable:
+      La politique d'accès aux modèles est illisible, donc Tale ne peut pas
+      savoir si les prompts doivent rester dans l'UE/EEE.
+    imageModelCheckFailed: Impossible de vérifier les modèles d'images.
 skillSharing:
   title: Partage des skills
   description: Choisis qui peut partager un skill avec toute l'organisation.

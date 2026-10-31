@@ -820,6 +820,20 @@ agent.
   `generate_image` call answers `ok`, and the delivered image is 1216 × 896
   (4:3, the closest shape Recraft draws), never a refusal of 3:2. Restore: pick
   **Automatic**, **Save**, and switch image generation off.
+- [ ] `GOV-F72` · **Chat tool status says what chat can use, and why not** —
+  `policies-limits` → **Chat tool status** (`governance.chatToolStatus.title`),
+  under **Chat tools**, lists **Files**, **Code**, **Skills** and **Images**,
+  each **Available**, **Limited** or **Unavailable**
+  (`governance.chatToolStatus.states.*`). Turn **Code** off (GOV-F65) and
+  **Save** → **Code** reads **Unavailable** with
+  `governance.chatToolStatus.reasons.policyOff`, without a reload. With image
+  generation off, **Images** reads **Unavailable** with
+  `governance.chatToolStatus.reasons.imageGenerationOff`; switch it on with a
+  model available (GOV-F38) → **Images** reads **Available** and names the
+  model (`governance.chatToolStatus.imageModel`). **Check again**
+  (`governance.chatToolStatus.checkAgain`) moves **Checked at** to now. A
+  Member does not see the section. Restore **Code** and switch image
+  generation off.
 - [ ] `GOV-F49` · **An erasure deletes the subject's workspaces** — With a
   Member whose own run of a project agent is listed on Sandboxes
   (`SET-F71`'s setup), file and run an erasure for them (`GOV-F8`) → the
