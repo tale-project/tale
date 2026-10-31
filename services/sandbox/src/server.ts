@@ -46,8 +46,9 @@ import { makeHealthProbe } from './health-probe.ts';
 import { HostAdmission, type AdmissionKind } from './host-admission.ts';
 import { HostDiskProbe } from './host-disk.ts';
 import {
-  autoSessionCapacity,
+  agentSessionMemoryBytes,
   HostMemoryProbe,
+  hostSessionCapacity,
   memoryReserveBytes,
 } from './host-memory.ts';
 import {
@@ -111,27 +112,28 @@ const hostDisk =
         cfg.dockerDataPath !== undefined,
       )
     : null;
-// No SANDBOX_MAX_SESSIONS set: a host whose memory the spawner can read
-// gets a capacity sized from it and its CPUs (never below the fixed default
-// of 8), and the memory and CPU guards at admission protect the rest. A boot that cannot read
-// it yet (a busy daemon after a reboot) sizes on a later sweep.
-let capacitySized = hostMemory === null || cfg.session.autoMaxSessions !== true;
-async function sizeSessionCapacity(): Promise<void> {
-  if (capacitySized || hostMemory === null) return;
+// The session capacity settles once the spawner can read the host's memory.
+// No SANDBOX_MAX_SESSIONS set: it is sized from that memory and the host's
+// CPUs (never below the fixed default of 8), and the memory and CPU guards at
+// admission protect the rest. Either way the spawner warns once when that
+// many agent sessions at their memory limit would need more than the host has
+// for them. A boot that cannot read it yet (a busy daemon after a reboot)
+// settles on a later sweep.
+let capacitySettled = hostMemory === null;
+async function settleSessionCapacity(): Promise<void> {
+  if (capacitySettled || hostMemory === null) return;
   const memory = await hostMemory.read();
-  if (memory === null || capacitySized) return;
-  cfg.session.maxSessions = autoSessionCapacity(
-    memory.totalBytes,
-    memoryReserveBytes(memory.totalBytes, cfg.session.minFreeMemoryBytes),
-    cfg.dockerInContainer,
-    cfg.dockerWorkloads,
-    hostMemory.cpus(),
-  );
-  capacitySized = true;
+  if (memory === null || capacitySettled) return;
   const cpus = hostMemory.cpus();
-  console.log(
-    `[sandbox] session capacity ${cfg.session.maxSessions}, sized from the host's ${Math.round(memory.totalBytes / 1024 ** 3)} GiB${cpus === null ? '' : ` and ${cpus} CPUs`} (set SANDBOX_MAX_SESSIONS to fix it)`,
-  );
+  const settled = hostSessionCapacity(cfg, memory.totalBytes, cpus);
+  cfg.session.maxSessions = settled.maxSessions;
+  capacitySettled = true;
+  if (settled.sized) {
+    console.log(
+      `[sandbox] session capacity ${cfg.session.maxSessions}, sized from the host's ${Math.round(memory.totalBytes / 1024 ** 3)} GiB${cpus === null ? '' : ` and ${cpus} CPUs`} (set SANDBOX_MAX_SESSIONS to fix it)`,
+    );
+  }
+  if (settled.warning !== null) console.warn(settled.warning);
 }
 
 // The one host admission service: the pressure gate of session admission,
@@ -596,11 +598,26 @@ export async function router(req: Request): Promise<Response> {
     const signed = await auth.readAndAuth(req);
     if ('error' in signed) return signed.error;
     // With an organization, also what its connected devices add: a quota may
-    // use the deployment's slots plus its own machines'.
+    // use the deployment's slots plus its own machines'. Beside the count, the
+    // figures its memory warning weighs (hostSessionCapacity): one agent
+    // session's memory limit, and the host's memory and reserve from the last
+    // reading, where the spawner can read them.
     const organizationId = url.searchParams.get('organizationId');
+    const sessionMemoryBytes = agentSessionMemoryBytes(cfg);
+    const memory = hostMemory?.latest() ?? null;
     return jsonResponse(
       {
         maxSessions: cfg.session.maxSessions,
+        ...(sessionMemoryBytes === null ? {} : { sessionMemoryBytes }),
+        ...(memory === null
+          ? {}
+          : {
+              hostMemoryBytes: memory.totalBytes,
+              memoryReserveBytes: memoryReserveBytes(
+                memory.totalBytes,
+                cfg.session.minFreeMemoryBytes,
+              ),
+            }),
         ...(organizationId !== null && ORG_ID_RE.test(organizationId)
           ? { deviceSessions: hub?.deviceSessionCapacity(organizationId) ?? 0 }
           : {}),
@@ -761,7 +778,7 @@ export async function router(req: Request): Promise<Response> {
 }
 
 /** Start the periodic session sweep: re-adoption, the TTL/idle reaper, the
- * deferred capacity sizing and the max-linger self-reap. Returns its stop. */
+ * deferred capacity settling and the max-linger self-reap. Returns its stop. */
 function startSessionSweep(sessions: SessionRoutes): () => void {
   const sweepTimer = setInterval(() => {
     // Re-adopt before reaping so a session missed at boot (a `docker ps` /
@@ -773,8 +790,8 @@ function startSessionSweep(sessions: SessionRoutes): () => void {
       reportSandboxError(err, 'session-sweep');
       console.warn('[sandbox.session] periodic sweep failed:', err);
     });
-    if (!capacitySized) {
-      void sizeSessionCapacity().catch((err: unknown) => {
+    if (!capacitySettled) {
+      void settleSessionCapacity().catch((err: unknown) => {
         reportSandboxError(err, 'capacity-sizing');
         console.warn('[sandbox] sizing the session capacity failed:', err);
       });
@@ -870,8 +887,8 @@ async function main(): Promise<void> {
   hostMemory?.start();
   hostPressure?.start();
   hostDisk?.start();
-  await sizeSessionCapacity();
-  if (!capacitySized) {
+  await settleSessionCapacity();
+  if (!capacitySettled && cfg.session.autoMaxSessions === true) {
     console.warn(
       `[sandbox] cannot read the Docker host's memory yet; session capacity stays ${cfg.session.maxSessions} until it can (set SANDBOX_MAX_SESSIONS to fix it)`,
     );

@@ -92,7 +92,12 @@ docker exec tale-sandbox bun /app/src/control-cli.ts drain-status   # {draining,
 
 `GET /v1/limits` uses the same HMAC authentication as session operations and
 returns the configured `maxSessions` without requiring a Docker, Kubernetes or
-Incus inventory. `SANDBOX_MAX_SESSIONS` is the one deployment capacity shared by all
+Incus inventory, beside the figures of the memory warning below:
+`sessionMemoryBytes`, one agent session's memory limit (absent where the
+spawner cannot parse that limit), and `hostMemoryBytes` and
+`memoryReserveBytes`, the host's total memory and reserve from the last reading
+(absent where the spawner cannot read the Docker host's memory, or has not yet).
+`SANDBOX_MAX_SESSIONS` is the one deployment capacity shared by all
 organizations; unset, a Docker spawner that can read its host's memory sizes
 it from that memory (one session per 768 MiB beyond the reserve, or per
 1.5 GiB where agent sessions run Docker inside, at most two per CPU the
@@ -105,7 +110,11 @@ still growing into: a create that would cut into it reclaims a released idle
 session or answers 429 `host_memory`, logging the refusal. An explicit
 `SANDBOX_MAX_SESSIONS` fixes the cap and disables this adaptive memory
 admission, which leaves the count, pressure and disk guards in force; the
-operator must size it from measured peaks. An impossible memory reserve (at or above
+operator must size it from measured peaks. Set or sized, once the spawner reads
+the host's memory it warns once when `maxSessions` agent sessions at their
+memory limit would need more than the host's total less the reserve, which
+counts here with an explicit cap too; it never lowers the capacity, and a
+device's spawner never warns. An impossible memory reserve (at or above
 total host memory) fails adaptive sizing at boot when the host is readable, or
 is reported when sizing is retried later. While the host is under pressure by
 the deployment's admission preset — under `default` its CPU pressure (PSI
