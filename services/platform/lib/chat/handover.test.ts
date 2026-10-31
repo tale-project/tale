@@ -13,6 +13,7 @@ const LABELS: TaskHandover['labels'] = {
 function handover(overrides: Partial<TaskHandover> = {}): TaskHandover {
   return {
     projectsWithAgents: ['Website relaunch'],
+    moreProjectsWithAgents: 0,
     projectsWithoutAgents: 1,
     canAddAgents: false,
     automationOff: false,
@@ -41,6 +42,19 @@ describe('renderTaskHandover', () => {
 
     expect(note).toContain('A, B, C, D, E (and 2 more)');
     expect(note).not.toContain('F');
+  });
+
+  it('counts the projects with agents the host read no name of', () => {
+    const note = renderTaskHandover(
+      handover({
+        projectsWithAgents: ['A', 'B', 'C', 'D', 'E'],
+        moreProjectsWithAgents: 3,
+      }),
+    );
+
+    expect(note).toContain(
+      'Pick a project with an agent: A, B, C, D, E (and 3 more).',
+    );
   });
 
   it('tells an editor without an agent project how to add one in the task', () => {
