@@ -245,3 +245,15 @@ A card shows up to four labels, and a row in **List** up to three; **+N** stands
 If you can edit the task, press **Space** on its title to pick it up, move it with the arrow keys, and press **Space** again to drop it. **Escape** cancels the move and leaves the task where it was. A screen reader names the task when you pick it up and announces its status and position as you move it.
 
 If a change is refused, check the task’s current state before trying again: a live agent run blocks reassignment, open subtasks block closure, and your role and whether the task is yours determine whether you can change it at all.
+
+### See which agents are at work {#live-agent-runs}
+
+A column says where a task stands, not whether an agent is working on it. A standing task that a schedule starts with `moveToInProgress: false` stays in **To do** while its agent works, and a task can stay in **In progress** after its run has ended. **Agent runs**, beside **Filter** above the board, answers that instead, for example **Agent runs: 2 running · 1 queued**. It counts each live agent run once, not each task or agent:
+
+- **running**: the agent is at work.
+- **waiting for input**: the run waits for a person to answer its question, approve a step, or make a decision.
+- **queued**: the run waits for its turn or for room, such as a free worker or a sandbox slot.
+
+The count covers the whole project, whatever your search and filters show. It says **none live** only once the project's runs have loaded. While they load, it says **loading…**, and if they can't be loaded, **unavailable** instead of a number: that no run is counted then doesn't mean that no agent is working. A **+** after a number, such as **2+ running**, means that not every live run could be listed, so there may be more. The board of all projects shows no count; open a project's board to see its runs.
+
+Select **Agent runs** to list the runs by kind, each with its task and what its agent is doing. A run on a task the board doesn't show counts too, as **A task this view doesn't show**. Choose a run to open its task. The list only shows runs: it starts, stops, and moves nothing. With the keyboard, press **Enter** on **Agent runs**, move through the runs with the arrow keys, and press **Enter** to open one.
