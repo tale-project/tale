@@ -286,7 +286,7 @@ export async function projectSharedViewLeaf(
   return resolveViewLeaf(sql, shared.organizationId, shared.userId, shared.id);
 }
 
-export const THREAD_PAGE_DEFAULT = 50;
+const THREAD_PAGE_DEFAULT = 50;
 export const THREAD_PAGE_MAX = 100;
 
 /** Where the next page of the thread list starts: after the row named, in the
