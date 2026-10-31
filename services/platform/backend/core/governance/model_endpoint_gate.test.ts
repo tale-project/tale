@@ -12,6 +12,7 @@ import {
   modelEndpointPolicyOf,
   modelEndpointRefusal,
   readModelEndpointPolicy,
+  withoutRefusedModels,
 } from './model_endpoint_gate.ts';
 
 const EU: ModelEndpointPolicy = {
@@ -193,6 +194,46 @@ describe('gatewayBuiltinRefusal', () => {
       code: 'MODEL_ENDPOINT_POLICY_UNREADABLE',
       provider: 'openrouter',
     });
+  });
+});
+
+describe('withoutRefusedModels', () => {
+  const candidates = [
+    { id: 'eu-model', baseUrl: 'https://llm.example.eu/v1' },
+    { id: 'us-model', baseUrl: 'https://api.openai.com/v1' },
+  ];
+  const refusalOf =
+    (policy: ModelEndpointPolicy) => (candidate: (typeof candidates)[number]) =>
+      modelEndpointRefusal(policy, {
+        providerName: 'acme',
+        baseUrl: candidate.baseUrl,
+      });
+
+  it('offers every model, and says nothing, while the rule is off [GOV-R22]', () => {
+    const open: ModelEndpointPolicy = { kind: 'open' };
+    expect(withoutRefusedModels(open, candidates, refusalOf(open))).toEqual({
+      kept: candidates,
+    });
+  });
+
+  it('leaves out the models whose endpoint the rule refuses, and says so [GOV-R22]', () => {
+    expect(withoutRefusedModels(EU, candidates, refusalOf(EU))).toEqual({
+      kept: [candidates[0]],
+      hiddenBy: 'eu',
+    });
+  });
+
+  it('says nothing when the rule let every model through [GOV-R22]', () => {
+    expect(
+      withoutRefusedModels(EU, candidates.slice(0, 1), refusalOf(EU)),
+    ).toEqual({ kept: [candidates[0]] });
+  });
+
+  it('offers no model while the policy cannot be read [GOV-R22]', () => {
+    const unreadable: ModelEndpointPolicy = { kind: 'unreadable' };
+    expect(
+      withoutRefusedModels(unreadable, candidates, refusalOf(unreadable)),
+    ).toEqual({ kept: [], hiddenBy: 'unreadable' });
   });
 });
 

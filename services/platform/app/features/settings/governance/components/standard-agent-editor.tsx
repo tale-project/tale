@@ -29,6 +29,7 @@ import {
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { backendErrorCode } from '@/lib/utils/backend-error';
@@ -362,6 +363,10 @@ export function StandardAgentEditor({
                   }
                   searchPlaceholder={t('standardAgent.searchModels')}
                   emptyText={t('standardAgent.noModelsFound')}
+                />
+                <HiddenModelsNote
+                  rule={roster.data?.modelsHiddenBy}
+                  className="mt-1.5"
                 />
               </SettingsFieldRow>
               <SettingsFieldRow

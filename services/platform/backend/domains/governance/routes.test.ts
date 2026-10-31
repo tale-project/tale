@@ -13,7 +13,7 @@ import {
   isPolicyReadableByMember,
 } from '@tale/shared/schemas/governance';
 import type { Context } from 'hono';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
 
@@ -68,7 +68,10 @@ vi.mock('../audit_logs/service.ts', () => ({ createAuditLog }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx }));
 vi.mock('../sandbox/limits.ts', () => ({ getSandboxDeploymentLimits }));
 vi.mock('../sandbox/unused-rule.ts', () => ({ recordUnusedWorkspaceRule }));
-vi.mock('../model_api/models.ts', () => ({ listModelApiModels }));
+vi.mock('../model_api/models.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../model_api/models.ts')>()),
+  listModelApiModels,
+}));
 vi.mock('../../auth/api-key-create-gate.ts', () => ({ mayCreateApiKeys }));
 vi.mock('../../auth/membership.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../auth/membership.ts')>()),
@@ -649,6 +652,10 @@ describe('GET /my/model-api', () => {
     listModelApiModels.mockReset();
   });
 
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('answers whether the organization turned the model endpoints on and whether this member may call them', async () => {
     caller.role = 'developer';
     readGovernancePolicyForOrg.mockResolvedValue({
@@ -710,6 +717,39 @@ describe('GET /my/model-api', () => {
     ]);
     // Nothing to list for a member the endpoints would refuse.
     expect(listModelApiModels).not.toHaveBeenCalled();
+  });
+
+  it('leaves out the models the EU/EEA rule refuses on both wires, and says why [GOV-R22]', async () => {
+    vi.stubEnv('TALE_CONFIG_DIR', '/config');
+    caller.role = 'developer';
+    readGovernancePolicyForOrg.mockResolvedValue({
+      enabled: false,
+      mode: 'blocklist',
+      rules: [],
+      modelApi: { enabled: true },
+      euProcessing: { enabled: true, hosts: ['llm.acme.eu'] },
+    });
+    resolveOrgSlug.mockResolvedValue('acme');
+    listModelApiModels.mockResolvedValue([
+      {
+        id: 'deepseek/deepseek-v4-flash',
+        label: 'DeepSeek V4 Flash',
+        providerSlug: 'deepseek',
+        connector: { name: 'deepseek', baseUrl: 'https://api.deepseek.com/v1' },
+      },
+      {
+        id: 'acme/acme-large',
+        label: 'Acme Large',
+        providerSlug: 'acme',
+        connector: { name: 'acme', baseUrl: 'https://llm.acme.eu/v1' },
+      },
+    ]);
+    expect(await (await read()).json()).toEqual({
+      enabled: true,
+      allowed: true,
+      models: [{ id: 'acme/acme-large', label: 'Acme Large' }],
+      modelsHiddenBy: 'eu',
+    });
   });
 });
 
