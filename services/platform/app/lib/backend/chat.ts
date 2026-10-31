@@ -610,7 +610,7 @@ function sameCursor(
 
 /** Put the page read before `before` in front of the loaded rows — unless
  * the loaded rows no longer start at `before` (that page is in already). */
-export function prependChatMessages<T>(
+function prependChatMessages<T>(
   loaded: T,
   before: ChatMessageCursor,
   older: ChatMessagePage,
@@ -660,7 +660,7 @@ export async function loadEarlierChatMessages(
 /** Put a settled row in its place: over the row with its id, or after the
  * last row it does not precede. A row older than the loaded rows belongs to
  * a page not read yet, and is left to it. */
-export function upsertChatMessage<T>(
+function upsertChatMessage<T>(
   loaded: T,
   row: ChatMessageRow,
 ): T | ChatMessagePage {
