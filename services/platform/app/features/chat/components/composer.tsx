@@ -67,6 +67,7 @@ import { extractPastedImageFiles } from '@/app/features/shared/files/clipboard-i
 import type { FileAttachment } from '@/app/features/shared/files/types';
 import { usePersistedState } from '@/app/hooks/use-persisted-state';
 import type { ComposerSkillChoices } from '@/app/lib/backend/chat';
+import type { HiddenModelsRule } from '@/app/lib/backend/contract/lib';
 import type { BlobRef } from '@/backend/core/lib/storage/blob_ref';
 import { useT } from '@/lib/i18n/client';
 import { CHAT_UPLOAD_ACCEPT } from '@/lib/shared/file-types';
@@ -155,6 +156,8 @@ interface ComposerProps {
   /** Providers whose models only a subscription serves, which chat leaves
    * out — the picker says why. */
   subscriptionProviders?: readonly string[];
+  /** The EU/EEA processing rule left models out — the picker says so. */
+  modelsHiddenBy?: HiddenModelsRule;
   selection: ComposerSelection;
   onSelectionChange: (next: ComposerSelection) => void;
   onSend: (text: string) => void;
@@ -243,6 +246,7 @@ export const Composer = memo(
       textareaId,
       models,
       subscriptionProviders,
+      modelsHiddenBy,
       selection,
       onSelectionChange,
       onSend,
@@ -859,6 +863,7 @@ export const Composer = memo(
                   {...(subscriptionProviders !== undefined
                     ? { subscriptionProviders }
                     : {})}
+                  {...(modelsHiddenBy !== undefined ? { modelsHiddenBy } : {})}
                   selection={selection}
                   onSelectionChange={onSelectionChange}
                   skills={skills}
