@@ -2,8 +2,9 @@ import { useCallback } from 'react';
 
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
-import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
+import type { ItemOf, PageItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 import {
   backendKey,
   projectCapabilityCatalogKey,
@@ -118,14 +119,17 @@ export function useStandardAgentQuery(organizationId: string | undefined) {
 }
 
 export type ProjectOverviewRow =
-  ReturnsOf<'projects/queries:listProjectsOverview'>['projects'][number];
+  PageItemOf<'projects/queries:listProjectsOverview'>;
+
+/** How many projects one page of the projects list holds. */
+export const PROJECTS_PAGE_SIZE = 50;
 
 /**
- * How coarsely the overdue clock is quantized. `listProjectsOverview` derives
- * overdue from an `asOf` argument rather than `Date.now()` server-side,
- * because a Convex query result is only recomputed when a data dependency
- * changes — never because time passed. Rounding to a bucket gives the cache
- * key something that actually rotates, without refetching on every render.
+ * How coarsely the overdue clock is quantized. `listProjectsOverview` counts
+ * overdue against an `asOf` argument rather than the server's clock, so a
+ * cached page says what it said when it was read. Rounding to a bucket gives
+ * the cache key something that actually rotates, without refetching on every
+ * render.
  */
 const OVERDUE_BUCKET_MS = 5 * 60 * 1000;
 
@@ -147,31 +151,28 @@ export function projectsOverviewArgs(
 }
 
 /**
- * The projects LIST page's data: every visible project plus its at-a-glance
- * rollups. Separate from `useProjects` — the plain list is on the chat hot
- * path and must not pay for these walks.
+ * The projects LIST page's data, one page of projects at a time, newest
+ * first, each with its at-a-glance rollups. Separate from `useProjects` — the
+ * plain list is on the chat hot path and must not pay for these walks.
+ *
+ * `loadMore` asks for the next page; a failed read is the list's to show
+ * (`error`, with `retry`), never "no projects yet" (2026-09-26 evaluation,
+ * G-07).
  */
 export function useProjectsOverview(
   organizationId: string,
   options: { includeArchived: boolean },
 ) {
-  const { data, isLoading, isError, error, refetch } = useBackendQuery(
+  const listing = useCachedPaginatedQuery(
     'projects/queries:listProjectsOverview',
     projectsOverviewArgs(organizationId, options.includeArchived),
+    { initialNumItems: PROJECTS_PAGE_SIZE },
   );
-  const retry = useCallback(() => {
-    void refetch();
-  }, [refetch]);
   return {
-    projects: data?.projects ?? [],
-    // Global to the scan, so a truncated walk makes every row's overdue
-    // number a lower bound.
-    overdueTruncated: data?.overdueTruncated ?? false,
-    isLoading,
-    // A failed read is the list's to show, not to pass off as "no projects
-    // yet" (2026-09-26 evaluation, G-07).
-    error: isError ? error : null,
-    retry,
+    ...listing,
+    projects: listing.results,
+    // The first page only: a later page loading keeps the rows on screen.
+    isLoading: listing.status === 'LoadingFirstPage',
   };
 }
 

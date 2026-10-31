@@ -6,6 +6,7 @@ import { AppError } from '@/lib/shared/errors/app-error';
 import { activeOrganizationId } from './adapters';
 import {
   projectActionQueryAdapters,
+  projectPaginatedAdapters,
   projectReadAdapters,
   projectWriteAdapters,
 } from './projects';
@@ -121,36 +122,180 @@ describe('project read adapters', () => {
     ).toBeNull();
   });
 
-  it('builds the overview with required rollups and the asOf clock', async () => {
-    vi.spyOn(window, 'fetch').mockResolvedValue(
-      jsonResponse(200, {
-        projects: [wireProject({ overdueTaskCount: 4 })],
-        overdueTruncated: false,
-      }),
-    );
+  it('pages the overview newest first with required rollups, the asOf clock, limit and cursor', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          projects: [wireProject({ overdueTaskCount: 4 })],
+          overdueTruncated: false,
+          isDone: false,
+          continueCursor: 'c-2',
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          projects: [wireProject({ id: 'p2', overdueTaskCount: 0 })],
+          overdueTruncated: false,
+          isDone: true,
+          continueCursor: '',
+        }),
+      );
 
-    const row = projectReadAdapters['projects/queries:listProjectsOverview']?.(
-      { organizationId: 'org-1', includeArchived: true, asOf: 5000 },
+    expect(
+      projectReadAdapters['projects/queries:listProjectsOverview'],
+    ).toBeUndefined();
+    const listing = projectPaginatedAdapters[
+      'projects/queries:listProjectsOverview'
+    ]?.({ organizationId: 'org-1', includeArchived: true, asOf: 5000 }, {});
+    expect(listing?.queryKey).toEqual([
+      'backend',
+      'org-1',
+      'project',
+      'overview',
+      'paginated',
+      true,
+      5000,
+    ]);
+
+    const first = await listing?.fetchPage(null, 50);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      '/api/app/projects/overview?includeArchived=true&summary=true&asOf=5000&limit=50&orgId=org-1',
+      expect.anything(),
+    );
+    expect(first?.isDone).toBe(false);
+    expect(first?.continueCursor).toBe('c-2');
+    expect(first?.page).toEqual([
+      expect.objectContaining({
+        _id: 'p1',
+        _creationTime: 1000,
+        overdueTaskCount: 4,
+        openTaskCount: 2,
+        doneTaskCount: 1,
+        projectAgentCount: 0,
+      }),
+    ]);
+    expect(first?.page[0]).not.toHaveProperty('id');
+    expect(first?.page[0]).not.toHaveProperty('description');
+
+    const second = await listing?.fetchPage('c-2', 50);
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      '/api/app/projects/overview?includeArchived=true&summary=true&asOf=5000&limit=50&cursor=c-2&orgId=org-1',
+      expect.anything(),
+    );
+    expect(second).toEqual({
+      page: [expect.objectContaining({ _id: 'p2', overdueTaskCount: 0 })],
+      isDone: true,
+      continueCursor: '',
+    });
+  });
+
+  it('asks for at most one full page, and ends a page with no cursor to go on', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValueOnce(
+        jsonResponse(200, { projects: [], isDone: false, continueCursor: '' }),
+      )
+      .mockResolvedValueOnce(
+        // An older backend: every project, no page envelope.
+        jsonResponse(200, { projects: [], overdueTruncated: false }),
+      );
+    const listing = projectPaginatedAdapters[
+      'projects/queries:listProjectsOverview'
+    ]?.({ organizationId: 'org-1' }, {});
+    expect(listing?.queryKey).toEqual([
+      'backend',
+      'org-1',
+      'project',
+      'overview',
+      'paginated',
+      false,
+      0,
+    ]);
+
+    await expect(listing?.fetchPage(null, 500)).resolves.toEqual({
+      page: [],
+      isDone: true,
+      continueCursor: '',
+    });
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      '/api/app/projects/overview?includeArchived=false&summary=true&limit=100&orgId=org-1',
+      expect.anything(),
+    );
+    await expect(listing?.fetchPage('', 0)).resolves.toEqual({
+      page: [],
+      isDone: true,
+      continueCursor: '',
+    });
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      '/api/app/projects/overview?includeArchived=false&summary=true&limit=1&orgId=org-1',
+      expect.anything(),
+    );
+  });
+
+  it('answers no overview listing when no org is in scope anywhere', () => {
+    expect(
+      projectPaginatedAdapters['projects/queries:listProjectsOverview']?.(
+        {},
+        {},
+      ),
+    ).toBeNull();
+  });
+
+  it("reads one page of Home's navigator projects, with whether it holds them all", async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValueOnce(
+        jsonResponse(200, {
+          projects: [wireProject({ pinnedAt: 3000 })],
+          isDone: false,
+        }),
+      )
+      .mockResolvedValueOnce(
+        // An older backend: no flag, every project.
+        jsonResponse(200, { projects: [wireProject()] }),
+      );
+
+    const row = projectReadAdapters['projects/queries:listSidebarProjects']?.(
+      { organizationId: 'org-1', limit: 100 },
       {},
     );
     expect(row?.queryKey).toEqual([
       'backend',
       'org-1',
       'project',
-      'overview',
-      true,
-      5000,
+      'sidebar',
+      100,
     ]);
-    const result = (await row?.queryFn()) as {
-      projects: Record<string, unknown>[];
-      overdueTruncated: boolean;
-    };
-    expect(window.fetch).toHaveBeenCalledWith(
-      '/api/app/projects/overview?includeArchived=true&summary=true&asOf=5000&orgId=org-1',
+    await expect(row?.queryFn()).resolves.toEqual({
+      projects: [
+        expect.objectContaining({ _id: 'p1', name: 'Apollo', pinnedAt: 3000 }),
+      ],
+      isDone: false,
+    });
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      '/api/app/projects/sidebar?summary=true&limit=100&orgId=org-1',
       expect.anything(),
     );
-    expect(result.projects[0]?.overdueTaskCount).toBe(4);
-    expect(result.projects[0]?.openTaskCount).toBe(2);
+
+    const unbounded = projectReadAdapters[
+      'projects/queries:listSidebarProjects'
+    ]?.({}, { organizationId: 'org-2' });
+    expect(unbounded?.queryKey).toEqual([
+      'backend',
+      'org-2',
+      'project',
+      'sidebar',
+      null,
+    ]);
+    await expect(unbounded?.queryFn()).resolves.toEqual({
+      projects: [expect.objectContaining({ _id: 'p1' })],
+      isDone: true,
+    });
+    expect(fetchSpy).toHaveBeenLastCalledWith(
+      '/api/app/projects/sidebar?summary=true&orgId=org-2',
+      expect.anything(),
+    );
   });
 
   it('keeps instructions in detail while metadata caches omit an older server response body', async () => {
@@ -174,7 +319,6 @@ describe('project read adapters', () => {
       );
     for (const name of [
       'projects/queries:listProjects',
-      'projects/queries:listProjectsOverview',
       'projects/queries:listSidebarProjects',
       'projects/queries:searchProjects',
       'projects/search:searchProjects',
@@ -192,6 +336,12 @@ describe('project read adapters', () => {
           expect.objectContaining({ description: project.description }),
         ]);
     }
+    const overview = await projectPaginatedAdapters[
+      'projects/queries:listProjectsOverview'
+    ]?.({ organizationId: 'org-1' }, {})?.fetchPage(null, 50);
+    expect(overview?.page).toHaveLength(1);
+    expect(JSON.stringify(overview)).not.toContain(instructions);
+    expect(fetchSpy.mock.calls.at(-1)?.[0]).toContain('summary=true');
     const detail = projectReadAdapters['projects/queries:getProject']?.(
       { organizationId: 'org-1', projectId: 'p1' },
       {},

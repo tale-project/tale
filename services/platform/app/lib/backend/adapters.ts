@@ -64,6 +64,7 @@ import { orgWriteAdapters } from './org';
 import { isKnowledgeDatabaseUnavailable } from './platform-unavailable';
 import {
   projectActionQueryAdapters,
+  projectPaginatedAdapters,
   projectReadAdapters,
   projectWriteAdapters,
 } from './projects';
@@ -205,6 +206,7 @@ export const PAGINATED_ADAPTERS: Record<string, PaginatedAdapter> = {
   ...engagementPaginatedAdapters,
   ...metricsPaginatedAdapters,
   ...documentPaginatedAdapters,
+  ...projectPaginatedAdapters,
   ...settingsPaginatedAdapters,
   ...taskPaginatedAdapters,
 };
