@@ -5,6 +5,10 @@ import { render, screen } from '@/tests/utils/render';
 
 import { AgentNodeFields } from './agent-node-fields';
 
+const { rosterState } = vi.hoisted(() => ({
+  rosterState: { modelsHiddenBy: undefined as 'eu' | undefined },
+}));
+
 // The picker's roster: the SAME model id served twice — the subscription copy
 // carries the bare vendor id, the OpenRouter copy the vendor-prefixed one.
 // This is exactly the constellation where a pinless pick used to LOOK like
@@ -32,6 +36,7 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
           },
         },
       ],
+      modelsHiddenBy: rosterState.modelsHiddenBy,
     },
   }),
   useAgentSecrets: () => ({ data: [] }),
@@ -123,6 +128,22 @@ describe('AgentNodeFields model pin', () => {
 
     expect(screen.getByText('claude-fable-5')).toBeVisible();
     expect(screen.queryByText(/without a pinned provider/)).toBeNull();
+  });
+
+  it('says why models are missing when the EU/EEA rule left some out, and nothing while it is off [GOV-R22]', () => {
+    const note =
+      /Only models whose endpoint processes prompts in the EU\/EEA are offered/;
+    previewState.data = undefined;
+    const { unmount } = renderFields(PINLESS);
+    expect(screen.queryByText(note)).toBeNull();
+    unmount();
+    rosterState.modelsHiddenBy = 'eu';
+    try {
+      renderFields(PINLESS);
+      expect(screen.getByText(note)).toBeVisible();
+    } finally {
+      rosterState.modelsHiddenBy = undefined;
+    }
   });
 });
 

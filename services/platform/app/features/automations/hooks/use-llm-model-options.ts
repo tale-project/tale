@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from 'react';
 
 import { useProjectHarnesses } from '@/app/features/projects/hooks/queries';
+import type { HiddenModelsRule } from '@/app/lib/backend/contract/lib';
 import { readStateOf, type ReadState } from '@/app/lib/backend/read-state';
 import { toModelOptions } from '@/lib/shared/harness-offer';
 
@@ -23,10 +24,12 @@ export interface LlmModelOption {
  * empty list while it loads is never read as "nothing is served"; how the
  * read stands (`readStateOf`) says when it failed, so a picker names the
  * failure with Try again instead of "No models found" (#4765).
+ * `modelsHiddenBy` says why the roster left models out (GOV-R22).
  */
 export function useLlmModelOptions(organizationId: string): ReadState & {
   options: LlmModelOption[];
   loaded: boolean;
+  modelsHiddenBy: HiddenModelsRule | undefined;
   retry: () => void;
 } {
   const roster = useProjectHarnesses(organizationId);
@@ -56,6 +59,7 @@ export function useLlmModelOptions(organizationId: string): ReadState & {
   return {
     options,
     loaded: roster.data !== undefined,
+    modelsHiddenBy: roster.data?.modelsHiddenBy,
     ...readStateOf(roster),
     retry,
   };

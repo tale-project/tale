@@ -8,8 +8,12 @@ import {
   type ComposerModelOption,
 } from '../../core/chat/composer.ts';
 import { listConnectorSummaries } from '../../core/connector_credentials/connector_catalog.ts';
+import type { HiddenModelsRule } from '../../core/governance/model_endpoint_gate.ts';
 import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
-import { walkChatCatalog } from '../../core/lib/providers/chat_catalog.ts';
+import {
+  walkChatCatalog,
+  withoutRefusedChatHits,
+} from '../../core/lib/providers/chat_catalog.ts';
 import {
   loadHarnesses,
   readSystemEntryIcon,
@@ -20,6 +24,7 @@ import type { SkillSummaryView } from '../../core/skills/views.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listConnectedConnectorSlugs } from '../connector_credentials/service.ts';
+import { readModelEndpointPolicyForOrg } from '../governance/model-endpoints.ts';
 import {
   getAccessibleModelsForMembers,
   getAccessibleModelsForUser,
@@ -127,17 +132,25 @@ async function listConnectorCapabilities(
 }
 
 /** The walk behind every model listing: the servable catalog, projected per
- * (provider, model) and filtered by the member's model access — or, with no
- * member named, by the access every member has — plus the shim it read
- * through and whether a direct credential can synthesize speech, which the
- * composer also answers. */
+ * (provider, model) and filtered by the EU/EEA processing rule (GOV-R22)
+ * and the member's model access — or, with no member named, by the access
+ * every member has — plus the shim it read through, whether a direct
+ * credential can synthesize speech, which the composer also answers, and
+ * why the rule left models out when it did. `withRefusedEndpoints` keeps
+ * the models the rule refuses, for a caller that judges another endpoint
+ * than a direct call's. */
 async function walkGovernedChatModels(
   sql: Sql,
-  args: { organizationId: string; userId?: string },
+  args: {
+    organizationId: string;
+    userId?: string;
+    withRefusedEndpoints?: true;
+  },
 ): Promise<{
   models: ComposerModelOption[];
   ttsAvailable: boolean;
   shim: ReturnType<typeof createCtxShim>;
+  hiddenBy?: HiddenModelsRule;
 }> {
   // The SERVABLE set: each provider's active default credential — the row
   // every serving path resolves — never every active row, or the picker
@@ -161,7 +174,16 @@ async function walkGovernedChatModels(
         resolveCatalogBearer(sql, args.organizationId, connector),
     },
   );
-  const { byId, ttsAvailable } = collectComposerOptions(hits);
+  // A model whose endpoint the EU/EEA rule refuses is not offered, nor is a
+  // voice there counted — the call would be refused at send time.
+  const offered =
+    args.withRefusedEndpoints === true
+      ? { kept: hits }
+      : withoutRefusedChatHits(
+          await readModelEndpointPolicyForOrg(sql, args.organizationId),
+          hits,
+        );
+  const { byId, ttsAvailable } = collectComposerOptions(offered.kept);
 
   // The governance model-access policy filters the catalog server-side —
   // the turn re-checks at send time.
@@ -190,19 +212,26 @@ async function walkGovernedChatModels(
       a.label.localeCompare(b.label) ||
       a.providerSlug.localeCompare(b.providerSlug),
   );
-  return { models, ttsAvailable, shim };
+  return {
+    models,
+    ttsAvailable,
+    shim,
+    ...(offered.hiddenBy !== undefined ? { hiddenBy: offered.hiddenBy } : {}),
+  };
 }
 
 /**
  * The chat models a member may send to, as the composer lists them — each
  * provider's servable catalog (its active default credential, the
  * credential's model allowlist applied), one entry per (provider, model),
- * filtered by the member's model access. The listing the model endpoints for
- * API keys narrow to what their gateway can serve.
+ * filtered by the EU/EEA processing rule and the member's model access. The
+ * listing the model endpoints for API keys narrow to what their gateway can
+ * serve: they keep the models the rule refuses a direct call
+ * (`withRefusedEndpoints`), and judge the gateway's upstream instead.
  */
 export async function listGovernedChatModels(
   sql: Sql,
-  args: { organizationId: string; userId: string },
+  args: { organizationId: string; userId: string; withRefusedEndpoints?: true },
 ): Promise<ComposerModelOption[]> {
   return (await walkGovernedChatModels(sql, args)).models;
 }
@@ -255,6 +284,9 @@ export async function listComposerModels(
   args: { organizationId: string; userId: string },
 ): Promise<{
   models: ComposerModelOption[];
+  /** Why the EU/EEA processing rule left models out — the pickers say so;
+   * absent when it left none out. */
+  modelsHiddenBy?: HiddenModelsRule;
   harnesses: ComposerHarnessRow[];
   voice: {
     ttsAvailable: boolean;
@@ -262,7 +294,7 @@ export async function listComposerModels(
     transcriptionUnavailableReason?: string;
   };
 }> {
-  const { models, ttsAvailable, shim } = await walkGovernedChatModels(
+  const { models, ttsAvailable, shim, hiddenBy } = await walkGovernedChatModels(
     sql,
     args,
   );
@@ -274,6 +306,7 @@ export async function listComposerModels(
 
   return {
     models,
+    ...(hiddenBy !== undefined ? { modelsHiddenBy: hiddenBy } : {}),
     harnesses: listManagedHarnesses(),
     voice: {
       ttsAvailable,

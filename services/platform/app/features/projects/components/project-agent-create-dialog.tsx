@@ -46,6 +46,7 @@ export function ProjectAgentCreateDialog({
       organizationId={organizationId}
       harnesses={rosterQuery.data?.harnesses ?? []}
       models={models}
+      modelsHiddenBy={rosterQuery.data?.modelsHiddenBy}
       skills={catalogQuery.data?.skills}
       catalogRead={{
         ...readStateOf(catalogQuery),

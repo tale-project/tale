@@ -768,6 +768,30 @@ describe('resolveImageGenerationModel — the EU/EEA rule [GOV-R17]', () => {
     expect(runMutation).not.toHaveBeenCalled();
   });
 
+  it('offers the settings only the models the rule lets through, and says why [GOV-R22]', async () => {
+    policy = { enabled: true };
+    resolveProvidersMock.mockResolvedValue([OPENAI, OPENROUTER_EU]);
+    const eu = await inspectImageGenerationModels(ctx, ORG);
+    expect(eu.models.length).toBeGreaterThan(0);
+    expect(
+      eu.models.every((model) => model.providerSlug === 'openrouter-eu'),
+    ).toBe(true);
+    expect(eu.modelsHiddenBy).toBe('eu');
+
+    endpointPolicy = { kind: 'unreadable' };
+    await expect(inspectImageGenerationModels(ctx, ORG)).resolves.toMatchObject(
+      { models: [], modelsHiddenBy: 'unreadable' },
+    );
+
+    endpointPolicy = { kind: 'open' };
+    const open = await inspectImageGenerationModels(ctx, ORG);
+    expect(new Set(open.models.map((model) => model.providerSlug))).toEqual(
+      new Set(['openai', 'openrouter-eu']),
+    );
+    expect(open.modelsHiddenBy).toBeUndefined();
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
   it('changes nothing while the rule is off', async () => {
     endpointPolicy = { kind: 'open' };
     policy = PIN_OPENAI;

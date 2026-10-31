@@ -2008,6 +2008,13 @@ dataResidency:
       Tale n’a pas pu vérifier si {provider} propose des embeddings ; aucun
       modèle ne peut donc encore être choisi. Utilise « Réessayer » ci-dessus.
     modelUnchecked: Vérification impossible
+    modelEndpointRefused: Refusé par la règle UE/EEE
+    modelEndpointRefusedHint:
+      La politique d’accès aux modèles de ton organisation n’autorise que les
+      endpoints qui traitent les prompts dans l’UE/EEE, et rien n’indique que
+      celui de ce choix le fasse. Choisis des identifiants ou une URL de base
+      dont l’endpoint le fait, ou un autre fournisseur.
+    modelPolicyUnreadable: Politique illisible
     supportReadFailed:
       Tale n’a pas pu vérifier quels fournisseurs proposent des embeddings.
       Aucun modèle ne peut être choisi tant que la vérification n’a pas

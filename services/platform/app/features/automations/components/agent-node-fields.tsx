@@ -29,6 +29,7 @@ import {
 } from '@/app/features/projects/hooks/queries';
 import { useAgentToolOptions } from '@/app/features/projects/hooks/use-agent-tool-options';
 import { useUnpinnedServingPreview } from '@/app/features/projects/hooks/use-unpinned-serving-preview';
+import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
 import type { NodeDef } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -241,6 +242,7 @@ export function AgentNodeFields({
           onChange({ model: option.id, modelProvider: option.providerSlug });
         }}
       />
+      <HiddenModelsNote rule={roster.data?.modelsHiddenBy} />
 
       <SkillsMenu
         skills={capabilities.data?.skills ?? []}

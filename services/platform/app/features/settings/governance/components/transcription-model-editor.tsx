@@ -23,6 +23,7 @@ import {
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
@@ -239,6 +240,11 @@ export function TranscriptionModelEditor({
                   }
                   searchPlaceholder={t('transcriptionModel.searchModels')}
                   emptyText={t('transcriptionModel.noModelsFound')}
+                />
+                <HiddenModelsNote
+                  rule={
+                    readFailed ? undefined : stateQuery.data?.modelsHiddenBy
+                  }
                 />
                 {pick && (
                   <Text as="p" variant="muted" className="text-xs break-words">

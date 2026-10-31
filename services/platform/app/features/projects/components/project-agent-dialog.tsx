@@ -27,8 +27,10 @@ import {
   type SkillsCatalogState,
   type SkillsSelection,
 } from '@/app/components/skills/skills-menu';
+import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
 import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
+import type { HiddenModelsRule } from '@/app/lib/backend/contract/lib';
 import type { ReadState } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 import { DOCUMENT_SKILL_SLUGS } from '@/lib/shared/document-skills';
@@ -75,6 +77,8 @@ interface ProjectAgentDialogProps {
   organizationId: string;
   harnesses: readonly HarnessOption[];
   models: readonly ModelOption[];
+  /** The EU/EEA processing rule left models out of `models` (GOV-R22). */
+  modelsHiddenBy?: HiddenModelsRule;
   /** Undefined until the project's capability catalog has loaded. */
   skills: readonly SkillOption[] | undefined;
   /** How the capability catalog read stands (`readStateOf`): one that has
@@ -131,6 +135,7 @@ export function ProjectAgentDialog({
   organizationId,
   harnesses,
   models,
+  modelsHiddenBy,
   skills,
   catalogRead,
   connectors,
@@ -511,6 +516,7 @@ export function ProjectAgentDialog({
         // scroll-lock shard, or the option list won't wheel-scroll.
         modal
       />
+      <HiddenModelsNote rule={modelsHiddenBy} />
       <Stack ref={equipmentRef} gap={2}>
         <SkillsMenu
           skills={skills ?? []}

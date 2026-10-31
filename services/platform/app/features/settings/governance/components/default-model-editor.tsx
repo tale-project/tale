@@ -36,8 +36,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
+import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
 import { ModelInfoPopover } from '@/app/features/shared/models/model-info-popover';
 import { useAbility } from '@/app/hooks/use-ability';
+import type { HiddenModelsRule } from '@/app/lib/backend/contract/lib';
 import { useT } from '@/lib/i18n/client';
 import { answersChatTurns } from '@/lib/shared/providers/chat_turn_models';
 import { isRecord } from '@/lib/utils/type-utils';
@@ -140,6 +142,9 @@ interface ProviderInfo {
   name: string;
   displayName: string;
   models: ProviderModel[];
+  /** The EU/EEA processing rule refuses its endpoint, so the dialog leaves
+   * its models out, as the Auto pick does (GOV-R22). */
+  endpointRefusedBy?: HiddenModelsRule;
 }
 
 interface RuleDialogProps {
@@ -222,20 +227,32 @@ function RuleDialog({
     [draft, onSave, onOpenChange],
   );
 
+  // A default the EU/EEA processing rule refuses would never be picked, so
+  // its provider is not offered, and the dialog says why.
+  const offeredProviders = useMemo(
+    () => providerList.filter((p) => p.endpointRefusedBy === undefined),
+    [providerList],
+  );
+  const hiddenBy = providerList.find(
+    (p) => p.endpointRefusedBy !== undefined,
+  )?.endpointRefusedBy;
+
   const providerOptions = useMemo(
     () =>
-      providerList.map((p) => ({
+      offeredProviders.map((p) => ({
         value: p.name,
         label: p.displayName || p.name,
       })),
-    [providerList],
+    [offeredProviders],
   );
 
   // The models a chat turn can be sent to — the chat picker's own set.
   const chatModels = useMemo(() => {
-    const provider = providerList.find((p) => p.name === draft.providerName);
+    const provider = offeredProviders.find(
+      (p) => p.name === draft.providerName,
+    );
     return provider?.models.filter(answersChatTurns) ?? [];
-  }, [providerList, draft.providerName]);
+  }, [offeredProviders, draft.providerName]);
 
   const modelOptions = useMemo(
     () =>
@@ -346,6 +363,7 @@ function RuleDialog({
           emptyText={t('defaultModels.noModelsFound')}
           aria-label={t('defaultModels.model')}
         />
+        <HiddenModelsNote rule={hiddenBy} />
 
         {conflict && (
           <Alert
@@ -446,6 +464,9 @@ function DefaultModelEditorContent({
             outputsMedia: m.outputsMedia === true,
           }),
         ),
+        ...(provider.endpointRefusedBy !== undefined
+          ? { endpointRefusedBy: provider.endpointRefusedBy }
+          : {}),
       });
     }
     return list;

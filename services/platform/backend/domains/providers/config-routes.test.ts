@@ -13,15 +13,29 @@ import { CatalogListingError } from '../../core/lib/providers/catalog_fetch';
 import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers';
 import { createProviderSettingRoutes } from './routes';
 
-const { caller, catalog, transcriptionState, bearer } = vi.hoisted(() => ({
+const {
+  caller,
+  catalog,
+  transcriptionState,
+  bearer,
+  endpointPolicy,
+  servingFacts,
+} = vi.hoisted(() => ({
   caller: { role: 'admin', orgId: 'org-a', slug: 'north' },
   catalog: vi.fn(),
   transcriptionState: vi.fn(),
   bearer: vi.fn(),
+  endpointPolicy: vi.fn(),
+  servingFacts: vi.fn(),
 }));
 vi.mock('../provider_credentials/service', async (original) => ({
   ...(await original<typeof import('../provider_credentials/service')>()),
   resolveCatalogBearer: bearer,
+  listServingCredentialFacts: servingFacts,
+}));
+vi.mock('../governance/model-endpoints', async (original) => ({
+  ...(await original<typeof import('../governance/model-endpoints')>()),
+  readModelEndpointPolicyForOrg: endpointPolicy,
 }));
 vi.mock(
   '../../core/lib/providers/resolve_transcription_model',
@@ -99,6 +113,8 @@ beforeEach(async () => {
   catalog.mockReset();
   transcriptionState.mockReset();
   bearer.mockReset();
+  endpointPolicy.mockReset().mockResolvedValue({ kind: 'open' });
+  servingFacts.mockReset().mockResolvedValue([]);
 });
 afterEach(async () => {
   vi.unstubAllEnvs();
@@ -550,6 +566,53 @@ describe('native custom provider definition HTTP door', () => {
     expect(listing.find((entry) => entry.name === 'openai')).not.toHaveProperty(
       'declaredModels',
     );
+  });
+
+  it('marks the providers the EU/EEA rule refuses through their default credential [GOV-R22]', async () => {
+    catalog.mockResolvedValue([]);
+    expect((await put({ config: definition, expectedHash: null })).status).toBe(
+      200,
+    );
+    async function refusedBy(): Promise<Map<string, unknown>> {
+      const listing = (await (
+        await app().request('/catalogs?orgId=org-a')
+      ).json()) as {
+        catalogs: Array<{ name: string; endpointRefusedBy?: unknown }>;
+      };
+      return new Map(
+        listing.catalogs.map((entry) => [entry.name, entry.endpointRefusedBy]),
+      );
+    }
+
+    // Off: no entry says anything, and no credential is read for it.
+    expect(
+      [...(await refusedBy()).values()].filter((rule) => rule !== undefined),
+    ).toEqual([]);
+    expect(servingFacts).not.toHaveBeenCalled();
+
+    endpointPolicy.mockResolvedValue({
+      kind: 'eu',
+      attestedHosts: ['models.example.test'],
+    });
+    let refused = await refusedBy();
+    expect(refused.get('openai')).toBe('eu');
+    expect(refused.get('local-chat')).toBeUndefined();
+    expect(servingFacts).toHaveBeenCalledWith(expect.anything(), 'org-a');
+
+    // The default credential's own endpoint is the one called.
+    servingFacts.mockResolvedValue([
+      {
+        providerSlug: 'openai',
+        authMethod: 'api-key',
+        endpointUrl: 'https://eu.api.openai.com/v1',
+      },
+    ]);
+    refused = await refusedBy();
+    expect(refused.get('openai')).toBeUndefined();
+
+    endpointPolicy.mockResolvedValue({ kind: 'unreadable' });
+    refused = await refusedBy();
+    expect(refused.get('local-chat')).toBe('unreadable');
   });
 
   it('marks organization-defined providers in the catalog listing', async () => {

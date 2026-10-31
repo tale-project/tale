@@ -6,9 +6,14 @@ import { render, screen, within } from '@/tests/utils/render';
 
 import { LlmModelSwapDialog } from './llm-model-swap-dialog';
 
+const { roster } = vi.hoisted(() => ({
+  roster: { modelsHiddenBy: undefined as 'eu' | undefined },
+}));
+
 vi.mock('../hooks/use-llm-model-options', () => ({
   useLlmModelOptions: () => ({
     loaded: true,
+    modelsHiddenBy: roster.modelsHiddenBy,
     options: [
       {
         value: 'anthropic/claude-haiku-4-5',
@@ -99,6 +104,21 @@ describe('using another model in all steps', () => {
       'gpt-5-mini',
       'anthropic/claude-haiku-4-5',
     );
+  });
+
+  it('says why models are missing when the EU/EEA rule left some out, and nothing while it is off [GOV-R22]', () => {
+    const note =
+      /Only models whose endpoint processes prompts in the EU\/EEA are offered/;
+    const { unmount } = renderDialog();
+    expect(screen.queryByText(note)).not.toBeInTheDocument();
+    unmount();
+    roster.modelsHiddenBy = 'eu';
+    try {
+      renderDialog();
+      expect(screen.getByText(note)).toBeInTheDocument();
+    } finally {
+      roster.modelsHiddenBy = undefined;
+    }
   });
 
   it('leaves the document as it is on Cancel', async () => {

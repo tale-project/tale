@@ -23,6 +23,7 @@ import {
   budgetRetryAfterSeconds,
   ChatBudgetExceededError,
 } from '../chat/budget-admission.ts';
+import { readModelEndpointPolicyForOrg } from '../governance/model-endpoints.ts';
 import { getProjectAuthContext, listProjects } from '../projects/service.ts';
 import {
   isCredentialSelectionResolvable,
@@ -379,9 +380,14 @@ export function createKnowledgeRoutes(deps: {
       role: c.get('orgMember').role,
     });
     // `{recommendations, providers}` — the curated picks and each
-    // provider's declared embedding support.
+    // provider's declared embedding support; while the EU/EEA processing
+    // rule is on, the rule too, and the picks it lets through (GOV-R22).
+    const policy = await readModelEndpointPolicyForOrg(
+      deps.sql,
+      c.get('orgId'),
+    );
     return c.json(
-      await listEmbeddingRecommendationsForOrg(orgSlug, credentials),
+      await listEmbeddingRecommendationsForOrg(orgSlug, credentials, policy),
     );
   });
 

@@ -4,10 +4,19 @@ import type {
 } from '@tale/shared/schemas/providers';
 import type { Sql } from 'postgres';
 
+import { isStandardGatewayProvider } from '../../../lib/shared/providers/gateway_standard_providers.ts';
 import {
   type ComposerModelOption,
   servedByDirectCredential,
 } from '../../core/chat/composer.ts';
+import {
+  gatewayBuiltinRefusal,
+  type HiddenModelsRule,
+  type ModelEndpointPolicy,
+  type ModelEndpointRefusalData,
+  modelEndpointRefusal,
+  withoutRefusedModels,
+} from '../../core/governance/model_endpoint_gate.ts';
 import { ridesAnthropicHarnessEndpoint } from '../../core/lib/providers/agent_serving.ts';
 import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers.ts';
 import { listGovernedChatModels } from '../chat/composer.ts';
@@ -23,7 +32,10 @@ import type { ModelApiWire } from './wire.ts';
  * — narrowed to what the sandbox LLM gateway can serve: a direct credential
  * (a subscription model runs only in its vendor's harness) on a connector
  * with a fixed endpoint (a per-credential endpoint, Azure's, is not
- * provisioned into the gateway).
+ * provisioned into the gateway). It keeps the models the EU/EEA processing
+ * rule refuses, so a request that names one is answered with the rule's own
+ * refusal; what a key holder is offered leaves them out
+ * ({@link offeredModelApiModels}).
  *
  * The id is `<providerSlug>/<modelId>`: the connector's slug, a slash, and
  * the model's id in that connector's own catalog — the catalog id may itself
@@ -80,6 +92,52 @@ export function ridesModelApiAnthropicLane(
   );
 }
 
+/**
+ * The EU/EEA processing rule's verdict on `model`'s requests on `wire`
+ * (GOV-R17) — undefined when it lets them through. The endpoint is the one
+ * the gateway would call: a custom provider's own, and on the Anthropic lane
+ * the connector's native Anthropic endpoint; a vendor the gateway implements
+ * itself it reaches through its built-in connection, whatever endpoint the
+ * provider names.
+ */
+export function modelApiEndpointRefusal(
+  policy: ModelEndpointPolicy,
+  wire: ModelApiWire,
+  model: Pick<ModelApiModel, 'providerSlug' | 'connector'>,
+): ModelEndpointRefusalData | undefined {
+  const providerName = model.providerSlug;
+  if (ridesModelApiAnthropicLane(wire, model)) {
+    return modelEndpointRefusal(policy, {
+      providerName,
+      baseUrl: model.connector.harnessEndpoint?.baseUrl,
+    });
+  }
+  return isStandardGatewayProvider(providerName)
+    ? gatewayBuiltinRefusal(policy, providerName)
+    : modelEndpointRefusal(policy, {
+        providerName,
+        baseUrl: model.connector.baseUrl,
+      });
+}
+
+/** What a key holder is offered on `wires` (GOV-R22): `models` less the ones
+ * the EU/EEA rule refuses on every one of them, and why when it left any
+ * out. */
+export function offeredModelApiModels(
+  policy: ModelEndpointPolicy,
+  models: readonly ModelApiModel[],
+  wires: readonly ModelApiWire[],
+): { readonly kept: ModelApiModel[]; readonly hiddenBy?: HiddenModelsRule } {
+  return withoutRefusedModels(policy, models, (model) => {
+    let refusal: ModelEndpointRefusalData | undefined;
+    for (const wire of wires) {
+      refusal = modelApiEndpointRefusal(policy, wire, model);
+      if (refusal === undefined) return undefined;
+    }
+    return refusal;
+  });
+}
+
 /** Whether the gateway can serve a connector at all. */
 function gatewayServable(connector: ProviderDefinition): boolean {
   return connector.endpointMode !== 'per-credential';
@@ -120,6 +178,7 @@ export async function listModelApiModels(
   const options = await listGovernedChatModels(sql, {
     organizationId: caller.organizationId,
     userId: caller.userId,
+    withRefusedEndpoints: true,
   });
   const connectors = new Map(
     resolveProvidersForOrg(caller.orgSlug).map(

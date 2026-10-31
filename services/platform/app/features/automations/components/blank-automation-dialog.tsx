@@ -36,6 +36,7 @@ import {
   useProjects,
 } from '@/app/features/projects/hooks/queries';
 import { useAgentToolOptions } from '@/app/features/projects/hooks/use-agent-tool-options';
+import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
 import { blankAutomationDocument } from '@/lib/automations/blank-document';
 import { cronParseProblem } from '@/lib/automations/cron';
 import {
@@ -498,6 +499,7 @@ export function BlankAutomationDialog({
             }}
             modal
           />
+          <HiddenModelsNote rule={roster.data?.modelsHiddenBy} />
           <Textarea
             id="blank-automation-prompt"
             label={t('blank.promptLabel')}

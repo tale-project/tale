@@ -163,6 +163,22 @@ With the rule off, nothing changes.
   message is refused with a sentence that names `eu.api.openai.com`, and nothing reaches
   OpenAI.
 
+### GOV-R22 · With EU/EEA processing on, a picker offers only models the rule lets through
+
+While the rule is on, a place that offers a model leaves out each model whose call GOV-R17
+would refuse, judged by the endpoint that call would reach: its credential's endpoint, or else
+the provider's base URL, and on the model API the gateway's upstream. That holds for the chat's
+model list, its Auto pick and default model, the voice reply, the agent and automation model
+selects, the default-models editor, the image and transcription model settings, the embedding
+model on the data residency page, and the model API's model list. A picker that leaves models
+out says why. While the policy cannot be read, they offer none and say that an admin must
+restore it. GOV-R17 still refuses each call; with the rule off, every picker offers what it did
+before.
+
+- **Example**: The rule is on, the OpenAI provider points at `api.openai.com` and Mistral at
+  `api.eu.mistral.ai` → Mia's model list offers only Mistral's models, and says that the rule
+  left the others out.
+
 ## Policies
 
 ### GOV-R10 · A member can read only the policies meant for every member
@@ -268,9 +284,10 @@ rights.
   effect only after a waiting time, and can be cancelled meanwhile (`settings-tail.ts`).
 - **Content moderation**, guardrails and the handling of personal data in prompts
   (`moderation.ts`).
-- **The EU/EEA rule beyond the calls GOV-R17 names**: the model pickers still offer a model
-  the rule refuses; a coding agent's model traffic in a sandbox, through the model gateway or
-  a subscription, is not held to it; nor is the guardrails' moderation endpoint.
+- **The EU/EEA rule beyond the calls GOV-R17 names**: the vision model setting still offers
+  every model, whatever its endpoint; a coding agent's model traffic in a sandbox, through the
+  model gateway or a subscription, is not held to the rule; nor is the guardrails' moderation
+  endpoint.
 - **API keys**: creating, listing and revoking one (`api-keys.ts`).
 - **The usage pages** and their figures (`usage-metrics.ts`).
 - **Legacy voice reservations**: previous writers left no saved price or project stamp. `NULL`

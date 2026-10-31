@@ -125,3 +125,9 @@ sessionIdle:
   signedOutNotice:
     Tu as été déconnecté parce que ta session est restée inactive
     trop longtemps.
+hiddenModels:
+  eu: Seuls les modèles dont l'endpoint traite les prompts dans l'UE/EEE sont
+    proposés, comme l'exige la politique d'accès aux modèles de ton
+    organisation.
+  unreadable: Aucun modèle n'est proposé tant que la politique d'accès aux
+    modèles ne peut pas être lue. Un admin doit la rétablir.

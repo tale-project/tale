@@ -24,9 +24,9 @@
  * (api-key/env): a subscription credential forces a sandbox harness and
  * cannot back the chat wire, so Auto must never pick a model only a
  * subscription serves — the picker may list it, but as a pinnable option,
- * not a route target. Governance filtering runs server-side on the same
- * candidate ids the picker would show, so Auto and the picker can never
- * disagree about what the user may run.
+ * not a route target. The EU/EEA processing rule (GOV-R22) and governance
+ * filtering run server-side on the same candidates the picker would show, so
+ * Auto and the picker can never disagree about what the user may run.
  *
  * Every pick logs one line — (org, provider, model, source, band) — so a
  * surprising route is greppable without a gateway request log (the lesson
@@ -42,13 +42,20 @@ import {
   type ChatAutoRefusal,
   type ModelBand,
 } from '../../../../lib/chat';
+import { readModelEndpointPolicy } from '../../governance/model_endpoint_gate';
 import type { ActionCtx } from '../ctx';
 import { internal } from '../handler_names';
-import { walkChatCatalog } from './chat_catalog';
+import { walkChatCatalog, withoutRefusedChatHits } from './chat_catalog';
 
 /** Why an Auto turn refused instead of resolving: the pure screens'
- * reasons, plus the governance-empty case only this layer can see. */
-export type ChatAutoResolutionRefusal = ChatAutoRefusal | 'no-accessible-model';
+ * reasons, plus the governance-empty cases only this layer can see — the
+ * model access policy left no model, or its EU/EEA processing rule did
+ * (`no-eu-model`), or it cannot be read (`model-policy-unreadable`). */
+export type ChatAutoResolutionRefusal =
+  | ChatAutoRefusal
+  | 'no-accessible-model'
+  | 'no-eu-model'
+  | 'model-policy-unreadable';
 
 export interface ChatModelPick {
   providerSlug: string;
@@ -88,7 +95,13 @@ export async function resolveChatModel(
       credential.authMethod === 'api-key' || credential.authMethod === 'env',
   );
 
-  const hits = await walkChatCatalog(ctx, args.organizationId, credentials);
+  // A model whose endpoint the EU/EEA rule refuses is never a candidate —
+  // the picker does not offer it, and the call would be refused.
+  const offered = withoutRefusedChatHits(
+    await readModelEndpointPolicy(ctx, args.organizationId),
+    await walkChatCatalog(ctx, args.organizationId, credentials),
+  );
+  const hits = offered.kept;
   // First-wins per (connector, id): two direct credentials serving the same
   // catalog produce identical entries, so the duplicate carries nothing.
   const providerByEntry = new Map<ModelCatalogEntry, string>();
@@ -122,11 +135,17 @@ export async function resolveChatModel(
   if ('refusal' in screened) {
     // When the unfiltered walk had chat entries but the governance-allowed
     // subset has none, the truthful reason is the access policy, not an
-    // empty catalog.
+    // empty catalog — its EU/EEA rule first, when that left out chat models.
     const refusal: ChatAutoResolutionRefusal =
-      screened.refusal === 'no-chat-model' && allowed.length < entries.length
-        ? 'no-accessible-model'
-        : screened.refusal;
+      screened.refusal !== 'no-chat-model'
+        ? screened.refusal
+        : offered.hiddenBy === 'eu'
+          ? 'no-eu-model'
+          : offered.hiddenBy === 'unreadable'
+            ? 'model-policy-unreadable'
+            : allowed.length < entries.length
+              ? 'no-accessible-model'
+              : screened.refusal;
     console.warn(
       `[chat-model] no auto pick for ${args.organizationId}: ${refusal}`,
     );

@@ -5,11 +5,13 @@
  * them with the full explanation; callers here just skip them).
  *
  * The internal credential query returns `v.any()`, so the shape is narrowed
- * here rather than trusted.
+ * here rather than trusted. `endpointUrl` is the credential's own endpoint
+ * (an Azure resource, a per-credential connector), which a direct call goes
+ * to instead of the provider's base URL.
  */
 export function directActiveCredential(
   row: unknown,
-): { modelAllowlist?: readonly string[] } | null {
+): { modelAllowlist?: readonly string[]; endpointUrl?: string } | null {
   if (row === null || typeof row !== 'object') return null;
   if (!('status' in row) || row.status !== 'active') return null;
   if (
@@ -19,8 +21,14 @@ export function directActiveCredential(
     return null;
   }
   const allowlist = 'modelAllowlist' in row ? row.modelAllowlist : undefined;
-  return Array.isArray(allowlist) &&
+  const endpointUrl = 'endpointUrl' in row ? row.endpointUrl : undefined;
+  return {
+    ...(Array.isArray(allowlist) &&
     allowlist.every((id) => typeof id === 'string')
-    ? { modelAllowlist: allowlist }
-    : {};
+      ? { modelAllowlist: allowlist }
+      : {}),
+    ...(typeof endpointUrl === 'string' && endpointUrl !== ''
+      ? { endpointUrl }
+      : {}),
+  };
 }
