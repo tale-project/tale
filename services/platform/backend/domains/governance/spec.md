@@ -206,7 +206,7 @@ It counts only in the organization it was granted in.
 - **Example**: Ada grants Mia the right to call the model API until the end of the month → on
   the first of next month Mia's calls are refused again.
 
-### GOV-R18 · An admin changes a live right's end date and evidence in place, and each change is audited
+### GOV-R18 · An admin changes a live right's end date and evidence in place
 
 Only an admin can change a grant, and the refusal of anyone else is written to the audit log
 (`COMPETENCE_FORBIDDEN`). Only a grant that still holds can be changed: a withdrawn one stays as
