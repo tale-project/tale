@@ -65,6 +65,26 @@ The edit dialog also changes the display name. Email is read-only. To set a repl
 
 You cannot edit your own role through this menu, assign Owner through the role picker, or demote the last administrator. Existing Owners and the organization creator also have protected roles. If a change is refused, check the relevant account before trying a different role.
 
+## Review a member's rights {#member-rights}
+
+Four platform rights each let a member do one narrow thing that otherwise needs a higher role: **Call models over the API**, **Export notifications**, **Act for another member**, and **Publish skills to the organization**. To see what a person may do and why, open their row menu and choose **Rights**. Only Owners and Admins see this action, on every row, their own and the Owner's included.
+
+The dialog lists the four rights. Each shows **Allowed** or **Not allowed**, the same answer Tale gives when the person uses the right, followed by the reasons behind it:
+
+- **The organization's setting.** For **Call models over the API**, whether the [model endpoints for API keys](/platform/admin/governance/content-models#model-endpoints) are on. While they are off, no one has this right, whatever their role or grant; if the setting can't be read, the endpoints count as off. For **Publish skills to the organization**, the mode of the [skill sharing policy](/platform/admin/governance/policies-and-limits#skill-sharing); if the policy can't be read, **Owners and admins only** applies.
+- **The role.** It carries the right, needs a grant for it, or, for **Disabled**, rules out every right, even a granted one.
+- **The grant.** Who granted the right and when, and until when if it expires, or when an expired grant ended. A granter who has left the organization appears as **Former member**.
+- **A team's grant.** If the right is granted to a [team](/platform/admin/governance/competences#grant-a-capability-to-a-team) an Owner or Admin added the person to: the team, who granted it and when, and until when, one line for each such team. The person holds the right through the team while they are in it. A team they belong to through your identity provider gives them no grant, so it is not listed.
+
+Where the role needs a grant and neither the person nor one of their teams has one, the reasons say the right is not granted.
+
+The switch beside each right is the person's own grant in the [competence register](/platform/admin/governance/competences), not the verdict: it is on while they hold an active grant of their own. A switch can be on while the right shows **Not allowed**, for example while the model endpoints are off or when the member is **Disabled**, and a role that carries the right, or a team's grant, shows **Allowed** with the switch off. A team's grant has no switch here: revoke it under [Competences](/platform/admin/governance/competences), or remove the person from the team.
+
+- To grant a right, turn its switch on. **Grant a competence** opens with the person and the right already chosen: choose when it **Expires**, optionally note the **Evidence**, and select **Grant**.
+- To revoke the grant, turn the switch off and confirm with **Revoke**.
+
+Both work like granting and revoking under [Competences](/platform/admin/governance/competences), with the same checks, and every change is recorded in the register and in the audit log. The dialog reads the rights again each time you open it; if they can't be loaded, select **Try again**.
+
 ## Transfer ownership
 
 An Owner can choose **Transfer ownership** from another member's row menu. Read the confirmation carefully: the selected person becomes Owner and the transferring Owner becomes Admin. Use this action for an ownership handover, not an ordinary role promotion.
