@@ -1574,8 +1574,7 @@ modelAccess:
       Prompts in der EU/im EWR verarbeiten — eu.openrouter.ai,
       eu.api.openai.com, api.eu.mistral.ai und die unten eingetragenen Hosts.
       Jeder andere Aufruf wird abgelehnt, bevor etwas gesendet wird, und die
-      Ablehnung wird im Audit-Log festgehalten. Coding-Agenten in Sandboxes
-      sind noch nicht daran gebunden.
+      Ablehnung wird im Audit-Log festgehalten.
     enabled: Prompts nur in der EU/im EWR verarbeiten
     hostsLabel: Endpunkte mit bestätigter Verarbeitung in der EU/im EWR
     hostsHelp: Ein Host pro Zeile, so wie er in der Basis-URL eines Anbieters

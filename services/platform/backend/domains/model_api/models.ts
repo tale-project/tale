@@ -4,17 +4,15 @@ import type {
 } from '@tale/shared/schemas/providers';
 import type { Sql } from 'postgres';
 
-import { isStandardGatewayProvider } from '../../../lib/shared/providers/gateway_standard_providers.ts';
 import {
   type ComposerModelOption,
   servedByDirectCredential,
 } from '../../core/chat/composer.ts';
 import {
-  gatewayBuiltinRefusal,
+  gatewayModelRefusal,
   type HiddenModelsRule,
   type ModelEndpointPolicy,
   type ModelEndpointRefusalData,
-  modelEndpointRefusal,
   withoutRefusedModels,
 } from '../../core/governance/model_endpoint_gate.ts';
 import { ridesAnthropicHarnessEndpoint } from '../../core/lib/providers/agent_serving.ts';
@@ -95,29 +93,22 @@ export function ridesModelApiAnthropicLane(
 /**
  * The EU/EEA processing rule's verdict on `model`'s requests on `wire`
  * (GOV-R17) — undefined when it lets them through. The endpoint is the one
- * the gateway would call: a custom provider's own, and on the Anthropic lane
- * the connector's native Anthropic endpoint; a vendor the gateway implements
- * itself it reaches through its built-in connection, whatever endpoint the
- * provider names.
+ * the gateway would call ({@link gatewayModelRefusal}, which the session key's
+ * provision judges by too): a custom provider's own, and on the Anthropic
+ * lane the connector's native Anthropic endpoint; a vendor the gateway
+ * implements itself it reaches through its built-in connection, whatever
+ * endpoint the provider names.
  */
 export function modelApiEndpointRefusal(
   policy: ModelEndpointPolicy,
   wire: ModelApiWire,
-  model: Pick<ModelApiModel, 'providerSlug' | 'connector'>,
+  model: Pick<ModelApiModel, 'connector'>,
 ): ModelEndpointRefusalData | undefined {
-  const providerName = model.providerSlug;
-  if (ridesModelApiAnthropicLane(wire, model)) {
-    return modelEndpointRefusal(policy, {
-      providerName,
-      baseUrl: model.connector.harnessEndpoint?.baseUrl,
-    });
-  }
-  return isStandardGatewayProvider(providerName)
-    ? gatewayBuiltinRefusal(policy, providerName)
-    : modelEndpointRefusal(policy, {
-        providerName,
-        baseUrl: model.connector.baseUrl,
-      });
+  return gatewayModelRefusal(
+    policy,
+    model.connector,
+    ridesModelApiAnthropicLane(wire, model),
+  );
 }
 
 /** What a key holder is offered on `wires` (GOV-R22): `models` less the ones

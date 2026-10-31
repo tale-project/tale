@@ -1,8 +1,16 @@
+import type { ProviderDefinition } from '@tale/shared/schemas/providers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '../../../../lib/shared/errors/app-error';
+import { createCtxShim } from '../../../lib/ctx-shim';
+import {
+  ModelEndpointRefusal,
+  type ModelEndpointPolicy,
+} from '../../governance/model_endpoint_gate';
 import type { ActionCtx } from '../../lib/ctx';
 import { getProviderCatalog } from '../../lib/providers/catalog_fetch';
+import { loadProviderDefinitions as loadShippedProviders } from '../../lib/providers/load_system_config';
+import { resolveProvidersForOrgId } from '../../lib/providers/org_providers';
 import type { Id } from '../../lib/rows';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
 import {
@@ -15,6 +23,7 @@ import {
   ensureModelPricingOverride,
   mintVirtualKey,
   provisionProviders,
+  resolveGatewayRouting,
   scheduleProviderPoolShrink,
 } from './llm_gateway_admin';
 
@@ -60,11 +69,22 @@ vi.mock('../../lib/providers/org_providers', () => ({
 
 const mockedResolve = vi.mocked(resolveProviderCredential);
 const mockedCatalog = vi.mocked(getProviderCatalog);
+/** The audit seam a refusal of the EU/EEA rule writes to. */
+const audit = vi.fn(async (_entry: unknown) => null);
 
-/** Fake ActionCtx whose runQuery serves the credential-row read. */
-function fakeCtx(row: { modelAllowlist?: string[] } | null = {}): ActionCtx {
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runQuery is exercised by this module
-  return { runQuery: vi.fn(async () => row) } as unknown as ActionCtx;
+/** Fake ActionCtx serving the credential-row read and the EU/EEA rule's two
+ * seams; the rule is off unless a test names one. */
+function fakeCtx(
+  row: { modelAllowlist?: string[] } | null = {},
+  policy: ModelEndpointPolicy = { kind: 'open' },
+): ActionCtx {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the module reaches only these seams
+  return createCtxShim({
+    'provider_credentials/queries:getCredentialInternal': async () => row,
+    'governance/internal_queries:getModelEndpointPolicyInternal': async () =>
+      policy,
+    'governance/internal_mutations:recordModelEndpointRefusal': audit,
+  }) as unknown as ActionCtx;
 }
 
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- opaque branded id in a unit test
@@ -173,6 +193,7 @@ describe('provisionSessionGatewayKey', () => {
   it('provisions each involved provider once, hardens config, mints, and hashes', async () => {
     mockedResolve.mockResolvedValue(apiKeyResolution());
     const result = await provisionSessionGatewayKey(fakeCtx(), {
+      surface: 'task',
       organizationId: 'org_1',
       sessionId: 'sess-1',
       allowedModels: MODELS,
@@ -218,6 +239,7 @@ describe('provisionSessionGatewayKey', () => {
     // left to the datasheet.
     mockedResolve.mockResolvedValue(apiKeyResolution());
     await provisionSessionGatewayKey(fakeCtx(), {
+      surface: 'task',
       organizationId: 'org_1',
       sessionId: 'sess-1',
       allowedModels: MODELS,
@@ -246,6 +268,7 @@ describe('provisionSessionGatewayKey', () => {
       },
     ] as never);
     await provisionSessionGatewayKey(fakeCtx(), {
+      surface: 'task',
       organizationId: 'org_1',
       sessionId: 'sess-1',
       allowedModels: MODELS,
@@ -268,6 +291,7 @@ describe('provisionSessionGatewayKey', () => {
       new Error('llm-gateway create pricing override failed (503)'),
     );
     const result = await provisionSessionGatewayKey(fakeCtx(), {
+      surface: 'task',
       organizationId: 'org_1',
       sessionId: 'sess-1',
       allowedModels: MODELS,
@@ -301,6 +325,7 @@ describe('provisionSessionGatewayKey', () => {
     );
     await expect(
       provisionSessionGatewayKey(fakeCtx(), {
+        surface: 'task',
         organizationId: 'org_1',
         sessionId: 'sess-ds',
         allowedModels: [
@@ -329,6 +354,7 @@ describe('provisionSessionGatewayKey', () => {
       { id: 'deepseek-v4-pro' },
     ] as unknown as Awaited<ReturnType<typeof getProviderCatalog>>);
     await provisionSessionGatewayKey(fakeCtx(), {
+      surface: 'task',
       organizationId: 'org_1',
       sessionId: 'sess-ds',
       allowedModels: [
@@ -374,6 +400,7 @@ describe('provisionSessionGatewayKey', () => {
       },
     ] as unknown as Awaited<ReturnType<typeof getProviderCatalog>>);
     await provisionSessionGatewayKey(fakeCtx(), {
+      surface: 'task',
       organizationId: 'org_1',
       sessionId: 'sess-cc',
       allowedModels: [
@@ -422,6 +449,7 @@ describe('provisionSessionGatewayKey', () => {
       },
     ] as unknown as Awaited<ReturnType<typeof getProviderCatalog>>);
     await provisionSessionGatewayKey(fakeCtx(), {
+      surface: 'task',
       organizationId: 'org_1',
       sessionId: 'sess-or',
       allowedModels: [
@@ -471,6 +499,7 @@ describe('provisionSessionGatewayKey', () => {
     );
     await expect(
       provisionSessionGatewayKey(fakeCtx(), {
+        surface: 'task',
         organizationId: 'org_1',
         sessionId: 'sess-or',
         allowedModels: [
@@ -501,12 +530,14 @@ describe('provisionSessionGatewayKey', () => {
     ] as unknown as Awaited<ReturnType<typeof getProviderCatalog>>);
     const models = [{ providerSlug: 'deepseek', modelId: 'deepseek-v4-flash' }];
     await provisionSessionGatewayKey(fakeCtx(), {
+      surface: 'task',
       organizationId: 'org_a',
       sessionId: 'sess-a',
       allowedModels: models,
       budgetCents: 100,
     });
     await provisionSessionGatewayKey(fakeCtx(), {
+      surface: 'task',
       organizationId: 'org_b',
       sessionId: 'sess-b',
       allowedModels: models,
@@ -534,6 +565,7 @@ describe('provisionSessionGatewayKey', () => {
     );
     await expect(
       provisionSessionGatewayKey(fakeCtx(), {
+        surface: 'task',
         organizationId: 'org_1',
         sessionId: 'sess-2',
         allowedModels: [
@@ -561,6 +593,7 @@ describe('provisionSessionGatewayKey', () => {
     );
     await expect(
       provisionSessionGatewayKey(fakeCtx(), {
+        surface: 'task',
         organizationId: 'org_1',
         sessionId: 'sess-2b',
         allowedModels: [
@@ -584,6 +617,7 @@ describe('provisionSessionGatewayKey', () => {
     mockedResolve.mockResolvedValue(apiKeyResolution());
     await expect(
       provisionSessionGatewayKey(fakeCtx(), {
+        surface: 'task',
         organizationId: 'org_1',
         sessionId: 'sess-5',
         allowedModels: MODELS,
@@ -613,6 +647,7 @@ describe('provisionSessionGatewayKey', () => {
     ]);
     await expect(
       provisionSessionGatewayKey(fakeCtx(), {
+        surface: 'task',
         organizationId: 'org_1',
         sessionId: 'sess-2c',
         allowedModels: MODELS,
@@ -639,6 +674,7 @@ describe('provisionSessionGatewayKey', () => {
     ]);
     await expect(
       provisionSessionGatewayKey(fakeCtx(), {
+        surface: 'task',
         organizationId: 'org_1',
         sessionId: 'sess-2d',
         allowedModels: [
@@ -657,6 +693,7 @@ describe('provisionSessionGatewayKey', () => {
     );
     await expect(
       provisionSessionGatewayKey(fakeCtx(), {
+        surface: 'task',
         organizationId: 'org_1',
         sessionId: 'sess-3',
         allowedModels: MODELS,
@@ -670,6 +707,7 @@ describe('provisionSessionGatewayKey', () => {
   it('schedules the resize of the records no session provisions once the posture is applied', async () => {
     mockedResolve.mockResolvedValue(apiKeyResolution());
     const result = await provisionSessionGatewayKey(fakeCtx(), {
+      surface: 'task',
       organizationId: 'org_1',
       sessionId: 'sess-4',
       allowedModels: MODELS,
@@ -687,6 +725,7 @@ describe('provisionSessionGatewayKey', () => {
   it('passes an explicit credential selection through to resolution', async () => {
     mockedResolve.mockResolvedValue(apiKeyResolution());
     await provisionSessionGatewayKey(fakeCtx(), {
+      surface: 'task',
       organizationId: 'org_1',
       sessionId: 'sess-4',
       allowedModels: [
@@ -732,6 +771,7 @@ describe('provisionSessionGatewayKey — request-scoped keys', () => {
     organizationId: 'org_1',
     sessionId: 'model-api:key-1',
     allowedModels: MODEL,
+    surface: 'model-api' as const,
     budgetCents: 4,
     requestScoped: true,
   };
@@ -811,6 +851,7 @@ describe('provisionSessionGatewayKey — request-scoped keys', () => {
 
     // A sandbox session keeps its path: nothing to push, the mint decides.
     await provisionSessionGatewayKey(fakeCtx(), {
+      surface: 'task',
       organizationId: 'org_1',
       sessionId: 'sess-sub',
       allowedModels: models,
@@ -834,6 +875,7 @@ describe('gatewayProvisioningFailureStage', () => {
     allowedModels: [
       { providerSlug: 'openrouter', modelId: 'anthropic/claude-sonnet-5' },
     ],
+    surface: 'task' as const,
     budgetCents: 100,
   };
 
@@ -995,5 +1037,400 @@ describe('gatewayProvisioningFailureStage', () => {
         ),
       ).toBe('gateway');
     });
+  });
+});
+
+describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
+  const EU: ModelEndpointPolicy = { kind: 'eu', attestedHosts: [] };
+  const DEEPSEEK = { providerSlug: 'deepseek', modelId: 'deepseek-v4-flash' };
+  const SONNET = 'anthropic/claude-sonnet-5';
+
+  /** A connector of the org's own, shaped like the shipped `shippedName`:
+   * an entry named like a shipped one replaces it. */
+  function ownConnector(
+    shippedName: string,
+    own: { name?: string; baseUrl: string; harnessBaseUrl?: string },
+  ): ProviderDefinition {
+    const shipped = loadShippedProviders().find(
+      (entry) => entry.name === shippedName,
+    );
+    if (shipped === undefined) {
+      throw new Error(`no shipped connector "${shippedName}"`);
+    }
+    const { harnessEndpoint: _shippedHarness, ...rest } = shipped;
+    return {
+      ...rest,
+      name: own.name ?? shipped.name,
+      baseUrl: own.baseUrl,
+      ...(own.harnessBaseUrl !== undefined
+        ? {
+            harnessEndpoint: {
+              baseUrl: own.harnessBaseUrl,
+              apiFormat: 'anthropic' as const,
+            },
+          }
+        : {}),
+    };
+  }
+
+  /** Serve the shipped connectors with the org's own `extra` on top. */
+  function withConnectors(...extra: ProviderDefinition[]): void {
+    vi.mocked(resolveProvidersForOrgId).mockImplementation(async () => [
+      ...loadShippedProviders().filter(
+        (entry) => !extra.some((own) => own.name === entry.name),
+      ),
+      ...extra,
+    ]);
+  }
+
+  /** The record name the mint binds a model to. */
+  function recordOf(
+    providerSlug: string,
+    modelId: string,
+    anthropicHarnessLane = false,
+  ): string {
+    return resolveGatewayRouting('org_1', providerSlug, modelId, {
+      anthropicHarnessLane,
+    }).gatewayProvider;
+  }
+
+  function expectNothingServed(): void {
+    expect(provisionProviders).not.toHaveBeenCalled();
+    expect(applyGatewayConfig).not.toHaveBeenCalled();
+    expect(mintVirtualKey).not.toHaveBeenCalled();
+  }
+
+  beforeEach(() => {
+    mockedResolve.mockResolvedValue(apiKeyResolution());
+  });
+
+  afterEach(() => {
+    vi.mocked(resolveProvidersForOrgId).mockImplementation(async () => [
+      ...loadShippedProviders(),
+    ]);
+  });
+
+  it('refuses an upstream outside the EU/EEA before any credential resolves, and audits it', async () => {
+    const refusal = await refusalOf(
+      provisionSessionGatewayKey(fakeCtx({}, EU), {
+        organizationId: 'org_1',
+        sessionId: 'sess-eu',
+        allowedModels: [DEEPSEEK],
+        surface: 'task',
+        actor: { id: 'user-7', type: 'user' },
+        budgetCents: 100,
+      }),
+    );
+
+    expect(refusal).toBeInstanceOf(ModelEndpointRefusal);
+    expect(refusal).toMatchObject({
+      data: {
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        provider: 'deepseek',
+        host: 'api.deepseek.com',
+        reason: 'not-attested',
+      },
+    });
+    expect(audit).toHaveBeenCalledWith({
+      organizationId: 'org_1',
+      surface: 'task',
+      provider: 'deepseek',
+      model: 'deepseek-v4-flash',
+      host: 'api.deepseek.com',
+      reason: 'not-attested',
+      code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+      message: expect.stringContaining('api.deepseek.com is not an endpoint'),
+      actor: { id: 'user-7', type: 'user' },
+    });
+    expect(mockedResolve).not.toHaveBeenCalled();
+    expectNothingServed();
+  });
+
+  it("lets a custom record on a vendor's EU endpoint through", async () => {
+    withConnectors(
+      ownConnector('openai', {
+        name: 'openai-eu',
+        baseUrl: 'https://eu.api.openai.com/v1',
+      }),
+    );
+
+    await provisionSessionGatewayKey(fakeCtx({}, EU), {
+      organizationId: 'org_1',
+      sessionId: 'sess-eu',
+      allowedModels: [{ providerSlug: 'openai-eu', modelId: 'gpt-5.5' }],
+      surface: 'task',
+      budgetCents: 100,
+    });
+
+    expect(provisionProviders).toHaveBeenCalledWith(
+      'org_1',
+      [
+        expect.objectContaining({
+          name: recordOf('openai-eu', 'gpt-5.5'),
+          baseUrl: 'https://eu.api.openai.com/v1',
+        }),
+      ],
+      expect.anything(),
+    );
+    expect(mintVirtualKey).toHaveBeenCalledTimes(1);
+    expect(audit).not.toHaveBeenCalled();
+  });
+
+  it('lets a host an admin attested through', async () => {
+    await provisionSessionGatewayKey(
+      fakeCtx({}, { kind: 'eu', attestedHosts: ['api.deepseek.com'] }),
+      {
+        organizationId: 'org_1',
+        sessionId: 'sess-eu',
+        allowedModels: [DEEPSEEK],
+        surface: 'task',
+        budgetCents: 100,
+      },
+    );
+
+    expect(provisionProviders).toHaveBeenCalledWith(
+      'org_1',
+      [
+        expect.objectContaining({
+          name: recordOf('deepseek', 'deepseek-v4-flash'),
+          baseUrl: 'https://api.deepseek.com',
+        }),
+      ],
+      expect.anything(),
+    );
+    expect(mintVirtualKey).toHaveBeenCalledTimes(1);
+    expect(audit).not.toHaveBeenCalled();
+  });
+
+  describe('OpenRouter passes only through eu.openrouter.ai', () => {
+    it("refuses the gateway's built-in record, even when the provider names eu.openrouter.ai", async () => {
+      withConnectors(
+        ownConnector('openrouter', {
+          baseUrl: 'https://eu.openrouter.ai/api/v1',
+        }),
+      );
+
+      const refusal = await refusalOf(
+        provisionSessionGatewayKey(fakeCtx({}, EU), {
+          organizationId: 'org_1',
+          sessionId: 'sess-eu',
+          allowedModels: [{ providerSlug: 'openrouter', modelId: SONNET }],
+          surface: 'task',
+          budgetCents: 100,
+        }),
+      );
+
+      expect(refusal).toBeInstanceOf(ModelEndpointRefusal);
+      expect(refusal).toMatchObject({
+        data: { provider: 'openrouter', reason: 'gateway-builtin' },
+      });
+      expect(audit).toHaveBeenCalledWith(
+        expect.objectContaining({
+          provider: 'openrouter',
+          model: SONNET,
+          reason: 'gateway-builtin',
+        }),
+      );
+      expectNothingServed();
+    });
+
+    it('refuses its Anthropic lane on openrouter.ai', async () => {
+      const refusal = await refusalOf(
+        provisionSessionGatewayKey(fakeCtx({}, EU), {
+          organizationId: 'org_1',
+          sessionId: 'sess-eu',
+          allowedModels: [
+            {
+              providerSlug: 'openrouter',
+              modelId: SONNET,
+              anthropicHarnessLane: true,
+            },
+          ],
+          surface: 'task',
+          budgetCents: 100,
+        }),
+      );
+
+      expect(refusal).toMatchObject({
+        data: { host: 'openrouter.ai', reason: 'vendor-global' },
+      });
+      expectNothingServed();
+    });
+
+    it('lets through a custom provider on eu.openrouter.ai, and the Anthropic lane of one that names it', async () => {
+      withConnectors(
+        ownConnector('openrouter', {
+          baseUrl: 'https://eu.openrouter.ai/api/v1',
+          harnessBaseUrl: 'https://eu.openrouter.ai/api',
+        }),
+        ownConnector('openrouter', {
+          name: 'openrouter-eu',
+          baseUrl: 'https://eu.openrouter.ai/api/v1',
+        }),
+      );
+
+      await provisionSessionGatewayKey(fakeCtx({}, EU), {
+        organizationId: 'org_1',
+        sessionId: 'sess-eu',
+        allowedModels: [
+          {
+            providerSlug: 'openrouter',
+            modelId: SONNET,
+            anthropicHarnessLane: true,
+          },
+          { providerSlug: 'openrouter-eu', modelId: SONNET },
+        ],
+        surface: 'task',
+        budgetCents: 100,
+      });
+
+      expect(provisionProviders).toHaveBeenCalledWith(
+        'org_1',
+        [
+          expect.objectContaining({
+            name: recordOf('openrouter', SONNET, true),
+            baseUrl: 'https://eu.openrouter.ai/api',
+          }),
+          expect.objectContaining({
+            name: recordOf('openrouter-eu', SONNET),
+            baseUrl: 'https://eu.openrouter.ai/api/v1',
+          }),
+        ],
+        expect.anything(),
+      );
+      expect(mintVirtualKey).toHaveBeenCalledTimes(1);
+      expect(audit).not.toHaveBeenCalled();
+    });
+  });
+
+  it('judges a model whose provider builds no provision by the record the mint would bind it to', async () => {
+    // The serving model is on an attested custom provider; the vision model
+    // is on OpenAI, whose credential is now a subscription. The gateway may
+    // still hold the org's older OpenAI key, which the mint would bind.
+    mockedResolve.mockImplementation(async (_ctx, args) =>
+      args.providerSlug === 'openai'
+        ? SUBSCRIPTION_RESOLUTION
+        : apiKeyResolution(),
+    );
+
+    const refusal = await refusalOf(
+      provisionSessionGatewayKey(
+        fakeCtx({}, { kind: 'eu', attestedHosts: ['api.deepseek.com'] }),
+        {
+          organizationId: 'org_1',
+          sessionId: 'sess-eu',
+          allowedModels: [
+            DEEPSEEK,
+            { providerSlug: 'openai', modelId: 'gpt-5.5' },
+          ],
+          surface: 'task',
+          budgetCents: 100,
+        },
+      ),
+    );
+
+    expect(refusal).toBeInstanceOf(ModelEndpointRefusal);
+    expect(refusal).toMatchObject({
+      data: { provider: 'openai', reason: 'gateway-builtin' },
+    });
+    expectNothingServed();
+  });
+
+  it('refuses an allowed provider whose credential the gateway cannot serve: the mint would bind its older record', async () => {
+    withConnectors(
+      ownConnector('openai', {
+        name: 'openai-eu',
+        baseUrl: 'https://eu.api.openai.com/v1',
+      }),
+    );
+    mockedResolve.mockResolvedValue(SUBSCRIPTION_RESOLUTION);
+    const args = {
+      organizationId: 'org_1',
+      sessionId: 'sess-eu',
+      allowedModels: [{ providerSlug: 'openai-eu', modelId: 'gpt-5.5' }],
+      surface: 'task' as const,
+      budgetCents: 100,
+    };
+
+    const refusal = await refusalOf(
+      provisionSessionGatewayKey(fakeCtx({}, EU), args),
+    );
+
+    expect(refusal).not.toBeInstanceOf(ModelEndpointRefusal);
+    expect(gatewayProvisioningFailureStage(refusal)).toBe('credential');
+    expect((refusal as Error).message).toContain(
+      'Provider "openai-eu" cannot serve this session',
+    );
+    expectNothingServed();
+
+    // With the switch off a session key still skips it, as before.
+    await provisionSessionGatewayKey(fakeCtx(), args);
+    expect(mintVirtualKey).toHaveBeenCalledTimes(1);
+  });
+
+  it('refuses every record while the policy cannot be read', async () => {
+    const refusal = await refusalOf(
+      provisionSessionGatewayKey(fakeCtx({}, { kind: 'unreadable' }), {
+        organizationId: 'org_1',
+        sessionId: 'sess-eu',
+        allowedModels: [DEEPSEEK],
+        surface: 'task',
+        budgetCents: 100,
+      }),
+    );
+
+    expect(refusal).toMatchObject({
+      data: { code: 'MODEL_ENDPOINT_POLICY_UNREADABLE', provider: 'deepseek' },
+    });
+    expectNothingServed();
+  });
+
+  it('names the model API request and its key owner in the audit entry', async () => {
+    await refusalOf(
+      provisionSessionGatewayKey(fakeCtx({}, EU), {
+        organizationId: 'org_1',
+        sessionId: 'model-api:key-1',
+        allowedModels: [DEEPSEEK],
+        surface: 'model-api',
+        actor: { id: 'user-9', type: 'api' },
+        budgetCents: 4,
+        requestScoped: true,
+        requestId: 'req-eu',
+      }),
+    );
+
+    expect(audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        surface: 'model-api',
+        actor: { id: 'user-9', type: 'api' },
+      }),
+    );
+  });
+
+  it('changes nothing with the switch off', async () => {
+    await provisionSessionGatewayKey(fakeCtx(), {
+      organizationId: 'org_1',
+      sessionId: 'sess-open',
+      allowedModels: [
+        DEEPSEEK,
+        { providerSlug: 'openrouter', modelId: SONNET },
+      ],
+      surface: 'task',
+      budgetCents: 100,
+    });
+
+    expect(provisionProviders).toHaveBeenCalledWith(
+      'org_1',
+      [
+        expect.objectContaining({
+          name: recordOf('deepseek', 'deepseek-v4-flash'),
+          baseUrl: 'https://api.deepseek.com',
+        }),
+        expect.objectContaining({ name: 'openrouter' }),
+      ],
+      expect.anything(),
+    );
+    expect(mintVirtualKey).toHaveBeenCalledTimes(1);
+    expect(audit).not.toHaveBeenCalled();
   });
 });
