@@ -2,6 +2,7 @@ import { DndContext } from '@dnd-kit/core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n } from '@/lib/i18n/i18n';
+import type { StandInMember } from '@/tests/utils/member-lookup-stand-in';
 import { render, screen, within } from '@/tests/utils/render';
 
 import { TaskBoardProvider } from './task-board-context';
@@ -12,7 +13,8 @@ import { TaskCard, type TaskRow } from './task-card';
  * organization, and still assigned to them. The board names that person
  * through the real actor directory: the review line says it waits on a
  * former member, in a sentence of the reader's language, and the assignee's
- * avatar is named "Former member" — never their raw user id (#3788).
+ * avatar is named "Former member" — never their raw user id (#3788). The
+ * member lookup answers from the fixtures below.
  */
 
 /** The removed member's id, as the task still stores it. */
@@ -20,9 +22,14 @@ const GONE = 'pTqO7Cn7D9MmBLjW1v2p9yne5Ed1BxOb';
 
 const state = vi.hoisted(() => ({
   locale: 'en',
-  members: undefined as unknown[] | undefined,
+  members: undefined as StandInMember[] | undefined,
 }));
 
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => state.members,
+  ),
+);
 vi.mock('@/lib/i18n/client', () => ({
   useT: (namespace: string) => ({ t: i18n.getFixedT(state.locale, namespace) }),
 }));
@@ -67,12 +74,11 @@ const MEMBERS = [
     _id: 'member-owner',
     organizationId: 'org_test',
     userId: 'u-owner',
-    role: 'owner',
+    role: 'owner' as const,
     createdAt: 0,
     displayName: 'Olive Owner',
     email: 'olive@example.com',
     twoFactorEnabled: false,
-    passkeyCount: 0,
   },
 ];
 
