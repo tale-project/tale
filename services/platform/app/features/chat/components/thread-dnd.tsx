@@ -35,7 +35,7 @@ import {
 
 import { useT } from '@/lib/i18n/client';
 
-import { useChatProjects, useThreadProjectMove } from '../data/chat-backend';
+import { useThreadProjectMove } from '../data/chat-backend';
 import { useThreadActions } from '../data/thread-actions';
 import {
   moveEndsShare,
@@ -261,7 +261,6 @@ export function ThreadDndProvider({
   const activeThreadId = useActiveThreadId();
   const navigate = useNavigate();
   const [activeThread, setActiveThread] = useState<ActiveThread | null>(null);
-  const projects = useChatProjects(organizationId);
   // A drop that would end the chat's project share waits for its answer.
   const [pendingMove, setPendingMove] = useState<
     (PendingProjectMove & { threadId: string; revives: boolean }) | null
@@ -388,7 +387,7 @@ export function ThreadDndProvider({
       </DragOverlay>
       <ProjectMoveConfirmDialog
         pending={pendingMove}
-        projects={projects.status === 'ready' ? projects.data : []}
+        organizationId={organizationId}
         onConfirm={() => {
           if (pendingMove === null) return;
           setPendingMove(null);

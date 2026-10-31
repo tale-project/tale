@@ -228,7 +228,8 @@ vi.mock('../data/chat-backend', async (importOriginal) => {
     })),
     // The HTTP lane serves provider-less renders for real now; keep this
     // file's everything-unavailable default so renders stay calibrated.
-    useChatProjects: vi.fn(() => ({ status: 'unavailable' as const })),
+    useChatProject: vi.fn(() => ({ status: 'unavailable' as const })),
+    useChatProjectChoices: vi.fn(() => ({ status: 'unavailable' as const })),
     useArchivedThreads: vi.fn(() => ({ status: 'unavailable' as const })),
     useVoiceMode: vi.fn(() => ({ status: 'unavailable' as const })),
     useThreadHolds: vi.fn(() => ({ status: 'unavailable' as const })),
@@ -302,7 +303,7 @@ import {
   useArenaPair,
   useChatGeneration,
   useChatModelPreference,
-  useChatProjects,
+  useChatProject,
   useChatSend,
   useChatThread,
   useChatThreads,
@@ -363,6 +364,9 @@ afterEach(() => {
     status: 'unavailable' as const,
   }));
   vi.mocked(useChatThread).mockImplementation(() => ({
+    status: 'unavailable' as const,
+  }));
+  vi.mocked(useChatProject).mockImplementation(() => ({
     status: 'unavailable' as const,
   }));
   vi.mocked(useThreadView).mockImplementation(() => ({
@@ -2459,12 +2463,18 @@ describe('ChatSurface header for a chat outside the list', () => {
 describe("ChatSurface header for a project's chat", () => {
   beforeEach(() => {
     vi.mocked(useChatThreads).mockReturnValue({ status: 'ready', data: [] });
-    vi.mocked(useChatProjects).mockReturnValue({
+    vi.mocked(useChatProject).mockImplementation((_org, projectId) => ({
       status: 'ready',
-      data: [
-        { id: 'project-2', name: 'Review Crew', icon: 'Rocket', color: 'blue' },
-      ],
-    });
+      data:
+        projectId === 'project-2'
+          ? {
+              id: 'project-2',
+              name: 'Review Crew',
+              icon: 'Rocket',
+              color: 'blue',
+            }
+          : null,
+    }));
     vi.mocked(useChatThread).mockReturnValue({
       status: 'ready',
       data: {
@@ -2481,7 +2491,7 @@ describe("ChatSurface header for a project's chat", () => {
   });
 
   afterEach(() => {
-    vi.mocked(useChatProjects).mockImplementation(() => ({
+    vi.mocked(useChatProject).mockImplementation(() => ({
       status: 'unavailable' as const,
     }));
   });
@@ -2857,6 +2867,23 @@ describe('ChatSurface on a conversation shared with the project', () => {
             streamingMessageId: undefined,
             pendingConsumed: false,
           },
+    );
+  });
+
+  it('names the project it lies in, read by id', () => {
+    vi.mocked(useChatProject).mockImplementation((_org, projectId) => ({
+      status: 'ready',
+      data:
+        projectId === 'project-1'
+          ? { id: 'project-1', name: 'Release operations' }
+          : null,
+    }));
+    render(<ChatSurface organizationId="org-1" threadId="thread-shared" />);
+
+    expect(screen.getByText('Release operations')).toBeInTheDocument();
+    expect(vi.mocked(useChatProject)).toHaveBeenCalledWith(
+      'org-1',
+      'project-1',
     );
   });
 

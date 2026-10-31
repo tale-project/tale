@@ -94,7 +94,7 @@ import {
   useArenaPair,
   useChatGeneration,
   useChatModelPreference,
-  useChatProjects,
+  useChatProject,
   useChatSend,
   useChatThread,
   useChatThreads,
@@ -607,30 +607,26 @@ function ChatSurfaceInner({
   // the same one-bulk-read hold gating for the destructive tail.
   const { t: tCommon } = useT('common');
   const { t: tLegalHold } = useT('legalHold');
-  const projectsQuery = useChatProjects(organizationId);
-  const headerProjects =
-    projectsQuery.status === 'ready' ? projectsQuery.data : [];
+  // The header's project chip reads the chat's project by id, never every
+  // project (#5194); an archived or unreachable one shows no chip.
+  const headerProject = useChatProject(organizationId, headerThread?.projectId);
   const holdsQuery = useThreadHolds(organizationId);
   const threadHeld =
     holdsQuery.status === 'ready' &&
     threadId !== undefined &&
     (holdsQuery.data.orgHeld || holdsQuery.data.targetIds.includes(threadId));
-  const headerMenuActions = useThreadMenuActions(
-    organizationId,
-    {
-      id: threadId ?? '',
-      ...(activeThread?.pinnedAt !== undefined
-        ? { pinnedAt: activeThread.pinnedAt }
-        : {}),
-      ...(activeThread?.projectId !== undefined
-        ? { projectId: activeThread.projectId }
-        : {}),
-      ...(activeThread?.sharedWithProject !== undefined
-        ? { sharedWithProject: activeThread.sharedWithProject }
-        : {}),
-    },
-    headerProjects,
-  );
+  const headerMenuActions = useThreadMenuActions(organizationId, {
+    id: threadId ?? '',
+    ...(activeThread?.pinnedAt !== undefined
+      ? { pinnedAt: activeThread.pinnedAt }
+      : {}),
+    ...(activeThread?.projectId !== undefined
+      ? { projectId: activeThread.projectId }
+      : {}),
+    ...(activeThread?.sharedWithProject !== undefined
+      ? { sharedWithProject: activeThread.sharedWithProject }
+      : {}),
+  });
   const [deleteOpen, setDeleteOpen] = useState(false);
 
   // The hand-over to a project agent: chat answers, a task produces the
@@ -702,7 +698,7 @@ function ChatSurfaceInner({
             },
             moveToProjectMenuItem({
               t,
-              projects: headerProjects,
+              organizationId,
               currentProjectId: activeThread.projectId,
               onMove: headerMenuActions.moveToProject,
             }),
@@ -978,14 +974,16 @@ function ChatSurfaceInner({
   const notifyAgentSaveFailed = useCallback(() => {
     toast({ title: t('agentPicker.saveFailed'), variant: 'destructive' });
   }, [t, toast]);
+  // The address's project is read by id, never every project (#5194).
+  const draftProject = useChatProject(organizationId, projectId);
   const whoAnswers = useChatWhoAnswers({
     organizationId,
     threadId,
     draftProjectId: projectId,
     draftProjectKnown:
       projectId === undefined ||
-      projectsQuery.status !== 'ready' ||
-      projectsQuery.data.some((project) => project.id === projectId),
+      draftProject.status !== 'ready' ||
+      draftProject.data !== null,
     thread: headerThread,
     models,
     preferredPick: preference.status === 'ready' ? preference.data : undefined,
@@ -2037,8 +2035,8 @@ function ChatSurfaceInner({
       : undefined,
   );
   const activeProject =
-    headerThread?.projectId !== undefined
-      ? headerProjects.find((project) => project.id === headerThread.projectId)
+    headerProject.status === 'ready' && headerProject.data !== null
+      ? headerProject.data
       : undefined;
 
   // The composer's project and agent controls. The owner's alone, outside a
@@ -2080,8 +2078,7 @@ function ChatSurfaceInner({
   const leadingControls = showWhoAnswers ? (
     <>
       <ComposerProjectPicker
-        projects={headerProjects}
-        projectsReady={projectsQuery.status === 'ready'}
+        organizationId={organizationId}
         projectId={whoAnswers.projectId}
         draft={threadId === undefined}
         onChange={chooseProject}

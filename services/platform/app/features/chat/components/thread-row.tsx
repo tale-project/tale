@@ -315,9 +315,8 @@ export function ThreadRowMenu({
   const { t: tCommon } = useT('common');
   const { t: tLegalHold } = useT('legalHold');
   const navigate = useNavigate();
-  const { organizationId, projects, orgHeld, heldThreadIds } =
-    useThreadListFrame();
-  const menuActions = useThreadMenuActions(organizationId, thread, projects);
+  const { organizationId, orgHeld, heldThreadIds } = useThreadListFrame();
+  const menuActions = useThreadMenuActions(organizationId, thread);
   // Row-only actions (mark read) live outside the shared menu handlers.
   const actions = useThreadActions(organizationId);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -405,7 +404,7 @@ export function ThreadRowMenu({
             // pick one here — the shared submenu (also in the header menu).
             moveToProjectMenuItem({
               t,
-              projects,
+              organizationId,
               currentProjectId: thread.projectId,
               onMove: menuActions.moveToProject,
             }),
