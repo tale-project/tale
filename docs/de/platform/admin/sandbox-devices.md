@@ -88,6 +88,8 @@ Verbundene Geräte heben außerdem die Obergrenze für die [Arbeitslimits](/de/p
 
 Ein Gerät mit einem anderen Release als der Server übernimmt keine neuen Sandboxes, bis es aktualisiert ist. **Update nötig** heißt, dass sich das Gerät nicht selbst aktualisiert; **Update fehlgeschlagen** heißt, dass sein letztes automatisches Update nicht geklappt hat. Führe in beiden Fällen `tale sandbox update` auf dem Rechner aus.
 
+Ist die Docker Engine auf dem Rechner älter als 24.0, nennt der Status zusätzlich ihre Version. Aktualisiere dann zuerst Docker auf dem Rechner: `tale sandbox update` bricht bei einer älteren Engine ab, und eine Engine vor 23.0 kann die Tale-Images gar nicht laden. Führe danach `tale sandbox update` aus; ein Gerät, das sich selbst aktualisiert, versucht es auch selbst erneut.
+
 ## Ein Gerät vom Rechner aus betreuen
 
 Führe diese Befehle auf dem Gerät selbst aus:

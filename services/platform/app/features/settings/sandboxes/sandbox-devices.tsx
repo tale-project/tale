@@ -1,3 +1,7 @@
+import {
+  isDockerEngineBelowFloor,
+  MIN_DOCKER_ENGINE_MAJOR,
+} from '@tale/shared/docker-engine';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { DataTable } from '@tale/ui/data-table/data-table';
@@ -116,6 +120,7 @@ export function SandboxDevicesSection({
         cell: ({ row }) => {
           const d = row.original;
           const target = d.update?.targetVersion ?? '';
+          const engine = d.platform?.dockerVersion;
           return (
             <Stack gap={1} className="min-w-0">
               <div>
@@ -129,24 +134,33 @@ export function SandboxDevicesSection({
                 </span>
               )}
               {d.status === 'update_failed' && (
-                <>
-                  <span className="text-muted-foreground text-xs">
-                    {t('devices.updateFailedHint', { version: target })}
-                  </span>
-                  {/* The reason itself, readable by everyone (a tooltip is
-                      out of reach for keyboard and screen-reader users). */}
-                  {d.update?.error && (
-                    <span className="text-muted-foreground line-clamp-3 text-xs break-words">
-                      {d.update.error}
-                    </span>
-                  )}
-                </>
+                <span className="text-muted-foreground text-xs">
+                  {t('devices.updateFailedHint', { version: target })}
+                </span>
               )}
               {d.status === 'outdated' && (
                 <span className="text-muted-foreground text-xs">
                   {t('devices.outdatedHint', {
                     version: view?.serverVersion ?? '',
                   })}
+                </span>
+              )}
+              {/* tale sandbox update refuses an engine below the floor, and
+                  one too old for zstd layers fails every automatic update
+                  with Docker's own pull error: name the cause before it. */}
+              {isDockerEngineBelowFloor(engine) && (
+                <span className="text-muted-foreground text-xs">
+                  {t('devices.engineTooOld', {
+                    version: engine,
+                    minimum: `${MIN_DOCKER_ENGINE_MAJOR}.0`,
+                  })}
+                </span>
+              )}
+              {/* The reason itself, readable by everyone (a tooltip is
+                  out of reach for keyboard and screen-reader users). */}
+              {d.status === 'update_failed' && d.update?.error && (
+                <span className="text-muted-foreground line-clamp-3 text-xs break-words">
+                  {d.update.error}
                 </span>
               )}
             </Stack>

@@ -88,6 +88,8 @@ Les appareils connectés relèvent aussi le plafond des [limites d’activité](
 
 Un appareil qui n’a pas la même version que le serveur ne prend plus de nouvelles sandboxes tant qu’il n’est pas mis à jour. **Mise à jour requise** signifie que l’appareil ne se met pas à jour tout seul ; **Échec de la mise à jour** signifie que sa dernière mise à jour automatique n’a pas abouti. Dans les deux cas, exécute `tale sandbox update` sur la machine.
 
+Si le Docker Engine de la machine est antérieur à la version 24.0, le statut indique aussi sa version. Mets d’abord à jour Docker sur la machine : `tale sandbox update` refuse un moteur plus ancien, et un moteur antérieur à la version 23.0 ne peut pas du tout télécharger les images Tale. Exécute ensuite `tale sandbox update` ; un appareil qui se met à jour tout seul réessaie aussi de lui-même.
+
 ## Gérer un appareil depuis la machine
 
 Exécute ces commandes sur l’appareil lui-même :
