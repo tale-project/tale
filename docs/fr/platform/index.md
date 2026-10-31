@@ -42,7 +42,7 @@ En haut du panneau, une rangée d’icônes détermine ce que la liste affiche 
 
 Sous les projets, une seule liste regroupe ton travail sous **Épinglés**, **Aujourd’hui**, **Hier**, **7 derniers jours** et **Plus ancien** :
 
-- Tes chats.
+- Tes chats. Les plus anciens se chargent à mesure que tu fais défiler la liste vers le bas, et une recherche les trouve d’elle-même.
 - Les tâches ouvertes qui te sont attribuées ou qui attendent ta relecture, dans tous les projets que tu peux consulter.
 - Dans **Tout**, les conversations ouvertes de la boîte de réception que tu peux voir.
 

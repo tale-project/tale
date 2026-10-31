@@ -32,6 +32,7 @@ const LOADING_RESULT: UsePaginatedQueryReturnType<AuditLogDoc> = {
   retry: () => {},
   isRetrying: false,
   unavailable: false,
+  loadMoreFailed: false,
   errorCount: 0,
 };
 
