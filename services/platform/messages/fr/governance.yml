@@ -1613,8 +1613,7 @@ modelAccess:
       qu'ils traitent les prompts dans l'UE/EEE — eu.openrouter.ai,
       eu.api.openai.com, api.eu.mistral.ai et les hôtes ajoutés ci-dessous.
       Tout autre appel est refusé avant que quoi que ce soit ne soit envoyé,
-      et le refus est consigné dans le journal d'audit. Les agents de code
-      dans les sandboxes n'y sont pas encore soumis.
+      et le refus est consigné dans le journal d'audit.
     enabled: Traiter les prompts uniquement dans l'UE/EEE
     hostsLabel: Endpoints dont le traitement dans l'UE/EEE est confirmé
     hostsHelp: Un hôte par ligne, tel qu'il figure dans l'URL de base d'un

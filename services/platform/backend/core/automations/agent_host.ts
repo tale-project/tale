@@ -59,6 +59,10 @@ import {
   spawnerOutageOutlasted,
 } from '../chat/external_turn_shared';
 import { readMandatoryInstructions } from '../chat/guardrails';
+import {
+  assertModelEndpointAllowed,
+  ModelEndpointRefusal,
+} from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
@@ -1242,6 +1246,9 @@ async function mintWorkflowTurnAuth(
   ctx: ActionCtx,
   args: {
     organizationId: string;
+    /** The run the turn serves — the audit entry of an upstream the EU/EEA
+     * rule refuses names it, as the `llm` node's does. */
+    runId: string;
     sessionId: string;
     execId: string;
     harness: string;
@@ -1298,6 +1305,8 @@ async function mintWorkflowTurnAuth(
         },
         ...(args.vision !== null ? [args.vision] : []),
       ],
+      surface: 'automation',
+      actor: { id: args.runId, type: 'workflow' },
       budgetCents,
     });
     return {
@@ -1356,6 +1365,21 @@ async function mintWorkflowTurnAuth(
       `provider "${args.providerSlug}"'s default credential is no longer a subscription — rerun the automation`,
     );
   }
+  // The CLI calls this URL straight from the sandbox, so the EU/EEA rule
+  // (GOV-R17) judges it before the secret goes anywhere: a broker's own
+  // endpoint is known only once its credential is redeemed.
+  const baseUrl =
+    (credential.authMethod === 'subscription-broker'
+      ? credential.endpointUrl
+      : undefined) ?? args.apiBaseUrl;
+  await assertModelEndpointAllowed(ctx, {
+    organizationId: args.organizationId,
+    surface: 'automation',
+    providerName: args.providerSlug,
+    modelId: args.modelId,
+    baseUrl,
+    actor: { id: args.runId, type: 'workflow' },
+  });
   const secret =
     credential.authMethod === 'subscription-broker'
       ? credential.token
@@ -1365,10 +1389,7 @@ async function mintWorkflowTurnAuth(
     serving: {
       kind: 'subscription',
       secret,
-      baseUrl:
-        (credential.authMethod === 'subscription-broker'
-          ? credential.endpointUrl
-          : undefined) ?? args.apiBaseUrl,
+      baseUrl,
       bridgeToken,
       ...(credential.targetEnvVar !== undefined
         ? { targetEnvVar: credential.targetEnvVar }
@@ -1446,9 +1467,11 @@ export interface StartWorkflowAgentTurnArgs {
  * instant retries. A workspace an administrator is destroying is no want of
  * room: the step fails with the reason at once, never retried, since a
  * start after the Destroy would continue the run in a fresh, empty
- * workspace. A broker pool whose every account is cooling down says when
- * the first is back: the stepper holds the re-kick's start until then
- * instead of meeting the same refusal at once.
+ * workspace. A model the organization's EU/EEA rule refuses (GOV-R17) is
+ * no fault either: the step fails with the refusal's own sentence, never
+ * retried, until an admin acts. A broker pool whose every account is
+ * cooling down says when the first is back: the stepper holds the re-kick's
+ * start until then instead of meeting the same refusal at once.
  */
 export function classifyWorkflowStartFailure(
   err: unknown,
@@ -1470,6 +1493,12 @@ export function classifyWorkflowStartFailure(
     return {
       reason: `the agent turn could not start: ${SANDBOX_DESTROY_PENDING_MESSAGE}`,
       failureCode: 'sandbox_destroying',
+    };
+  }
+  if (err instanceof ModelEndpointRefusal) {
+    return {
+      reason: `the agent turn could not start: ${err.data.message}`,
+      failureCode: 'endpoint_refused',
     };
   }
   const noRoom = sandboxCapacityRefusal(err);
@@ -1584,6 +1613,7 @@ export async function startWorkflowAgentTurnImpl(
           : undefined;
       const auth = await mintWorkflowTurnAuth(ctx, {
         organizationId: args.organizationId,
+        runId: args.runId,
         sessionId: args.sessionId,
         execId: args.execId,
         harness: args.harness,
@@ -2242,6 +2272,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
           : undefined;
       const auth = await mintWorkflowTurnAuth(ctx, {
         organizationId: args.organizationId,
+        runId: askRunId,
         sessionId,
         execId,
         harness: agent.harness,
@@ -2488,8 +2519,10 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
     } catch (err) {
       console.error('[agent-host] answered-ask resume failed:', err);
       // A workspace being destroyed fails the step, as at a start: the
-      // conversation the answer was for is going with it.
+      // conversation the answer was for is going with it. So does a model
+      // the EU/EEA rule refuses (GOV-R17): a re-kick meets it again.
       const destroying = isDestroyPendingRefusal(err);
+      const endpointRefused = err instanceof ModelEndpointRefusal;
       // No sandbox room is a wait here too: the re-kick resumes once the
       // refusal's retry hint has passed, spending no attempt.
       const noRoom = sandboxCapacityRefusal(err) !== null;
@@ -2514,12 +2547,14 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
           reason:
             roomWait !== undefined
               ? roomWait.reason
-              : `the agent turn could not resume after the answer: ${destroying ? SANDBOX_DESTROY_PENDING_MESSAGE : runFailureMessage(err)}`,
+              : `the agent turn could not resume after the answer: ${destroying ? SANDBOX_DESTROY_PENDING_MESSAGE : err instanceof ModelEndpointRefusal ? err.data.message : runFailureMessage(err)}`,
           failureCode: destroying
             ? 'sandbox_destroying'
-            : noRoom
-              ? 'sandbox_capacity'
-              : 'resume_failed',
+            : endpointRefused
+              ? 'endpoint_refused'
+              : noRoom
+                ? 'sandbox_capacity'
+                : 'resume_failed',
           ...(retryAtMs !== undefined ? { retryAtMs } : {}),
           ...(roomWait?.retryAfterMs !== undefined
             ? { retryAfterMs: roomWait.retryAfterMs }

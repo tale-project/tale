@@ -1517,8 +1517,7 @@ modelAccess:
       provider checks, only to endpoints known to process in the EU/EEA —
       eu.openrouter.ai, eu.api.openai.com, api.eu.mistral.ai and the hosts
       attested below. Any other call is refused before anything is sent, and
-      the refusal is recorded in the audit log. Coding agents in sandboxes are
-      not held to it yet.
+      the refusal is recorded in the audit log.
     enabled: Process prompts only in the EU/EEA
     hostsLabel: Endpoints attested as processing in the EU/EEA
     hostsHelp: One host per line, as it appears in a provider's base URL or the

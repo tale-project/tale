@@ -16,8 +16,10 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import { harnessResumesConversations } from '../chat/external_turn_shared';
+import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
 import { resolveModel } from '../lib/providers/resolve_model';
+import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import { SessionMemoryBusyError } from '../node_only/sandbox/helpers/session_client';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { SANDBOX_DESTROY_PENDING_MESSAGE } from '../sandbox/session_constants';
@@ -42,6 +44,9 @@ const io = vi.hoisted(() => ({
     argv: string[];
     env: Record<string, string>;
   }>,
+  /** The organization's model-endpoint rule (GOV-R17); open unless a test
+   * turns the EU/EEA rule on. */
+  endpointPolicy: { kind: 'open' } as unknown,
 }));
 
 vi.mock('../chat/external_turn_shared', async (importActual) => {
@@ -103,11 +108,11 @@ vi.mock('../node_only/sandbox/agent_session', () => ({
   },
 }));
 vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
-  provisionSessionGatewayKey: async () => ({
+  provisionSessionGatewayKey: vi.fn(async () => ({
     token: 'test-token',
     keyId: 'key-new',
     keyHash: 'hash-new',
-  }),
+  })),
 }));
 vi.mock('../node_only/sandbox/turn_equipment', () => ({
   resolveTurnEquipmentEnv: async () => ({}),
@@ -197,6 +202,8 @@ function makeCtx(cursor: unknown) {
           return { userId: 'user-starter', agentSlug: 'invoice-desk' };
         case 'governance/queries:getContextCapInternal':
           return null;
+        case 'governance/internal_queries:getModelEndpointPolicyInternal':
+          return io.endpointPolicy;
         case 'governance/internal_queries:getPolicyConfigInternal':
           return args.policyType === 'system_prompt' ? io.systemPrompt : null;
         default:
@@ -251,6 +258,7 @@ beforeEach(() => {
   io.sessionRefusal = undefined;
   io.execRefusal = undefined;
   io.reservation = { allowed: true, budgetCents: 500 };
+  io.endpointPolicy = { kind: 'open' };
   vi.mocked(resolveModel).mockReset();
   vi.mocked(resolveProviderCredential).mockReset();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -866,6 +874,289 @@ describe('an automation agent turn', () => {
       sessionId: 'wf-run-1',
       execId: resumed?.execId,
       kind: 'workflow-agent',
+    });
+  });
+});
+
+describe('an automation agent turn under the EU/EEA rule [GOV-R17]', () => {
+  const RULE = 'This organization processes prompts only in the EU/EEA';
+
+  function euRule(attestedHosts: string[] = []): void {
+    io.endpointPolicy = { kind: 'eu', attestedHosts };
+  }
+
+  /** A broker account's subscription, at the vendor's API or at the
+   * endpoint the credential names instead. */
+  function subscribes(
+    endpointUrl?: string,
+    targetEnvVar = 'CLAUDE_CODE_OAUTH_TOKEN',
+  ): void {
+    vi.mocked(resolveProviderCredential).mockResolvedValue({
+      authMethod: 'subscription-broker',
+      credentialId: 'credential-1',
+      name: 'Synthetic broker',
+      token: 'synthetic-oauth-token',
+      brokerTokenHash: 'stable-selected-account-hash',
+      targetEnvVar,
+      accountId: 'synthetic-account',
+      ...(endpointUrl !== undefined ? { endpointUrl } : {}),
+    } as never);
+  }
+
+  const CLAUDE_CODE = {
+    harness: 'claude-code',
+    providerSlug: 'anthropic',
+    modelId: 'claude-sonnet-4-6',
+    apiBaseUrl: 'https://api.anthropic.com',
+  };
+  const CODEX = {
+    harness: 'codex',
+    providerSlug: 'openai',
+    modelId: 'gpt-5.4',
+    apiBaseUrl: 'https://chatgpt.com/backend-api/codex',
+  };
+
+  async function start(
+    serving: typeof CLAUDE_CODE = CLAUDE_CODE,
+    lane: 'gateway' | 'subscription' = 'subscription',
+  ) {
+    const made = makeCtx({
+      status: 'running',
+      cursor: {
+        node: 'book',
+        agent: { ...WAITING_CURSOR.cursor.agent, execId: 'exec-1' },
+      },
+    });
+    await startWorkflowAgentTurnImpl(made.ctx, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      nodeId: 'book',
+      execId: 'exec-1',
+      sessionId: 'wf-run-1',
+      harness: serving.harness,
+      lane,
+      providerSlug: serving.providerSlug,
+      modelId: serving.modelId,
+      gatewayModel: serving.modelId,
+      ...(lane === 'subscription' ? { apiBaseUrl: serving.apiBaseUrl } : {}),
+      deadlineAt: Date.now() + 60_000,
+      request: {
+        model: serving.modelId,
+        prompt: 'Book the synthetic invoice.',
+      },
+    } as never);
+    return made;
+  }
+
+  function auditsOf(mutations: Array<{ name: string; args: unknown }>) {
+    return mutations
+      .filter(
+        (m) =>
+          m.name === 'governance/internal_mutations:recordModelEndpointRefusal',
+      )
+      .map((m) => m.args);
+  }
+
+  function settledOf(
+    mutations: Array<{ name: string; args: Record<string, unknown> }>,
+  ) {
+    return mutations.find(
+      (m) => m.name === 'automations/mutations:recordAgentTurnSettled',
+    )?.args;
+  }
+
+  /** The start launched with the subscription's secret, pointed at
+   * `baseUrl`, and nothing was refused. */
+  function expectLaunchedAt(
+    baseUrl: string,
+    mutations: Array<{ name: string; args: unknown }>,
+  ): void {
+    expect(console.error).not.toHaveBeenCalled();
+    expect(io.starts).toHaveLength(1);
+    expect(io.starts[0]?.env.CLAUDE_CODE_OAUTH_TOKEN).toBe(
+      'synthetic-oauth-token',
+    );
+    expect(io.starts[0]?.env.ANTHROPIC_BASE_URL).toBe(baseUrl);
+    expect(auditsOf(mutations)).toEqual([]);
+  }
+
+  it('refuses a subscription whose endpoint is outside the EU/EEA before the harness gets its secret, saying why, audited for the run', async () => {
+    euRule();
+    subscribes();
+
+    const { mutations } = await start();
+
+    expect(io.starts).toHaveLength(0);
+    expect(auditsOf(mutations)).toEqual([
+      {
+        organizationId: 'org-1',
+        surface: 'automation',
+        provider: 'anthropic',
+        model: 'claude-sonnet-4-6',
+        host: 'api.anthropic.com',
+        reason: 'not-attested',
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        message: expect.stringContaining(
+          'api.anthropic.com is not an endpoint known to process there',
+        ),
+        actor: { id: 'run-1', type: 'workflow' },
+      },
+    ]);
+    // Not retried: a re-kick would meet the same rule until an admin acts.
+    expect(settledOf(mutations)?.result).toMatchObject({
+      errored: true,
+      failureCode: 'endpoint_refused',
+      reason: expect.stringMatching(
+        new RegExp(
+          `^the agent turn could not start: ${RULE}, and api\\.anthropic\\.com is not an endpoint known to process there`,
+        ),
+      ),
+    });
+  });
+
+  it('judges the endpoint the credential names over the vendor’s: an EU/EEA endpoint launches, the vendor’s global one is refused', async () => {
+    euRule();
+    subscribes('https://eu.api.openai.com/v1', 'TALE_SUBSCRIPTION_TOKEN');
+
+    const eu = await start(CODEX);
+
+    expect(console.error).not.toHaveBeenCalled();
+    expect(io.starts).toHaveLength(1);
+    expect(io.starts[0]?.env.TALE_SUBSCRIPTION_TOKEN).toBe(
+      'synthetic-oauth-token',
+    );
+    expect(io.starts[0]?.argv).toContain(
+      'model_providers.tale-subscription.base_url="https://eu.api.openai.com/v1"',
+    );
+    expect(auditsOf(eu.mutations)).toEqual([]);
+
+    subscribes('https://api.openai.com/v1', 'TALE_SUBSCRIPTION_TOKEN');
+    const global = await start(CODEX);
+
+    expect(io.starts).toHaveLength(1);
+    expect(auditsOf(global.mutations)).toEqual([
+      expect.objectContaining({
+        provider: 'openai',
+        host: 'api.openai.com',
+        reason: 'vendor-global',
+      }),
+    ]);
+    expect(settledOf(global.mutations)?.result).toMatchObject({
+      failureCode: 'endpoint_refused',
+    });
+  });
+
+  it('launches through an endpoint an admin attested', async () => {
+    euRule(['claude-proxy.example.com']);
+    subscribes('https://claude-proxy.example.com/anthropic');
+
+    const { mutations } = await start();
+
+    expectLaunchedAt('https://claude-proxy.example.com/anthropic', mutations);
+  });
+
+  it('lets OpenRouter through only at eu.openrouter.ai, even with openrouter.ai attested', async () => {
+    euRule(['openrouter.ai']);
+    subscribes('https://openrouter.ai/api');
+
+    const global = await start();
+
+    expect(io.starts).toHaveLength(0);
+    expect(auditsOf(global.mutations)).toEqual([
+      expect.objectContaining({
+        provider: 'anthropic',
+        host: 'openrouter.ai',
+        reason: 'vendor-global',
+      }),
+    ]);
+
+    vi.mocked(console.error).mockClear();
+    subscribes('https://eu.openrouter.ai/api');
+    const eu = await start();
+
+    expectLaunchedAt('https://eu.openrouter.ai/api', eu.mutations);
+  });
+
+  it('changes nothing with the rule off', async () => {
+    subscribes();
+
+    const { mutations } = await start();
+
+    expectLaunchedAt('https://api.anthropic.com', mutations);
+  });
+
+  it('hands the gateway lane’s provisioning the automation surface and the run, and settles its refusal the same way', async () => {
+    euRule();
+    const message = `${RULE}, and the model gateway reaches the provider "local-inference" through its built-in connection, which calls the vendor's own endpoint, so the call was not sent.`;
+    vi.mocked(provisionSessionGatewayKey).mockRejectedValueOnce(
+      new ModelEndpointRefusal({
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        message,
+        provider: 'local-inference',
+        reason: 'gateway-builtin',
+      }),
+    );
+
+    const { mutations } = await start(
+      {
+        harness: 'claude-code',
+        providerSlug: 'local-inference',
+        modelId: 'qwen3-32b',
+        apiBaseUrl: '',
+      },
+      'gateway',
+    );
+
+    expect(provisionSessionGatewayKey).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        surface: 'automation',
+        actor: { id: 'run-1', type: 'workflow' },
+      }),
+    );
+    expect(io.starts).toHaveLength(0);
+    expect(settledOf(mutations)?.result).toMatchObject({
+      errored: true,
+      failureCode: 'endpoint_refused',
+      reason: `the agent turn could not start: ${message}`,
+    });
+  });
+
+  it('refuses an answered-ask resume the rule refuses, in the refusal’s own sentence', async () => {
+    euRule();
+    io.serving = {
+      lane: 'subscription',
+      providerSlug: 'anthropic',
+      modelId: 'claude-sonnet-4-6',
+      apiBaseUrl: 'https://api.anthropic.com',
+      vision: { readable: true },
+    };
+    servesWindow(200_000);
+    subscribes();
+    const { ctx, mutations } = makeCtx(WAITING_CURSOR);
+
+    await resumeWorkflowAgentTurnWithAnswerImpl(ctx, {
+      organizationId: 'org-1',
+      askId: 'ask-1',
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    expect(auditsOf(mutations)).toEqual([
+      expect.objectContaining({
+        surface: 'automation',
+        host: 'api.anthropic.com',
+        actor: { id: 'run-1', type: 'workflow' },
+      }),
+    ]);
+    expect(settledOf(mutations)).toMatchObject({
+      execId: 'exec-asking',
+      result: {
+        errored: true,
+        failureCode: 'endpoint_refused',
+        reason: expect.stringContaining(
+          `the agent turn could not resume after the answer: ${RULE}, and api.anthropic.com`,
+        ),
+      },
     });
   });
 });
