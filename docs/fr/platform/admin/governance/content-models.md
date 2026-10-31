@@ -54,6 +54,22 @@ Après un changement, teste les deux cas pour le membre concerné : un modèle a
 
 Désactiver l’interrupteur fait refuser l’appel suivant avec `403 MODEL_API_DISABLED`. [Utiliser Tale depuis ton éditeur ou un script](/fr/develop/use-tale-from-your-editor#model-endpoints) montre aux membres comment connecter leurs outils.
 
+### Traiter les prompts uniquement dans l’UE/EEE {#eu-processing}
+
+**Traiter les prompts uniquement dans l'UE/EEE** maintient les appels de modèles de l’organisation sur des endpoints dont on sait qu’ils traitent les prompts dans l’UE/EEE. L’interrupteur est désactivé par défaut et agit indépendamment de **Activer la politique d'accès aux modèles**.
+
+1. Sous **Endpoints dont le traitement dans l'UE/EEE est confirmé**, indique les hôtes de tes propres endpoints qui y traitent les prompts, un par ligne, tel que chacun figure dans l’URL de base ou l’URL de l’endpoint de son fournisseur : le serveur d’un [fournisseur personnalisé](/fr/platform/admin/providers#definir-un-fournisseur-personnalise), ou une ressource Azure OpenAI dont les déploiements traitent les prompts dans l’UE/EEE, par exemple `my-resource.openai.azure.com`. Choisis **Enregistrer les endpoints**.
+2. Active l’interrupteur **Traiter les prompts uniquement dans l'UE/EEE**. La modification est enregistrée aussitôt.
+
+Confirme les hôtes avant d’activer l’interrupteur, pour qu’aucun appel vers eux ne soit refusé entre-temps.
+
+- **Ce qui compte.** Les endpoints dans l’UE des fournisseurs que Tale connaît, `eu.openrouter.ai`, `eu.api.openai.com` et `api.eu.mistral.ai`, et les hôtes que tu confirmes. L’endpoint global d’un fournisseur, comme `openrouter.ai` ou `api.openai.com`, ne compte jamais : l’éditeur ne l’accepte pas et indique à la place l’endpoint du fournisseur dans l’UE. Pour utiliser un tel fournisseur, définis un fournisseur personnalisé dont l’URL de base est son endpoint dans l’UE, par exemple `https://eu.openrouter.ai/api/v1`. Ne confirme une ressource Azure que si ses déploiements sont des déploiements régionaux dans une région de l’UE/EEE ou des déploiements Data Zone UE : un déploiement de type Global peut traiter une requête dans n’importe quelle région.
+- **Ce qu’il couvre.** Les réponses du chat et leurs titres, **Améliorer avec l'IA** dans la boîte de réception, les réponses d’un agent dans une tâche quand il travaille avec les outils du chat, les étapes `llm` des automatisations, les embeddings et la recherche dans les documents, la génération d’images, la transcription audio, la sortie vocale et les [endpoints de modèles pour les clés API](#model-endpoints). Sur ces endpoints, un modèle d’un fournisseur du catalogue livré que la passerelle de modèles sert elle-même, comme OpenAI, Azure OpenAI, Mistral ou OpenRouter, est refusé même sur un endpoint dans l’UE, car la passerelle appelle l’endpoint propre au fournisseur : sers plutôt le modèle par un fournisseur personnalisé.
+- **Ce qui est refusé.** Un appel vers tout autre endpoint, ou par un fournisseur qui n’en indique aucun, est refusé avant que quoi que ce soit ne soit envoyé. La personne voit pourquoi et ce qu’un admin peut changer, et le refus est consigné dans le [journal d’audit](/fr/platform/admin/governance/audit-logs) comme **Accès au modèle refusé**. Tant que la politique d’accès aux modèles ne peut pas être lue, chaque appel de modèle est refusé jusqu’à ce qu’un admin enregistre une politique valide.
+- **Pas encore couvert.** Les sélecteurs de modèle proposent encore des modèles que l’interrupteur refuse. Le trafic de modèles des environnements d’agent comme Claude Code ou Codex dans une sandbox, et le fournisseur de modération des [garde-fous](/fr/platform/admin/governance/guardrails), n’y sont pas encore soumis.
+
+**Informations sur le message** sous une réponse indique où elle a été traitée lorsque c’est connu ; [Voir comment une réponse a été produite](/fr/platform/chat/basics#reply-details) explique la ligne **Région**.
+
 ## Choisir le modèle qui lit les images
 
 Un agent textuel a besoin d’aide pour lire une image, comme une capture d’écran ou une page scannée. La section du modèle de vision choisit celui qui la décrit pour l’agent. Un agent dont le propre modèle lit les images les lit lui-même ; le modèle de vision sert encore les outils d’image que les scripts et agents de code appellent dans leur bac à sable, comme la transcription par lots de pages scannées. Chaque agent géré en reçoit donc un dès qu’un modèle accessible existe.

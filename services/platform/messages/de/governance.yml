@@ -225,6 +225,18 @@ imageGeneration:
   resolutionFailed:
     Tale konnte das Bildmodell nicht prüfen. Prüfe die Verbindung zum
     Anbieter und versuche es erneut.
+  outsideEu:
+    Diese Organisation verarbeitet Prompts nur in der EU/im EWR, und vom
+    Endpunkt des Bildmodells ist nicht bekannt, dass er dort verarbeitet,
+    daher können weder der Chat noch Agenten Bilder erstellen. Stelle seinen
+    Anbieter auf einen Endpunkt in der EU/im EWR um, trage den Host unter
+    Modellzugriff ein, wenn er dort verarbeitet, oder wähle ein anderes
+    Modell.
+  endpointPolicyUnreadable:
+    Die Modellzugriffsrichtlinie konnte nicht gelesen werden. Tale kann
+    daher nicht erkennen, ob Prompts in der EU/im EWR bleiben müssen, und
+    weder der Chat noch Agenten können Bilder erstellen. Stelle eine gültige
+    Modellzugriffsrichtlinie wieder her.
   loadFailed: Die Einstellungen zur Bildgenerierung konnten nicht geladen werden. Versuche es erneut.
   invalidSelection: Ungültige gespeicherte Konfiguration
   unknownSelection: Gespeicherte Auswahl konnte nicht gelesen werden
@@ -271,6 +283,17 @@ transcriptionModel:
   resolutionFailed:
     Tale konnte das Modell zur Audiotranskription nicht prüfen. Prüfe die
     Verbindung zum Anbieter und versuche es erneut.
+  outsideEu:
+    Diese Organisation verarbeitet Prompts nur in der EU/im EWR, und vom
+    Endpunkt des Audiomodells ist nicht bekannt, dass er dort verarbeitet,
+    daher wird Audio nicht transkribiert. Stelle seinen Anbieter auf einen
+    Endpunkt in der EU/im EWR um, trage den Host unter Modellzugriff ein,
+    wenn er dort verarbeitet, oder wähle ein anderes Modell.
+  endpointPolicyUnreadable:
+    Die Modellzugriffsrichtlinie konnte nicht gelesen werden. Tale kann
+    daher nicht erkennen, ob Prompts in der EU/im EWR bleiben müssen, und
+    Audio wird nicht transkribiert. Stelle eine gültige
+    Modellzugriffsrichtlinie wieder her.
   loadFailed: Die Audiomodelleinstellungen konnten nicht geladen werden. Versuche es erneut.
   invalidSelection: Ungültige gespeicherte Konfiguration
   unknownSelection: Gespeicherte Auswahl konnte nicht gelesen werden
@@ -1454,6 +1477,28 @@ modelAccess:
       Endpunkte. Aufrufe zählen gegen die Budgets und durchlaufen die
       Eingabe-Guardrails; die Antworten der Modelle werden nicht gefiltert.
     enabled: Modell-Endpunkte für API-Schlüssel aktivieren
+  euProcessing:
+    title: Prompts nur in der EU/im EWR verarbeiten
+    description: Sende Modellaufrufe nur an Endpunkte, von denen bekannt ist,
+      dass sie Prompts in der EU/im EWR verarbeiten — eu.openrouter.ai,
+      eu.api.openai.com, api.eu.mistral.ai und die unten eingetragenen Hosts.
+      Jeder andere Aufruf wird abgelehnt, bevor etwas gesendet wird, und die
+      Ablehnung wird im Audit-Log festgehalten. Coding-Agenten in Sandboxes
+      und der Moderations-Anbieter der Guardrails sind noch nicht daran
+      gebunden.
+    enabled: Prompts nur in der EU/im EWR verarbeiten
+    hostsLabel: Endpunkte mit bestätigter Verarbeitung in der EU/im EWR
+    hostsHelp: Ein Host pro Zeile, so wie er in der Basis-URL eines Anbieters
+      steht — der Server eines eigenen Anbieters oder eine Azure-Ressource in
+      einer Region der EU/des EWR. Trage nur Endpunkte ein, von denen du
+      weißt, dass sie dort verarbeiten; höchstens {max}.
+    hostsPlaceholder: my-resource.openai.azure.com
+    invalidHost: '{host} ist kein Hostname: Gib nur den Host an, ohne
+      https://, Port oder Pfad.'
+    vendorHost: '{host} kann nicht eingetragen werden: Dieser Anbieter zählt
+      nur über seinen EU-Endpunkt {euHost}.'
+    tooMany: Trage höchstens {max} Hosts ein.
+    saveHosts: Endpunkte speichern
 dataSubjectRequests:
   title: Anfragen betroffener Personen
   entityLabel: Anfragen
