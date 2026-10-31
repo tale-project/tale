@@ -10,6 +10,7 @@ import {
   type QuestionSet,
 } from '../../../../lib/shared/schemas/questions';
 import { TASK_COMMENT_LOCALES_MAX } from '../../../../lib/shared/schemas/task-comment';
+import { ModelEndpointRefusal } from '../../governance/model_endpoint_gate';
 import { readDocumentText } from '../../knowledge/document_text';
 import {
   EmbeddingBudgetExceeded,
@@ -1038,6 +1039,25 @@ function knowledgeUnavailable(error: unknown): ToolResult {
             `Knowledge search did not run. ${error.message} Say so to the ` +
             'person you work for; it works again once the limit resets or ' +
             'is raised. Do not treat it as nothing found.',
+        },
+      ],
+    };
+  }
+  // The organization's EU/EEA rule refused the embedding endpoint, so the
+  // query was not sent (GOV-R17). The rule's sentence is written for a
+  // person — the rule, the host, the admin's fix — and is passed on as it is.
+  if (error instanceof ModelEndpointRefusal) {
+    console.info(
+      `[sandbox] knowledge search refused: ${error.data.code} for ${error.data.provider}`,
+    );
+    return {
+      status: 'unavailable',
+      blockers: [
+        {
+          code: 'model_endpoint_refused',
+          guidance:
+            `Knowledge search did not run. ${error.data.message} Say so to ` +
+            'the person you work for. Do not treat it as nothing found.',
         },
       ],
     };

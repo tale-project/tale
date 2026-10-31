@@ -268,6 +268,26 @@ describe('image generation settings', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(message);
   });
 
+  it.each([
+    [
+      'MODEL_ENDPOINT_OUTSIDE_EU',
+      'processes prompts only in the EU/EEA, and the image model',
+    ],
+    [
+      'MODEL_ENDPOINT_POLICY_UNREADABLE',
+      'The model access policy could not be read',
+    ],
+  ])(
+    'says why the EU/EEA rule leaves no image model: %s [GOV-R17]',
+    async (code, message) => {
+      state.config = { enabled: true };
+      state.image = { enabled: true, models: [], pick: null, error: { code } };
+      await renderEditor();
+      expect(screen.getByRole('alert')).toHaveTextContent(message);
+      expect(screen.queryByText(/Images are currently created/)).toBeNull();
+    },
+  );
+
   it('offers the repair of a malformed file the strict policy read refuses', async () => {
     state.policyReadFailed = true;
     state.image = {

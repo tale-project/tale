@@ -347,6 +347,11 @@ runtime:
       explanation: The provider of the step's model refused or failed the call.
       cause: "{modelLabel, select, none {It happened calling the step's model.} other {It happened calling {modelLabel}.}}"
       fix: Run again; if it repeats, choose another model.
+    LLM_ENDPOINT_REFUSED:
+      title: The model access policy stopped the step
+      explanation: Under the organization's EU/EEA processing rule, a model call goes only to an endpoint that processes prompts there, and no call goes out while the model access policy can't be read.
+      cause: The policy refused the step's model before the prompt was sent.
+      fix: Choose a model whose provider processes prompts in the EU/EEA, or ask an administrator to serve it through a provider whose endpoint processes there. The technical details say why the call was refused.
     AGENT_FAILED:
       title: The agent failed
       explanation: The coding agent couldn't finish its turn.

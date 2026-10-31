@@ -31,6 +31,12 @@ vi.mock('../../provider_credentials/resolve_credential', () => ({
     credentialMock(...(args as [])),
 }));
 
+import { shimFunctionName } from '../../../lib/ctx-shim';
+import {
+  type ModelEndpointPolicy,
+  ModelEndpointRefusal,
+} from '../../governance/model_endpoint_gate';
+import { errorCodeFromCaught } from '../../tts/error_codes';
 import { resolveTtsModel } from './resolve_tts_model';
 
 const ORG = 'org_a';
@@ -39,13 +45,22 @@ const ACTIVE_API_KEY_ROW = { authMethod: 'api-key', status: 'active' };
 /** The provider's default credential row, keyed by provider slug; a
  * provider not listed gets an active api-key row without an allowlist. */
 let defaultRows: Record<string, unknown> = {};
-const runQuery = vi.fn(async (_ref: unknown, args: { providerSlug: string }) =>
-  args.providerSlug in defaultRows
+let endpointPolicy: ModelEndpointPolicy = { kind: 'open' };
+const runQuery = vi.fn(async (ref: unknown, args: { providerSlug: string }) => {
+  if (
+    shimFunctionName(ref) ===
+    'governance/internal_queries:getModelEndpointPolicyInternal'
+  ) {
+    return endpointPolicy;
+  }
+  return args.providerSlug in defaultRows
     ? defaultRows[args.providerSlug]
-    : ACTIVE_API_KEY_ROW,
-);
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runQuery is exercised by this module
-const ctx = { runQuery } as unknown as ActionCtx;
+    : ACTIVE_API_KEY_ROW;
+});
+// The EU/EEA rule's audit entry for a refused model (GOV-R17).
+const runMutation = vi.fn(async (_ref: unknown, _args: unknown) => null);
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runQuery and the refusal's audit entry are exercised by this module
+const ctx = { runQuery, runMutation } as unknown as ActionCtx;
 
 function provider(name: string, baseUrl = `https://${name}.example/v1`) {
   return { name, baseUrl };
@@ -92,7 +107,9 @@ beforeEach(() => {
   catalogMock.mockReset();
   credentialMock.mockReset();
   runQuery.mockClear();
+  runMutation.mockClear();
   defaultRows = {};
+  endpointPolicy = { kind: 'open' };
 });
 
 describe('resolveTtsModel', () => {
@@ -273,5 +290,108 @@ describe('resolveTtsModel', () => {
     expect(resolved.modelId).toBe('eleven-v3');
     expect(resolved.audioFormat).toBe('mp3');
     expect(resolved.centsPerMillionCharacters).toBeUndefined();
+  });
+});
+
+describe('resolveTtsModel — the EU/EEA rule [GOV-R17]', () => {
+  const USER = { id: 'user_1', type: 'user' } as const;
+  const OPENAI_GLOBAL = provider('openai', 'https://api.openai.com/v1');
+
+  beforeEach(() => {
+    endpointPolicy = { kind: 'eu', attestedHosts: [] };
+    catalogMock.mockResolvedValue([ttsEntry()]);
+    credentialMock.mockResolvedValue(apiKeyCredential());
+  });
+
+  it('passes over a provider the rule refuses for one it lets through', async () => {
+    resolveProvidersMock.mockResolvedValue([
+      OPENAI_GLOBAL,
+      provider('mistral', 'https://api.eu.mistral.ai/v1'),
+    ]);
+    await expect(
+      resolveTtsModel(ctx, { organizationId: ORG, locale: 'en', actor: USER }),
+    ).resolves.toMatchObject({
+      providerName: 'mistral',
+      baseUrl: 'https://api.eu.mistral.ai/v1',
+    });
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
+  it('refuses with the first refused provider when no other can speak, and audits who asked', async () => {
+    resolveProvidersMock.mockResolvedValue([OPENAI_GLOBAL, provider('house')]);
+    const thrown = await resolveTtsModel(ctx, {
+      organizationId: ORG,
+      locale: 'en',
+      actor: USER,
+    }).catch((error: unknown) => error);
+    expect(thrown).toBeInstanceOf(ModelEndpointRefusal);
+    expect(thrown).toMatchObject({
+      data: {
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        provider: 'openai',
+        host: 'api.openai.com',
+        reason: 'vendor-global',
+      },
+    });
+    // The chunk rows carry the closed code the client explains.
+    expect(errorCodeFromCaught(thrown)).toEqual({ code: 'REGION_POLICY' });
+    expect(runMutation).toHaveBeenCalledTimes(1);
+    const [ref, entry] = runMutation.mock.calls[0] ?? [];
+    expect(shimFunctionName(ref)).toBe(
+      'governance/internal_mutations:recordModelEndpointRefusal',
+    );
+    expect(entry).toMatchObject({
+      organizationId: ORG,
+      surface: 'speech',
+      provider: 'openai',
+      model: 'gpt-4o-mini-tts',
+      host: 'api.openai.com',
+      code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+      actor: USER,
+    });
+  });
+
+  it('speaks through a host an admin attested', async () => {
+    endpointPolicy = { kind: 'eu', attestedHosts: ['house.example'] };
+    resolveProvidersMock.mockResolvedValue([provider('house')]);
+    await expect(
+      resolveTtsModel(ctx, { organizationId: ORG, locale: 'en' }),
+    ).resolves.toMatchObject({ providerName: 'house' });
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
+  it('refuses every provider, an EU endpoint too, while the policy cannot be read', async () => {
+    endpointPolicy = { kind: 'unreadable' };
+    resolveProvidersMock.mockResolvedValue([
+      provider('openai', 'https://eu.api.openai.com/v1'),
+    ]);
+    const thrown = await resolveTtsModel(ctx, {
+      organizationId: ORG,
+      locale: 'en',
+    }).catch((error: unknown) => error);
+    expect(thrown).toMatchObject({
+      data: { code: 'MODEL_ENDPOINT_POLICY_UNREADABLE' },
+    });
+    expect(errorCodeFromCaught(thrown)).toEqual({ code: 'REGION_POLICY' });
+  });
+
+  it('still says NO_PROVIDER when no provider could speak at all', async () => {
+    resolveProvidersMock.mockResolvedValue([OPENAI_GLOBAL]);
+    catalogMock.mockResolvedValue([{ id: 'gpt-4o', tags: ['chat'] }]);
+    expect(
+      await caughtCode(
+        resolveTtsModel(ctx, { organizationId: ORG, locale: 'en' }),
+      ),
+    ).toBe('NO_PROVIDER');
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
+  it('changes nothing while the rule is off', async () => {
+    endpointPolicy = { kind: 'open' };
+    resolveProvidersMock.mockResolvedValue([OPENAI_GLOBAL]);
+    await expect(
+      resolveTtsModel(ctx, { organizationId: ORG, locale: 'en', actor: USER }),
+    ).resolves.toMatchObject({ baseUrl: 'https://api.openai.com/v1' });
+    expect(runMutation).not.toHaveBeenCalled();
   });
 });

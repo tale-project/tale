@@ -14,6 +14,10 @@
  * says which credential to configure instead.
  *
  * The credential and connector are resolved once for each reusable call.
+ * The organization's EU/EEA rule judges the endpoint as soon as it is known,
+ * before the catalog read and before any request (GOV-R17): the caller names
+ * the surface, and who the call is made for, for the audit entry of a
+ * refused call.
  */
 
 import type {
@@ -26,6 +30,11 @@ import { privateProviderHostsAllowed } from '../../../lib/net/host-policy';
 import { safeFetch, SafeFetchError } from '../../../lib/net/safe-fetch';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { providerAttributionHeaders } from '../../../lib/shared/providers/attribution';
+import {
+  assertModelEndpointAllowed,
+  type ModelEndpointActor,
+  type ModelEndpointSurface,
+} from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
 import { getProviderCatalog } from '../lib/providers/catalog_fetch';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
@@ -90,9 +99,9 @@ interface WireTarget {
 
 async function resolveWireTarget(
   ctx: ActionCtx,
-  organizationId: string,
-  target: BuilderModelTarget,
+  args: BuilderModelArgs,
 ): Promise<WireTarget> {
+  const { organizationId, target } = args;
   const connector = (await resolveProvidersForOrgId(ctx, organizationId)).find(
     (entry) => entry.name === target.providerSlug,
   );
@@ -121,6 +130,14 @@ async function resolveWireTarget(
       message: `Provider "${target.providerSlug}" has no API endpoint — a per-credential connector needs the endpoint stored on the credential.`,
     });
   }
+  await assertModelEndpointAllowed(ctx, {
+    organizationId,
+    surface: args.surface,
+    providerName: connector.name,
+    modelId: target.modelId,
+    baseUrl,
+    ...(args.actor !== undefined ? { actor: args.actor } : {}),
+  });
 
   // Resolved once per reusable call, like the credential: which models reason is a
   // catalog fact, and the catalog is cached anyway. The off literal is read
@@ -160,6 +177,11 @@ async function resolveWireTarget(
 export interface BuilderModelArgs {
   organizationId: string;
   target: BuilderModelTarget;
+  /** What makes the call, as the audit entry of a call the EU/EEA rule
+   * refused names it (GOV-R17). */
+  surface: ModelEndpointSurface;
+  /** Who the call is made for; absent, the platform itself. */
+  actor?: ModelEndpointActor;
   /** Ceiling for one reply; defaults to a full document's worth. */
   maxTokens?: number;
   /** The caller's own deadline: when it fires the provider request is torn
@@ -169,7 +191,9 @@ export interface BuilderModelArgs {
 
 /**
  * Build a reusable model call. Failures surface as thrown errors with the
- * upstream detail redacted and truncated; callers own recovery.
+ * upstream detail redacted and truncated; callers own recovery. A call the
+ * EU/EEA rule refuses throws its `ModelEndpointRefusal` from `prepare` or
+ * from the first call, before anything is sent.
  */
 export function createBuilderModel(
   ctx: ActionCtx,
@@ -178,7 +202,7 @@ export function createBuilderModel(
   let wire: WireTarget | null = null;
 
   const call: BuilderModel = async ({ messages, temperature, signal }) => {
-    wire ??= await resolveWireTarget(ctx, args.organizationId, args.target);
+    wire ??= await resolveWireTarget(ctx, args);
     const request = buildChatRequest({
       apiFormat: wire.apiFormat,
       ...(wire.wireDialect !== undefined
@@ -245,7 +269,7 @@ export function createBuilderModel(
     return parseChatReply(wire.apiFormat, payload);
   };
   call.prepare = async () => {
-    wire ??= await resolveWireTarget(ctx, args.organizationId, args.target);
+    wire ??= await resolveWireTarget(ctx, args);
   };
   return call;
 }

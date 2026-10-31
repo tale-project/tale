@@ -15,6 +15,7 @@ import {
   shouldRagIndexOnUpload,
 } from '../../../lib/shared/file-types.ts';
 import { findActingMember, isAdminRole } from '../../auth/membership.ts';
+import { ModelEndpointRefusal } from '../../core/governance/model_endpoint_gate.ts';
 import { readOrgEmbeddingConfig } from '../../core/knowledge/connection.ts';
 import { applyCorpusSchema } from '../../core/knowledge/ddl.ts';
 import {
@@ -747,6 +748,12 @@ export async function searchKnowledgeForOrg(
     // point every retrieval surface calls — and so does a credential that
     // does not resolve, which used to escape as a bare `AppError` the REST
     // door had no status for (a 500 where the reference promises 409).
+    // The organization's EU/EEA rule refusing the embedding endpoint keeps
+    // its own code and sentence: nothing reached a provider, and the fix is
+    // the endpoint or the rule, never the credential (GOV-R17).
+    if (error instanceof ModelEndpointRefusal) {
+      throw new KnowledgeError(error.data.code, error.data.message, 503);
+    }
     const failure = classifyEmbeddingFailure(error);
     if (failure !== null) {
       throw new KnowledgeError(
@@ -1434,6 +1441,19 @@ export async function indexUploadedFile(
       await recordIndexingFailure(sql, {
         ...failure,
         ragError: `${error.message} Correct the embedding settings under Settings → Data residency → Embedding model (the vector width, or the model) and save; indexing then resumes by itself.`,
+        ragErrorCode: RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
+      });
+      return;
+    }
+    // The organization's EU/EEA rule refused the endpoint the embedding
+    // model would call: nothing was sent, and every retry answers the same
+    // refusal. The job ends here with the rule's sentence on the file; a
+    // save of the embedding model or of its credential re-queues it, as for
+    // a provider refusal (GOV-R17).
+    if (error instanceof ModelEndpointRefusal) {
+      await recordIndexingFailure(sql, {
+        ...failure,
+        ragError: `${error.data.message} Saving the embedding model under Settings → Data residency → Embedding model, or its credential under Settings → AI providers, re-queues this document; after a change to the model access policy, retry indexing.`,
         ragErrorCode: RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
       });
       return;

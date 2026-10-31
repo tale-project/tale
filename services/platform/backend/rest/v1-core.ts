@@ -28,6 +28,7 @@ import {
 import { boundedJsonObject } from '../../lib/shared/utils/json-bounds.ts';
 import { getUserTeamIds } from '../auth/membership.ts';
 import { decideInstanceAdmin } from '../core/deployment/auth_policy.ts';
+import { isModelEndpointRefusalCode } from '../core/governance/model_endpoint_gate.ts';
 import {
   CONTENT_MAX_LENGTH,
   KNOWLEDGE_SOURCE_PROVIDER,
@@ -1249,11 +1250,14 @@ export function createCoreRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       // refusal (balance spent, plan excludes the model) is the same kind
       // of fact — an admin must act, waiting fixes nothing — so it answers
       // the same 409, NEVER a 429 the consumer would back off and retry.
+      // So does the organization's EU/EEA rule refusing the endpoint the
+      // embedding model would call, or a policy it cannot read (GOV-R17).
       if (
         error instanceof KnowledgeError &&
         (error.code === 'EMBEDDING_NOT_CONFIGURED' ||
           error.code === 'EMBEDDING_CREDIT_EXHAUSTED' ||
-          error.code === 'EMBEDDING_CREDENTIAL_REJECTED')
+          error.code === 'EMBEDDING_CREDENTIAL_REJECTED' ||
+          isModelEndpointRefusalCode(error.code))
       ) {
         return c.json({ error: error.message, code: error.code }, 409);
       }
