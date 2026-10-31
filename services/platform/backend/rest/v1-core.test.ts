@@ -120,6 +120,9 @@ function fakeSql(
   const queries: Captured[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('$?').replace(/\s+/g, ' ').trim();
+    // A parenthesised fragment (`vouchesForUser`) nests in the statement
+    // that reads it: it hands its values over instead of reading.
+    if (text.startsWith('(')) return { fragment: values };
     queries.push({ text, values });
     return Promise.resolve(respond?.(text) ?? rows);
   };
@@ -362,10 +365,12 @@ describe('GET /me notificationExport', () => {
     const read = queries.find((q) =>
       q.text.includes('FROM app.competence_records'),
     );
+    // The key holder's own grant or their team's, live at the time of asking.
     expect(read?.values).toEqual([
       'org-1',
-      'user-1',
       'tale:notifications.export',
+      expect.any(Number),
+      { fragment: ['user-1', 'user-1'] },
     ]);
   });
 
@@ -439,7 +444,12 @@ describe('GET /me skillPublish', () => {
       queries
         .filter((q) => q.text.includes('FROM app.competence_records'))
         .map((q) => q.values),
-    ).toContainEqual(['org-1', 'user-1', 'tale:skills.publish']);
+    ).toContainEqual([
+      'org-1',
+      'tale:skills.publish',
+      expect.any(Number),
+      { fragment: ['user-1', 'user-1'] },
+    ]);
   });
 });
 
@@ -503,7 +513,12 @@ describe('GET /me modelApi', () => {
       queries
         .filter((q) => q.text.includes('FROM app.competence_records'))
         .map((q) => q.values),
-    ).toContainEqual(['org-1', 'user-1', 'tale:models.api']);
+    ).toContainEqual([
+      'org-1',
+      'tale:models.api',
+      expect.any(Number),
+      { fragment: ['user-1', 'user-1'] },
+    ]);
   });
 });
 

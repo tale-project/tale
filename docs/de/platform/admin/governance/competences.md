@@ -1,6 +1,6 @@
 ---
 title: Kompetenzen
-description: Gib einem Mitglied ein einzelnes, eng begrenztes Recht oder eine Qualifikation ohne Admin-Rolle und widerrufe es, wenn es nicht mehr gebraucht wird.
+description: Gib einem Mitglied oder einem Team ein einzelnes, eng begrenztes Recht oder einem Mitglied eine Qualifikation ohne Admin-Rolle und widerrufe es, wenn es nicht mehr gebraucht wird.
 ---
 
 Als Admin oder Inhaber führst du unter **Einstellungen > Richtlinien > Kompetenzen** das Kompetenzregister deiner Organisation. Eine Kompetenz ist eines von zwei Dingen:
@@ -8,7 +8,7 @@ Als Admin oder Inhaber führst du unter **Einstellungen > Richtlinien > Kompeten
 - Eine **Plattform-Berechtigung** erlaubt einem Mitglied eine einzelne, eng begrenzte Aktion, für die sonst eine höhere Rolle nötig wäre. Weise sie dem Konto hinter einer Integration zu, statt es zum Admin zu machen. Als Admin könnte es auch Mitglieder, Single Sign-on und Passwörter verwalten.
 - Eine **Qualifikation** ist ein Name, den die Freigaberichtlinie deiner Organisation von der Person verlangen kann, die eine Prüfung freigibt.
 
-Eine Zuweisung gilt nur in dieser Organisation. Tale protokolliert jede Zuweisung und jeden Widerruf im Audit-Log, und wer aus der Organisation entfernt wird, verliert seine Zuweisungen.
+Du weist eine Kompetenz einem Mitglied zu oder eine Plattform-Berechtigung einem [Team](#grant-a-capability-to-a-team). Eine Zuweisung gilt nur in dieser Organisation. Tale protokolliert jede Zuweisung und jeden Widerruf im Audit-Log, und wer aus der Organisation entfernt wird, verliert seine Zuweisungen.
 
 ## Plattform-Berechtigungen
 
@@ -30,19 +30,33 @@ Inhaber und Admins haben alle vier über ihre Rolle; Entwickler haben über ihre
 ## Eine Kompetenz zuweisen
 
 1. Wähle **Kompetenz zuweisen**.
-2. Wähle das **Mitglied**.
-3. Wähle die **Kompetenz**: eine Plattform-Berechtigung oder **Qualifikation**. Gib bei einer Qualifikation unter **Name der Qualifikation** den Namen ein, den deine Freigaberichtlinie verwendet. Namen, die mit `tale:` beginnen, sind für Plattform-Berechtigungen reserviert.
+2. Wähle unter **Zuweisen an** entweder **Ein Mitglied** und dann das **Mitglied** oder **Ein Team** und dann das **Team**.
+3. Wähle die **Kompetenz**: eine Plattform-Berechtigung oder **Qualifikation**. Gib bei einer Qualifikation unter **Name der Qualifikation** den Namen ein, den deine Freigaberichtlinie verwendet. Namen, die mit `tale:` beginnen, sind für Plattform-Berechtigungen reserviert. Ein Team kann nur eine Plattform-Berechtigung haben.
 4. Lege unter **Läuft ab** fest, wann sie endet: **Nie**, **In 30 Tagen**, **In 90 Tagen** oder **In 1 Jahr**.
 5. Halte bei Bedarf unter **Nachweis** fest, warum das Mitglied sie hat, etwa ein Zertifikat, ein Ticket oder das System, dem sie dient. Der Nachweis bleibt im Register.
 6. Wähle **Zuweisen**.
 
-Die Zuweisung gilt ab der nächsten Anfrage des Mitglieds; eine Integration muss nicht neu starten. Ein Mitglied hat jede Kompetenz nur einmal gleichzeitig. Um Ablauf oder Nachweis zu ändern, widerrufe die Zuweisung und weise sie erneut zu. Hat das Mitglied die Kompetenz bereits, sagt der Dialog das und weist nichts zu.
+Die Zuweisung gilt ab der nächsten Anfrage des Mitglieds; eine Integration muss nicht neu starten. Ein Mitglied oder ein Team hat jede Kompetenz nur einmal gleichzeitig. Um Ablauf oder Nachweis zu ändern, widerrufe die Zuweisung und weise sie erneut zu. Ist die Kompetenz bereits zugewiesen, sagt der Dialog das und weist nichts zu.
+
+## Eine Berechtigung einem Team zuweisen {#grant-a-capability-to-a-team}
+
+Weist du eine Plattform-Berechtigung einem Team zu, haben die Mitglieder des Teams sie, solange sie im Team sind; du musst sie nicht jedem einzeln zuweisen:
+
+- Wen ein Inhaber oder Admin unter [**Einstellungen > Teams**](/de/platform/admin/teams) zum Team hinzufügt, hat sie ab der nächsten Anfrage, ohne weitere Zuweisung.
+- Wer das Team verlässt oder aus der Organisation entfernt wird, hat sie nicht mehr über das Team.
+- Widerrufst du die Zuweisung an das Team, endet sie für alle seine Mitglieder. Wird das Team gelöscht, werden seine Zuweisungen widerrufen.
+
+Wer die Berechtigung zusätzlich über eine eigene Zuweisung oder über seine Rolle hat, behält sie.
+
+Nur eine Mitgliedschaft, die ein Inhaber oder Admin unter **Einstellungen > Teams** angelegt hat, bringt die Zuweisungen des Teams mit. Eine Mitgliedschaft, die dein Identitätsanbieter über [SSO-Gruppensynchronisierung oder SCIM](/de/platform/admin/enterprise-sso) anlegt, bringt keine mit; so verleiht der Anbieter nie ein Recht. Ein Team, das der Anbieter verwaltet, zeigt im Dialog **Von deinem Identitätsanbieter synchronisiert** und lässt sich nicht auswählen; weise die Berechtigung dann jedem Mitglied einzeln zu oder einem Team, das ein Admin verwaltet.
+
+Ein Team kann nur Plattform-Berechtigungen haben. Weise eine Qualifikation jedem Mitglied einzeln zu, das sie braucht, denn eine Freigaberichtlinie verlangt sie von der Person, die freigibt.
 
 ## Eine Kompetenz widerrufen
 
-Wähle in der Zeile **Widerrufen** und bestätige mit **Widerrufen**. Das Mitglied verliert die Kompetenz sofort. Die Zuweisung bleibt als Verlauf im Register, mit dem Status **Widerrufen** und dem Datum des Widerrufs. Zeige auf das Datum, um zu sehen, wer sie widerrufen hat.
+Wähle in der Zeile **Widerrufen** und bestätige mit **Widerrufen**. Das Mitglied verliert die Kompetenz sofort; bei einer Zuweisung an ein Team verlieren sie seine Mitglieder, außer sie haben sie über eine eigene Zuweisung. Die Zuweisung bleibt als Verlauf im Register, mit dem Status **Widerrufen** und dem Datum des Widerrufs. Zeige auf das Datum, um zu sehen, wer sie widerrufen hat oder warum.
 
-## Das Register lesen
+## Das Register lesen {#read-the-register}
 
 Die Liste zeigt zuerst die Zuweisungen mit dem Status **Aktiv**. Mit **Filter > Status** nimmst du **Abgelaufen** und **Widerrufen** hinzu, mit **Alle löschen** siehst du alle Zuweisungen.
 
@@ -50,7 +64,9 @@ Die Liste zeigt zuerst die Zuweisungen mit dem Status **Aktiv**. Mit **Filter > 
 | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Aktiv**      | Das Mitglied hat die Kompetenz. Die Zeile darunter zeigt das Ablaufdatum oder **Kein Ablauf**.                                                         |
 | **Abgelaufen** | Das Ablaufdatum unter dem Status ist vorbei. Weise die Kompetenz erneut zu, wenn das Mitglied sie weiter braucht.                                      |
-| **Widerrufen** | Ein Admin oder Inhaber hat sie widerrufen, oder nach ihrem Ablauf hat eine neue Zuweisung sie ersetzt. Unter dem Status steht das Datum des Widerrufs. |
+| **Widerrufen** | Ein Admin oder Inhaber hat sie widerrufen, nach ihrem Ablauf hat eine neue Zuweisung sie ersetzt, ihr Mitglied hat die Organisation verlassen, oder ihr Team wurde gelöscht. Unter dem Status steht das Datum des Widerrufs. |
+
+Eine Zuweisung an ein Team nennt das Team, markiert mit **Team**; nach dem Löschen des Teams steht dort **Gelöschtes Team**. Jede Zuweisung an ein Team und jeder Widerruf wird im [Audit-Log](/de/platform/admin/governance/audit-logs) mit ID und Namen des Teams protokolliert.
 
 Wer aus der Organisation entfernt wird, verliert jede aktive Zuweisung — Berechtigungen wie Qualifikationen –, sodass ein erneut hinzugefügtes Mitglied ohne sie startet. Eine widerrufene Zuweisung an jemanden, der die Organisation verlassen hat, zeigt **Ehemaliges Mitglied**. Das Register listet alle aktiven und abgelaufenen Zuweisungen sowie als Verlauf die 1000 zuletzt widerrufenen.
 

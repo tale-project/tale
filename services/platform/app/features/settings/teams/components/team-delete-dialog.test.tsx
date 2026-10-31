@@ -33,6 +33,7 @@ const { deleteTeam, impactState, toast } = vi.hoisted(() => ({
           conversations: { queued: number };
           syncConfigs: { scoped: number };
           apiKeys: number;
+          competenceGrants?: number;
         }
       | undefined,
     isLoading: false,
@@ -107,6 +108,36 @@ describe('TeamDeleteDialog', () => {
     ).toHaveTextContent(
       '2 API keys belong to this team and will stop working.',
     );
+  });
+
+  it('says the competences granted to the team are revoked with it [GOV-R19]', () => {
+    impactState.impact = { ...IMPACT, competenceGrants: 1 };
+    const { rerender } = render(
+      <TeamDeleteDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        team={makeTeam()}
+        organizationId="org-1"
+      />,
+    );
+    expect(
+      screen.getByRole('dialog', { name: 'Delete team' }),
+    ).toHaveTextContent(
+      '1 competence granted to this team will be revoked: its members lose it unless they hold it themselves.',
+    );
+
+    impactState.impact = { ...IMPACT, competenceGrants: 0 };
+    rerender(
+      <TeamDeleteDialog
+        open={true}
+        onOpenChange={vi.fn()}
+        team={makeTeam()}
+        organizationId="org-1"
+      />,
+    );
+    expect(
+      screen.getByRole('dialog', { name: 'Delete team' }),
+    ).not.toHaveTextContent('granted to this team');
   });
 
   it('says nothing about widening when every scoped item keeps another team', () => {

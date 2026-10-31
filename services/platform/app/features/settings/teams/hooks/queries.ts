@@ -79,13 +79,13 @@ export function useTeams() {
  * caller's to name and retry, never an organization without teams (#3766).
  * `error` is the read's settled failure, for a list's data source
  * (`useListPage`); react-query clears it while it retries a read that never
- * answered.
+ * answered. `enabled: false` skips the read, for a dialog that is closed.
  */
-export function useOrgTeams() {
+export function useOrgTeams(enabled = true) {
   const organizationId = useOrganizationId();
   const query = useBackendQuery(
     'members/queries:listOrgTeams',
-    organizationId ? { organizationId } : 'skip',
+    enabled && organizationId ? { organizationId } : 'skip',
   );
   const { refetch } = query;
 

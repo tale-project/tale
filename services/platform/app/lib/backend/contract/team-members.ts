@@ -19,6 +19,9 @@ export interface TeamDeletionImpact {
   syncConfigs: { scoped: number };
   /** The team's own API keys, which stop working with it. */
   apiKeys: number;
+  /** The team's live competence grants, which end with it. Absent from a
+   * backend that predates team grants. */
+  competenceGrants?: number;
 }
 
 /** What an atomic team delete retired, as the door answers it. */
@@ -28,6 +31,7 @@ export interface TeamRetirementSummary {
   documentsRetagged: number;
   conversationsUnassigned: number;
   syncConfigsUnscoped: number;
+  competenceGrantsRevoked?: number;
   nowOrgWide: { projects: number; folders: number; documents: number };
 }
 
