@@ -819,9 +819,13 @@ bun run --filter @tale/cli build:linux
 
 These produce `tools/cli/dist/tale`; choose one target for an artifact rather than
 expecting both binaries at that path. Linux x64 CPUs without AVX2 need
-`build:linux-baseline`. Other target scripts are listed in `package.json`. The
-complete `build` script regenerates inputs, builds the backend-local bundle and
-release targets, then checks the compiled bundle.
+`build:linux-baseline`. Other target scripts are listed in `package.json`.
+`build:host` regenerates the embedded catalog, compiles for the machine that runs
+it and checks the bundle; the Unix installer points there on a system or
+architecture without a release binary. Move that `dist/tale` into a directory on
+your `PATH` to run it as `tale`. The complete `build` script regenerates inputs,
+builds the backend-local bundle and release targets, then checks the compiled
+bundle.
 
 `TALE_BINARY` selects the compiled executable for `tests/smoke.test.ts`; CI sets
 it on each native target. The parent-directory `dev` case uses a valid child
