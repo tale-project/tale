@@ -15850,14 +15850,32 @@ async function checkAutomationTriggerDelivery(
         [`EXPLAIN ${strings[0] ?? ''}`, ...strings.slice(1)],
         { raw: [`EXPLAIN ${strings.raw[0] ?? ''}`, ...strings.raw.slice(1)] },
       );
-      return tx<{ 'QUERY PLAN': string }[]>(
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template array with its raw strings, as postgres.js reads one
-        prefixed as unknown as TemplateStringsArray,
+      // Each call is an ordinary lazy query, so a fragment the store nests
+      // (its empty `sql``` when no viewer narrows the read) is inlined by
+      // postgres.js and never runs alone. Only the query the store awaits
+      // runs, EXPLAIN-prefixed, with the same values.
+      const query = tx(
+        strings,
         // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the store's own parameters, passed through
         ...(values as never[]),
-      ).then((rows) => {
-        triggerRunsPlan = [...rows];
-        return [];
+      );
+      return Object.assign(query, {
+        // oxlint-disable-next-line unicorn/no-thenable -- the store awaits this query, and awaiting it is what runs the EXPLAIN form
+        then: (
+          resolve: (rows: never[]) => unknown,
+          reject: (error: unknown) => unknown,
+        ) =>
+          tx<{ 'QUERY PLAN': string }[]>(
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template array with its raw strings, as postgres.js reads one
+            prefixed as unknown as TemplateStringsArray,
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the store's own parameters, passed through
+            ...(values as never[]),
+          )
+            .then((rows) => {
+              triggerRunsPlan = [...rows];
+              return [];
+            })
+            .then(resolve, reject),
       });
     };
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- an EXPLAIN-prefixing tag standing in for the store's sql
