@@ -34,6 +34,9 @@ import { listEntriesForAgent } from '../knowledge_entries/service.ts';
 import {
   getProjectAuthContext,
   listProjects,
+  readableProjectsAmong,
+  readableProjectsWithDocuments,
+  type ProjectAuthContext,
   type ProjectRow,
 } from '../projects/service.ts';
 import { listServingCredentialFacts } from '../provider_credentials/service.ts';
@@ -116,28 +119,42 @@ function pageOf<T>(
   };
 }
 
-/** The turn user's knowledge scope — their teams (and whether they are an
- * admin, whom the audience rule never restricts), readable projects, the
- * hub, and the conversation-scoped rows they may read — the 0.5 twin of
- * `resolveKnowledgeAccessForUser`. The one resolver every door a member's
- * identity opens uses (the chat tools, the MCP key's get_knowledge, a
- * user-keyed sandbox session); only the chat tools add mail to it. */
-export async function resolveAccessScope(
+/** The caller's project auth for the scopes below, or null for a seat that
+ * reads nothing (gone, or disabled). A team's or the organization's own API
+ * key acts with the role it was made with; a project's own key, with its
+ * project alone. */
+async function resolveScopeAuth(
   sql: Sql,
   organizationId: string,
   userId: string,
-): Promise<{
+): Promise<ProjectAuthContext | null> {
+  const member = await findActingMember(sql, organizationId, userId);
+  if (member === null || member.role === 'disabled') return null;
+  return getProjectAuthContext(
+    sql,
+    { organizationId, userId, role: member.role },
+    undefined,
+    member.apiKeyOwner?.kind === 'project' &&
+      member.apiKeyOwner.projectId !== null
+      ? { projectScope: member.apiKeyOwner.projectId }
+      : {},
+  );
+}
+
+type AccessScope = {
   teamIds: string[];
   isAdmin: boolean;
   projectIds: string[];
   includeHub: boolean;
   includeConversationScoped: boolean;
   archivedProjectIds: string[];
-}> {
-  // A team's or the organization's own API key acts with the role it was
-  // made with; a project's own key, with its project alone (below).
-  const member = await findActingMember(sql, organizationId, userId);
-  if (member === null || member.role === 'disabled') {
+};
+
+async function knowledgeScopeFor(
+  sql: Sql,
+  auth: ProjectAuthContext | null,
+): Promise<AccessScope> {
+  if (auth === null) {
     return {
       teamIds: [],
       isAdmin: false,
@@ -147,19 +164,16 @@ export async function resolveAccessScope(
       archivedProjectIds: [],
     };
   }
-  const auth = await getProjectAuthContext(
-    sql,
-    { organizationId, userId, role: member.role },
-    undefined,
-    member.apiKeyOwner?.kind === 'project' &&
-      member.apiKeyOwner.projectId !== null
-      ? { projectScope: member.apiKeyOwner.projectId }
-      : {},
-  );
-  const projects = await listProjects(sql, auth, { includeArchived: true });
+  // Archived projects included, and of them the ones that hold a document:
+  // the knowledge database filters by this list and cannot join the
+  // readable relation itself, so it never carries every project the caller
+  // reads (#5202). A check of ONE project asks `readableProjectsAmong`.
+  const projects = await readableProjectsWithDocuments(sql, auth, {
+    includeArchived: true,
+  });
   return {
     teamIds: [...auth.teamIds],
-    isAdmin: isAudienceAdmin(member.role),
+    isAdmin: isAudienceAdmin(auth.role),
     projectIds: projects.map((project) => project.id),
     // A project's own key reaches its project alone: the organization's
     // knowledge outside it is not searched for it.
@@ -173,6 +187,54 @@ export async function resolveAccessScope(
     // sandbox bridge resolve this same scope and never ask for mail, so no
     // email body and no emailed attachment reaches them.
     includeConversationScoped: true,
+    archivedProjectIds: projects
+      .filter((project) => project.archived)
+      .map((project) => project.id),
+  };
+}
+
+/** The turn user's knowledge scope — their teams (and whether they are an
+ * admin, whom the audience rule never restricts), the readable projects
+ * that hold a document, the hub, and the conversation-scoped rows they may
+ * read — the 0.5 twin of `resolveKnowledgeAccessForUser`. The one resolver
+ * every door a member's identity opens uses (the chat tools, the MCP key's
+ * get_knowledge, a user-keyed sandbox session); only the chat tools add
+ * mail to it. */
+export async function resolveAccessScope(
+  sql: Sql,
+  organizationId: string,
+  userId: string,
+): Promise<AccessScope> {
+  return knowledgeScopeFor(
+    sql,
+    await resolveScopeAuth(sql, organizationId, userId),
+  );
+}
+
+/** Whether the caller may read this one project, archived or not. */
+async function canReadProject(
+  sql: Sql,
+  auth: ProjectAuthContext | null,
+  projectId: string,
+): Promise<boolean> {
+  if (auth === null) return false;
+  return (await readableProjectsAmong(sql, auth, [projectId])).has(projectId);
+}
+
+/** The projects whose tasks and boards the chat tools' work legs read:
+ * every project the turn user reads, archived ones included. Read whole
+ * until those legs join the readable relation themselves (#5207); the
+ * knowledge scope above no longer carries them. */
+export async function resolveWorkProjects(
+  sql: Sql,
+  organizationId: string,
+  userId: string,
+): Promise<{ projectIds: string[]; archivedProjectIds: string[] }> {
+  const auth = await resolveScopeAuth(sql, organizationId, userId);
+  if (auth === null) return { projectIds: [], archivedProjectIds: [] };
+  const projects = await listProjects(sql, auth, { includeArchived: true });
+  return {
+    projectIds: projects.map((project) => project.id),
     archivedProjectIds: projects
       .filter((project) => project.archivedAt !== null)
       .map((project) => project.id),
@@ -755,12 +817,12 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
         organizationId: string;
         userId: string;
       };
-      const scope = await resolveAccessScope(
+      const auth = await resolveScopeAuth(
         sql,
         args.organizationId,
         args.userId,
       );
-      if (scope.projectIds.includes(args.projectId)) {
+      if (await canReadProject(sql, auth, args.projectId)) {
         return { allowed: true };
       }
       const exists = await sql<{ orgId: string }[]>`
@@ -816,6 +878,12 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
       );
     },
 
+    'projects/internal_queries:resolveWorkProjectsForChat': async (raw) => {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the chat tools pass exactly this shape
+      const args = raw as { organizationId: string; userId: string };
+      return resolveWorkProjects(sql, args.organizationId, args.userId);
+    },
+
     // ------------------------------------------------------ knowledge scope
     'documents/internal_queries:resolveKnowledgeAccess': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the 0.4 caller passes exactly this shape
@@ -843,16 +911,17 @@ export function chatShimHandlers(sql: Sql): ShimHandlers {
         fileName?: string;
         extension?: string;
       };
-      const scope = await resolveAccessScope(
+      const auth = await resolveScopeAuth(
         sql,
         args.organizationId,
         args.userId,
       );
+      const scope = await knowledgeScopeFor(sql, auth);
       // An unreadable/absent project falls through to hub rules (the 0.4
       // fail-safe) — never a boundary loosening.
       const projectReadable =
         args.projectId !== undefined &&
-        scope.projectIds.includes(args.projectId);
+        (await canReadProject(sql, auth, args.projectId));
       // A project's own API key reaches its project alone: its files, and
       // never the hub's — not even their titles.
       if (!scope.includeHub) {
