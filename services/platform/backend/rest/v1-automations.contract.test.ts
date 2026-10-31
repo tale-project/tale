@@ -1459,8 +1459,12 @@ describe('run listings', () => {
     const res = await list('/runs?status=failed');
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ runs: [runSummary] });
+    // The key holder's projects join the run read (#5201), never as a list.
     expect(listRunsPage).toHaveBeenCalledWith(expect.anything(), 'org-1', {
-      visibleProjectIds: ['p-visible'],
+      viewer: expect.objectContaining({
+        organizationId: 'org-1',
+        userId: 'user-1',
+      }),
       statuses: ['failed'],
       limit: 50,
     });

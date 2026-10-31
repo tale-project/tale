@@ -102,6 +102,11 @@ import {
   dismissAgentQuestionNotifications,
   dismissTriggerPausedNotifications,
 } from '../collab/service.ts';
+import {
+  readableProjectsAmong,
+  readableProjectsSql,
+} from '../projects/readable-projects.ts';
+import type { ProjectAuthContext } from '../projects/service.ts';
 import { stopWorkflowSessionSlotsInTx } from '../sandbox/idle-release.ts';
 import { retractAskOnTask } from './ask-retraction.ts';
 import { auditDefinitionWrite } from './audit.ts';
@@ -1257,6 +1262,62 @@ export interface AutomationListing {
 }
 
 /**
+ * The projects each automation of the organization is installed in, by
+ * name. Given a viewer, the projects it may read (archived ones included)
+ * join the statement, never an id list read first (#5201): only those
+ * installations are listed, and an automation installed only in projects
+ * it cannot read is `hidden` — the listings leave it out
+ * (`automationVisible`), since listed with no installations it would read
+ * as an organization automation, where it cannot run.
+ */
+async function installationsByName(
+  sql: Sql,
+  organizationId: string,
+  viewer: ProjectAuthContext | undefined,
+): Promise<Map<string, { projectIds: string[]; hidden: boolean }>> {
+  type Installation = {
+    automationName: string;
+    projectId: string;
+    readable: boolean;
+  };
+  const rows =
+    viewer === undefined
+      ? (
+          await sql<{ automationName: string; projectId: string }[]>`
+            SELECT automation_name AS "automationName", project_id AS "projectId"
+            FROM app.automation_project_bindings
+            WHERE org_id = ${organizationId}
+          `
+        ).map(({ automationName, projectId }): Installation => ({
+          automationName,
+          projectId,
+          readable: true,
+        }))
+      : await sql<Installation[]>`
+          SELECT b.automation_name AS "automationName",
+                 b.project_id AS "projectId",
+                 rp.project_id IS NOT NULL AS readable
+          FROM app.automation_project_bindings b
+          LEFT JOIN ${readableProjectsSql(sql, viewer, { includeArchived: true })} rp
+            ON rp.project_id = b.project_id
+          WHERE b.org_id = ${organizationId}
+        `;
+  const byName = new Map<string, { projectIds: string[]; hidden: boolean }>();
+  for (const row of rows) {
+    const entry = byName.get(row.automationName) ?? {
+      projectIds: [],
+      hidden: true,
+    };
+    if (row.readable) {
+      entry.projectIds.push(row.projectId);
+      entry.hidden = false;
+    }
+    byName.set(row.automationName, entry);
+  }
+  return byName;
+}
+
+/**
  * The presentation a listing shows is the newest NON-NULL one: a version
  * saved from the canvas, over MCP or by an upload without a manifest carries
  * no presentation of its own, and reading the latest row alone made the
@@ -1268,6 +1329,12 @@ export interface AutomationListing {
 export async function listAutomations(
   sql: Sql,
   organizationId: string,
+  options: {
+    /** Answer as this caller sees the catalog ({@link installationsByName}):
+     * only its installations, and none it cannot see. Omitted, every
+     * automation with every installation. */
+    viewer?: ProjectAuthContext;
+  } = {},
 ): Promise<AutomationListing[]> {
   const rows = await sql<
     {
@@ -1298,17 +1365,11 @@ export async function listAutomations(
     GROUP BY a.name, d.version
     ORDER BY a.name
   `;
-  const bindings = await sql<{ automationName: string; projectId: string }[]>`
-    SELECT automation_name AS "automationName", project_id AS "projectId"
-    FROM app.automation_project_bindings
-    WHERE org_id = ${organizationId}
-  `;
-  const byName = new Map<string, string[]>();
-  for (const binding of bindings) {
-    const list = byName.get(binding.automationName) ?? [];
-    list.push(binding.projectId);
-    byName.set(binding.automationName, list);
-  }
+  const installed = await installationsByName(
+    sql,
+    organizationId,
+    options.viewer,
+  );
   // The one trigger read, so the listing's health and next start are the
   // binding's own (a schedule's next start is computed there when the scan
   // has not yet).
@@ -1325,16 +1386,22 @@ export async function listAutomations(
       },
     ]),
   );
-  return rows.map((row) => ({
-    name: row.name,
-    latestVersion: row.latestVersion,
-    deployedVersion: row.deployedVersion,
-    description: row.description ?? null,
-    inputs: row.inputs ?? null,
-    presentation: row.presentation,
-    projectIds: byName.get(row.name) ?? [],
-    trigger: triggerByName.get(row.name) ?? null,
-  }));
+  return rows.flatMap((row) => {
+    const installations = installed.get(row.name);
+    if (installations?.hidden === true) return [];
+    return [
+      {
+        name: row.name,
+        latestVersion: row.latestVersion,
+        deployedVersion: row.deployedVersion,
+        description: row.description ?? null,
+        inputs: row.inputs ?? null,
+        presentation: row.presentation,
+        projectIds: installations?.projectIds ?? [],
+        trigger: triggerByName.get(row.name) ?? null,
+      },
+    ];
+  });
 }
 
 /** The 0.4 APP listing row: behaviour fields answer for the DEPLOYED
@@ -1359,7 +1426,12 @@ export interface AutomationAppListing {
 export async function listAutomationsForApp(
   sql: Sql,
   organizationId: string,
-  options: { projectId?: string; includeProjectBound?: boolean } = {},
+  options: {
+    projectId?: string;
+    includeProjectBound?: boolean;
+    /** Answer as this caller sees the list, as `listAutomations` does. */
+    viewer?: ProjectAuthContext;
+  } = {},
 ): Promise<AutomationAppListing[]> {
   const rows = await sql<
     {
@@ -1387,17 +1459,11 @@ export async function listAutomationsForApp(
     GROUP BY a.name, d.version
     ORDER BY a.name
   `;
-  const bindings = await sql<{ automationName: string; projectId: string }[]>`
-    SELECT automation_name AS "automationName", project_id AS "projectId"
-    FROM app.automation_project_bindings
-    WHERE org_id = ${organizationId}
-  `;
-  const byName = new Map<string, string[]>();
-  for (const binding of bindings) {
-    const list = byName.get(binding.automationName) ?? [];
-    list.push(binding.projectId);
-    byName.set(binding.automationName, list);
-  }
+  const installed = await installationsByName(
+    sql,
+    organizationId,
+    options.viewer,
+  );
   // The one trigger read, as `listAutomations` makes it: each row says
   // whether its binding is on, off or paused from the binding itself, so
   // the list never has to guess it or read each automation's trigger.
@@ -1412,7 +1478,9 @@ export async function listAutomationsForApp(
     ]),
   );
   return rows.flatMap((row) => {
-    const projectIds = byName.get(row.name) ?? [];
+    const installations = installed.get(row.name);
+    if (installations?.hidden === true) return [];
+    const projectIds = installations?.projectIds ?? [];
     // Scope: a project's automations / org-level only / everything.
     if (options.projectId !== undefined) {
       if (!projectIds.includes(options.projectId)) return [];
@@ -1485,20 +1553,21 @@ export async function setAutomationProjects(
     projectIds: string[];
     /** Who changes the installations, through which door. */
     origin: WriteOrigin;
-    /** The projects the saving person can read. The editor only ever sees
-     * those bindings, so the save replaces that part of the set and keeps
-     * every binding to a project outside it; a project they cannot read
-     * answers like a missing one unless it is already bound. Omitted, the
-     * save replaces the whole set. */
-    visibleProjectIds?: string[];
+    /** The saving person. The editor only ever sees the bindings to the
+     * projects they can read, so the save replaces that part of the set
+     * and keeps every binding to a project outside it; a project they
+     * cannot read answers like a missing one unless it is already bound.
+     * Omitted, the save replaces the whole set. */
+    viewer?: ProjectAuthContext;
   },
 ): Promise<void> {
   await sql.begin(async (tx) => {
     // The name first, as every definition writer takes it (`audit.ts`).
     await lockAutomationName(tx, args.organizationId, args.name);
     let projectIds = args.projectIds;
-    if (args.visibleProjectIds !== undefined) {
-      const visible = new Set(args.visibleProjectIds);
+    if (args.viewer !== undefined) {
+      // The named projects alone, never every project they can read.
+      const visible = await readableProjectsAmong(tx, args.viewer, projectIds);
       const hidden = projectIds.filter((id) => !visible.has(id));
       if (hidden.length > 0) {
         const bound = new Set(
@@ -1543,9 +1612,12 @@ export async function setAutomationProjects(
         AND automation_name = ${args.name}
         AND NOT (project_id = ANY(${projectIds}))
         ${
-          args.visibleProjectIds === undefined
+          args.viewer === undefined
             ? tx``
-            : tx`AND project_id = ANY(${args.visibleProjectIds})`
+            : tx`AND project_id IN (
+                SELECT rp.project_id
+                FROM ${readableProjectsSql(tx, args.viewer, { includeArchived: true })} rp
+              )`
         }
       RETURNING project_id AS "projectId"
     `;
@@ -2761,7 +2833,7 @@ function deliveryLane(
  * 'trigger:<id>'`), newest first — whatever kind it had when it started
  * them — each with the webhook delivery lane that started it while that
  * delivery's ledger row lives. Empty when no trigger is bound. A run in a
- * project outside `visibleProjectIds` is left out, as every run read does.
+ * project the `viewer` cannot read is left out, as every run read does.
  *
  * The runs come off `automation_runs_org_name` (the automation's runs,
  * newest first, filtered to the trigger's); each run's ledger row off
@@ -2772,7 +2844,7 @@ function deliveryLane(
 export async function listTriggerRuns(
   sql: Sql,
   organizationId: string,
-  args: { name: string; limit?: number; visibleProjectIds?: string[] },
+  args: { name: string; limit?: number; viewer?: ProjectAuthContext },
 ): Promise<TriggerRunListing[]> {
   const limit = Math.min(
     Math.max(Math.trunc(args.limit ?? 10), 1),
@@ -2794,9 +2866,14 @@ export async function listTriggerRuns(
        AND r.name = t.name
        AND r.started_by = 'trigger:' || t.id
       WHERE t.org_id = ${organizationId} AND t.name = ${args.name}
-        AND (${args.visibleProjectIds === undefined}
-             OR r.project_id IS NULL
-             OR r.project_id = ANY(${args.visibleProjectIds ?? []}::text[]))
+        ${
+          args.viewer === undefined
+            ? sql``
+            : sql`AND (r.project_id IS NULL
+                   OR r.project_id IN (
+                     SELECT rp.project_id
+                     FROM ${readableProjectsSql(sql, args.viewer, { includeArchived: true })} rp))`
+        }
       ORDER BY r.started_at_ms DESC, r.id DESC
       LIMIT ${limit}
     )
@@ -3277,8 +3354,10 @@ export interface ListRunsOptions {
   name?: string;
   /** Undefined preserves the internal cross-project listing; null is org-only. */
   projectId?: string | null;
-  /** An actor's readable projects; org runs remain visible. */
-  visibleProjectIds?: string[];
+  /** Only the runs this caller may read: organization runs, and those of
+   * a project it may read, archived ones included — the readable projects
+   * joined in the statement, never an id list read first (#5201). */
+  viewer?: ProjectAuthContext;
   /** Only runs in these statuses (any of them). */
   statuses?: string[];
   /** Only live runs, or only mock runs. */
@@ -3303,9 +3382,14 @@ async function runRows(
            OR name = ${options.name ?? null})
       AND (${options.projectId === undefined}
            OR project_id IS NOT DISTINCT FROM ${options.projectId ?? null}::text)
-      AND (${options.visibleProjectIds === undefined}
-           OR project_id IS NULL
-           OR project_id = ANY(${options.visibleProjectIds ?? []}::text[]))
+      ${
+        options.viewer === undefined
+          ? sql``
+          : sql`AND (project_id IS NULL
+                 OR project_id IN (
+                   SELECT rp.project_id
+                   FROM ${readableProjectsSql(sql, options.viewer, { includeArchived: true })} rp))`
+      }
       AND (${options.statuses === undefined}
            OR status = ANY(${options.statuses ?? []}::text[]))
       AND (${options.mode ?? null}::text IS NULL
@@ -3395,10 +3479,11 @@ export interface BeginRunArgs {
   requireOrgScope?: boolean;
   /** A token authorizes installed projects, not arbitrary same-org projects. */
   requireProjectBinding?: boolean;
-  /** The app member's readable projects. Check the resolved binding inside
-   * admission too: omitting projectId must not infer a hidden project, nor
-   * start an organization run able to operate in hidden bound projects. */
-  visibleProjectIds?: string[];
+  /** The app member, whose project read rule admission applies to the
+   * binding it resolves too: omitting projectId must not infer a hidden
+   * project, nor start an organization run able to operate in hidden bound
+   * projects. */
+  viewer?: ProjectAuthContext;
   /** A replay: the run it runs again and how. A replay from a step is born
    * with the steps it takes from that run already finished — each entry
    * marked `reused` — and runs the rest. */
@@ -3422,13 +3507,14 @@ export async function resolveRunProject(
     | 'projectId'
     | 'requireOrgScope'
     | 'requireProjectBinding'
-    | 'visibleProjectIds'
+    | 'viewer'
   >,
 ): Promise<string | null> {
   const bindings = await bindingProjectIds(sql, args.organizationId, args.name);
-  if (args.visibleProjectIds !== undefined) {
-    const visible = new Set(args.visibleProjectIds);
+  if (args.viewer !== undefined) {
     const selected = args.projectId === undefined ? bindings : [args.projectId];
+    // The selected projects alone, never every project the member reads.
+    const visible = await readableProjectsAmong(sql, args.viewer, selected);
     if (selected.some((id) => !visible.has(id))) {
       throw new AutomationError('PROJECT_NOT_FOUND', 'Project not found.', 404);
     }
@@ -3450,8 +3536,7 @@ export async function resolveRunProject(
   // dispatch names the project it starts in, so it meets these checks, in
   // a savepoint of its own per trigger.
   const projectId =
-    args.projectId ??
-    (args.visibleProjectIds !== undefined ? inferred : undefined);
+    args.projectId ?? (args.viewer !== undefined ? inferred : undefined);
   if (projectId !== undefined) {
     const owned = await sql<{ id: string; archivedAt: number | null }[]>`
       SELECT id, archived_at_ms::float8 AS "archivedAt" FROM app.projects
