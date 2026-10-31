@@ -16,7 +16,13 @@ import type { RetentionCategory } from '@/lib/shared/schemas/retention';
  * trail, not only the current roster. */
 export interface CompetenceRecordWire {
   id: string;
-  userId: string;
+  /** The member who holds it; null on a team grant. */
+  userId: string | null;
+  /** The team whose members hold it; null (or absent, from a backend that
+   * predates team grants) on a member's grant. */
+  teamId?: string | null;
+  /** The team's name; null once the team is gone. */
+  teamName?: string | null;
   competence: string;
   /** The granting admin's user id. */
   grantedBy: string;
@@ -78,9 +84,12 @@ export interface GovernanceContract {
   };
   'governance/competences:grantCompetence': {
     kind: 'mutation';
+    /** Exactly one holder: a member (`userId`) or a team (`teamId`, a
+     * platform capability only). */
     args: {
       organizationId: string;
-      userId: string;
+      userId?: string;
+      teamId?: string;
       competence: string;
       expiresAt?: number;
       evidence?: string;
