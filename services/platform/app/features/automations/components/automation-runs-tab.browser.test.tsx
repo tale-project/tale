@@ -86,13 +86,6 @@ vi.mock('@/app/hooks/use-ability', async (importOriginal) => ({
   useAbilityLoading: () => false,
 }));
 
-vi.mock('@/app/features/projects/hooks/queries', async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import('@/app/features/projects/hooks/queries')
-  >()),
-  useProjects: () => ({ projects: [], isLoading: false }),
-}));
-
 // Who started each run: the member directory answers from here.
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
   useMembers: () => ({ members: [], isLoading: false }),
