@@ -33,3 +33,5 @@ Envisage Tale si tu cherches d’abord un projet commun aux collègues et aux ag
 Prends un brief événementiel fictif demandant une note sur le public, un brouillon d’annonce et un plan de présentation. Change le public visé après la première version et fais rejeter une affirmation sans preuve par un collègue.
 
 Dans les deux solutions, observe comment le changement atteint chaque livrable et comment une seconde personne reprend le travail inachevé. Évalue séparément l’utilité des résultats et la clarté des responsabilités. Tu pourras ainsi déterminer si la production de livrables ou la coordination continue est prioritaire. [Demande une démo de Tale](https://tale.dev/fr/request-demo) avec cette campagne pilote.
+
+Cette comparaison s’appuie sur la documentation publique examinée le 3 octobre 2026, sans test comparatif pratique.
