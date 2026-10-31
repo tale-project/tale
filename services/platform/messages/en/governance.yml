@@ -1116,6 +1116,7 @@ competences:
   grantDialog:
     title: Grant a competence
     description: Whoever you choose holds it in this organization until it expires or an admin revokes it. A team's members hold it while they are in the team.
+    fixedDescription: '{member} holds "{competence}" in this organization until it expires or an admin revokes it.'
     holderLabel: Grant to
     holderOptions:
       member: A member
