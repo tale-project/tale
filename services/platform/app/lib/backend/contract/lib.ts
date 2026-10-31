@@ -12,6 +12,11 @@ import type {
   ProviderDefinition,
 } from '@tale/shared/schemas/providers';
 
+/** Why a model list left models out (GOV-R22): the organization's EU/EEA
+ * processing rule refused their endpoints (`eu`), or its model access policy
+ * cannot be read, which refuses every endpoint (`unreadable`). */
+export type HiddenModelsRule = 'eu' | 'unreadable';
+
 /** Why a provider's model listing failed, when the server knows: a server
  * that answered without a model list (a body that is not JSON, or HTTP
  * 404), refused the key (HTTP 401 or 403), failed on its side (HTTP 5xx),
@@ -94,6 +99,10 @@ export interface LibContract {
       /** An organization-defined provider's native version: the hash of
        * the file these facts were read from, which an edit saves against. */
       definitionHash?: string;
+      /** The organization's EU/EEA processing rule refuses the endpoint a
+       * call through the provider's default credential goes to (GOV-R22).
+       * Absent while the rule is off. */
+      endpointRefusedBy?: HiddenModelsRule;
     }>;
   };
   'lib/providers/definition_actions:getProviderDefinition': {
@@ -168,6 +177,8 @@ export interface LibContract {
         providerDisplayName: string;
         modelId: string;
       }>;
+      /** The EU/EEA processing rule left models out (GOV-R22). */
+      modelsHiddenBy?: HiddenModelsRule;
       pick: {
         providerSlug: string;
         modelId: string;
@@ -188,6 +199,8 @@ export interface LibContract {
         providerDisplayName: string;
         modelId: string;
       }>;
+      /** The EU/EEA processing rule left models out (GOV-R22). */
+      modelsHiddenBy?: HiddenModelsRule;
       pick: {
         providerSlug: string;
         modelId: string;

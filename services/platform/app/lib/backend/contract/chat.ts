@@ -11,6 +11,8 @@ import type { ChatProposalView } from '@/lib/chat/settings-tools';
 import type { MessagePart } from '@/lib/chat/types';
 import type { ChatWorkToolsStatus } from '@/lib/chat/work-tools-status';
 
+import type { HiddenModelsRule } from './lib';
+
 export interface ChatContract {
   'chat/proposals:listThreadProposals': {
     kind: 'query';
@@ -94,6 +96,8 @@ export interface ChatContract {
               constraints: { harness: string; execution: 'sandbox' };
             };
       }>;
+      /** The EU/EEA processing rule left chat models out (GOV-R22). */
+      modelsHiddenBy?: HiddenModelsRule;
       harnesses: Array<{
         harness: string;
         label: string;

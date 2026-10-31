@@ -19,6 +19,7 @@ import {
   catalogFailureCode,
   getProviderCatalog,
 } from '../../core/lib/providers/catalog_fetch.ts';
+import { chatProviderRefusedBy } from '../../core/lib/providers/chat_catalog.ts';
 import { credentialAuthFor } from '../../core/lib/providers/credential_auth.ts';
 import {
   deriveHarnessStatus,
@@ -41,10 +42,12 @@ import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { parseNativeJsonBody } from '../../lib/native-json-body.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
 import { listComposerModels } from '../chat/composer.ts';
+import { readModelEndpointPolicyForOrg } from '../governance/model-endpoints.ts';
 import { governanceShimHandlers } from '../governance/shim.ts';
 import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import {
   listCredentials,
+  listServingCredentialFacts,
   resolveCatalogBearer,
 } from '../provider_credentials/service.ts';
 import {
@@ -214,6 +217,17 @@ export function createProviderSettingRoutes(deps: {
     if (denied) return denied;
     const orgSlug = await orgSlugOf(c);
     if (orgSlug === null) return c.json({ error: 'ORG_NOT_FOUND' }, 404);
+    // Under the EU/EEA processing rule each entry says whether the rule
+    // refuses a call through the provider's default credential (GOV-R22):
+    // the default-models editor leaves those models out, as Auto does.
+    const endpointPolicy = await readModelEndpointPolicyForOrg(
+      deps.sql,
+      c.get('orgId'),
+    );
+    const servingCredentials =
+      endpointPolicy.kind === 'open'
+        ? []
+        : await listServingCredentialFacts(deps.sql, c.get('orgId'));
     const results = [];
     // The same union `resolveProvidersForOrg` serves, kept apart here so each
     // entry can say where it came from: the settings page lists and edits the
@@ -267,6 +281,13 @@ export function createProviderSettingRoutes(deps: {
           subscriptionAuth?.method === 'subscription-key'
             ? subscriptionAuth.accountIdVar
             : undefined;
+        const endpointRefusedBy = chatProviderRefusedBy(
+          endpointPolicy,
+          provider,
+          servingCredentials.find(
+            (credential) => credential.providerSlug === provider.name,
+          ),
+        );
         results.push({
           name: provider.name,
           displayName: provider.displayName,
@@ -294,6 +315,7 @@ export function createProviderSettingRoutes(deps: {
           ...(catalogError !== undefined ? { catalogError } : {}),
           ...(catalogErrorCode !== undefined ? { catalogErrorCode } : {}),
           ...(hash !== undefined ? { definitionHash: hash } : {}),
+          ...(endpointRefusedBy !== undefined ? { endpointRefusedBy } : {}),
         });
       }
     return c.json({ catalogs: results });

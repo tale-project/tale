@@ -29,6 +29,12 @@ import {
   type DatastoreTestResult,
 } from '../../core/deployment/test_datastore_connection.ts';
 import {
+  modelEndpointRefusal,
+  withoutRefusedModels,
+  type HiddenModelsRule,
+  type ModelEndpointPolicy,
+} from '../../core/governance/model_endpoint_gate.ts';
+import {
   connectionFilePath,
   connectionSecretsFilePath,
   embeddingFilePath,
@@ -597,14 +603,31 @@ export interface EmbeddingProviderSupport {
    *  that this org reaches through no direct key — its catalog may still
    *  list curated widths for the form's model select. */
   support: ProviderEmbeddingSupport;
+  /** The connector's own API origin: where an embedding call goes when
+   *  neither its credential nor the settings name an endpoint. Sent only
+   *  while the EU/EEA processing rule is on (GOV-R22), so the form can judge
+   *  the endpoint a choice would call. */
+  baseUrl?: string;
 }
+
+/** The model access policy's EU/EEA processing rule while it is on
+ *  (GOV-R22): the hosts the organization attests process in the EU/EEA, or
+ *  `unreadable` when the policy cannot be read and every call is refused. */
+export type EmbeddingEndpointRule =
+  | { kind: 'eu'; attestedHosts: string[] }
+  | { kind: 'unreadable' };
 
 export interface EmbeddingRecommendationsView {
   /** Curated picks, best first, from providers the org holds a DIRECT key
-   *  for — never from one declared unable to embed. */
+   *  for — never from one declared unable to embed, nor one whose endpoint
+   *  the EU/EEA processing rule refuses. */
   recommendations: EmbeddingRecommendation[];
   /** Every provider the org resolves (shipped and its own), by slug. */
   providers: EmbeddingProviderSupport[];
+  /** The rule, present only while it is on. */
+  endpointRule?: EmbeddingEndpointRule;
+  /** Why the rule left picks out of `recommendations`, when it did. */
+  modelsHiddenBy?: HiddenModelsRule;
 }
 
 /**
@@ -618,7 +641,10 @@ export async function listEmbeddingRecommendationsForOrg(
     status: string;
     authMethod: string;
     providerSlug: string;
+    isDefault?: boolean;
+    endpointUrl?: string | null;
   }>,
+  policy: ModelEndpointPolicy,
 ): Promise<EmbeddingRecommendationsView> {
   const connectors = resolveProvidersForOrg(orgSlug);
   const directProviders = new Set(
@@ -668,11 +694,49 @@ export async function listEmbeddingRecommendationsForOrg(
   // provider does not declare `supported`) is never offered as a one-click
   // fill — a shipped curated width without that declaration fails a guard.
   const kept = new Set(options.flatMap((option) => option.recommendations));
-  return {
-    recommendations: picks.filter((pick) => kept.has(pick)),
-    providers: options.map((option) => ({
-      providerSlug: option.providerSlug,
-      support: option.support,
-    })),
+  // A one-click pick leaves the provider's default credential in place, so
+  // it is offered only when the EU/EEA processing rule (GOV-R22) lets
+  // through the endpoint that credential calls: its own, else the
+  // connector's — the order the embedder resolves it in.
+  const connectorBaseUrls = new Map(
+    connectors.map((connector) => [connector.name, connector.baseUrl]),
+  );
+  const { kept: offered, hiddenBy } = withoutRefusedModels(
+    policy,
+    picks.filter((pick) => kept.has(pick)),
+    (pick) =>
+      modelEndpointRefusal(policy, {
+        providerName: pick.providerSlug,
+        baseUrl:
+          credentials.find(
+            (credential) =>
+              credential.providerSlug === pick.providerSlug &&
+              credential.isDefault === true &&
+              credential.status === 'active',
+          )?.endpointUrl ?? connectorBaseUrls.get(pick.providerSlug),
+      }),
+  );
+  const endpointRule: EmbeddingEndpointRule | undefined =
+    policy.kind === 'eu'
+      ? { kind: 'eu', attestedHosts: [...policy.attestedHosts] }
+      : policy.kind === 'unreadable'
+        ? { kind: 'unreadable' }
+        : undefined;
+  const view: EmbeddingRecommendationsView = {
+    recommendations: offered,
+    providers: options.map((option) => {
+      const entry: EmbeddingProviderSupport = {
+        providerSlug: option.providerSlug,
+        support: option.support,
+      };
+      const baseUrl = connectorBaseUrls.get(option.providerSlug);
+      if (endpointRule !== undefined && baseUrl !== undefined) {
+        entry.baseUrl = baseUrl;
+      }
+      return entry;
+    }),
   };
+  if (endpointRule !== undefined) view.endpointRule = endpointRule;
+  if (hiddenBy !== undefined) view.modelsHiddenBy = hiddenBy;
+  return view;
 }

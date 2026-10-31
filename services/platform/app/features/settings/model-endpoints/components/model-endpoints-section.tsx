@@ -19,6 +19,7 @@ import {
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMyModelApiAccess } from '@/app/features/settings/governance/hooks/queries';
+import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { useSiteUrl } from '@/lib/site-url-context';
@@ -311,6 +312,10 @@ export function ModelEndpointsSection({
                 ))}
               </Stack>
             )}
+            <HiddenModelsNote
+              rule={standing.modelsHiddenBy}
+              className="mt-1.5"
+            />
           </SettingsFieldRow>
         </SettingsFieldList>
       </SettingsSection>

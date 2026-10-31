@@ -26,6 +26,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useId, useMemo, useState } from 'react';
 
+import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
 import {
   llmModelSteps,
   type LlmModelStep,
@@ -56,8 +57,15 @@ export function LlmModelSwapDialog({
   const { t: tProjects } = useT('projects');
   const id = useId();
   const toId = `${id}-to`;
-  const { options, loaded, unavailable, retrying, failureCount, retry } =
-    useLlmModelOptions(organizationId);
+  const {
+    options,
+    loaded,
+    modelsHiddenBy,
+    unavailable,
+    retrying,
+    failureCount,
+    retry,
+  } = useLlmModelOptions(organizationId);
   const byModel = useMemo(() => {
     const groups = new Map<string, LlmModelStep[]>();
     for (const step of llmModelSteps(rawDocument)) {
@@ -122,6 +130,7 @@ export function LlmModelSwapDialog({
             }}
           />
         </Skeletonize>
+        <HiddenModelsNote rule={modelsHiddenBy} />
         {unavailable && (
           <CatalogLoadError
             message={t('editor.llm.modelsLoadFailed')}

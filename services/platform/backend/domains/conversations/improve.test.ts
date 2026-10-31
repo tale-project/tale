@@ -138,6 +138,26 @@ describe('improveConversationMessage and the writer’s limits', () => {
     expect(mocks.openTokenCall).not.toHaveBeenCalled();
   });
 
+  it('refuses with the EU/EEA rule’s own code when it left out every provider that could rewrite [GOV-R22]', async () => {
+    mocks.resolveDirectModel.mockResolvedValueOnce({
+      missing: 'endpoint',
+      hiddenBy: 'eu',
+    });
+    await expect(improveConversationMessage(SQL, ARGS)).rejects.toMatchObject({
+      code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+      status: 403,
+    });
+    mocks.resolveDirectModel.mockResolvedValueOnce({
+      missing: 'endpoint',
+      hiddenBy: 'unreadable',
+    });
+    await expect(improveConversationMessage(SQL, ARGS)).rejects.toMatchObject({
+      code: 'MODEL_ENDPOINT_POLICY_UNREADABLE',
+      status: 403,
+    });
+    expect(mocks.openTokenCall).not.toHaveBeenCalled();
+  });
+
   it('refuses with 429 BUDGET_EXCEEDED before the provider once a limit has no room [GOV-R4]', async () => {
     mocks.openTokenCall.mockResolvedValue({
       allowed: false,

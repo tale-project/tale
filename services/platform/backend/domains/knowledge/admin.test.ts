@@ -213,6 +213,8 @@ describe('the settings an embedding write keeps', () => {
  * width here" (typed by hand). The shipped connector tree is the fixture;
  * the org has no providers of its own, and only static catalogs are read.
  */
+const OPEN = { kind: 'open' } as const;
+
 describe('embedding recommendations with declared support', () => {
   function key(providerSlug: string) {
     return { status: 'active', authMethod: 'api-key', providerSlug };
@@ -220,11 +222,11 @@ describe('embedding recommendations with declared support', () => {
 
   it('reports Anthropic as unable to embed and never recommends it', async () => {
     const view = await withEmptyConfigDir(() =>
-      listEmbeddingRecommendationsForOrg('acme', [
-        key('anthropic'),
-        key('deepseek'),
-        key('openai'),
-      ]),
+      listEmbeddingRecommendationsForOrg(
+        'acme',
+        [key('anthropic'), key('deepseek'), key('openai')],
+        OPEN,
+      ),
     );
     const support = new Map(
       view.providers.map((entry) => [entry.providerSlug, entry.support]),
@@ -247,13 +249,17 @@ describe('embedding recommendations with declared support', () => {
 
   it('reports every provider the org can choose, even without a direct key', async () => {
     const view = await withEmptyConfigDir(() =>
-      listEmbeddingRecommendationsForOrg('acme', [
-        {
-          status: 'active',
-          authMethod: 'subscription-broker',
-          providerSlug: 'anthropic',
-        },
-      ]),
+      listEmbeddingRecommendationsForOrg(
+        'acme',
+        [
+          {
+            status: 'active',
+            authMethod: 'subscription-broker',
+            providerSlug: 'anthropic',
+          },
+        ],
+        OPEN,
+      ),
     );
 
     expect(view.recommendations).toEqual([]);
@@ -267,6 +273,77 @@ describe('embedding recommendations with declared support', () => {
       providerSlug: 'openai',
       support: 'unknown',
     });
+  });
+});
+
+/**
+ * While the model access policy's EU/EEA processing rule is on (GOV-R22), a
+ * one-click pick is offered only when the endpoint its default credential
+ * calls — the credential's own, else the connector's — is one the rule lets
+ * through, and the read carries the rule and each connector's origin so the
+ * form can judge a choice made by hand.
+ */
+describe('embedding recommendations under the EU/EEA processing rule', () => {
+  const EU = { kind: 'eu', attestedHosts: [] } as const;
+  const openaiKey = (endpointUrl?: string) => ({
+    status: 'active',
+    authMethod: 'api-key',
+    providerSlug: 'openai',
+    isDefault: true,
+    endpointUrl: endpointUrl ?? null,
+  });
+
+  it('changes nothing while the rule is off [GOV-R22]', async () => {
+    const view = await withEmptyConfigDir(() =>
+      listEmbeddingRecommendationsForOrg('acme', [openaiKey()], OPEN),
+    );
+    expect(view.recommendations.map((pick) => pick.model)).toEqual([
+      'text-embedding-3-small',
+    ]);
+    expect(view).not.toHaveProperty('endpointRule');
+    expect(view).not.toHaveProperty('modelsHiddenBy');
+    expect(view.providers.every((entry) => !('baseUrl' in entry))).toBe(true);
+  });
+
+  it('leaves out a pick whose default credential calls a refused endpoint, and says why [GOV-R22]', async () => {
+    const view = await withEmptyConfigDir(() =>
+      listEmbeddingRecommendationsForOrg('acme', [openaiKey()], EU),
+    );
+    expect(view.recommendations).toEqual([]);
+    expect(view.modelsHiddenBy).toBe('eu');
+    expect(view.endpointRule).toEqual({ kind: 'eu', attestedHosts: [] });
+    expect(view.providers).toContainEqual({
+      providerSlug: 'openai',
+      support: 'supported',
+      baseUrl: 'https://api.openai.com/v1',
+    });
+  });
+
+  it('offers the pick when the default credential names an EU endpoint [GOV-R22]', async () => {
+    const view = await withEmptyConfigDir(() =>
+      listEmbeddingRecommendationsForOrg(
+        'acme',
+        [openaiKey('https://eu.api.openai.com/v1')],
+        EU,
+      ),
+    );
+    expect(view.recommendations.map((pick) => pick.model)).toEqual([
+      'text-embedding-3-small',
+    ]);
+    expect(view).not.toHaveProperty('modelsHiddenBy');
+  });
+
+  it('offers no pick while the policy cannot be read [GOV-R22]', async () => {
+    const view = await withEmptyConfigDir(() =>
+      listEmbeddingRecommendationsForOrg(
+        'acme',
+        [openaiKey('https://eu.api.openai.com/v1')],
+        { kind: 'unreadable' },
+      ),
+    );
+    expect(view.recommendations).toEqual([]);
+    expect(view.modelsHiddenBy).toBe('unreadable');
+    expect(view.endpointRule).toEqual({ kind: 'unreadable' });
   });
 });
 
@@ -352,6 +429,7 @@ describe('a curated width without the declaration behind it', () => {
             authMethod: 'api-key',
             providerSlug,
           })),
+          OPEN,
         ),
     );
 
