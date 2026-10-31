@@ -28,4 +28,4 @@ teams:
 apiKeys:
   title: Aucune clé API pour l'instant
   description: Génère une clé pour connecter des outils et scripts externes.
-  descriptionNoCreate: Créer une clé demande le rôle Propriétaire, Admin ou Développeur, ou une compétence qu’un admin attribue pour cela.
+  descriptionNoCreate: Créer une clé demande le rôle Propriétaire, Admin ou Développeur, ou un droit qu’un admin attribue pour cela.

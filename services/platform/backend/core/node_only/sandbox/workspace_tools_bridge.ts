@@ -391,7 +391,7 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'changing anything: read again before deciding. Approve moves the task to ' +
     'done; request_changes posts feedback and moves it to todo, preserving its ' +
     'implementation agent. Feedback never starts an agent, even with @mentions. ' +
-    'No workflow approval or human competence requirement can be bypassed. ' +
+    'No workflow approval or human qualification requirement can be bypassed. ' +
     'The identical request may be retried by this same live issuer; it returns ' +
     'the original receipt without repeating effects. ' +
     'To inspect a listed attachment or output before deciding, instead pass ' +

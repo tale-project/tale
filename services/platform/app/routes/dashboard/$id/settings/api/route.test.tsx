@@ -97,10 +97,10 @@ const NO_GRANT: Answers = {
   mayConnect: false,
   holdsConnection: false,
 };
-// A member an Admin granted a competence that is used with a key (Export
+// A member an Admin granted a right that is used with a key (Export
 // notifications), who holds the key they made with it.
 const KEY_GRANT: Answers = { ...NO_GRANT, mayCreate: true, holdsKeys: true };
-// One granted Call models over the API, a competence used with a key too.
+// One granted Call models over the API, a right used with a key too.
 const MODEL_GRANT: Answers = { ...NO_GRANT, allowed: true, mayCreate: true };
 
 /** Each access read answers healthy, from now on. */

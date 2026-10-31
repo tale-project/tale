@@ -46,7 +46,7 @@ Ein Agent, der mehr verlangt, als der Endpunkt vergibt, wird dafür nicht abgele
 
 #### Wer einen Agent verbinden darf {#who-may-connect}
 
-Inhaber, Admins und Entwickler dürfen einen Agent mit der Organisation verbinden und ihm jeden Zugriff geben. Ein Mitglied darf einen nur mit einer Kompetenz verbinden, die mit einem Schlüssel genutzt wird, und darf ihm **Lesen und testen** sowie **Einstellungen lesen** geben. Allen anderen sagt die Zustimmungsseite, dass sie in dieser Organisation keinen Agent verbinden dürfen. Alles, was über **Lesen und testen** und **Einstellungen lesen** hinausgeht, braucht eine Anmeldung aus den letzten 24 Stunden, deshalb fragt die Seite zuerst nach dem Passwort.
+Inhaber, Admins und Entwickler dürfen einen Agent mit der Organisation verbinden und ihm jeden Zugriff geben. Ein Mitglied darf einen nur mit einem Recht verbinden, das mit einem Schlüssel genutzt wird, und darf ihm **Lesen und testen** sowie **Einstellungen lesen** geben. Allen anderen sagt die Zustimmungsseite, dass sie in dieser Organisation keinen Agent verbinden dürfen. Alles, was über **Lesen und testen** und **Einstellungen lesen** hinausgeht, braucht eine Anmeldung aus den letzten 24 Stunden, deshalb fragt die Seite zuerst nach dem Passwort.
 
 #### Zugriffsstufen {#access-levels}
 

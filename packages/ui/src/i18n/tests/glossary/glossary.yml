@@ -663,6 +663,38 @@ terms:
       `aucun des deux facteurs` is ordinary French and stays clean. The API
       reference''s `refuse une double authentification` means a second
       credential on one request, not the feature, so `_allow` keeps it.'
+  - key: feature_rights
+    category: feature
+    en: Rights
+    de: Rechte
+    fr: Droits
+    _avoid:
+      de:
+        - Plattform-Berechtigungen
+        - Plattform-Berechtigung
+      fr:
+        - capacités de la plateforme
+        - capacité de la plateforme
+    _note: 'The `tale:*` platform capabilities an Admin grants a member under
+      Governance > Rights and qualifications (`governance.competences.title`),
+      such as Call models over the API. Singular: Right, Recht, droit. DE never
+      `Berechtigung`, which stays the word for permission. Code, API fields,
+      routes and audit actions keep `competence`. `_avoid` lists the names
+      #5192 retired. The bare `Kompetenz` and `compétence` are guarded in the
+      platform catalogs by `services/platform/lib/i18n/messages.test.ts`
+      instead, because French also says `compétences` for skills. de-CH
+      inherits de.'
+  - key: feature_qualifications
+    category: feature
+    en: Qualifications
+    de: Qualifikationen
+    fr: Qualifications
+    _note: 'The names a review policy asks a reviewer to hold, granted on the
+      same page as Rights; any name outside the reserved `tale:` namespace.
+      Singular: Qualification, Qualifikation, qualification. FR equals EN, so
+      only DE is checked. Code, API fields and error codes keep `competence`
+      (`requiredCompetences`, `REVIEW_COMPETENCE_REQUIRED`). de-CH inherits
+      de.'
   - key: feature_mcpServer
     category: feature
     en: MCP server

@@ -46,7 +46,7 @@ Un agent qui demande plus que ce que le point d’accès accorde n’est pas ref
 
 #### Qui peut connecter {#who-may-connect}
 
-Un Propriétaire, un Admin ou un Développeur peut connecter un agent à l’organisation et lui donner n’importe quel accès. Un membre ne peut en connecter un qu’avec une compétence utilisée avec une clé, et ne peut lui donner que **Lire et tester** et **Lire les paramètres**. Toute autre personne voit sur la page de consentement qu’elle n’a pas le droit de connecter un agent dans cette organisation. Tout accès qui va plus loin que **Lire et tester** et **Lire les paramètres** demande une connexion datant de moins d’un jour ; la page demande donc d’abord le mot de passe.
+Un Propriétaire, un Admin ou un Développeur peut connecter un agent à l’organisation et lui donner n’importe quel accès. Un membre ne peut en connecter un qu’avec un droit utilisé avec une clé, et ne peut lui donner que **Lire et tester** et **Lire les paramètres**. Toute autre personne voit sur la page de consentement qu’elle n’a pas le droit de connecter un agent dans cette organisation. Tout accès qui va plus loin que **Lire et tester** et **Lire les paramètres** demande une connexion datant de moins d’un jour ; la page demande donc d’abord le mot de passe.
 
 #### Niveaux d’accès {#access-levels}
 
