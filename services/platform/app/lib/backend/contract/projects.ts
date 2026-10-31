@@ -307,11 +307,17 @@ export interface ProjectsContract {
     args: { includeArchived?: boolean; organizationId: string };
     returns: ProjectSummary[];
   };
+  /** The projects list, one page at a time: newest first. */
   'projects/queries:listProjectsOverview': {
     kind: 'query';
-    args: { includeArchived?: boolean; asOf?: number; organizationId: string };
+    args: {
+      includeArchived?: boolean;
+      asOf?: number;
+      organizationId: string;
+      paginationOpts: { numItems: number; cursor: null | string };
+    };
     returns: {
-      projects: Array<
+      page: Array<
         ProjectSummary & {
           openTaskCount: number;
           doneTaskCount: number;
@@ -319,19 +325,16 @@ export interface ProjectsContract {
           overdueTaskCount: number;
         }
       >;
-      overdueTruncated: boolean;
+      isDone: boolean;
+      continueCursor: string;
     };
   };
+  /** Home's navigator: one page of the unarchived projects, the pinned
+   * first; `isDone` says whether it holds them all. */
   'projects/queries:listSidebarProjects': {
     kind: 'query';
     args: { limit?: number; organizationId: string };
-    returns: Array<{
-      _id: string;
-      name: string;
-      icon?: string;
-      color?: string;
-      updatedAt: number;
-    }>;
+    returns: { projects: ProjectSummary[]; isDone: boolean };
   };
   'projects/queries:searchProjects': {
     kind: 'query';

@@ -38,7 +38,7 @@ On desktop, drag the Home panel’s right edge to adjust its width. You can also
 
 At the top of the panel, a row of icons switches what the list shows: **All**, **Chats**, **Tasks**, and **Inbox**. The open view shows its name beside its icon; point to any other icon to see its name. A dot on an icon means something in that view is waiting for you. **New chat**, the pencil at the end of the row, starts a chat; its tooltip shows the shortcut. **Inbox** appears only when your organization has an inbox: a deployed mail-sync automation, or an API app that has synced a conversation.
 
-**Projects** lists every project you can open. Choose a project to open its page with the task board, **General**, **Chats**, **Knowledge**, and **Agents**. The two icons beside the **Projects** heading are **All projects**, which opens the full project list, and **New project**. Drag a chat onto a project to file it there. A project's menu offers **New chat** and **Pin project**.
+**Projects** lists up to 100 of the projects you can open: the pinned ones first, then the most recently changed, A to Z. When you can open more, the count beside the collapsed heading reads **100+**. Choose a project to open its page with the task board, **General**, **Chats**, **Knowledge**, and **Agents**. The two icons beside the **Projects** heading are **All projects**, which opens the full project list, and **New project**. Drag a chat onto a project to file it there. A project's menu offers **New chat** and **Pin project**.
 
 Below the projects, one list groups your work under **Pinned**, **Today**, **Yesterday**, **Previous 7 days**, and **Earlier**:
 
