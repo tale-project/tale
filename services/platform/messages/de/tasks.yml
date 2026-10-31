@@ -285,6 +285,36 @@ board:
   quickAddLabel: Titel der neuen Aufgabe
   quickAdded: '„{title}“ hinzugefügt'
   noTasks: Keine Aufgaben
+# The board's count of the project's live agent runs (TASK-R87), apart from
+# the status columns: one per run, whatever the board's search, filters and
+# cap show. `label` leads the counts on the button; `scope` follows them for
+# a screen reader only. `atLeast` counts a read that lists fewer runs than
+# there are.
+liveRuns:
+  label: 'Agentenläufe:'
+  scope: im ganzen Projekt
+  count:
+    running: '{count, plural, one {# läuft} other {# laufen}}'
+    waitingForInput: '{count, plural, one {# wartet auf Eingabe} other {# warten auf Eingabe}}'
+    queued: '{count} in der Warteschlange'
+  atLeast:
+    running: '{count}+ laufen'
+    waitingForInput: '{count}+ warten auf Eingabe'
+    queued: '{count}+ in der Warteschlange'
+  none: derzeit keine
+  loading: werden geladen…
+  unavailable: nicht verfügbar
+  title: Aktive Agentenläufe in diesem Projekt
+  scopeNote: Jeder aktive Lauf in diesem Projekt zählt einmal, unabhängig von Suche und Filtern des Boards.
+  noneNote: In diesem Projekt ist gerade kein Agentenlauf aktiv.
+  partialNote: Nicht alle aktiven Läufe konnten aufgelistet werden. Es können also mehr sein.
+  loadingNote: Die aktiven Läufe werden geladen…
+  unavailableNote: Die aktiven Läufe konnten nicht geladen werden und werden deshalb nicht gezählt. Das bedeutet nicht, dass kein Agent arbeitet.
+  groups:
+    running: Läuft
+    waitingForInput: Wartet auf Eingabe
+    queued: In der Warteschlange
+  unlistedTask: Eine Aufgabe, die diese Ansicht nicht zeigt
 list:
   showArchived: Archivierte anzeigen
   noMatches: Keine Aufgaben passen zu diesen Filtern.
