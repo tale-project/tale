@@ -6,12 +6,15 @@
  * `[[mock:500]]`, `[[mock:503]]` (any status 400-599 works),
  * `[[mock:midstream-error]]`, `[[mock:stall=<ms>]]` — next to the shaping
  * directives `[[mock:ttft=<ms>]]`, `[[mock:tokens=<n>]]`, `[[mock:tool]]`,
- * `[[mock:no-tool]]` and `[[mock:empty]]`. A directive is literal text in
- * the prompt, so it survives whatever the platform wraps around the
- * message and reaches the provider exactly as the driver wrote it.
+ * `[[mock:no-tool]]` and `[[mock:empty]]`, and the load directives
+ * `[[mock:hog=<MiB>]]` and `[[mock:hog-seconds=<s>]]` (see `hog.ts`). A
+ * directive is literal text in the prompt, so it survives whatever the
+ * platform wraps around the message and reaches the provider exactly as the
+ * driver wrote it.
  */
 
 import type { MockOptions } from './config.ts';
+import { HOG_DEFAULT_MIB } from './hog.ts';
 import { chance, type Random } from './random.ts';
 
 export type Dialect = 'openai' | 'anthropic';
@@ -31,6 +34,10 @@ export interface MockDirectives {
   readonly tool?: boolean;
   /** Answer with no content at all. */
   readonly empty?: boolean;
+  /** Call the offered shell tool with a program holding this many MiB. */
+  readonly hogMib?: number;
+  /** How long that program keeps a CPU busy, in seconds. */
+  readonly hogSeconds?: number;
 }
 
 const DIRECTIVE_PATTERN = /\[\[mock:([a-z0-9-]+)(?:=(\d{1,9}))?\]\]/gi;
@@ -73,6 +80,12 @@ export function parseDirectives(
         break;
       case 'empty':
         directives.empty = true;
+        break;
+      case 'hog':
+        directives.hogMib = value ?? HOG_DEFAULT_MIB;
+        break;
+      case 'hog-seconds':
+        if (value !== undefined) directives.hogSeconds = value;
         break;
       default:
         console.warn(`[mock] unknown directive [[mock:${name}]] ignored`);

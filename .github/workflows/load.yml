@@ -10,6 +10,14 @@ name: Load
 # cost per user, not what a production host holds. A distributed run against
 # a real deployment (many generators, one shard each, `merge` at the end) is
 # described in tools/load/README.md.
+#
+# The agent-burst profile asks what such a host holds instead: a hosted
+# runner is the 4 vCPU / 16 GB host of #3977. It adds the sandbox control
+# plane built from this checkout (the spawner, its egress proxy and the LLM
+# gateway, beside the host's api as `bun dev` runs them), starts 12 agent runs
+# across 7 agents within 30 s whose turns each hold 2 GiB and a CPU, and fails
+# when the host or the platform did not hold the burst (tools/load/README.md,
+# "Agent burst"). The users, ramp, hold and think inputs do not apply to it.
 
 on:
   workflow_dispatch:
@@ -25,6 +33,7 @@ on:
           - soak
           - connections
           - signin-storm
+          - agent-burst
         default: smoke
       users:
         description: Peak concurrent virtual users
@@ -76,6 +85,11 @@ jobs:
       API_PROCESSES: ${{ inputs.api_processes }}
       WORKER_PROCESSES: ${{ inputs.worker_processes }}
       THINK_SCALE: ${{ inputs.think_scale }}
+      # The agent-burst profile's first api listens where the sandbox relay
+      # forwards (compose.dev.yml's backend-relay), on every interface so the
+      # relay and the LLM gateway reach it and the mock from their bridges.
+      BASE_PORT: ${{ inputs.profile == 'agent-burst' && '3005' || '4105' }}
+      LISTEN_HOST: ${{ inputs.profile == 'agent-burst' && '0.0.0.0' || '127.0.0.1' }}
 
     steps:
       - name: Validate inputs
@@ -99,6 +113,46 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
+
+      # The agent-burst profile builds the sandbox images, the session
+      # runtime among them, which needs the room Build's runtime build does.
+      - name: Reclaim disk space
+        if: env.PROFILE == 'agent-burst'
+        env:
+          MIN_FREE_GIB: '40'
+        run: |
+          set -euo pipefail
+          case "$MIN_FREE_GIB" in
+            20|28|40) ;;
+            *) echo '::error::Invalid CI disk target'; exit 1 ;;
+          esac
+          MIN_FREE_KB=$((MIN_FREE_GIB * 1024 * 1024))
+          measure_space() {
+            df -h /
+            AVAILABLE_KB=$(df -Pk / | awk 'NR == 2 { print $4 }')
+            if [[ ! "$AVAILABLE_KB" =~ ^[0-9]+$ ]]; then
+              echo '::error::Could not measure free disk space'; exit 1
+            fi
+            echo "Available: ${AVAILABLE_KB} KiB; cleanup target: ${MIN_FREE_GIB} GiB"
+          }
+          measure_space
+          if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          # Stop once the next build/pull has headroom. Deleting all installed
+          # toolchains took 50–119s even when the image build was cached.
+          for DIRECTORY in /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; do
+            sudo rm -rf -- "$DIRECTORY"
+            measure_space
+            if [ "$AVAILABLE_KB" -ge "$MIN_FREE_KB" ]; then exit 0; fi
+          done
+          # Run as the job's user, like its Docker steps: sudo resets the
+          # environment and would lose a self-hosted runner's DOCKER_HOST.
+          docker image prune -af
+          measure_space
+          # Preserve the old cold-build fallback after exhausting its cleanup.
+          # The target controls when to stop deleting; it is not a runner quota.
+          if [ "$AVAILABLE_KB" -lt "$MIN_FREE_KB" ]; then
+            echo '::warning::Full CI disk cleanup completed below the headroom target'
+          fi
 
       - name: Setup toolchain
         id: toolchain
@@ -136,6 +190,74 @@ jobs:
           cache-from: type=gha,scope=db
           provenance: false
 
+      # The agent-burst profile's sandbox images, from this checkout and from
+      # the caches Build reads (an unreadable one only costs time), tagged as
+      # compose.yml names them at VERSION=load and the runtime as the spawner
+      # starts it.
+      - name: Build the sandbox spawner
+        if: env.PROFILE == 'agent-burst'
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: services/sandbox/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ghcr.io/tale-project/tale/tale-sandbox:load
+          build-args: VERSION=load
+          cache-from: |
+            type=gha,scope=sandbox
+            type=registry,ref=ghcr.io/tale-project/tale/tale-sandbox-buildcache:amd64
+          provenance: false
+
+      - name: Build the sandbox egress proxy
+        if: env.PROFILE == 'agent-burst'
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: services/sandbox-egress/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ghcr.io/tale-project/tale/tale-sandbox-egress:load
+          build-args: VERSION=load
+          cache-from: |
+            type=gha,scope=sandbox-egress
+            type=registry,ref=ghcr.io/tale-project/tale/tale-sandbox-egress-buildcache:amd64
+          provenance: false
+
+      - name: Build the sandbox LLM gateway
+        if: env.PROFILE == 'agent-burst'
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: services/sandbox-llm-gateway/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: ghcr.io/tale-project/tale/tale-sandbox-llm-gateway:load
+          build-args: VERSION=load
+          cache-from: |
+            type=gha,scope=sandbox-llm-gateway
+            type=registry,ref=ghcr.io/tale-project/tale/tale-sandbox-llm-gateway-buildcache:amd64
+          provenance: false
+
+      - name: Build the sandbox runtime
+        if: env.PROFILE == 'agent-burst'
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        with:
+          context: .
+          file: services/sandbox-runtime/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: tale-sandbox-runtime:latest
+          build-args: VERSION=load
+          cache-from: |
+            type=gha,scope=sandbox-runtime
+            type=registry,ref=ghcr.io/tale-project/tale/tale-sandbox-runtime-buildcache:amd64
+          provenance: false
+
       - name: Resolve the object-store pin
         id: object-store
         run: |
@@ -167,6 +289,33 @@ jobs:
             sleep 1
           done
 
+      # What the agent-burst stack needs of its host, as `tale` and `bun dev`
+      # prepare one. Swap goes off: the burst judges whether the host's memory
+      # held, and the runner's swap file would turn a shortage into slowness.
+      # The kernel log, which names any OOM kill, is opened to the job's user.
+      # The runner's own interface drops what reaches the api's ports and the
+      # mock's two (its door and its metrics), so only the runner and its
+      # containers reach them.
+      - name: Prepare the host for the agent burst
+        if: env.PROFILE == 'agent-burst'
+        run: |
+          set -euo pipefail
+          sudo swapoff -a
+          sudo sysctl -w kernel.dmesg_restrict=0
+          sudo mkdir -p -m 0750 /var/lib/tale-sandbox
+          docker network inspect tale-sandbox-net >/dev/null 2>&1 ||
+            docker network create --internal --ipv6=false --driver=bridge tale-sandbox-net
+          bridge_ip="$(docker network inspect bridge --format '{{(index .IPAM.Config 0).Gateway}}')"
+          if [ -z "$bridge_ip" ]; then
+            echo '::error::the docker bridge names no gateway address'; exit 1
+          fi
+          echo "BRIDGE_IP=$bridge_ip" >> "$GITHUB_ENV"
+          iface="$(ip -o route show default | awk '{ print $5; exit }')"
+          sudo iptables -I INPUT -i "$iface" -p tcp -m multiport \
+            --dports "${BASE_PORT}:$(( BASE_PORT + API_PROCESSES - 1 )),4199:4200" -j DROP
+          echo "cpus: $(nproc)"
+          free -m
+
       # Secrets are minted per run; the stack and the database are discarded
       # with the runner.
       - name: Write the stack environment
@@ -187,7 +336,7 @@ jobs:
           KNOWLEDGE_DATABASE_URL=postgres://tale:${LOAD_DB_PASSWORD}@127.0.0.1:5432/tale_knowledge
           BETTER_AUTH_SECRET=${auth_secret}
           ENCRYPTION_SECRET_HEX=$(openssl rand -hex 32)
-          SITE_URL=http://127.0.0.1:4105
+          SITE_URL=http://127.0.0.1:${BASE_PORT}
           TALE_CONFIG_DIR=${LOAD_DIR}/config
           TALE_CONFIG_BUILTIN_DIR=${GITHUB_WORKSPACE}/configs/platform
           TALE_ALLOW_OPEN_SIGN_UP=true
@@ -205,6 +354,43 @@ jobs:
           NODE_ENV=production
           ENV
           sed -i 's/^ *//' "$LOAD_DIR/stack.env"
+          # The sandbox control plane, as `bun dev` reaches it from the host:
+          # the spawner and the LLM gateway on loopback, and sessions call
+          # back through the relay's `backend-api` alias.
+          if [ "$PROFILE" = agent-burst ]; then
+            sandbox_token="$(openssl rand -hex 32)"
+            gateway_password="Load-$(openssl rand -hex 24)-A1"
+            echo "::add-mask::$sandbox_token"
+            echo "::add-mask::$gateway_password"
+            {
+              echo "SANDBOX_TOKEN=$sandbox_token"
+              echo "SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=$gateway_password"
+            } >> "$GITHUB_ENV"
+            printf '%s\n' \
+              'SANDBOX_URL=http://127.0.0.1:8003' \
+              "SANDBOX_TOKEN=${sandbox_token}" \
+              'SANDBOX_LLM_GATEWAY_URL=http://127.0.0.1:8080' \
+              "SANDBOX_LLM_GATEWAY_ADMIN_PASSWORD=${gateway_password}" \
+              'SANDBOX_HTTP_API_BASE_URL=http://backend-api:3005' >> "$LOAD_DIR/stack.env"
+          fi
+
+      # The sandbox control plane as `bun dev` runs it beside a host backend
+      # (services/platform/scripts/dev-engine.ts): the spawner, its egress
+      # proxy, the LLM gateway published on loopback, and the relay that
+      # carries the `backend-api` alias to the host's api.
+      - name: Start the sandbox control plane
+        if: env.PROFILE == 'agent-burst'
+        timeout-minutes: 10
+        env:
+          VERSION: load
+          PULL_POLICY: never
+        run: |
+          set -euo pipefail
+          compose=(docker compose -f compose.yml -f compose.dev.yml -f compose.docs.yml
+            -f compose.sandbox-llm-gateway.dev.yml)
+          "${compose[@]}" up -d --no-build --wait --wait-timeout 300 \
+            sandbox-llm-gateway sandbox sandbox-egress backend-relay
+          "${compose[@]}" ps
 
       - name: Start the platform stack
         timeout-minutes: 10
@@ -213,28 +399,47 @@ jobs:
           ulimit -n 65536
           node tools/load/src/cli.ts stack up --platform services/platform \
             --env-file "$LOAD_DIR/stack.env" --api "$API_PROCESSES" --workers "$WORKER_PROCESSES" \
-            --base-port 4105 --mock-port 4199 --mock-processes 2 \
+            --base-port "$BASE_PORT" --listen-host "$LISTEN_HOST" --mock-port 4199 --mock-processes 2 \
             --state "$LOAD_DIR/stack.json" --logs "$LOAD_DIR/logs"
 
       - name: Seed the population
         timeout-minutes: 30
         run: |
           set -euo pipefail
-          node tools/load/src/cli.ts seed --target http://127.0.0.1:4105 \
-            --users "$USERS" --org-size 50 --mega-org-size "$(( USERS / 10 ))" \
-            --provider-base-url http://127.0.0.1:4199/v1 --output "$LOAD_DIR/plan.json"
+          if [ "$PROFILE" = agent-burst ]; then
+            # One organization, whose owner sets up the burst. The LLM gateway
+            # reaches the mock across its bridge and passes Claude Code's
+            # Anthropic wire through to it as it is.
+            node tools/load/src/cli.ts seed --target "http://127.0.0.1:$BASE_PORT" \
+              --users 1 --org-size 1 --provider-base-url "http://$BRIDGE_IP:4199" \
+              --provider-api-format anthropic --output "$LOAD_DIR/plan.json"
+          else
+            node tools/load/src/cli.ts seed --target "http://127.0.0.1:$BASE_PORT" \
+              --users "$USERS" --org-size 50 --mega-org-size "$(( USERS / 10 ))" \
+              --provider-base-url http://127.0.0.1:4199/v1 --output "$LOAD_DIR/plan.json"
+          fi
 
       - name: Run the profile
+        if: env.PROFILE != 'agent-burst'
         timeout-minutes: 150
         run: |
           set -euo pipefail
           ulimit -n 65536
-          targets="$(seq -s, -f 'http://127.0.0.1:%g' 4105 $(( 4105 + API_PROCESSES - 1 )))"
-          metrics="$(seq -s, -f 'http://127.0.0.1:%g/metrics' 4105 $(( 4105 + API_PROCESSES - 1 )))"
+          targets="$(seq -s, -f 'http://127.0.0.1:%g' "$BASE_PORT" $(( BASE_PORT + API_PROCESSES - 1 )))"
+          metrics="$(seq -s, -f 'http://127.0.0.1:%g/metrics' "$BASE_PORT" $(( BASE_PORT + API_PROCESSES - 1 )))"
           node tools/load/src/cli.ts run --plan "$LOAD_DIR/plan.json" --profile "$PROFILE" \
             --users "$USERS" --ramp "$RAMP_SECONDS" --hold "$HOLD_SECONDS" \
             --think-scale "$THINK_SCALE" --processes 2 --target "$targets" --metrics "$metrics" \
             --report "$LOAD_DIR/report/report.json"
+
+      # Its own exit code is the verdict: 1 when an expectation missed.
+      - name: Run the agent burst
+        if: env.PROFILE == 'agent-burst'
+        timeout-minutes: 45
+        run: |
+          set -euo pipefail
+          node tools/load/src/cli.ts burst --plan "$LOAD_DIR/plan.json" \
+            --stack-state "$LOAD_DIR/stack.json" --report "$LOAD_DIR/report/report.json"
 
       - name: Stop the platform stack
         if: always()
@@ -242,6 +447,19 @@ jobs:
           if [ -f "$LOAD_DIR/stack.json" ]; then
             node tools/load/src/cli.ts stack down --state "$LOAD_DIR/stack.json" || true
           fi
+
+      - name: Collect the sandbox logs
+        if: always() && env.PROFILE == 'agent-burst' && env.LOAD_DIR != ''
+        env:
+          VERSION: load
+          PULL_POLICY: never
+        run: |
+          mkdir -p "$LOAD_DIR/logs"
+          docker compose -f compose.yml -f compose.dev.yml -f compose.docs.yml \
+            -f compose.sandbox-llm-gateway.dev.yml logs --no-color --timestamps \
+            > "$LOAD_DIR/logs/sandbox.log" 2>&1 || true
+          docker ps -a > "$LOAD_DIR/logs/containers.txt" 2>&1 || true
+          sudo dmesg > "$LOAD_DIR/logs/dmesg.log" 2>&1 || true
 
       - name: Summarize
         if: always()

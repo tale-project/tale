@@ -127,12 +127,24 @@ function readAnthropicTurn(
     hasher.commit();
   }
   const toolNames = new Map<string, string>();
+  const system = systemText.length > 0 ? [systemText] : [];
   let lastUserText = '';
+  // The user's turn so far. Consecutive user messages are one turn, as the
+  // Messages API combines them; a gateway that cannot pass a `system` message
+  // on (bifrost) inlines it as a user message of its own after the user's.
+  let turn = '';
   let toolResult: ChatTurnInput['toolResult'] = null;
 
   for (const rawMessage of messages) {
     const message = asRecord(rawMessage) ?? {};
-    const role = message.role === 'assistant' ? 'assistant' : 'user';
+    // A `system` message is instructions, not the user's turn: Claude Code
+    // sends its environment block as one, after the user's message.
+    const role =
+      message.role === 'assistant'
+        ? 'assistant'
+        : message.role === 'system'
+          ? 'system'
+          : 'user';
     hasher.add(role);
     let tokens = MESSAGE_OVERHEAD_TOKENS;
     let text = '';
@@ -199,8 +211,16 @@ function readAnthropicTurn(
         }
       }
     }
-    if (role === 'user' && text.trim().length > 0) lastUserText = text;
-    toolResult = role === 'user' ? result : null;
+    if (role === 'system') {
+      system.push(text);
+    } else if (role === 'assistant') {
+      turn = '';
+      toolResult = null;
+    } else {
+      turn = [turn, text].filter((part) => part.length > 0).join('\n');
+      if (turn.trim().length > 0) lastUserText = turn;
+      if (result !== null) toolResult = result;
+    }
     running += tokens;
     prefixTokens.push(running);
     hasher.commit();
@@ -222,7 +242,7 @@ function readAnthropicTurn(
     model,
     stream: body.stream === true,
     maxTokens,
-    systemText,
+    systemText: system.join('\n\n'),
     lastUserText,
     toolResult,
     tools,

@@ -48,7 +48,7 @@ export const mockOptionsSchema = z
     embeddingLatencyP95Ms: milliseconds.default(150),
     retryAfterSeconds: z.coerce.number().int().min(0).default(2),
     promptCacheEntries: count.default(100_000),
-    /** Absent: `port + 1` (or an ephemeral port when `port` is 0). */
+    /** Absent: `mockMetricsPort`'s default. */
     metricsPort: z.coerce.number().int().min(0).max(65_535).optional(),
   })
   .superRefine((options, ctx) => {
@@ -170,4 +170,13 @@ export function parseMockOptions(
     throw new Error(`invalid mock options:\n${z.prettifyError(parsed.error)}`);
   }
   return parsed.data;
+}
+
+/**
+ * Where a mock without `metricsPort` serves `/metrics`: on its own port with
+ * one process; with more, the cluster's primary serves the merged metrics on
+ * the next one, or on an ephemeral one when `port` is 0.
+ */
+export function mockMetricsPort(port: number, processes: number): number {
+  return processes > 1 && port !== 0 ? port + 1 : port;
 }

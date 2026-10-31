@@ -1,8 +1,17 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 
 import { workerStreamLimit } from '../../src/mock/cluster.ts';
-import { mockEnvName, parseMockOptions } from '../../src/mock/config.ts';
+import {
+  mockEnvName,
+  mockMetricsPort,
+  parseMockOptions,
+} from '../../src/mock/config.ts';
 import { parseDirectives } from '../../src/mock/faults.ts';
+import {
+  MockMetrics,
+  mergeSnapshots,
+  renderPrometheus,
+} from '../../src/mock/metrics.ts';
 import { PrefixHasher, PromptCache } from '../../src/mock/prompt-cache.ts';
 import { createRandom, lognormalFromMedianP95 } from '../../src/mock/random.ts';
 import { createMockServer, type MockServer } from '../../src/mock/server.ts';
@@ -34,6 +43,12 @@ describe('options', () => {
       parseMockOptions({ ttftMedianMs: 800, ttftP95Ms: 400 }, {}),
     ).toThrow('ttftP95Ms must be at least ttftMedianMs');
   });
+
+  test("metrics are on the mock's own port with one process, the next with a cluster", () => {
+    expect(mockMetricsPort(4199, 1)).toBe(4199);
+    expect(mockMetricsPort(4199, 2)).toBe(4200);
+    expect(mockMetricsPort(0, 2)).toBe(0);
+  });
 });
 
 describe('directives', () => {
@@ -49,6 +64,13 @@ describe('directives', () => {
       tool: false,
     });
     expect(parseDirectives('no directives here', 1)).toEqual({});
+  });
+
+  test('a hog holds 2 GiB unless told otherwise', () => {
+    expect(parseDirectives('[[mock:hog]]', 1)).toEqual({ hogMib: 2048 });
+    expect(
+      parseDirectives('[[mock:hog=512]] [[mock:hog-seconds=90]]', 1),
+    ).toEqual({ hogMib: 512, hogSeconds: 90 });
   });
 });
 
@@ -267,6 +289,21 @@ describe('bounds on what a caller can ask for', () => {
     expect(workerStreamLimit(500, 4)).toBe(125);
     expect(workerStreamLimit(3, 4)).toBe(1);
     expect(workerStreamLimit(10, 1)).toBe(10);
+  });
+});
+
+describe('metrics', () => {
+  test("the workers' hog counts add up and reach the exposition", () => {
+    const one = new MockMetrics();
+    one.recordHogCall();
+    one.recordHogResult();
+    const two = new MockMetrics();
+    two.recordHogCall();
+    const merged = mergeSnapshots([one.snapshot(), two.snapshot()]);
+    expect([merged.hogCalls, merged.hogResults]).toEqual([2, 1]);
+    const text = renderPrometheus(merged);
+    expect(text).toContain('\ntale_load_mock_hog_calls_total 2\n');
+    expect(text).toContain('\ntale_load_mock_hog_results_total 1\n');
   });
 });
 

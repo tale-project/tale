@@ -35,7 +35,7 @@ afterEach(async () => {
 
 async function cleanupSteps() {
   const result: { workflow: string; job: string; step: Step }[] = [];
-  for (const workflow of ['build', 'release', 'sandbox-incus-e2e']) {
+  for (const workflow of ['build', 'release', 'sandbox-incus-e2e', 'load']) {
     const file = parse(
       await readFile(
         join(repository, `.github/workflows/${workflow}.yml`),
@@ -76,13 +76,17 @@ test('every image cleanup uses one candidate-independent policy and preserves co
       "${{ needs.prepare.outputs.sites_only == 'true' && '20' || '40' }}",
     ],
     ['sandbox-incus-e2e', 'incus', '40'],
+    ['load', 'load', '40'],
   ]);
   expect(new Set(entries.map(({ step }) => step.run)).size).toBe(1);
-  for (const { job, step } of entries) {
+  for (const { workflow, job, step } of entries) {
     expect(step.run).not.toContain('.github/scripts');
     if (job === 'build') {
       expect(step.if).toContain("'platform'");
       expect(step.if).toContain("'sandbox-runtime'");
+    } else if (workflow === 'load') {
+      // Only the agent-burst profile builds the sandbox images.
+      expect(step.if).toBe("env.PROFILE == 'agent-burst'");
     } else expect(step.if).toBeUndefined();
   }
 });

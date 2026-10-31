@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import Anthropic from '@anthropic-ai/sdk';
 
 import { createMockServer, type MockServer } from '../../src/mock/server.ts';
+import { parsePrometheus } from '../../src/runner/probes.ts';
 
 let mock: MockServer;
 let client: Anthropic;
@@ -50,6 +51,22 @@ const WEATHER_TOOL: Anthropic.Tool = {
       unit: { type: 'string', enum: ['celsius', 'fahrenheit'] },
     },
     required: ['city', 'unit'],
+  },
+};
+
+/** Claude Code's shell tool, as it offers it. */
+const BASH_TOOL: Anthropic.Tool = {
+  name: 'Bash',
+  description: 'Executes a given bash command',
+  input_schema: {
+    type: 'object',
+    properties: {
+      command: { type: 'string' },
+      timeout: { type: 'number' },
+      description: { type: 'string' },
+      run_in_background: { type: 'boolean' },
+    },
+    required: ['command'],
   },
 };
 
@@ -151,6 +168,49 @@ describe('messages through the Anthropic SDK', () => {
     expect(['celsius', 'fahrenheit']).toContain(String(input.unit));
   });
 
+  test('a hog turn calls Bash, and its result ends the turn', async () => {
+    const ask = 'Run the burst [[mock:hog=64]] [[mock:hog-seconds=2]]';
+    const message = await client.messages
+      .stream({
+        model: 'load-chat-fast',
+        max_tokens: 4096,
+        tools: [WEATHER_TOOL, BASH_TOOL],
+        messages: [{ role: 'user', content: ask }],
+      })
+      .finalMessage();
+    expect(message.stop_reason).toBe('tool_use');
+    const call = message.content.find((block) => block.type === 'tool_use');
+    if (call?.type !== 'tool_use') throw new Error('no tool_use block');
+    expect(call.name).toBe('Bash');
+    const input = call.input as Record<string, unknown>;
+    expect(String(input.command)).toStartWith("python3 -c '");
+    expect(input.description).toBe('Hold 64 MiB and keep a CPU busy for 2 s');
+
+    const answer = await client.messages.create({
+      model: 'load-chat-fast',
+      max_tokens: 4096,
+      tools: [WEATHER_TOOL, BASH_TOOL],
+      messages: [
+        { role: 'user', content: ask },
+        { role: 'assistant', content: message.content },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: call.id,
+              content: 'held 64 MiB and spun 2 s',
+            },
+          ],
+        },
+      ],
+    });
+    expect(answer.stop_reason).toBe('end_turn');
+    expect(answer.content.some((block) => block.type === 'tool_use')).toBe(
+      false,
+    );
+  });
+
   test('thinking comes first, signed', async () => {
     const message = await client.messages
       .stream({
@@ -199,6 +259,132 @@ describe('messages through the Anthropic SDK', () => {
     });
     expect(counted.input_tokens).toBeGreaterThan(0);
   });
+});
+
+/**
+ * Claude Code sends its environment as a `system` message after the user's
+ * (a role the SDK's types do not offer), and the sandbox's gateway, bifrost,
+ * passes such a message on as a user message of its own, wrapped in
+ * `<system-reminder>`. This mock calls a tool on every turn it may, so a
+ * turn read as anything but the user's shows.
+ */
+describe("Claude Code's turns, as they reach the mock", () => {
+  let eager: MockServer;
+  beforeAll(async () => {
+    eager = await createMockServer(
+      {
+        port: 0,
+        seed: 11,
+        ttftMedianMs: 5,
+        ttftP95Ms: 10,
+        tokensPerSecondMean: 20_000,
+        tokensPerSecondSd: 0,
+        rate429: 0,
+        rate5xx: 0,
+        midStreamErrorRate: 0,
+        toolCallRate: 1,
+      },
+      {},
+    );
+  });
+  afterAll(async () => {
+    await eager.close();
+  });
+
+  const ask = 'Run the burst [[mock:hog=64]] [[mock:hog-seconds=2]]';
+  const environment =
+    '# Environment\nYou have been invoked in this environment';
+  const budget = '<total_tokens>14979595 tokens left</total_tokens>';
+  const shapes = [
+    [
+      'a system message',
+      (text: string) => ({ role: 'system', content: [{ type: 'text', text }] }),
+    ],
+    [
+      "the gateway's reminder",
+      (text: string) => ({
+        role: 'user',
+        content: [
+          {
+            type: 'text',
+            text: `<system-reminder>\n${text}\n</system-reminder>\n`,
+          },
+        ],
+      }),
+    ],
+  ] as const;
+
+  async function send(messages: unknown[]): Promise<Anthropic.Message> {
+    const response = await fetch(`${eager.url}/v1/messages`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'anthropic-version': '2023-06-01',
+        'x-api-key': 'load-test-key',
+      },
+      body: JSON.stringify({
+        model: 'load-chat-fast',
+        max_tokens: 4096,
+        tools: [WEATHER_TOOL, BASH_TOOL],
+        messages,
+      }),
+    });
+    expect(response.status).toBe(200);
+    return (await response.json()) as Anthropic.Message;
+  }
+
+  /** The hog calls the mock sent and the hog results it answered. */
+  async function hogCounts(): Promise<[number, number]> {
+    const samples = parsePrometheus(
+      await (await fetch(`${eager.url}/metrics`)).text(),
+    );
+    const count = (name: string): number =>
+      samples.find((sample) => sample.name === name)?.value ?? Number.NaN;
+    return [
+      count('tale_load_mock_hog_calls_total'),
+      count('tale_load_mock_hog_results_total'),
+    ];
+  }
+
+  test.each(shapes)(
+    'the hog runs past %s, and its result ends the turn',
+    async (_shape, instructions) => {
+      const opening = [
+        { role: 'user', content: [{ type: 'text', text: ask }] },
+        instructions(environment),
+      ];
+      const [calls, results] = await hogCounts();
+      const message = await send(opening);
+      expect(message.stop_reason).toBe('tool_use');
+      const call = message.content.find((block) => block.type === 'tool_use');
+      if (call?.type !== 'tool_use') throw new Error('no tool_use block');
+      expect(call.name).toBe('Bash');
+      const input = call.input as Record<string, unknown>;
+      expect(input.description).toBe('Hold 64 MiB and keep a CPU busy for 2 s');
+      expect(await hogCounts()).toEqual([calls + 1, results]);
+
+      const answer = await send([
+        ...opening,
+        { role: 'assistant', content: message.content },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: call.id,
+              content: 'held 64 MiB and spun 2 s',
+            },
+          ],
+        },
+        instructions(budget),
+      ]);
+      expect(answer.stop_reason).toBe('end_turn');
+      expect(answer.content.some((block) => block.type === 'tool_use')).toBe(
+        false,
+      );
+      expect(await hogCounts()).toEqual([calls + 1, results + 1]);
+    },
+  );
 });
 
 describe('errors the SDK recognizes', () => {

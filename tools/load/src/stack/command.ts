@@ -41,7 +41,15 @@ export function createStackCommand(): Command {
       nonNegativeInteger,
       4105,
     )
-    .option('--host <host>', 'interface the processes listen on', '127.0.0.1')
+    .option(
+      '--host <host>',
+      'host the api and mock URLs name, and the interface they listen on',
+      '127.0.0.1',
+    )
+    .option(
+      '--listen-host <host>',
+      'interface the processes listen on instead, e.g. 0.0.0.0 for containers',
+    )
     .option(
       '--state <path>',
       'state file `down` reads',
@@ -88,6 +96,7 @@ export function createStackCommand(): Command {
         workers: number;
         basePort: number;
         host: string;
+        listenHost?: string;
         state: string;
         logs: string;
         mockPort?: number;
@@ -104,6 +113,7 @@ export function createStackCommand(): Command {
             workers: flags.workers,
             basePort: flags.basePort,
             host: flags.host,
+            listenHost: flags.listenHost,
             stateFile: flags.state,
             logDir: flags.logs,
             mockPort: flags.mockPort ?? null,
@@ -113,7 +123,7 @@ export function createStackCommand(): Command {
             readyTimeoutMs: flags.readyTimeout,
           });
           console.log(
-            `[stack] up: ${state.processes.length} processes; targets ${state.apiUrls.join(',')}${state.mockUrl === null ? '' : `; mock ${state.mockUrl}`}`,
+            `[stack] up: ${state.processes.length} processes; targets ${state.apiUrls.join(',')}${state.mockUrl === null ? '' : `; mock ${state.mockUrl} (metrics ${state.mockMetricsUrl})`}`,
           );
         } catch (error) {
           console.error('[stack] up failed:', error);

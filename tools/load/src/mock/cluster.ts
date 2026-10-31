@@ -14,7 +14,11 @@ import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 
-import { parseMockOptions, type MockOptions } from './config.ts';
+import {
+  mockMetricsPort,
+  parseMockOptions,
+  type MockOptions,
+} from './config.ts';
 import {
   mergeSnapshots,
   renderPrometheus,
@@ -94,7 +98,7 @@ export async function startMockCluster(
   }
   const port = options.port === 0 ? await freePort(options.host) : options.port;
   const metricsPort =
-    options.metricsPort ?? (options.port === 0 ? 0 : port + 1);
+    options.metricsPort ?? mockMetricsPort(options.port, options.processes);
   const baseSeed = options.seed;
 
   cluster.setupPrimary({

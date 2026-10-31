@@ -13,6 +13,7 @@
 
 import { Command } from 'commander';
 
+import { createBurstCommand } from './burst/command.ts';
 import { createMockCommand } from './mock/main.ts';
 import { createMergeCommand, createRunCommand } from './runner/command.ts';
 import { createSeedCommand } from './seed/cli.ts';
@@ -29,5 +30,6 @@ program.addCommand(createSeedCommand());
 program.addCommand(createRunCommand());
 program.addCommand(createMergeCommand());
 program.addCommand(createStackCommand());
+program.addCommand(createBurstCommand());
 
 await program.parseAsync(process.argv);
