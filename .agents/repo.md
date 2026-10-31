@@ -293,7 +293,7 @@ E2E pull requests first compute a fail-closed platform, web and docs service sco
 candidates, nightly and manual runs select every service. Candidate receipts require
 the scope, the stable UI aggregate and every individual UI and E2E shard.
 
-The **Type check** job gives every `tsc` a 6 GiB Node heap (`NODE_OPTIONS`, #4005). The
+The **Type check** job gives every `tsc` an 8 GiB Node heap (`NODE_OPTIONS`, #4005, #5197). The
 platform checks its frontend, backend and tests as one program, which outgrew V8's default of
 about 4 GiB on the hosted runner. The job logs the Node it resolves, the heap limit, each
 program's `--extendedDiagnostics` and the largest process's peak RSS. `NODE_OPTIONS` is not
