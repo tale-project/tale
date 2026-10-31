@@ -45,6 +45,7 @@ export interface ChatFilterEventsContract {
       truncated?: boolean;
       errorClass?:
         | 'config'
+        | 'eu_processing'
         | 'timeout'
         | 'network'
         | 'parse'

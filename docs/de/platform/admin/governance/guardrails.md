@@ -39,11 +39,13 @@ Eine E-Mail-Adresse wird auch dann vollständig erkannt, wenn der Teil vor dem `
 
 Teste die tatsächlich verwendeten Formate mit erfundenen Werten. Muster können ungewöhnliche Formate übersehen oder normalen Text fälschlich markieren. Prüfe Eingabe und Ausgabe getrennt.
 
-## Externe Moderation ergänzen
+## Externe Moderation ergänzen {#moderation}
 
 Die Moderationsschicht sendet Text an einen konfigurierten Klassifikator, etwa OpenAI, Azure, Perspective oder einen eigenen Endpunkt. Richte Zugangsdaten, Kategorien und Aktionen ein und wähle, welche Richtung geprüft werden soll.
 
 Lege das Verhalten bei Nichterreichbarkeit fest: Fail-open lässt die Nachricht durch, Fail-closed lehnt sie ab. Prüfe Anbieterfehler und Ereignisse einer geöffneten Schutzschaltung bei unerwarteten Ablehnungen oder ungefilterten Nachrichten. Diese Schicht ergänzt einen weiteren Dienst, der den Text verarbeitet. Verwende den für deine Organisation freigegebenen Anbieter und Endpunkt.
+
+Solange [Prompts nur in der EU/im EWR verarbeiten](/de/platform/admin/governance/content-models#eu-processing) aktiv ist, erhält der Anbieter Text nur an einem Endpunkt, den dieser Schalter zulässt: einem EU-Endpunkt eines Anbieters oder einem Host, der unter **Modellzugriff** bestätigt ist. Das Speichern des Anbieters mit einem anderen Endpunkt wird abgelehnt, und die Meldung sagt, was zu ändern ist. Wird der Schalter aktiviert, während der Anbieter auf einen anderen Endpunkt zeigt, wird kein Text gesendet: Die Prüfung scheitert, als wäre der Anbieter nicht erreichbar, also lässt Fail-open die Nachricht durch und Fail-closed lehnt sie ab. Ihr Ereignis unter **Aktuelle Ereignisse** zeigt die Fehlerklasse `eu_processing`, und die Ablehnung erscheint in den [Audit-Logs](/de/platform/admin/governance/audit-logs) als **Modellzugriff abgelehnt**. **Verbindung testen** nennt denselben Grund.
 
 ## Organisationsanweisungen festlegen
 
