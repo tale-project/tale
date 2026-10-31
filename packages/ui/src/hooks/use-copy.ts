@@ -1,7 +1,7 @@
 'use client';
 
 import { useT } from '@tale/ui/i18n/client';
-import { useToast } from '@tale/ui/use-toast';
+import { toast } from '@tale/ui/use-toast';
 import { useState, useCallback, useRef, useEffect } from 'react';
 
 export interface UseCopyOptions {
@@ -57,13 +57,10 @@ export function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
   } = options;
 
   const [copied, setCopied] = useState(false);
-  const { toast } = useToast();
   const { t: tCommon } = useT('common');
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Store toast, translation, and callbacks in refs to keep the copy callback stable
-  const toastRef = useRef(toast);
-  toastRef.current = toast;
+  // Store translation and callbacks in refs to keep the copy callback stable
   const tCommonRef = useRef(tCommon);
   tCommonRef.current = tCommon;
   const onSuccessRef = useRef(onSuccess);
@@ -104,7 +101,11 @@ export function useCopy(options: UseCopyOptions = {}): UseCopyReturn {
         console.error('Copy to clipboard failed:', err);
 
         if (showErrorToast) {
-          toastRef.current({
+          // The module-level `toast`, not `useToast()`: that hook subscribes
+          // its caller to the toast list, so every toast raised anywhere would
+          // re-render every copy button, code block and message toolbar on
+          // the page (#4121).
+          toast({
             title: tCommonRef.current('errors.failedToCopy'),
             variant: 'destructive',
           });
