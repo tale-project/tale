@@ -273,13 +273,13 @@ function projectOverviewView(
 }
 
 /**
- * The projects LIST page's walk, a page at a time and newest first,
- * exported for the route loader's prefetch — the ONE options builder both
- * the loader and the listing's adapter row share, so their cache keys
- * cannot drift. A page continues from the `continueCursor` the one before
- * it answered; the first page sends no cursor.
+ * The projects LIST page's walk, a page at a time and newest first: the
+ * ONE options builder behind the listing's adapter row, which the route
+ * loader's prefetch reaches by the row's name, so their cache keys cannot
+ * drift. A page continues from the `continueCursor` the one before it
+ * answered; the first page sends no cursor.
  */
-export function projectsOverviewPageQuery(args: {
+function projectsOverviewPageQuery(args: {
   organizationId: string;
   includeArchived?: boolean;
   asOf?: number;
