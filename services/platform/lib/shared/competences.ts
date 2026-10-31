@@ -5,6 +5,8 @@
  * delegate without an admin seat, and when a record vouches for its holder.
  */
 
+import type { OrgWideAudienceMode } from '@tale/shared/schemas/governance';
+
 /**
  * The reserved namespace: a slug under it names a platform capability,
  * never an organization's own qualification. A grant matches it without
@@ -63,4 +65,82 @@ export function competenceRecordStatus(
   if (record.revokedAt !== null) return 'revoked';
   if (record.expiresAt !== null && record.expiresAt <= now) return 'expired';
   return 'active';
+}
+
+/**
+ * What a member's role alone says at a platform capability's door, before
+ * any grant is read: `admits` — the role carries the right; `refuses` — a
+ * disabled seat, which no grant opens; `grant` — only a live grant in the
+ * register admits them. Each door decides its role through a function it
+ * exports, and a member's rights read the same function
+ * (`backend/domains/governance/member-rights.ts`).
+ */
+export type RoleStanding = 'admits' | 'refuses' | 'grant';
+
+/**
+ * Why a member has or lacks a platform capability: the facts the door that
+ * checks it weighs, in the order it weighs them, as the server reads them.
+ * A client renders them and never derives one.
+ */
+export type MemberRightReason =
+  /** The organization's model endpoints switch (`tale:models.api`): off,
+   * or a policy that cannot be read, shuts the door for every member. */
+  | {
+      kind: 'organization';
+      setting: 'model_api';
+      state: 'on' | 'off' | 'unreadable';
+    }
+  /** The skill sharing policy's mode (`tale:skills.publish`): the roles
+   * that share a skill with the whole organization without a grant. */
+  | { kind: 'policy'; policy: 'skill_sharing'; mode: OrgWideAudienceMode }
+  /** What the member's role alone says. */
+  | { kind: 'role'; standing: RoleStanding }
+  /** The member's own unrevoked grant in the register: `active`, or
+   * `expired` and so no longer vouching. */
+  | {
+      kind: 'grant';
+      recordId: string;
+      /** The granting admin's user id. */
+      grantedBy: string;
+      grantedAt: number;
+      expiresAt: number | null;
+      status: 'active' | 'expired';
+    }
+  /** An unrevoked grant to a team the member was added to by an admin, the
+   * rule `holdsCapability` reads (`vouchesForUser`): `active`, or `expired`
+   * and so no longer vouching. One for each such team. */
+  | {
+      kind: 'team';
+      recordId: string;
+      teamId: string;
+      /** The team's name; `null` once the team is gone. */
+      teamName: string | null;
+      /** The granting admin's user id. */
+      grantedBy: string;
+      grantedAt: number;
+      expiresAt: number | null;
+      status: 'active' | 'expired';
+    }
+  /** No unrevoked grant, of the member's own or a team's, where only a
+   * grant would admit the member. */
+  | { kind: 'no-grant' };
+
+/** One platform capability as it stands for one member. */
+export interface MemberRight {
+  capability: PlatformCapability;
+  /** The door's own verdict for the member now. */
+  held: boolean;
+  /** The active grant a revocation ends, or `null`. */
+  grantId: string | null;
+  reasons: MemberRightReason[];
+}
+
+/** A member's platform rights, every capability in
+ * {@link PLATFORM_CAPABILITIES} order
+ * (`GET /api/app/governance/members/:userId/rights`). */
+export interface MemberRights {
+  userId: string;
+  /** The member's organization role, lowercase. */
+  role: string;
+  rights: MemberRight[];
 }
