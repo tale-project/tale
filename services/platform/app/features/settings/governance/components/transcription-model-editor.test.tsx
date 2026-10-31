@@ -125,6 +125,17 @@ beforeEach(() => {
 });
 
 describe('audio model settings', () => {
+  it('says why models are missing when the EU/EEA rule left some out, and nothing while it is off [GOV-R22]', async () => {
+    const note =
+      /Only models whose endpoint processes prompts in the EU\/EEA are offered/;
+    const { unmount } = await renderEditor();
+    expect(screen.queryByText(note)).not.toBeInTheDocument();
+    unmount();
+    state.models = { ...state.models, modelsHiddenBy: 'eu' };
+    await renderEditor();
+    expect(screen.getByText(note)).toBeInTheDocument();
+  });
+
   it.each([true, false])(
     'shows Automatic and its real pick with policy present=%s',
     async (hasPolicy) => {
