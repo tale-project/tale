@@ -9,6 +9,7 @@
 
 import type { PolicyType } from '@tale/shared/schemas/governance';
 
+import type { MemberRights } from '@/lib/shared/competences';
 import type { RetentionCategory } from '@/lib/shared/schemas/retention';
 
 /** One row of the competence register (`GET /governance/competences`) —
@@ -100,6 +101,11 @@ export interface GovernanceContract {
     kind: 'query';
     args: { organizationId: string };
     returns: CompetenceRecordWire[];
+  };
+  'governance/competences:getMemberRights': {
+    kind: 'query';
+    args: { organizationId: string; userId: string };
+    returns: MemberRights;
   };
   'governance/competences:revokeCompetence': {
     kind: 'mutation';
