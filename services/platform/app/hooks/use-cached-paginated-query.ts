@@ -42,6 +42,9 @@ export interface UsePaginatedQueryReturnType<Item> {
    * running. `error` is `null` while one does — react-query resets such a
    * read to its first-load state — and this holds still until it settles. */
   unavailable: boolean;
+  /** The next page failed after the pages before it answered: they stay
+   * listed, `loadMore` refuses, and `retry` asks for that page again. */
+  loadMoreFailed: boolean;
   /** How many times a request has settled in error: a notice keyed on it
    * appears afresh, and is announced again, for each new failure. */
   errorCount: number;
@@ -145,6 +148,7 @@ function useBackendPaginatedQuery<Item>(
     retry,
     isRetrying: read.retrying,
     unavailable: read.unavailable,
+    loadMoreFailed: isFetchNextPageError,
     errorCount: errorUpdateCount,
   };
 }

@@ -108,6 +108,7 @@ import { checkVersionRetention } from './domains/automations/version-retention.i
 import { markAutomationWriterInTx } from './domains/automations/writer-protocol.ts';
 import { chatSendAttachmentSchema } from './domains/chat/routes.ts';
 import { appendMessageRow } from './domains/chat/store.ts';
+import { checkChatThreadPages } from './domains/chat/thread-pages.integration.ts';
 import { checkChatTurnWrites } from './domains/chat/turn-writes.integration.ts';
 import { checkAgentQuestionCoalescing } from './domains/collab/agent-question-coalescing.integration.ts';
 import { checkMentionHandles } from './domains/collab/mention-handles.integration.ts';
@@ -49175,8 +49176,8 @@ async function checkChatThreadSurface(
 
   const threadA = await mkThread({ title: 'Alpha planning' });
   const threadB = await mkThread({});
-  const summaryList = z.object({
-    threads: z.array(
+  const summaryPage = z.object({
+    page: z.array(
       z
         .object({
           id: z.string(),
@@ -49186,7 +49187,29 @@ async function checkChatThreadSurface(
         })
         .loose(),
     ),
+    isDone: z.boolean(),
+    continueCursor: z.string(),
   });
+  // The whole active list, page by page, so a row the checks below say the
+  // list leaves out is on no page at all; null when a page fails to parse.
+  const listActive = async (): Promise<
+    z.infer<typeof summaryPage>['page'] | null
+  > => {
+    const threads: z.infer<typeof summaryPage>['page'] = [];
+    let cursor = '';
+    for (let turn = 0; turn < 100; turn++) {
+      const after =
+        cursor === '' ? '' : `&cursor=${encodeURIComponent(cursor)}`;
+      const parsed = summaryPage.safeParse(
+        await get(`/api/app/chat/threads?orgId=${orgId}&limit=100${after}`),
+      );
+      if (!parsed.success) return null;
+      threads.push(...parsed.data.page);
+      if (parsed.data.isDone) return threads;
+      cursor = parsed.data.continueCursor;
+    }
+    return null;
+  };
 
   await post(`/api/app/chat/threads/${threadB}/pin?orgId=${orgId}`, {
     pinned: true,
@@ -49197,28 +49220,24 @@ async function checkChatThreadSurface(
   await post(`/api/app/chat/threads/${threadA}/archive?orgId=${orgId}`, {
     archived: true,
   });
-  const active = summaryList.safeParse(
-    await get(`/api/app/chat/threads?orgId=${orgId}`),
-  );
+  const active = await listActive();
   const archived = z
     .object({
       rows: z.array(z.object({ id: z.string() }).loose()),
       nextCursor: z.number().nullable(),
     })
     .safeParse(await get(`/api/app/chat/threads/archived?orgId=${orgId}`));
-  const activeIds = active.success
-    ? active.data.threads.map((thread) => thread.id)
-    : [];
+  const activeIds = active?.map((thread) => thread.id) ?? [];
   record(
     'thread list: pin floats, rename lands, archive pages separately',
-    active.success &&
+    active !== null &&
       activeIds[0] === threadB &&
       !activeIds.includes(threadA) &&
-      active.data.threads[0]?.title === 'Renamed talk' &&
+      active[0]?.title === 'Renamed talk' &&
       archived.success &&
       archived.data.rows.some((row) => row.id === threadA) &&
       archived.data.nextCursor === null,
-    `first=${activeIds[0] === threadB} archivedHidden=${!activeIds.includes(threadA)} title=${active.success ? active.data.threads[0]?.title : 'ERR'} archivedRows=${archived.success ? archived.data.rows.length : 'ERR'}`,
+    `first=${activeIds[0] === threadB} archivedHidden=${!activeIds.includes(threadA)} title=${active !== null ? active[0]?.title : 'ERR'} archivedRows=${archived.success ? archived.data.rows.length : 'ERR'}`,
   );
   await post(`/api/app/chat/threads/${threadA}/archive?orgId=${orgId}`, {
     archived: false,
@@ -49499,12 +49518,8 @@ async function checkChatThreadSurface(
     .safeParse(
       await get(`/api/app/chat/threads/${threadB}/branches?orgId=${orgId}`),
     );
-  const activeAfterBranches = summaryList.safeParse(
-    await get(`/api/app/chat/threads?orgId=${orgId}`),
-  );
-  const listedIds = activeAfterBranches.success
-    ? activeAfterBranches.data.threads.map((thread) => thread.id)
-    : [];
+  const activeAfterBranches = await listActive();
+  const listedIds = activeAfterBranches?.map((thread) => thread.id) ?? [];
   const { getThreadLineageIds } = await import('./domains/chat/threads.ts');
   const scope = await getThreadLineageIds(sql, orgId, regenBranchId);
   record(
@@ -49516,13 +49531,14 @@ async function checkChatThreadSurface(
       lineage.success &&
       lineage.data.branches.length === 2 &&
       (lineage.data.selections ?? '').includes(regenBranchId) &&
+      activeAfterBranches !== null &&
       !listedIds.includes(editBranchId) &&
       !listedIds.includes(regenBranchId) &&
       scope.rootId === threadB &&
       scope.threadIds.includes(threadB) &&
       scope.threadIds.includes(editBranchId) &&
       scope.threadIds.includes(regenBranchId),
-    `edit=${editCount[0]?.count} (want 0), regen=${regenCount[0]?.count} (want 1), lineage=${lineage.success ? lineage.data.branches.length : 'ERR'} (want 2), hidden=${!listedIds.includes(editBranchId)}, scope=${scope.threadIds.length}`,
+    `edit=${editCount[0]?.count} (want 0), regen=${regenCount[0]?.count} (want 1), lineage=${lineage.success ? lineage.data.branches.length : 'ERR'} (want 2), hidden=${activeAfterBranches === null ? 'ERR' : !listedIds.includes(editBranchId)}, scope=${scope.threadIds.length}`,
   );
 
   // A fork at a sibling's own fork sequence versions the SAME turn: an edit
@@ -66957,6 +66973,10 @@ async function main(): Promise<void> {
         () => checkExpiredSessionReaper(sql, authCtx, record),
       ],
       ['checkChatTurnWrites', () => checkChatTurnWrites(sql, authCtx, record)],
+      [
+        'checkChatThreadPages',
+        () => checkChatThreadPages(sql, authCtx, record),
+      ],
       [
         'checkLapsedTeamWrites',
         () => checkLapsedTeamWrites(sql, baseUrl, record),

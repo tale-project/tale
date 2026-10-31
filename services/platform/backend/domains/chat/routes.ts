@@ -106,6 +106,7 @@ import {
   projectSharedViewLeaf,
   markThreadRead,
   moveThreadToProject,
+  parseThreadListCursor,
   renameThread,
   restoreThread,
   searchChats,
@@ -117,6 +118,7 @@ import {
   setThreadSharedWithProject,
   shareThread,
   stampCancelRequest,
+  THREAD_PAGE_MAX,
   trashThread,
   unshareThread,
 } from './threads.ts';
@@ -156,6 +158,12 @@ const createThreadSchema = z.object({
 const archivedQuerySchema = z.object({
   cursor: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().min(1).max(50).optional(),
+});
+// The active list's cursor is the opaque token its previous page answered;
+// the route decodes it, so a token the list never minted is a 400 too.
+const threadPageQuerySchema = z.object({
+  cursor: z.string().max(512).optional(),
+  limit: z.coerce.number().int().min(1).max(THREAD_PAGE_MAX).optional(),
 });
 
 // The transcript's page cursor, the store's `(order, stepOrder)` keyset:
@@ -410,13 +418,23 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
   });
 
-  // The panel's list: pinned rows floated, newest activity first, each row
-  // tagged with whether a turn is generating.
+  // The panel's list, one keyset page at a time: pinned rows first, then
+  // newest activity first, each row tagged with whether a turn is generating.
   app.get('/threads', async (c) => {
+    const query = threadPageQuerySchema.safeParse(c.req.query());
+    if (!query.success) return c.json({ error: 'invalid query' }, 400);
+    const cursor =
+      query.data.cursor === undefined || query.data.cursor === ''
+        ? undefined
+        : parseThreadListCursor(query.data.cursor);
+    if (cursor === null) return c.json({ error: 'invalid query' }, 400);
     const { organizationId, userId } = caller(c);
-    return c.json({
-      threads: await listThreads(deps.sql, organizationId, userId),
-    });
+    return c.json(
+      await listThreads(deps.sql, organizationId, userId, {
+        ...(cursor !== undefined ? { cursor } : {}),
+        ...(query.data.limit !== undefined ? { limit: query.data.limit } : {}),
+      }),
+    );
   });
 
   app.get('/threads/archived', async (c) => {
