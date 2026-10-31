@@ -183,6 +183,7 @@ stepLimitReached: Arrêt ici — ce tour a atteint sa limite d'étapes. Envoie u
 workToolsUnavailable:
   setupFailed: Aucun fichier n'a pu être créé dans cette réponse, car les outils nécessaires n'étaient pas disponibles. Réessaie dans un instant.
   policyUnreadable: Aucun fichier n'a pu être créé dans cette réponse, car la politique Outils du chat de ton organisation est illisible. Un Admin peut voir le problème dans Gouvernance.
+noFileAttached: Aucun fichier n'a été joint à cette réponse.
 send: Envoyer le message
 stopGenerating: Arrêter la génération
 stoppingGeneration: Arrêt en cours…

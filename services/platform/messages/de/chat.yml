@@ -183,6 +183,7 @@ stepLimitReached: Hier gestoppt — das Schrittlimit dieses Durchgangs ist errei
 workToolsUnavailable:
   setupFailed: In dieser Antwort konnten keine Dateien erstellt werden, weil die Tools dafür nicht verfügbar waren. Versuch es gleich noch einmal.
   policyUnreadable: In dieser Antwort konnten keine Dateien erstellt werden, weil die Chat-Tools-Richtlinie deiner Organisation nicht lesbar ist. Ein Admin sieht das Problem unter Richtlinien.
+noFileAttached: An diese Antwort wurde keine Datei angehängt.
 send: Nachricht senden
 stopGenerating: Generierung stoppen
 stoppingGeneration: Wird gestoppt…

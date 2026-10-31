@@ -56,6 +56,7 @@ import {
   type ReasoningEffort,
   type TurnSampling,
 } from './effort';
+import { fileNotAttached } from './file-claim';
 import {
   createOutputTransform,
   runGuardrailChain,
@@ -2022,36 +2023,6 @@ export async function runTurn(
     }
 
     steps.push('output-guardrails');
-    // What the providers reported beats what we estimated; either way the
-    // rounds are summed, because every round was billed. The cost stamp is
-    // the ledger's own formula on the same counts, so the message and the
-    // ledger always tell the same story; `stepLimitHit` marks a turn whose
-    // final round had tools withheld because the round budget was spent;
-    // `estimated` marks counts the platform had to guess. The finish
-    // reason: the platform's own verdicts first (a stop, a guardrail
-    // block), then `length` when ANY round hit the cap or the turn's budget
-    // ran out before a round could start — a cut tool round whose final
-    // round then ended cleanly is still a cut reply — and otherwise what the
-    // provider said about the FINAL round.
-    const finishReason: TurnFinishReason | undefined =
-      streamed.refusal !== undefined
-        ? 'content-filter'
-        : streamed.cancelled === true
-          ? 'cancelled'
-          : capExhausted || anyRoundLength
-            ? 'length'
-            : streamed.finishReason;
-    const usage: TurnUsage = {
-      ...summedUsage(summed, request.model.pricing),
-      ...(toolRounds >= maxToolRounds ? { stepLimitHit: true } : {}),
-      ...(request.workToolsUnavailable !== undefined
-        ? { workToolsUnavailable: request.workToolsUnavailable }
-        : {}),
-      ...(finishReason !== undefined ? { finishReason } : {}),
-      ...timings({ firstChunkAtMs, firstReasoningAtMs, firstRoundStartedAtMs }),
-      ...servingStamp(),
-    };
-
     // The settled record of the whole turn: earlier rounds' parts, then the
     // final round's reasoning and text. A reply that produced no text has NO
     // text part — the contract promises exactly that for a cap-emptied reply
@@ -2071,6 +2042,44 @@ export async function runTurn(
         ? [{ type: 'text', text: streamed.text } as const]
         : []),
     ];
+
+    // What the providers reported beats what we estimated; either way the
+    // rounds are summed, because every round was billed. The cost stamp is
+    // the ledger's own formula on the same counts, so the message and the
+    // ledger always tell the same story; `stepLimitHit` marks a turn whose
+    // final round had tools withheld because the round budget was spent;
+    // `fileNotAttached` marks a reply that speaks of a file it does not
+    // carry, read off the settled parts — unless the reply already says why
+    // it could make none (`workToolsUnavailable`), or shows a guardrail
+    // block in place of its text; `estimated` marks counts the
+    // platform had to guess. The finish reason: the platform's own verdicts
+    // first (a stop, a guardrail block), then `length` when ANY round hit
+    // the cap or the turn's budget ran out before a round could start — a
+    // cut tool round whose final round then ended cleanly is still a cut
+    // reply — and otherwise what the provider said about the FINAL round.
+    const finishReason: TurnFinishReason | undefined =
+      streamed.refusal !== undefined
+        ? 'content-filter'
+        : streamed.cancelled === true
+          ? 'cancelled'
+          : capExhausted || anyRoundLength
+            ? 'length'
+            : streamed.finishReason;
+    const usage: TurnUsage = {
+      ...summedUsage(summed, request.model.pricing),
+      ...(toolRounds >= maxToolRounds ? { stepLimitHit: true } : {}),
+      ...(request.workToolsUnavailable !== undefined
+        ? { workToolsUnavailable: request.workToolsUnavailable }
+        : {}),
+      ...(streamed.refusal === undefined &&
+      request.workToolsUnavailable === undefined &&
+      fileNotAttached(finalParts)
+        ? { fileNotAttached: true }
+        : {}),
+      ...(finishReason !== undefined ? { finishReason } : {}),
+      ...timings({ firstChunkAtMs, firstReasoningAtMs, firstRoundStartedAtMs }),
+      ...servingStamp(),
+    };
 
     if (streamed.refusal) {
       const reason = refusalReason(streamed.refusal);

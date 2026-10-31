@@ -165,6 +165,14 @@ export interface TurnUsage {
    * a missing file unexplained. Absent whenever the tools were what the
    * policy says, switched off ones included. */
   readonly workToolsUnavailable?: WorkToolsUnavailableReason;
+  /** True when the reply speaks of a file it does not carry — no file rides
+   * it, and it called a file tool, or it ran code while its text claims an
+   * attachment (`lib/chat/file-claim.ts`). Words alone mark nothing. The
+   * client says under the reply that no file was attached. Absent whenever
+   * the reply carries a file or speaks of none, when `workToolsUnavailable`
+   * already says why it could make none, and on a reply the guardrails
+   * blocked. */
+  readonly fileNotAttached?: boolean;
 }
 
 /** Why a turn's work tools could not be offered as its organization's

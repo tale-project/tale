@@ -183,6 +183,7 @@ stepLimitReached: Stopped here — this turn reached its step limit. Send a mess
 workToolsUnavailable:
   setupFailed: Files couldn't be made in this reply because the tools for them weren't available. Try again in a moment.
   policyUnreadable: Files couldn't be made in this reply because your organization's Chat tools policy can't be read. An admin can see the problem under Governance.
+noFileAttached: No file was attached to this reply.
 send: Send message
 stopGenerating: Stop generating
 stoppingGeneration: Stopping…
