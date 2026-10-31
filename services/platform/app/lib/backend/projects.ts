@@ -41,7 +41,6 @@ type ProjectOverviewItem =
   ReturnsOf<'projects/queries:listProjectsOverview'>['page'][number];
 type SidebarProjectsResult = ReturnsOf<'projects/queries:listSidebarProjects'>;
 type ProjectAgentItem = ItemOf<'projects/queries:listProjectAgents'>;
-type ProjectSearchItem = ItemOf<'projects/queries:searchProjects'>;
 type PaletteSearchItem = ItemOf<'projects/search:searchProjects'>;
 type ProjectThreadsResult =
   ReturnsOf<'chat/project_threads:listThreadsForProject'>;
@@ -62,6 +61,9 @@ interface ProjectWire {
   openTaskCount: number;
   doneTaskCount: number;
   projectAgentCount: number;
+  /** Absent on a row an older backend sent, which counted no managed
+   * agents. */
+  managedAgentCount?: number;
   teamId: string | null;
   sharedWithTeamIds: string[];
   /** The audience — every team the project is scoped to; [] = org-wide. */
@@ -95,6 +97,9 @@ function projectView(row: ProjectWire): ProjectDetail {
     openTaskCount: row.openTaskCount,
     doneTaskCount: row.doneTaskCount,
     projectAgentCount: row.projectAgentCount,
+    ...(typeof row.managedAgentCount === 'number'
+      ? { managedAgentCount: row.managedAgentCount }
+      : {}),
     ...(row.teamId !== null ? { teamId: row.teamId } : {}),
     sharedWithTeamIds: row.sharedWithTeamIds,
     teamIds: row.teamIds,
@@ -174,17 +179,6 @@ function projectAgentView(row: ProjectAgentWire): ProjectAgentItem {
   return view as ProjectAgentItem;
 }
 
-function searchProjectView(row: ProjectWire): ProjectSearchItem {
-  const view: Record<string, unknown> = {
-    _id: row.id,
-    name: row.name,
-    ...(row.icon !== null ? { icon: row.icon } : {}),
-    ...(row.color !== null ? { color: row.color } : {}),
-  };
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the one fetch-boundary projection to the 0.4 shape
-  return view as ProjectSearchItem;
-}
-
 /** The 0.4 palette snippet, verbatim (`key · description`, capped). */
 const SNIPPET_MAX_CHARS = 600;
 function paletteHitView(row: ProjectWire): PaletteSearchItem {
@@ -252,6 +246,11 @@ function orgOf(
 /** The most rows one page of the project reads answers (the backend's
  * `PROJECT_PAGE_LIMITS.max`). */
 const PROJECT_PAGE_MAX = 100;
+
+/** The page Home's navigator reads, and the list a project picker offers
+ * before anything is typed: one key, so a picker opened beside Home costs no
+ * request. Projects beyond it are found by {@link searchProjectsQuery}. */
+export const NAVIGATOR_PROJECT_LIMIT = PROJECT_PAGE_MAX;
 
 /** A page size the project reads take: one row at least, the most a page
  * answers at most. */
@@ -356,6 +355,62 @@ export function sidebarProjectsQuery(args: {
   };
 }
 
+/**
+ * One project by id, the 0.4 `getProject` (`null` when it is gone, in
+ * another organization or out of the caller's reach) — exported so a picker
+ * resolves its selected project here, under the key the project pages use.
+ */
+export function projectDetailQuery(args: {
+  organizationId: string;
+  projectId: string;
+}): AdaptedReadOptions {
+  const { organizationId, projectId } = args;
+  return {
+    queryKey: backendKey(organizationId, 'project', 'detail', projectId),
+    queryFn: () =>
+      backendFetch<{ project: ProjectWire }>(
+        `/projects/${encodeURIComponent(projectId)}`,
+        { orgId: organizationId },
+      ).then(
+        (body): ProjectDetail | null => projectView(body.project),
+        (error: unknown): ProjectDetail | null => {
+          // 0.4 answers null for missing / cross-org / inaccessible —
+          // never an error state.
+          if (
+            error instanceof BackendApiError &&
+            (error.status === 404 || error.status === 403)
+          ) {
+            return null;
+          }
+          throw error;
+        },
+      ),
+  };
+}
+
+/**
+ * The projects whose name holds `query` (case-insensitive; the backend
+ * answers at most 20, the unarchived first, and nothing for a blank query),
+ * as list rows with their access flags — exported so every project picker
+ * searches through this builder, under one key per query.
+ */
+export function searchProjectsQuery(args: {
+  organizationId: string;
+  query: string;
+}): AdaptedReadOptions {
+  const { organizationId, query } = args;
+  return {
+    queryKey: backendKey(organizationId, 'project', 'search', query),
+    queryFn: () =>
+      backendFetch<{ projects: ProjectWire[] }>(
+        `/projects/search?q=${encodeURIComponent(query)}&summary=true`,
+        { orgId: organizationId },
+      ).then((body): ProjectListItem[] =>
+        body.projects.map(projectSummaryView),
+      ),
+  };
+}
+
 export const projectReadAdapters: Record<string, ReadAdapter> = {
   'projects/queries:listProjects': (args, ctx) => {
     const orgId = orgOf(args, ctx);
@@ -376,27 +431,7 @@ export const projectReadAdapters: Record<string, ReadAdapter> = {
     const orgId = orgOf(args, ctx);
     const projectId = args.projectId;
     if (orgId === undefined || typeof projectId !== 'string') return null;
-    return {
-      queryKey: backendKey(orgId, 'project', 'detail', projectId),
-      queryFn: () =>
-        backendFetch<{ project: ProjectWire }>(
-          `/projects/${encodeURIComponent(projectId)}`,
-          { orgId },
-        ).then(
-          (body): ProjectDetail | null => projectView(body.project),
-          (error: unknown): ProjectDetail | null => {
-            // 0.4 answers null for missing / cross-org / inaccessible —
-            // never an error state.
-            if (
-              error instanceof BackendApiError &&
-              (error.status === 404 || error.status === 403)
-            ) {
-              return null;
-            }
-            throw error;
-          },
-        ),
-    };
+    return projectDetailQuery({ organizationId: orgId, projectId });
   },
   'projects/queries:listProjectAgents': (args, ctx) => {
     const orgId = orgOf(args, ctx);
@@ -451,16 +486,7 @@ export const projectReadAdapters: Record<string, ReadAdapter> = {
     const orgId = orgOf(args, ctx);
     const query = typeof args.query === 'string' ? args.query : '';
     if (orgId === undefined) return null;
-    return {
-      queryKey: backendKey(orgId, 'project', 'search', query),
-      queryFn: () =>
-        backendFetch<{ projects: ProjectWire[] }>(
-          `/projects/search?q=${encodeURIComponent(query)}&summary=true`,
-          { orgId },
-        ).then((body): ProjectSearchItem[] =>
-          body.projects.map(searchProjectView),
-        ),
-    };
+    return searchProjectsQuery({ organizationId: orgId, query });
   },
   'projects/search:searchProjects': (args, ctx) => {
     const orgId = orgOf(args, ctx);

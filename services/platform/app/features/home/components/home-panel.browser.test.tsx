@@ -232,6 +232,12 @@ vi.mock('@/app/features/chat/data/chat-backend', async (importOriginal) => ({
   useArchivedThreads: () => backend.archived,
   useProjectPin: () => ({ available: true, setPinned: vi.fn() }),
   useThreadProjectMove: () => ({ available: true, move: backend.move }),
+  // Every page here holds all the projects: nothing lies past it to read.
+  useChatProject: () => ({ status: 'ready', data: null }),
+  useChatProjectChoices: () => ({
+    status: 'ready',
+    data: { projects: (backend.home as HomeData).projects, isDone: true },
+  }),
 }));
 
 vi.mock('@/app/features/chat/data/thread-actions', async (importOriginal) => ({

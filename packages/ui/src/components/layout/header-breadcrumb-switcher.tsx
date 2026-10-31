@@ -34,6 +34,12 @@ interface HeaderBreadcrumbSwitcherProps {
   leadingIcon?: LucideIcon;
   /** Custom option filter — defaults to label + description matching. */
   filterFn?: (option: SearchableSelectOption, query: string) => boolean;
+  /**
+   * Notified of what is typed into the search, and of its reset to `''` when
+   * the menu closes — for a switcher whose siblings are too many to list,
+   * which searches the server and adds the hits to `options`.
+   */
+  onSearchChange?: (query: string) => void;
 }
 
 /**
@@ -56,6 +62,7 @@ export function HeaderBreadcrumbSwitcher({
   onValueChange,
   leadingIcon: LeadingIcon,
   filterFn,
+  onSearchChange,
 }: HeaderBreadcrumbSwitcherProps) {
   if (options.length === 0) {
     return <>{displayName}</>;
@@ -73,6 +80,7 @@ export function HeaderBreadcrumbSwitcher({
       emptyText={emptyText}
       aria-label={ariaLabel}
       {...(filterFn !== undefined && { filterFn })}
+      {...(onSearchChange !== undefined && { onSearchChange })}
       onValueChange={(next) => {
         if (next === value) return;
         onValueChange(next);
