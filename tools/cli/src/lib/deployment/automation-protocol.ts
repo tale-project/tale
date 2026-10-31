@@ -165,10 +165,12 @@ export async function bundledBackendIdentity(
   dependencies: RuntimeDependencies,
 ) {
   const ids: string[] = [];
+  // Compose project names, colour projects included: a project ID may start
+  // with a digit (`isValidProjectId`).
   requireRuntime(
     projects.length > 0 &&
       projects.length <= 3 &&
-      projects.every((project) => /^[a-z][a-z0-9-]{0,68}$/.test(project)),
+      projects.every((project) => /^[a-z0-9][a-z0-9-]{0,68}$/.test(project)),
     'Invalid backend custody projects.',
   );
   for (const owner of projects) {

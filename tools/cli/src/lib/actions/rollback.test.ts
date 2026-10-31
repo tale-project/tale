@@ -86,6 +86,10 @@ const inspectsPlatformTag = (args: string[]) =>
   args[1] === 'inspect' &&
   args[2]?.includes('/tale-platform:') === true;
 const databaseId = 'a'.repeat(64);
+/** The project the Docker mocks answer for; `getProjectId()` must match it. */
+let project = 'tale';
+/** What `tale init` makes of a folder named `2024-site`. */
+const digitLed = '2024-site-abc123';
 
 mock.module('../state/get-current-color', () => ({
   getCurrentColor: getCurrentColorMock,
@@ -199,7 +203,7 @@ beforeEach(() => {
       let value: unknown = '';
       if (args[0] === 'ps' && args.includes('--no-trunc')) {
         value = args.at(-1)?.includes('.Label')
-          ? args.includes('label=com.docker.compose.project=tale-blue')
+          ? args.includes(`label=com.docker.compose.project=${project}-blue`)
             ? `${'c'.repeat(64)}\tbackend-api\n${'d'.repeat(64)}\tbackend-worker`
             : ''
           : databaseId;
@@ -213,7 +217,7 @@ beforeEach(() => {
             Config: {
               Image: 'example/db:1',
               Labels: {
-                'com.docker.compose.project': 'tale',
+                'com.docker.compose.project': project,
                 'com.docker.compose.service': 'db',
                 'com.docker.compose.container-number': '1',
                 'com.docker.compose.oneoff': 'False',
@@ -233,7 +237,7 @@ beforeEach(() => {
           RestartCount: 0,
           Config: {
             Labels: {
-              'com.docker.compose.project': 'tale-blue',
+              'com.docker.compose.project': `${project}-blue`,
               'com.docker.compose.service':
                 id === 'c'.repeat(64) ? 'backend-api' : 'backend-worker',
               'com.docker.compose.container-number': '1',
@@ -308,12 +312,12 @@ beforeEach(() => {
     if (args[0] === 'pull' && migrateDuringPull) protocolFloor = 2;
     const argv = args.join(' ');
     let stdout = '';
-    if (args[0] === 'ps' && argv.includes('project=tale-blue')) {
+    if (args[0] === 'ps' && argv.includes(`project=${project}-blue`)) {
       // The live colour: one platform replica (the version probe reads it)
       // and one api replica (the retire step drains through it).
       stdout = argv.includes('service=backend-api')
-        ? 'tale-blue-backend-api-1\tbackend-api\t1\trunning'
-        : 'tale-blue-platform-1\tplatform\t1\trunning';
+        ? `${project}-blue-backend-api-1\tbackend-api\t1\trunning`
+        : `${project}-blue-platform-1\tplatform\t1\trunning`;
     } else if (argv.includes('/api/control/drain-status')) {
       // Nothing in flight, so the retire step's drain returns immediately
       // instead of polling out its whole budget.
@@ -351,6 +355,8 @@ afterEach(() => {
   loggerSuccessMock.mockReset();
   execMock.mockClear();
   rmSync(env.DEPLOY_DIR, { recursive: true, force: true });
+  project = 'tale';
+  setProjectId(project);
 });
 
 describe('rollback gate', () => {
@@ -605,6 +611,46 @@ describe('rollback confirmation', () => {
       expect(infoLines()).not.toContain(pendingCheck);
       expect(loggerSuccessMock).not.toHaveBeenCalled();
     });
+  });
+
+  // `tale init` names a project in a folder like `2024-site` this way. The
+  // mocks hold its database, so both project rules of the tag path run: the
+  // deployment's and the backend custody check's.
+  test('deploys a project whose ID starts with a digit', async () => {
+    arrangePatchRollback();
+    project = digitLed;
+    setProjectId(project);
+    await deploy({
+      env,
+      version: '0.9.2',
+      services: ['platform'],
+      stop: false,
+      hostAlias: '',
+      dryRun: false,
+      skipBackup: true,
+    });
+    expect(dockerComposeMock).toHaveBeenCalledWith(
+      expect.any(String),
+      ['up', '-d', '--scale', 'platform=1', 'platform'],
+      { projectName: `${digitLed}-blue`, cwd: env.DEPLOY_DIR },
+    );
+    expect(setPreviousVersionMock).toHaveBeenCalledWith(
+      env.DEPLOY_DIR,
+      '0.9.3',
+    );
+  });
+
+  test('rolls back a project whose ID starts with a digit', async () => {
+    arrangePatchRollback();
+    project = digitLed;
+    setProjectId(project);
+    await rollback({ env, assumeYes: true }, { pullImage: pullImageMock });
+    expect(dockerComposeMock).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.arrayContaining(['up', '-d', 'platform']),
+      { projectName: `${digitLed}-green`, cwd: env.DEPLOY_DIR },
+    );
+    expect(setCurrentColorMock).toHaveBeenCalledWith(env.DEPLOY_DIR, 'green');
   });
 
   test('a compatible protocol image retains ordinary rollback behavior', async () => {
