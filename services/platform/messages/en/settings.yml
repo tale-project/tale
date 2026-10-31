@@ -1916,6 +1916,13 @@ dataResidency:
       Tale could not check whether {provider} can embed, so no model can be
       chosen yet. Use Try again above.
     modelUnchecked: Could not check
+    modelEndpointRefused: Refused by the EU/EEA rule
+    modelEndpointRefusedHint:
+      Your organization's model access policy only allows endpoints that
+      process prompts in the EU/EEA, and the one this choice would call is not
+      known to. Choose a credential or base URL whose endpoint does, or
+      another provider.
+    modelPolicyUnreadable: Policy unreadable
     supportReadFailed:
       Tale could not check which providers can embed. No model can be
       chosen until the check answers.

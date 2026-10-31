@@ -9,6 +9,8 @@
 
 import type { ProviderEmbeddingSupport } from '@tale/shared/schemas/providers';
 
+import type { HiddenModelsRule } from './lib';
+
 export interface KnowledgeContract {
   'knowledge/actions:deleteKnowledgeConnection': {
     kind: 'action';
@@ -112,7 +114,18 @@ export interface KnowledgeContract {
       providers: Array<{
         providerSlug: string;
         support: ProviderEmbeddingSupport;
+        /** The connector's own API origin, sent only while the EU/EEA
+         *  processing rule is on (GOV-R22). */
+        baseUrl?: string;
       }>;
+      /** The model access policy's EU/EEA processing rule, present only
+       *  while it is on: the endpoint a choice would call is judged against
+       *  it, and the one-click picks it refuses are already left out. */
+      endpointRule?:
+        | { kind: 'eu'; attestedHosts: string[] }
+        | { kind: 'unreadable' };
+      /** Why the rule left picks out of `recommendations`, when it did. */
+      modelsHiddenBy?: HiddenModelsRule;
     };
   };
 }

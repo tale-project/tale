@@ -8,7 +8,12 @@ import { estimateTokens } from '../../../lib/chat/types';
 import { logDetail } from '../../db/unavailable';
 import { EmptyReplyError } from '../automations_builder/chat_wire';
 import { createBuilderModel } from '../automations_builder/model_call';
-import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
+import {
+  type HiddenModelsRule,
+  ModelEndpointRefusal,
+  modelEndpointRefusal,
+  readModelEndpointPolicy,
+} from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { directActiveCredential } from '../lib/providers/direct_credential';
@@ -132,14 +137,16 @@ async function pickDirectModel(
 }
 
 /** {@link pickDirectModel}'s answer, with why there is none: no connector
- * a direct call could use serves a model (`provider`), or the ones it
- * serves are all closed to this person by the organization's model access
- * rules (`model-access`) — two different fixes for whoever reads the
- * refusal. `thinks` marks a model known to think by default, picked
- * because nothing that runs without thinking could be. */
+ * a direct call could use serves a model (`provider`), the ones it serves
+ * are all closed to this person by the organization's model access rules
+ * (`model-access`), or the organization's EU/EEA processing rule refused the
+ * endpoints of the connectors that could (`endpoint`, GOV-R22) — different
+ * fixes for whoever reads the refusal. `thinks` marks a model known to think
+ * by default, picked because nothing that runs without thinking could be. */
 export type DirectModelPick =
   | { target: DirectModelTarget; thinks: boolean }
-  | { missing: 'provider' | 'model-access' };
+  | { missing: 'provider' | 'model-access' }
+  | { missing: 'endpoint'; hiddenBy: HiddenModelsRule };
 
 export async function resolveDirectModel(
   ctx: ActionCtx,
@@ -148,6 +155,9 @@ export async function resolveDirectModel(
   userId: string,
 ): Promise<DirectModelPick> {
   const connectors = await resolveProvidersForOrgId(ctx, organizationId);
+  const policy = await readModelEndpointPolicy(ctx, organizationId);
+  /** Set when the EU/EEA rule refused a connector's endpoint. */
+  let hiddenBy: HiddenModelsRule | undefined;
 
   /** The connectors a direct call could use, catalogs resolved. */
   const candidates: Array<{
@@ -162,6 +172,17 @@ export async function resolveDirectModel(
     );
     const credential = directActiveCredential(row);
     if (credential === null) continue;
+    // The call would go to this endpoint, and the rule would refuse it: not
+    // a candidate, the way the composer's picker leaves it out (GOV-R22).
+    if (
+      modelEndpointRefusal(policy, {
+        providerName: connector.name,
+        baseUrl: credential.endpointUrl ?? connector.baseUrl,
+      }) !== undefined
+    ) {
+      hiddenBy = policy.kind === 'unreadable' ? 'unreadable' : 'eu';
+      continue;
+    }
 
     let catalog: readonly ModelCatalogEntry[];
     try {
@@ -256,6 +277,9 @@ export async function resolveDirectModel(
   if (plain !== null) return { target: plain, thinks: false };
   const thinking = walk(() => true);
   if (thinking !== null) return { target: thinking, thinks: true };
+  // The EU/EEA rule first, as for an Auto chat turn: a model it left out
+  // could not be called whatever else allows it.
+  if (hiddenBy !== undefined) return { missing: 'endpoint', hiddenBy };
   return {
     missing: candidates.some((candidate) =>
       candidate.catalog.some((entry) =>
