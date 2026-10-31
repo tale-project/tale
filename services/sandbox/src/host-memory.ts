@@ -149,7 +149,7 @@ function gib(bytes: number): string {
  * at its memory limit, would need more than the host has for them after its
  * reserve; null where they fit. `explicit`: SANDBOX_MAX_SESSIONS set the
  * capacity, which turns memory admission off. */
-export function sessionMemoryWarning(
+function sessionMemoryWarning(
   figures: {
     sessions: number;
     sessionBytes: number;
