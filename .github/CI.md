@@ -715,7 +715,7 @@ required job changes, update `CANDIDATE_JOBS` in
 `tools/cli/scripts/release-candidate-gate.ts` and its workflow graph tests together.
 A release receipt must reject missing or skipped shards even if an aggregate is green.
 
-Type check retains its 6 GiB heap, compiler diagnostics and peak memory evidence. Other
+Type check retains its 8 GiB heap, compiler diagnostics and peak memory evidence. Other
 Turbo check commands print failing logs; the seven-day `turbo-*` artifacts preserve task
 hashes, timings and cache status, including failed jobs. Use `--output-logs=full` to inspect
 replayed logs locally and `--force` for fresh execution. Candidate SAST and dependency scans
