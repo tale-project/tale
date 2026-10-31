@@ -16,6 +16,7 @@ import type { OrgFactsQuery } from '../../../lib/engine/core/slots.ts';
 
 const mocks = vi.hoisted(() => ({
   bindingProjectIds: vi.fn(),
+  visibleInstallations: vi.fn(),
   listTriggers: vi.fn(),
   listAgentSecrets: vi.fn(),
   listConnectedConnectorSlugs: vi.fn(),
@@ -26,6 +27,9 @@ const mocks = vi.hoisted(() => ({
   loadConnectorDefinitions: vi.fn(),
 }));
 
+vi.mock('./project-visibility.ts', () => ({
+  visibleInstallations: mocks.visibleInstallations,
+}));
 vi.mock('./store.ts', () => ({
   bindingProjectIds: mocks.bindingProjectIds,
   listTriggers: mocks.listTriggers,
@@ -72,12 +76,24 @@ const NONE: OrgFactsQuery = {
   event: false,
 };
 
-const admin = async () => ({ role: 'admin', readable: null });
+const admin = async () => ({ role: 'admin', auth: null });
+
+/** A member who reads the sales project and not the HR one. */
+const MEMBER = {
+  organizationId: 'org_acme',
+  userId: 'user_mia',
+  role: 'member',
+  teamIds: ['team_sales'],
+};
 
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.resolveOrgSlug.mockResolvedValue('acme');
   mocks.bindingProjectIds.mockResolvedValue(['proj_hr', 'proj_sales']);
+  mocks.visibleInstallations.mockImplementation(
+    async (_sql: unknown, _auth: unknown, bindings: string[]) =>
+      bindings.filter((id) => id === 'proj_sales'),
+  );
   mocks.listSkillsForViewer.mockResolvedValue({
     skills: [{ slug: 'reply-style' }],
     failures: [],
@@ -174,12 +190,17 @@ describe('readOrgFacts', () => {
   it('tells a member’s validation no secret name, so it cannot probe for one', async () => {
     const facts = await readOrgFacts(sql, 'org_acme', ALL, async () => ({
       role: 'member',
-      readable: new Set(['proj_sales']),
+      auth: MEMBER,
     }));
     expect(facts.secrets).toBeUndefined();
     expect(mocks.listAgentSecrets).not.toHaveBeenCalled();
-    // Team skills come only from installations the member can read.
+    // Team skills come only from installations the member can read, those
+    // installations asked for alone (#5201).
     expect(facts.skills).toEqual(new Set(['reply-style', 'sales-deck']));
+    expect(mocks.visibleInstallations).toHaveBeenCalledWith(sql, MEMBER, [
+      'proj_hr',
+      'proj_sales',
+    ]);
   });
 
   it('reads the organization’s skills alone for a document no automation names yet', async () => {
