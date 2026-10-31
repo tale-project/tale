@@ -16,12 +16,15 @@
  * Layer A: pure data.
  */
 
-/** Projects named in the note: enough to choose from, never a directory. */
-const HANDOVER_PROJECTS_NAMED = 5;
+/** Projects named in the note: enough to choose from, never a directory.
+ * The host reads no more names than this (`readTaskHandoverFacts`). */
+export const HANDOVER_PROJECTS_NAMED = 5;
 
 export interface TaskHandover {
   /** Projects the person can open that have at least one agent, by name. */
   readonly projectsWithAgents: readonly string[];
+  /** How many more projects with an agent they can open than are named. */
+  readonly moreProjectsWithAgents: number;
   /** How many projects the person can open have none. */
   readonly projectsWithoutAgents: number;
   /** The person may add an agent to at least one project they can open. */
@@ -58,7 +61,10 @@ const HEADING =
 export function renderTaskHandover(handover: TaskHandover): string {
   const { labels } = handover;
   const named = handover.projectsWithAgents.slice(0, HANDOVER_PROJECTS_NAMED);
-  const unnamed = handover.projectsWithAgents.length - named.length;
+  const unnamed =
+    handover.projectsWithAgents.length -
+    named.length +
+    handover.moreProjectsWithAgents;
   if (named.length === 0 && handover.projectsWithoutAgents === 0) {
     return [
       HEADING,
