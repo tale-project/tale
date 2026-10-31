@@ -4,7 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import {
   useArchivedThreads,
@@ -15,6 +15,8 @@ import {
   useChatThreads,
   useChatThreadsRetry,
   useComposerModels,
+  useNavigatorProjects,
+  useProjectPin,
 } from './chat-backend';
 import { storeComposerCatalog } from './composer-catalog-store';
 
@@ -190,6 +192,108 @@ describe('useChatQuery HTTP lane (migrated thread family)', () => {
       ).toBeInTheDocument();
     } finally {
       fetchSpy.mockRestore();
+    }
+  });
+});
+
+// Home's PROJECTS section reads ONE page of the projects (#5156), never the
+// whole list: the sidebar read, the pinned first, and whether the page holds
+// them all.
+describe('useNavigatorProjects', () => {
+  function sidebarResponse(pinnedAt: number | null, isDone: boolean) {
+    return new Response(
+      JSON.stringify({
+        projects: [
+          { id: 'project-2', name: 'Handbook', key: 'HB', pinnedAt: 3000 },
+          { id: 'project-1', name: 'Website', pinnedAt },
+        ],
+        isDone,
+      }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    );
+  }
+
+  function NavigatorProbe({ org }: { org: string }) {
+    const read = useNavigatorProjects(org);
+    const pin = useProjectPin(org);
+    return (
+      <>
+        <output>
+          {read.status === 'ready'
+            ? `${read.data.projects
+                .map((project) => `${project.name}:${project.pinnedAt ?? '-'}`)
+                .join(' ')} done=${String(read.data.isDone)}`
+            : read.status}
+        </output>
+        <button
+          type="button"
+          onClick={() => void pin.setPinned('project-1', true)}
+        >
+          Pin Website
+        </button>
+      </>
+    );
+  }
+
+  it('reads one page of at most 100 projects, and says when there are more', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation(() => Promise.resolve(sidebarResponse(null, false)));
+    try {
+      render(<NavigatorProbe org="org-navigator" />);
+      expect(
+        await screen.findByText('Handbook:3000 Website:- done=false'),
+      ).toBeInTheDocument();
+      expect(fetchSpy).toHaveBeenCalledWith(
+        '/api/app/projects/sidebar?summary=true&limit=100&orgId=org-navigator',
+        expect.anything(),
+      );
+      expect(
+        fetchSpy.mock.calls.some(
+          ([url]) =>
+            typeof url === 'string' && url.startsWith('/api/app/projects?'),
+        ),
+      ).toBe(false);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('reads the page again after a pin, so the pinned project moves up', async () => {
+    let pinned = false;
+    const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation((url) => {
+      if (typeof url === 'string' && url.includes('/pin')) {
+        pinned = true;
+        return Promise.resolve(
+          new Response(JSON.stringify({ ok: true }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+        );
+      }
+      return Promise.resolve(sidebarResponse(pinned ? 5000 : null, true));
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    try {
+      const { user } = render(
+        <QueryClientProvider client={client}>
+          <NavigatorProbe org="org-navigator-pin" />
+        </QueryClientProvider>,
+      );
+      await screen.findByText('Handbook:3000 Website:- done=true');
+
+      await user.click(screen.getByRole('button', { name: 'Pin Website' }));
+
+      await waitFor(() =>
+        expect(
+          screen.getByText('Handbook:3000 Website:5000 done=true'),
+        ).toBeInTheDocument(),
+      );
+    } finally {
+      fetchSpy.mockRestore();
+      client.clear();
     }
   });
 });

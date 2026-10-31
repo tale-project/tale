@@ -51,7 +51,7 @@ list:
   noTasks: No tasks yet
   overdueA11y: '{count, plural, one {# overdue task} other {# overdue tasks}}'
   agentsA11y: '{count, plural, one {# agent} other {# agents}}'
-  countTruncated: '{count}+'
+  refreshFailed: "Couldn't load the latest projects. What's listed may be incomplete or out of date."
 create:
   title: Create project
   nameLabel: Project name

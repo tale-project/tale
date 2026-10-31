@@ -732,6 +732,7 @@ export function HomeNavigator({
                   <HomeProjects
                     organizationId={organizationId}
                     projects={data.projects}
+                    hasMore={data.moreProjects}
                     loading={data.loading.projects}
                     activeProjectId={
                       location.kind === 'project'

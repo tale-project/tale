@@ -49,7 +49,7 @@ vi.mock('@/app/features/chat/data/chat-backend', () => ({
   useArchivedThreads: reads.archived,
   useChatThreads: reads.threads,
   useChatThreadsRetry: () => reads.retryChats,
-  useChatProjects: reads.projects,
+  useNavigatorProjects: reads.projects,
 }));
 
 vi.mock('@/app/hooks/use-current-user', () => ({
@@ -110,7 +110,10 @@ beforeEach(() => {
   reads.threads.mockReset().mockReturnValue(CHATS);
   reads.projects.mockReset().mockReturnValue({
     status: 'ready',
-    data: [{ id: 'p1', name: 'Website relaunch', key: 'WEB' }],
+    data: {
+      projects: [{ id: 'p1', name: 'Website relaunch', key: 'WEB' }],
+      isDone: true,
+    },
   });
   reads.retryChats.mockReset().mockResolvedValue(undefined);
   reads.archived.mockReset().mockReturnValue({
@@ -189,7 +192,7 @@ describe('useHomeData', () => {
     const noRows: unknown[] = [];
     reads.projects.mockImplementation(() => ({
       status: 'ready',
-      data: projectData,
+      data: { projects: projectData, isDone: true },
     }));
     reads.threads.mockImplementation(() => ({ ...CHATS }));
     reads.tasks.mockImplementation(() => taskRead(assigned));
@@ -214,6 +217,34 @@ describe('useHomeData', () => {
     rerender();
     expect(result.current.items).not.toBe(previous.items);
     expect(result.current.threadsById.has('chat-new')).toBe(true);
+  });
+
+  // Home lists one page of the organization's projects (#5156): when the
+  // page does not hold them all, Home says there are more.
+  it('says there are more projects only when the page does not hold them all', () => {
+    const page = [{ id: 'p1', name: 'Website relaunch', key: 'WEB' }];
+    const { result, rerender } = renderHook(() => useHomeData('org-1'));
+    expect(result.current.projects).toEqual(page);
+    expect(result.current.moreProjects).toBe(false);
+
+    reads.projects.mockReturnValue({
+      status: 'ready',
+      data: { projects: page, isDone: false },
+    });
+    rerender();
+    expect(result.current.projects).toEqual(page);
+    expect(result.current.moreProjects).toBe(true);
+
+    // Nothing is claimed before the page lands, nor once its read gave up.
+    reads.projects.mockReturnValue({ status: 'loading' });
+    rerender();
+    expect(result.current.moreProjects).toBe(false);
+    expect(result.current.loading.projects).toBe(true);
+
+    reads.projects.mockReturnValue({ status: 'unavailable' });
+    rerender();
+    expect(result.current.projects).toEqual([]);
+    expect(result.current.moreProjects).toBe(false);
   });
 
   it('keeps the Inbox navigation visible while source discovery has failed', () => {

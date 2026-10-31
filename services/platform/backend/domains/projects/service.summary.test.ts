@@ -80,7 +80,7 @@ describe('project metadata read projections', () => {
         if (surface === 'overview')
           return (await listProjectsOverview(sql, auth, options)).projects;
         if (surface === 'sidebar')
-          return listSidebarProjects(sql, auth, 50, options);
+          return (await listSidebarProjects(sql, auth, 50, options)).projects;
         if (surface === 'search')
           return searchProjects(sql, auth, 'Apollo', 20, options);
         return listProjects(sql, auth, options);

@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import {
   ACTIONS_COLUMN_SIZE,
   createSelectColumn,
@@ -14,7 +15,7 @@ import { useListPage } from '@tale/ui/use-list-page';
 import { Link, useNavigate } from '@tanstack/react-router';
 import type { ColumnDef, Row, RowSelectionState } from '@tanstack/react-table';
 import { Folder, Plus } from 'lucide-react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { TeamAudienceCell } from '@/app/features/settings/teams/components/team-audience-cell';
 import {
@@ -27,6 +28,7 @@ import {
   ORG_WIDE_AUDIENCE,
 } from '@/app/features/settings/teams/lib/audience-filter';
 import { useAbility } from '@/app/hooks/use-ability';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
 import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
 import { firstFailureDetail } from '@/app/lib/backend/adapters';
@@ -92,8 +94,10 @@ export function ProjectsTable({
   const [includeArchived, setIncludeArchived] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
   const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
-  const { projects, isLoading, overdueTruncated, error, retry } =
-    useProjectsOverview(organizationId, { includeArchived });
+  // One page of projects at a time, newest first: scrolling, a search and
+  // the Teams filter ask for the next.
+  const overview = useProjectsOverview(organizationId, { includeArchived });
+  const { projects, status: pageStatus, loadMore: loadMorePage } = overview;
   const { mutateAsync: archiveProject } = useArchiveProject();
   // Names resolve through the org's team DIRECTORY (every team, for any
   // member) so a row shared with a team the viewer is not in still says
@@ -125,6 +129,25 @@ export function ProjectsTable({
     const matches = audienceMatcher(selectedTeamIds, myTeamIds);
     return projects.filter((project) => matches(projectTeamIds(project)));
   }, [projects, selectedTeamIds, myTeamIds]);
+
+  // The Teams filter narrows the LOADED pages, and the list asks for the
+  // next page only as the reader scrolls — so a match past them would read
+  // as none. While the filter is on, every page loads and it scans them all,
+  // as the documents list does. (A search drains in `useListPage` itself.)
+  useEffect(() => {
+    if (selectedTeamIds.length > 0 && pageStatus === 'CanLoadMore') {
+      loadMorePage(200);
+    }
+  }, [selectedTeamIds.length, pageStatus, loadMorePage]);
+
+  // Against the rows the table holds: with none, it shows a failed read
+  // itself; with some, the failure is named above them.
+  const { regionRef, retryRead, focusRegion, failedWithRows } =
+    useListReadRecovery({
+      error: overview.error,
+      results: visibleProjects,
+      retry: overview.retry,
+    });
 
   const handleClearSelection = useCallback(() => {
     setRowSelection({});
@@ -325,11 +348,7 @@ export function ProjectsTable({
           }
           return (
             <Badge variant="destructive">
-              <span aria-hidden>
-                {overdueTruncated
-                  ? t('list.countTruncated', { count })
-                  : String(count)}
-              </span>
+              <span aria-hidden>{count}</span>
               <span className="sr-only">
                 {t('list.overdueA11y', { count })}
               </span>
@@ -413,26 +432,25 @@ export function ProjectsTable({
         enableSorting: false,
       },
     ],
-    [
-      t,
-      formatRelative,
-      organizationId,
-      overdueTruncated,
-      nameOf,
-      isLoadingTeams,
-    ],
+    [t, formatRelative, organizationId, nameOf, isLoadingTeams],
   );
 
   const list = useListPage<ProjectOverviewRow>({
     dataSource: {
-      type: 'query',
-      data: isLoading ? undefined : visibleProjects,
-      error,
-      retry,
+      type: 'paginated',
+      results: visibleProjects,
+      status: pageStatus,
+      loadMore: loadMorePage,
+      isLoading: overview.isLoading,
+      // A failed first page is the table's error state with its retry,
+      // never "No projects yet".
+      error: overview.error,
+      retry: retryRead,
     },
     pageSize: DEFAULT_TABLE_PAGE_SIZE,
     search: {
       // `key` is visible in the row now, so typing `TAL` must find the project.
+      // Client-side over the loaded pages, so a search loads every page.
       fields: ['name', 'description', 'key'],
       placeholder: t('list.searchPlaceholder'),
     },
@@ -445,53 +463,78 @@ export function ProjectsTable({
 
   return (
     <>
-      <DataTable
-        // The page inset comes from the route's `ContentArea variant="list"`,
-        // which also bounds the height this sticky frame fills — so the
-        // toolbar and the header row stay put and only the rows scroll.
-        stickyLayout
-        {...list.tableProps}
-        columns={columns}
-        // Mirror single-row archive gating: only admins, and skip rows that
-        // are already archived (restore stays on the row menu).
-        enableRowSelection={(row) =>
-          row.original.canAdminister && !row.original.archivedAt
-        }
-        rowSelection={rowSelection}
-        onRowSelectionChange={setRowSelection}
-        onRowClick={handleRowClick}
-        onRowMouseEnter={handleRowMouseEnter}
-        addAction={
-          canCreate
-            ? {
-                label: t('list.createButton'),
-                icon: Plus,
-                onClick: () => setCreateOpen(true),
-              }
-            : undefined
-        }
-        emptyState={{
-          icon: Folder,
-          title: t('list.emptyTitle'),
-          description: canCreate
-            ? t('list.emptyDescription')
-            : t('list.emptyReaderDescription'),
-          headingLevel: 2,
-        }}
-        footer={
-          <BulkArchiveBar
-            rowSelection={rowSelection}
-            onRowSelectionChange={setRowSelection}
-            getItemLabel={(id) =>
-              projects.find((item) => item._id === id)?.name ?? id
-            }
-            onClearSelection={handleClearSelection}
-            onArchiveItem={handleArchiveItem}
-            onComplete={handleClearSelection}
-            describeFailure={firstFailureDetail}
+      {/* Rows already on screen outlive a failed read — a refresh, or a page
+          a scroll, a search or the Teams filter asked for — and the failure
+          is named above them. */}
+      <div
+        ref={regionRef}
+        role="region"
+        aria-label={t('title')}
+        tabIndex={-1}
+        className="flex min-h-0 flex-1 flex-col gap-6 outline-none"
+      >
+        {failedWithRows && (
+          <CatalogLoadError
+            // Each failure is announced again; Try again keeps its node.
+            failureKey={overview.errorCount}
+            onFocusLost={focusRegion}
+            message={t('list.refreshFailed')}
+            onRetry={retryRead}
+            isRetrying={overview.isRetrying}
           />
-        }
-      />
+        )}
+        <DataTable
+          // The page inset comes from the route's `ContentArea variant="list"`,
+          // which also bounds the height this sticky frame fills — so the
+          // toolbar and the header row stay put and only the rows scroll.
+          stickyLayout
+          {...list.tableProps}
+          // A refresh the reader did not start takes the table's error state
+          // away while it runs; a focused Try again hands its focus to the
+          // list, not to the page.
+          onErrorFocusLost={focusRegion}
+          columns={columns}
+          // Mirror single-row archive gating: only admins, and skip rows that
+          // are already archived (restore stays on the row menu).
+          enableRowSelection={(row) =>
+            row.original.canAdminister && !row.original.archivedAt
+          }
+          rowSelection={rowSelection}
+          onRowSelectionChange={setRowSelection}
+          onRowClick={handleRowClick}
+          onRowMouseEnter={handleRowMouseEnter}
+          addAction={
+            canCreate
+              ? {
+                  label: t('list.createButton'),
+                  icon: Plus,
+                  onClick: () => setCreateOpen(true),
+                }
+              : undefined
+          }
+          emptyState={{
+            icon: Folder,
+            title: t('list.emptyTitle'),
+            description: canCreate
+              ? t('list.emptyDescription')
+              : t('list.emptyReaderDescription'),
+            headingLevel: 2,
+          }}
+          footer={
+            <BulkArchiveBar
+              rowSelection={rowSelection}
+              onRowSelectionChange={setRowSelection}
+              getItemLabel={(id) =>
+                projects.find((item) => item._id === id)?.name ?? id
+              }
+              onClearSelection={handleClearSelection}
+              onArchiveItem={handleArchiveItem}
+              onComplete={handleClearSelection}
+              describeFailure={firstFailureDetail}
+            />
+          }
+        />
+      </div>
       {canCreate && (
         <ProjectCreateDialog
           open={createOpen}

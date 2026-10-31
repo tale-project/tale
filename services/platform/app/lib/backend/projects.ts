@@ -15,8 +15,10 @@ import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import type {
+  AdaptedPaginatedOptions,
   AdaptedReadOptions,
   AdapterContext,
+  PaginatedAdapter,
   ReadAdapter,
   ActionQueryAdapter,
   WriteAdapter,
@@ -35,9 +37,10 @@ import {
 
 export type ProjectListItem = ItemOf<'projects/queries:listProjects'>;
 type ProjectDetail = NonNullable<ReturnsOf<'projects/queries:getProject'>>;
-type ProjectOverviewResult = ReturnsOf<'projects/queries:listProjectsOverview'>;
+type ProjectOverviewItem =
+  ReturnsOf<'projects/queries:listProjectsOverview'>['page'][number];
+type SidebarProjectsResult = ReturnsOf<'projects/queries:listSidebarProjects'>;
 type ProjectAgentItem = ItemOf<'projects/queries:listProjectAgents'>;
-type SidebarProjectItem = ItemOf<'projects/queries:listSidebarProjects'>;
 type ProjectSearchItem = ItemOf<'projects/queries:searchProjects'>;
 type PaletteSearchItem = ItemOf<'projects/search:searchProjects'>;
 type ProjectThreadsResult =
@@ -171,18 +174,6 @@ function projectAgentView(row: ProjectAgentWire): ProjectAgentItem {
   return view as ProjectAgentItem;
 }
 
-function sidebarProjectView(row: ProjectWire): SidebarProjectItem {
-  const view: Record<string, unknown> = {
-    _id: row.id,
-    name: row.name,
-    ...(row.icon !== null ? { icon: row.icon } : {}),
-    ...(row.color !== null ? { color: row.color } : {}),
-    updatedAt: row.updatedAt,
-  };
-  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the one fetch-boundary projection to the 0.4 shape
-  return view as SidebarProjectItem;
-}
-
 function searchProjectView(row: ProjectWire): ProjectSearchItem {
   const view: Record<string, unknown> = {
     _id: row.id,
@@ -258,50 +249,109 @@ function orgOf(
   return ctx.organizationId;
 }
 
+/** The most rows one page of the project reads answers (the backend's
+ * `PROJECT_PAGE_LIMITS.max`). */
+const PROJECT_PAGE_MAX = 100;
+
+/** A page size the project reads take: one row at least, the most a page
+ * answers at most. */
+function projectPageLimit(numItems: number): number {
+  return Math.min(Math.max(Math.trunc(numItems), 1), PROJECT_PAGE_MAX);
+}
+
+/** An overview row: the list-item projection, with the rollups re-stamped
+ * as REQUIRED numbers (the 0.4 handler's `?? 0`). */
+function projectOverviewView(
+  row: ProjectWire & { overdueTaskCount: number },
+): ProjectOverviewItem {
+  return Object.assign(projectSummaryView(row), {
+    openTaskCount: row.openTaskCount,
+    doneTaskCount: row.doneTaskCount,
+    projectAgentCount: row.projectAgentCount,
+    overdueTaskCount: row.overdueTaskCount,
+  });
+}
+
 /**
- * The projects LIST page's read, exported for the route loader's prefetch —
- * the ONE options builder both the loader and the hook's adapter row share,
- * so their cache keys cannot drift.
+ * The projects LIST page's walk, a page at a time and newest first,
+ * exported for the route loader's prefetch — the ONE options builder both
+ * the loader and the listing's adapter row share, so their cache keys
+ * cannot drift. A page continues from the `continueCursor` the one before
+ * it answered; the first page sends no cursor.
  */
-export function projectsOverviewQuery(args: {
+export function projectsOverviewPageQuery(args: {
   organizationId: string;
   includeArchived?: boolean;
   asOf?: number;
-}): AdaptedReadOptions {
+}): AdaptedPaginatedOptions {
   const { organizationId } = args;
   const includeArchived = args.includeArchived === true;
   const asOf = args.asOf ?? 0;
-  const params = new URLSearchParams({
-    includeArchived: String(includeArchived),
-    summary: 'true',
-    ...(asOf > 0 ? { asOf: String(asOf) } : {}),
-  });
   return {
     queryKey: backendKey(
       organizationId,
       'project',
       'overview',
+      'paginated',
       includeArchived,
       asOf,
     ),
-    queryFn: () =>
-      backendFetch<{
+    fetchPage: (cursor, numItems) => {
+      const query = new URLSearchParams({
+        includeArchived: String(includeArchived),
+        summary: 'true',
+        ...(asOf > 0 ? { asOf: String(asOf) } : {}),
+        limit: String(projectPageLimit(numItems)),
+      });
+      if (cursor !== null && cursor !== '') query.set('cursor', cursor);
+      return backendFetch<{
         projects: (ProjectWire & { overdueTaskCount: number })[];
-        overdueTruncated: boolean;
-      }>(`/projects/overview?${params.toString()}`, {
+        isDone?: boolean;
+        continueCursor?: string;
+      }>(`/projects/overview?${query.toString()}`, {
         orgId: organizationId,
-      }).then((body): ProjectOverviewResult => ({
-        // The overview shape re-stamps the rollups as REQUIRED numbers
-        // (the 0.4 handler's `?? 0`), on top of the list-item projection.
-        projects: body.projects.map((row) =>
-          Object.assign(projectSummaryView(row), {
-            openTaskCount: row.openTaskCount,
-            doneTaskCount: row.doneTaskCount,
-            projectAgentCount: row.projectAgentCount,
-            overdueTaskCount: row.overdueTaskCount,
-          }),
-        ),
-        overdueTruncated: body.overdueTruncated,
+      }).then((body) => {
+        const continueCursor = body.continueCursor ?? '';
+        return {
+          page: body.projects.map(projectOverviewView),
+          // A body without the page envelope (an older backend) held every
+          // project, and a page with no cursor to go on is the last one —
+          // asking again without one would answer the first page anew.
+          isDone: body.isDone !== false || continueCursor === '',
+          continueCursor,
+        };
+      });
+    },
+  };
+}
+
+/**
+ * Home's navigator: ONE page of the unarchived projects, the pinned first
+ * (the most recently pinned on top), then the most recently updated —
+ * exported so the chat seam reads it through this builder too, under the
+ * same key. `isDone` says whether the page holds every project.
+ */
+export function sidebarProjectsQuery(args: {
+  organizationId: string;
+  limit?: number;
+}): AdaptedReadOptions {
+  const { organizationId } = args;
+  const limit =
+    args.limit === undefined ? undefined : projectPageLimit(args.limit);
+  const query = new URLSearchParams({
+    summary: 'true',
+    ...(limit !== undefined ? { limit: String(limit) } : {}),
+  });
+  return {
+    queryKey: backendKey(organizationId, 'project', 'sidebar', limit ?? null),
+    queryFn: () =>
+      backendFetch<{ projects: ProjectWire[]; isDone?: boolean }>(
+        `/projects/sidebar?${query.toString()}`,
+        { orgId: organizationId },
+      ).then((body): SidebarProjectsResult => ({
+        projects: body.projects.map(projectSummaryView),
+        // A body without the flag (an older backend) held every project.
+        isDone: body.isDone !== false,
       })),
   };
 }
@@ -321,15 +371,6 @@ export const projectReadAdapters: Record<string, ReadAdapter> = {
           body.projects.map(projectSummaryView),
         ),
     };
-  },
-  'projects/queries:listProjectsOverview': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    if (orgId === undefined) return null;
-    return projectsOverviewQuery({
-      organizationId: orgId,
-      includeArchived: args.includeArchived === true,
-      ...(typeof args.asOf === 'number' ? { asOf: args.asOf } : {}),
-    });
   },
   'projects/queries:getProject': (args, ctx) => {
     const orgId = orgOf(args, ctx);
@@ -401,18 +442,10 @@ export const projectReadAdapters: Record<string, ReadAdapter> = {
   'projects/queries:listSidebarProjects': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
-    return {
-      queryKey: backendKey(orgId, 'project', 'sidebar'),
-      queryFn: () =>
-        backendFetch<{ projects: ProjectWire[] }>(
-          '/projects/sidebar?summary=true',
-          {
-            orgId,
-          },
-        ).then((body): SidebarProjectItem[] =>
-          body.projects.map(sidebarProjectView),
-        ),
-    };
+    return sidebarProjectsQuery({
+      organizationId: orgId,
+      ...(typeof args.limit === 'number' ? { limit: args.limit } : {}),
+    });
   },
   'projects/queries:searchProjects': (args, ctx) => {
     const orgId = orgOf(args, ctx);
@@ -517,6 +550,22 @@ export const projectReadAdapters: Record<string, ReadAdapter> = {
           }),
         ),
     };
+  },
+};
+
+// ---------------------------------------------------------------------------
+// Paginated adapters (the projects list's infinite listing)
+// ---------------------------------------------------------------------------
+
+export const projectPaginatedAdapters: Record<string, PaginatedAdapter> = {
+  'projects/queries:listProjectsOverview': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    return projectsOverviewPageQuery({
+      organizationId: orgId,
+      includeArchived: args.includeArchived === true,
+      ...(typeof args.asOf === 'number' ? { asOf: args.asOf } : {}),
+    });
   },
 };
 
