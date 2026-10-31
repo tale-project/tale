@@ -40,7 +40,8 @@ vi.mock('../hooks/use-actor-directory', () => ({
         },
       ],
       automations: [{ slug: 'vat-return-desk', name: 'Swiss VAT return desk' }],
-      mentionsPending: performance.pending,
+      memberPending: () => performance.pending,
+      mentionPending: () => performance.pending,
     };
   },
 }));

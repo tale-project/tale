@@ -55,6 +55,9 @@ const directory = vi.hoisted(() => ({
     { id: 'bob', name: 'Bob', handle: 'bob', legacyHandles: [] },
   ],
   automations: [],
+  // Everyone has arrived.
+  memberPending: () => false,
+  mentionPending: () => false,
 }));
 vi.mock('../hooks/use-actor-directory', () => ({
   useActorDirectory: () => directory,

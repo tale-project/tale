@@ -7,12 +7,19 @@ import { readStateOf } from '@/app/lib/backend/read-state';
 /**
  * The organization's member directory, with how the read stands
  * (`readStateOf`): a failed read is the caller's to name and retry, never
- * a directory that lists nobody.
+ * a directory that lists nobody. It reads every member: a screen that only
+ * names some of them looks them up instead (`useMemberLookup`), and one
+ * that offers every member as a choice reads them once it is opened
+ * (`enabled: false` until then).
  */
-export function useMembers(organizationId: string) {
-  const query = useBackendQuery('members/queries:listByOrganization', {
-    organizationId,
-  });
+export function useMembers(
+  organizationId: string,
+  { enabled = true }: { enabled?: boolean } = {},
+) {
+  const query = useBackendQuery(
+    'members/queries:listByOrganization',
+    enabled ? { organizationId } : 'skip',
+  );
   const { data, isLoading, refetch } = query;
 
   return {
