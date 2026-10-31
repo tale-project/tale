@@ -448,6 +448,25 @@ projects-list row ⋯ menu.
   `zzz` → **Nothing matches your search.** (`chat.skills.searchEmpty`) → clear
   the field, press Arrow Down → focus moves to the first row; Escape closes the
   menu, and reopening shows every row again.
+- [ ] `PROJ-F75` · **The projects list reads a page at a time** — With more
+  than 50 projects you can see, the oldest scoped to a team no other project
+  has, open `/dashboard/{org}/projects` and scroll to the bottom → the newest
+  50 rows paint first and the next ones load as the bottom comes into view,
+  until the oldest project is listed, with no project listed twice; the
+  network tab shows `/api/app/projects/overview?…&limit=50` requests, the later
+  ones with a `cursor`, never one request for every project. Reload, then type
+  the oldest project's name — and then its key — into **Search projects**
+  (`projects.list.searchPlaceholder`) → it is found without scrolling; clear
+  the search and filter **Sharing** (`projects.list.columnSharing`) by its team
+  → it is listed, again without scrolling.
+- [ ] `PROJ-F76` · **Home counts the projects it does not list** — With 101
+  unarchived projects you can see, two of them pinned, open the Home panel's
+  **All** view → its **Projects** section (`home.projects.title`) lists 100 of
+  them: the two pinned first, then the 98 most recently changed of the others,
+  A→Z; the one changed longest ago is missing there and listed under **All
+  projects** (`home.projects.allProjects`). Collapse the section → the count
+  beside the title reads `100+` (`home.projects.countMore`), in English, German
+  and French alike; archive one project → it reads `100`, with no `+`.
 
 ## Boundary & error tests
 
