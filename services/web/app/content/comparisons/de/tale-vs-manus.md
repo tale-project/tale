@@ -33,3 +33,5 @@ Prüfe Tale, wenn ein gemeinsames Projekt für Teammitglieder und konfigurierte 
 Nutze ein fiktives Veranstaltungsbriefing für eine Zielgruppenrecherche, einen Ankündigungsentwurf und eine Präsentationsgliederung. Ändere die Zielgruppe nach dem ersten Entwurf und lass einen Kollegen eine unbelegte Aussage zurückweisen.
 
 Verfolge bei beiden Kandidaten, wie die Änderung in alle Ergebnisse einfließt und wie ein zweites Teammitglied offene Arbeit übernimmt. Bewerte die Nutzbarkeit der Ergebnisse getrennt von der Klarheit der Verantwortung. Damit lässt sich entscheiden, ob Ergebniserstellung oder laufende Projektkoordination der wichtigste Bedarf ist. [Buche eine Tale-Demo](https://tale.dev/de/request-demo) mit dieser Testkampagne.
+
+Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 3. Oktober 2026, und ist kein praktischer Benchmark.

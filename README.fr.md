@@ -64,7 +64,7 @@ Ouvre une capture pour la voir en taille réelle. Les images montrent l’interf
 
 1. **Décrire le travail.** Crée une [tâche de projet](https://docs.tale.dev/fr/platform/projects/tasks) avec le problème, les fichiers sources et les critères d’acceptation.
 2. **Attribuer le travail aux personnes et aux agents.** Configure des [agents de projet](https://docs.tale.dev/fr/platform/projects/project-agents), choisis leurs outils et lance les tâches que tu souhaites leur confier.
-3. **Coordonner et examiner.** Suis l’avancement sur le tableau, guide les agents avec des @mentions dans les commentaires des tâches et vérifie leurs rapports et fichiers. Un [agent coordinateur](https://docs.tale.dev/fr/platform/projects/task-automation) peut déléguer les tâches prêtes s’il dispose des outils nécessaires.
+3. **Coordonner et examiner.** Suis l’avancement sur le tableau, guide les agents avec des @mentions dans les commentaires des tâches et vérifie leurs rapports et fichiers. Un [agent coordinateur](https://docs.tale.dev/fr/platform/projects/task-automation#let-a-manager-agent-keep-the-queue-moving) peut déléguer les tâches prêtes s’il dispose des outils nécessaires.
 4. **Répéter un processus défini.** Utilise une [automatisation](https://docs.tale.dev/fr/platform/automations/concepts) versionnée lorsque le travail nécessite des démarrages planifiés, des étapes définies ou des approbations pour les actions des connecteurs.
 
 ### Exemple : examiner un brief de lancement

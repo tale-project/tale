@@ -33,3 +33,5 @@ Prüfe Tale, wenn eine gemeinsame Projektstruktur für Planung, Zuweisung an Men
 Nutze fiktive Workshop-Notizen mit Aufträgen für Kunden-FAQ, Launch-Checkliste und eine offene Entscheidung. Lass das Team beide Ergebnisse erstellen, die Entscheidung zuweisen und nach einer Anforderungsänderung zur Wochenmitte einen Review durchführen.
 
 Prüfe, wo Zuständigkeiten sichtbar sind, ob die prüfende Person den ursprünglichen Kontext findet und wie Folgeaufgaben über das Meeting hinaus erhalten bleiben. Berücksichtige den Aufwand zum Verschieben oder Verbinden von Dokumenten, ohne mehrere widersprüchliche Originale zu schaffen. Vergleiche den vollständigen Wochenablauf. [Buche eine Tale-Demo](https://tale.dev/de/request-demo) mit diesem Projekt.
+
+Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 3. Oktober 2026, und ist kein praktischer Benchmark.

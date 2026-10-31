@@ -35,3 +35,5 @@ Tale peut aussi utiliser des abonnements Anthropic compatibles via Claude Code p
 Prends un brief de lancement fictif, des sources, un brouillon d’annonce et une checklist de relecture. Demande une annonce révisée et une tâche distincte pour résoudre une affirmation sans preuve. Fais reprendre cette tâche par un autre collègue après la première relecture.
 
 Observe comment chaque configuration conserve le brief, montre la responsabilité actuelle et rend les retours utiles à la personne suivante. Inclus le travail administratif pour accorder les accès nécessaires. [Demande une démo de Tale](https://tale.dev/fr/request-demo) avec cette transmission de campagne.
+
+Cette comparaison s’appuie sur la documentation publique examinée le 3 octobre 2026, sans test comparatif pratique.
