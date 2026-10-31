@@ -612,3 +612,25 @@ export async function listUserCompetences(
 ): Promise<CompetenceRecord[]> {
   return listRegister(sql, organizationId, COMPETENCE_SCAN_CAP, userId);
 }
+
+/**
+ * The unrevoked records that vouch for `userId` in the organization, active
+ * or past their expiry, newest first: their own grants and the grants of the
+ * teams an admin added them to — the rule `holdsCapability` reads
+ * (`vouchesForUser`). A member's rights name them (`member-rights.ts`).
+ */
+export async function listRecordsVouchingFor(
+  sql: Sql,
+  organizationId: string,
+  userId: string,
+): Promise<CompetenceRecord[]> {
+  return sql<CompetenceRecord[]>`
+    SELECT ${sql.unsafe(COLUMNS)} FROM app.competence_records
+    WHERE id IN (
+      SELECT c.id FROM app.competence_records c
+      WHERE c.org_id = ${organizationId} AND c.revoked_at_ms IS NULL
+        AND ${vouchesForUser(sql, userId)}
+    )
+    ORDER BY granted_at_ms DESC
+  `;
+}
