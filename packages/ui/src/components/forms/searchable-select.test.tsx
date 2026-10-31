@@ -538,7 +538,7 @@ describe('SearchableSelect', () => {
   });
 
   describe('accessibility', () => {
-    it.each(['Project', 'Competence'])(
+    it.each(['Project', 'Right or qualification'])(
       'names the open picker from its %s label without a search placeholder',
       async (label) => {
         const { user } = render(
