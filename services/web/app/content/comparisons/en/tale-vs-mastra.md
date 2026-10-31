@@ -33,3 +33,5 @@ Consider Tale when the business needs a place to plan work, delegate tasks to co
 Use a fictional release with a changelog, test notes, and two unresolved issues. Ask for a readiness brief, assign follow-up investigation, and have a product owner request one correction before acceptance.
 
 In the Mastra prototype, include the interface and controls a nondeveloper needs to follow this flow. In Tale, assess whether the existing task and review model matches it. Track engineering work separately from the effort of the person running the release. Then repeat the case with a new teammate to test whether ownership is understandable. [Request a Tale demo](https://tale.dev/request-demo) using your release process.
+
+This comparison describes public documentation reviewed on 3 October 2026; it is not a hands-on benchmark.
