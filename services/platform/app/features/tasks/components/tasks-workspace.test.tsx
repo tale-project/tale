@@ -23,6 +23,8 @@ const state = vi.hoisted(() => ({
   archived: false,
   tasks: [] as TaskDoc[],
   blockerResolved: false,
+  /** Every backend read the workspace asked for, with its args. */
+  reads: [] as { name: string; args: unknown }[],
 }));
 
 const task = (id: string, overrides: Partial<TaskDoc> = {}): TaskDoc => ({
@@ -96,7 +98,10 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
   }),
 }));
 vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: () => ({ data: undefined, isLoading: false }),
+  useBackendQuery: (name: string, args: unknown) => {
+    state.reads.push({ name, args });
+    return { data: undefined, isLoading: false };
+  },
 }));
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { userId: 'u-member' } }),
@@ -163,6 +168,7 @@ beforeEach(() => {
   state.canCreate = true;
   state.archived = false;
   state.blockerResolved = false;
+  state.reads = [];
   state.tasks = [
     task('own', { createdBy: 'u-member' }),
     task('assigned', { assigneeType: 'user', assigneeId: 'u-member' }),
@@ -231,6 +237,24 @@ afterEach(() => {
       `tale.platform.tasks.board.collapsedLanes.${scope}`,
     );
   }
+});
+
+describe('TasksWorkspace — the assignee filter', () => {
+  it('reads every member only once the filters are first opened', async () => {
+    const user = userEvent.setup();
+    renderWorkspace();
+    const everyMember = () =>
+      state.reads
+        .filter((read) => read.name === 'members/queries:listByOrganization')
+        .map((read) => read.args);
+    // A board that is only looked at names its people through the lookup.
+    expect(everyMember().length).toBeGreaterThan(0);
+    expect(everyMember()).not.toContainEqual({ organizationId: 'org-1' });
+
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+
+    expect(everyMember().at(-1)).toEqual({ organizationId: 'org-1' });
+  });
 });
 
 describe('TasksWorkspace persisted lane handoff', () => {

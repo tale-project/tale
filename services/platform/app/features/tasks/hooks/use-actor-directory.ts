@@ -8,10 +8,12 @@ import {
 } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { projectAgentDetails } from '@/app/features/projects/lib/agent-details';
+import { useAskedMemberLookup } from '@/app/features/settings/organization/hooks/member-lookup';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
+import type { MentionKind } from '@/lib/shared/mention-handles';
 import {
   automationDisplayName,
   titleFromSlug,
@@ -39,10 +41,10 @@ import {
 } from './use-task-subject-contract';
 
 /**
- * Where a person the member directory does not name stands: `pending` while
- * it has not answered (it is loading, or its read failed) — nobody is a
- * former member yet — and `former` once it has and they are not in it: a
- * member who left, or one whose account holds no name and no e-mail.
+ * Where a person the member lookup does not name stands: `pending` while it
+ * has not answered for them (it is loading, or its read failed) — nobody is
+ * a former member yet — and `former` once it has without them: a member who
+ * left, or one whose account holds no name and no e-mail.
  */
 export type ActorStanding = 'pending' | 'former';
 
@@ -86,6 +88,33 @@ export interface AssignableActor {
   servedFrom?: { projectId: string; projectName: string | null };
 }
 
+/** Whom a reader asks about a mention: whom a stored mention names, or a
+ * typed `@handle`. */
+export type MentionPendingRef =
+  | { kind: MentionKind; id: string }
+  | { handle: string };
+
+/** A member as the task surfaces list them. */
+export function memberActor(
+  member: {
+    userId: string;
+    displayName: string | undefined;
+    email: string | undefined;
+    role: string;
+  },
+  formerMember: string,
+): AssignableActor {
+  return {
+    type: 'user',
+    id: member.userId,
+    // An account that holds no name and no e-mail names nobody, as on the
+    // automation pages; its id would tell a reader nothing either.
+    name: member.displayName || member.email || formerMember,
+    email: member.email,
+    role: member.role,
+  };
+}
+
 // Shared frozen instances keep hook results referentially stable across
 // renders when a context has no project (and thus no agents) to draw from.
 const EMPTY_AGENT_LIST: AssignableActor[] = [];
@@ -95,17 +124,21 @@ const EMPTY_CATALOG = new Map<string, TaskActorCatalogEntry>();
 /**
  * Resolves task actors (comment authors, activity actors, assignees) — which
  * are stored polymorphically as a Better Auth `userId` or an agent id — to
- * human-readable display names, and exposes the assignable member/agent lists
- * for the assignee picker. Members come from the org directory; agents are
- * the PROJECT's user-created instances (`projectAgents` rows, from the
- * project Agents tab), so without a `projectId` no agent is assignable and a
+ * human-readable display names, and exposes the project's agents for the
+ * assignee picker. People are looked up as the surface names them
+ * (`useAskedMemberLookup`): a board, a task or a thread names a handful of
+ * the organization's members, never all of them — a picker reads every
+ * member through {@link useAssignableActors}. Agents are the PROJECT's
+ * user-created instances (`projectAgents` rows, from the project Agents
+ * tab), so without a `projectId` no agent is assignable and a
  * historical/foreign agent actor reads as a deleted agent. A person the
- * directory does not name reads as a former member once it has answered;
- * no actor is ever named by its raw id. The retired workflow catalog stays
- * empty until automations grow a task-side directory.
+ * lookup does not name reads as a former member once it has answered for
+ * them; no actor is ever named by its raw id. The retired workflow catalog
+ * stays empty until automations grow a task-side directory.
  */
 export function useActorDirectory(organizationId: string, projectId?: string) {
-  const { members } = useMembers(organizationId);
+  const memberLookup = useAskedMemberLookup(organizationId);
+  const { members } = memberLookup;
   const { data: me } = useCurrentMemberContext(organizationId);
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
@@ -152,16 +185,7 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
   );
 
   const memberList = useMemo<AssignableActor[]>(
-    () =>
-      (members ?? []).map((m) => ({
-        type: 'user' as const,
-        id: m.userId,
-        // An account that holds no name and no e-mail names nobody, as on
-        // the automation pages; its id would tell a reader nothing either.
-        name: m.displayName || m.email || formerMember,
-        email: m.email,
-        role: m.role,
-      })),
+    () => members.map((m) => memberActor(m, formerMember)),
     [members, formerMember],
   );
 
@@ -237,11 +261,12 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
   }, [projectAgents, servingAgents]);
   const workflowCatalog = EMPTY_CATALOG;
 
-  // The people the resolvers name: a listed member, by display name or else
-  // e-mail. Anyone else is a former member once the directory has answered.
+  // The people the resolvers name: a looked-up member, by display name or
+  // else e-mail. Anyone else is a former member once the lookup has
+  // answered for them.
   const memberMap = useMemo(() => {
     const map = new Map<string, { name: string; email?: string }>();
-    for (const m of members ?? []) {
+    for (const m of members) {
       const name = m.displayName || m.email;
       if (name) map.set(m.userId, { name, email: m.email });
     }
@@ -254,10 +279,6 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
     return map;
   }, [agentList]);
 
-  // An id none of the lists names may still be one of theirs until all of
-  // them have answered.
-  const directoryPending =
-    members === undefined || agentsLoading || automationsPending;
   const resolveAssigneeId = useMemo(
     () =>
       (id: string): string => {
@@ -267,18 +288,25 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
         if (agent) return agent.name;
         const appName = appNames.get(id);
         if (appName) return appName;
+        // An id none of the lists names may still be one of theirs until
+        // all of them have answered: the person is asked for here.
+        const personPending = memberLookup.pending({ userId: id });
         // Named by nobody: a person who left the organization. The value
         // carries no type, so an agent deleted before it ever ran on the
         // task reads the same; one that ran is resolved as an agent by the
         // caller, which knows its runs.
-        return directoryPending ? '' : formerMember;
+        return personPending || agentsLoading || automationsPending
+          ? ''
+          : formerMember;
       },
     [
       memberMap,
       agentMap,
       agentCatalog,
       appNames,
-      directoryPending,
+      memberLookup,
+      agentsLoading,
+      automationsPending,
       formerMember,
     ],
   );
@@ -348,9 +376,9 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
             email: member.email,
           };
         }
-        // Someone the directory does not name: nobody yet while it has not
-        // answered, then a former member — never the raw id.
-        return members === undefined
+        // Someone the lookup has not named: nobody yet while it is out for
+        // them (asked for here), then a former member — never the raw id.
+        return memberLookup.pending({ userId: id })
           ? { type, id, name: '', isAgent: false, standing: 'pending' }
           : {
               type,
@@ -360,7 +388,33 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
               standing: 'former',
             };
       },
-    [appNames, memberMap, members, agentMap, agentCatalog, formerMember, t],
+    [
+      appNames,
+      memberMap,
+      memberLookup,
+      agentMap,
+      agentCatalog,
+      formerMember,
+      t,
+    ],
+  );
+
+  // Whether whom a mention names may still arrive: the person it names
+  // (asked for here), the project's own agents or the automations. A typed
+  // `@handle` may name any of them.
+  const mentionPending = useMemo(
+    () =>
+      (ref: MentionPendingRef): boolean => {
+        if ('handle' in ref) {
+          const personPending = memberLookup.pending({ handle: ref.handle });
+          return personPending || ownAgentsLoading || automationsPending;
+        }
+        if (ref.kind === 'user') {
+          return memberLookup.pending({ userId: ref.id });
+        }
+        return ref.kind === 'agent' ? ownAgentsLoading : automationsPending;
+      },
+    [memberLookup, ownAgentsLoading, automationsPending],
   );
 
   const resolveActorPreview = useMemo(
@@ -427,6 +481,8 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
       resolveActorPreview,
       resolveAgentRunPreview,
       resolveWorkflowRunPreview,
+      /** The people looked up so far — whom this surface named — not every
+       * member: a picker lists those through `useAssignableActors`. */
       members: memberList,
       agents: agentList,
       /** Deployed automations visible from this context, slug + display name. */
@@ -437,11 +493,13 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
        * dispatches put on its board, are still being fetched — an empty
        * `agents` is only "this project HAS no agents" once this settles. */
       agentsLoading,
-      /** True until the people, agents and automations a mention can name
-       * have all arrived: a mention of someone not listed yet is not yet
-       * someone gone. A mention names the project's own agents alone. */
-      mentionsPending:
-        members === undefined || ownAgentsLoading || automationsPending,
+      /** Ask for a person, and say whether the lookup is still out for
+       * them: call it while rendering whatever names them. */
+      memberPending: memberLookup.pending,
+      /** Whether whom a mention names may still arrive, asking for the
+       * person it may name: a mention of someone not answered yet is not
+       * yet someone gone. A mention names the project's own agents alone. */
+      mentionPending,
       currentUserId,
       organizationId,
       // `useActorDirectory` stays org-wide — it also resolves *historical* actors
@@ -461,9 +519,8 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
       automationList,
       automations,
       agentsLoading,
-      ownAgentsLoading,
-      members,
-      automationsPending,
+      memberLookup,
+      mentionPending,
       currentUserId,
       organizationId,
       projectId,
@@ -543,21 +600,24 @@ export function useProvidedActorDirectory(
 
 /**
  * The assignee picker and `@`-mention autocomplete build their candidate lists
- * from this: {@link useActorDirectory} narrowed to who can actually access the
- * project. Members outside the project's team(s) are dropped and disabled
- * members are always excluded; agents are narrowed only by the standard
- * agent — the directory already lists only THIS project's instances, and the
- * one Tale set up there stays out while the standard agent cannot run for this
- * viewer. The unfiltered `members` / `agents` / `resolveActor` are still
- * returned (spread from the directory) for *display* of historical/current
- * actors.
+ * from this: every member of the organization and the project's agents,
+ * narrowed to who can actually access the project. It reads every member, so
+ * it mounts only where a person picks — an opened picker, a focused mention
+ * field — never where a surface only names people. Members outside the
+ * project's team(s) are dropped and disabled members are always excluded;
+ * agents are narrowed only by the standard agent — the directory already
+ * lists only THIS project's instances, and the one Tale set up there stays
+ * out while the standard agent cannot run for this viewer. The directory's
+ * `agents` / `resolveActor` are still returned (spread from it) for
+ * *display* of historical/current actors.
  *
  * With no `projectId` members degrade to org-wide and agents to none — an
  * agent exists only inside its project. While the access query is in flight,
  * members fall back to org-wide; the backend guard is the real gate.
- * `scopeReady` says whether that narrowing has happened, for a picker that
- * must offer only who the server will take (the reviewer picker lists
- * nobody until it is true).
+ * `membersLoading` says every member has not arrived yet; `scopeReady` says
+ * they have and the narrowing has happened, for a picker that must offer
+ * only who the server will take (the reviewer picker lists nobody until it
+ * is true).
  *
  * `canAddAgents` says whether this viewer may add an agent to the project —
  * its editors may, everyone else reads its agents — so a picker can offer a
@@ -574,7 +634,9 @@ export function useAssignableActors(
   projectId?: string,
 ) {
   const directory = useActorDirectory(organizationId, projectId);
-  const { members } = directory;
+  const { members } = useMembers(organizationId);
+  const { t: tCommon } = useT('common');
+  const formerMember = tCommon('formerMember');
   const scope = useBackendQuery(
     'projects/queries:listAccessibleUserIds',
     projectId ? { organizationId, projectId } : 'skip',
@@ -586,11 +648,13 @@ export function useAssignableActors(
   );
 
   const assignableMembers = useMemo<AssignableActor[]>(() => {
-    const nonDisabled = members.filter((m) => m.role !== 'disabled');
+    const nonDisabled = (members ?? [])
+      .filter((m) => m.role !== 'disabled')
+      .map((m) => memberActor(m, formerMember));
     if (!projectId || !scope.data || scope.data.orgWide) return nonDisabled;
     const ids = new Set(scope.data.userIds);
     return nonDisabled.filter((m) => ids.has(m.id));
-  }, [members, projectId, scope.data]);
+  }, [members, formerMember, projectId, scope.data]);
 
   const standardAgentAvailable =
     useStandardAgent(projectId ? organizationId : undefined)?.available ===
@@ -606,7 +670,9 @@ export function useAssignableActors(
         : directory.agents.filter((agent) => agent.managed !== true),
     [directory.agents, standardAgentAvailable],
   );
-  const scopeReady = !projectId || scope.data !== undefined;
+  const membersLoading = members === undefined;
+  const scopeReady =
+    !membersLoading && (!projectId || scope.data !== undefined);
   const projectResolved = project.data != null;
   const canAddAgents = project.data?.canEdit === true;
 
@@ -615,6 +681,7 @@ export function useAssignableActors(
       ...directory,
       assignableMembers,
       assignableAgents,
+      membersLoading,
       scopeReady,
       projectResolved,
       canAddAgents,
@@ -624,6 +691,7 @@ export function useAssignableActors(
       directory,
       assignableMembers,
       assignableAgents,
+      membersLoading,
       scopeReady,
       projectResolved,
       canAddAgents,

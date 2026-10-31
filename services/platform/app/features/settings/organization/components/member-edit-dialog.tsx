@@ -53,7 +53,6 @@ type MemberLite = {
   role?: string;
   email?: string;
   twoFactorEnabled?: boolean;
-  passkeyCount?: number;
 };
 
 interface EditMemberDialogProps {
@@ -359,7 +358,7 @@ export function EditMemberDialog({
         />
       )}
 
-      {!isEditingSelf && member && (member.passkeyCount ?? 0) > 0 && (
+      {!isEditingSelf && member && (
         <PasskeyAdminControl memberId={member._id} />
       )}
     </FormDialog>
@@ -410,8 +409,9 @@ function TwoFactorResetControl({
  * Admin list/revoke of a member's WebAuthn passkeys (#1508). Mirrors
  * `TwoFactorResetControl`: per-credential Remove behind a destructive
  * confirm. Revoking also ends every session of the member, so the copy
- * says so. Only rendered when the member actually has passkeys (gated on
- * `passkeyCount` from the members list — no per-row query for the rest).
+ * says so. The passkeys are read for the one member an admin opens, only
+ * when they edit someone else (the members list counts none, MEMBER-R6),
+ * and the section shows only when that member has any.
  */
 function PasskeyAdminControl({ memberId }: { memberId: string }) {
   const { t } = useT('twoFactor');
