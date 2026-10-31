@@ -19,17 +19,13 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
-import { useProjects } from '@/app/features/projects/hooks/queries';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import type { ReplayStarted } from '@/app/lib/backend/contract/automations';
 import { useT } from '@/lib/i18n/client';
 
 import { useReplayRun } from '../hooks/mutations';
 import { shortRunId } from '../lib/run-view';
-import {
-  AutomationRunDialog,
-  type AutomationRunRequest,
-} from './automation-run-dialog';
+import { AutomationRunDialog } from './automation-run-dialog';
 
 /** One way to run a run again: on which version, in which mode. */
 interface AgainChoice {
@@ -294,7 +290,7 @@ export function RunActions({
         ]}
       />
       {editing && (
-        <RunEditInputDialog
+        <AutomationRunDialog
           organizationId={organizationId}
           request={{
             automationSlug,
@@ -344,21 +340,4 @@ export function RunActions({
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-/** The run dialog, with the projects an issue import picks from — read
- * only once the dialog opens. */
-function RunEditInputDialog({
-  organizationId,
-  ...props
-}: {
-  organizationId: string;
-  request: AutomationRunRequest;
-  pending: boolean;
-  error: string | null;
-  onClose: () => void;
-  onConfirm: (input: unknown) => void;
-}) {
-  const { projects } = useProjects(organizationId);
-  return <AutomationRunDialog {...props} projects={projects} />;
 }

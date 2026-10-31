@@ -9,9 +9,13 @@ import {
 import { MultiSelect } from '@tale/ui/multi-select';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useProjects } from '@/app/features/projects/hooks/queries';
+import {
+  type ProjectChoice,
+  useNamedProjects,
+  useProjectChoices,
+} from '@/app/features/projects/hooks/queries';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useT } from '@/lib/i18n/client';
 
@@ -22,6 +26,7 @@ import { automationErrorMessage } from '../lib/errors';
 import { AUTOMATION_PROJECTS_FIELD_ID } from '../lib/field-ids';
 
 const NO_DIRTY_KEYS: ReadonlySet<string> = new Set();
+const NO_PICKED: ReadonlyMap<string, ProjectChoice> = new Map();
 /** What the General tab's strip lights its unsaved dot for. */
 const PROJECTS_DIRTY_KEYS: ReadonlySet<string> = new Set([PROJECTS_DIRTY_KEY]);
 
@@ -76,7 +81,10 @@ export function ProjectBindingsSection({
   const { t } = useT('automations');
 
   const boundQuery = useAutomationProjects(organizationId, name);
-  const { projects } = useProjects(organizationId);
+  // Home's page of projects and, for what is typed, the server's search past
+  // it: never every project (#5204).
+  const [query, setQuery] = useState('');
+  const choices = useProjectChoices(organizationId, query);
   const setProjects = useSetAutomationProjects();
 
   const stored = useMemo(
@@ -120,10 +128,50 @@ export function ProjectBindingsSection({
     return selection.some((projectId) => !current.has(projectId));
   }, [selection, stored]);
 
-  const options = projects.map((project) => ({
-    value: project._id,
-    label: project.name,
-  }));
+  // A project picked from a search leaves the offer once the search box
+  // resets; the row it was picked from keeps naming it.
+  const [picked, setPicked] = useState(NO_PICKED);
+  // Every other bound project is named from the page, or read by id when
+  // the page lacks it, so it stays offered and its chip stays named.
+  const unpicked = useMemo(
+    () => selection.filter((projectId) => !picked.has(projectId)),
+    [selection, picked],
+  );
+  const named = useNamedProjects(organizationId, unpicked);
+  const options = useMemo(() => {
+    const offered = new Map(
+      choices.projects.map((project) => [project._id, project] as const),
+    );
+    for (const projectId of selection) {
+      const project = picked.get(projectId) ?? named.projects.get(projectId);
+      if (project !== undefined && !offered.has(projectId)) {
+        offered.set(projectId, project);
+      }
+    }
+    return [...offered.values()].map((project) => ({
+      value: project._id,
+      label: project.name,
+    }));
+  }, [choices.projects, selection, picked, named.projects]);
+  const choose = useCallback(
+    (next: string[]) => {
+      const added = choices.projects.filter(
+        (project) => next.includes(project._id) && !picked.has(project._id),
+      );
+      if (added.length > 0) {
+        setPicked(
+          (current) =>
+            new Map([
+              ...current,
+              ...added.map((project) => [project._id, project] as const),
+            ]),
+        );
+      }
+      setSelection(next);
+    },
+    [choices.projects, picked],
+  );
+  const loading = boundQuery.isPending || choices.isLoading || named.isPending;
 
   /** Write the selection as the automation's binding set. */
   const persist = async (): Promise<void> => {
@@ -173,7 +221,7 @@ export function ProjectBindingsSection({
   useRegisterDirtySource(canEdit && dirty);
 
   return (
-    <Skeletonize loading={boundQuery.isPending} label={t('bindings.title')}>
+    <Skeletonize loading={loading} label={t('bindings.title')}>
       <SettingsSection
         title={t('bindings.title')}
         description={t('bindings.hint')}
@@ -193,7 +241,8 @@ export function ProjectBindingsSection({
           <MultiSelect
             id={AUTOMATION_PROJECTS_FIELD_ID}
             value={selection}
-            onValueChange={setSelection}
+            onValueChange={choose}
+            onSearchChange={setQuery}
             options={options}
             placeholder={t('bindings.placeholder')}
             searchPlaceholder={t('bindings.searchPlaceholder')}

@@ -5,7 +5,6 @@ import { useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
 import { z } from 'zod';
 
-import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
@@ -33,7 +32,6 @@ export function IssueImportContinuation({
   cursor: string;
 }) {
   const { t } = useT('automations');
-  const { projects } = useProjects(organizationId);
   const ability = useAbility();
   const start = useStartAutomationRun();
   const navigate = useNavigate();
@@ -52,6 +50,7 @@ export function IssueImportContinuation({
       </Button>
       {open && (
         <AutomationRunDialog
+          organizationId={organizationId}
           request={{
             automationSlug,
             projectId,
@@ -61,7 +60,6 @@ export function IssueImportContinuation({
             initialInput: { ...parsed.data, cursor },
             scopeText: '',
           }}
-          projects={projects}
           pending={start.isPending}
           error={error}
           onClose={() => {
