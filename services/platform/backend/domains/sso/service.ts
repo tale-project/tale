@@ -439,6 +439,13 @@ export async function syncTeamsFromGroupNames(
       const membershipId = row.membershipId;
       await sql.begin(async (tx) => {
         await tx`DELETE FROM "teamMember" WHERE "id" = ${membershipId}`;
+        // Should an admin have added the member back by hand, the record
+        // that let the membership carry the team's competence grants goes
+        // with it (0226).
+        await tx`
+          DELETE FROM app.admin_added_team_members
+          WHERE team_member_id = ${membershipId}
+        `;
         await auditTeamMemberRemoved(tx, {
           ...membershipAudit,
           teamId: row.teamId,
