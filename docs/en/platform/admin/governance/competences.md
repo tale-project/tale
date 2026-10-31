@@ -52,9 +52,13 @@ Only a membership an Owner or Admin made under **Settings > Teams** carries the 
 
 A team holds platform capabilities only. Grant a qualification to each member who needs it, because a review policy asks it of the person who approves.
 
+A platform capability can also be granted from **Settings > Members**: open the member's row menu, choose **Rights**, and turn on the capability's switch. The same dialog opens with the member and the capability already chosen, and the grant lands in this register. [Review a member's rights](/platform/admin/members-and-roles#member-rights) explains what the switches and their reasons show.
+
 ## Revoke a competence
 
 Select **Revoke** on the row and confirm with **Revoke**. The member loses the competence right away; for a team's grant, so do the team's members, unless they hold it through a grant of their own. The grant stays in the register as history with the status **Revoked** and the revocation date; point at the date to see who revoked it or why.
+
+Under **Settings > Members**, you revoke a platform capability the same way: choose **Rights** in the member's row menu, turn off the capability's switch, and confirm with **Revoke**.
 
 ## Read the register
 

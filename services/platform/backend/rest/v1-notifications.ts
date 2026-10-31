@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import type { RoleStanding } from '../../lib/shared/competences';
 import {
   notificationTargetPath,
   orgNotificationTarget,
@@ -61,6 +62,13 @@ function sourceRow(
   };
 }
 
+/** What the role alone says at the export door: an owner or admin exports
+ * by role, a disabled seat never, anyone else only through a live grant. */
+export function notificationExportRoleStanding(role: string): RoleStanding {
+  if (isAdminRole(role)) return 'admits';
+  return role.toLowerCase() === 'disabled' ? 'refuses' : 'grant';
+}
+
 /**
  * Whether the caller may export members' notifications — the export door's
  * gate, and `GET /me`'s `capabilities.notificationExport`, so the pre-flight
@@ -78,8 +86,8 @@ export async function mayExportNotifications(
   caller: { organizationId: string; userId: string; role: string },
   now: number,
 ): Promise<boolean> {
-  if (isAdminRole(caller.role)) return true;
-  if (caller.role.toLowerCase() === 'disabled') return false;
+  const standing = notificationExportRoleStanding(caller.role);
+  if (standing !== 'grant') return standing === 'admits';
   return holdsCapability(
     sql,
     caller.organizationId,

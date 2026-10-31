@@ -308,6 +308,29 @@ organization:
   transferOwnership: Inhaberschaft übertragen
   transferOwnershipConfirmation: Inhaberschaft an {name} übertragen? Du wirst zum Admin herabgestuft.
   ownershipTransferred: Inhaberschaft übertragen
+  memberRights:
+    action: Rechte
+    title: Rechte von {name}
+    description: Was dieses Mitglied in der Organisation darf, und warum. Ein Schalter weist das Recht als Kompetenz zu, auf Wunsch befristet, oder widerruft die Zuweisung. Jede Änderung wird im Audit-Log festgehalten.
+    loadFailed: Die Rechte konnten nicht geladen werden.
+    refreshFailed: Die Rechte konnten nicht aktualisiert werden. Was du siehst, ist vielleicht nicht mehr aktuell.
+    held: Erlaubt
+    notHeld: Nicht erlaubt
+    reasons:
+      modelApiOn: Die Modell-Endpunkte für API-Schlüssel sind für diese Organisation aktiviert.
+      modelApiOff: Die Modell-Endpunkte für API-Schlüssel sind für diese Organisation nicht aktiviert, daher kann niemand die Modelle über die API aufrufen.
+      modelApiUnreadable: Die Modellzugriffsrichtlinie kann nicht gelesen werden, daher gelten die Modell-Endpunkte als nicht aktiviert.
+      skillSharing: Die Skill-Freigabe steht auf „{mode}“.
+      roleAdmits: Die Rolle {role} umfasst dieses Recht.
+      roleGrant: Die Rolle {role} braucht für dieses Recht eine Zuweisung.
+      roleRefuses: Die Rolle {role} schließt jedes Recht aus, auch ein zugewiesenes.
+      grantActive: Zugewiesen von {name} am {granted}, ohne Ablauf.
+      grantActiveUntil: Zugewiesen von {name} am {granted}, bis {expires}.
+      grantExpired: Die Zuweisung von {name} ist am {expires} abgelaufen.
+      teamGrantActive: Dem Team „{team}“ zugewiesen von {name} am {granted}, ohne Ablauf.
+      teamGrantActiveUntil: Dem Team „{team}“ zugewiesen von {name} am {granted}, bis {expires}.
+      teamGrantExpired: Die Zuweisung von {name} an das Team „{team}“ ist am {expires} abgelaufen.
+      noGrant: Nicht zugewiesen.
 teams:
   title: Teams
   entityLabel: Teams

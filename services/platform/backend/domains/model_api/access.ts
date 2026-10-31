@@ -5,7 +5,10 @@ import {
 import type { Sql, TransactionSql } from 'postgres';
 
 import { defineAbilityFor } from '../../../lib/permissions/ability.ts';
-import type { PlatformCapability } from '../../../lib/shared/competences.ts';
+import type {
+  PlatformCapability,
+  RoleStanding,
+} from '../../../lib/shared/competences.ts';
 import {
   readGovernancePolicy,
   readGovernancePolicyForOrg,
@@ -43,6 +46,16 @@ export interface ModelApiCaller {
   role: string;
 }
 
+/** What the role alone says at this door: a disabled seat never calls, an
+ * owner, admin or developer calls by role (the role's `developerSettings`
+ * ability), anyone else only through a live grant. */
+export function modelApiRoleStanding(role: string): RoleStanding {
+  if (role.toLowerCase() === 'disabled') return 'refuses';
+  return defineAbilityFor(role).can('read', 'developerSettings')
+    ? 'admits'
+    : 'grant';
+}
+
 /** Whether the caller's role or grants admit them — independent of the
  * organization's switch. */
 export async function mayCallModelApi(
@@ -50,10 +63,8 @@ export async function mayCallModelApi(
   caller: ModelApiCaller,
   now: number = Date.now(),
 ): Promise<boolean> {
-  if (caller.role.toLowerCase() === 'disabled') return false;
-  if (defineAbilityFor(caller.role).can('read', 'developerSettings')) {
-    return true;
-  }
+  const standing = modelApiRoleStanding(caller.role);
+  if (standing !== 'grant') return standing === 'admits';
   return holdsCapability(
     sql,
     caller.organizationId,
