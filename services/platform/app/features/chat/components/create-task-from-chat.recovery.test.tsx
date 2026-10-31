@@ -23,9 +23,17 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock('../data/chat-backend', () => ({
-  useChatProjects: () => ({
+  useChatProjectChoices: () => ({
     status: 'ready',
-    data: [{ id: 'p-web', name: 'Website relaunch' }],
+    data: {
+      projects: [{ id: 'p-web', name: 'Website relaunch' }],
+      isDone: true,
+    },
+  }),
+  useChatProject: (_org: string, projectId: string | undefined) => ({
+    status: 'ready',
+    data:
+      projectId === 'p-web' ? { id: 'p-web', name: 'Website relaunch' } : null,
   }),
   useChatMessages: (_org: string, threadId: string | undefined) =>
     threadId === undefined ? { status: 'loading' } : state.messages,

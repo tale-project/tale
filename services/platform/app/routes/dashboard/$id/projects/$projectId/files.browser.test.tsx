@@ -86,7 +86,7 @@ vi.mock('@/app/features/projects/hooks/queries', async (importOriginal) => {
     ...(await importOriginal<
       typeof import('@/app/features/projects/hooks/queries')
     >()),
-    useProjects: () => ({ projects: PROJECTS, isLoading: false }),
+    useProjectChoices: () => ({ projects: PROJECTS, isLoading: false }),
     useProject: () => ({ project: { canEdit: true }, isLoading: false }),
     useProjectDocuments: () => ({ documents: [], isLoading: false }),
     useProjectFolders: (projectId: string) => ({
