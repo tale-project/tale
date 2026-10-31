@@ -114,6 +114,14 @@ export interface MultiSelectProps {
   /** Custom filter function; defaults to case-insensitive match on label + description. */
   filterFn?: (option: MultiSelectOption, query: string) => boolean;
   /**
+   * Notified whenever the search text changes, including the reset to `''`
+   * when the popover closes — `SearchableSelect`'s contract. The component
+   * keeps OWNING the value; this is a read-only mirror for consumers that
+   * must react to what was typed — a server-side search over more options
+   * than the list can hold up front.
+   */
+  onSearchChange?: (query: string) => void;
+  /**
    * Builds the accessible label for a selected chip's remove button, e.g.
    * `(option) => t('removeX', { name: option.label })`. Falls back to the
    * option label alone when omitted.
@@ -197,6 +205,7 @@ function MultiSelectBase({
   'aria-labelledby': ariaLabelledBy,
   'aria-describedby': ariaDescribedBy,
   filterFn,
+  onSearchChange,
   removeChipLabel,
   optionAction,
   modal = false,
@@ -239,6 +248,18 @@ function MultiSelectBase({
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
+  // The single write path for the query, so `onSearchChange` can't miss one —
+  // the close reset below is a change like any other, and a consumer deriving
+  // a server search from it would otherwise keep searching for a term the
+  // (now empty) search box no longer shows.
+  const updateSearch = useCallback(
+    (next: string) => {
+      setSearch(next);
+      onSearchChange?.(next);
+    },
+    [onSearchChange],
+  );
+
   const setIsOpen = useCallback(
     (next: boolean) => {
       if (!isControlled) setInternalOpen(next);
@@ -273,9 +294,9 @@ function MultiSelectBase({
       if (disabled && nextOpen) return;
       setIsOpen(nextOpen);
       if (nextOpen) setHighlightedIndex(0);
-      if (!nextOpen) setSearch('');
+      if (!nextOpen) updateSearch('');
     },
-    [disabled, setIsOpen],
+    [disabled, setIsOpen, updateSearch],
   );
 
   // Toggle keeps the popover open — multi-select picks several values per visit.
@@ -492,7 +513,7 @@ function MultiSelectBase({
                   type="text"
                   role="combobox"
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => updateSearch(e.target.value)}
                   onKeyDown={handleListKeyDown}
                   placeholder={searchPlaceholder}
                   className="placeholder:text-muted-foreground flex-1 bg-transparent text-base outline-none md:text-sm"
