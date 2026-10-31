@@ -489,9 +489,9 @@ export interface TurnRequest {
   readonly skillCatalog?: readonly SkillCatalogEntry[];
   /** The skills the person chose for this reply (`lib/skills/slash.ts`),
    * already kept to what the catalog holds. Each is read with `load_skill`
-   * before the model's first round — a step on the reply like any other,
-   * which costs no round of the model's — unless the conversation already
-   * shows it read; the context then names the choice. */
+   * before the model's first round, on every reply — a step on the reply
+   * like any other, which costs no round of the model's — and the context
+   * names the choice. */
   readonly chosenSkills?: readonly string[];
   /** The project a project-bound thread belongs to — named in the prompt as
    * the scope its tools work inside (the executor enforces that boundary

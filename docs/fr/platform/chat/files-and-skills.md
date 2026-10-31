@@ -49,6 +49,14 @@ Une image jointe peut aussi servir de point de départ à une nouvelle image qua
 
 Un skill est une méthode éprouvée pour un type de travail, comme un format de document ou une charte rédactionnelle. Ta bibliothèque de skills contient ceux qui sont partagés avec toute l’organisation ou avec tes équipes ; les skills intégrés `docx`, `xlsx`, `pptx` et `pdf` couvrent les formats Office et PDF.
 
+Dans un chat, tu utilises un skill de trois façons :
+
+| Comment tu l’utilises | Quelles réponses le lisent |
+| --- | --- |
+| Tu commences un message par `/` et le nom du skill | La réponse à ce message, avant de répondre |
+| Tu le coches sous **Skills** dans le sélecteur de modèle | Chaque réponse de la conversation, chacune avant de répondre |
+| Tu laisses faire l’assistant, qui lit un skill quand il correspond à ta demande | La réponse pour laquelle il lit le skill |
+
 Pour un seul message, tape `/` au début de la zone de saisie, ou choisis **Utiliser un skill** dans le menu **+** de la zone de saisie. Les skills que tu peux utiliser s’affichent au-dessus de la zone ; continue à taper pour réduire la liste, puis appuie sur Entrée ou sélectionnes-en un. Ton message commence alors par le nom du skill, par exemple `/docx Rédige la lettre de motivation`, et l’affiche sous forme de puce une fois envoyé. La réponse lit le skill avant de répondre : sa première étape est **Lecture du skill docx**.
 
 ![Un nouveau chat avec une barre oblique tapée dans la zone de saisie. Au-dessus, la liste des skills docx, pdf, pptx, visual-aspect-analyzer et xlsx, chacun avec le début de sa description ; docx est mis en évidence.](/images/platform/chat-skill-picker.webp)
@@ -57,7 +65,9 @@ Pour toute une conversation, ouvre le sélecteur de modèle, va dans **Skills** 
 
 L’assistant lit aussi un skill de lui-même quand l’un d’eux correspond à ta demande, ou quand tu le nommes avec tes mots. Il voit le nom et la description de chaque skill de ta bibliothèque ; dans une bibliothèque de plus de 40 skills, il voit les 40 premiers par ordre alphabétique, alors choisis tout autre skill avec `/`. Un skill que son auteur réserve à un usage explicite est fait pour que tu le choisisses : l’assistant est prié de ne pas l’utiliser autrement.
 
-Un skill guide l’assistant ; il ne change pas ce que l’assistant a le droit de faire. Les scripts et modèles d’un skill s’exécutent dans la sandbox légère, comme le code de l’assistant lui-même. Quand un admin désactive **Skills** sous Outils du chat, il n’y a rien à choisir, et un message qui commence par `/` est envoyé tel quel.
+Un skill peut aussi dire comment l’assistant écrit : un ton, un format, une formule de fin pour chaque réponse. L’assistant suit un skill tout au long de la réponse qui le lit, dans sa façon d’écrire comme dans ce qu’il fait. Un skill que l’assistant lit de lui-même est lu pour cette réponse ; les réponses suivantes ne le relisent que s’il le choisit de nouveau. Pour qu’un skill façonne chaque réponse, coche-le sous **Skills** : chaque réponse le lit alors en entier avant de répondre.
+
+Un skill guide l’assistant ; il ne change pas ce que l’assistant a le droit de faire, et là où il contredit les autres instructions de l’assistant, comme celles de ton organisation, ce sont elles qui l’emportent. Les scripts et modèles d’un skill s’exécutent dans la sandbox légère, comme le code de l’assistant lui-même ; un skill fait uniquement d’instructions ne démarre aucune sandbox. Quand un admin désactive **Skills** sous Outils du chat, il n’y a rien à choisir, et un message qui commence par `/` est envoyé tel quel.
 
 ## Connaître les limites
 
