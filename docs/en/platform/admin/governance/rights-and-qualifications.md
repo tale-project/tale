@@ -8,7 +8,7 @@ Use **Settings > Governance > Rights and qualifications** as an Admin or Owner t
 - A **right** lets a member do one narrow thing that otherwise needs a higher role. Grant it to the account behind an integration instead of making that account an Admin, which would also let it manage members, single sign-on and passwords.
 - A **qualification** is a name your organization's review policy can require of the person who approves a review.
 
-You grant a right or a qualification to one member, or a right to a [team](#grant-a-right-to-a-team). A grant applies in this organization only. Tale records every grant and revocation in the audit log, and removing a member from the organization revokes their grants.
+You grant a right or a qualification to one member, or a right to a [team](#grant-a-right-to-a-team). A grant applies in this organization only. Tale records every grant, change and revocation in the audit log, and removing a member from the organization revokes their grants.
 
 ## Rights
 
@@ -36,7 +36,7 @@ Owners and Admins have all four through their role, and Developers also have **C
 5. Optionally note the **Evidence**: why the member holds it, such as a certificate, a ticket or the system it serves. It stays in the register.
 6. Select **Grant**.
 
-The grant applies to the member's next request, so an integration does not need a restart. A member or a team holds each right or qualification once at a time: to change its expiry or evidence, revoke the grant and grant it again. If they already hold it, the dialog says so and grants nothing.
+The grant applies to the member's next request, so an integration does not need a restart. A member or a team holds each right or qualification once at a time. If they already hold it, the dialog says so and grants nothing; [change the grant](#change-a-grant) instead.
 
 ## Grant a right to a team
 
@@ -54,6 +54,16 @@ A team holds rights only. Grant a qualification to each member who needs it, bec
 
 A right can also be granted from **Settings > Members**: open the member's row menu, choose **Rights**, and turn on the right's switch. The same dialog opens with the member and the right already chosen, and the grant lands in this register. [Review a member's rights](/platform/admin/members-and-roles#member-rights) explains what the switches and their reasons show.
 
+## Change a grant
+
+Select the pencil button on an active grant's row, named **Change** with the right or qualification and its holder, to change when the grant expires or the evidence behind it. A team's grant changes the same way.
+
+1. Choose when it **Expires**: keep the current date with **Unchanged**, or choose **Never**, **In 30 days**, **In 90 days** or **In 1 year**, counted from when you save.
+2. Edit the **Evidence**, or clear it.
+3. Select **Save**.
+
+The change applies to the holder's next request. The audit log records each change with the old and the new expiry date and whether the evidence changed; the evidence itself stays in the register. An expired or revoked grant cannot be changed: grant it again instead.
+
 ## Revoke a grant
 
 Select **Revoke** on the row and confirm with **Revoke**. The member loses the right or qualification at once; for a team's grant, so do the team's members, unless they hold it through a grant of their own. The grant stays in the register as history with the status **Revoked** and the revocation date; point at the date to see who revoked it or why.
@@ -70,7 +80,7 @@ The list opens on **Active** grants. Use **Filter > Status** to include **Expire
 | **Expired** | The expiry date has passed, shown below the status. Grant it again if the member still needs it.                          |
 | **Revoked** | An Admin or Owner revoked it, a new grant replaced it after it expired, its member left the organization, or its team was deleted. The revocation date is shown below the status. |
 
-A team's grant names the team, marked **Team**; once the team is deleted it reads **Deleted team**. Every grant and revocation of a team's grant is recorded in the [audit log](/platform/admin/governance/audit-logs) with the team's ID and name.
+A team's grant names the team, marked **Team**; once the team is deleted it reads **Deleted team**. Every grant, change and revocation of a team's grant is recorded in the [audit log](/platform/admin/governance/audit-logs) with the team's ID and name.
 
 Removing a member revokes every active grant they hold — rights and qualifications alike — so a re-added member starts without them. A revoked grant whose holder has left the organization names them **Former member**. The register lists every active and expired grant, and the 1,000 most recent revoked ones as history.
 
