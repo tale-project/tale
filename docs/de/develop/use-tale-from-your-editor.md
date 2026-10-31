@@ -203,7 +203,7 @@ Jede Ablehnung kommt im Fehlerformat der Schnittstelle, die du aufgerufen hast, 
 | `403 MODEL_API_DISABLED` | Die Organisation hat die Endpunkte nicht eingeschaltet. Wende dich an einen Admin. |
 | `403 MODEL_API_FORBIDDEN` | Deine Rolle darf sie nicht aufrufen. Frag einen Admin nach der Kompetenz **Modelle über die API aufrufen**. |
 | `404 MODEL_API_MODEL_UNKNOWN` | Die ID steht nicht auf deiner Liste. Kopiere eine aus `GET /api/v1/openai/models` oder dem Tab **Modelle**, samt Slug des Anbieters. |
-| `403 MODEL_API_MODEL_FORBIDDEN` | Der Modellzugriff sperrt dieses Modell für dich. Wähle ein anderes Modell oder wende dich an einen Admin. |
+| `403 MODEL_API_MODEL_FORBIDDEN` | Der Modellzugriff sperrt dieses Modell für dich, oder die Organisation verarbeitet Prompts nur in der EU/im EWR und der Endpunkt dieses Modells liegt außerhalb. Die Meldung sagt, was zutrifft. Wähle ein anderes Modell oder wende dich an einen Admin. |
 | `400 MODEL_API_VISION_UNSUPPORTED`, `400 MODEL_API_TOOLS_UNSUPPORTED` | Wähle ein Modell, das Bilder liest oder Tools annimmt, oder sende die Anfrage ohne sie. |
 | `400 MODEL_API_VENDOR_TOOL_UNSUPPORTED` | Entferne das Tool, das der Modellanbieter selbst ausführen würde, etwa eine Websuche. In Claude Code löst das Tool WebSearch diese Ablehnung aus. |
 | `400 MODEL_API_GUARDRAIL_BLOCKED` | Eine Guardrail hat den System-Prompt oder eine Nachricht abgelehnt, und beim Modell kam nichts an. Formuliere um oder frag einen Admin nach der Regel. |

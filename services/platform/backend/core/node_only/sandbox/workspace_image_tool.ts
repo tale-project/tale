@@ -37,6 +37,8 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 
+import { isAutomationSubject } from '../../../../lib/shared/constants/usage';
+import { ModelEndpointRefusal } from '../../governance/model_endpoint_gate';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import { orgSlugFromId } from '../../lib/helpers/org_slug';
@@ -664,11 +666,25 @@ async function generateForTurn(
 
   let model: ResolvedImageModel | null;
   try {
-    model = await resolveImageGenerationModel(ctx, args.organizationId);
+    model = await resolveImageGenerationModel(
+      ctx,
+      args.organizationId,
+      isAutomationSubject(context.subject.userId)
+        ? {}
+        : { actor: { id: context.subject.userId, type: 'user' } },
+    );
   } catch (error) {
     if (error instanceof ImageGenerationError) {
       return unavailable(
         'image_generation_unavailable',
+        `${error.data.message} Tell the user; do not retry.`,
+      );
+    }
+    // The organization's EU/EEA rule refused the model (GOV-R17); it is
+    // audited, and its sentence says what an admin can change.
+    if (error instanceof ModelEndpointRefusal) {
+      return unavailable(
+        'model_endpoint_refused',
         `${error.data.message} Tell the user; do not retry.`,
       );
     }

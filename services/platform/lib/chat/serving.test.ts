@@ -4,11 +4,14 @@ import {
   SERVING_LABEL_MAX_CHARS,
   SERVING_VALUES_MAX,
   createServingTally,
+  euProcessingVerdict,
+  isAttestableEndpointHost,
   mergeServedBy,
   regionalEndpoint,
   sameServedBy,
   servedBy,
   servingLabel,
+  vendorEuEndpoint,
 } from './serving';
 
 describe('servingLabel', () => {
@@ -101,6 +104,94 @@ describe('regionalEndpoint', () => {
   ])('names no region for %s', (url) => {
     expect(regionalEndpoint(url)).toBeUndefined();
   });
+});
+
+describe('euProcessingVerdict', () => {
+  const attested = ['llm.example.eu', 'contoso-se.openai.azure.com'];
+
+  it.each([
+    'https://eu.openrouter.ai/api/v1',
+    'https://eu.api.openai.com/v1',
+    'https://api.eu.mistral.ai/v1',
+    'https://EU.OpenRouter.ai/api/v1',
+  ])('lets a vendor EU endpoint through: %s [GOV-R17]', (url) => {
+    expect(euProcessingVerdict(url, [])).toMatchObject({ allowed: true });
+  });
+
+  it.each([
+    ['https://llm.example.eu:8443/v1', 'llm.example.eu'],
+    [
+      'https://contoso-se.openai.azure.com/openai/v1',
+      'contoso-se.openai.azure.com',
+    ],
+  ])('lets an attested host through: %s [GOV-R17]', (url, host) => {
+    expect(euProcessingVerdict(url, attested)).toEqual({
+      allowed: true,
+      host,
+    });
+  });
+
+  it.each([
+    ['https://openrouter.ai/api/v1', 'openrouter.ai', 'vendor-global'],
+    ['https://api.openai.com/v1', 'api.openai.com', 'vendor-global'],
+    ['https://api.mistral.ai/v1', 'api.mistral.ai', 'vendor-global'],
+    [
+      'https://us.openrouter.ai/api/v1',
+      'us.openrouter.ai',
+      'regional-outside-eu',
+    ],
+    [
+      'https://us.api.openai.com/v1',
+      'us.api.openai.com',
+      'regional-outside-eu',
+    ],
+    ['https://api.anthropic.com', 'api.anthropic.com', 'not-attested'],
+    [
+      'https://other-us.openai.azure.com/openai/v1',
+      'other-us.openai.azure.com',
+      'not-attested',
+    ],
+  ])('refuses %s [GOV-R17]', (url, host, reason) => {
+    expect(euProcessingVerdict(url, attested)).toEqual({
+      allowed: false,
+      host,
+      reason,
+    });
+  });
+
+  it('counts a vendor host only as its EU endpoint, attested or not [GOV-R17]', () => {
+    expect(
+      euProcessingVerdict('https://openrouter.ai/api/v1', ['openrouter.ai']),
+    ).toMatchObject({ allowed: false, reason: 'vendor-global' });
+    expect(isAttestableEndpointHost('openrouter.ai')).toBe(false);
+    expect(isAttestableEndpointHost('us.api.openai.com')).toBe(false);
+    expect(isAttestableEndpointHost('proxy.mistral.ai')).toBe(false);
+    expect(isAttestableEndpointHost('llm.example.eu')).toBe(true);
+    expect(isAttestableEndpointHost('[fd00::1]')).toBe(true);
+  });
+
+  it.each([
+    ['openrouter.ai', 'eu.openrouter.ai'],
+    ['us.openrouter.ai', 'eu.openrouter.ai'],
+    ['api.openai.com', 'eu.api.openai.com'],
+    ['US.API.OpenAI.com', 'eu.api.openai.com'],
+    ['api.mistral.ai', 'api.eu.mistral.ai'],
+    ['api.anthropic.com', undefined],
+    ['llm.example.eu', undefined],
+  ])('names the EU endpoint of the vendor of %s [GOV-R17]', (host, eu) => {
+    expect(vendorEuEndpoint(host)).toBe(eu);
+  });
+
+  it.each([undefined, '', 'not a url', 'file:///etc/hosts'])(
+    'refuses an endpoint that names no host: %j [GOV-R17]',
+    (url) => {
+      expect(euProcessingVerdict(url, attested)).toEqual({
+        allowed: false,
+        host: undefined,
+        reason: 'unknown-endpoint',
+      });
+    },
+  );
 });
 
 describe('createServingTally', () => {
