@@ -27,7 +27,7 @@ import {
 } from 'lucide-react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { useProjects } from '@/app/features/projects/hooks/queries';
+import { useNamedProjects } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { usePreloadRoute } from '@/app/hooks/use-preload-route';
 import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
@@ -56,6 +56,8 @@ import {
   triggerReadinessOf,
 } from './trigger-readiness-badge';
 import { UploadAutomationDialog } from './upload-automation-dialog';
+
+const NO_PROJECT_IDS: readonly string[] = [];
 
 interface AutomationListRow {
   name: string;
@@ -116,16 +118,23 @@ export function AutomationsList({
     projectId,
     projectId === undefined,
   );
-  const { projects } = useProjects(organizationId);
-  const projectNames = useMemo(
-    () =>
-      new Map<string, string>(
-        projects.map((project) => [project._id, project.name]),
-      ),
-    [projects],
-  );
   const canAuthor = ability.can('read', 'developerSettings');
   const showProjectsColumn = projectId === undefined;
+  // The projects column names the projects the rows are bound to, each read
+  // from the page of projects or by id: never every project (#5204).
+  const boundProjectIds = useMemo(
+    () =>
+      showProjectsColumn
+        ? (automationsQuery.data ?? []).flatMap(
+            (automation) => automation.projectIds,
+          )
+        : NO_PROJECT_IDS,
+    [showProjectsColumn, automationsQuery.data],
+  );
+  const { projects: projectNames } = useNamedProjects(
+    organizationId,
+    boundProjectIds,
+  );
 
   const rows = useMemo<AutomationListRow[]>(() => {
     const listed = [...(automationsQuery.data ?? [])].sort((a, b) =>
@@ -223,7 +232,8 @@ export function AutomationsList({
             <HStack gap={1} wrap>
               {row.original.projectIds.map((boundProjectId) => (
                 <Badge key={boundProjectId} variant="blue" icon={FolderKanban}>
-                  {projectNames.get(boundProjectId) ?? t('list.projectBound')}
+                  {projectNames.get(boundProjectId)?.name ??
+                    t('list.projectBound')}
                 </Badge>
               ))}
             </HStack>

@@ -47,9 +47,15 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
     isError: false,
   }),
   useAgentSecrets: () => ({ data: [] }),
-  useProjects: () => ({
-    projects: [{ _id: 'proj-7', name: 'Billing' }],
-    isLoading: false,
+  // The project the dialog creates in is named by id, never out of every
+  // project (#5204).
+  useNamedProjects: (_organizationId: string, ids: readonly string[]) => ({
+    projects: new Map(
+      ids.includes('proj-7')
+        ? [['proj-7', { _id: 'proj-7', name: 'Billing' }]]
+        : [],
+    ),
+    isPending: false,
   }),
 }));
 
