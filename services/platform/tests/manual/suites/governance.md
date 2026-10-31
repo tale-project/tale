@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 101 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 102 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -822,6 +822,23 @@ agent.
   custom provider as the way out. Each refusal adds one **Model access
   denied** row to **Logs** with its surface (`automation`, `transcription`,
   `model-api`). Turn the switch off → each call goes through again.
+- [ ] `GOV-F78` · **With the EU/EEA rule on, the pickers offer only what it lets through** —
+  With the switch on (GOV-F70), the OpenAI catalog provider configured and a
+  custom provider whose attested host serves a chat, an image, a transcription
+  and an embedding model: as a member, open the chat composer's model list →
+  it lists no OpenAI model, says under the list that only models whose
+  endpoint processes prompts in the EU/EEA are offered
+  (`common.hiddenModels.eu`), and **Auto** answers with the custom provider's
+  model. As an admin on `content-models`: **Default models** → a rule's
+  provider list leaves OpenAI out and shows the same line; the image
+  generation and audio transcription model selects and the standard agent's
+  model select offer only the custom provider's models, each with the line;
+  an agent's and an automation `llm` step's model select do the same. On
+  **Settings > Data residency**, choosing OpenAI for embeddings shows it
+  refused by the EU/EEA rule and offers no model. With the model endpoints on
+  (GOV-F41), `GET /api/v1/openai/models` with a Developer's key lists no
+  OpenAI model. Turn the switch off → every picker offers the OpenAI models
+  again and none shows the line. Restore the state you found.
 - [ ] `GOV-F38` · **Image generation is off until an admin turns it on** — On
   `content-models` in a fresh organization, find **Image generation**
   (`governance.imageGeneration.title`), then **Start agent**

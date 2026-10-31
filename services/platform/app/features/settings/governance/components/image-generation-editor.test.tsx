@@ -67,6 +67,8 @@ vi.mock('../hooks/queries', () => ({
 
 const TOGGLE = 'Allow image generation';
 const PICKER = 'Image model';
+const EU_NOTE =
+  /Only models whose endpoint processes prompts in the EU\/EEA are offered/;
 
 function HeaderActions() {
   const editor = useActiveEditor();
@@ -183,6 +185,18 @@ describe('image generation settings', () => {
         'Images are currently created with openrouter · google/gemini-2.5-flash-image, the recommended choice.',
       ),
     ).toBeInTheDocument();
+  });
+
+  it('says why models are missing when the EU/EEA rule left some out, and nothing while it is off [GOV-R22]', async () => {
+    state.config = { enabled: true };
+    state.image = { ...state.image, enabled: true };
+    const { unmount } = await renderEditor();
+    expect(screen.queryByText(EU_NOTE)).not.toBeInTheDocument();
+    unmount();
+
+    state.image = { ...state.image, modelsHiddenBy: 'eu' };
+    await renderEditor();
+    expect(screen.getByText(EU_NOTE)).toBeInTheDocument();
   });
 
   it('pins a listed model through Save, keeping the policy on', async () => {

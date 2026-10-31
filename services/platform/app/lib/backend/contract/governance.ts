@@ -12,6 +12,8 @@ import type { PolicyType } from '@tale/shared/schemas/governance';
 import type { MemberRights } from '@/lib/shared/competences';
 import type { RetentionCategory } from '@/lib/shared/schemas/retention';
 
+import type { HiddenModelsRule } from './lib';
+
 /** One row of the competence register (`GET /governance/competences`) —
  * revoked and expired grants included, because the register is the audit
  * trail, not only the current roster. */
@@ -756,6 +758,8 @@ export interface GovernanceContract {
       /** The models the reader may call there, by the id both wires take —
        * empty unless `enabled` and `allowed` both hold. */
       models: Array<{ id: string; label: string }>;
+      /** The EU/EEA processing rule left models out (GOV-R22). */
+      modelsHiddenBy?: HiddenModelsRule;
     };
   };
   'governance/queries:getMyApiKeyAccess': {
