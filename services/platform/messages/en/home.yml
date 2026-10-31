@@ -25,6 +25,8 @@ projects:
   allProjects: All projects
   actions: 'Actions for {project}'
   empty: No projects yet
+  # The collapsed count when the organization has more projects than Home lists.
+  countMore: '{count}+'
 scope:
   open: Open project
   emptyChatsTitle: No chats in this project

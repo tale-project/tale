@@ -341,6 +341,7 @@ function homeData(
     items,
     threadsById: new Map(threads.map((thread) => [thread.id, thread])),
     projects,
+    moreProjects: false,
     loading: {
       chats: false,
       tasks: false,
