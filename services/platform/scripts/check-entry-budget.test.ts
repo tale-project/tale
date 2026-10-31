@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -5,12 +6,15 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  checkColdLoad,
   checkLazyChunk,
+  COLD_LOAD_MAX_GZIP,
   dynamicImportersOf,
   findForbiddenContent,
   findForbiddenPreloads,
   forbiddenPackagesIn,
   forbiddenSourcesIn,
+  gzipTotal,
   parsePreloadedScripts,
   staticClosure,
   staticImportsOf,
@@ -27,7 +31,7 @@ afterEach(() => {
  * A built dist with these chunks and source maps. Its parent stands for the
  * service root: a map's `../../messages/en/common.yml` names that file.
  */
-function distWith(files: Record<string, string>): string {
+function distWith(files: Record<string, string | Uint8Array>): string {
   const dist = mkdtempSync(join(tmpdir(), 'entry-budget-'));
   dists.push(dist);
   mkdirSync(join(dist, 'assets'));
@@ -406,6 +410,53 @@ describe('uncheckedContent', () => {
     });
     expect(uncheckedContent(dist, ['assets/index-a1.js'])).toEqual([
       "no preloaded chunk's source map names messages/en/common.yml",
+    ]);
+  });
+});
+
+describe('checkColdLoad', () => {
+  const ENTRY = 'assets/index-a1.js';
+  const VENDOR = 'assets/vendor-core-b2.js';
+  const big = Array.from({ length: 4000 }, (_, index) => `v${index * 7919}`);
+  const chunks = {
+    [ENTRY]: `import"./vendor-core-b2.js";const x=${JSON.stringify(big)};`,
+    [VENDOR]: 'export const react=1;',
+  };
+
+  it('passes a cold load at its ceiling, and names the total and the ceiling over it', () => {
+    const dist = distWith(chunks);
+    const gzip = gzipTotal(dist, [ENTRY, VENDOR]);
+    expect(checkColdLoad(dist, [ENTRY, VENDOR], gzip)).toEqual({
+      gzip,
+      problems: [],
+    });
+    expect(checkColdLoad(dist, [ENTRY, VENDOR], 2048)).toEqual({
+      gzip,
+      problems: [`${(gzip / 1024).toFixed(0)} KB gzip, over its 2 KB`],
+    });
+  });
+
+  it('counts every preloaded module', () => {
+    const dist = distWith(chunks);
+    const each = Math.max(gzipTotal(dist, [ENTRY]), gzipTotal(dist, [VENDOR]));
+    expect(checkColdLoad(dist, [ENTRY], each).problems).toEqual([]);
+    expect(checkColdLoad(dist, [VENDOR], each).problems).toEqual([]);
+    expect(checkColdLoad(dist, [ENTRY, VENDOR], each).problems).toHaveLength(1);
+  });
+
+  it('holds the cold load to COLD_LOAD_MAX_GZIP when given no ceiling', () => {
+    const dist = distWith({
+      [ENTRY]: chunks[ENTRY],
+      // Random bytes do not compress: gzip only makes them larger.
+      [VENDOR]: randomBytes(COLD_LOAD_MAX_GZIP),
+    });
+    expect(checkColdLoad(dist, [ENTRY]).problems).toEqual([]);
+    expect(checkColdLoad(dist, [ENTRY, VENDOR]).problems).toEqual([
+      expect.stringMatching(
+        new RegExp(
+          ` KB gzip, over its ${(COLD_LOAD_MAX_GZIP / 1024).toFixed(0)} KB$`,
+        ),
+      ),
     ]);
   });
 });
