@@ -289,7 +289,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Kompetenzen",
-      "description": "Gib einem Mitglied ein einzelnes, eng begrenztes Recht oder eine Qualifikation ohne Admin-Rolle und widerrufe es, wenn es nicht mehr gebraucht wird."
+      "description": "Gib einem Mitglied oder einem Team ein einzelnes, eng begrenztes Recht oder einem Mitglied eine Qualifikation ohne Admin-Rolle und widerrufe es, wenn es nicht mehr gebraucht wird."
     }
   },
   "de:platform/admin/governance/content-models": {
@@ -1532,7 +1532,7 @@
     "locale": "en",
     "frontmatter": {
       "title": "Competences",
-      "description": "Give a member one narrow right or a qualification without an Admin role, and revoke it when it is no longer needed."
+      "description": "Give a member or a team one narrow right, or a member a qualification, without an Admin role, and revoke it when it is no longer needed."
     }
   },
   "en:platform/admin/governance/content-models": {
@@ -2772,7 +2772,7 @@
     "locale": "fr",
     "frontmatter": {
       "title": "Compétences",
-      "description": "Accorde à un membre un droit bien délimité ou une qualification sans rôle Admin, et révoque-le quand il n’est plus nécessaire."
+      "description": "Accorde à un membre ou à une équipe un droit bien délimité, ou à un membre une qualification, sans rôle Admin, et révoque-le quand il n’est plus nécessaire."
     }
   },
   "fr:platform/admin/governance/content-models": {

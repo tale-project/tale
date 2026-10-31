@@ -26651,6 +26651,360 @@ async function checkCompetences(
 }
 
 /**
+ * A competence grant to a team (GOV-R19, GOV-R20). A member an admin added
+ * holds the team's platform capability, and so does one the admin adds
+ * after the grant; a membership written outside the admin door, as SCIM or
+ * SSO group sync writes it, carries nothing. A synced team and a
+ * qualification are refused. A member's own expired grant does not hide the
+ * team's live one. Leaving the team, revoking the grant and deleting the
+ * team each end the right, and the audit log names the team. Migration 0226
+ * records the memberships it finds, except the identity provider's, and a
+ * second run changes nothing.
+ */
+async function checkTeamCompetenceGrants(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string; userId: string },
+): Promise<void> {
+  const { cookie, orgId, userId } = ctx;
+  const now = Date.now();
+  const capability = 'tale:models.api';
+  const { holdsCapability } =
+    await import('./domains/governance/competence.ts');
+  const { mayConnectAgentIn, mayCreateApiKeys } =
+    await import('./auth/api-key-create-gate.ts');
+  const send = (
+    method: 'GET' | 'POST' | 'DELETE',
+    route: string,
+    body?: unknown,
+  ): Promise<Response> =>
+    fetch(`${base}${route}${route.includes('?') ? '&' : '?'}orgId=${orgId}`, {
+      method,
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+  const errorOf = async (response: Response): Promise<string> => {
+    const parsed = z
+      .looseObject({ error: z.string().optional() })
+      .safeParse(await response.json().catch(() => null));
+    return parsed.success ? (parsed.data.error ?? '') : '';
+  };
+  const mkTeam = async (name: string): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO "team" ("id", "name", "organizationId", "createdAt",
+                          "updatedAt")
+      VALUES (gen_random_uuid(), ${name}, ${orgId}, ${new Date()},
+              ${new Date()})
+      RETURNING "id"
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const addByAdmin = async (teamId: string, memberId: string) => {
+    const res = await send('POST', `/api/app/teams/${teamId}/members`, {
+      userId: memberId,
+    });
+    const parsed = z
+      .object({ id: z.string() })
+      .safeParse(await res.json().catch(() => null));
+    return { status: res.status, id: parsed.success ? parsed.data.id : '' };
+  };
+  const holds = (memberId: string): Promise<boolean> =>
+    holdsCapability(sql, orgId, memberId, capability, Date.now());
+
+  const team = await mkTeam('Grant holders');
+  const synced = await mkTeam('Grant holders (synced)');
+  await sql`
+    INSERT INTO app.sso_synced_teams (org_id, team_id, created_at_ms)
+    VALUES (${orgId}, ${synced}, ${now})
+  `;
+  const early = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'teamgrant-a',
+    'member',
+  );
+  const late = await signUpOrgMember(sql, base, orgId, 'teamgrant-b', 'member');
+  const byIdp = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'teamgrant-c',
+    'member',
+  );
+  const earlyAdd = await addByAdmin(team, early.userId);
+  // The membership an identity provider's sync writes: the "teamMember" row
+  // alone, without the record the admin door keeps.
+  await sql`
+    INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+    VALUES (gen_random_uuid(), ${team}, ${byIdp.userId}, ${new Date()})
+  `;
+  // `early` also holds an expired grant of their own, which must not hide
+  // the team's live one (one row per holder, expiry checked in SQL).
+  await sql`
+    INSERT INTO app.competence_records (
+      org_id, user_id, competence, granted_by, granted_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, ${early.userId}, ${capability}, ${userId},
+      ${now - 86_400_000}, ${now - 3_600_000}
+    )
+  `;
+
+  const grant = await send('POST', '/api/app/governance/competences', {
+    teamId: team,
+    competence: capability,
+  });
+  const granted = z
+    .object({ recordId: z.string() })
+    .safeParse(await grant.json().catch(() => null));
+  const recordId = granted.success ? granted.data.recordId : '';
+  const again = await send('POST', '/api/app/governance/competences', {
+    teamId: team,
+    competence: capability,
+  });
+  const qualification = await send('POST', '/api/app/governance/competences', {
+    teamId: team,
+    competence: 'iso-13485-auditor',
+  });
+  const toSynced = await send('POST', '/api/app/governance/competences', {
+    teamId: synced,
+    competence: capability,
+  });
+  const earlyHolds = await holds(early.userId);
+  const idpHolds = await holds(byIdp.userId);
+  const lateBefore = await holds(late.userId);
+  const lateAdd = await addByAdmin(team, late.userId);
+  const lateAfter = await holds(late.userId);
+  const lateConnects = await mayConnectAgentIn(sql, {
+    organizationId: orgId,
+    userId: late.userId,
+    role: 'member',
+  });
+  const lateCreatesKeys = await mayCreateApiKeys(sql, late.userId);
+  const idpCreatesKeys = await mayCreateApiKeys(sql, byIdp.userId);
+  const register = z
+    .object({
+      records: z.array(
+        z
+          .object({
+            id: z.string(),
+            userId: z.string().nullable(),
+            teamId: z.string().nullable(),
+            teamName: z.string().nullable(),
+          })
+          .loose(),
+      ),
+    })
+    .safeParse(
+      await (await send('GET', '/api/app/governance/competences')).json(),
+    );
+  const listed = register.success
+    ? register.data.records.find((row) => row.id === recordId)
+    : undefined;
+  record(
+    'competences: a team grant reaches the members an admin added, later ones included, and no synced membership',
+    grant.status === 201 &&
+      granted.success &&
+      again.status === 409 &&
+      (await errorOf(again)) === 'COMPETENCE_ALREADY_GRANTED' &&
+      qualification.status === 400 &&
+      (await errorOf(qualification)) === 'COMPETENCE_TEAM_CAPABILITY_ONLY' &&
+      toSynced.status === 409 &&
+      (await errorOf(toSynced)) === 'COMPETENCE_TEAM_SYNCED' &&
+      earlyAdd.status === 201 &&
+      earlyHolds &&
+      !idpHolds &&
+      !lateBefore &&
+      lateAdd.status === 201 &&
+      lateAfter &&
+      lateConnects &&
+      lateCreatesKeys &&
+      !idpCreatesKeys &&
+      listed?.userId === null &&
+      listed.teamId === team &&
+      listed.teamName === 'Grant holders',
+    `grant → ${grant.status} (want 201), again → ${again.status} (want 409), qualification → ${qualification.status} (want 400), synced team → ${toSynced.status} (want 409); early add → ${earlyAdd.status} holds=${earlyHolds} (want true despite an expired own grant); IdP-made membership holds=${idpHolds} keys=${idpCreatesKeys} (want false); late before=${lateBefore} add → ${lateAdd.status} after=${lateAfter} connects=${lateConnects} keys=${lateCreatesKeys} (want false, 201, true, true, true); register row=${JSON.stringify(listed)}`,
+  );
+
+  // Leaving the team ends the right; the others keep it.
+  const leave = await send(
+    'DELETE',
+    `/api/app/teams/members/by-id/${lateAdd.id}`,
+  );
+  const lateAfterLeave = await holds(late.userId);
+  const earlyAfterLeave = await holds(early.userId);
+  const lateMark = await sql<{ count: string }[]>`
+    SELECT count(*)::text AS count FROM app.admin_added_team_members
+    WHERE team_member_id = ${lateAdd.id}
+  `;
+  // Revoking the grant ends it for everyone.
+  const revoke = await send(
+    'POST',
+    `/api/app/governance/competences/${recordId}/revoke`,
+    {},
+  );
+  const earlyAfterRevoke = await holds(early.userId);
+  const audit = await sql<
+    { action: string; state: Record<string, unknown> | null }[]
+  >`
+    SELECT action, new_state AS state FROM app.audit_logs
+    WHERE org_id = ${orgId} AND resource_id = ${recordId}
+    ORDER BY ts
+  `;
+  const audited = (action: string): boolean =>
+    audit.some(
+      (row) =>
+        row.action === action &&
+        row.state?.teamId === team &&
+        row.state.teamName === 'Grant holders',
+    );
+  record(
+    'competences: leaving the team or revoking the team grant ends the right, and the audit names the team',
+    leave.status === 200 &&
+      !lateAfterLeave &&
+      earlyAfterLeave &&
+      lateMark[0]?.count === '0' &&
+      revoke.status === 200 &&
+      !earlyAfterRevoke &&
+      audited('competence_granted') &&
+      audited('competence_revoked'),
+    `leave → ${leave.status} (want 200), late holds=${lateAfterLeave} (want false), early holds=${earlyAfterLeave} (want true), late's admin record=${lateMark[0]?.count} (want 0); revoke → ${revoke.status} (want 200), early holds=${earlyAfterRevoke} (want false); audit=${JSON.stringify(audit)}`,
+  );
+
+  // Deleting the team revokes its live grants, by 'system'.
+  const regrant = await send('POST', '/api/app/governance/competences', {
+    teamId: team,
+    competence: capability,
+  });
+  const regranted = z
+    .object({ recordId: z.string() })
+    .safeParse(await regrant.json().catch(() => null));
+  const deleted = await send('DELETE', `/api/app/teams/${team}`);
+  const retired = z
+    .object({
+      retirement: z.object({ competenceGrantsRevoked: z.number() }).loose(),
+    })
+    .safeParse(await deleted.json().catch(() => null));
+  const afterDelete = await sql<{ revokedBy: string | null; marks: string }[]>`
+    SELECT
+      (SELECT revoked_by FROM app.competence_records
+        WHERE id = ${regranted.success ? regranted.data.recordId : ''})
+        AS "revokedBy",
+      (SELECT count(*) FROM app.admin_added_team_members
+        WHERE org_id = ${orgId} AND team_id = ${team})::text AS marks
+  `;
+  const earlyAfterDelete = await holds(early.userId);
+  record(
+    'competences: deleting a team revokes its grants and forgets its admin-made memberships',
+    regrant.status === 201 &&
+      deleted.status === 200 &&
+      retired.success &&
+      retired.data.retirement.competenceGrantsRevoked === 1 &&
+      afterDelete[0]?.revokedBy === 'system' &&
+      afterDelete[0].marks === '0' &&
+      !earlyAfterDelete,
+    `regrant → ${regrant.status} (want 201), delete → ${deleted.status} (want 200) revoked=${retired.success ? retired.data.retirement.competenceGrantsRevoked : 'unparsed'} (want 1), grant revoked by=${String(afterDelete[0]?.revokedBy)} (want system), admin records left=${afterDelete[0]?.marks} (want 0), early holds=${earlyAfterDelete} (want false)`,
+  );
+
+  // ---- migration 0226: the backfill skips the identity provider's ------
+  // Re-applied over memberships that carry no record: a plain one is
+  // recorded; one the sign-in sync records as its own, one of a team SSO
+  // created and one of a team SCIM links as a Group are not; a second pass
+  // changes nothing.
+  const plain = await mkTeam('Backfill plain');
+  const ssoTeam = await mkTeam('Backfill SSO');
+  const scimTeam = await mkTeam('Backfill SCIM');
+  await sql`
+    INSERT INTO app.sso_synced_teams (org_id, team_id, created_at_ms)
+    VALUES (${orgId}, ${ssoTeam}, ${now})
+  `;
+  await sql`
+    INSERT INTO app.sso_provisioning_links (
+      org_id, resource_type, internal_id, external_id, created_at_ms,
+      updated_at_ms
+    ) VALUES (
+      ${orgId}, 'Group', ${scimTeam}, 'itest-backfill-group', ${now}, ${now}
+    )
+  `;
+  await sql`
+    INSERT INTO app.sso_synced_team_members (
+      org_id, team_id, user_id, created_at_ms
+    ) VALUES (${orgId}, ${plain}, ${late.userId}, ${now})
+  `;
+  const unrecorded = async (
+    teamId: string,
+    memberId: string,
+  ): Promise<string> => {
+    const rows = await sql<{ id: string }[]>`
+      INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
+      VALUES (gen_random_uuid(), ${teamId}, ${memberId}, ${new Date()})
+      RETURNING "id"
+    `;
+    return rows[0]?.id ?? '';
+  };
+  const plainMembership = await unrecorded(plain, early.userId);
+  const backfilled = [
+    plainMembership,
+    await unrecorded(plain, late.userId),
+    await unrecorded(ssoTeam, early.userId),
+    await unrecorded(scimTeam, early.userId),
+  ];
+  const teamGrantsMigration = await readFile(
+    new URL('./db/migrations/0226_competence_team_grants.sql', import.meta.url),
+    'utf8',
+  );
+  const recordsAfter = async () =>
+    sql<{ id: string; orgId: string; teamId: string; at: number }[]>`
+      SELECT team_member_id AS id, org_id AS "orgId", team_id AS "teamId",
+             created_at_ms::float8 AS at
+      FROM app.admin_added_team_members
+      WHERE team_member_id = ANY(${backfilled}::text[])
+      ORDER BY team_member_id
+    `;
+  await sql.unsafe(teamGrantsMigration);
+  const firstBackfill = await recordsAfter();
+  await sql.unsafe(teamGrantsMigration);
+  const secondBackfill = await recordsAfter();
+  record(
+    "competences: migration 0226 records every membership but the identity provider's, idempotently",
+    firstBackfill.length === 1 &&
+      firstBackfill[0]?.id === plainMembership &&
+      firstBackfill[0].orgId === orgId &&
+      firstBackfill[0].teamId === plain &&
+      JSON.stringify(secondBackfill) === JSON.stringify(firstBackfill),
+    `recorded=${JSON.stringify(firstBackfill)} (want only ${plainMembership}, of team ${plain}, out of ${backfilled.length}), idempotent=${JSON.stringify(secondBackfill) === JSON.stringify(firstBackfill)}`,
+  );
+
+  await sql`
+    DELETE FROM app.admin_added_team_members
+    WHERE team_member_id = ANY(${backfilled}::text[])
+  `;
+  await sql`DELETE FROM "teamMember" WHERE "id" = ANY(${backfilled}::text[])`;
+  await sql`
+    DELETE FROM app.sso_synced_team_members
+    WHERE org_id = ${orgId} AND team_id = ${plain}
+  `;
+  await sql`
+    DELETE FROM app.sso_provisioning_links
+    WHERE org_id = ${orgId} AND internal_id = ${scimTeam}
+  `;
+  await sql`
+    DELETE FROM app.competence_records
+    WHERE org_id = ${orgId} AND (team_id = ${team} OR user_id = ${early.userId})
+  `;
+  await sql`
+    DELETE FROM app.sso_synced_teams
+    WHERE team_id = ANY(${[synced, ssoTeam]}::text[])
+  `;
+  await sql`
+    DELETE FROM "team" WHERE "id" = ANY(${[synced, plain, ssoTeam, scimTeam]}::text[])
+  `;
+  for (const member of [early, late, byIdp]) {
+    await sql`DELETE FROM "member" WHERE "id" = ${member.memberId}`;
+  }
+}
+
+/**
  * The tasks/collab integrity batch — the user-expectation lens on the task
  * board: you cannot cancel another task's run through your own task's door;
  * a card parked at In review (by the bulk bar, an external close, the
@@ -63613,6 +63967,7 @@ async function checkTeamScopeRetirement(
           documentsRetagged: z.number(),
           conversationsUnassigned: z.number(),
           syncConfigsUnscoped: z.number(),
+          competenceGrantsRevoked: z.number(),
           nowOrgWide: z.object({
             projects: z.number(),
             folders: z.number(),
@@ -63653,6 +64008,7 @@ async function checkTeamScopeRetirement(
       retirement.documentsRetagged === 1 &&
       retirement.conversationsUnassigned === 0 &&
       retirement.syncConfigsUnscoped === 0 &&
+      retirement.competenceGrantsRevoked === 0 &&
       retirement.nowOrgWide.projects === 2 &&
       retirement.nowOrgWide.folders === 1 &&
       retirement.nowOrgWide.documents === 1 &&
@@ -63672,7 +64028,7 @@ async function checkTeamScopeRetirement(
       readsLegacyAfter &&
       readsArrayAfter &&
       deleteBAgain.status === 404,
-    `preview → ${impactB.status}: ${JSON.stringify(iB)} (want projects 2/2, folders 1/1, documents 1/1); delete → ${deleteB.status} ${JSON.stringify(retirement)} (want 2/1/1/0/0, org-wide 2/1/1, no touchedFileDocumentIds); after: project ids=[${afterApp.legacyIds.length}]/[${afterApp.arrayIds.length}] mirrors=${String(afterApp.legacyTeam)}/${String(afterApp.arrayTeam)} folder=[${afterApp.folderTags.length}] doc=[${afterApp.docTags.length}] (want all empty/null); team rows=${teamBRows[0]?.teams} members=${teamBRows[0]?.members} (want 0/0); audit rows=${appAudit.length} projectsRetagged=${String(appAudit[0]?.metadata?.projectsRetagged)}; member now reads legacy=${readsLegacyAfter} array=${readsArrayAfter} (want true); second delete → ${deleteBAgain.status} (want 404)`,
+    `preview → ${impactB.status}: ${JSON.stringify(iB)} (want projects 2/2, folders 1/1, documents 1/1); delete → ${deleteB.status} ${JSON.stringify(retirement)} (want 2/1/1/0/0/0, org-wide 2/1/1, no touchedFileDocumentIds); after: project ids=[${afterApp.legacyIds.length}]/[${afterApp.arrayIds.length}] mirrors=${String(afterApp.legacyTeam)}/${String(afterApp.arrayTeam)} folder=[${afterApp.folderTags.length}] doc=[${afterApp.docTags.length}] (want all empty/null); team rows=${teamBRows[0]?.teams} members=${teamBRows[0]?.members} (want 0/0); audit rows=${appAudit.length} projectsRetagged=${String(appAudit[0]?.metadata?.projectsRetagged)}; member now reads legacy=${readsLegacyAfter} array=${readsArrayAfter} (want true); second delete → ${deleteBAgain.status} (want 404)`,
   );
 
   // ---- Door 3 — Better Auth's own remove-team: the plugin's hook still
@@ -66239,6 +66595,10 @@ async function main(): Promise<void> {
       [
         'checkCompetences',
         () => checkCompetences(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
+      [
+        'checkTeamCompetenceGrants',
+        () => checkTeamCompetenceGrants(sql, baseUrl, authCtx),
       ],
       ['checkProjectTail', () => checkProjectTail(sql, baseUrl, authCtx)],
       ['checkRunProvenance', () => checkRunProvenance(sql, authCtx)],
