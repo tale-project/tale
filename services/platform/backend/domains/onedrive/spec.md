@@ -37,6 +37,18 @@ A subfolder of the synced folder becomes a subfolder under the destination, not 
 - **Example**: A synced OneDrive folder has a subfolder `2026`, and the sync files into the
   library folder `Finance` → the files of `2026` land in a subfolder `2026` under `Finance`.
 
+### ODRIVE-R10 · A Loop page is imported as the PDF Microsoft makes of it
+
+Tale reads no Loop file (`.loop`), so a sync or an import asks Microsoft for the page as a PDF
+and keeps that instead, named after the page with `.pdf` added: it is indexed like any PDF. A
+page Microsoft does not convert, or one past Microsoft's 2 MB limit for converting, is kept as
+it is and marked as not supported, until the page changes. A Loop page imported before Tale
+converted them is converted the next time a sync or an import reaches it, even unchanged.
+
+- **Example**: Mia keeps the OneDrive folder `Meetings` in sync, which holds
+  `Daily stand-up.loop` → Tale shows the document `Daily stand-up.loop.pdf`, and a search
+  finds what the page says.
+
 ## When the synced folder is gone
 
 ### ODRIVE-R5 · When the synced folder was deleted at the source, its documents are removed

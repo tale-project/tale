@@ -1134,3 +1134,349 @@ describe('onedrive importFiles says why a file was refused', () => {
     vi.mocked(console.error).mockRestore();
   });
 });
+
+type Downloaded = Awaited<
+  ReturnType<ImportFilesDependencies['downloadToStorage']>
+>;
+
+/**
+ * A Loop page (`.loop`) is read by no extractor, so it sat "Not indexed"
+ * for good (#2599). The import asks Graph for the PDF it makes of the page
+ * and keeps that in its place, named after the page; a page Microsoft will
+ * not convert is kept as it is, for the terminal lane to mark once.
+ */
+describe('onedrive importFiles keeps a Loop page as its PDF [ODRIVE-R10]', () => {
+  const page: ImportItem = {
+    id: 'loop-1',
+    name: 'Daily stand-up.loop',
+    size: 120_000,
+    relativePath: 'Daily stand-up.loop',
+    isDirectlySelected: true,
+  };
+  const pdf: Downloaded = {
+    success: true,
+    storageId: 'storage-pdf' as Id<'_storage'>,
+    mimeType: 'application/pdf',
+    size: 4_000,
+  };
+  const raw: Downloaded = {
+    success: true,
+    storageId: 'storage-raw' as Id<'_storage'>,
+    mimeType: 'application/octet-stream',
+    size: 120_000,
+  };
+  const refused: Downloaded = {
+    success: false,
+    error: 'Failed to download file: 406 {"error":{"code":"notSupported"}}',
+    notConvertible: true,
+  };
+
+  /** Graph: `conversion` when a format is asked for, else the page. */
+  const graph = (conversion: Downloaded) =>
+    vi.fn(async ({ format }: { format?: 'pdf' }) =>
+      format === 'pdf' ? conversion : raw,
+    );
+
+  /** The page as an earlier run stored it, unchanged since. */
+  const storedPage = (metadata: Record<string, unknown>) => ({
+    findDocumentByExternalId: vi.fn().mockResolvedValue({
+      _id: 'doc-1' as Id<'documents'>,
+      contentHash: 'h1',
+      metadata: { sourceMode: 'auto', syncConfigId: 'cfg-1', ...metadata },
+    }),
+    getFileMetadata: vi.fn().mockResolvedValue({
+      success: true,
+      data: { hash: 'h1', size: 120_000 },
+    }),
+  });
+
+  it.each(['sync', 'one-time'] as const)(
+    'keeps the PDF Graph makes of a page (%s), named after the page',
+    async (importType) => {
+      const downloadToStorage = graph(pdf);
+      const deps = makeDeps({ downloadToStorage });
+
+      const result = await importFiles(
+        { ...baseArgs, items: [page], importType },
+        deps,
+      );
+
+      expect(result).toMatchObject({ success: true, successCount: 1 });
+      expect(result.results[0]).toMatchObject({
+        fileId: 'loop-1',
+        fileName: 'Daily stand-up.loop',
+        status: 'success',
+      });
+      expect(downloadToStorage).toHaveBeenCalledTimes(1);
+      expect(downloadToStorage).toHaveBeenCalledWith(
+        expect.objectContaining({ itemId: 'loop-1', format: 'pdf' }),
+      );
+      expect(deps.createDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Daily stand-up.loop.pdf',
+          fileId: 'storage-pdf',
+          mimeType: 'application/pdf',
+          metadata: expect.objectContaining({
+            sourceConversion: 'pdf',
+            size: 4_000,
+          }),
+        }),
+      );
+      expect(deps.saveFileMetadata).toHaveBeenCalledWith(
+        'storage-pdf',
+        'Daily stand-up.loop.pdf',
+        'application/pdf',
+        4_000,
+        'doc-1',
+      );
+      expect(deps.scheduleHubDocumentRagIndexing).toHaveBeenCalledWith('doc-1');
+    },
+  );
+
+  it('keeps a page Microsoft will not convert as it is', async () => {
+    const downloadToStorage = graph(refused);
+    const deps = makeDeps({ downloadToStorage });
+
+    const result = await importFiles(
+      { ...baseArgs, items: [page], importType: 'sync' },
+      deps,
+    );
+
+    expect(result).toMatchObject({ success: true, successCount: 1 });
+    expect(downloadToStorage.mock.calls.map(([args]) => args.format)).toEqual([
+      'pdf',
+      undefined,
+    ]);
+    expect(downloadToStorage.mock.calls[1]?.[0]).not.toHaveProperty('format');
+    expect(deps.createDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Daily stand-up.loop',
+        fileId: 'storage-raw',
+        mimeType: 'application/octet-stream',
+        metadata: expect.objectContaining({ sourceConversion: 'none' }),
+      }),
+    );
+    expect(deps.saveFileMetadata).toHaveBeenCalledWith(
+      'storage-raw',
+      'Daily stand-up.loop',
+      'application/octet-stream',
+      120_000,
+      'doc-1',
+    );
+  });
+
+  it.each([
+    [2_000_000, 'pdf'],
+    [2_000_001, 'none'],
+  ] as const)(
+    'keeps a page of %i bytes as %s: past 2 MB Graph converts none',
+    async (size, kept) => {
+      const downloadToStorage = graph(pdf);
+      const deps = makeDeps({
+        downloadToStorage,
+        getFileMetadata: vi
+          .fn()
+          .mockResolvedValue({ success: true, data: { hash: 'h1', size } }),
+      });
+
+      await importFiles(
+        { ...baseArgs, items: [page], importType: 'sync' },
+        deps,
+      );
+
+      expect(downloadToStorage.mock.calls.map(([args]) => args.format)).toEqual(
+        [kept === 'pdf' ? 'pdf' : undefined],
+      );
+      expect(deps.createDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: kept === 'pdf' ? 'Daily stand-up.loop.pdf' : page.name,
+          metadata: expect.objectContaining({ sourceConversion: kept }),
+        }),
+      );
+    },
+  );
+
+  it('fails the page on a passing fault, keeping nothing, so the next scan asks again', async () => {
+    const downloadToStorage = graph({
+      success: false,
+      error:
+        'Failed to download file: 503 {"error":{"code":"serviceNotAvailable"}}',
+    });
+    const deps = makeDeps({ downloadToStorage });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const result = await importFiles(
+      { ...baseArgs, items: [page], importType: 'sync' },
+      deps,
+    );
+
+    expect(result).toMatchObject({
+      success: false,
+      successCount: 0,
+      failedCount: 1,
+    });
+    expect(result.results[0]).toMatchObject({
+      fileId: 'loop-1',
+      status: 'error',
+      error: expect.stringContaining('503'),
+    });
+    expect(downloadToStorage).toHaveBeenCalledTimes(1);
+    expect(deps.createDocument).not.toHaveBeenCalled();
+    expect(deps.updateDocument).not.toHaveBeenCalled();
+    expect(deps.saveFileMetadata).not.toHaveBeenCalled();
+    vi.mocked(console.error).mockRestore();
+  });
+
+  it('asks for the PDF again with a refreshed token when Graph refuses the token', async () => {
+    const downloadToStorage = vi.fn(
+      async ({ token, format }: { token: string; format?: 'pdf' }) => {
+        if (token === 'tok') {
+          return {
+            success: false,
+            error:
+              'Failed to download file: 401 {"error":{"code":"InvalidAuthenticationToken"}}',
+            unauthorized: true,
+          };
+        }
+        return format === 'pdf' ? pdf : raw;
+      },
+    );
+    const resolveToken = vi.fn(
+      async ({ forceRefresh }: { forceRefresh: boolean }) =>
+        forceRefresh
+          ? { success: true as const, token: 'tok-2' }
+          : { success: true as const, token: 'tok' },
+    );
+    const deps = makeDeps({ downloadToStorage, resolveToken });
+
+    const result = await importFiles(
+      { ...baseArgs, items: [page], importType: 'sync' },
+      deps,
+    );
+
+    expect(result).toMatchObject({ success: true, successCount: 1 });
+    expect(
+      downloadToStorage.mock.calls.map(([args]) => [args.token, args.format]),
+    ).toEqual([
+      ['tok', 'pdf'],
+      ['tok-2', 'pdf'],
+    ]);
+    expect(deps.createDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Daily stand-up.loop.pdf' }),
+    );
+  });
+
+  it.each(['pdf', 'none'] as const)(
+    'skips an unchanged page kept as %s',
+    async (kept) => {
+      const downloadToStorage = graph(pdf);
+      const deps = makeDeps({
+        downloadToStorage,
+        ...storedPage({ sourceConversion: kept }),
+      });
+
+      const result = await importFiles(
+        { ...baseArgs, items: [page], importType: 'sync' },
+        deps,
+      );
+
+      expect(result.skippedCount).toBe(1);
+      expect(downloadToStorage).not.toHaveBeenCalled();
+      expect(deps.updateDocument).not.toHaveBeenCalled();
+    },
+  );
+
+  it('converts a page kept as it is before Tale converted them, once, though it did not change', async () => {
+    const downloadToStorage = graph(pdf);
+    const deps = makeDeps({ downloadToStorage, ...storedPage({}) });
+
+    const result = await importFiles(
+      { ...baseArgs, items: [page], importType: 'sync' },
+      deps,
+    );
+
+    expect(result).toMatchObject({ successCount: 1, skippedCount: 0 });
+    expect(downloadToStorage).toHaveBeenCalledWith(
+      expect.objectContaining({ format: 'pdf' }),
+    );
+    expect(deps.createDocument).not.toHaveBeenCalled();
+    expect(deps.updateDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentId: 'doc-1',
+        title: 'Daily stand-up.loop.pdf',
+        fileId: 'storage-pdf',
+        mimeType: 'application/pdf',
+        contentHash: 'h1',
+        metadata: expect.objectContaining({ sourceConversion: 'pdf' }),
+      }),
+    );
+  });
+
+  it('leaves such a page past 2 MB as it is', async () => {
+    const downloadToStorage = graph(pdf);
+    const deps = makeDeps({
+      downloadToStorage,
+      ...storedPage({}),
+      getFileMetadata: vi.fn().mockResolvedValue({
+        success: true,
+        data: { hash: 'h1', size: 2_500_000 },
+      }),
+    });
+
+    const result = await importFiles(
+      { ...baseArgs, items: [page], importType: 'sync' },
+      deps,
+    );
+
+    expect(result.skippedCount).toBe(1);
+    expect(downloadToStorage).not.toHaveBeenCalled();
+  });
+
+  it('knows a page by its extension in any case', async () => {
+    const downloadToStorage = graph(pdf);
+    const deps = makeDeps({ downloadToStorage });
+
+    await importFiles(
+      {
+        ...baseArgs,
+        items: [{ ...page, name: 'Retro.LOOP', relativePath: 'Retro.LOOP' }],
+        importType: 'sync',
+      },
+      deps,
+    );
+
+    expect(deps.createDocument).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Retro.LOOP.pdf' }),
+    );
+  });
+
+  // Graph converts a Fluid component (`.fluid`) to HTML alone, which the
+  // index reads as text, markup and all: it stays as it is.
+  it.each(['Notes.fluid', 'a.docx'])(
+    'asks no conversion for %s',
+    async (name) => {
+      const downloadToStorage = graph(pdf);
+      const deps = makeDeps({ downloadToStorage });
+
+      await importFiles(
+        {
+          ...baseArgs,
+          items: [{ ...page, name, relativePath: name }],
+          importType: 'sync',
+        },
+        deps,
+      );
+
+      expect(downloadToStorage).toHaveBeenCalledTimes(1);
+      expect(downloadToStorage.mock.calls[0]?.[0]).not.toHaveProperty('format');
+      expect(deps.createDocument).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: name,
+          metadata: expect.not.objectContaining({
+            sourceConversion: expect.anything(),
+          }),
+        }),
+      );
+    },
+  );
+});

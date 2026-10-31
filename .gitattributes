@@ -18,3 +18,7 @@ services/platform/convex/migrations/*.snapshot.json linguist-vendored
 .github/workflows/*.yml text eol=lf
 .github/actions/ci-ready/action.yml text eol=lf
 tools/cli/scripts/ci-ready.ts text eol=lf
+
+# The Loop fixture's README hashes its bytes, and its cross-reference table
+# points at byte offsets: keep git from ever converting its line endings.
+services/platform/tests/integration/fixtures/loop/*.pdf binary
