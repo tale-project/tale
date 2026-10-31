@@ -6,6 +6,7 @@ import {
   steerTaskAgentTurnImpl,
 } from '../core/tasks/agent_run_host.ts';
 import { releaseProjectAgentSessionSlot } from '../domains/sandbox/sessions.ts';
+import { countParkedAgentRun } from '../domains/tasks/agent-run-counters.ts';
 import { claimAgentWorker } from '../domains/tasks/agent-workers.ts';
 import { createTaskList } from './task-list.ts';
 
@@ -26,6 +27,12 @@ vi.mock('../domains/sandbox/sessions.ts', async (original) => ({
   ...(await original<typeof import('../domains/sandbox/sessions.ts')>()),
   releaseProjectAgentSessionSlot: vi.fn(async () => true),
 }));
+vi.mock('../domains/tasks/agent-run-counters.ts', async (original) => ({
+  ...(await original<
+    typeof import('../domains/tasks/agent-run-counters.ts')
+  >()),
+  countParkedAgentRun: vi.fn(async () => undefined),
+}));
 
 const HOUR = 60 * 60 * 1000;
 
@@ -33,6 +40,7 @@ beforeEach(() => {
   vi.mocked(startTaskAgentTurnImpl).mockClear();
   vi.mocked(releaseProjectAgentSessionSlot).mockClear();
   vi.mocked(claimAgentWorker).mockClear();
+  vi.mocked(countParkedAgentRun).mockClear();
   vi.mocked(claimAgentWorker).mockResolvedValue({
     sessionId: 'session-1',
     worker: 1,
@@ -210,6 +218,26 @@ describe('the worker a turn starts in', () => {
     expect(startTaskAgentTurnImpl).not.toHaveBeenCalled();
     expect(releaseProjectAgentSessionSlot).not.toHaveBeenCalled();
     warn.mockRestore();
+  });
+
+  it('counts the park its claim committed, under its waiting reason [TASK-R93]', async () => {
+    const sql = turnSql();
+    vi.mocked(claimAgentWorker).mockResolvedValue({ parked: 'org_limit' });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    await createTaskList({ sql })['task.agent_turn']?.(PAYLOAD);
+
+    expect(countParkedAgentRun).toHaveBeenCalledExactlyOnceWith(
+      sql,
+      'org_limit',
+    );
+    warn.mockRestore();
+  });
+
+  it('counts no park for a run its claim started [TASK-R93]', async () => {
+    await createTaskList({ sql: turnSql() })['task.agent_turn']?.(PAYLOAD);
+
+    expect(startTaskAgentTurnImpl).toHaveBeenCalled();
+    expect(countParkedAgentRun).not.toHaveBeenCalled();
   });
 
   it('gives a run that waited its full working time [TASK-R25]', async () => {
