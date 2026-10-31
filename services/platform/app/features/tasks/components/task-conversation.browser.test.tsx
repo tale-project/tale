@@ -84,6 +84,9 @@ vi.mock('../hooks/use-actor-directory', () => ({
       members: [{ id: 'user-1', name: 'Ada', email: 'ada@example.com' }],
       agents: [],
       automations: [],
+      // Everyone has arrived.
+      memberPending: () => false,
+      mentionPending: () => false,
       resolveActor: () => ({ name: 'Ada' }),
       resolveActorPreview: () => null,
     };
