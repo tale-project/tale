@@ -16,6 +16,7 @@ import { describe, expect, it } from 'vitest';
 
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs.ts';
+import { ModelEndpointRefusal } from '../governance/model_endpoint_gate.ts';
 import type { ActionCtx } from '../lib/ctx.ts';
 import {
   SessionMemoryBusyError,
@@ -29,7 +30,9 @@ import {
   type StartWorkflowAgentTurnArgs,
   workflowTurnStartRefusal,
 } from './agent_host.ts';
+import { isWorkflowAgentRetryable } from './agent_retry.ts';
 import type { AgentCursor } from './checkpoints.ts';
+import { agentFailureCodeOf } from './failure.ts';
 
 const keys = { nodeId: 'draft', execId: 'exec_2' };
 
@@ -536,6 +539,27 @@ describe('classifyWorkflowStartFailure', () => {
         'the agent turn could not start: An administrator is deleting this sandbox workspace. No new work starts in it until the deletion has finished.',
       failureCode: 'sandbox_destroying',
     });
+  });
+
+  it('fails a start the EU/EEA rule refused with the refusal’s own sentence, never retried, reading as a refused start on the wire [GOV-R17]', () => {
+    const message =
+      'This organization processes prompts only in the EU/EEA, and api.anthropic.com is not an endpoint known to process there, so the call was not sent.';
+    const refusal = classifyWorkflowStartFailure(
+      new ModelEndpointRefusal({
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        message,
+        provider: 'anthropic',
+        host: 'api.anthropic.com',
+        reason: 'not-attested',
+      }),
+      NOW,
+    );
+    expect(refusal).toEqual({
+      reason: `the agent turn could not start: ${message}`,
+      failureCode: 'endpoint_refused',
+    });
+    expect(isWorkflowAgentRetryable(refusal.failureCode)).toBe(false);
+    expect(agentFailureCodeOf(refusal.failureCode)).toBe('start_failed');
   });
 
   it('leaves every other start failure a start failure', () => {
