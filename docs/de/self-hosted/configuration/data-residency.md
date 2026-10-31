@@ -97,3 +97,29 @@ Nutze nach dem Speichern des Buckets **Bestehende Dateien verschieben** im selbe
 Der Nachzug durchläuft referenzierte Dokumente samt Verlauf, hochgeladene Dateien, erzeugtes Audio und Videotranskripte dieser Organisation. Er kopiert jedes Objekt mit Inhaltstyp, prüft die Zielgröße und löscht danach die Quelle. Objektschlüssel bleiben erhalten. Bereits verifizierte Kopien lassen sich nach einer Unterbrechung abschließen. Das ist ein Umzug, kein zusätzliches Backup oder kryptografischer Inhaltsnachweis.
 
 Das Ziel muss sich vom Standardspeicher unterscheiden. Prüfe bei einem Fehlschlag letzten Fehler und Fortschritt vor einem neuen Lauf. Bewahre beide Speicher auf, bis Ergebnis und Downloads beispielhafter alter Dateien bestätigt sind. [Geheimnisse mit SOPS](/de/self-hosted/configuration/secrets-with-sops) erklärt den Schutz der Verbindungsdateien.
+
+## Prompts auf EU-Endpunkten halten {#eu-processing}
+
+Wo du Tale betreibst, entscheidet nicht darüber, wo ein Modell einen Prompt verarbeitet. Das entscheidet der Endpunkt, den jeder Anbieter aufruft. Ist **Prompts nur in der EU/im EWR verarbeiten** aktiv, sendet Tale einen Modellaufruf nur an den EU-Endpunkt eines Anbieters oder an einen Host, den du bestätigt hast. [Prompts nur in der EU/im EWR verarbeiten](/de/platform/admin/governance/content-models#eu-processing) beschreibt den Schalter, und [Prompts auf EU-Endpunkten halten](/de/cloud/data-residency#eu-processing) zeigt, wo jede Art von Endpunkt einen Prompt verarbeitet und wo eine Ablehnung erscheint.
+
+Ein Modellserver, den du betreibst, verarbeitet einen Prompt dort, wo er läuft: Bestätige seinen Host nur, wenn er in der EU/im EWR läuft. Ein Proxy oder Router reicht den Prompt weiter. Bestätige ihn deshalb nur, wenn er in der EU/im EWR läuft und auch jedes Ziel, an das er weiterleitet, dort verarbeitet.
+
+Die Organisationsrichtlinie liegt unter `$TALE_CONFIG_DIR/<orgSlug>/governance/model-access.yml` und hat den Richtlinientyp `model_access`. Die Seite Modelle bearbeitet dieselbe Datei. Ohne die Datei oder ohne `euProcessing` darin ist der Schalter aus:
+
+```yaml
+enabled: false
+mode: blocklist
+rules: []
+euProcessing:
+  enabled: true
+  hosts:
+    - llm.example.internal
+    - my-resource.openai.azure.com
+```
+
+- `euProcessing.enabled` schaltet die Regel ein, unabhängig vom eigenen `enabled` der Richtlinie, das die Regeln zum Erlauben und Sperren von Modellen steuert.
+- `hosts` listet bis zu 100 bestätigte Hosts, jeden so, wie er in der Basis-URL seines Anbieters steht: als Hostnamen in Kleinbuchstaben, als IPv4-Adresse oder als IPv6-Adresse in eckigen Klammern, ohne Schema, Port, Pfad oder Platzhalter.
+- Ein Host von OpenRouter, OpenAI oder Mistral außer seinem EU-Endpunkt bleibt abgelehnt, auch wenn er eingetragen ist, und die Seite Modelle speichert ihn nicht.
+- Tale liest die Datei bei jedem Modellaufruf, eine Änderung gilt also ab dem nächsten Aufruf, ohne Neustart. Solange die Datei nicht gelesen werden kann oder nicht zu ihrem Schema passt, wird jeder Modellaufruf der Organisation abgelehnt, ob der Schalter aktiv ist oder nicht, die Modellauswahlen bieten kein Modell an, und das Backend protokolliert, dass die Modellzugriffsrichtlinie nicht gelesen werden kann.
+
+Eine Ablehnung erscheint in den [Audit-Logs](/de/platform/admin/governance/audit-logs) als **Modellzugriff abgelehnt**. Die Auswahl des Modells, das Bilder liest, den Modellverkehr von Agent-Laufzeiten in einer Sandbox und den Moderations-Anbieter der [Guardrails](/de/platform/admin/governance/guardrails) deckt der Schalter noch nicht ab. Wo eine Antwort verarbeitet wurde, zeigt **Region** in **Nachrichteninformation**, die du unter der Antwort mit **Info anzeigen** öffnest. [Sehen, wie eine Antwort entstanden ist](/de/platform/chat/basics#reply-details) erklärt die Zeile.

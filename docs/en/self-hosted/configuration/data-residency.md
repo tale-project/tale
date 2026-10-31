@@ -97,3 +97,29 @@ With the organization bucket saved, use **Move existing files** in the same sect
 The backfill walks that organization's referenced documents and history, uploaded files, synthesized audio, and video transcripts. It copies each blob with its content type, checks the destination size, then deletes the source copy. It preserves object keys and can resume a previously verified copy without duplicating the move. This is a move, not an additional backup or a cryptographic content audit.
 
 The destination must differ from the default store. If the run fails, inspect its last error and progress before starting another; preserve both stores until the final result and representative old-file downloads are verified. See [Secrets with SOPS](/self-hosted/configuration/secrets-with-sops) for protecting the connection sidecars.
+
+## Keep prompts on EU endpoints {#eu-processing}
+
+Where you run Tale doesn't decide where a model processes a prompt: the endpoint each provider calls does. With **Process prompts only in the EU/EEA** on, Tale sends a model call only to a vendor's EU endpoint or to a host you attest. [Process prompts only in the EU/EEA](/platform/admin/governance/content-models#eu-processing) describes the switch, and [Keep prompts on EU endpoints](/cloud/data-residency#eu-processing) shows where each kind of endpoint processes a prompt and where a refusal shows.
+
+A model server you run processes a prompt where it runs: attest its host only when it runs in the EU/EEA. A proxy or router passes the prompt on, so attest it only when it runs in the EU/EEA and every upstream it calls processes there too.
+
+The organization policy lives at `$TALE_CONFIG_DIR/<orgSlug>/governance/model-access.yml`, with policy type `model_access`. The Models page edits the same file. Without the file, or without `euProcessing` in it, the switch is off:
+
+```yaml
+enabled: false
+mode: blocklist
+rules: []
+euProcessing:
+  enabled: true
+  hosts:
+    - llm.example.internal
+    - my-resource.openai.azure.com
+```
+
+- `euProcessing.enabled` turns the rule on whatever the policy's own `enabled` says; that one governs the allow and block rules.
+- `hosts` lists up to 100 attested hosts, each as it appears in its provider's base URL: a lowercase host name or IPv4 address, or an IPv6 address in brackets, without scheme, port, path or wildcard.
+- A host of OpenRouter, OpenAI or Mistral other than its EU endpoint stays refused even when listed, and the Models page doesn't save it.
+- Tale reads the file at each model call, so an edit applies to the next call without a restart. While the file can't be read or doesn't match its schema, every model call of the organization is refused, whether the switch is on or not, the model pickers offer no model, and the backend logs that the model access policy cannot be read.
+
+A refusal is recorded in the [audit log](/platform/admin/governance/audit-logs) as **Model access denied**. The switch doesn't cover the picker for the model that reads images, the model traffic of agent runtimes in a sandbox, or the moderation provider of [Guardrails](/platform/admin/governance/guardrails) yet. To see where a reply was processed, select **Show info** under it and read **Region** in **Message information**, as [See how a reply was produced](/platform/chat/basics#reply-details) explains.
