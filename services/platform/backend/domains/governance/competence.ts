@@ -245,7 +245,7 @@ async function requireAdminForWrite(
   );
   throw new CompetenceError(
     'COMPETENCE_FORBIDDEN',
-    'Only organization admins may grant or revoke competences.',
+    'Only organization admins may grant or revoke rights and qualifications.',
     403,
   );
 }
@@ -297,7 +297,7 @@ export async function grantCompetence(
     );
     throw new CompetenceError(
       'COMPETENCE_CAPABILITY_UNKNOWN',
-      `"${competence}" is not a platform capability — the "${PLATFORM_CAPABILITY_PREFIX}" namespace is reserved for: ${PLATFORM_CAPABILITIES.join(', ')}`,
+      `"${competence}" is not a right — the "${PLATFORM_CAPABILITY_PREFIX}" namespace is reserved for: ${PLATFORM_CAPABILITIES.join(', ')}`,
       400,
     );
   }
@@ -305,7 +305,7 @@ export async function grantCompetence(
   if (teamId === undefined && (args.userId ?? '').trim().length === 0) {
     throw new CompetenceError(
       'COMPETENCE_USER_REQUIRED',
-      'the grant must name the member who holds the competence',
+      'the grant must name the member who holds it',
       400,
     );
   }
@@ -314,7 +314,7 @@ export async function grantCompetence(
   if (teamId !== undefined && !KNOWN_PLATFORM_CAPABILITIES.has(competence)) {
     throw new CompetenceError(
       'COMPETENCE_TEAM_CAPABILITY_ONLY',
-      `a team can hold a platform capability only (${PLATFORM_CAPABILITIES.join(', ')}); grant a qualification to each member`,
+      `a team can hold rights only (${PLATFORM_CAPABILITIES.join(', ')}); grant a qualification to each member`,
       400,
     );
   }
@@ -367,7 +367,9 @@ export async function grantCompetence(
     if (recordId === undefined) {
       throw new CompetenceError(
         'COMPETENCE_ALREADY_GRANTED',
-        `this ${holder.teamId === null ? 'member' : 'team'} already holds an active grant of this competence — revoke it first to re-grant`,
+        holder.teamId === null
+          ? 'this member already holds an active grant of this right or qualification — revoke it first to re-grant'
+          : 'this team already holds an active grant of this right — revoke it first to re-grant',
         409,
       );
     }
@@ -516,14 +518,14 @@ export async function revokeCompetence(
     if (record === undefined) {
       throw new CompetenceError(
         'COMPETENCE_NOT_FOUND',
-        'no such competence record in this organization',
+        'no such grant in this organization',
         404,
       );
     }
     if (record.revokedAt !== null) {
       throw new CompetenceError(
         'COMPETENCE_ALREADY_REVOKED',
-        'this competence record is already revoked',
+        'this grant is already revoked',
         409,
       );
     }

@@ -13,7 +13,7 @@ consent:
     label: Organisation
     description: Der Agent arbeitet nur in dieser Organisation. Für eine andere verbindest du ihn erneut.
     option: '{name} · {role}'
-    notAllowed: Um hier einen Coding-Agenten zu verbinden, brauchst du die Rolle Inhaber, Admin oder Entwickler oder eine Kompetenz, die ein Admin vergibt.
+    notAllowed: Um hier einen Coding-Agenten zu verbinden, brauchst du die Rolle Inhaber, Admin oder Entwickler oder ein Recht, das ein Admin vergibt.
     none: In keiner deiner Organisationen darfst du einen Coding-Agenten verbinden. Bitte einen Admin um die Rolle Entwickler.
     disabled: Dein Konto ist in dieser Organisation deaktiviert.
   access:

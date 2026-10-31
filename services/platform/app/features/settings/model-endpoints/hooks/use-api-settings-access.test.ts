@@ -11,8 +11,8 @@ import { useApiSettingsAccess } from './use-api-settings-access';
 
 /**
  * Who opens which API settings tab: owners, admins and developers every tab;
- * a member who may create a personal API key (a competence that is used with
- * one) the REST tab, where the key is made; one who may call the model
+ * a member who may create a personal API key (a right that is used with one)
+ * the REST tab, where the key is made; one who may call the model
  * endpoints (a `tale:models.api` grant) the Models tab as well; one who may
  * connect a coding agent here, while the deployment lets agents sign in, or
  * holds a live connection, Connected agents — which no role opens by itself;

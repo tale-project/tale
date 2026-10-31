@@ -318,7 +318,7 @@ builtin skill from `configs/platform/custom/skills/`.
   `skills.publishing.reserved.editors`) until an admin grants them **Publish
   skills to the organization**
   (`governance.competences.capabilities.skillsPublish.label`) under
-  Governance → Competences, after which a reload offers **Organization** and
+  Governance → Rights and qualifications, after which a reload offers **Organization** and
   the create succeeds; `GET /api/v1/me` reports `skillPublish` among its
   capabilities as `false`, then `true`; revoking the grant refuses the next organization-wide
   save again. Under **Owners and admins only**, a Developer's automation
