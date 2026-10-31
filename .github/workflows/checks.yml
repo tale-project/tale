@@ -150,11 +150,14 @@ jobs:
     # million lines), which has outgrown V8's default heap under the image's
     # Node: about 4 GiB on this 16 GB runner, where cold runs died with
     # "Ineffective mark-compacts near heap limit" at ~4,015 MB retained
-    # (exit 137, #4005). A bounded budget for every Node process of this
-    # job; Turbo's strict env mode passes NODE_OPTIONS through to each
-    # task's tsc. Programs, strictness and every other gate are unchanged.
+    # (exit 137, #4005). It then filled a 6 GiB budget: about 11,300 files
+    # used 6.0 GiB of the 6,192 MiB limit, and a feature train 0.7% larger
+    # died at ~6,026 MB retained (#5197). A bounded budget for every Node
+    # process of this job; Turbo's strict env mode passes NODE_OPTIONS
+    # through to each task's tsc. Programs, strictness and every other gate
+    # are unchanged.
     env:
-      NODE_OPTIONS: --max-old-space-size=6144
+      NODE_OPTIONS: --max-old-space-size=8192
 
     steps:
       - name: Checkout
