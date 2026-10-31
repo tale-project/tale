@@ -30,6 +30,16 @@ describe('classifyTranscriptionError', () => {
     },
   );
 
+  it.each(['MODEL_ENDPOINT_OUTSIDE_EU', 'MODEL_ENDPOINT_POLICY_UNREADABLE'])(
+    'waits for an admin rather than retrying a model the EU/EEA rule refused: %s [GOV-R17]',
+    (code) => {
+      expect(classifyTranscriptionError(new AppError({ code }))).toEqual({
+        shouldRetry: false,
+        reason: 'model_endpoint_refused',
+      });
+    },
+  );
+
   it('treats a missing transcription model as permanent', () => {
     expect(
       classifyTranscriptionError(

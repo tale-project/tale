@@ -34,6 +34,11 @@ vi.mock(
   }),
 );
 
+import { shimFunctionName } from '../../../lib/ctx-shim';
+import {
+  type ModelEndpointPolicy,
+  ModelEndpointRefusal,
+} from '../../governance/model_endpoint_gate';
 import { ConfigurationError } from '../config_store/precondition';
 import {
   ImageGenerationError,
@@ -47,11 +52,18 @@ const ACTIVE_API_KEY_ROW = { authMethod: 'api-key', status: 'active' };
 
 let defaultRows: Record<string, unknown> = {};
 let policy: unknown = null;
+let endpointPolicy: ModelEndpointPolicy = { kind: 'open' };
 const runQuery = vi.fn(
   async (
-    _ref: unknown,
+    ref: unknown,
     args: { providerSlug?: string; policyType?: string },
   ) => {
+    if (
+      shimFunctionName(ref) ===
+      'governance/internal_queries:getModelEndpointPolicyInternal'
+    ) {
+      return endpointPolicy;
+    }
     if (args.policyType !== undefined) {
       if (policy instanceof Error) throw policy;
       return policy;
@@ -60,8 +72,10 @@ const runQuery = vi.fn(
     return slug in defaultRows ? defaultRows[slug] : ACTIVE_API_KEY_ROW;
   },
 );
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runQuery is exercised by this module
-const ctx = { runQuery } as unknown as ActionCtx;
+// The EU/EEA rule's audit entry for a refused model (GOV-R17).
+const runMutation = vi.fn(async (_ref: unknown, _args: unknown) => null);
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runQuery and the refusal's audit entry are exercised by this module
+const ctx = { runQuery, runMutation } as unknown as ActionCtx;
 
 const OPENROUTER = {
   name: 'openrouter',
@@ -142,8 +156,10 @@ beforeEach(() => {
     );
   credentialMock.mockReset().mockResolvedValue(apiKey());
   runQuery.mockClear();
+  runMutation.mockClear();
   defaultRows = {};
   policy = null;
+  endpointPolicy = { kind: 'open' };
 });
 
 async function codeOf(promise: Promise<unknown>): Promise<string> {
@@ -567,5 +583,198 @@ describe('inspectImageGenerationModels', () => {
         error: { code: 'IMAGE_GENERATION_MODEL_UNAVAILABLE' },
       },
     );
+  });
+});
+
+describe('resolveImageGenerationModel — the EU/EEA rule [GOV-R17]', () => {
+  const OPENROUTER_EU = {
+    name: 'openrouter-eu',
+    displayName: 'OpenRouter EU',
+    apiFormat: 'openai',
+    baseUrl: 'https://eu.openrouter.ai/api/v1',
+    catalog: { source: 'openrouter-api' },
+  };
+  const USER = { id: 'user_1', type: 'user' } as const;
+  const PIN_OPENAI = {
+    enabled: true,
+    providerSlug: 'openai',
+    modelId: 'gpt-image-2.5-sunburst',
+  };
+
+  beforeEach(() => {
+    endpointPolicy = { kind: 'eu', attestedHosts: [] };
+    catalogMock.mockImplementation(async (provider: { name: string }) =>
+      provider.name === OPENROUTER_EU.name
+        ? [image('black-forest-labs/flux.2-pro')]
+        : (CATALOGS[provider.name] ?? []),
+    );
+  });
+
+  it('refuses a pinned model on a vendor’s global endpoint, and audits who asked', async () => {
+    policy = PIN_OPENAI;
+    resolveProvidersMock.mockResolvedValue([OPENAI]);
+    const refused = resolveImageGenerationModel(ctx, ORG, { actor: USER });
+    await expect(refused).rejects.toBeInstanceOf(ModelEndpointRefusal);
+    await expect(refused).rejects.toMatchObject({
+      data: {
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        provider: 'openai',
+        host: 'api.openai.com',
+        reason: 'vendor-global',
+        message: expect.stringContaining('eu.api.openai.com'),
+      },
+    });
+    expect(runMutation).toHaveBeenCalledTimes(1);
+    const [ref, entry] = runMutation.mock.calls[0] ?? [];
+    expect(shimFunctionName(ref)).toBe(
+      'governance/internal_mutations:recordModelEndpointRefusal',
+    );
+    expect(entry).toMatchObject({
+      organizationId: ORG,
+      surface: 'image-generation',
+      provider: 'openai',
+      model: 'gpt-image-2.5-sunburst',
+      host: 'api.openai.com',
+      code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+      actor: USER,
+    });
+  });
+
+  it('serves a pinned model through the vendor’s EU endpoint', async () => {
+    policy = PIN_OPENAI;
+    credentialMock.mockResolvedValue({
+      ...apiKey(),
+      endpointUrl: 'https://eu.api.openai.com/v1',
+    });
+    resolveProvidersMock.mockResolvedValue([OPENAI]);
+    await expect(
+      resolveImageGenerationModel(ctx, ORG, { actor: USER }),
+    ).resolves.toMatchObject({
+      modelId: 'gpt-image-2.5-sunburst',
+      baseUrl: 'https://eu.api.openai.com/v1',
+      source: 'pinned',
+    });
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
+  it('serves a custom provider only once an admin attests its host', async () => {
+    policy = {
+      enabled: true,
+      providerSlug: 'local-images',
+      modelId: 'google/gemini-2.5-flash-image',
+    };
+    resolveProvidersMock.mockResolvedValue([LOCAL]);
+    await expect(resolveImageGenerationModel(ctx, ORG)).rejects.toMatchObject({
+      data: {
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        host: 'images.internal.example',
+        reason: 'not-attested',
+      },
+    });
+    endpointPolicy = { kind: 'eu', attestedHosts: ['images.internal.example'] };
+    await expect(resolveImageGenerationModel(ctx, ORG)).resolves.toMatchObject({
+      providerSlug: 'local-images',
+      baseUrl: 'https://images.internal.example/v1',
+    });
+  });
+
+  it('passes over refused models for the best one the rule lets through', async () => {
+    policy = { enabled: true };
+    resolveProvidersMock.mockResolvedValue([OPENROUTER, OPENAI, OPENROUTER_EU]);
+    await expect(resolveImageGenerationModel(ctx, ORG)).resolves.toMatchObject({
+      providerSlug: 'openrouter-eu',
+      modelId: 'black-forest-labs/flux.2-pro',
+      baseUrl: 'https://eu.openrouter.ai/api/v1',
+      wire: 'openrouter-images',
+      source: 'preferred',
+    });
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
+  it('refuses the best model when the rule lets none through', async () => {
+    policy = { enabled: true };
+    resolveProvidersMock.mockResolvedValue([OPENAI, OPENROUTER]);
+    await expect(
+      resolveImageGenerationModel(ctx, ORG, { actor: USER }),
+    ).rejects.toMatchObject({
+      data: {
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        provider: 'openrouter',
+        host: 'openrouter.ai',
+        message: expect.stringContaining('eu.openrouter.ai'),
+      },
+    });
+    expect(runMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        surface: 'image-generation',
+        provider: 'openrouter',
+        model: 'google/gemini-2.5-flash-image',
+        actor: USER,
+      }),
+    );
+  });
+
+  it('says resolution failed, not refused, when a failed provider might have served', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    policy = { enabled: true };
+    resolveProvidersMock.mockResolvedValue([OPENROUTER, OPENROUTER_EU]);
+    catalogMock.mockImplementation(async (provider: { name: string }) => {
+      if (provider.name === OPENROUTER_EU.name) {
+        throw new Error('catalog down');
+      }
+      return CATALOGS[provider.name] ?? [];
+    });
+    expect(await codeOf(resolveImageGenerationModel(ctx, ORG))).toBe(
+      'IMAGE_GENERATION_RESOLUTION_FAILED',
+    );
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
+  it('refuses every model, an EU endpoint too, while the policy cannot be read', async () => {
+    endpointPolicy = { kind: 'unreadable' };
+    policy = { enabled: true };
+    resolveProvidersMock.mockResolvedValue([OPENROUTER_EU]);
+    await expect(resolveImageGenerationModel(ctx, ORG)).rejects.toMatchObject({
+      data: { code: 'MODEL_ENDPOINT_POLICY_UNREADABLE' },
+    });
+  });
+
+  it('offers a turn no tool the rule refuses, and writes no audit entry for it', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    policy = { enabled: true };
+    resolveProvidersMock.mockResolvedValue([OPENROUTER]);
+    await expect(
+      resolveImageGenerationModel(ctx, ORG, { offer: true }),
+    ).rejects.toBeInstanceOf(ModelEndpointRefusal);
+    await expect(resolveTurnImageGeneration(ctx, ORG)).resolves.toBeNull();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('not offered'),
+      'MODEL_ENDPOINT_OUTSIDE_EU',
+    );
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
+  it('shows the settings the refusal instead of a pick, without an audit entry', async () => {
+    policy = PIN_OPENAI;
+    resolveProvidersMock.mockResolvedValue([OPENAI]);
+    await expect(inspectImageGenerationModels(ctx, ORG)).resolves.toMatchObject(
+      {
+        enabled: true,
+        pick: null,
+        error: { code: 'MODEL_ENDPOINT_OUTSIDE_EU' },
+      },
+    );
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
+  it('changes nothing while the rule is off', async () => {
+    endpointPolicy = { kind: 'open' };
+    policy = PIN_OPENAI;
+    resolveProvidersMock.mockResolvedValue([OPENAI]);
+    await expect(
+      resolveImageGenerationModel(ctx, ORG, { actor: USER }),
+    ).resolves.toMatchObject({ baseUrl: 'https://api.openai.com/v1' });
+    expect(runMutation).not.toHaveBeenCalled();
   });
 });

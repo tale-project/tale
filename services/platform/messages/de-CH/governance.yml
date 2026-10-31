@@ -36,6 +36,12 @@ legalHold:
         verknüpfte Hold(s) eingereicht. Jede Freigabe benötigt weiterhin
         Vier-Augen-Genehmigung.
       submit: Fall schliessen
+modelAccess:
+  euProcessing:
+    hostsHelp: Ein Host pro Zeile, so wie er in der Basis-URL eines Anbieters
+      steht — der Server eines eigenen Anbieters oder eine Azure-Ressource in
+      einer Region der EU/des EWR. Trage nur Endpunkte ein, von denen du
+      weisst, dass sie dort verarbeiten; höchstens {max}.
 dataSubjectRequests:
   reasonCodes:
     unlawful_processing:

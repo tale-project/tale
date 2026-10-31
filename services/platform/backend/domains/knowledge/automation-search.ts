@@ -5,6 +5,7 @@ import type {
   WorkflowKnowledgeSearch,
 } from '../../../lib/connectors/natives/index.ts';
 import { EMBEDDING_SLUG } from '../../../lib/shared/constants/usage.ts';
+import { MODEL_ENDPOINT_REFUSAL_CODES } from '../../core/governance/model_endpoint_gate.ts';
 import { resolveAutomationRunBinding } from '../automations/run-binding.ts';
 import { ChatBudgetExceededError } from '../chat/budget-admission.ts';
 import { resolveAutomationRunAttribution } from '../sandbox/op-attribution.ts';
@@ -16,11 +17,13 @@ type SearchHit = Awaited<
   ReturnType<typeof searchKnowledgeForOrg>
 >['hits'][number];
 
-/** The embedding provider's refusals: the search did not run. */
-const UNAVAILABLE_CODES = new Set([
+/** The embedding provider's refusals, and the organization's EU/EEA rule
+ * refusing the endpoint it would call: the search did not run. */
+const UNAVAILABLE_CODES = new Set<string>([
   'EMBEDDING_CREDIT_EXHAUSTED',
   'EMBEDDING_CREDENTIAL_REJECTED',
   'EMBEDDING_UPSTREAM_ERROR',
+  ...MODEL_ENDPOINT_REFUSAL_CODES,
 ]);
 
 function toRunHit(hit: SearchHit): KnowledgeRunHit {
