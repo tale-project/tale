@@ -79,7 +79,13 @@ export type WorkflowAgentFailureCode =
    * room and no retry: once the Destroy settles, a re-kick would continue
    * the run in a fresh, empty workspace, without what its earlier steps
    * left there. */
-  | 'sandbox_destroying';
+  | 'sandbox_destroying'
+  /** The organization's EU/EEA rule refused the endpoint the node's model
+   * would be called at, or its policy could not be read (GOV-R17): nothing
+   * was sent and nothing launched. No retry: a re-kick meets the same
+   * refusal until an admin gives the provider an endpoint that processes
+   * there or changes the rule. */
+  | 'endpoint_refused';
 
 /** The longest an agent node waits for sandbox room before its run fails:
  * room frees as other work settles, but a deployment whose capacity is
@@ -153,9 +159,10 @@ export function sandboxRoomRetryAtMs(args: {
 }
 
 /** Failures where a retry is pure waste: the turn burned its 12h window, its
- * harness hung until the sandbox ended it, or the operator ignored the
+ * harness hung until the sandbox ended it, the operator ignored the
  * agent's question for the whole ask TTL — a fresh turn would only ask
- * again — or worse than waste: the run's workspace is
+ * again — or the organization's EU/EEA rule refused the model's endpoint;
+ * or worse than waste: the run's workspace is
  * being destroyed, and a retry after the Destroy would start over an empty
  * one. Everything else — provider errors, crashes, vanished sessions,
  * harvest hiccups — retries by DEFAULT, including an absent code, so a
@@ -166,6 +173,7 @@ const NO_RETRY_FAILURE_CODES: ReadonlySet<string> = new Set([
   'ask_expired',
   'budget_exceeded',
   'sandbox_destroying',
+  'endpoint_refused',
 ] satisfies WorkflowAgentFailureCode[]);
 
 export function isWorkflowAgentRetryable(code: string | undefined): boolean {

@@ -20,9 +20,11 @@ import {
   NO_OUTCOME_RESULT_STATUSES,
 } from '../../domains/sandbox/external-turn-outcome';
 import { releaseTurnKey } from '../automations/agent_host';
+import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveModel } from '../lib/providers/resolve_model';
 import { encryptSecret } from '../lib/secret_box';
+import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import { SessionMemoryBusyError } from '../node_only/sandbox/helpers/session_client';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import {
@@ -60,6 +62,9 @@ const io = vi.hoisted(() => ({
     | { allowed: false; reason: string },
   brokerRow: null as unknown,
   ensures: 0,
+  /** The organization's model-endpoint rule (GOV-R17); open unless a test
+   * turns the EU/EEA rule on. */
+  endpointPolicy: { kind: 'open' } as unknown,
 }));
 
 vi.mock('../../../lib/net/safe-fetch', async (importOriginal) => ({
@@ -173,11 +178,11 @@ vi.mock('../lib/providers/resolve_vision_model', () => ({
   resolveTurnVisionModel: async () => null,
 }));
 vi.mock('../node_only/sandbox/gateway_provisioning', () => ({
-  provisionSessionGatewayKey: async () => ({
+  provisionSessionGatewayKey: vi.fn(async () => ({
     token: 'test-token',
     keyId: 'key-new',
     keyHash: 'hash-new',
-  }),
+  })),
 }));
 vi.mock('../node_only/sandbox/turn_equipment', () => ({
   resolveConfinedTurnEnv: async () => ({}),
@@ -210,6 +215,8 @@ interface RunState {
   execId: string;
   confined?: boolean;
   rotateAfterSelection?: boolean;
+  /** The run's starter (`project_agent_runs.started_by`). */
+  startedBy?: string;
 }
 
 function makeCtx(run: RunState, contextCap: number | null = null) {
@@ -258,6 +265,11 @@ function makeCtx(run: RunState, contextCap: number | null = null) {
       }
       if (name === 'governance/queries:getContextCapInternal') {
         return contextCap;
+      }
+      if (
+        name === 'governance/internal_queries:getModelEndpointPolicyInternal'
+      ) {
+        return io.endpointPolicy;
       }
       if (name === 'governance/internal_queries:getPolicyConfigInternal') {
         return args.policyType === 'system_prompt' ? io.systemPrompt : null;
@@ -343,6 +355,7 @@ beforeEach(() => {
   io.reservation = { allowed: true, budgetCents: 500 };
   io.brokerRow = null;
   io.ensures = 0;
+  io.endpointPolicy = { kind: 'open' };
   vi.mocked(resolveProviderCredential).mockReset();
   vi.mocked(resolveModel).mockReset();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
@@ -1137,6 +1150,313 @@ describe('a task agent steer restart', () => {
       sessionId: 'pa-alice',
       execId: 'exec-rotated',
       status: 'failed',
+    });
+  });
+});
+
+describe('a task agent turn under the EU/EEA rule [GOV-R17]', () => {
+  const RULE = 'This organization processes prompts only in the EU/EEA';
+
+  function euRule(attestedHosts: string[] = []): void {
+    io.endpointPolicy = { kind: 'eu', attestedHosts };
+  }
+
+  /** A Claude Code subscription served by a broker account, at the vendor's
+   * API or at the endpoint the credential names instead. */
+  function subscribes(endpointUrl?: string): void {
+    io.subscription = {
+      providerSlug: 'anthropic',
+      modelId: 'claude-sonnet-4-6',
+      apiBaseUrl: 'https://api.anthropic.com',
+    };
+    vi.mocked(resolveProviderCredential).mockResolvedValue({
+      authMethod: 'subscription-broker',
+      credentialId: 'credential-1',
+      name: 'Synthetic broker',
+      token: 'synthetic-oauth-token',
+      brokerTokenHash: 'stable-selected-account-hash',
+      targetEnvVar: 'CLAUDE_CODE_OAUTH_TOKEN',
+      ...(endpointUrl !== undefined ? { endpointUrl } : {}),
+    } as never);
+  }
+
+  async function start(run: Partial<RunState> = {}) {
+    const made = makeCtx({ status: 'queued', execId: 'exec-1', ...run });
+    await startTaskAgentTurnImpl(made.ctx, {
+      ...KEYS,
+      model: io.subscription?.modelId ?? KEYS.model,
+      modelProvider: io.subscription?.providerSlug ?? KEYS.modelProvider,
+      sweep: true,
+    } as never);
+    return made;
+  }
+
+  function auditsOf(mutations: Array<{ name: string; args: unknown }>) {
+    return mutations
+      .filter(
+        (m) =>
+          m.name === 'governance/internal_mutations:recordModelEndpointRefusal',
+      )
+      .map((m) => m.args);
+  }
+
+  function failureOf(
+    mutations: Array<{ name: string; args: Record<string, unknown> }>,
+  ) {
+    return mutations.find(
+      (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
+    )?.args;
+  }
+
+  /** The start launched with the subscription's secret, pointed at
+   * `baseUrl`, and nothing was refused. */
+  function expectLaunchedAt(
+    baseUrl: string,
+    mutations: Array<{ name: string; args: unknown }>,
+  ): void {
+    expect(console.error).not.toHaveBeenCalled();
+    expect(io.starts).toHaveLength(1);
+    expect(io.starts[0]?.env.CLAUDE_CODE_OAUTH_TOKEN).toBe(
+      'synthetic-oauth-token',
+    );
+    expect(io.starts[0]?.env.ANTHROPIC_BASE_URL).toBe(baseUrl);
+    expect(auditsOf(mutations)).toEqual([]);
+  }
+
+  it.each([
+    ['user:user-7', { id: 'user-7', type: 'user' }],
+    ['user-7', { id: 'user-7', type: 'user' }],
+    ['api-key:user-8', { id: 'user-8', type: 'api' }],
+    ['dispatch:project-1', { id: 'dispatch:project-1', type: 'system' }],
+  ] as const)(
+    'refuses a subscription whose endpoint is outside the EU/EEA before the harness gets its secret, saying why, audited for the starter %s',
+    async (startedBy, actor) => {
+      euRule();
+      subscribes();
+
+      const { mutations } = await start({ startedBy });
+
+      expect(io.builds).toHaveLength(0);
+      expect(io.starts).toHaveLength(0);
+      expect(auditsOf(mutations)).toEqual([
+        {
+          organizationId: 'org-1',
+          surface: 'task',
+          provider: 'anthropic',
+          model: 'claude-sonnet-4-6',
+          host: 'api.anthropic.com',
+          reason: 'not-attested',
+          code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+          message: expect.stringContaining(
+            'api.anthropic.com is not an endpoint known to process there',
+          ),
+          actor,
+        },
+      ]);
+      // Not retried: the start would meet the same rule until an admin acts.
+      expect(failureOf(mutations)).toMatchObject({
+        failureCode: 'agent_model_missing',
+        error: expect.stringMatching(
+          new RegExp(
+            `^the agent run could not start: ${RULE}, and api\\.anthropic\\.com is not an endpoint known to process there`,
+          ),
+        ),
+      });
+    },
+  );
+
+  it('judges the endpoint the credential names over the vendor’s: an EU/EEA endpoint launches, the vendor’s global one is refused', async () => {
+    euRule();
+    io.subscription = {
+      providerSlug: 'openai',
+      modelId: 'gpt-5.4',
+      apiBaseUrl: 'https://chatgpt.com/backend-api/codex',
+    };
+    const credential = {
+      authMethod: 'subscription-broker',
+      credentialId: 'credential-1',
+      name: 'Synthetic broker',
+      token: 'synthetic-oauth-token',
+      brokerTokenHash: 'stable-selected-account-hash',
+      targetEnvVar: 'TALE_SUBSCRIPTION_TOKEN',
+      accountId: 'synthetic-account',
+    };
+    vi.mocked(resolveProviderCredential).mockResolvedValue({
+      ...credential,
+      endpointUrl: 'https://eu.api.openai.com/v1',
+    } as never);
+    const eu = makeCtx({ status: 'queued', execId: 'exec-1' });
+    await startTaskAgentTurnImpl(eu.ctx, {
+      ...KEYS,
+      harness: 'codex',
+      model: 'gpt-5.4',
+      modelProvider: 'openai',
+      sweep: true,
+    } as never);
+
+    expect(console.error).not.toHaveBeenCalled();
+    expect(io.starts).toHaveLength(1);
+    expect(io.starts[0]?.env.TALE_SUBSCRIPTION_TOKEN).toBe(
+      'synthetic-oauth-token',
+    );
+    expect(io.starts[0]?.argv).toContain(
+      'model_providers.tale-subscription.base_url="https://eu.api.openai.com/v1"',
+    );
+    expect(auditsOf(eu.mutations)).toEqual([]);
+
+    vi.mocked(resolveProviderCredential).mockResolvedValue({
+      ...credential,
+      endpointUrl: 'https://api.openai.com/v1',
+    } as never);
+    const global = makeCtx({ status: 'queued', execId: 'exec-1' });
+    await startTaskAgentTurnImpl(global.ctx, {
+      ...KEYS,
+      harness: 'codex',
+      model: 'gpt-5.4',
+      modelProvider: 'openai',
+      sweep: true,
+    } as never);
+
+    expect(io.starts).toHaveLength(1);
+    expect(auditsOf(global.mutations)).toEqual([
+      expect.objectContaining({
+        provider: 'openai',
+        host: 'api.openai.com',
+        reason: 'vendor-global',
+      }),
+    ]);
+    expect(failureOf(global.mutations)).toMatchObject({
+      failureCode: 'agent_model_missing',
+    });
+  });
+
+  it('launches through an endpoint an admin attested', async () => {
+    euRule(['claude-proxy.example.com']);
+    subscribes('https://claude-proxy.example.com/anthropic');
+
+    const { mutations } = await start();
+
+    expectLaunchedAt('https://claude-proxy.example.com/anthropic', mutations);
+  });
+
+  it('lets OpenRouter through only at eu.openrouter.ai, even with openrouter.ai attested', async () => {
+    euRule(['openrouter.ai']);
+    subscribes('https://openrouter.ai/api');
+
+    const global = await start();
+
+    expect(io.starts).toHaveLength(0);
+    expect(auditsOf(global.mutations)).toEqual([
+      expect.objectContaining({
+        provider: 'anthropic',
+        host: 'openrouter.ai',
+        reason: 'vendor-global',
+      }),
+    ]);
+
+    vi.mocked(console.error).mockClear();
+    subscribes('https://eu.openrouter.ai/api');
+    const eu = await start();
+
+    expectLaunchedAt('https://eu.openrouter.ai/api', eu.mutations);
+  });
+
+  it('refuses every subscription while the policy cannot be read', async () => {
+    io.endpointPolicy = { kind: 'eu' };
+    subscribes('https://claude-proxy.example.com/anthropic');
+
+    const { mutations } = await start();
+
+    expect(io.starts).toHaveLength(0);
+    expect(auditsOf(mutations)).toEqual([
+      expect.objectContaining({ code: 'MODEL_ENDPOINT_POLICY_UNREADABLE' }),
+    ]);
+    expect(failureOf(mutations)).toMatchObject({
+      failureCode: 'agent_model_missing',
+    });
+  });
+
+  it('changes nothing with the rule off', async () => {
+    subscribes();
+
+    const { mutations } = await start({ startedBy: 'user:user-7' });
+
+    expectLaunchedAt('https://api.anthropic.com', mutations);
+  });
+
+  it('hands the gateway lane’s provisioning the task surface and the starter, and settles its refusal the same way', async () => {
+    euRule();
+    const message = `${RULE}, and the model gateway reaches the provider "local-inference" through its built-in connection, which calls the vendor's own endpoint, so the call was not sent.`;
+    vi.mocked(provisionSessionGatewayKey).mockRejectedValueOnce(
+      new ModelEndpointRefusal({
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        message,
+        provider: 'local-inference',
+        reason: 'gateway-builtin',
+      }),
+    );
+
+    const { mutations } = await start({ startedBy: 'api-key:user-8' });
+
+    expect(provisionSessionGatewayKey).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        surface: 'task',
+        actor: { id: 'user-8', type: 'api' },
+      }),
+    );
+    expect(io.starts).toHaveLength(0);
+    expect(failureOf(mutations)).toMatchObject({
+      failureCode: 'agent_model_missing',
+      error: `the agent run could not start: ${message}`,
+    });
+  });
+
+  it('refuses a steer restart the rule refuses, for the comment’s author, and does not retry it', async () => {
+    euRule();
+    // Codex has no stdin steering, so a comment restarts its process.
+    io.subscription = {
+      providerSlug: 'openai',
+      modelId: 'gpt-5.4',
+      apiBaseUrl: 'https://chatgpt.com/backend-api/codex',
+    };
+    vi.mocked(resolveProviderCredential).mockResolvedValue({
+      authMethod: 'subscription-broker',
+      credentialId: 'credential-1',
+      name: 'Synthetic broker',
+      token: 'synthetic-oauth-token',
+      brokerTokenHash: 'stable-selected-account-hash',
+      targetEnvVar: 'TALE_SUBSCRIPTION_TOKEN',
+      accountId: 'synthetic-account',
+    } as never);
+    const { ctx, mutations } = makeCtx({ status: 'running', execId: 'exec-1' });
+
+    await steerTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      harness: 'codex',
+      model: 'gpt-5.4',
+      modelProvider: 'openai',
+      feedback: 'Use the second address.',
+      author: 'Dana',
+      authorId: 'user-dana',
+      attempt: 0,
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    expect(auditsOf(mutations)).toEqual([
+      expect.objectContaining({
+        surface: 'task',
+        provider: 'openai',
+        host: 'chatgpt.com',
+        actor: { id: 'user-dana', type: 'user' },
+      }),
+    ]);
+    expect(failureOf(mutations)).toMatchObject({
+      execId: 'exec-rotated',
+      failureCode: 'agent_model_missing',
+      error: expect.stringContaining(
+        `the run could not be restarted to take a new comment: ${RULE}`,
+      ),
     });
   });
 });
