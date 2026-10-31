@@ -26,6 +26,7 @@ import {
   resyncRetiredDocumentScopes,
   teamDeletionImpact,
 } from './service.ts';
+import { teamIsSyncedSql } from './synced.ts';
 
 /**
  * /api/app/teams — teams and team MEMBERSHIP over the Better Auth tables
@@ -156,14 +157,7 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
              (SELECT count(*) FROM "teamMember" c WHERE c."teamId" = t."id")::text
                AS "memberCount",
              t."createdAt"::text AS "createdAt",
-             EXISTS (
-               SELECT 1 FROM app.sso_synced_teams s
-               WHERE s.org_id = t."organizationId" AND s.team_id = t."id"
-             ) OR EXISTS (
-               SELECT 1 FROM app.sso_provisioning_links l
-               WHERE l.org_id = t."organizationId" AND l.internal_id = t."id"
-                 AND l.resource_type = 'Group'
-             ) AS synced
+             ${teamIsSyncedSql(deps.sql)} AS synced
       FROM "team" t
       WHERE t."organizationId" = ${c.get('orgId')}
         AND (${admin} OR EXISTS (
@@ -317,6 +311,13 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
         VALUES (${id}, ${team.id}, ${userId}, ${new Date()})
       `;
+      // An admin made this membership, so it carries the team's competence
+      // grants (`vouchesForUser`); one SCIM or SSO sync makes never does.
+      await tx`
+        INSERT INTO app.admin_added_team_members (
+          team_member_id, org_id, team_id, created_at_ms
+        ) VALUES (${id}, ${orgId}, ${team.id}, ${Date.now()})
+      `;
       await auditTeamMemberAdded(tx, {
         organizationId: orgId,
         actor,
@@ -374,6 +375,10 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         return { removed: false, lastMember: true, teamId: row.teamId };
       }
       await tx`DELETE FROM "teamMember" WHERE "id" = ${row.id}`;
+      await tx`
+        DELETE FROM app.admin_added_team_members
+        WHERE team_member_id = ${row.id}
+      `;
       // What the team gave them may have been their only way to edit a
       // project; the reviews that wait on them go on if it was.
       await retargetPendingTaskReviewsForUser(tx, {

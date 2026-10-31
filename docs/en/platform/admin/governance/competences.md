@@ -1,6 +1,6 @@
 ---
 title: Competences
-description: Give a member one narrow right or a qualification without an Admin role, and revoke it when it is no longer needed.
+description: Give a member or a team one narrow right, or a member a qualification, without an Admin role, and revoke it when it is no longer needed.
 ---
 
 Use **Settings > Governance > Competences** as an Admin or Owner to keep the organization's competence register. A competence is one of two things:
@@ -8,7 +8,7 @@ Use **Settings > Governance > Competences** as an Admin or Owner to keep the org
 - A **platform capability** lets a member do one narrow thing that otherwise needs a higher role. Grant it to the account behind an integration instead of making that account an Admin, which would also let it manage members, single sign-on and passwords.
 - A **qualification** is a name your organization's review policy can require of the person who approves a review.
 
-A grant applies in this organization only. Tale records every grant and revocation in the audit log, and removing a member from the organization revokes their grants.
+You grant a competence to one member, or a platform capability to a [team](#grant-a-capability-to-a-team). A grant applies in this organization only. Tale records every grant and revocation in the audit log, and removing a member from the organization revokes their grants.
 
 ## Platform capabilities
 
@@ -30,17 +30,31 @@ Owners and Admins have all four through their role, and Developers also have **C
 ## Grant a competence
 
 1. Select **Grant competence**.
-2. Choose the **Member**.
-3. Choose the **Competence**: a platform capability, or **Qualification**, then type the **Qualification name** your review policy uses. Names that start with `tale:` are reserved for platform capabilities.
+2. Under **Grant to**, choose **A member** and then the **Member**, or **A team** and then the **Team**.
+3. Choose the **Competence**: a platform capability, or **Qualification**, then type the **Qualification name** your review policy uses. Names that start with `tale:` are reserved for platform capabilities. A team can hold a platform capability only.
 4. Choose when it **Expires**: **Never**, **In 30 days**, **In 90 days** or **In 1 year**.
 5. Optionally note the **Evidence**: why the member holds it, such as a certificate, a ticket or the system it serves. It stays in the register.
 6. Select **Grant**.
 
-The grant applies to the member's next request, so an integration does not need a restart. A member holds each competence once at a time: to change its expiry or evidence, revoke the grant and grant it again. If the member already holds it, the dialog says so and grants nothing.
+The grant applies to the member's next request, so an integration does not need a restart. A member or a team holds each competence once at a time: to change its expiry or evidence, revoke the grant and grant it again. If they already hold it, the dialog says so and grants nothing.
+
+## Grant a capability to a team
+
+A grant to a team gives a platform capability to the team's members while they are in the team, so you do not grant it to each of them:
+
+- A person an Owner or Admin adds to the team under [**Settings > Teams**](/platform/admin/teams) holds it from their next request, without another grant.
+- A person who leaves the team, or is removed from the organization, no longer holds it through the team.
+- Revoking the team's grant ends it for all of the team's members. Deleting the team revokes the team's grants.
+
+A member who also holds the capability through a grant of their own, or through their role, keeps it.
+
+Only a membership an Owner or Admin made under **Settings > Teams** carries the team's grants. A membership your identity provider makes through [SSO group sync or SCIM](/platform/admin/enterprise-sso) carries none, so the provider never confers a right this way. A team the provider manages shows **Synced from your identity provider** in the grant dialog and cannot be chosen; grant to each member instead, or to a team an Admin manages.
+
+A team holds platform capabilities only. Grant a qualification to each member who needs it, because a review policy asks it of the person who approves.
 
 ## Revoke a competence
 
-Select **Revoke** on the row and confirm with **Revoke**. The member loses the competence right away. The grant stays in the register as history with the status **Revoked** and the revocation date; point at the date to see who revoked it.
+Select **Revoke** on the row and confirm with **Revoke**. The member loses the competence right away; for a team's grant, so do the team's members, unless they hold it through a grant of their own. The grant stays in the register as history with the status **Revoked** and the revocation date; point at the date to see who revoked it or why.
 
 ## Read the register
 
@@ -50,7 +64,9 @@ The list opens on **Active** grants. Use **Filter > Status** to include **Expire
 | ----------- | ------------------------------------------------------------------------------------------------------------------------- |
 | **Active**  | The member holds the competence. The line below shows its expiry date, or **No expiry**.                                  |
 | **Expired** | The expiry date has passed, shown below the status. Grant it again if the member still needs it.                          |
-| **Revoked** | An Admin or Owner revoked it, or a new grant replaced it after it expired. The revocation date is shown below the status. |
+| **Revoked** | An Admin or Owner revoked it, a new grant replaced it after it expired, its member left the organization, or its team was deleted. The revocation date is shown below the status. |
+
+A team's grant names the team, marked **Team**; once the team is deleted it reads **Deleted team**. Every grant and revocation of a team's grant is recorded in the [audit log](/platform/admin/governance/audit-logs) with the team's ID and name.
 
 Removing a member revokes every active grant they hold — capabilities and qualifications alike — so a re-added member starts without them. A revoked grant whose holder has left the organization names them **Former member**. The register lists every active and expired grant, and the 1,000 most recent revoked ones as history.
 

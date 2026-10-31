@@ -5,6 +5,7 @@ import { Button } from '@tale/ui/button';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { HStack } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
@@ -52,10 +53,15 @@ interface Person {
   email: string | null;
 }
 
+/** Whom a grant names: a member, or a team whose members hold it. */
+interface Holder extends Person {
+  team: boolean;
+}
+
 interface CompetenceRow {
   record: CompetenceRecordWire;
   status: CompetenceRecordStatus;
-  holder: Person;
+  holder: Holder;
   grantor: Person;
   /** The capability's translated name; null for an organization's own
    * qualification, which is shown by its name alone. */
@@ -71,8 +77,9 @@ interface Props {
 /**
  * Settings → Governance → Competences: the organization's competence
  * register. Admins grant a member one platform capability (a narrow right
- * without an admin seat) or a qualification a review policy asks for, and
- * revoke it; revoked and expired grants stay listed as the audit trail.
+ * without an admin seat) or a qualification a review policy asks for, or
+ * grant a team a platform capability its members hold, and revoke it;
+ * revoked and expired grants stay listed as the audit trail.
  */
 export function CompetencesPage({ organizationId }: Props) {
   const { t } = useT('governance');
@@ -115,23 +122,48 @@ export function CompetencesPage({ organizationId }: Props) {
         name: members === undefined ? userId : tCommon('formerMember'),
         email: null,
       };
-    return (competences.data ?? []).map((record) => ({
+    // A team grant names the team; once the team is deleted its revoked
+    // grants stay listed under "Deleted team".
+    const holderOf = (record: CompetenceRecordWire): Holder =>
+      record.userId === null
+        ? {
+            name: record.teamName ?? t('competences.deletedTeam'),
+            email: null,
+            team: true,
+          }
+        : { ...personOf(record.userId), team: false };
+    const records = competences.data ?? [];
+    // The register revokes on its own (`revokedBy` = `system`) when a new
+    // grant replaces one that had expired — the new one is granted to the
+    // same holder in the same instant — when the member leaves the
+    // organization, and when the team is deleted.
+    const holderKey = (record: CompetenceRecordWire, at: number | null) =>
+      [record.userId, record.teamId, record.competence, at].join('\u0000');
+    const grantInstants = new Set(
+      records.map((record) => holderKey(record, record.grantedAt)),
+    );
+    const systemRevocation = (record: CompetenceRecordWire): string =>
+      grantInstants.has(holderKey(record, record.revokedAt))
+        ? t('competences.revokedBySystem')
+        : record.userId === null
+          ? t('competences.revokedWithTeam')
+          : t('competences.revokedWithMember');
+    return records.map((record) => ({
       record,
       status: competenceRecordStatus(record, now),
-      holder: personOf(record.userId),
+      holder: holderOf(record),
       grantor: personOf(record.grantedBy),
       capabilityLabel: isPlatformCapability(record.competence)
         ? t(
             `competences.capabilities.${capabilityMessageKey(record.competence)}.label`,
           )
         : null,
-      // An admin revoked it, or the register did when a new grant replaced
-      // one that had expired (`revokedBy` = `system`).
+      // An admin revoked it, or the register did on its own.
       revoker:
         record.revokedBy === null
           ? undefined
           : record.revokedBy === 'system'
-            ? t('competences.revokedBySystem')
+            ? systemRevocation(record)
             : t('competences.revokedBy', {
                 name: personOf(record.revokedBy).name,
               }),
@@ -222,9 +254,17 @@ export function CompetencesPage({ organizationId }: Props) {
         meta: { flex: true },
         cell: ({ row }) => (
           <div className="flex min-w-0 flex-col">
-            <Text as="span" truncate title={row.original.holder.name}>
-              {row.original.holder.name}
-            </Text>
+            <HStack gap={2} align="center" className="min-w-0">
+              <Text as="span" truncate title={row.original.holder.name}>
+                {row.original.holder.name}
+              </Text>
+              {/* Its members hold the grant while they are in the team. */}
+              {row.original.holder.team ? (
+                <Badge variant="outline" className="shrink-0">
+                  {t('competences.teamBadge')}
+                </Badge>
+              ) : null}
+            </HStack>
             {row.original.holder.email !== null &&
               row.original.holder.email !== row.original.holder.name && (
                 <Text
@@ -413,10 +453,15 @@ export function CompetencesPage({ organizationId }: Props) {
         title={t('competences.revokeDialog.title')}
         description={
           revokeTarget
-            ? t('competences.revokeDialog.description', {
-                competence: competenceName(revokeTarget),
-                member: revokeTarget.holder.name,
-              })
+            ? revokeTarget.holder.team
+              ? t('competences.revokeDialog.descriptionTeam', {
+                  competence: competenceName(revokeTarget),
+                  team: revokeTarget.holder.name,
+                })
+              : t('competences.revokeDialog.description', {
+                  competence: competenceName(revokeTarget),
+                  member: revokeTarget.holder.name,
+                })
             : undefined
         }
         confirmText={t('competences.revokeDialog.confirm')}
