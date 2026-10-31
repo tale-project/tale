@@ -15,6 +15,7 @@ import {
   parseRunCheckpoints,
 } from '../../core/automations/checkpoints.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import type { ProjectAuthContext } from '../projects/service.ts';
 import { auditActor } from './audit.ts';
 import { copyNodeRunsForForkInTx } from './node-runs.ts';
 import {
@@ -297,7 +298,8 @@ export async function replayRunInTx(
     startedBy: string;
     canStartLive: boolean;
     apiKeyId?: string;
-    visibleProjectIds?: string[];
+    /** The app member, whose project read rule the start applies. */
+    viewer?: ProjectAuthContext;
     idempotencyKey?: string;
   },
 ): Promise<ReplayStarted | null> {
@@ -335,9 +337,7 @@ export async function replayRunInTx(
     ...(source.projectId === null
       ? { requireOrgScope: true }
       : { projectId: source.projectId }),
-    ...(args.visibleProjectIds !== undefined && {
-      visibleProjectIds: args.visibleProjectIds,
-    }),
+    ...(args.viewer !== undefined && { viewer: args.viewer }),
     replay: {
       of: args.sourceRunId,
       kind,

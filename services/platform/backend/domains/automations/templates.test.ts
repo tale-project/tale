@@ -22,6 +22,8 @@ const org = vi.hoisted(() => ({
     template: string | null;
     bindings?: string[];
   }[],
+  /** The projects the reader can open. */
+  readable: [] as string[],
 }));
 
 vi.mock('../../../lib/automations/templates.ts', async (importOriginal) => {
@@ -99,6 +101,7 @@ vi.mock('./store.ts', async (importOriginal) => ({
 }));
 
 import { parseAutomationPresentation } from '../../../lib/shared/schemas/automation_presentation.ts';
+import type { ProjectAuthContext } from '../projects/service.ts';
 import { resolveModelReplacements } from './model-defaults.ts';
 import {
   answerTriggerWrite,
@@ -117,24 +120,104 @@ import {
 /** The transaction a fake `sql.begin` hands its callback. */
 const TX = { tx: true };
 
-/** A database that answers the catalog's one read — the newest version of
- * each automation — and runs a transaction's callback once. */
+interface Statement {
+  text: string;
+  values: unknown[];
+}
+
+const FRAGMENT = Symbol('fragment');
+interface Fragment extends Statement {
+  [FRAGMENT]: true;
+}
+
+function isFragment(value: unknown): value is Fragment {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { [FRAGMENT]?: true })[FRAGMENT] === true
+  );
+}
+
+/** Every statement the catalog ran, its fragments inlined. */
+const statements: Statement[] = [];
+
+/** A database that inlines nested fragments the way postgres.js does and
+ * answers the catalog's two reads — the newest version of each automation
+ * the reader sees (installed nowhere, or in a project they can open), and
+ * which of the projects an answer names they can open — and runs a
+ * transaction's callback once. */
 const begin = vi.fn((callback: (tx: unknown) => Promise<unknown>) =>
   callback(TX),
 );
-const sql = Object.assign(
-  () =>
-    Promise.resolve(
-      org.automations.map((automation) => ({
-        name: automation.name,
-        template: automation.template,
-        bindings: automation.bindings ?? [],
-      })),
-    ),
-  { begin },
-) as unknown as Sql;
+const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+  let text = '';
+  const flat: unknown[] = [];
+  strings.forEach((part, index) => {
+    text += part;
+    if (index >= values.length) return;
+    const value = values[index];
+    if (isFragment(value)) {
+      text += value.text;
+      flat.push(...value.values);
+    } else {
+      text += '?';
+      flat.push(value);
+    }
+  });
+  text = text.replace(/\s+/g, ' ').trim();
+  statements.push({ text, values: flat });
+  const answer = (async () => {
+    if (text.startsWith('SELECT a.name')) {
+      return org.automations
+        .filter(
+          (automation) =>
+            (automation.bindings ?? []).length === 0 ||
+            (automation.bindings ?? []).some((id) => org.readable.includes(id)),
+        )
+        .map(({ name, template }) => ({ name, template }));
+    }
+    if (text.startsWith('SELECT id FROM app.projects')) {
+      const asked = Array.isArray(flat[1]) ? flat[1].map(String) : [];
+      return asked
+        .filter((id) => org.readable.includes(id))
+        .map((id) => ({ id }));
+    }
+    return [];
+  })();
+  const fragment: Fragment = { [FRAGMENT]: true, text, values: flat };
+  return Object.assign(answer, fragment);
+};
+const sql = Object.assign(tag, { begin }) as unknown as Sql;
+
+/** The reads that count what is in use. */
+const usageReads = () =>
+  statements.filter((row) => row.text.startsWith('SELECT a.name'));
+/** The projects an answer was checked against, one read each. */
+const projectChecks = () =>
+  statements
+    .filter((row) => row.text.startsWith('SELECT id FROM app.projects'))
+    .map((row) => row.values[1]);
+
+/** The project audience: its teams, with the legacy pair's fallback. */
+const TEAMS =
+  'CASE WHEN cardinality(team_ids) > 0 THEN team_ids ELSE array_remove(ARRAY[team_id] || shared_with_team_ids, NULL) END';
+/** The projects the reader may open (`readableProjectsSql`), inlined. */
+const RELATION = `( SELECT id AS project_id, key AS project_key, archived_at_ms AS project_archived_at_ms FROM app.projects WHERE org_id = ? AND ? AND (? OR archived_at_ms IS NULL) AND (? OR cardinality(${TEAMS}) = 0 OR ${TEAMS} && ?::text[]) )`;
+/** An automation counts when it is installed nowhere or in a project the
+ * reader can open, archived ones included. */
+const VISIBLE_ONLY = `GROUP BY a.org_id, a.name HAVING NOT EXISTS ( SELECT 1 FROM app.automation_project_bindings b WHERE b.org_id = a.org_id AND b.automation_name = a.name ) OR EXISTS ( SELECT 1 FROM app.automation_project_bindings b JOIN ${RELATION} rp ON rp.project_id = b.project_id WHERE b.org_id = a.org_id AND b.automation_name = a.name )`;
+
+/** The reader: a member of one team. */
+const member: ProjectAuthContext = {
+  organizationId: 'org_1',
+  userId: 'usr_ada',
+  role: 'member',
+  teamIds: ['team_ops'],
+};
 
 beforeEach(() => {
+  statements.length = 0;
+  org.readable = ['prj_1'];
   org.extraTemplates = [];
   org.members = new Set(['usr_ada']);
   org.credentials = new Map();
@@ -153,12 +236,12 @@ const reviewer = {
   name: 'tell-ada',
   displayName: 'Tell Ada',
   answers: { project: 'prj_1', reviewer: 'usr_ada' },
-  visibleProjectIds: ['prj_1'],
+  viewer: member,
 };
 
 describe('the catalog', () => {
   it('lists every template with what it does, needs and changes, and what starts it [AUTO-R57]', async () => {
-    const cards = await listTemplateCards(sql, 'org_1', ['prj_1']);
+    const cards = await listTemplateCards(sql, 'org_1', member);
     expect(cards.map((card) => card.slug)).toEqual(
       expect.arrayContaining([
         'answer-questions',
@@ -206,7 +289,7 @@ describe('the catalog', () => {
   });
 
   it('names the schedule a scheduled template starts from', async () => {
-    const card = (await listTemplateCards(sql, 'org_1', ['prj_1'])).find(
+    const card = (await listTemplateCards(sql, 'org_1', member)).find(
       (entry) => entry.slug === 'inbox-summary',
     );
     expect(card?.trigger).toEqual({
@@ -231,12 +314,49 @@ describe('the catalog', () => {
       { name: 'tell-eve', template: 'notify-reviewer', bindings: ['prj_9'] },
       { name: 'my-own', template: null },
     ];
-    const cards = await listTemplateCards(sql, 'org_1', ['prj_1']);
+    const cards = await listTemplateCards(sql, 'org_1', member);
     const inUse = (slug: string) =>
       cards.find((card) => card.slug === slug)?.inUse;
     expect(inUse('notify-reviewer')).toBe(2);
     expect(inUse('task-digest')).toBe(0);
+    // The projects the reader can open join the count (#5201): no
+    // statement carries a list of their ids.
+    const [usage] = usageReads();
+    expect(usage?.text).toContain(VISIBLE_ONLY);
+    expect(usage?.text).not.toContain('ANY(');
   });
+
+  it.each([
+    {
+      who: 'an owner in no team every project [PROJ-R1]',
+      reader: { ...member, role: 'owner', teamIds: [] },
+      grant: [true, true, true, []],
+    },
+    {
+      who: 'a member the projects of their teams [PROJ-R2]',
+      reader: member,
+      grant: [true, true, false, ['team_ops']],
+    },
+    {
+      who: 'a disabled seat no project [PROJ-R2]',
+      reader: { ...member, role: 'disabled' },
+      grant: [false, true, false, ['team_ops']],
+    },
+  ] satisfies {
+    who: string;
+    reader: ProjectAuthContext;
+    grant: unknown[];
+  }[])(
+    'counts what is in use in the projects the reader opens: $who',
+    async ({ reader, grant }) => {
+      await listTemplateCards(sql, 'org_1', reader);
+      // The organization · then the relation: the organization · not a
+      // disabled seat · archived projects kept · admin · teams.
+      expect(usageReads().map((row) => row.values)).toEqual([
+        ['org_1', 'org_1', ...grant],
+      ]);
+    },
+  );
 
   it('counts the copy of a pack an earlier release installed [AUTO-R62]', async () => {
     // Before templates, every organization got the pack under the name of
@@ -263,7 +383,7 @@ describe('the catalog', () => {
       { name: 'example-sync', template: null },
       { name: 'my-sync', template: 'example/sync' },
     ];
-    const card = (await listTemplateCards(sql, 'org_1', ['prj_1'])).find(
+    const card = (await listTemplateCards(sql, 'org_1', member)).find(
       (entry) => entry.slug === 'example/sync',
     );
     expect(card?.inUse).toBe(2);
@@ -271,16 +391,19 @@ describe('the catalog', () => {
 
   it('previews a template with the document it creates and the credentials it can name', async () => {
     org.credentials.set('gmail', ['Support inbox']);
-    const detail = await readTemplateDetail(sql, 'org_1', 'notify-reviewer', [
-      'prj_1',
-    ]);
+    const detail = await readTemplateDetail(
+      sql,
+      'org_1',
+      'notify-reviewer',
+      member,
+    );
     expect(detail.document.nodes.map((node) => node.id)).toEqual([
       'task',
       'notify',
     ]);
     expect(detail.credentials).toEqual({});
     await expect(
-      readTemplateDetail(sql, 'org_1', 'nothing-here', ['prj_1']),
+      readTemplateDetail(sql, 'org_1', 'nothing-here', member),
     ).rejects.toMatchObject({ code: 'TEMPLATE_NOT_FOUND', status: 404 });
   });
 });
@@ -401,6 +524,9 @@ describe('creating from a template', () => {
       },
     });
     expect(resolveModelReplacements).not.toHaveBeenCalled();
+    // The project an answer names is asked alone, never every project the
+    // creator can open.
+    expect(projectChecks()).toEqual([['prj_hidden']]);
   });
 
   it('names what the answers lack on their own too [AUTO-R45]', async () => {

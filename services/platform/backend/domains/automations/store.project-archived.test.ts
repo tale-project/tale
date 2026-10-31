@@ -21,6 +21,7 @@ vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 
 import { appOrigin } from '../../lib/write-origin.ts';
+import type { ProjectAuthContext } from '../projects/service.ts';
 import { beginRun, setAutomationProjects } from './store.ts';
 
 function fakeStore(options: { archivedAt: number | null; bound?: boolean }) {
@@ -82,6 +83,14 @@ describe('setAutomationProjects', () => {
 });
 
 describe('beginRun with a projectId', () => {
+  /** An app member who reads `p-1`, as the fake answers every project
+   * read. */
+  const member: ProjectAuthContext = {
+    organizationId: 'org-1',
+    userId: 'user-1',
+    role: 'member',
+    teamIds: [],
+  };
   const args = {
     organizationId: 'org-1',
     name: 'ops/greet',
@@ -113,7 +122,7 @@ describe('beginRun with a projectId', () => {
     const fake = fakeStore({ archivedAt: 1, bound: true });
     const { projectId: _projectId, ...unscoped } = args;
     await expect(
-      beginRun(fake.sql, { ...unscoped, visibleProjectIds: ['p-1'] }),
+      beginRun(fake.sql, { ...unscoped, viewer: member }),
     ).rejects.toMatchObject({ code: 'PROJECT_ARCHIVED', status: 403 });
     expect(fake.writes).toEqual([]);
   });

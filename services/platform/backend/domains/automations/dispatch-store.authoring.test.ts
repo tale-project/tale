@@ -20,7 +20,6 @@ import { RateLimitExceededError } from '../../lib/rate-limit.ts';
 import { mcpOrigin } from '../../lib/write-origin.ts';
 import {
   assertWritable,
-  listProjects,
   loadProjectOrThrow,
   ProjectError,
   type ProjectRow,
@@ -79,7 +78,6 @@ vi.mock('./deployments.ts', () => ({
 vi.mock('../projects/service.ts', async (original) => ({
   ...(await original<typeof import('../projects/service.ts')>()),
   assertWritable: vi.fn(),
-  listProjects: vi.fn(),
   loadProjectOrThrow: vi.fn(),
 }));
 
@@ -121,17 +119,21 @@ const versionOf = (version: number) => ({
   clientName: 'Claude Code',
 });
 
-function store(
-  options: {
-    role?: string;
-    visibleOnly?: boolean;
-    organizationId?: string;
-  } = {},
-) {
-  const tag = async (strings: TemplateStringsArray) => {
+/** The projects the caller reads, as the check of the projects a read
+ * names answers (`readableProjectsAmong`): p-1 and p-ro. */
+const READABLE = new Set(['p-1', 'p-ro']);
+
+/** The statements the store makes itself: the caller's role, and which of
+ * the projects a read names they may read. */
+function sqlAs(role: string): Sql {
+  const tag = async (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?');
-    if (text.includes('FROM "member"'))
-      return [{ role: options.role ?? 'developer' }];
+    if (text.includes('FROM "member"')) return [{ role }];
+    if (text.includes('SELECT id FROM app.projects')) {
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the ids the check names
+      const named = values[1] as string[];
+      return named.filter((id) => READABLE.has(id)).map((id) => ({ id }));
+    }
     return [];
   };
   const sql = Object.assign(tag, {
@@ -143,7 +145,17 @@ function store(
     ) =>
       typeof beginOptions === 'function' ? beginOptions(sql) : callback?.(sql),
   }) as unknown as Sql;
-  return pgAutomationStore(sql, {
+  return sql;
+}
+
+function store(
+  options: {
+    role?: string;
+    visibleOnly?: boolean;
+    organizationId?: string;
+  } = {},
+) {
+  return pgAutomationStore(sqlAs(options.role ?? 'developer'), {
     organizationId: options.organizationId ?? ORG,
     origin: ORIGIN,
     ...(options.visibleOnly === false ? {} : { visibleOnly: true }),
@@ -152,10 +164,6 @@ function store(
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(listProjects).mockResolvedValue([
-    projectRow('p-1'),
-    projectRow('p-ro'),
-  ] as never);
   vi.mocked(loadProjectOrThrow).mockImplementation(async (_sql, id) => {
     if (id === 'p-1' || id === 'p-ro') return projectRow(id);
     throw new ProjectError('PROJECT_NOT_FOUND', 'Project not found', 404);
@@ -679,7 +687,7 @@ describe('save', () => {
     const authorize = vi.mocked(saveVersion).mock.calls.at(-1)?.[1].authorize;
     if (authorize === undefined) throw new Error('no authorize hook');
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the scripted handle the store's own sql answers through
-    return (latest) => authorize({} as never, latest);
+    return (latest) => authorize(sqlAs('developer') as never, latest);
   };
 
   it('installs a new automation only in a project the person may edit, checked under the name lock', async () => {
@@ -786,11 +794,6 @@ describe('setAutomationProjects', () => {
 
   it('answers what it added, removed and found already there', async () => {
     vi.mocked(bindingProjectIds).mockResolvedValue(['p-1']);
-    vi.mocked(listProjects).mockResolvedValue([
-      projectRow('p-1'),
-      projectRow('p-2'),
-      projectRow('p-3'),
-    ] as never);
     vi.mocked(loadProjectOrThrow).mockImplementation(async (_sql, id) =>
       projectRow(id),
     );
@@ -938,7 +941,12 @@ describe('listRunsPage', () => {
     expect(listRunsPage).toHaveBeenCalledWith(expect.anything(), ORG, {
       name: NAME,
       mode: 'mock',
-      visibleProjectIds: ['p-1', 'p-ro'],
+      // The store joins the projects the caller reads in the page's own
+      // statement, never their id list (#5201).
+      viewer: expect.objectContaining({
+        organizationId: ORG,
+        userId: 'user-1',
+      }),
       limit: 50,
     });
     const cursor = first?.nextCursor ?? '';

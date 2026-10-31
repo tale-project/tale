@@ -47,6 +47,7 @@ import {
   getProjectAuthContext,
   assertWritable,
   ProjectError,
+  type ProjectAuthContext,
 } from '../projects/service.ts';
 import { SKILL_ERROR_STATUS } from '../skills/errors.ts';
 import { auditIfPublishRefused } from '../skills/publish.ts';
@@ -78,8 +79,8 @@ import {
 import {
   canReadRun,
   readableProject,
-  readableProjectIds,
   runControlAccess,
+  visibleInstallations,
 } from './project-visibility.ts';
 import { readReplayPlan, replayRunInTx } from './replay.ts';
 import {
@@ -589,22 +590,15 @@ export function createAutomationRoutes(deps: {
     ) {
       return c.json({ automations: [] });
     }
-    const visible = new Set(await readableProjectIds(deps.sql, auth));
-    const automations = await listAutomationsForApp(deps.sql, c.get('orgId'), {
-      ...(projectId !== undefined ? { projectId } : {}),
-      includeProjectBound: c.req.query('includeProjectBound') === 'true',
-    });
-    // A row bound only to projects outside the viewer's view is dropped,
-    // not listed with no bindings: an empty list reads as organization
-    // scope, where the automation cannot run.
+    // Only the installations the viewer can read; a row bound only to
+    // projects outside their view is dropped, not listed with no bindings:
+    // an empty list reads as organization scope, where the automation
+    // cannot run.
     return c.json({
-      automations: automations.flatMap((automation) => {
-        const projectIds = automation.projectIds.filter((id) =>
-          visible.has(id),
-        );
-        return automation.projectIds.length > 0 && projectIds.length === 0
-          ? []
-          : [{ ...automation, projectIds }];
+      automations: await listAutomationsForApp(deps.sql, c.get('orgId'), {
+        ...(projectId !== undefined ? { projectId } : {}),
+        includeProjectBound: c.req.query('includeProjectBound') === 'true',
+        viewer: auth,
       }),
     });
   });
@@ -958,10 +952,7 @@ export function createAutomationRoutes(deps: {
         const denied = requireAuthor(c);
         if (denied) return denied;
       }
-      const visibleProjectIds = await readableProjectIds(
-        deps.sql,
-        await projectAuth(c),
-      );
+      const viewer = await projectAuth(c);
       const started = await deps.sql.begin((tx) =>
         replayRunInTx(tx, {
           organizationId: c.get('orgId'),
@@ -969,7 +960,7 @@ export function createAutomationRoutes(deps: {
           request,
           startedBy: `user:${c.get('sessionBundle').user.id}`,
           canStartLive: mayStartLive(c),
-          visibleProjectIds,
+          viewer,
           ...(requestId !== undefined && { idempotencyKey: requestId }),
         }),
       );
@@ -1089,7 +1080,7 @@ export function createAutomationRoutes(deps: {
     const page = await listRunsPage(deps.sql, c.get('orgId'), {
       name,
       ...(projectId !== undefined ? { projectId } : {}),
-      visibleProjectIds: await readableProjectIds(deps.sql, auth),
+      viewer: auth,
       ...(status !== undefined && status.length > 0
         ? { statuses: status }
         : {}),
@@ -1122,7 +1113,7 @@ export function createAutomationRoutes(deps: {
       ...(name !== undefined ? { name } : {}),
       ...(projectId !== undefined ? { projectId } : {}),
       ...(Number.isFinite(limitRaw) ? { limit: limitRaw } : {}),
-      visibleProjectIds: await readableProjectIds(deps.sql, auth),
+      viewer: auth,
     });
     // The full rows, not summaries: the editor overlays the last run's
     // trace and checkpoints on the canvas from this listing.
@@ -1769,10 +1760,7 @@ export function createAutomationRoutes(deps: {
         origin: editorOrigin(c),
         // The editor saves the bindings it was shown; bindings to projects
         // outside the author's view survive the save.
-        visibleProjectIds: await readableProjectIds(
-          deps.sql,
-          await projectAuth(c),
-        ),
+        viewer: await projectAuth(c),
       });
       return c.json({ ok: true });
     } catch (error) {
@@ -1791,15 +1779,12 @@ export function createAutomationRoutes(deps: {
       if (denied) return denied;
     }
     try {
-      const visibleProjectIds = await readableProjectIds(
-        deps.sql,
-        await projectAuth(c),
-      );
+      const viewer = await projectAuth(c);
       // A hidden project answers exactly like a missing one, before
       // anything about the automation's version or input is revealed.
       if (
         body.data.projectId !== undefined &&
-        !visibleProjectIds.includes(body.data.projectId)
+        (await readableProject(deps.sql, viewer, body.data.projectId)) === null
       ) {
         throw new AutomationError(
           'PROJECT_NOT_FOUND',
@@ -1815,7 +1800,7 @@ export function createAutomationRoutes(deps: {
         startedBy: `user:${c.get('sessionBundle').user.id}`,
         // Admission checks the binding it actually resolves, including a
         // sole inferred project and all bindings of an organization run.
-        visibleProjectIds,
+        viewer,
         ...(body.data.version !== undefined
           ? { version: body.data.version }
           : {}),
@@ -1919,10 +1904,7 @@ export function createAutomationRoutes(deps: {
       runs: await listTriggerRuns(deps.sql, c.get('orgId'), {
         name: nameFrom(c, 'trigger/runs'),
         ...(Number.isFinite(limit) ? { limit } : {}),
-        visibleProjectIds: await readableProjectIds(
-          deps.sql,
-          await projectAuth(c),
-        ),
+        viewer: await projectAuth(c),
       }),
     });
   });
@@ -1938,15 +1920,18 @@ export function createAutomationRoutes(deps: {
   });
 
   app.get('/:name{.+}/projects', async (c) => {
-    const visible = new Set(
-      await readableProjectIds(deps.sql, await projectAuth(c)),
-    );
     const projectIds = await bindingProjectIds(
       deps.sql,
       c.get('orgId'),
       nameFrom(c, 'projects'),
     );
-    return c.json({ projectIds: projectIds.filter((id) => visible.has(id)) });
+    return c.json({
+      projectIds: await visibleInstallations(
+        deps.sql,
+        await projectAuth(c),
+        projectIds,
+      ),
+    });
   });
 
   // The writes the automation may make without a person approving each run:
@@ -2158,17 +2143,15 @@ export function createAutomationTemplateRoutes(deps: {
       ? null
       : c.json({ error: 'admin or developer role required' }, 403);
 
-  /** The projects the reader can open: what is in use counts only the
-   * automations they see, and a project question takes only these. */
-  const readableOf = async (c: Context<OrgEnv>): Promise<string[]> =>
-    readableProjectIds(
-      deps.sql,
-      await getProjectAuthContext(deps.sql, {
-        organizationId: c.get('orgId'),
-        userId: c.get('sessionBundle').user.id,
-        role: c.get('orgMember').role,
-      }),
-    );
+  /** The reader, by whose project read rule what is in use counts only
+   * the automations they see and a project question takes only a project
+   * they can open. */
+  const readerOf = (c: Context<OrgEnv>): Promise<ProjectAuthContext> =>
+    getProjectAuthContext(deps.sql, {
+      organizationId: c.get('orgId'),
+      userId: c.get('sessionBundle').user.id,
+      role: c.get('orgMember').role,
+    });
 
   app.get('/', async (c) => {
     const denied = requireAuthor(c);
@@ -2177,7 +2160,7 @@ export function createAutomationTemplateRoutes(deps: {
       templates: await listTemplateCards(
         deps.sql,
         c.get('orgId'),
-        await readableOf(c),
+        await readerOf(c),
       ),
     });
   });
@@ -2200,7 +2183,7 @@ export function createAutomationTemplateRoutes(deps: {
         ...(body.data.timezone !== undefined && {
           timezone: body.data.timezone,
         }),
-        visibleProjectIds: await readableOf(c),
+        viewer: await readerOf(c),
       });
       assembleAutomationAuthoringHost();
       const scope = { organizationId, origin: appOrigin(actor) };
@@ -2270,7 +2253,7 @@ export function createAutomationTemplateRoutes(deps: {
           deps.sql,
           c.get('orgId'),
           c.req.param('slug'),
-          await readableOf(c),
+          await readerOf(c),
         ),
       );
     } catch (error) {

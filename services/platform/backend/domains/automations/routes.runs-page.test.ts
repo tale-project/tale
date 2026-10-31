@@ -14,7 +14,7 @@ import type { OrgEnv } from '../../auth/org.ts';
 
 const { listRunsPage, visibility } = vi.hoisted(() => ({
   listRunsPage: vi.fn(),
-  visibility: { projects: ['p-1'] as string[], readable: true },
+  visibility: { readable: true },
 }));
 
 vi.mock('./store.ts', async (importOriginal) => ({
@@ -24,7 +24,6 @@ vi.mock('./store.ts', async (importOriginal) => ({
 
 vi.mock('./project-visibility.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./project-visibility.ts')>()),
-  readableProjectIds: vi.fn(async () => visibility.projects),
   readableProject: vi.fn(async () =>
     visibility.readable ? { id: 'p-1' } : null,
   ),
@@ -95,9 +94,16 @@ function row(id: string, startedAt: number) {
   };
 }
 
+/** The reader, as the project read rule sees them (#5201). */
+const READER = {
+  organizationId: 'o1',
+  userId: 'u1',
+  role: 'member',
+  teamIds: [],
+};
+
 beforeEach(() => {
   vi.clearAllMocks();
-  visibility.projects = ['p-1'];
   visibility.readable = true;
   listRunsPage.mockResolvedValue({
     runs: [row('run-2', 2000), row('run-1', 1000)],
@@ -122,9 +128,10 @@ describe('GET /runs/page', () => {
     });
     // A summary: never the trace.
     expect(body.items[0]).not.toHaveProperty('trace');
+    // The store joins the projects the reader reads in the run read.
     expect(listRunsPage).toHaveBeenCalledWith(expect.anything(), 'o1', {
       name: 'triage',
-      visibleProjectIds: ['p-1'],
+      viewer: READER,
       limit: 2,
     });
   });
@@ -135,7 +142,7 @@ describe('GET /runs/page', () => {
     );
     expect(listRunsPage).toHaveBeenCalledWith(expect.anything(), 'o1', {
       name: 'triage',
-      visibleProjectIds: ['p-1'],
+      viewer: READER,
       statuses: ['failed', 'waiting'],
       mode: 'live',
       before: { at: 1000, id: 'run-1' },

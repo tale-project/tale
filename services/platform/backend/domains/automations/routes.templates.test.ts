@@ -40,11 +40,10 @@ vi.mock('../../core/connector_credentials/connector_catalog.ts', () => ({
 }));
 vi.mock('../projects/service.ts', async (original) => ({
   ...(await original<typeof import('../projects/service.ts')>()),
-  getProjectAuthContext: () => Promise.resolve({}),
-}));
-vi.mock('./project-visibility.ts', async (original) => ({
-  ...(await original<typeof import('./project-visibility.ts')>()),
-  readableProjectIds: () => Promise.resolve(['prj_1']),
+  getProjectAuthContext: (
+    _sql: unknown,
+    member: { organizationId: string; userId: string; role: string },
+  ) => Promise.resolve({ ...member, teamIds: ['team_ops'] }),
 }));
 vi.mock('./templates.ts', () => ({
   listTemplateCards: io.list,
@@ -97,6 +96,15 @@ const create = (body: unknown, slug = 'notify-reviewer') =>
     body: JSON.stringify(body),
   });
 
+/** The reader, by whose project read rule the catalog counts what is in
+ * use and a project answer is checked (#5201). */
+const READER = {
+  organizationId: 'o1',
+  userId: 'u1',
+  role: 'developer',
+  teamIds: ['team_ops'],
+};
+
 const BODY = {
   name: 'tell-ada',
   displayName: 'Tell Ada',
@@ -144,7 +152,7 @@ describe('the template catalog, at the app door', () => {
       'o1',
       'gmail/sync-emails',
       // What is in use counts only what the reader can see.
-      ['prj_1'],
+      READER,
     );
   });
 
@@ -178,7 +186,7 @@ describe('the template catalog, at the app door', () => {
         displayName: 'Tell Ada',
         answers: BODY.answers,
         locale: 'de',
-        visibleProjectIds: ['prj_1'],
+        viewer: READER,
       }),
     );
     expect(io.commit).toHaveBeenCalledWith(
@@ -228,7 +236,7 @@ describe('the template catalog, at the app door', () => {
 
   it('counts what is in use for the reader on the list too', async () => {
     await app().request('/api/app/automation-templates');
-    expect(io.list).toHaveBeenCalledWith(expect.anything(), 'o1', ['prj_1']);
+    expect(io.list).toHaveBeenCalledWith(expect.anything(), 'o1', READER);
   });
 
   it('writes nothing for a document its checks refuse [AUTO-R61]', async () => {
