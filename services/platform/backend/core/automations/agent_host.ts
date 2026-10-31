@@ -59,6 +59,7 @@ import {
   spawnerOutageOutlasted,
 } from '../chat/external_turn_shared';
 import { readMandatoryInstructions } from '../chat/guardrails';
+import { assertModelEndpointAllowed } from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
@@ -1242,6 +1243,9 @@ async function mintWorkflowTurnAuth(
   ctx: ActionCtx,
   args: {
     organizationId: string;
+    /** The run the turn serves — the audit entry of an upstream the EU/EEA
+     * rule refuses names it, as the `llm` node's does. */
+    runId: string;
     sessionId: string;
     execId: string;
     harness: string;
@@ -1298,6 +1302,8 @@ async function mintWorkflowTurnAuth(
         },
         ...(args.vision !== null ? [args.vision] : []),
       ],
+      surface: 'automation',
+      actor: { id: args.runId, type: 'workflow' },
       budgetCents,
     });
     return {
@@ -1356,6 +1362,21 @@ async function mintWorkflowTurnAuth(
       `provider "${args.providerSlug}"'s default credential is no longer a subscription — rerun the automation`,
     );
   }
+  // The CLI calls this URL straight from the sandbox, so the EU/EEA rule
+  // (GOV-R17) judges it before the secret goes anywhere: a broker's own
+  // endpoint is known only once its credential is redeemed.
+  const baseUrl =
+    (credential.authMethod === 'subscription-broker'
+      ? credential.endpointUrl
+      : undefined) ?? args.apiBaseUrl;
+  await assertModelEndpointAllowed(ctx, {
+    organizationId: args.organizationId,
+    surface: 'automation',
+    providerName: args.providerSlug,
+    modelId: args.modelId,
+    baseUrl,
+    actor: { id: args.runId, type: 'workflow' },
+  });
   const secret =
     credential.authMethod === 'subscription-broker'
       ? credential.token
@@ -1365,10 +1386,7 @@ async function mintWorkflowTurnAuth(
     serving: {
       kind: 'subscription',
       secret,
-      baseUrl:
-        (credential.authMethod === 'subscription-broker'
-          ? credential.endpointUrl
-          : undefined) ?? args.apiBaseUrl,
+      baseUrl,
       bridgeToken,
       ...(credential.targetEnvVar !== undefined
         ? { targetEnvVar: credential.targetEnvVar }
@@ -1584,6 +1602,7 @@ export async function startWorkflowAgentTurnImpl(
           : undefined;
       const auth = await mintWorkflowTurnAuth(ctx, {
         organizationId: args.organizationId,
+        runId: args.runId,
         sessionId: args.sessionId,
         execId: args.execId,
         harness: args.harness,
@@ -2242,6 +2261,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
           : undefined;
       const auth = await mintWorkflowTurnAuth(ctx, {
         organizationId: args.organizationId,
+        runId: askRunId,
         sessionId,
         execId,
         harness: agent.harness,

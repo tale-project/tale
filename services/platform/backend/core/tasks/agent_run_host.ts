@@ -35,6 +35,7 @@ import {
   agentLanguageGuidance,
   type AgentLanguageContext,
 } from '../../../lib/shared/agent-language';
+import { parseRunStarter } from '../../../lib/shared/run-starter';
 import {
   liveProgressSink,
   releaseTurnKey,
@@ -61,6 +62,10 @@ import {
   type ExternalTurnServing,
 } from '../chat/external_turn_shared';
 import { readMandatoryInstructions } from '../chat/guardrails';
+import {
+  assertModelEndpointAllowed,
+  type ModelEndpointActor,
+} from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { loadHarnesses } from '../lib/providers/load_system_config';
@@ -942,6 +947,9 @@ async function mintTurnServing(
     /** Broker-token hashes the failure streak already burned — the vend
      * advances past them (`resolveProviderCredential`). */
     excludeBrokerTokenHashes?: string[];
+    /** Who the turn runs for — the audit entry of an upstream the EU/EEA
+     * rule refuses names them. */
+    actor?: ModelEndpointActor;
   },
   resolved: TaskServing,
   brokerTransport?: BrokerTransportScope,
@@ -1007,6 +1015,8 @@ async function mintTurnServing(
       organizationId: args.organizationId,
       sessionId: args.sessionId,
       allowedModels: [target, ...(vision !== null ? [vision.model] : [])],
+      surface: 'task',
+      ...(args.actor !== undefined ? { actor: args.actor } : {}),
       budgetCents,
     });
     return {
@@ -1068,6 +1078,21 @@ async function mintTurnServing(
       `provider "${resolved.providerSlug}"'s default credential is no longer a subscription — retry the run`,
     );
   }
+  // The harness calls this URL straight from the sandbox, so the EU/EEA rule
+  // (GOV-R17) judges it before the secret goes anywhere: a broker's own
+  // endpoint is known only once its credential is redeemed.
+  const baseUrl =
+    (credential.authMethod === 'subscription-broker'
+      ? credential.endpointUrl
+      : undefined) ?? resolved.apiBaseUrl;
+  await assertModelEndpointAllowed(ctx, {
+    organizationId: args.organizationId,
+    surface: 'task',
+    providerName: resolved.providerSlug,
+    modelId: resolved.modelId,
+    baseUrl,
+    ...(args.actor !== undefined ? { actor: args.actor } : {}),
+  });
   const secret =
     credential.authMethod === 'subscription-broker'
       ? credential.token
@@ -1077,10 +1102,7 @@ async function mintTurnServing(
     serving: {
       kind: 'subscription',
       secret,
-      baseUrl:
-        (credential.authMethod === 'subscription-broker'
-          ? credential.endpointUrl
-          : undefined) ?? resolved.apiBaseUrl,
+      baseUrl,
       bridgeToken,
       ...(credential.targetEnvVar !== undefined
         ? { targetEnvVar: credential.targetEnvVar }
@@ -1245,6 +1267,17 @@ async function reapPredecessorExec(
 }
 
 /** The start's full argument shape — `turnArgs` plus the kick shaping. */
+/** Who a task turn runs for, as an audit entry names it: the person behind
+ * the run's starter — through an API key or not — else the door that
+ * started it (a trigger, the project's dispatch). */
+function taskTurnActor(startedBy: unknown): ModelEndpointActor | undefined {
+  if (typeof startedBy !== 'string' || startedBy === '') return undefined;
+  const starter = parseRunStarter(startedBy);
+  if (starter.kind === 'user') return { id: starter.userId, type: 'user' };
+  if (starter.kind === 'api-key') return { id: starter.userId, type: 'api' };
+  return { id: startedBy, type: 'system' };
+}
+
 export interface StartTaskAgentTurnArgs extends TurnKeys {
   model: string;
   modelProvider?: string;
@@ -1513,9 +1546,10 @@ export async function startTaskAgentTurnImpl(
               },
             }
           : undefined;
+      const actor = taskTurnActor(runRow.startedBy);
       const prepared = await mintTurnServing(
         ctx,
-        args,
+        { ...args, ...(actor !== undefined ? { actor } : {}) },
         resolved,
         brokerTransport,
       );
@@ -2819,7 +2853,18 @@ export async function steerTaskAgentTurnImpl(
         : {},
     );
     // The reservation belongs to the ROTATED exec, like every stamp below.
-    const prepared = await mintTurnServing(ctx, { ...args, execId }, resolved);
+    const prepared = await mintTurnServing(
+      ctx,
+      {
+        ...args,
+        execId,
+        actor: {
+          id: args.authorId,
+          type: args.authorApiKeyId !== undefined ? 'api' : 'user',
+        },
+      },
+      resolved,
+    );
     // Stamp or clear under the ROTATED execId: the old id would silently
     // retain a predecessor's account and blame it for the new lane's 429.
     await ctx.runMutation(
