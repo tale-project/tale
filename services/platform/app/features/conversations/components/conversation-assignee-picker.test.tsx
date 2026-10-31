@@ -2,6 +2,7 @@
 import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { MemberLookupTarget } from '@/app/features/settings/organization/hooks/member-lookup';
 import { render, screen, within } from '@/tests/utils/render';
 
 vi.mock('@/app/hooks/use-current-member-context', () => ({
@@ -10,22 +11,39 @@ vi.mock('@/app/hooks/use-current-member-context', () => ({
   }),
 }));
 
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({
-    members: [
-      {
-        userId: 'user-1',
-        displayName: 'Ada Lovelace',
-        email: 'ada@example.com',
-      },
-      {
-        userId: 'user-2',
-        displayName: 'Grace Hopper',
-        email: 'grace@example.com',
-      },
-    ],
-  }),
+const memberReads = vi.hoisted(() => ({
+  members: [
+    {
+      userId: 'user-1',
+      displayName: 'Ada Lovelace',
+      email: 'ada@example.com',
+    },
+    {
+      userId: 'user-2',
+      displayName: 'Grace Hopper',
+      email: 'grace@example.com',
+    },
+  ],
+  /** Whom the member lookup was asked for. */
+  asked: new Array<MemberLookupTarget>(),
+  /** Whether each render read every member. */
+  everyMember: new Array<boolean>(),
 }));
+
+// The options are every member, here as if the picker were open; the
+// trigger's assignee comes from the member lookup.
+vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
+  useMembers: (_organizationId: string, options?: { enabled?: boolean }) => {
+    memberReads.everyMember.push(options?.enabled ?? true);
+    return { members: memberReads.members, isLoading: false };
+  },
+}));
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => memberReads.members,
+    memberReads.asked,
+  ),
+);
 
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => ({
@@ -105,15 +123,20 @@ vi.mock('@tale/ui/searchable-select', () => ({
     options = [],
     optionAction,
     onValueChange,
+    onOpenChange,
   }: {
     trigger: React.ReactNode;
     footer?: React.ReactNode;
     options?: StubOption[];
     optionAction?: (option: StubOption) => React.ReactNode;
     onValueChange?: (value: string) => void;
+    onOpenChange?: (open: boolean) => void;
   }) => (
     <div data-testid="assign-select">
       <div data-testid="assign-trigger">{trigger}</div>
+      <button type="button" onClick={() => onOpenChange?.(true)}>
+        Open the picker
+      </button>
       {options
         .filter((option) => option.isSectionHeader !== true)
         .map((option) => (
@@ -159,6 +182,31 @@ describe('ConversationAssigneePicker', () => {
   beforeEach(() => {
     mutations.assignUser.mockClear();
     mutations.assignTeam.mockClear();
+    memberReads.asked.length = 0;
+    memberReads.everyMember.length = 0;
+  });
+
+  it('looks up the assignee alone, and reads every member once opened', async () => {
+    const { user } = render(
+      <ConversationAssigneePicker
+        conversation={makeConversation({ assigneeUserId: 'user-2' })}
+        organizationId="org-1"
+      />,
+    );
+
+    expect(
+      within(screen.getByTestId('assign-trigger')).getAllByText('Grace Hopper')
+        .length,
+    ).toBeGreaterThan(0);
+    expect(
+      new Set(memberReads.asked.map((ask) => JSON.stringify(ask))),
+    ).toEqual(new Set([JSON.stringify({ userId: 'user-2' })]));
+    // A thread that is only read never reads every member.
+    expect(memberReads.everyMember).not.toContain(true);
+
+    await user.click(screen.getByRole('button', { name: 'Open the picker' }));
+
+    expect(memberReads.everyMember.at(-1)).toBe(true);
   });
 
   it('shows a dual stack when both team and person are assigned (a narrow header keeps both)', () => {

@@ -57,7 +57,6 @@ interface MemberListWire {
   displayName: string | null;
   email: string | null;
   twoFactorEnabled: boolean;
-  passkeyCount: number;
 }
 type ProjectFolderItem = ItemOf<'projects/queries:listProjectFolders'>;
 type FolderDoc = NonNullable<ReturnsOf<'folders/queries:listFolders'>>[number];
@@ -446,7 +445,6 @@ export const documentReadAdapters: Record<string, ReadAdapter> = {
                   : {}),
                 ...(row.email !== null ? { email: row.email } : {}),
                 twoFactorEnabled: row.twoFactorEnabled,
-                passkeyCount: row.passkeyCount,
               }) as MemberListItem,
           ),
         ),

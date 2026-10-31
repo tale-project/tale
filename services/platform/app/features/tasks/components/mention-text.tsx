@@ -30,6 +30,7 @@ import {
   useTaskMentionsPending,
   withTaskActorDirectory,
 } from '../hooks/task-actor-directory-context';
+import type { MentionPendingRef } from '../hooks/use-actor-directory';
 import { type PlainMention, plainMentionReader } from '../lib/plain-mentions';
 
 function isMentionKind(kind: string | undefined): kind is MentionKind {
@@ -44,7 +45,7 @@ interface MentionLabels {
 /** One mention: a chip with the current name of whom it names, a muted chip
  * with the name it was saved with for someone gone, never an id. A typed
  * `@handle` nobody answers to stays the words it was. Until the directory
- * has arrived, a stored mention it does not list yet shows the name it was
+ * has answered for whom a stored mention names, it shows the name it was
  * saved with, as a plain chip: nobody is called gone before that is known. */
 function MentionElement({
   props,
@@ -59,7 +60,7 @@ function MentionElement({
   written: ReactNode;
   mentions: MentionHandleIndex;
   readPlain: (handle: string) => PlainMention | null;
-  pending: boolean;
+  pending: (ref: MentionPendingRef) => boolean;
   labels: MentionLabels;
 }) {
   const kind = props['data-mention-kind'];
@@ -94,7 +95,7 @@ function MentionElement({
     );
   }
   if (id !== undefined && isMentionKind(kind)) {
-    if (pending) {
+    if (pending({ kind, id })) {
       return (
         <MentionChip
           name={props['data-mention-label'] || labels.kind[kind]}
@@ -113,7 +114,7 @@ function MentionElement({
   if (plain?.type === 'deletedAgent') {
     // An agent's id is never shown: until the agents have arrived it reads
     // as an agent, then by its name or as deleted.
-    return pending ? (
+    return handle !== undefined && pending({ handle }) ? (
       <MentionChip name={labels.kind.agent} kindLabel={labels.kind.agent} />
     ) : (
       <MentionChip

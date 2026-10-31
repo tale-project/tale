@@ -2,12 +2,16 @@
 import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { MemberLookupTarget } from '@/app/features/settings/organization/hooks/member-lookup';
+
 import { useActorDirectory, useAssignableActors } from './use-actor-directory';
 
-// The directory serves members from the org roster and agents from the
-// PROJECT's user-created instances (`projectAgents` rows): with a project the
-// instances are assignable and resolve to their names; without one no agent
-// is assignable, and an unknown/foreign agent actor reads as a deleted agent.
+// The directory names people through the member lookup, asking it for whom
+// it names, and agents from the PROJECT's user-created instances
+// (`projectAgents` rows): with a project the instances are assignable and
+// resolve to their names; without one no agent is assignable, and an
+// unknown/foreign agent actor reads as a deleted agent. The pickers' lists
+// (`useAssignableActors`) read every member.
 
 interface AgentRow {
   _id: string;
@@ -52,7 +56,7 @@ interface MemberRow {
   userId: string;
   displayName?: string;
   email?: string;
-  role: string;
+  role: 'member' | 'admin';
 }
 
 const MEMBERS: MemberRow[] = [
@@ -70,11 +74,28 @@ const MEMBERS: MemberRow[] = [
   },
 ];
 
-/** What the member directory answers — undefined until it has answered. */
+/** Who the members are — undefined until the member reads have answered. */
 let memberRows: MemberRow[] | undefined = MEMBERS;
 
+/** Whom the directory asked the member lookup for, and how often every
+ * member was read. */
+const memberReads = vi.hoisted(() => ({
+  asked: new Array<MemberLookupTarget>(),
+  everyMember: 0,
+}));
+
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => memberRows,
+    memberReads.asked,
+  ),
+);
+
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({ members: memberRows }),
+  useMembers: () => {
+    memberReads.everyMember += 1;
+    return { members: memberRows };
+  },
 }));
 
 let standardAgent: { enabled: boolean; available: boolean } | undefined;
@@ -149,17 +170,35 @@ vi.mock('@tale/ui/i18n/locale-provider', () => ({
 }));
 
 describe('useActorDirectory — members + project-agent instances', () => {
-  it('lists org members as assignable and resolves their names', () => {
+  beforeEach(() => {
+    memberReads.asked.length = 0;
+    memberReads.everyMember = 0;
+  });
+
+  it('names people through the member lookup, and never reads every member', () => {
     const { result } = renderHook(() => useActorDirectory('org-1'));
-    expect(result.current.members.map((m) => m.id)).toEqual([
-      'user-1',
-      'user-2',
-    ]);
     expect(result.current.resolveActor('user', 'user-1')).toMatchObject({
       name: 'Alex Doe',
       isAgent: false,
       email: 'alex@example.com',
     });
+    expect(result.current.resolveAssigneeId('user-2')).toBe('kim@example.com');
+    // The people looked up, as the surfaces list them.
+    expect(result.current.members.map((m) => m.id)).toEqual([
+      'user-1',
+      'user-2',
+    ]);
+    // Someone it has not found is asked for as they are named.
+    expect(memberReads.asked).toEqual([]);
+    expect(result.current.resolveActor('user', 'user-9').standing).toBe(
+      'former',
+    );
+    expect(result.current.resolveAssigneeId('user-8')).toBe('formerMember');
+    expect(memberReads.asked).toEqual([
+      { userId: 'user-9' },
+      { userId: 'user-8' },
+    ]);
+    expect(memberReads.everyMember).toBe(0);
   });
 
   it('exposes no assignable agents without a project', () => {
@@ -247,8 +286,11 @@ describe('useActorDirectory — members + project-agent instances', () => {
       expect(result.current.agentsLoading).toBe(true);
       // A mention names the project's own agents alone: it does not wait
       // for the agents serving the board.
-      expect(result.current.mentionsPending).toBe(
-        settled.result.current.mentionsPending,
+      expect(result.current.mentionPending({ kind: 'agent', id: 'pa_1' })).toBe(
+        false,
+      );
+      expect(result.current.mentionPending({ handle: 'pr-reviewer' })).toBe(
+        false,
       );
     } finally {
       servingLoading = false;
@@ -314,7 +356,7 @@ describe('useActorDirectory — people the directory does not list', () => {
     ).toMatchObject({ name: 'formerMember' });
   });
 
-  it('names nobody while the member directory has not answered', () => {
+  it('names nobody while the member lookup has not answered for them', () => {
     memberRows = undefined;
     const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
     expect(result.current.resolveActor('user', 'user-1')).toEqual({
@@ -353,6 +395,64 @@ describe('useActorDirectory — people the directory does not list', () => {
 });
 
 /**
+ * A mention names a person, an agent or an automation; until the read that
+ * would name it has answered, it is not yet someone gone. A mention of a
+ * person asks the member lookup for them as it is read.
+ */
+describe('useActorDirectory — whom a mention names', () => {
+  beforeEach(() => {
+    memberReads.asked.length = 0;
+  });
+
+  afterEach(() => {
+    memberRows = MEMBERS;
+    automationListing = [];
+  });
+
+  it('waits for the member lookup on a person, asking it for them', () => {
+    memberRows = undefined;
+    const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
+    expect(result.current.mentionPending({ kind: 'user', id: 'user-1' })).toBe(
+      true,
+    );
+    expect(result.current.mentionPending({ handle: 'alex' })).toBe(true);
+    expect(result.current.memberPending({ userId: 'user-2' })).toBe(true);
+    expect(memberReads.asked).toEqual([
+      { userId: 'user-1' },
+      { handle: 'alex' },
+      { userId: 'user-2' },
+    ]);
+    // An agent or an automation is no person to wait for.
+    expect(result.current.mentionPending({ kind: 'agent', id: 'pa_1' })).toBe(
+      false,
+    );
+    expect(
+      result.current.mentionPending({ kind: 'automation', id: 'triage' }),
+    ).toBe(false);
+  });
+
+  it('waits for the automations on an automation or a handle, never on a person', () => {
+    automationListing = undefined;
+    const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
+    expect(
+      result.current.mentionPending({ kind: 'automation', id: 'triage' }),
+    ).toBe(true);
+    expect(result.current.mentionPending({ handle: 'triage' })).toBe(true);
+    expect(result.current.mentionPending({ kind: 'user', id: 'user-1' })).toBe(
+      false,
+    );
+  });
+
+  it('names nobody pending once every read has answered', () => {
+    const { result } = renderHook(() => useActorDirectory('org-1', 'proj-1'));
+    expect(result.current.mentionPending({ handle: 'nobody' })).toBe(false);
+    expect(
+      result.current.mentionPending({ kind: 'user', id: 'user-gone' }),
+    ).toBe(false);
+  });
+});
+
+/**
  * The candidate lists are narrowed to the project's audience, and say when
  * that narrowing has happened: until it has, the members are org-wide, so a
  * picker that must offer only who the server takes (the reviewer's) waits.
@@ -360,6 +460,50 @@ describe('useActorDirectory — people the directory does not list', () => {
 describe('useAssignableActors — the project audience', () => {
   beforeEach(() => {
     accessScope = undefined;
+    memberReads.everyMember = 0;
+  });
+
+  afterEach(() => {
+    memberRows = MEMBERS;
+  });
+
+  it('reads every member, and is not ready until they have arrived', () => {
+    accessScope = { orgWide: true, userIds: [] };
+    memberRows = undefined;
+    const loading = renderHook(() => useAssignableActors('org-1', 'proj-1'));
+    expect(memberReads.everyMember).toBeGreaterThan(0);
+    expect(loading.result.current.membersLoading).toBe(true);
+    expect(loading.result.current.scopeReady).toBe(false);
+    expect(loading.result.current.assignableMembers).toEqual([]);
+
+    memberRows = [...MEMBERS, { userId: 'user-erased', role: 'member' }];
+    const { result } = renderHook(() => useAssignableActors('org-1', 'proj-1'));
+    expect(result.current.membersLoading).toBe(false);
+    expect(result.current.scopeReady).toBe(true);
+    expect(result.current.assignableMembers).toEqual([
+      {
+        type: 'user',
+        id: 'user-1',
+        name: 'Alex Doe',
+        email: 'alex@example.com',
+        role: 'member',
+      },
+      {
+        type: 'user',
+        id: 'user-2',
+        name: 'kim@example.com',
+        email: 'kim@example.com',
+        role: 'admin',
+      },
+      // Never offered by their id either.
+      {
+        type: 'user',
+        id: 'user-erased',
+        name: 'formerMember',
+        email: undefined,
+        role: 'member',
+      },
+    ]);
   });
 
   it('drops members outside a team-restricted project', () => {

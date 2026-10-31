@@ -18,14 +18,17 @@ const data = vi.hoisted(() => ({
       userId: 'user-1',
       displayName: 'Ada',
       email: 'ada@example.com',
-      role: 'member',
+      role: 'member' as const,
     },
   ],
   agents: [{ _id: 'agent-1', name: 'Project agent' }],
   automations: [],
   scope: { orgWide: true, userIds: [] },
   project: { canEdit: true },
+  // Every member, read for the pickers' lists.
   memberRead: vi.fn(),
+  // The member lookup, which names the people a surface shows.
+  lookupRead: vi.fn(),
   agentRead: vi.fn(),
   serving: [],
   servingRead: vi.fn(),
@@ -41,6 +44,21 @@ vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
     return { members: data.members };
   },
 }));
+vi.mock(
+  '@/app/features/settings/organization/hooks/member-lookup',
+  async () => {
+    const standIn = (
+      await import('@/tests/utils/member-lookup-stand-in')
+    ).memberLookupStandIn(() => data.members);
+    return {
+      ...standIn,
+      useAskedMemberLookup: (organizationId: string) => {
+        data.lookupRead(organizationId);
+        return standIn.useAskedMemberLookup(organizationId);
+      },
+    };
+  },
+);
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjectAgents: (projectId?: string) => {
     data.agentRead(projectId);
@@ -116,6 +134,7 @@ function Candidates({
 beforeEach(() => {
   data.scope.orgWide = true;
   data.memberRead.mockClear();
+  data.lookupRead.mockClear();
   data.agentRead.mockClear();
   data.servingRead.mockClear();
   data.backendRead.mockClear();
@@ -139,7 +158,9 @@ describe('task actor directory boundaries', () => {
       </ActorDirectoryProvider>,
     );
     expect(screen.getAllByText('Ada')).toHaveLength(200);
-    expect(data.memberRead).toHaveBeenCalledTimes(1);
+    expect(data.lookupRead).toHaveBeenCalledTimes(1);
+    // Naming people reads no member list.
+    expect(data.memberRead).not.toHaveBeenCalled();
     expect(data.agentRead).toHaveBeenCalledTimes(1);
     expect(data.servingRead).toHaveBeenCalledTimes(1);
     expect(data.backendRead).not.toHaveBeenCalled();
@@ -171,6 +192,7 @@ describe('task actor directory boundaries', () => {
     expect(screen.getByText('Same directory')).toBeInTheDocument();
     expect(screen.getByText('1 candidates')).toBeInTheDocument();
     expect(data.memberRead).toHaveBeenCalledTimes(1);
+    expect(data.lookupRead).toHaveBeenCalledTimes(1);
     expect(data.agentRead).toHaveBeenCalledTimes(1);
     expect(data.servingRead).toHaveBeenCalledTimes(1);
     expect(data.backendRead).toHaveBeenCalledTimes(2);
@@ -199,6 +221,7 @@ describe('task actor directory boundaries', () => {
     expect(screen.getAllByText('Ada')).toHaveLength(200);
     expect(screen.getAllByText('1 candidates')).toHaveLength(200);
     expect(data.memberRead).toHaveBeenCalledTimes(1);
+    expect(data.lookupRead).toHaveBeenCalledTimes(1);
     expect(data.agentRead).toHaveBeenCalledTimes(1);
     expect(data.servingRead).toHaveBeenCalledTimes(1);
     expect(data.backendRead).toHaveBeenCalledTimes(2);
@@ -217,11 +240,12 @@ describe('task actor directory boundaries', () => {
         </ActorDirectoryBoundary>
       </ActorDirectoryBoundary>,
     );
-    expect(data.memberRead.mock.calls.map(([org]) => org)).toEqual([
+    expect(data.lookupRead.mock.calls.map(([org]) => org)).toEqual([
       'org-1',
       'org-1',
       'org-2',
     ]);
+    expect(data.memberRead).not.toHaveBeenCalled();
     expect(data.agentRead.mock.calls.map(([project]) => project)).toEqual([
       'project-1',
       'project-2',
@@ -242,7 +266,7 @@ describe('task actor directory boundaries', () => {
       undefined,
       'project-1',
     ]);
-    expect(data.memberRead).toHaveBeenCalledTimes(2);
+    expect(data.lookupRead).toHaveBeenCalledTimes(2);
   });
 
   it('retains historical actor display when project access excludes that actor from candidates', () => {
@@ -259,6 +283,7 @@ describe('task actor directory boundaries', () => {
     expect(screen.getByText('Ada')).toBeInTheDocument();
     expect(screen.getByText('0 candidates')).toBeInTheDocument();
     expect(data.memberRead).toHaveBeenCalledTimes(1);
+    expect(data.lookupRead).toHaveBeenCalledTimes(1);
   });
 
   it('keeps stable context consumers out of unrelated parent state updates', () => {

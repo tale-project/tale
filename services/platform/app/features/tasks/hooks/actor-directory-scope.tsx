@@ -89,10 +89,10 @@ export function ActorDirectoryScopeValue({
   directory: ScopedDirectory['directory'];
   children?: ReactNode;
 }) {
-  const { members, agents, automations } = directory;
+  const { members, agents, automations, memberPending } = directory;
   // Listed as the server lists its directory (people, automations, agents),
   // so a handle two of them answer to names the one the server picked.
-  const mentions = useMemo(
+  const index = useMemo(
     () =>
       buildMentionHandleIndex([
         ...(members ?? []).map((member) =>
@@ -116,6 +116,21 @@ export function ActorDirectoryScopeValue({
         ),
       ]),
     [members, agents, automations],
+  );
+  // The people in the index are those looked up so far. A handle names
+  // nobody until the lookup has answered for it — a person not looked up yet
+  // may claim it more strongly than whoever answers to it now — and a person
+  // a mention names is asked for as it is read.
+  const mentions = useMemo<MentionHandleIndex>(
+    () => ({
+      resolve: (handle, prefer) =>
+        memberPending({ handle }) ? null : index.resolve(handle, prefer),
+      byRef: (ref) => {
+        if (ref.kind === 'user') memberPending({ userId: ref.id });
+        return index.byRef(ref);
+      },
+    }),
+    [index, memberPending],
   );
   const value = useMemo(
     () => ({ organizationId, projectId, directory, mentions }),

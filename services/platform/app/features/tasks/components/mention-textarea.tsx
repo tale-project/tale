@@ -176,7 +176,7 @@ function MentionTextareaContent({
       return {
         kind: 'agent' as const,
         id: handle,
-        name: pending
+        name: pending({ handle })
           ? t('mentionChip.kind.agent')
           : t('timeline.deletedAgent'),
       };
