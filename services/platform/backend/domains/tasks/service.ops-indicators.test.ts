@@ -397,6 +397,54 @@ describe('the board reads what a task’s live automation run does', () => {
     const ops = await getTaskOpsIndicators(sql, auth, 'p0');
     expect(ops.runningTaskIds).toHaveLength(50);
     expect(ops.automationWaits).toHaveLength(50);
+    expect(ops.automationRunsTruncated).toBe(true);
+  });
+
+  it('says when it leaves live automation runs out of its lists [TASK-R87]', async () => {
+    const truncated = async (
+      automationRuns: AutomationRunRow[],
+      agentWorkingTaskIds: string[] = [],
+    ) => {
+      const { sql } = opsSql([], automationRuns, agentWorkingTaskIds);
+      const ops = await getTaskOpsIndicators(sql, auth, 'p0');
+      return ops.automationRunsTruncated;
+    };
+    const mixed = (count: number) =>
+      Array.from({ length: count }, (_, index) =>
+        automationRun(index, {
+          status: index % 2 === 0 ? 'running' : 'queued',
+        }),
+      );
+    const all = (count: number, fields: Partial<AutomationRunRow> = {}) =>
+      Array.from({ length: count }, (_, index) => automationRun(index, fields));
+    // As many runs as it scans, each of a task of its own, and fifty of
+    // each kind: every one is listed.
+    expect(await truncated(mixed(100))).toBe(false);
+    expect(await truncated([])).toBe(false);
+    // One more than it scans.
+    expect(await truncated(mixed(101))).toBe(true);
+    // A fifty-first working run, or a fifty-first waiting one.
+    expect(await truncated(all(51))).toBe(true);
+    expect(await truncated(all(51, { status: 'queued' }))).toBe(true);
+    // An older live run of a task its newer run stands for.
+    expect(
+      await truncated([
+        automationRun(1),
+        automationRun(2, { taskId: 'task-1', status: 'queued' }),
+      ]),
+    ).toBe(true);
+    // The run of a task whose agent run works.
+    expect(
+      await truncated([automationRun(1, { status: 'queued' })], ['task-1']),
+    ).toBe(true);
+  });
+
+  it('scans one live automation run more than it reads, to know of more [TASK-R87]', async () => {
+    const { sql, statements } = opsSql([], []);
+    await getTaskOpsIndicators(sql, auth, 'p0');
+    const scan = statements.find((s) => s.text.includes('AS "hasPendingAsk"'));
+    expect(scan?.text).toContain('ORDER BY r.started_at_ms DESC LIMIT ?');
+    expect(scan?.values.at(-1)).toBe(101);
   });
 
   it('reads no automation run across every project', async () => {

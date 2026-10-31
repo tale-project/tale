@@ -369,6 +369,9 @@ export function useTaskOpsIndicators(projectId: string | undefined) {
     // Tasks whose live automation run is queued or parked instead of
     // working: the card says what it waits on, never that it works.
     automationWaits: data?.automationWaits ?? NO_WAITS,
+    // Live automation runs the lists leave out: the board's count of live
+    // runs is then a lower bound.
+    automationRunsTruncated: data?.automationRunsTruncated ?? false,
   };
 }
 

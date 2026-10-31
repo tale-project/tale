@@ -583,6 +583,9 @@ export interface TasksContract {
        * at most 50. Such a task is in neither `runningTaskIds` nor
        * `askingTaskIds`. */
       automationWaits: TaskOpsAutomationWaitIndicator[];
+      /** Live automation runs exist that these lists leave out: a count of
+       * the live runs is then a lower bound, never the whole project's. */
+      automationRunsTruncated: boolean;
     };
   };
   'tasks/queries:getTaskOpsIndicatorsForAccessibleProjects': {
