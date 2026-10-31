@@ -1,17 +1,28 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { load, render, createRoot, report, replaceHistory, routerState } =
-  vi.hoisted(() => {
-    const renderRoot = vi.fn();
-    return {
-      load: vi.fn(),
-      render: renderRoot,
-      createRoot: vi.fn(() => ({ render: renderRoot })),
-      report: vi.fn(),
-      replaceHistory: vi.fn(),
-      routerState: {} as { redirect?: { options: Record<string, unknown> } },
-    };
-  });
+const {
+  load,
+  render,
+  createRoot,
+  report,
+  replaceHistory,
+  routerState,
+  installStaleBundleReload,
+} = vi.hoisted(() => {
+  const renderRoot = vi.fn();
+  return {
+    load: vi.fn(),
+    render: renderRoot,
+    createRoot: vi.fn(() => ({ render: renderRoot })),
+    report: vi.fn(),
+    replaceHistory: vi.fn(),
+    routerState: { isLoading: true } as {
+      isLoading: boolean;
+      redirect?: { options: Record<string, unknown> };
+    },
+    installStaleBundleReload: vi.fn(),
+  };
+});
 
 vi.mock('@tale/ui/analytics/browser', () => ({
   startBrowserAnalytics: vi.fn(),
@@ -24,6 +35,7 @@ vi.mock('@tale/ui/monitoring/browser', () => ({
 vi.mock('@tanstack/react-router', () => ({ RouterProvider: () => null }));
 vi.mock('react-dom/client', () => ({ createRoot }));
 vi.mock('@/lib/i18n/i18n', () => ({ i18n: {} }));
+vi.mock('@/lib/stale-bundle-reload', () => ({ installStaleBundleReload }));
 vi.mock('./router', () => ({
   router: {
     load,
@@ -44,6 +56,7 @@ describe('marketing cold start', () => {
     vi.resetModules();
     vi.clearAllMocks();
     delete routerState.redirect;
+    routerState.isLoading = true;
     window.history.replaceState({}, '', '/');
     document.body.innerHTML =
       '<div id="root"><main>Prerendered page</main></div>';
@@ -145,6 +158,23 @@ describe('marketing cold start', () => {
 
     await vi.waitFor(() => expect(render).toHaveBeenCalledOnce());
     expect(load).toHaveBeenCalledOnce();
+  });
+
+  it('listens for chunks a deploy removed before the first route loads', async () => {
+    load.mockResolvedValue(undefined);
+    await import('./main');
+
+    expect(installStaleBundleReload).toHaveBeenCalledOnce();
+    expect(installStaleBundleReload.mock.invocationCallOrder[0]).toBeLessThan(
+      load.mock.invocationCallOrder[0],
+    );
+    // A miss counts while the router loads a page, not while it preloads one.
+    const [{ navigating }] = installStaleBundleReload.mock.calls[0] as [
+      { navigating: () => boolean },
+    ];
+    expect(navigating()).toBe(true);
+    routerState.isLoading = false;
+    expect(navigating()).toBe(false);
   });
 
   it('reports an initial load error and still mounts the router error surface', async () => {

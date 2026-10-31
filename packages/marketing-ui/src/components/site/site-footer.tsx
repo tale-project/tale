@@ -130,7 +130,9 @@ export function SiteFooter({
         : 'grid-cols-2 sm:grid-cols-4';
 
   return (
-    <footer className="border-border-base bg-surface-site border-t print:hidden">
+    // Positioned, so it paints over the root shell's absolute top wash
+    // (`bg-gradient-site-hero`) when a short page brings it up that far.
+    <footer className="border-border-base bg-surface-site relative border-t print:hidden">
       {compact ? (
         <SiteContainer className={containerClassName}>
           <div className="flex flex-col gap-4 py-5 sm:flex-row sm:items-center sm:justify-between sm:py-6">

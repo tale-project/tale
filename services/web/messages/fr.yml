@@ -73,6 +73,12 @@ notFound:
     L’adresse est peut-être mal saisie, ou la page a déménagé. Le mieux est de
     repartir de l’accueil.
   backHome: Retour à l’accueil
+pageError:
+  title: Cette page n’a pas pu être chargée
+  body:
+    Ta connexion a peut-être été coupée, ou le site a été mis à jour pendant que
+    cet onglet était ouvert. Réessaie, ou repars de l’accueil.
+  retry: Réessayer
 nav:
   platform: Plateforme
   resources: Ressources

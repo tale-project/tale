@@ -73,6 +73,11 @@ notFound:
   body: The address may be mistyped, or the page has moved. The homepage is the
     best place to start over.
   backHome: Back to the homepage
+pageError:
+  title: This page couldn't be loaded
+  body: Your connection may have dropped, or the site was updated while this tab
+    was open. Try again, or start over from the homepage.
+  retry: Try again
 nav:
   platform: Platform
   resources: Resources

@@ -72,6 +72,12 @@ notFound:
   body: Die Adresse ist vielleicht vertippt, oder die Seite ist umgezogen. Am
     besten startest du auf der Startseite neu.
   backHome: Zur Startseite
+pageError:
+  title: Diese Seite konnte nicht geladen werden
+  body: Vielleicht ist deine Verbindung abgebrochen, oder die Website wurde
+    aktualisiert, während dieser Tab offen war. Versuch es erneut oder starte auf
+    der Startseite neu.
+  retry: Erneut versuchen
 nav:
   platform: Plattform
   resources: Ressourcen

@@ -9,6 +9,7 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { i18n } from '@/lib/i18n/i18n';
+import { installStaleBundleReload } from '@/lib/stale-bundle-reload';
 
 import { router } from './router';
 
@@ -16,6 +17,7 @@ import './globals.css';
 import './locals.css';
 
 initBrowserMonitoring();
+installStaleBundleReload({ navigating: () => router.state.isLoading });
 startBrowserAnalytics(
   (resolved) => router.subscribe('onResolved', resolved),
   () => {
