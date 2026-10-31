@@ -542,9 +542,16 @@ deployment that had it on left behind.
 
 The signed `GET /v1/limits` route exposes the configured `maxSessions`
 independently of runtime inventory availability. Platform reads it again on each
-quota save; forged client totals cannot bypass the sum check. Runtime occupancy
-still counts released containers that remain warm, so it can exceed the sum of
-an organization's active workload allocations.
+quota save; forged client totals cannot bypass the sum check. Beside it, the
+answer carries the figures of the capacity's memory warning (below):
+`sessionMemoryBytes`, the memory limit of the largest agent session
+(`agentSessionMemoryBytes`; absent where that limit does not parse), and
+`hostMemoryBytes` and `memoryReserveBytes`, the host's total memory from the
+probe's last reading and the reserve kept from it (absent where the spawner
+cannot read the Docker host's memory, and before its first reading). The
+platform's Settings › Sandboxes compares them under the organization total.
+Runtime occupancy still counts released containers that remain warm, so it can
+exceed the sum of an organization's active workload allocations.
 
 The signed session activity routes tie idle eligibility to the current
 allocation: `POST /v1/sessions/:id/acquire` marks new work and advances the
@@ -603,7 +610,8 @@ sees each create admitted before it. Unknown memory never refuses a create,
 and the check cannot stop sessions already running from growing past it. An
 explicit `SANDBOX_MAX_SESSIONS` turns this memory admission off, warm
 acquisitions included: the operator sized the host, so only the count, CPU and
-disk guards refuse, and `SANDBOX_MIN_FREE_MEMORY` has no effect. With it unset,
+disk guards refuse, and `SANDBOX_MIN_FREE_MEMORY` refuses nothing (it is still
+the reserve of the capacity warning below). With it unset,
 a reserve at or above the host's total memory fails the capacity sizing at
 boot (a retry on a later sweep reports it), and a create refused with
 `host_memory` is logged.
@@ -619,6 +627,25 @@ A refused activation returns 429 `host_memory` with queue position and
 hold memory in the line, but consume no additional session slot. These checks
 apply only where the Docker host's memory can be verified, and do not impose a
 hard aggregate memory limit on already-running work.
+
+Only the capacity times the agent memory limit bounds what running sessions can
+use together, so the spawner weighs that once per process, when it first reads
+the host's memory: at boot, else on a later sweep tick
+(`settleSessionCapacity` in `server.ts`). `hostSessionCapacity`
+(`host-memory.ts`) counts `maxSessions` sessions at `agentSessionMemoryBytes`
+(the limit of an agent session with Docker inside wherever a workload may run
+Docker) against the host's total memory less the reserve, which is
+`SANDBOX_MIN_FREE_MEMORY` or its default on both paths. When they need more,
+`sessionMemoryWarning` words one `console.warn`. With an explicit
+`SANDBOX_MAX_SESSIONS`, it says memory admission is off, so this is the only
+memory check left, and names the settings to lower or to unset. With a sized
+capacity, which plans on a typical session rather than its limit, it says a
+start waits for memory but running sessions can still grow to their limits
+together. Neither path clamps the capacity: an explicit one is the operator's,
+and a sized one leaves each start to memory admission. A device's spawner never
+warns (`tale sandbox connect` chose its capacity), nor does one whose host
+memory is never read (Kubernetes, Incus, a remote daemon), nor one whose agent
+memory limit `dockerMemoryBytes` cannot parse.
 
 Where that memory reading is trusted, the spawner also samples the host's
 pressure every five seconds into a ring of the last two minutes
@@ -1144,7 +1171,11 @@ are 2 CPU, 4 GiB memory (8 GiB with DinD), 512 pids, 512 MB `/dev/shm`, and
 512 MB `/tmp`; the `SANDBOX_AGENT_*` settings override these limits. The memory
 default follows each session's actual Docker capability, including a workload
 policy or request that disables Docker. An explicit `SANDBOX_AGENT_MEMORY`
-applies to both Docker and Docker-free agents.
+applies to both Docker and Docker-free agents. Size it with the capacity:
+`maxSessions` sessions at this limit (the Docker one wherever a workload may
+run Docker) should fit the host's memory less `SANDBOX_MIN_FREE_MEMORY`, or the
+spawner warns once (see
+[Capacity and idle reclamation](#capacity-and-idle-reclamation)).
 Non-DinD sessions keep a read-only root and drop capabilities. DinD changes
 the container security and process limits according to the selected runtime
 tier; headless Chromium remains available on demand in either profile.

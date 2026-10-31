@@ -29,6 +29,12 @@ limits:
   totalHintWithDevices: Summe der Limits oben / Kapazität der Bereitstellung plus die {deviceSessions} Sandboxes deiner Geräte. Andere Organisationen teilen sich die Kapazität der Bereitstellung.
   totalExceedsDeployment: Die Summe von {total} Sitzungen überschreitet die Kapazität der Bereitstellung von {maxSessions}. Verringere mindestens ein Limit, um zu speichern.
   totalExceedsCapacity: 'Die Summe von {total} Sitzungen überschreitet die Kapazität von {maxSessions}: {deploymentSessions} in der Bereitstellung und {deviceSessions} auf deinen Geräten. Verringere mindestens ein Limit, um zu speichern.'
+  # Unter der Summe: wie viel Arbeitsspeicher eine Sandbox der Bereitstellung
+  # nutzen darf, und wann die Kapazität der Bereitstellung bei diesem Limit mehr
+  # braucht, als ihr Host für Sandboxes frei hat (der Sandbox-Dienst warnt
+  # davor beim Start).
+  sessionMemory: Jede Sandbox der Bereitstellung darf bis zu {memory} GiB Arbeitsspeicher nutzen.
+  sessionMemoryExceedsHost: 'Bei ihrer Kapazität von {maxSessions, plural, one {# Sandbox} other {# Sandboxes}} mit je bis zu {memory} GiB Arbeitsspeicher kann die Bereitstellung {needed} GiB belegen, mehr als die {available} GiB, die ihr Host für Sandboxes hat ({hostMemory} GiB abzüglich {reserve} GiB, die frei bleiben). Arbeiten viele Sandboxes gleichzeitig, kann dem Host der Arbeitsspeicher ausgehen: Setze SANDBOX_MAX_SESSIONS oder SANDBOX_AGENT_MEMORY auf einen niedrigeren Wert.'
   capacityUnavailable: Die Kapazität der Bereitstellung ist nicht verfügbar. Niedrigere Limits kannst du speichern; aktualisiere die Infrastrukturdaten, bevor du ein Limit erhöhst.
   capacityLoading: Kapazität der Bereitstellung prüfen…
   saveFailed: Sandbox-Limits konnten nicht gespeichert werden

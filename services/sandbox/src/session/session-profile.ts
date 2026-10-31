@@ -131,7 +131,7 @@ export function sessionDockerCapability(
 /** The derived memory ceiling follows the session's actual Docker capability.
  * CPU, ownership and other agent limits remain the configured profile's. */
 export function sessionAgentProfile(
-  cfg: SpawnerConfig,
+  cfg: Pick<SpawnerConfig, 'session'>,
   docker: boolean,
 ): SessionAgentProfileConfig {
   const profile = cfg.session.agentProfile;
