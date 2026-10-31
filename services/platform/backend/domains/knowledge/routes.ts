@@ -24,7 +24,10 @@ import {
   ChatBudgetExceededError,
 } from '../chat/budget-admission.ts';
 import { readModelEndpointPolicyForOrg } from '../governance/model-endpoints.ts';
-import { getProjectAuthContext, listProjects } from '../projects/service.ts';
+import {
+  getProjectAuthContext,
+  readableProjectsWithDocuments,
+} from '../projects/service.ts';
 import {
   isCredentialSelectionResolvable,
   listCredentials,
@@ -105,7 +108,10 @@ export function createKnowledgeRoutes(deps: {
       },
       c.get('sessionBundle').user.email,
     );
-    const projects = await listProjects(deps.sql, auth, {});
+    // Active projects only, and of them the ones that hold a document: the
+    // knowledge database filters by this list and cannot join the readable
+    // relation itself (#5202).
+    const projects = await readableProjectsWithDocuments(deps.sql, auth);
     return {
       auth,
       access: {

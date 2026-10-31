@@ -153,6 +153,9 @@ const MAIL_PROVENANCE_FN =
 const TASKS_SEARCH_FN = 'tasks/search_for_chat:searchTasksForChat';
 const PROJECTS_SEARCH_FN = 'tasks/search_for_chat:searchProjectsForChat';
 const PROJECT_LABELS_FN = 'projects/internal_queries:getProjectLabelsForOrg';
+const WORK_PROJECTS_FN = 'projects/internal_queries:resolveWorkProjectsForChat';
+const PROJECT_ACCESS_FN =
+  'projects/internal_queries:assertProjectAccessForChat';
 const TASK_BY_ID_FN = 'tasks/internal_queries:getTaskByIdInternal';
 const TASK_CONTEXT_FN = 'tasks/internal_queries:getTaskContextForAgent';
 const CONVERSATIONS_SEARCH_FN =
@@ -220,8 +223,32 @@ function createCtx(
       projectIds: [],
       includeHub: true,
     }),
+    // The work legs' projects and the thread project's own check read the
+    // projects the scope fixture names (every one of them holding a
+    // document), unless a test says otherwise.
+    [WORK_PROJECTS_FN]: (args) => {
+      const scope = fixtureScope(args);
+      return {
+        projectIds: scope.projectIds ?? [],
+        archivedProjectIds: scope.archivedProjectIds ?? [],
+      };
+    },
+    [PROJECT_ACCESS_FN]: (args) => ({
+      allowed: (fixtureScope(args).projectIds ?? []).includes(
+        String(args.projectId),
+      ),
+    }),
     ...overrides.reads,
   };
+  function fixtureScope(args: Record<string, unknown>): {
+    projectIds?: string[];
+    archivedProjectIds?: string[];
+  } {
+    return reads[KNOWLEDGE_SCOPE_FN]?.(args) as {
+      projectIds?: string[];
+      archivedProjectIds?: string[];
+    };
+  }
   const runQuery: QueryMock = vi.fn((ref: unknown, args: unknown) => {
     const name = fnName(ref);
     const queryArgs = args as Record<string, unknown>;

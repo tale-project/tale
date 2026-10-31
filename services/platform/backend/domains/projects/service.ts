@@ -3145,6 +3145,33 @@ export function checkedProjectSql(
 }
 
 /**
+ * The readable projects that hold a document, archived ones only with
+ * `includeArchived`: the project set a knowledge scope hands the knowledge
+ * database, which cannot join {@link readableProjectsSql} (#5202). A project
+ * without documents contributes no corpus row — a row's project stamp is its
+ * holder document's — so leaving it out changes no result, and the list
+ * that crosses never carries every project the caller reads. One statement
+ * through the readable relation: ids and archive flags, never project rows.
+ */
+export async function readableProjectsWithDocuments(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  options: { includeArchived?: boolean } = {},
+): Promise<{ id: string; archived: boolean }[]> {
+  if (auth.role === 'disabled') return [];
+  return sql<{ id: string; archived: boolean }[]>`
+    SELECT rp.project_id AS id,
+           rp.project_archived_at_ms IS NOT NULL AS archived
+    FROM ${readableProjectsSql(sql, auth, options)} rp
+    WHERE EXISTS (
+      SELECT 1 FROM app.documents d
+      WHERE d.org_id = ${auth.organizationId}
+        AND d.project_id = rp.project_id
+    )
+  `;
+}
+
+/**
  * The project a create that names none falls back to: the newest active
  * project open to the whole organization the caller reads, else the newest
  * one it reads. One row through {@link readableProjectsSql}, never the whole

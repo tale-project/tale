@@ -102,7 +102,7 @@ vi.mock('../projects/service.ts', () => ({
     role: 'admin',
     teamIds: [],
   })),
-  listProjects: vi.fn(async () => []),
+  readableProjectsWithDocuments: vi.fn(async () => []),
 }));
 
 const { isCredentialSelectionResolvable, readKnowledgeEmbeddingView } =
