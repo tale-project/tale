@@ -175,6 +175,8 @@ voice:
   voiceOutputStopped: Stopped
   voiceOutputThreadSaveFailed: Couldn't save voice setting for this conversation
 notFound: This chat is not available.
+showEarlierMessages: Show earlier messages
+earlierMessagesFailed: Couldn't load earlier messages
 placeholder: Ask a question…
 generationIncomplete: The model returned no answer. Try again, or choose another model.
 generationIncompleteFiltered: The model provider's content filter withheld this response. Try rephrasing your message.

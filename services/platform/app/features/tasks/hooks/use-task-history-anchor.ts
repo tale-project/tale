@@ -1,7 +1,13 @@
 'use client';
 
 import { findScrollableAncestor } from '@tale/ui/scroll-wheel-chain';
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type RefObject,
+} from 'react';
 
 interface HistoryAnchor {
   entry: HTMLElement;
@@ -32,14 +38,25 @@ export const HELD_SCROLLPORTS = new WeakSet<HTMLElement>();
 
 /** Preserve the history entry being read when an older page is inserted.
  * Rectangle deltas hold wherever the thread scrolls: the task page's column,
- * the board dialog's, or the phone drawer's one column. A reader's own scroll
- * cancels the capture. */
+ * the board dialog's, the phone drawer's one column, or the chat transcript,
+ * whose rows `entrySelector` names in the list its `historyRef` holds. The
+ * view is placed in a layout effect: a caller rendered inside the scroller's
+ * content places it before that content's own layout effects read it (a
+ * child's run first). A reader's own scroll cancels the capture. */
 export function useTaskHistoryAnchor(
   oldestId: string | undefined,
   loadEarlier: () => void,
   isLoadingEarlier: boolean,
+  {
+    entrySelector = HISTORY_ENTRY_SELECTOR,
+    historyRef: listRef,
+  }: {
+    entrySelector?: string;
+    historyRef?: RefObject<HTMLElement | null>;
+  } = {},
 ) {
-  const historyRef = useRef<HTMLElement>(null);
+  const ownRef = useRef<HTMLElement>(null);
+  const historyRef = listRef ?? ownRef;
   const anchorRef = useRef<HistoryAnchor | null>(null);
 
   const loadEarlierWithAnchor = useCallback(() => {
@@ -49,7 +66,7 @@ export function useTaskHistoryAnchor(
     if (history && scroller) {
       const viewport = scroller.getBoundingClientRect();
       for (const entry of history.querySelectorAll<HTMLElement>(
-        HISTORY_ENTRY_SELECTOR,
+        entrySelector,
       )) {
         const bounds = entry.getBoundingClientRect();
         if (bounds.bottom <= viewport.top || bounds.top >= viewport.bottom) {
@@ -87,7 +104,7 @@ export function useTaskHistoryAnchor(
       }
     }
     loadEarlier();
-  }, [loadEarlier, oldestId]);
+  }, [loadEarlier, oldestId, entrySelector, historyRef]);
 
   useLayoutEffect(() => {
     const anchor = anchorRef.current;
@@ -120,7 +137,7 @@ export function useTaskHistoryAnchor(
     // reader input: nearby intrinsic heights may resolve across several frames.
     restore();
     return anchor.release;
-  }, [oldestId, isLoadingEarlier]);
+  }, [oldestId, isLoadingEarlier, historyRef]);
 
   useEffect(() => () => anchorRef.current?.release(), []);
 

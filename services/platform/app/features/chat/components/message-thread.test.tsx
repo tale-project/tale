@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
+import { createRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -35,6 +36,24 @@ vi.mock('./message-toolbar', async (importOriginal) => {
     MessageToolbar: (props: Parameters<typeof actual.MessageToolbar>[0]) => {
       toolbarRenders.count += 1;
       return createElement(actual.MessageToolbar, props);
+    },
+  };
+});
+// What the read-aloud chunker is told of each reply it runs for: only a
+// reply that arrived live is read aloud. The wrapper runs the real chunker.
+const chunkerFresh = vi.hoisted(() => new Map<string, boolean>());
+vi.mock('../hooks/use-voice-output', async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import('../hooks/use-voice-output')>();
+  return {
+    ...actual,
+    useVoiceOutputChunker: (
+      options: Parameters<typeof actual.useVoiceOutputChunker>[0],
+    ) => {
+      if (options.messageId !== undefined) {
+        chunkerFresh.set(options.messageId, options.isFreshSinceMount);
+      }
+      actual.useVoiceOutputChunker(options);
     },
   };
 });
@@ -248,6 +267,28 @@ describe('MessageThread transcript contract', () => {
       'user',
       'assistant',
     ]);
+  });
+
+  it('puts the way back above the rows and hands their list to the caller holding the place', () => {
+    const historyRef = createRef<HTMLElement>();
+    render(
+      <MessageThread
+        messages={toSettledItems(CONVERSATION)}
+        earlier={<button type="button">Show earlier messages</button>}
+        historyRef={historyRef}
+      />,
+    );
+
+    const list = historyRef.current;
+    expect(list?.tagName).toBe('OL');
+    expect(list?.querySelectorAll('[data-message-key]')).toHaveLength(2);
+    const earlier = screen.getByRole('button', {
+      name: 'Show earlier messages',
+    });
+    expect(list?.contains(earlier)).toBe(false);
+    expect(
+      earlier.compareDocumentPosition(list!) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it('renders assistant text as markdown and user text as written', () => {
@@ -849,6 +890,45 @@ describe('MessageThread long threads', () => {
     );
 
     expect(rows().slice(-awakeCount).some(isDormant)).toBe(false);
+  });
+
+  it('keeps the rows read back before the opening ones as history, never as fresh replies', async () => {
+    chunkerFresh.clear();
+    const thread = toSettledItems(turns(40));
+    const { rerender } = render(
+      <MessageThread
+        messages={thread.slice(40)}
+        threadId="t-back"
+        threadRootId="t-back"
+      />,
+    );
+
+    // "Show earlier messages" puts the page before the opening rows in
+    // front of them.
+    rerender(
+      <MessageThread
+        messages={thread}
+        threadId="t-back"
+        threadRootId="t-back"
+      />,
+    );
+    const readBack = rows()[1]!;
+    expect(readBack).toHaveTextContent('Answer 1.');
+    expect(isDormant(readBack)).toBe(true);
+    act(() => ControlledObserver.instances.at(-1)!.enter(readBack));
+    await waitFor(() => expect(isDormant(readBack)).toBe(false));
+
+    // In full, it is still history: never read aloud on its own.
+    expect(chunkerFresh.get('a1')).toBe(false);
+    // A reply that arrives live is fresh.
+    rerender(
+      <MessageThread
+        messages={[...thread, ...toSettledItems(turns(41).slice(80))]}
+        threadId="t-back"
+        threadRootId="t-back"
+      />,
+    );
+    expect(chunkerFresh.get('a41')).toBe(true);
   });
 
   it('passes an axe audit with dormant rows', async () => {
