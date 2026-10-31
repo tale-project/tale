@@ -1,6 +1,7 @@
 import { pickFilterOption } from '@tale/ui/testing/filters';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { MemberLookupTarget } from '@/app/features/settings/organization/hooks/member-lookup';
 import type { UsePaginatedQueryReturnType } from '@/app/hooks/use-cached-paginated-query';
 import type { ConversationItem } from '@/backend/core/conversations/types';
 import { render, screen } from '@/tests/utils/render';
@@ -61,19 +62,33 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
     teams: Object.entries(TEAM_NAMES).map(([id, name]) => ({ id, name })),
   }),
 }));
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({
-    members: [
-      { userId: 'user-me', displayName: 'Zoe A.', email: 'zoe@example.test' },
-      {
-        userId: 'user-dana',
-        displayName: 'Dana K.',
-        email: 'dana@example.test',
-      },
-    ],
-    isLoading: false,
-  }),
+// People are named through the member lookup: `asked` holds whom it was
+// asked for, and `everyMember` counts the reads of every member, which the
+// list never makes.
+const memberReads = vi.hoisted(() => ({
+  members: [
+    { userId: 'user-me', displayName: 'Zoe A.', email: 'zoe@example.test' },
+    {
+      userId: 'user-dana',
+      displayName: 'Dana K.',
+      email: 'dana@example.test',
+    },
+  ],
+  asked: new Array<MemberLookupTarget>(),
+  everyMember: 0,
 }));
+vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
+  useMembers: () => {
+    memberReads.everyMember += 1;
+    return { members: memberReads.members, isLoading: false };
+  },
+}));
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => memberReads.members,
+    memberReads.asked,
+  ),
+);
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({
     data:
@@ -155,6 +170,8 @@ beforeEach(() => {
   myTeams = [];
   isAdmin = true;
   currentUserId = 'user-me';
+  memberReads.asked.length = 0;
+  memberReads.everyMember = 0;
 });
 
 afterEach(() => {
@@ -268,6 +285,33 @@ describe('Conversations', () => {
       expect(
         screen.getByRole('checkbox', { name: 'My teams' }),
       ).toBeInTheDocument();
+    });
+
+    it('looks up only the people it offers, never every member', async () => {
+      const { user } = renderInbox({
+        assigneeFilter: ['user-me', 'team-billing', 'user-gone'],
+      });
+
+      await user.click(screen.getByRole('button', { name: 'Filter' }));
+      await user.click(await screen.findByRole('button', { name: /Assignee/ }));
+
+      // Whom a loaded row is assigned to, and whom the selection names.
+      expect(
+        screen.getByRole('checkbox', { name: 'Dana K.' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('checkbox', { name: 'Zoe A.' }),
+      ).toBeInTheDocument();
+      expect(
+        new Set(memberReads.asked.map((ask) => JSON.stringify(ask))),
+      ).toEqual(
+        new Set(
+          ['user-dana', 'user-me', 'user-gone'].map((userId) =>
+            JSON.stringify({ userId }),
+          ),
+        ),
+      );
+      expect(memberReads.everyMember).toBe(0);
     });
 
     it('offers Unassigned to an admin', async () => {
