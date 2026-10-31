@@ -66,8 +66,8 @@ const {
     /** The workbench is below `lg`: its panels are sheets. */
     compact: false,
   },
-  /** The org's projects and the automation's bindings — the run-scope picker
-   * appears only when two or more projects are bound. */
+  /** The projects the named reads answer and the automation's bindings —
+   * the run-scope picker appears only when two or more projects are bound. */
   projectsData: {
     list: [] as Array<{ _id: string; name: string }>,
     bound: [] as string[],
@@ -189,7 +189,15 @@ vi.mock('@/app/hooks/use-ability', () => ({
 // The run-scope picker resolves project names through this hook; each test
 // sets the roster it needs on `projectsData`.
 vi.mock('@/app/features/projects/hooks/queries', () => ({
-  useProjects: () => ({ projects: projectsData.list, isLoading: false }),
+  // The bound projects are named by id, never out of every project (#5204).
+  useNamedProjects: (_organizationId: string, ids: readonly string[]) => ({
+    projects: new Map(
+      projectsData.list
+        .filter((project) => ids.includes(project._id))
+        .map((project) => [project._id, project]),
+    ),
+    isPending: false,
+  }),
   // The model pickers read the served-model roster; empty unless a test
   // picks a model.
   useProjectHarnesses: () => ({

@@ -11,7 +11,8 @@ vi.mock('@tale/ui/i18n/client', () => ({
 }));
 
 vi.mock('@/app/features/projects/hooks/queries', () => ({
-  useProjects: () => ({ projects: [] }),
+  useProjectChoices: () => ({ projects: [] }),
+  useNamedProjects: () => ({ projects: new Map(), isPending: false }),
 }));
 
 vi.mock('@/app/hooks/use-organization-id', () => ({
