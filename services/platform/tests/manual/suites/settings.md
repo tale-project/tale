@@ -1103,6 +1103,19 @@ Restore any toggled setting after the run.
   (`chat.modelSelector.info.contextWindow`) 1,000,000 and **Vision**
   `chat.modelSelector.info.supported`, those of the second 128,000 and
   `chat.modelSelector.info.notSupported`.
+- [ ] `SET-F92` · **The deployment's sandbox memory stands beside its
+  capacity** — With the sandbox service on Docker and `SANDBOX_MAX_SESSIONS`
+  times `SANDBOX_AGENT_MEMORY` within its host's memory less the reserve
+  (e.g. `SANDBOX_MAX_SESSIONS=2` with `SANDBOX_AGENT_MEMORY=4g` on a 16 GiB
+  host), open **Organization limits** (`sandboxes.limits.title`) → under
+  **Total organization sessions** (`sandboxes.limits.total`) a muted line
+  names the memory one sandbox may use (`sandboxes.limits.sessionMemory`,
+  4 GiB); restart the sandbox service with `SANDBOX_MAX_SESSIONS=64` → its
+  log carries one `[sandbox] 64 sessions (SANDBOX_MAX_SESSIONS) …` warning
+  with the needed, available, host and reserve figures, and after a reload
+  the line gives way to a warning banner with the same figures and both
+  settings (`sandboxes.limits.sessionMemoryExceedsHost`), which a screen
+  reader does not announce as an alert; **Save** still saves a change.
 
 ## Boundary & error tests
 

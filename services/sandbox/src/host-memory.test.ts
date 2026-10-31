@@ -1,11 +1,16 @@
 import { describe, expect, test } from 'bun:test';
 
 import {
+  agentSessionMemoryBytes,
   autoSessionCapacity,
+  dockerMemoryBytes,
   HostMemoryProbe,
+  hostSessionCapacity,
   memoryReserveBytes,
   sessionWorkingSetBytes,
 } from './host-memory.ts';
+import { TEST_SESSION_CONFIG } from './session/session-test-config.ts';
+import type { SessionConfig, SpawnerConfig } from './types.ts';
 
 const GIB = 1024 ** 3;
 
@@ -71,6 +76,208 @@ describe('sizing from the host', () => {
     expect(sessionWorkingSetBytes('default', true)).toBe(512 * 1024 ** 2);
     expect(sessionWorkingSetBytes('agent', false)).toBe(512 * 1024 ** 2);
     expect(sessionWorkingSetBytes('agent', true)).toBe(1536 * 1024 ** 2);
+  });
+});
+
+describe('the session capacity against the host memory', () => {
+  /** #3977's host: 4 vCPUs and 15.6 GiB, so a reserve of 1.56 GiB. */
+  const HOST = Math.round(15.6 * GIB);
+  const capacityConfig = (
+    session: Partial<SessionConfig> = {},
+    memory: { memory?: string; memoryWithoutDocker?: string } = {},
+    rest: Partial<
+      Pick<
+        SpawnerConfig,
+        'dockerInContainer' | 'dockerWorkloads' | 'deviceConfigPath'
+      >
+    > = {},
+  ) => ({
+    session: {
+      ...TEST_SESSION_CONFIG,
+      ...session,
+      agentProfile: { ...TEST_SESSION_CONFIG.agentProfile, ...memory },
+    },
+    dockerInContainer: false,
+    deviceConfigPath: null,
+    ...rest,
+  });
+
+  test('reads the Docker memory sizes a session limit takes', () => {
+    expect(dockerMemoryBytes('4g')).toBe(4 * GIB);
+    expect(dockerMemoryBytes(' 8G ')).toBe(8 * GIB);
+    expect(dockerMemoryBytes('1536m')).toBe(1.5 * GIB);
+    expect(dockerMemoryBytes('4294967296')).toBe(4 * GIB);
+    expect(dockerMemoryBytes('lots')).toBeNull();
+    expect(dockerMemoryBytes('4gb')).toBeNull();
+  });
+
+  test("an agent session's memory is the largest limit one gets", () => {
+    const docker = { memory: '8g', memoryWithoutDocker: '4g' };
+    expect(agentSessionMemoryBytes(capacityConfig())).toBe(4 * GIB);
+    expect(
+      agentSessionMemoryBytes(
+        capacityConfig({}, docker, { dockerInContainer: true }),
+      ),
+    ).toBe(8 * GIB);
+    expect(
+      agentSessionMemoryBytes(
+        capacityConfig({}, docker, {
+          dockerInContainer: true,
+          dockerWorkloads: ['workflow'],
+        }),
+      ),
+    ).toBe(8 * GIB);
+    // No workload may run Docker: every agent session gets the limit without.
+    expect(
+      agentSessionMemoryBytes(
+        capacityConfig({}, docker, {
+          dockerInContainer: true,
+          dockerWorkloads: [],
+        }),
+      ),
+    ).toBe(4 * GIB);
+    // SANDBOX_AGENT_MEMORY sets both.
+    expect(
+      agentSessionMemoryBytes(
+        capacityConfig(
+          {},
+          { memory: '6g', memoryWithoutDocker: '6g' },
+          { dockerInContainer: true },
+        ),
+      ),
+    ).toBe(6 * GIB);
+    expect(
+      agentSessionMemoryBytes(capacityConfig({}, { memory: 'lots' })),
+    ).toBeNull();
+  });
+
+  test('an explicit capacity that the host cannot hold at the session limit warns and stays', () => {
+    expect(
+      hostSessionCapacity(
+        capacityConfig({ maxSessions: 8, autoMaxSessions: false }),
+        HOST,
+        4,
+      ),
+    ).toEqual({
+      maxSessions: 8,
+      sized: false,
+      warning:
+        '[sandbox] 8 sessions (SANDBOX_MAX_SESSIONS) of up to 4 GiB each (SANDBOX_AGENT_MEMORY) can use 32 GiB, more than the 14 GiB the host has for them: 15.6 GiB less its 1.6 GiB reserve (SANDBOX_MIN_FREE_MEMORY). With SANDBOX_MAX_SESSIONS set, memory admission is off, so sessions working at once can run the host out of memory: lower SANDBOX_MAX_SESSIONS or SANDBOX_AGENT_MEMORY, or unset SANDBOX_MAX_SESSIONS to size the capacity from the host and hold starts while its memory is short.',
+    });
+  });
+
+  test('a capacity sized from the host warns as well, and says what admission still does', () => {
+    expect(
+      hostSessionCapacity(capacityConfig({ autoMaxSessions: true }), HOST, 4),
+    ).toEqual({
+      maxSessions: 8,
+      sized: true,
+      warning:
+        "[sandbox] 8 sessions (sized from the host) of up to 4 GiB each (SANDBOX_AGENT_MEMORY) can use 32 GiB, more than the 14 GiB the host has for them: 15.6 GiB less its 1.6 GiB reserve (SANDBOX_MIN_FREE_MEMORY). A start waits while the host's memory is short, but running sessions can still grow to their limits together: set SANDBOX_MAX_SESSIONS or SANDBOX_AGENT_MEMORY lower if many work at once.",
+    });
+    // With Docker inside, the same 8 sessions may each use 8 GiB.
+    expect(
+      hostSessionCapacity(
+        capacityConfig(
+          { autoMaxSessions: true },
+          { memory: '8g', memoryWithoutDocker: '4g' },
+          { dockerInContainer: true },
+        ),
+        HOST,
+        4,
+      ).warning,
+    ).toStartWith(
+      '[sandbox] 8 sessions (sized from the host) of up to 8 GiB each (SANDBOX_AGENT_MEMORY) can use 64 GiB,',
+    );
+  });
+
+  test('sessions that fit at their limit give no warning, up to exactly what the host has for them', () => {
+    expect(
+      hostSessionCapacity(
+        capacityConfig({ maxSessions: 3, autoMaxSessions: false }),
+        HOST,
+        4,
+      ),
+    ).toEqual({ maxSessions: 3, sized: false, warning: null });
+    // 3 × 4 GiB against 16 GiB less a 4 GiB reserve.
+    expect(
+      hostSessionCapacity(
+        capacityConfig({
+          maxSessions: 3,
+          autoMaxSessions: false,
+          minFreeMemoryBytes: 4 * GIB,
+        }),
+        16 * GIB,
+        4,
+      ).warning,
+    ).toBeNull();
+    // A large host whose four CPUs cap the sized capacity at 8.
+    expect(
+      hostSessionCapacity(
+        capacityConfig({ autoMaxSessions: true }),
+        64 * GIB,
+        4,
+      ),
+    ).toEqual({ maxSessions: 8, sized: true, warning: null });
+  });
+
+  test('an impossible reserve still fails sizing, and only warns beside an explicit capacity', () => {
+    const reserve = { minFreeMemoryBytes: 20 * GIB };
+    expect(() =>
+      hostSessionCapacity(
+        capacityConfig({ ...reserve, autoMaxSessions: true }),
+        16 * GIB,
+        4,
+      ),
+    ).toThrow('SANDBOX_MIN_FREE_MEMORY');
+    expect(
+      hostSessionCapacity(
+        capacityConfig({ ...reserve, maxSessions: 2, autoMaxSessions: false }),
+        16 * GIB,
+        4,
+      ).warning,
+    ).toStartWith(
+      '[sandbox] 2 sessions (SANDBOX_MAX_SESSIONS) of up to 4 GiB each (SANDBOX_AGENT_MEMORY) can use 8 GiB, more than the 0 GiB the host has for them: 16 GiB less its 20 GiB reserve',
+    );
+  });
+
+  test('a single session is named as one', () => {
+    expect(
+      hostSessionCapacity(
+        capacityConfig(
+          { maxSessions: 1, autoMaxSessions: false },
+          { memory: '8g' },
+        ),
+        4 * GIB,
+        2,
+      ).warning,
+    ).toStartWith(
+      '[sandbox] 1 session (SANDBOX_MAX_SESSIONS) of up to 8 GiB each (SANDBOX_AGENT_MEMORY) can use 8 GiB, more than the 3 GiB the host has for them: 4 GiB less its 1 GiB reserve',
+    );
+  });
+
+  test("a device's spawner and an unreadable session limit never warn", () => {
+    expect(
+      hostSessionCapacity(
+        capacityConfig(
+          { maxSessions: 4, autoMaxSessions: false },
+          {},
+          { deviceConfigPath: '/etc/tale/device.json' },
+        ),
+        HOST,
+        4,
+      ),
+    ).toEqual({ maxSessions: 4, sized: false, warning: null });
+    expect(
+      hostSessionCapacity(
+        capacityConfig(
+          { maxSessions: 8, autoMaxSessions: false },
+          { memory: 'lots' },
+        ),
+        HOST,
+        4,
+      ).warning,
+    ).toBeNull();
   });
 });
 
