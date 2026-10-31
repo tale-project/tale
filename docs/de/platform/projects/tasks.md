@@ -245,3 +245,15 @@ Eine Karte zeigt bis zu vier Labels, eine Zeile in der **Liste** bis zu drei; **
 Kannst du die Aufgabe bearbeiten, drückst du auf ihrem Titel die **Leertaste**, um sie aufzunehmen. Verschiebe sie mit den Pfeiltasten und lege sie mit der **Leertaste** wieder ab. **Escape** bricht das Verschieben ab und lässt die Aufgabe, wo sie war. Ein Screenreader nennt die Aufgabe beim Aufnehmen und sagt beim Verschieben ihren Status und ihre Position an.
 
 Prüfe bei einer abgelehnten Änderung zuerst den Zustand der Aufgabe: Ein aktiver Agentenlauf verhindert die Neuzuweisung, offene Teilaufgaben verhindern den Abschluss, und deine Rolle und ob es deine Aufgabe ist, entscheiden darüber, ob du sie überhaupt ändern darfst.
+
+### Sehen, welche Agenten arbeiten {#live-agent-runs}
+
+Eine Spalte sagt, wo eine Aufgabe steht, nicht, ob ein Agent an ihr arbeitet. Eine Daueraufgabe, die ein Zeitplan mit `moveToInProgress: false` startet, bleibt in **Zu erledigen**, während ihr Agent arbeitet, und eine Aufgabe kann in **In Bearbeitung** stehen, nachdem ihr Lauf geendet hat. **Agentenläufe** neben **Filter** über dem Board beantwortet das stattdessen, zum Beispiel mit **Agentenläufe: 2 laufen · 1 in der Warteschlange**. Es zählt jeden aktiven Agentenlauf einmal, nicht jede Aufgabe oder jeden Agenten:
+
+- **läuft**: Der Agent arbeitet.
+- **wartet auf Eingabe**: Der Lauf wartet darauf, dass eine Person seine Frage beantwortet, einen Schritt freigibt oder eine Entscheidung trifft.
+- **in der Warteschlange**: Der Lauf wartet, bis er an der Reihe ist oder Platz frei wird, etwa ein freier Worker oder ein Sandbox-Platz.
+
+Die Zählung umfasst das ganze Projekt, egal was deine Suche und deine Filter zeigen. Es zeigt **derzeit keine** erst, wenn die Läufe des Projekts geladen sind. Solange sie laden, steht dort **werden geladen…**, und können sie nicht geladen werden, **nicht verfügbar** statt einer Zahl: Dass dann kein Lauf gezählt wird, bedeutet nicht, dass kein Agent arbeitet. Ein **+** nach einer Zahl, etwa **2+ laufen**, bedeutet, dass nicht alle aktiven Läufe aufgelistet werden konnten; es können also mehr sein. Das Board aller Projekte zeigt keine Zählung; öffne das Board eines Projekts, um seine Läufe zu sehen.
+
+Wähle **Agentenläufe**, um die Läufe nach Art aufzulisten, jeden mit seiner Aufgabe und dem, was sein Agent gerade tut. Ein Lauf an einer Aufgabe, die das Board nicht zeigt, zählt auch, als **Eine Aufgabe, die diese Ansicht nicht zeigt**. Wähle einen Lauf, um seine Aufgabe zu öffnen. Die Liste zeigt die Läufe nur: Sie startet, stoppt und verschiebt nichts. Mit der Tastatur drückst du **Enter** auf **Agentenläufe**, gehst mit den Pfeiltasten durch die Läufe und öffnest einen mit **Enter**.
