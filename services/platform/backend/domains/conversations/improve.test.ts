@@ -2,9 +2,11 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { EmptyReplyError } from '../../core/automations_builder/chat_wire';
+import { ModelEndpointRefusal } from '../../core/governance/model_endpoint_gate';
 
 const mocks = vi.hoisted(() => ({
   resolveDirectModel: vi.fn(),
+  createBuilderModel: vi.fn(),
   modelCall: vi.fn(),
   openTokenCall: vi.fn(),
   settleTokenCall: vi.fn(async () => 'settled'),
@@ -16,7 +18,10 @@ vi.mock('../../core/chat/generate_title', async (importOriginal) => ({
   resolveDirectModel: mocks.resolveDirectModel,
 }));
 vi.mock('../../core/automations_builder/model_call', () => ({
-  createBuilderModel: () => mocks.modelCall,
+  createBuilderModel: (...args: unknown[]) => {
+    mocks.createBuilderModel(...args);
+    return mocks.modelCall;
+  },
 }));
 vi.mock('../../lib/ctx-shim.ts', () => ({
   createCtxShim: () => ({ runQuery: async () => null }),
@@ -167,5 +172,32 @@ describe('improveConversationMessage and the writer’s limits', () => {
       LEASE,
       expect.objectContaining({ inputTokens: 300, outputTokens: 1_500 }),
     );
+  });
+  it('answers 403 with the EU/EEA rule’s own sentence, and releases the hold [GOV-R17]', async () => {
+    const message =
+      'This organization processes prompts only in the EU/EEA, and api.openai.com is not an endpoint known to process there, so the call was not sent.';
+    mocks.modelCall.mockRejectedValueOnce(
+      new ModelEndpointRefusal({
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        message,
+        provider: 'openai',
+        host: 'api.openai.com',
+        reason: 'not-attested',
+      }),
+    );
+    await expect(improveConversationMessage(SQL, ARGS)).rejects.toMatchObject({
+      code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+      status: 403,
+      message,
+    });
+    expect(mocks.createBuilderModel).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        surface: 'prompt-improvement',
+        actor: { id: 'user-1', type: 'user' },
+      }),
+    );
+    expect(mocks.releaseDirectCall).toHaveBeenCalledWith(SQL, LEASE);
+    expect(mocks.settleTokenCall).not.toHaveBeenCalled();
   });
 });

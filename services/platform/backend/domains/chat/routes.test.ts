@@ -126,6 +126,7 @@ vi.mock('../../auth/org.ts', async (importOriginal) => {
 
 import { SafeFetchError } from '../../../lib/net/safe-fetch.ts';
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
+import { ModelEndpointRefusal } from '../../core/governance/model_endpoint_gate.ts';
 import { endAllEventStreams } from '../../realtime/sse.ts';
 import { ChatBudgetExceededError } from './budget-admission.ts';
 import { createChatRoutes } from './routes.ts';
@@ -696,6 +697,29 @@ describe('POST /threads/:threadId/messages with a model the turn cannot resolve'
       'No model "retired-model" is available in this organization (the catalog for "remote-gateway" was unreachable). Try again shortly, or pick a model the organization has configured.';
     runChatTurn.mockRejectedValue(
       new AppError({ code: 'CHAT_MODEL_UNKNOWN', message: reason }),
+    );
+
+    const res = await sendStale();
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({
+      status: 'refused',
+      reason,
+      persisted: false,
+    });
+  });
+
+  it('answers the EU/EEA rule refusing the model as a refusal, with nothing persisted [GOV-R17]', async () => {
+    const reason =
+      'This organization processes prompts only in the EU/EEA, and openrouter.ai may process prompts outside it, so the call was not sent. An admin can serve the model through a provider whose endpoint is eu.openrouter.ai instead.';
+    runChatTurn.mockRejectedValue(
+      new ModelEndpointRefusal({
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        message: reason,
+        provider: 'deploy',
+        host: 'openrouter.ai',
+        reason: 'vendor-global',
+      }),
     );
 
     const res = await sendStale();

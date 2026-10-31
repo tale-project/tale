@@ -33,8 +33,10 @@ export const RAG_ERROR_INDEX_REPAIR_FAILED = 'index_repair_failed';
 
 /** The embedding provider refused the ACCOUNT or the credential — balance
  * spent, a plan that excludes the model, a rejected key, no access to the
- * model. Nothing here heals by waiting, so the indexing job does not retry:
- * an admin fixes the provider account or settings, then retries indexing. */
+ * model — or the organization's EU/EEA rule refused the endpoint before any
+ * text was sent (GOV-R17). Nothing here heals by waiting, so the indexing job
+ * does not retry: an admin fixes the provider account, settings or endpoint,
+ * then retries indexing. */
 export const RAG_ERROR_EMBEDDING_PROVIDER_REFUSED =
   'embedding_provider_refused';
 

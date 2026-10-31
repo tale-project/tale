@@ -5,6 +5,11 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
+import {
+  ModelEndpointRefusal,
+  modelEndpointRefusal,
+  type ModelEndpointPolicy,
+} from '../../core/governance/model_endpoint_gate.ts';
 import { EmbeddingDimensionMismatch } from '../../core/knowledge/dimensions.ts';
 import {
   embedderForOrg,
@@ -231,6 +236,45 @@ describe('indexUploadedFile — provider refusals', () => {
     expect(write).toContain(RAG_ERROR_INDEXER_ERROR);
     expect(write).not.toContain(RAG_ERROR_EMBEDDING_PROVIDER_REFUSED);
   });
+
+  // The organization's EU/EEA rule refused the endpoint the embedding model
+  // would call before any text was sent: every retry would meet the same
+  // refusal, so the job ends with the rule's sentence on the file, under the
+  // code a save of the embedding model or its credential re-queues.
+  it.each([
+    ['an endpoint outside the region', { kind: 'eu', attestedHosts: [] }],
+    ['a policy it cannot read', { kind: 'unreadable' }],
+  ] satisfies [string, ModelEndpointPolicy][])(
+    'ends the job on %s with the rule’s sentence on the file [GOV-R17]',
+    async (_label, policy) => {
+      const data = modelEndpointRefusal(policy, {
+        providerName: 'openai',
+        baseUrl: 'https://api.openai.com/v1',
+      });
+      if (data === undefined) throw new Error('expected a refusal');
+      vi.mocked(embedderForOrg).mockRejectedValueOnce(
+        new ModelEndpointRefusal(data),
+      );
+      const log: Query[] = [];
+
+      await expect(indexUploadedFile(fakeSql(log), 'file-1')).resolves.toBe(
+        undefined,
+      );
+
+      const write = lastStatusWrite(log);
+      expect(write).toContain('failed');
+      expect(write).toContain(RAG_ERROR_EMBEDDING_PROVIDER_REFUSED);
+      const prose = write.find(
+        (value) => typeof value === 'string' && value.includes('EU/EEA'),
+      );
+      expect(prose).toContain(data.message);
+      expect(prose).toContain('Settings → Data residency → Embedding model');
+      // The payload's sentence, never its serialized JSON.
+      expect(prose).not.toContain('"code"');
+      expect(indexWholeDocument).not.toHaveBeenCalled();
+      expect(markCorpusIndexingFailed).toHaveBeenCalledTimes(1);
+    },
+  );
 
   // A model that answers another width than the settings state — a provider
   // that ignores the requested `dimensions` — answers every retry the same

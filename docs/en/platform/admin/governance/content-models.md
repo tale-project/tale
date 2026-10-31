@@ -54,6 +54,22 @@ Test both cases after changing access: an allowed model should work and a denied
 
 Turning the switch off refuses the next call with `403 MODEL_API_DISABLED`. [Use Tale from your editor or a script](/develop/use-tale-from-your-editor#model-endpoints) shows members how to connect their tools.
 
+### Process prompts only in the EU/EEA {#eu-processing}
+
+**Process prompts only in the EU/EEA** keeps the organization's model calls on endpoints known to process prompts in the EU/EEA. It is off by default and works independently of **Enable model access policy**.
+
+1. Under **Endpoints attested as processing in the EU/EEA**, list the hosts of your own endpoints that process there, one per line, as each appears in its provider's base URL or endpoint URL: the server of a [custom provider](/platform/admin/providers#define-a-custom-provider), or an Azure OpenAI resource whose deployments process in the EU/EEA, such as `my-resource.openai.azure.com`. Select **Save endpoints**.
+2. Turn on the **Process prompts only in the EU/EEA** switch. The change saves at once.
+
+Attest the hosts before you turn the switch on, so that no call to them is refused in between.
+
+- **What counts.** The EU endpoints of the vendors Tale knows, `eu.openrouter.ai`, `eu.api.openai.com` and `api.eu.mistral.ai`, and the hosts you attest. A vendor's global endpoint, such as `openrouter.ai` or `api.openai.com`, never counts: the editor doesn't attest it and names the vendor's EU endpoint instead. To use such a vendor, define a custom provider whose base URL is its EU endpoint, such as `https://eu.openrouter.ai/api/v1`. Attest an Azure resource only when its deployments are Regional deployments in an EU/EEA region or Data Zone EU deployments: a Global deployment can process a request in any region.
+- **What it covers.** Chat replies and their titles, **Improve with AI** in the inbox, task turns an agent works with the chat's tools, the `llm` steps of automations, document embeddings and search, image generation, audio transcription, voice output, and the [model endpoints for API keys](#model-endpoints). Over those endpoints, a model of a catalog provider that the model gateway serves itself, such as OpenAI, Azure OpenAI, Mistral or OpenRouter, is refused even on an EU endpoint, because the gateway calls the vendor's own endpoint: serve the model through a custom provider instead.
+- **What is refused.** A call to any other endpoint, or through a provider that names none, is refused before anything is sent. The person sees why and what an admin can change, and the refusal is recorded in the [audit log](/platform/admin/governance/audit-logs) as **Model access denied**. While the model access policy can't be read, every model call is refused until an admin saves a valid policy.
+- **Not covered yet.** The model pickers still offer models the switch refuses. The model traffic of agent runtimes such as Claude Code or Codex in a sandbox, and the moderation provider of [Guardrails](/platform/admin/governance/guardrails), are not held to it.
+
+**Message information** under a reply says where it was processed when that is known; [See how a reply was produced](/platform/chat/basics#reply-details) explains the **Region** line.
+
 ## Choose the image-reading model
 
 A text-only agent needs help reading an image, such as a screenshot or scanned page. **Vision model** selects the model that describes it for the agent. An agent whose own model reads images reads them itself; the vision model still serves the image tools that scripts and coding agents call inside their sandbox, such as batch transcription of scanned pages, so every managed agent gets one when a reachable model exists.

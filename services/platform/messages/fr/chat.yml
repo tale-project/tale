@@ -166,6 +166,7 @@ voice:
   voiceOutputErrorOpenSettings: Ouvrir les paramètres
   voiceOutputErrorQueueOverflow: La synthèse vocale prend du retard — mise en pause des phrases suivantes
   voiceOutputErrorRateLimited: Limite vocale atteinte — nouvelle tentative en cours
+  voiceOutputErrorRegion: Fournisseur vocal non autorisé — cette organisation ne traite les prompts que dans l'UE/EEE
   voiceOutputErrorTransient: Service vocal indisponible — nouvelle tentative en cours
   voiceOutputLoading: Préparation de la voix…
   voiceOutputPlay: Lire la sortie vocale
@@ -227,6 +228,8 @@ transcription:
   noModel: Aucun modèle compatible n'est disponible pour transcrire les fichiers audio.
   pinnedUnavailable: Le modèle de transcription audio sélectionné n'est pas disponible.
   policyInvalid: Le paramètre du modèle de transcription audio est invalide.
+  outsideEu: Cette organisation ne traite les prompts que dans l'UE/EEE, et rien n'indique que le modèle de transcription audio les traite dans cette zone.
+  endpointPolicyUnreadable: La politique d'accès aux modèles n'a pas pu être lue, donc l'audio n'est pas transcrit.
   temporarilyUnavailable: La disponibilité de la transcription audio n'a pas pu être vérifiée. Réessaie dans un instant.
   askAdmin: Demande à un admin de vérifier les paramètres de transcription.
   configureProviders: Configurer les fournisseurs d'IA

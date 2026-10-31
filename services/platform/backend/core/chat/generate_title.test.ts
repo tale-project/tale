@@ -37,6 +37,7 @@ vi.mock('../automations_builder/model_call', () => ({
 
 import { deriveFallbackTitle } from '../../../lib/chat/derive-fallback-title';
 import { EmptyReplyError } from '../automations_builder/chat_wire';
+import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import { generateThreadTitleImpl, resolveDirectModel } from './generate_title';
 
 const ORG = 'org_a';
@@ -587,6 +588,52 @@ describe('generateThreadTitleImpl — limits and model access', () => {
       expect.objectContaining({
         target: { providerSlug: 'openai', modelId: 'gpt-5' },
       }),
+    );
+  });
+
+  it('names the thread from its own words when the EU/EEA rule refuses the endpoint [GOV-R17]', async () => {
+    const { ctx, runMutation } = servingCtx();
+    const meter = fakeMeter();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    createBuilderModelMock.mockReturnValue(async () => {
+      throw new ModelEndpointRefusal({
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        message:
+          'This organization processes prompts only in the EU/EEA, and api.openai.com is not an endpoint known to process there, so the call was not sent.',
+        provider: 'openai',
+        host: 'api.openai.com',
+        reason: 'not-attested',
+      });
+    });
+
+    await generateThreadTitleImpl(
+      ctx,
+      {
+        organizationId: ORG,
+        threadId: THREAD,
+        userId: USER,
+        firstMessage: FIRST_MESSAGE,
+      },
+      meter,
+    );
+
+    expect(createBuilderModelMock).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({
+        surface: 'chat-title',
+        actor: { id: USER, type: 'user' },
+      }),
+    );
+    // Nothing was sent: the hold goes back, nothing is booked, one line says
+    // why, and the thread is named from its own words.
+    expect(meter.release).toHaveBeenCalledOnce();
+    expect(meter.settle).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      '[generateThreadTitle] MODEL_ENDPOINT_OUTSIDE_EU for openai; fallback title used',
+    );
+    expect(runMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ title: deriveFallbackTitle(FIRST_MESSAGE) }),
     );
   });
 });

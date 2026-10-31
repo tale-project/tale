@@ -213,6 +213,8 @@ into the vectors a search compares. An admin sets it under **Settings > Data res
 | No embedding model is set | Failed, `embedding_not_configured` | 409 `EMBEDDING_NOT_CONFIGURED` |
 | The provider refuses the account | Failed at once, `embedding_provider_refused` | 409 `EMBEDDING_CREDIT_EXHAUSTED` |
 | The provider rejects the key, or no usable key exists | Failed at once, `embedding_provider_refused` | 409 `EMBEDDING_CREDENTIAL_REJECTED` |
+| The EU/EEA rule is on and the model's endpoint is not known to process there | Failed at once, `embedding_provider_refused`, before any text is sent | 409 `MODEL_ENDPOINT_OUTSIDE_EU` |
+| The EU/EEA rule cannot be read | Failed at once, `embedding_provider_refused`, before any text is sent | 409 `MODEL_ENDPOINT_POLICY_UNREADABLE` |
 | The provider's rate limit | waited out | 503 `EMBEDDING_UPSTREAM_ERROR`, with a time to retry after |
 | The provider cannot serve the request | Failed, `embedding_upstream`, tried again | 503 `EMBEDDING_UPSTREAM_ERROR`, with a time to retry after |
 

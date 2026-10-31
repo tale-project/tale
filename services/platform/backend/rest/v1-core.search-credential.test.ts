@@ -7,6 +7,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '../../lib/shared/errors/app-error.ts';
 import {
+  ModelEndpointRefusal,
+  modelEndpointRefusal,
+  type ModelEndpointRefusalData,
+} from '../core/governance/model_endpoint_gate.ts';
+import {
   EmbeddingBudgetExceeded,
   EmbeddingNotConfigured,
 } from '../core/knowledge/embedding.ts';
@@ -265,5 +270,69 @@ describe('knowledge search at a usage limit', () => {
       expect.anything(),
       expect.objectContaining({ meter: expect.any(Object) }),
     );
+  });
+});
+
+/**
+ * The organization's EU/EEA rule refuses the endpoint the embedding model
+ * would call before the query is embedded. The refusal keeps its own code and
+ * sentence through the domain and the REST door: nothing reached a provider,
+ * and the fix is the endpoint or the rule, never the credential.
+ */
+describe('knowledge search the EU/EEA rule refuses [GOV-R17]', () => {
+  function refusal(
+    policy: Parameters<typeof modelEndpointRefusal>[0],
+  ): ModelEndpointRefusalData {
+    const data = modelEndpointRefusal(policy, {
+      providerName: 'openai',
+      baseUrl: 'https://api.openai.com/v1',
+    });
+    if (data === undefined) throw new Error('expected a refusal');
+    return data;
+  }
+
+  it.each([
+    [
+      'an endpoint outside the region',
+      refusal({ kind: 'eu', attestedHosts: [] }),
+    ],
+    ['a policy it cannot read', refusal({ kind: 'unreadable' })],
+  ])(
+    'answers %s as 409 with the rule’s code and sentence',
+    async (_case, data) => {
+      vi.mocked(searchKnowledge).mockRejectedValueOnce(
+        new ModelEndpointRefusal(data),
+      );
+
+      const res = await search();
+
+      expect(res.status).toBe(409);
+      expect(res.headers.get('retry-after')).toBeNull();
+      expect(await res.json()).toEqual({
+        error: data.message,
+        code: data.code,
+      });
+    },
+  );
+
+  it('hands the domain the sentence, never the serialized payload', async () => {
+    const data = refusal({ kind: 'eu', attestedHosts: [] });
+    vi.mocked(searchKnowledge).mockRejectedValueOnce(
+      new ModelEndpointRefusal(data),
+    );
+
+    const caught = await searchKnowledgeForOrg(fakeSql(), {
+      organizationId: 'org-1',
+      spender: { userId: 'user-1', agentSlug: '__embedding__' },
+      query: 'refunds',
+    }).catch((error: unknown) => error);
+
+    expect(caught).toBeInstanceOf(KnowledgeError);
+    expect(caught).toMatchObject({
+      code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+      status: 503,
+      message: expect.stringContaining('api.openai.com'),
+    });
+    expect(caught).toHaveProperty('message', data.message);
   });
 });

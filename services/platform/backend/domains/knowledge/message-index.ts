@@ -16,6 +16,7 @@ import {
 } from '../../../lib/shared/constants/usage.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { NO_SUBJECT } from '../../core/conversations/ingest/constants.ts';
+import { ModelEndpointRefusal } from '../../core/governance/model_endpoint_gate.ts';
 import { readOrgEmbeddingConfig } from '../../core/knowledge/connection.ts';
 import {
   EmbeddingDimensionMismatch,
@@ -289,6 +290,15 @@ export async function indexConversationMessage(
       console.info(
         '[knowledge] email body not indexed: the organization has no embedding model',
         log,
+      );
+      return;
+    }
+    // The organization's EU/EEA rule refused the embedding endpoint: the
+    // body was not sent, and a retry answers the same (GOV-R17).
+    if (error instanceof ModelEndpointRefusal) {
+      console.warn(
+        '[knowledge] email body not indexed: the embedding endpoint was refused',
+        { ...log, code: error.data.code, error: error.data.message },
       );
       return;
     }

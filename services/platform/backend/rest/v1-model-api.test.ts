@@ -7,7 +7,9 @@
  * the guardrails' block and mask, the budget refusal, and a relayed call —
  * streamed and whole, tools included — whose end closes its lease with the
  * usage the answer reported; a caller who hangs up while the request is
- * governed has it closed unsent, with nothing to book.
+ * governed has it closed unsent, with nothing to book; and, with the EU/EEA
+ * processing rule on, a model the gateway would serve from an endpoint
+ * outside the region refused and audited before anything is held.
  */
 
 import { Hono } from 'hono';
@@ -52,6 +54,16 @@ vi.mock('../domains/model_api/metering.ts', async (importOriginal) => ({
     typeof import('../domains/model_api/metering.ts')
   >()),
   ...metering,
+}));
+
+const audit = vi.hoisted(() => ({
+  recordModelEndpointRefusal: vi.fn(async (): Promise<void> => undefined),
+}));
+vi.mock('../domains/governance/model-endpoints.ts', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('../domains/governance/model-endpoints.ts')
+  >()),
+  ...audit,
 }));
 
 vi.mock('../auth/membership.ts', async (importOriginal) => ({
@@ -310,6 +322,180 @@ describe('which model', () => {
       type: 'error',
       error: { type: 'invalid_request_error', code: 'INVALID_BODY' },
     });
+  });
+});
+
+describe('the EU/EEA processing rule [GOV-R17]', () => {
+  const EU_POLICY = {
+    ...POLICY,
+    euProcessing: { enabled: true, hosts: ['llm.example.eu'] },
+  };
+  /** OpenRouter pointed at its EU endpoint — which the gateway's built-in
+   * connection to OpenRouter does not use. */
+  const OPENROUTER = {
+    ...MODELS[0],
+    connector: {
+      name: 'openrouter',
+      baseUrl: 'https://eu.openrouter.ai/api/v1',
+    },
+  };
+  const withAnthropicEndpoint = (baseUrl: string) => ({
+    ...OPENROUTER,
+    connector: {
+      ...OPENROUTER.connector,
+      harnessEndpoint: { baseUrl, apiFormat: 'anthropic' as const },
+    },
+  });
+  const deepseekAt = (baseUrl: string) => ({
+    ...MODELS[1],
+    connector: { name: 'deepseek', baseUrl },
+  });
+  const DEEPSEEK_CHAT = { ...CHAT, model: 'deepseek/deepseek-v4-flash' };
+
+  beforeEach(() => {
+    gate.resolveModelApiGate.mockResolvedValue({
+      kind: 'open',
+      policy: EU_POLICY,
+    });
+  });
+
+  it('refuses a provider the gateway reaches through its built-in connection, even one pointed at its EU endpoint, before anything is held', async () => {
+    listing.listModelApiModels.mockResolvedValue([OPENROUTER]);
+    const response = await post('/openai/chat/completions', CHAT);
+    expect(response.status).toBe(403);
+    expect(await response.json()).toEqual({
+      error: {
+        message: expect.stringContaining(
+          'the model gateway reaches the provider "openrouter" through its built-in connection',
+        ),
+        type: 'permission_error',
+        param: 'model',
+        code: 'MODEL_API_MODEL_FORBIDDEN',
+      },
+    });
+    expect(audit.recordModelEndpointRefusal).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        organizationId: 'org-1',
+        surface: 'model-api',
+        provider: 'openrouter',
+        model: 'anthropic/claude-sonnet-4.6',
+        reason: 'gateway-builtin',
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        message: expect.stringContaining(
+          'This organization processes prompts only in the EU/EEA',
+        ),
+        actor: { id: 'user-1', type: 'api' },
+      },
+    );
+    expect(guardrails.buildModelApiGuardrails).not.toHaveBeenCalled();
+    expect(metering.openModelApiLease).not.toHaveBeenCalled();
+    expect(gatewayCalls).toHaveLength(0);
+  });
+
+  it('relays the Anthropic wire over the connector’s native EU endpoint, and refuses its global one and the chat wire', async () => {
+    gateway(() =>
+      Response.json({
+        type: 'message',
+        model: 'gw',
+        content: [],
+        usage: { input_tokens: 1, output_tokens: 1 },
+      }),
+    );
+    listing.listModelApiModels.mockResolvedValue([
+      withAnthropicEndpoint('https://eu.openrouter.ai/api'),
+    ]);
+    const relayed = await post('/anthropic/v1/messages', MESSAGES);
+    expect(relayed.status).toBe(200);
+    expect(gatewayCalls).toHaveLength(1);
+    // The chat wire keeps the gateway's built-in connection.
+    const chat = await post('/openai/chat/completions', CHAT);
+    expect(chat.status).toBe(403);
+
+    listing.listModelApiModels.mockResolvedValue([
+      withAnthropicEndpoint('https://openrouter.ai/api'),
+    ]);
+    const refused = await post('/anthropic/v1/messages', MESSAGES);
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({
+      type: 'error',
+      error: {
+        type: 'permission_error',
+        code: 'MODEL_API_MODEL_FORBIDDEN',
+        message: expect.stringContaining(
+          'An admin can serve the model through a provider whose endpoint is eu.openrouter.ai instead.',
+        ),
+      },
+    });
+    expect(audit.recordModelEndpointRefusal).toHaveBeenLastCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        host: 'openrouter.ai',
+        reason: 'vendor-global',
+      }),
+    );
+    expect(gatewayCalls).toHaveLength(1);
+  });
+
+  it('relays a custom provider on an attested endpoint, and refuses one on any other', async () => {
+    gateway(() => Response.json({ model: 'gw', choices: [], usage: {} }));
+    listing.listModelApiModels.mockResolvedValue([
+      deepseekAt('https://llm.example.eu/v1'),
+    ]);
+    const relayed = await post('/openai/chat/completions', DEEPSEEK_CHAT);
+    expect(relayed.status).toBe(200);
+    expect(audit.recordModelEndpointRefusal).not.toHaveBeenCalled();
+
+    listing.listModelApiModels.mockResolvedValue([
+      deepseekAt('https://api.deepseek.com'),
+    ]);
+    const refused = await post('/openai/chat/completions', DEEPSEEK_CHAT);
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toMatchObject({
+      error: {
+        code: 'MODEL_API_MODEL_FORBIDDEN',
+        message: expect.stringContaining(
+          'api.deepseek.com is not an endpoint known to process there',
+        ),
+      },
+    });
+    expect(audit.recordModelEndpointRefusal).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        provider: 'deepseek',
+        model: 'deepseek-v4-flash',
+        host: 'api.deepseek.com',
+        reason: 'not-attested',
+      }),
+    );
+    expect(gatewayCalls).toHaveLength(1);
+  });
+
+  it('refuses even when the audit entry cannot be written', async () => {
+    audit.recordModelEndpointRefusal.mockRejectedValueOnce(
+      new Error('database unavailable'),
+    );
+    listing.listModelApiModels.mockResolvedValue([OPENROUTER]);
+    const response = await post('/openai/chat/completions', CHAT);
+    expect(response.status).toBe(403);
+    expect(console.warn).toHaveBeenCalledWith(
+      expect.stringContaining('could not be written'),
+      expect.any(Error),
+    );
+    expect(metering.openModelApiLease).not.toHaveBeenCalled();
+    expect(gatewayCalls).toHaveLength(0);
+  });
+
+  it('changes nothing while the rule is off', async () => {
+    gate.resolveModelApiGate.mockResolvedValue({
+      kind: 'open',
+      policy: { ...POLICY, euProcessing: { enabled: false } },
+    });
+    gateway(() => Response.json({ model: 'gw', choices: [], usage: {} }));
+    listing.listModelApiModels.mockResolvedValue([OPENROUTER]);
+    const response = await post('/openai/chat/completions', CHAT);
+    expect(response.status).toBe(200);
+    expect(audit.recordModelEndpointRefusal).not.toHaveBeenCalled();
   });
 });
 

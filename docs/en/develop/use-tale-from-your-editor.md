@@ -203,7 +203,7 @@ Every refusal comes in the error shape of the interface you called, so your SDK 
 | `403 MODEL_API_DISABLED` | The organization has not turned the endpoints on. Ask an Admin. |
 | `403 MODEL_API_FORBIDDEN` | Your role cannot call them. Ask an Admin to grant **Call models over the API**. |
 | `404 MODEL_API_MODEL_UNKNOWN` | The id is not on your list. Copy one from `GET /api/v1/openai/models` or the **Models** tab, provider slug included. |
-| `403 MODEL_API_MODEL_FORBIDDEN` | Model access blocks this model for you. Choose another model or ask an Admin. |
+| `403 MODEL_API_MODEL_FORBIDDEN` | Model access blocks this model for you, or the organization processes prompts only in the EU/EEA and this model's endpoint is outside it. The message says which. Choose another model or ask an Admin. |
 | `400 MODEL_API_VISION_UNSUPPORTED`, `400 MODEL_API_TOOLS_UNSUPPORTED` | Choose a model that reads images or takes tools, or send the request without them. |
 | `400 MODEL_API_VENDOR_TOOL_UNSUPPORTED` | Remove the tool the vendor would run, such as a web search. In Claude Code, the WebSearch tool causes it. |
 | `400 MODEL_API_GUARDRAIL_BLOCKED` | A guardrail refused the system prompt or a message, and nothing reached the model. Rephrase, or ask an Admin about the rule. |

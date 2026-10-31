@@ -54,6 +54,22 @@ Mit **Modell-Endpunkte für API-Schlüssel** nutzen Personen die Modelle, die di
 
 Schaltest du den Schalter aus, lehnt Tale den nächsten Aufruf mit `403 MODEL_API_DISABLED` ab. [Tale aus deinem Editor oder einem Skript nutzen](/de/develop/use-tale-from-your-editor#model-endpoints) zeigt Mitgliedern, wie sie ihre Tools verbinden.
 
+### Prompts nur in der EU/im EWR verarbeiten {#eu-processing}
+
+**Prompts nur in der EU/im EWR verarbeiten** hält die Modellaufrufe der Organisation auf Endpunkten, von denen bekannt ist, dass sie Prompts in der EU/im EWR verarbeiten. Der Schalter ist standardmäßig aus und wirkt unabhängig von **Modellzugriffsrichtlinie aktivieren**.
+
+1. Trage unter **Endpunkte mit bestätigter Verarbeitung in der EU/im EWR** die Hosts deiner eigenen Endpunkte ein, die dort verarbeiten, einen pro Zeile, so wie er in der Basis-URL oder Endpoint-URL seines Anbieters steht: den Server eines [eigenen Anbieters](/de/platform/admin/providers#einen-eigenen-anbieter-definieren) oder eine Azure-OpenAI-Ressource, deren Bereitstellungen in der EU/im EWR verarbeiten, etwa `my-resource.openai.azure.com`. Wähle **Endpunkte speichern**.
+2. Aktiviere den Schalter **Prompts nur in der EU/im EWR verarbeiten**. Die Änderung wird sofort gespeichert.
+
+Bestätige die Hosts, bevor du den Schalter aktivierst, damit in der Zwischenzeit kein Aufruf an sie abgelehnt wird.
+
+- **Was zählt.** Die EU-Endpunkte der Anbieter, die Tale kennt, `eu.openrouter.ai`, `eu.api.openai.com` und `api.eu.mistral.ai`, und die Hosts, die du bestätigst. Der globale Endpunkt eines Anbieters, etwa `openrouter.ai` oder `api.openai.com`, zählt nie: Der Editor nimmt ihn nicht an und nennt stattdessen den EU-Endpunkt des Anbieters. Um einen solchen Anbieter zu nutzen, definiere einen eigenen Anbieter, dessen Basis-URL sein EU-Endpunkt ist, etwa `https://eu.openrouter.ai/api/v1`. Bestätige eine Azure-Ressource nur, wenn ihre Bereitstellungen regionale Bereitstellungen in einer Region der EU/des EWR oder Datenzonen-Bereitstellungen für die EU sind: Eine Bereitstellung vom Typ Global kann eine Anfrage in jeder Region verarbeiten.
+- **Was er abdeckt.** Chatantworten und ihre Titel, **Mit KI verbessern** im Posteingang, die Antworten eines Agenten in einer Aufgabe, wenn er mit den Tools des Chats arbeitet, die `llm`-Schritte von Automatisierungen, Embeddings und die Suche in Dokumenten, Bildgenerierung, Audiotranskription, Sprachausgabe und die [Modell-Endpunkte für API-Schlüssel](#model-endpoints). Über diese Endpunkte wird ein Modell eines Anbieters aus dem mitgelieferten Katalog, den das Modell-Gateway selbst bedient, etwa OpenAI, Azure OpenAI, Mistral oder OpenRouter, auch auf einem EU-Endpunkt abgelehnt, weil das Gateway den eigenen Endpunkt des Anbieters aufruft: Stelle das Modell stattdessen über einen eigenen Anbieter bereit.
+- **Was abgelehnt wird.** Ein Aufruf an jeden anderen Endpunkt oder über einen Anbieter, der keinen nennt, wird abgelehnt, bevor etwas gesendet wird. Die Person sieht den Grund und was ein Admin ändern kann, und die Ablehnung erscheint in den [Audit-Logs](/de/platform/admin/governance/audit-logs) als **Modellzugriff abgelehnt**. Solange die Modellzugriffsrichtlinie nicht gelesen werden kann, wird jeder Modellaufruf abgelehnt, bis ein Admin eine gültige Richtlinie speichert.
+- **Noch nicht abgedeckt.** Die Modellauswahl bietet weiterhin Modelle an, die der Schalter ablehnt. Der Modellverkehr von Agent-Laufzeiten wie Claude Code oder Codex in einer Sandbox und der Moderations-Anbieter der [Guardrails](/de/platform/admin/governance/guardrails) sind noch nicht daran gebunden.
+
+Die **Nachrichteninformation** unter einer Antwort sagt, wo sie verarbeitet wurde, sofern das bekannt ist; [Sehen, wie eine Antwort entstanden ist](/de/platform/chat/basics#reply-details) erklärt die Zeile **Region**.
+
 ## Das Modell zum Lesen von Bildern wählen
 
 Ein reiner Textagent braucht Hilfe beim Lesen von Bildern, etwa Screenshots oder gescannten Seiten. Der Bereich für das Vision-Modell legt fest, welches Modell das Bild für den Agenten beschreibt. Kann das eigene Agentenmodell Bilder lesen, liest es sie selbst; das Vision-Modell bedient weiterhin die Bildwerkzeuge, die Skripte und Coding-Agenten in ihrer Sandbox aufrufen, etwa die Stapeltranskription gescannter Seiten. Jeder verwaltete Agent erhält deshalb eines, sobald ein erreichbares Modell existiert.

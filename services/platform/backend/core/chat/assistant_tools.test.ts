@@ -617,6 +617,37 @@ describe('rag_search', () => {
     expect(result.message).not.toContain('No matches');
   });
 
+  it('says the EU/EEA rule stopped the search, in the rule’s own words — never as nothing found [GOV-R17]', async () => {
+    const { ModelEndpointRefusal, modelEndpointRefusal } =
+      await import('../governance/model_endpoint_gate');
+    const data = modelEndpointRefusal(
+      { kind: 'eu', attestedHosts: [] },
+      { providerName: 'openai', baseUrl: 'https://api.openai.com/v1' },
+    );
+    if (data === undefined) throw new Error('expected a refusal');
+    searchKnowledgeMock.mockRejectedValueOnce(new ModelEndpointRefusal(data));
+    const executor = await makeExecutor(createCtx().ctx);
+
+    const result = await executor.execute({
+      id: 'call_1',
+      name: 'rag_search',
+      input: { query: 'acme' },
+    });
+
+    expect(result.status).toBe('ok');
+    // The rule's sentence names the host and the admin's fix; the payload
+    // it serializes never reaches the model.
+    expect(result.sources?.documents).toMatch(
+      /^not searched: This organization processes prompts only in the EU\/EEA/,
+    );
+    expect(result.sources?.documents).toContain(data.message);
+    expect(result.sources?.documents).toContain('do not treat it as nothing');
+    expect(result.sources?.documents).not.toContain('"code"');
+    expect(result.sources?.webPages).toBe(result.sources?.documents);
+    expect(result.results).toEqual([]);
+    expect(result.message).toBe(result.sources?.documents);
+  });
+
   it('says the email bodies went unsearched when a usage limit stopped a conversation search [KNOW-R18]', async () => {
     const { EmbeddingBudgetExceeded } = await import('../knowledge/embedding');
     searchKnowledgeMock.mockRejectedValueOnce(

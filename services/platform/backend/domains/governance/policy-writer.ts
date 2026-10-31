@@ -4,6 +4,7 @@ import {
   DEFAULT_SANDBOX_QUOTA,
   isFilePolicyType,
   isPolicyReadableByMember,
+  modelAccessConfigSchema,
   POLICY_SCHEMAS,
   sandboxQuotaConfigSchema,
   sandboxQuotaTotal,
@@ -13,6 +14,10 @@ import {
 } from '@tale/shared/schemas/governance';
 import type { Sql } from 'postgres';
 
+import {
+  isAttestableEndpointHost,
+  vendorEuEndpoint,
+} from '../../../lib/chat/serving.ts';
 import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '../../../lib/shared/hint-entities';
 import { isAdmin } from '../../core/lib/rls/helpers/role_helpers.ts';
 import {
@@ -165,8 +170,10 @@ export interface CheckedGovernancePolicy {
  * Check one policy change as the save does, and write nothing: the policy
  * exists and has no workflow of its own, the actor is an owner or admin,
  * the expected hash is well formed, the config is the policy's own, a
- * standard agent names a runtime the managed lane can run, and the sandbox
- * budgets fit the deployment's capacity as it is now.
+ * standard agent names a runtime the managed lane can run, the hosts
+ * attested as processing in the EU/EEA are ones an attestation lets
+ * through, and the sandbox budgets fit the deployment's capacity as it is
+ * now.
  */
 export async function checkGovernancePolicy(
   sql: Sql,
@@ -220,6 +227,28 @@ export async function checkGovernancePolicy(
         `The agent runtime "${harness}" cannot run project agents here; choose one of ${harnesses.join(', ')}.`,
         400,
         { data: { harnesses } },
+      );
+    }
+  }
+  if (policyType === 'model_access') {
+    // A vendor's own hosts count only as its EU endpoint, attested or not
+    // (`euProcessingVerdict`), which the shared schema cannot know: an
+    // attestation the rule would ignore is refused rather than stored as a
+    // promise it does not keep.
+    const { euProcessing } = modelAccessConfigSchema.parse(parsed.data);
+    const ignored = (euProcessing?.hosts ?? []).filter(
+      (host) => !isAttestableEndpointHost(host),
+    );
+    if (ignored.length > 0) {
+      const named = ignored.map((host) => {
+        const euHost = vendorEuEndpoint(host);
+        return euHost === undefined ? host : `${host} (use ${euHost})`;
+      });
+      throw new GovernancePolicyError(
+        'EU_PROCESSING_HOST_NOT_ATTESTABLE',
+        `These hosts cannot be attested as processing in the EU/EEA: ${named.join(', ')}. A vendor whose EU endpoint is known counts only as that endpoint.`,
+        400,
+        { data: { hosts: ignored }, answersMessage: true },
       );
     }
   }

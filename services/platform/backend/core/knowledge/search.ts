@@ -204,7 +204,10 @@ export async function searchKnowledge(
  */
 async function bindOrg(
   ctx: ActionCtx,
-  org: KnowledgeOrg & { readonly corpus?: KnowledgeQuery['corpus'] },
+  org: KnowledgeOrg & {
+    readonly corpus?: KnowledgeQuery['corpus'];
+    readonly access?: KnowledgeQuery['access'];
+  },
   config: KnowledgeEmbeddingConfig | null,
   meter: EmbeddingMeter | undefined,
 ): Promise<{
@@ -218,6 +221,9 @@ async function bindOrg(
       orgSlug: org.orgSlug,
       config,
       ...(meter !== undefined ? { meter } : {}),
+      ...(org.access?.userId !== undefined && {
+        actor: { id: org.access.userId, type: 'user' as const },
+      }),
     }),
   ]);
 

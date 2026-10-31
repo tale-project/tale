@@ -2,12 +2,14 @@
 
 import {
   defaultModelsConfigSchema,
+  EU_PROCESSING_HOSTS_MAX,
   modelAccessConfigSchema,
   modelAccessRuleHasTarget,
   modelAccessRuleSchema,
   storedModelAccessConfigSchema,
   type DefaultModelRule,
   type DefaultModelsConfig,
+  type EuProcessingSettings,
   type ModelAccessConfig,
   type ModelAccessRule,
 } from '@tale/shared/schemas/governance';
@@ -32,6 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from '@tale/ui/table';
+import { Textarea } from '@tale/ui/textarea';
 import { useToast } from '@tale/ui/use-toast';
 import { Pencil, Plus, ShieldCheck, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -52,6 +55,7 @@ import { usePolicySettling } from '@/app/lib/backend/policy-write-order';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
 
+import { hostListProblem, parseHostLines } from '../eu-processing-hosts';
 import { mapGovernanceSaveError } from '../governance-save-errors';
 import { useListProviders, useModelCapabilities } from '../hooks/model-catalog';
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
@@ -458,9 +462,16 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
   const needsTargetRepair = rules.some(
     (rule) => !modelAccessRuleHasTarget(rule),
   );
-  // The model endpoints' switch lives in the same policy file: every save
-  // below writes it back beside the rules, so no rule edit can drop it.
+  // The model endpoints' switch and the EU/EEA processing rule live in the
+  // same policy file: every save below writes them back beside the rules
+  // (`policyWith`), so no edit of one drops another. The rule is kept as
+  // stored — absent stays absent — and the hosts typed but not yet saved
+  // are a draft of their own.
   const [modelApiEnabled, setModelApiEnabled] = useState(false);
+  const [euProcessing, setEuProcessing] = useState<
+    EuProcessingSettings | undefined
+  >(undefined);
+  const [hostsDraft, setHostsDraft] = useState<string | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -498,11 +509,15 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
     setDeletingIndex(null);
     setEditingIndex(null);
     setDialogOpen(false);
+    // Hosts being typed outlive a new snapshot of the same organization's
+    // policy, as a field does; another organization's list starts afresh.
+    if (readback?.organizationId !== organizationId) setHostsDraft(null);
     setReadback({ organizationId, config: policy?.config });
     setEnabled(savedConfig.enabled);
     setMode(savedConfig.mode);
     setRules(savedConfig.rules);
     setModelApiEnabled(savedConfig.modelApi?.enabled === true);
+    setEuProcessing(savedConfig.euProcessing);
   }
 
   const cannotManage =
@@ -563,9 +578,17 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
     [organizationId, upsertMutation, toast, t],
   );
 
-  const modelApi = useMemo(
-    () => ({ enabled: modelApiEnabled }),
-    [modelApiEnabled],
+  /** The whole policy as the editor holds it, with `edit` applied. */
+  const policyWith = useCallback(
+    (edit: Partial<ModelAccessConfig>): ModelAccessConfig => ({
+      enabled,
+      mode,
+      rules,
+      modelApi: { enabled: modelApiEnabled },
+      ...(euProcessing === undefined ? {} : { euProcessing }),
+      ...edit,
+    }),
+    [enabled, mode, rules, modelApiEnabled, euProcessing],
   );
 
   /**
@@ -589,11 +612,11 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
     (checked: boolean) => {
       const prev = enabled;
       setEnabled(checked);
-      attemptSaveConfig({ enabled: checked, mode, rules, modelApi }, () =>
+      attemptSaveConfig(policyWith({ enabled: checked }), () =>
         setEnabled(prev),
       );
     },
-    [attemptSaveConfig, enabled, mode, rules, modelApi],
+    [attemptSaveConfig, enabled, policyWith],
   );
 
   // The switch changes who may call the endpoints, never which models a
@@ -603,24 +626,70 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
     (checked: boolean) => {
       const prev = modelApiEnabled;
       setModelApiEnabled(checked);
-      void saveConfig(
-        { enabled, mode, rules, modelApi: { enabled: checked } },
-        () => setModelApiEnabled(prev),
+      void saveConfig(policyWith({ modelApi: { enabled: checked } }), () =>
+        setModelApiEnabled(prev),
       );
     },
-    [saveConfig, modelApiEnabled, enabled, mode, rules],
+    [saveConfig, modelApiEnabled, policyWith],
   );
+
+  // The EU/EEA rule decides which endpoints a call may reach, never which
+  // models a rule allows, so it saves directly as well. The attested hosts
+  // stay whichever way the switch turns.
+  const saveEuProcessing = useCallback(
+    (next: EuProcessingSettings): Promise<boolean> => {
+      const prev = euProcessing;
+      setEuProcessing(next);
+      return saveConfig(policyWith({ euProcessing: next }), () =>
+        setEuProcessing(prev),
+      );
+    },
+    [saveConfig, euProcessing, policyWith],
+  );
+
+  const handleToggleEuProcessing = useCallback(
+    (checked: boolean) => {
+      void saveEuProcessing({ ...euProcessing, enabled: checked });
+    },
+    [saveEuProcessing, euProcessing],
+  );
+
+  const storedHostsText = (euProcessing?.hosts ?? []).join('\n');
+  const hostsText = hostsDraft ?? storedHostsText;
+  const hosts = useMemo(() => parseHostLines(hostsText), [hostsText]);
+  const hostsProblem = hostListProblem(hosts);
+  const hostsDirty = hosts.join('\n') !== storedHostsText;
+  const hostsError =
+    hostsProblem === undefined
+      ? undefined
+      : hostsProblem.kind === 'tooMany'
+        ? t('modelAccess.euProcessing.tooMany', { max: hostsProblem.max })
+        : hostsProblem.kind === 'vendor'
+          ? t('modelAccess.euProcessing.vendorHost', {
+              host: hostsProblem.host,
+              euHost: hostsProblem.euHost,
+            })
+          : t('modelAccess.euProcessing.invalidHost', {
+              host: hostsProblem.host,
+            });
+
+  const handleSaveHosts = useCallback(async () => {
+    const saved = await saveEuProcessing({
+      ...euProcessing,
+      enabled: euProcessing?.enabled === true,
+      hosts,
+    });
+    if (saved) setHostsDraft(null);
+  }, [saveEuProcessing, euProcessing, hosts]);
 
   const handleModeChange = useCallback(
     (value: string) => {
       if (!isModeValue(value)) return;
       const prev = mode;
       setMode(value);
-      attemptSaveConfig({ enabled, mode: value, rules, modelApi }, () =>
-        setMode(prev),
-      );
+      attemptSaveConfig(policyWith({ mode: value }), () => setMode(prev));
     },
-    [attemptSaveConfig, enabled, mode, rules, modelApi],
+    [attemptSaveConfig, mode, policyWith],
   );
 
   const confirmRemoveRule = useCallback(() => {
@@ -629,10 +698,8 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
     const newRules = rules.filter((_, i) => i !== deletingIndex);
     setRules(newRules);
     setDeletingIndex(null);
-    attemptSaveConfig({ enabled, mode, rules: newRules, modelApi }, () =>
-      setRules(prev),
-    );
-  }, [deletingIndex, rules, enabled, mode, modelApi, attemptSaveConfig]);
+    attemptSaveConfig(policyWith({ rules: newRules }), () => setRules(prev));
+  }, [deletingIndex, rules, policyWith, attemptSaveConfig]);
 
   const openAddDialog = useCallback(() => {
     setEditingIndex(null);
@@ -659,11 +726,9 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
         newRules = rules.map((r, i) => (i === editingIndex ? rule : r));
       }
       setRules(newRules);
-      attemptSaveConfig({ enabled, mode, rules: newRules, modelApi }, () =>
-        setRules(prev),
-      );
+      attemptSaveConfig(policyWith({ rules: newRules }), () => setRules(prev));
     },
-    [editingIndex, rules, enabled, mode, modelApi, attemptSaveConfig],
+    [editingIndex, rules, policyWith, attemptSaveConfig],
   );
 
   const resolveTarget = useCallback(
@@ -967,6 +1032,63 @@ function ModelAccessEditorContent({ organizationId }: ModelAccessEditorProps) {
           />
         }
       />
+      {/* Process prompts only in the EU/EEA: stored on this policy and
+          switched on its own, like the endpoints above. The hosts can be
+          attested before the switch is turned on, so no call is refused in
+          between. */}
+      <SettingsSection
+        title={t('modelAccess.euProcessing.title')}
+        description={t('modelAccess.euProcessing.description')}
+        action={
+          <Switch
+            aria-label={t('modelAccess.euProcessing.enabled')}
+            checked={euProcessing?.enabled === true}
+            onCheckedChange={handleToggleEuProcessing}
+            disabled={cannotManage || isPending}
+          />
+        }
+      >
+        <SettingsFieldList>
+          <SettingsFieldRow
+            label={t('modelAccess.euProcessing.hostsLabel')}
+            description={t('modelAccess.euProcessing.hostsHelp', {
+              max: EU_PROCESSING_HOSTS_MAX,
+            })}
+            layout="stack"
+          >
+            <Stack gap={2}>
+              <Textarea
+                id="model-access-eu-processing-hosts"
+                aria-label={t('modelAccess.euProcessing.hostsLabel')}
+                placeholder={t('modelAccess.euProcessing.hostsPlaceholder')}
+                value={hostsText}
+                onChange={(event) => setHostsDraft(event.target.value)}
+                rows={4}
+                disabled={cannotManage}
+                {...(hostsError !== undefined
+                  ? { errorMessage: hostsError }
+                  : {})}
+              />
+              <HStack gap={2} justify="end">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={
+                    cannotManage ||
+                    isPending ||
+                    !hostsDirty ||
+                    hostsError !== undefined
+                  }
+                  onClick={() => void handleSaveHosts()}
+                >
+                  {t('modelAccess.euProcessing.saveHosts')}
+                </Button>
+              </HStack>
+            </Stack>
+          </SettingsFieldRow>
+        </SettingsFieldList>
+      </SettingsSection>
     </Skeletonize>
   );
 }

@@ -60,6 +60,7 @@ import {
 } from '../../../lib/net/safe-fetch';
 import { modelTimestamp } from '../../../lib/shared/model-timestamp';
 import { knowledgeDatabaseUnavailable } from '../../db/unavailable';
+import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import { readDocumentText } from '../knowledge/document_text';
 import {
   EmbeddingBudgetExceeded,
@@ -724,10 +725,27 @@ function knowledgeUsageLimitForModel(error: EmbeddingBudgetExceeded): string {
   );
 }
 
+/**
+ * The same, when the organization's EU/EEA rule refused the endpoint the
+ * embedding model would call (GOV-R17): the query was not sent. The rule's
+ * sentence is written for a person — the rule, the host, the admin's fix —
+ * so it is passed on as it is.
+ */
+function knowledgeEndpointRefusedForModel(error: ModelEndpointRefusal): string {
+  return (
+    `not searched: ${error.data.message} Documents, emailed files and web ` +
+    'pages could not be searched. Tell the user plainly that the search did ' +
+    'not run because of this rule, and do not treat it as nothing found.'
+  );
+}
+
 /** The sentence for the model, by cause — never the raw error. */
 function knowledgeUnavailableForModel(error: unknown): string {
   if (error instanceof EmbeddingBudgetExceeded) {
     return knowledgeUsageLimitForModel(error);
+  }
+  if (error instanceof ModelEndpointRefusal) {
+    return knowledgeEndpointRefusedForModel(error);
   }
   if (knowledgeDatabaseUnavailable(error) !== null) {
     return KNOWLEDGE_DATABASE_UNAVAILABLE_FOR_MODEL;

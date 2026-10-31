@@ -1,5 +1,6 @@
 import { SafeFetchError } from '../../../lib/net/safe-fetch';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { isModelEndpointRefusalCode } from '../governance/model_endpoint_gate';
 
 /**
  * Stable error tokens written to `ttsAudioChunks.error`. The client keys
@@ -22,6 +23,10 @@ export const ttsErrorCodeLiterals = [
   'UNKNOWN_PROVIDER',
   'UNKNOWN_VOICE',
   'HOST_POLICY',
+  // The organization's EU/EEA processing rule refused every provider that
+  // could speak, or its policy cannot be read (GOV-R17). An admin acts;
+  // retrying meets the same refusal.
+  'REGION_POLICY',
   'RATE_LIMITED',
   // Distinct from `RATE_LIMITED`: arises when the rate-limiter shard's
   // OCC retries exhaust under burst contention. The actual quota isn't
@@ -176,6 +181,9 @@ export function errorCodeFromCaught(err: unknown): ClassifiedFailure {
       code === 'PRIVATE_HOST_BLOCKED'
     ) {
       return { code: 'HOST_POLICY' };
+    }
+    if (isModelEndpointRefusalCode(code)) {
+      return { code: 'REGION_POLICY' };
     }
   }
   // `safeFetchBinary` surfaces SSRF / redirect / size violations as

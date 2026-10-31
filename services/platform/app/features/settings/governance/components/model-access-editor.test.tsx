@@ -962,4 +962,170 @@ describe('ModelAccessEditor', () => {
       });
     });
   });
+
+  /**
+   * Processing prompts only in the EU/EEA is switched on the same policy
+   * file, independent of the rules' own switch; the hosts an admin attests
+   * save from their own button, checked before they leave, and no other
+   * save drops the rule.
+   */
+  describe('processing prompts only in the EU/EEA [GOV-R17]', () => {
+    const euSwitch = () =>
+      screen.getByRole('switch', {
+        name: 'Process prompts only in the EU/EEA',
+      });
+    const hostsField = () =>
+      screen.getByRole('textbox', {
+        name: 'Endpoints attested as processing in the EU/EEA',
+      });
+    const saveHosts = () =>
+      screen.getByRole('button', { name: 'Save endpoints' });
+    const RULES = [
+      { scope: 'default', allowedModels: [], blockedModels: ['openai/gpt-4o'] },
+    ];
+
+    it('reads off for a policy written before the rule existed', () => {
+      setLoaded();
+      render(<ModelAccessEditor organizationId="org-1" />);
+      expect(
+        screen.getByRole('heading', {
+          name: 'Process prompts only in the EU/EEA',
+        }),
+      ).toBeInTheDocument();
+      expect(euSwitch()).toHaveAttribute('aria-checked', 'false');
+      expect(hostsField()).toHaveValue('');
+      expect(saveHosts()).toBeDisabled();
+    });
+
+    it('turns it on, keeping the attested hosts and the rules', async () => {
+      setLoaded();
+      state.config = {
+        ...state.config,
+        euProcessing: { enabled: false, hosts: ['llm.example.eu'] },
+      };
+      upsert.mutateAsync.mockClear();
+      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+      expect(hostsField()).toHaveValue('llm.example.eu');
+      await user.click(euSwitch());
+      expect(upsert.mutateAsync).toHaveBeenCalledExactlyOnceWith({
+        organizationId: 'org-1',
+        policyType: 'model_access',
+        config: {
+          enabled: true,
+          mode: 'blocklist',
+          rules: RULES,
+          modelApi: { enabled: false },
+          euProcessing: { enabled: true, hosts: ['llm.example.eu'] },
+        },
+      });
+      expect(euSwitch()).toHaveAttribute('aria-checked', 'true');
+    });
+
+    it('keeps the rule when the rules’ switch, the endpoints’ switch or a rule is saved', async () => {
+      setLoaded();
+      const euProcessing = { enabled: true, hosts: ['llm.example.eu'] };
+      state.config = { ...state.config, euProcessing };
+      upsert.mutateAsync.mockClear();
+      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+      await user.click(
+        screen.getByRole('switch', {
+          name: 'Enable model endpoints for API keys',
+        }),
+      );
+      await user.click(
+        screen.getByRole('switch', { name: 'Enable model access policy' }),
+      );
+      expect(upsert.mutateAsync).toHaveBeenCalledTimes(2);
+      for (const [request] of upsert.mutateAsync.mock.calls) {
+        expect(request).toMatchObject({ config: { euProcessing } });
+      }
+    });
+
+    it('saves the attested hosts trimmed, lowercase and once each, keeping the switch', async () => {
+      setLoaded();
+      state.config = {
+        ...state.config,
+        euProcessing: { enabled: true },
+      };
+      upsert.mutateAsync.mockClear();
+      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+      await user.type(
+        hostsField(),
+        ' LLM.Example.EU {Enter}{Enter}my-resource.openai.azure.com{Enter}llm.example.eu',
+      );
+      await user.click(saveHosts());
+      expect(upsert.mutateAsync).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            enabled: true,
+            rules: RULES,
+            euProcessing: {
+              enabled: true,
+              hosts: ['llm.example.eu', 'my-resource.openai.azure.com'],
+            },
+          }),
+        }),
+      );
+      // The field now shows the list as saved, with nothing left to save.
+      await vi.waitFor(() =>
+        expect(hostsField()).toHaveValue(
+          'llm.example.eu\nmy-resource.openai.azure.com',
+        ),
+      );
+      expect(saveHosts()).toBeDisabled();
+    });
+
+    it('names the EU endpoint a vendor counts through instead of saving its global host', async () => {
+      setLoaded();
+      upsert.mutateAsync.mockClear();
+      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+      await user.type(hostsField(), 'llm.example.eu{Enter}openrouter.ai');
+      expect(
+        screen.getByText(
+          "openrouter.ai can't be attested: its vendor counts only through its EU endpoint, eu.openrouter.ai.",
+        ),
+      ).toBeInTheDocument();
+      expect(saveHosts()).toBeDisabled();
+      expect(upsert.mutateAsync).not.toHaveBeenCalled();
+    });
+
+    it('names a line that is not a host', async () => {
+      setLoaded();
+      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+      await user.type(hostsField(), 'https://llm.example.eu/v1');
+      expect(
+        screen.getByText(
+          'https://llm.example.eu/v1 is not a host name: write the host alone, without https://, a port or a path.',
+        ),
+      ).toBeInTheDocument();
+      expect(saveHosts()).toBeDisabled();
+    });
+
+    it('keeps the hosts being typed when a new snapshot of the policy arrives', async () => {
+      setLoaded();
+      const { user, rerender } = render(
+        <ModelAccessEditor organizationId="org-1" />,
+      );
+      await user.type(hostsField(), 'llm.example.eu');
+      state.config = { ...state.config, mode: 'allowlist' };
+      rerender(<ModelAccessEditor organizationId="org-1" />);
+      expect(screen.getByRole('combobox')).toHaveTextContent('Allowlist');
+      expect(hostsField()).toHaveValue('llm.example.eu');
+      expect(saveHosts()).toBeEnabled();
+    });
+
+    it('puts the switch back when the save fails', async () => {
+      setLoaded();
+      upsert.mutateAsync.mockClear();
+      upsert.mutateAsync.mockRejectedValueOnce(new Error('validation'));
+      const { user } = render(<ModelAccessEditor organizationId="org-1" />);
+      await user.click(euSwitch());
+      await vi.waitFor(() => {
+        expect(euSwitch()).toHaveAttribute('aria-checked', 'false');
+      });
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: 'destructive' }),
+      );
+    });
+  });
 });

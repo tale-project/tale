@@ -41,6 +41,9 @@ client library reads it as its own kind of error.
 A model the organization's rules block for that person is refused
 (`MODEL_API_MODEL_FORBIDDEN`). A model the organization does not offer is refused as unknown
 (`MODEL_API_MODEL_UNKNOWN`). The list of models an API key gets names the callable ones.
+When the organization processes prompts only in the EU/EEA, a model whose endpoint is not
+known to process there is refused the same way, with the reason in the message, before
+anything is sent (`GOV-R17`).
 
 - **Example**: Mia's team is limited to two models. She calls a third → refused.
 

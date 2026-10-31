@@ -36,6 +36,11 @@ vi.mock(
   }),
 );
 
+import { shimFunctionName } from '../../../lib/ctx-shim';
+import {
+  type ModelEndpointPolicy,
+  ModelEndpointRefusal,
+} from '../../governance/model_endpoint_gate';
 import { classifyTranscriptionError } from '../errors/classify_transcription_error';
 import {
   inspectTranscriptionModels,
@@ -49,11 +54,15 @@ const ACTIVE_API_KEY_ROW = { authMethod: 'api-key', status: 'active' };
  * provider not listed gets an active api-key row without an allowlist. */
 let defaultRows: Record<string, unknown> = {};
 let policy: unknown = null;
+let endpointPolicy: ModelEndpointPolicy = { kind: 'open' };
 const runQuery = vi.fn(
-  async (
-    _ref: unknown,
-    args: { providerSlug: string; policyType?: string },
-  ) => {
+  async (ref: unknown, args: { providerSlug: string; policyType?: string }) => {
+    if (
+      shimFunctionName(ref) ===
+      'governance/internal_queries:getModelEndpointPolicyInternal'
+    ) {
+      return endpointPolicy;
+    }
     if (args.policyType !== undefined) {
       if (policy instanceof Error) throw policy;
       return policy;
@@ -63,8 +72,10 @@ const runQuery = vi.fn(
       : ACTIVE_API_KEY_ROW;
   },
 );
-// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runQuery is exercised by this module
-const ctx = { runQuery } as unknown as ActionCtx;
+// The EU/EEA rule's audit entry for a refused model (GOV-R17).
+const runMutation = vi.fn(async (_ref: unknown, _args: unknown) => null);
+// oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runQuery and the refusal's audit entry are exercised by this module
+const ctx = { runQuery, runMutation } as unknown as ActionCtx;
 
 function provider(name: string, apiFormat: 'openai' | 'anthropic' = 'openai') {
   return {
@@ -104,8 +115,10 @@ beforeEach(() => {
   catalogMock.mockReset();
   credentialMock.mockReset();
   runQuery.mockClear();
+  runMutation.mockClear();
   defaultRows = {};
   policy = null;
+  endpointPolicy = { kind: 'open' };
 });
 
 describe('resolveTranscriptionModel', () => {
@@ -127,8 +140,9 @@ describe('resolveTranscriptionModel', () => {
       apiKey: 'sk-test',
     });
     // The Anthropic Messages format has no transcription endpoint: that
-    // provider is skipped before any credential or catalog read.
-    expect(runQuery).toHaveBeenCalledTimes(2);
+    // provider is skipped before any credential or catalog read. The reads
+    // are the pin, OpenAI's default credential and the EU/EEA rule.
+    expect(runQuery).toHaveBeenCalledTimes(3);
     expect(catalogMock).toHaveBeenCalledTimes(1);
   });
 
@@ -509,5 +523,157 @@ describe('resolveTranscriptionModel', () => {
         ),
       ).toBe('TRANSCRIPTION_MODEL_RESOLUTION_FAILED');
     });
+  });
+});
+
+describe('resolveTranscriptionModel — the EU/EEA rule [GOV-R17]', () => {
+  const USER = { id: 'user_1', type: 'user' } as const;
+  const OPENAI_GLOBAL = {
+    ...provider('openai'),
+    baseUrl: 'https://api.openai.com/v1',
+  };
+
+  beforeEach(() => {
+    endpointPolicy = { kind: 'eu', attestedHosts: [] };
+    catalogMock.mockResolvedValue([WHISPER]);
+    credentialMock.mockResolvedValue(apiKeyCredential());
+  });
+
+  it('refuses a pinned model on a vendor’s global endpoint, never retried, and audits who asked', async () => {
+    policy = { providerSlug: 'openai', modelId: 'whisper-1' };
+    resolveProvidersMock.mockResolvedValue([OPENAI_GLOBAL]);
+    const thrown = await resolveTranscriptionModel(ctx, {
+      organizationId: ORG,
+      actor: USER,
+    }).catch((error: unknown) => error);
+    expect(thrown).toBeInstanceOf(ModelEndpointRefusal);
+    expect(thrown).toMatchObject({
+      data: {
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        provider: 'openai',
+        host: 'api.openai.com',
+        reason: 'vendor-global',
+        message: expect.stringContaining('eu.api.openai.com'),
+      },
+    });
+    expect(classifyTranscriptionError(thrown)).toEqual({
+      shouldRetry: false,
+      reason: 'model_endpoint_refused',
+    });
+    expect(runMutation).toHaveBeenCalledTimes(1);
+    const [ref, entry] = runMutation.mock.calls[0] ?? [];
+    expect(shimFunctionName(ref)).toBe(
+      'governance/internal_mutations:recordModelEndpointRefusal',
+    );
+    expect(entry).toMatchObject({
+      organizationId: ORG,
+      surface: 'transcription',
+      provider: 'openai',
+      model: 'whisper-1',
+      host: 'api.openai.com',
+      code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+      actor: USER,
+    });
+  });
+
+  it('transcribes through the vendor’s EU endpoint', async () => {
+    policy = { providerSlug: 'openai', modelId: 'whisper-1' };
+    resolveProvidersMock.mockResolvedValue([OPENAI_GLOBAL]);
+    credentialMock.mockResolvedValue({
+      ...apiKeyCredential(),
+      endpointUrl: 'https://eu.api.openai.com/v1',
+    });
+    await expect(
+      resolveTranscriptionModel(ctx, { organizationId: ORG, actor: USER }),
+    ).resolves.toMatchObject({ baseUrl: 'https://eu.api.openai.com/v1' });
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
+  it('passes over a refused model in Automatic for one the rule lets through', async () => {
+    endpointPolicy = { kind: 'eu', attestedHosts: ['zulu.example'] };
+    resolveProvidersMock.mockResolvedValue([
+      provider('alpha'),
+      provider('zulu'),
+    ]);
+    await expect(
+      resolveTranscriptionModel(ctx, { organizationId: ORG }),
+    ).resolves.toMatchObject({
+      providerName: 'zulu',
+      baseUrl: 'https://zulu.example/v1',
+    });
+    expect((await inspectTranscriptionModels(ctx, ORG)).pick).toEqual({
+      providerSlug: 'zulu',
+      modelId: 'whisper-1',
+      source: 'automatic',
+    });
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
+  it('refuses Automatic’s first model when the rule lets none through', async () => {
+    resolveProvidersMock.mockResolvedValue([
+      provider('alpha'),
+      provider('zulu'),
+    ]);
+    await expect(
+      resolveTranscriptionModel(ctx, { organizationId: ORG }),
+    ).rejects.toMatchObject({
+      data: {
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        provider: 'alpha',
+        host: 'alpha.example',
+        reason: 'not-attested',
+      },
+    });
+    expect(runMutation).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ surface: 'transcription', provider: 'alpha' }),
+    );
+  });
+
+  it('says resolution failed, not refused, when a failed provider might have served', async () => {
+    resolveProvidersMock.mockResolvedValue([
+      provider('broken'),
+      provider('refused'),
+    ]);
+    catalogMock.mockImplementation(async (p: { name: string }) => {
+      if (p.name === 'broken') throw new Error('catalog unreachable');
+      return [WHISPER];
+    });
+    expect(
+      await caughtCode(resolveTranscriptionModel(ctx, { organizationId: ORG })),
+    ).toBe('TRANSCRIPTION_MODEL_RESOLUTION_FAILED');
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
+  it('refuses every model, an EU endpoint too, while the policy cannot be read', async () => {
+    endpointPolicy = { kind: 'unreadable' };
+    resolveProvidersMock.mockResolvedValue([
+      { ...provider('openai'), baseUrl: 'https://eu.api.openai.com/v1' },
+    ]);
+    const thrown = await resolveTranscriptionModel(ctx, {
+      organizationId: ORG,
+    }).catch((error: unknown) => error);
+    expect(thrown).toMatchObject({
+      data: { code: 'MODEL_ENDPOINT_POLICY_UNREADABLE' },
+    });
+    expect(classifyTranscriptionError(thrown).shouldRetry).toBe(false);
+  });
+
+  it('shows the settings the refusal instead of a pick, without an audit entry', async () => {
+    resolveProvidersMock.mockResolvedValue([provider('alpha')]);
+    await expect(inspectTranscriptionModels(ctx, ORG)).resolves.toMatchObject({
+      pick: null,
+      error: { code: 'MODEL_ENDPOINT_OUTSIDE_EU' },
+    });
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
+  it('changes nothing while the rule is off', async () => {
+    endpointPolicy = { kind: 'open' };
+    resolveProvidersMock.mockResolvedValue([OPENAI_GLOBAL]);
+    await expect(
+      resolveTranscriptionModel(ctx, { organizationId: ORG, actor: USER }),
+    ).resolves.toMatchObject({ baseUrl: 'https://api.openai.com/v1' });
+    expect(runMutation).not.toHaveBeenCalled();
   });
 });

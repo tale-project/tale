@@ -13,7 +13,9 @@
  * to a few distinct values per turn. Nothing is inferred — a provider that
  * names nothing leaves nothing behind. The one fact configuration sets is
  * the regional endpoint: a host whose vendor documents that it processes
- * requests in one region ({@link REGIONAL_ENDPOINTS}).
+ * requests in one region ({@link REGIONAL_ENDPOINTS}). The same fact decides,
+ * before a call, whether an endpoint may be called at all under the
+ * model-access policy's EU/EEA processing rule ({@link euProcessingVerdict}).
  *
  * Pure: no I/O.
  */
@@ -68,11 +70,10 @@ const REGIONAL_ENDPOINTS: Readonly<Record<string, EndpointRegion>> = {
   'api.us.mistral.ai': 'united-states',
 };
 
-/** The regional endpoint a base URL points at, or undefined for any other
- * host — and for anything that is not a URL. */
-export function regionalEndpoint(
-  baseUrl: string,
-): RegionalEndpoint | undefined {
+/** The host a base URL points at, lowercase — undefined for anything that
+ * is not a URL with a host. */
+function endpointHost(baseUrl: string | undefined): string | undefined {
+  if (baseUrl === undefined) return undefined;
   let host: string;
   try {
     host = new URL(baseUrl).hostname.toLowerCase();
@@ -80,8 +81,101 @@ export function regionalEndpoint(
     // Not a URL, so not an endpoint any vendor documents.
     return undefined;
   }
+  return host === '' ? undefined : host;
+}
+
+/** The regional endpoint a base URL points at, or undefined for any other
+ * host — and for anything that is not a URL. */
+export function regionalEndpoint(
+  baseUrl: string,
+): RegionalEndpoint | undefined {
+  const host = endpointHost(baseUrl);
+  if (host === undefined) return undefined;
   const region = REGIONAL_ENDPOINTS[host];
   return region !== undefined ? { host, region } : undefined;
+}
+
+/**
+ * The vendors whose EU endpoint above is one host of their own domain. Every
+ * other host there — the global endpoint first of all — may process a
+ * request anywhere, so under the EU/EEA processing rule only the EU host
+ * counts, and no admin attestation makes another host of the domain count.
+ */
+const EU_HOST_VENDOR_DOMAINS = ['openrouter.ai', 'openai.com', 'mistral.ai'];
+
+function vendorDomainOf(host: string): string | undefined {
+  return EU_HOST_VENDOR_DOMAINS.find(
+    (domain) => host === domain || host.endsWith(`.${domain}`),
+  );
+}
+
+/** The EU endpoint of the vendor `host` belongs to — `eu.openrouter.ai` for
+ * `openrouter.ai` — or undefined for a host of no vendor listed above. */
+export function vendorEuEndpoint(host: string): string | undefined {
+  const domain = vendorDomainOf(host.toLowerCase());
+  if (domain === undefined) return undefined;
+  return Object.keys(REGIONAL_ENDPOINTS).find(
+    (candidate) =>
+      REGIONAL_ENDPOINTS[candidate] === 'europe' &&
+      candidate.endsWith(`.${domain}`),
+  );
+}
+
+/** Why the EU/EEA processing rule refuses an endpoint. */
+export type EuProcessingRefusal =
+  /** No base URL, or not a URL: nothing says where the request would go. */
+  | 'unknown-endpoint'
+  /** A vendor's regional endpoint for a region outside the EU/EEA. */
+  | 'regional-outside-eu'
+  /** Another host of a vendor whose EU endpoint is known — its global
+   * endpoint, which may process anywhere. */
+  | 'vendor-global'
+  /** Any other host, which no admin has attested. */
+  | 'not-attested';
+
+export type EuProcessingVerdict =
+  | { readonly allowed: true; readonly host: string }
+  | {
+      readonly allowed: false;
+      readonly host: string | undefined;
+      readonly reason: EuProcessingRefusal;
+    };
+
+/**
+ * Whether a model call to `baseUrl` is processed in the EU/EEA, under the
+ * model-access policy's rule that it must be: a vendor's EU endpoint is, and
+ * so is a host an admin attests (`attestedHosts` — a custom provider's server
+ * or an Azure resource in an EU/EEA region, which no URL tells apart from
+ * one elsewhere). Everything else is refused, an unknown endpoint included,
+ * and a host of a vendor whose EU endpoint is known counts only as that
+ * endpoint, attested or not.
+ */
+export function euProcessingVerdict(
+  baseUrl: string | undefined,
+  attestedHosts: readonly string[],
+): EuProcessingVerdict {
+  const host = endpointHost(baseUrl);
+  if (host === undefined) {
+    return { allowed: false, host: undefined, reason: 'unknown-endpoint' };
+  }
+  const region = REGIONAL_ENDPOINTS[host];
+  if (region === 'europe') return { allowed: true, host };
+  if (region !== undefined) {
+    return { allowed: false, host, reason: 'regional-outside-eu' };
+  }
+  if (vendorDomainOf(host) !== undefined) {
+    return { allowed: false, host, reason: 'vendor-global' };
+  }
+  return attestedHosts.includes(host)
+    ? { allowed: true, host }
+    : { allowed: false, host, reason: 'not-attested' };
+}
+
+/** Whether attesting `host` would let calls to it through — false for a
+ * vendor's endpoint the rule refuses whatever an admin says. */
+export function isAttestableEndpointHost(host: string): boolean {
+  const verdict = euProcessingVerdict(`https://${host}`, [host]);
+  return verdict.allowed && verdict.host === host;
 }
 
 /** Build a `ServedBy` from raw values, keeping only the usable ones —

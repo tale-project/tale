@@ -35,6 +35,7 @@ import {
   type BuilderModel,
   type BuilderModelTarget,
 } from '../automations_builder/model_call';
+import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import {
@@ -76,6 +77,23 @@ const LLM_NODE_MAX_TOKENS = 8000;
 
 function describe(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/** A model the organization's EU/EEA rule refused before anything was sent
+ * (GOV-R17): the step fails for good, as for a model no provider serves,
+ * without blaming the provider — the refusal's own sentence says why. */
+function endpointRefused(refusal: ModelEndpointRefusal): NodeFailure {
+  return new NodeFailure(
+    'model_not_found',
+    `the llm call was refused: ${refusal.data.message}`,
+    refusal.data.code === 'MODEL_ENDPOINT_POLICY_UNREADABLE'
+      ? 'ask an administrator to restore a valid model access policy'
+      : 'choose a model whose provider processes prompts in the EU/EEA, or ask an administrator to serve it through a provider whose endpoint processes there',
+    {
+      reason: 'LLM_ENDPOINT_REFUSED',
+      params: { detail: refusal.data.message },
+    },
+  );
 }
 
 /**
@@ -300,6 +318,8 @@ export function automationLlmCall(
           call: createBuilderModel(ctx, {
             organizationId,
             target,
+            surface: 'automation',
+            actor: { id: runId, type: 'workflow' },
             maxTokens: LLM_NODE_MAX_TOKENS,
             ...(options.signal !== undefined && { signal: options.signal }),
           }),
@@ -316,7 +336,13 @@ export function automationLlmCall(
     const model = await modelFor(request.model);
     // Missing credentials/endpoints are a proven pre-dispatch failure:
     // resolve them before holding anything that could later be estimated.
-    await model.call.prepare?.();
+    // The EU/EEA rule judges the endpoint here too.
+    try {
+      await model.call.prepare?.();
+    } catch (error) {
+      if (error instanceof ModelEndpointRefusal) throw endpointRefused(error);
+      throw error;
+    }
     options.signal?.throwIfAborted();
     const system = [
       ...(request.system !== undefined && request.system !== ''

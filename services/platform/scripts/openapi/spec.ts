@@ -7816,8 +7816,13 @@ export function buildSpec(): Json {
               'organization’s credential or refused it the model ' +
               '(`EMBEDDING_CREDENTIAL_REJECTED`) — the same code when no ' +
               'usable credential resolves at all: none configured, or the ' +
-              'one the settings name deleted, disabled or unreadable. Not ' +
-              'retryable by waiting.',
+              'one the settings name deleted, disabled or unreadable; or ' +
+              'the organization processes prompts only in the EU/EEA and ' +
+              'the embedding model’s endpoint is not known to process ' +
+              'there (`MODEL_ENDPOINT_OUTSIDE_EU`), or the model access ' +
+              'policy that sets the rule cannot be read ' +
+              '(`MODEL_ENDPOINT_POLICY_UNREADABLE`) — no text was sent. ' +
+              'Not retryable by waiting.',
           ),
           '503': errorResponse(
             'The embedding provider could not serve the request ' +
@@ -8011,7 +8016,7 @@ export function buildSpec(): Json {
       '403': refusal(
         'The organization has not turned the model endpoints on (`MODEL_API_DISABLED`); the key holder is neither owner, administrator nor developer and holds no `tale:models.api` grant (`MODEL_API_FORBIDDEN`)' +
           (relays
-            ? '; the organization’s model access refuses the model (`MODEL_API_MODEL_FORBIDDEN`); or its PII policy tokenizes, a round trip a relayed answer cannot make (`MODEL_API_GUARDRAIL_UNSUPPORTED`)'
+            ? '; the organization’s model access refuses the model, or its EU/EEA processing rule refuses the endpoint that would serve it (`MODEL_API_MODEL_FORBIDDEN`, the reason in the message); or its PII policy tokenizes, a round trip a relayed answer cannot make (`MODEL_API_GUARDRAIL_UNSUPPORTED`)'
             : ''),
       ),
       '404': refusal(
@@ -8792,6 +8797,10 @@ answers both gates). A model id is \`<provider>/<model>\` — the connector's
 slug and the model's id in its catalog — on both wires, and only a model the
 key holder's model access and the provider credential's allowlist admit
 answers (403 \`MODEL_API_MODEL_FORBIDDEN\`, 404 \`MODEL_API_MODEL_UNKNOWN\`).
+An organization that processes prompts only in the EU/EEA refuses a model
+whose endpoint is not known to process there the same way (403
+\`MODEL_API_MODEL_FORBIDDEN\`, the reason in its message), before anything
+is sent.
 The organization's input guardrails judge every text the caller wrote into
 the request — every role, tool calls and results, tool definitions — before a
 call (400 \`MODEL_API_GUARDRAIL_BLOCKED\`; a mask rewrites what the model

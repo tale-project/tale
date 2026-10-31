@@ -349,6 +349,11 @@ runtime:
       explanation: Le fournisseur du modèle de l’étape a refusé l’appel ou a échoué.
       cause: '{modelLabel, select, none {C’est arrivé en appelant le modèle de l’étape.} other {C’est arrivé en appelant {modelLabel}.}}'
       fix: Relance ; si cela se reproduit, choisis un autre modèle.
+    LLM_ENDPOINT_REFUSED:
+      title: La politique d’accès aux modèles a arrêté l’étape
+      explanation: Selon la règle UE/EEE de l’organisation, un appel de modèle ne va qu’à un endpoint qui traite les prompts dans cette zone, et aucun ne part tant que la politique d’accès aux modèles est illisible.
+      cause: La politique a refusé le modèle de l’étape avant l’envoi du prompt.
+      fix: Choisis un modèle dont le fournisseur traite les prompts dans l’UE/EEE, ou demande à un administrateur de le servir par un fournisseur dont l’endpoint y traite les prompts. Les détails techniques disent pourquoi l’appel a été refusé.
     AGENT_FAILED:
       title: L’agent a échoué
       explanation: L’agent de code n’a pas pu terminer son tour.

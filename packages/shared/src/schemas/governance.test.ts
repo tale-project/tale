@@ -5,10 +5,13 @@ import {
   effectiveMandatoryInstructions,
   EMBEDDING_FRAME_ANCESTORS_MAX,
   embeddingConfigSchema,
+  EU_PROCESSING_HOSTS_MAX,
+  euProcessingHostsOf,
   featureFlagRuleSchema,
   featureFlagsConfigSchema,
   frameAncestorsOf,
   imageGenerationConfigSchema,
+  isEndpointHost,
   isFrameAncestorOrigin,
   mergeStrictestPasswordPolicy,
   modelAccessConfigSchema,
@@ -60,6 +63,98 @@ describe('modelAccessConfigSchema — the model endpoints switch', () => {
       modelAccessConfigSchema.safeParse({
         ...rules,
         modelApi: { enabled: 'yes' },
+      }).success,
+    ).toBe(false);
+  });
+});
+
+describe('modelAccessConfigSchema — the EU/EEA processing rule', () => {
+  const rules = { enabled: false, mode: 'allowlist', rules: [] } as const;
+
+  it('reads a file written before the rule existed as off', () => {
+    const parsed = modelAccessConfigSchema.parse(rules);
+    expect(parsed.euProcessing).toBeUndefined();
+    expect(euProcessingHostsOf(parsed)).toBeNull();
+    expect(euProcessingHostsOf(null)).toBeNull();
+  });
+
+  it('binds on its own switch, independent of the rules and their flag', () => {
+    const parsed = modelAccessConfigSchema.parse({
+      ...rules,
+      euProcessing: { enabled: true },
+    });
+    expect(parsed.enabled).toBe(false);
+    expect(euProcessingHostsOf(parsed)).toEqual([]);
+    expect(
+      euProcessingHostsOf({
+        ...parsed,
+        euProcessing: { enabled: false, hosts: ['llm.example.eu'] },
+      }),
+    ).toBeNull();
+  });
+
+  it('answers the attested hosts once each, in a stable order', () => {
+    const parsed = modelAccessConfigSchema.parse({
+      ...rules,
+      euProcessing: {
+        enabled: true,
+        hosts: [
+          'llm.example.eu',
+          'contoso-se.openai.azure.com',
+          'llm.example.eu',
+        ],
+      },
+    });
+    expect(euProcessingHostsOf(parsed)).toEqual([
+      'contoso-se.openai.azure.com',
+      'llm.example.eu',
+    ]);
+  });
+
+  it.each([
+    'llm.example.eu',
+    'contoso-se.openai.azure.com',
+    '10.0.0.5',
+    '[fd00::1]',
+    'localhost',
+  ])('accepts the host %s', (host) => {
+    expect(isEndpointHost(host)).toBe(true);
+  });
+
+  it.each([
+    'https://llm.example.eu',
+    'llm.example.eu:8443',
+    'llm.example.eu/v1',
+    'LLM.example.eu',
+    '*.example.eu',
+    'llm example.eu',
+    '',
+    `${'a'.repeat(251)}.eu`,
+  ])('refuses %j as a host', (host) => {
+    expect(isEndpointHost(host)).toBe(false);
+    expect(
+      modelAccessConfigSchema.safeParse({
+        ...rules,
+        euProcessing: { enabled: true, hosts: [host] },
+      }).success,
+    ).toBe(false);
+  });
+
+  it(`refuses more than ${EU_PROCESSING_HOSTS_MAX} hosts and a switch that is not a boolean`, () => {
+    const hosts = Array.from(
+      { length: EU_PROCESSING_HOSTS_MAX + 1 },
+      (_, i) => `llm-${i}.example.eu`,
+    );
+    expect(
+      modelAccessConfigSchema.safeParse({
+        ...rules,
+        euProcessing: { enabled: true, hosts },
+      }).success,
+    ).toBe(false);
+    expect(
+      modelAccessConfigSchema.safeParse({
+        ...rules,
+        euProcessing: { enabled: 'yes' },
       }).success,
     ).toBe(false);
   });

@@ -70,6 +70,32 @@ describe('transcription availability recovery', () => {
     },
   );
 
+  it.each([
+    [
+      'MODEL_ENDPOINT_OUTSIDE_EU',
+      /processes prompts only in the EU\/EEA, and the audio transcription model/,
+    ],
+    [
+      'MODEL_ENDPOINT_POLICY_UNREADABLE',
+      /model access policy could not be read/,
+    ],
+  ])(
+    'tells a member the EU/EEA rule refused the model, with no retry: %s [GOV-R17]',
+    (reason, message) => {
+      render(
+        <TranscriptionAvailabilityNotice
+          open
+          onOpenChange={vi.fn()}
+          reason={reason}
+          onRetry={vi.fn()}
+        />,
+      );
+      expect(screen.getByText(message)).toBeInTheDocument();
+      expect(screen.getByText(/Ask an admin/)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    },
+  );
+
   it('renders no warning or setup action while closed', () => {
     render(
       <TranscriptionAvailabilityNotice
