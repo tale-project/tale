@@ -25,7 +25,7 @@ Owners and Admins have all four through their role, and Developers also have **C
 
 **Publish skills to the organization** matters only while the skill sharing policy reserves organization-wide skills. Under **Editors and above**, Editors and Developers already have it through their role. Without it, a member can share skills with their own teams only, and the skill editor, uploads, and the REST API refuse an organization-wide skill with `403 SKILL_PUBLISH_FORBIDDEN`.
 
-**Call models over the API** takes effect only once the organization turns on the model endpoints under [Models](/platform/admin/governance/content-models#model-endpoints). A member who holds it can open **Settings > API** with its **REST** and **Models** tabs to create a personal key and copy the setup; the **MCP** and **WebDAV** tabs stay with Owners, Admins, and Developers. Once the grant is revoked, Tale refuses the member's next model call.
+**Call models over the API** takes effect only once the organization turns on the model endpoints under [Models](/platform/admin/governance/content-models#model-endpoints). While they are off, the grant dialog says so when you choose this capability and links there with **Open model access**; you can still grant it. A member who holds it can open **Settings > API** with its **REST** and **Models** tabs to create a personal key and copy the setup; the **MCP** and **WebDAV** tabs stay with Owners, Admins, and Developers. Once the grant is revoked, Tale refuses the member's next model call.
 
 ## Grant a competence
 

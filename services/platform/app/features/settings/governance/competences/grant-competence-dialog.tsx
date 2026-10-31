@@ -12,6 +12,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Textarea } from '@tale/ui/textarea';
 import { useForm } from '@tale/ui/use-form';
 import { useToast } from '@tale/ui/use-toast';
+import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import * as z from 'zod';
 
@@ -21,15 +22,20 @@ import {
   isPlatformCapability,
   isReservedCompetenceSlug,
   PLATFORM_CAPABILITIES,
+  type PlatformCapability,
 } from '@/lib/shared/competences';
 
 import { useGrantCompetence } from '../hooks/mutations';
-import { useOrgMembersForPicker } from '../hooks/queries';
+import { useMyModelApiAccess, useOrgMembersForPicker } from '../hooks/queries';
 import { mapCompetenceError } from './competence-errors';
 import { capabilityMessageKey } from './competence-labels';
 
 /** The competence picker's entry for an organization's own qualification. */
 const QUALIFICATION = 'qualification';
+
+/** The capability whose calls also wait for the organization's model
+ * endpoints switch (`backend/domains/model_api/access.ts`). */
+const MODEL_API_CAPABILITY: PlatformCapability = 'tale:models.api';
 
 /** The longest competence name and evidence the register accepts. */
 const COMPETENCE_MAX = 120;
@@ -135,6 +141,13 @@ export function GrantCompetenceDialog({
   const userId = watch('userId');
   const competence = watch('competence');
   const expiry = watch('expiry');
+  // The switch as the server reads it for every surface (`readModelApiStanding`,
+  // an unreadable policy reading as off); the settings rail already holds this
+  // read. Only an answer says the endpoints are off (#4586), and the grant
+  // stays allowed either way: its holder calls the models once they are on.
+  const modelApi = useMyModelApiAccess(organizationId);
+  const modelApiOff =
+    competence === MODEL_API_CAPABILITY && modelApi.data?.enabled === false;
 
   const memberOptions = useMemo(
     () =>
@@ -297,6 +310,23 @@ export function GrantCompetenceDialog({
           }
           error={formState.errors.competence !== undefined}
         />
+        {modelApiOff && (
+          <Alert
+            variant="warning"
+            description={
+              <>
+                {t('competences.grantDialog.modelApiOff.description')}{' '}
+                <Link
+                  to="/dashboard/$id/settings/governance/content-models"
+                  params={{ id: organizationId }}
+                  className="text-foreground underline underline-offset-4"
+                >
+                  {t('competences.grantDialog.modelApiOff.link')}
+                </Link>
+              </>
+            }
+          />
+        )}
         {competence === QUALIFICATION && (
           <Input
             id="competence-qualification"
