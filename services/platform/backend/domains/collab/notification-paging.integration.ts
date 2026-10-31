@@ -14,17 +14,22 @@
  *   their bell holds none of the recipient's rows, and neither does the
  *   recipient's bell in another organization;
  * - the authenticated bell API reads the rewritten row first and pages to
- *   the same rows in the same order.
+ *   the same rows in the same order;
+ * - the bell's "All" page and the one behind its cursor each read one page
+ *   of `user_notifications_user_seq` (#5158), in their custom and their
+ *   generic plans.
  *
  * Written through the production writer (`writeCoalescedNotification`) and
- * read through the bell's own query (`listMyNotifications`). Status rows
- * send no email, and the lane deletes its rows before it ends. */
+ * read through the bell's own query (`listMyNotifications`); the plans' rows
+ * go in by SQL. Status rows send no email, and the lane deletes its rows
+ * before it ends. */
 import { randomUUID } from 'node:crypto';
 
 import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { explainSentStatement } from '../../integration-lane-helpers.ts';
 import {
   listMyNotifications,
   type UserNotificationRow,
@@ -63,6 +68,91 @@ const repeated = (ids: readonly string[]): string[] =>
 
 const idsOf = (pages: readonly BellPage[]): string[] =>
   pages.flatMap((page) => page.rows.map((row) => row.id));
+
+/** One node of an `EXPLAIN (FORMAT JSON)` plan, as far as the probe reads it. */
+const planNode = z.object({
+  'Node Type': z.string(),
+  'Index Name': z.string().optional(),
+  'Index Cond': z.string().optional(),
+  Filter: z.string().optional(),
+  'Actual Rows': z.number().optional(),
+  Plans: z.array(z.unknown()).optional(),
+});
+type PlanNode = z.infer<typeof planNode>;
+
+/** What `EXPLAIN (FORMAT JSON)` answers: one row holding one plan. */
+const explained = z.tuple([
+  z.object({ 'QUERY PLAN': z.tuple([z.object({ Plan: z.unknown() })]) }),
+]);
+
+/** A plan's nodes, top first, or null for what is not a plan. */
+function nodesOf(raw: unknown): PlanNode[] | null {
+  const node = planNode.safeParse(raw);
+  if (!node.success) return null;
+  const nodes = [node.data];
+  for (const child of node.data.Plans ?? []) {
+    const below = nodesOf(child);
+    if (below === null) return null;
+    nodes.push(...below);
+  }
+  return nodes;
+}
+
+/** The nodes of the plan an EXPLAIN answered, or null for anything else. */
+function planNodes(rows: unknown): PlanNode[] | null {
+  const answer = explained.safeParse(rows);
+  return answer.success ? nodesOf(answer.data[0]['QUERY PLAN'][0].Plan) : null;
+}
+
+/** A plan in one line, top first: each node with its index, its condition,
+ * its filter and the rows it returned. */
+const planLine = (nodes: readonly PlanNode[] | null): string =>
+  nodes === null
+    ? 'not a plan'
+    : nodes
+        .map((node) =>
+          [
+            node['Node Type'],
+            node['Index Name'],
+            node['Index Cond'],
+            node.Filter === undefined ? undefined : `Filter ${node.Filter}`,
+            node['Actual Rows'] === undefined
+              ? undefined
+              : `${node['Actual Rows']} rows`,
+          ]
+            .filter((part) => part !== undefined)
+            .join(' '),
+        )
+        .join(' > ');
+
+/**
+ * Whether a plan reads one page from `index` alone: a single scan, of that
+ * index, whose condition holds each of `bounds`, and no sort and no filter
+ * anywhere. A plan that ran (`ANALYZE`) must also have taken at most the page
+ * and the one row past it from the index.
+ */
+function readsOnePage(
+  nodes: readonly PlanNode[] | null,
+  index: string,
+  bounds: readonly string[],
+  ran: boolean,
+): boolean {
+  if (nodes === null) return false;
+  const scans = nodes.filter((node) => node['Node Type'].endsWith('Scan'));
+  const [scan] = scans;
+  const rows = scan?.['Actual Rows'];
+  return (
+    scans.length === 1 &&
+    scan?.['Node Type'] === 'Index Scan' &&
+    scan['Index Name'] === index &&
+    bounds.every((bound) => scan['Index Cond']?.includes(bound) === true) &&
+    nodes.every(
+      (node) =>
+        !node['Node Type'].includes('Sort') && node.Filter === undefined,
+    ) &&
+    (!ran || (rows !== undefined && rows <= PAGE + 1))
+  );
+}
 
 export async function checkRewrittenNotificationPaging(
   sql: Sql,
@@ -277,5 +367,90 @@ export async function checkRewrittenNotificationPaging(
     await sql`DELETE FROM "member" WHERE "organizationId" = ${laneOrgId}`;
     await sql`DELETE FROM "organization" WHERE "id" = ${laneOrgId}`;
     await sql`DELETE FROM "user" WHERE "id" = ${colleague}`;
+  }
+  await checkNotificationPagePlans(sql, record);
+}
+
+/**
+ * The bell's "All" page and the one behind its cursor each read one page of
+ * `user_notifications_user_seq` (migration 0225, #5158). No index held a
+ * person's rows in `seq` order before, so every page read all of them and
+ * sorted them. A reader gets three pages of rows, every other one read, and
+ * both pages are planned as `listMyNotifications` sends them, custom and
+ * generic ({@link explainSentStatement}). The "Unread" page is not judged:
+ * `user_notifications_user_unread` and this index both hold its rows in
+ * order, and the planner picks between them by the table's statistics, which
+ * a lane does not control.
+ */
+async function checkNotificationPagePlans(
+  sql: Sql,
+  record: Recorder,
+): Promise<void> {
+  const suffix = randomUUID();
+  const who = {
+    organizationId: `npage-plan-org-${suffix}`,
+    userId: `npage-plan-reader-${suffix}`,
+    limit: PAGE,
+  };
+  try {
+    await sql`
+      INSERT INTO app.user_notifications
+        (user_id, org_id, type, title_key, body_key, resource_type,
+         resource_id, actor_type, read, created_at_ms)
+      SELECT ${who.userId}, ${who.organizationId}, 'task_status_changed',
+             'taskStatusChanged', 'taskStatusChangedBody', 'task',
+             ${`npage-plan-task-${suffix}`}, 'system', n % 2 = 0,
+             ${Date.now()}::bigint + n
+      FROM generate_series(1, ${PAGE * 3}) AS n
+    `;
+    const first = await listMyNotifications(sql, who);
+    const pages = [
+      { page: 'first page', filters: {}, bounds: ['user_id =', 'org_id ='] },
+      {
+        page: 'later page',
+        filters: first.nextCursor === null ? {} : { cursor: first.nextCursor },
+        bounds: ['user_id =', 'org_id =', 'seq <'],
+      },
+    ];
+    let ok = true;
+    const plans: string[] = [];
+    for (const page of pages) {
+      const explainedPage = await explainSentStatement<{
+        'QUERY PLAN': unknown;
+      }>(
+        sql,
+        (template) =>
+          template.includes('FROM app.user_notifications') &&
+          template.includes('ORDER BY seq DESC'),
+        (tx) => listMyNotifications(tx, { ...who, ...page.filters }),
+        { analyze: true, json: true },
+      );
+      const custom = planNodes(explainedPage.custom);
+      const generic = planNodes(explainedPage.generic);
+      ok &&=
+        readsOnePage(
+          custom,
+          'user_notifications_user_seq',
+          page.bounds,
+          true,
+        ) &&
+        readsOnePage(
+          generic,
+          'user_notifications_user_seq',
+          page.bounds,
+          false,
+        );
+      plans.push(
+        `${page.page} custom: ${planLine(custom)}`,
+        `${page.page} generic: ${planLine(generic)}`,
+      );
+    }
+    record(
+      'notification paging: the All page and the next one read one page of user_notifications_user_seq in their custom and generic plans',
+      ok,
+      plans.join(' | '),
+    );
+  } finally {
+    await sql`DELETE FROM app.user_notifications WHERE org_id = ${who.organizationId}`;
   }
 }
