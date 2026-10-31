@@ -229,14 +229,6 @@ export function useHomeData(
       ? (archivedThreads.data.rows ?? NO_THREADS)
       : NO_THREADS;
 
-  const projectKeys = useMemo(() => {
-    const keys = new Map<string, string>();
-    for (const project of projects) {
-      if (project.key !== undefined) keys.set(project.id, project.key);
-    }
-    return keys;
-  }, [projects]);
-
   const chatItems = useMemo((): HomeChatItem[] => {
     const list: ChatThreadSummary[] = [];
     list.push(...activeThreadRows);
@@ -263,8 +255,9 @@ export function useHomeData(
         return true;
       })
       .map((task) => {
-        const key = task.projectKey ?? projectKeys.get(task.projectId);
-        const identifier = formatTaskIdentifier(key, task.number);
+        // The read stamps each task with its project's key, so a task in a
+        // project past the navigator's page keeps its identifier too.
+        const identifier = formatTaskIdentifier(task.projectKey, task.number);
         const awaitingMyReview =
           task.status === 'in_review' && reviewTaskIds.has(task._id);
         const item: HomeTaskItem = {
@@ -281,7 +274,7 @@ export function useHomeData(
         };
         return item;
       });
-  }, [tasksQuery.tasks, reviewsQuery.tasks, projectKeys]);
+  }, [tasksQuery.tasks, reviewsQuery.tasks]);
 
   const conversationItems = useMemo((): HomeConversationItem[] => {
     if (!hasInbox) return [];

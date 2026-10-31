@@ -38,10 +38,14 @@ import { useT } from '@/lib/i18n/client';
 
 import {
   useChatMessages,
-  useChatProjects,
+  useChatProject,
+  useChatProjectChoices,
   useChatQueryClient,
 } from '../data/chat-backend';
 import { chatTaskDraft } from '../lib/chat-task-draft';
+import type { ChatProjectSummary } from '../types';
+
+const NO_PROJECTS: readonly ChatProjectSummary[] = [];
 
 interface CreateTaskFromChatProps {
   open: boolean;
@@ -72,7 +76,12 @@ export function CreateTaskFromChat({
   const { t: tCommon } = useT('common');
   const { t: tTasks } = useT('tasks');
   const navigate = useNavigate();
-  const projects = useChatProjects(organizationId);
+  // The projects on offer: Home's page and, past it, the server's search for
+  // what is typed into the field; nothing reads every project (#5194).
+  const [projectQuery, setProjectQuery] = useState('');
+  const choices = useChatProjectChoices(organizationId, projectQuery);
+  // The chat's own project, read by id — the header's chip reads it too.
+  const home = useChatProject(organizationId, projectId);
   // The draft is taken from the whole conversation, not the transcript's
   // pages; the retry below re-reads it under the transcript's key.
   const messages = useChatMessages(
@@ -81,16 +90,25 @@ export function CreateTaskFromChat({
     { whole: true },
   );
 
-  // The chat's own project unless the list says it is gone (an archived
-  // project no longer lists); otherwise the person picks one first. A list
-  // that failed to load drops nothing: the create itself refuses a project
-  // the person cannot use.
-  const listed = projects.status === 'ready' ? projects.data : [];
+  // The chat's own project unless its read says it is gone (archived,
+  // deleted or out of reach); otherwise the person picks one first. A read
+  // that failed drops nothing: the create itself refuses a project the
+  // person cannot use.
   const homeProjectId =
-    projectId !== undefined &&
-    (projects.status !== 'ready' || listed.some((row) => row.id === projectId))
+    projectId !== undefined && !(home.status === 'ready' && home.data === null)
       ? projectId
       : undefined;
+  // Only a page that holds every project proves a lone row is the only one.
+  const everyProject = choices.status === 'ready' && choices.data.isDone;
+  const offered =
+    choices.status === 'ready' ? choices.data.projects : NO_PROJECTS;
+  // A picked row stays on offer once the search that found it is gone (the
+  // field clears its text when it closes).
+  const [picked, setPicked] = useState<ChatProjectSummary | null>(null);
+  const pickedElsewhere =
+    picked !== null && !offered.some((row) => row.id === picked.id);
+  const listed = pickedElsewhere ? [...offered, picked] : offered;
+  const keptId = pickedElsewhere ? picked.id : undefined;
   // Where work can go: projects with an agent first, then the rest, each
   // saying who could add one — or, while the organization provides a
   // standard agent, saying it takes the work there.
@@ -107,16 +125,16 @@ export function CreateTaskFromChat({
   const withoutAgents = listed.filter((row) => !withAgents.includes(row));
   // A lone project is the answer; asking would be a step with one choice.
   const onlyProjectId =
-    projects.status === 'ready' && listed.length === 1
-      ? listed[0]?.id
-      : undefined;
-  const [pickedProjectId, setPickedProjectId] = useState<string | null>(null);
-  // Pre-picked when exactly one project has an agent that can take the work.
-  // An unavailable managed standard agent does not make a project startable.
+    everyProject && offered.length === 1 ? offered[0]?.id : undefined;
+  // Pre-picked when exactly one project has an agent that can take the work,
+  // among every project. An unavailable managed standard agent does not make
+  // a project startable.
   const startable = standardAgentAvailable ? listed : withAgents;
   const pickedOrDefault =
-    pickedProjectId ??
-    (startable.length === 1 ? (startable[0]?.id ?? null) : null);
+    picked?.id ??
+    (everyProject && startable.length === 1
+      ? (startable[0]?.id ?? null)
+      : null);
   const [chosenProjectId, setChosenProjectId] = useState<string | undefined>(
     undefined,
   );
@@ -234,13 +252,17 @@ export function CreateTaskFromChat({
 
   const close = () => {
     onOpenChange(false);
-    setPickedProjectId(null);
+    setPicked(null);
+    setProjectQuery('');
     setChosenProjectId(undefined);
     setStandardAgent(undefined);
   };
 
   const announce = (taskId: string, taskProjectId: string) => {
-    const project = listed.find((row) => row.id === taskProjectId);
+    const project =
+      home.status === 'ready' && home.data?.id === taskProjectId
+        ? home.data
+        : listed.find((row) => row.id === taskProjectId);
     toastTaskCreated({
       title: t('createTask.created', { project: project?.name ?? '' }),
       openLabel: t('createTask.openTask'),
@@ -281,7 +303,8 @@ export function CreateTaskFromChat({
   // the list, so neither shows once one way and then again the other. A
   // read that failed once goes on without it rather than through retries.
   if (
-    projects.status === 'loading' ||
+    choices.status === 'loading' ||
+    home.status === 'loading' ||
     draft === undefined ||
     (standardAgentQuery.isLoading && standardAgentQuery.failureCount === 0)
   ) {
@@ -325,7 +348,7 @@ export function CreateTaskFromChat({
       }}
     >
       <FormSection>
-        {projects.status === 'unavailable' ? (
+        {choices.status === 'unavailable' ? (
           <Text variant="muted" className="text-sm">
             {tCommon('errors.generic')}
           </Text>
@@ -341,8 +364,10 @@ export function CreateTaskFromChat({
             required
             value={pickedOrDefault}
             onValueChange={(value) => {
-              if (!value.startsWith('__section:')) setPickedProjectId(value);
+              if (value.startsWith('__section:')) return;
+              setPicked(listed.find((row) => row.id === value) ?? null);
             }}
+            onSearchChange={setProjectQuery}
             options={[
               ...(withAgents.length > 0 ||
               (standardAgentAvailable && withoutAgents.length > 0)
@@ -358,6 +383,7 @@ export function CreateTaskFromChat({
                       description: t('createTask.agentCount', {
                         count: row.agentCount ?? 0,
                       }),
+                      alwaysVisible: row.id === keptId,
                     })),
                     // The organization's standard agent takes the work in
                     // a project with no agent of its own.
@@ -366,6 +392,7 @@ export function CreateTaskFromChat({
                           value: row.id,
                           label: row.name,
                           description: t('createTask.standardAgent'),
+                          alwaysVisible: row.id === keptId,
                         }))
                       : []),
                   ]
@@ -387,6 +414,7 @@ export function CreateTaskFromChat({
                           ? 'createTask.noAgentEditor'
                           : 'createTask.noAgentReader',
                       ),
+                      alwaysVisible: row.id === keptId,
                     })),
                   ]
                 : []),

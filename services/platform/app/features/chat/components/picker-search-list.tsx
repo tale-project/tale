@@ -54,6 +54,7 @@ export function PickerSearchList({
   multiSelect = false,
   searchThreshold = 5,
   onPicked,
+  onQueryChange,
 }: {
   readonly options: readonly PickerSearchOption[];
   /** Shown when the section has nothing to offer at all. */
@@ -65,6 +66,10 @@ export function PickerSearchList({
   /** Called after a single-select pick — the caller closes the menu, the way
    * a real menu item would. Ignored while `multiSelect`. */
   readonly onPicked?: () => void;
+  /** Called with what was typed, for a caller whose options come from a
+   * server search: its answers join `options`, which this list keeps
+   * filtering, so what is already listed matches at once. */
+  readonly onQueryChange?: (query: string) => void;
 }) {
   const { t } = useT('chat');
   const [query, setQuery] = useState('');
@@ -142,6 +147,7 @@ export function PickerSearchList({
             value={query}
             onChange={(event) => {
               setQuery(event.target.value);
+              onQueryChange?.(event.target.value);
               if (scrollRef.current) scrollRef.current.scrollTop = 0;
             }}
             // The menu owns arrow keys and typeahead; inside the field the

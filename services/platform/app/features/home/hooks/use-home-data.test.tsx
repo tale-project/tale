@@ -96,6 +96,8 @@ function task(overrides: Record<string, unknown>) {
     _id: 't1',
     _creationTime: NOW - 5000,
     projectId: 'p1',
+    // The task read stamps each task with its project's key.
+    projectKey: 'WEB',
     number: 2,
     title: 'Review the launch checklist',
     status: 'in_review',
@@ -414,6 +416,38 @@ describe('useHomeData', () => {
       awaitingMyReview: true,
       unread: true,
     });
+  });
+
+  // Home reads one page of the projects (#5194): a task names itself by the
+  // key its own read carries, never by a lookup in that page.
+  it('names a task in a project past the projects page by its own key', () => {
+    reads.projects.mockReturnValue({
+      status: 'ready',
+      data: {
+        projects: [{ id: 'p1', name: 'Website relaunch', key: 'WEB' }],
+        isDone: false,
+      },
+    });
+    reads.tasks.mockImplementation((options: { assigneeId?: string }) =>
+      taskRead(
+        options.assigneeId === 'me'
+          ? [
+              task({
+                _id: 'far',
+                projectId: 'p-far',
+                projectKey: 'FAR',
+                number: 7,
+                status: 'todo',
+              }),
+            ]
+          : [],
+      ),
+    );
+    const { result } = renderHook(() => useHomeData('org-1'));
+
+    expect(
+      result.current.items.find((item) => item.id === 'far'),
+    ).toMatchObject({ projectId: 'p-far', identifier: 'FAR-7' });
   });
 
   it('counts what needs you for the switcher dots', () => {
