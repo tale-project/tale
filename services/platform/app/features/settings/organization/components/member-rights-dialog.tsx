@@ -127,6 +127,10 @@ function RightRow({ right, role, nameOf, disabled, onSwitch }: RightRowProps) {
       }
       case 'no-grant':
         return t('organization.memberRights.reasons.noGrant');
+      default: {
+        const exhaustive: never = reason;
+        return exhaustive;
+      }
     }
   };
 
