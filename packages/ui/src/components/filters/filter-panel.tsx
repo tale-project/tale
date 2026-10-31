@@ -186,6 +186,11 @@ interface FilterPanelProps {
   iconOnly?: boolean;
   /** The compact toolbar height — see `FilterButton`'s `compact`. */
   compact?: boolean;
+  /**
+   * Told each time the reader opens or closes the panel: a facet whose
+   * options are expensive to read reads them only while someone looks.
+   */
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function FilterPanel({
@@ -196,6 +201,7 @@ export function FilterPanel({
   align = 'start',
   iconOnly = false,
   compact = false,
+  onOpenChange,
 }: FilterPanelProps) {
   const { t } = useT('common');
   const [isOpen, setIsOpen] = useState(false);
@@ -237,11 +243,15 @@ export function FilterPanel({
   const close = () => {
     setIsOpen(false);
     setHoldsFocus(true);
+    onOpenChange?.(false);
   };
 
   const handleOpenChange = (open: boolean) => {
     if (!open) close();
-    else if (!disabled) setIsOpen(true);
+    else if (!disabled) {
+      setIsOpen(true);
+      onOpenChange?.(true);
+    }
   };
 
   const handleFilterChange = (

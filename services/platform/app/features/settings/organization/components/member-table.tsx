@@ -33,7 +33,6 @@ type Member = {
   role?: string;
   displayName?: string;
   twoFactorEnabled?: boolean;
-  passkeyCount?: number;
 };
 
 interface MemberContext {

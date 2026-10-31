@@ -82,6 +82,40 @@ export interface AssigneeOptionInput {
 }
 
 /**
+ * The people and teams the facet offers: whom the loaded rows are assigned
+ * to, and whom the selection names. These are the only people the Inbox
+ * names, so they are all it looks up.
+ */
+export function assigneeFacetIds({
+  rows,
+  selected,
+  teamNameOf,
+}: Pick<AssigneeOptionInput, 'rows' | 'selected' | 'teamNameOf'>): {
+  personIds: ReadonlySet<string>;
+  teamIds: ReadonlySet<string>;
+} {
+  const personIds = new Set<string>();
+  const teamIds = new Set<string>();
+
+  for (const row of rows) {
+    if (row.assigneeUserId !== undefined) personIds.add(row.assigneeUserId);
+    if (row.assigneeTeamId !== undefined) teamIds.add(row.assigneeTeamId);
+  }
+
+  // A selected id that has left the loaded rows still needs its option. The
+  // rows no longer say which dimension it named, so the team directory decides:
+  // it holds every team of the organization for any member.
+  for (const value of selected) {
+    if (value.startsWith('__')) continue;
+    if (personIds.has(value) || teamIds.has(value)) continue;
+    if (teamNameOf(value) === undefined) personIds.add(value);
+    else teamIds.add(value);
+  }
+
+  return { personIds, teamIds };
+}
+
+/**
  * The facet's people and teams, grouped and sorted by name.
  *
  * Options are derived from the loaded rows rather than from the member
@@ -100,23 +134,11 @@ export function buildAssigneeOptions({
   teamNameOf,
   labels,
 }: AssigneeOptionInput): FilterOption[] {
-  const personIds = new Set<string>();
-  const teamIds = new Set<string>();
-
-  for (const row of rows) {
-    if (row.assigneeUserId !== undefined) personIds.add(row.assigneeUserId);
-    if (row.assigneeTeamId !== undefined) teamIds.add(row.assigneeTeamId);
-  }
-
-  // A selected id that has left the loaded rows still needs its option. The
-  // rows no longer say which dimension it named, so the team directory decides:
-  // it holds every team of the organization for any member.
-  for (const value of selected) {
-    if (value.startsWith('__')) continue;
-    if (personIds.has(value) || teamIds.has(value)) continue;
-    if (teamNameOf(value) === undefined) personIds.add(value);
-    else teamIds.add(value);
-  }
+  const { personIds, teamIds } = assigneeFacetIds({
+    rows,
+    selected,
+    teamNameOf,
+  });
 
   const toOptions = (
     ids: ReadonlySet<string>,

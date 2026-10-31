@@ -59,7 +59,6 @@ interface MemberListWire {
   email: string | null;
   /** Answered to owners and admins only [MEMBER-R6]. */
   twoFactorEnabled?: boolean;
-  passkeyCount?: number;
 }
 type ProjectFolderItem = ItemOf<'projects/queries:listProjectFolders'>;
 type FolderDoc = NonNullable<ReturnsOf<'folders/queries:listFolders'>>[number];
@@ -460,9 +459,6 @@ export const documentReadAdapters: Record<string, ReadAdapter> = {
                 ...(row.email !== null ? { email: row.email } : {}),
                 ...(row.twoFactorEnabled !== undefined
                   ? { twoFactorEnabled: row.twoFactorEnabled }
-                  : {}),
-                ...(row.passkeyCount !== undefined
-                  ? { passkeyCount: row.passkeyCount }
                   : {}),
               }) as MemberListItem,
           ),
