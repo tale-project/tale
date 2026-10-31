@@ -2,6 +2,7 @@ import { providerDefinitionSchema } from '@tale/shared/schemas/providers';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { safeFetch, SafeFetchError } from '../../../../lib/net/safe-fetch';
+import { shimFunctionName } from '../../../lib/ctx-shim';
 import { requestTranscription } from '../../file_metadata/transcription_request';
 import type { ActionCtx } from '../ctx';
 import { invalidateCatalogFetchCache } from './catalog_fetch';
@@ -53,14 +54,18 @@ const STT_PAYLOAD = {
 let pin: unknown;
 let allowlist: string[] | undefined;
 const ctx = {
-  runQuery: async (_ref: unknown, args: { policyType?: string }) =>
-    args.policyType
-      ? pin
-      : {
-          authMethod: 'api-key',
-          status: 'active',
-          modelAllowlist: allowlist,
-        },
+  runQuery: async (ref: unknown, args: { policyType?: string }) =>
+    // The organization keeps no EU/EEA processing rule (GOV-R17).
+    shimFunctionName(ref) ===
+    'governance/internal_queries:getModelEndpointPolicyInternal'
+      ? { kind: 'open' }
+      : args.policyType
+        ? pin
+        : {
+            authMethod: 'api-key',
+            status: 'active',
+            modelAllowlist: allowlist,
+          },
 } as unknown as ActionCtx;
 
 beforeEach(() => {
