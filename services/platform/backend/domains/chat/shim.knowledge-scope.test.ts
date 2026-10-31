@@ -113,6 +113,13 @@ vi.mock('../projects/service.ts', () => ({
   listProjects: vi.fn(() =>
     Promise.resolve([{ id: 'proj-1', archivedAt: null }]),
   ),
+  readableProjectsWithDocuments: vi.fn(() =>
+    Promise.resolve([{ id: 'proj-1', archived: false }]),
+  ),
+  readableProjectsAmong: vi.fn(
+    (_sql: unknown, _auth: unknown, ids: readonly string[]) =>
+      Promise.resolve(new Set(ids.filter((id) => id === 'proj-1'))),
+  ),
 }));
 
 const RESOLVE = 'documents/internal_queries:resolveKnowledgeAccess';

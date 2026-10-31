@@ -5,7 +5,9 @@
  * and the project lists read one page at a time. The readers that pick from
  * it or count it join it too (#5193): the document search, the project a
  * create that names none falls back to, and the chat hand-over's projects
- * with agents. Fixture rows go in by SQL, in an organization of their own so
+ * with agents. The knowledge scopes hand the knowledge database the readable
+ * projects that hold a document, read through it (#5202). Fixture rows go
+ * in by SQL, in an organization of their own so
  * that no other lane's project counts; every read goes through the service.
  */
 import { randomUUID } from 'node:crypto';
@@ -24,6 +26,7 @@ import {
   listProjectsOverview,
   listSidebarProjects,
   readableProjectsSql,
+  readableProjectsWithDocuments,
   readProjectAgentCoverage,
   type ProjectAuthContext,
 } from './service.ts';
@@ -353,6 +356,31 @@ export async function checkProjectReads(
         JSON.stringify(coverage),
       );
 
+      // The knowledge scopes: every project here holds a document, so
+      // exactly those projects, and the archived one too where the scope
+      // keeps archived ones (the chat's), labelled.
+      const knowledge = await readableProjectsWithDocuments(sql, auth);
+      const knowledgeArchived = await readableProjectsWithDocuments(sql, auth, {
+        includeArchived: true,
+      });
+      record(
+        `project reads: the knowledge scopes of ${who} carry exactly those projects that hold a document, the archived one labelled where archived ones count`,
+        sameIds(
+          knowledge.map((project) => project.id),
+          readable,
+        ) &&
+          knowledge.every((project) => !project.archived) &&
+          sameIds(
+            knowledgeArchived.map((project) => project.id),
+            searchable,
+          ) &&
+          knowledgeArchived.every(
+            (project) =>
+              project.archived === (project.id === named('archived').id),
+          ),
+        JSON.stringify({ knowledge, knowledgeArchived }),
+      );
+
       // The HTTP doors refuse a disabled seat before the lists read.
       if (auth.role === 'disabled') continue;
 
@@ -495,6 +523,37 @@ export async function checkProjectReads(
       'project reads: with no project open to everyone, a create that names none falls back to the newest project the member reads',
       teamFallback === named('shared').id,
       JSON.stringify({ teamFallback, shared: named('shared').id }),
+    );
+
+    // After the fallback, which it would win: a project open to everyone
+    // that holds no document reaches no knowledge row, so the knowledge
+    // scopes leave it out of what crosses to the knowledge database.
+    const bare = randomUUID();
+    await sql`
+      INSERT INTO app.projects (id, org_id, name, key, team_ids, team_id,
+        archived_at_ms, pinned_at_ms, project_agent_count, created_by,
+        created_at_ms, updated_at_ms)
+      VALUES (${bare}, ${orgId}, 'Reads bare', 'BAR',
+        ${sql.array([] as string[])}::text[], ${null}, ${null}, ${null}, 0,
+        ${ctx.userId}, ${now}, ${now})
+    `;
+    const relationWithBare = await sql<{ projectId: string }[]>`
+      SELECT project_id AS "projectId"
+      FROM ${readableProjectsSql(sql, admin, { includeArchived: true })} rp
+    `;
+    const knowledgeWithBare = await readableProjectsWithDocuments(sql, admin, {
+      includeArchived: true,
+    });
+    record(
+      'project reads: a readable project without a document stays out of the knowledge scopes',
+      relationWithBare.some((row) => row.projectId === bare) &&
+        sameIds(
+          knowledgeWithBare.map((project) => project.id),
+          ['open', 'finance', 'shared', 'legacy', 'archived'].map(
+            (name) => named(name).id,
+          ),
+        ),
+      JSON.stringify({ bare, knowledgeWithBare }),
     );
   } finally {
     // The live rows that background work acts on go; the projects and
