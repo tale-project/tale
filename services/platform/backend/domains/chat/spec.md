@@ -411,6 +411,22 @@ streams, after a reload and on a reply tried again.
   card for it shows under the reply, also after she reloads the chat; she opens its preview or
   downloads it.
 
+### CHAT-R34 · A skill the assistant reads holds for its whole reply
+
+A skill's instructions reach the model with words that they hold for the whole reply: for what
+it does and for how it is written — its format, tone and wording — whether the person chose the
+skill or the assistant read it on its own. The same words say that a skill gives no tool or
+permission the assistant does not have, and that where it conflicts with the assistant's other
+instructions, those win. Only a skill that bundles files besides its instructions comes with
+notes on where its files and scripts are in the light sandbox; a skill of instructions alone
+comes with none, and starts no sandbox.
+
+- **Example**: Mia's `sign-off` skill says to end every chat reply with 😎, and she checks it
+  under **Skills** → every reply reads it first and is told to follow it in how the reply is
+  written, with no word of a sandbox.
+- **Example**: Mia asks for a Word letter and the assistant reads the `docx` skill on its own →
+  it is told the same, and also where the skill's scripts are and where the letter must be saved.
+
 ## Not yet
 
 - **Attachments on a message**: the gate that holds a message to at most 10 files of the
