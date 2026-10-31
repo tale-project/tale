@@ -89,3 +89,15 @@ export function taskRunFailureClass(
   if (code == null || !isKnownCode(code)) return 'unknown';
   return CLASS_BY_CODE[code];
 }
+
+/** Whether a stored failure code is one this build knows. */
+export function isTaskRunFailureCode(
+  code: string | null | undefined,
+): code is TaskRunFailureCode {
+  return code != null && isKnownCode(code);
+}
+
+/** Every failure code this build knows: the closed set the backend's
+ * metrics count failed runs by (`tale_backend_agent_run_failures_total`). */
+export const TASK_RUN_FAILURE_CODES: readonly TaskRunFailureCode[] =
+  Object.keys(CLASS_BY_CODE).filter(isKnownCode);

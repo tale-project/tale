@@ -22,6 +22,7 @@ import {
   settleAgentRun,
   wakeAgentParkedAgentRun,
   wakeOrganizationParkedAgentRun,
+  wakeParkedAgentRun,
   wakeParkedAgentRuns,
   withdrawWaitingAgentRunInTx,
 } from './agent-runs.ts';
@@ -260,16 +261,50 @@ describe('withdrawWaitingAgentRunInTx — a waiting run is taken back before it 
   });
 });
 
-/** A root `sql` stand-in whose `begin` hands the callback the same tagged
- * template — the terminal marks open their own transaction. */
+/** A statement {@link fakeSql} recorded: the handle that ran it, and how
+ * many transactions were open then. */
+type FakeSqlCall = {
+  text: string;
+  values: unknown[];
+  on: 'root' | 'tx';
+  open: number;
+};
+
+/** A root `sql` stand-in whose `begin` hands the callback a transaction
+ * handle of its own — the terminal marks open their own transaction. Both
+ * answer alike and record into the same lists, so a test can tell a write
+ * after the commit from one inside the transaction. */
 function fakeSql(answer: (text: string) => Row[]): {
   sql: Sql;
   statements: string[];
-  calls: { text: string; values: unknown[] }[];
+  calls: FakeSqlCall[];
 } {
-  const { tx, statements, calls } = fakeTx(answer);
-  const sql = Object.assign(tx, {
-    begin: (callback: (tx: TransactionSql) => unknown): unknown => callback(tx),
+  const statements: string[] = [];
+  const calls: FakeSqlCall[] = [];
+  let open = 0;
+  const handle = (on: 'root' | 'tx') =>
+    Object.assign(
+      (strings: TemplateStringsArray, ...values: unknown[]): Promise<Row[]> => {
+        const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
+        statements.push(text);
+        calls.push({ text, values, on, open });
+        return Promise.resolve(answer(text));
+      },
+      { unsafe: (text: string) => text },
+    );
+  const tx = handle('tx');
+  const sql = Object.assign(handle('root'), {
+    begin: async (
+      callback: (tx: TransactionSql) => unknown,
+    ): Promise<unknown> => {
+      open += 1;
+      try {
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a tagged-template stand-in for the postgres.js transaction
+        return await callback(tx as unknown as TransactionSql);
+      } finally {
+        open -= 1;
+      }
+    },
   });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a two-member stand-in for the postgres.js root instance
   return { sql: sql as unknown as Sql, statements, calls };
@@ -1913,5 +1948,198 @@ describe('a woken run holds no worker until its claim [TASK-R25]', () => {
     // It keeps the reason it waited for until its claim: its place in line
     // ahead of a start that has not waited.
     expect(restart?.text).not.toContain('waiting_reason');
+  });
+});
+
+describe('a park’s wake and a run’s failure add to their running totals once committed [TASK-R86]', () => {
+  const AGENT = '0b7e7a4c-1f7e-4a39-9c55-6f1d3c1f2a10';
+  const PARKED = {
+    id: 'run-1',
+    organizationId: 'org-1',
+    execId: 'exec-1',
+    taskId: 'task-1',
+    agentId: 'agent-1',
+    sessionId: 'pa-agent-1',
+  };
+  /** The family wake's candidates and its lock (see [SBX-R19]). */
+  const CANDIDATES =
+    'SELECT r.id, r.session_id AS "sessionId" FROM app.project_agent_runs r';
+  const LOCK = 'SELECT id, org_id AS "organizationId"';
+
+  /** What the statements added to the running totals, as `[event, label,
+   * by]` (`agent-run-counters.ts`). Each write ran on the root handle with
+   * no transaction open, after its event's transaction: inside it, a write
+   * that failed would abort that transaction (25P02) and its event with it,
+   * and one that ran before it would count an event that may roll back. */
+  const counted = (calls: FakeSqlCall[]) =>
+    calls.flatMap((call, index) => {
+      if (!call.text.startsWith('INSERT INTO app.agent_run_counters')) {
+        return [];
+      }
+      expect(call).toMatchObject({ on: 'root', open: 0 });
+      expect(calls.slice(0, index).some((before) => before.on === 'tx')).toBe(
+        true,
+      );
+      return [call.values];
+    });
+
+  beforeEach(() => {
+    vi.mocked(addJobInTx).mockReset();
+    vi.mocked(announceAgentRunFailed).mockReset();
+  });
+
+  it('counts the run its own timed wake restarted as scheduled, and a run no longer parked as nothing', async () => {
+    const parked = fakeSql((text) => (text.startsWith(LOCK) ? [PARKED] : []));
+    const args = { organizationId: 'org-1', runId: 'run-1', execId: 'exec-1' };
+    await expect(wakeParkedAgentRun(parked.sql, args)).resolves.toBe(1);
+    expect(counted(parked.calls)).toEqual([['wake', 'scheduled', 1]]);
+
+    // Another wake took it first: nothing restarted, nothing counted.
+    const gone = fakeSql(() => []);
+    await expect(wakeParkedAgentRun(gone.sql, args)).resolves.toBe(0);
+    expect(counted(gone.calls)).toEqual([]);
+  });
+
+  it('counts the watchdog sweep’s wake as watchdog, and a wake that rolled back as one failed wake', async () => {
+    const { sql, calls } = fakeSql((text) =>
+      text.startsWith(CLAIM) ? [PARKED] : [],
+    );
+    await expect(wakeOrganizationParkedAgentRun(sql, 'org-1')).resolves.toBe(1);
+    expect(counted(calls)).toEqual([['wake', 'watchdog', 1]]);
+
+    // Its turn job could not be enqueued: the restart rolled back with it,
+    // so the run stays parked and only the failed wake counts.
+    vi.mocked(addJobInTx).mockRejectedValueOnce(new Error('queue down'));
+    const rolledBack = fakeSql((text) =>
+      text.startsWith(CLAIM) ? [PARKED] : [],
+    );
+    await expect(
+      wakeOrganizationParkedAgentRun(rolledBack.sql, 'org-1'),
+    ).rejects.toThrow('queue down');
+    expect(counted(rolledBack.calls)).toEqual([
+      ['wake_failure', 'watchdog', 1],
+    ]);
+  });
+
+  it('counts the release edge’s wakes in each scope as release, and a scope whose claim failed as a failed wake', async () => {
+    const both = fakeSql((text) => (text.startsWith(CLAIM) ? [PARKED] : []));
+    await expect(wakeParkedAgentRuns(both.sql, 'org-1')).resolves.toBe(2);
+    expect(counted(both.calls)).toEqual([
+      ['wake', 'release', 1],
+      ['wake', 'release', 1],
+    ]);
+
+    let first = true;
+    const failing = fakeSql((text) => {
+      if (text.startsWith(CLAIM) && first) {
+        first = false;
+        throw new Error('deadlock detected');
+      }
+      return text.startsWith(CLAIM) ? [PARKED] : [];
+    });
+    await expect(wakeParkedAgentRuns(failing.sql, 'org-1')).rejects.toThrow(
+      'deadlock detected',
+    );
+    // The other organizations were still woken, and counted.
+    expect(counted(failing.calls)).toEqual([
+      ['wake_failure', 'release', 1],
+      ['wake', 'release', 1],
+    ]);
+  });
+
+  it('counts the family wake of a worker that stays up as release', async () => {
+    const { sql, calls } = fakeSql((text) => {
+      if (text.startsWith(CANDIDATES)) {
+        return [{ id: 'run-5', sessionId: standingWorkerSessionId(AGENT, 1) }];
+      }
+      return text.startsWith(LOCK)
+        ? [{ ...PARKED, id: 'run-5', agentId: AGENT }]
+        : [];
+    });
+    await expect(
+      wakeAgentParkedAgentRun(sql, {
+        organizationId: 'org-1',
+        agentId: AGENT,
+        sessionId: standingWorkerSessionId(AGENT, 1),
+      }),
+    ).resolves.toBe(1);
+    expect(counted(calls)).toEqual([['wake', 'release', 1]]);
+  });
+
+  it('counts a failed run under its failure code once its flip committed, and a flip another call won as nothing', async () => {
+    const won = fakeSql((text) =>
+      text.startsWith('UPDATE app.project_agent_runs')
+        ? [{ organizationId: 'org-1', taskId: 'task-1', agentId: 'agent-1' }]
+        : [],
+    );
+    await expect(
+      failAgentRunFromTurn(won.sql, {
+        runId: 'run-1',
+        execId: 'exec-1',
+        error: "the agent's sandbox ran out of memory",
+        failureCode: 'resource_exhausted',
+      }),
+    ).resolves.toBeTruthy();
+    expect(counted(won.calls)).toEqual([['failure', 'resource_exhausted', 1]]);
+
+    const lost = fakeSql(() => []);
+    await failAgentRunFromTurn(lost.sql, {
+      runId: 'run-1',
+      error: 'late',
+      failureCode: 'deadline',
+    });
+    expect(counted(lost.calls)).toEqual([]);
+  });
+
+  it('counts a sweep’s fail without a code as unknown', async () => {
+    const { sql, calls } = fakeSql((text) =>
+      text.startsWith('UPDATE app.project_agent_runs')
+        ? [{ sessionId: 'pa-agent-1', taskId: 'task-1' }]
+        : [],
+    );
+    await expect(
+      failAgentRun(sql, {
+        organizationId: 'org-1',
+        runId: 'run-1',
+        execId: 'exec-1',
+        error: 'the agent run was stopped',
+      }),
+    ).resolves.toBe(true);
+    expect(counted(calls)).toEqual([['failure', 'unknown', 1]]);
+  });
+
+  it('a total it cannot write leaves the wake and the failure it counts in place', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const { sql, calls } = fakeSql((text) => {
+      if (text.startsWith('INSERT INTO app.agent_run_counters')) {
+        throw new Error('connection reset');
+      }
+      if (text.startsWith(CLAIM)) return [PARKED];
+      return text.startsWith('UPDATE app.project_agent_runs')
+        ? [{ sessionId: 'pa-agent-1', taskId: 'task-1' }]
+        : [];
+    });
+    try {
+      await expect(wakeOrganizationParkedAgentRun(sql, 'org-1')).resolves.toBe(
+        1,
+      );
+      await expect(
+        failAgentRun(sql, {
+          organizationId: 'org-1',
+          runId: 'run-1',
+          execId: 'exec-1',
+          error: 'the agent run ran past its time limit and was stopped',
+          failureCode: 'deadline',
+        }),
+      ).resolves.toBe(true);
+      expect(warn).toHaveBeenCalledTimes(2);
+      // Both failed writes ran after their event's transaction, outside it.
+      expect(counted(calls)).toEqual([
+        ['wake', 'watchdog', 1],
+        ['failure', 'deadline', 1],
+      ]);
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

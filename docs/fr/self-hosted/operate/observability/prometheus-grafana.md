@@ -3,7 +3,7 @@ title: Prometheus et Grafana
 description: Collecte les métriques Tale avec un fichier de jeton, valide la configuration et crée un tableau de bord à partir des séries disponibles.
 ---
 
-Utilise ton installation Prometheus et Grafana existante si tu en as une. L’exemple ci-dessous lance un projet Compose de surveillance séparé qui interroge Tale via son proxy public. Il comprend un stockage persistant des métriques, un fichier de jeton monté et deux premières alertes.
+Utilise ton installation Prometheus et Grafana existante si tu en as une. L’exemple ci-dessous lance un projet Compose de surveillance séparé qui interroge Tale via son proxy public. Il comprend un stockage persistant des métriques, un fichier de jeton monté et de premières alertes.
 
 ## Préparer l’accès et les fichiers
 
@@ -99,11 +99,18 @@ groups:
         labels: { severity: ticket }
         annotations:
           summary: 'The dispatch of project {{ $labels.project }} has not passed for 15 minutes'
+      - alert: TaleAgentRunsOutOfMemory
+        expr: max(increase(tale_backend_agent_run_failures_total{code="resource_exhausted"}[1h])) > 0
+        labels: { severity: ticket }
+        annotations:
+          summary: 'An agent run ran out of memory in the last hour'
 ```
 
 Adapte la gravité et les délais à tes exigences, puis configure la distribution via Alertmanager ou Grafana. Une règle visible dans Prometheus n’envoie pas de notification à elle seule. L’alerte de stockage couvre les valeurs par défaut du déploiement, pas les bases ou buckets propres aux organisations.
 
 L’alerte de répartition du travail nomme un projet dont la répartition du travail est activée et n’a terminé aucun passage depuis 15 minutes. Chaque répartition activée passe au moins une fois par minute ; une valeur qui ne bouge plus signale des workers de jobs arrêtés ou un passage qui échoue sans cesse.
+
+L’alerte de mémoire signale que la sandbox d’au moins une exécution d’agent a atteint sa limite de mémoire au cours de la dernière heure. Une telle exécution fait l’objet d’une nouvelle tentative après une pause, comme l’explique [Traiter une attente ou un échec](/fr/platform/projects/task-automation#handle-waiting-and-failed-runs), et chaque tentative qui manque de mémoire compte à nouveau. Si l’alerte revient sans cesse, donne plus de mémoire à chaque session d’agent avec `SANDBOX_AGENT_MEMORY`, ou fais tourner moins de sessions à la fois, comme l’indique la [référence d’environnement](/fr/self-hosted/configuration/environment-reference#sandbox-infrastructure).
 
 ## Démarrer et vérifier la collecte
 
@@ -131,5 +138,15 @@ Ouvre Grafana sur `http://127.0.0.1:3001` et ajoute une source de données Prome
 | Stockages par défaut | `tale_backend_store_up` | Accessibilité mise en cache de `app_db`, `knowledge_db` et `object_store`. |
 | Drainage de déploiement | `tale_backend_drain_active` | Le drainage refuse-t-il de nouveaux tours ? |
 | Pouls de la répartition du travail | `time() - tale_backend_dispatch_last_pass_timestamp_seconds` | Secondes écoulées depuis le dernier passage terminé de chaque répartition du travail activée, par projet. |
+| Exécutions d’agent en attente | `max by (reason) (tale_backend_agent_runs_waiting)` | Exécutions d’agent qui attendent une place en ce moment, par motif. |
+| Mises en attente d’exécutions d’agent | `max by (reason) (increase(tale_backend_agent_run_parks_total[1h]))` | Nombre de fois où des exécutions d’agent ont dû attendre une place au cours de la dernière heure, par motif. |
+| Réveils d’exécutions d’agent | `max by (source) (increase(tale_backend_agent_run_wakes_total[1h]))` | Exécutions d’agent en attente relancées au cours de la dernière heure, par déclencheur. `tale_backend_agent_run_wake_failures_total` compte les réveils qui ont échoué ; leurs exécutions attendent le réveil suivant. |
+| Exécutions d’agent en échec | `max by (code) (increase(tale_backend_agent_run_failures_total[1h]))` | Exécutions d’agent qui ont échoué au cours de la dernière heure, par code d’échec. `resource_exhausted` signifie qu’une sandbox a manqué de mémoire. |
+
+Les séries des exécutions d’agent comptent les exécutions de tâches des agents de projet de toutes les organisations ; les exécutions d’automatisation n’y figurent pas. Leurs totaux sont conservés en base, donc un redémarrage ne les remet pas à zéro, et chaque réplica d’API rapporte les mêmes valeurs pour tout le déploiement : combine les réplicas avec `max`, jamais avec `sum`. Un réplica qui ne peut pas lire la base ne rapporte aucun total lors de cette collecte ; un graphique montre alors une interruption plutôt qu’une baisse. Un événement compte dès qu’il est enregistré ; un processus qui s’arrête entre les deux peut perdre ce seul comptage. Les labels proviennent de listes fixes et ne nomment jamais une organisation, une tâche ou une exécution :
+
+- `reason` : `org_limit` (tous les workers d’agent de l’organisation sont occupés), `host` (le déploiement est plein ou manque de mémoire ou d’espace disque), `destroy_pending` (l’espace de travail que l’exécution utiliserait est en cours de suppression), `exec_limit` (sa sandbox termine encore un processus précédent), `model_capacity` (son modèle d’IA est saturé) ou `unknown`. [Sandboxes](/fr/platform/admin/sandboxes#resoudre-un-demarrage-bloque) explique comment résoudre chaque attente.
+- `source` : `release` (un worker ou une place de sandbox vient de se libérer), `scheduled` (le réveil prévu pour cette exécution est arrivé à échéance, par exemple quand son tour est venu dans la file de l’hôte des sandboxes) ou `watchdog` (le passage périodique qui réveille les exécutions que rien d’autre n’a réveillées).
+- `code` : le code d’échec avec lequel l’exécution s’est terminée, ou `unknown` quand elle n’en a aucun que cette version connaisse.
 
 Certains collecteurs lisent des comptes partagés en base, d’autres décrivent un processus. Avec plusieurs réplicas, collecte leurs métriques de processus séparément sur ton réseau privé et évite de compter plusieurs fois les jauges partagées. [Surveiller les opérations](/fr/self-hosted/operate/observability/operations) explique les limites des sondes de stockage et les mesures supplémentaires nécessaires au modèle de règles SLA.

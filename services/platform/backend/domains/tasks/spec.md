@@ -433,6 +433,23 @@ waited too long.
   starts first; at 10:03 it is still working → "Press kit" starts. Had 256 runs been waiting,
   the last of them would have started at 10:07:45.
 
+### TASK-R86 · The backend's metrics count the agent runs that wait, are woken and fail
+
+The backend's metrics count how often a run was parked to wait for room, by why it waits; how
+many waiting runs a wake started, by what woke them (a worker or slot given back, the run's own
+timed wake, or the watchdog); how many wakes failed; and how many runs failed, by failure code.
+They also say how many runs wait right now, by why. Each event counts once it is saved: a park
+undone with its change counts nothing. The labels are reasons, wake sources and failure codes,
+never an organization, a task or a run, and the totals are the deployment's, the same on every
+API replica. A replica that cannot read the totals shows none of them rather than older, lower
+ones.
+
+- **Example**: Every agent worker of Ada's organization is busy. Ada starts Scribe on "Press
+  kit" → the parks of reason `org_limit` rise by one and one run waits for `org_limit`.
+  "Changelog" finishes → the wakes by `release` rise by one, and no run waits.
+- **Example**: Scribe's run on "Changelog" runs out of memory → the failed runs of code
+  `resource_exhausted` rise by one.
+
 ## Dispatch
 
 A project's dispatch starts its ready work on its idle agents without anyone starting each run.
