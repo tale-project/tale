@@ -53,9 +53,9 @@ import {
   stopSyncForTrashedDocument,
 } from '../onedrive/service.ts';
 import {
-  listProjects,
   loadProjectOrThrow,
   type ProjectAuthContext,
+  readableProjectsSql,
 } from '../projects/service.ts';
 import { purgeDocument } from '../retention/service.ts';
 import {
@@ -1533,25 +1533,23 @@ export async function searchDocumentsView(
 ): Promise<DocumentSearchHit[]> {
   const term = query.trim();
   if (term === '') return [];
+  // The readable projects join the read: no id list goes back and forth.
   // #2999: an archived project's files stay searchable and say so. Trash is
   // unaffected — `lifecycle_status` remains a hard fence.
-  const projects = await listProjects(sql, auth, { includeArchived: true });
-  const projectIds = projects.map((project) => project.id);
-  const archivedProjectIds = new Set(
-    projects
-      .filter((project) => project.archivedAt !== null)
-      .map((project) => project.id),
-  );
-  const rows = await sql<(DocumentRow & { folderPath: string | null })[]>`
-    SELECT ${sql.unsafe(DOCUMENT_COLUMNS)}, folder_path AS "folderPath"
+  const rows = await sql<
+    (DocumentRow & { folderPath: string | null; projectArchived: boolean })[]
+  >`
+    SELECT ${sql.unsafe(DOCUMENT_COLUMNS)}, folder_path AS "folderPath",
+           rp.project_archived_at_ms IS NOT NULL AS "projectArchived"
     FROM app.documents
+    LEFT JOIN ${readableProjectsSql(sql, auth, { includeArchived: true })} rp
+      USING (project_id)
     WHERE org_id = ${auth.organizationId}
       AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
       AND title ILIKE ${`%${term}%`}
-      AND (${hubAccessClause(sql, auth)}
-        OR (project_id IS NOT NULL AND project_id = ANY(${projectIds})))
+      AND (${hubAccessClause(sql, auth)} OR rp.project_id IS NOT NULL)
     ORDER BY
-      (project_id IS NOT NULL AND project_id = ANY(${[...archivedProjectIds]})),
+      rp.project_archived_at_ms IS NOT NULL,
       coalesce(source_modified_at_ms, created_at_ms) DESC
     LIMIT ${HUB_SEARCH_MAX}
   `;
@@ -1570,9 +1568,7 @@ export async function searchDocumentsView(
     };
     if (row.folderId !== null) hit.folderId = row.folderId;
     if (row.projectId !== null) hit.projectId = row.projectId;
-    if (row.projectId !== null && archivedProjectIds.has(row.projectId)) {
-      hit.projectArchived = true;
-    }
+    if (row.projectArchived) hit.projectArchived = true;
     return hit;
   });
 }
