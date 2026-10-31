@@ -220,6 +220,62 @@ test('fresh tag deployment requires absence of existing database and project vol
   ).rejects.toThrow('existing database');
 });
 
+/** What `tale init` makes of a folder named `2024-site`. */
+const digitLed = '2024-site-abc123';
+
+test('a digit-led project deploys fresh', async () => {
+  const noState: RuntimeDependencies = { exec: async () => ok('') };
+  expect(await tagDeploymentProtocol(digitLed, false, noState)).toBe(1);
+});
+
+test('a digit-led project deploys over its existing database', async () => {
+  const api = 'c'.repeat(64),
+    worker = 'd'.repeat(64);
+  const labels = (project: string, service: string) => ({
+    'com.docker.compose.project': project,
+    'com.docker.compose.service': service,
+    'com.docker.compose.container-number': '1',
+    'com.docker.compose.oneoff': 'False',
+  });
+  const deps: RuntimeDependencies = {
+    exec: async (_c, args) => {
+      if (args[0] === 'ps')
+        return ok(
+          args.at(-1)?.includes('.Label')
+            ? args.includes(`label=com.docker.compose.project=${digitLed}-blue`)
+              ? `${api}\tbackend-api\n${worker}\tbackend-worker`
+              : ''
+            : db.Id,
+        );
+      if (args[0] === 'image')
+        return ok(args.slice(2).map((Id) => ({ Id, Config: { Labels: {} } })));
+      if (args[0] === 'exec') return ok({ schema: 'tale', ids });
+      if (args[2] === db.Id)
+        return ok([
+          { ...db, Config: { ...db.Config, Labels: labels(digitLed, 'db') } },
+        ]);
+      return ok(
+        args.slice(2).map((id) => ({
+          Id: id,
+          Image: db.Image,
+          RestartCount: db.RestartCount,
+          State: db.State,
+          Config: {
+            Labels: labels(
+              `${digitLed}-blue`,
+              id === api ? 'backend-api' : 'backend-worker',
+            ),
+            Env: ['DATABASE_URL=postgresql://tale:synthetic@db:5432/tale_app'],
+          },
+        })),
+      );
+    },
+  };
+  // The backend custody check of the project and its colours, then the
+  // database's ledger, which is at protocol 2.
+  expect(await tagDeploymentProtocol(digitLed, true, deps)).toBe(2);
+});
+
 test('target source capability uses committed bytes and rejects unsupported declarations', () => {
   const fixture = runtimeFixture();
   fixtures.push(fixture);
@@ -292,6 +348,36 @@ test('an installed automation protocol fence refuses a legacy target before mana
   expect(readFileSync(envPath)).toEqual(before);
   expect(docker.calls.some(({ args }) => args[0] === 'compose')).toBe(false);
   expect(docker.calls.some(({ args }) => args[0] === 'pull')).toBe(false);
+});
+
+test('managed apply adopts the installed stack of a digit-led Compose project', async () => {
+  const fixture = runtimeFixture();
+  fixtures.push(fixture);
+  fixture.options.composeProject = digitLed;
+  const docker = new RuntimeDockerFixture(fixture);
+  await prepareRuntime(
+    {
+      repoRoot: fixture.repoRoot,
+      revision: fixture.revision,
+      output: fixture.options.bundleDirectory,
+      platform: 'linux/amd64',
+    },
+    docker.dependencies(),
+  );
+  installLegacy(fixture, docker);
+  docker.calls = [];
+  expect(
+    await applyRuntime(fixture.options, docker.dependencies()),
+  ).toMatchObject({ existing: true, changed: true });
+  // The installed protocol was read through the backend custody check.
+  expect(
+    docker.calls.some(
+      ({ args }) =>
+        args[0] === 'ps' &&
+        args.includes(`label=com.docker.compose.project=${digitLed}`) &&
+        args.at(-1)?.includes('.Label'),
+    ),
+  ).toBe(true);
 });
 
 for (const interval of ['already-created writer', 'during pull'] as const) {

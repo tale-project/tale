@@ -298,6 +298,8 @@ export class RuntimeDockerFixture {
   }
 
   installContainers(compose: ComposeDocument): void {
+    // Compose names a project's volumes `<project>_<volume>`.
+    const project = this.fixture.options.composeProject;
     this.containers = RUNTIME_SERVICES.map((service, index) => {
       const spec = compose.services[service];
       const imageId = `sha256:${hash(String(spec.image))}`;
@@ -343,9 +345,9 @@ export class RuntimeDockerFixture {
           const volume = Object.hasOwn(compose.volumes, raw);
           return {
             Type: volume ? 'volume' : 'bind',
-            Name: volume ? `tale_${raw}` : undefined,
+            Name: volume ? `${project}_${raw}` : undefined,
             Source: volume
-              ? `/var/lib/docker/volumes/tale_${raw}/_data`
+              ? `/var/lib/docker/volumes/${project}_${raw}/_data`
               : raw.startsWith('./') || raw.startsWith('../')
                 ? resolve(this.fixture.options.stateDirectory, 'src', raw)
                 : raw,
@@ -355,7 +357,9 @@ export class RuntimeDockerFixture {
         }),
       };
     });
-    this.volumes = Object.keys(compose.volumes).map((name) => `tale_${name}`);
+    this.volumes = Object.keys(compose.volumes).map(
+      (name) => `${project}_${name}`,
+    );
   }
 
   readonly execute: typeof exec = async (_command, args, options) => {
