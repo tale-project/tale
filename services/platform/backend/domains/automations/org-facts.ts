@@ -41,15 +41,17 @@ import {
   listConnectedConnectorSlugs,
   listCredentialsInService,
 } from '../connector_credentials/service.ts';
+import type { ProjectAuthContext } from '../projects/service.ts';
+import { visibleInstallations } from './project-visibility.ts';
 import { bindingProjectIds, listTriggers } from './store.ts';
 
 /** Who is validating: their role, and — when reads answer only what the
- * app would show them — the projects they can read. */
+ * app would show them — whose project read rule the installations meet. */
 export interface OrgFactsViewer {
   role: string;
   /** Null when every installation counts (the app's own editor, whose
    * author gate already passed). */
-  readable: ReadonlySet<string> | null;
+  auth: ProjectAuthContext | null;
 }
 
 /** A fact's read, or undefined ("cannot tell") when it failed. */
@@ -81,11 +83,13 @@ async function reachableSkills(
     automation === undefined
       ? []
       : await bindingProjectIds(sql, organizationId, automation);
-  const { readable } = await viewer();
+  const { auth } = await viewer();
   // Installations the caller cannot read add nothing: their team skills
   // would otherwise come back as suggestions.
   const projects =
-    readable === null ? installed : installed.filter((id) => readable.has(id));
+    auth === null
+      ? installed
+      : await visibleInstallations(sql, auth, installed);
   const [org, ...perProject] = await Promise.all([
     listSkillsForViewer({ orgSlug, viewer: { kind: 'org' } }),
     ...projects.map((projectId) =>
