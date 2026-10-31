@@ -314,7 +314,7 @@ export async function checkAutomationTemplates(
       name: halfway,
       displayName: 'Halfway (itest)',
       answers: { project: projectId, reviewer: userId },
-      visibleProjectIds: [projectId],
+      viewer: { organizationId: orgId, userId, role: 'owner', teamIds: [] },
     });
     const failed = await commitTemplateInstance(sql, {
       organizationId: orgId,
