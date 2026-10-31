@@ -75,7 +75,7 @@ export const POOL_TIMEOUT_PATTERNS: Readonly<Record<string, RegExp>> = {
 };
 
 /** The readiness door: it answers once the process can serve. */
-export const HEALTH_PATH = '/api/health/ready';
+const HEALTH_PATH = '/api/health/ready';
 
 /** Where the host's figures are read. Tests point them at fixtures. */
 export interface HostProbes {
@@ -89,7 +89,7 @@ export interface HostProbes {
   totalMemoryBytes: number;
 }
 
-export function hostProbes(): HostProbes {
+function hostProbes(): HostProbes {
   return {
     meminfo: '/proc/meminfo',
     vmstat: '/proc/vmstat',
@@ -108,7 +108,7 @@ export interface BurstIntervals {
   healthTimeoutMs: number;
 }
 
-export const DEFAULT_INTERVALS: BurstIntervals = {
+const DEFAULT_INTERVALS: BurstIntervals = {
   pollMs: 2_000,
   memoryMs: 1_000,
   admissionMs: 2_000,
@@ -165,7 +165,7 @@ function sleep(ms: number): Promise<void> {
  * budgets (an organization's budgets add up to at most the room). Runs
  * beyond it wait for the organization's quota.
  */
-export function defaultProjectSessions(limits: {
+function defaultProjectSessions(limits: {
   maxSessions: number;
   deviceSessions: number;
 }): number {
@@ -176,10 +176,7 @@ export function defaultProjectSessions(limits: {
 }
 
 /** The description that makes the mock's turn hold memory and a CPU. */
-export function burstTaskDescription(
-  hogMib: number,
-  hogSeconds: number,
-): string {
+function burstTaskDescription(hogMib: number, hogSeconds: number): string {
   return [
     'A run of the agent-run burst (tools/load). Its turn runs one command that holds memory and keeps a CPU busy, then ends.',
     '',
@@ -218,7 +215,7 @@ async function signInOwner(
 }
 
 /** The deployment's sandbox room, as the settings page reads it. */
-export async function readSandboxLimits(
+async function readSandboxLimits(
   api: ApiClient,
   orgId: string,
 ): Promise<{ maxSessions: number; deviceSessions: number }> {
@@ -247,7 +244,7 @@ export async function readSandboxLimits(
 }
 
 /** Save the organization's sandbox quota with `projectSessions` for agents. */
-export async function writeSandboxQuota(
+async function writeSandboxQuota(
   api: ApiClient,
   orgId: string,
   projectSessions: number,
@@ -298,7 +295,7 @@ async function listAgentIds(
  * The burst's agents, created on first use: a re-run against the same
  * deployment finds them by name instead.
  */
-export async function ensureAgents(
+async function ensureAgents(
   api: ApiClient,
   org: {
     id: string;
@@ -544,7 +541,7 @@ function healthSampler(
 }
 
 /** The organization the burst drives: the plan's first, with a project. */
-export function burstOrganization(plan: LoadPlan): {
+function burstOrganization(plan: LoadPlan): {
   org: PlanOrganization;
   projectId: string;
   modelId: string;
