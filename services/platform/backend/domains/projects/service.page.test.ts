@@ -12,6 +12,8 @@ import {
   checkedProjectSql,
   fallbackProjectId,
   listProjectsOverview,
+  listProjectsPage,
+  listReadableProjectAgentsPage,
   listSidebarProjects,
   PROJECT_PAGE_LIMITS,
   readableProjectsSql,
@@ -361,5 +363,200 @@ describe('the readers that pick or count projects join the relation (#5193)', ()
     const disabled = readsOf(statements)[1];
     expect(disabled?.values.slice(0, 2)).toEqual(['org-a', false]);
     expect(disabled?.values.slice(6, 8)).toEqual(['org-a', false]);
+  });
+});
+
+describe('the MCP project list and the settings lists read one page through the relation (#5203)', () => {
+  const PROJECT_PAGE = `SELECT ? FROM app.projects JOIN ${RELATION} rp ON rp.project_id = app.projects.id WHERE org_id = ? AND (? OR (? AND archived_at_ms IS NOT NULL) OR (? AND archived_at_ms IS NULL)) AND (?::text IS NULL OR name ILIKE ?) AND (?::bigint IS NULL OR created_at_ms < ? OR (created_at_ms = ? AND id < ?)) ORDER BY created_at_ms DESC, id DESC LIMIT ?`;
+  const AGENT_PAGE = `SELECT a.id, a.project_id AS "projectId", a.instructions, a.tools, a.harness, a.model, a.model_provider AS "modelProvider", a.created_at_ms::float8 AS "createdAt" FROM app.project_agents a JOIN ${RELATION} rp ON rp.project_id = a.project_id WHERE a.org_id = ? AND (?::bigint IS NULL OR a.created_at_ms < ? OR (a.created_at_ms = ? AND a.id < ?)) ORDER BY a.created_at_ms DESC, a.id DESC LIMIT ?`;
+  /** The statement a page read runs, not the fragments it embeds. */
+  const readOf = (
+    statements: { text: string; values: unknown[] }[],
+    start: string,
+  ) => {
+    const reads = statements.filter((s) => s.text.startsWith(start));
+    expect(reads).toHaveLength(1);
+    return reads[0];
+  };
+
+  it('pages the projects an owner reads, the archived ones left out, in one statement [PROJ-R1]', async () => {
+    const { sql, statements } = recordingSql((text) =>
+      text.startsWith('SELECT ? FROM app.projects') ? projectRows(3) : [],
+    );
+    const page = await listProjectsPage(sql, owner, {
+      archived: 'exclude',
+      limit: 2,
+      cursor: null,
+      summary: true,
+    });
+    expect(page.projects.map((project) => project.id)).toEqual(['p3', 'p2']);
+    expect(page.hasMore).toBe(true);
+    const read = readOf(statements, 'SELECT ? FROM app.projects');
+    expect(read?.text).toBe(PROJECT_PAGE);
+    expect(read?.text).not.toContain('ANY(');
+    expect(String(read?.values[0])).toContain('NULL AS instructions');
+    expect(read?.values.slice(1)).toEqual([
+      // The relation: org · not a disabled seat · archived projects left
+      // out · admin.
+      'org-a',
+      true,
+      false,
+      true,
+      [],
+      // The page: org · include · only · exclude · no name · no cursor.
+      'org-a',
+      false,
+      false,
+      true,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      3,
+    ]);
+  });
+
+  it('pages only the projects a member reaches [PROJ-R2]', async () => {
+    const { sql, statements } = recordingSql();
+    const page = await listProjectsPage(sql, member, {
+      archived: 'exclude',
+      limit: 50,
+      cursor: null,
+    });
+    expect(page).toEqual({ projects: [], hasMore: false });
+    const read = readOf(statements, 'SELECT ? FROM app.projects');
+    expect(read?.text).toBe(PROJECT_PAGE);
+    expect(read?.values.slice(1, 6)).toEqual([
+      'org-a',
+      true,
+      false,
+      false,
+      ['team-finance'],
+    ]);
+    // The full row, instructions included, for the settings listing.
+    expect(String(read?.values[0])).not.toContain('NULL AS instructions');
+  });
+
+  it('pages nothing for a disabled seat [PROJ-R2]', async () => {
+    const { sql, statements } = recordingSql();
+    await listProjectsPage(
+      sql,
+      { ...member, role: 'disabled' },
+      { archived: 'include', limit: 50, cursor: null },
+    );
+    const read = readOf(statements, 'SELECT ? FROM app.projects');
+    expect(read?.values.slice(1, 3)).toEqual(['org-a', false]);
+  });
+
+  it.each([
+    ['include', [true, true, false, false]],
+    ['only', [true, false, true, false]],
+    ['exclude', [false, false, false, true]],
+  ] as const)(
+    'keeps the archived rule of %s in the relation and the page',
+    async (archived, [relationArchived, include, only, exclude]) => {
+      const { sql, statements } = recordingSql();
+      await listProjectsPage(sql, member, {
+        archived,
+        limit: 50,
+        cursor: null,
+      });
+      const read = readOf(statements, 'SELECT ? FROM app.projects');
+      expect(read?.values[3]).toBe(relationArchived);
+      expect(read?.values.slice(7, 10)).toEqual([include, only, exclude]);
+    },
+  );
+
+  it('searches the name in the statement, its LIKE characters escaped, and goes on after the cursor', async () => {
+    const { sql, statements } = recordingSql();
+    await listProjectsPage(sql, member, {
+      archived: 'exclude',
+      limit: 50,
+      cursor: { at: 20, id: 'p2' },
+      name: '  50%_off ',
+    });
+    const read = readOf(statements, 'SELECT ? FROM app.projects');
+    expect(read?.values.slice(-7)).toEqual([
+      '%50\\%\\_off%',
+      '%50\\%\\_off%',
+      20,
+      20,
+      20,
+      'p2',
+      51,
+    ]);
+  });
+
+  it('pages the agents of the projects an owner reads, newest first [PROJ-R1]', async () => {
+    const agents = [3, 2, 1].map((n) => ({
+      id: `a${n}`,
+      projectId: 'p1',
+      createdAt: n * 10,
+    }));
+    const { sql, statements } = recordingSql((text) =>
+      text.startsWith('SELECT a.id') ? agents : [],
+    );
+    const page = await listReadableProjectAgentsPage(sql, owner, {
+      limit: 2,
+      cursor: null,
+    });
+    expect(page.agents.map((agent) => agent.id)).toEqual(['a3', 'a2']);
+    expect(page.hasMore).toBe(true);
+    const read = readOf(statements, 'SELECT a.id');
+    expect(read?.text).toBe(AGENT_PAGE);
+    expect(read?.text).not.toContain('ANY(');
+    expect(read?.values).toEqual([
+      // The relation: archived projects left out, the owner's admin grant.
+      'org-a',
+      true,
+      false,
+      true,
+      [],
+      'org-a',
+      null,
+      null,
+      null,
+      null,
+      3,
+    ]);
+  });
+
+  it('pages only the agents of the projects a member reaches, after the cursor [PROJ-R2]', async () => {
+    const { sql, statements } = recordingSql();
+    const page = await listReadableProjectAgentsPage(sql, member, {
+      limit: 50,
+      cursor: { at: 30, id: 'a3' },
+    });
+    expect(page).toEqual({ agents: [], hasMore: false });
+    const read = readOf(statements, 'SELECT a.id');
+    expect(read?.text).toBe(AGENT_PAGE);
+    expect(read?.values).toEqual([
+      'org-a',
+      true,
+      false,
+      false,
+      ['team-finance'],
+      'org-a',
+      30,
+      30,
+      30,
+      'a3',
+      51,
+    ]);
+  });
+
+  it('pages no agent for a disabled seat [PROJ-R2]', async () => {
+    const { sql, statements } = recordingSql();
+    await listReadableProjectAgentsPage(
+      sql,
+      { ...member, role: 'disabled' },
+      { limit: 50, cursor: null },
+    );
+    expect(readOf(statements, 'SELECT a.id')?.values.slice(0, 2)).toEqual([
+      'org-a',
+      false,
+    ]);
   });
 });

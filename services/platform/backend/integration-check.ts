@@ -17159,6 +17159,30 @@ async function checkMcpAuthoringParity(
     `install=${JSON.stringify(installed.value).slice(0, 100)}, member get=${String(memberRead.value.code)}, member list hides=${!JSON.stringify(memberList.value).includes(name)}, REST member→${memberRest} owner→${ownerRest}`,
   );
 
+  // MCP-R23: list_projects names what is installed in each project of the
+  // page it answers, read for that page's projects alone; the name is
+  // searched by the database.
+  const ownerHrProjects = await tool('list_projects', {
+    query: 'parity hr PROJECT',
+  });
+  const ownerHrPage = z
+    .object({
+      projects: z.array(
+        z.object({ id: z.string(), automations: z.array(z.string()) }),
+      ),
+      nextCursor: z.string().nullable(),
+    })
+    .safeParse(ownerHrProjects.value);
+  record(
+    'MCP list_projects names the automations installed in each project of its page, the name searched by the database (MCP-R23)',
+    !ownerHrProjects.isError &&
+      ownerHrPage.success &&
+      JSON.stringify(ownerHrPage.data.projects) ===
+        JSON.stringify([{ id: hrProject, automations: [name] }]) &&
+      ownerHrPage.data.nextCursor === null,
+    JSON.stringify(ownerHrProjects.value).slice(0, 300),
+  );
+
   // MCP-R9: a developer outside the team cannot add a version to it — the
   // save is refused as a taken name, create or not, and nothing is written.
   const { cookie: devCookie, userId: devId } = await signUpOrgMember(
@@ -17570,9 +17594,14 @@ async function checkMcpDiscovery(
     );
 
     // list_projects and list_skills: the member's view leaves out the team
-    // project; the other tenant's project is nobody's here.
-    const memberProjects = await tool('list_projects', {}, memberKey);
-    const ownerProjects = await tool('list_projects', {});
+    // project; the other tenant's project is nobody's here. list_projects
+    // answers a page, so both search the name these two projects share.
+    const memberProjects = await tool(
+      'list_projects',
+      { query: 'discovery' },
+      memberKey,
+    );
+    const ownerProjects = await tool('list_projects', { query: 'discovery' });
     const memberHrSkills = await tool(
       'list_skills',
       { projectId: hrProject },
