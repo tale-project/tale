@@ -52,7 +52,7 @@ list:
   noTasks: Noch keine Aufgaben
   overdueA11y: '{count, plural, one {# überfällige Aufgabe} other {# überfällige Aufgaben}}'
   agentsA11y: '{count, plural, one {# Agent} other {# Agenten}}'
-  countTruncated: '{count}+'
+  refreshFailed: Die neuesten Projekte konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
 create:
   title: Projekt erstellen
   nameLabel: Projektname

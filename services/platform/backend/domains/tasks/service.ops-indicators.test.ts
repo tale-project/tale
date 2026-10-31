@@ -5,15 +5,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { standingWorkerSessionId } from '../../core/sandbox/session_naming.test-helpers.ts';
 import type { ProjectAuthContext } from '../projects/service.ts';
 
-const { loadProjectOrThrow, listProjects } = vi.hoisted(() => ({
+const { loadProjectOrThrow } = vi.hoisted(() => ({
   loadProjectOrThrow: vi.fn(),
-  listProjects: vi.fn(),
 }));
 
 vi.mock('../projects/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../projects/service.ts')>()),
   loadProjectOrThrow,
-  listProjects,
 }));
 
 // After the service: imported first, it leaves the service bound to the
@@ -84,37 +82,73 @@ function automationRun(
   };
 }
 
+const FRAGMENT = Symbol('fragment');
+interface Fragment {
+  [FRAGMENT]: true;
+  text: string;
+  values: unknown[];
+}
+
+function isFragment(value: unknown): value is Fragment {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { [FRAGMENT]?: true })[FRAGMENT] === true
+  );
+}
+
 /** A SQL tag answering the live-run read with `runs`, the live automation
  * run read with `automationRuns`, the read of tasks with a running agent run
- * with `agentWorkingTaskIds` and every other read with nothing; the
- * live-run read's text and values are kept. */
+ * with `agentWorkingTaskIds` and every other read with nothing. Nested
+ * fragments are inlined the way postgres.js does, and every statement is
+ * kept: `reads` holds the live-run reads. */
 function opsSql(
   runs: LiveRunRow[],
   automationRuns: AutomationRunRow[] = [],
   agentWorkingTaskIds: string[] = [],
 ) {
+  const statements: Array<{ text: string; values: unknown[] }> = [];
   const reads: Array<{ text: string; values: unknown[] }> = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
+    let text = '';
+    const flat: unknown[] = [];
+    strings.forEach((part, index) => {
+      text += part;
+      if (index >= values.length) return;
+      const value = values[index];
+      if (isFragment(value)) {
+        text += value.text;
+        flat.push(...value.values);
+      } else {
+        text += '?';
+        flat.push(value);
+      }
+    });
+    text = text.replaceAll(/\s+/g, ' ').trim();
+    statements.push({ text, values: flat });
+    let rows: unknown[] = [];
     if (text.includes('AS "launchedAt"')) {
-      reads.push({ text, values });
-      const limit = values.at(-1);
-      return Promise.resolve(
-        typeof limit === 'number' ? runs.slice(0, limit) : runs,
-      );
+      reads.push({ text, values: flat });
+      const limit = flat.at(-1);
+      rows = typeof limit === 'number' ? runs.slice(0, limit) : runs;
     }
     if (text.includes('AS "hasPendingAsk"')) {
-      return Promise.resolve(automationRuns);
+      rows = automationRuns;
     }
     if (text.includes('SELECT DISTINCT task_id')) {
-      return Promise.resolve(agentWorkingTaskIds.map((taskId) => ({ taskId })));
+      rows = agentWorkingTaskIds.map((taskId) => ({ taskId }));
     }
-    return Promise.resolve([]);
+    const fragment: Fragment = { [FRAGMENT]: true, text, values: flat };
+    return Object.assign(Promise.resolve(rows), fragment);
   };
   const sql = Object.assign(tag, { unsafe: (text: string) => text });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the test answers the SQL tag only
-  return { sql: sql as unknown as Sql, reads };
+  return { sql: sql as unknown as Sql, reads, statements };
 }
+
+/** The one project a per-project read joins, as `checkedProjectSql` reads it. */
+const CHECKED_PROJECT =
+  'JOIN ( SELECT id AS project_id, key AS project_key, archived_at_ms AS project_archived_at_ms FROM app.projects WHERE org_id = ? AND id = ? ) rp';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -125,7 +159,6 @@ beforeEach(() => {
     sharedWithTeamIds: [],
     archivedAt: null,
   });
-  listProjects.mockResolvedValue([{ id: 'p0' }, { id: 'p1' }]);
 });
 
 describe('the board reads every live agent run with its worker and wait', () => {
@@ -193,7 +226,9 @@ describe('the board reads every live agent run with its worker and wait', () => 
     ]);
     expect(ops.runsTruncated).toBe(false);
     const read = reads[0];
-    expect(read?.text).toContain('org_id = ? AND project_id = ANY(?)');
+    expect(read?.text).toContain(
+      `FROM app.project_agent_runs ${CHECKED_PROJECT} USING (project_id) WHERE org_id = ? AND status IN ('queued', 'running')`,
+    );
     expect(read?.text).toContain(
       "ORDER BY (status = 'running') DESC, started_at_ms, seq",
     );
@@ -206,7 +241,8 @@ describe('the board reads every live agent run with its worker and wait', () => 
       parkedRunSql(),
       parkedWaitingReasonSql(),
       auth.organizationId,
-      ['p0'],
+      'p0',
+      auth.organizationId,
       51,
     ]);
   });
@@ -221,12 +257,58 @@ describe('the board reads every live agent run with its worker and wait', () => 
   });
 
   it('reads the live runs of every project the reader can see at once', async () => {
-    const { sql, reads } = opsSql([liveRun(1)]);
+    const { sql, reads, statements } = opsSql([liveRun(1)]);
     const ops = await getTaskOpsIndicatorsForAccessibleProjects(sql, auth);
     expect(ops.runs.map((run) => run.runId)).toEqual(['run-1']);
     expect(ops.runsTruncated).toBe(false);
     expect(reads).toHaveLength(1);
-    expect(reads[0]?.values.at(-2)).toEqual(['p0', 'p1']);
+    // #5156: each read joins the projects the reader may read; none sends
+    // an id list back. The relation is one of the recorded fragments.
+    const relation = statements.find((s) =>
+      s.text.startsWith('( SELECT id AS project_id'),
+    );
+    expect(relation?.text).toContain('(? OR archived_at_ms IS NULL)');
+    expect(relation?.values.slice(0, 3)).toEqual([
+      auth.organizationId,
+      true,
+      false,
+    ]);
+    const running = statements.find((s) =>
+      s.text.startsWith('SELECT DISTINCT task_id'),
+    );
+    const pending = statements.find((s) =>
+      s.text.includes('FROM app.approvals a'),
+    );
+    expect(running?.text).toContain(
+      `FROM app.project_agent_runs JOIN ${relation?.text} rp USING (project_id) WHERE org_id = ? AND status = 'running'`,
+    );
+    expect(pending?.text).toContain(
+      `JOIN ${relation?.text} rp ON rp.project_id = a.metadata ->> 'projectId'`,
+    );
+    expect(reads[0]?.text).toContain(
+      `JOIN ${relation?.text} rp USING (project_id)`,
+    );
+    for (const read of [running, pending, reads[0]])
+      expect(read?.text).not.toContain('ANY(');
+    // No project list is read first: the projects are read only inside it.
+    for (const statement of statements.filter((s) =>
+      s.text.startsWith('SELECT'),
+    ))
+      expect(statement.text.replaceAll(relation?.text ?? '', '')).not.toContain(
+        'FROM app.projects',
+      );
+  });
+
+  it("reads one project's pending reviews through the project it has checked", async () => {
+    const { sql, statements } = opsSql([]);
+    await getTaskOpsIndicators(sql, auth, 'p0');
+    const pending = statements.find((s) =>
+      s.text.includes('FROM app.approvals a'),
+    );
+    expect(pending?.text).toContain(
+      `${CHECKED_PROJECT} ON rp.project_id = a.metadata ->> 'projectId'`,
+    );
+    expect(pending?.values.slice(0, 2)).toEqual([auth.organizationId, 'p0']);
   });
 });
 
