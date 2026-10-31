@@ -46,6 +46,65 @@ describe('mapGovernanceSaveError', () => {
     );
   });
 
+  it('names a vendor’s EU endpoint when the EU/EEA rule refuses its global one [GOV-R23]', () => {
+    const calls: Array<[string, Record<string, unknown> | undefined]> = [];
+    const recording = (key: string, options?: Record<string, unknown>) => {
+      calls.push([key, options]);
+      return key;
+    };
+    const err = new AppError({
+      code: 'MODERATION_ENDPOINT_OUTSIDE_EU',
+      message: 'This organization processes prompts only in the EU/EEA, …',
+      host: 'api.openai.com',
+      reason: 'vendor-global',
+      euEndpoint: 'eu.api.openai.com',
+    });
+
+    expect(
+      mapGovernanceSaveError(err, recording, 'moderationProvider.saveFailed'),
+    ).toBe('moderationProvider.euEndpointVendor');
+    expect(calls).toEqual([
+      [
+        'moderationProvider.euEndpointVendor',
+        { host: 'api.openai.com', euEndpoint: 'eu.api.openai.com' },
+      ],
+    ]);
+  });
+
+  it('names the host the EU/EEA rule does not know to process there [GOV-R23]', () => {
+    const calls: Array<[string, Record<string, unknown> | undefined]> = [];
+    const recording = (key: string, options?: Record<string, unknown>) => {
+      calls.push([key, options]);
+      return key;
+    };
+    const err = new AppError({
+      code: 'MODERATION_ENDPOINT_OUTSIDE_EU',
+      message: 'This organization processes prompts only in the EU/EEA, …',
+      host: 'moderation.example.com',
+      reason: 'not-attested',
+    });
+
+    expect(
+      mapGovernanceSaveError(err, recording, 'moderationProvider.saveFailed'),
+    ).toBe('moderationProvider.euEndpointNotKnown');
+    expect(calls).toEqual([
+      [
+        'moderationProvider.euEndpointNotKnown',
+        { host: 'moderation.example.com' },
+      ],
+    ]);
+  });
+
+  it('falls back when an EU/EEA refusal names no host [GOV-R23]', () => {
+    const err = new AppError({
+      code: 'MODERATION_ENDPOINT_OUTSIDE_EU',
+      message: 'x',
+    });
+    expect(
+      mapGovernanceSaveError(err, t, 'moderationProvider.saveFailed'),
+    ).toBe('moderationProvider.saveFailed');
+  });
+
   it('falls back for an unknown code', () => {
     const err = new AppError({ code: 'use_special_action', message: 'x' });
     expect(
