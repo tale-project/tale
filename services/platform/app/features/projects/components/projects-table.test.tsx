@@ -10,7 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AbilityContext } from '@/app/context/ability-context';
 import { defineAbilityFor } from '@/lib/permissions/ability';
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { render, screen } from '@/tests/utils/render';
+import { act, render, screen, waitFor } from '@/tests/utils/render';
 
 vi.mock('@tale/ui/i18n/client', () => ({
   useT: (ns: string) => ({
@@ -67,12 +67,23 @@ vi.mock('./project-create-dialog', () => ({
   ProjectCreateDialog: () => null,
 }));
 
+// The listing as `useProjectsOverview` hands it over: the loaded pages'
+// rows, how far the walk got, and the way to the next page.
 const overview = vi.hoisted(() => ({
   projects: [] as unknown[],
-  overdueTruncated: false,
+  results: [] as unknown[],
+  status: 'Exhausted' as
+    | 'LoadingFirstPage'
+    | 'CanLoadMore'
+    | 'LoadingMore'
+    | 'Exhausted',
+  loadMore: vi.fn<(numItems: number) => void>(),
   isLoading: false,
   error: null as Error | null,
   retry: () => undefined,
+  isRetrying: false,
+  unavailable: false,
+  errorCount: 0,
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -104,6 +115,7 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
 import { ProjectsTable } from './projects-table';
 
 interface RowOverrides {
+  id?: string;
   name?: string;
   key?: string;
   description?: string;
@@ -117,7 +129,7 @@ interface RowOverrides {
 
 function row(overrides: RowOverrides = {}) {
   return {
-    _id: 'project_1',
+    _id: overrides.id ?? 'project_1',
     _creationTime: 0,
     organizationId: 'test-org-id',
     name: overrides.name ?? 'Acme onboarding',
@@ -145,18 +157,42 @@ const ABILITIES = {
   member: defineAbilityFor('member'),
 };
 
+type PageStatus = (typeof overview)['status'];
+
+/** The loaded pages, as the listing holds them after a page lands. */
+function setPages(rows: ReturnType<typeof row>[], status: PageStatus) {
+  overview.projects = rows;
+  overview.results = rows;
+  overview.status = status;
+}
+
+function tableTree(
+  flags: { role?: 'editor' | 'member'; teamFilter?: string[] } = {},
+) {
+  return (
+    <AbilityContext.Provider value={ABILITIES[flags.role ?? 'editor']}>
+      <ProjectsTable
+        organizationId="test-org-id"
+        {...(flags.teamFilter !== undefined
+          ? { teamFilter: flags.teamFilter, onTeamFilterChange: vi.fn() }
+          : {})}
+      />
+    </AbilityContext.Provider>
+  );
+}
+
 function renderTable(
   rows: ReturnType<typeof row>[],
-  flags: { overdueTruncated?: boolean; role?: 'editor' | 'member' } = {},
+  flags: {
+    role?: 'editor' | 'member';
+    status?: PageStatus;
+    teamFilter?: string[];
+  } = {},
 ) {
-  overview.projects = rows;
-  overview.overdueTruncated = flags.overdueTruncated ?? false;
+  setPages(rows, flags.status ?? 'Exhausted');
+  overview.loadMore = vi.fn();
   overview.isLoading = false;
-  return render(
-    <AbilityContext.Provider value={ABILITIES[flags.role ?? 'editor']}>
-      <ProjectsTable organizationId="test-org-id" />
-    </AbilityContext.Provider>,
-  );
+  return render(tableTree(flags));
 }
 
 describe('ProjectsTable', () => {
@@ -404,6 +440,150 @@ describe('ProjectsTable', () => {
   });
 });
 
+// The list reads one page of projects at a time (#5156): the next page
+// comes as the reader scrolls, and whatever narrows the rows on the client —
+// the search and the Teams filter — reads every page first, so a project past
+// the first page is never "no match".
+describe('ProjectsTable — pages', () => {
+  /** The sentinels the table watches, so a test can scroll one into view. */
+  const watched: { callback: IntersectionObserverCallback; target: Element }[] =
+    [];
+
+  class RecordingObserver {
+    readonly callback: IntersectionObserverCallback;
+    constructor(callback: IntersectionObserverCallback) {
+      this.callback = callback;
+    }
+    observe(target: Element) {
+      watched.push({ callback: this.callback, target });
+    }
+    unobserve() {}
+    disconnect() {}
+    takeRecords() {
+      return [];
+    }
+  }
+
+  function scrollToEnd() {
+    const sentinel = watched.at(-1);
+    expect(sentinel).toBeDefined();
+    act(() => {
+      sentinel?.callback(
+        [
+          {
+            isIntersecting: true,
+            target: sentinel.target,
+          } as unknown as IntersectionObserverEntry,
+        ],
+        {} as IntersectionObserver,
+      );
+    });
+  }
+
+  afterEach(() => {
+    watched.length = 0;
+    vi.unstubAllGlobals();
+  });
+
+  it('loads the next page as the reader scrolls, and lists its projects once it lands', () => {
+    vi.stubGlobal('IntersectionObserver', RecordingObserver);
+    const newest = row({ id: 'project_2', name: 'Newest project' });
+    const view = renderTable([newest], { status: 'CanLoadMore' });
+
+    // One page, and no more until the reader asks for it.
+    expect(screen.getByRole('link', { name: 'Newest project' })).toBeVisible();
+    expect(overview.loadMore).not.toHaveBeenCalled();
+
+    scrollToEnd();
+    expect(overview.loadMore).toHaveBeenCalledTimes(1);
+
+    setPages(
+      [newest, row({ id: 'project_1', name: 'Older project' })],
+      'Exhausted',
+    );
+    view.rerender(tableTree());
+    expect(screen.getByRole('link', { name: 'Newest project' })).toBeVisible();
+    expect(screen.getByRole('link', { name: 'Older project' })).toBeVisible();
+  });
+
+  it('reads every page while the Teams filter is on, and finds a project past the first', () => {
+    const orgWide = row({ id: 'project_2', name: 'Org-wide project' });
+    const view = renderTable([orgWide], {
+      status: 'CanLoadMore',
+      teamFilter: ['team_1'],
+    });
+
+    // Nothing on the first page is the team's, and the next page is asked
+    // for without a scroll.
+    expect(
+      screen.queryByRole('link', { name: 'Engineering project' }),
+    ).not.toBeInTheDocument();
+    expect(overview.loadMore).toHaveBeenCalledWith(200);
+
+    setPages(
+      [
+        orgWide,
+        row({
+          id: 'project_1',
+          name: 'Engineering project',
+          teamIds: ['team_1'],
+        }),
+      ],
+      'Exhausted',
+    );
+    view.rerender(tableTree({ teamFilter: ['team_1'] }));
+    expect(
+      screen.getByRole('link', { name: 'Engineering project' }),
+    ).toBeVisible();
+    expect(
+      screen.queryByRole('link', { name: 'Org-wide project' }),
+    ).not.toBeInTheDocument();
+  });
+
+  it('reads one page at a time while nothing narrows the list', () => {
+    renderTable([row()], { status: 'CanLoadMore', teamFilter: [] });
+
+    expect(overview.loadMore).not.toHaveBeenCalled();
+  });
+
+  it('reads every page while a search is typed, so it matches the whole list', async () => {
+    const { user } = renderTable([row({ name: 'Acme onboarding' })], {
+      status: 'CanLoadMore',
+    });
+    expect(overview.loadMore).not.toHaveBeenCalled();
+
+    await user.type(
+      screen.getByPlaceholderText('projects.list.searchPlaceholder'),
+      'TAL',
+    );
+
+    await waitFor(() => expect(overview.loadMore).toHaveBeenCalled());
+  });
+
+  it('keeps the loaded projects when a later page fails, and names the failure above them', () => {
+    overview.error = new Error('page 2 failed');
+    overview.errorCount = 1;
+    try {
+      renderTable([row({ name: 'Acme onboarding' })], {
+        status: 'CanLoadMore',
+      });
+
+      expect(
+        screen.getByRole('link', { name: 'Acme onboarding' }),
+      ).toBeVisible();
+      expect(
+        screen.getByText('projects.list.refreshFailed'),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('region', { name: 'projects.title' }),
+      ).toBeInTheDocument();
+    } finally {
+      overview.error = null;
+      overview.errorCount = 0;
+    }
+  });
+});
+
 // #4892 (addendum): Last activity was worded in the browser's language
 // (`navigator.language`), not the app's, and never went past days.
 describe('ProjectsTable — Last activity', () => {
@@ -436,7 +616,7 @@ describe('ProjectsTable — a failed overview read', () => {
   // The org has projects; the read failed. "No projects yet" here read as
   // data loss (2026-09-26 evaluation, G-07).
   it('shows the error state with a retry, never the first-run empty state', () => {
-    overview.projects = [];
+    setPages([], 'Exhausted');
     overview.error = new Error('overview failed');
     try {
       render(<ProjectsTable organizationId="test-org-id" />);
