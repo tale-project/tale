@@ -1,7 +1,11 @@
 import { basename, join } from 'node:path';
 
 import * as logger from '../../utils/logger';
-import { generateProjectId, isValidProjectId } from './generate-project-id';
+import {
+  generateProjectId,
+  invalidProjectIdMessage,
+  isValidProjectId,
+} from './generate-project-id';
 import { readProject } from './read-project';
 import { writeProject } from './write-project';
 
@@ -47,9 +51,7 @@ export async function resolveProjectContext(projectDir: string): Promise<void> {
     );
   }
   if (!isValidProjectId(id)) {
-    throw new Error(
-      `Project ID "${id}" in tale.json is invalid. Expected [a-z0-9][a-z0-9-]* and max 40 chars.`,
-    );
+    throw new Error(invalidProjectIdMessage(id));
   }
   setProjectId(id);
 }
@@ -72,9 +74,7 @@ export async function resolveOrAssignProjectContext(
   const id = project.id;
   if (typeof id === 'string' && id.trim() !== '') {
     if (!isValidProjectId(id)) {
-      throw new Error(
-        `Project ID "${id}" in tale.json is invalid. Expected [a-z0-9][a-z0-9-]* and max 40 chars.`,
-      );
+      throw new Error(invalidProjectIdMessage(id));
     }
     setProjectId(id);
     return;

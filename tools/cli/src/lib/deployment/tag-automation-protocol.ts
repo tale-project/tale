@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
 import { imageRef, type ServiceConfig } from '../compose/types';
+import {
+  invalidProjectIdMessage,
+  isValidProjectId,
+} from '../project/generate-project-id';
 import { getProjectId } from '../project/project-context';
 import type { AutomationWriterProtocol } from './automation-model';
 import {
@@ -55,10 +59,8 @@ export async function tagDeploymentProtocol(
   existing: boolean,
   dependencies: RuntimeDependencies = {},
 ): Promise<AutomationWriterProtocol> {
-  requireRuntime(
-    /^[a-z][a-z0-9-]{0,62}$/.test(project),
-    'Invalid deployment project.',
-  );
+  // The rule `tale init` names projects by: a digit-led ID is a valid one.
+  requireRuntime(isValidProjectId(project), invalidProjectIdMessage(project));
   requireRuntime(
     !process.env.DATABASE_URL &&
       (!process.env.APP_DB_NAME || process.env.APP_DB_NAME === 'tale_app'),

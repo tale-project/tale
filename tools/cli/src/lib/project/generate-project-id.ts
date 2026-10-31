@@ -48,3 +48,9 @@ export function generateProjectId(dirBasename: string): string {
 export function isValidProjectId(id: string): boolean {
   return VALID_ID_PATTERN.test(id) && id.length > 0 && id.length <= 40;
 }
+
+/** The refusal of an ID that fails {@link isValidProjectId}: the rule and the
+ * way out, wherever a command meets it. */
+export function invalidProjectIdMessage(id: string): string {
+  return `Project ID "${id}" in tale.json is invalid: use 1 to 40 lowercase letters, digits and hyphens, starting with a letter or digit. Fix "id" in tale.json, or remove it and run "tale update" to assign a new one.`;
+}

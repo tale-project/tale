@@ -20,6 +20,7 @@ import { join } from 'node:path';
 import { CliError, ExitCode } from '../../utils/fail';
 import * as logger from '../../utils/logger';
 import { ensureEnv, setEnvVars } from '../config/ensure-env';
+import { invalidProjectIdMessage } from '../project/generate-project-id';
 import { type RunDeployDeps, runDeploy } from './run-deploy';
 
 type DeployCall = Parameters<RunDeployDeps['deploy']>[0];
@@ -217,5 +218,19 @@ describe('tale deploy --dry-run writes nothing', () => {
 
     expect(readDotEnv()).toBe(before);
     expect(calls.deploy?.forceRecreate).toBe(true);
+  });
+});
+
+describe('tale deploy checks the project ID before Docker', () => {
+  test('an invalid ID is refused with the rule and the fix', async () => {
+    writeTaleJson('2024_site');
+    const { calls, deps } = stubs();
+
+    const error = await runDeploy({ dryRun: true }, deps).catch(
+      (caught: unknown) => caught,
+    );
+
+    expect((error as Error).message).toBe(invalidProjectIdMessage('2024_site'));
+    expect(calls).toEqual({ project: 1, docker: 0 });
   });
 });
