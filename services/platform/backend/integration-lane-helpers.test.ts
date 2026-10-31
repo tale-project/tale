@@ -31,6 +31,7 @@ import {
   dropOwnedDatabase,
   ensureRetentionGovernance,
   everyLaneRequired,
+  explainSentStatement,
   fullCoverageBlockers,
   installRetentionGovernance,
   isSkippedCheck,
@@ -1105,5 +1106,163 @@ describe('dropOwnedDatabase', () => {
     } finally {
       log.mockRestore();
     }
+  });
+});
+
+describe('explainSentStatement', () => {
+  /** A database that records each statement it is sent, answers an EXPLAIN
+   * with a plan and anything else with a row, and describes a statement as
+   * its template with numbered parameters. */
+  function fakeDatabase(): {
+    sql: Sql;
+    sent: { strings: string[]; raw: string[]; values: unknown[] }[];
+    unsafe: string[];
+  } {
+    const sent: { strings: string[]; raw: string[]; values: unknown[] }[] = [];
+    const unsafe: string[] = [];
+    const tx = Object.assign(
+      (strings: TemplateStringsArray, ...values: unknown[]) => {
+        sent.push({ strings: [...strings], raw: [...strings.raw], values });
+        const answer = strings[0]?.startsWith('EXPLAIN')
+          ? [{ 'QUERY PLAN': 'custom plan' }]
+          : [{ id: 'row' }];
+        return Object.assign(Promise.resolve(answer), {
+          describe: () =>
+            Promise.resolve({
+              string: strings.reduce((text, part, i) => `${text}$${i}${part}`),
+            }),
+        });
+      },
+      {
+        unsafe: (text: string) => ({
+          simple: () => {
+            unsafe.push(text);
+            return Promise.resolve([{ 'QUERY PLAN': 'generic plan' }]);
+          },
+        }),
+      },
+    );
+    const sql = {
+      begin: (work: (transaction: unknown) => Promise<unknown>) => work(tx),
+    };
+    return { sql: sql as unknown as Sql, sent, unsafe };
+  }
+
+  it('plans the statement it picks, custom and generic, and sends every other one as it is', async () => {
+    const { sql, sent, unsafe } = fakeDatabase();
+    const answers: unknown[] = [];
+    let fragment: unknown;
+    const plans = await explainSentStatement<{ 'QUERY PLAN': string }>(
+      sql,
+      (template) => template.includes('FROM app.things'),
+      async (tx) => {
+        answers.push(await tx`SELECT 1 FROM app.others`);
+        const unread = tx`AND read = false`;
+        fragment = unread;
+        answers.push(
+          await tx`SELECT id FROM app.things WHERE org_id = ${'org-1'} ${unread} LIMIT ${26}`,
+        );
+      },
+    );
+
+    // Sequential scans and sorts are off before the read sends anything.
+    const template = [
+      'SELECT id FROM app.things WHERE org_id = ',
+      ' ',
+      ' LIMIT ',
+      '',
+    ];
+    const explain = [
+      'EXPLAIN SELECT id FROM app.things WHERE org_id = ',
+      ' ',
+      ' LIMIT ',
+      '',
+    ];
+    expect(sent).toEqual([
+      {
+        strings: ['SET LOCAL enable_seqscan = off'],
+        raw: ['SET LOCAL enable_seqscan = off'],
+        values: [],
+      },
+      {
+        strings: ['SET LOCAL enable_sort = off'],
+        raw: ['SET LOCAL enable_sort = off'],
+        values: [],
+      },
+      {
+        strings: ['SELECT 1 FROM app.others'],
+        raw: ['SELECT 1 FROM app.others'],
+        values: [],
+      },
+      { strings: ['AND read = false'], raw: ['AND read = false'], values: [] },
+      { strings: explain, raw: explain, values: ['org-1', fragment, 26] },
+      { strings: template, raw: template, values: ['org-1', fragment, 26] },
+    ]);
+    // The read's own fragment, not a copy: postgres.js inlines it.
+    expect(sent[4]?.values[1]).toBe(fragment);
+    expect(unsafe).toEqual([
+      'EXPLAIN (GENERIC_PLAN) SELECT id FROM app.things WHERE org_id = $1 $2 LIMIT $3',
+    ]);
+    expect(plans).toEqual({
+      custom: [{ 'QUERY PLAN': 'custom plan' }],
+      generic: [{ 'QUERY PLAN': 'generic plan' }],
+    });
+    // The planned statement answers no rows; the other one its own.
+    expect(answers).toEqual([[{ id: 'row' }], []]);
+  });
+
+  it.each([
+    [{}, 'EXPLAIN ', 'EXPLAIN (GENERIC_PLAN) '],
+    [{ analyze: true }, 'EXPLAIN (ANALYZE) ', 'EXPLAIN (GENERIC_PLAN) '],
+    [
+      { json: true },
+      'EXPLAIN (FORMAT JSON) ',
+      'EXPLAIN (GENERIC_PLAN, FORMAT JSON) ',
+    ],
+    [
+      { analyze: true, json: true },
+      'EXPLAIN (ANALYZE, FORMAT JSON) ',
+      'EXPLAIN (GENERIC_PLAN, FORMAT JSON) ',
+    ],
+  ])(
+    'asks EXPLAIN for %o: ANALYZE of the custom plan alone, FORMAT JSON of both',
+    async (options, custom, generic) => {
+      const { sql, sent, unsafe } = fakeDatabase();
+      await explainSentStatement(
+        sql,
+        () => true,
+        async (tx) => {
+          await tx`SELECT * FROM app.things LIMIT ${26}`;
+        },
+        options,
+      );
+
+      const prefixed = [`${custom}SELECT * FROM app.things LIMIT `, ''];
+      expect(sent[2]).toEqual({
+        strings: prefixed,
+        raw: prefixed,
+        values: [26],
+      });
+      expect(unsafe).toEqual([`${generic}SELECT * FROM app.things LIMIT $1`]);
+    },
+  );
+
+  it('plans nothing when the read sends no statement it picks', async () => {
+    const { sql, sent, unsafe } = fakeDatabase();
+    const plans = await explainSentStatement(
+      sql,
+      () => false,
+      async (tx) => {
+        await tx`SELECT * FROM app.things`;
+      },
+    );
+
+    expect(plans).toEqual({ custom: [], generic: [] });
+    expect(sent.map(({ strings }) => strings.join('$?'))).toEqual([
+      'SET LOCAL enable_seqscan = off',
+      'SET LOCAL enable_sort = off',
+      'SELECT * FROM app.things',
+    ]);
+    expect(unsafe).toEqual([]);
   });
 });
