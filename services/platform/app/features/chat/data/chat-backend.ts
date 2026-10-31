@@ -35,7 +35,7 @@ import {
   queryOptions,
   useQuery,
 } from '@tanstack/react-query';
-import { useCallback, useContext, useEffect, useMemo } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
 import { BackendApiError, backendFetch } from '@/app/lib/backend/api-client';
 import {
@@ -53,17 +53,20 @@ import {
   chatComposerSkillsQuery,
   chatMessagesQuery,
   chatSearchQuery,
+  chatWholeMessagesQuery,
   chatThreadQuery,
   chatThreadsQuery,
   createChatThread,
   enqueueDeferredSendRequest,
   invalidateChatMessages,
   invalidateChatThreads,
+  loadEarlierChatMessages,
   moveChatThreadToProject,
   sendChatTurn,
   setChatThreadReasoningEffort,
   setChatThreadSkills,
   threadBranchesQuery,
+  type ChatMessageCursor,
   type ComposerSkillChoices,
   unbindVideoJobsRequest,
   arenaPairQuery,
@@ -139,8 +142,12 @@ const liveResultCache = new Map<string, unknown>();
  * watch; everything else keeps its websocket subscription until its family
  * migrates. The client-side twin of the backend's name-keyed ctx shim.
  */
-// oxlint-disable-next-line typescript/no-explicit-any -- the seam's callers type the result via FunctionReturnType; the table is the untyped boundary
-type HttpReadOptions = { queryKey: readonly unknown[]; queryFn?: any };
+type HttpReadOptions = {
+  queryKey: readonly unknown[];
+  // oxlint-disable-next-line typescript/no-explicit-any -- the seam's callers type the result via FunctionReturnType; the table is the untyped boundary
+  queryFn?: any;
+  structuralSharing?: boolean | ((previous: unknown, next: unknown) => unknown);
+};
 const HTTP_READS: Record<
   string,
   (args: Record<string, unknown>) => HttpReadOptions
@@ -161,7 +168,12 @@ const HTTP_READS: Record<
   'chat/arena:getArenaPair': (args) =>
     arenaPairQuery(String(args.organizationId), String(args.threadId)),
   'chat/messages:listMessages': (args) =>
-    chatMessagesQuery(String(args.organizationId), String(args.threadId)),
+    args.whole === true
+      ? chatWholeMessagesQuery(
+          String(args.organizationId),
+          String(args.threadId),
+        )
+      : chatMessagesQuery(String(args.organizationId), String(args.threadId)),
   'feedback/queries:listThreadFeedback': (args) =>
     threadFeedbackQuery(String(args.organizationId), String(args.threadId)),
   'tts/queries:getVoiceModeEffective': (args) =>
@@ -257,6 +269,8 @@ export function useChatQuery<Name extends QueryName>(
       queryFn: httpOptions?.queryFn ?? (async () => null),
       enabled: httpOptions !== undefined,
       placeholderData: keepPreviousData,
+      // A paged read merges what a re-read answers into what it holds.
+      structuralSharing: httpOptions?.structuralSharing ?? true,
     },
     contextQueryClient ?? fallbackChatQueryClient,
   );
@@ -544,20 +558,29 @@ function normalizeMessageUsage(raw: unknown): ChatMessageUsage | undefined {
 }
 
 /** One thread's messages, in `sequence` order, with the usage blob
- * normalized for the view model. */
+ * normalized for the view model: the newest page and the older pages read
+ * so far ({@link useEarlierChatMessages}), or — `whole` — every message, for
+ * a reader that needs the whole conversation. */
 export function useChatMessages(
   organizationId: string,
   threadId: string | undefined,
+  options?: { readonly whole?: boolean },
 ): ChatQuery<readonly ChatMessageView[]> {
   const rows = useChatQuery(
     'chat/messages:listMessages',
-    threadId ? { organizationId, threadId } : 'skip',
+    threadId
+      ? {
+          organizationId,
+          threadId,
+          ...(options?.whole === true ? { whole: true } : {}),
+        }
+      : 'skip',
   );
   return useMemo(() => {
     if (rows.status !== 'ready') return rows;
     return {
       status: 'ready' as const,
-      data: rows.data.map((row): ChatMessageView => {
+      data: rows.data.messages.map((row): ChatMessageView => {
         // The RAW usage never reaches the view — it rides the wire as
         // free-form JSON and only the normalized shape is renderable.
         const { usage: rawUsage, ...rest } = row;
@@ -566,6 +589,68 @@ export function useChatMessages(
       }),
     };
   }, [rows]);
+}
+
+/**
+ * The transcript's way back: whether older messages remain before the ones
+ * loaded, and the read of the page before them — one at a time. `loading`
+ * ends in the render that shows the older rows, never a render ahead of
+ * them. A failed read rejects, for the caller to say so; the rows stay as
+ * they were.
+ */
+export function useEarlierChatMessages(
+  organizationId: string,
+  threadId: string | undefined,
+): {
+  readonly hasMore: boolean;
+  readonly loading: boolean;
+  readonly loadEarlier: () => Promise<void>;
+} {
+  const page = useChatQuery(
+    'chat/messages:listMessages',
+    threadId ? { organizationId, threadId } : 'skip',
+  );
+  const queryClient = useChatQueryClient();
+  const nextBefore = page.status === 'ready' ? page.data.nextBefore : null;
+  // Where the rows began when the read set off, in the thread it reads. It
+  // reads as loading while they still begin there: the cache shows the older
+  // rows a render after the read settles, and loading must not end first.
+  // Another thread's rows may begin at the same place; its way back is free.
+  const [reading, setReading] = useState<{
+    threadId: string;
+    from: ChatMessageCursor;
+  } | null>(null);
+  const readingHere = reading !== null && reading.threadId === threadId;
+  const loading =
+    readingHere &&
+    nextBefore !== null &&
+    reading.from.order === nextBefore.order &&
+    reading.from.stepOrder === nextBefore.stepOrder;
+  if (readingHere && !loading) setReading(null);
+  const loadEarlier = useCallback(async () => {
+    if (threadId === undefined || nextBefore === null) return;
+    const read = { threadId, from: nextBefore };
+    setReading(read);
+    let moved = false;
+    try {
+      moved = await loadEarlierChatMessages(
+        queryClient,
+        organizationId,
+        threadId,
+      );
+    } finally {
+      // Rows that never moved — a failed read, or nothing to read — would
+      // hold loading for good.
+      if (!moved) {
+        setReading((current) => (current === read ? null : current));
+      }
+    }
+  }, [queryClient, organizationId, threadId, nextBefore]);
+  return {
+    hasMore: page.status === 'ready' && page.data.hasMore,
+    loading,
+    loadEarlier,
+  };
 }
 
 /**
