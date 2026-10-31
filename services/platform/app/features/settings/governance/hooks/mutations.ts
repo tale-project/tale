@@ -167,7 +167,8 @@ export function useCloseLegalMatter() {
 }
 
 // The competence dialogs explain a refusal themselves (inline in the grant
-// form, in the revoke toast), so both opt out of the generic error toast.
+// and edit forms, in the revoke toast), so all opt out of the generic error
+// toast.
 export function useGrantCompetence() {
   return useBackendMutation('governance/competences:grantCompetence', {
     errorToast: false,
@@ -176,6 +177,12 @@ export function useGrantCompetence() {
 
 export function useRevokeCompetence() {
   return useBackendMutation('governance/competences:revokeCompetence', {
+    errorToast: false,
+  });
+}
+
+export function useUpdateCompetence() {
+  return useBackendMutation('governance/competences:updateCompetence', {
     errorToast: false,
   });
 }
