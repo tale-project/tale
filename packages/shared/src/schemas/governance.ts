@@ -806,7 +806,9 @@ const endpointHostSchema = z.string().max(253).refine(isEndpointHost, {
  * endpoint known to process in the region, or it is refused before any
  * request leaves: the EU endpoints of the vendors Tale knows
  * (`lib/chat/serving.ts`), plus the `hosts` an admin attests — a custom
- * provider's server or an Azure resource deployed in an EU/EEA region. Off
+ * provider's server or an Azure resource deployed in an EU/EEA region. A
+ * sandbox coding agent is held to it too: a refused run fails before its
+ * session gets a gateway key or a subscription credential. Off
  * unless an admin turns it on: an absent object, like an absent file, reads
  * as off. Like the model endpoints switch it is independent of the rules'
  * own `enabled`.

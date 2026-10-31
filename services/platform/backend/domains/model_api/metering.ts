@@ -2,6 +2,7 @@ import type { Sql } from 'postgres';
 
 import { estimateCostCents } from '../../../lib/chat/turn.ts';
 import { DIRECT_API_AGENT_SLUG } from '../../../lib/shared/constants/usage.ts';
+import { ModelEndpointRefusal } from '../../core/governance/model_endpoint_gate.ts';
 import type { ActionCtx } from '../../core/lib/ctx.ts';
 import {
   gatewayProvisioningFailureStage,
@@ -311,12 +312,21 @@ function budgetRefusal(
   return new ModelApiRefusal(429, 'BUDGET_EXCEEDED', message, { headers });
 }
 
-/** A provisioning failure in the caller's words: the credential when it is
- * the cause, the gateway otherwise. */
+/** A provisioning failure in the caller's words: the EU/EEA rule's refusal
+ * as the door answers it, the credential when it is the cause, the gateway
+ * otherwise. */
 function provisioningRefusal(
   error: unknown,
   model: ModelApiModel,
 ): ModelApiRefusal {
+  if (error instanceof ModelEndpointRefusal) {
+    return new ModelApiRefusal(
+      403,
+      'MODEL_API_MODEL_FORBIDDEN',
+      error.data.message,
+      { param: 'model' },
+    );
+  }
   if (gatewayProvisioningFailureStage(error) === 'credential') {
     return new ModelApiRefusal(
       503,
@@ -336,8 +346,10 @@ function provisioningRefusal(
 /**
  * Reserve, provision and mint for one request. Throws the coded refusal the
  * caller answers: 429 `MODEL_API_CONCURRENCY_EXCEEDED` or `BUDGET_EXCEEDED`
- * (nothing held), 503 `MODEL_API_UNAVAILABLE` when the gateway cannot serve
- * the model (the hold released at once, any key minted revoked).
+ * (nothing held), 403 `MODEL_API_MODEL_FORBIDDEN` when the EU/EEA rule
+ * refuses the record the key would bind, 503 `MODEL_API_UNAVAILABLE` when
+ * the gateway cannot serve the model (the hold released at once, any key
+ * minted revoked).
  */
 export async function openModelApiLease(
   sql: Sql,
@@ -395,6 +407,8 @@ export async function openModelApiLease(
           anthropicHarnessLane,
         },
       ],
+      surface: 'model-api',
+      actor: { id: args.userId, type: 'api' },
       budgetCents: allowance.budgetCents,
       requestScoped: true,
       requestId: args.requestId,
