@@ -8,7 +8,7 @@ Use **Settings > Governance > Competences** as an Admin or Owner to keep the org
 - A **platform capability** lets a member do one narrow thing that otherwise needs a higher role. Grant it to the account behind an integration instead of making that account an Admin, which would also let it manage members, single sign-on and passwords.
 - A **qualification** is a name your organization's review policy can require of the person who approves a review.
 
-A grant applies in this organization only. Tale records every grant and revocation in the audit log, and removing a member from the organization revokes their grants.
+A grant applies in this organization only. Tale records every grant, change and revocation in the audit log, and removing a member from the organization revokes their grants.
 
 ## Platform capabilities
 
@@ -36,7 +36,17 @@ Owners and Admins have all four through their role, and Developers also have **C
 5. Optionally note the **Evidence**: why the member holds it, such as a certificate, a ticket or the system it serves. It stays in the register.
 6. Select **Grant**.
 
-The grant applies to the member's next request, so an integration does not need a restart. A member holds each competence once at a time: to change its expiry or evidence, revoke the grant and grant it again. If the member already holds it, the dialog says so and grants nothing.
+The grant applies to the member's next request, so an integration does not need a restart. A member holds each competence once at a time. If the member already holds it, the dialog says so and grants nothing; [change the grant](#change-a-grant) instead.
+
+## Change a grant
+
+Select the pencil button on an active grant's row, named **Change** with the competence and the member, to change when the grant expires or the evidence behind it.
+
+1. Choose when it **Expires**: keep the current date with **Unchanged**, or choose **Never**, **In 30 days**, **In 90 days** or **In 1 year**, counted from when you save.
+2. Edit the **Evidence**, or clear it.
+3. Select **Save**.
+
+The change applies to the member's next request. The audit log records each change with the old and the new expiry date and whether the evidence changed; the evidence itself stays in the register. An expired or revoked grant cannot be changed: grant the competence again instead.
 
 ## Revoke a competence
 

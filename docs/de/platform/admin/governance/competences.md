@@ -8,7 +8,7 @@ Als Admin oder Inhaber führst du unter **Einstellungen > Richtlinien > Kompeten
 - Eine **Plattform-Berechtigung** erlaubt einem Mitglied eine einzelne, eng begrenzte Aktion, für die sonst eine höhere Rolle nötig wäre. Weise sie dem Konto hinter einer Integration zu, statt es zum Admin zu machen. Als Admin könnte es auch Mitglieder, Single Sign-on und Passwörter verwalten.
 - Eine **Qualifikation** ist ein Name, den die Freigaberichtlinie deiner Organisation von der Person verlangen kann, die eine Prüfung freigibt.
 
-Eine Zuweisung gilt nur in dieser Organisation. Tale protokolliert jede Zuweisung und jeden Widerruf im Audit-Log, und wer aus der Organisation entfernt wird, verliert seine Zuweisungen.
+Eine Zuweisung gilt nur in dieser Organisation. Tale protokolliert jede Zuweisung, jede Änderung und jeden Widerruf im Audit-Log, und wer aus der Organisation entfernt wird, verliert seine Zuweisungen.
 
 ## Plattform-Berechtigungen
 
@@ -36,7 +36,17 @@ Inhaber und Admins haben alle vier über ihre Rolle; Entwickler haben über ihre
 5. Halte bei Bedarf unter **Nachweis** fest, warum das Mitglied sie hat, etwa ein Zertifikat, ein Ticket oder das System, dem sie dient. Der Nachweis bleibt im Register.
 6. Wähle **Zuweisen**.
 
-Die Zuweisung gilt ab der nächsten Anfrage des Mitglieds; eine Integration muss nicht neu starten. Ein Mitglied hat jede Kompetenz nur einmal gleichzeitig. Um Ablauf oder Nachweis zu ändern, widerrufe die Zuweisung und weise sie erneut zu. Hat das Mitglied die Kompetenz bereits, sagt der Dialog das und weist nichts zu.
+Die Zuweisung gilt ab der nächsten Anfrage des Mitglieds; eine Integration muss nicht neu starten. Ein Mitglied hat jede Kompetenz nur einmal gleichzeitig. Hat das Mitglied die Kompetenz bereits, sagt der Dialog das und weist nichts zu; [ändere dann die Zuweisung](#eine-zuweisung-ändern).
+
+## Eine Zuweisung ändern
+
+Wähle in der Zeile einer aktiven Zuweisung die Stift-Schaltfläche, benannt mit **ändern** sowie der Kompetenz und dem Mitglied, um zu ändern, wann die Zuweisung abläuft, oder ihren Nachweis.
+
+1. Lege unter **Läuft ab** fest, wann sie endet: Behalte das bisherige Datum mit **Unverändert**, oder wähle **Nie**, **In 30 Tagen**, **In 90 Tagen** oder **In 1 Jahr**, gezählt ab dem Speichern.
+2. Bearbeite den **Nachweis**, oder lösche ihn.
+3. Wähle **Speichern**.
+
+Die Änderung gilt ab der nächsten Anfrage des Mitglieds. Das Audit-Log hält jede Änderung fest, mit dem alten und dem neuen Ablaufdatum und ob sich der Nachweis geändert hat; der Nachweis selbst bleibt im Register. Eine abgelaufene oder widerrufene Zuweisung lässt sich nicht ändern: Weise die Kompetenz stattdessen erneut zu.
 
 ## Eine Kompetenz widerrufen
 

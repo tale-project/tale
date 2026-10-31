@@ -8,7 +8,7 @@ En tant qu’admin ou propriétaire, tiens le registre des compétences de ton o
 - Une **capacité de la plateforme** permet à un membre une seule action bien délimitée qui demanderait sinon un rôle plus élevé. Attribue-la au compte qui se trouve derrière une intégration plutôt que d’en faire un admin, ce qui lui permettrait aussi de gérer les membres, l’authentification unique et les mots de passe.
 - Une **qualification** est un nom que la politique de relecture de ton organisation peut exiger de la personne qui approuve une relecture.
 
-Une attribution ne s’applique que dans cette organisation. Tale enregistre chaque attribution et chaque révocation dans le journal d’audit, et retirer un membre de l’organisation révoque ses attributions.
+Une attribution ne s’applique que dans cette organisation. Tale enregistre chaque attribution, chaque modification et chaque révocation dans le journal d’audit, et retirer un membre de l’organisation révoque ses attributions.
 
 ## Capacités de la plateforme
 
@@ -36,7 +36,17 @@ Les propriétaires et les admins ont les quatre par leur rôle ; les développe
 5. Si tu le souhaites, note le **Justificatif** : pourquoi ce membre la détient, par exemple un certificat, un ticket ou le système qu’elle sert. Il reste dans le registre.
 6. Choisis **Attribuer**.
 
-L’attribution s’applique à la requête suivante du membre ; une intégration n’a pas besoin de redémarrer. Un membre détient chaque compétence une seule fois à la fois : pour en changer l’expiration ou le justificatif, révoque l’attribution et attribue-la à nouveau. Si le membre la détient déjà, la boîte de dialogue le signale et n’attribue rien.
+L’attribution s’applique à la requête suivante du membre ; une intégration n’a pas besoin de redémarrer. Un membre détient chaque compétence une seule fois à la fois. Si le membre la détient déjà, la boîte de dialogue le signale et n’attribue rien ; [modifie plutôt l’attribution](#modifier-une-attribution).
+
+## Modifier une attribution
+
+Choisis le bouton crayon sur la ligne d’une attribution active, nommé **Modifier** avec la compétence et le membre, pour changer quand l’attribution expire ou son justificatif.
+
+1. Choisis quand elle **Expire** : garde la date actuelle avec **Inchangée**, ou choisis **Jamais**, **Dans 30 jours**, **Dans 90 jours** ou **Dans 1 an**, à compter de l’enregistrement.
+2. Modifie le **Justificatif**, ou efface-le.
+3. Choisis **Enregistrer**.
+
+La modification s’applique à la requête suivante du membre. Le journal d’audit consigne chaque modification avec l’ancienne et la nouvelle date d’expiration et indique si le justificatif a changé ; le justificatif lui-même reste dans le registre. Une attribution expirée ou révoquée ne peut pas être modifiée : attribue plutôt la compétence à nouveau.
 
 ## Révoquer une compétence
 
