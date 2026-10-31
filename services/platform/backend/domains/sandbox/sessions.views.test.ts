@@ -4,6 +4,7 @@ import { describe, expect, test } from 'vitest';
 import { parkedRunSql } from '../tasks/agent-runs.ts';
 import {
   countWaitingAgentRuns,
+  countWaitingAgentRunsAcrossOrganizations,
   listSandboxViewsForOrg,
   type SessionRow,
 } from './sessions.ts';
@@ -266,6 +267,35 @@ describe('agent workers on the Sandboxes page', () => {
         exec_limit: 0,
         model_capacity: 0,
         unknown: 1,
+      },
+    });
+  });
+
+  test('counts the waiting runs of every organization the same way, for the backend’s metrics [TASK-R86]', async () => {
+    const query = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      const text = strings.join('?');
+      // The one predicate of a parked run, over the whole deployment.
+      expect(values).toEqual([parkedRunSql()]);
+      expect(text).not.toContain('org_id');
+      expect(text).not.toContain('LIMIT');
+      return Promise.resolve([
+        { reason: 'model_capacity', count: 3 },
+        // A reason this build does not know counts as unknown.
+        { reason: 'gone', count: 2 },
+      ]);
+    };
+    const sql = Object.assign(query, { unsafe: (text: string) => text });
+    await expect(
+      countWaitingAgentRunsAcrossOrganizations(sql as unknown as Sql),
+    ).resolves.toEqual({
+      total: 5,
+      byReason: {
+        org_limit: 0,
+        host: 0,
+        destroy_pending: 0,
+        exec_limit: 0,
+        model_capacity: 3,
+        unknown: 2,
       },
     });
   });

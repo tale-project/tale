@@ -36,6 +36,10 @@ import {
   type StandardAgentEngine,
 } from '../projects/standard-agent.ts';
 import { revokeSessionGatewayKeys } from '../sandbox/gateway-keys.ts';
+import {
+  countedAgentRunWake,
+  countFailedAgentRun,
+} from './agent-run-counters.ts';
 import { agentReachesProject } from './dispatch-reach.ts';
 import { TaskError } from './errors.ts';
 import { loadTaskRetryHistory } from './kick-plan.ts';
@@ -842,7 +846,7 @@ export async function failAgentRunFromTurn(
   // Stamped on the failed row with the arm, so the run card knows a retry
   // is coming without asking the queue.
   const armRetry = isAutoRetryableFailure(args.failureCode);
-  return sql.begin(async (tx) => {
+  const failed = await sql.begin(async (tx) => {
     const flipped = await tx<
       {
         organizationId: string;
@@ -965,6 +969,10 @@ export async function failAgentRunFromTurn(
     await emitTaskRunHint(tx, run);
     return true;
   });
+  // Counted once the failure committed: a flip another call won, or one
+  // that rolled back, counts nothing.
+  if (failed) await countFailedAgentRun(sql, args.failureCode);
+  return failed;
 }
 
 /**
@@ -1024,6 +1032,7 @@ export async function failAgentRun(
     return run.sessionId;
   });
   if (failed === null) return false;
+  await countFailedAgentRun(sql, args.failureCode);
   await revokeSessionGatewayKeys(sql, {
     organizationId: args.organizationId,
     sessionId: failed,
@@ -1271,24 +1280,26 @@ export async function wakeParkedAgentRun(
   sql: Sql,
   args: { organizationId: string; runId: string; execId: string },
 ): Promise<number> {
-  return sql.begin(async (tx) => {
-    const parked = await tx<ParkedRun[]>`
-      SELECT id, org_id AS "organizationId", exec_id AS "execId",
-             task_id AS "taskId", agent_id AS "agentId",
-             session_id AS "sessionId"
-      FROM app.project_agent_runs
-      WHERE id = ${args.runId} AND org_id = ${args.organizationId}
-        AND exec_id = ${args.execId}
-        AND status = 'queued'
-        AND waiting_for_capacity_at_ms IS NOT NULL
-        AND deadline_at_ms > ${Date.now()}
-      FOR UPDATE SKIP LOCKED
-    `;
-    const run = parked[0];
-    if (!run) return 0;
-    await restartParkedRun(tx, run);
-    return 1;
-  });
+  return countedAgentRunWake(sql, 'scheduled', () =>
+    sql.begin(async (tx) => {
+      const parked = await tx<ParkedRun[]>`
+        SELECT id, org_id AS "organizationId", exec_id AS "execId",
+               task_id AS "taskId", agent_id AS "agentId",
+               session_id AS "sessionId"
+        FROM app.project_agent_runs
+        WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+          AND exec_id = ${args.execId}
+          AND status = 'queued'
+          AND waiting_for_capacity_at_ms IS NOT NULL
+          AND deadline_at_ms > ${Date.now()}
+        FOR UPDATE SKIP LOCKED
+      `;
+      const run = parked[0];
+      if (!run) return 0;
+      await restartParkedRun(tx, run);
+      return 1;
+    }),
+  );
 }
 
 /** Wake the agent's OLDEST parked run of the ended turn's workspace family,
@@ -1307,6 +1318,15 @@ export async function wakeParkedAgentRun(
  * single-winner like every wake: a run that still finds no room parks
  * again, and the watchdog's sweep stays the backstop. */
 export async function wakeAgentParkedAgentRun(
+  sql: Sql,
+  args: { organizationId: string; agentId: string; sessionId: string },
+): Promise<number> {
+  return countedAgentRunWake(sql, 'release', () =>
+    wakeAgentParkedRunOfFamily(sql, args),
+  );
+}
+
+async function wakeAgentParkedRunOfFamily(
   sql: Sql,
   args: { organizationId: string; agentId: string; sessionId: string },
 ): Promise<number> {
@@ -1355,7 +1375,9 @@ export async function wakeOrganizationParkedAgentRun(
   sql: Sql,
   organizationId: string,
 ): Promise<number> {
-  return wakeOldestParkedAgentRun(sql, { organizationId });
+  return countedAgentRunWake(sql, 'watchdog', () =>
+    wakeOldestParkedAgentRun(sql, { organizationId }),
+  );
 }
 
 /**
@@ -1381,7 +1403,9 @@ export async function wakeParkedAgentRuns(
     { outsideOrganizationId: organizationId },
   ]) {
     try {
-      woken += await wakeOldestParkedAgentRun(sql, scope);
+      woken += await countedAgentRunWake(sql, 'release', () =>
+        wakeOldestParkedAgentRun(sql, scope),
+      );
     } catch (error) {
       failure ??= error;
     }

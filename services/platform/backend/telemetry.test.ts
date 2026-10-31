@@ -9,6 +9,7 @@ import {
   hintStreamOpened,
   methodClass,
   openHintStreamCount,
+  registerAgentRunCollectors,
   registerBackendCollectors,
   registerPasswordHashCollectors,
   routeClass,
@@ -278,6 +279,137 @@ describe('the dispatch heartbeat', () => {
     failed = true;
     vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     expect(await sample()).toEqual([`${name}{project="fleet"} 0`]);
+  });
+});
+
+describe('the agent runs’ parks, wakes and failures [TASK-R86]', () => {
+  /** A `postgres` stand-in answering by statement text and values. */
+  function fakeSql(answer: (text: string, values: unknown[]) => unknown[]) {
+    const query = (strings: TemplateStringsArray, ...values: unknown[]) =>
+      Promise.resolve(answer(strings.join('?'), values));
+    return Object.assign(query, {
+      unsafe: (text: string) => text,
+    }) as unknown as Parameters<typeof registerAgentRunCollectors>[0];
+  }
+  const scrape = async (...names: string[]) =>
+    (await client.register.metrics())
+      .split('\n')
+      .filter((line) => names.some((name) => line.startsWith(`${name}{`)))
+      .sort();
+
+  test('states every closed label from zero and restates the deployment’s totals on each scrape', async () => {
+    let totals: Record<string, unknown[]> = {
+      park: [
+        { label: 'host', total: '4' },
+        // A label outside the closed set never becomes a series.
+        { label: 'org-1', total: '9' },
+      ],
+      wake: [{ label: 'release', total: '3' }],
+      wake_failure: [],
+      failure: [{ label: 'resource_exhausted', total: '2' }],
+    };
+    let failed = false;
+    const metrics = registerAgentRunCollectors(
+      fakeSql((text, values) => {
+        if (failed) throw new Error('database unavailable');
+        if (text.includes('app.agent_run_counters')) {
+          return totals[String(values[0])] ?? [];
+        }
+        if (text.includes('app.project_agent_runs')) {
+          // Every organization's parked runs: no organization in the read.
+          expect(text).not.toContain('org_id');
+          return [
+            { reason: 'model_capacity', count: 3 },
+            { reason: null, count: 1 },
+          ];
+        }
+        return [];
+      }),
+    );
+    expect(metrics).toHaveLength(5);
+
+    expect(
+      await scrape(
+        'tale_backend_agent_run_parks_total',
+        'tale_backend_agent_run_wakes_total',
+        'tale_backend_agent_run_wake_failures_total',
+        'tale_backend_agent_runs_waiting',
+      ),
+    ).toEqual([
+      'tale_backend_agent_run_parks_total{reason="destroy_pending"} 0',
+      'tale_backend_agent_run_parks_total{reason="exec_limit"} 0',
+      'tale_backend_agent_run_parks_total{reason="host"} 4',
+      'tale_backend_agent_run_parks_total{reason="model_capacity"} 0',
+      'tale_backend_agent_run_parks_total{reason="org_limit"} 0',
+      'tale_backend_agent_run_parks_total{reason="unknown"} 0',
+      'tale_backend_agent_run_wake_failures_total{source="release"} 0',
+      'tale_backend_agent_run_wake_failures_total{source="scheduled"} 0',
+      'tale_backend_agent_run_wake_failures_total{source="watchdog"} 0',
+      'tale_backend_agent_run_wakes_total{source="release"} 3',
+      'tale_backend_agent_run_wakes_total{source="scheduled"} 0',
+      'tale_backend_agent_run_wakes_total{source="watchdog"} 0',
+      'tale_backend_agent_runs_waiting{reason="destroy_pending"} 0',
+      'tale_backend_agent_runs_waiting{reason="exec_limit"} 0',
+      'tale_backend_agent_runs_waiting{reason="host"} 0',
+      'tale_backend_agent_runs_waiting{reason="model_capacity"} 3',
+      'tale_backend_agent_runs_waiting{reason="org_limit"} 0',
+      'tale_backend_agent_runs_waiting{reason="unknown"} 1',
+    ]);
+    const failures = await scrape('tale_backend_agent_run_failures_total');
+    expect(failures).toContain(
+      'tale_backend_agent_run_failures_total{code="resource_exhausted"} 2',
+    );
+    expect(failures).toContain(
+      'tale_backend_agent_run_failures_total{code="unknown"} 0',
+    );
+    expect(failures.every((line) => /\{code="[a-z_]+"\} \d+$/.test(line))).toBe(
+      true,
+    );
+
+    // The database holds the running totals: a scrape restates them rather
+    // than adding them to what the last scrape read.
+    totals = { ...totals, park: [{ label: 'host', total: '5' }] };
+    expect(await scrape('tale_backend_agent_run_parks_total')).toContain(
+      'tale_backend_agent_run_parks_total{reason="host"} 5',
+    );
+
+    // An unreadable database leaves the totals without a sample rather than
+    // serving this replica's last ones: behind one scrape target another
+    // replica may already have served a higher total, and a lower one after
+    // it reads as a counter reset. The waiting gauge keeps its last values,
+    // and the scrape still renders.
+    failed = true;
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const counters = [
+        'tale_backend_agent_run_parks_total',
+        'tale_backend_agent_run_wakes_total',
+        'tale_backend_agent_run_wake_failures_total',
+        'tale_backend_agent_run_failures_total',
+      ];
+      expect(await scrape(...counters)).toEqual([]);
+      expect(await client.register.metrics()).toContain(
+        '# TYPE tale_backend_agent_run_parks_total counter',
+      );
+      expect(await scrape('tale_backend_agent_runs_waiting')).toContain(
+        'tale_backend_agent_runs_waiting{reason="model_capacity"} 3',
+      );
+      for (const name of counters) {
+        expect(warn).toHaveBeenCalledWith(
+          `[metrics] ${name} failed:`,
+          expect.any(Error),
+        );
+      }
+    } finally {
+      warn.mockRestore();
+    }
+
+    // The next good read restates the deployment's total, not a count from
+    // zero.
+    failed = false;
+    expect(await scrape('tale_backend_agent_run_parks_total')).toContain(
+      'tale_backend_agent_run_parks_total{reason="host"} 5',
+    );
   });
 });
 
