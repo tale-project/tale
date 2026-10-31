@@ -93,3 +93,23 @@ describe('agent runtime terminology', () => {
     });
   }
 });
+
+// #4350: the account section, the governance policy and the audit log name
+// two-factor authentication the same way.
+describe('two-factor authentication terminology', () => {
+  for (const [locale, messages, label] of [
+    ['en', enMessages, 'Two-factor authentication'],
+    ['de', deMessages, 'Zwei-Faktor-Authentifizierung'],
+    ['fr', frMessages, 'Authentification à double facteur'],
+  ] as const) {
+    it(`${locale}: uses one name in settings, governance and the audit log`, () => {
+      expect(messages.twoFactor.enrollment.title).toBe(label);
+      expect(messages.governance.twoFactorPolicy.title).toBe(label);
+      const audit = messages.settings.logs.audit;
+      expect(audit.resourceTypeLabels.twoFactorAuth).toBe(label);
+      expect(audit.actionLabels['2fa_enrolled']).toContain(label);
+      expect(audit.actionLabels['2fa_disabled']).toContain(label);
+      expect(audit.actionLabels['2fa_reset_by_admin']).toContain(label);
+    });
+  }
+});

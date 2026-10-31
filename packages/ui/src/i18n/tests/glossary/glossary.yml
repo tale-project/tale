@@ -645,6 +645,24 @@ terms:
       lists the names French must not use. A bare `gel` also names unrelated
       freezes (`gel du code`), so `_avoid` reports it only in the bracketed
       hold contexts, listed after the full names that win a shared start.'
+  - key: feature_twoFactorAuthentication
+    category: feature
+    en: Two-factor authentication
+    de: Zwei-Faktor-Authentifizierung
+    fr: Authentification à double facteur
+    _avoid:
+      fr:
+        - à deux facteurs
+        - double authentification
+    _allow:
+      fr:
+        - 'refuse une [double authentification]'
+    _note: 'Account section, governance policy, audit-log labels and guides
+      share one name. FR: `Authentification à double facteur`, `le double
+      facteur` for short; `_avoid` lists the names French used before #4350.
+      `aucun des deux facteurs` is ordinary French and stays clean. The API
+      reference''s `refuse une double authentification` means a second
+      credential on one request, not the feature, so `_allow` keeps it.'
   - key: feature_mcpServer
     category: feature
     en: MCP server

@@ -54,7 +54,7 @@ consent:
     expired: Cette demande a expiré. Relance la connexion depuis ton agent de code.
     orgRequired: Choisis une organisation.
     notMember: Tu n’es plus membre de cette organisation.
-    notEligible: 'Ton compte ne peut pas encore connecter d’agents : confirme ton adresse e-mail ou active l’authentification à deux facteurs.'
+    notEligible: 'Ton compte ne peut pas encore connecter d’agents : confirme ton adresse e-mail ou active l’authentification à double facteur.'
     scopeNotAllowed: Ton rôle ne permet pas l’accès choisi. Choisis un accès plus restreint.
     notFresh: Confirme d’abord ton mot de passe.
     clientUnavailable: Tale n’a pas pu lire les informations de cette application. Réessaie dans un instant.
