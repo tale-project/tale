@@ -714,11 +714,11 @@ export async function sandboxCapacity(
 }
 
 /** The spawner's current configured ceiling, independent of host telemetry,
- * plus the slots the organization's connected devices add. */
-export async function sandboxDeploymentLimits(organizationId: string): Promise<{
-  maxSessions: number;
-  deviceSessions?: number;
-}> {
+ * plus the slots the organization's connected devices add and the memory
+ * figures the spawner weighs the ceiling against. */
+export async function sandboxDeploymentLimits(
+  organizationId: string,
+): Promise<z.infer<typeof sandboxDeploymentLimitsSchema>> {
   const response = await spawnerFetch(
     'GET',
     `/v1/limits?organizationId=${encodeURIComponent(organizationId)}`,

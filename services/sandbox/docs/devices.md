@@ -44,7 +44,10 @@ The proxy publishes the door at `<site>/sandbox/tunnel` (`services/proxy/Caddyfi
   sessions) or no hint keeps it local.
 - `GET /v1/limits?organizationId=` adds `deviceSessions`: the slots the
   organization's connected, release-compatible devices offer. The platform's
-  quota ceiling is `maxSessions + deviceSessions`.
+  quota ceiling is `maxSessions + deviceSessions`. The memory figures beside
+  them (`sessionMemoryBytes`, `hostMemoryBytes`, `memoryReserveBytes`) describe
+  the deployment's own host: device slots never enter its memory warning, and
+  a device's spawner logs none.
 - `GET /v1/capacity?organizationId=` adds `placements` (session → device) and
   reports device sessions in `runtimeSessions` with their `deviceId`.
 - `GET /v1/devices?organizationId=` — `{hub, devices[]}`: the connected
