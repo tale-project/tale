@@ -139,7 +139,8 @@ export interface CreateTaskArgs {
   status?: TaskStatus;
   priority?: TaskPriority;
   labels?: string[];
-  assigneeType?: 'user';
+  /** An agent assignee in an open status starts the agent's run. */
+  assigneeType?: 'user' | 'agent';
   assigneeId?: string;
   dueDate?: number;
   startDate?: number;

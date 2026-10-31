@@ -3,11 +3,17 @@
  *
  * They answer "what did the provider see": requests by route and status,
  * streams open right now, time to first token as served, tokens in and
- * out, and every fault injected — so a load report can tell a slow platform
- * from a slow (simulated) provider. Counters live in plain objects so a
- * worker can ship a snapshot to the cluster primary over IPC, where
- * snapshots merge into one exposition.
+ * out, every fault injected, and the hogs its turns ran — so a load report
+ * can tell a slow platform from a slow (simulated) provider, and a turn
+ * that put its weight on the host from one that never did. Counters live
+ * in plain objects so a worker can ship a snapshot to the cluster primary
+ * over IPC, where snapshots merge into one exposition.
  */
+
+/** The counter of hog calls a reply carried; the burst reads it. */
+export const HOG_CALLS_METRIC = 'tale_load_mock_hog_calls_total';
+/** The counter of answered results of a hog that ran to its end. */
+export const HOG_RESULTS_METRIC = 'tale_load_mock_hog_results_total';
 
 /** Upper bounds of the time-to-first-token histogram, seconds. */
 const TTFT_BUCKETS: readonly number[] = [
@@ -30,6 +36,10 @@ export interface MetricsSnapshot {
   readonly reasoningTokens: number;
   readonly streamAborts: number;
   readonly embeddingInputs: number;
+  /** Hog calls a reply carried to the client. */
+  readonly hogCalls: number;
+  /** Tool results of a hog that ran to its end, answered. */
+  readonly hogResults: number;
 }
 
 export class MockMetrics {
@@ -47,6 +57,8 @@ export class MockMetrics {
   private reasoningTokens = 0;
   private streamAborts = 0;
   private embeddingInputs = 0;
+  private hogCalls = 0;
+  private hogResults = 0;
 
   recordRequest(route: string, status: string): void {
     const key = `${route}\n${status}`;
@@ -98,6 +110,14 @@ export class MockMetrics {
     this.embeddingInputs += count;
   }
 
+  recordHogCall(): void {
+    this.hogCalls += 1;
+  }
+
+  recordHogResult(): void {
+    this.hogResults += 1;
+  }
+
   snapshot(): MetricsSnapshot {
     return {
       requests: Object.fromEntries(this.requests),
@@ -112,6 +132,8 @@ export class MockMetrics {
       reasoningTokens: this.reasoningTokens,
       streamAborts: this.streamAborts,
       embeddingInputs: this.embeddingInputs,
+      hogCalls: this.hogCalls,
+      hogResults: this.hogResults,
     };
   }
 
@@ -145,6 +167,8 @@ export function mergeSnapshots(
   let reasoningTokens = 0;
   let streamAborts = 0;
   let embeddingInputs = 0;
+  let hogCalls = 0;
+  let hogResults = 0;
   for (const snapshot of snapshots) {
     addInto(requests, snapshot.requests);
     addInto(faults, snapshot.faults);
@@ -160,6 +184,8 @@ export function mergeSnapshots(
     reasoningTokens += snapshot.reasoningTokens;
     streamAborts += snapshot.streamAborts;
     embeddingInputs += snapshot.embeddingInputs;
+    hogCalls += snapshot.hogCalls;
+    hogResults += snapshot.hogResults;
   }
   return {
     requests,
@@ -174,6 +200,8 @@ export function mergeSnapshots(
     reasoningTokens,
     streamAborts,
     embeddingInputs,
+    hogCalls,
+    hogResults,
   };
 }
 
@@ -274,6 +302,18 @@ export function renderPrometheus(
     'tale_load_mock_stream_aborts_total',
     'Streams the client closed before they ended.',
     snapshot.streamAborts,
+  );
+  counter(
+    lines,
+    HOG_CALLS_METRIC,
+    'Hog calls a reply carried to the client.',
+    snapshot.hogCalls,
+  );
+  counter(
+    lines,
+    HOG_RESULTS_METRIC,
+    'Results of a hog that held its memory and spun to its end, answered.',
+    snapshot.hogResults,
   );
   lines.push(
     '# HELP tale_load_mock_faults_total Faults injected, by kind.',

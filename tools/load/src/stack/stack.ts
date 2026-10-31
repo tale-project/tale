@@ -22,6 +22,7 @@ import { mkdir, readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { mockMetricsPort } from '../mock/config.ts';
 import { writeAtomically } from '../runner/report.ts';
 
 export interface StackProcess {
@@ -37,6 +38,8 @@ export interface StackState {
   platformDir: string;
   apiUrls: string[];
   mockUrl: string | null;
+  /** The mock's `/metrics`: a cluster of mock processes serves it apart. */
+  mockMetricsUrl: string | null;
   processes: StackProcess[];
 }
 
@@ -46,7 +49,14 @@ export interface StackUpOptions {
   api: number;
   workers: number;
   basePort: number;
+  /** Host the api and mock URLs name: SITE_URL, the targets, the state file. */
   host: string;
+  /**
+   * Interface the processes bind, when it is not `host`: `0.0.0.0` lets
+   * containers reach a stack whose URLs stay on loopback (the agent-burst
+   * profile's sandbox relay and LLM gateway).
+   */
+  listenHost?: string;
   stateFile: string;
   logDir: string;
   /** Start the mock provider too, on this port (null: do not). */
@@ -139,6 +149,7 @@ export async function stackUp(options: StackUpOptions): Promise<StackState> {
     (_, i) => `http://${options.host}:${options.basePort + i}`,
   );
   const siteUrl = apiUrls[0] ?? `http://${options.host}:${options.basePort}`;
+  const listenHost = options.listenHost ?? options.host;
   const baseEnv: NodeJS.ProcessEnv = {
     ...process.env,
     ...fileEnv,
@@ -176,7 +187,7 @@ export async function stackUp(options: StackUpOptions): Promise<StackState> {
         '--processes',
         String(options.mockProcesses),
         '--host',
-        options.host,
+        listenHost,
       ],
       { cwd: platformDir, env: process.env, log },
     );
@@ -195,7 +206,7 @@ export async function stackUp(options: StackUpOptions): Promise<StackState> {
         ...baseEnv,
         ...roleEnv('api'),
         PORT: String(port),
-        BACKEND_LISTEN_HOST: options.host,
+        BACKEND_LISTEN_HOST: listenHost,
       },
       log,
     });
@@ -287,13 +298,18 @@ async function writeState(
       options.mockPort === null
         ? null
         : `http://${options.host}:${options.mockPort}`,
+    mockMetricsUrl:
+      options.mockPort === null
+        ? null
+        : `http://${options.host}:${mockMetricsPort(options.mockPort, options.mockProcesses)}/metrics`,
     processes,
   };
   await writeAtomically(stateFile, `${JSON.stringify(state, null, 2)}\n`);
   return state;
 }
 
-async function readState(stateFile: string): Promise<StackState> {
+/** The state file `up` wrote: the processes, their ports and logs. */
+export async function readState(stateFile: string): Promise<StackState> {
   return JSON.parse(await readFile(stateFile, 'utf8')) as StackState;
 }
 

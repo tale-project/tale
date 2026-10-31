@@ -56,6 +56,29 @@ const WEATHER_TOOL = {
   },
 };
 
+/** Claude Code's shell tool, as the sandbox gateway hands it on. */
+const BASH_TOOL = {
+  type: 'function' as const,
+  function: {
+    name: 'Bash',
+    description: 'Executes a given bash command',
+    parameters: {
+      type: 'object',
+      properties: {
+        command: { type: 'string', description: 'The command to execute' },
+        timeout: {
+          type: 'number',
+          description: 'Optional timeout in milliseconds (max 600000)',
+        },
+        description: { type: 'string' },
+        run_in_background: { type: 'boolean' },
+      },
+      required: ['command'],
+      additionalProperties: false,
+    },
+  },
+};
+
 describe('chat completions through the OpenAI SDK', () => {
   test('a buffered reply carries consistent usage', async () => {
     const completion = await client.chat.completions.create({
@@ -150,6 +173,50 @@ describe('chat completions through the OpenAI SDK', () => {
     expect(completion.choices[0]?.message.content?.length ?? 0).toBeGreaterThan(
       0,
     );
+  });
+
+  test('a hog turn calls the shell tool, and its result ends the turn', async () => {
+    const ask = 'Run the burst [[mock:hog=64]] [[mock:hog-seconds=2]]';
+    const runner = client.chat.completions.stream({
+      model: 'load-chat-fast',
+      messages: [{ role: 'user', content: ask }],
+      tools: [WEATHER_TOOL, BASH_TOOL],
+    });
+    const completion = await runner.finalChatCompletion();
+    const choice = completion.choices[0];
+    expect(choice?.finish_reason).toBe('tool_calls');
+    const call = choice?.message.tool_calls?.[0];
+    if (call?.type !== 'function') throw new Error('no function call');
+    expect(call.function.name).toBe('Bash');
+    const args = JSON.parse(call.function.arguments) as Record<string, unknown>;
+    expect(String(args.command)).toStartWith("python3 -c '");
+    expect(String(args.command)).toContain('(64 << 20)');
+    expect(args.timeout).toBe(62_000);
+
+    const answer = await client.chat.completions.create({
+      model: 'load-chat-fast',
+      tools: [WEATHER_TOOL, BASH_TOOL],
+      messages: [
+        { role: 'user', content: ask },
+        { role: 'assistant', content: null, tool_calls: [call] },
+        {
+          role: 'tool',
+          tool_call_id: call.id,
+          content: 'held 64 MiB and spun 2 s',
+        },
+      ],
+    });
+    expect(answer.choices[0]?.finish_reason).toBe('stop');
+    expect(answer.choices[0]?.message.tool_calls ?? []).toEqual([]);
+  });
+
+  test('a hog turn without a shell tool is answered in prose', async () => {
+    const completion = await client.chat.completions.create({
+      model: 'load-chat-fast',
+      messages: [{ role: 'user', content: 'Weather? [[mock:hog=64]]' }],
+      tools: [WEATHER_TOOL],
+    });
+    expect(completion.choices[0]?.finish_reason).toBe('stop');
   });
 
   test('a reasoning model streams its reasoning before the answer', async () => {

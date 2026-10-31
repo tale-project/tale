@@ -29,6 +29,13 @@ import {
   type Fault,
   type MockDirectives,
 } from './faults.ts';
+import {
+  findShellTool,
+  HOG_DEFAULT_SECONDS,
+  hogArguments,
+  type Hog,
+  type ShellTool,
+} from './hog.ts';
 import { maxOutputTokensOf, modelSupportsReasoning } from './models.ts';
 import type { PromptCache } from './prompt-cache.ts';
 import {
@@ -109,6 +116,8 @@ export interface ReplyPlan {
   readonly content: string;
   readonly contentTokens: number;
   readonly toolCall: PlannedToolCall | null;
+  /** The hog the tool call runs: a `[[mock:hog]]` turn's. */
+  readonly hog: Hog | null;
   readonly finish: FinishReason;
   readonly promptTokens: number;
   readonly cachedTokens: number;
@@ -176,6 +185,30 @@ function shouldCallTool(
   return chance(random, toolCallRate)
     ? chooseTool(random, input.tools, false)
     : null;
+}
+
+/**
+ * The hog a `[[mock:hog]]` turn runs and the shell tool it runs through, or
+ * null when the turn is not one to hog: it ends on a tool result (the hog
+ * ran, and the turn is answered in prose), it offers no shell tool, or its
+ * tool choice or a `[[mock:no-tool]]` rules the call out.
+ */
+function hogCall(
+  input: ChatTurnInput,
+  directives: MockDirectives,
+): { readonly shell: ShellTool; readonly hog: Hog } | null {
+  const mib = directives.hogMib;
+  if (mib === undefined || directives.tool === false) return null;
+  if (input.toolResult !== null || input.toolChoice.kind === 'none')
+    return null;
+  const shell = findShellTool(input.tools);
+  if (shell === null) return null;
+  const choice = input.toolChoice;
+  if (choice.kind === 'named' && shell.tool.name !== choice.name) return null;
+  return {
+    shell,
+    hog: { mib, seconds: directives.hogSeconds ?? HOG_DEFAULT_SECONDS },
+  };
 }
 
 function jsonContent(
@@ -258,6 +291,7 @@ export function planReply(
       content,
       contentTokens,
       toolCall: null,
+      hog: null,
       finish,
       completionTokens: contentTokens,
     };
@@ -304,10 +338,12 @@ export function planReply(
   }
   let reasoningTokens = estimateTokens(reasoning);
 
+  const hog = directives.empty === true ? null : hogCall(input, directives);
   const tool =
     directives.empty === true
       ? null
-      : shouldCallTool(random, input, directives, options.toolCallRate);
+      : (hog?.shell.tool ??
+        shouldCallTool(random, input, directives, options.toolCallRate));
   let toolCall: PlannedToolCall | null = null;
   let content: string;
   if (directives.empty === true) {
@@ -315,7 +351,9 @@ export function planReply(
   } else if (tool !== null) {
     content = toolIntro(random, locale);
     const argumentsJson = JSON.stringify(
-      generateToolArguments(random, tool.parameters, hints),
+      hog !== null
+        ? hogArguments(random, hog.shell, hog.hog, hints)
+        : generateToolArguments(random, tool.parameters, hints),
     );
     toolCall = {
       id:
@@ -377,6 +415,7 @@ export function planReply(
     content,
     contentTokens,
     toolCall,
+    hog: toolCall === null ? null : (hog?.hog ?? null),
     finish,
     completionTokens:
       reasoningTokens + contentTokens + (toolCall?.argumentsTokens ?? 0),

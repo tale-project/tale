@@ -22,6 +22,7 @@ contract; a passing load run proves the platform held a crowd.
 | Runner        | `run`                  | Drives one shard of a plan with a load profile across several generator processes, records every request in HDR histograms, reads the server's metrics and statement statistics, and writes a JSON report plus its Markdown rendering.                                |
 | Merge         | `merge`                | Folds the reports of a distributed run's shards into one exact distribution.                                                                                                                                                                                          |
 | Local stack   | `stack up/down/status` | Runs N `api` and M `worker` processes of the platform from a checkout (plus the mock) against your own database, for horizontal-scaling runs on one machine.                                                                                                          |
+| Agent burst   | `burst`                | Starts a burst of agent runs across a project's agents on the host that carries the platform and its sandboxes, samples the host's memory, the spawner's admission, the api's readiness and the kernel's OOM kills meanwhile, and judges whether the host held it.    |
 
 Run every command from the repository root with Node 22 (Node runs the TypeScript directly):
 
@@ -81,6 +82,7 @@ node tools/load/src/cli.ts stack down
 | `soak`         | the peak for an hour or more                                                                                                                                       | Does it leak or drift?                                         |
 | `connections`  | idle open tabs: live streams held, hardly a click                                                                                                                  | What do the open connections alone cost?                       |
 | `signin-storm` | every user signs in with the password inside the ramp                                                                                                              | Does a Monday morning hold?                                    |
+| `agent-burst`  | the Load workflow's run of `burst`, not a `run` profile: 12 agent runs across 7 agents within 30 s, each turn holding 2 GiB and a CPU                              | Does a 4 vCPU / 16 GB host hold a burst of agent runs?         |
 
 ### Reading and running the profiles
 
@@ -179,6 +181,63 @@ macOS is fine for development runs up to roughly 15,000 concurrent connections i
 that the generator and the platform's own database connections compete for the same ephemeral
 ports on `127.0.0.1` and both fail with `EADDRNOTAVAIL`. Run bigger tests from Linux.
 
+## Agent burst
+
+`burst` asks what one host holds when agent runs arrive together: the 4 vCPU / 16 GB host of
+#3977, which carries the platform, its database and the sandboxes the runs execute in. It signs in
+as the owner of the plan's first organization and gives the project the largest sandbox budget the
+organization may set (`--project-sessions`): the deployment's room but one session for each of its
+three other budgets, since an organization's budgets add up to at most the room. The runs beyond
+that budget wait for the organization's quota (`org_limit`); the host's admission holds a start
+only when the host runs short first. The burst creates `--agents` agents of `--harness`, then
+`--runs` tasks spread evenly over `--window` seconds, each in progress and assigned to its agent,
+which is what starts its run. Each turn is the mock provider's: the task asks for a command that
+holds `--hog-mib` of memory and keeps a CPU busy for `--hog-seconds` (`[[mock:hog]]`, below). Then
+it watches the board until every run has ended or `--deadline` passed, and judges:
+
+| Expectation                                          | Judged on                                                                                                                                                                                                |
+| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Every run's turn held its memory and kept a CPU busy | the mock's own counts, read before and after the burst: at least as many hogs ran to their end as the burst started runs (`--mock-metrics`; by default the mock `stack up` recorded in `--stack-state`)  |
+| No host-wide OOM kill                                | the kernel log's `Killed process` lines since the burst began, but those inside a session's memory cgroup; when the log is unreadable (`kernel.dmesg_restrict`), any rise of `/proc/vmstat`'s `oom_kill` |
+| Available memory stays above the spawner's reserve   | the lowest `MemAvailable`, read every second, against the reserve the spawner's admission answer names (a tenth of the host, at least 1 GiB, without one)                                                |
+| No database pool connection timeouts                 | the pool's timeout messages in the api and worker logs `stack up` wrote                                                                                                                                  |
+| `/api/health/ready` p95 under 1 s                    | a probe of the api every 250 ms, each given 5 s, none of which may fail: the api's own door, which also reaches its database; `/api/health` is the web tier's, which the stack does not run              |
+| Runs beyond the room wait with a visible reason      | every run the platform parked for capacity says why on the board, and no run stays queued, nor a task in progress without a run, longer than `--pending-grace`                                           |
+| No run fails for lack of capacity                    | no run fails with `park_deadline`, `sandbox_capacity`, `resource_exhausted`, `start_failed` or `session_gone`                                                                                            |
+| Every run of the burst ends settled                  | every task's last run settled before `--deadline`, and no run failed                                                                                                                                     |
+
+A figure that could not be observed misses its expectation: the run is a proof, and a probe that
+could not look proves nothing. A burst whose turns never ran their command would hold every other
+expectation with ease, so the first one counts the hogs. `burst` exits 0 when every expectation
+held, 1 when one missed and 2 when its setup failed; it writes the JSON report and its Markdown
+rendering, which lists each task's runs, how long they waited and why, how they ended and what the
+last one answered: a hog that ran says how much it held and how long it spun. It also counts the
+spawner's admission answers, sampled meanwhile, which say whether the host would have started one
+more session and, if not, why. `SANDBOX_TOKEN` signs those reads (`--spawner-url`; `--no-spawner`
+skips them).
+
+The Load workflow's `agent-burst` profile is the reference recipe, on a hosted runner of exactly
+that size:
+
+- It builds the spawner, its egress proxy, the LLM gateway and the session runtime from the
+  checkout and starts them as `bun dev` does beside a host backend: the relay of `compose.dev.yml`
+  carries the sessions' `backend-api` to the host's api, which therefore listens on port 3005.
+- The api and the mock listen on every interface (`stack up --listen-host 0.0.0.0`) so the relay
+  and the gateway reach them across the Docker bridge, while `SITE_URL` stays
+  `http://127.0.0.1:3005`: the platform refuses plain HTTP for any other host. A firewall rule
+  drops what reaches those ports, and the mock's metrics port, on the runner's own interface.
+- The organization's provider is the mock in Anthropic format at the bridge's address: the gateway
+  passes Claude Code's own wire through to it unchanged.
+- Swap is off, so a shortage of memory shows as one rather than as slowness, and the kernel log is
+  open to the job's user.
+
+By hand, on a host that runs the same stack:
+
+```bash
+SANDBOX_TOKEN=<the spawner's token> node tools/load/src/cli.ts burst --plan plan.json \
+  --stack-state .tale-load-stack.json --report runs/burst.json
+```
+
 ## The mock provider
 
 ```bash
@@ -189,10 +248,18 @@ Every option is also an environment variable (`TALE_LOAD_MOCK_TTFT_MEDIAN_MS`, â
 lists them. It serves `GET /v1/models`, `POST /v1/chat/completions` (streaming and not, title
 calls, tools, reasoning, `stream_options.include_usage`), `POST /v1/messages` (Anthropic),
 `POST /v1/embeddings` (deterministic unit vectors of any width), image, speech, transcription
-and moderation stubs, `GET /health` and Prometheus metrics prefixed `tale_load_mock_`. A message
-may force a behaviour with a directive: `[[mock:429]]`, `[[mock:500]]`, `[[mock:503]]`,
+and moderation stubs, `GET /health` and Prometheus metrics prefixed `tale_load_mock_`: on its own
+port, or with `--processes` above 1 the merged metrics of every process on `--metrics-port`, by
+default the next one (`stack up` records where as `mockMetricsUrl`). A message may force a
+behaviour with a directive: `[[mock:429]]`, `[[mock:500]]`, `[[mock:503]]`,
 `[[mock:midstream-error]]`, `[[mock:stall=<ms>]]`, `[[mock:ttft=<ms>]]`, `[[mock:tokens=<n>]]`,
 `[[mock:tool]]`, `[[mock:no-tool]]`, `[[mock:empty]]` (`run --provider-fault-rate` sends them).
+`[[mock:hog=<MiB>]]` answers a turn that offers a shell tool (Claude Code's `Bash`, Codex's
+`shell`) with a call of it that holds that much memory, every page written, and keeps a CPU busy
+for `[[mock:hog-seconds=<s>]]` (60 by default); the next request, which carries the result, is
+answered in prose that quotes it, so the turn ends. `tale_load_mock_hog_calls_total` counts the
+hog calls its replies delivered, `tale_load_mock_hog_results_total` the results that came back
+from a hog that ran to its end. `burst` sends the directive and reads both (`src/mock/hog.ts`).
 
 It is deliberately not the platform's e2e gateway (`services/platform/lib/mocks`): that one is
 deterministic, so a test can assert an exact reply; this one is statistical, so a crowd looks

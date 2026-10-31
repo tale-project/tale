@@ -1,13 +1,16 @@
 /**
  * Serving one chat request, whichever dialect it speaks: admission against
  * the stream limit, the plan, an HTTP-level fault, then either a buffered
- * answer after the whole generation time or a paced stream.
+ * answer after the whole generation time or a paced stream. A hog's call
+ * and its result are counted once the answer reached the client, so a
+ * request the client retried counts once.
  */
 
 import type { ServerResponse } from 'node:http';
 
 import type { MockContext } from './context.ts';
 import { errorReply, faultLabel, type Dialect } from './faults.ts';
+import { hogResult } from './hog.ts';
 import { ResponseStream, SSE_HEADERS, sendJson } from './http.ts';
 import { Pacer } from './pacer.ts';
 import {
@@ -79,12 +82,21 @@ export async function serveChat(
       return;
     }
 
+    const delivered = (): void => {
+      if (plan.hog !== null) metrics.recordHogCall();
+      const result = input.toolResult;
+      if (result !== null && hogResult(result.content) !== null) {
+        metrics.recordHogResult();
+      }
+    };
+
     metrics.addPromptTokens(plan.promptTokens, plan.cachedTokens);
     if (!input.stream) {
       await stream.sleep(bufferedLatencyMs(plan) - elapsed());
       if (stream.closed) return;
       metrics.addOutputTokens(plan.completionTokens, plan.reasoningTokens);
       sendJson(res, 200, renderer.buffered(plan), renderer.headers);
+      delivered();
       return;
     }
 
@@ -99,6 +111,7 @@ export async function serveChat(
     });
     try {
       await renderer.stream(pacer, stream, plan);
+      if (!stream.aborted && !pacer.failed) delivered();
     } finally {
       metrics.addOutputTokens(
         pacer.emittedTokens,
