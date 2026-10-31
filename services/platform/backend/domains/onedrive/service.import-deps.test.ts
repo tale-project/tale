@@ -18,10 +18,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { MAX_UPLOAD_BYTES } from '../files/bounded-body.ts';
+import { putOrgBlobBytes } from '../files/service.ts';
 import { syncRagRefHolderScopes } from '../knowledge/service.ts';
 import { createSyncImportDeps, ONEDRIVE_SYNC_ADAPTER } from './service.ts';
 
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
+vi.mock('../files/service.ts', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../files/service.ts')>()),
+  putOrgBlobBytes: vi.fn(async () => 'blob-pdf'),
+}));
 vi.mock('../knowledge/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../knowledge/service.ts')>()),
   syncRagRefHolderScopes: vi.fn(() => Promise.resolve()),
@@ -243,5 +248,148 @@ describe('createSyncImportDeps.downloadToStorage', () => {
     });
     expect(stored.unauthorized).toBeUndefined();
     expect(stored.refusal).toBeUndefined();
+  });
+});
+
+/**
+ * A Loop page asked for as a PDF (ODRIVE-R10): Graph's own conversion on the
+ * same `/content` door. An answer asking again will not change — a 4xx that
+ * is no token refusal, timeout or rate limit, or bytes that are no PDF —
+ * says the item is not convertible, and nothing is stored; the import then
+ * keeps the page as it is. Any other failure stays what it was.
+ */
+describe('createSyncImportDeps.downloadToStorage with a format', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const PDF = '%PDF-1.7\n1 0 obj\n<< /Type /Catalog >>\nendobj\n';
+
+  const convert = (
+    response: Response,
+    drive: { siteId?: string; driveId?: string } = {},
+  ) => {
+    const fetchMock = vi.fn(async () => response);
+    vi.stubGlobal('fetch', fetchMock);
+    const deps = createSyncImportDeps(
+      fakeSql().sql,
+      ONEDRIVE_SYNC_ADAPTER,
+      'org-1',
+    );
+    return {
+      fetchMock,
+      stored: deps.downloadToStorage({
+        itemId: 'item-1',
+        token: 'tok',
+        format: 'pdf',
+        ...drive,
+      }),
+    };
+  };
+
+  it.each([
+    [
+      {},
+      'https://graph.microsoft.com/v1.0/me/drive/items/item-1/content?format=pdf',
+    ],
+    [
+      { siteId: 'site-1', driveId: 'drive-1' },
+      'https://graph.microsoft.com/v1.0/sites/site-1/drives/drive-1/items/item-1/content?format=pdf',
+    ],
+  ])(
+    'stores the PDF Graph makes of the item, as a PDF whatever it is called (%o)',
+    async (drive, url) => {
+      const { fetchMock, stored } = convert(
+        new Response(PDF, {
+          status: 200,
+          headers: { 'content-type': 'application/octet-stream' },
+        }),
+        drive,
+      );
+
+      expect(await stored).toEqual({
+        success: true,
+        storageId: 'blob-pdf',
+        mimeType: 'application/pdf',
+        size: new TextEncoder().encode(PDF).byteLength,
+      });
+      expect(fetchMock).toHaveBeenCalledWith(url, expect.anything());
+      expect(putOrgBlobBytes).toHaveBeenCalledWith(expect.anything(), 'org-1', {
+        bytes: expect.any(Uint8Array),
+        contentType: 'application/pdf',
+      });
+    },
+  );
+
+  it.each([400, 403, 404, 406, 415])(
+    'reads a %i as an item Graph does not convert, storing nothing',
+    async (status) => {
+      const { stored } = convert(
+        new Response('{"error":{"code":"notSupported"}}', { status }),
+      );
+
+      expect(await stored).toMatchObject({
+        success: false,
+        notConvertible: true,
+        error: expect.stringContaining(String(status)),
+      });
+      expect(putOrgBlobBytes).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([401, 408, 429, 503])(
+    'keeps a %i what it is: no answer about the item',
+    async (status) => {
+      const { stored } = convert(
+        new Response('{"error":{"code":"x"}}', { status }),
+      );
+
+      const answer = await stored;
+      expect(answer.success).toBe(false);
+      expect(answer.notConvertible).toBeUndefined();
+      expect(answer.unauthorized).toBe(status === 401 ? true : undefined);
+    },
+  );
+
+  it.each([
+    ['an empty body', ''],
+    ['a sign-in page', '<html><body>Sign in</body></html>'],
+  ])('stores no PDF that is %s', async (_body, text) => {
+    const { stored } = convert(
+      new Response(text, {
+        status: 200,
+        headers: { 'content-type': 'application/pdf' },
+      }),
+    );
+
+    expect(await stored).toMatchObject({
+      success: false,
+      notConvertible: true,
+    });
+    expect(putOrgBlobBytes).not.toHaveBeenCalled();
+  });
+
+  it('asks for the item itself when no format is asked, and keeps a 4xx a fault', async () => {
+    const fetchMock = vi.fn(
+      async () => new Response('{"error":{"code":"x"}}', { status: 406 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const deps = createSyncImportDeps(
+      fakeSql().sql,
+      ONEDRIVE_SYNC_ADAPTER,
+      'org-1',
+    );
+
+    const stored = await deps.downloadToStorage({
+      itemId: 'item-1',
+      token: 'tok',
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://graph.microsoft.com/v1.0/me/drive/items/item-1/content',
+      expect.anything(),
+    );
+    expect(stored.success).toBe(false);
+    expect(stored.notConvertible).toBeUndefined();
   });
 });
