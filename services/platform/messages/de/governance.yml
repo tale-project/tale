@@ -1115,13 +1115,17 @@ groups:
   dataSubjectRequests: Anfragen betroffener Personen
 competences:
   title: Kompetenzen
-  description: Erlaube einem Mitglied eine einzelne, eng begrenzte Berechtigung ohne Admin-Rolle, oder halte eine Qualifikation fest, die deine Freigaberichtlinie verlangt. Jede Zuweisung und jeder Widerruf wird protokolliert, und wer aus der Organisation entfernt wird, verliert seine Zuweisungen.
+  description: Erlaube einem Mitglied oder einem Team eine einzelne, eng begrenzte Berechtigung ohne Admin-Rolle, oder halte eine Qualifikation fest, die deine Freigaberichtlinie verlangt. Jede Zuweisung und jeder Widerruf wird protokolliert, und wer aus der Organisation entfernt wird, verliert seine Zuweisungen.
   accessDenied: Nur Inhaber und Admins der Organisation können Kompetenzen verwalten.
   grantedBy: von {name}
   revokedBy: Widerrufen von {name}
   revokedBySystem: Nach dem Ablauf durch eine neue Zuweisung ersetzt
+  revokedWithMember: Widerrufen, als das Mitglied die Organisation verlassen hat
+  revokedWithTeam: Widerrufen, als das Team gelöscht wurde
+  teamBadge: Team
+  deletedTeam: Gelöschtes Team
   columns:
-    member: Mitglied
+    member: Mitglied oder Team
     competence: Kompetenz
     status: Status
     granted: Zugewiesen
@@ -1149,19 +1153,30 @@ competences:
       description: Einen Skill mit der ganzen Organisation teilen, auch wenn die Richtlinie zur Skill-Freigabe das Redakteuren oder Admins vorbehält.
   empty:
     title: Noch keine Kompetenzen zugewiesen
-    description: Weise einem Mitglied eine Plattform-Berechtigung oder eine Qualifikation zu. Sie gilt nur in dieser Organisation.
+    description: Weise einem Mitglied eine Plattform-Berechtigung oder eine Qualifikation zu, oder einem Team eine Plattform-Berechtigung. Sie gilt nur in dieser Organisation.
   actions:
     grant: Kompetenz zuweisen
     revoke: Widerrufen
     revokeFor: '{competence} für {member} widerrufen'
   grantDialog:
     title: Kompetenz zuweisen
-    description: Das Mitglied hat sie in dieser Organisation, bis sie abläuft oder ein Admin sie widerruft.
+    description: Wen du auswählst, hat sie in dieser Organisation, bis sie abläuft oder ein Admin sie widerruft. Die Mitglieder eines Teams haben sie, solange sie im Team sind.
+    holderLabel: Zuweisen an
+    holderOptions:
+      member: Ein Mitglied
+      team: Ein Team
     memberLabel: Mitglied
     memberPlaceholder: Mitglied auswählen
     memberSearch: Mitglieder suchen
     memberEmpty: Keine Mitglieder gefunden
     memberLoadFailed: Die Mitglieder konnten nicht geladen werden.
+    teamLabel: Team
+    teamPlaceholder: Team auswählen
+    teamSearch: Teams suchen
+    teamEmpty: Keine Teams gefunden
+    teamLoadFailed: Die Teams konnten nicht geladen werden.
+    teamDescription: Seine Mitglieder haben sie, solange sie im Team sind, auch wer später beitritt. Es zählen nur Mitglieder, die ein Admin hinzugefügt hat; eine Mitgliedschaft, die dein Identitätsanbieter synchronisiert, bringt keine Zuweisung mit.
+    teamSynced: Von deinem Identitätsanbieter synchronisiert
     competenceLabel: Kompetenz
     competencePlaceholder: Kompetenz auswählen
     capabilitiesGroup: Plattform-Berechtigungen
@@ -1180,10 +1195,11 @@ competences:
       90days: In 90 Tagen
       1year: In 1 Jahr
     evidenceLabel: Nachweis
-    evidenceDescription: Warum das Mitglied sie hat, etwa ein Zertifikat, ein Ticket oder das System, dem sie dient. Der Nachweis bleibt im Register.
+    evidenceDescription: Warum sie zugewiesen wird, etwa ein Zertifikat, ein Ticket oder das System, dem sie dient. Der Nachweis bleibt im Register.
     submit: Zuweisen
     validation:
       memberRequired: Wähle ein Mitglied aus.
+      teamRequired: Wähle ein Team aus.
       competenceRequired: Wähle eine Kompetenz aus.
       qualificationRequired: Gib einen Namen für die Qualifikation ein.
       qualificationTooLong: Verwende höchstens 120 Zeichen.
@@ -1192,6 +1208,7 @@ competences:
   revokeDialog:
     title: Kompetenz widerrufen?
     description: '{member} verliert "{competence}" in dieser Organisation sofort. Die Zuweisung bleibt als Verlauf im Register.'
+    descriptionTeam: 'Die Mitglieder von {team} verlieren "{competence}" in dieser Organisation sofort, außer sie haben sie selbst. Die Zuweisung bleibt als Verlauf im Register.'
     confirm: Widerrufen
   toasts:
     granted: Kompetenz zugewiesen
@@ -1200,6 +1217,7 @@ competences:
   errors:
     generic: Die Änderung konnte nicht gespeichert werden. Versuch es noch einmal.
     alreadyGranted: Dieses Mitglied hat diese Kompetenz bereits. Widerrufe die bestehende Zuweisung, bevor du sie erneut zuweist.
+    alreadyGrantedTeam: Dieses Team hat diese Kompetenz bereits. Widerrufe die bestehende Zuweisung, bevor du sie erneut zuweist.
     notMember: Diese Person ist kein Mitglied der Organisation.
     forbidden: Nur Inhaber und Admins der Organisation können Kompetenzen zuweisen oder widerrufen.
     capabilityUnknown: Das ist keine Plattform-Berechtigung.
@@ -1208,6 +1226,9 @@ competences:
     invalid: Ein Kompetenzname hat 1 bis 120 Zeichen.
     notFound: Diese Zuweisung gibt es nicht mehr.
     alreadyRevoked: Diese Zuweisung wurde bereits widerrufen.
+    teamCapabilityOnly: Ein Team kann nur eine Plattform-Berechtigung haben. Weise eine Qualifikation jedem Mitglied einzeln zu.
+    teamNotFound: Dieses Team gibt es nicht mehr.
+    teamSynced: Dein Identitätsanbieter verwaltet die Mitglieder dieses Teams. Weise sie einem Team zu, das ein Admin verwaltet, oder jedem Mitglied einzeln.
 trash:
   title: Papierkorb
   description:

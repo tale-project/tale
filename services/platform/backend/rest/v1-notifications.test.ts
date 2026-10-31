@@ -31,12 +31,19 @@ function fixture(
   grants: Grant[] = [],
 ) {
   // The register read answers the way its WHERE does — the bound
-  // organization, member and slug, unrevoked rows only — and leaves expiry
-  // to the gate; every other read is the recipient lookup.
-  const sql = vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => {
+  // organization and slug, unrevoked rows live at the time of asking, held
+  // by the member (the `vouchesForUser` fragment, which names them for their
+  // own grant and their team's); every other read is the recipient lookup.
+  const reads = vi.fn((strings: TemplateStringsArray, ...values: unknown[]) => {
     if (!strings.join('?').includes('app.competence_records'))
       return Promise.resolve(recipients);
-    const [orgId, userId, competence] = values;
+    const [orgId, competence, now, holder] = values as [
+      string,
+      string,
+      number,
+      { fragment: unknown[] },
+    ];
+    const [userId] = holder.fragment;
     return Promise.resolve(
       grants
         .filter(
@@ -44,11 +51,17 @@ function fixture(
             row.orgId === orgId &&
             row.userId === userId &&
             row.competence === competence &&
-            row.revokedAt === null,
+            row.revokedAt === null &&
+            (row.expiresAt === null || row.expiresAt > now),
         )
         .map(({ expiresAt, revokedAt }) => ({ expiresAt, revokedAt })),
     );
   });
+  // A parenthesised fragment nests in the statement that reads it: no read.
+  const sql = (strings: TemplateStringsArray, ...values: unknown[]) =>
+    strings[0]?.trimStart().startsWith('(')
+      ? { fragment: values }
+      : reads(strings, ...values);
   const app = new Hono<RestEnv>();
   app.use(async (c, next) => {
     c.set('role', role);
@@ -61,7 +74,7 @@ function fixture(
     app.request(
       `/notifications/sync?recipientEmail=office%40example.test&stream=personal${query}`,
     );
-  return { app, sql, get };
+  return { app, sql, reads, get };
 }
 
 const personal = {
@@ -101,27 +114,32 @@ function grant(overrides: Partial<Grant> = {}): Grant {
 describe('read-only native notification export', () => {
   it('refuses a caller without the role or the capability before reading any member data [NOTIF-R4]', async () => {
     for (const role of ['member', 'editor', 'developer']) {
-      const { sql, get } = fixture(role);
+      const { reads, get } = fixture(role);
       const response = await get();
       expect(response.status).toBe(403);
       expect(await response.json()).toMatchObject({
         code: 'ROLE_FORBIDDEN',
         error: expect.stringContaining(EXPORT_CAPABILITY),
       });
-      // The one read is the caller's own grant in this organization — never
-      // a user or member row.
-      expect(sql).toHaveBeenCalledTimes(1);
-      const [strings, ...values] = sql.mock.calls[0];
+      // The one read is the caller's grant in this organization, their own
+      // or their team's — never a user or member row.
+      expect(reads).toHaveBeenCalledTimes(1);
+      const [strings, ...values] = reads.mock.calls[0];
       expect(strings.join('?')).toContain('FROM app.competence_records');
-      expect(values).toEqual(['org', 'service-user', EXPORT_CAPABILITY]);
+      expect(values).toEqual([
+        'org',
+        EXPORT_CAPABILITY,
+        expect.any(Number),
+        { fragment: ['service-user', 'service-user'] },
+      ]);
     }
     expect(listMyNotifications).not.toHaveBeenCalled();
     expect(listNotifications).not.toHaveBeenCalled();
   });
   it('never exports for a disabled seat, whatever it holds, and reads nothing [NOTIF-R4]', async () => {
-    const { sql, get } = fixture('disabled', undefined, [grant()]);
+    const { reads, get } = fixture('disabled', undefined, [grant()]);
     expect((await get()).status).toBe(403);
-    expect(sql).not.toHaveBeenCalled();
+    expect(reads).not.toHaveBeenCalled();
   });
   it('exports for a member an admin granted the capability, with or without an expiry [NOTIF-R4]', async () => {
     vi.mocked(listMyNotifications).mockResolvedValue({
@@ -132,7 +150,7 @@ describe('read-only native notification export', () => {
       grant(),
       grant({ expiresAt: Date.now() + 3_600_000 }),
     ]) {
-      const { sql, get } = fixture('developer', undefined, [live]);
+      const { reads, get } = fixture('developer', undefined, [live]);
       const response = await get();
       expect(response.status).toBe(200);
       expect(await response.json()).toMatchObject({
@@ -140,7 +158,7 @@ describe('read-only native notification export', () => {
         page: [{ id: 'org:personal:question' }],
       });
       // The grant is read first; the recipient is then scoped as for an admin.
-      expect(sql.mock.calls[1][0].join(' ')).toContain(
+      expect(reads.mock.calls[1][0].join(' ')).toContain(
         'u."emailVerified" = true',
       );
     }
@@ -153,9 +171,9 @@ describe('read-only native notification export', () => {
       grant({ orgId: 'other-org' }),
       grant({ userId: 'another-member' }),
     ]) {
-      const { sql, get } = fixture('developer', undefined, [held]);
+      const { reads, get } = fixture('developer', undefined, [held]);
       expect((await get()).status).toBe(403);
-      expect(sql).toHaveBeenCalledTimes(1);
+      expect(reads).toHaveBeenCalledTimes(1);
     }
     expect(listMyNotifications).not.toHaveBeenCalled();
     expect(listNotifications).not.toHaveBeenCalled();
@@ -165,7 +183,7 @@ describe('read-only native notification export', () => {
       rows: [personal],
       nextCursor: 42,
     });
-    const { get, sql } = fixture();
+    const { get, sql, reads } = fixture();
     const response = await get();
     expect(response.status).toBe(200);
     const body = await response.json();
@@ -188,10 +206,10 @@ describe('read-only native notification export', () => {
       userId: 'person',
       limit: 100,
     });
-    expect(sql.mock.calls[0][0].join(' ')).toContain(
+    expect(reads.mock.calls[0][0].join(' ')).toContain(
       'u."emailVerified" = true',
     );
-    expect(sql.mock.calls[0][0].join(' ')).toContain('m."organizationId"');
+    expect(reads.mock.calls[0][0].join(' ')).toContain('m."organizationId"');
     expect((await get(`&cursor=${body.continueCursor}`)).status).toBe(200);
     expect(listMyNotifications).toHaveBeenLastCalledWith(
       sql,

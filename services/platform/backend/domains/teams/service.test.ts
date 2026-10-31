@@ -76,6 +76,9 @@ const changed =
     if (statement.text.startsWith('UPDATE app.google_drive_sync_configs')) {
       return rows.google;
     }
+    if (statement.text.startsWith('UPDATE app.competence_records')) {
+      return rows.grants;
+    }
     return undefined;
   };
 
@@ -101,6 +104,7 @@ describe('retireTeamScopes', () => {
         ],
         conversations: [{ id: 'c1' }],
         onedrive: [{ id: 'od1' }],
+        grants: [{ id: 'g1' }],
       }),
     );
     const result = await retireTeamScopes(tx, 'org_1', 'team-gone');
@@ -156,12 +160,28 @@ describe('retireTeamScopes', () => {
       expect(sync?.text, table).toContain('WHERE org_id = ? AND team_id = ?');
     }
 
+    // The team's live competence grants end with it, stamped revoked, never
+    // deleted: the register is the trail [GOV-R19]. The records of its
+    // admin-made memberships go too.
+    const grants = startsWith(statements, 'UPDATE app.competence_records');
+    expect(grants?.text).toBe(
+      "UPDATE app.competence_records SET revoked_at_ms = ?, revoked_by = 'system' WHERE org_id = ? AND team_id = ? AND revoked_at_ms IS NULL RETURNING id",
+    );
+    expect(grants?.values).toEqual([expect.any(Number), 'org_1', 'team-gone']);
+    expect(
+      startsWith(statements, 'DELETE FROM app.admin_added_team_members'),
+    ).toEqual({
+      text: 'DELETE FROM app.admin_added_team_members WHERE org_id = ? AND team_id = ?',
+      values: ['org_1', 'team-gone'],
+    });
+
     expect(result).toEqual({
       projectsRetagged: 2,
       foldersRetagged: 1,
       documentsRetagged: 2,
       conversationsUnassigned: 1,
       syncConfigsUnscoped: 1,
+      competenceGrantsRevoked: 1,
       // The rows whose LAST team this was — organization-wide from now on.
       nowOrgWide: { projects: 1, folders: 1, documents: 1 },
       touchedFileDocumentIds: ['d-file'],
@@ -183,6 +203,7 @@ describe('retireTeamScopes', () => {
       documentsRetagged: 0,
       conversationsUnassigned: 0,
       syncConfigsUnscoped: 0,
+      competenceGrantsRevoked: 0,
       nowOrgWide: { projects: 0, folders: 0, documents: 0 },
       touchedFileDocumentIds: [],
     });
