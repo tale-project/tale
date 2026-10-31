@@ -184,6 +184,7 @@ describe('DELETE /:teamId', () => {
       method: 'DELETE',
     });
     expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: 'TEAM_FORBIDDEN' });
     expect(deleteTeamInTx).not.toHaveBeenCalled();
   });
 
@@ -322,6 +323,7 @@ describe('POST /:teamId/members', () => {
     const { sql, statements } = fakeSql(() => undefined);
     const res = await post(sql);
     expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: 'TEAM_FORBIDDEN' });
     expect(statements).toEqual([]);
   });
 
@@ -506,6 +508,7 @@ describe('the last-member rule', () => {
       method: 'DELETE',
     });
     expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({ error: 'TEAM_FORBIDDEN' });
     expect(statements).toEqual([]);
   });
 });

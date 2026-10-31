@@ -71,6 +71,12 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   const callerIsAdmin = (c: Context<OrgEnv>): boolean =>
     isAdminRole(c.get('orgMember').role);
 
+  /** The one refusal of every door the caller may not use: a roster outside
+   * their teams (TEAM-R2), and a member change, a delete or its preview by
+   * a non-admin (TEAM-R3). */
+  const forbiddenRefusal = (c: Context<OrgEnv>) =>
+    c.json({ error: 'TEAM_FORBIDDEN' }, 403);
+
   /** The signed-in admin, as the audit rows name them. */
   const actorOf = (c: Context<OrgEnv>): TeamAuditActor => {
     const user = c.get('sessionBundle').user;
@@ -187,7 +193,7 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   /** What deleting the team would touch — the confirm dialog's numbers. */
   app.get('/:teamId/impact', async (c) => {
     if (!callerIsAdmin(c)) {
-      return c.json({ error: 'TEAM_FORBIDDEN' }, 403);
+      return forbiddenRefusal(c);
     }
     const impact = await teamDeletionImpact(
       deps.sql,
@@ -205,7 +211,7 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
    */
   app.delete('/:teamId', async (c) => {
     if (!callerIsAdmin(c)) {
-      return c.json({ error: 'TEAM_FORBIDDEN' }, 403);
+      return forbiddenRefusal(c);
     }
     const orgId = c.get('orgId');
     const teamId = c.req.param('teamId');
@@ -236,7 +242,7 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     if (team === null) return c.json({ members: [] });
     // A roster is the team's own business: its members and the admins.
     if (!(await callerMayReadRoster(c, team.id))) {
-      return c.json({ error: 'TEAM_FORBIDDEN' }, 403);
+      return forbiddenRefusal(c);
     }
     const rows = await deps.sql<
       {
@@ -280,7 +286,7 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
 
   app.post('/:teamId/members', async (c) => {
     if (!callerIsAdmin(c)) {
-      return c.json({ error: 'Only admins can add team members' }, 403);
+      return forbiddenRefusal(c);
     }
     const body = z
       .object({ userId: z.string().min(1).max(128) })
@@ -416,7 +422,7 @@ export function createTeamRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
    * settings table rows carry `_id`, not (team,user) pairs). */
   app.delete('/members/by-id/:teamMemberId', async (c) => {
     if (!callerIsAdmin(c)) {
-      return c.json({ error: 'Only admins can remove team members' }, 403);
+      return forbiddenRefusal(c);
     }
     const orgId = c.get('orgId');
     const teamMemberId = c.req.param('teamMemberId');
