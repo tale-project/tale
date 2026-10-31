@@ -5,7 +5,12 @@ import {
   ExternalToolError,
   NativeRequestError,
 } from '../lib/config/releases/model';
-import { CliError, externalDepError, preconditionError } from '../utils/fail';
+import {
+  CliError,
+  ExitCode,
+  externalDepError,
+  preconditionError,
+} from '../utils/fail';
 import { NonInteractiveError } from '../utils/prompt';
 
 export interface OperationalFallback {
@@ -14,6 +19,9 @@ export interface OperationalFallback {
   /** Summary for any other failure; its own message is never shown. */
   summary: string;
   next?: string | string[];
+  /** Exit code of both summaries; a precondition unless the caller knows the
+   * failure lies with an external dependency. */
+  code?: typeof ExitCode.Precondition | typeof ExitCode.ExternalDep;
 }
 
 /**
@@ -33,6 +41,8 @@ export function operationalFailure(
   if (error instanceof NativeRequestError || error instanceof ExternalToolError)
     return externalDepError(error.message);
   if (error instanceof ConfigError) return preconditionError(error.message);
-  if (error instanceof z.ZodError) return preconditionError(fallback.schema);
-  return preconditionError(fallback.summary, fallback.next);
+  const code = fallback.code ?? ExitCode.Precondition;
+  if (error instanceof z.ZodError)
+    return new CliError({ summary: fallback.schema, code });
+  return new CliError({ summary: fallback.summary, next: fallback.next, code });
 }

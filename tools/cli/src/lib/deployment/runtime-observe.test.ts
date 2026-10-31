@@ -90,14 +90,14 @@ describe.skipIf(process.platform === 'win32')(
         ).rejects.toThrow('origin differs');
     });
     test.each([
-      'pending',
-      'name',
-      'revision',
-      'origin',
-      'image',
-      'mount',
-      'health',
-    ])('refuses %s drift before export', async (kind) => {
+      ['pending', 'No ready runtime receipt matches this exact deployment'],
+      ['name', 'No ready runtime receipt matches this exact deployment'],
+      ['revision', 'No ready runtime receipt matches this exact deployment'],
+      ['origin', 'origin differs from the declared deployment origin'],
+      ['image', 'not complete and healthy on its pinned images.'],
+      ['mount', 'data-volume or host-mount identity differs'],
+      ['health', 'pinned images (backend-api: no health status).'],
+    ])('refuses %s drift before export', async (kind, refusal) => {
       const { f, docker } = await ready();
       const file = join(f.options.stateDirectory, '.tale/runtime.json');
       const receipt = JSON.parse(readFileSync(file, 'utf8'));
@@ -118,9 +118,15 @@ describe.skipIf(process.platform === 'win32')(
       if (kind === 'mount')
         (backend.Mounts as { Name: string }[])[0].Name = 'foreign_config-data';
       if (kind === 'health') backend.State = { Running: true };
-      await expect(
-        observeReadyRuntime(f.options, docker.dependencies()),
-      ).rejects.toThrow();
+      const error = await observeReadyRuntime(
+        f.options,
+        docker.dependencies(),
+      ).catch((value: unknown) => value);
+      // Export, configuration-only apply and acceptance share this refusal:
+      // it names the runtime's drift, not one caller's operation.
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toContain(refusal);
+      expect((error as Error).message).not.toMatch(/credential export/i);
       expect(
         docker.calls.some((c) =>
           ['pull', 'tag', 'compose'].includes(c.args[0]),

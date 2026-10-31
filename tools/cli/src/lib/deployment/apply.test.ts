@@ -2843,48 +2843,62 @@ describePosix('configuration-only managed deployment', () => {
     expect(existsSync(run.receiptPath)).toBe(false);
   });
 
-  test.each(['old-ready', 'pending', 'identity', 'runtime'] as const)(
-    'refuses %s drift without side effects',
-    async (reason) => {
-      const run = await create();
-      await run.apply();
-      const hot = await hotBundle(run, reason === 'identity');
-      if (reason === 'old-ready') {
-        const ready = JSON.parse(readFileSync(run.receiptPath, 'utf8'));
-        delete ready.configurationBasisSha256;
-        writeFileSync(run.receiptPath, JSON.stringify(ready));
-      } else if (reason === 'pending') {
-        writeFileSync(
-          join(
-            run.fixture.options.stateDirectory,
-            '.tale/deployment-pending.json',
-          ),
-          JSON.stringify({
-            schemaVersion: 1,
-            phase: 'pending',
-            name: run.spec.name,
-            bundleSha256: hot.proof.deploymentBundleSha256,
-          }),
-        );
-      } else if (reason === 'runtime') {
-        const backend = run.docker.containers.find(
-          (container) =>
-            (container.Config as { Labels: Record<string, string> }).Labels[
-              'com.docker.compose.service'
-            ] === 'backend-api',
-        )!;
-        (backend.State as { Running: boolean }).Running = false;
-      }
-      run.events.length = 0;
-      await expect(
-        applyDeployment(
-          { bundle: hot.directory, configurationOnly: true },
-          run.dependencies,
+  test.each([
+    'old-ready',
+    'pending',
+    'identity',
+    'runtime',
+    'unhealthy',
+  ] as const)('refuses %s drift without side effects', async (reason) => {
+    const run = await create();
+    await run.apply();
+    const hot = await hotBundle(run, reason === 'identity');
+    if (reason === 'old-ready') {
+      const ready = JSON.parse(readFileSync(run.receiptPath, 'utf8'));
+      delete ready.configurationBasisSha256;
+      writeFileSync(run.receiptPath, JSON.stringify(ready));
+    } else if (reason === 'pending') {
+      writeFileSync(
+        join(
+          run.fixture.options.stateDirectory,
+          '.tale/deployment-pending.json',
         ),
-      ).rejects.toThrow();
-      expect(run.events).toEqual([]);
-    },
-  );
+        JSON.stringify({
+          schemaVersion: 1,
+          phase: 'pending',
+          name: run.spec.name,
+          bundleSha256: hot.proof.deploymentBundleSha256,
+        }),
+      );
+    } else {
+      const backend = run.docker.containers.find(
+        (container) =>
+          (container.Config as { Labels: Record<string, string> }).Labels[
+            'com.docker.compose.service'
+          ] === 'backend-api',
+      )!;
+      if (reason === 'runtime')
+        (backend.State as { Running: boolean }).Running = false;
+      if (reason === 'unhealthy')
+        (backend.State as { Health: { Status: string } }).Health.Status =
+          'unhealthy';
+    }
+    run.events.length = 0;
+    const error = await applyDeployment(
+      { bundle: hot.directory, configurationOnly: true },
+      run.dependencies,
+    ).catch((value: unknown) => value);
+    expect(error).toBeInstanceOf(Error);
+    // The dry-run preview needs a health record only; an unhealthy one
+    // reaches the shared ready-state check, which names no other operation.
+    expect((error as Error).message).toContain(
+      reason === 'unhealthy'
+        ? 'not complete and healthy on its pinned images (backend-api: unhealthy).'
+        : 'Configuration-only apply requires an unchanged, already-ready deployment',
+    );
+    expect((error as Error).message).not.toMatch(/credential export/i);
+    expect(run.events).toEqual([]);
+  });
 
   test('a failed native apply preserves full Ready and does not invent a configuration receipt', async () => {
     const run = await create();

@@ -590,7 +590,9 @@ describe.skipIf(process.platform === 'win32')(
         }) as typeof fetch;
         await expect(
           acceptDeployment(f.options, { ...f.dependencies, fetch: request }),
-        ).rejects.toThrow('healthy serving version');
+        ).rejects.toThrow(
+          `healthy serving version (${service} identity: another serving process).`,
+        );
       });
       test(`refuses same-version origin routed to a different ${service} process`, async () => {
         const f = await fixture();
@@ -609,7 +611,9 @@ describe.skipIf(process.platform === 'win32')(
         }) as typeof fetch;
         await expect(
           acceptDeployment(f.options, { ...f.dependencies, fetch: request }),
-        ).rejects.toThrow('healthy serving version');
+        ).rejects.toThrow(
+          `healthy serving version (${service} identity: another serving process).`,
+        );
       });
       test(`refuses ${service} process rollover without a Docker restart`, async () => {
         const f = await fixture();
@@ -628,7 +632,9 @@ describe.skipIf(process.platform === 'win32')(
         Response.json({ status: 'ok', version: '1.2.3' })) as typeof fetch;
       await expect(
         acceptDeployment(f.options, { ...f.dependencies, fetch: request }),
-      ).rejects.toThrow('healthy serving version');
+      ).rejects.toThrow(
+        'healthy serving version (platform identity: absent or invalid).',
+      );
     });
     test('elapsed bundle preparation cannot silently reset the external observation budget', async () => {
       const f = await fixture();

@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
+import { operationalFailure } from '../../commands/operational-failure';
 import {
   CliError,
+  ExitCode,
   externalDepError,
   preconditionError,
   usageError,
@@ -272,6 +274,26 @@ const ENROLMENT_ENDED =
   'The deploy operator has no second factor and its two-factor enrolment grace period has ended; register a passkey for it.';
 const TOTP_ENABLED =
   'The deploy operator has TOTP enabled; a managed deploy signs in with its password alone, so the operator must hold a passkey and no TOTP.';
+
+const CONFIGURATION_FAILED = 'Native configuration provisioning failed.';
+
+/** The configuration callback's authored refusals (a checksum mismatch, a
+ * missing project target) keep their own words. Any other failure may carry a
+ * native response body, so it gets the fixed sentence. */
+async function provisionConfiguration(
+  provision: NonNullable<InstanceOptions['provision']>,
+  context: ProvisionContext,
+) {
+  try {
+    await provision(context);
+  } catch (error) {
+    throw operationalFailure(error, {
+      schema: CONFIGURATION_FAILED,
+      summary: CONFIGURATION_FAILED,
+      code: ExitCode.ExternalDep,
+    });
+  }
+}
 
 /** Account/provider writes use supported native HTTP. The caller can inject a
  * narrow backend-local client updater; session credentials remain in memory. */
@@ -700,7 +722,7 @@ export async function configureInstance(
       }
       if (!options.provision)
         throw preconditionError('Configuration-only callback is missing.');
-      await options.provision({
+      await provisionConfiguration(options.provision, {
         baseUrl: API_URL,
         origin: input.origin,
         organization,
@@ -1067,13 +1089,8 @@ export async function configureInstance(
         options.nativeUpdate,
         { ...options.managedClients, stateDirectory: options.stateDirectory },
       );
-      if (options.provision) {
-        try {
-          await options.provision(context);
-        } catch {
-          throw externalDepError('Native configuration provisioning failed.');
-        }
-      }
+      if (options.provision)
+        await provisionConfiguration(options.provision, context);
       result = {
         organizationId: organization.id,
         organizationSlug: organization.slug,
