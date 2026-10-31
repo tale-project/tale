@@ -258,16 +258,20 @@ const powershellSource = (
   .replace(/\r\n/g, '\n')
   .replace(/\nMain\s*$/, '\n');
 
-async function runPowerShell(
-  code: string,
+function runPowerShell(code: string, environment: Record<string, string> = {}) {
+  return runPowerShellScript(`${powershellSource}\n${code}`, environment);
+}
+
+async function runPowerShellScript(
+  script: string,
   environment: Record<string, string> = {},
 ) {
   const root = await mkdtemp(join(tmpdir(), 'tale-installer-powershell-'));
   roots.push(root);
-  const script = join(root, 'installer-test.ps1');
+  const file = join(root, 'installer-test.ps1');
   // Keep the installer out of Windows' command-line length limit. Windows
   // PowerShell 5 needs a BOM to recognize the script's UTF-8 characters.
-  await writeFile(script, `\uFEFF${powershellSource}\n${code}`, 'utf8');
+  await writeFile(file, `\uFEFF${script}`, 'utf8');
   const run = Bun.spawnSync(
     [
       powershell!,
@@ -276,7 +280,7 @@ async function runPowerShell(
       '-ExecutionPolicy',
       'Bypass',
       '-File',
-      script,
+      file,
     ],
     {
       env: { ...process.env, ...environment },
@@ -379,4 +383,47 @@ Verify-Checksum $env:FIXTURE_BINARY v9.8.7
       expect(result.output).toContain(scenario.text);
     });
   }
+
+  test('hands an installer error back to the session that runs it through irm | iex', async () => {
+    const setup = await fixture();
+    const result = await runPowerShellScript(
+      `
+$ErrorActionPreference = 'Continue'
+# The releases carry no Windows binary: an error the installer reports.
+function Invoke-RestMethod {
+    Write-Host "Release lookup ran with ErrorActionPreference=$ErrorActionPreference"
+    return [pscustomobject]@{ tag_name = 'v9.8.7'; assets = @([pscustomobject]@{ name = 'tale_linux' }) }
+}
+# irm hands iex the installer as one string; read the same text from disk.
+# A prompt survives a thrown error but not an exit, and so does this try:
+# catch takes a throw, never an exit.
+try {
+    [System.IO.File]::ReadAllText($env:INSTALLER) | Invoke-Expression
+    Write-Output 'Installer returned'
+} catch {
+    Write-Output "Installer failed: $($_.Exception.Message)"
+}
+Write-Output "Session still running with ErrorActionPreference=$ErrorActionPreference"
+`,
+      {
+        INSTALLER: join(repository, 'scripts/install-cli.ps1'),
+        INSTALL_DIR: setup.installDir,
+        VERSION: '',
+      },
+    );
+    expect(result.exitCode, result.output).toBe(0);
+    expect(result.output).toContain(
+      'Release lookup ran with ErrorActionPreference=Stop',
+    );
+    expect(result.output).toContain(
+      'Error: No release found with tale_windows.exe binary',
+    );
+    expect(result.output).toContain(
+      'Installer failed: No release found with tale_windows.exe binary',
+    );
+    expect(result.output).not.toContain('Installer returned');
+    expect(result.output).toContain(
+      'Session still running with ErrorActionPreference=Continue',
+    );
+  });
 });

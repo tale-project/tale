@@ -13,8 +13,11 @@
 #
 # Mirrors scripts/install-cli.sh (the Linux/macOS installer) function for
 # function and message for message — keep them in sync when changing either.
+#
+# `irm … | iex` runs this script in the caller's session, not as a script file:
+# an `exit` here would close that session's window, and a preference set at the
+# top would stay in it. Errors throw instead, and Main sets the preference.
 
-$ErrorActionPreference = "Stop"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 
 $Repo = "tale-project/tale"
@@ -23,10 +26,12 @@ $Platform = "windows"
 $DefaultInstallDir = "$env:LOCALAPPDATA\Programs\tale"
 $RequestedVersion = $env:VERSION
 
-# Colored log helpers — info=cyan, success=green, error=red (then exit 1).
+# Colored log helpers — info=cyan, success=green, error=red (then throw). The
+# throw stops the installer and returns to the caller's prompt or script; run
+# with -File, the script still exits 1.
 function Write-Info { param($msg) Write-Host $msg -ForegroundColor Cyan }
 function Write-Ok { param($msg) Write-Host $msg -ForegroundColor Green }
-function Write-Err { param($msg) Write-Host "Error: $msg" -ForegroundColor Red; exit 1 }
+function Write-Err { param($msg) Write-Host "Error: $msg" -ForegroundColor Red; throw $msg }
 
 # Format a byte count for the download progress display. (PowerShell-specific —
 # the bash script lets curl --progress-bar handle this.)
@@ -364,6 +369,11 @@ function Verify-Installation {
 }
 
 function Main {
+    # Local to Main, so the caller's preference stays as it was; every step
+    # below runs inside Main and sees it. Stop also keeps Write-Err's throw
+    # from being skipped when the caller runs with SilentlyContinue.
+    $ErrorActionPreference = "Stop"
+
     Write-Info "Installing Tale CLI..."
     Write-Info "Detected platform: $Platform"
 
