@@ -29,7 +29,8 @@ Eine gespeicherte Datei ist nicht automatisch durchsuchbar. Tale muss zuerst ihr
 | PDF mit eingebettetem Text, `.docx`, `.xlsx`, `.pptx`, `.odt`, CSV, reiner Text | Textextraktion und Indexierung werden unterstützt. Prüfe das Ergebnis für die konkrete Datei. |
 | Ältere Office-Formate `.doc`, `.xls`, `.ppt` | Speichern und Herunterladen sind möglich. Konvertiere sie zur Indexierung in ein modernes Format. |
 | Bilder wie JPG, PNG, GIF, WEBP | Speichern und Herunterladen sind möglich. Der Wissensindex liest daraus keinen Text aus. |
-| Microsoft-Loop-Dateien (`.loop`) aus Microsoft 365 | Importieren und Herunterladen sind möglich. Tale kann ihren Text nicht auslesen, daher erhalten sie den Status **Nicht unterstützt**. |
+| Microsoft-Loop-Seiten (`.loop`) aus Microsoft 365 | Sie werden als das PDF importiert, das Microsoft aus der Seite erstellt, benannt nach der Seite mit angehängtem `.pdf`, und wie jedes PDF indexiert. Eine Seite, die Microsoft nicht umwandelt oder die größer als 2 MB ist, wird unverändert übernommen und erhält den Status **Nicht unterstützt**. |
+| Hochgeladene Loop-Seiten (`.loop`) und `.fluid`-Dateien | Speichern und Herunterladen sind möglich. Tale kann ihren Text nicht auslesen, daher erhalten sie den Status **Nicht unterstützt**. Damit eine Loop-Seite durchsuchbar wird, importiere sie aus Microsoft 365. |
 | Gescanntes PDF ohne lesbaren Text | Stelle eine Fassung mit OCR oder Text bereit, wenn der Inhalt durchsuchbar sein soll. |
 
 Wiederholtes Indexieren macht ein nicht unterstütztes Format nicht durchsuchbar. Für Fragen zu einem Bild siehe [Chat-Anhänge](/de/platform/chat/attachments): Ein verfügbares Bildmodell kann es dort direkt lesen.
