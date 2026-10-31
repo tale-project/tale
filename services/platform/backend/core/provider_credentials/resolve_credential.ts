@@ -41,6 +41,7 @@ import {
 } from '../../../lib/net/host-policy';
 import { safeFetch, SafeFetchError } from '../../../lib/net/safe-fetch';
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { resolveProvidersForOrgId } from '../lib/providers/org_providers';
@@ -197,13 +198,14 @@ export function isTerminalCredentialRefusal(error: unknown): boolean {
 }
 
 /**
- * The words a run records for a failure: a resolver refusal's own sentence
- * — `AppError` serializes its whole payload into `message`, which is for
- * logs — else the error's message.
+ * The words a run records for a failure: a resolver refusal's own sentence,
+ * or the EU/EEA rule's (GOV-R17) — `AppError` serializes its whole payload
+ * into `message`, which is for logs — else the error's message.
  */
 export function runFailureMessage(error: unknown): string {
   return (
     credentialRefusalMessage(error) ??
+    (error instanceof ModelEndpointRefusal ? error.data.message : undefined) ??
     (error instanceof Error ? error.message : String(error))
   );
 }

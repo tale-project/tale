@@ -64,6 +64,7 @@ import {
 import { readMandatoryInstructions } from '../chat/guardrails';
 import {
   assertModelEndpointAllowed,
+  ModelEndpointRefusal,
   type ModelEndpointActor,
 } from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
@@ -1266,7 +1267,6 @@ async function reapPredecessorExec(
   }
 }
 
-/** The start's full argument shape — `turnArgs` plus the kick shaping. */
 /** Who a task turn runs for, as an audit entry names it: the person behind
  * the run's starter — through an API key or not — else the door that
  * started it (a trigger, the project's dispatch). */
@@ -1278,6 +1278,7 @@ function taskTurnActor(startedBy: unknown): ModelEndpointActor | undefined {
   return { id: startedBy, type: 'system' };
 }
 
+/** The start's full argument shape — `turnArgs` plus the kick shaping. */
 export interface StartTaskAgentTurnArgs extends TurnKeys {
   model: string;
   modelProvider?: string;
@@ -3131,10 +3132,14 @@ export async function steerTaskAgentTurnImpl(
         // Retryable: the retry run's resume prompt carries the comment via
         // the discussion delta, so the steer is not lost with the restart.
         // Except for an attachment the store no longer holds — the restart
-        // re-stages the brief, and a retry would meet the same 404.
+        // re-stages the brief, and a retry would meet the same 404 — and a
+        // model the EU/EEA rule refuses (GOV-R17), which a retry's start
+        // meets again until an admin acts, as at a start.
         failureCode: isTaskInputMissingError(err)
           ? 'input_missing'
-          : 'steer_restart_failed',
+          : err instanceof ModelEndpointRefusal
+            ? 'agent_model_missing'
+            : 'steer_restart_failed',
         ...(retryAtMs !== undefined ? { retryAtMs } : {}),
       },
     );
