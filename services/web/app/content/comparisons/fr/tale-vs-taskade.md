@@ -28,7 +28,7 @@ Tale organise personnes et agents autour de tâches attribuées, avec discussion
 
 Planifie une journée de formation interne avec recherche, programme, guide des participants et petit prototype de page d'inscription. Répartis les volets entre agents et désigne les personnes qui examineront les résultats. Change ensuite le public et transfère une tâche à un collègue.
 
-Évalue la clarté des transmissions, l'arrivée des demandes de révision au bon agent et la compréhension de l'avancement par une personne non technique. Vérifie les fichiers et le contexte conservés entre les exécutions. Le but est de comparer votre collaboration réelle : le vocabulaire multi-agent ne garantit pas le même fonctionnement.
+Évalue la clarté des transmissions, l'arrivée des demandes de révision au bon agent et la compréhension de l'avancement par une personne non technique. Vérifie les fichiers et le contexte conservés entre les exécutions. Le but est de comparer la collaboration réelle de ton équipe : le vocabulaire multi-agent ne garantit pas le même fonctionnement.
 
 ## Choisir configuration et responsabilité
 

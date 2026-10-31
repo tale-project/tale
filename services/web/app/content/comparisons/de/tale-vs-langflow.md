@@ -33,3 +33,5 @@ Prüfe Tale, wenn dein Team die Arbeitsumgebung selbst braucht: Projektkontext, 
 Stelle eine alte Richtlinie, eine geänderte Anforderung und drei Mitarbeiterfragen bereit. Lass beide Kandidaten den Entwurf einer Aktualisierung, offene Fragen und Korrekturen einer prüfenden Person unterstützen.
 
 Bewerte bei Langflow den Aufwand zum Erstellen und Bereitstellen des Flows. Prüfe bei Tale die Aufgabenverteilung und wie ein Kollege übernimmt, nachdem der ursprüngliche Verantwortliche den Pilotversuch verlassen hat. Beurteile sowohl die Antworten als auch die Klarheit der offenen Aufgaben. Trenne den Aufwand für Komponentenentwicklung vom wöchentlichen Projektbetrieb. [Buche eine Tale-Demo](https://tale.dev/de/request-demo) mit dieser Richtlinienaktualisierung.
+
+Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 3. Oktober 2026, und ist kein praktischer Benchmark.

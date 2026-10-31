@@ -33,3 +33,5 @@ Envisage Tale si tu cherches d’abord un espace existant où les collègues org
 Prends une escalade client fictive demandant une collecte de preuves, un projet de réponse et une validation. À mi-parcours, ajoute une source contradictoire et demande à la personne qui relit de renvoyer le brouillon.
 
 Observe comment chaque approche représente l’interruption, conserve le contexte utile et rend visible la prochaine responsabilité. Pour le prototype sur framework, compte l’effort nécessaire pour montrer ces états aux non-développeurs. Dans Tale, vérifie les règles de validation et les permissions. Compare le parcours utilisable dans son ensemble. [Demande une démo de Tale](https://tale.dev/fr/request-demo) avec ce cas.
+
+Cette comparaison s’appuie sur la documentation publique examinée le 3 octobre 2026, sans test comparatif pratique.
