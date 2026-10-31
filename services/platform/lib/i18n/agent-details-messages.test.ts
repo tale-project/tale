@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { deMessages, enMessages, frMessages } from '@/tests/utils/messages';
 
 // #4453: panel-specific translations must name the same capabilities as
-// the equipment editor, rather than the separate Governance competences feature.
+// the equipment editor, rather than the separate Governance rights and
+// qualifications register.
 const cases = [
   { locale: 'en', messages: enMessages, tools: 'Platform tools' },
   { locale: 'de', messages: deMessages, tools: 'Plattform-Tools' },
@@ -24,7 +25,7 @@ describe('agent details terminology', () => {
     });
   }
 
-  it('fr: names skills in the saved snapshot without borrowing the competences feature name', () => {
+  it('fr: names skills in the saved snapshot without borrowing the register name', () => {
     expect(frMessages.projects.agents.detailsStandardSnapshot).toBe(
       'Configuration enregistrée. L’agent standard détermine à nouveau son modèle, ses skills et ses instructions au démarrage de chaque exécution.',
     );

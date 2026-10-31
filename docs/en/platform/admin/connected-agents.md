@@ -45,13 +45,13 @@ The first three are levels: each adds to the one before. The last three are sepa
 
 ### Who may connect
 
-|                                                                                      | Owner, Admin or Developer | Member with a competence used with a key | Any other member |
+|                                                                                      | Owner, Admin or Developer | Member with a right used with a key      | Any other member |
 | ------------------------------------------------------------------------------------ | ------------------------- | ---------------------------------------- | ---------------- |
 | Connect an agent to the organization                                                 | Yes                       | Yes                                      | No               |
 | Allow **Edit automations**, **Edit and deploy**, **Change settings** or **Connect AI subscriptions** | Yes                       | No                                       | No               |
 | Allow **Read and test** and **Read settings**                                                | Yes                       | Yes                                      | No               |
 
-A member's competence is the one that lets them create an API key, such as **Call models over the API**; [Competences](/platform/admin/governance/competences) lists them. Someone who may not connect an agent in an organization sees why on the consent page and cannot choose it.
+The right meant here is one that lets a member create an API key, such as **Call models over the API**; [Rights and qualifications](/platform/admin/governance/rights-and-qualifications) lists them. Someone who may not connect an agent in an organization sees why on the consent page and cannot choose it.
 
 Allowing anything beyond **Read and test** and **Read settings** needs a sign-in from the last day. If yours is older, the page asks for your password first, or sends an account that signs in through your company's sign-in to sign in again, and keeps your choice. Accounts whose email address is not confirmed, or whose two-factor enrollment is due, cannot connect an agent yet.
 
@@ -87,7 +87,7 @@ An agent that goes unused for 30 days can no longer renew its sign-in, so it has
 | What you see                                                                                              | What to do                                                                                                                              |
 | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | The agent says it needs authentication                                                                    | Run its sign-in command, or open `/mcp` in Claude Code, and finish the browser steps.                                                   |
-| The consent page says connecting a coding agent takes the Owner, Admin or Developer role, or a competence | Ask an Admin for the role or the competence.                                                                                            |
+| The consent page says connecting a coding agent takes the Owner, Admin or Developer role, or a right      | Ask an Admin for the role or the right.                                                                                                 |
 | The consent page says your account cannot connect agents yet                                              | Confirm your email address or set up two-factor authentication, then start again from the agent.                                        |
 | The consent page says the request expired                                                                 | Start the connection again from the agent.                                                                                              |
 | The agent can read but not save or deploy                                                                 | It holds less access than the call needs. Connect it again and allow more; **Edit automations** and **Edit and deploy** can be allowed only by Owners, Admins and Developers.      |

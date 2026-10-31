@@ -13,7 +13,7 @@ consent:
     label: Organization
     description: The agent works in this organization only. To use another one, connect it again.
     option: '{name} · {role}'
-    notAllowed: Connecting a coding agent here takes the Owner, Admin or Developer role, or a competence an Admin grants.
+    notAllowed: Connecting a coding agent here takes the Owner, Admin or Developer role, or a right an Admin grants.
     none: None of your organizations lets you connect a coding agent. Ask an Admin for the Developer role.
     disabled: Your account is disabled in this organization.
   access:

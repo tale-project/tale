@@ -93,3 +93,64 @@ describe('agent runtime terminology', () => {
     });
   }
 });
+
+// #5192: the register grants Rights (the `tale:*` platform capabilities) and
+// Qualifications (the names a review policy asks for). Inspect values only:
+// `competences.*` keys, the `governance/competences` route and the API's
+// `competence` field remain contracts.
+describe('rights and qualifications terminology', () => {
+  // French also says `compétences` for skills, as the site description does.
+  const skillsSense = new Set([
+    'fr:metadata.default.description',
+    'fr:metadata.keywords',
+  ]);
+
+  for (const [locale, messages, page, rights, qualifications, retired] of [
+    [
+      'en',
+      enMessages,
+      'Rights and qualifications',
+      'Rights',
+      'Qualifications',
+      /\bcompeten(?:ce|ces|cy|cies)\b|\bplatform capabilit(?:y|ies)\b/i,
+    ],
+    [
+      'de',
+      deMessages,
+      'Rechte und Qualifikationen',
+      'Rechte',
+      'Qualifikationen',
+      /kompetenz|plattform-berechtigung/i,
+    ],
+    [
+      'fr',
+      frMessages,
+      'Droits et qualifications',
+      'Droits',
+      'Qualifications',
+      /compétence|capacités? de la plateforme/i,
+    ],
+  ] as const) {
+    it(`${locale}: names the register, its nav entry and its picker groups alike`, () => {
+      const { competences, groups } = messages.governance;
+      expect(competences.title).toBe(page);
+      expect(groups.competences).toBe(page);
+      expect(competences.grantDialog.capabilitiesGroup).toBe(rights);
+      expect(competences.grantDialog.qualificationsGroup).toBe(qualifications);
+    });
+
+    it(`${locale}: calls no right or qualification by a retired name`, () => {
+      const inspect = (value: unknown, at: string): void => {
+        if (skillsSense.has(`${locale}:${at}`)) return;
+        if (typeof value === 'string') {
+          expect(value.replace(/\{[^{}]*\}/g, ''), at).not.toMatch(retired);
+        } else if (value !== null && typeof value === 'object') {
+          for (const [key, child] of Object.entries(value)) {
+            inspect(child, at === '' ? key : `${at}.${key}`);
+          }
+        }
+      };
+      inspect(messages, '');
+    });
+  }
+});

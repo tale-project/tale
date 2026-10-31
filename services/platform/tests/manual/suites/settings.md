@@ -65,7 +65,7 @@ Bring the stack up and sign in per [SETUP.md](../setup.md) as an **owner**.
 Role gating (from `lib/permissions/ability.ts`): the Organization-group pages
 plus Enterprise SSO, Data residency, Governance, and Metrics need
 `orgSettings` read (**owner/admin**); Providers, Connectors, Sandboxes, and
-the API section need `developerSettings` read (**owner/admin/developer**), except that a member holding the **Call models over the API** competence opens the API section's REST and Models tabs (SET-B26), and one who may connect a coding agent here, or still holds a live connection, opens Connected agents (SET-B38);
+the API section need `developerSettings` read (**owner/admin/developer**), except that a member holding the **Call models over the API** right opens the API section's REST and Models tabs (SET-B26), and one who may connect a coding agent here, or still holds a live connection, opens Connected agents (SET-B38);
 Skills and the Personal group are open to every member. SET-B4–SET-B5 need a
 second account per role (mint via `POST /api/auth/sign-up/email`, add under
 Settings → Members); SET-F16 needs a second **already-existing** account. Mode
@@ -1069,7 +1069,7 @@ Restore any toggled setting after the run.
   tale` and the login again → the line reads **Connected: Claude Code** and
   the list still shows its one row (allowing an app again changes its
   connection), also while the page sits behind the terminal. **Done** closes the
-  dialog and gives focus back to the button. A member whose competence lets
+  dialog and gives focus back to the button. A member whose right lets
   them create a key, with no developer role, sees the same button and dialog
   (SET-B38); a member who holds an agent but may not connect one does not.
 - [ ] `SET-F90` · **A gateway's models carry what Tale knows about them** —
@@ -1158,18 +1158,18 @@ Restore any toggled setting after the run.
   turns on and the grant's line appears, but the badge stays **Not
   allowed**. Revoke it afterwards.
 - [ ] `SET-F95` · **Grant a right from its switch** — In a Member's
-  **Rights**, turn on **Act for another member** → **Grant a competence**
-  (`governance.competences.grantDialog.title`) opens over it with
-  `governance.competences.grantDialog.fixedDescription` naming the member
-  and the right, the right's description in a muted line, no **Member** or
-  **Competence** picker, **Expires**
+  **Rights**, turn on **Act for another member** → **Grant a right or
+  qualification** (`governance.competences.grantDialog.title`) opens over it
+  with `governance.competences.grantDialog.fixedDescription` naming the
+  member and the right, the right's description in a muted line, no
+  **Member** or **Right or qualification** picker, **Expires**
   (`governance.competences.grantDialog.expiryLabel`) on **Never** and an
   empty **Evidence** (`governance.competences.grantDialog.evidenceLabel`);
   **Cancel** (`common.actions.cancel`) and Escape each close it with the
   switch still off. Turn it on again, choose **In 30 days**
   (`…expiryOptions.30days`) and note a line of evidence → **Grant**
-  (`governance.competences.grantDialog.submit`) → The toast **Competence
-  granted** (`governance.competences.toasts.granted`) shows, focus is back on
+  (`governance.competences.grantDialog.submit`) → The toast **Grant added**
+  (`governance.competences.toasts.granted`) shows, focus is back on
   the switch, now on, the badge reads **Allowed** and **Not granted.** gives
   way to `settings.organization.memberRights.reasons.grantActiveUntil` with
   your name, today and the date 30 days out. On
@@ -1179,13 +1179,13 @@ Restore any toggled setting after the run.
   Grant **Export notifications** with **Never** the same way → its line
   reads `…reasons.grantActive`.
 - [ ] `SET-F96` · **Revoke a right from its switch** — In the same
-  **Rights**, turn off **Act for another member** → **Revoke competence?**
+  **Rights**, turn off **Act for another member** → **Revoke grant?**
   (`governance.competences.revokeDialog.title`) asks first, naming the
   member and the right (`governance.competences.revokeDialog.description`);
   **Cancel** and Escape keep the grant and its switch on. Turn it off again
   → **Revoke** (`governance.competences.revokeDialog.confirm`) → The
   question closes only once the switch reads off, focus is back on it, the
-  toast **Competence revoked** (`governance.competences.toasts.revoked`)
+  toast **Grant revoked** (`governance.competences.toasts.revoked`)
   shows, the badge reads **Not allowed** and **Not granted.** is back. The
   register's **Filter** → **Status** → **Revoked** shows the grant revoked
   today, and pointing at the date reads **Revoked by** your name
@@ -1199,11 +1199,12 @@ Restore any toggled setting after the run.
   allowed** for it, opening with
   `settings.organization.memberRights.reasons.modelApiOff`; their role lines
   stay as they were, and the Member's switch stays on with its grant line.
-  Turn on an Editor's switch for it → **Grant a competence** warns with
-  `governance.competences.grantDialog.modelApiOff.description` and **Open
-  model access** (`…modelApiOff.link`, pointing at `content-models`), and
-  **Grant** still grants. Turn the endpoints back on → reopened, all four
-  read **Allowed** with `…reasons.modelApiOn`. Revoke both grants.
+  Turn on an Editor's switch for it → **Grant a right or qualification**
+  warns with `governance.competences.grantDialog.modelApiOff.description`
+  and **Open model access** (`…modelApiOff.link`, pointing at
+  `content-models`), and **Grant** still grants. Turn the endpoints back on
+  → reopened, all four read **Allowed** with `…reasons.modelApiOn`. Revoke
+  both grants.
 - [ ] `SET-F98` · **Skill sharing decides who publishes** — On
   `/dashboard/{org}/settings/governance/policies-limits` set **Share skills
   with the organization** (`governance.skillSharing.label`) to **Editors and
@@ -1299,7 +1300,7 @@ Restore any toggled setting after the run.
   after a reload the original values are unchanged and no team row was added.
 - [ ] `SET-B34` · **Keys of others, seen from a member** — sign in as the
   Member SET-F77 made a key for (no Owner, Admin or Developer role, no
-  competence used with a key) and open `/dashboard/{org}/settings/api/rest`
+  right used with a key) and open `/dashboard/{org}/settings/api/rest`
   → The page lists that key alone — never a team's, a project's, the
   organization's or another member's key — and offers no **Create API key**
   (`settings.apiKeys.createKey`). As a Developer member, **Create API key**
@@ -1479,7 +1480,7 @@ Restore any toggled setting after the run.
   (`accessDenied.apiTab`). Revoke the grant → **API** keeps **REST** alone
   while the member holds the key, listing it with **Revoke key** but without
   **Create API key**, and `/dashboard/{org}/settings/api/models` names the
-  competence it takes (`accessDenied.apiModels`); once the key is revoked too
+  right it takes (`accessDenied.apiModels`); once the key is revoked too
   the API row disappears.
 - [ ] `SET-B21` · **A custom provider's edit saves whole or not at all** —
   With a custom provider holding two credentials A and B (`SET-F43`), open
@@ -1494,8 +1495,8 @@ Restore any toggled setting after the run.
   `settings.providers.custom.errors.versionConflict`; reload the second
   tab → its **Base URL** stands; reopen the first dialog → it shows that
   **Base URL**, and the rename now saves.
-- [ ] `SET-B27` · **Only a role or competence that uses a key creates one** —
-  As a Member holding no competence, the settings rail shows no **API** row;
+- [ ] `SET-B27` · **Only a role or right that uses a key creates one** —
+  As a Member holding no right, the settings rail shows no **API** row;
   in DevTools run
   `fetch('/api/auth/api-key/create', {method: 'POST', headers: {'content-type': 'application/json'}, body: JSON.stringify({name: 'probe'})}).then((r) => r.json())`
   → 403 with code `API_KEY_CREATE_FORBIDDEN`, and no key named `probe` exists.
@@ -1583,13 +1584,13 @@ Restore any toggled setting after the run.
   with no alert.
 
 - [ ] `SET-B38` · **Who opens Connected agents** — With the agent sign-in on,
-  sign in as a member who holds a competence that is used with a key, with no
+  sign in as a member who holds a right that is used with a key, with no
   developer role (SET-B26's setup) → the rail's **API** row lists **REST** and **Connected agents** and
   no other; the page lists their own agents, with no **Mine** / **Everyone**
   and no **Show disconnected** but with **Connect a coding agent** (it opens
   the same dialog as SET-F89); `…/api/mcp` and
   `…/api/webdav` by URL show **This page is for Owners, Admins and
-  Developers.** (`accessDenied.apiTab`). Revoke the competence and the API key
+  Developers.** (`accessDenied.apiTab`). Revoke the right and the API key
   → **API** keeps **Connected agents** alone while they hold a live agent;
   disconnect it → the row disappears and `…/api/agents` by URL shows **Access
   denied** with `accessDenied.apiKeys`. A plain member who never had either
@@ -1645,7 +1646,7 @@ Restore any toggled setting after the run.
   Member holding **Export notifications**, open their **Rights** in window
   A and revoke the grant in window B on
   `/dashboard/{org}/settings/governance/competences`. In A turn its switch
-  off → **Revoke** → The toast **Couldn't revoke the competence**
+  off → **Revoke** → The toast **Couldn't revoke the grant**
   (`governance.competences.toasts.revokeFailed`) says
   `governance.competences.errors.alreadyRevoked`, the question closes and
   the switch reads off. Grant it again in B while A still shows it off; in
@@ -1755,8 +1756,8 @@ Restore any toggled setting after the run.
   Enter, arrow to **Rights** and press Enter → Focus moves into **Rights of
   {name}** and stays there; the list is named by the title; Tab reaches each
   switch with visible focus, and a screen reader names it by its right and
-  describes it with its badge and reasons. Space opens **Grant a
-  competence** or **Revoke competence?**, and **Cancel**, Escape, **Grant**
+  describes it with its badge and reasons. Space opens **Grant a right or
+  qualification** or **Revoke grant?**, and **Cancel**, Escape, **Grant**
   and **Revoke** each give focus back to that switch. With the rights
   blocked (SET-B43) the failure is announced as an alert and **Try again**
   is reachable by Tab. Escape closes **Rights** and gives focus back to the

@@ -41,14 +41,14 @@ Prüfe nach einer Änderung beide Fälle: Ein erlaubtes Modell soll funktioniere
 
 Mit **Modell-Endpunkte für API-Schlüssel** nutzen Personen die Modelle, die diese Richtlinie erlaubt, aus ihren eigenen Tools, etwa opencode, Claude Code oder Skripten mit den SDKs von OpenAI oder Anthropic, mit einem persönlichen API-Schlüssel über OpenAI- und Anthropic-kompatible Endpunkte. Standardmäßig ist das ausgeschaltet. Aktiviere den Schalter **Modell-Endpunkte für API-Schlüssel**; die Änderung wird sofort gespeichert.
 
-- **Wer aufrufen darf.** Inhaber, Admins und Entwickler über ihre Rolle. Jedes andere Mitglied nur mit der Kompetenz **Modelle über die API aufrufen**, die du unter [Kompetenzen](/de/platform/admin/governance/competences) zuweist.
+- **Wer aufrufen darf.** Inhaber, Admins und Entwickler über ihre Rolle. Jedes andere Mitglied nur mit dem Recht **Modelle über die API aufrufen**, das du unter [Rechte und Qualifikationen](/de/platform/admin/governance/rights-and-qualifications) zuweist.
 - **Welche Modelle.** Die Chatmodelle, die deine Anbieter-Zugangsdaten mit API-Schlüssel oder Umgebungsvariable bereitstellen, eingeschränkt durch die erlaubten Modelle der jeweiligen Zugangsdaten. Die Zugriffsregeln oben gelten für jeden Aufruf, und zwar für die Person, deren Schlüssel ihn gesendet hat. Der Schalter wirkt unabhängig von **Modellzugriffsrichtlinie aktivieren**: Ist diese Richtlinie aus, grenzen nur die erlaubten Modelle der Zugangsdaten die Liste ein.
 - **Was jeder Aufruf durchläuft.** Die Budgets unter [Richtlinien und Limits](/de/platform/admin/governance/policies-and-limits) und die Eingabe-Guardrails unter [Guardrails](/de/platform/admin/governance/guardrails#model-endpoints). Die Antworten der Modelle werden nicht gefiltert.
 - **Wo er erscheint.** Jeder Aufruf wird unter der Person und dem Schlüssel verbucht, in der [Nutzungsanalyse](/de/platform/admin/governance/usage-analytics) als **Direkter API-Aufruf**.
 
 <Frame caption="Richtlinien > Modelle — Modell-Endpunkte für API-Schlüssel, eingeschaltet.">
 
-![Der Bereich Modell-Endpunkte für API-Schlüssel auf der Seite Modelle mit eingeschaltetem Schalter; er erklärt, dass Inhaber, Admins, Entwickler und Mitglieder mit der Kompetenz Modelle über die API aufrufen die Modelle der Organisation aus ihren eigenen Tools nutzen dürfen.](/images/platform/governance-model-endpoints.webp)
+![Der Bereich Modell-Endpunkte für API-Schlüssel auf der Seite Modelle mit eingeschaltetem Schalter; er erklärt, dass Inhaber, Admins, Entwickler und Mitglieder mit dem Recht Modelle über die API aufrufen die Modelle der Organisation aus ihren eigenen Tools nutzen dürfen.](/images/platform/governance-model-endpoints.webp)
 
 </Frame>
 

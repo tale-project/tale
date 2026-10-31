@@ -45,13 +45,13 @@ Les trois premiers sont des niveaux : chacun s’ajoute au précédent. Les tro
 
 ### Qui peut connecter
 
-| | Propriétaire, Admin ou Développeur | Membre avec une compétence utilisée avec une clé | Tout autre membre |
+| | Propriétaire, Admin ou Développeur | Membre avec un droit utilisé avec une clé | Tout autre membre |
 | --- | --- | --- | --- |
 | Connecter un agent à l’organisation | Oui | Oui | Non |
 | Autoriser **Modifier les automatisations**, **Modifier et mettre en service**, **Modifier les paramètres** ou **Connecter des abonnements IA** | Oui | Non | Non |
 | Autoriser **Lire et tester** et **Lire les paramètres** | Oui | Oui | Non |
 
-Les compétences concernées sont celles qui permettent de créer une clé API, comme **Appeler les modèles par l'API** ; [Compétences](/fr/platform/admin/governance/competences) les liste. Qui n’a pas le droit de connecter un agent dans une organisation voit pourquoi sur la page de consentement et ne peut pas la choisir.
+Les droits concernés sont ceux qui permettent de créer une clé API, comme **Appeler les modèles par l'API** ; [Droits et qualifications](/fr/platform/admin/governance/rights-and-qualifications) les liste. Qui n’a pas le droit de connecter un agent dans une organisation voit pourquoi sur la page de consentement et ne peut pas la choisir.
 
 Tout accès qui va plus loin que **Lire et tester** et **Lire les paramètres** demande une connexion datant de moins de 24 heures. Si la tienne est plus ancienne, la page te demande d’abord ton mot de passe ; si ton compte se connecte via l’authentification de ton entreprise, elle te demande de te reconnecter. Dans les deux cas, ton choix est conservé. Les comptes dont l’adresse e-mail n’est pas confirmée, ou dont l’authentification à deux facteurs reste à activer, ne peuvent pas encore connecter d’agent.
 
@@ -87,7 +87,7 @@ Un agent resté inutilisé pendant 30 jours ne peut plus renouveler sa connexion
 | Ce que tu vois | Ce que tu peux faire |
 | --- | --- |
 | L’agent dit qu’il a besoin d’une authentification | Lance sa commande de connexion, ou ouvre `/mcp` dans Claude Code, et termine les étapes dans le navigateur. |
-| La page de consentement dit que connecter un agent de code demande le rôle Propriétaire, Admin ou Développeur, ou une compétence | Demande le rôle ou la compétence à un Admin. |
+| La page de consentement dit que connecter un agent de code demande le rôle Propriétaire, Admin ou Développeur, ou un droit | Demande le rôle ou le droit à un Admin. |
 | La page de consentement dit que ton compte ne peut pas encore connecter d’agents | Confirme ton adresse e-mail ou active l’authentification à deux facteurs, puis relance depuis l’agent. |
 | La page de consentement dit que la demande a expiré | Relance la connexion depuis l’agent. |
 | L’agent peut lire mais pas enregistrer ni mettre en service | Il a moins d’accès que l’appel n’en demande. Reconnecte-le et autorise davantage ; **Modifier les automatisations** et **Modifier et mettre en service** ne sont possibles que pour les propriétaires, les admins et les développeurs. |
