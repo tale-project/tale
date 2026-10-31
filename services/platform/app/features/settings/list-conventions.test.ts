@@ -40,6 +40,8 @@ const SETTINGS_ROUTES_DIR = join(APP_DIR, 'routes/dashboard/$id/settings');
  * so a second literal anywhere else in the feature is still flagged.
  */
 const PAGE_SIZE_EXCEPTIONS: Record<string, string> = {
+  'features/projects/projects-page-size.ts':
+    'the projects list loads its next page as it scrolls, and a search or the Teams filter loads every page — see `PROJECTS_PAGE_SIZE`',
   'features/settings/audit-logs/logs-page-size.ts':
     'the audit and error logs are read by scrolling back through an unbounded trail — see `LOGS_PAGE_SIZE`',
 };

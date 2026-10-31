@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 
+import { PROJECTS_PAGE_SIZE } from '@/app/features/projects/projects-page-size';
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
@@ -120,9 +121,6 @@ export function useStandardAgentQuery(organizationId: string | undefined) {
 
 export type ProjectOverviewRow =
   PageItemOf<'projects/queries:listProjectsOverview'>;
-
-/** How many projects one page of the projects list holds. */
-export const PROJECTS_PAGE_SIZE = 50;
 
 /**
  * How coarsely the overdue clock is quantized. `listProjectsOverview` counts
