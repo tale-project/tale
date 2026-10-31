@@ -341,16 +341,20 @@ conversation as a whole, with a version number, and sends it again when it chang
 API a mirror can be sent, listed, closed and given a team (`CONV-R4`). Its messages cannot be
 read back; see Not yet.
 
-### CONV-R14 · Only the API key user that mirrored a conversation can change its mirror
+### CONV-R14 · Only the integration principal can change its mirror
 
-A mirrored conversation belongs to the user whose API key first sent it. When another key
-user of the same organization sends that conversation again, closes it or assigns it, the
-call is refused (`INTEGRATION_NOT_OWNED`) and nothing changes. A key user's list of mirrors
-holds only their own.
+A mirrored conversation belongs to the integration principal represented by the API key that
+first sent it. Rotating a key for the same organization, team, project or delegated member
+principal keeps access to the existing mirror and its queued deliveries. A different principal
+of the same organization that sends that conversation again, closes it or assigns it is refused
+(`INTEGRATION_NOT_OWNED`) and nothing changes. A principal's list of mirrors holds only its own.
 
 - **Example**: Two integrations of one organization run under two service users. The second
   one sends a new version of a conversation that the first one mirrored → refused, and the
   conversation is unchanged.
+- **Example**: An organization rotates its API key. The replacement key sends the next version
+  and claims a reply queued under the old key → both calls succeed, and no duplicate conversation
+  is created.
 
 ### CONV-R15 · A mirror its source closed keeps its messages and takes no new content
 

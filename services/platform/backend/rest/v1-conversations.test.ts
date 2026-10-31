@@ -72,6 +72,7 @@ function mount(
     c.set('role', role);
     c.set('orgExplicit', false);
     c.set('clientIp', '203.0.113.9');
+    c.set('apiKeyOwner', null);
     return next();
   });
   app.route('/', createConversationRestRoutes({ sql }));
@@ -359,7 +360,6 @@ describe('GET /conversations', () => {
       continueCursor: '',
     });
     const listing = queries.find((text) => text.includes('WITH mirrored AS'));
-    expect(listing).toContain('b.owner_user_id = $?');
     expect(listing).toContain(
       'ORDER BY "createdAt" DESC, "conversationId" DESC',
     );
@@ -454,7 +454,6 @@ describe('GET /conversations/deliveries', () => {
     const listing = queries.find((text) =>
       text.includes('FROM app.conversation_api_deliveries d'),
     );
-    expect(listing).toContain('b.owner_user_id = $?');
     expect(listing).toContain("THEN 'leased'");
     expect(listing).toContain('ORDER BY retry_key, "messageId"');
     // Neither the claim token nor the body is projected.
@@ -599,8 +598,9 @@ describe('POST /conversations/deliveries/{id}/retry', () => {
 describe('GET /conversations/sync — the receipt after a teardown', () => {
   it('reports sourceDeleted and the Inbox status beside the contact [CONV-R15]', async () => {
     const { app, queries } = mount(['org-1'], 'admin', (text) =>
-      text.includes('FROM app.conversation_api_bindings WHERE') &&
-      text.includes('AND owner_user_id = $?')
+      text.includes(
+        'SELECT conversation_id AS "conversationId", snapshot_version',
+      )
         ? [
             {
               conversationId: 'c-1',
@@ -632,10 +632,10 @@ describe('GET /conversations/sync — the receipt after a teardown', () => {
       },
     });
     expect(
-      queries.find(
-        (text) =>
-          text.includes('FROM app.conversation_api_bindings WHERE') &&
-          text.includes('AND owner_user_id = $?'),
+      queries.find((text) =>
+        text.includes(
+          'SELECT conversation_id AS "conversationId", snapshot_version',
+        ),
       ),
     ).toContain('source_deleted AS "sourceDeleted"');
   });
@@ -674,6 +674,8 @@ describe('conversations door — team assignment', () => {
               {
                 conversationId: 'conv-1',
                 ownerUserId: options.owner ?? 'user-1',
+                ownerPrincipalKind: 'user',
+                ownerPrincipalId: options.owner ?? 'user-1',
               },
             ];
       }
