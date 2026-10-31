@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 174 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 179 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -985,6 +985,28 @@ otherwise. Mark them **ENVIRONMENT** without a runnable harness.
   `curl` and three times with its browser → every reported address is one of
   the proxies' exit addresses, never the server's, and the proxies' logs show
   the session's tunnels taking turns.
+- [ ] `TASK-F97` · **The board counts live agent runs, not columns** — Start
+  the second agent of `TASK-F53` on a task yourself, then start the manager on
+  a task whose description asks it to start that agent on another task, one in
+  **To do**, with `moveToInProgress: false`; drag one more task, with no run,
+  to **In progress**. Once the manager's own run has ended → beside **Filter**
+  the board reads **Agent runs: 2 running** (`tasks.liveRuns.label`,
+  `tasks.liveRuns.count.running`), never 3, and the task the manager put the
+  agent to work on stays in **To do**. Open **Agent runs** → **Live agent runs
+  in this project** (`tasks.liveRuns.title`) lists both runs under
+  **Running**, each with its task's key, title and **{agent} is working**, and
+  not the task without a run; choosing the To do task's run opens that task
+  and moves nothing. Search or filter the board down to the first task → still
+  **2 running**, the other run listed as **A task this view doesn't show**
+  (`tasks.liveRuns.unlistedTask`), as is a run on a task past the first 2,000
+  of `TASK-B31`'s project. With a second browser session on the same board,
+  start the agent on a further task while both its workers are busy
+  (`TASK-F82`) → both sessions read **2 running · 1 queued**
+  (`tasks.liveRuns.count.queued`) without a reload; once every run has ended,
+  both read **none live** (`tasks.liveRuns.none`). Env-gated like `TASK-B17`:
+  an automation run that waits on a person's answer or an approval counts
+  under **waiting for input** (`tasks.liveRuns.count.waitingForInput`). No
+  task changes column from any of it. Repeat in Deutsch and Français.
 
 ## Boundary & error tests
 
@@ -1468,6 +1490,18 @@ otherwise. Mark them **ENVIRONMENT** without a runnable harness.
   `http://169.254.169.254/latest/meta-data/` and `https://10.0.0.5/` → each
   answers `403` (or a refused tunnel for the last), nothing the agent reports
   names a proxy's password, and no proxy's log shows any of the four.
+- [ ] `TASK-B57` · **A live-run count that could not be read** — On a board
+  with a working run, block `*/api/app/tasks/ops-indicators/*` (DevTools →
+  Network → request blocking) and reload → the button beside **Filter** reads
+  **Agent runs: loading…** (`tasks.liveRuns.loading`), then, after the
+  retries, **Agent runs: unavailable** (`tasks.liveRuns.unavailable`), never
+  **none live** or a number; its list shows no run and says the runs aren't
+  counted, which doesn't mean no agent is working
+  (`tasks.liveRuns.unavailableNote`). Unblock and press **Try again** on the
+  activity warning (`tasks.read.activityFailed`) → the count comes back
+  without a reload. With the count shown, block the read again and start a run
+  from a second session → once that refresh has failed the button reads
+  **unavailable**, never the old count. Repeat in Deutsch and Français.
 
 ## Accessibility (WCAG 2.1 AA)
 
@@ -1652,6 +1686,19 @@ otherwise. Mark them **ENVIRONMENT** without a runnable harness.
   **Reviewer**, then the name it shows, before its first use and after **Esc**
   closes its list. With speech input, say "click" and the name it shows → its
   list opens.
+- [ ] `TASK-A23` · **The live-run count by keyboard, screen reader and reduced
+  motion** — On a board with a working run, Tab past **Filter** → the next
+  stop is **Agent runs: …** with a visible focus ring, and a screen reader
+  reads its counts and **in this whole project** (`tasks.liveRuns.scope`),
+  never the dots between them; **Enter** opens the list with the focus on its
+  first run, the arrow keys move from run to run, each read as its task's key,
+  title and line (**{agent} is working**), **Enter** opens that task and
+  **Esc** closes the list with the focus back on the button. With reduced
+  motion on (macOS **Reduce motion**, Windows **Animation effects** off) the
+  robot icon no longer pulses. At 390 px the button and its list stay readable
+  without clipping or sideways scrolling, in English, Deutsch (**Agentenläufe:
+  1 läuft**) and Français (**Exécutions d’agents : 1 en cours**), in light and
+  dark themes with AA contrast.
 
 ## Performance
 
