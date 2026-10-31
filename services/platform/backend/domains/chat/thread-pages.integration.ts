@@ -2,7 +2,7 @@
  * Real-Postgres proof of the chat list's pages (#5153): pinned chats first,
  * then the newest activity, ties on either timestamp split by id, so a walk
  * page by page answers every chat once; the generating flag read from the
- * page's own generations; and the pinned walk taken from 0224's
+ * page's own generations; and the pinned walk taken from 0229's
  * `thread_metadata_pinned` in its custom and generic plans.
  */
 import { randomUUID } from 'node:crypto';
@@ -231,7 +231,7 @@ const isTemplate = (value: unknown): value is TemplateStringsArray =>
  * settle on, for the first page and for a page after a pinned cursor. On the
  * harness's handful of rows the planner may prefer any index plus a sort,
  * so sequential scans and sorts are ruled out: the walk must take the
- * person's pins, newest pin first, from an index, and only 0224's partial
+ * person's pins, newest pin first, from an index, and only 0229's partial
  * index both bounds and orders them.
  */
 async function checkPinnedPlans(
@@ -301,7 +301,7 @@ async function checkPinnedPlans(
   const reads = (plan: string): boolean =>
     plan.includes('thread_metadata_pinned');
   record(
-    'chat thread pages: the pinned walk reads thread_metadata_pinned in its custom and generic plans (0224)',
+    'chat thread pages: the pinned walk reads thread_metadata_pinned in its custom and generic plans (0229)',
     reads(first.custom) &&
       reads(first.generic) &&
       reads(after.custom) &&

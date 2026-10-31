@@ -331,7 +331,7 @@ type ListedThreadRow = ThreadRow & { generating: boolean };
  * branch sibling), unarchived: the pinned rows first, newest pin first, then
  * the rest, newest activity first; the thread id breaks a tie in either walk,
  * so a page boundary never drops or repeats a row. Each walk reads at most
- * one page past its cursor: the pins from `thread_metadata_pinned` (0224),
+ * one page past its cursor: the pins from `thread_metadata_pinned` (0229),
  * the rest from `threads_org_user`. A row's generating flag probes
  * `app.generations` by that row's id, so a page reads its own threads'
  * generations and no one else's.

@@ -1356,7 +1356,7 @@ describe('the project share read grant [CHAT-R2]', () => {
   });
 });
 
-describe('listThreads answers one page of the list, pinned chats first [CHAT-R35]', () => {
+describe('listThreads answers one page of the list, pinned chats first [CHAT-R36]', () => {
   const readsPins = (statement: Statement) =>
     statement.text.includes('tm.pinned_at_ms IS NOT NULL');
 

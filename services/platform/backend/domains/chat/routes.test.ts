@@ -950,7 +950,7 @@ describe('GET /threads/archived — the numeric query params are a boundary', ()
   });
 });
 
-describe('GET /threads — one page of the list at a time [CHAT-R35]', () => {
+describe('GET /threads — one page of the list at a time [CHAT-R36]', () => {
   beforeEach(() => {
     listThreads.mockResolvedValue({
       page: [],
