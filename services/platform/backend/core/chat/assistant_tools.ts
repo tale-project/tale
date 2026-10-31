@@ -24,6 +24,8 @@
  * does real network I/O.
  */
 
+import { randomUUID } from 'node:crypto';
+
 import {
   RAG_SEARCH_DEFAULT_LIMIT,
   RAG_SEARCH_ENTITY_LIMIT,
@@ -41,6 +43,10 @@ import {
   sanitizeUntrustedField,
   wrapUntrusted,
 } from '../../../lib/chat/untrusted-content';
+import {
+  classifyRenderReason,
+  publicPageError,
+} from '../../../lib/knowledge/crawl-parse';
 import { htmlTitle } from '../../../lib/knowledge/html-to-text';
 import {
   readPageContent,
@@ -77,6 +83,11 @@ import { internal } from '../lib/handler_names';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
 import type { Doc } from '../lib/rows';
 import { detectListingIntent } from '../lib/search';
+import {
+  RenderCapacityError,
+  renderUrlsInSandbox,
+  type RenderPageOutcome,
+} from '../node_only/sandbox/render_fetch';
 import { isTerminalCredentialRefusal } from '../provider_credentials/resolve_credential';
 import type { AgentReadSubject } from '../sandbox/workspace_access';
 
@@ -123,6 +134,14 @@ const WEB_FETCH_TIMEOUT_MS = 15_000;
  * the outbound proxies: the check is the site's verdict on one address, and
  * the next proxy leaves from another. */
 const WEB_FETCH_BOT_CHECK_ATTEMPTS = 3;
+/** How web_fetch introduces itself, on the plain GET and in the browser that
+ * renders a page: never as the crawler's `TaleBot`, whose robots.txt rules a
+ * chat read does not consult. */
+const WEB_FETCH_USER_AGENT = 'TaleAssistant/1.0 (+chat web_fetch)';
+/** How long the render of one page may hold its sandbox: the worker stops
+ * starting pages 20 s before this, and a page gets 20 s to load and 5 s for
+ * its network to go idle. */
+const WEB_FETCH_RENDER_EXEC_MS = 60_000;
 
 /** A page web_fetch asked for, and the bot check it still met, if any. */
 interface FetchedPage {
@@ -156,7 +175,7 @@ async function fetchPublicPage(url: URL): Promise<FetchedPage> {
         outboundProxy: true,
         headers: {
           accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5',
-          'user-agent': 'TaleAssistant/1.0 (+chat web_fetch)',
+          'user-agent': WEB_FETCH_USER_AGENT,
         },
       });
     } catch (error) {
@@ -197,13 +216,19 @@ function cameThrough(via: OutboundProxyRef | undefined): string {
     : `through outbound proxy entry ${via.entry} (${via.label})`;
 }
 
+/** What web_fetch says rendering met when the rendered page still holds no
+ * text: the clause its explanation carries. */
+const RENDERED_NOTHING = 'rendered in a browser here, it still holds no text';
+
 /** What web_fetch tells the model about a page that answered with success
  * and holds nothing to read, so it says why instead of guessing. The site's
  * status text stays out of it: the site's words reach the model only inside
- * the page it sent. */
+ * the page it sent. A page its scripts build comes with what rendering it
+ * met (`rendered`): it is never given up on without a render. */
 function unreadablePageFailure(
   why: UnreadablePage,
   status: number,
+  rendered: string = RENDERED_NOTHING,
 ): ToolFailure {
   switch (why) {
     case 'blocked':
@@ -214,8 +239,7 @@ function unreadablePageFailure(
     case 'needs-browser':
       return {
         status: 'unavailable',
-        message:
-          'The page builds its content in the browser with scripts, which this tool does not run, so there is nothing to read here. Tell the user; they can open it in their browser.',
+        message: `The page builds its content in the browser with scripts; ${rendered}, so there is nothing to read here. Tell the user; they can open it in their browser.`,
       };
     case 'empty':
       return {
@@ -227,6 +251,64 @@ function unreadablePageFailure(
       const _exhaustive: never = why;
       return _exhaustive;
     }
+  }
+}
+
+/**
+ * Render one page that needs a browser in the crawler's render lane: an
+ * ephemeral sandbox session against the organization's render quota, the
+ * lane's own host checks and egress proxy, created by the member whose chat
+ * asked. The page or the clause saying why there is none; a spent quota is
+ * explained at once, never waited for, since a reply cannot wait as a scan
+ * does.
+ */
+async function renderPageOnce(
+  ctx: ActionCtx,
+  who: { readonly organizationId: string; readonly userId: string },
+  url: string,
+): Promise<
+  Extract<RenderPageOutcome, { kind: 'ok' }> | { kind: 'failed'; why: string }
+> {
+  const host = new URL(url).hostname;
+  try {
+    const batch = await renderUrlsInSandbox(ctx, {
+      organizationId: who.organizationId,
+      urls: [url],
+      batchKey: `chat:${randomUUID()}`,
+      execTimeoutMs: WEB_FETCH_RENDER_EXEC_MS,
+      createdBy: who.userId,
+      userAgent: WEB_FETCH_USER_AGENT,
+    });
+    const outcome = batch.outcomes.get(url);
+    if (outcome?.kind === 'ok') return outcome;
+    const reason =
+      outcome?.kind === 'failed'
+        ? classifyRenderReason(outcome.reason).message
+        : batch.halted !== null
+          ? publicPageError(batch.halted.error)
+          : 'the browser never reached the page';
+    console.warn(`[chat] web_fetch: rendering ${host} failed: ${reason}`);
+    return {
+      kind: 'failed',
+      why: `rendering it in a browser here failed (${clip(reason, 200)})`,
+    };
+  } catch (error) {
+    if (error instanceof RenderCapacityError) {
+      console.warn(
+        `[chat] web_fetch: no render session for ${host}: ${error.message}`,
+      );
+      return {
+        kind: 'failed',
+        why: "no browser was free to render it here (the organization's render sessions are all in use, or the sandbox host is busy; asking again later may work)",
+      };
+    }
+    console.warn(
+      `[chat] web_fetch: rendering ${host} failed: ${describeError(error)}`,
+    );
+    return {
+      kind: 'failed',
+      why: `rendering it in a browser here failed (${clip(publicPageError(describeError(error)), 200)})`,
+    };
   }
 }
 
@@ -2764,35 +2846,80 @@ export function createChatToolExecutor(
       return result;
     }
 
-    const title = isHtml ? htmlTitle(response.body) : null;
     // An HTML page is read for its main content, without the site's chrome.
-    const page: PageContent = isHtml
-      ? readPageContent(response.body, response.finalUrl)
-      : { text: response.body, canonicalUrl: null, needsBrowser: false };
+    let read: {
+      readonly url: string;
+      readonly title: string | null;
+      readonly page: PageContent;
+      readonly rendered: boolean;
+    } = {
+      url: response.finalUrl,
+      title: isHtml ? htmlTitle(response.body) : null,
+      page: isHtml
+        ? readPageContent(response.body, response.finalUrl)
+        : { text: response.body, canonicalUrl: null, needsBrowser: false },
+      rendered: false,
+    };
     const unreadable = unreadablePage(
       response.status,
-      page.text,
-      page.needsBrowser,
+      read.page.text,
+      read.page.needsBrowser,
     );
-    if (unreadable !== null) {
+    if (unreadable === 'needs-browser') {
+      // A page its scripts build is rendered once, in the render lane: the
+      // page safeFetch admitted, at the address its redirects led to. A bot
+      // check, a site's empty refusal and an empty page never get here.
+      const drawn = await renderPageOnce(ctx, who, response.finalUrl);
+      if (drawn.kind === 'failed') {
+        const result = unreadablePageFailure(
+          'needs-browser',
+          response.status,
+          drawn.why,
+        );
+        await recordDispatch('web_fetch', result.status, result.message);
+        return result;
+      }
+      read = {
+        url: drawn.finalUrl,
+        title: htmlTitle(drawn.html) ?? read.title,
+        page: readPageContent(drawn.html, drawn.finalUrl),
+        rendered: true,
+      };
+      const still = unreadablePage(
+        drawn.status,
+        read.page.text,
+        read.page.needsBrowser,
+      );
+      if (still !== null) {
+        const result = unreadablePageFailure(
+          still === 'blocked' ? still : 'needs-browser',
+          drawn.status,
+        );
+        await recordDispatch('web_fetch', result.status, result.message);
+        return result;
+      }
+    } else if (unreadable !== null) {
       const result = unreadablePageFailure(unreadable, response.status);
       await recordDispatch('web_fetch', result.status, result.message);
       return result;
     }
     // Offsets index the EXTRACTED text, not response bytes — HTML positions
     // shift under extraction, so a Range request could never line up. Every
-    // window therefore re-fetches the page and slices; the paging contract
+    // window therefore re-fetches the page and slices (a page that needs a
+    // browser is rendered again); the paging contract
     // (`offset`/`nextOffset`/`totalChars`) matches rag_fetch exactly.
-    const paged = windowText(page.text, offset, limit);
+    const paged = windowText(read.page.text, offset, limit);
     await recordDispatch('web_fetch', 'ok');
     return {
       status: 'ok',
-      url: response.finalUrl,
-      ...(title !== null ? { title } : {}),
+      url: read.url,
+      ...(read.title !== null ? { title: read.title } : {}),
       // Where the page says it lives, when it was read at another address.
-      ...(page.canonicalUrl !== null && page.canonicalUrl !== response.finalUrl
-        ? { canonicalUrl: page.canonicalUrl }
+      ...(read.page.canonicalUrl !== null && read.page.canonicalUrl !== read.url
+        ? { canonicalUrl: read.page.canonicalUrl }
         : {}),
+      // The page was drawn by a browser in the render lane, not read as sent.
+      ...(read.rendered ? { rendered: true } : {}),
       totalChars: paged.totalChars,
       offset,
       ...(paged.nextOffset !== undefined
@@ -2800,7 +2927,7 @@ export function createChatToolExecutor(
         : {}),
       content: wrapUntrusted(paged.content, {
         tool: 'web_fetch',
-        url: response.finalUrl,
+        url: read.url,
       }),
     };
   };

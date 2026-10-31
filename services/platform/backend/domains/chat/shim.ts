@@ -37,6 +37,7 @@ import {
   type ProjectRow,
 } from '../projects/service.ts';
 import { listServingCredentialFacts } from '../provider_credentials/service.ts';
+import { renderLaneShimHandlers } from '../sandbox/render-lane-shim.ts';
 import { readAgentTaskLabels } from '../tasks/agent-labels.ts';
 import { readTaskCommentPage } from '../tasks/comments.ts';
 import {
@@ -388,6 +389,9 @@ async function searchProjects(
 export function chatShimHandlers(sql: Sql): ShimHandlers {
   return {
     ...knowledgeShimHandlers(sql),
+    // web_fetch renders a page that needs a browser once, through the
+    // crawler's render lane, against the organization's render quota.
+    ...renderLaneShimHandlers(sql),
     // The guardrail seams a turn dispatches: the policy reads, the
     // moderation provider round, and the chat-filter event write.
     ...governanceShimHandlers(sql),
