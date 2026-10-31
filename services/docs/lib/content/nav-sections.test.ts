@@ -4,7 +4,12 @@ import { isDocsNavGroup } from '@tale/ui/docs/docs-nav';
 import { describe, expect, it } from 'vitest';
 import { parse as parseYaml } from 'yaml';
 
-import { navNeighbours, navSections, searchResultTrail } from './nav-sections';
+import {
+  navNeighbours,
+  navPage,
+  navSections,
+  searchResultTrail,
+} from './nav-sections';
 
 /** A `nav`-bound translator over one locale's catalog, as `useT('nav')` is. */
 function navTranslator(locale: 'en' | 'de' | 'fr') {
@@ -51,6 +56,15 @@ describe('navSections', () => {
   });
 });
 
+describe('navPage', () => {
+  it('names a page by its title in the locale asked for', () => {
+    expect(navPage('de', 'develop/mcp-endpoint')).toEqual({
+      href: '/de/develop/mcp-endpoint',
+      label: 'MCP-Endpoint',
+    });
+  });
+});
+
 describe('navNeighbours', () => {
   it('names both neighbours of a page in nav order', () => {
     const { prev, next } = navNeighbours(
@@ -61,6 +75,21 @@ describe('navNeighbours', () => {
     expect(next?.href).toMatch(/^\/self-hosted\//);
     expect(prev?.label).toBeTruthy();
     expect(next?.label).toBeTruthy();
+  });
+
+  // The route hands a section landing page over by its address (`/cloud` is
+  // `cloud`), while nav.json lists its file (`cloud/index`).
+  it.each([
+    'cloud',
+    'self-hosted',
+    'self-hosted/install',
+    'platform',
+    'tutorials/videos',
+  ])('names both neighbours of the section landing page `/%s`', (route) => {
+    const neighbours = navNeighbours('en', route);
+    expect(neighbours.prev).not.toBeNull();
+    expect(neighbours.next).not.toBeNull();
+    expect(neighbours).toEqual(navNeighbours('en', `${route}/index`));
   });
 
   it('has no neighbours for a page outside the tree', () => {

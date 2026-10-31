@@ -39,7 +39,8 @@ export default defineConfig({
           environment: 'jsdom',
           setupFiles: ['./tests/setup.ts'],
           globals: true,
-          include: ['app/**/*.test.{ts,tsx}'],
+          // A hook's colocated test under `lib/` renders, so it runs here.
+          include: ['app/**/*.test.{ts,tsx}', 'lib/**/*.test.tsx'],
         },
       },
     ],

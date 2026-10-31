@@ -55,20 +55,3 @@ export function suggestPages<T extends SuggestionCandidate>(
       return candidate ? [candidate] : [];
     });
 }
-
-/**
- * A readable label for a slug when the page has no title to offer, e.g.
- * `platform/chat/basics` → `Platform / Chat / Basics`.
- */
-export function slugLabel(slug: string): string {
-  return slug
-    .replace(/\/index$/, '')
-    .split('/')
-    .map((part) =>
-      part
-        .split('-')
-        .map((word) => (word ? word[0].toUpperCase() + word.slice(1) : word))
-        .join(' '),
-    )
-    .join(' / ');
-}

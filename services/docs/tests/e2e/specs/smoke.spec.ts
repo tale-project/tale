@@ -46,7 +46,7 @@ test.describe('docs smoke', () => {
       ),
     );
     await expect(
-      page.getByRole('button', { name: t('docs.openSearch') }).first(),
+      page.getByRole('button', { name: t('docs.searchPlaceholder') }).first(),
     ).toBeVisible();
     expect(errors).toEqual([]);
   });
@@ -173,7 +173,7 @@ test.describe('docs smoke', () => {
   test('search palette opens', async ({ page }) => {
     await gotoClientPage(page, '/');
     await page
-      .getByRole('button', { name: t('docs.openSearch') })
+      .getByRole('button', { name: t('docs.searchPlaceholder') })
       .first()
       .click();
     await expect(
@@ -195,7 +195,7 @@ test.describe('docs smoke', () => {
       drawer.getByRole('button', { name: t('docs.closeMenu') }),
     ).toBeVisible();
     await expect(
-      drawer.getByRole('button', { name: t('docs.openSearch') }),
+      drawer.getByRole('button', { name: t('docs.searchPlaceholder') }),
     ).toBeVisible();
     // One Escape dismisses it — no tooltip layer in the way — and focus lands
     // back on the control that opened it.

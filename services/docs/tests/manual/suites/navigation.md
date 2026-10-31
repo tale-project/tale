@@ -83,7 +83,9 @@ this guide focuses on **behaviour**, not link rot.
   cards link to the flattened-nav neighbours, inside a `<nav>` named **Page
   navigation** (`docs.pagination`); the first page has no Previous, the last no
   Next, and the remaining card keeps its side of the row; clicking navigates
-  and scrolls to top.
+  and scrolls to top. A section landing page (`{base}/cloud`,
+  `{base}/self-hosted/install`, `{base}/tutorials/videos`) carries both cards
+  too, so following **Next** page by page never dead-ends.
 - [ ] `NAV-F7` · **Back to top** — Scroll a long page > 600 px down → The
   **Back to top** button (`docs.backToTop`) fades in (fixed, bottom-right);
   clicking it returns to the top and it disappears again.
@@ -213,8 +215,9 @@ this guide focuses on **behaviour**, not link rot.
   its address in** (`docs.notFound.pageIndex`) ending in a link to
   `{base}/llms.txt` that opens the plain-text index, a **Did you mean** list
   (`docs.notFound.suggestions`) ranked by the server's near-miss scorer — the
-  Chat pages, `platform/chat/basics` among them — and a **Back to docs home**
-  button (`docs.notFound.backHome`)
+  Chat pages, `platform/chat/basics` among them, each card named by its page
+  title (**Ask questions in chat**) — and a **Back to docs home** button
+  (`docs.notFound.backHome`)
 - [ ] `NAV-B2` · **Deep garbage URL** — Open `{base}/x/y/z/deep/garbage` →
   Same 404 page; suggestions still render (fallback list); no crash, no blank
   screen.

@@ -2,6 +2,7 @@ import { DocsLayout } from '@tale/ui/docs/docs-layout';
 import { LocaleSync } from '@tale/ui/i18n/sync';
 import { TALE_GITHUB_URL } from '@tale/ui/seo/globals';
 import { ThemeAssets } from '@tale/ui/theme/assets';
+import { Toaster } from '@tale/ui/toaster';
 import { useSiteCopyright } from '@tale/ui/use-site-copyright';
 import {
   createRootRoute,
@@ -93,6 +94,8 @@ function RootLayout() {
         <Outlet />
       </DocsLayout>
       <SwUpdateBanner />
+      {/* Hosts the error toast a refused clipboard raises from the copy buttons. */}
+      <Toaster />
     </>
   );
 }

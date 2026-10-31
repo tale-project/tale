@@ -13,6 +13,16 @@ interface DemoProps {
 }
 
 /**
+ * The example's source, fetched the first time the panel opens. A failed load
+ * is remembered as failed, not as an empty file, so it is asked for again.
+ */
+type SourceState =
+  | { status: 'idle' }
+  | { status: 'loading' }
+  | { status: 'failed' }
+  | { status: 'ready'; code: string };
+
+/**
  * The one tag this site adds on top of the shared markdown registry. It
  * renders the real component — not a screenshot — on a bordered preview
  * surface that follows the active theme, with the example's own source one
@@ -20,24 +30,33 @@ interface DemoProps {
  *
  * An unknown name renders a visible error box rather than nothing: a demo
  * that silently disappears is how a docs page rots without anyone noticing.
+ * The same goes for its source: a load that fails (a stale chunk after a
+ * deploy, a dropped connection) says so and offers to try again.
  */
 export function Demo({ name }: DemoProps) {
   const { t } = useT('demo');
-  const [source, setSource] = useState<string | null>(null);
+  const { t: tCommon } = useT('common');
+  const [source, setSource] = useState<SourceState>({ status: 'idle' });
   const [open, setOpen] = useState(false);
   const demoName = name ?? '';
   const Component = getDemoComponent(demoName);
 
-  const toggle = useCallback(() => {
-    setOpen((wasOpen) => !wasOpen);
-    if (source !== null) return;
+  const load = useCallback(() => {
+    setSource({ status: 'loading' });
     void loadDemoSource(demoName)
-      .then((text) => setSource(text ?? ''))
+      .then((code) => setSource({ status: 'ready', code: code ?? '' }))
       .catch((error: unknown) => {
         console.error(`[ui-docs] demo source failed for ${demoName}`, error);
-        setSource('');
+        setSource({ status: 'failed' });
       });
-  }, [demoName, source]);
+  }, [demoName]);
+
+  const toggle = useCallback(() => {
+    if (!open && (source.status === 'idle' || source.status === 'failed')) {
+      load();
+    }
+    setOpen(!open);
+  }, [load, open, source.status]);
 
   if (!Component) {
     return (
@@ -69,13 +88,32 @@ export function Demo({ name }: DemoProps) {
       <div className="bg-background flex flex-col items-center justify-center gap-4 px-4 py-8">
         <Component />
       </div>
-      {open ? (
+      {open && source.status === 'ready' ? (
         <CodeBlock
-          code={source ?? ''}
+          code={source.code}
           language="tsx"
           filename={`${demoName}.tsx`}
           className="border-border m-0 rounded-none border-0 border-t"
         />
+      ) : null}
+      {open && source.status === 'loading' ? (
+        <p
+          role="status"
+          className="border-border text-muted-foreground border-t px-4 py-3 text-sm"
+        >
+          {t('loadingCode')}
+        </p>
+      ) : null}
+      {open && source.status === 'failed' ? (
+        <div
+          role="alert"
+          className="border-border flex flex-wrap items-center gap-2 border-t px-4 py-3 text-sm"
+        >
+          <span className="text-muted-foreground">{t('codeFailed')}</span>
+          <Button type="button" size="sm" variant="secondary" onClick={load}>
+            {tCommon('actions.tryAgain')}
+          </Button>
+        </div>
       ) : null}
     </div>
   );

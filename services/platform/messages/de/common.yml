@@ -105,7 +105,6 @@ errors:
   documentPreview: Dokumentvorschau
   errorLoadingDocumentPreview: Die Dokumentvorschau konnte nicht geladen werden. Versuche es erneut.
   generic: Etwas ist schiefgelaufen — versuch es erneut, oder lade die Seite neu, wenn das Problem bleibt.
-  failedToCopy: Kopieren in die Zwischenablage fehlgeschlagen
   sessionEnded: Deine Sitzung ist beendet. Melde dich erneut an.
   organizationSessionRestricted: Diese Sitzung ist auf die Organisation beschränkt, die dich angemeldet hat.
   accountIdentityRequired: Bestätige dein Passwort oder einen Passkey für dein Konto, bevor du dein Konto änderst.

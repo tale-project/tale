@@ -35,7 +35,9 @@ export function useDocsSearchConfig(locale: SupportedLocale): DocsSearchConfig {
   );
   return {
     indexUrl: `${SEARCH_BASE_URL}/search-index-${locale}.json`,
-    recentsStorageKey: 'tale.docs.recentSearches.v1',
+    // A recent search names its page in the language it was made in, so each
+    // language keeps its own, as it keeps its own index.
+    recentsStorageKey: `tale.docs.recentSearches.v1.${locale}`,
     sectionLabel,
     breadcrumb,
   };

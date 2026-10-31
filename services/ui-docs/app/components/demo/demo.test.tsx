@@ -1,16 +1,25 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
 
 import { Demo } from './demo';
+import { loadDemoSource } from './registry';
+
+// The real registry, with its source loader observable — a test can make one
+// load fail the way a stale chunk after a deploy, or a dropped connection, does.
+vi.mock('./registry', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./registry')>();
+  return { ...actual, loadDemoSource: vi.fn(actual.loadDemoSource) };
+});
 
 /**
  * `<Demo>` is the one tag this site adds to the shared markdown registry, and
  * the only place a reader meets a real component rather than a screenshot.
  * Three things have to hold: the registered example renders, an unknown name
- * is LOUD rather than silent, and the source is one keystroke away.
+ * is LOUD rather than silent, and the source is one keystroke away — and
+ * stays reachable after a load fails.
  */
 
 describe('Demo', () => {
@@ -52,6 +61,55 @@ describe('Demo', () => {
       'aria-expanded',
       'false',
     );
+  });
+
+  it('says when the source failed to load and loads it on Try again', async () => {
+    vi.mocked(loadDemoSource)
+      .mockClear()
+      .mockRejectedValueOnce(new Error('chunk gone'));
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const user = userEvent.setup();
+    const { container } = render(<Demo name="button/variants" />);
+
+    await user.click(screen.getByRole('button', { name: 'Code' }));
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent("Couldn't load this example's code.");
+    // No empty code block that looks like a source file with nothing in it.
+    expect(container.querySelector('pre')).toBeNull();
+    expect(quiet).toHaveBeenCalled();
+    await checkAccessibility(container);
+
+    await user.click(within(alert).getByRole('button', { name: 'Try again' }));
+    await waitFor(() => {
+      expect(container.querySelector('pre')?.textContent ?? '').toContain(
+        'export default function ButtonVariants',
+      );
+    });
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(loadDemoSource).toHaveBeenCalledTimes(2);
+    quiet.mockRestore();
+  });
+
+  it('asks for the source again when the panel reopens after a failed load', async () => {
+    vi.mocked(loadDemoSource)
+      .mockClear()
+      .mockRejectedValueOnce(new Error('offline'));
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const user = userEvent.setup();
+    const { container } = render(<Demo name="button/variants" />);
+
+    await user.click(screen.getByRole('button', { name: 'Code' }));
+    expect(await screen.findByRole('alert')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Hide code' }));
+    await user.click(screen.getByRole('button', { name: 'Code' }));
+
+    await waitFor(() => {
+      expect(container.querySelector('pre')?.textContent ?? '').toContain(
+        'export default function ButtonVariants',
+      );
+    });
+    expect(loadDemoSource).toHaveBeenCalledTimes(2);
+    quiet.mockRestore();
   });
 
   it('shouts about an unknown name instead of rendering nothing', () => {

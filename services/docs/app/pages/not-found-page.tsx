@@ -1,9 +1,10 @@
 import { DocsNotFound } from '@tale/ui/docs/docs-not-found';
-import { slugLabel, suggestPages } from '@tale/ui/docs/suggest-pages';
+import { suggestPages } from '@tale/ui/docs/suggest-pages';
 import { useRouterState } from '@tanstack/react-router';
 import { useMemo } from 'react';
 
 import { firstNavSlug } from '@/lib/content/nav';
+import { navPage } from '@/lib/content/nav-sections';
 import { docPath } from '@/lib/content/paths';
 import { useT } from '@/lib/i18n/client';
 import type { SupportedLocale } from '@/lib/i18n/locales';
@@ -41,10 +42,7 @@ export function NotFoundPage({ locale }: NotFoundPageProps) {
         docsNearMissPages(),
         undefined,
         docsNearMissGroups(),
-      ).map(({ slug }) => ({
-        href: docPath(locale, slug),
-        label: slugLabel(slug),
-      })),
+      ).map(({ slug }) => navPage(locale, slug)),
     [locale, requestedSlug],
   );
 

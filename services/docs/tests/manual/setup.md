@@ -57,7 +57,7 @@ German at `{base}/de/platform/chat/basics`.
 | Entry          | `{base}/`                                 | h1 **Send your first message**, shared docs frame and search render                                                                          |
 | Sidebar        | `{base}/self-hosted/install/quickstart`                                 | the six top groups render: **Start here**, **Cloud**, **Self-hosted**, **Platform**, **Tutorials**, **Development** (`nav.groups.*`) |
 | A content page | `{base}/self-hosted/install/quickstart`   | body + **On this page** TOC render                                                                                                   |
-| Search         | header **Open search** (`docs.openSearch`) | the dialog opens with the **Search documentation…** input                                                                            |
+| Search         | rail **Search documentation** (`docs.searchPlaceholder`) | the dialog opens with the **Search documentation…** input                                                                            |
 | Locales        | `{base}/de`, `{base}/fr`                  | localized first guide renders                                                                                                            |
 
 ```

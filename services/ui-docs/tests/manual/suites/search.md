@@ -41,3 +41,8 @@ restart. Any documentation page open, a 1440×900 viewport.
 - [ ] `SEARCH-6` · **Press Escape with results showing** → the palette closes
   in one press and focus returns to the control that opened it (the Search
   field, or the page when opened by keyboard).
+- [ ] `SEARCH-7` · **Tab to the rail's Search documentation field with a
+  screen reader on** → it is announced by the text it shows (**Search
+  documentation**), with ⌘K / Ctrl+K as its shortcut rather than part of its
+  name; saying "click Search documentation" to voice control opens the
+  palette.

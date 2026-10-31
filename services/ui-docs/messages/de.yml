@@ -16,6 +16,8 @@ demo:
   preview: Live-Beispiel
   showCode: Code
   hideCode: Code ausblenden
+  loadingCode: Code wird geladen…
+  codeFailed: Der Code dieses Beispiels konnte nicht geladen werden.
   missingTitle: Unbekanntes Beispiel
   missingBody: Unter „{name}“ ist kein Beispiel registriert. Leg
     app/demos/{name}.tsx an und verlinke es aus einer Seite.

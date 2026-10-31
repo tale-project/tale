@@ -4,6 +4,7 @@ import { Button } from '@tale/ui/button';
 import { cn } from '@tale/ui/cn';
 import { DropdownMenu } from '@tale/ui/dropdown-menu';
 import { useT } from '@tale/ui/i18n/client';
+import { useCopy } from '@tale/ui/use-copy';
 import {
   Bot,
   Check,
@@ -12,7 +13,6 @@ import {
   ExternalLink,
   FileText,
 } from 'lucide-react';
-import { useState } from 'react';
 
 export interface PageActionsProps {
   /** Absolute URL of the page's plain-markdown twin (`<page>.md`). */
@@ -22,16 +22,17 @@ export interface PageActionsProps {
   className?: string;
 }
 
-function chatGptUrl(markdownUrl: string): string {
-  return `https://chatgpt.com/?hints=search&q=${encodeURIComponent(`Read ${markdownUrl} and answer my questions.`)}`;
+// Each hand-off opens the model with a prompt in the reader's language.
+function chatGptUrl(prompt: string): string {
+  return `https://chatgpt.com/?hints=search&q=${encodeURIComponent(prompt)}`;
 }
-function claudeUrl(markdownUrl: string): string {
-  return `https://claude.ai/new?q=${encodeURIComponent(`Read ${markdownUrl} and answer my questions.`)}`;
+function claudeUrl(prompt: string): string {
+  return `https://claude.ai/new?q=${encodeURIComponent(prompt)}`;
 }
-function cursorUrl(markdownUrl: string): string {
+function cursorUrl(prompt: string): string {
   // Cursor's built-in /docs ingester accepts pages via the cursor:// deeplink
   // scheme.
-  return `cursor://anysphere.cursor-deeplink/prompt?text=${encodeURIComponent(`Use ${markdownUrl} as documentation context.`)}`;
+  return `cursor://anysphere.cursor-deeplink/prompt?text=${encodeURIComponent(prompt)}`;
 }
 
 /**
@@ -46,19 +47,13 @@ export function PageActions({
   className,
 }: PageActionsProps) {
   const { t } = useT('docs');
-  const [copied, setCopied] = useState(false);
+  // A refused clipboard raises the shared error toast instead of failing
+  // silently.
+  const { copied, copy } = useCopy({ copiedDuration: 1500 });
 
-  const handleCopy = async () => {
+  const handleCopy = () => {
     if (markdown === null) return;
-    try {
-      await navigator.clipboard.writeText(
-        typeof markdown === 'function' ? markdown() : markdown,
-      );
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch (error) {
-      console.warn('[page-actions] clipboard write failed', error);
-    }
+    void copy(typeof markdown === 'function' ? markdown() : markdown);
   };
 
   const copyLabel = copied
@@ -108,21 +103,27 @@ export function PageActions({
               type: 'item',
               label: t('pageActions.openChatGpt'),
               icon: ExternalLink,
-              href: chatGptUrl(markdownUrl),
+              href: chatGptUrl(
+                t('pageActions.promptRead', { url: markdownUrl }),
+              ),
               external: true,
             },
             {
               type: 'item',
               label: t('pageActions.openClaude'),
               icon: ExternalLink,
-              href: claudeUrl(markdownUrl),
+              href: claudeUrl(
+                t('pageActions.promptRead', { url: markdownUrl }),
+              ),
               external: true,
             },
             {
               type: 'item',
               label: t('pageActions.openCursor'),
               icon: ExternalLink,
-              href: cursorUrl(markdownUrl),
+              href: cursorUrl(
+                t('pageActions.promptContext', { url: markdownUrl }),
+              ),
             },
           ],
         ]}

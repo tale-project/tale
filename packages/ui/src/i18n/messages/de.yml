@@ -85,6 +85,8 @@ docs:
     openChatGpt: In ChatGPT öffnen
     openClaude: In Claude öffnen
     openCursor: In Cursor öffnen
+    promptRead: Lies {url} und beantworte meine Fragen.
+    promptContext: Nutze {url} als Dokumentationskontext.
   notFound:
     title: Seite nicht gefunden
     body: Diese Seite konnten wir nicht finden. Vielleicht hilft eine der folgenden Seiten weiter – oder nutze die Suche.
@@ -195,6 +197,7 @@ common:
   errors:
     contactSupport: kontaktiere den Support
     errorLoadingPage: Beim Laden dieser Seite ist etwas schiefgelaufen. Versuch es erneut oder wechsle zu einem anderen Bereich.
+    failedToCopy: Kopieren in die Zwischenablage fehlgeschlagen
     hideDetails: Details ausblenden
     persistsProblem: Wenn das immer wieder passiert,
     showDetails: Details anzeigen
