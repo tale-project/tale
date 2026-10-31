@@ -1122,6 +1122,28 @@ export async function countWaitingAgentRuns(
     WHERE org_id = ${organizationId} AND ${sql.unsafe(parkedRunSql())}
     GROUP BY waiting_reason
   `;
+  return tallyWaitingAgentRuns(rows);
+}
+
+/** {@link countWaitingAgentRuns} over every organization of the deployment:
+ * what the backend's metrics report as `tale_backend_agent_runs_waiting`.
+ * Never an answer to one organization's request; its name says so, so no
+ * route reads it in place of the organization's own count. */
+export async function countWaitingAgentRunsAcrossOrganizations(
+  sql: Sql,
+): Promise<WaitingAgentRunCounts> {
+  const rows = await sql<{ reason: string | null; count: number }[]>`
+    SELECT waiting_reason AS reason, count(*)::int AS count
+    FROM app.project_agent_runs
+    WHERE ${sql.unsafe(parkedRunSql())}
+    GROUP BY waiting_reason
+  `;
+  return tallyWaitingAgentRuns(rows);
+}
+
+function tallyWaitingAgentRuns(
+  rows: readonly { reason: string | null; count: number }[],
+): WaitingAgentRunCounts {
   const byReason: Record<AgentRunWaitingReason | 'unknown', number> = {
     org_limit: 0,
     host: 0,
