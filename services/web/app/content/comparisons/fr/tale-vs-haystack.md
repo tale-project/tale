@@ -33,3 +33,5 @@ Envisage Tale si ton équipe veut transformer des sources en travail attribué e
 Utilise trois spécifications techniques fictives, dont deux portent des dates de révision contradictoires. Demande une synthèse des exigences et des tâches pour les différences non résolues. Fais corriger une référence par un spécialiste, puis demander une nouvelle version.
 
 Avec Haystack, examine le contrôle du pipeline et l’effort pour rendre preuves et corrections accessibles dans l’application. Avec Tale, examine les responsabilités, la validation et la continuité entre versions. Vérifie si l’équipe peut expliquer la décision finale, y compris l’incertitude restante. [Demande une démo de Tale](https://tale.dev/fr/request-demo) avec cette revue documentaire.
+
+Cette comparaison s’appuie sur la documentation publique examinée le 3 octobre 2026, sans test comparatif pratique.

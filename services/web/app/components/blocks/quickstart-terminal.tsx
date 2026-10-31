@@ -5,8 +5,6 @@ import { cn } from '@tale/ui/cn';
 import { Check, Copy } from 'lucide-react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-import { SELF_HOSTED_QUICKSTART_URL } from '@/lib/docs-url';
-
 // The real self-hosted quickstart, verbatim — source of truth:
 // docs/en/self-hosted/install/quickstart.md. Update both together.
 export const QUICKSTART_COMMANDS = [
@@ -27,6 +25,8 @@ interface QuickstartTerminalProps {
   copiedLabel: string;
   /** Footer link to the full self-hosted quickstart. */
   docsLabel: string;
+  /** The quickstart in the page's language (`getSelfHostedQuickstartUrl`). */
+  docsHref: string;
   className?: string;
 }
 
@@ -40,6 +40,7 @@ export function QuickstartTerminal({
   copyLabel,
   copiedLabel,
   docsLabel,
+  docsHref,
   className,
 }: QuickstartTerminalProps) {
   const [copied, setCopied] = useState(false);
@@ -144,7 +145,7 @@ export function QuickstartTerminal({
 
       <div className="relative border-t border-white/10 px-3 py-1.5 md:px-3.5">
         <MarketingExternalLink
-          href={SELF_HOSTED_QUICKSTART_URL}
+          href={docsHref}
           tone="plain"
           showIcon
           className="text-ink-terminal-fg/40 hover:text-ink-terminal-fg/75 text-[11px] transition-colors"

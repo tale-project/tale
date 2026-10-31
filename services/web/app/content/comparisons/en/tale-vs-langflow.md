@@ -33,3 +33,5 @@ Consider Tale when the team needs the working environment itself: project contex
 Provide an old policy, a revised requirement, and three employee questions. Ask each candidate to support drafting an update, identifying unanswered questions, and collecting a reviewer's corrections.
 
 With Langflow, evaluate the effort to build and expose the required flow. With Tale, evaluate how the work is divided and how a colleague resumes it after the original owner leaves the pilot. Check both the accuracy of the answers and the clarity of the outstanding tasks. Keep component design effort separate from the effort to run the project each week. [Request a Tale demo](https://tale.dev/request-demo) with this policy update.
+
+This comparison describes public documentation reviewed on 3 October 2026; it is not a hands-on benchmark.

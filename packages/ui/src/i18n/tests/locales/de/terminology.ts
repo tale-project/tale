@@ -61,7 +61,7 @@ export const TERMINOLOGY_DE: LocaleTerminologyConfig = {
   calques: [
     {
       word: 'Vertrauenshaltung',
-      target: 'name the actual certifications (ISO 27001, SOC 2)',
+      target: 'name the actual certification and its scope (ISO 27001)',
     },
     { word: 'Nutzerreise', target: 'use "Ablauf" or "Nutzerablauf"' },
     { word: 'Operationsfläche', target: 'use "Oberfläche"' },

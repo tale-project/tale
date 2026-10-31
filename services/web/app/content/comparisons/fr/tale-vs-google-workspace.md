@@ -33,3 +33,5 @@ Envisage Tale s’il manque une structure projet commune pour planifier, attribu
 Prends des notes d’atelier fictives demandant une FAQ client, une checklist de lancement et une décision encore ouverte. Fais produire les deux livrables, attribuer la décision et relire les résultats après un changement d’exigence en milieu de semaine.
 
 Vérifie où les responsabilités apparaissent, si la personne qui relit retrouve le contexte initial et comment les tâches de suivi persistent après la réunion. Inclus l’effort pour déplacer ou connecter les documents sans multiplier les versions de référence. Compare le cycle hebdomadaire complet. [Demande une démo de Tale](https://tale.dev/fr/request-demo) avec ce projet.
+
+Cette comparaison s’appuie sur la documentation publique examinée le 3 octobre 2026, sans test comparatif pratique.
