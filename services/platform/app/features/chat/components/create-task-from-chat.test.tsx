@@ -15,7 +15,13 @@ import type { ChatMessageView, ChatProjectSummary } from '../types';
  */
 
 const state = vi.hoisted(() => ({
+  /** Home's page of projects, the field's list before anything is typed. */
   projects: [] as ChatProjectSummary[],
+  /** The page holds every project; when not, `beyond` are the rest. */
+  pageIsDone: true,
+  beyond: [] as ChatProjectSummary[],
+  /** What the project field asked the server for, newest last. */
+  searched: [] as string[],
   agentsByProject: {} as Record<string, { _id: string; managed?: boolean }[]>,
   projectsFailed: false,
   messages: [] as ChatMessageView[],
@@ -29,12 +35,35 @@ const state = vi.hoisted(() => ({
   ensure: vi.fn(),
 }));
 
+// The seam's own tests prove the page, the search and the read by id
+// against the server; here the page answers, and past it a search finds
+// the rest by name.
 vi.mock('../data/chat-backend', () => ({
   useChatQueryClient: () => ({ refetchQueries: vi.fn(async () => undefined) }),
-  useChatProjects: () =>
-    state.projectsFailed
-      ? { status: 'unavailable' }
-      : { status: 'ready', data: state.projects },
+  useChatProjectChoices: (_org: string, query: string) => {
+    if (state.projectsFailed) return { status: 'unavailable' };
+    const term = query.trim().toLowerCase();
+    if (term !== '') state.searched.push(term);
+    const found =
+      state.pageIsDone || term === ''
+        ? []
+        : state.beyond.filter((row) => row.name.toLowerCase().includes(term));
+    return {
+      status: 'ready',
+      data: {
+        projects: [...state.projects, ...found],
+        isDone: state.pageIsDone,
+      },
+    };
+  },
+  useChatProject: (_org: string, projectId: string | undefined) => {
+    if (projectId === undefined) return { status: 'ready', data: null };
+    if (state.projectsFailed) return { status: 'unavailable' };
+    const row = [...state.projects, ...state.beyond].find(
+      (project) => project.id === projectId,
+    );
+    return { status: 'ready', data: row ?? null };
+  },
   useChatMessages: (_org: string, threadId: string | undefined) =>
     threadId === undefined
       ? { status: 'loading' }
@@ -154,6 +183,9 @@ function open(props: { projectId?: string; viewerIsOwner?: boolean } = {}) {
 
 beforeEach(() => {
   state.projects = [WEBSITE, HANDBOOK];
+  state.pageIsDone = true;
+  state.beyond = [];
+  state.searched = [];
   state.agentsByProject = {};
   state.standardAgent = { enabled: true, available: false };
   state.standardAgentLoading = false;
@@ -206,6 +238,15 @@ describe('CreateTaskFromChat', () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+  });
+
+  it('asks for a project when the chat’s own one is gone', () => {
+    open({ projectId: 'p-archived' });
+
+    expect(screen.queryByTestId('project')).not.toBeInTheDocument();
+    expect(
+      screen.getByRole('dialog', { name: 'Create a task from this chat' }),
+    ).toBeInTheDocument();
   });
 
   it('keeps the chat in its project, and says so plainly, when the project list fails', () => {
@@ -406,6 +447,47 @@ describe('CreateTaskFromChat', () => {
     open();
 
     expect(screen.getByTestId('project')).toHaveTextContent(HANDBOOK.id);
+  });
+
+  it('takes nothing for granted while the page does not hold every project', () => {
+    state.projects = [{ ...HANDBOOK, agentCount: 1 }];
+    state.pageIsDone = false;
+    state.beyond = [{ id: 'p-far', name: 'Archive digitisation' }];
+    open();
+
+    // Neither the page's lone project nor its lone agent is the only one.
+    expect(screen.queryByTestId('project')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+  });
+
+  it('finds a project past the page by its name, and keeps it picked', async () => {
+    state.pageIsDone = false;
+    state.beyond = [
+      { id: 'p-far', name: 'Archive digitisation', agentCount: 1 },
+    ];
+    const { user } = open();
+
+    await user.click(screen.getByRole('button', { name: /^Project/ }));
+    expect(screen.queryByRole('option', { name: /Archive/ })).toBeNull();
+    await user.keyboard('archive');
+    expect(state.searched.at(-1)).toBe('archive');
+    await user.click(
+      screen.getByRole('option', { name: /Archive digitisation/ }),
+    );
+
+    // The field closed and cleared its search; the pick stays on show.
+    expect(screen.getByRole('button', { name: /^Project/ })).toHaveTextContent(
+      'Archive digitisation',
+    );
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByTestId('project')).toHaveTextContent('p-far');
+
+    await user.click(screen.getByRole('button', { name: 'Create' }));
+    expect(state.toast).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Task created in Archive digitisation',
+      }),
+    );
   });
 
   it('hands the task to the project’s only agent, names the chat, and starts it', () => {
