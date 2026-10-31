@@ -28,7 +28,10 @@ function context(visionAvailable: boolean) {
     modelId: 'text-model',
   });
   vi.mocked(resolveProvidersForOrgId).mockResolvedValue([
-    { name: 'local-inference' } as ProviderDefinition,
+    {
+      name: 'local-inference',
+      catalog: { source: 'models-endpoint' },
+    } as ProviderDefinition,
   ]);
   const catalogEntry = {
     provider: 'local-inference',
