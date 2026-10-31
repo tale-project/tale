@@ -334,7 +334,7 @@ describe('MemberRightsDialog [GOV-R21]', () => {
     await user.click(actAs.getByRole('switch'));
 
     const grantDialog = await screen.findByRole('dialog', {
-      name: 'Grant a competence',
+      name: 'Grant a right or qualification',
     });
     expect(
       within(grantDialog).getByText(
@@ -347,7 +347,9 @@ describe('MemberRightsDialog [GOV-R21]', () => {
       within(grantDialog).queryByRole('button', { name: 'Member' }),
     ).not.toBeInTheDocument();
     expect(
-      within(grantDialog).queryByRole('button', { name: 'Competence' }),
+      within(grantDialog).queryByRole('button', {
+        name: 'Right or qualification',
+      }),
     ).not.toBeInTheDocument();
     expect(
       within(grantDialog).queryByRole('combobox', { name: 'Grant to' }),
@@ -401,7 +403,7 @@ describe('MemberRightsDialog [GOV-R21]', () => {
     await waitFor(() =>
       expect(state.toast).toHaveBeenCalledWith(
         expect.objectContaining({
-          title: 'Competence revoked',
+          title: 'Grant revoked',
           variant: 'success',
         }),
       ),
@@ -421,9 +423,9 @@ describe('MemberRightsDialog [GOV-R21]', () => {
 
     await waitFor(() =>
       expect(state.toast).toHaveBeenCalledWith({
-        title: "Couldn't revoke the competence",
+        title: "Couldn't revoke the grant",
         description:
-          'Only organization owners and admins can grant or revoke competences.',
+          'Only organization owners and admins can grant or revoke rights and qualifications.',
         variant: 'destructive',
       }),
     );
@@ -507,7 +509,9 @@ describe('MemberRightsDialog [GOV-R21]', () => {
     it('passes axe audit with the grant dialog open over it', async () => {
       const { user } = renderDialog();
       await user.click(rowOf('Act for another member').getByRole('switch'));
-      await screen.findByRole('dialog', { name: 'Grant a competence' });
+      await screen.findByRole('dialog', {
+        name: 'Grant a right or qualification',
+      });
       await checkAccessibility(document.body);
     });
   });

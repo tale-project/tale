@@ -13,7 +13,7 @@ consent:
     label: Organisation
     description: L’agent travaille uniquement dans cette organisation. Pour en utiliser une autre, connecte-le à nouveau.
     option: '{name} · {role}'
-    notAllowed: Pour connecter un agent de code ici, il faut le rôle Propriétaire, Admin ou Développeur, ou une compétence attribuée par un Admin.
+    notAllowed: Pour connecter un agent de code ici, il faut le rôle Propriétaire, Admin ou Développeur, ou un droit attribué par un Admin.
     none: Aucune de tes organisations ne te permet de connecter un agent de code. Demande le rôle Développeur à un Admin.
     disabled: Ton compte est désactivé dans cette organisation.
   access:

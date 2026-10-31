@@ -32,7 +32,7 @@ import { vouchesForUser } from '../domains/governance/vouches-for.ts';
 export const API_KEY_CREATE_PATH = '/api-key/create';
 
 export const API_KEY_CREATE_FORBIDDEN_MESSAGE =
-  'Creating an API key takes the Owner, Admin or Developer role, or a competence an Admin grants for one: Call models over the API, Export notifications, or Act for another member.';
+  'Creating an API key takes the Owner, Admin or Developer role, or a right an Admin grants for one: Call models over the API, Export notifications, or Act for another member.';
 
 /** Why the plugin's own update and delete refuse a key bound to one
  * organization (`domains/api_keys/owners.ts`): that organization manages it. */

@@ -110,7 +110,7 @@ describe('TeamDeleteDialog', () => {
     );
   });
 
-  it('says the competences granted to the team are revoked with it [GOV-R19]', () => {
+  it('says the rights granted to the team are revoked with it [GOV-R19]', () => {
     impactState.impact = { ...IMPACT, competenceGrants: 1 };
     const { rerender } = render(
       <TeamDeleteDialog
@@ -123,7 +123,7 @@ describe('TeamDeleteDialog', () => {
     expect(
       screen.getByRole('dialog', { name: 'Delete team' }),
     ).toHaveTextContent(
-      '1 competence granted to this team will be revoked: its members lose it unless they hold it themselves.',
+      '1 right granted to this team will be revoked: its members lose it unless they hold it themselves.',
     );
 
     impactState.impact = { ...IMPACT, competenceGrants: 0 };

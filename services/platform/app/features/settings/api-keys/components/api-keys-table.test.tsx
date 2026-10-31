@@ -205,7 +205,7 @@ describe('ApiKeysTable', () => {
 
       expect(
         screen.getByText(
-          'Creating a key takes the Owner, Admin or Developer role, or a competence an Admin grants for one.',
+          'Creating a key takes the Owner, Admin or Developer role, or a right an Admin grants for one.',
         ),
       ).toBeInTheDocument();
       expect(
