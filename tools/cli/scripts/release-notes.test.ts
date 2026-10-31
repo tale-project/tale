@@ -6,6 +6,7 @@ import {
   copyFile,
   mkdir,
   mkdtemp,
+  readdir,
   readFile,
   rm,
   writeFile,
@@ -13,13 +14,18 @@ import {
 import { tmpdir } from 'node:os';
 import { delimiter, dirname, join, resolve } from 'node:path';
 
+import { isMigrationFile as migratorReads } from '@tale/shared/db/migration-files';
 import { parse } from 'yaml';
 import { z } from 'zod';
 
 import {
   composeReleaseNotes,
+  isMigrationFile,
+  readReleaseChanges,
+  type ReleaseChanges,
   releaseNotesPath,
   validateReleaseNotes,
+  validateUpgradeNotes,
 } from './release-notes';
 
 const authored =
@@ -187,11 +193,14 @@ describe('authored release notes', () => {
     expect(validate?.run).toContain('release-notes.ts --version "$TAG"');
     expect(workflow.jobs.build?.needs).toBe('prepare');
     const publish = workflow.jobs['create-release'].steps;
-    expect(
-      publish.find(
-        (step) => step.name === 'Lead with authored release outcomes',
-      )?.run,
-    ).toContain('--out /tmp/release-notes.md');
+    const compose = publish.find(
+      (step) => step.name === 'Lead with authored release outcomes',
+    )?.run;
+    expect(compose).toContain('--out /tmp/release-notes.md');
+    // After the tag a refusal costs the version, so both check the shape
+    // alone; the maintainers compared the contents before tagging.
+    expect(validate?.run).toContain('--shape-only');
+    expect(compose).toContain('--shape-only');
     expect(
       publish.find((step) => step.name === 'Create release')?.run,
     ).toContain('--notes-file /tmp/release-notes.md');
@@ -517,3 +526,388 @@ exit 99
     },
   );
 });
+
+/** v0.5.89 against v0.5.88, as Git records them (#4970). */
+const v0589: ReleaseChanges = {
+  candidate: '0cf2c45fda99080249f420b800f79c67a79fac9f',
+  previous: {
+    tag: 'v0.5.88',
+    commit: '18edad5c22b56f0133b1c0bbc6e65d8e483c05a4',
+  },
+  migrations: ['0204_usage_ledger_provider.sql'],
+  contract: { previous: '3.43.0', current: '3.44.0' },
+};
+/** A release that adds no migration and keeps its API contract. */
+const quiet: ReleaseChanges = {
+  ...v0589,
+  migrations: [],
+  contract: { previous: '3.43.0', current: '3.43.0' },
+};
+const upgrading = (text: string) =>
+  `## Highlights\n\nUsage is booked per provider.\n\n## Upgrade notes\n\n${text}\n`;
+const migrationMissing =
+  'Upgrade notes do not name migration 0204_usage_ledger_provider.sql, added since v0.5.88';
+const contractMissing =
+  'Upgrade notes do not name API contract 3.44.0, changed from 3.43.0 since v0.5.88';
+
+/** The refusal's message, or '' when the Upgrade notes are accepted. */
+function refusal(raw: string, changes: ReleaseChanges) {
+  try {
+    validateUpgradeNotes(raw, changes);
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  return '';
+}
+
+describe('Upgrade notes against the release contents', () => {
+  test('a release without a migration or a contract change needs neither named', () => {
+    expect(refusal(authored, quiet)).toBe('');
+  });
+
+  test('accepts an added migration named by its file name', () => {
+    for (const named of [
+      'The backend applies `0204_usage_ledger_provider.sql` at boot.',
+      'It applies services/platform/backend/db/migrations/0204_usage_ledger_provider.sql.',
+      'The migration (0204_usage_ledger_provider.sql) adds a table.',
+    ])
+      expect(
+        refusal(upgrading(`${named} The API contract moves to 3.44.0.`), v0589),
+        named,
+      ).toBe('');
+  });
+
+  test('refuses Upgrade notes that leave out an added migration, and names it', () => {
+    for (const unnamed of [
+      'One database migration applies at boot.',
+      'It applies 0204_usage_ledger_provider at boot.',
+      'It applies x0204_usage_ledger_provider.sql at boot.',
+      'Keep 0204_usage_ledger_provider.sql.bak until it applied.',
+      '<!-- 0204_usage_ledger_provider.sql --> One migration applies at boot.',
+    ])
+      expect(
+        refusal(
+          upgrading(`${unnamed} The API contract moves to 3.44.0.`),
+          v0589,
+        ),
+        unnamed,
+      ).toBe(migrationMissing);
+    // The Highlights do not count: operators upgrade by the Upgrade notes.
+    expect(
+      refusal(
+        '## Highlights\n\nThe new 0204_usage_ledger_provider.sql books usage per provider.\n\n## Upgrade notes\n\nThe API contract moves to 3.44.0.\n',
+        v0589,
+      ),
+    ).toBe(migrationMissing);
+  });
+
+  test("naming an earlier release's migration is not an error", () => {
+    // As the v0.5.88 notes name a v0.5.87 migration to correct its notes.
+    const earlier =
+      'The v0.5.87 notes left out 0203_earlier_release.sql, which v0.5.87 applied.';
+    expect(refusal(upgrading(earlier), quiet)).toBe('');
+    expect(
+      refusal(
+        upgrading(
+          `${earlier} This release applies 0204_usage_ledger_provider.sql; the API contract moves to 3.44.0.`,
+        ),
+        v0589,
+      ),
+    ).toBe('');
+  });
+
+  test('an unchanged API contract needs no version named', () => {
+    expect(
+      refusal(
+        upgrading(
+          'The backend applies 0204_usage_ledger_provider.sql at boot.',
+        ),
+        { ...v0589, contract: { previous: '3.44.0', current: '3.44.0' } },
+      ),
+    ).toBe('');
+  });
+
+  test('a changed API contract must be named by the version it moves to', () => {
+    const migration =
+      'The backend applies 0204_usage_ledger_provider.sql at boot.';
+    for (const named of [
+      'The API contract moves from 3.43.0 to 3.44.0.',
+      'The API contract is now `v3.44.0`.',
+      'API contract: 3.44.0',
+    ])
+      expect(refusal(upgrading(`${migration} ${named}`), v0589), named).toBe(
+        '',
+      );
+    for (const unnamed of [
+      'The API contract changes.',
+      'The API contract stays at 3.43.0.',
+      'The API contract moves to 13.44.0.',
+      'The API contract moves to 3.44.01.',
+      'The API contract moves to 3.44.0.1.',
+      'The API contract moves to 3.44.0-rc.1.',
+    ])
+      expect(
+        refusal(upgrading(`${migration} ${unnamed}`), v0589),
+        unnamed,
+      ).toBe(contractMissing);
+  });
+
+  test('accepts the corrected v0.5.89 notes and refuses them as first published', async () => {
+    const corrected = await readFile(
+      join(root, '.github/release-notes/v0.5.89.md'),
+      'utf8',
+    );
+    expect(refusal(corrected, v0589)).toBe('');
+    // The Upgrade notes v0.5.89 was first published with (#4970).
+    const published = upgrading(
+      '- From v0.5.88 to v0.5.89 no database migration or manual configuration change is needed. The release is a deployment hotfix for the native CLI; rerun the normal Tale CLI deployment/adoption flow after the images and CLI are published.',
+    );
+    expect(refusal(published, v0589)).toBe(
+      `${migrationMissing}\n${contractMissing}`,
+    );
+  });
+
+  test('checks the shape first', () => {
+    expect(
+      refusal('## Highlights\n\nUsage is booked per provider.\n', quiet),
+    ).toBe('Release notes need exactly one "## Upgrade notes" section');
+  });
+
+  test('counts migration files as the boot migrator does', async () => {
+    const files = await readdir(
+      join(root, 'services/platform/backend/db/migrations'),
+    );
+    expect(files.length).toBeGreaterThan(0);
+    for (const name of [
+      ...files,
+      'next.sql',
+      'next.ts',
+      'next.test.ts',
+      'next.d.ts',
+      'next.sql.bak',
+      'next.tsx',
+      'README.md',
+      '.gitkeep',
+    ])
+      expect(isMigrationFile(name), name).toBe(migratorReads(name));
+  });
+});
+
+const contractPath = 'services/platform/lib/shared/constants/api-contract.ts';
+const migrations = 'services/platform/backend/db/migrations';
+
+/** A disposable repository; nothing outside it is initialized or committed. */
+async function history() {
+  const directory = await mkdtemp(join(tmpdir(), 'tale-release-history-'));
+  temporary.push(directory);
+  const git = (...args: string[]) =>
+    execFileSync(
+      'git',
+      [
+        '-c',
+        'core.hooksPath=/dev/null',
+        '-c',
+        'commit.gpgsign=false',
+        '-c',
+        'tag.gpgsign=false',
+        '-c',
+        'init.defaultBranch=main',
+        '-c',
+        'user.name=Release fixture',
+        '-c',
+        'user.email=release-fixture@example.invalid',
+        ...args,
+      ],
+      { cwd: directory, encoding: 'utf8', timeout: 10_000 },
+    ).trim();
+  const write = async (path: string, text: string) => {
+    await mkdir(join(directory, dirname(path)), { recursive: true });
+    await writeFile(join(directory, path), text);
+  };
+  const commit = (message: string) => {
+    git('add', '--all');
+    git('commit', '--quiet', '-m', message);
+    return git('rev-parse', 'HEAD');
+  };
+  git('init', '--quiet');
+  return { directory, git, write, commit };
+}
+
+/**
+ * Tag v1.0.0, then a commit with a sites tag, then the candidate. Since
+ * v1.0.0 the candidate renames one migration and adds two, with a test, a
+ * note and a nested file beside them, and moves the API contract from the
+ * version in this repository's own api-contract.ts to 9.0.0.
+ */
+async function release() {
+  const repo = await history();
+  const contract = await readFile(join(root, contractPath), 'utf8');
+  await repo.write(contractPath, contract);
+  await repo.write(`${migrations}/0001_init.sql`, 'SELECT 1;\n');
+  const previous = repo.commit('first release');
+  repo.git('tag', 'v1.0.0');
+  await repo.write(`${migrations}/0002_more.sql`, 'SELECT 2;\n');
+  await repo.write(`${migrations}/0003_data.ts`, 'export default {};\n');
+  await repo.write(`${migrations}/0003_data.test.ts`, '\n');
+  await repo.write(`${migrations}/README.md`, 'Migrations.\n');
+  await repo.write(`${migrations}/nested/0004_nested.sql`, 'SELECT 4;\n');
+  repo.commit('migrations');
+  repo.git('tag', 'sites-discovery-1');
+  repo.git(
+    'mv',
+    `${migrations}/0001_init.sql`,
+    `${migrations}/0001_initial.sql`,
+  );
+  await repo.write(
+    contractPath,
+    "export const API_CONTRACT_VERSION = '9.0.0';\n",
+  );
+  const candidate = repo.commit('candidate');
+  return { ...repo, contract, previous, candidate };
+}
+
+describe.skipIf(process.platform === 'win32')(
+  'release contents read from Git',
+  () => {
+    test('compares the candidate with the release tag before it', async () => {
+      const repo = await release();
+      const changes = readReleaseChanges({ root: repo.directory });
+      expect(changes).toEqual({
+        candidate: repo.candidate,
+        previous: { tag: 'v1.0.0', commit: repo.previous },
+        // The migrator applies a renamed file again, and reads no test, note
+        // or subdirectory.
+        migrations: ['0001_initial.sql', '0002_more.sql', '0003_data.ts'],
+        contract: { previous: changes.contract.previous, current: '9.0.0' },
+      });
+      // The version is read from the repository's own api-contract.ts.
+      expect(changes.contract.previous).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(repo.contract).toContain(
+        `export const API_CONTRACT_VERSION = '${changes.contract.previous}';`,
+      );
+      // Tagging the candidate, as releasing does, changes nothing.
+      repo.git('tag', 'v1.1.0');
+      expect(readReleaseChanges({ root: repo.directory })).toEqual(changes);
+      expect(
+        readReleaseChanges({
+          root: repo.directory,
+          candidate: 'v1.1.0',
+          previousTag: 'v1.0.0',
+        }),
+      ).toEqual(changes);
+    });
+
+    test('refuses a previous tag that is no release before the candidate', async () => {
+      const repo = await release();
+      repo.git('tag', 'v1.1.0');
+      await repo.write('later.md', 'Later.\n');
+      repo.commit('later');
+      repo.git('tag', 'v1.2.0');
+      const compare = (previousTag: string) => () =>
+        readReleaseChanges({
+          root: repo.directory,
+          candidate: repo.candidate,
+          previousTag,
+        });
+      expect(compare('v1.1.0')).toThrow(
+        `v1.1.0 is not a release before ${repo.candidate}`,
+      );
+      expect(compare('v1.2.0')).toThrow(
+        `v1.2.0 is not a release before ${repo.candidate}`,
+      );
+      expect(compare('v9.9.9')).toThrow('v9.9.9 is not a tag in');
+      expect(compare('sites-discovery-1')).toThrow(
+        '--previous-tag takes a release tag such as v1.2.3',
+      );
+    });
+
+    test('says what it lacks without tags or history', async () => {
+      const repo = await history();
+      await repo.write('README.md', 'First.\n');
+      repo.commit('first');
+      await repo.write('README.md', 'Second.\n');
+      repo.commit('second');
+      expect(() => readReleaseChanges({ root: repo.directory })).toThrow(
+        'No release tag before',
+      );
+      const tree = await validatorCheckout();
+      expect(() => readReleaseChanges({ root: tree.directory })).toThrow(
+        "Cannot compare the release notes without the candidate's Git history",
+      );
+    });
+
+    test('the --version run compares the notes, and --shape-only does not', async () => {
+      const repo = await release();
+      const script = 'tools/cli/scripts/release-notes.ts';
+      await mkdir(join(repo.directory, dirname(script)), { recursive: true });
+      await copyFile(join(root, script), join(repo.directory, script));
+      const { previous: was } = readReleaseChanges({
+        root: repo.directory,
+      }).contract;
+      const complete =
+        '## Highlights\n\nSchedules run on time.\n\n## Upgrade notes\n\nThe backend applies 0001_initial.sql, 0002_more.sql and 0003_data.ts at boot; the API contract moves to 9.0.0.\n';
+      const partial = complete.replace(' and 0003_data.ts', '');
+      const run = async (
+        notes: string,
+        args: string[],
+        tooling = repo.directory,
+      ) => {
+        await repo.write('.github/release-notes/v1.1.0.md', notes);
+        const result = Bun.spawnSync(
+          [
+            process.execPath,
+            join(tooling, script),
+            '--version',
+            'v1.1.0',
+            ...args,
+          ],
+          { cwd: tooling },
+        );
+        return {
+          exitCode: result.exitCode,
+          stdout: result.stdout.toString(),
+          stderr: result.stderr.toString(),
+        };
+      };
+      const valid = await run(complete, []);
+      expect(valid.exitCode, valid.stderr).toBe(0);
+      expect(valid.stdout).toBe(
+        `Validated .github/release-notes/v1.1.0.md\nUpgrade notes name what ${repo.candidate} brings since v1.0.0 (${repo.previous}): migrations 0001_initial.sql, 0002_more.sql, 0003_data.ts; API contract ${was} -> 9.0.0\n`,
+      );
+      const refused = await run(partial, []);
+      expect(refused.exitCode).not.toBe(0);
+      expect(refused.stdout).toBe('');
+      expect(refused.stderr).toContain(
+        'Upgrade notes do not name migration 0003_data.ts, added since v1.0.0',
+      );
+      expect(
+        (await run(partial, ['--previous-tag', 'v1.0.0'])).exitCode,
+      ).not.toBe(0);
+      const named = await run(complete, ['--previous-tag', 'v1.0.0']);
+      expect(named.exitCode, named.stderr).toBe(0);
+      // As Release and Publish packages run it, after the tag: the shape alone.
+      const shaped = await run(partial, ['--shape-only']);
+      expect(shaped.exitCode, shaped.stderr).toBe(0);
+      expect(shaped.stdout).toBe('Validated .github/release-notes/v1.1.0.md\n');
+      const both = await run(partial, [
+        '--shape-only',
+        '--previous-tag',
+        'v1.0.0',
+      ]);
+      expect(both.exitCode).not.toBe(0);
+      expect(both.stderr).toContain(
+        '--previous-tag compares the release; --shape-only does not',
+      );
+      // With --source-root it compares the source's history, not the history of
+      // the checkout that runs it (here none).
+      const tooling = await validatorCheckout();
+      const source = await run(
+        complete,
+        ['--source-root', repo.directory],
+        tooling.directory,
+      );
+      expect(source.exitCode, source.stderr).toBe(0);
+      expect(source.stdout).toBe(valid.stdout);
+    });
+  },
+);

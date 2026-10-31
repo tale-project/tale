@@ -15,25 +15,35 @@ Link the relevant documentation or pull requests. State limitations when they af
 
 ## Upgrade notes
 
-Describe required operator action, migrations, compatibility changes, or known limitations.
-If no action is required, state that explicitly after checking the changes in this release.
+Describe required operator action, migrations by file name, the new API contract version,
+compatibility changes, or known limitations. If no action is required, state that explicitly
+after checking the changes in this release.
 ```
 
 Replace the instructional prose with verified outcomes. Do not copy generated PR titles into
 Highlights or claim that an upgrade needs no action without checking. The validator requires both
-sections and rejects empty sections and TODO/TBD markers; a reviewer verifies the facts.
+sections and rejects empty sections and TODO/TBD markers. It also reads from Git what the release
+brings since the previous release tag, and rejects Upgrade notes that do not name each migration
+file it adds, such as `0204_usage_ledger_provider.sql`, and its `API_CONTRACT_VERSION` when that
+changed, such as `3.44.0`. Naming more, such as an earlier release's migration, is allowed. A
+reviewer verifies the facts.
 
-Run from the repository root before recording the candidate SHA:
+Run from the repository root, in a clone with the release tags (`git fetch --tags`), before
+recording the candidate SHA:
 
 ```bash
 bun tools/cli/scripts/release-notes.ts --version vX.Y.Z
 ```
 
+It compares with the release tag `git describe` finds before the checkout; `--previous-tag vA.B.C`
+names another.
+
 The release workflow validates the same file again in Prepare, before building images, and the
 package workflow validates it at the released commit before pinning `ui-vX.Y.Z` and
-`marketing-ui-vX.Y.Z`. Its maintained validator runs from `main` with
-`--source-root <released checkout>`; it reads that checkout's notes without executing its
-scripts or Bun configuration. At
-publication it puts the authored sections first, then generated API contract notes and GitHub's
-PR list. Release names remain version-based. Follow [Releasing Tale](../RELEASING.md) for candidate
-validation, tagging and recovery.
+`marketing-ui-vX.Y.Z`. Both run after the tag and pass `--shape-only`: they check the sections
+and do not compare, so compare before tagging. The package workflow's maintained validator runs
+from `main` with `--source-root <released checkout>`; it reads that checkout's notes without
+executing its scripts or Bun configuration. At publication the release puts the authored sections
+first, then generated API contract notes and GitHub's PR list. Release names remain
+version-based. Follow [Releasing Tale](../RELEASING.md) for candidate validation, tagging and
+recovery.

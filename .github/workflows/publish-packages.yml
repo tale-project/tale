@@ -129,6 +129,7 @@ jobs:
       # that version is never released (.github/RELEASING.md). Refuse it here
       # as well, at the released commit and before anything is pushed, so no
       # package tag names it and notes added later cannot stand in for it.
+      # Shape only, as in Prepare, so it refuses exactly what Release refuses.
       - name: Validate authored release notes before pinning
         if: steps.tag.outputs.version != ''
         shell: bash
@@ -136,7 +137,7 @@ jobs:
         env:
           TAG: ${{ steps.tag.outputs.version }}
           SOURCE_ROOT: ${{ github.workspace }}/release-source
-        run: bun tools/cli/scripts/release-notes.ts --version "$TAG" --source-root "$SOURCE_ROOT"
+        run: bun tools/cli/scripts/release-notes.ts --version "$TAG" --shape-only --source-root "$SOURCE_ROOT"
 
       - name: Publish snapshot
         env:

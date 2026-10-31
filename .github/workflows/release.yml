@@ -119,13 +119,17 @@ jobs:
         with:
           bun-version: '1.4.2'
 
+      # Shape only. The maintainers' run before the tag also compares the
+      # Upgrade notes with the release's migrations and API contract
+      # (.github/RELEASING.md); this checkout has no history to compare, and
+      # after the tag a refusal costs the version.
       - name: Validate authored release notes before building
         if: steps.version.outputs.sites_only != 'true'
         shell: bash
         working-directory: .
         env:
           TAG: ${{ steps.version.outputs.version }}
-        run: bun tools/cli/scripts/release-notes.ts --version "$TAG"
+        run: bun tools/cli/scripts/release-notes.ts --version "$TAG" --shape-only
 
       - name: Summary
         run: |
@@ -820,11 +824,12 @@ jobs:
             --changelog /tmp/contract/current-changelog.ts \
             --out /tmp/contract/release-notes.md
 
+      # Shape only, as in Prepare: the contents were compared before the tag.
       - name: Lead with authored release outcomes
         env:
           TAG: ${{ needs.prepare.outputs.version }}
         run: |
-          bun tools/cli/scripts/release-notes.ts --version "$TAG" \
+          bun tools/cli/scripts/release-notes.ts --version "$TAG" --shape-only \
             --contract /tmp/contract/release-notes.md --out /tmp/release-notes.md
 
       # A failed-jobs re-run keeps Prepare's outputs from an earlier attempt,
