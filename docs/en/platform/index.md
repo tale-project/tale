@@ -42,7 +42,7 @@ At the top of the panel, a row of icons switches what the list shows: **All**, *
 
 Below the projects, one list groups your work under **Pinned**, **Today**, **Yesterday**, **Previous 7 days**, and **Earlier**:
 
-- Your chats.
+- Your chats. Older ones load as you scroll down, and a search reaches them on its own.
 - The open tasks assigned to you or waiting for your review, from every project you can read.
 - In **All**, the open inbox conversations you can see.
 

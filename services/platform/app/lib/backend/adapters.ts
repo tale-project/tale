@@ -6,7 +6,8 @@
  * Convex function names (`getFunctionName`); a family swaps reads AND writes
  * together by contributing rows (see `projects.ts`) — call sites never
  * change. (The chat feature predates this seam and keeps its own table in
- * `app/features/chat/data/chat-backend.ts`.)
+ * `app/features/chat/data/chat-backend.ts`; only its paged thread list is a
+ * row here.)
  *
  * Errors from the adapted lane are normalized to real `AppError`s
  * (`{ code, message, ...data }`) so every existing consumer — `instanceof`
@@ -43,6 +44,7 @@ import {
   automationReadAdapters,
   automationWriteAdapters,
 } from './automations';
+import { chatPaginatedAdapters } from './chat';
 import {
   conversationReadAdapters,
   conversationWriteAdapters,
@@ -203,6 +205,7 @@ export const READ_ADAPTERS: Record<string, ReadAdapter> = {
 export const PAGINATED_ADAPTERS: Record<string, PaginatedAdapter> = {
   ...adminPaginatedAdapters,
   ...automationPaginatedAdapters,
+  ...chatPaginatedAdapters,
   ...engagementPaginatedAdapters,
   ...metricsPaginatedAdapters,
   ...documentPaginatedAdapters,

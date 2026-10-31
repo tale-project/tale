@@ -74,3 +74,4 @@ aria:
   stream: Tes chats, tâches et conversations
   inbox: Conversations de la boîte de réception
   attention: '{count, plural, one {# élément attend ton action} other {# éléments attendent ton action}}'
+  loadingMoreChats: Chargement d’autres chats…

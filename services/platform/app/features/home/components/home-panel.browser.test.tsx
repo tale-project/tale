@@ -359,6 +359,11 @@ function homeData(
     retry: () => undefined,
     hasInbox: false,
     attention: { chats: 0, tasks: 0, inbox: 0 },
+    chatPaging: {
+      canLoadMore: false,
+      isLoadingMore: false,
+      loadMore: () => undefined,
+    },
   };
 }
 

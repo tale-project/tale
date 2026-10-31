@@ -257,7 +257,9 @@ describe('chat', () => {
 
     answers.set('GET /api/app/chat/threads', {
       body: {
-        threads: [{ id: 't1', title: 'A', pinnedAt: 5, generating: true }],
+        page: [{ id: 't1', title: 'A', pinnedAt: 5, generating: true }],
+        isDone: true,
+        continueCursor: '',
       },
     });
     const listed = await listThreads(api, 'o1');

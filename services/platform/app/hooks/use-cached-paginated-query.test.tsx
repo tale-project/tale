@@ -241,6 +241,8 @@ describe('useCachedPaginatedQuery — a failed read and its retry', () => {
     await waitFor(() => expect(result.current.error).not.toBeNull());
     expect(cursors).toHaveLength(1);
     expect(result.current.status).toBe('Exhausted');
+    // A first page that failed is no failed next page.
+    expect(result.current.loadMoreFailed).toBe(false);
   });
 
   it('asks again for the page that failed, not the pages already loaded', async () => {
@@ -264,11 +266,13 @@ describe('useCachedPaginatedQuery — a failed read and its retry', () => {
     await waitFor(() => expect(result.current.error).not.toBeNull());
     // The loaded rows stay; the list shows them with the failure.
     expect(result.current.results).toHaveLength(2);
+    expect(result.current.loadMoreFailed).toBe(true);
 
     act(() => result.current.retry());
     await waitFor(() => expect(result.current.results).toHaveLength(3));
     expect(result.current.error).toBeNull();
     expect(result.current.status).toBe('Exhausted');
+    expect(result.current.loadMoreFailed).toBe(false);
     expect(cursors.at(-1)).toBe('after-c2');
     // The first page was read once: the retry did not reload it.
     expect(cursors.filter((cursor) => cursor === null)).toHaveLength(1);
@@ -308,6 +312,7 @@ describe('useCachedPaginatedQuery — a failed read and its retry', () => {
     await waitFor(() => expect(result.current.error).not.toBeNull());
     expect(result.current.errorCount).toBe(1);
     expect(result.current.isRetrying).toBe(false);
+    expect(result.current.loadMoreFailed).toBe(true);
 
     act(() => result.current.loadMore(2));
     act(() => result.current.loadMore(2));
@@ -315,9 +320,12 @@ describe('useCachedPaginatedQuery — a failed read and its retry', () => {
 
     act(() => result.current.retry());
     await waitFor(() => expect(result.current.isRetrying).toBe(true));
+    // The failure stands while the page is asked for again.
+    expect(result.current.loadMoreFailed).toBe(true);
     act(() => answerRetry());
     await waitFor(() => expect(result.current.results).toHaveLength(3));
     expect(result.current.isRetrying).toBe(false);
+    expect(result.current.loadMoreFailed).toBe(false);
     expect(cursors).toHaveLength(6);
   });
 });
