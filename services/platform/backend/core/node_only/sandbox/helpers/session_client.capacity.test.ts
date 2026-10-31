@@ -64,6 +64,42 @@ describe('sandbox deployment limit client', () => {
     expect(new Set(nonces).size).toBe(2);
   });
 
+  it('carries the memory figures beside the count, and reads a malformed one as unknown', async () => {
+    const GIB = 1024 ** 3;
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        Response.json({
+          maxSessions: 8,
+          sessionMemoryBytes: 4 * GIB,
+          hostMemoryBytes: 16 * GIB,
+          memoryReserveBytes: 2 * GIB,
+        }),
+      )
+      .mockResolvedValueOnce(
+        Response.json({
+          maxSessions: 8,
+          sessionMemoryBytes: '4g',
+          hostMemoryBytes: -1,
+          memoryReserveBytes: 1.5,
+        }),
+      );
+    vi.stubGlobal('fetch', fetcher);
+    expect(await sandboxDeploymentLimits('org-a')).toEqual({
+      maxSessions: 8,
+      sessionMemoryBytes: 4 * GIB,
+      hostMemoryBytes: 16 * GIB,
+      memoryReserveBytes: 2 * GIB,
+    });
+    const malformed = await sandboxDeploymentLimits('org-a');
+    expect(malformed.maxSessions).toBe(8);
+    expect([
+      malformed.sessionMemoryBytes,
+      malformed.hostMemoryBytes,
+      malformed.memoryReserveBytes,
+    ]).toEqual([undefined, undefined, undefined]);
+  });
+
   it('reads the fresh global ceiling from older spawners using the authenticated organization', async () => {
     const legacySnapshot = {
       ...snapshot,
