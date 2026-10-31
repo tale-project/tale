@@ -36,7 +36,7 @@ Inhaber und Admins haben alle vier über ihre Rolle; Entwickler haben über ihre
 5. Halte bei Bedarf unter **Nachweis** fest, warum das Mitglied sie hat, etwa ein Zertifikat, ein Ticket oder das System, dem sie dient. Der Nachweis bleibt im Register.
 6. Wähle **Zuweisen**.
 
-Die Zuweisung gilt ab der nächsten Anfrage des Mitglieds; eine Integration muss nicht neu starten. Ein Mitglied hat jede Kompetenz nur einmal gleichzeitig. Hat das Mitglied die Kompetenz bereits, sagt der Dialog das und weist nichts zu; [ändere dann die Zuweisung](#eine-zuweisung-ändern).
+Die Zuweisung gilt ab der nächsten Anfrage des Mitglieds; eine Integration muss nicht neu starten. Ein Mitglied hat jede Kompetenz nur einmal gleichzeitig. Hat das Mitglied die Kompetenz bereits, sagt der Dialog das und weist nichts zu; [ändere dann die Zuweisung](#eine-zuweisung-aendern).
 
 ## Eine Zuweisung ändern
 
