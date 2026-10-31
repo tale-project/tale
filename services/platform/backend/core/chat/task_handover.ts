@@ -11,8 +11,10 @@ import { internal } from '../lib/handler_names';
  * Only for the app's own chat: a turn sent with an API key has no header to
  * point at, and the key's owner may not be the person reading the reply.
  *
- * The seam answers the person's facts (`readTaskHandoverFacts`: their active
- * projects with agent counts and edit rights, and whether agents may start);
+ * The seam answers the person's facts (`readTaskHandoverFacts`: the active
+ * projects with an agent they can open, the newest by name and the rest
+ * counted, how many have none and whether they may add agents there, and
+ * whether agents may start);
  * the control names come from the same catalogs the app renders, in the
  * person's interface language, so the reply quotes what they see. A failed
  * read degrades to no note with a warning rather than refusing the turn: the
@@ -34,27 +36,22 @@ export async function readTaskHandover(
       internal.chat.handover.getTaskHandoverInternal,
       { organizationId: args.organizationId, userId: args.userId },
     );
-    if (!isRecord(facts) || !Array.isArray(facts.projects)) return undefined;
-    const projects = facts.projects.filter(
-      (
-        project,
-      ): project is { name: string; agentCount: number; canEdit: boolean } =>
-        isRecord(project) &&
-        typeof project.name === 'string' &&
-        typeof project.agentCount === 'number' &&
-        typeof project.canEdit === 'boolean',
-    );
+    if (
+      !isRecord(facts) ||
+      !Array.isArray(facts.projectsWithAgents) ||
+      typeof facts.moreProjectsWithAgents !== 'number' ||
+      typeof facts.projectsWithoutAgents !== 'number'
+    ) {
+      return undefined;
+    }
     const label = (path: string) => catalogString(args.locale, path) ?? path;
     return {
-      projectsWithAgents: projects
-        .filter((project) => project.agentCount > 0)
-        .map((project) => project.name),
-      projectsWithoutAgents: projects.filter(
-        (project) => project.agentCount === 0,
-      ).length,
-      canAddAgents: projects.some(
-        (project) => project.agentCount === 0 && project.canEdit,
+      projectsWithAgents: facts.projectsWithAgents.filter(
+        (name): name is string => typeof name === 'string',
       ),
+      moreProjectsWithAgents: facts.moreProjectsWithAgents,
+      projectsWithoutAgents: facts.projectsWithoutAgents,
+      canAddAgents: facts.canAddAgents === true,
       automationOff: facts.automationEnabled !== true,
       standardAgent: facts.standardAgent === true,
       labels: {
