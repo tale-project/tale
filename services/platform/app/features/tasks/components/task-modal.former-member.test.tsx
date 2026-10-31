@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { i18n } from '@/lib/i18n/i18n';
 import { forgetSavedLocale, saveLocale } from '@/tests/utils/lapsed-session';
+import type { StandInMember } from '@/tests/utils/member-lookup-stand-in';
 import { deMessages, enMessages, frMessages } from '@/tests/utils/messages';
 import { render, screen, within } from '@/tests/utils/render';
 
@@ -19,7 +20,7 @@ import { TaskModal } from './task-modal';
  * dialog names them "Former member" in the reader's language everywhere —
  * never by their raw user id, in the text or in an accessible name (#3788).
  * The dialog reads its people through the real actor directory here; only
- * the backend's answers are fixtures.
+ * the backend's answers and the member lookup's are fixtures.
  */
 
 /** The removed member's id, as the task still stores it. */
@@ -27,8 +28,14 @@ const GONE = 'pTqO7Cn7D9MmBLjW1v2p9yne5Ed1BxOb';
 const OWNER = 'u-owner';
 
 const state = vi.hoisted(() => ({
-  members: undefined as unknown[] | undefined,
+  members: undefined as StandInMember[] | undefined,
 }));
+
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => state.members,
+  ),
+);
 
 const task = {
   _id: 'task-1',
@@ -173,12 +180,11 @@ const MEMBERS = [
     _id: 'member-owner',
     organizationId: 'org-1',
     userId: OWNER,
-    role: 'owner',
+    role: 'owner' as const,
     createdAt: 0,
     displayName: 'Olive Owner',
     email: 'olive@example.com',
     twoFactorEnabled: false,
-    passkeyCount: 0,
   },
 ];
 

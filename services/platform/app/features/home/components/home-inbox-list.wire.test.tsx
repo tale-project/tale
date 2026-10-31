@@ -2,9 +2,9 @@
  * The Home panel's Inbox view over its real list read, selection and bulk
  * verbs: every request goes out through the app's adapters and
  * `backendFetch`, and only `fetch` is answered here, by a small model of the
- * Inbox doors — the list, and the bulk status verbs with the door's cap. The
- * viewer's directories and the router are stubbed as in
- * `home-inbox-list.test.tsx`.
+ * Inbox doors — the list, the bulk status verbs with the door's cap, and the
+ * member lookup. The team directory, the viewer and the router are stubbed as
+ * in `home-inbox-list.test.tsx`.
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type React from 'react';
@@ -62,9 +62,6 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useTeams: () => ({ teams: [], isLoading: false }),
   useTeamNames: () => ({ nameOf: () => undefined, isLoading: false }),
 }));
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({ members: [], isLoading: false }),
-}));
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({
     data: { status: 'ok', userId: 'user-me' },
@@ -109,11 +106,20 @@ function addressed(
   return { ...projected(id, title), ...extra };
 }
 
+/** A projected row a person owns. */
+function assigned(id: string, title: string, assigneeUserId: string) {
+  return { ...projected(id, title), assigneeUserId };
+}
+
 type Answer = Response | Promise<Response>;
 
 /** The Inbox doors as the view reaches them. */
 const door = {
-  open: [] as (ReturnType<typeof projected> | ReturnType<typeof addressed>)[],
+  open: [] as (
+    | ReturnType<typeof projected>
+    | ReturnType<typeof addressed>
+    | ReturnType<typeof assigned>
+  )[],
   /** Answers for the next list reads, in order; afterwards the open rows. */
   listAnswers: [] as Array<() => Answer>,
   listReads: 0,
@@ -124,6 +130,19 @@ const door = {
   replies: [] as { id: string; body: unknown }[],
   /** The conversations whose reply the door refuses, with its words. */
   refuseReplies: new Map<string, string>(),
+  /** The members the lookup door finds. */
+  members: [] as {
+    id: string;
+    userId: string;
+    role: string;
+    createdAt: string;
+    displayName: string | null;
+    email: string | null;
+  }[],
+  /** The user ids of each member lookup, in order. */
+  lookups: [] as string[][],
+  /** Reads of every member, which the Inbox never makes. */
+  memberListReads: 0,
 };
 
 function json(status: number, body: unknown): Response {
@@ -172,6 +191,17 @@ function answerFetch(input: RequestInfo | URL, init?: RequestInit): Answer {
     const answer = door.bulkAnswers.shift();
     return answer ? answer(ids) : applyBulk(ids);
   }
+  if (url.pathname === '/api/app/members/lookup') {
+    const userIds = url.searchParams.get('userIds')?.split(',') ?? [];
+    door.lookups.push(userIds);
+    return json(200, {
+      members: door.members.filter((member) => userIds.includes(member.userId)),
+    });
+  }
+  if (/^\/api\/app\/members\/?$/.test(url.pathname)) {
+    door.memberListReads += 1;
+    return json(200, { members: door.members });
+  }
   const reply = /^\/api\/app\/conversations\/([^/]+)\/reply$/.exec(
     url.pathname,
   );
@@ -214,6 +244,9 @@ beforeEach(() => {
   door.bulkAnswers = [];
   door.replies = [];
   door.refuseReplies = new Map();
+  door.members = [];
+  door.lookups = [];
+  door.memberListReads = 0;
   // The adapters resolve the active organization from the page's address.
   window.history.pushState({}, '', `/dashboard/${ORG}/conversations/open`);
   vi.spyOn(window, 'fetch').mockImplementation((input, init) =>
@@ -230,6 +263,47 @@ afterEach(() => {
 const unavailable = () => json(503, { error: 'Service unavailable' });
 
 describe('the Home Inbox over its real list read', () => {
+  it('names whom its rows are assigned to through the member lookup, never reading every member', async () => {
+    door.members = [
+      {
+        id: 'member-dana',
+        userId: 'user-dana',
+        role: 'member',
+        createdAt: '2026-01-01T00:00:00.000Z',
+        displayName: 'Dana K.',
+        email: 'dana@example.test',
+      },
+      {
+        id: 'member-zoe',
+        userId: 'user-zoe',
+        role: 'member',
+        createdAt: '2026-01-02T00:00:00.000Z',
+        displayName: 'Zoe A.',
+        email: 'zoe@example.test',
+      },
+    ];
+    door.open = [
+      assigned('c1', 'Invoice shows the wrong VAT', 'user-dana'),
+      projected('c2', 'Where is my parcel'),
+    ];
+    const { user } = renderInbox();
+
+    await screen.findByRole('link', { name: /Invoice shows the wrong VAT/ });
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    await user.click(await screen.findByRole('button', { name: /Assignee/ }));
+
+    expect(
+      await screen.findByRole('checkbox', { name: 'Dana K.' }),
+    ).toBeInTheDocument();
+    // Only the assignee a row names was asked for, in one request; a member
+    // no row names is never offered, and every member is never read.
+    expect(door.lookups).toEqual([['user-dana']]);
+    expect(
+      screen.queryByRole('checkbox', { name: 'Zoe A.' }),
+    ).not.toBeInTheDocument();
+    expect(door.memberListReads).toBe(0);
+  });
+
   it('shows a refused read as a failure, and loads the rows on Try again', async () => {
     door.open = [projected('c1', 'Invoice shows the wrong VAT')];
     door.listAnswers = [
