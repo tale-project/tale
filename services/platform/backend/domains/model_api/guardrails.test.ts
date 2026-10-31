@@ -19,6 +19,7 @@ const seam = vi.hoisted(() => ({
   unreadable: new Set<string>(),
   brokenPii: false,
   moderated: [] as string[],
+  actors: [] as unknown[],
   moderationRun: null as unknown,
   events: [] as Array<Record<string, unknown>>,
 }));
@@ -52,8 +53,10 @@ vi.mock('../governance/shim.ts', () => ({
   governanceShimHandlers: () => ({
     'governance/internal_actions:runModerationProvider': async (raw: {
       text: string;
+      actor?: unknown;
     }) => {
       seam.moderated.push(raw.text);
+      seam.actors.push(raw.actor);
       return (
         seam.moderationRun ?? {
           outcome: { kind: 'pass' },
@@ -155,6 +158,7 @@ function build(requestId: string, overrides: Record<string, unknown> = {}) {
     orgSlug: 'acme',
     requestId,
     callerRequestId: 'caller-7',
+    actor: { id: 'user-1', type: 'api' },
     beforePaidCall: async () => {
       paidCallChecks += 1;
     },
@@ -177,6 +181,7 @@ beforeEach(() => {
   seam.unreadable = new Set();
   seam.brokenPii = false;
   seam.moderated = [];
+  seam.actors = [];
   seam.moderationRun = null;
   seam.events = [];
   paidCallChecks = 0;
@@ -308,6 +313,51 @@ describe('buildModelApiGuardrails', () => {
     );
     expect(refused.status).toBe(503);
     expect(refused.code).toBe('MODEL_API_GUARDRAIL_UNAVAILABLE');
+  });
+
+  it('names the key holder to the moderation step, and asks it once per request after the EU/EEA rule refused its endpoint [GOV-R23]', async () => {
+    seam.moderationRun = {
+      outcome: {
+        kind: 'step_error',
+        filterName: 'moderation_provider',
+        reason: 'eu_processing',
+      },
+      extras: {
+        errorClass: 'eu_processing',
+        refusalMessage:
+          'This organization processes prompts only in the EU/EEA',
+      },
+    };
+    // Fail-open: the texts go on unmoderated, and the refused endpoint is
+    // not asked again for every piece.
+    seam.policies = {
+      moderation_provider: {
+        ...MODERATION,
+        failBehavior: { input: 'open', output: 'closed' },
+      },
+    };
+    const long = 'x'.repeat(60 * 1024);
+    await (
+      await build('open')
+    ).apply(
+      request([
+        segment('tool result', `one ${long}`).segment,
+        segment('tool result', `two ${long}`).segment,
+      ]),
+    );
+    expect(seam.moderated).toHaveLength(1);
+    expect(seam.actors).toEqual([{ id: 'user-1', type: 'api' }]);
+
+    // Fail-closed: refused, like any other moderation step error.
+    seam.policies = { moderation_provider: MODERATION };
+    const refused = await refusalOf(
+      (await build('closed')).apply(
+        request([segment('message', 'hello').segment]),
+      ),
+    );
+    expect(refused.status).toBe(503);
+    expect(refused.code).toBe('MODEL_API_GUARDRAIL_UNAVAILABLE');
+    expect(refused.message).toContain('(eu_processing)');
   });
 
   it('reads the budgets once before the first paid moderation call, and not at all without one', async () => {
