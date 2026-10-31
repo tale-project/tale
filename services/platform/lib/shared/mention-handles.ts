@@ -73,13 +73,13 @@ export function mentionRefKey(ref: { kind: string; id: string }): string {
   return `${ref.kind}:${ref.id}`;
 }
 
+/** Whether a plain `@handle` can be typed as `handle`. */
+export function isTypeableHandle(handle: string): boolean {
+  return HANDLE_CHARSET_RE.test(handle);
+}
+
 function typeable(handle: string | null | undefined): handle is string {
-  return (
-    handle !== null &&
-    handle !== undefined &&
-    handle !== '' &&
-    HANDLE_CHARSET_RE.test(handle)
-  );
+  return handle !== null && handle !== undefined && isTypeableHandle(handle);
 }
 
 /** A name with its spaces made dots, and without them: `ada.lovelace`,

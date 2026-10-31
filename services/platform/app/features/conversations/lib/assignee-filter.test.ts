@@ -4,6 +4,7 @@ import {
   ASSIGNEE_ME,
   ASSIGNEE_MY_TEAMS,
   ASSIGNEE_UNASSIGNED,
+  assigneeFacetIds,
   buildAssigneeOptions,
   matchesAssigneeFilter,
   type AssignedRow,
@@ -111,6 +112,24 @@ describe('matchesAssigneeFilter', () => {
     expect(matchesAssigneeFilter(rows.both, ['team-support'], viewer)).toBe(
       true,
     );
+  });
+});
+
+describe('assigneeFacetIds', () => {
+  const teamNameOf = (id: string) =>
+    ({ 'team-billing': 'Billing', 'team-support': 'Support' })[id];
+
+  it('names whom the rows are assigned to and whom the selection names', () => {
+    // The people are all the Inbox looks up, so nobody else may slip in:
+    // not a sentinel, and not a selected team.
+    const { personIds, teamIds } = assigneeFacetIds({
+      rows: [rows.theirs, rows.both, rows.unassigned],
+      selected: [ASSIGNEE_ME, 'user-gone', 'team-billing'],
+      teamNameOf,
+    });
+
+    expect([...personIds]).toEqual(['user-dana', 'user-gone']);
+    expect([...teamIds]).toEqual(['team-support', 'team-billing']);
   });
 });
 

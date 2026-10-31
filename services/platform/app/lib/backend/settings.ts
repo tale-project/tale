@@ -26,6 +26,11 @@ import type {
   WriteAdapter,
 } from './adapters';
 import { backendFetch } from './api-client';
+import {
+  lookupMember,
+  memberLookupAsk,
+  type MemberLookupTarget,
+} from './member-lookup-batch';
 import { memberContextQuery } from './org';
 import { inPolicyWriteOrder, settleUntilRead } from './policy-write-order';
 import {
@@ -42,6 +47,7 @@ type TeamDeletionImpact = NonNullable<
 >;
 type TeamRetirementSummary = ReturnsOf<'teams/mutations:deleteTeam'>;
 type MemberPasskeyItem = ItemOf<'two_factor/queries:listPasskeysForMember'>;
+type MemberLookupItem = ItemOf<'members/queries:lookupMember'>;
 type CreateMemberResult = ReturnsOf<'users/mutations:createMember'>;
 type MyPreferencesResult =
   ReturnsOf<'user_preferences/queries:getMyPreferences'>;
@@ -261,6 +267,48 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
           `/members/user-id-by-email?email=${encodeURIComponent(email)}`,
           { orgId },
         ).then((body) => body.userId),
+    };
+  },
+  'members/queries:lookupMember': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    const target: MemberLookupTarget | null =
+      typeof args.userId === 'string'
+        ? { userId: args.userId }
+        : typeof args.handle === 'string'
+          ? { handle: args.handle }
+          : null;
+    if (orgId === undefined || target === null) return null;
+    // A value the server would refuse names nobody: keyed as asked, it
+    // answers at once with no one.
+    const ask = memberLookupAsk(target) ?? target;
+    return {
+      queryKey:
+        'userId' in ask
+          ? backendKey(orgId, MEMBER_HINT_ENTITY, 'lookup', 'user', ask.userId)
+          : backendKey(
+              orgId,
+              MEMBER_HINT_ENTITY,
+              'lookup',
+              'handle',
+              ask.handle,
+            ),
+      queryFn: () =>
+        lookupMember(orgId, ask).then((rows) =>
+          rows.map(
+            (row): MemberLookupItem =>
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the server answers with a member role
+              ({
+                _id: row.id,
+                userId: row.userId,
+                role: row.role,
+                createdAt: Date.parse(row.createdAt) || 0,
+                ...(row.displayName !== null
+                  ? { displayName: row.displayName }
+                  : {}),
+                ...(row.email !== null ? { email: row.email } : {}),
+              }) as MemberLookupItem,
+          ),
+        ),
     };
   },
   'teams/queries:deletionImpact': (args, ctx) => {
