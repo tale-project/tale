@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
-import { createRef } from 'react';
+import { toast } from '@tale/ui/use-toast';
+import { createRef, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -15,7 +16,9 @@ import {
   reduceThreadView,
   resolveHeldItems,
   toSettledItems,
+  type ThreadViewInputs,
 } from '../lib/thread-view-core';
+import { createPendingSend } from '../utils/pending-messages';
 
 // Image-attachment parts resolve display URLs through a Convex query; this
 // harness renders without a provider, so the seam answers inert.
@@ -26,16 +29,16 @@ vi.mock('@/app/features/shared/files/use-file-url', () => ({
 
 // Counts the toolbar's renders — the per-row chrome whose needless
 // re-renders froze a long thread on open and on every send (#4121). The
-// wrapper renders the real toolbar.
+// wrapper runs the real toolbar as its own render, so a render the
+// toolbar's own hooks cause counts too, not only one its row passes down.
 const toolbarRenders = vi.hoisted(() => ({ count: 0 }));
 vi.mock('./message-toolbar', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./message-toolbar')>();
-  const { createElement } = await import('react');
   return {
     ...actual,
     MessageToolbar: (props: Parameters<typeof actual.MessageToolbar>[0]) => {
       toolbarRenders.count += 1;
-      return createElement(actual.MessageToolbar, props);
+      return actual.MessageToolbar(props);
     },
   };
 });
@@ -869,6 +872,163 @@ describe('MessageThread long threads', () => {
     expect(isDormant(firstAwake)).toBe(false);
     expect(firstAwake.isConnected).toBe(true);
     expect(toolbarRenders.count - rendersBefore).toBe(2);
+  });
+
+  /**
+   * A thread of `turnCount` settled turns, scrolled through so that every row
+   * is in full, rendered as the transcript renders it: the thread-view merge
+   * between the reads and the rows, under the page's clock. `startTurn`
+   * drives the next turn's start and answers how many toolbars each of its
+   * steps rendered.
+   */
+  async function openAwakeThread(turnCount: number) {
+    const threadId = `t-turn-${turnCount}`;
+    const question = 'And the spring tides?';
+    const sentAt = Date.now();
+    const pending = createPendingSend({
+      text: question,
+      sentAt,
+      threadId,
+      baselineSequence: turnCount * 2,
+    });
+    const asked: ChatMessageView = {
+      id: `u${turnCount + 1}`,
+      role: 'user',
+      sequence: turnCount * 2 + 1,
+      createdAt: sentAt,
+      parts: [{ type: 'text', text: question }],
+    };
+    const answer: ChatMessageView = {
+      id: `a${turnCount + 1}`,
+      role: 'assistant',
+      sequence: turnCount * 2 + 2,
+      createdAt: sentAt,
+      parts: [],
+      status: 'pending',
+    };
+    const generation = { status: 'streaming', messageId: answer.id } as const;
+
+    function Transcript({ inputs }: { inputs: ThreadViewInputs }) {
+      const [state] = useState(createThreadViewState);
+      const view = reduceThreadView(state, inputs);
+      useReportServerNow(inputs.generationText?.serverNow);
+      return (
+        <MessageThread
+          messages={view.items}
+          generation={view.generation ?? undefined}
+          organizationId="org-1"
+          threadId={threadId}
+          threadRootId={threadId}
+          isGenerating={inputs.pending != null || view.generation !== null}
+        />
+      );
+    }
+    const tree = (inputs: ThreadViewInputs) => (
+      <ClockOffsetProvider>
+        <Transcript inputs={inputs} />
+      </ClockOffsetProvider>
+    );
+    // Every read answers with fresh objects, as a refetch does.
+    const { rerender, unmount } = render(
+      tree({
+        messages: turns(turnCount),
+        generation: null,
+        generationText: null,
+      }),
+    );
+    const observer = ControlledObserver.instances.at(-1)!;
+    act(() => {
+      for (const row of rows().filter(isDormant)) observer.enter(row);
+    });
+    await waitFor(() => expect(rows().some(isDormant)).toBe(false));
+
+    const toolbarsRenderedBy = (step: () => void) => {
+      const before = toolbarRenders.count;
+      step();
+      return toolbarRenders.count - before;
+    };
+    const streamed = (text: string, serverNow: number): ThreadViewInputs => ({
+      messages: [...turns(turnCount), asked, answer],
+      generation,
+      generationText: { messageId: answer.id, text, serverNow },
+      pending,
+    });
+
+    return {
+      unmount,
+      startTurn: () => ({
+        send: toolbarsRenderedBy(() =>
+          rerender(
+            tree({
+              messages: turns(turnCount),
+              generation: null,
+              generationText: null,
+              pending,
+            }),
+          ),
+        ),
+        serverRows: toolbarsRenderedBy(() =>
+          rerender(
+            tree({
+              messages: [...turns(turnCount), asked, answer],
+              generation,
+              generationText: null,
+              pending,
+            }),
+          ),
+        ),
+        // The page session's first server clock arrives with them.
+        firstWords: toolbarsRenderedBy(() =>
+          rerender(tree(streamed('Spring tides come twice', sentAt + 8_000))),
+        ),
+        moreWords: toolbarsRenderedBy(() =>
+          rerender(
+            tree(
+              streamed(
+                'Spring tides come twice a month, at new and full moon.',
+                sentAt + 8_250,
+              ),
+            ),
+          ),
+        ),
+        // Raised and closed, as a refused send's toast is.
+        toast: toolbarsRenderedBy(() =>
+          act(() => {
+            toast({
+              title: 'Message not sent',
+              variant: 'destructive',
+            }).dismiss();
+          }),
+        ),
+      }),
+    };
+  }
+
+  it('renders the same toolbars at a turn start however long the thread grows', async () => {
+    const startTurnIn = async (turnCount: number) => {
+      const thread = await openAwakeThread(turnCount);
+      expect(rows()).toHaveLength(turnCount * 2);
+      const rendered = thread.startTurn();
+      thread.unmount();
+      return rendered;
+    };
+    const inShortThread = await startTurnIn(10);
+    const inLongThread = await startTurnIn(60);
+
+    // Only the previous reply's toolbar renders again: the send makes it no
+    // longer the last. Every other toolbar stands still through the
+    // optimistic rows, the server's rows taking their place, the first words
+    // with the server clock, and a toast such as a refused send raises. The
+    // clock and the toast each re-rendered every reply's toolbar, so a send
+    // froze a long thread in proportion to its length (#4121).
+    const expected = {
+      send: 1,
+      serverRows: 0,
+      firstWords: 0,
+      moreWords: 0,
+      toast: 0,
+    };
+    expect([inShortThread, inLongThread]).toEqual([expected, expected]);
   });
 
   it('wakes the rows a shorter branch brings back among the newest', () => {
