@@ -103,6 +103,24 @@ export interface MembersContract {
     args: { email: string };
     returns: null | string;
   };
+  /** The members one person a screen names stands for (MEMBER-R11): by
+   * user id, the member with that id if there is one; by a plain
+   * `@handle`, every member who answers to it. Many such reads asked at
+   * once share one request (`member-lookup-batch.ts`). */
+  'members/queries:lookupMember': {
+    kind: 'query';
+    args:
+      | { organizationId: string; userId: string }
+      | { organizationId: string; handle: string };
+    returns: Array<{
+      _id: string;
+      userId: string;
+      role: 'member' | 'admin' | 'disabled' | 'owner' | 'editor' | 'developer';
+      createdAt: number;
+      displayName: undefined | string;
+      email: undefined | string;
+    }>;
+  };
   'members/queries:listByOrganization': {
     kind: 'query';
     args: { organizationId: string };
@@ -115,7 +133,6 @@ export interface MembersContract {
       displayName: undefined | string;
       email: undefined | string;
       twoFactorEnabled: boolean;
-      passkeyCount: number;
     }>;
   };
   'members/queries:listOrgTeams': {
