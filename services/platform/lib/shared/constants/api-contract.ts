@@ -900,5 +900,17 @@
  * the text could not be scanned whole. The document is not indexed, where it
  * used to be indexed unscanned, and every save of the PII policy, an
  * unchanged one included, re-queues it. Additive.
+ *
+ * 3.53.0 — 2026-11-01: the MCP `list_projects` tool answers the projects
+ * the key holder can read a page at a time, at most 50, newest first, where
+ * it answered all of them at once, the most recently changed first. It
+ * answers `nextCursor` (`null` on the last page) and takes it back as
+ * `cursor`, with the same `query` and `includeArchived` (`INVALID_CURSOR`
+ * otherwise); `query` still matches a part of the name in any case, now in
+ * the database. `get_settings` lists project instructions and the agents'
+ * instructions, tools and model newest first, the agents across their
+ * projects, where a project's agents came together; a cursor these listings
+ * answered before is refused as `INVALID_CURSOR`: read the kind again from
+ * its first page. No REST operation changes.
  */
-export const API_CONTRACT_VERSION = '3.52.0';
+export const API_CONTRACT_VERSION = '3.53.0';

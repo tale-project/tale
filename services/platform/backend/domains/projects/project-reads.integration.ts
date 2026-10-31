@@ -5,10 +5,12 @@
  * and the project lists read one page at a time. The readers that pick from
  * it or count it join it too (#5193): the document search, the project a
  * create that names none falls back to, and the chat hand-over's projects
- * with agents. The knowledge scopes hand the knowledge database the readable
- * projects that hold a document, read through it (#5202). Fixture rows go
- * in by SQL, in an organization of their own so
- * that no other lane's project counts; every read goes through the service.
+ * with agents; and so do the MCP project list, with the name searched in
+ * the statement, and the settings list of their agents (#5203). The
+ * knowledge scopes hand the knowledge database the readable projects that
+ * hold a document, read through it (#5202). Fixture rows go in by SQL, in
+ * an organization of their own so that no other lane's project counts;
+ * every read goes through the service.
  */
 import { randomUUID } from 'node:crypto';
 
@@ -24,6 +26,8 @@ import {
 import {
   fallbackProjectId,
   listProjectsOverview,
+  listProjectsPage,
+  listReadableProjectAgentsPage,
   listSidebarProjects,
   readableProjectsSql,
   readableProjectsWithDocuments,
@@ -92,6 +96,8 @@ export async function checkProjectReads(
   };
   const keyOf = (projectId: string) =>
     projects.find((project) => project.id === projectId)?.key;
+  // Each project's agents, by id: the settings lists page over them.
+  const agentIds = new Map<string, string[]>();
 
   const viewer = (
     role: string,
@@ -157,10 +163,15 @@ export async function checkProjectReads(
           ${ctx.userId}, ${project.createdAt}, ${project.createdAt})
       `;
       for (let agent = 0; agent < (project.agents ?? 0); agent += 1) {
+        const agentId = randomUUID();
+        agentIds.set(project.id, [
+          ...(agentIds.get(project.id) ?? []),
+          agentId,
+        ]);
         await sql`
           INSERT INTO app.project_agents (id, org_id, project_id, name,
             harness, model, created_by, created_at_ms, updated_at_ms)
-          VALUES (${randomUUID()}, ${org}, ${project.id},
+          VALUES (${agentId}, ${org}, ${project.id},
             ${`Reads agent ${agent + 1}`}, 'claude-code', 'itest-model',
             ${ctx.userId}, ${now}, ${now})
         `;
@@ -379,6 +390,66 @@ export async function checkProjectReads(
               project.archived === (project.id === named('archived').id),
           ),
         JSON.stringify({ knowledge, knowledgeArchived }),
+      );
+
+      // list_projects searches the name in the statement that reads the
+      // page: a part of it in any case finds the project, and a wildcard is
+      // a character like any other. The relation keeps a disabled seat out
+      // even here, where the MCP door has refused it already.
+      const searched = await listProjectsPage(sql, auth, {
+        archived: 'exclude',
+        limit: 50,
+        cursor: null,
+        summary: true,
+        name: 'EADS F',
+      });
+      const wildcard = await listProjectsPage(sql, auth, {
+        archived: 'exclude',
+        limit: 50,
+        cursor: null,
+        summary: true,
+        name: '%',
+      });
+      record(
+        `project reads: list_projects of ${who} finds those projects by a part of their name, and a wildcard finds none`,
+        JSON.stringify(searched.projects.map((project) => project.id)) ===
+          JSON.stringify(
+            reads.includes('finance') ? [named('finance').id] : [],
+          ) &&
+          !searched.hasMore &&
+          wildcard.projects.length === 0,
+        JSON.stringify({
+          searched: searched.projects.map((project) => project.name),
+          wildcard: wildcard.projects.map((project) => project.name),
+        }),
+      );
+
+      // The settings lists page over the agents of those projects, newest
+      // first, in one statement through the relation; the archived
+      // project's agent stays out, and so does every agent of a disabled
+      // seat. The agents were all made at once, so their ids break the tie.
+      const agentsNewestFirst = projects
+        .filter((project) => reads.includes(project.name))
+        .flatMap((project) => agentIds.get(project.id) ?? [])
+        .sort((a, b) => (a < b ? 1 : -1));
+      const agentPages: string[][] = [];
+      let agentCursor: { at: number; id: string } | null = null;
+      for (let page = 0; page < 10; page += 1) {
+        const read = await listReadableProjectAgentsPage(sql, auth, {
+          limit: 2,
+          cursor: agentCursor,
+        });
+        agentPages.push(read.agents.map((agent) => agent.id));
+        const last = read.agents.at(-1);
+        if (!read.hasMore || last === undefined) break;
+        agentCursor = { at: last.createdAt, id: last.id };
+      }
+      record(
+        `project reads: the settings lists of ${who} page through the agents of exactly those projects, newest first, two at a time`,
+        JSON.stringify(agentPages.flat()) ===
+          JSON.stringify(agentsNewestFirst) &&
+          agentPages.every((page) => page.length <= 2),
+        JSON.stringify({ agentPages, agentsNewestFirst }),
       );
 
       // The HTTP doors refuse a disabled seat before the lists read.

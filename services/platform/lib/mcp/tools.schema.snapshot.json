@@ -2032,6 +2032,13 @@
         "includeArchived": {
           "description": "Also archived projects (default false).",
           "type": "boolean"
+        },
+        "cursor": {
+          "description": "The nextCursor the previous page answered — the next page. Pass it unchanged, with the same query and includeArchived.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "pattern": "\\S"
         }
       },
       "additionalProperties": false
@@ -2061,11 +2068,21 @@
             "additionalProperties": {}
           }
         },
+        "nextCursor": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "hint": {
           "type": "string"
         }
       },
-      "required": ["projects", "hint"],
+      "required": ["projects", "nextCursor", "hint"],
       "additionalProperties": {}
     }
   },

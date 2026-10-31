@@ -157,6 +157,7 @@ export const READ_TOOL_RESULTS = {
         writable: z.boolean(),
       }),
     ),
+    nextCursor: z.string().nullable(),
     hint: z.string(),
   }),
   list_events: z.looseObject({
