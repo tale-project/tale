@@ -787,6 +787,18 @@ function toGroupRecord(
   };
 }
 
+/** A membership an admin made carried the team's competence grants; the
+ * provider removing it ends that with the row (0226). */
+async function forgetAdminAddedMembership(
+  tx: TransactionSql,
+  teamMemberId: string,
+): Promise<void> {
+  await tx`
+    DELETE FROM app.admin_added_team_members
+    WHERE team_member_id = ${teamMemberId}
+  `;
+}
+
 /** Answers whether the roster actually moved — the caller hints only then. */
 async function setTeamMembers(
   tx: TransactionSql,
@@ -811,6 +823,7 @@ async function setTeamMembers(
   for (const m of current) {
     if (!desired.has(m.userId)) {
       await tx`DELETE FROM "teamMember" WHERE "id" = ${m.id}`;
+      await forgetAdminAddedMembership(tx, m.id);
       changed = true;
     }
   }
@@ -1110,6 +1123,7 @@ export async function patchGroup(
       for (const m of current) {
         if (removeSet.has(m.userId)) {
           await tx`DELETE FROM "teamMember" WHERE "id" = ${m.id}`;
+          await forgetAdminAddedMembership(tx, m.id);
           changed = true;
         }
       }
@@ -1169,6 +1183,7 @@ export async function deleteGroup(
           documentsRetagged: retired.documentsRetagged,
           conversationsUnassigned: retired.conversationsUnassigned,
           syncConfigsUnscoped: retired.syncConfigsUnscoped,
+          competenceGrantsRevoked: retired.competenceGrantsRevoked,
         },
       },
     );

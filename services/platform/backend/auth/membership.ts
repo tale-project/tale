@@ -355,14 +355,22 @@ export async function removeMembershipCascade(
   organizationId: string,
   userId: string,
 ): Promise<{ teamIds: string[] }> {
-  const left = await tx<{ teamId: string }[]>`
+  const left = await tx<{ id: string; teamId: string }[]>`
     DELETE FROM "teamMember"
     WHERE "userId" = ${userId}
       AND "teamId" IN (
         SELECT "id" FROM "team" WHERE "organizationId" = ${organizationId}
       )
-    RETURNING "teamId"
+    RETURNING "id", "teamId"
   `;
+  // The memberships carried the teams' competence grants when an admin made
+  // them (`vouchesForUser`); the records of that go with the rows.
+  if (left.length > 0) {
+    await tx`
+      DELETE FROM app.admin_added_team_members
+      WHERE team_member_id IN ${tx(left.map((row) => row.id))}
+    `;
+  }
   await tx`
     DELETE FROM app.sso_synced_team_members
     WHERE org_id = ${organizationId} AND user_id = ${userId}
@@ -377,7 +385,9 @@ export async function removeMembershipCascade(
   // qualification gates who may approve a review, so neither may survive
   // the removal and re-attach to a re-added member without an admin
   // granting it again. Stamped revoked, never deleted — the register is the
-  // trail. (Migration 0116 revoked the grants earlier removals left live.)
+  // trail. (Migration 0120 revoked the grants earlier removals left live.)
+  // A grant to a team is the team's and stays; the member stopped holding it
+  // when their team memberships went above.
   await tx`
     UPDATE app.competence_records
     SET revoked_at_ms = ${Date.now()}, revoked_by = 'system'

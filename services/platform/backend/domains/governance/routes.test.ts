@@ -692,19 +692,22 @@ describe('GET /my/model-api', () => {
     caller.role = 'member';
     readGovernancePolicyForOrg.mockResolvedValue(null);
     const grants: unknown[][] = [];
-    const sql = (async (
-      _strings: TemplateStringsArray,
-      ...values: unknown[]
-    ) => {
+    const sql = ((strings: TemplateStringsArray, ...values: unknown[]) => {
+      // `vouchesForUser` is a fragment nested in the grant read: it hands
+      // its values to the read instead of reading.
+      if (!/^\s*SELECT/.test(strings[0] ?? '')) return { fragment: values };
       grants.push(values);
-      return [];
+      return Promise.resolve([]);
     }) as never;
     expect(await (await read(sql)).json()).toEqual({
       enabled: false,
       allowed: false,
       models: [],
     });
-    expect(grants).toEqual([['o1', 'u1', 'tale:models.api']]);
+    // The member's own grant or their team's, live at the time of asking.
+    expect(grants).toEqual([
+      ['o1', 'tale:models.api', expect.any(Number), { fragment: ['u1', 'u1'] }],
+    ]);
     // Nothing to list for a member the endpoints would refuse.
     expect(listModelApiModels).not.toHaveBeenCalled();
   });
