@@ -33,7 +33,7 @@ import { pgAutomationStore } from '../domains/automations/dispatch-store.ts';
 import { legacyRunStopSchema } from '../domains/automations/legacy-quarantine.ts';
 import {
   automationVisible,
-  readableProjectIds,
+  visibleInstallations,
 } from '../domains/automations/project-visibility.ts';
 import {
   readReplayPlan,
@@ -82,7 +82,10 @@ import {
   listVersionHistory,
   readTestReport,
 } from '../domains/automations/versions.ts';
-import { getProjectAuthContext } from '../domains/projects/service.ts';
+import {
+  getProjectAuthContext,
+  readableProjectsAmong,
+} from '../domains/projects/service.ts';
 import { requestIdOf } from '../error-reporting.ts';
 import { RateLimitExceededError } from '../lib/rate-limit.ts';
 import { runInRequestChannel } from '../lib/request-channel.ts';
@@ -297,15 +300,19 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
   };
   const emptyBody = z.object({}).strict();
 
-  /** The projects the key holder may see, archived ones included — the
-   * filter every binding listing goes through, so a catalog read never
-   * reveals a hidden project's installations. */
-  const visibleProjectIds = async (
+  /** The installations of `name` the key holder may see, archived ones
+   * included — those projects asked alone, never every one the key holder
+   * reads (#5201), so a read never reveals a hidden project's
+   * installations. */
+  const visibleInstallationsOf = async (
     c: Context<RestEnv>,
-  ): Promise<Set<string>> => {
-    const auth = await restProjectAuth(deps.sql, c);
-    return new Set(await readableProjectIds(deps.sql, auth));
-  };
+    name: string,
+  ): Promise<string[]> =>
+    visibleInstallations(
+      deps.sql,
+      await restProjectAuth(deps.sql, c),
+      await bindingProjectIds(deps.sql, c.get('organizationId'), name),
+    );
   const runBody = z
     .object({
       input: z.unknown().optional(),
@@ -395,7 +402,14 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       name,
     );
     if (bindings.length === 0) return false;
-    return !automationVisible(bindings, await visibleProjectIds(c));
+    return !automationVisible(
+      bindings,
+      await readableProjectsAmong(
+        deps.sql,
+        await restProjectAuth(deps.sql, c),
+        bindings,
+      ),
+    );
   };
 
   app.get('/automations', noQuery, async (c) => {
@@ -404,18 +418,11 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     // can read. Their project install ids are the caller's only way to start
     // a project-bound automation (the org URL refuses it) — answered as the
     // projects the caller can SEE, so a catalog read never reveals a hidden
-    // project.
-    const visible = await visibleProjectIds(c);
+    // project — the readable projects joined in the read itself.
     return c.json({
-      automations: (await listAutomations(deps.sql, c.get('organizationId')))
-        .filter((definition) =>
-          automationVisible(definition.projectIds, visible),
-        )
-        .map((definition) =>
-          Object.assign(definition, {
-            projectIds: definition.projectIds.filter((id) => visible.has(id)),
-          }),
-        ),
+      automations: await listAutomations(deps.sql, c.get('organizationId'), {
+        viewer: await restProjectAuth(deps.sql, c),
+      }),
     });
   });
 
@@ -1069,15 +1076,12 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     try {
       const auth = await restProjectAuth(deps.sql, c);
       const project = await loadRestProject(deps.sql, auth, c.req.param('id'));
-      const visible = await visibleProjectIds(c);
       return c.json({
-        automations: (await listAutomations(deps.sql, auth.organizationId))
-          .filter((definition) => definition.projectIds.includes(project.id))
-          .map((definition) =>
-            Object.assign(definition, {
-              projectIds: definition.projectIds.filter((id) => visible.has(id)),
-            }),
-          ),
+        automations: (
+          await listAutomations(deps.sql, auth.organizationId, {
+            viewer: auth,
+          })
+        ).filter((definition) => definition.projectIds.includes(project.id)),
       });
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -1263,7 +1267,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
     c: Context<RestEnv>,
     list: string,
     query: RunListQuery,
-    scope: Pick<ListRunsOptions, 'name' | 'projectId' | 'visibleProjectIds'>,
+    scope: Pick<ListRunsOptions, 'name' | 'projectId' | 'viewer'>,
   ) => {
     const page = await listRunsPage(deps.sql, c.get('organizationId'), {
       ...scope,
@@ -1339,9 +1343,8 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       const list = 'runs:all';
       const query = readRunListQuery(c, list);
       if (query instanceof Response) return query;
-      const visible = await visibleProjectIds(c);
       return answerRunPage(c, list, query, {
-        visibleProjectIds: [...visible],
+        viewer: await restProjectAuth(deps.sql, c),
       });
     } catch (error) {
       return domainErrorResponse(c, error);
@@ -1499,10 +1502,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
         error instanceof AutomationError &&
         error.code === 'AUTOMATION_PROJECT_SCOPE_REQUIRED'
       ) {
-        const visible = await visibleProjectIds(c);
-        const projectIds = (
-          await bindingProjectIds(deps.sql, c.get('organizationId'), name)
-        ).filter((id) => visible.has(id));
+        const projectIds = await visibleInstallationsOf(c, name);
         return c.json(
           { error: error.message, code: error.code, data: { projectIds } },
           409,
@@ -1564,10 +1564,7 @@ export function createAutomationRestRoutes(deps: { sql: Sql }): Hono<RestEnv> {
       }
       return automationNotFound(c);
     }
-    const visible = await visibleProjectIds(c);
-    const projectIds = (
-      await bindingProjectIds(deps.sql, organizationId, name)
-    ).filter((id) => visible.has(id));
+    const projectIds = await visibleInstallationsOf(c, name);
     return c.json({
       name: row.name,
       version: row.version,

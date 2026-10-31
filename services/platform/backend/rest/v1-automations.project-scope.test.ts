@@ -139,6 +139,9 @@ beforeEach(() => {
 
 describe('project automation REST scope', () => {
   it('lists only installations in the URL project without leaking other project ids [AUTO-R2]', async () => {
+    // The store answers the catalog as the caller sees it (#5201): the
+    // installation in `private-project`, which the caller cannot read, is
+    // not among its rows (`store.readable-projects.test.ts`).
     vi.mocked(listAutomations).mockResolvedValue([
       {
         name: 'shared',
@@ -147,7 +150,7 @@ describe('project automation REST scope', () => {
         description: null,
         inputs: null,
         presentation: null,
-        projectIds: ['p-1', 'private-project'],
+        projectIds: ['p-1'],
         trigger: null,
       },
       {
@@ -161,12 +164,18 @@ describe('project automation REST scope', () => {
         trigger: null,
       },
     ]);
-    const response = await mount().app.request(
-      '/api/v1/projects/p-1/automations',
-    );
+    const { app, sql } = mount();
+    const response = await app.request('/api/v1/projects/p-1/automations');
     expect(response.status).toBe(200);
-    // `private-project` is not among the caller's projects: the listing
-    // names the installations they can see, and only those.
+    expect(listAutomations).toHaveBeenCalledWith(sql, 'org-1', {
+      viewer: expect.objectContaining({
+        organizationId: 'org-1',
+        userId: 'user-1',
+        role: 'developer',
+      }),
+    });
+    // Only the automations installed in the URL project, with the
+    // installations the caller can see.
     expect(await response.json()).toEqual({
       automations: [
         {
@@ -349,7 +358,7 @@ describe('project automation REST scope', () => {
 });
 
 describe('organization run scope', () => {
-  it('leaves out a definition installed only in projects the key holder cannot read [AUTO-R2] [AUTO-R27]', async () => {
+  it('reads the catalog as the key holder sees it, so a definition installed only in projects they cannot read stays out [AUTO-R2] [AUTO-R27]', async () => {
     const definition = {
       latestVersion: 1,
       deployedVersion: 1,
@@ -358,37 +367,29 @@ describe('organization run scope', () => {
       presentation: null,
       trigger: null,
     };
+    // What the store answers this caller (#5201): `hr/onboarding`,
+    // installed only in `private-project`, is not among the rows — listed
+    // with no installations, it would read as an organization automation —
+    // and `shared` names only the installation the caller can see, so they
+    // can pick its project URL (`store.readable-projects.test.ts`).
     vi.mocked(listAutomations).mockResolvedValue([
-      { ...definition, name: 'hr/onboarding', projectIds: ['private-project'] },
-      { ...definition, name: 'shared', projectIds: [] },
+      { ...definition, name: 'shared', projectIds: ['p-1'] },
+      { ...definition, name: 'everyone', projectIds: [] },
     ]);
-    const response = await mount().app.request('/api/v1/automations');
-    // `private-project` is not among the caller's projects: the automation
-    // installed only there is left out, as the app's list leaves it out —
-    // listed with no installations, it would read as an organization
-    // automation, and its hidden project id never leaks. An organization
-    // automation is everyone's.
-    expect(await response.json()).toEqual({
-      automations: [{ ...definition, name: 'shared', projectIds: [] }],
+    const { app, sql } = mount();
+    const response = await app.request('/api/v1/automations');
+    expect(listAutomations).toHaveBeenCalledWith(sql, 'org-1', {
+      viewer: expect.objectContaining({
+        organizationId: 'org-1',
+        userId: 'user-1',
+        role: 'developer',
+      }),
     });
-  });
-
-  it('names the visible installations, so a caller can pick the project URL', async () => {
-    vi.mocked(listAutomations).mockResolvedValue([
-      {
-        name: 'shared',
-        latestVersion: 1,
-        deployedVersion: 1,
-        description: null,
-        inputs: null,
-        presentation: null,
-        projectIds: ['p-1', 'private-project'],
-        trigger: null,
-      },
-    ]);
-    const response = await mount().app.request('/api/v1/automations');
-    expect(await response.json()).toMatchObject({
-      automations: [{ name: 'shared', projectIds: ['p-1'] }],
+    expect(await response.json()).toEqual({
+      automations: [
+        { ...definition, name: 'shared', projectIds: ['p-1'] },
+        { ...definition, name: 'everyone', projectIds: [] },
+      ],
     });
   });
 

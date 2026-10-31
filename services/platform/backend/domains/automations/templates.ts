@@ -38,8 +38,12 @@ import { findOrganizationMember } from '../../auth/membership.ts';
 import { resolveBuiltinCatalogRoot } from '../../core/lib/config_store/builtin_catalog.ts';
 import type { WriteOrigin } from '../../lib/write-origin.ts';
 import { listCredentialsInService } from '../connector_credentials/service.ts';
+import {
+  readableProjectsAmong,
+  readableProjectsSql,
+} from '../projects/readable-projects.ts';
+import type { ProjectAuthContext } from '../projects/service.ts';
 import { resolveModelReplacements } from './model-defaults.ts';
-import { automationVisible } from './project-visibility.ts';
 import {
   answerTriggerWrite,
   assertTriggerValid,
@@ -175,7 +179,9 @@ function isPlatformConnector(slug: string): boolean {
 
 /**
  * How many of the organization's automations came from each template, of
- * those the reader sees (`automationVisible`, the listing's own rule): the
+ * those the reader sees (`automationVisible`, the listing's own rule:
+ * installed nowhere, or in a project the reader can read, archived ones
+ * included — the readable projects joined in the statement, #5201): the
  * template a version of the automation was made from, or — for a pack an
  * earlier release installed in every organization, before templates — the
  * pack's own automation name.
@@ -184,25 +190,26 @@ async function templateUsage(
   sql: Sql,
   organizationId: string,
   catalog: readonly AutomationTemplate[],
-  readableProjectIds: readonly string[],
+  reader: ProjectAuthContext,
 ): Promise<Map<string, number>> {
-  const rows = await sql<
-    { name: string; template: string | null; bindings: string[] }[]
-  >`
+  const rows = await sql<{ name: string; template: string | null }[]>`
     SELECT a.name,
            (array_agg(a.template_slug ORDER BY a.version DESC)
-              FILTER (WHERE a.template_slug IS NOT NULL))[1] AS template,
-           COALESCE(
-             (SELECT array_agg(b.project_id)
-              FROM app.automation_project_bindings b
-              WHERE b.org_id = a.org_id AND b.automation_name = a.name),
-             '{}'
-           ) AS bindings
+              FILTER (WHERE a.template_slug IS NOT NULL))[1] AS template
     FROM app.automations a
     WHERE a.org_id = ${organizationId}
     GROUP BY a.org_id, a.name
+    HAVING NOT EXISTS (
+             SELECT 1 FROM app.automation_project_bindings b
+             WHERE b.org_id = a.org_id AND b.automation_name = a.name
+           )
+        OR EXISTS (
+             SELECT 1 FROM app.automation_project_bindings b
+             JOIN ${readableProjectsSql(sql, reader, { includeArchived: true })} rp
+               ON rp.project_id = b.project_id
+             WHERE b.org_id = a.org_id AND b.automation_name = a.name
+           )
   `;
-  const readable = new Set(readableProjectIds);
   const byPackName = new Map(
     catalog
       .filter((template) => template.source === 'pack')
@@ -210,7 +217,6 @@ async function templateUsage(
   );
   const usage = new Map<string, number>();
   for (const row of rows) {
-    if (!automationVisible(row.bindings, readable)) continue;
     const slug = row.template ?? byPackName.get(row.name);
     if (slug === undefined) continue;
     usage.set(slug, (usage.get(slug) ?? 0) + 1);
@@ -261,35 +267,30 @@ function templateCard(
   };
 }
 
-/** The catalog, as a reader of the organization `organizationId` sees it:
+/** The catalog of the organization `organizationId` as `reader` sees it:
  * what is in use counts the automations they can see. */
 export async function listTemplateCards(
   sql: Sql,
   organizationId: string,
-  readableProjectIds: readonly string[],
+  reader: ProjectAuthContext,
 ): Promise<AutomationTemplateCard[]> {
   const catalog = loadCatalog();
   const credentials = await listCredentialsInService(sql, organizationId);
-  const usage = await templateUsage(
-    sql,
-    organizationId,
-    catalog,
-    readableProjectIds,
-  );
+  const usage = await templateUsage(sql, organizationId, catalog, reader);
   const connected = new Set(credentials.keys());
   return catalog.map((template) =>
     templateCard(template, connected, usage.get(template.slug) ?? 0),
   );
 }
 
-/** One template's preview, as a reader of the organization
- * `organizationId` sees it; refuses a slug the catalog does not hold
+/** One template's preview in the organization `organizationId` as
+ * `reader` sees it; refuses a slug the catalog does not hold
  * (`TEMPLATE_NOT_FOUND`). */
 export async function readTemplateDetail(
   sql: Sql,
   organizationId: string,
   slug: string,
-  readableProjectIds: readonly string[],
+  reader: ProjectAuthContext,
 ): Promise<AutomationTemplateDetail> {
   const catalog = loadCatalog();
   const template = catalog.find((candidate) => candidate.slug === slug);
@@ -301,12 +302,7 @@ export async function readTemplateDetail(
     );
   }
   const inService = await listCredentialsInService(sql, organizationId);
-  const usage = await templateUsage(
-    sql,
-    organizationId,
-    catalog,
-    readableProjectIds,
-  );
+  const usage = await templateUsage(sql, organizationId, catalog, reader);
   const credentials: AutomationTemplateDetail['credentials'] = {};
   for (const field of template.manifest.template.fields) {
     if (field.kind !== 'credential') continue;
@@ -333,7 +329,7 @@ async function referenceIssues(
   args: {
     organizationId: string;
     answers: TemplateAnswers;
-    visibleProjectIds: readonly string[];
+    viewer: ProjectAuthContext;
   },
 ): Promise<TemplateAnswerIssue[]> {
   const issues: TemplateAnswerIssue[] = [];
@@ -342,9 +338,12 @@ async function referenceIssues(
     const answer = args.answers[field.id];
     if (typeof answer !== 'string' || answer.trim() === '') continue;
     const value = answer.trim();
-    if (field.kind === 'project' && !args.visibleProjectIds.includes(value)) {
+    if (
+      field.kind === 'project' &&
+      !(await readableProjectsAmong(sql, args.viewer, [value])).has(value)
+    ) {
       // A project hidden from the creator answers like one that is not
-      // there.
+      // there — that project asked alone, never every one they read.
       issues.push({
         field: field.id,
         code: 'unknown',
@@ -435,7 +434,8 @@ export async function prepareTemplateInstance(
     locale?: string;
     /** The creator's time zone. */
     timezone?: string;
-    visibleProjectIds: readonly string[];
+    /** The creator: a project answer must be one they can read. */
+    viewer: ProjectAuthContext;
   },
 ): Promise<PreparedTemplateInstance> {
   const template = findAutomationTemplate(args.slug, catalogRoots());
