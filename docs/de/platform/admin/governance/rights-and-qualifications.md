@@ -8,7 +8,7 @@ Als Admin oder Inhaber führst du unter **Einstellungen > Richtlinien > Rechte u
 - Ein **Recht** erlaubt einem Mitglied eine einzelne, eng begrenzte Aktion, für die sonst eine höhere Rolle nötig wäre. Weise es dem Konto hinter einer Integration zu, statt es zum Admin zu machen. Als Admin könnte es auch Mitglieder, Single Sign-on und Passwörter verwalten.
 - Eine **Qualifikation** ist ein Name, den die Freigaberichtlinie deiner Organisation von der Person verlangen kann, die eine Prüfung freigibt.
 
-Du weist ein Recht oder eine Qualifikation einem Mitglied zu oder ein Recht einem [Team](#grant-a-right-to-a-team). Eine Zuweisung gilt nur in dieser Organisation. Tale protokolliert jede Zuweisung und jeden Widerruf im Audit-Log, und wer aus der Organisation entfernt wird, verliert seine Zuweisungen.
+Du weist ein Recht oder eine Qualifikation einem Mitglied zu oder ein Recht einem [Team](#grant-a-right-to-a-team). Eine Zuweisung gilt nur in dieser Organisation. Tale protokolliert jede Zuweisung, jede Änderung und jeden Widerruf im Audit-Log, und wer aus der Organisation entfernt wird, verliert seine Zuweisungen.
 
 ## Rechte
 
@@ -36,7 +36,7 @@ Inhaber und Admins haben alle vier über ihre Rolle; Entwickler haben über ihre
 5. Halte bei Bedarf unter **Nachweis** fest, warum das Mitglied sie erhält, etwa ein Zertifikat, ein Ticket oder das System, dem sie dient. Der Nachweis bleibt im Register.
 6. Wähle **Zuweisen**.
 
-Die Zuweisung gilt ab der nächsten Anfrage des Mitglieds; eine Integration muss nicht neu starten. Ein Mitglied oder ein Team hat jedes Recht und jede Qualifikation nur einmal gleichzeitig. Um Ablauf oder Nachweis zu ändern, widerrufe die Zuweisung und weise neu zu. Besteht die Zuweisung bereits, sagt der Dialog das und weist nichts zu.
+Die Zuweisung gilt ab der nächsten Anfrage des Mitglieds; eine Integration muss nicht neu starten. Ein Mitglied oder ein Team hat jedes Recht und jede Qualifikation nur einmal gleichzeitig. Besteht die Zuweisung bereits, sagt der Dialog das und weist nichts zu; [ändere dann die Zuweisung](#change-a-grant).
 
 ## Ein Recht einem Team zuweisen {#grant-a-right-to-a-team}
 
@@ -54,6 +54,16 @@ Ein Team kann nur Rechte haben. Weise eine Qualifikation jedem Mitglied einzeln 
 
 Ein Recht kannst du auch unter **Einstellungen > Mitglieder** zuweisen: Öffne das Zeilenmenü des Mitglieds, wähle **Rechte** und aktiviere den Schalter des Rechts. Derselbe Dialog öffnet sich mit Mitglied und Recht bereits gewählt, und die Zuweisung landet in diesem Register. [Die Rechte eines Mitglieds prüfen](/de/platform/admin/members-and-roles#member-rights) erklärt, was die Schalter und ihre Gründe zeigen.
 
+## Eine Zuweisung ändern {#change-a-grant}
+
+Wähle in der Zeile einer aktiven Zuweisung die Stift-Schaltfläche, benannt mit **ändern** sowie dem Recht oder der Qualifikation und dem Mitglied oder Team, um zu ändern, wann die Zuweisung abläuft, oder ihren Nachweis. Die Zuweisung an ein Team änderst du genauso.
+
+1. Lege unter **Läuft ab** fest, wann sie endet: Behalte das bisherige Datum mit **Unverändert**, oder wähle **Nie**, **In 30 Tagen**, **In 90 Tagen** oder **In 1 Jahr**, gezählt ab dem Speichern.
+2. Bearbeite den **Nachweis**, oder lösche ihn.
+3. Wähle **Speichern**.
+
+Die Änderung gilt ab der nächsten Anfrage. Das Audit-Log hält jede Änderung fest, mit dem alten und dem neuen Ablaufdatum und ob sich der Nachweis geändert hat; der Nachweis selbst bleibt im Register. Eine abgelaufene oder widerrufene Zuweisung lässt sich nicht ändern: Weise das Recht oder die Qualifikation stattdessen erneut zu.
+
 ## Eine Zuweisung widerrufen
 
 Wähle in der Zeile **Widerrufen** und bestätige mit **Widerrufen**. Das Mitglied verliert das Recht oder die Qualifikation sofort; bei einer Zuweisung an ein Team verlieren die Mitglieder des Teams das Recht, außer sie haben es über eine eigene Zuweisung. Die Zuweisung bleibt als Verlauf im Register, mit dem Status **Widerrufen** und dem Datum des Widerrufs. Zeige auf das Datum, um zu sehen, wer sie widerrufen hat oder warum.
@@ -70,7 +80,7 @@ Die Liste zeigt zuerst die Zuweisungen mit dem Status **Aktiv**. Mit **Filter > 
 | **Abgelaufen** | Das Ablaufdatum unter dem Status ist vorbei. Weise erneut zu, wenn das Mitglied die Zuweisung weiter braucht.                                          |
 | **Widerrufen** | Ein Admin oder Inhaber hat sie widerrufen, nach ihrem Ablauf hat eine neue Zuweisung sie ersetzt, ihr Mitglied hat die Organisation verlassen, oder ihr Team wurde gelöscht. Unter dem Status steht das Datum des Widerrufs. |
 
-Eine Zuweisung an ein Team nennt das Team, markiert mit **Team**; nach dem Löschen des Teams steht dort **Gelöschtes Team**. Jede Zuweisung an ein Team und jeder Widerruf wird im [Audit-Log](/de/platform/admin/governance/audit-logs) mit ID und Namen des Teams protokolliert.
+Eine Zuweisung an ein Team nennt das Team, markiert mit **Team**; nach dem Löschen des Teams steht dort **Gelöschtes Team**. Jede Zuweisung an ein Team, jede Änderung und jeder Widerruf wird im [Audit-Log](/de/platform/admin/governance/audit-logs) mit ID und Namen des Teams protokolliert.
 
 Wer aus der Organisation entfernt wird, verliert jede aktive Zuweisung — Rechte wie Qualifikationen —, sodass ein erneut hinzugefügtes Mitglied ohne sie startet. Eine widerrufene Zuweisung an jemanden, der die Organisation verlassen hat, zeigt **Ehemaliges Mitglied**. Das Register listet alle aktiven und abgelaufenen Zuweisungen sowie als Verlauf die 1000 zuletzt widerrufenen.
 
