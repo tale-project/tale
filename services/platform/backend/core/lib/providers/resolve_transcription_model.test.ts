@@ -609,6 +609,32 @@ describe('resolveTranscriptionModel — the EU/EEA rule [GOV-R17]', () => {
     expect(runMutation).not.toHaveBeenCalled();
   });
 
+  it('offers the settings only the models the rule lets through, and says why [GOV-R22]', async () => {
+    endpointPolicy = { kind: 'eu', attestedHosts: ['zulu.example'] };
+    resolveProvidersMock.mockResolvedValue([
+      provider('alpha'),
+      provider('zulu'),
+    ]);
+    const eu = await inspectTranscriptionModels(ctx, ORG);
+    expect(eu.models.map((model) => model.providerSlug)).toEqual(['zulu']);
+    expect(eu.modelsHiddenBy).toBe('eu');
+
+    endpointPolicy = { kind: 'unreadable' };
+    await expect(inspectTranscriptionModels(ctx, ORG)).resolves.toMatchObject({
+      models: [],
+      modelsHiddenBy: 'unreadable',
+    });
+
+    endpointPolicy = { kind: 'open' };
+    const open = await inspectTranscriptionModels(ctx, ORG);
+    expect(open.models.map((model) => model.providerSlug)).toEqual([
+      'alpha',
+      'zulu',
+    ]);
+    expect(open.modelsHiddenBy).toBeUndefined();
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
   it('refuses Automatic’s first model when the rule lets none through', async () => {
     resolveProvidersMock.mockResolvedValue([
       provider('alpha'),

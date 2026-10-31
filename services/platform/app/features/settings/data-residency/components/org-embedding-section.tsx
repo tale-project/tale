@@ -43,6 +43,10 @@ import {
   useProviderCatalogs,
   useProviderCredentials,
 } from '@/app/features/settings/providers/hooks/queries';
+import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
+import type { ReturnsOf } from '@/app/lib/backend/contract';
+import type { HiddenModelsRule } from '@/app/lib/backend/contract/lib';
+import { euProcessingVerdict } from '@/lib/chat/serving';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -208,6 +212,54 @@ const DEFAULT_CREDENTIAL = '__default__';
  */
 const CUSTOM_MODEL = '__custom__';
 
+/** What a Model row refused by the EU/EEA processing rule says (GOV-R22). */
+const ENDPOINT_REFUSAL_LABEL = {
+  eu: 'dataResidency.orgEmbedding.modelEndpointRefused',
+  unreadable: 'dataResidency.orgEmbedding.modelPolicyUnreadable',
+} as const satisfies Record<HiddenModelsRule, string>;
+
+type EmbeddingRecommendationsData =
+  ReturnsOf<'knowledge/recommendations:listEmbeddingRecommendations'>;
+
+/**
+ * Whether the EU/EEA processing rule (GOV-R22), while it is on, refuses the
+ * endpoint a choice would call: the chosen credential's own endpoint (for
+ * "Provider default", the provider's default credential's), else the base
+ * URL typed here, else the connector's — the order the embedder resolves
+ * it in. Undefined while the rule is off or no provider is chosen.
+ */
+function endpointRefusedBy(
+  recommendations: EmbeddingRecommendationsData | undefined,
+  values: Pick<EmbeddingForm, 'providerSlug' | 'credentialId' | 'baseUrl'>,
+  credentials: ReadonlyArray<{
+    id: string;
+    providerSlug: string;
+    isDefault: boolean;
+    status: string;
+    endpointUrl?: string;
+  }>,
+): HiddenModelsRule | undefined {
+  const rule = recommendations?.endpointRule;
+  if (rule === undefined || values.providerSlug === '') return undefined;
+  if (rule.kind === 'unreadable') return 'unreadable';
+  const credential = credentials.find((candidate) =>
+    values.credentialId === DEFAULT_CREDENTIAL
+      ? candidate.providerSlug === values.providerSlug &&
+        candidate.isDefault &&
+        candidate.status === 'active'
+      : candidate.id === values.credentialId,
+  );
+  const endpoint =
+    credential?.endpointUrl ??
+    (values.baseUrl.trim() ||
+      recommendations?.providers.find(
+        (entry) => entry.providerSlug === values.providerSlug,
+      )?.baseUrl);
+  return euProcessingVerdict(endpoint, rule.attestedHosts).allowed
+    ? undefined
+    : 'eu';
+}
+
 const EMPTY_FORM: EmbeddingForm = {
   providerSlug: '',
   credentialId: DEFAULT_CREDENTIAL,
@@ -271,6 +323,7 @@ export function OrgEmbeddingSection({
   readOnly: boolean;
 }) {
   const { t } = useT('settings');
+  const { t: tCommon } = useT('common');
   const { toast } = useToast();
 
   const save = useSaveOrgKnowledgeEmbedding(organizationId);
@@ -350,6 +403,22 @@ export function OrgEmbeddingSection({
               : embeddingSupport.get(slug),
           ),
     [embeddingCatalogs, embeddingSupport],
+  );
+  // The EU/EEA processing rule (GOV-R22) judges the endpoint the chosen
+  // provider, credential and base URL would call — refused like a provider
+  // that cannot embed, with the hint naming the rule.
+  const endpointRefusalOf = useCallback(
+    (
+      values: Pick<EmbeddingForm, 'providerSlug' | 'credentialId' | 'baseUrl'>,
+    ) => endpointRefusedBy(recommendationsQuery.data, values, credentials),
+    [recommendationsQuery.data, credentials],
+  );
+  const endpointRefusalHint = useCallback(
+    (rule: HiddenModelsRule) =>
+      rule === 'eu'
+        ? t('dataResidency.orgEmbedding.modelEndpointRefusedHint')
+        : tCommon('hiddenModels.unreadable'),
+    [t, tCommon],
   );
   // The baseline waits for the catalogs AND the declarations: whether a
   // stored tag is a catalog pick or a hand-typed one is decided once, when
@@ -432,6 +501,7 @@ export function OrgEmbeddingSection({
           // keeps the shared Save off without a second line under the
           // provider pick.
           const refusal = shapeOf(values.providerSlug);
+          const endpointRefusal = endpointRefusalOf(values);
           if (isRefusal(refusal)) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
@@ -439,6 +509,12 @@ export function OrgEmbeddingSection({
               message: t(REFUSAL_COPY[refusal.kind].hint, {
                 provider: values.providerSlug,
               }),
+            });
+          } else if (endpointRefusal !== undefined) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              path: ['model'],
+              message: endpointRefusalHint(endpointRefusal),
             });
           }
           if (values.model === '') {
@@ -466,7 +542,7 @@ export function OrgEmbeddingSection({
             });
           }
         }),
-    [t, configured, shapeOf],
+    [t, configured, shapeOf, endpointRefusalOf, endpointRefusalHint],
   );
 
   const baselineSettled = catalogsSettled && supportSettled;
@@ -581,6 +657,13 @@ export function OrgEmbeddingSection({
   const modelValue = watch('model');
   const providerCatalog = embeddingCatalogs.get(selectedProvider);
   const shape = shapeOf(selectedProvider);
+  const endpointRefusal = isRefusal(shape)
+    ? undefined
+    : endpointRefusalOf({
+        providerSlug: selectedProvider,
+        credentialId: watch('credentialId'),
+        baseUrl: watch('baseUrl'),
+      });
   const catalogModels = providerCatalog?.models ?? EMPTY_CATALOG_MODELS;
   // The free tag field behind "Other model…" — only where the listing may
   // be incomplete; on a closed select a stored tag the catalog does not list
@@ -649,17 +732,19 @@ export function OrgEmbeddingSection({
   // row keeps the neutral spelling hint.
   const modelRowHint = isRefusal(shape)
     ? t(REFUSAL_COPY[shape.kind].hint, { provider: selectedProvider })
-    : shape.kind === 'free'
-      ? baselineSettled && !catalogsReadFailed && selectedProvider !== ''
-        ? t('dataResidency.orgEmbedding.modelUncuratedHint', {
-            provider: selectedProvider,
-          })
-        : t('dataResidency.orgEmbedding.modelHint')
-      : !shape.allowCustom
-        ? t('dataResidency.orgEmbedding.modelCatalogHint')
-        : customModel
-          ? t('dataResidency.orgEmbedding.modelHint')
-          : t('dataResidency.orgEmbedding.modelCatalogCustomHint');
+    : endpointRefusal !== undefined
+      ? endpointRefusalHint(endpointRefusal)
+      : shape.kind === 'free'
+        ? baselineSettled && !catalogsReadFailed && selectedProvider !== ''
+          ? t('dataResidency.orgEmbedding.modelUncuratedHint', {
+              provider: selectedProvider,
+            })
+          : t('dataResidency.orgEmbedding.modelHint')
+        : !shape.allowCustom
+          ? t('dataResidency.orgEmbedding.modelCatalogHint')
+          : customModel
+            ? t('dataResidency.orgEmbedding.modelHint')
+            : t('dataResidency.orgEmbedding.modelCatalogCustomHint');
 
   // Provider options: every provider the org holds a credential for, plus the
   // stored value itself (so a config whose credential set changed still shows
@@ -725,26 +810,35 @@ export function OrgEmbeddingSection({
     });
   }, [recommendation, setValue]);
 
-  const recommendationAlert =
-    !configured && recommendation !== undefined ? (
-      <Alert
-        variant="info"
-        description={
-          <HStack gap={3} align="center" className="flex-wrap">
-            <span>
-              {t('dataResidency.orgEmbedding.recommendationBody', {
-                model: recommendation.model,
-                provider: recommendation.providerSlug,
-                dimensions: recommendation.dimensions,
-              })}
-            </span>
-            <Button size="sm" variant="secondary" onClick={applyRecommendation}>
-              {t('dataResidency.orgEmbedding.recommendationApply')}
-            </Button>
-          </HStack>
-        }
-      />
-    ) : null;
+  // While the EU/EEA processing rule left picks out, the section says why.
+  const recommendationAlert = configured ? null : (
+    <>
+      {recommendation !== undefined ? (
+        <Alert
+          variant="info"
+          description={
+            <HStack gap={3} align="center" className="flex-wrap">
+              <span>
+                {t('dataResidency.orgEmbedding.recommendationBody', {
+                  model: recommendation.model,
+                  provider: recommendation.providerSlug,
+                  dimensions: recommendation.dimensions,
+                })}
+              </span>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={applyRecommendation}
+              >
+                {t('dataResidency.orgEmbedding.recommendationApply')}
+              </Button>
+            </HStack>
+          }
+        />
+      ) : null}
+      <HiddenModelsNote rule={recommendationsQuery.data?.modelsHiddenBy} />
+    </>
+  );
 
   function onToggle(checked: boolean) {
     if (checked) {
@@ -985,7 +1079,7 @@ export function OrgEmbeddingSection({
                   description={modelRowHint}
                   required
                 >
-                  {shape.kind === 'pick' ? (
+                  {endpointRefusal === undefined && shape.kind === 'pick' ? (
                     <Stack gap={2}>
                       <Select
                         aria-label={t('dataResidency.orgEmbedding.model')}
@@ -1010,7 +1104,7 @@ export function OrgEmbeddingSection({
                         />
                       ) : null}
                     </Stack>
-                  ) : shape.kind === 'free' ? (
+                  ) : endpointRefusal === undefined && shape.kind === 'free' ? (
                     <Input
                       aria-label={t('dataResidency.orgEmbedding.model')}
                       placeholder="text-embedding-3-small"
@@ -1032,7 +1126,11 @@ export function OrgEmbeddingSection({
                         />
                       ) : null}
                       <Text role="status" variant="muted" className="text-sm">
-                        {t(REFUSAL_COPY[shape.kind].label)}
+                        {endpointRefusal !== undefined
+                          ? t(ENDPOINT_REFUSAL_LABEL[endpointRefusal])
+                          : isRefusal(shape)
+                            ? t(REFUSAL_COPY[shape.kind].label)
+                            : null}
                       </Text>
                     </Stack>
                   )}

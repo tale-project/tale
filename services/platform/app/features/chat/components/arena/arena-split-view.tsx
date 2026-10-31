@@ -12,6 +12,7 @@
 
 import { useCallback, useState } from 'react';
 
+import type { HiddenModelsRule } from '@/app/lib/backend/contract/lib';
 import { useT } from '@/lib/i18n/client';
 import type { ArenaVerdict } from '@/lib/shared/arena';
 
@@ -34,6 +35,8 @@ interface ArenaSplitViewProps {
   onModelAChange: (modelId: string, providerSlug: string) => void;
   /** Direct-served options for column B's picker. */
   models: readonly ComposerModelOption[];
+  /** Why the EU/EEA processing rule left models out of `models`, if it did. */
+  modelsHiddenBy?: HiddenModelsRule;
   modelBId?: string;
   onModelBChange: (modelId: string, providerSlug: string) => void;
   /** Either column is still answering. */
@@ -58,6 +61,7 @@ export function ArenaSplitView({
   modelAId,
   onModelAChange,
   models,
+  modelsHiddenBy,
   modelBId,
   onModelBChange,
   generating,
@@ -107,6 +111,7 @@ export function ArenaSplitView({
           headerExtra={
             <ArenaModelPicker
               models={models}
+              modelsHiddenBy={modelsHiddenBy}
               modelId={modelAId}
               onChange={onModelAChange}
             />
@@ -125,6 +130,7 @@ export function ArenaSplitView({
           headerExtra={
             <ArenaModelPicker
               models={models}
+              modelsHiddenBy={modelsHiddenBy}
               modelId={modelBId}
               onChange={onModelBChange}
             />

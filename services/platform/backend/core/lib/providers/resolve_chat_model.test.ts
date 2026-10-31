@@ -1,11 +1,14 @@
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { functionRefName } from '../../../../lib/shared/handlers/function-refs';
 import type { ActionCtx } from '../ctx';
 import { walkChatCatalog, type ChatCatalogHit } from './chat_catalog';
 import { resolveChatModel } from './resolve_chat_model';
 
-vi.mock('./chat_catalog', () => ({
+// The walk is faked; the EU/EEA filter over its hits stays the real one.
+vi.mock('./chat_catalog', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./chat_catalog')>()),
   walkChatCatalog: vi.fn(),
 }));
 
@@ -45,9 +48,18 @@ function hit(e: ModelCatalogEntry): ChatCatalogHit {
   };
 }
 
+/** A catalog hit whose credential names its own endpoint, the one the
+ * EU/EEA rule judges (the connector names none here). */
+function hitAt(e: ModelCatalogEntry, endpointUrl: string): ChatCatalogHit {
+  const base = hit(e);
+  return { ...base, credential: { ...base.credential, endpointUrl } };
+}
+
 interface GovernanceAnswer {
   defaultModel?: { providerName: string; modelId: string };
   accessible?: string[] | 'all';
+  /** The EU/EEA processing rule the seam answers; open when not given. */
+  endpointPolicy?: unknown;
 }
 
 interface CredentialFacts {
@@ -55,14 +67,21 @@ interface CredentialFacts {
   authMethod: 'api-key' | 'env' | 'subscription-key' | 'subscription-broker';
 }
 
-/** Fake ActionCtx serving the two internal queries the resolver makes:
- * active credential facts, then the governance round trip. */
+/** Fake ActionCtx serving the internal queries the resolver makes: active
+ * credential facts, the EU/EEA processing rule, then the governance round
+ * trip. */
 function fakeCtx(
   credentials: CredentialFacts[],
   governance: GovernanceAnswer = {},
 ): ActionCtx {
   const runQuery = vi.fn(
-    async (_ref: unknown, args: Record<string, unknown>) => {
+    async (ref: unknown, args: Record<string, unknown>) => {
+      if (
+        functionRefName(ref) ===
+        'governance/internal_queries:getModelEndpointPolicyInternal'
+      ) {
+        return governance.endpointPolicy ?? { kind: 'open' };
+      }
       if ('supportedModels' in args) {
         const supported = args.supportedModels as string[];
         return {
@@ -363,5 +382,95 @@ describe('resolveChatModel — candidate world', () => {
       expect(result.pick.highStakes).toBe(true);
     }
     expect(log).toHaveBeenCalledWith(expect.stringContaining('high-stakes'));
+  });
+});
+
+describe('resolveChatModel — the EU/EEA processing rule [GOV-R22]', () => {
+  const ANTHROPIC = {
+    providerSlug: 'anthropic',
+    authMethod: 'api-key',
+  } as const;
+  const OPENAI = { providerSlug: 'openai', authMethod: 'api-key' } as const;
+
+  function world() {
+    return [
+      hit(
+        entry({
+          id: 'claude-haiku-4-5',
+          provider: 'anthropic',
+          outputPrice: 500,
+        }),
+      ),
+      hitAt(
+        entry({ id: 'gpt-5-mini', provider: 'openai', outputPrice: 200 }),
+        'https://eu.api.openai.com/v1',
+      ),
+    ];
+  }
+
+  it('picks among the models the rule lets through, and only then', async () => {
+    mockedWalk.mockResolvedValue(world());
+    const open = await resolveChatModel(fakeCtx([ANTHROPIC, OPENAI]), {
+      ...BASE_ARGS,
+      promptText: 'Refactor this function to stream rows.',
+    });
+    expect(open.ok && open.pick.providerSlug).toBe('anthropic');
+
+    mockedWalk.mockResolvedValue(world());
+    const eu = await resolveChatModel(
+      fakeCtx([ANTHROPIC, OPENAI], {
+        endpointPolicy: { kind: 'eu', attestedHosts: [] },
+      }),
+      { ...BASE_ARGS, promptText: 'Refactor this function to stream rows.' },
+    );
+    expect(eu).toMatchObject({
+      ok: true,
+      pick: { providerSlug: 'openai', modelId: 'gpt-5-mini' },
+    });
+  });
+
+  it('falls through a pin the rule refuses rather than calling it', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockedWalk.mockResolvedValue(world());
+    const result = await resolveChatModel(
+      fakeCtx([ANTHROPIC, OPENAI], {
+        defaultModel: {
+          providerName: 'anthropic',
+          modelId: 'claude-haiku-4-5',
+        },
+        endpointPolicy: { kind: 'eu', attestedHosts: [] },
+      }),
+      { ...BASE_ARGS, promptText: 'Hello there.' },
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      pick: { providerSlug: 'openai', modelId: 'gpt-5-mini' },
+    });
+  });
+
+  it('says no-eu-model when the rule leaves no chat model, and model-policy-unreadable when it cannot be read', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    mockedWalk.mockResolvedValue([world()[0]!]);
+    await expect(
+      resolveChatModel(
+        fakeCtx([ANTHROPIC], {
+          endpointPolicy: { kind: 'eu', attestedHosts: [] },
+        }),
+        { ...BASE_ARGS, promptText: 'Hello there.' },
+      ),
+    ).resolves.toEqual({ ok: false, refusal: 'no-eu-model' });
+
+    mockedWalk.mockResolvedValue(world());
+    await expect(
+      resolveChatModel(
+        fakeCtx([ANTHROPIC, OPENAI], {
+          endpointPolicy: { kind: 'unreadable' },
+        }),
+        { ...BASE_ARGS, promptText: 'Hello there.' },
+      ),
+    ).resolves.toEqual({ ok: false, refusal: 'model-policy-unreadable' });
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('model-policy-unreadable'),
+    );
   });
 });
