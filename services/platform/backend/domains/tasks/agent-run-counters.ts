@@ -101,7 +101,7 @@ export async function countParkedAgentRun(
 }
 
 /** Count the parked runs one wake woke; none counts nothing. */
-export async function countWokenAgentRuns(
+async function countWokenAgentRuns(
   sql: Sql,
   source: AgentRunWakeSource,
   woken: number,
@@ -111,7 +111,7 @@ export async function countWokenAgentRuns(
 
 /** Count one wake that failed: the runs it would have woken stay parked
  * until the next wake. */
-export async function countFailedAgentRunWake(
+async function countFailedAgentRunWake(
   sql: Sql,
   source: AgentRunWakeSource,
 ): Promise<void> {
