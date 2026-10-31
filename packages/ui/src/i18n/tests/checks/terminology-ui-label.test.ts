@@ -762,4 +762,79 @@ describe('terminology UI labels', () => {
       }),
     ).toEqual([{ locale: 'de', line: 1, column: 30 }]);
   });
+
+  // #5192: the register grants Rights (the `tale:*` platform capabilities) and
+  // Qualifications; German says Rechte and Qualifikationen, French Droits and
+  // Qualifications, the same word as English.
+  const shippedGrantKinds = (texts: Record<string, string>) =>
+    terminologyUiLabel
+      .run(context(null, texts))
+      .filter(({ detail }) =>
+        /UI-label term "(?:Rights|Qualifications)"/.test(detail),
+      )
+      .map(({ locale, line, rule, suggest }) => ({
+        locale,
+        line,
+        rule,
+        suggest,
+      }));
+
+  it('rejects the English and the retired names of rights and qualifications', () => {
+    const mismatch = 'ui-label-mismatch';
+    const nonShipped = 'ui-label-non-shipped';
+    expect(
+      shippedGrantKinds({
+        de: [
+          'Rights',
+          'Qualifications',
+          'Weise eine Plattform-Berechtigung zu.',
+          'Plattform-Berechtigungen',
+        ].join('\n'),
+        'de-CH': 'Rights und Qualifications',
+        fr: [
+          'Rights',
+          'Attribue une capacité de la plateforme.',
+          'Capacités de la plateforme',
+        ].join('\n'),
+      }),
+    ).toEqual([
+      { locale: 'de', line: 1, rule: mismatch, suggest: 'use "Rechte"' },
+      {
+        locale: 'de',
+        line: 2,
+        rule: mismatch,
+        suggest: 'use "Qualifikationen"',
+      },
+      { locale: 'de', line: 3, rule: nonShipped, suggest: 'use "Rechte"' },
+      { locale: 'de', line: 4, rule: nonShipped, suggest: 'use "Rechte"' },
+      { locale: 'de-CH', line: 1, rule: mismatch, suggest: 'use "Rechte"' },
+      {
+        locale: 'de-CH',
+        line: 1,
+        rule: mismatch,
+        suggest: 'use "Qualifikationen"',
+      },
+      { locale: 'fr', line: 1, rule: mismatch, suggest: 'use "Droits"' },
+      { locale: 'fr', line: 2, rule: nonShipped, suggest: 'use "Droits"' },
+      { locale: 'fr', line: 3, rule: nonShipped, suggest: 'use "Droits"' },
+    ]);
+  });
+
+  it('keeps the shipped names, a permission and the French Qualifications', () => {
+    expect(
+      shippedGrantKinds({
+        de: [
+          'Rechte und Qualifikationen',
+          'Weise einem Mitglied ein Recht oder eine Qualifikation zu.',
+          'Die Berechtigung fehlt; Administratorrechte genügen.',
+        ].join('\n'),
+        'de-CH': 'Rechte und Qualifikationen',
+        fr: [
+          'Droits et qualifications',
+          'Attribue un droit ou une qualification. Qualifications',
+          'Les capacités du modèle restent celles de la plateforme.',
+        ].join('\n'),
+      }),
+    ).toEqual([]);
+  });
 });

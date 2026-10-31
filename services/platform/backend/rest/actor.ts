@@ -189,7 +189,7 @@ export async function resolveRequestActor(
   );
   if (!allowed) {
     throw new RestRefusal(
-      'Acting for another member requires an organization owner or admin, or the "tale:rest.act-as" capability granted by one.',
+      'Acting for another member requires an organization owner or admin, or the "tale:rest.act-as" right granted by one.',
       403,
       'ROLE_FORBIDDEN',
     );

@@ -89,7 +89,7 @@ Restreindre la visibilité demande une confirmation, car certains agents peuvent
 
 ### Qui peut partager avec tout le monde {#who-can-share-with-everyone}
 
-Par défaut, chaque membre peut partager un skill avec toute l’organisation. Un admin peut réserver ce droit aux éditeurs et au-delà, ou aux propriétaires et aux admins, dans [Partage des skills](/fr/platform/admin/governance/policies-and-limits#skill-sharing), et autoriser certains membres à publier avec la compétence **Publier des skills pour l'organisation**. Quand ton organisation le réserve et que tu ne peux pas publier :
+Par défaut, chaque membre peut partager un skill avec toute l’organisation. Un admin peut réserver ce droit aux éditeurs et au-delà, ou aux propriétaires et aux admins, dans [Partage des skills](/fr/platform/admin/governance/policies-and-limits#skill-sharing), et autoriser certains membres à publier avec le droit **Publier des skills pour l'organisation**. Quand ton organisation le réserve et que tu ne peux pas publier :
 
 - **Organisation** n’est pas disponible sous **Visibilité**, et un nouveau skill commence avec **Équipes**. Tu peux partager avec tes propres équipes.
 - Un skill partagé avec l’organisation que tu as créé ne peut pas être modifié sur place. Restreins-le à tes équipes, avec d’autres modifications dans le même enregistrement si besoin, ou supprime-le.

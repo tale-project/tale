@@ -874,7 +874,7 @@ async function checkReviewPolicyForResponder(
       // is worse than no policy at all.
       throw new TaskReviewError(
         'REVIEW_COMPETENCE_REQUIRED',
-        `Responding to this review requires the competence(s): ${held.missing.join(', ')}.`,
+        `Responding to this review requires the qualification(s): ${held.missing.join(', ')}.`,
         403,
       );
     }

@@ -89,7 +89,7 @@ Eine Einschränkung der Sichtbarkeit verlangt eine Bestätigung, weil Agenten da
 
 ### Wer mit allen teilen darf {#who-can-share-with-everyone}
 
-Standardmäßig kann jedes Mitglied einen Skill mit der ganzen Organisation teilen. Ein Admin kann das unter [Skill-Freigabe](/de/platform/admin/governance/policies-and-limits#skill-sharing) Redakteuren und höher oder Inhabern und Admins vorbehalten und einzelnen Mitgliedern mit der Kompetenz **Skills für die Organisation veröffentlichen** das Veröffentlichen erlauben. Behält deine Organisation es vor und darfst du nicht veröffentlichen, gilt:
+Standardmäßig kann jedes Mitglied einen Skill mit der ganzen Organisation teilen. Ein Admin kann das unter [Skill-Freigabe](/de/platform/admin/governance/policies-and-limits#skill-sharing) Redakteuren und höher oder Inhabern und Admins vorbehalten und einzelnen Mitgliedern mit dem Recht **Skills für die Organisation veröffentlichen** das Veröffentlichen erlauben. Behält deine Organisation es vor und darfst du nicht veröffentlichen, gilt:
 
 - Unter **Sichtbarkeit** ist **Organisation** nicht wählbar, und ein neuer Skill beginnt mit **Teams**. Mit deinen eigenen Teams kannst du teilen.
 - Einen organisationsweiten Skill, den du erstellt hast, kannst du nicht direkt ändern. Schränke ihn auf deine Teams ein, auch zusammen mit anderen Änderungen im selben Speichervorgang, oder lösche ihn.

@@ -87,7 +87,7 @@ export interface ModelApiRequestContext extends ModelApiCaller {
 const DISABLED_MESSAGE =
   'The model endpoints are not enabled for this organization. An admin turns them on under Settings → Governance → Models → Model access.';
 const FORBIDDEN_MESSAGE =
-  'Your role cannot call the model endpoints. Owners, admins and developers can; any other member needs the "Call models over the API" capability (tale:models.api), granted under Settings → Governance → Competences.';
+  'Your role cannot call the model endpoints. Owners, admins and developers can; any other member needs the "Call models over the API" right (tale:models.api), granted under Settings → Governance → Rights and qualifications.';
 const UNAVAILABLE_MESSAGE =
   "The organization's model access policy cannot be read right now, so the model endpoints stay closed; try again shortly.";
 
