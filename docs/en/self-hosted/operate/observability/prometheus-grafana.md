@@ -3,7 +3,7 @@ title: Prometheus and Grafana
 description: Collect Tale metrics with a token file, validate scrape and alert configuration, and build a dashboard from the available series.
 ---
 
-Use your existing Prometheus and Grafana installation when you have one. The example below runs a separate monitoring Compose project that scrapes Tale through its public proxy. It includes persistent metrics storage, a mounted token file, and two starter alerts.
+Use your existing Prometheus and Grafana installation when you have one. The example below runs a separate monitoring Compose project that scrapes Tale through its public proxy. It includes persistent metrics storage, a mounted token file, and starter alerts.
 
 ## Prepare access and files
 
@@ -99,11 +99,18 @@ groups:
         labels: { severity: ticket }
         annotations:
           summary: 'The dispatch of project {{ $labels.project }} has not passed for 15 minutes'
+      - alert: TaleAgentRunsOutOfMemory
+        expr: max(increase(tale_backend_agent_run_failures_total{code="resource_exhausted"}[1h])) > 0
+        labels: { severity: ticket }
+        annotations:
+          summary: 'An agent run ran out of memory in the last hour'
 ```
 
 Adjust severity and waiting periods to your service requirements, and configure Alertmanager or Grafana alert delivery. A rule visible in Prometheus does not send a notification by itself. The store alert covers deployment defaults; it does not monitor organization-specific databases or buckets.
 
 The dispatch alert names a project whose dispatch is switched on and has completed no pass for 15 minutes. Every switched-on dispatch passes at least once a minute, so a value that stops moving points to stopped job workers or a pass that keeps failing.
+
+The memory alert says that the sandbox of at least one agent run reached its memory limit in the last hour. Such a run is retried after a pause, as [Handle waiting and failed runs](/platform/projects/task-automation#handle-waiting-and-failed-runs) describes, and every attempt that runs out of memory counts again. If the alert keeps returning, give each agent session more memory with `SANDBOX_AGENT_MEMORY`, or run fewer sessions at once, as the [environment reference](/self-hosted/configuration/environment-reference#sandbox-infrastructure) describes.
 
 ## Start and verify collection
 
@@ -131,5 +138,15 @@ Open Grafana at `http://127.0.0.1:3001` and add a Prometheus data source at `htt
 | Default stores | `tale_backend_store_up` | Cached reachability for `app_db`, `knowledge_db`, and `object_store`. |
 | Deployment drain | `tale_backend_drain_active` | Whether deployment draining is refusing new turns. |
 | Dispatch heartbeat | `time() - tale_backend_dispatch_last_pass_timestamp_seconds` | Seconds since each switched-on project dispatch last completed a pass. |
+| Waiting agent runs | `max by (reason) (tale_backend_agent_runs_waiting)` | Agent runs waiting for room right now, by why they wait. |
+| Agent run parks | `max by (reason) (increase(tale_backend_agent_run_parks_total[1h]))` | How often agent runs had to wait for room in the last hour, by why. |
+| Agent run wakes | `max by (source) (increase(tale_backend_agent_run_wakes_total[1h]))` | Waiting agent runs restarted in the last hour, by what woke them. `tale_backend_agent_run_wake_failures_total` counts the wakes that failed; their runs keep waiting for the next one. |
+| Failed agent runs | `max by (code) (increase(tale_backend_agent_run_failures_total[1h]))` | Failed agent runs in the last hour, by failure code. `resource_exhausted` is a sandbox that ran out of memory. |
+
+The agent run series count the task runs of project agents in every organization; automation runs are not included. Their totals are kept in the database, so a restart does not reset them, and every API replica reports the same deployment-wide values: combine replicas with `max`, never `sum`. A replica that cannot read the database reports no totals for that scrape, so a graph shows a gap rather than a drop. An event counts once it is saved; a process that stops in between can lose that one count. Labels come from fixed lists and never name an organization, task or run:
+
+- `reason`: `org_limit` (every agent worker of the organization is busy), `host` (the deployment is full or short of memory or disk), `destroy_pending` (the workspace the run would use is being deleted), `exec_limit` (its sandbox is still ending an earlier process), `model_capacity` (its AI model is at capacity), or `unknown`. [Sandboxes](/platform/admin/sandboxes#resolve-a-blocked-start) explains how to resolve each wait.
+- `source`: `release` (a worker or sandbox slot was given back), `scheduled` (the wake set for that run came due, for example when its place in the sandbox host's line came up), or `watchdog` (the periodic sweep that wakes runs nothing else woke).
+- `code`: the failure code the run ended with, or `unknown` when it has none this version knows.
 
 Some collectors read shared database counts; others describe one process. With multiple replicas, collect per-replica process metrics through your private monitoring network and avoid double-counting shared gauges. [Operations](/self-hosted/operate/observability/operations) explains the limits of the store probes and the additional measurements required by the SLA rule template.

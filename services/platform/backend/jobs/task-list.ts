@@ -64,6 +64,7 @@ import {
   runWorkspaceCleanup,
 } from '../domains/sandbox/workspace-cleanup.ts';
 import { releaseRemovedDevices } from '../domains/sandbox_devices/service.ts';
+import { countParkedAgentRun } from '../domains/tasks/agent-run-counters.ts';
 import {
   failAgentRun,
   isAgentOutOfReach,
@@ -1645,6 +1646,8 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         console.warn(
           `[task-agent] no free worker for ${input.execId} — parked (${claim.parked})`,
         );
+        // The claim's transaction committed the park: counted once, here.
+        await countParkedAgentRun(deps.sql, claim.parked);
         return;
       }
       if (claim.moved) {
