@@ -792,7 +792,10 @@ export function createGovernanceRoutes(deps: {
       .safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalidBodyResponse(c, body.error);
     return c.json(
-      await testModerationProvider(deps.sql, c.get('orgId'), body.data),
+      await testModerationProvider(deps.sql, c.get('orgId'), body.data, {
+        id: c.get('sessionBundle').user.id,
+        type: 'user',
+      }),
     );
   });
 

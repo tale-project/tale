@@ -1711,6 +1711,10 @@ export async function executeTurn(
       threadId: args.threadId,
       agentSlug: agent.slug,
       policies,
+      actor: {
+        id: args.userId,
+        type: args.apiKeyId !== undefined ? 'api' : 'user',
+      },
     }),
     // The retrieval tools, joined by the work tools when the host offers
     // them. A test that wants a tool-free turn overrides `tools` with

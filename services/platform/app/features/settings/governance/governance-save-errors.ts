@@ -14,6 +14,9 @@
  * Codes come from `convex/governance/file_actions.ts`: `validation`,
  * `use_special_action`, `ORG_FORBIDDEN`. Their backend `message` strings are
  * developer-facing English (and never localized), so we never surface them.
+ * `MODERATION_ENDPOINT_OUTSIDE_EU` (`backend/domains/governance/policy-writer.ts`,
+ * GOV-R23) refuses a moderation endpoint the EU/EEA rule would refuse; its
+ * `data` names the host and, for a vendor, its EU endpoint.
  * Unknown codes / non-Convex errors fall back to the editor's own
  * `*.saveFailed` string via `fallback`. Mirrors the legal-hold / DSAR error
  * mappers in this directory.
@@ -34,6 +37,14 @@ export function mapGovernanceSaveError(
   switch (code) {
     case 'ORG_FORBIDDEN':
       return t('errors.saveForbidden');
+    case 'MODERATION_ENDPOINT_OUTSIDE_EU': {
+      const host = pickString(data, 'host');
+      if (host === undefined) return fallback;
+      const euEndpoint = pickString(data, 'euEndpoint');
+      return euEndpoint !== undefined
+        ? t('moderationProvider.euEndpointVendor', { host, euEndpoint })
+        : t('moderationProvider.euEndpointNotKnown', { host });
+    }
     default:
       return fallback;
   }
