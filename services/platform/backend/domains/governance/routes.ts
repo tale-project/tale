@@ -26,7 +26,10 @@ import { projectChatAccess } from '../chat/threads.ts';
 import { ContactError } from '../contacts/service.ts';
 import { syncRagDocumentScope } from '../knowledge/service.ts';
 import { readModelApiStanding } from '../model_api/access.ts';
-import { listModelApiModels } from '../model_api/models.ts';
+import {
+  listModelApiModels,
+  offeredModelApiModels,
+} from '../model_api/models.ts';
 import {
   describeRuleApiKeys,
   holdsApiKeys,
@@ -46,6 +49,7 @@ import {
   revokeCompetence,
 } from './competence.ts';
 import { readMemberRights } from './member-rights.ts';
+import { readModelEndpointPolicyForOrg } from './model-endpoints.ts';
 import { testModerationProvider } from './moderation.ts';
 import {
   assertGovernancePolicyReadable,
@@ -465,9 +469,10 @@ export function createGovernanceRoutes(deps: {
    * developer by role, anyone else through a live `tale:models.api` grant).
    * The verdict only — the policy itself stays admin-read — and, once both
    * hold, the models the member may call there (the ids the endpoints take,
-   * the same listing `GET /api/v1/openai/models` answers). The API settings
-   * read it to show the Models tab's state and snippets, and to open the
-   * REST and Models tabs to a member who holds the grant.
+   * on either wire, less what the EU/EEA processing rule refuses on both —
+   * and why, when it left any out). The API settings read it to show the
+   * Models tab's state and snippets, and to open the REST and Models tabs to
+   * a member who holds the grant.
    */
   app.get('/my/model-api', async (c) => {
     const organizationId = c.get('orgId');
@@ -481,17 +486,28 @@ export function createGovernanceRoutes(deps: {
       standing.enabled && standing.allowed
         ? await resolveOrgSlug(deps.sql, organizationId)
         : null;
-    const models =
+    const offered =
       orgSlug === null
-        ? []
-        : (
+        ? { kept: [] }
+        : offeredModelApiModels(
+            await readModelEndpointPolicyForOrg(deps.sql, organizationId),
             await listModelApiModels(deps.sql, {
               organizationId,
               orgSlug,
               userId,
-            })
-          ).map((model) => ({ id: model.id, label: model.label }));
-    return c.json({ ...standing, models });
+            }),
+            ['openai', 'anthropic'],
+          );
+    return c.json({
+      ...standing,
+      models: offered.kept.map((model) => ({
+        id: model.id,
+        label: model.label,
+      })),
+      ...(offered.hiddenBy !== undefined
+        ? { modelsHiddenBy: offered.hiddenBy }
+        : {}),
+    });
   });
 
   /**

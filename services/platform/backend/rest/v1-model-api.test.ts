@@ -471,6 +471,22 @@ describe('the EU/EEA processing rule [GOV-R17]', () => {
     expect(gatewayCalls).toHaveLength(1);
   });
 
+  it('lists only the models the rule lets through on the OpenAI wire [GOV-R22]', async () => {
+    listing.listModelApiModels.mockResolvedValue([
+      OPENROUTER,
+      deepseekAt('https://llm.example.eu/v1'),
+    ]);
+    const response = await mount().request('http://localhost/openai/models');
+    expect(response.status).toBe(200);
+    expect(
+      ((await response.json()) as { data: Array<{ id: string }> }).data.map(
+        (model) => model.id,
+      ),
+    ).toEqual(['deepseek/deepseek-v4-flash']);
+    // A listing is no call: nothing is audited.
+    expect(audit.recordModelEndpointRefusal).not.toHaveBeenCalled();
+  });
+
   it('refuses even when the audit entry cannot be written', async () => {
     audit.recordModelEndpointRefusal.mockRejectedValueOnce(
       new Error('database unavailable'),

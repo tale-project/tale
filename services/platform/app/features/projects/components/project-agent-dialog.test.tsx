@@ -104,6 +104,7 @@ function renderDialog(
   agent: ProjectAgentRow,
   models = MODELS,
   onOpenChange = vi.fn(),
+  modelsHiddenBy?: 'eu' | 'unreadable',
 ) {
   return render(
     <ProjectAgentDialog
@@ -117,6 +118,7 @@ function renderDialog(
       catalogRead={CATALOG_READ}
       connectors={[]}
       agent={agent}
+      modelsHiddenBy={modelsHiddenBy}
     />,
   );
 }
@@ -277,6 +279,16 @@ describe('ProjectAgentDialog create', () => {
 });
 
 describe('ProjectAgentDialog model pin', () => {
+  it('says why models are missing when the EU/EEA rule left some out, and nothing while it is off [GOV-R22]', () => {
+    const note =
+      /Only models whose endpoint processes prompts in the EU\/EEA are offered/;
+    const { unmount } = renderDialog(LEGACY_AGENT);
+    expect(screen.queryByText(note)).not.toBeInTheDocument();
+    unmount();
+    renderDialog(LEGACY_AGENT, MODELS, vi.fn(), 'eu');
+    expect(screen.getByText(note)).toBeInTheDocument();
+  });
+
   it('saves the opening stamp and retains a refused draft across row refreshes', async () => {
     updateAgent.mockRejectedValueOnce(
       new AppError({ code: 'PROJECT_AGENT_STALE' }),
