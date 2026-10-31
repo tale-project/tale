@@ -1255,8 +1255,10 @@ async function checkNotifications(
  * The bell's read watermark (0228) on a real database: the count per role,
  * read-one, Read all's settle window, the watermark it moves and the read
  * rows it drops. Two throwaway members keep the shared user's bell as the
- * later lanes expect it. Where this run's notifications must count as
- * settled, `markAllRead` runs with a `now` past the settle window.
+ * later lanes expect it, and they leave the organization when the lane is
+ * done, so its member list is as the later lanes expect it too. Where this
+ * run's notifications must count as settled, `markAllRead` runs with a
+ * `now` past the settle window.
  */
 async function checkNotificationReadWatermarks(
   sql: Sql,
@@ -1456,6 +1458,9 @@ async function checkNotificationReadWatermarks(
       `
     )[0]?.count ?? -1,
   );
+  await sql`
+    DELETE FROM "member" WHERE "id" IN (${admin.memberId}, ${member.memberId})
+  `;
   record(
     "notification watermark: a member's read all leaves security unread",
     memberMarks.length === 1 &&
