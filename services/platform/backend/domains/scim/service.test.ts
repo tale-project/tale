@@ -48,7 +48,12 @@ function fakeSql(answer: (text: string) => object[] | undefined): {
   queries: Captured[];
 } {
   const queries: Captured[] = [];
-  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+  const tag = (
+    strings: TemplateStringsArray | readonly string[],
+    ...values: unknown[]
+  ) => {
+    // `tx(ids)` is a value list the enclosing statement binds, not a query.
+    if (!('raw' in strings)) return { list: [...strings] };
     const text = strings.join('$?').replace(/\s+/g, ' ').trim();
     queries.push({ text, values });
     try {
@@ -533,8 +538,9 @@ describe('deprovisionUser — the membership cascade [SCIM-R4]', () => {
     const teams = deleted[teamsAt];
     expect(teams?.text).toContain('WHERE "organizationId" = $?');
     expect(teams?.values).toEqual(['u-1', 'org-1']);
-    // The cascade reports the teams it left, for the callers that emit hints.
-    expect(teams?.text).toContain('RETURNING "teamId"');
+    // The cascade reports the teams it left, for the callers that emit hints,
+    // and the memberships, whose admin records go with them [GOV-R20].
+    expect(teams?.text).toContain('RETURNING "id", "teamId"');
     expect(
       deleted.find((q) =>
         q.text.startsWith('DELETE FROM app.sso_synced_team_members'),
@@ -713,7 +719,10 @@ describe('SCIM writes emit their invalidation hints', () => {
       if (text.startsWith(MEMBER)) return [{ id: 'm-1', role: 'member' }];
       if (text.startsWith(USER_BY_ID)) return [userRow('u-1', 'u1@x.test')];
       if (text.startsWith('DELETE FROM "teamMember"')) {
-        return [{ teamId: 't-a' }, { teamId: 't-b' }];
+        return [
+          { id: 'tm-a', teamId: 't-a' },
+          { id: 'tm-b', teamId: 't-b' },
+        ];
       }
       return [];
     });
@@ -840,6 +849,95 @@ describe('SCIM writes emit their invalidation hints', () => {
     await expect(deleteGroup(sql, 'org-1', 't-1')).resolves.toBe(false);
 
     expect(hints(queries)).toEqual([]);
+  });
+});
+
+/**
+ * A team's competence grants reach a member only through a membership an
+ * admin made, and that record is keyed by the membership row. Every SCIM door
+ * that deletes a membership deletes its record in the same transaction, and
+ * none that adds one writes a record: the provider confers no right.
+ */
+describe('SCIM roster writes and the admin record of a membership [GOV-R20]', () => {
+  const team = {
+    id: 't-1',
+    name: 'Squad',
+    organizationId: 'org-1',
+    createdAt: new Date(0),
+    updatedAt: null,
+  };
+  const ADMIN_RECORD = 'app.admin_added_team_members';
+  const roster = (text: string): object[] => {
+    if (text.startsWith(TEAM_BY_ID)) return [team];
+    if (text.startsWith('SELECT "id", "userId" FROM "teamMember"')) {
+      return [{ id: 'tm-1', userId: 'u-1' }];
+    }
+    if (text.startsWith(ORG_MEMBERS)) return [{ userId: 'u-2' }];
+    return [];
+  };
+  const recordWrites = (queries: Captured[]) =>
+    writes(queries).filter((q) => q.text.includes(ADMIN_RECORD));
+
+  it('replaceGroup forgets the record of the membership it removes, and records none it adds', async () => {
+    const { sql, queries } = fakeSql(roster);
+    await replaceGroup(sql, {
+      organizationId: 'org-1',
+      teamId: 't-1',
+      displayName: team.name,
+      memberIds: ['u-2'],
+    });
+    const removedAt = queries.findIndex(
+      (q) =>
+        q.text === 'DELETE FROM "teamMember" WHERE "id" = $?' &&
+        q.values[0] === 'tm-1',
+    );
+    expect(removedAt).toBeGreaterThanOrEqual(0);
+    expect(
+      queries.some((q) => q.text.startsWith('INSERT INTO "teamMember"')),
+    ).toBe(true);
+    expect(recordWrites(queries)).toEqual([
+      {
+        text: `DELETE FROM ${ADMIN_RECORD} WHERE team_member_id = $?`,
+        values: ['tm-1'],
+      },
+    ]);
+  });
+
+  it('patchGroup forgets the record of the membership it removes', async () => {
+    const { sql, queries } = fakeSql(roster);
+    await patchGroup(sql, {
+      organizationId: 'org-1',
+      teamId: 't-1',
+      addMembers: ['u-2'],
+      removeMembers: ['u-1'],
+    });
+    expect(recordWrites(queries)).toEqual([
+      {
+        text: `DELETE FROM ${ADMIN_RECORD} WHERE team_member_id = $?`,
+        values: ['tm-1'],
+      },
+    ]);
+  });
+
+  it('deprovisionUser forgets the records of every membership the cascade removed', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith(MEMBER)) return [{ id: 'm-1', role: 'member' }];
+      if (text.startsWith(USER_BY_ID)) return [userRow('u-1', 'u1@x.test')];
+      if (text.startsWith('DELETE FROM "teamMember"')) {
+        return [
+          { id: 'tm-a', teamId: 't-a' },
+          { id: 'tm-b', teamId: 't-b' },
+        ];
+      }
+      return [];
+    });
+    await deprovisionUser(sql, 'org-1', 'u-1');
+    expect(recordWrites(queries)).toEqual([
+      {
+        text: `DELETE FROM ${ADMIN_RECORD} WHERE team_member_id IN $?`,
+        values: [{ list: ['tm-a', 'tm-b'] }],
+      },
+    ]);
   });
 });
 

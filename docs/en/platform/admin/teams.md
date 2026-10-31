@@ -31,6 +31,8 @@ A person can belong to more than one team. Their access can come from several te
 
 Notifications follow the same rule. Someone who can no longer open a project gets no new notifications or emails about its tasks, not even about the tasks they watch. What they were already told stays in their notifications. If they regain access, the tasks they watch notify them again.
 
+A team can also hold [platform capabilities](/platform/admin/governance/competences#grant-a-capability-to-a-team), such as **Call models over the API**. Someone you add to the team here holds them while they are in it, and removing them from the team ends that. A membership your identity provider synchronizes carries none of the team's capabilities.
+
 A team your identity provider provisions shows **Synced** in the list. The provider owns its name and members: the edit dialog shows them read-only, because a local change would be undone by the next synchronization. You can still delete such a team locally; the provider may recreate it.
 
 <Tip>
@@ -58,7 +60,7 @@ For inbound conversations, [routing rules](/platform/admin/governance/policies-a
 
 ## Retire a team carefully
 
-Choose **Delete** from the row menu. The confirmation counts the team's members, the projects, folders, and documents it is on, and the conversations in its queue. It also says how many of those items have no other team and will become visible to everyone in the organization, and how many [API keys](/platform/admin/api-keys#create-a-key-for-someone-else) belong to the team: they stop working with it. Reassign work that must remain restricted before you confirm.
+Choose **Delete** from the row menu. The confirmation counts the team's members, the projects, folders, and documents it is on, and the conversations in its queue. It also says how many of those items have no other team and will become visible to everyone in the organization, how many [API keys](/platform/admin/api-keys#create-a-key-for-someone-else) belong to the team: they stop working with it, and how many [competences](/platform/admin/governance/competences#grant-a-capability-to-a-team) were granted to the team: they are revoked with it. Reassign work that must remain restricted before you confirm.
 
 <Warning>
 
@@ -66,6 +68,6 @@ Deleting a team cannot be undone. Every project, folder, and document drops the 
 
 </Warning>
 
-The team, its memberships, its place on every resource, and any identity-provider link go in one step, so a half-deleted team cannot remain. A conversation loses its team assignment; if no person is assigned either, it returns to administrator triage. Imported-file configurations also lose that team scope. Deleting a team does not delete its members' accounts.
+The team, its memberships, its place on every resource, and any identity-provider link go in one step, which also revokes the team's competence grants, so a half-deleted team cannot remain. The [competence register](/platform/admin/governance/competences#read-the-register) keeps those grants as history, under **Deleted team**. A conversation loses its team assignment; if no person is assigned either, it returns to administrator triage. Imported-file configurations also lose that team scope. Deleting a team does not delete its members' accounts.
 
 Teams synchronized through [enterprise SSO or SCIM](/platform/admin/enterprise-sso) also depend on the identity provider's provisioning rules. Check that source before making a local change you expect to persist.

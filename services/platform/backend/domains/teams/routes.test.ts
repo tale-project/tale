@@ -364,6 +364,7 @@ describe('POST /:teamId/members', () => {
     expect(body.alreadyMember).toBe(false);
     expect(writes(statements).map((s) => s.text)).toEqual([
       'INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt") VALUES (?, ?, ?, ?)',
+      'INSERT INTO app.admin_added_team_members ( team_member_id, org_id, team_id, created_at_ms ) VALUES (?, ?, ?, ?)',
     ]);
     // The row, its audit row and the hint ride the same transaction, in
     // that order — the membership never exists without its account.
@@ -396,6 +397,24 @@ describe('POST /:teamId/members', () => {
     expect(createAuditLog.mock.invocationCallOrder[0]).toBeLessThan(
       emitHintInTx.mock.invocationCallOrder[0] ?? 0,
     );
+  });
+
+  it('records that an admin made the membership, so it carries the team’s competence grants [GOV-R20]', async () => {
+    const { sql, statements } = fakeSql(
+      (s) => TEAM_ROW(s) ?? orgMember('bob@example.test')(s),
+    );
+    const res = await post(sql);
+    expect(res.status).toBe(201);
+    const { id } = (await res.json()) as { id: string };
+    const row = statements.find((s) =>
+      s.text.startsWith('INSERT INTO "teamMember"'),
+    );
+    const record = statements.find((s) =>
+      s.text.startsWith('INSERT INTO app.admin_added_team_members'),
+    );
+    // Keyed by the membership row, in the transaction that inserts it.
+    expect(row?.values[0]).toBe(id);
+    expect(record?.values).toEqual([id, 'o1', 't1', expect.any(Number)]);
   });
 });
 
@@ -451,6 +470,7 @@ describe('the last-member rule', () => {
     expect(await res.json()).toEqual({ removed: true });
     expect(writes(statements).map((s) => s.text)).toEqual([
       'DELETE FROM "teamMember" WHERE "id" = ?',
+      'DELETE FROM app.admin_added_team_members WHERE team_member_id = ?',
     ]);
     expect(createAuditLog).toHaveBeenCalledWith(
       sql,
@@ -475,6 +495,22 @@ describe('the last-member rule', () => {
       orgId: 'o1',
       entity: TEAM_HINT_ENTITY,
       entityId: 't1',
+    });
+  });
+
+  it('forgets that an admin made the membership it removes [GOV-R20]', async () => {
+    const { sql, statements } = fakeSql(membership(2));
+    const res = await mount(sql).request('/members/by-id/tm1', {
+      method: 'DELETE',
+    });
+    expect(res.status).toBe(200);
+    const removedAt = statements.findIndex(
+      (s) => s.text === 'DELETE FROM "teamMember" WHERE "id" = ?',
+    );
+    const forgotten = statements[removedAt + 1];
+    expect(forgotten).toEqual({
+      text: 'DELETE FROM app.admin_added_team_members WHERE team_member_id = ?',
+      values: ['tm1'],
     });
   });
 

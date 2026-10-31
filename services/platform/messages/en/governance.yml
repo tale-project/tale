@@ -1070,13 +1070,17 @@ groups:
   dataSubjectRequests: Data subject requests
 competences:
   title: Competences
-  description: Let a member do one narrow thing without an admin seat, or record a qualification your review policy asks for. Every grant and revocation is audited, and removing a member revokes their grants.
+  description: Let a member or a team do one narrow thing without an admin seat, or record a qualification your review policy asks for. Every grant and revocation is audited, and removing a member revokes their grants.
   accessDenied: Only organization owners and admins can manage competences.
   grantedBy: by {name}
   revokedBy: Revoked by {name}
   revokedBySystem: Replaced by a new grant after it expired
+  revokedWithMember: Revoked when the member left the organization
+  revokedWithTeam: Revoked when the team was deleted
+  teamBadge: Team
+  deletedTeam: Deleted team
   columns:
-    member: Member
+    member: Member or team
     competence: Competence
     status: Status
     granted: Granted
@@ -1104,19 +1108,30 @@ competences:
       description: Share a skill with the whole organization even when the skill sharing policy reserves that for Editors or admins.
   empty:
     title: No competences granted yet
-    description: Grant a member a platform capability or a qualification. It applies in this organization only.
+    description: Grant a member a platform capability or a qualification, or grant a team a platform capability. It applies in this organization only.
   actions:
     grant: Grant competence
     revoke: Revoke
     revokeFor: Revoke {competence} from {member}
   grantDialog:
     title: Grant a competence
-    description: The member holds it in this organization until it expires or an admin revokes it.
+    description: Whoever you choose holds it in this organization until it expires or an admin revokes it. A team's members hold it while they are in the team.
+    holderLabel: Grant to
+    holderOptions:
+      member: A member
+      team: A team
     memberLabel: Member
     memberPlaceholder: Select a member
     memberSearch: Search members
     memberEmpty: No members found
     memberLoadFailed: Couldn't load the members.
+    teamLabel: Team
+    teamPlaceholder: Select a team
+    teamSearch: Search teams
+    teamEmpty: No teams found
+    teamLoadFailed: Couldn't load the teams.
+    teamDescription: Its members hold it while they are in the team, including members who join later. Only members an admin added count; a membership your identity provider syncs carries no grant.
+    teamSynced: Synced from your identity provider
     competenceLabel: Competence
     competencePlaceholder: Select a competence
     capabilitiesGroup: Platform capabilities
@@ -1135,10 +1150,11 @@ competences:
       90days: In 90 days
       1year: In 1 year
     evidenceLabel: Evidence
-    evidenceDescription: Why this member holds it, such as a certificate, a ticket or the system it serves. It stays in the register.
+    evidenceDescription: Why it is granted, such as a certificate, a ticket or the system it serves. It stays in the register.
     submit: Grant
     validation:
       memberRequired: Select a member.
+      teamRequired: Select a team.
       competenceRequired: Select a competence.
       qualificationRequired: Enter a qualification name.
       qualificationTooLong: Use at most 120 characters.
@@ -1147,6 +1163,7 @@ competences:
   revokeDialog:
     title: Revoke competence?
     description: '{member} loses "{competence}" in this organization right away. The grant stays in the register as history.'
+    descriptionTeam: 'The members of {team} lose "{competence}" in this organization right away, unless they hold it themselves. The grant stays in the register as history.'
     confirm: Revoke
   toasts:
     granted: Competence granted
@@ -1155,6 +1172,7 @@ competences:
   errors:
     generic: Couldn't save the change. Try again.
     alreadyGranted: This member already holds this competence. Revoke the current grant before you grant it again.
+    alreadyGrantedTeam: This team already holds this competence. Revoke the current grant before you grant it again.
     notMember: This person is not a member of the organization.
     forbidden: Only organization owners and admins can grant or revoke competences.
     capabilityUnknown: This is not a platform capability.
@@ -1163,6 +1181,9 @@ competences:
     invalid: A competence name has 1 to 120 characters.
     notFound: This grant no longer exists.
     alreadyRevoked: This grant has already been revoked.
+    teamCapabilityOnly: A team can hold a platform capability only. Grant a qualification to each member.
+    teamNotFound: This team no longer exists.
+    teamSynced: Your identity provider manages this team's members. Grant to a team an admin manages, or to each member.
 trash:
   title: Trash
   description: Recover retention-trashed records before they are permanently
