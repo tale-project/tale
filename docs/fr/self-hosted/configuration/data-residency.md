@@ -97,3 +97,29 @@ Après avoir enregistré le bucket, utilise **Déplacer les fichiers existants**
 Le rattrapage parcourt les documents référencés et leur historique, fichiers importés, audio synthétisé et transcriptions vidéo de cette organisation. Il copie chaque objet avec son type de contenu, vérifie sa taille à destination, puis supprime la source. Les clés restent identiques et une copie déjà vérifiée peut être terminée après interruption. Il s’agit d’un déplacement, pas d’une sauvegarde supplémentaire ni d’un contrôle cryptographique du contenu.
 
 La destination doit différer du stockage par défaut. En cas d’échec, examine dernière erreur et progression avant de lancer un autre passage. Conserve les deux stockages jusqu’à vérification du résultat et du téléchargement d’anciens fichiers représentatifs. [Secrets avec SOPS](/fr/self-hosted/configuration/secrets-with-sops) explique la protection des fichiers de connexion.
+
+## Garder les prompts sur des endpoints dans l’UE {#eu-processing}
+
+L’endroit où tu exécutes Tale ne décide pas du lieu où un modèle traite un prompt : c’est l’endpoint qu’appelle chaque fournisseur qui en décide. Quand **Traiter les prompts uniquement dans l'UE/EEE** est activé, Tale n’envoie un appel de modèle qu’à l’endpoint dans l’UE d’un fournisseur ou à un hôte que tu as confirmé. [Traiter les prompts uniquement dans l’UE/EEE](/fr/platform/admin/governance/content-models#eu-processing) décrit l’interrupteur, et [Garder les prompts sur des endpoints dans l’UE](/fr/cloud/data-residency#eu-processing) montre où chaque type d’endpoint traite un prompt et où un refus apparaît.
+
+Un serveur de modèles que tu exploites traite un prompt là où il s’exécute : ne confirme son hôte que s’il s’exécute dans l’UE/EEE. Un proxy ou un routeur transmet le prompt ; ne le confirme donc que s’il s’exécute dans l’UE/EEE et que chaque service vers lequel il le transmet y traite aussi les prompts.
+
+La politique de l’organisation se trouve dans `$TALE_CONFIG_DIR/<orgSlug>/governance/model-access.yml`, sous le type `model_access`. La page Modèles modifie ce même fichier. Sans ce fichier, ou sans `euProcessing` dans celui-ci, l’interrupteur est désactivé :
+
+```yaml
+enabled: false
+mode: blocklist
+rules: []
+euProcessing:
+  enabled: true
+  hosts:
+    - llm.example.internal
+    - my-resource.openai.azure.com
+```
+
+- `euProcessing.enabled` active la règle quel que soit le `enabled` propre à la politique, qui régit les règles d’autorisation et de blocage des modèles.
+- `hosts` liste jusqu’à 100 hôtes confirmés, chacun tel qu’il figure dans l’URL de base de son fournisseur : un nom d’hôte en minuscules, une adresse IPv4 ou une adresse IPv6 entre crochets, sans schéma, port, chemin ni caractère générique.
+- Un hôte d’OpenRouter, d’OpenAI ou de Mistral autre que son endpoint dans l’UE reste refusé même s’il figure dans la liste, et la page Modèles ne l’enregistre pas.
+- Tale lit le fichier à chaque appel de modèle : une modification s’applique donc dès l’appel suivant, sans redémarrage. Tant que le fichier ne peut pas être lu ou ne respecte pas son schéma, chaque appel de modèle de l’organisation est refusé, que l’interrupteur soit activé ou non, les sélecteurs de modèle n’en proposent aucun, et le backend journalise que la politique d’accès aux modèles ne peut pas être lue.
+
+Un refus est consigné dans le [journal d’audit](/fr/platform/admin/governance/audit-logs) comme **Accès au modèle refusé**. L’interrupteur ne couvre pas encore le sélecteur du modèle qui lit les images, le trafic de modèles des environnements d’agent dans une sandbox, ni le fournisseur de modération des [garde-fous](/fr/platform/admin/governance/guardrails). Pour voir où une réponse a été traitée, choisis **Afficher les informations** sous celle-ci et lis **Région** dans **Informations sur le message**, comme l’explique [Voir comment une réponse a été produite](/fr/platform/chat/basics#reply-details).
