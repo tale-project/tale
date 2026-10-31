@@ -2,6 +2,7 @@ import type { Context } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
+import type { RoleStanding } from '../../lib/shared/competences.ts';
 import { isAdminRole } from '../auth/membership.ts';
 import { holdsCapability } from '../domains/governance/competence.ts';
 import { type RestEnv, RestRefusal } from './shared.ts';
@@ -42,14 +43,22 @@ export interface ResolvedActor {
   role: string;
 }
 
+/** What the role alone says at this door: an owner or admin acts for
+ * another member by role, a disabled seat never, anyone else only through a
+ * live grant. */
+export function actAsRoleStanding(role: string): RoleStanding {
+  if (isAdminRole(role)) return 'admits';
+  return role.toLowerCase() === 'disabled' ? 'refuses' : 'grant';
+}
+
 /** Whether the key holder may name an `actor` at all. */
 export async function mayActAs(
   sql: Sql | TransactionSql,
   caller: { organizationId: string; userId: string; role: string },
   now: number,
 ): Promise<boolean> {
-  if (isAdminRole(caller.role)) return true;
-  if (caller.role.toLowerCase() === 'disabled') return false;
+  const standing = actAsRoleStanding(caller.role);
+  if (standing !== 'grant') return standing === 'admits';
   return holdsCapability(
     sql,
     caller.organizationId,

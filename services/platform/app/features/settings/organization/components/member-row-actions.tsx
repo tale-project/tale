@@ -4,19 +4,21 @@ import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@tale/ui/entity/entity-row-actions';
-import { ArrowRightLeft, Pencil, Trash2 } from 'lucide-react';
+import { ArrowRightLeft, Pencil, ShieldCheck, Trash2 } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
 import { DeleteMemberDialog } from './member-delete-dialog';
 import { EditMemberDialog } from './member-edit-dialog';
+import { MemberRightsDialog } from './member-rights-dialog';
 import { TransferOwnershipDialog } from './transfer-ownership-dialog';
 
 type MemberItem = {
   _id: string;
   _creationTime?: number;
   organizationId: string;
+  userId: string;
   identityId?: string;
   email?: string;
   role?: string;
@@ -40,10 +42,18 @@ export function MemberRowActions({
 }: MemberRowActionsProps) {
   const { t: tCommon } = useT('common');
   const { t: tSettings } = useT('settings');
-  const dialogs = useEntityRowDialogs(['edit', 'delete', 'transferOwnership']);
+  const dialogs = useEntityRowDialogs([
+    'edit',
+    'rights',
+    'delete',
+    'transferOwnership',
+  ]);
 
   const isViewingSelf = memberContext?.member?._id === member._id;
   const canManageMembers = memberContext?.canManageMembers ?? false;
+  // A member's rights, and the register behind their switches, are for
+  // owners and admins (GOV-R21) — anyone's, their own and the owner's too.
+  const callerIsAdmin = memberContext?.isAdmin ?? false;
   const isOwner = member.role?.toLowerCase() === 'owner';
   const callerIsOwner = memberContext?.role?.toLowerCase() === 'owner';
 
@@ -55,6 +65,13 @@ export function MemberRowActions({
         icon: Pencil,
         onClick: dialogs.open.edit,
         visible: canManageMembers && !isOwner && !isViewingSelf,
+      },
+      {
+        key: 'rights',
+        label: tSettings('organization.memberRights.action'),
+        icon: ShieldCheck,
+        onClick: dialogs.open.rights,
+        visible: callerIsAdmin,
       },
       {
         key: 'transferOwnership',
@@ -77,6 +94,7 @@ export function MemberRowActions({
       tSettings,
       dialogs.open,
       canManageMembers,
+      callerIsAdmin,
       isViewingSelf,
       isOwner,
       callerIsOwner,
@@ -92,13 +110,22 @@ export function MemberRowActions({
       <EntityRowActions actions={actions} contentWidth="w-[11.5rem]" />
 
       {/* Each dialog mounts from its first open: every row of the list
-          carries all three. */}
+          carries all four. */}
       {dialogs.mounted.edit && (
         <EditMemberDialog
           open={dialogs.isOpen.edit}
           onOpenChange={dialogs.setOpen.edit}
           member={member}
           currentUserMemberId={memberContext?.member?._id}
+        />
+      )}
+
+      {dialogs.mounted.rights && (
+        <MemberRightsDialog
+          open={dialogs.isOpen.rights}
+          onOpenChange={dialogs.setOpen.rights}
+          organizationId={member.organizationId}
+          member={member}
         />
       )}
 
