@@ -37,6 +37,7 @@ import {
   completeAgentRunInTx,
   type CompleteAgentRunArgs,
 } from './agent-run-completion.ts';
+import { countParkedAgentRun } from './agent-run-counters.ts';
 import {
   failAgentRunFromTurn,
   isAgentOutOfReach,
@@ -441,6 +442,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         reason?: AgentRunWaitingReason;
       };
       const parked = await sql.begin((tx) => parkAgentRunInTx(tx, args));
+      if (parked !== undefined) await countParkedAgentRun(sql, args.reason);
       // A parked run holds no slot: a standing workspace its start resumed
       // before the sandbox host refused the create reads `active` with no
       // compute, where the reconcile would heal it to destroyed. Free it back
