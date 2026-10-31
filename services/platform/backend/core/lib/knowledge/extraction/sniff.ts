@@ -19,7 +19,7 @@ export async function sniffDocumentExtension(
     detected = await fileTypeFromBuffer(bytes);
   } catch (error) {
     console.warn(
-      '[crawl] document sniff failed:',
+      '[sniff] document sniff failed:',
       error instanceof Error ? error.message : error,
     );
     return null;
