@@ -105,7 +105,6 @@ errors:
   generic: Something went wrong — try again, or reload the page if it keeps happening.
   documentPreview: Document preview
   errorLoadingDocumentPreview: The document preview could not be loaded. Try again.
-  failedToCopy: Couldn't copy to clipboard
   sessionEnded: Your session has ended. Sign in again.
   organizationSessionRestricted: This session is limited to the organization that signed you in.
   accountIdentityRequired: Confirm your password or an account passkey before changing your account.

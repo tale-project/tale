@@ -16,6 +16,8 @@ demo:
   preview: Live example
   showCode: Code
   hideCode: Hide code
+  loadingCode: Loading the code…
+  codeFailed: Couldn't load this example's code.
   missingTitle: Unknown demo
   missingBody: No demo is registered under "{name}". Add
     app/demos/{name}.tsx and reference it from a page.

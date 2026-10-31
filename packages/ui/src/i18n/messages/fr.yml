@@ -85,6 +85,8 @@ docs:
     openChatGpt: Ouvrir dans ChatGPT
     openClaude: Ouvrir dans Claude
     openCursor: Ouvrir dans Cursor
+    promptRead: Lis {url} et réponds à mes questions.
+    promptContext: Utilise {url} comme contexte de documentation.
   notFound:
     title: Page introuvable
     body: Nous n'avons pas trouvé cette page. Une des suggestions ci-dessous correspond peut-être – sinon, lance la recherche.
@@ -195,6 +197,7 @@ common:
   errors:
     contactSupport: contacter le support
     errorLoadingPage: Une erreur s'est produite lors du chargement de cette page. Tu peux réessayer ou naviguer vers une autre section.
+    failedToCopy: Échec de la copie dans le presse-papiers
     hideDetails: Masquer les détails
     persistsProblem: Si ce problème persiste,
     showDetails: Afficher les détails

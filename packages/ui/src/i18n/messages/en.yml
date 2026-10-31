@@ -85,6 +85,8 @@ docs:
     openChatGpt: Open in ChatGPT
     openClaude: Open in Claude
     openCursor: Open in Cursor
+    promptRead: Read {url} and answer my questions.
+    promptContext: Use {url} as documentation context.
   notFound:
     title: Page not found
     body: We couldn't find that page. Maybe one of these is what you were looking for, or try the search.
@@ -195,6 +197,7 @@ common:
   errors:
     contactSupport: contact support
     errorLoadingPage: Something went wrong while loading this page. Try again or go to another section.
+    failedToCopy: Couldn't copy to clipboard
     hideDetails: Hide details
     persistsProblem: If this keeps happening,
     showDetails: Show details

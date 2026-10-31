@@ -22,6 +22,18 @@ describe('navigation group trail', () => {
     ]);
   });
 
+  it('finds a section landing page by its address as well as its file', () => {
+    // `/tutorials/videos` reaches the page as `tutorials/videos`; nav.json
+    // lists the file, `tutorials/videos/index`.
+    expect(navGroupTrail('tutorials/videos')).toEqual([
+      'nav.groups.tutorials',
+      'nav.groups.tutorialsVideos',
+    ]);
+    expect(navGroupTrail('tutorials/videos')).toEqual(
+      navGroupTrail('tutorials/videos/index'),
+    );
+  });
+
   it('leaves unlisted pages to the existing title fallback', () => {
     expect(navGroupTrail('unknown/page')).toEqual([]);
   });

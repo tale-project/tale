@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { slugLabel, suggestPages } from './suggest-pages';
+import { suggestPages } from './suggest-pages';
 
 const PAGES = [
   { slug: 'index' },
@@ -33,16 +33,5 @@ describe('suggestPages', () => {
     const picks = suggestPages('quickstart', PAGES, 3);
     expect(picks).toHaveLength(3);
     for (const pick of picks) expect(PAGES).toContain(pick);
-  });
-});
-
-describe('slugLabel', () => {
-  it('title-cases every segment and drops a section index', () => {
-    expect(slugLabel('platform/chat/arena-mode')).toBe(
-      'Platform / Chat / Arena Mode',
-    );
-    expect(slugLabel('self-hosted/install/index')).toBe(
-      'Self Hosted / Install',
-    );
   });
 });

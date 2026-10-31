@@ -11,6 +11,8 @@
  * that every entry resolves to a real markdown file in every base locale.
  */
 
+import { slugRoute } from '@tale/ui/docs/redirects';
+
 import type { SupportedLocale } from '@/lib/i18n/locales';
 
 import navJson from '../../../../docs/nav.json';
@@ -69,8 +71,13 @@ export function firstNavSlug(): string {
   return first.slug;
 }
 
-/** Sidebar group labels for a page, including groups without an index page. */
+/**
+ * Sidebar group labels for a page, including groups without an index page.
+ * A section landing page counts by its address (`cloud`) as well as by the
+ * file nav.json lists (`cloud/index`).
+ */
 export function navGroupTrail(slug: string): readonly string[] {
+  const route = slugRoute(slug);
   const find = (
     entries: readonly DocsNavEntry[],
     labels: readonly string[],
@@ -79,7 +86,7 @@ export function navGroupTrail(slug: string): readonly string[] {
       if (isNavGroup(entry)) {
         const found = find(entry.pages, [...labels, entry.labelKey]);
         if (found) return found;
-      } else if (entry.slug === slug) {
+      } else if (slugRoute(entry.slug) === route) {
         return labels;
       }
     }

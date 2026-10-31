@@ -1,7 +1,8 @@
 import { Check, Link as LinkIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { Children, cloneElement, isValidElement, useState } from 'react';
+import { Children, cloneElement, isValidElement } from 'react';
 
+import { useCopy } from '../hooks/use-copy';
 import { useT } from '../i18n/client';
 import { EXPLICIT_ID_PATTERN, slugifyHeadingText } from './heading-id';
 
@@ -90,19 +91,12 @@ export function AnchoredHeading({
   const renderedChildren = explicit.children;
   const id = explicit.id ?? slugifyHeading(renderedChildren);
   const Tag = level;
-  const [copied, setCopied] = useState(false);
+  // A refused or missing clipboard raises the shared error toast instead of
+  // failing silently.
+  const { copied, copy } = useCopy({ copiedDuration: 1500 });
 
-  const handleCopy = async () => {
-    // Guard for SSR / non-browser environments where `navigator` is absent.
-    if (typeof window === 'undefined' || !navigator.clipboard) return;
-    const url = `${window.location.origin}${window.location.pathname}#${id}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch (error) {
-      console.warn('[anchored-heading] clipboard write failed', error);
-    }
+  const handleCopy = () => {
+    void copy(`${window.location.origin}${window.location.pathname}#${id}`);
   };
 
   return (

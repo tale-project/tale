@@ -1,6 +1,6 @@
 import { Check, Copy } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
 
+import { useCopy } from '../hooks/use-copy';
 import { useT } from '../i18n/client';
 import { cn } from '../lib/cn';
 import { HighlightedCode } from './highlighted-code';
@@ -78,27 +78,12 @@ function CodeBlockHeader({ label, hideCopy, code }: CodeBlockHeaderProps) {
 
 function HeaderCopyButton({ code }: { code: string }) {
   const { t } = useT('markdownCopy');
-  const [copied, setCopied] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A refused clipboard raises the shared error toast instead of failing
+  // silently; the hook also cancels its reset timer on unmount.
+  const { copied, copy } = useCopy({ copiedDuration: 1500 });
 
-  // Cancel any in-flight reset timer on unmount so we never call
-  // `setCopied(false)` after the component is gone.
-  useEffect(() => {
-    return () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    };
-  }, []);
-
-  const handleCopy = async () => {
-    const trimmed = code.endsWith('\n') ? code.slice(0, -1) : code;
-    try {
-      await navigator.clipboard.writeText(trimmed);
-      setCopied(true);
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => setCopied(false), 1500);
-    } catch (error) {
-      console.warn('[code-block] clipboard write failed', error);
-    }
+  const handleCopy = () => {
+    void copy(code.endsWith('\n') ? code.slice(0, -1) : code);
   };
 
   return (

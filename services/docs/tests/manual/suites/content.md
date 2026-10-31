@@ -47,7 +47,8 @@ clipboard permission.
 > this section** button are hover/focus-revealed (`opacity-0` until
 > `group-hover`/`focus-visible`) — focus or hover their container first. All
 > three copy affordances flip to a "copied" label for **1.5 s** with
-> `aria-live="polite"`; assert the clipboard content, not the flash. The
+> `aria-live="polite"`; assert the clipboard content, not the flash. When the
+> clipboard refuses, all three raise the shared error toast instead (CONT-B1). The
 > labels follow the selected language: page actions use `docs.pageActions.*`,
 > code-copy and heading-link controls use shared `markdownCopy.*` messages
 > (see [locale.md](locale.md)). `<Step title>` renders a plain `<h3>` with **no
@@ -86,8 +87,10 @@ clipboard permission.
   **Open in ChatGPT**, **Open in Claude**, **Open in Cursor**, **View as
   Markdown** → Menu opens (Esc closes, focus returns); the three "Open in"
   items deep-link to `chatgpt.com` / `claude.ai` / `cursor://` with the page's
-  `.md` URL embedded in the prompt; **View as Markdown** serves `{pageUrl}.md`
-  as plaintext markdown (HTTP 200)
+  `.md` URL embedded in a prompt in the selected language
+  (`docs.pageActions.promptRead` / `promptContext`; DE: "Lies … und beantworte
+  meine Fragen."); **View as Markdown** serves `{pageUrl}.md` as plaintext
+  markdown (HTTP 200)
 - [ ] `CONT-F7` · **Edit on GitHub** — Click **Edit on GitHub**
   (`docs.editOnGithub`) → Opens
   `https://github.com/tale-project/tale/edit/main/docs/{locale}/{slug}.md` —
@@ -151,9 +154,11 @@ clipboard permission.
 ## Boundary & error tests
 
 - [ ] `CONT-B1` · **Clipboard unavailable** — Deny clipboard permission (or
-  insecure context); click **Copy code** → No crash — the failure is logged
-  (`console.warn '[code-block] clipboard write failed'`), the button doesn't
-  get stuck in **Copied**.
+  insecure context); click **Copy code**, a heading's **Copy link to this
+  section** and **Copy page** → No crash — each click raises the error toast
+  **Couldn't copy to clipboard** in the selected language
+  (`common.errors.failedToCopy`) and logs `console.error 'Copy to clipboard
+  failed:'`; no button gets stuck in **Copied**.
 - [ ] `CONT-B2` · **External links** — Click an external link in the body
   (e.g. the OpenRouter link) → Opens the external site; external links don't
   hijack the SPA router; internal links stay client-side navigations.

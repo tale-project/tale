@@ -1,6 +1,7 @@
 import { Check, Copy } from 'lucide-react';
 import { memo, useEffect, useMemo, useState } from 'react';
 
+import { useCopy } from '../hooks/use-copy';
 import { useViewportVisibility } from '../hooks/use-viewport-visibility';
 import { useT } from '../i18n/client';
 import { cn } from '../lib/cn';
@@ -59,7 +60,9 @@ export const HighlightedCode = memo(function HighlightedCode({
 }: HighlightedCodeProps) {
   const { t } = useT('markdownCopy');
   const { ref, isVisible } = useViewportVisibility<HTMLDivElement>();
-  const [copied, setCopied] = useState(false);
+  // A refused clipboard raises the shared error toast instead of failing
+  // silently.
+  const { copied, copy } = useCopy({ copiedDuration: 1500 });
 
   // Strip the trailing newline most fenced blocks carry. Both the gutter
   // count and Shiki must tokenise the same string — otherwise Shiki emits
@@ -125,14 +128,8 @@ export const HighlightedCode = memo(function HighlightedCode({
       ? highlighted.html
       : null;
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(normalisedCode);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch (error) {
-      console.warn('[code-block] clipboard write failed', error);
-    }
+  const handleCopy = () => {
+    void copy(normalisedCode);
   };
 
   const lineCount = useMemo(

@@ -16,6 +16,8 @@ demo:
   preview: Exemple en direct
   showCode: Code
   hideCode: Masquer le code
+  loadingCode: Chargement du code…
+  codeFailed: Impossible de charger le code de cet exemple.
   missingTitle: Exemple inconnu
   missingBody: Aucun exemple n’est enregistré sous « {name} ». Crée
     app/demos/{name}.tsx et référence-le depuis une page.

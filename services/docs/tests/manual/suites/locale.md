@@ -70,8 +70,10 @@ Bring the site up per [SETUP.md](../setup.md) — either mode.
 ## Boundary & error tests
 
 - [ ] `LOC-B1` · **Localized 404** — Open `{base}/de/nope-not-a-page` → The
-  404 renders in **German** (`@tale/ui` `de.yml` `docs.notFound.*`);
-  **Back to docs home** targets `{base}/de`
+  404 renders in **German** (`@tale/ui` `de.yml` `docs.notFound.*`); every
+  **Meintest du** card names its page by its German title
+  (**Fragen im Chat stellen**), never an English slug path such as
+  **Platform / Chat / Basics**; **Back to docs home** targets `{base}/de`
 - [ ] `LOC-B2` · **Unknown prefix** — Open `{base}/es/quickstart` → Not a
   locale — treated as an unknown English-tree slug: the styled 404 (with
   suggestions), no crash.

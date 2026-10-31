@@ -20,7 +20,7 @@ import {
   isNavGroup,
   navGroupTrail,
 } from '@/lib/content/nav';
-import { docPath } from '@/lib/content/paths';
+import { docPath, slugRoute } from '@/lib/content/paths';
 import type { SupportedLocale } from '@/lib/i18n/locales';
 
 /** Translate a `nav.groups.*` label key; the caller's `t` is bound to `nav`. */
@@ -92,7 +92,8 @@ function prettifySlug(slug: string): string {
     .join(' ');
 }
 
-function neighbour(locale: SupportedLocale, slug: string): FramePage {
+/** A page as the frame names it: its title in `locale`, else its slug. */
+export function navPage(locale: SupportedLocale, slug: string): FramePage {
   const title = getDocPage(locale, slug)?.frontmatter.title;
   return {
     href: docPath(locale, slug),
@@ -100,16 +101,21 @@ function neighbour(locale: SupportedLocale, slug: string): FramePage {
   };
 }
 
-/** The pages before and after `slug` in navigation order. */
+/**
+ * The pages before and after `slug` in navigation order. A section landing
+ * page arrives by its address (`/cloud` is `cloud`) while nav.json lists its
+ * file (`cloud/index`), so both are compared as routes.
+ */
 export function navNeighbours(
   locale: SupportedLocale,
   slug: string,
 ): { prev: FramePage | null; next: FramePage | null } {
   const flat = flattenNav();
-  const idx = flat.findIndex((entry) => entry.slug === slug);
+  const route = slugRoute(slug);
+  const idx = flat.findIndex((entry) => slugRoute(entry.slug) === route);
   if (idx === -1) return { prev: null, next: null };
   return {
-    prev: idx > 0 ? neighbour(locale, flat[idx - 1].slug) : null,
-    next: idx < flat.length - 1 ? neighbour(locale, flat[idx + 1].slug) : null,
+    prev: idx > 0 ? navPage(locale, flat[idx - 1].slug) : null,
+    next: idx < flat.length - 1 ? navPage(locale, flat[idx + 1].slug) : null,
   };
 }

@@ -28,7 +28,7 @@ with the shared manual-test shape; the guides it replaced had no such list.
   the rail's width (16 rem) minus the `⌘K` hint, and **Dokumentation
   durchsuchen** / **Rechercher dans la documentation** are longer than that —
   they ellipsize by design (`@tale/ui` `docs-search-trigger.tsx`). The control's
-  accessible name is the full **Open search** either way.
+  accessible name is that text in full either way, without the hint.
 - **A first visit can open in dark mode.** With nothing saved, the docs follow
   the operating system's theme (the same `'system'` default as the
   design-system guide), so a reader whose OS is dark sees dark pages until they
