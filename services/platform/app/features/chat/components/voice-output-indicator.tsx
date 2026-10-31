@@ -350,6 +350,7 @@ function classifyErrorCode(code: string | undefined): ErrorCategory {
     case 'UNKNOWN_MODEL':
     case 'UNKNOWN_VOICE':
     case 'HOST_POLICY':
+    case 'REGION_POLICY':
     case 'forbidden':
       return 'config';
     case 'BUDGET_EXCEEDED':

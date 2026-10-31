@@ -63,6 +63,8 @@ vi.mock('../../lib/helpers/org_slug', () => ({
   orgSlugFromId: () => Promise.resolve('acme'),
 }));
 
+import { AUTOMATION_SUBJECT_ID } from '../../../../lib/shared/constants/usage';
+import { ModelEndpointRefusal } from '../../governance/model_endpoint_gate';
 import { ImageProviderError } from '../../lib/providers/image_generation';
 import { ImageGenerationError } from '../../lib/providers/resolve_image_model';
 import { SessionFileTooLargeError } from './helpers/session_client';
@@ -283,6 +285,44 @@ describe('generate_image — the policy and the admission decide first', () => {
       blockers: [{ code: 'image_generation_unavailable' }],
     });
     expect(JSON.stringify(result)).toContain('is unavailable');
+  });
+
+  it('relays the EU/EEA rule’s refusal before any admission or provider call [GOV-R17]', async () => {
+    resolveModelMock.mockRejectedValue(
+      new ModelEndpointRefusal({
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        message:
+          'This organization processes prompts only in the EU/EEA, and openrouter.ai may process prompts outside it, so the call was not sent.',
+        provider: 'openrouter',
+        host: 'openrouter.ai',
+        reason: 'vendor-global',
+      }),
+    );
+    const result = await call({ prompt: 'a cat' });
+    expect(result).toMatchObject({
+      status: 'unavailable',
+      blockers: [{ code: 'model_endpoint_refused' }],
+    });
+    expect(JSON.stringify(result)).toContain('only in the EU/EEA');
+    expect(JSON.stringify(result)).toContain('do not retry');
+    expect(
+      callsOf(runMutation, 'sandbox/image_generation:admitImageGeneration'),
+    ).toHaveLength(0);
+    expect(generateMock).not.toHaveBeenCalled();
+  });
+
+  it('names the turn’s person to the EU/EEA rule, and no one for an automation [GOV-R17]', async () => {
+    await call({ prompt: 'a cat' });
+    expect(resolveModelMock).toHaveBeenLastCalledWith(ctx, 'org_1', {
+      actor: { id: 'user_starter', type: 'user' },
+    });
+    turnContext = {
+      status: 'live',
+      outputDir: '/agent/output/task_1',
+      subject: { userId: AUTOMATION_SUBJECT_ID, agentSlug: 'agent_1' },
+    };
+    await call({ prompt: 'a dog' });
+    expect(resolveModelMock).toHaveBeenLastCalledWith(ctx, 'org_1', {});
   });
 
   it('asks the admission for every image, for the turn’s person', async () => {
