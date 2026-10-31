@@ -37,7 +37,8 @@ export const SETTINGS_PLANNED: Readonly<Partial<Record<SettingsArea, string>>> =
     connectors:
       'No kind changes connector credentials or sign-in apps yet; their secrets are entered in Tale.',
     skills: 'No kind changes skills or who may use them yet.',
-    'governance/competences': 'No kind grants or revokes competences yet.',
+    'governance/competences':
+      'No kind grants or revokes rights or qualifications yet.',
     'governance/logs': 'No kind reads the audit log yet.',
     'governance/legal-hold':
       'No kind changes legal matters, holds or release requests yet.',

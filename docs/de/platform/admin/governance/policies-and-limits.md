@@ -139,11 +139,11 @@ Standardmäßig kann jedes Mitglied einen Skill mit der ganzen Organisation teil
 
 <Frame caption="Richtlinien > Richtlinien & Limits — die Skill-Freigabe legt fest, wer einen Skill mit der ganzen Organisation teilen darf.">
 
-![Der Bereich Skill-Freigabe mit Skills mit der Organisation teilen auf Alle Mitglieder und dem Hinweis, dass Inhaber und Admins das immer dürfen und ein weiteres Mitglied unter Kompetenzen Skills für die Organisation veröffentlichen erhalten kann.](/images/platform/governance-skill-sharing.webp)
+![Der Bereich Skill-Freigabe mit Skills mit der Organisation teilen auf Alle Mitglieder und dem Hinweis, dass Inhaber und Admins das immer dürfen und ein weiteres Mitglied auf der Seite Rechte und Qualifikationen das Recht Skills für die Organisation veröffentlichen erhalten kann.](/images/platform/governance-skill-sharing.webp)
 
 </Frame>
 
-Inhaber und Admins dürfen immer mit allen teilen. Soll eine weitere Person das ohne höhere Rolle dürfen, weise ihr unter [Kompetenzen](/de/platform/admin/governance/competences) **Skills für die Organisation veröffentlichen** zu.
+Inhaber und Admins dürfen immer mit allen teilen. Soll eine weitere Person das ohne höhere Rolle dürfen, weise ihr unter [Rechte und Qualifikationen](/de/platform/admin/governance/rights-and-qualifications) **Skills für die Organisation veröffentlichen** zu.
 
 Alle anderen können weiterhin Skills erstellen und mit ihren eigenen Teams teilen. Sie können keinen Skill für die ganze Organisation anlegen, keinen eigenen auf **Organisation** erweitern und keinen organisationsweiten Skill direkt ändern. Einen eigenen Skill können sie auf ihre Teams einschränken, auch zusammen mit anderen Änderungen im selben Speichervorgang, oder löschen. Die Regel gilt im Skill-Editor, für Zip- und Ordner-Uploads, für Automatisierungspakete mit Skills und für die REST-API. Jede Ablehnung erscheint in den [Audit-Logs](/de/platform/admin/governance/audit-logs) als **Veröffentlichen eines Skills abgelehnt**.
 
@@ -151,7 +151,7 @@ Eine strengere Einstellung schränkt keine Skills ein, die bereits mit der Organ
 
 <Note>
 
-Ein verwaltetes Konfigurations-Release installiert seine Skills als das Mitglied, das es ausrollt. Stelle vor einer strengeren Einstellung sicher, dass dieses Mitglied über seine Rolle oder die Kompetenz weiterhin mit allen teilen darf. Sonst wird das nächste Release mit einem organisationsweiten Skill abgelehnt.
+Ein verwaltetes Konfigurations-Release installiert seine Skills als das Mitglied, das es ausrollt. Stelle vor einer strengeren Einstellung sicher, dass dieses Mitglied über seine Rolle oder das Recht weiterhin mit allen teilen darf. Sonst wird das nächste Release mit einem organisationsweiten Skill abgelehnt.
 
 </Note>
 
