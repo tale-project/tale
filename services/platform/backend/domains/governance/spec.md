@@ -157,7 +157,14 @@ none, is refused before anything is sent, with a sentence that says what an admi
 restores it (`MODEL_ENDPOINT_POLICY_UNREADABLE`). Each refusal is written to the audit log. The
 rule holds for chat replies and their titles, rewrites with Improve with AI, task turns, an
 automation's `llm` steps, the model API, embeddings, image generation, transcription and speech.
-With the rule off, nothing changes.
+It holds for a coding agent in a sandbox too, on a task or an automation's agent step, through the
+model gateway or a subscription: the run fails before the agent's session starts, it gets no key
+or credential, and the refusal is audited. The gateway calls a provider it has a built-in
+connection for at the vendor's own endpoint, whatever base URL the provider names, so such a
+provider is refused there unless Claude Code calls it at a coding-agent endpoint that counts;
+OpenRouter reaches a coding agent only through a custom provider at `eu.openrouter.ai`. The
+automatic image-reading model passes over a provider the rule refuses. With the rule off, nothing
+changes.
 
 - **Example**: The rule is on, and the OpenAI provider points at `api.openai.com` → Mia's
   message is refused with a sentence that names `eu.api.openai.com`, and nothing reaches
@@ -274,9 +281,8 @@ rights.
 - **Content moderation**, guardrails and the handling of personal data in prompts
   (`moderation.ts`).
 - **The EU/EEA rule beyond the calls GOV-R17 names**: the vision model setting still offers
-  every model, whatever its endpoint; a coding agent's model traffic in a sandbox, through the
-  model gateway or a subscription, is not held to the rule; nor is the guardrails' moderation
-  endpoint.
+  every model, whatever its endpoint, and the guardrails' moderation endpoint is not held to
+  the rule.
 - **API keys**: creating, listing and revoking one (`api-keys.ts`).
 - **The usage pages** and their figures (`usage-metrics.ts`).
 - **Legacy voice reservations**: previous writers left no saved price or project stamp. `NULL`

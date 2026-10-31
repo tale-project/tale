@@ -840,6 +840,20 @@ agent.
   (GOV-F41), `GET /api/v1/openai/models` with a Developer's key lists no
   OpenAI model. Turn the switch off → every picker offers the OpenAI models
   again and none shows the line. Restore the state you found.
+- [ ] `GOV-F79` · **The EU/EEA rule holds for coding agents in a sandbox** —
+  With the switch on (GOV-F70), no host attested, and a project agent on
+  Claude Code whose model comes from the Anthropic catalog provider: **Start
+  agent** (`tasks.agentRun.start`) on a task → the run fails before the agent
+  starts, its failure says the organization processes prompts only in the
+  EU/EEA and names the host, no retry follows, and **Logs** lists **Model
+  access denied** with the surface `task`. Run live an automation whose agent
+  step uses the same agent → the step fails with the same sentence and
+  **Logs** adds a row with the surface `automation`. Give a custom provider the
+  base URL `https://eu.openrouter.ai/api/v1` and run the agent on one of its
+  models → the agent starts and answers; the OpenRouter catalog provider is
+  refused even with that base URL, because the gateway calls `openrouter.ai`.
+  Attest a custom provider's host and its agent starts too. Turn the switch
+  off → every refused agent starts again. Restore the state you found.
 - [ ] `GOV-F38` · **Image generation is off until an admin turns it on** — On
   `content-models` in a fresh organization, find **Image generation**
   (`governance.imageGeneration.title`), then **Start agent**
