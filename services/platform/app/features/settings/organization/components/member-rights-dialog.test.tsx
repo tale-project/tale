@@ -425,7 +425,7 @@ describe('MemberRightsDialog [GOV-R21]', () => {
       expect(state.toast).toHaveBeenCalledWith({
         title: "Couldn't revoke the grant",
         description:
-          'Only organization owners and admins can grant or revoke rights and qualifications.',
+          'Only organization owners and admins can grant, change or revoke rights and qualifications.',
         variant: 'destructive',
       }),
     );
