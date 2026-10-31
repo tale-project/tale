@@ -33,3 +33,5 @@ Prüfe Tale, wenn das Unternehmen einen Ort für Planung, Delegation an konfigur
 Nutze ein fiktives Release mit Änderungsübersicht, Testnotizen und zwei offenen Problemen. Fordere einen Bereitschaftsbericht an, weise weitere Untersuchungen zu und lass einen Product Owner vor der Abnahme eine Korrektur verlangen.
 
 Beziehe beim Mastra-Prototyp die Oberfläche und Steuerelemente ein, die Nichtentwickler für diesen Ablauf brauchen. Prüfe in Tale, ob das bestehende Aufgaben- und Review-Modell passt. Erfasse Entwicklungsarbeit getrennt vom Aufwand der Person, die das Release betreut. Wiederhole den Fall mit einem neuen Teammitglied, um verständliche Zuständigkeiten zu prüfen. [Buche eine Tale-Demo](https://tale.dev/de/request-demo) mit deinem Release-Prozess.
+
+Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 3. Oktober 2026, und ist kein praktischer Benchmark.

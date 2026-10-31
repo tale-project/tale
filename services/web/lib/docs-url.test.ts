@@ -2,9 +2,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   DOCS_URL,
-  GET_STARTED_URL,
-  SELF_HOSTED_QUICKSTART_URL,
   getDocsUrl,
+  getSelfHostedQuickstartUrl,
   getStartedUrl,
 } from './docs-url';
 
@@ -18,12 +17,12 @@ describe('docs-url', () => {
   });
 
   it('points Get started at the Start-tab quickstart, not self-hosted install', () => {
-    expect(GET_STARTED_URL).toBe(`${DOCS_URL}/get-started/quickstart`);
-    expect(GET_STARTED_URL).not.toContain('self-hosted/install');
+    expect(getStartedUrl('en')).toBe(`${DOCS_URL}/get-started/quickstart`);
+    expect(getStartedUrl('en')).not.toContain('self-hosted/install');
   });
 
   it('points the homepage terminal at the self-hosted install quickstart', () => {
-    expect(SELF_HOSTED_QUICKSTART_URL).toBe(
+    expect(getSelfHostedQuickstartUrl('en')).toBe(
       `${DOCS_URL}/self-hosted/install/quickstart`,
     );
   });
@@ -35,6 +34,9 @@ describe('docs-url', () => {
       expect(getDocsUrl(locale)).toBe(`${DOCS_URL}${prefix || '/'}`);
       expect(getStartedUrl(locale)).toBe(
         `${DOCS_URL}${prefix}/get-started/quickstart`,
+      );
+      expect(getSelfHostedQuickstartUrl(locale)).toBe(
+        `${DOCS_URL}${prefix}/self-hosted/install/quickstart`,
       );
     },
   );
@@ -68,10 +70,6 @@ describe.each([
       expect(urls.getStartedUrl(locale)).toBe(
         `${mount}${prefix}/get-started/quickstart`,
       );
-      if (locale === 'en') {
-        expect(urls.SELF_HOSTED_QUICKSTART_URL).toBe(`${mount}${path}`);
-        expect(urls.GET_STARTED_URL).toBe(`${mount}/get-started/quickstart`);
-      }
     },
   );
 });

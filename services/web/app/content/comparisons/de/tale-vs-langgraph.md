@@ -33,3 +33,5 @@ Prüfe Tale, wenn du einen bestehenden Workspace brauchst, in dem Teammitglieder
 Nutze eine fiktive Kundeneskalation mit Belegsammlung, Antwortentwurf und Entscheidung einer prüfenden Person. Füge während der Arbeit eine widersprüchliche Quelle hinzu und lass den Entwurf zurückgeben.
 
 Bewerte, wie jeder Ansatz die Unterbrechung darstellt, nützlichen Kontext erhält und die nächste verantwortliche Person erkennen lässt. Rechne beim Framework-Prototyp den Aufwand für die Darstellung dieser Zustände für Nichtentwickler mit ein. Prüfe in Tale die konfigurierten Reviews und Berechtigungen. Vergleiche den nutzbaren Gesamtablauf. [Buche eine Tale-Demo](https://tale.dev/de/request-demo) mit diesem Eskalationsfall.
+
+Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 3. Oktober 2026, und ist kein praktischer Benchmark.

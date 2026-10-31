@@ -79,7 +79,7 @@ For an automation-owned task, mention the owning automation to request another r
 
 A task can have only one queued, running, or waiting run at a time, whichever automation started it. Repeating a start request while one is active returns the existing run, even when it names another automation. Once it finishes, another start can create a new run and repeat the work. Check the current run and its effects before requesting another attempt.
 
-## Let a manager agent keep the queue moving
+## Let a manager agent keep the queue moving {#let-a-manager-agent-keep-the-queue-moving}
 
 A manager agent is a project agent whose instructions are to read the whole board, hand out ready work and answer the routine questions other agents leave, so that people see only what needs them. It reads with **Find tasks** and **Read a task**; neither tool changes anything.
 
