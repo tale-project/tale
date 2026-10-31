@@ -153,7 +153,7 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe('sandbox settings read and write authority', () => {
   it.each(['owner', 'admin', 'developer'])(
-    'allows %s to inspect the authenticated organization [SBX-R1] [SBX-R2] [SBX-R3]',
+    'allows %s to inspect the organization they work in, not one named elsewhere [SBX-R1] [SBX-R2] [SBX-R3]',
     async (role) => {
       caller.role = role;
       const response = await app().request('/capacity?organizationId=foreign');

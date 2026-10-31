@@ -280,6 +280,18 @@ describe('resumeSessionSlot — a stopped workspace coming back [SBX-R8]', () =>
 
     expect(ran(statements, RESUME)).toBe(false);
   });
+
+  it('resumes a pinned workspace even at the limit, without asking for room', async () => {
+    const { sql, statements } = fakeSql({
+      resumed: { ...STOPPED, pinned: true },
+      inFlight: ['project_agent', 'project_agent'],
+    });
+
+    await expect(resumeSessionSlot(sql, ARGS)).resolves.toBe(true);
+
+    expect(ran(statements, RESUME)).toBe(true);
+    expect(ran(statements, IN_FLIGHT)).toBe(false);
+  });
 });
 
 describe('a workspace whose Destroy is pending admits nothing [SBX-R9]', () => {

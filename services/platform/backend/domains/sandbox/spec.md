@@ -40,9 +40,10 @@ nothing changes.
 
 ### SBX-R3 · An owner or admin can act only on workspaces of their own organization
 
-The organization is always the one the person is signed in to; one named in the request is
-ignored. A workspace of another organization is answered as not found (`SESSION_NOT_FOUND`
-for a stop), and nothing is stopped, pinned or deleted.
+The organization is the one the person is working in, and only an active member of it gets in
+(`ORG_FORBIDDEN`); an organization named anywhere else in the request is ignored. A workspace
+of another organization is answered as not found (`SESSION_NOT_FOUND` for a stop), and nothing
+is stopped, pinned or deleted.
 
 - **Example**: Zoe is an admin of another organization. She sends a Destroy with the ID of a
   workspace in Ada's organization → not found, and the workspace stays.
@@ -172,11 +173,15 @@ Four kinds of work are counted separately, each against a limit the organization
 A sandbox that is starting or working holds a slot of its kind. A stopped workspace holds
 none, and takes a slot again when it resumes. At the limit, the next start or resume is
 refused (`QUOTA_EXCEEDED`) before any sandbox is created; the other kinds are not affected.
-The refusal means "no room yet, ask again", not that the work failed.
+The refusal means "no room yet, ask again", not that the work failed. A pinned workspace is
+the exception: it resumes even at the limit (`SBX-R10`).
 
 - **Example**: Ada's organization keeps the limit of 2 agent workers, and two agents
   are working. A third agent is started on a task → refused as `QUOTA_EXCEEDED`. An
   automation run can still get its sandbox.
+- **Example**: Two agents are working, at the limit of 2 agent workers. Ada pinned the
+  stopped workspace of a third agent, and that agent is started on a task → its workspace
+  resumes.
 
 ### SBX-R9 · Nothing new starts in a workspace that is being destroyed
 

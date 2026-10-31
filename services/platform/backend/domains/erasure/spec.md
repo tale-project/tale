@@ -38,14 +38,18 @@ for that approval; where it requires a waiting period, the period starts over.
 - **Example**: The organization requires two admins for an erasure. Ada retries a request that
   was blocked when she filed it → it waits for another admin's approval.
 
-### ERASE-R4 · Retrying a request that got part of the way continues at once
+### ERASE-R4 · A request that got part of the way is retried at once, unless it ran too long
 
 A request that started and did not finish, or was blocked when it came to run, is run again
-without a new approval. A request that has finished in the meantime is not run again
+without a new approval. A request that was stopped for running too long is not: what it erased
+by then is not known, so its retry is refused and a new request is filed instead
+(`NOT_RETRIABLE`). A request that has finished in the meantime is not run again either
 (`NOT_RETRIABLE`).
 
 - **Example**: An erasure removed most of Noah's data and failed on one step. Ada retries it →
   it runs again straight away.
+- **Example**: An erasure of Noah's data ran too long and was stopped. Ada retries it →
+  refused, and she files a new request.
 
 ## What an erasure does
 
@@ -127,4 +131,7 @@ counts them with the person's runs, and a held one among the held.
   name and id in other people's mentions of them, and the rest (`service.ts`). An integration
   lane covers the hand-over of reviews; the guard does not read it.
 - **The waiting period** before an approved request runs, and the receipt's states.
-- **A request that takes too long**: it is ended with a message and can be retried.
+- **A request that takes too long**: one still running more than 35 minutes after it started
+  is marked as failed with a message, and the audit log records it
+  (`recoverStuckErasureRequests` in `service.ts`). Only the integration lane holds this; its
+  retry is `ERASE-R4`.
