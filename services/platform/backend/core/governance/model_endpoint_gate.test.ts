@@ -5,6 +5,7 @@ import type { ActionCtx } from '../lib/ctx.ts';
 import {
   assertModelEndpointAllowed,
   gatewayBuiltinRefusal,
+  gatewayModelRefusal,
   isModelEndpointRefusalCode,
   ModelEndpointRefusal,
   type ModelEndpointCall,
@@ -306,6 +307,88 @@ describe('withoutRefusedModels', () => {
     expect(
       withoutRefusedModels(unreadable, candidates, refusalOf(unreadable)),
     ).toEqual({ kept: [], hiddenBy: 'unreadable' });
+  });
+});
+
+describe('gatewayModelRefusal', () => {
+  it('lets every record through while the rule is off [GOV-R17]', () => {
+    expect(
+      gatewayModelRefusal(
+        { kind: 'open' },
+        { name: 'openrouter', baseUrl: 'https://openrouter.ai/api/v1' },
+        true,
+      ),
+    ).toBe(undefined);
+  });
+
+  it('judges a standard provider by the built-in connection, whatever base URL it names [GOV-R17]', () => {
+    expect(
+      gatewayModelRefusal(EU, {
+        name: 'openrouter',
+        baseUrl: 'https://eu.openrouter.ai/api/v1',
+      }),
+    ).toMatchObject({ provider: 'openrouter', reason: 'gateway-builtin' });
+  });
+
+  it('judges a custom record by its own base URL, so OpenRouter passes only at eu.openrouter.ai [GOV-R17]', () => {
+    expect(
+      gatewayModelRefusal(EU, {
+        name: 'openrouter-eu',
+        baseUrl: 'https://eu.openrouter.ai/api/v1',
+      }),
+    ).toBe(undefined);
+    expect(
+      gatewayModelRefusal(EU, {
+        name: 'openrouter-eu',
+        baseUrl: 'https://openrouter.ai/api/v1',
+      }),
+    ).toMatchObject({ host: 'openrouter.ai', reason: 'vendor-global' });
+    expect(
+      gatewayModelRefusal(EU, {
+        name: 'own-proxy',
+        baseUrl: 'https://llm.example.eu/v1',
+      }),
+    ).toBe(undefined);
+    expect(
+      gatewayModelRefusal(EU, {
+        name: 'own-proxy',
+        baseUrl: 'https://llm.example.com/v1',
+      }),
+    ).toMatchObject({ host: 'llm.example.com', reason: 'not-attested' });
+  });
+
+  it('judges the Anthropic harness lane by the native endpoint, else the base URL, standard name or not [GOV-R17]', () => {
+    const declared = {
+      name: 'openrouter',
+      baseUrl: 'https://openrouter.ai/api/v1',
+      harnessEndpoint: {
+        baseUrl: 'https://eu.openrouter.ai/api',
+        apiFormat: 'anthropic' as const,
+      },
+    };
+    expect(gatewayModelRefusal(EU, declared, true)).toBe(undefined);
+    expect(gatewayModelRefusal(EU, declared)).toMatchObject({
+      reason: 'gateway-builtin',
+    });
+    expect(
+      gatewayModelRefusal(
+        EU,
+        { name: 'openrouter', baseUrl: 'https://openrouter.ai/api/v1' },
+        true,
+      ),
+    ).toMatchObject({ host: 'openrouter.ai', reason: 'vendor-global' });
+  });
+
+  it('refuses every record while the policy cannot be read [GOV-R17]', () => {
+    expect(
+      gatewayModelRefusal(
+        { kind: 'unreadable' },
+        { name: 'own-proxy', baseUrl: 'https://llm.example.eu/v1' },
+      ),
+    ).toMatchObject({
+      code: 'MODEL_ENDPOINT_POLICY_UNREADABLE',
+      provider: 'own-proxy',
+    });
   });
 });
 
