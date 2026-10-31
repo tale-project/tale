@@ -24,15 +24,16 @@ const fixture = vi.hoisted(() => ({
 vi.mock('../hooks/queries', () => ({
   useSkills: () => ({ data: fixture, isPending: false, error: null }),
 }));
-vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
-  useOrgTeams: () => ({ teams: fixture.teams }),
-  // Visibility badges resolve team names through the org's directory.
-  useTeamNames: () => ({
-    nameOf: () => undefined,
-    teams: fixture.teams,
-    isLoading: false,
-  }),
-}));
+vi.mock('@/app/features/settings/teams/hooks/queries', () => {
+  // One lookup for every render, as the real hook keeps it per directory
+  // load: the page's columns depend on it, and a new one remounts the rows.
+  const nameOf = () => undefined;
+  return {
+    useOrgTeams: () => ({ teams: fixture.teams }),
+    // Visibility badges resolve team names through the org's directory.
+    useTeamNames: () => ({ nameOf, teams: fixture.teams, isLoading: false }),
+  };
+});
 vi.mock('@tale/ui/error-boundaries/error-scope', () => ({
   useErrorScope: () => ({ organizationId: 'org1' }),
 }));
