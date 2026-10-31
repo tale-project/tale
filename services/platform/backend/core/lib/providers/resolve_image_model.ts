@@ -537,7 +537,6 @@ export async function resolveImageGenerationModel(
         surface: 'image-generation',
         providerName: candidate.providerSlug,
         modelId: candidate.modelId,
-        baseUrl: candidate.resolved.baseUrl,
         ...(opts.actor !== undefined ? { actor: opts.actor } : {}),
       },
       refusal,
