@@ -1,5 +1,10 @@
-import type { Query, UseQueryResult } from '@tanstack/react-query';
-import { useQuery } from '@tanstack/react-query';
+import type {
+  Query,
+  UseQueryOptions,
+  UseQueryResult,
+} from '@tanstack/react-query';
+import { useQueries, useQuery } from '@tanstack/react-query';
+import { useCallback } from 'react';
 
 import {
   activeOrganizationId,
@@ -62,6 +67,23 @@ function adaptedRefetchInterval(
     : interval;
 }
 
+/** react-query's options for an adapted read: the row's key, fetch, poll
+ * and projection, retried as every adapted read is. */
+function adaptedQueryOptions(adapted: AdaptedReadOptions) {
+  return {
+    queryKey: adapted.queryKey,
+    queryFn: () => runAdapted(adapted.queryFn),
+    ...(adapted.staleTime !== undefined
+      ? { staleTime: adapted.staleTime }
+      : {}),
+    ...(adapted.refetchInterval !== undefined
+      ? { refetchInterval: adaptedRefetchInterval(adapted) }
+      : {}),
+    ...(adapted.select !== undefined ? { select: adapted.select } : {}),
+    retry: retryAdaptedRead,
+  };
+}
+
 /**
  * A backend read, addressed by its contract name. The adapter row keyed by
  * that same name serves it over HTTP; a name with no row has no server left
@@ -97,19 +119,7 @@ export function useBackendQuery<Name extends QueryName>(
   if (adapter !== undefined) {
     base =
       adapted !== null
-        ? {
-            queryKey: adapted.queryKey,
-            queryFn: () => runAdapted(adapted.queryFn),
-            ...(adapted.staleTime !== undefined
-              ? { staleTime: adapted.staleTime }
-              : {}),
-            ...(adapted.refetchInterval !== undefined
-              ? { refetchInterval: adaptedRefetchInterval(adapted) }
-              : {}),
-            ...(adapted.select !== undefined ? { select: adapted.select } : {}),
-            retry: retryAdaptedRead,
-            ...queryOpts,
-          }
+        ? { ...adaptedQueryOptions(adapted), ...queryOpts }
         : // Skipped (or unservable without an org): a stable inert entry.
           {
             queryKey: ['backend-skip', name],
@@ -133,6 +143,48 @@ export function useBackendQuery<Name extends QueryName>(
   }
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the adapter row and this name's contract entry are keyed alike, so the row's projection IS this return shape
   return useQuery({ ...base, enabled }) as UseQueryResult<ReturnsOf<Name>>;
+}
+
+/**
+ * One adapted read per args, side by side: what a screen reads item by
+ * item (each person it names), each item its own cache entry that every
+ * screen asking for it shares. `combine` folds the results, in the order of
+ * the args the row could serve, into what the caller reads; keep it stable,
+ * so an unchanged answer stays the same value. Only an adapter row serves
+ * these: a name without one rejects each read loudly, as
+ * {@link useBackendQuery} does.
+ */
+export function useBackendQueries<Name extends QueryName, Combined>(
+  name: Name,
+  argsList: readonly ArgsOf<Name>[],
+  combine: (results: UseQueryResult<ReturnsOf<Name>>[]) => Combined,
+): Combined {
+  const adapter = READ_ADAPTERS[name];
+  const organizationId = activeOrganizationId();
+  const adapterCtx = organizationId !== undefined ? { organizationId } : {};
+  const queries = argsList.flatMap(
+    (args, index): Omit<UseQueryOptions, 'placeholderData'>[] => {
+      if (adapter === undefined) {
+        return [
+          {
+            queryKey: ['convex-retired', name, index],
+            queryFn: () => Promise.reject(new MissingBackendRowError(name)),
+            retry: false,
+          },
+        ];
+      }
+      const adapted = adapter(args, adapterCtx);
+      return adapted !== null ? [adaptedQueryOptions(adapted)] : [];
+    },
+  );
+  // react-query folds the results again only when they or this changed.
+  const combineResults = useCallback(
+    (results: UseQueryResult[]) =>
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- each query is this name's adapter row, so its answer IS this return shape
+      combine(results as UseQueryResult<ReturnsOf<Name>>[]),
+    [combine],
+  );
+  return useQueries({ queries, combine: combineResults });
 }
 
 export type { ConvexQueryOptions };

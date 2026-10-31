@@ -148,6 +148,7 @@ import {
   checkConcurrentEntryUpdates,
 } from './domains/knowledge_entries/write-races.integration.ts';
 import { checkMemberAccountAuthority } from './domains/members/authority.integration.ts';
+import { checkMemberLookup } from './domains/members/lookup.integration.ts';
 import { writeNotificationForOrgs } from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
@@ -66742,6 +66743,7 @@ async function main(): Promise<void> {
         'checkMemberAccountAuthority',
         () => checkMemberAccountAuthority(sql, auth, baseUrl, record),
       ],
+      ['checkMemberLookup', () => checkMemberLookup(sql, record)],
     ]);
   } catch (error) {
     // A throw BEFORE the lanes (setup, the pre-session checks) is a

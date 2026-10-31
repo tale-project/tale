@@ -56,9 +56,15 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useTeams: () => ({ teams: [], isLoading: false }),
   useTeamNames: () => ({ nameOf: () => undefined, isLoading: false }),
 }));
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({ members: [], isLoading: false }),
-}));
+vi.mock(
+  '@/app/features/settings/organization/hooks/member-lookup',
+  async () => {
+    const { memberLookupStandIn } =
+      await import('@/tests/utils/member-lookup-stand-in');
+    const nobody: never[] = [];
+    return memberLookupStandIn(() => nobody);
+  },
+);
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({
     data: { status: 'ok', userId: 'user-me' },
