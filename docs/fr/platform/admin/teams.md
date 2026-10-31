@@ -31,7 +31,7 @@ Une personne peut appartenir à plusieurs équipes. Elle peut conserver un accè
 
 Les notifications suivent la même règle. Une personne qui ne peut plus ouvrir un projet ne reçoit plus de nouvelles notifications ni d’e-mails sur les tâches de ce projet, pas même sur celles qu’elle suit. Ce qu’elle a déjà reçu reste dans ses notifications. Si elle retrouve l’accès, elle est de nouveau notifiée des tâches qu’elle suit.
 
-Une équipe peut aussi détenir des [capacités de la plateforme](/fr/platform/admin/governance/competences#grant-a-capability-to-a-team), comme **Appeler les modèles par l'API**. Une personne que tu ajoutes ici à l’équipe les détient tant qu’elle en fait partie, et la retirer de l’équipe y met fin. Une adhésion que ton fournisseur d’identité synchronise n’apporte aucune capacité de l’équipe.
+Une équipe peut aussi détenir des [droits](/fr/platform/admin/governance/rights-and-qualifications#grant-a-right-to-a-team), comme **Appeler les modèles par l'API**. Une personne que tu ajoutes ici à l’équipe les détient tant qu’elle en fait partie, et la retirer de l’équipe y met fin. Une adhésion que ton fournisseur d’identité synchronise n’apporte aucun droit de l’équipe.
 
 Une équipe provisionnée par ton fournisseur d’identité porte la mention **Synchronisée** dans la liste. Son nom et ses membres appartiennent au fournisseur : le dialogue de modification les affiche en lecture seule, car la prochaine synchronisation annulerait une modification locale. Tu peux tout de même supprimer une telle équipe localement ; le fournisseur peut la recréer.
 
@@ -60,7 +60,7 @@ Pour les conversations entrantes, [les règles de routage](/fr/platform/admin/go
 
 ## Retirer une équipe sans perdre de vue les accès
 
-Sélectionne **Supprimer** dans le menu de la ligne. La confirmation compte les membres de l’équipe, les projets, dossiers et documents dont elle fait partie de l’audience, et les conversations dans sa file. Elle indique aussi combien de ces éléments n’ont pas d’autre équipe et deviendront visibles pour toute l’organisation, combien de [clés API](/fr/platform/admin/api-keys#create-a-key-for-someone-else) appartiennent à l’équipe : elles cesseront de fonctionner avec elle, et combien de [compétences](/fr/platform/admin/governance/competences#grant-a-capability-to-a-team) sont attribuées à l’équipe : elles seront révoquées avec elle. Réattribue d’abord le travail dont l’accès doit rester limité.
+Sélectionne **Supprimer** dans le menu de la ligne. La confirmation compte les membres de l’équipe, les projets, dossiers et documents dont elle fait partie de l’audience, et les conversations dans sa file. Elle indique aussi combien de ces éléments n’ont pas d’autre équipe et deviendront visibles pour toute l’organisation, combien de [clés API](/fr/platform/admin/api-keys#create-a-key-for-someone-else) appartiennent à l’équipe : elles cesseront de fonctionner avec elle, et combien de [droits](/fr/platform/admin/governance/rights-and-qualifications#grant-a-right-to-a-team) sont attribués à l’équipe : ils seront révoqués avec elle. Réattribue d’abord le travail dont l’accès doit rester limité.
 
 <Warning>
 
@@ -68,6 +68,6 @@ La suppression d’une équipe est irréversible. Chaque projet, dossier et docu
 
 </Warning>
 
-L’équipe, ses membres, sa présence sur chaque ressource et tout lien avec le fournisseur d’identité disparaissent en une seule opération, qui révoque aussi les attributions de compétences de l’équipe ; aucune équipe à moitié supprimée ne peut subsister. Le [registre des compétences](/fr/platform/admin/governance/competences#read-the-register) garde ces attributions comme historique, sous **Équipe supprimée**. Une conversation perd son attribution à l’équipe ; si personne ne lui est attribué non plus, elle revient au triage des administrateurs. Les configurations d’import perdent aussi cette association. Les comptes des membres ne sont pas supprimés.
+L’équipe, ses membres, sa présence sur chaque ressource et tout lien avec le fournisseur d’identité disparaissent en une seule opération, qui révoque aussi les attributions de l’équipe ; aucune équipe à moitié supprimée ne peut subsister. Le [registre des droits et qualifications](/fr/platform/admin/governance/rights-and-qualifications#read-the-register) garde ces attributions comme historique, sous **Équipe supprimée**. Une conversation perd son attribution à l’équipe ; si personne ne lui est attribué non plus, elle revient au triage des administrateurs. Les configurations d’import perdent aussi cette association. Les comptes des membres ne sont pas supprimés.
 
 Les équipes synchronisées par [SSO d’entreprise ou SCIM](/fr/platform/admin/enterprise-sso) dépendent aussi des règles du fournisseur d’identité. Vérifie cette source avant de faire une modification locale que tu souhaites conserver.

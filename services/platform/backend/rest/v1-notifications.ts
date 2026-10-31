@@ -119,7 +119,7 @@ export function createNotificationRestRoutes(deps: {
       return c.json(
         {
           error:
-            'Notification export requires an organization owner or admin, or the "tale:notifications.export" capability granted by one.',
+            'Notification export requires an organization owner or admin, or the "tale:notifications.export" right granted by one.',
           code: 'ROLE_FORBIDDEN',
         },
         403,

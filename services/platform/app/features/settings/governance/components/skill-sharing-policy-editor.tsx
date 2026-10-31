@@ -47,10 +47,11 @@ const formSchema = z.object({ orgWide: z.enum(ORG_WIDE_AUDIENCE_MODES) });
 
 // =============================================================================
 // Who may share a skill with the whole organization. Owners and admins always
-// may, and so may a member granted `tale:skills.publish` under Competences;
-// sharing with one's own teams is never governed here. Tightening the mode
-// narrows no skill that is already organization-wide. Saved through the
-// settings header's Save/Discard cluster like the page's other editors.
+// may, and so may a member granted `tale:skills.publish` under Rights and
+// qualifications; sharing with one's own teams is never governed here.
+// Tightening the mode narrows no skill that is already organization-wide.
+// Saved through the settings header's Save/Discard cluster like the page's
+// other editors.
 // =============================================================================
 function SkillSharingPolicyEditorContent({
   organizationId,
