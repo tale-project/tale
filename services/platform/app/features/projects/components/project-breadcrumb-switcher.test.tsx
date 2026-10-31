@@ -17,17 +17,24 @@ type ProjectRow = {
 };
 
 let projectsFixture: ProjectRow[] = [];
+let pageIsDone = true;
+/** What the server's name search adds once something is typed (#5194). */
+let searchHits: ProjectRow[] = [];
 let projectsError = false;
 const retryProjects = vi.fn();
+const projectChoices = vi.fn((_organizationId: string, query: string) => ({
+  projects:
+    query === '' ? projectsFixture : [...projectsFixture, ...searchHits],
+  isDone: pageIsDone,
+  isLoading: false,
+  error: projectsError,
+  isRetrying: false,
+  retry: retryProjects,
+}));
 
 vi.mock('../hooks/queries', () => ({
-  useProjects: () => ({
-    projects: projectsFixture,
-    isLoading: false,
-    error: projectsError,
-    isRetrying: false,
-    retry: retryProjects,
-  }),
+  useProjectChoices: (organizationId: string, query: string) =>
+    projectChoices(organizationId, query),
 }));
 
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
@@ -51,6 +58,8 @@ describe('ProjectBreadcrumbSwitcher', () => {
       { _id: CURRENT_ID, name: 'Getting started' },
       { _id: OTHER_ID, name: 'Acme AG' },
     ];
+    pageIsDone = true;
+    searchHits = [];
   });
 
   it('opens a menu of sibling projects from the current name', async () => {
@@ -143,6 +152,94 @@ describe('ProjectBreadcrumbSwitcher', () => {
     await user.click(screen.getByRole('option', { name: 'Getting started' }));
 
     expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  // #5194: the menu reads one page of projects, never all of them; a project
+  // past it is found by the server's name search and picked like any other.
+  it('finds a project past the page by its name and switches to it', async () => {
+    projectsFixture = [
+      { _id: CURRENT_ID, name: 'Getting started' },
+      ...Array.from({ length: 99 }, (_, index) => ({
+        _id: `proj-${index + 1}`,
+        name: `Project ${index + 1}`,
+      })),
+    ];
+    pageIsDone = false;
+    searchHits = [{ _id: 'proj-101', name: 'Project 101' }];
+    const { user } = render(
+      <ProjectBreadcrumbSwitcher
+        organizationId="org-1"
+        projectId={CURRENT_ID}
+        projectName="Getting started"
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', {
+        name: /switch project, current: getting started/i,
+      }),
+    );
+    expect(
+      screen.queryByRole('option', { name: 'Project 101' }),
+    ).not.toBeInTheDocument();
+    await user.type(screen.getByRole('combobox'), 'Project 101');
+
+    expect(projectChoices).toHaveBeenCalledWith('org-1', 'Project 101');
+    await user.click(screen.getByRole('option', { name: 'Project 101' }));
+
+    expect(mockNavigate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: '/dashboard/org-1/projects/proj-101/files',
+      }),
+    );
+  });
+
+  it('offers the current project when it lies past the page', async () => {
+    projectsFixture = [{ _id: OTHER_ID, name: 'Acme AG' }];
+    pageIsDone = false;
+    const { user } = render(
+      <ProjectBreadcrumbSwitcher
+        organizationId="org-1"
+        projectId={CURRENT_ID}
+        projectName="Getting started"
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', {
+        name: /switch project, current: getting started/i,
+      }),
+    );
+    const current = screen.getByRole('option', { name: 'Getting started' });
+    expect(current).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('option', { name: 'Acme AG' })).toHaveAttribute(
+      'aria-selected',
+      'false',
+    );
+
+    await user.click(current);
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it('offers no archived current project once the page holds every project', async () => {
+    projectsFixture = [{ _id: OTHER_ID, name: 'Acme AG' }];
+    const { user } = render(
+      <ProjectBreadcrumbSwitcher
+        organizationId="org-1"
+        projectId={CURRENT_ID}
+        projectName="Getting started"
+      />,
+    );
+
+    await user.click(
+      screen.getByRole('button', {
+        name: /switch project, current: getting started/i,
+      }),
+    );
+    expect(screen.getByRole('option', { name: 'Acme AG' })).toBeInTheDocument();
+    expect(
+      screen.queryByRole('option', { name: 'Getting started' }),
+    ).not.toBeInTheDocument();
   });
 
   it('keeps the current name and offers a retry when the project list fails', () => {

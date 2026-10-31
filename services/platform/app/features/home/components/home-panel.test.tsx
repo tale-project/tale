@@ -80,6 +80,16 @@ const NO_HOLDS = vi.hoisted(() => ({
   data: { orgHeld: false, targetIds: [] as string[] },
 }));
 
+// What Home reads past its page of projects (#5194), steered per test: one
+// project by id answers what `byId` holds for it (still loading if nothing),
+// and the name search answers `choices` for what was typed (the page alone if
+// unset). `asked` lists the ids read.
+const pastPage = vi.hoisted(() => ({
+  byId: {} as Record<string, unknown>,
+  choices: null as ((query: string) => unknown) | null,
+  asked: [] as string[],
+}));
+
 // Every row reads its age once per render: the calls say which rows rendered.
 const ageReads = vi.hoisted(() => ({ current: [] as (number | undefined)[] }));
 vi.mock('../hooks/use-compact-age', async (importOriginal) => {
@@ -109,6 +119,19 @@ vi.mock('@/app/features/chat/data/chat-backend', async (importOriginal) => {
     useProjectPin: () => ({ available: true, setPinned: vi.fn() }),
     useThreadProjectMove: () => ({ available: true, move: vi.fn() }),
     useArchivedThreads: () => ({ status: 'ready', data: [] }),
+    useChatProject: (_organizationId: string, projectId?: string) => {
+      if (projectId === undefined) return { status: 'ready', data: null };
+      pastPage.asked.push(projectId);
+      return pastPage.byId[projectId] ?? { status: 'loading' };
+    },
+    useChatProjectChoices: (_organizationId: string, query: string) =>
+      pastPage.choices?.(query) ?? {
+        status: 'ready',
+        data: {
+          projects: (homeData.current as HomeData).projects,
+          isDone: !(homeData.current as HomeData).moreProjects,
+        },
+      },
   };
 });
 
@@ -193,6 +216,9 @@ function data(overrides: Partial<HomeData> = {}): HomeData {
 beforeEach(() => {
   homeData.current = data();
   location.current = { pathname: '/dashboard/org-1/chat/t1', search: {} };
+  pastPage.byId = {};
+  pastPage.choices = null;
+  pastPage.asked = [];
 });
 
 afterEach(() => {
@@ -204,6 +230,46 @@ function stream() {
   return screen.getByRole('list', {
     name: 'Your chats, tasks and conversations',
   });
+}
+
+// A project past the page of projects Home lists (#5194).
+const APOLLO = { id: 'p9', name: 'Apollo launch', key: 'APL' };
+
+/** `base`, past whose page of projects lies Apollo — and a chat filed in it. */
+function withChatPastPage(base: HomeData): HomeData {
+  return {
+    ...base,
+    moreProjects: true,
+    items: [
+      ...base.items,
+      {
+        kind: 'chat',
+        id: 't9',
+        title: 'Kickoff notes',
+        activityAt: TODAY - 500,
+        unread: false,
+        generating: false,
+        shared: false,
+        projectId: APOLLO.id,
+      },
+    ],
+    threadsById: new Map([
+      ...base.threadsById,
+      [
+        't9',
+        {
+          id: 't9',
+          title: 'Kickoff notes',
+          kind: 'direct',
+          projectId: APOLLO.id,
+          archived: false,
+          createdAt: TODAY,
+          updatedAt: TODAY,
+          generating: false,
+        },
+      ],
+    ]),
+  };
 }
 
 function largeData() {
@@ -497,6 +563,70 @@ describe('HomeNavigator', () => {
     homeData.current = data({ moreProjects: true });
     view.rerender(<HomeNavigator organizationId="org-1" />);
     expect(toggle).toHaveTextContent(/^Projects1\+$/);
+  });
+
+  it("names a chat's project past the page by reading it by id", () => {
+    homeData.current = withChatPastPage(data());
+    pastPage.byId[APOLLO.id] = { status: 'ready', data: APOLLO };
+    render(<HomeNavigator organizationId="org-1" />);
+    expect(
+      within(stream()).getByRole('link', { name: /Kickoff notes/ }),
+    ).toHaveTextContent('Apollo launch');
+    // The page's own project needs no read.
+    expect(new Set(pastPage.asked)).toEqual(new Set([APOLLO.id]));
+  });
+
+  it('reads no project by id while the page holds every project', () => {
+    homeData.current = { ...withChatPastPage(data()), moreProjects: false };
+    render(<HomeNavigator organizationId="org-1" />);
+    // A project the whole list lacks is gone: the chat reads as unfiled.
+    expect(
+      within(stream()).getByRole('link', { name: /Kickoff notes/ }),
+    ).toHaveTextContent(/Chat$/);
+    expect(pastPage.asked).toEqual([]);
+  });
+
+  it('finds a chat by the name of its project past the page', async () => {
+    const home = withChatPastPage(data());
+    homeData.current = home;
+    const pageOnly = {
+      status: 'ready',
+      data: { projects: home.projects, isDone: false },
+    };
+    const found = {
+      status: 'ready',
+      data: { projects: [...home.projects, APOLLO], isDone: false },
+    };
+    pastPage.choices = (query) => (query === 'apollo' ? found : pageOnly);
+    render(<HomeNavigator organizationId="org-1" />);
+
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'apollo' },
+    });
+    await waitFor(() =>
+      expect(
+        within(stream())
+          .getAllByRole('link')
+          .map((link) => link.getAttribute('href')),
+      ).toEqual(['/dashboard/org-1/chat/t9']),
+    );
+  });
+
+  it("keeps the open project's row in the list when it lies past the page", () => {
+    homeData.current = data({ moreProjects: true });
+    pastPage.byId[APOLLO.id] = { status: 'ready', data: APOLLO };
+    location.current = {
+      pathname: `/dashboard/org-1/projects/${APOLLO.id}`,
+      search: {},
+    };
+    render(<HomeNavigator organizationId="org-1" />);
+    const projects = screen.getByRole('region', { name: 'Projects' });
+    const open = within(projects).getByRole('link', { current: 'page' });
+    expect(open).toHaveAttribute('href', '/dashboard/org-1/projects/p9');
+    expect(open).toHaveTextContent('Apollo launch');
+    expect(
+      within(projects).getByRole('link', { name: /Website relaunch/ }),
+    ).toBeInTheDocument();
   });
 
   it('offers New project only to a role that may create one', () => {
@@ -921,12 +1051,12 @@ describe('HomeNavigator on the phone screen', () => {
     });
   });
 
-  function projectRow() {
+  function projectRow(name = 'Website relaunch') {
     return within(screen.getByRole('region', { name: 'Projects' })).getByRole(
       'button',
       // Not the row's "Actions for Website relaunch" menu, which the plain
       // name would also match.
-      { name: /^(?!Actions for).*Website relaunch/ },
+      { name: new RegExp(`^(?!Actions for).*${name}`) },
     );
   }
 
@@ -1004,6 +1134,46 @@ describe('HomeNavigator on the phone screen', () => {
     homeData.current = data({ projects: [] });
     render(<HomeNavigator organizationId="org-1" variant="screen" />);
     expect(screen.queryByText(/^Showing /)).not.toBeInTheDocument();
+  });
+
+  /** A narrowing to Apollo remembered on the Chats view: a project that has
+   * since dropped out of the page Home lists (#5194). */
+  function rememberApollo() {
+    window.localStorage.setItem('home-view-org-1', JSON.stringify('chats'));
+    window.localStorage.setItem('home-scope-org-1', JSON.stringify(APOLLO.id));
+    homeData.current = withChatPastPage(homeData.current as HomeData);
+  }
+
+  it('keeps narrowing to a project past the page while its own read finds it', () => {
+    rememberApollo();
+    pastPage.byId[APOLLO.id] = { status: 'ready', data: APOLLO };
+    render(<HomeNavigator organizationId="org-1" variant="screen" />);
+    // Its row joins the page's, pressed.
+    expect(projectRow('Apollo launch')).toHaveAttribute('aria-pressed', 'true');
+    expect(projectRow()).toHaveAttribute('aria-pressed', 'false');
+    expect(hrefs()).toEqual(['/dashboard/org-1/chat/t9']);
+  });
+
+  it('drops a narrowing past the page once its read finds the project gone, not while that read loads or fails', () => {
+    rememberApollo();
+    const view = render(
+      <HomeNavigator organizationId="org-1" variant="screen" />,
+    );
+    expect(hrefs()).toEqual(['/dashboard/org-1/chat/t9']);
+
+    // A read that failed is no proof the project is gone (#4605).
+    pastPage.byId[APOLLO.id] = { status: 'unavailable' };
+    view.rerender(<HomeNavigator organizationId="org-1" variant="screen" />);
+    expect(hrefs()).toEqual(['/dashboard/org-1/chat/t9']);
+
+    pastPage.byId[APOLLO.id] = { status: 'ready', data: null };
+    view.rerender(<HomeNavigator organizationId="org-1" variant="screen" />);
+    expect(hrefs()).toEqual([
+      '/dashboard/org-1/chat/t1',
+      '/dashboard/org-1/chat/t9',
+      '/dashboard/org-1/chat/t2',
+    ]);
+    expect(projectRow()).toHaveAttribute('aria-pressed', 'false');
   });
 
   it('says which view of the project is empty instead of "nothing yet"', async () => {

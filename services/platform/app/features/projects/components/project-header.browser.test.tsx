@@ -55,7 +55,7 @@ vi.mock('@/app/features/projects/hooks/queries', async (original) => ({
     },
     isLoading: false,
   }),
-  useProjects: () => ({
+  useProjectChoices: () => ({
     projects: [{ _id: 'proj-1', name: 'ui-eval-r2-project-core-renamed' }],
   }),
 }));
