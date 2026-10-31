@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 136 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 137 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -1201,3 +1201,23 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   messages with find-in-page → the find lands in a right-aligned bubble as
   wide as the ones around it, and the message stays where it was found while
   it finishes rendering.
+- [ ] `CHAT-P7` · **A long thread opens at its newest page** — In a chat
+  with one sent message, copy the thread id from the URL and seed 240 more
+  with `docker exec tale-db psql -U tale -d tale_app -c "INSERT INTO
+  app.messages (thread_id, org_id, \"order\", role, parts, text,
+  created_at_ms) SELECT t.id, t.org_id, (SELECT max(m.\"order\") FROM
+  app.messages m WHERE m.thread_id = t.id) + 1 + n, CASE WHEN n % 2 = 0 THEN
+  'user' ELSE 'assistant' END, jsonb_build_array(jsonb_build_object('type',
+  'text', 'text', 'Seeded ' || n)), 'Seeded ' || n, (extract(epoch FROM
+  now()) * 1000)::bigint + n FROM app.threads t, generate_series(0, 239) n
+  WHERE t.id = '<thread id>'"`, then reload it with the Network panel open →
+  One read of its `…/messages`, without `beforeOrder`; the thread opens at
+  **Seeded 239**, with **Show earlier messages** (`chat.showEarlierMessages`)
+  above **Seeded 40**. Scroll up and activate it with the keyboard, in
+  Chromium and in Safari → One read with `beforeOrder` and `beforeStep`; the
+  button reads as busy and keeps the focus, the message you were reading
+  stays where it was while the older ones land above it, and the button is
+  gone once the thread's first message is in. Send a message → `…/messages` is
+  read without `beforeOrder` only, and not again when the reply settles.
+  **Export** (`CHAT-F20`) lists every message of the thread; with **Voice
+  mode** on (`CHAT-F25`), none of the earlier replies is spoken.

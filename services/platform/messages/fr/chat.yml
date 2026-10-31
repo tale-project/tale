@@ -175,6 +175,8 @@ voice:
   voiceOutputStopped: Arrêté
   voiceOutputThreadSaveFailed: Impossible d'enregistrer le paramètre vocal pour ce chat
 notFound: Ce chat n'est pas disponible.
+showEarlierMessages: Afficher les messages précédents
+earlierMessagesFailed: Impossible de charger les messages précédents
 placeholder: Pose une question…
 generationIncomplete: Le modèle n'a renvoyé aucune réponse. Réessaie ou choisis un autre modèle.
 generationIncompleteFiltered: Le filtre de contenu du fournisseur du modèle a retenu cette réponse. Essaie de reformuler ton message.

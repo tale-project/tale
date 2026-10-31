@@ -102,6 +102,8 @@ Dateien kommen nur aus deinem eigenen Gespräch mit. Eine Aufgabe nimmt nur die 
 
 Deine eigenen Nachrichten stehen rechts. Von einer langen siehst du den Anfang; **Weiterlesen** öffnet den Rest an Ort und Stelle, **Weniger anzeigen** klappt ihn wieder zu. Zeige auf eine deiner Nachrichten oder setze den Tastaturfokus hinein, dann siehst du, wann du sie gesendet hast, und findest **Nachricht bearbeiten**: Damit änderst du den Text in einer neuen Version des Gesprächs. Auf einem Touchscreen ist beides immer zu sehen. Unter einer Nachricht, die du bearbeitet hast oder deren Antwort du mit **Erneut versuchen** neu angefordert hast, wechselst du mit **Vorheriger Zweig** und **Nächster Zweig** zwischen den Versionen; die Zahl dazwischen, etwa 2/3, zeigt, welche gerade zu sehen ist.
 
+Ein langes Gespräch öffnet sich bei den neuesten Nachrichten. Um weiter zurückzulesen, wähle **Frühere Nachrichten anzeigen** über der ersten sichtbaren Nachricht; damit lädst du die Nachrichten davor.
+
 Frühere Chats findest du im Bereich [Start](/de/platform#home); die Ansicht **Chats**, das Sprechblasen-Symbol über der Liste, zeigt nur deine Chats. Pinne häufig benötigte Chats, gib ihnen erkennbare Titel oder verschiebe sie in ein Projekt, wenn das Thema längerfristig wird: Zieh sie auf das Projekt oder wähle **In Projekt verschieben…** in ihrem Menü. [Geteilte Chats](/de/platform/chat/shared-threads) erklärt die schreibgeschützte Freigabe für Kollegen.
 
 Sehr lange Gespräche können das Kontextfenster des Modells überschreiten. Tale zeigt einen Hinweis, wenn ältere Nachrichten nicht mehr mitgegeben werden. Wiederhole wichtige Anforderungen oder beginne einen neuen Chat mit den benötigten Quellen, statt die vollständige Historie vorauszusetzen.
