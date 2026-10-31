@@ -179,6 +179,26 @@ before.
   `api.eu.mistral.ai` → Mia's model list offers only Mistral's models, and says that the rule
   left the others out.
 
+### GOV-R23 · With EU/EEA processing on, moderation goes only to an endpoint in the region
+
+The guardrails' moderation provider receives the text it checks, prompts and replies alike, so
+while the rule of GOV-R17 is on, each round holds the provider's endpoint to it: a vendor's EU
+endpoint or a host an admin lists counts, and any other endpoint gets nothing. The round fails
+with a step error of its own class (`eu_processing`), which the fail behaviour answers like a
+provider fault: fail-open lets the message through unchecked, fail-closed refuses it. The refusal
+never opens the provider's circuit, is written to the audit log once per chat turn or model API
+request, and Test connection answers it with the same sentence. Saving the provider with such an
+endpoint while the rule is on is refused with a sentence that names the vendor's EU endpoint, or
+says to list the host first (`MODERATION_ENDPOINT_OUTSIDE_EU`). While the policy cannot be read,
+every round is refused, but a save is not. With the rule off, or the provider off, nothing
+changes.
+
+- **Example**: The rule is on, the moderation provider points at `api.openai.com`, and input
+  moderation fails closed → Mia's message is refused, nothing reaches OpenAI, and the audit log
+  records the refusal.
+- **Example**: The rule is on, and Ada saves the moderation provider with `api.openai.com` →
+  the save is refused with a sentence that names `eu.api.openai.com`.
+
 ## Policies
 
 ### GOV-R10 · A member can read only the policies meant for every member
@@ -275,8 +295,7 @@ rights.
   (`moderation.ts`).
 - **The EU/EEA rule beyond the calls GOV-R17 names**: the vision model setting still offers
   every model, whatever its endpoint; a coding agent's model traffic in a sandbox, through the
-  model gateway or a subscription, is not held to the rule; nor is the guardrails' moderation
-  endpoint.
+  model gateway or a subscription, is not held to the rule.
 - **API keys**: creating, listing and revoking one (`api-keys.ts`).
 - **The usage pages** and their figures (`usage-metrics.ts`).
 - **Legacy voice reservations**: previous writers left no saved price or project stamp. `NULL`
