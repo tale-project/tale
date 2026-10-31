@@ -92,6 +92,9 @@ const AGENT_RETRY_ONLY_CODES: Record<
   // Refused while the run's workspace was being destroyed: a refused start,
   // as it read before the code was named.
   sandbox_destroying: 'start_failed',
+  // The EU/EEA rule refused the model's endpoint before anything launched:
+  // a refused start; the run's detail says why.
+  endpoint_refused: 'start_failed',
 };
 
 const AGENT_RETRY_ONLY_CODE_MAP: ReadonlyMap<string, RunFailureCode> = new Map(

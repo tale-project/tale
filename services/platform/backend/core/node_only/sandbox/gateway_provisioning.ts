@@ -33,6 +33,12 @@
  * ago (GatewayReuseOptions). A refusal says which side it came from —
  * `gatewayProvisioningFailureStage` — so the caller can tell the person
  * whether the credential or the gateway needs attention.
+ *
+ * The organization's EU/EEA processing rule (GOV-R17) is the one governance
+ * this module adds: with it on, every record the key would bind to is judged
+ * by the upstream it really calls before any credential resolves or anything
+ * reaches the gateway, and a refused one throws the gate's audited
+ * `ModelEndpointRefusal`.
  */
 
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
@@ -40,6 +46,14 @@ import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 import { AppError } from '../../../../lib/shared/errors/app-error';
 import { isRecord } from '../../../../lib/utils/type-utils';
 import { traceSandboxPhase } from '../../../tracing';
+import {
+  gatewayModelRefusal,
+  readModelEndpointPolicy,
+  refuseModelEndpoint,
+  type ModelEndpointActor,
+  type ModelEndpointPolicy,
+  type ModelEndpointSurface,
+} from '../../governance/model_endpoint_gate';
 import type { ActionCtx } from '../../lib/ctx';
 import { internal } from '../../lib/handler_names';
 import { getProviderCatalog } from '../../lib/providers/catalog_fetch';
@@ -289,9 +303,13 @@ export interface SessionGatewayArgs {
   organizationId: string;
   sessionId: string;
   /** Models the session may call; their union defines which providers get
-   * provisioned. Already filtered by org availability — this module adds no
-   * governance of its own. */
+   * provisioned. Already filtered by org availability — the only rule this
+   * module applies to them is the EU/EEA one. */
   allowedModels: AllowedModelRef[];
+  /** What the key serves, and for whom — the audit entry of a call the
+   * EU/EEA rule refuses names both. */
+  surface: ModelEndpointSurface;
+  actor?: ModelEndpointActor;
   /** Explicit credential per provider slug; absent slugs use the org
    * default. */
   credentialIds?: Partial<Record<string, Id<'providerCredentials'>>>;
@@ -322,6 +340,45 @@ export interface SessionGatewayKey {
 }
 
 /**
+ * The EU/EEA rule (GOV-R17) on every model the key may call, judged by the
+ * record the mint binds it to ({@link gatewayModelRefusal}) — whether or not
+ * this call provisions that record, since the mint falls back to the org's
+ * record of an earlier provision. The first refused model is audited and
+ * thrown; a connector nobody defines is left to the provision, which refuses
+ * it.
+ */
+async function assertRecordsAllowed(
+  ctx: ActionCtx,
+  args: SessionGatewayArgs,
+  policy: ModelEndpointPolicy,
+): Promise<void> {
+  const connectors = await resolveProvidersForOrgId(ctx, args.organizationId);
+  for (const ref of args.allowedModels) {
+    const connector = connectors.find(
+      (entry) => entry.name === ref.providerSlug,
+    );
+    if (!connector) continue;
+    const refusal = gatewayModelRefusal(
+      policy,
+      connector,
+      ref.anthropicHarnessLane === true,
+    );
+    if (refusal === undefined) continue;
+    await refuseModelEndpoint(
+      ctx,
+      {
+        organizationId: args.organizationId,
+        surface: args.surface,
+        providerName: ref.providerSlug,
+        modelId: ref.modelId,
+        ...(args.actor !== undefined ? { actor: args.actor } : {}),
+      },
+      refusal,
+    );
+  }
+}
+
+/**
  * Provision + mint for one sandbox session, or for one request-scoped key
  * (`requestScoped`). FAIL-CLOSED end to end: every provider the session's
  * models need must resolve to a live credential NOW, or nothing is minted.
@@ -332,7 +389,9 @@ export interface SessionGatewayKey {
  * auth-posture apply is fail-closed for the same reason — swallowing its
  * failure could leave the gateway accepting un-keyed or model-unrestricted
  * inference, defeating the whole per-session key model. What it throws
- * tells its stage through `gatewayProvisioningFailureStage`.
+ * tells its stage through `gatewayProvisioningFailureStage` — except a
+ * record the EU/EEA rule refuses, which throws the gate's audited
+ * `ModelEndpointRefusal` before any credential resolves.
  */
 export function provisionSessionGatewayKey(
   ctx: ActionCtx,
@@ -355,6 +414,8 @@ async function provisionSessionGatewayKeyInner(
   const reuse: GatewayReuseOptions = {
     reuseRecent: args.requestScoped === true,
   };
+  const policy = await readModelEndpointPolicy(ctx, args.organizationId);
+  if (policy.kind !== 'open') await assertRecordsAllowed(ctx, args, policy);
 
   // One provision-build per unique connector (one credential resolve each),
   // then expand into the EXACT gateway records the mint will bind to. A
@@ -391,13 +452,16 @@ async function provisionSessionGatewayKeyInner(
     }
     if (base) {
       baseBySlug.set(providerSlug, base);
-    } else if (args.requestScoped === true) {
+    } else if (args.requestScoped === true || policy.kind !== 'open') {
       // A request-scoped key binds only records this call provisioned. The
       // gateway may still hold the org's key from an api-key credential this
       // provider no longer uses — and this process may still remember its
       // id — so minting on regardless would serve the request on a
       // credential the admin replaced. The model endpoints offer only
       // credentials the gateway serves: this one changed under the request.
+      // Under the EU/EEA rule a session key does the same: the rule judged
+      // the upstream the connector names now, and a record kept from an
+      // earlier provision calls the one it named then.
       throw new GatewayProvisioningError(
         'credential',
         `Provider "${providerSlug}" cannot serve this session: its credential cannot be served through the sandbox LLM gateway (a subscription runs only in its vendor's harness, and a per-credential endpoint is not provisioned into the gateway)`,

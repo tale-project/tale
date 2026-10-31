@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { taskRunFailureClass } from '../../../lib/shared/task-run-failure';
+import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import { SkillUnavailableError } from '../skills/skill_unavailable_error';
 import { classifyStartFailure } from './start_failure';
 import { isAutoRetryableFailure } from './task_auto_retry';
@@ -25,6 +27,26 @@ describe('classifyStartFailure', () => {
       'the agent run could not start: the attachments "Afos.xlsx" and "ks.xlsx" are no longer in storage — remove them from the task or upload them again',
     );
     expect(isAutoRetryableFailure(settled.failureCode)).toBe(false);
+  });
+
+  it('settles a model the EU/EEA rule refuses as the agent’s setup, in the refusal’s own sentence, and not retried [GOV-R17]', () => {
+    const message =
+      'This organization processes prompts only in the EU/EEA, and api.anthropic.com is not an endpoint known to process there, so the call was not sent.';
+    const settled = classifyStartFailure(
+      new ModelEndpointRefusal({
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        message,
+        provider: 'anthropic',
+        host: 'api.anthropic.com',
+        reason: 'not-attested',
+      }),
+    );
+    expect(settled).toEqual({
+      reason: `the agent run could not start: ${message}`,
+      failureCode: 'agent_model_missing',
+    });
+    expect(isAutoRetryableFailure(settled.failureCode)).toBe(false);
+    expect(taskRunFailureClass(settled.failureCode)).toBe('setup');
   });
 
   it('keeps every other start error a retried start_failed with its own words', () => {

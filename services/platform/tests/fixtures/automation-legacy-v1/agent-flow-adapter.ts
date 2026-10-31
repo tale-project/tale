@@ -3,6 +3,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 
 import type * as Harness from '../../../backend/core/chat/external_turn_shared.ts';
+import type * as Provisioning from '../../../backend/core/node_only/sandbox/gateway_provisioning.ts';
 import type * as Session from '../../../backend/core/node_only/sandbox/helpers/session_client.ts';
 import type * as Gateway from '../../../backend/core/node_only/sandbox/llm_gateway_admin.ts';
 
@@ -69,15 +70,19 @@ export const ensureAgentSession: typeof import('../../../backend/core/node_only/
     await legacyAgentEvent('session');
     return { liveCreatedAt: undefined };
   };
-export const provisionSessionGatewayKey: typeof import('../../../backend/core/node_only/sandbox/gateway_provisioning.ts').provisionSessionGatewayKey =
-  async () => {
-    await legacyAgentEvent('gateway');
-    return {
-      token: 'synthetic-only',
-      keyId: 'fixture-key',
-      keyHash: 'fixture-hash',
-    };
+/** Takes the released call: the provisioner's arguments before the EU/EEA
+ * rule (GOV-R17) named the surface and actor its refusals audit. */
+export const provisionSessionGatewayKey = async (
+  _ctx: Parameters<typeof Provisioning.provisionSessionGatewayKey>[0],
+  _args: Omit<Provisioning.SessionGatewayArgs, 'surface' | 'actor'>,
+): ReturnType<typeof Provisioning.provisionSessionGatewayKey> => {
+  await legacyAgentEvent('gateway');
+  return {
+    token: 'synthetic-only',
+    keyId: 'fixture-key',
+    keyHash: 'fixture-hash',
   };
+};
 export const sessionDeleteFiles: typeof Session.sessionDeleteFiles = refuse;
 export const sessionStageFiles: typeof Session.sessionStageFiles = refuse;
 export const stageUrlForBlobRef: typeof import('../../../backend/core/node_only/sandbox/helpers/stage_url.ts').stageUrlForBlobRef =

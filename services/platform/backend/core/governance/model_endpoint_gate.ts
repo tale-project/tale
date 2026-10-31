@@ -25,6 +25,7 @@ import {
   euProcessingHostsOf,
   type ModelAccessConfig,
 } from '@tale/shared/schemas/governance';
+import type { ProviderDefinition } from '@tale/shared/schemas/providers';
 import { z } from 'zod';
 
 import {
@@ -33,6 +34,7 @@ import {
   vendorEuEndpoint,
 } from '../../../lib/chat/serving.ts';
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
+import { isStandardGatewayProvider } from '../../../lib/shared/providers/gateway_standard_providers.ts';
 import type { ActionCtx } from '../lib/ctx.ts';
 import { internal } from '../lib/handler_names.ts';
 
@@ -310,11 +312,35 @@ export function withoutRefusedModels<T>(
     : { kept, hiddenBy: policy.kind };
 }
 
+/** {@link modelEndpointRefusal} for a model the sandbox's model gateway
+ * serves, judged by the record the gateway calls it through
+ * (`resolveGatewayRouting`): a standard gateway provider's shared record
+ * rides the built-in connection ({@link gatewayBuiltinRefusal}), but on the
+ * Anthropic harness lane; every other record calls the connector's own
+ * endpoint, on that lane its native Anthropic endpoint when it declares one,
+ * else its base URL. So OpenRouter passes only on a record pointed at
+ * eu.openrouter.ai. */
+export function gatewayModelRefusal(
+  policy: ModelEndpointPolicy,
+  connector: Pick<ProviderDefinition, 'name' | 'baseUrl' | 'harnessEndpoint'>,
+  anthropicHarnessLane = false,
+): ModelEndpointRefusalData | undefined {
+  if (isStandardGatewayProvider(connector.name) && !anthropicHarnessLane) {
+    return gatewayBuiltinRefusal(policy, connector.name);
+  }
+  return modelEndpointRefusal(policy, {
+    providerName: connector.name,
+    baseUrl:
+      (anthropicHarnessLane ? connector.harnessEndpoint?.baseUrl : undefined) ??
+      connector.baseUrl,
+  });
+}
+
 /** Audit the refusal, then throw it. The entry is best effort: a write that
  * fails is logged and never turns the refusal into a call. */
 export async function refuseModelEndpoint(
   ctx: ActionCtx,
-  call: ModelEndpointCall,
+  call: Omit<ModelEndpointCall, 'baseUrl'>,
   refusal: ModelEndpointRefusalData,
 ): Promise<never> {
   try {
