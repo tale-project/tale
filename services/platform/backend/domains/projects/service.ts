@@ -3190,6 +3190,62 @@ export async function readableProjectsAmong(
   return new Set(rows.map((row) => row.id));
 }
 
+/**
+ * The project a create that names none falls back to: the newest active
+ * project open to the whole organization the caller reads, else the newest
+ * one it reads. One row through {@link readableProjectsSql}, never the whole
+ * list; null when the caller reads no active project.
+ */
+export async function fallbackProjectId(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+): Promise<string | null> {
+  const rows = await sql<{ id: string }[]>`
+    SELECT p.id FROM app.projects p
+    JOIN ${readableProjectsSql(sql, auth)} rp ON rp.project_id = p.id
+    ORDER BY cardinality(${sql.unsafe(PROJECT_TEAM_IDS_SQL)}) = 0 DESC,
+      p.updated_at_ms DESC, p.id DESC
+    LIMIT 1
+  `;
+  return rows[0]?.id ?? null;
+}
+
+/**
+ * How the active projects a caller reads stand for agents, for the chat's
+ * hand-over note: the newest `named` of those with an agent, by name, how
+ * many have one and how many have none. One statement through
+ * {@link readableProjectsSql}: the names are a bounded page and the rest are
+ * counts, never the whole list.
+ */
+export async function readProjectAgentCoverage(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  named: number,
+): Promise<{ named: string[]; withAgents: number; withoutAgents: number }> {
+  const rows = await sql<
+    { named: string[]; withAgents: number; withoutAgents: number }[]
+  >`
+    SELECT
+      ARRAY(
+        SELECT p.name FROM app.projects p
+        JOIN ${readableProjectsSql(sql, auth)} rp ON rp.project_id = p.id
+        WHERE p.project_agent_count > 0
+        ORDER BY p.updated_at_ms DESC, p.id DESC
+        LIMIT ${named}
+      ) AS named,
+      (count(*) FILTER (WHERE p.project_agent_count > 0))::int AS "withAgents",
+      (count(*) FILTER (WHERE p.project_agent_count = 0))::int AS "withoutAgents"
+    FROM app.projects p
+    JOIN ${readableProjectsSql(sql, auth)} rp ON rp.project_id = p.id
+  `;
+  const row = rows[0];
+  return {
+    named: row?.named ?? [],
+    withAgents: row?.withAgents ?? 0,
+    withoutAgents: row?.withoutAgents ?? 0,
+  };
+}
+
 /** Every project visible to the caller (admins: all; else org-wide + team). */
 export async function listProjects(
   sql: Sql,
