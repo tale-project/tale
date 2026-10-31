@@ -60,6 +60,10 @@ function errorMessageKey(code: string) {
       return 'transcriptionModel.invalidPolicy';
     case 'TRANSCRIPTION_MODEL_POLICY_UNAVAILABLE':
       return 'transcriptionModel.policyUnavailable';
+    case 'MODEL_ENDPOINT_OUTSIDE_EU':
+      return 'transcriptionModel.outsideEu';
+    case 'MODEL_ENDPOINT_POLICY_UNREADABLE':
+      return 'transcriptionModel.endpointPolicyUnreadable';
     default:
       return 'transcriptionModel.resolutionFailed';
   }

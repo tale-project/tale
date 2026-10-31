@@ -347,6 +347,11 @@ runtime:
       explanation: Der Anbieter des Modells hat den Aufruf abgelehnt oder ist dabei fehlgeschlagen.
       cause: '{modelLabel, select, none {Es geschah beim Aufruf des Modells des Schritts.} other {Es geschah beim Aufruf von {modelLabel}.}}'
       fix: Führe den Lauf erneut aus; wenn es wieder passiert, wähle ein anderes Modell.
+    LLM_ENDPOINT_REFUSED:
+      title: Die Modellzugriffsrichtlinie hat den Schritt gestoppt
+      explanation: Nach der EU/EWR-Regel der Organisation geht ein Modellaufruf nur an einen Endpunkt, der Prompts dort verarbeitet, und solange die Modellzugriffsrichtlinie nicht lesbar ist, geht gar keiner hinaus.
+      cause: Die Richtlinie hat das Modell des Schritts abgelehnt, bevor der Prompt gesendet wurde.
+      fix: Wähle ein Modell, dessen Anbieter Prompts in der EU/im EWR verarbeitet, oder bitte deine Administration, es über einen Anbieter bereitzustellen, dessen Endpunkt dort verarbeitet. Die technischen Details nennen den Grund der Ablehnung.
     AGENT_FAILED:
       title: Der Agent ist fehlgeschlagen
       explanation: Der Coding-Agent konnte seinen Durchlauf nicht beenden.

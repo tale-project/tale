@@ -5,8 +5,15 @@ import OpenAI from 'openai';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  ModelEndpointRefusal,
+  modelEndpointRefusal,
+} from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
-import { WEBSITE_EMBEDDING_FAILED_PREFIX } from '../websites/scan_scheduling';
+import {
+  parseWebsiteEmbeddingFailure,
+  WEBSITE_EMBEDDING_FAILED_PREFIX,
+} from '../websites/scan_scheduling';
 import { readOrgEmbeddingConfig } from './connection';
 import { PageIndexer, type StoreOutcome, storePageText } from './crawl_action';
 import { EmbeddingDimensionMismatch } from './dimensions';
@@ -396,6 +403,30 @@ describe('PageIndexer.indexPage — the embedding provider fails', () => {
     ).rejects.toThrow(
       `${WEBSITE_EMBEDDING_FAILED_PREFIX} [unresolved]: The credential "OpenRouter" is disabled.`,
     );
+  });
+
+  // The organization's EU/EEA rule refused the model's endpoint before a page
+  // was sent. Its sentence names the cause and the fix, so the reason carries
+  // it without a class, and the site reads it back whole (GOV-R17).
+  it('ends the scan under the EU/EEA rule’s sentence when the rule refuses the endpoint [GOV-R17]', async () => {
+    const data = modelEndpointRefusal(
+      { kind: 'eu', attestedHosts: [] },
+      { providerName: 'openai', baseUrl: 'https://api.openai.com/v1' },
+    );
+    if (data === undefined) throw new Error('expected a refusal');
+    vi.mocked(readOrgEmbeddingConfig).mockResolvedValue(null);
+    vi.mocked(embedderForOrg).mockRejectedValue(new ModelEndpointRefusal(data));
+    const indexer = new PageIndexer(ctx, storedPage().sql, identity);
+    const reason = await indexer.indexPage('https://ruler.example/about').then(
+      () => 'indexed',
+      (error: unknown) =>
+        error instanceof Error ? error.message : String(error),
+    );
+    expect(reason).toBe(`${WEBSITE_EMBEDDING_FAILED_PREFIX}: ${data.message}`);
+    expect(parseWebsiteEmbeddingFailure(reason)).toEqual({
+      failureClass: null,
+      sentence: data.message,
+    });
   });
 
   // The provider's per-minute limit, outlasting every retry: its own class,

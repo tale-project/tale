@@ -194,7 +194,7 @@ function segmentSentences(
  * `CONTENTION` for rate-limiter shard OCC), the chunker re-invokes
  * `synthesizeChunk` up to `MAX_TTS_RETRIES_PER_CHUNK` times with jittered
  * exponential backoff. Terminal codes (NO_PROVIDER, UNKNOWN_*,
- * BUDGET_EXCEEDED, MESSAGE_CHAR_LIMIT, HOST_POLICY, PROVIDER_4XX,
+ * BUDGET_EXCEEDED, MESSAGE_CHAR_LIMIT, HOST_POLICY, REGION_POLICY, PROVIDER_4XX,
  * PROVIDER_5XX, TIMEOUT, PROVIDER_ERROR) are surfaced via the indicator —
  * playback is provider-only, there is no browser-TTS fallback.
  */
@@ -457,7 +457,7 @@ export function useVoiceOutputChunker(opts: {
             // Non-retryable, or retry budget exhausted. Without surfacing
             // through the error sink the indicator would silently drop —
             // pre-reservation failures (NO_PROVIDER, UNKNOWN_PROVIDER,
-            // UNKNOWN_MODEL, UNKNOWN_VOICE, HOST_POLICY) resolve with
+            // UNKNOWN_MODEL, UNKNOWN_VOICE, HOST_POLICY, REGION_POLICY) resolve with
             // `{status:'failed', errorCode}` and never throw, so the
             // `.catch` below never fires for them. Routing here lets
             // `errorMessageForCode()` render an actionable message

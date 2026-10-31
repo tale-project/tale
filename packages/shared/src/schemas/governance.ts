@@ -781,13 +781,50 @@ export const modelApiSettingsSchema = z.object({
 });
 export type ModelApiSettings = z.infer<typeof modelApiSettingsSchema>;
 
+/** Hosts an admin may attest as processing in the EU/EEA — a short list. */
+export const EU_PROCESSING_HOSTS_MAX = 100;
+
+/**
+ * A host as `new URL(…).hostname` gives it: lowercase DNS labels or an IPv4
+ * address, or a bracketed IPv6 literal — no scheme, port, path or wildcard,
+ * so an attestation names exactly one endpoint.
+ */
+const ENDPOINT_HOST_RE =
+  /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*|\[[0-9a-f:.]+\])$/;
+
+export function isEndpointHost(value: string): boolean {
+  return value.length <= 253 && ENDPOINT_HOST_RE.test(value);
+}
+
+const endpointHostSchema = z.string().max(253).refine(isEndpointHost, {
+  message:
+    'a host name such as my-resource.openai.azure.com (lowercase, no scheme, port or path)',
+});
+
+/**
+ * Process prompts only in the EU/EEA. On, every model call must go to an
+ * endpoint known to process in the region, or it is refused before any
+ * request leaves: the EU endpoints of the vendors Tale knows
+ * (`lib/chat/serving.ts`), plus the `hosts` an admin attests — a custom
+ * provider's server or an Azure resource deployed in an EU/EEA region. Off
+ * unless an admin turns it on: an absent object, like an absent file, reads
+ * as off. Like the model endpoints switch it is independent of the rules'
+ * own `enabled`.
+ */
+export const euProcessingSettingsSchema = z.object({
+  enabled: z.boolean(),
+  hosts: z.array(endpointHostSchema).max(EU_PROCESSING_HOSTS_MAX).optional(),
+});
+export type EuProcessingSettings = z.infer<typeof euProcessingSettingsSchema>;
+
 export const storedModelAccessConfigSchema = z.object({
-  /** Whether the allow and block `rules` bind — the door's switch below is
-   * independent of it. */
+  /** Whether the allow and block `rules` bind — the door's switch and the
+   * EU/EEA processing rule below are independent of it. */
   enabled: z.boolean(),
   mode: z.enum(['allowlist', 'blocklist']),
   rules: z.array(storedModelAccessRuleSchema),
   modelApi: modelApiSettingsSchema.optional(),
+  euProcessing: euProcessingSettingsSchema.optional(),
 });
 export const modelAccessConfigSchema = storedModelAccessConfigSchema.extend({
   rules: z.array(modelAccessRuleSchema),
@@ -798,6 +835,16 @@ export type ModelAccessConfig = z.infer<typeof modelAccessConfigSchema>;
  * access policy — absent policy, absent switch and `false` all read as off. */
 export function modelApiEnabledOf(config: ModelAccessConfig | null): boolean {
   return config?.modelApi?.enabled === true;
+}
+
+/** The hosts attested as processing in the EU/EEA when a stored model access
+ * policy restricts model calls to the region, or `null` when it does not —
+ * absent policy, absent switch and `false` all read as off. */
+export function euProcessingHostsOf(
+  config: ModelAccessConfig | null,
+): readonly string[] | null {
+  if (config?.euProcessing?.enabled !== true) return null;
+  return [...new Set(config.euProcessing.hosts ?? [])].sort();
 }
 
 export const DEFAULT_LOGIN_BACKOFF_MS = [1_000, 10_000, 60_000, 600_000];
