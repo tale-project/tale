@@ -50,7 +50,8 @@ function threadRows(rows: Record<string, unknown>[]): ThreadRow[] {
   });
 }
 
-/** `GET /api/app/chat/threads?orgId=` — the panel's list. */
+/** `GET /api/app/chat/threads?orgId=` — the first page of the panel's list,
+ * pinned chats first, then the newest activity. */
 export async function listThreads(
   api: ApiClient,
   orgId: string,
@@ -61,7 +62,7 @@ export async function listThreads(
     query: orgQuery(orgId),
     name: 'GET /api/app/chat/threads',
   });
-  return mapResult(result, (body) => threadRows(rowsOf(body, 'threads')));
+  return mapResult(result, (body) => threadRows(rowsOf(body, 'page')));
 }
 
 /** `GET /api/app/chat/threads/search?q=&orgId=`. */

@@ -7,9 +7,9 @@ and a share link give and take, what a message is refused for, that a chat answe
 at a time, what stopping, editing and trying again guarantee, what Arena Mode promises, what a
 delete takes with it, what the REST API can and cannot do, what makes a message wait for its
 attachments and what the assistant knows of them, what the assistant may make and where it
-lands, and how it reads a web page behind a site's bot protection. The rest of attachments, the
-assistant's search, usage booking, title generation and harness-backed chats are not covered;
-see Not yet.
+lands, how the chat list arrives, and how it reads a web page behind a site's bot protection.
+The rest of attachments, the assistant's search, usage booking, title generation and
+harness-backed chats are not covered; see Not yet.
 
 ## Who can see a chat
 
@@ -660,6 +660,24 @@ changes nothing. Anyone else is refused.
 - **Example**: Jonas's organization processes prompts only in the EU/EEA, and its image model's
   endpoint is not known to process there → Images is unavailable, and says that this is why.
 - **Example**: Mia, a Member, asks for the status → the request is refused with 403.
+
+## The chat list
+
+The list beside a chat and on Home holds the person's own chats that are neither archived nor in
+the trash, each conversation once however many versions it has. It arrives a page at a time as
+the person scrolls.
+
+### CHAT-R37 · The chat list answers one page at a time, pinned chats first
+
+The pinned chats come first, the most recently pinned first, then the others, the most recently
+active first. Each page names where the next one starts, so a walk from page to page shows every
+chat once, even where two chats were pinned or active in the same instant. A page holds 50 chats
+unless the request asks for between 1 and 100; another size, or a next-page token the list never
+gave, is refused (400). Each chat on a page says whether a reply is being written in it.
+
+- **Example**: Mia has 60 chats, 2 of them pinned → the first page holds her 2 pinned chats and
+  her 48 most recently active ones; scrolling on brings the other 10, none twice and none
+  missing.
 
 ## Reading a web page
 

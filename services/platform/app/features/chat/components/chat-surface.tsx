@@ -289,8 +289,9 @@ function ChatSurfaceInner({
   const threads = useChatThreads(organizationId);
 
   // Landing on /chat without an explicit fresh intent resumes the caller's
-  // most recent thread. Fresh stays for `?new=1`, project new-chat, and when
-  // there is nothing to resume.
+  // most recent thread among the pages of the list loaded so far. Fresh
+  // stays for `?new=1`, project new-chat, and when there is nothing to
+  // resume.
   useEffect(() => {
     if (threadId !== undefined || startFresh) return;
     if (threads.status !== 'ready') return;
@@ -310,11 +311,26 @@ function ChatSurfaceInner({
     openThread.status !== 'ready' ||
     openThread.data === null ||
     openThread.data.viewerIsOwner !== false;
-  // The thread being viewed, once the list has answered.
-  const activeThread =
+  // The thread being viewed, with the owner's row actions: its row on the
+  // pages of the list loaded so far, or — for one of the caller's own chats
+  // on a page not loaded yet — the thread's own read. A chat the list never
+  // holds (an archived one, or a teammate's shared into a project) gets
+  // none. The id check skips the last thread's answer, held while the new
+  // one loads.
+  const listedThread =
     threadId !== undefined && threads.status === 'ready'
       ? threads.data.find((thread) => thread.id === threadId)
       : undefined;
+  const activeThread =
+    listedThread ??
+    (threadId !== undefined &&
+    openThread.status === 'ready' &&
+    openThread.data !== null &&
+    openThread.data.id === threadId &&
+    openThread.data.viewerIsOwner !== false &&
+    !openThread.data.archived
+      ? openThread.data
+      : undefined);
   // The reads only the chat's owner may make — its versions, arena pair,
   // live lane, parked sends, video links and ratings — wait until the caller
   // is KNOWN to own it: their own list holds it, or its summary says so. A
@@ -459,9 +475,9 @@ function ChatSurfaceInner({
   const { data: currentUser } = useCurrentUser();
   const draftKey = chatDraftKey(currentUser?.userId, organizationId, threadId);
 
-  // What the header names: the list's row, or — for a chat the list does not
-  // hold (an archived one, or a teammate's shared into a project) — the
-  // thread's own read. The owner's row actions still key off `activeThread`.
+  // What the header names: `activeThread`, or the thread's own read for a
+  // chat the list never holds. The owner's row actions key off
+  // `activeThread` alone.
   const headerThread =
     activeThread ??
     (openThread.status === 'ready' && openThread.data !== null

@@ -78,6 +78,7 @@ export interface HomeRowPlacement {
   readonly measureRef: (node: HTMLLIElement | null) => void;
   readonly index: number;
   readonly position: number;
+  /** The whole list's row count, or -1 while more rows can load. */
   readonly size: number;
   readonly onFocusWithin: (key: string, within: boolean) => void;
 }
@@ -99,6 +100,7 @@ export function HomeStream({
   ariaLabel,
   scrollElement,
   activeKey,
+  sizeUnknown = false,
 }: {
   groups: readonly HomeGroup[];
   /** The provisional row of a fresh chat, leading the stream. */
@@ -109,6 +111,9 @@ export function HomeStream({
   scrollElement: HTMLElement | null;
   /** The open row's key: kept mounted, with its neighbours. */
   activeKey: string | null;
+  /** More rows can still load past the last one, so no row claims to know
+   * the stream's length. */
+  sizeUnknown?: boolean;
 }) {
   const { t } = useT('home');
   const { draggedThreadId } = useThreadDndState();
@@ -144,6 +149,7 @@ export function HomeStream({
       activeKey={activeKey}
       draggedKey={draggedKey}
       revealActive
+      sizeUnknown={sizeUnknown}
     />
   );
 }
@@ -164,6 +170,7 @@ export function HomeWindowedList<T>({
   rowGap = ROW_GAP,
   measurementsPaused = false,
   revealActive = false,
+  sizeUnknown = false,
   className,
 }: {
   entries: readonly HomeListEntry<T>[];
@@ -180,6 +187,9 @@ export function HomeWindowedList<T>({
   /** Reveal the open work item once; subsequent live reads leave the reader
    * where they scrolled. Projects keep their existing independent position. */
   revealActive?: boolean;
+  /** More rows can still load past the last one: each row's `aria-setsize`
+   * reads -1, the length being unknown. */
+  sizeUnknown?: boolean;
   className?: string;
 }) {
   const [listElement, setListElement] = useState<HTMLElement | null>(null);
@@ -198,6 +208,7 @@ export function HomeWindowedList<T>({
     () => new Map(entries.map((entry, index) => [entry.key, index])),
     [entries],
   );
+  const setSize = sizeUnknown ? -1 : rowIndexes.length;
 
   const [focusedKey, setFocusedKey] = useState<string | null>(null);
   const [pendingFocusKey, setPendingFocusKey] = useState<string | null>(null);
@@ -294,6 +305,7 @@ export function HomeWindowedList<T>({
   const placements = useStablePlacements(
     entries,
     rowIndexes,
+    setSize,
     virtualizer,
     onFocusWithin,
   );
@@ -451,7 +463,7 @@ export function HomeWindowedList<T>({
             data-index={virtualItem.index}
             ref={virtualizer.measureElement}
             aria-posinset={placements.get(entry.key)?.position}
-            aria-setsize={rowIndexes.length}
+            aria-setsize={setSize}
             onFocus={() => onFocusWithin(entry.key, true)}
             onBlur={(event) => {
               const next = event.relatedTarget;
@@ -512,6 +524,7 @@ function Spacer({ height }: { height: number }) {
 function useStablePlacements<T>(
   entries: readonly HomeListEntry<T>[],
   rowIndexes: readonly number[],
+  setSize: number,
   virtualizer: Virtualizer<HTMLElement, HTMLLIElement>,
   onFocusWithin: (key: string, within: boolean) => void,
 ): ReadonlyMap<string, HomeRowPlacement> {
@@ -528,20 +541,20 @@ function useStablePlacements<T>(
         cached?.measureRef === measureElement &&
           cached.index === index &&
           cached.position === position + 1 &&
-          cached.size === rowIndexes.length &&
+          cached.size === setSize &&
           cached.onFocusWithin === onFocusWithin
           ? cached
           : {
               measureRef: measureElement,
               index,
               position: position + 1,
-              size: rowIndexes.length,
+              size: setSize,
               onFocusWithin,
             },
       );
     });
     return map;
-  }, [entries, rowIndexes, measureElement, onFocusWithin]);
+  }, [entries, rowIndexes, setSize, measureElement, onFocusWithin]);
   useLayoutEffect(() => {
     previous.current = placements;
   }, [placements]);
