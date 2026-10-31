@@ -110,6 +110,7 @@
     "platform/admin/governance/legal-hold",
     "platform/admin/governance/operations-metrics",
     "platform/admin/governance/policies-and-limits",
+    "platform/admin/governance/rights-and-qualifications",
     "platform/admin/governance/run-code-policy",
     "platform/admin/governance/trash",
     "platform/admin/governance/usage-analytics",

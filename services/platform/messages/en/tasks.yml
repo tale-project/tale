@@ -453,8 +453,8 @@ review:
   needsMyReview: Needs my review
   independentReviewerRequired: Your organization requires an independent
     reviewer — someone else must approve this work.
-  competenceRequired: Approving this review requires a competence you don't
-    hold. Ask an org admin to grant it.
+  competenceRequired: Approving this review requires a qualification you
+    don't hold. Ask an org admin to grant it.
 reviewer:
   none: No reviewer
   assignToMe: Review it myself

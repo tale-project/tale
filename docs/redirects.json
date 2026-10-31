@@ -49,6 +49,7 @@
     "tutorials/editor/delegate-between-agents": "platform/projects/task-automation",
     "tutorials/admin/office-add-in": "platform/connectors/overview",
     "platform/admin/governance/run-code-policy": "self-hosted/operate/security/hardening",
+    "platform/admin/governance/competences": "platform/admin/governance/rights-and-qualifications",
     "self-hosted/install/docker-compose-reference": "develop/compose-files",
     "self-hosted/install/customize-compose": "self-hosted/operate/upgrades",
     "self-hosted/contributing-docker": "develop/contributing-docker",

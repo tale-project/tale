@@ -1755,7 +1755,7 @@ export function buildSpec(): Json {
       summary: 'Read a member’s notifications for one-way mirroring',
       security: sec,
       description:
-        'Organization owners and administrators may export the personal and organization streams of an active, verified member identified by email — and so may any other member an administrator delegated the export to by granting the `tale:notifications.export` capability in the organization’s competence register (organization-scoped, optionally expiring, revocable, and revoked when the membership ends); `GET /api/v1/me` answers `capabilities.notificationExport`. Security visibility follows the recipient’s role. Missing, disabled, unverified or ambiguous recipients return an empty completed page. Walk both streams completely before retracting missing destination rows; failed scans must preserve the previous mirror. This endpoint never marks Tale notifications read. Source ids are stable and org-prefixed; version changes with content or read state. Paths use the same destinations as the Tale bell, relative to the configured browser origin (which may require ZeroTier), never the machine transport URL. Text uses the requested locale or the organization default, with English fallback; titles and bodies are bounded to 500 and 8000 characters.',
+        'Organization owners and administrators may export the personal and organization streams of an active, verified member identified by email — and so may any other member an administrator delegated the export to by granting the `tale:notifications.export` right under the organization’s Rights and qualifications (organization-scoped, optionally expiring, revocable, and revoked when the membership ends); `GET /api/v1/me` answers `capabilities.notificationExport`. Security visibility follows the recipient’s role. Missing, disabled, unverified or ambiguous recipients return an empty completed page. Walk both streams completely before retracting missing destination rows; failed scans must preserve the previous mirror. This endpoint never marks Tale notifications read. Source ids are stable and org-prefixed; version changes with content or read state. Paths use the same destinations as the Tale bell, relative to the configured browser origin (which may require ZeroTier), never the machine transport URL. Text uses the requested locale or the organization default, with English fallback; titles and bodies are bounded to 500 and 8000 characters.',
       parameters: [
         orgSlugHeaderParam,
         ...paginationParams(100, 100),
@@ -1783,7 +1783,7 @@ export function buildSpec(): Json {
       responses: {
         ...standardErrors,
         '403': errorResponse(
-          'The key holder is neither an organization owner or administrator nor holds a live `tale:notifications.export` capability grant (`ROLE_FORBIDDEN`)',
+          'The key holder is neither an organization owner or administrator nor holds a live `tale:notifications.export` right (`ROLE_FORBIDDEN`)',
         ),
         '200': jsonResponse('One page of the recipient’s stream', {
           type: 'object',
@@ -9956,22 +9956,22 @@ curl -H "Authorization: Bearer <api-key>" \\
                 actAs: {
                   ...bool,
                   description:
-                    'True when the key holder may name an `actor` — the verified member a relayed gesture is recorded for — on `POST …/runs/{runId}/asks/{askId}` and `POST …/tasks/{taskId}/review`: an organization owner or administrator by role, or any other member through a live `tale:rest.act-as` capability an administrator granted in the competence register (organization-scoped, optionally expiring, revocable, revoked with the membership); an `actor` sent without it answers 403 `ROLE_FORBIDDEN`',
+                    'True when the key holder may name an `actor` — the verified member a relayed gesture is recorded for — on `POST …/runs/{runId}/asks/{askId}` and `POST …/tasks/{taskId}/review`: an organization owner or administrator by role, or any other member through a live `tale:rest.act-as` right an administrator granted under Rights and qualifications (organization-scoped, optionally expiring, revocable, revoked with the membership); an `actor` sent without it answers 403 `ROLE_FORBIDDEN`',
                 },
                 notificationExport: {
                   ...bool,
                   description:
-                    'True when the key holder may export members’ notifications through `GET /api/v1/notifications/sync` — an organization owner or administrator by role, or any other member through a live `tale:notifications.export` capability an administrator granted in the competence register (organization-scoped, optionally expiring, revocable, revoked with the membership); false there answers 403 `ROLE_FORBIDDEN`',
+                    'True when the key holder may export members’ notifications through `GET /api/v1/notifications/sync` — an organization owner or administrator by role, or any other member through a live `tale:notifications.export` right an administrator granted under Rights and qualifications (organization-scoped, optionally expiring, revocable, revoked with the membership); false there answers 403 `ROLE_FORBIDDEN`',
                 },
                 skillPublish: {
                   ...bool,
                   description:
-                    'True when the key holder may share a skill with the whole organization through `PUT /api/v1/skills/{slug}` — create a `visibility: org` skill, widen one to `org`, or change an `org` skill in place. Every member may while the organization has no skill sharing policy; under one it is Editors and above or owners and administrators only, plus any member holding a live `tale:skills.publish` capability an administrator granted in the competence register. False there answers 403 `SKILL_PUBLISH_FORBIDDEN`; sharing with the key holder’s own teams is unaffected',
+                    'True when the key holder may share a skill with the whole organization through `PUT /api/v1/skills/{slug}` — create a `visibility: org` skill, widen one to `org`, or change an `org` skill in place. Every member may while the organization has no skill sharing policy; under one it is Editors and above or owners and administrators only, plus any member holding a live `tale:skills.publish` right an administrator granted under Rights and qualifications. False there answers 403 `SKILL_PUBLISH_FORBIDDEN`; sharing with the key holder’s own teams is unaffected',
                 },
                 modelApi: {
                   ...bool,
                   description:
-                    'True when the key holder may call the compatible model endpoints (`/api/v1/openai`, `/api/v1/anthropic`): the organization turned them on in its model access policy, and the key holder is an owner, administrator or developer by role, or any other member holding a live `tale:models.api` capability an administrator granted in the competence register. False there answers 403 `MODEL_API_DISABLED` or `MODEL_API_FORBIDDEN`',
+                    'True when the key holder may call the compatible model endpoints (`/api/v1/openai`, `/api/v1/anthropic`): the organization turned them on in its model access policy, and the key holder is an owner, administrator or developer by role, or any other member holding a live `tale:models.api` right an administrator granted under Rights and qualifications. False there answers 403 `MODEL_API_DISABLED` or `MODEL_API_FORBIDDEN`',
                 },
               },
             },

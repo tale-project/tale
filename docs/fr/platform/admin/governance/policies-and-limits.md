@@ -139,11 +139,11 @@ Par défaut, chaque membre peut partager un skill avec toute l’organisation. *
 
 <Frame caption="Gouvernance > Politiques et limites — le partage des skills décide qui peut partager un skill avec toute l’organisation.">
 
-![La section Partage des skills avec Partager les skills avec l'organisation réglé sur Tous les membres, et l’indication que les propriétaires et les admins le peuvent toujours et qu’un membre de plus peut recevoir Publier des skills pour l'organisation dans Compétences.](/images/platform/governance-skill-sharing.webp)
+![La section Partage des skills avec Partager les skills avec l'organisation réglé sur Tous les membres, et l’indication que les propriétaires et les admins le peuvent toujours et qu’un membre de plus peut recevoir le droit Publier des skills pour l'organisation sous Droits et qualifications.](/images/platform/governance-skill-sharing.webp)
 
 </Frame>
 
-Les propriétaires et les admins peuvent toujours partager avec tout le monde. Pour l’autoriser à une personne de plus sans lui donner un rôle plus élevé, attribue-lui **Publier des skills pour l'organisation** dans [Compétences](/fr/platform/admin/governance/competences).
+Les propriétaires et les admins peuvent toujours partager avec tout le monde. Pour l’autoriser à une personne de plus sans lui donner un rôle plus élevé, attribue-lui **Publier des skills pour l'organisation** dans [Droits et qualifications](/fr/platform/admin/governance/rights-and-qualifications).
 
 Les autres membres peuvent toujours créer des skills et les partager avec leurs propres équipes. Ils ne peuvent ni créer un skill pour toute l’organisation, ni étendre l’un des leurs à **Organisation**, ni modifier sur place un skill partagé avec l’organisation. Ils peuvent restreindre un de leurs skills à leurs équipes, avec d’autres modifications dans le même enregistrement, ou le supprimer. La règle s’applique dans l’éditeur de skills, aux téléversements de zip et de dossier, aux paquets d’automatisation qui contiennent des skills et à l’API REST. Chaque refus apparaît dans les [journaux d’audit](/fr/platform/admin/governance/audit-logs) sous **Publication d'un skill refusée**.
 
@@ -151,7 +151,7 @@ Un réglage plus strict ne restreint pas les skills déjà partagés avec l’or
 
 <Note>
 
-Une release de configuration gérée installe ses skills au nom du membre qui la déploie. Avant de choisir un réglage plus strict, vérifie que ce membre peut toujours partager avec tout le monde, par son rôle ou par la compétence ; sinon, la prochaine release qui contient un skill partagé avec l’organisation est refusée.
+Une release de configuration gérée installe ses skills au nom du membre qui la déploie. Avant de choisir un réglage plus strict, vérifie que ce membre peut toujours partager avec tout le monde, par son rôle ou par le droit ; sinon, la prochaine release qui contient un skill partagé avec l’organisation est refusée.
 
 </Note>
 

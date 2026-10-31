@@ -5,7 +5,7 @@
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
 retention), security & monitoring (login / password / 2FA / session), the
-competence register, legal hold, data-subject requests (DSAR), and the read-only surfaces (feedback
+register of rights and qualifications, legal hold, data-subject requests (DSAR), and the read-only surfaces (feedback
 metrics, usage metrics, logs, trash). Most write controls are
 admin/owner-gated. **Restore every toggle you flip** — these are org-wide
 settings. > Mock-LLM mode is fine for everything except F3's actual
@@ -24,7 +24,7 @@ All routes are under `/dashboard/{org}/settings/governance/…`. The bare
 | Content & Models      | `content-models`                          | Default models, Model access, Model endpoints for API keys, Vision model, Image generation, Standard agent, Audio transcription model |
 | Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output, confidentiality notice, skill sharing, conversation routing |
 | Security & Monitoring | `security-monitoring`                     | Login attempt limits, Password policy, Two-factor policy, Session idle timeout              |
-| Competences           | `competences`                             | Competence register: grants (member, competence, status, granted, evidence); **Grant competence**, per-row **Revoke** |
+| Rights and qualifications | `competences`                         | Register of rights and qualifications: grants (member, right or qualification, status, granted, evidence); **Grant right or qualification**, per-row **Revoke** |
 | Guardrails            | `guardrails`                              | Guardrails overview, Custom instructions, Content safety, PII protection, Moderation provider |
 | Logs                  | `logs` (+ `?category=`)                   | Tabs: Audit logs · Sign-in blocks · Activity logs · Error logs; Export CSV/JSON             |
 | Usage                 | `usage`                                   | Read-only org usage metrics (cards + chart + tables)                                        |
@@ -481,26 +481,26 @@ agent.
   returns exactly ONE element and it is `[data-testid="data-table-scrollport"]`
   — the same frame `logs` renders in.
 
-- [ ] `GOV-F22` · **Grant a platform capability** — Add a second account to
+- [ ] `GOV-F22` · **Grant a right** — Add a second account to
   the org with the **Developer** role and mint it an API key. As owner/admin
-  open `competences` → **Grant competence**
+  open `competences` → **Grant right or qualification**
   (`governance.competences.actions.grant`) → **Member** = that account,
-  **Competence** = **Act for another member**
+  **Right or qualification** = **Act for another member**
   (`governance.competences.capabilities.restActAs.label`), **Expires** =
-  **Never**, a line of **Evidence** → **Grant** → toast **Competence granted**
+  **Never**, a line of **Evidence** → **Grant** → toast **Grant added**
   (`governance.competences.toasts.granted`); the row reads **Active** with
   **No expiry** (`governance.competences.statusDetail.noExpiry`), **by** your
   name, and the evidence. `GET /api/v1/me` with the Developer's key now
   answers `capabilities.actAs: true` without any restart.
-- [ ] `GOV-F23` · **Qualification with an expiry** — **Grant competence** →
-  **Competence** = **Qualification** → **Qualification name** `tax-reviewer`
-  → **Expires** = **In 30 days** → **Grant** → the row shows the name alone
-  (no capability label) and **Until** the date 30 days out
-  (`governance.competences.statusDetail.until`); the list stays on **Active**
-  after a reload.
+- [ ] `GOV-F23` · **Qualification with an expiry** — **Grant right or
+  qualification** → **Right or qualification** = **Qualification** →
+  **Qualification name** `tax-reviewer` → **Expires** = **In 30 days** →
+  **Grant** → the row shows the name alone (no label, unlike a right) and
+  **Until** the date 30 days out (`governance.competences.statusDetail.until`);
+  the list stays on **Active** after a reload.
 - [ ] `GOV-F24` · **Revoke and read the history** — On GOV-F22's row press
   **Revoke** (`governance.competences.actions.revoke`) → the dialog names the
-  member and **Act for another member** → **Revoke** → toast **Competence
+  member and **Act for another member** → **Revoke** → toast **Grant
   revoked**; the row leaves the Active list. **Filter** → **Status** →
   **Revoked** shows it with today's date under **Revoked**, and pointing at
   the date reads **Revoked by** your name. **Logs** lists
@@ -510,21 +510,21 @@ agent.
   member a **Qualification** named `removal-check` with **Expires** =
   **Never**, then remove the member from the org (**Members** → row menu →
   remove) → back on `competences` the **Active** view no longer lists the
-  member; **Filter** → **Status** → **Revoked** shows both the capability and
+  member; **Filter** → **Status** → **Revoked** shows both the right and
   `removal-check` as **Former member**, revoked today. Re-add the same e-mail
   → the **Active** view stays empty for them (no grant re-attaches) and
   **Logs** shows a `competence_revoked` line per grant.
-- [ ] `GOV-F74` · **Grant a capability to a team** — With the model
+- [ ] `GOV-F74` · **Grant a right to a team** — With the model
   endpoints on (GOV-F40), take two Members who hold no grant of their own,
   each with an API key minted while they were Developers (GOV-F43's way),
   create a team `Grant check` (SET-F18) and add only the first through **Edit
-  team** (SET-F19). On `competences` → **Grant competence** → **Grant to**
-  (`governance.competences.grantDialog.holderLabel`) = **A team**
+  team** (SET-F19). On `competences` → **Grant right or qualification** →
+  **Grant to** (`governance.competences.grantDialog.holderLabel`) = **A team**
   (`governance.competences.grantDialog.holderOptions.team`) → **Team** =
-  `Grant check`, **Competence** = **Call models over the API**, **Expires** =
-  **Never** → **Grant** → toast **Competence granted**; the row names `Grant
-  check` with the **Team** badge (`governance.competences.teamBadge`) under
-  **Member or team** (`governance.competences.columns.member`). The first
+  `Grant check`, **Right or qualification** = **Call models over the API**,
+  **Expires** = **Never** → **Grant** → toast **Grant added**; the row names
+  `Grant check` with the **Team** badge (`governance.competences.teamBadge`)
+  under **Member or team** (`governance.competences.columns.member`). The first
   Member's key lists models on its next call and `GET /api/v1/me` answers
   `capabilities.modelApi: true`; the second's still answers 403
   `MODEL_API_FORBIDDEN`. **Logs** lists `competence_granted`, and its details
@@ -541,14 +541,14 @@ agent.
   **Revoke** → the dialog reads **The members of Grant check lose "Call
   models over the API" in this organization right away, unless they hold it
   themselves.** (`governance.competences.revokeDialog.descriptionTeam`) →
-  **Revoke** → toast **Competence revoked**; each member's next call answers
+  **Revoke** → toast **Grant revoked**; each member's next call answers
   403 `MODEL_API_FORBIDDEN`, unless a grant of their own lets it through.
   **Filter** → **Status** → **Revoked** lists the row with the team's name
   and the **Team** badge, and pointing at its date reads **Revoked by** your
   name; **Logs** lists `competence_revoked`, its details naming the team.
 - [ ] `GOV-F77` · **Deleting a team revokes its grants** — Grant `Grant
   check` **Call models over the API** again, then **Settings → Teams** → its
-  **Delete** → the confirmation also reads **1 competence granted to this
+  **Delete** → the confirmation also reads **1 right granted to this
   team will be revoked: its members lose it unless they hold it
   themselves.** (`settings.teams.deleteImpact.competenceGrants`); a team
   with no grant shows no such line. Confirm → the former members' next calls
@@ -754,14 +754,15 @@ agent.
 - [ ] `GOV-F69` · **Call models over the API while the endpoints are off** —
   With the **Model endpoints for API keys** switch
   (`governance.modelAccess.modelApi.enabled`) off on `content-models`, open
-  `competences` → **Grant competence** → **Competence** = **Call models over
-  the API** → a warning under the field reads **"Model endpoints are not
-  enabled for this organization. The member can call the models only once
-  they are."** (`governance.competences.grantDialog.modelApiOff.description`)
-  with **Open model access** (`governance.competences.grantDialog.modelApiOff.link`),
-  and **Grant** stays enabled. Choosing another competence takes the warning
-  away; **Open model access** opens `content-models`. Turn the switch on, open
-  the dialog again and choose the same capability → no warning.
+  `competences` → **Grant right or qualification** → **Right or
+  qualification** = **Call models over the API** → a warning under the field
+  reads **"Model endpoints are not enabled for this organization. The member
+  can call the models only once they are."**
+  (`governance.competences.grantDialog.modelApiOff.description`) with **Open
+  model access** (`governance.competences.grantDialog.modelApiOff.link`), and
+  **Grant** stays enabled. Choosing another right or qualification takes the
+  warning away; **Open model access** opens `content-models`. Turn the switch
+  on, open the dialog again and choose the same right → no warning.
 - [ ] `GOV-F44` · **A budget cap refuses a model call in the interface's
   shape** — Save the GOV-F4b rule on a key at **Max requests** 1, spend that
   request with one REST send (`POST /api/v1/threads/{id}/messages`) or one
@@ -1000,25 +1001,26 @@ agent.
   workflow, render and light sandbox limits.
 - [ ] `GOV-B8` · **A second live grant is refused in the form** — Grant
   GOV-F22's member **Act for another member** again → the dialog stays open
-  with **"This member already holds this competence. Revoke the current grant
-  before you grant it again."** (`governance.competences.errors.alreadyGranted`);
-  no second row appears. Picking another competence clears the message.
-- [ ] `GOV-B9` · **The platform namespace is reserved** — **Competence** =
-  **Qualification**, **Qualification name** `tale:anything` → the field
-  reports **"Names starting with "tale:" are reserved for platform
-  capabilities."** (`governance.competences.grantDialog.validation.qualificationReserved`)
+  with **"This member already holds this right or qualification. Revoke the
+  current grant before you grant it again."**
+  (`governance.competences.errors.alreadyGranted`); no second row appears.
+  Picking another right or qualification clears the message.
+- [ ] `GOV-B9` · **The platform namespace is reserved** — **Right or
+  qualification** = **Qualification**, **Qualification name** `tale:anything`
+  → the field reports **"Names starting with "tale:" are reserved for
+  rights."** (`governance.competences.grantDialog.validation.qualificationReserved`)
   and **Grant** stays disabled.
-- [ ] `GOV-B25` · **A team holds no qualification** — **Grant competence**
-  → **Grant to** = **A team** → the **Competence** list offers platform
-  capabilities only, no **Qualification**, and a qualification chosen before
-  the switch is dropped. `POST /api/app/governance/competences` from the
+- [ ] `GOV-B25` · **A team holds no qualification** — **Grant right or
+  qualification** → **Grant to** = **A team** → the **Right or qualification**
+  list offers rights only, no **Qualification**, and a qualification chosen
+  before the switch is dropped. `POST /api/app/governance/competences` from the
   Admin's session with `{"teamId": "<Grant check's id>", "competence":
   "tax-reviewer"}` answers 400 `COMPETENCE_TEAM_CAPABILITY_ONLY`, and no row
   is written.
 - [ ] `GOV-B26` · **A team the identity provider manages is not offered** —
   With a team that shows **Synced** on **Settings → Teams** (SET-F19),
-  **Grant competence** → **Grant to** = **A team** → **Team** lists it
-  disabled, described **Synced from your identity provider**
+  **Grant right or qualification** → **Grant to** = **A team** → **Team**
+  lists it disabled, described **Synced from your identity provider**
   (`governance.competences.grantDialog.teamSynced`), and selecting it leaves
   the field empty. `POST /api/app/governance/competences` with its `teamId`
   answers 409 `COMPETENCE_TEAM_SYNCED`, and with another organization's team
@@ -1200,12 +1202,13 @@ agent.
 - [ ] `GOV-A3` · **Dialogs** → DSAR **File erasure request** and legal-hold
   **Place legal hold** dialogs trap focus; **Close** (`common.aria.close`)
   returns focus to the trigger.
-- [ ] `GOV-A4` · **Competences by keyboard** → Tab to **Grant competence**,
-  open it with Enter, and complete a grant with Tab, arrows and Enter only;
-  each field is announced by its label. Tab to a row's **Revoke** — its name
-  says which competence and member (`governance.competences.actions.revokeFor`)
-  — confirm the revocation, and focus lands on the register region named
-  **Competences**, not on the page body.
+- [ ] `GOV-A4` · **Rights and qualifications by keyboard** → Tab to **Grant
+  right or qualification**, open it with Enter, and complete a grant with
+  Tab, arrows and Enter only; each field is announced by its label. Tab to a
+  row's **Revoke** — its name says which right or qualification and member
+  (`governance.competences.actions.revokeFor`) — confirm the revocation, and
+  focus lands on the register region named **Rights and qualifications**, not
+  on the page body.
 - [ ] `GOV-A5` · **Routing rules by keyboard** → Tab to **Add rule**, open it
   with Enter, and complete a rule with Tab, arrows and Enter only: **Arrives
   on**, **Sent to** and **Route to** are each announced by their label, the

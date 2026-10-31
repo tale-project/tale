@@ -205,7 +205,7 @@ their own action, so a single account cannot generate those rows.
   answers 400 `COMPETENCE_CAPABILITY_UNKNOWN`, and the Developer granting
   itself answers 403 `COMPETENCE_FORBIDDEN`. Remove the Developer from the
   organization and add them back → the export stays 403 until an Admin
-  grants the capability again.
+  grants the right again.
 
 - [ ] `NOTIF-F20` · **A status change names the columns** — In German and in
   French, move a task a member watches from **In progress** to **In review**

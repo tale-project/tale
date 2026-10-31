@@ -256,7 +256,7 @@ export async function agentConsentGate(
     return refuse(
       403,
       'AGENT_CONNECT_FORBIDDEN',
-      'Connecting a coding agent takes the Owner, Admin or Developer role in this organization, or a competence an Admin grants for it.',
+      'Connecting a coding agent takes the Owner, Admin or Developer role in this organization, or a right an Admin grants for it.',
     );
   }
   const allowed =

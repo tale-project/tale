@@ -1,9 +1,9 @@
 title: Zugriff verweigert
 connectors: Du benötigst Admin- oder Entwickler-Berechtigungen, um auf die
   Connector-Einstellungen zuzugreifen.
-apiKeys: Inhaber, Admins und Entwickler können API-Schlüssel nutzen und Coding-Agenten verbinden, ebenso wer von einem Admin eine Kompetenz dafür erhalten hat.
+apiKeys: Inhaber, Admins und Entwickler können API-Schlüssel nutzen und Coding-Agenten verbinden, ebenso wer von einem Admin ein Recht dafür erhalten hat.
 apiTab: Diese Seite ist Inhabern, Admins und Entwicklern vorbehalten.
-apiModels: Die Einrichtung der Modell-Endpunkte ist Inhabern, Admins und Entwicklern vorbehalten und Mitgliedern mit der Kompetenz „Modelle über die API aufrufen“.
+apiModels: Die Einrichtung der Modell-Endpunkte ist Inhabern, Admins und Entwicklern vorbehalten und Mitgliedern mit dem Recht „Modelle über die API aufrufen“.
 apiAgents: 'Verbundene Agenten steht zur Verfügung, sobald sich Coding-Agenten bei dieser Installation anmelden dürfen, und zwar für alle, die einen verbinden dürfen: Inhaber, Admins, Entwickler und Mitglieder, denen ein Admin es erlaubt.'
 organization: Du benötigst Admin-Berechtigungen, um auf die
   Organisationseinstellungen zuzugreifen.

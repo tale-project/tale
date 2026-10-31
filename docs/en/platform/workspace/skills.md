@@ -91,7 +91,7 @@ Narrowing visibility asks for confirmation because some agents may lose access. 
 
 ### Who can share with everyone {#who-can-share-with-everyone}
 
-By default, every member can share a skill with the whole organization. An administrator can reserve this for Editors and above, or for Owners and Admins, under [Skill sharing](/platform/admin/governance/policies-and-limits#skill-sharing), and can let individual members publish with the **Publish skills to the organization** competence. When your organization reserves it and you may not publish:
+By default, every member can share a skill with the whole organization. An administrator can reserve this for Editors and above, or for Owners and Admins, under [Skill sharing](/platform/admin/governance/policies-and-limits#skill-sharing), and can let individual members publish with the **Publish skills to the organization** right. When your organization reserves it and you may not publish:
 
 - **Organization** is unavailable under **Visibility**, and a new skill starts with **Teams**. You can share with your own teams.
 - An organization-wide skill you created cannot be changed in place. Narrow it to your teams, with any other change in the same save, or delete it.

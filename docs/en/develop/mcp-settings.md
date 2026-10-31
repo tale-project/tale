@@ -36,7 +36,7 @@ Some changes stay in Tale:
 - Over MCP, the embedding model itself changes only while the knowledge base holds no document and no website, so that vectors from two models never meet in one search. Its similarity floor and serving limits change at any time; with documents indexed, a person changes the model in Tale.
 - An agent over MCP creates no project, label, project agent or task, and grants no agent its connectors, secrets or skills. A person does that in Tale, or a [managed deployment's declaration](/self-hosted/install/cli-install#configure-the-platform), which also reads agent secrets and connector credentials from its own environment.
 - A project's standard agent follows the `standard_agent` policy, which the `governance` kind changes; its own instructions, tools and model are not settings.
-- No kind covers members, teams, connectors, skills, competences, legal holds, the audit log, metrics or personal settings. `get_settings` without arguments shows what each kind covers.
+- No kind covers members, teams, connectors, skills, rights and qualifications, legal holds, the audit log, metrics or personal settings. `get_settings` without arguments shows what each kind covers.
 
 ## Make a change {#make-a-change}
 
