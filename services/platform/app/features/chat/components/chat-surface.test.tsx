@@ -319,6 +319,8 @@ const LAST_THREAD_PAGE = {
   canLoadMore: false,
   isLoadingMore: false,
   loadMore: () => {},
+  pageFailed: false,
+  retryPage: () => {},
 };
 
 const editBranchActions = {
