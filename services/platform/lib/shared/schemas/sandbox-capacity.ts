@@ -3,11 +3,23 @@ import { z } from 'zod';
 const count = z.number().int().nonnegative();
 const measurement = z.number().nonnegative().nullable();
 
+/** A memory figure the deployment limits carry beside the count. Absent from
+ * older spawners; a malformed one reads as unknown rather than failing the
+ * count it accompanies. */
+const memoryFigure = (bytes: z.ZodNumber) => bytes.optional().catch(undefined);
+
 /** Configured admission ceiling, readable even when runtime observation fails. */
 export const sandboxDeploymentLimitsSchema = z.object({
   maxSessions: z.number().int().positive(),
   /** Slots the organization's connected devices add (their own machines). */
   deviceSessions: z.number().int().nonnegative().optional(),
+  /** The memory limit of one agent session on the deployment. */
+  sessionMemoryBytes: memoryFigure(z.number().int().positive()),
+  /** The Docker host's memory and the reserve its spawner keeps free of
+   * sessions, once the spawner has read the host: with the session limit,
+   * what the spawner's capacity warning weighs `maxSessions` against. */
+  hostMemoryBytes: memoryFigure(z.number().int().positive()),
+  memoryReserveBytes: memoryFigure(z.number().int().nonnegative()),
 });
 
 export type SandboxDeploymentLimits =

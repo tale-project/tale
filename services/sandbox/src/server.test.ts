@@ -54,7 +54,7 @@ test('device spawners observe local resource pressure while preserving their con
   expect(JSON.parse(stdout.trim().split('\n').at(-1) ?? '{}')).toEqual({
     memories: 1,
     disks: 1,
-    limits: { maxSessions: 3 },
+    limits: { maxSessions: 3, sessionMemoryBytes: 4 * 1024 ** 3 },
   });
 });
 
@@ -754,7 +754,11 @@ describe('session HTTP routes', () => {
     );
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
-    expect(await response.json()).toEqual({ maxSessions: 8 });
+    // The host's memory joins it once the probe has read it (after boot).
+    expect(await response.json()).toEqual({
+      maxSessions: 8,
+      sessionMemoryBytes: 4 * 1024 ** 3,
+    });
   });
 
   /** A request signed with the routes' shared secret. */
