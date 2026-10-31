@@ -8,7 +8,11 @@ import {
   useProvidedActorScope,
   type TaskActorScope,
 } from './actor-directory-scope';
-import { useActorDirectory, useAssignableActors } from './use-actor-directory';
+import {
+  type MentionPendingRef,
+  useActorDirectory,
+  useAssignableActors,
+} from './use-actor-directory';
 
 /** Task bodies and standalone consumers share the same directory as the
  * upstream ActorDirectoryProvider API, including its scope and mention index. */
@@ -126,14 +130,14 @@ export function useTaskMentionActors(
   return useScopedDirectory(organizationId, projectId).mentions;
 }
 
-/** Whether the people, agents and automations a mention can name are still
- * on their way: a mention of someone not listed yet is not someone gone. */
+/** Whether whom a mention names may still arrive — the person it names is
+ * asked for — so a mention of someone not answered yet is not someone gone.
+ * Call it while rendering the mention. */
 export function useTaskMentionsPending(
   organizationId: string,
   projectId?: string,
-): boolean {
-  return useScopedDirectory(organizationId, projectId).directory
-    .mentionsPending;
+): (ref: MentionPendingRef) => boolean {
+  return useScopedDirectory(organizationId, projectId).directory.mentionPending;
 }
 
 export function useTaskAssignableActors(

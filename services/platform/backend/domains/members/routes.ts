@@ -3,6 +3,11 @@ import { Hono, type Context } from 'hono';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import {
+  MEMBER_LOOKUP_LIMIT,
+  MEMBER_LOOKUP_VALUE_MAX_LENGTH,
+} from '../../../lib/shared/constants/member-lookup.ts';
+import { isTypeableHandle } from '../../../lib/shared/mention-handles.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
@@ -15,6 +20,7 @@ import {
   getUserIdByEmail,
   listByOrganization,
   listPasskeysForMember,
+  lookupMembers,
   MemberServiceError,
   removeMember,
   resetTwoFactorForMember,
@@ -41,6 +47,40 @@ const updateRoleSchema = z.object({ role: assignableRoleSchema });
 
 const displayNameSchema = z.object({ displayName: z.string().min(1).max(100) });
 
+/** One comma list of a query parameter: each value trimmed and once, the
+ * empty ones dropped. */
+function commaList(value: z.ZodType<string, string>) {
+  return z
+    .string()
+    .optional()
+    .transform((list) => [
+      ...new Set(
+        (list ?? '')
+          .split(',')
+          .map((item) => item.trim())
+          .filter((item) => item !== ''),
+      ),
+    ])
+    .pipe(z.array(value));
+}
+
+const lookupQuerySchema = z
+  .object({
+    userIds: commaList(z.string().max(MEMBER_LOOKUP_VALUE_MAX_LENGTH)),
+    handles: commaList(
+      z
+        .string()
+        .max(MEMBER_LOOKUP_VALUE_MAX_LENGTH)
+        .transform((handle) => handle.toLowerCase())
+        .refine(isTypeableHandle, 'is not a handle a mention can name'),
+    ),
+  })
+  .refine(
+    (query) =>
+      query.userIds.length + query.handles.length <= MEMBER_LOOKUP_LIMIT,
+    `names more than ${MEMBER_LOOKUP_LIMIT} user ids and handles`,
+  );
+
 function handleError<E extends AuthEnv>(
   c: Context<E>,
   error: unknown,
@@ -57,9 +97,9 @@ function handleError<E extends AuthEnv>(
 
 /**
  * A member-list row as every member may read it: who the member is, never
- * how they sign in. Whether they use two-factor authentication and how many
- * passkeys they hold is for owners and admins alone [MEMBER-R6]. The row
- * names what it keeps, so a field the list gains later stays with them too.
+ * how they sign in. Whether they use two-factor authentication is for owners
+ * and admins alone [MEMBER-R6]. The row names what it keeps, so a field the
+ * list gains later stays with them too.
  */
 function withoutSignInFactors(
   member: Awaited<ReturnType<typeof listByOrganization>>[number],
@@ -98,6 +138,15 @@ export function createMemberRoutes(deps: {
       members: isAdminRole(c.get('orgMember').role)
         ? members
         : members.map(withoutSignInFactors),
+    });
+  });
+  // The people a screen names, by user id or `@handle`, for any member: the
+  // app resolves what it shows without reading every member [MEMBER-R11].
+  orgScoped.get('/lookup', async (c) => {
+    const query = lookupQuerySchema.safeParse(c.req.query());
+    if (!query.success) return invalidBodyResponse(c, query.error);
+    return c.json({
+      members: await lookupMembers(deps.sql, c.get('orgId'), query.data),
     });
   });
   orgScoped.get('/me', async (c) => {

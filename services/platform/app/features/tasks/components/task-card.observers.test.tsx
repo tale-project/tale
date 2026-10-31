@@ -1,11 +1,13 @@
 import {
   QueryClient,
   QueryClientProvider,
+  type UseQueryResult,
+  useQueries,
   useQuery,
 } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { ActorDirectoryProvider } from '../hooks/use-actor-directory';
 import type { TaskDoc } from '../lib/display';
@@ -18,15 +20,16 @@ import type { TaskRow } from './task-card';
 // observer in time linear in its query's observer count: a board whose cards
 // each read the members, the automations and the project's agents turned a
 // 2,000-card mount and unmount quadratic.
+const MEMBERS = [
+  {
+    userId: 'user-1',
+    displayName: 'Ava Editor',
+    email: 'ava@example.com',
+    role: 'admin',
+  },
+];
 const READS: Record<string, unknown> = {
-  'members/queries:listByOrganization': [
-    {
-      userId: 'user-1',
-      displayName: 'Ava Editor',
-      email: 'ava@example.com',
-      role: 'admin',
-    },
-  ],
+  'members/queries:listByOrganization': MEMBERS,
   'automations/queries:listAutomations': [],
   'projects/queries:listProjectAgents': [],
   'projects/queries:listAccessibleUserIds': { orgWide: true, userIds: [] },
@@ -38,6 +41,19 @@ const CANDIDATE_READS = [
   'projects/queries:getProject',
   'projects/queries:getStandardAgent',
 ] as const;
+/** The member lookup's answer for one person: the member with that id. */
+function lookedUp(args: { userId?: string }) {
+  return MEMBERS.filter((member) => member.userId === args.userId).map(
+    (member) => ({
+      _id: `member-${member.userId}`,
+      userId: member.userId,
+      role: member.role,
+      createdAt: 0,
+      displayName: member.displayName,
+      email: member.email,
+    }),
+  );
+}
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: (name: string, args: unknown) =>
     useQuery({
@@ -46,6 +62,21 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
       initialData: READS[name],
       enabled: args !== 'skip',
       staleTime: Number.POSITIVE_INFINITY,
+    }),
+  // The member lookup: one read per person a surface names.
+  useBackendQueries: (
+    name: string,
+    argsList: readonly { userId?: string }[],
+    combine: (results: UseQueryResult[]) => unknown,
+  ) =>
+    useQueries({
+      queries: argsList.map((args) => ({
+        queryKey: ['read', name, args],
+        queryFn: () => lookedUp(args),
+        initialData: lookedUp(args),
+        staleTime: Number.POSITIVE_INFINITY,
+      })),
+      combine,
     }),
 }));
 vi.mock('@/app/hooks/use-current-member-context', () => ({
@@ -130,7 +161,7 @@ function observerCount(client: QueryClient, read?: string): number {
 }
 
 describe('board cards and the board directory', () => {
-  it('adds no query observer per card, however many cards mount', () => {
+  it('adds no query observer per card, however many cards mount', async () => {
     const client = new QueryClient();
     const fewTasks = makeTasks(5);
     const few = renderBoard(client, fewTasks);
@@ -154,6 +185,10 @@ describe('board cards and the board directory', () => {
     // The provider's own reads, and nothing per card.
     expect(observersWithFew).toBeGreaterThan(0);
     expect(observerCount(client)).toBe(observersWithFew);
+    // The assignee every card names is looked up once, for the board.
+    await waitFor(() =>
+      expect(observerCount(client, 'members/queries:lookupMember')).toBe(1),
+    );
     // Mounting the full 40-card jsdom fixture can outlive Vitest's 5s default
     // on a busy worker. This case verifies subscription counts; Chromium
     // owns the rendered-window behavior, rather than this wall-clock limit.
@@ -167,6 +202,12 @@ describe('board cards and the board directory', () => {
     for (const read of CANDIDATE_READS) {
       expect(observerCount(client, read), read).toBe(0);
     }
+    // The board names its people through the member lookup, and reads every
+    // member only for a picker.
+    await waitFor(() =>
+      expect(observerCount(client, 'members/queries:lookupMember')).toBe(1),
+    );
+    expect(observerCount(client, 'members/queries:listByOrganization')).toBe(0);
 
     const [firstAssign] = screen.getAllByRole('button', { name: 'Assign' });
     if (firstAssign === undefined) throw new Error('No assign button');
@@ -178,6 +219,9 @@ describe('board cards and the board directory', () => {
     for (const read of CANDIDATE_READS) {
       expect(observerCount(client, read), read).toBeGreaterThan(0);
     }
+    expect(
+      observerCount(client, 'members/queries:listByOrganization'),
+    ).toBeGreaterThan(0);
     expect(
       screen.getByRole('option', { name: /Ava Editor/ }),
     ).toBeInTheDocument();
