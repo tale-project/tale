@@ -42,7 +42,7 @@ Oben in der Seitenleiste legst du mit einer Reihe von Symbolen fest, was die Lis
 
 Unter den Projekten ordnet eine einzige Liste deine Arbeit nach **Angeheftet**, **Heute**, **Gestern**, **Letzte 7 Tage** und **Früher**:
 
-- Deine Chats.
+- Deine Chats. Ältere lädt die Liste nach, während du nach unten scrollst, und eine Suche findet sie von selbst.
 - Die offenen Aufgaben, die dir zugewiesen sind oder auf dein Review warten, aus allen Projekten, die du lesen darfst.
 - In **Alle** außerdem die offenen Inbox-Konversationen, die du sehen darfst.
 

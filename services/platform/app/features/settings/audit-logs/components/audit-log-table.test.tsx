@@ -47,6 +47,7 @@ function renderDetails(
         retry: vi.fn(),
         isRetrying: false,
         unavailable: false,
+        loadMoreFailed: false,
         errorCount: 0,
       }}
       revealLogId={log._id}
@@ -215,6 +216,7 @@ function renderLog(overrides: Partial<AuditLogDoc>) {
         retry: vi.fn(),
         isRetrying: false,
         unavailable: false,
+        loadMoreFailed: false,
         errorCount: 0,
       }}
       revealLogId={log._id}
@@ -324,6 +326,7 @@ function listing(
     retry: vi.fn(),
     isRetrying: false,
     unavailable: false,
+    loadMoreFailed: false,
     errorCount: 0,
     ...overrides,
   };
