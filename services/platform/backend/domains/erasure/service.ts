@@ -1082,7 +1082,13 @@ export async function processErasure(
       WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
       RETURNING id
     `;
-    return removed.length;
+    // How far the subject read the organization's bell (0228).
+    const watermarks = await sql<{ category: string }[]>`
+      DELETE FROM app.notification_read_watermarks
+      WHERE org_id = ${organizationId} AND user_id = ${targetUserId}
+      RETURNING category
+    `;
+    return removed.length + watermarks.length;
   });
 
   await pass('subscriptions', async () => {
