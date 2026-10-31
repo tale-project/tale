@@ -31,6 +31,7 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import {
   assertWritable,
   getProjectAuthContext,
+  readableProjectsAmong,
   type ProjectAuthContext,
 } from '../projects/service.ts';
 import { listServingCredentialFacts } from '../provider_credentials/service.ts';
@@ -44,8 +45,8 @@ import { readOrgFacts } from './org-facts.ts';
 import {
   automationVisible,
   readableProject,
-  readableProjectIds,
   runControlAccess,
+  visibleInstallations,
 } from './project-visibility.ts';
 import { readReplayPlan, replayRunInTx } from './replay.ts';
 import {
@@ -250,21 +251,12 @@ export function pgAutomationStore(
 ): PgAutomationStore {
   const { organizationId, origin } = scope;
   const { actor } = origin;
-  // Who reads, and which projects they can read — asked once per store
-  // (one dispatch call), however many automations the call reads.
-  let viewer:
-    | Promise<{ auth: ProjectAuthContext; readable: Set<string> }>
-    | undefined;
+  // Who reads — asked once per store (one dispatch call), however many
+  // automations the call reads. Each read then asks only for the projects
+  // it names, or joins the readable ones in its own statement (#5201).
+  let viewer: Promise<ProjectAuthContext> | undefined;
   const viewerOf = () => {
-    viewer ??= (async () => {
-      const auth = await authorizeActorRun(
-        sql,
-        organizationId,
-        actor,
-        'membership',
-      );
-      return { auth, readable: new Set(await readableProjectIds(sql, auth)) };
-    })();
+    viewer ??= authorizeActorRun(sql, organizationId, actor, 'membership');
     return viewer;
   };
   /** Whether the actor may read the run, as `getRun` reads it: in the
@@ -291,7 +283,10 @@ export function pgAutomationStore(
     if (scope.visibleOnly !== true) return false;
     const bindings = await bindingProjectIds(sql, organizationId, name);
     if (bindings.length === 0) return false;
-    return !automationVisible(bindings, (await viewerOf()).readable);
+    return !automationVisible(
+      bindings,
+      await readableProjectsAmong(sql, await viewerOf(), bindings),
+    );
   };
   const authorizeInlineRun = async (
     handle: Sql | TransactionSql,
@@ -372,20 +367,16 @@ export function pgAutomationStore(
         actor,
         'membership',
       );
-      const visible = new Set(await readableProjectIds(sql, auth));
-      // An automation bound only to projects the member cannot read is left
-      // out (`automationVisible`).
-      return (await listAutomations(sql, organizationId)).flatMap((row) =>
-        automationVisible(row.projectIds, visible)
-          ? [
-              {
-                name: row.name,
-                latest: row.latestVersion,
-                deployedVersion: row.deployedVersion,
-                projectIds: row.projectIds.filter((id) => visible.has(id)),
-              },
-            ]
-          : [],
+      // Only the installations the member can read, joined in the store's
+      // own statement; an automation installed only in projects they cannot
+      // read is left out (AUTO-R27).
+      return (await listAutomations(sql, organizationId, { viewer: auth })).map(
+        (row) => ({
+          name: row.name,
+          latest: row.latestVersion,
+          deployedVersion: row.deployedVersion,
+          projectIds: row.projectIds,
+        }),
       );
     },
     get: async (name, version) => {
@@ -408,10 +399,10 @@ export function pgAutomationStore(
         ORG_FACTS_BUDGET_MS,
         () =>
           readOrgFacts(sql, organizationId, query, async () => {
-            const { auth, readable } = await viewerOf();
+            const auth = await viewerOf();
             return {
               role: auth.role,
-              readable: scope.visibleOnly === true ? readable : null,
+              auth: scope.visibleOnly === true ? auth : null,
             };
           }),
         'organization facts',
@@ -439,8 +430,8 @@ export function pgAutomationStore(
       ) {
         throw new ActorAuthError('PROJECT_NOT_FOUND', 'Project not found.');
       }
-      // Who saves, and what they can read — resolved before the
-      // transaction, judged inside it under the name lock (`authorize`).
+      // Who saves — resolved before the transaction; what they can read is
+      // judged inside it under the name lock (`authorize`).
       const saver =
         named !== undefined || scope.visibleOnly === true
           ? await viewerOf()
@@ -454,8 +445,7 @@ export function pgAutomationStore(
           // Only a save that creates the automation installs it in the
           // project it names; a version of one that exists ignores it, so
           // it is not checked there either.
-          if (named !== undefined)
-            await writableActorProject(tx, saver.auth, named);
+          if (named !== undefined) await writableActorProject(tx, saver, named);
           return;
         }
         // A version on top of an automation the person cannot see would
@@ -466,7 +456,10 @@ export function pgAutomationStore(
         const bindings = await bindingProjectIds(tx, organizationId, name);
         if (
           bindings.length > 0 &&
-          !automationVisible(bindings, saver.readable)
+          !automationVisible(
+            bindings,
+            await readableProjectsAmong(tx, saver, bindings),
+          )
         ) {
           throw new AutomationError(
             'AUTOMATION_NAME_TAKEN',
@@ -748,7 +741,6 @@ export function pgAutomationStore(
         (await readableProject(sql, auth, scope.projectId)) === null
       )
         return [];
-      const visibleProjectIds = await readableProjectIds(sql, auth);
       return (
         await listRuns(sql, organizationId, {
           ...(options.name !== undefined ? { name: options.name } : {}),
@@ -756,7 +748,7 @@ export function pgAutomationStore(
           ...(scope.projectId !== undefined
             ? { projectId: scope.projectId }
             : {}),
-          visibleProjectIds,
+          viewer: auth,
         })
       ).map(toRunSummary);
     },
@@ -1018,13 +1010,14 @@ export function pgAutomationStore(
         version === undefined
           ? row
           : await versionRow(sql, organizationId, name, undefined);
-      const { readable } = await viewerOf();
+      const auth = await viewerOf();
       const [live, bindings, triggers] = await Promise.all([
         deployedVersion(sql, organizationId, name),
         bindingProjectIds(sql, organizationId, name),
         listTriggers(sql, organizationId, name),
       ]);
       const trigger = triggers[0];
+      const projectIds = await visibleInstallations(sql, auth, bindings);
       return {
         name: row.name,
         version: row.version,
@@ -1042,7 +1035,7 @@ export function pgAutomationStore(
         createdVia: row.createdVia,
         clientName: row.clientName,
         // The installations the caller can see, never a hidden project.
-        projectIds: bindings.filter((id) => readable.has(id)),
+        projectIds,
         // What starts it — never the webhook secret.
         trigger:
           trigger === undefined
@@ -1164,7 +1157,7 @@ export function pgAutomationStore(
       });
     },
     listRunsPage: async (options): Promise<RunPage | null> => {
-      const auth = (await viewerOf()).auth;
+      const auth = await viewerOf();
       const list = `mcp-runs:${scope.projectId ?? 'all'}:${options.name ?? ''}:${options.mode ?? ''}:${(options.statuses ?? []).join(',')}`;
       const before =
         options.cursor === undefined
@@ -1187,7 +1180,7 @@ export function pgAutomationStore(
         ...(options.statuses !== undefined
           ? { statuses: options.statuses }
           : {}),
-        visibleProjectIds: [...(await viewerOf()).readable],
+        viewer: auth,
         ...(before === null ? {} : { before }),
         limit,
       });

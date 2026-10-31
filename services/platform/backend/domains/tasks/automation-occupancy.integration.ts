@@ -126,7 +126,8 @@ export async function checkTaskAutomationOccupancy(
           name,
           mode: 'live',
           startedBy: userId,
-          visibleProjectIds: [projectId, otherProject],
+          // The owner, who reads both projects (PROJ-R1).
+          viewer: { organizationId: orgId, userId, role: 'owner', teamIds: [] },
           input: { task: { id: taskId } },
         });
         if (started === null) throw new Error('itest: run was not admitted');

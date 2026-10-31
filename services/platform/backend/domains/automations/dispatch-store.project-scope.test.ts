@@ -4,7 +4,7 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { appOrigin } from '../../lib/write-origin.ts';
-import { listProjects, type ProjectRow } from '../projects/service.ts';
+import type { ProjectRow } from '../projects/service.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
 import {
   beginRun,
@@ -25,10 +25,6 @@ vi.mock('./store.ts', async (original) => ({
   getRun: vi.fn(),
   listAutomations: vi.fn(),
   listRuns: vi.fn(),
-}));
-vi.mock('../projects/service.ts', async (original) => ({
-  ...(await original<typeof import('../projects/service.ts')>()),
-  listProjects: vi.fn(),
 }));
 
 const project: Pick<
@@ -113,22 +109,20 @@ beforeEach(() => {
   vi.mocked(cancelRun).mockResolvedValue({ cancelled: true });
   vi.mocked(cancelRunInTx).mockResolvedValue({ cancelled: true });
   vi.mocked(listRuns).mockResolvedValue([]);
-  vi.mocked(listProjects).mockResolvedValue([project] as never);
 });
 
 it('lists only readable project bindings through the engine door', async () => {
+  // The store reads the listing as the member sees it, the projects they
+  // read joined in its statement: billing/dunning with its readable
+  // installation alone, billing/private-only (installed only where they
+  // cannot read) left out rather than listed with no installations, which
+  // a client reads as organization scope (#5201).
   vi.mocked(listAutomations).mockResolvedValue([
     {
       name: 'billing/dunning',
       latestVersion: 1,
       deployedVersion: 1,
-      projectIds: ['p-1', 'private-project'],
-    },
-    {
-      name: 'billing/private-only',
-      latestVersion: 1,
-      deployedVersion: 1,
-      projectIds: ['private-project'],
+      projectIds: ['p-1'],
     },
     {
       name: 'billing/org',
@@ -137,8 +131,6 @@ it('lists only readable project bindings through the engine door', async () => {
       projectIds: [],
     },
   ] as never);
-  // An automation bound only to hidden projects is left out rather than
-  // listed with no bindings, which a client reads as organization scope.
   expect(await store({ role: 'member' }).list()).toEqual([
     {
       name: 'billing/dunning',
@@ -153,6 +145,9 @@ it('lists only readable project bindings through the engine door', async () => {
       projectIds: [],
     },
   ]);
+  expect(listAutomations).toHaveBeenCalledWith(expect.anything(), 'org-1', {
+    viewer: expect.objectContaining({ userId: 'user-1', role: 'member' }),
+  });
 });
 
 describe('MCP and engine actor project scope', () => {
@@ -236,14 +231,10 @@ describe('MCP and engine actor project scope', () => {
 
   it('filters run lists in SQL using the actor-readable projects', async () => {
     await store({ role: 'member' }).listRuns?.({ limit: 25 });
-    expect(listProjects).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({ userId: 'user-1', role: 'member' }),
-      { includeArchived: true },
-    );
+    // The actor's read rule, which the run list joins in its statement.
     expect(listRuns).toHaveBeenCalledWith(expect.anything(), 'org-1', {
       limit: 25,
-      visibleProjectIds: ['p-1'],
+      viewer: expect.objectContaining({ userId: 'user-1', role: 'member' }),
     });
   });
 
@@ -290,7 +281,10 @@ describe('MCP and engine actor project scope', () => {
     await engine.listRuns?.({});
     expect(listRuns).toHaveBeenCalledWith(expect.anything(), 'org-1', {
       projectId: 'p-1',
-      visibleProjectIds: ['p-1'],
+      viewer: expect.objectContaining({
+        organizationId: 'org-1',
+        userId: 'user-1',
+      }),
     });
     vi.mocked(getRun).mockResolvedValue({ ...run, projectId: 'p-2' } as never);
     await expect(engine.getRun?.('run-1')).resolves.toBeNull();
