@@ -27,6 +27,11 @@ limits:
   totalHintWithDevices: Sum of the limits above / deployment capacity plus the {deviceSessions} sandboxes your devices run. Other organizations share the deployment capacity.
   totalExceedsDeployment: The total of {total} sessions exceeds the deployment capacity of {maxSessions}. Reduce one or more limits to save.
   totalExceedsCapacity: 'The total of {total} sessions exceeds the capacity of {maxSessions}: {deploymentSessions} on the deployment and {deviceSessions} on your devices. Reduce one or more limits to save.'
+  # Under the total: the memory one sandbox on the deployment may use, and
+  # when the deployment capacity at that limit needs more than its host keeps
+  # for sandboxes (the sandbox service warns about it at startup).
+  sessionMemory: Each sandbox on the deployment may use up to {memory} GiB of memory.
+  sessionMemoryExceedsHost: 'At its capacity of {maxSessions, plural, one {# sandbox} other {# sandboxes}} with up to {memory} GiB of memory each, the deployment can use {needed} GiB, more than the {available} GiB its host has for sandboxes ({hostMemory} GiB less {reserve} GiB kept free). Sandboxes working at the same time can run the host out of memory: set SANDBOX_MAX_SESSIONS or SANDBOX_AGENT_MEMORY lower.'
   capacityUnavailable: Deployment capacity is unavailable. Lowering limits still saves; refresh the infrastructure data before raising one.
   capacityLoading: Checking deployment capacity…
   saveFailed: Couldn't save sandbox limits
