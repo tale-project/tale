@@ -60,6 +60,9 @@ vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
     isLoading: false,
   }),
 }));
+vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
+  useOrgTeams: () => ({ teams: [], unavailable: false, failureCount: 0 }),
+}));
 vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({ cannot: () => !state.canWrite }),
 }));
@@ -220,6 +223,121 @@ describe('CompetencesPage', () => {
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
+  });
+
+  // A team grant names the team, marked Team: its members hold it while they
+  // are in the team (GOV-R19).
+  it('lists a team grant under the team, and revokes it for its members', async () => {
+    state.records = [
+      record({
+        id: 'team-grant',
+        userId: null,
+        teamId: 'team-billing',
+        teamName: 'Billing',
+        competence: 'tale:models.api',
+      }),
+    ];
+    state.revoke.mockResolvedValue(null);
+    const { user } = render(<CompetencesPage organizationId="org-a" />);
+
+    const row = within(screen.getAllByRole('row')[1]!);
+    expect(row.getByText('Billing')).toBeInTheDocument();
+    expect(row.getByText('Team')).toBeInTheDocument();
+    expect(row.getByText('Call models over the API')).toBeInTheDocument();
+    await checkAccessibility(document.body);
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Revoke Call models over the API from Billing',
+      }),
+    );
+    const dialog = await screen.findByRole('dialog');
+    expect(
+      within(dialog).getByText(
+        /The members of Billing lose "Call models over the API" in this organization right away, unless they hold it themselves/,
+      ),
+    ).toBeInTheDocument();
+    await user.click(within(dialog).getByRole('button', { name: 'Revoke' }));
+    expect(state.revoke).toHaveBeenCalledWith({
+      organizationId: 'org-a',
+      recordId: 'team-grant',
+    });
+  });
+
+  it("names a deleted team's revoked grant Deleted team", async () => {
+    state.records = [
+      record({
+        id: 'retired',
+        userId: null,
+        teamId: 'team-gone',
+        teamName: null,
+        competence: 'tale:models.api',
+        revokedAt: NOW - 1000,
+        revokedBy: 'user-admin',
+      }),
+      record({ id: 'live' }),
+    ];
+    const { user } = render(<CompetencesPage organizationId="org-a" />);
+
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    const panel = await screen.findByRole('dialog', { name: 'Filters' });
+    await user.click(within(panel).getByRole('button', { name: /^Status/ }));
+    await user.click(within(panel).getByRole('checkbox', { name: 'Revoked' }));
+
+    const retired = screen
+      .getAllByRole('row')
+      .find((row) => within(row).queryByText('Deleted team') !== null);
+    if (retired === undefined) throw new Error('No row names a deleted team');
+    expect(within(retired).getByText('Team')).toBeInTheDocument();
+    expect(within(retired).getByText('Revoked')).toBeInTheDocument();
+  });
+
+  it('says why the register revoked a grant on its own', async () => {
+    state.records = [
+      // Expired, then replaced: the new grant came in the same instant.
+      record({
+        id: 'expired',
+        expiresAt: NOW - 2000,
+        revokedAt: NOW - 1000,
+        revokedBy: 'system',
+      }),
+      record({ id: 'renewed', grantedAt: NOW - 1000 }),
+      record({
+        id: 'left',
+        userId: 'user-gone',
+        revokedAt: NOW - 1000,
+        revokedBy: 'system',
+      }),
+      record({
+        id: 'retired',
+        userId: null,
+        teamId: 'team-gone',
+        teamName: null,
+        competence: 'tale:models.api',
+        revokedAt: NOW - 1000,
+        revokedBy: 'system',
+      }),
+    ];
+    const { user } = render(<CompetencesPage organizationId="org-a" />);
+
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    const panel = await screen.findByRole('dialog', { name: 'Filters' });
+    await user.click(within(panel).getByRole('button', { name: /^Status/ }));
+    await user.click(within(panel).getByRole('checkbox', { name: 'Revoked' }));
+
+    expect(
+      screen.getByTitle('Replaced by a new grant after it expired'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTitle('Revoked when the member left the organization'),
+    ).toBeInTheDocument();
+    const retired = screen
+      .getAllByRole('row')
+      .find((row) => within(row).queryByText('Deleted team') !== null);
+    if (retired === undefined) throw new Error('No row names a deleted team');
+    expect(
+      within(retired).getByTitle('Revoked when the team was deleted'),
+    ).toBeInTheDocument();
   });
 
   it('turns away a member who may not manage organization settings', () => {

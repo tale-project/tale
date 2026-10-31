@@ -500,6 +500,51 @@ agent.
   `removal-check` as **Former member**, revoked today. Re-add the same e-mail
   → the **Active** view stays empty for them (no grant re-attaches) and
   **Logs** shows a `competence_revoked` line per grant.
+- [ ] `GOV-F74` · **Grant a capability to a team** — With the model
+  endpoints on (GOV-F40), take two Members who hold no grant of their own,
+  each with an API key minted while they were Developers (GOV-F43's way),
+  create a team `Grant check` (SET-F18) and add only the first through **Edit
+  team** (SET-F19). On `competences` → **Grant competence** → **Grant to**
+  (`governance.competences.grantDialog.holderLabel`) = **A team**
+  (`governance.competences.grantDialog.holderOptions.team`) → **Team** =
+  `Grant check`, **Competence** = **Call models over the API**, **Expires** =
+  **Never** → **Grant** → toast **Competence granted**; the row names `Grant
+  check` with the **Team** badge (`governance.competences.teamBadge`) under
+  **Member or team** (`governance.competences.columns.member`). The first
+  Member's key lists models on its next call and `GET /api/v1/me` answers
+  `capabilities.modelApi: true`; the second's still answers 403
+  `MODEL_API_FORBIDDEN`. **Logs** lists `competence_granted`, and its details
+  name the team (`teamId`, `teamName`), not a member.
+- [ ] `GOV-F75` · **A later member holds it, a leaver loses it** — After
+  GOV-F74, **Edit team** on `Grant check` → add the second Member → **Save
+  changes** → that Member's key lists models on its next call, with no new
+  grant and no restart. Remove the first Member from the team → their next
+  call answers 403 `MODEL_API_FORBIDDEN` and `GET /api/v1/me` answers
+  `capabilities.modelApi: false`; add them back → allowed again. Removing a
+  Member from the organization ends it the same way, and the team's grant
+  stays **Active** throughout.
+- [ ] `GOV-F76` · **Revoke a team's grant** — On GOV-F74's row press
+  **Revoke** → the dialog reads **The members of Grant check lose "Call
+  models over the API" in this organization right away, unless they hold it
+  themselves.** (`governance.competences.revokeDialog.descriptionTeam`) →
+  **Revoke** → toast **Competence revoked**; each member's next call answers
+  403 `MODEL_API_FORBIDDEN`, unless a grant of their own lets it through.
+  **Filter** → **Status** → **Revoked** lists the row with the team's name
+  and the **Team** badge, and pointing at its date reads **Revoked by** your
+  name; **Logs** lists `competence_revoked`, its details naming the team.
+- [ ] `GOV-F77` · **Deleting a team revokes its grants** — Grant `Grant
+  check` **Call models over the API** again, then **Settings → Teams** → its
+  **Delete** → the confirmation also reads **1 competence granted to this
+  team will be revoked: its members lose it unless they hold it
+  themselves.** (`settings.teams.deleteImpact.competenceGrants`); a team
+  with no grant shows no such line. Confirm → the former members' next calls
+  answer 403 `MODEL_API_FORBIDDEN`; on `competences`, **Revoked** lists the
+  grant under **Deleted team** (`governance.competences.deletedTeam`),
+  revoked today, and pointing at its date reads **Revoked when the team was
+  deleted** (`governance.competences.revokedWithTeam`). GOV-F34's grants read
+  **Revoked when the member left the organization**
+  (`governance.competences.revokedWithMember`) there, never **Replaced by a
+  new grant after it expired** (`governance.competences.revokedBySystem`).
 - [ ] `GOV-F25` · **Route by mailbox and address** — With TWO mailboxes on one
   email connector (A and B) and a team T1 and T2, `policies-limits` →
   **Conversation routing** → add three rules: **Any mailbox** · `support@…` →
@@ -932,6 +977,31 @@ agent.
   reports **"Names starting with "tale:" are reserved for platform
   capabilities."** (`governance.competences.grantDialog.validation.qualificationReserved`)
   and **Grant** stays disabled.
+- [ ] `GOV-B25` · **A team holds no qualification** — **Grant competence**
+  → **Grant to** = **A team** → the **Competence** list offers platform
+  capabilities only, no **Qualification**, and a qualification chosen before
+  the switch is dropped. `POST /api/app/governance/competences` from the
+  Admin's session with `{"teamId": "<Grant check's id>", "competence":
+  "tax-reviewer"}` answers 400 `COMPETENCE_TEAM_CAPABILITY_ONLY`, and no row
+  is written.
+- [ ] `GOV-B26` · **A team the identity provider manages is not offered** —
+  With a team that shows **Synced** on **Settings → Teams** (SET-F19),
+  **Grant competence** → **Grant to** = **A team** → **Team** lists it
+  disabled, described **Synced from your identity provider**
+  (`governance.competences.grantDialog.teamSynced`), and selecting it leaves
+  the field empty. `POST /api/app/governance/competences` with its `teamId`
+  answers 409 `COMPETENCE_TEAM_SYNCED`, and with another organization's team
+  404 `COMPETENCE_TEAM_NOT_FOUND`; no row is written.
+- [ ] `GOV-B27` · **A membership no admin made carries no grant** — With
+  GOV-F74's grant live and SCIM set up (SET-F35), add a third Member with an
+  API key to `Grant check` through SCIM: `PATCH
+  …/http_api/scim/v2/Groups/<Grant check's id>` with the SCIM token and an
+  `add` to `members` of that Member's user id → **Edit team** lists them, yet
+  their key's next call answers 403 `MODEL_API_FORBIDDEN`. Remove them in
+  **Edit team** and **Save changes**, then add them back and save → their
+  next call lists models. A membership made by accepting an invitation that
+  names the team (`POST /api/auth/organization/invite-member` with
+  `teamId`; no screen sends one) is refused the same way.
 - [ ] `GOV-B10` · **Long owners in the trash** — `trash` with a trashed row
   whose owner is a long unbroken address (a test account's email will do) →
   The **Owner** cell (`governance.trash.column.owner`) ends in an ellipsis

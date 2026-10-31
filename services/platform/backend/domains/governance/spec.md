@@ -187,7 +187,8 @@ the change.
 ## Rights an admin grants
 
 Some rights are not tied to a role: exporting notifications, publishing a skill for everyone,
-calling the model API. An admin grants one to a person, with or without an end date.
+calling the model API. An admin grants one to a person or to a team, with or without an end
+date.
 
 ### GOV-R12 · Only an admin can grant a right, and only one the platform knows
 
@@ -205,6 +206,28 @@ It counts only in the organization it was granted in.
 
 - **Example**: Ada grants Mia the right to call the model API until the end of the month → on
   the first of next month Mia's calls are refused again.
+
+### GOV-R19 · An admin can grant a platform right to a team, never a qualification
+
+The team's members hold the right while they are in the team, members who join later
+included; leaving the team, the grant's withdrawal or the team's deletion ends it. A
+qualification is about one person and is granted to members only
+(`COMPETENCE_TEAM_CAPABILITY_ONLY`). A team an identity provider keeps in sync cannot be
+named (`COMPETENCE_TEAM_SYNCED`), nor a team of another organization
+(`COMPETENCE_TEAM_NOT_FOUND`). The audit log names the team of each grant and withdrawal.
+
+- **Example**: Ada grants the Platform team the right to call the model API, and adds Mia to
+  the team a week later → Mia's calls are allowed, without another grant.
+
+### GOV-R20 · Only a membership an admin made carries a team's rights
+
+A membership that SCIM or single sign-on group sync made carries none of the team's grants, so
+an identity provider never confers a right no admin chose. Neither does a membership any
+other way made, such as an invitation that names a team.
+
+- **Example**: The Platform team holds the right to call the model API, and the identity
+  provider adds Ben to it → Ben's calls are refused; once Ada removes him from the team and
+  adds him herself, they are allowed.
 
 ## Not yet
 

@@ -225,21 +225,32 @@ export function createGovernanceRoutes(deps: {
   });
 
   app.post('/competences', async (c) => {
+    // The holder is exactly one member (`userId`) or one team (`teamId`).
     const body = z
       .object({
-        userId: z.string().min(1).max(128),
+        userId: z.string().min(1).max(128).optional(),
+        teamId: z.string().min(1).max(128).optional(),
         competence: z.string().min(1).max(200),
         expiresAt: epochMsSchema.optional(),
         evidence: z.string().max(4000).optional(),
       })
+      .refine(
+        (value) =>
+          (value.userId === undefined) !== (value.teamId === undefined),
+        {
+          message: 'name exactly one holder: userId or teamId',
+          path: ['userId'],
+        },
+      )
       .safeParse(await c.req.json().catch(() => null));
     if (!body.success) return invalidBodyResponse(c, body.error);
+    const { userId, teamId } = body.data;
     try {
       return c.json(
         await grantCompetence(deps.sql, {
           organizationId: c.get('orgId'),
           actor: actorOf(c),
-          userId: body.data.userId,
+          ...(teamId !== undefined ? { teamId } : { userId: userId ?? '' }),
           competence: body.data.competence,
           ...(body.data.expiresAt !== undefined
             ? { expiresAt: body.data.expiresAt }
