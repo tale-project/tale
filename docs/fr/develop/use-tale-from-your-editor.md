@@ -203,7 +203,7 @@ Chaque refus arrive dans le format d’erreur de l’interface appelée, si bien
 | `403 MODEL_API_DISABLED` | L’organisation n’a pas activé les endpoints. Adresse-toi à un admin. |
 | `403 MODEL_API_FORBIDDEN` | Ton rôle ne peut pas les appeler. Demande à un admin de t’attribuer **Appeler les modèles par l'API**. |
 | `404 MODEL_API_MODEL_UNKNOWN` | L’identifiant ne figure pas dans ta liste. Copie-en un depuis `GET /api/v1/openai/models` ou l’onglet **Modèles**, slug du fournisseur compris. |
-| `403 MODEL_API_MODEL_FORBIDDEN` | L’accès aux modèles bloque ce modèle pour toi. Choisis-en un autre ou adresse-toi à un admin. |
+| `403 MODEL_API_MODEL_FORBIDDEN` | L’accès aux modèles bloque ce modèle pour toi, ou l’organisation traite les prompts uniquement dans l’UE/EEE et l’endpoint de ce modèle est en dehors. Le message dit lequel des deux. Choisis-en un autre ou adresse-toi à un admin. |
 | `400 MODEL_API_VISION_UNSUPPORTED`, `400 MODEL_API_TOOLS_UNSUPPORTED` | Choisis un modèle qui lit les images ou accepte les outils, ou envoie la requête sans eux. |
 | `400 MODEL_API_VENDOR_TOOL_UNSUPPORTED` | Retire l’outil que le fournisseur exécuterait lui-même, comme une recherche web. Dans Claude Code, c’est l’outil WebSearch qui provoque ce refus. |
 | `400 MODEL_API_GUARDRAIL_BLOCKED` | Un garde-fou a refusé le prompt système ou un message, et rien n’a atteint le modèle. Reformule, ou interroge un admin sur la règle. |

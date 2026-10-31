@@ -16,6 +16,7 @@ import type { Auth } from '../../auth/auth.ts';
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { MODEL_ENDPOINT_REFUSAL_CODES } from '../../core/governance/model_endpoint_gate.ts';
 import { sanitizeError } from '../../core/lib/utils/sanitize_secrets.ts';
 import {
   invalidBodyIssuesResponse,
@@ -60,7 +61,8 @@ import { appendMessageRow } from './store.ts';
 import { listChatSkillChoices } from './work-tools.ts';
 
 /** The pre-turn refusals of the serving layer: the model is not available to
- * the org, or the credential its provider resolves to cannot serve. Every
+ * the org, the credential its provider resolves to cannot serve, or the
+ * org's EU/EEA rule refuses the endpoint it would go to (GOV-R17). Every
  * other error from a turn stays what it is — an internal failure. */
 const SERVING_REFUSAL_CODES: ReadonlySet<string> = new Set([
   'CHAT_MODEL_UNKNOWN',
@@ -70,6 +72,7 @@ const SERVING_REFUSAL_CODES: ReadonlySet<string> = new Set([
   'CREDENTIAL_DISABLED',
   'CREDENTIAL_KEY_ROTATED',
   'CREDENTIAL_ENV_UNSET',
+  ...MODEL_ENDPOINT_REFUSAL_CODES,
 ]);
 
 function servingRefusalReason(error: unknown): string | null {

@@ -8,6 +8,11 @@
  * Only `openai`-format connectors qualify: the transcription wire is the
  * OpenAI `/audio/transcriptions` shape, and the Anthropic Messages format
  * has no transcription endpoint at all.
+ *
+ * With the organization's EU/EEA processing rule on (GOV-R17), Automatic
+ * passes over a model whose endpoint the rule refuses; a pin it refuses, or
+ * an Automatic choice left with nothing else, is refused with the rule's
+ * sentence before any audio is sent.
  */
 
 import { transcriptionModelConfigSchema } from '@tale/shared/schemas/governance';
@@ -16,6 +21,15 @@ import { modelAllowlistPermits } from '@tale/shared/utils/model-ref';
 import { checkProviderHostPolicy } from '../../../../lib/net/host-policy';
 import { AppError } from '../../../../lib/shared/errors/app-error';
 import { isOpenRouterProvider } from '../../../../lib/shared/providers/attribution';
+import {
+  type ModelEndpointActor,
+  type ModelEndpointPolicy,
+  type ModelEndpointRefusalCode,
+  type ModelEndpointRefusalData,
+  modelEndpointRefusal,
+  readModelEndpointPolicy,
+  refuseModelEndpoint,
+} from '../../governance/model_endpoint_gate';
 import {
   isTerminalCredentialRefusal,
   resolveProviderCredential,
@@ -82,12 +96,19 @@ export class TranscriptionModelError extends AppError<{
 export interface TranscriptionModelStatus {
   models: TranscriptionModelOption[];
   pick: TranscriptionModelPick | null;
-  error?: { code: TranscriptionModelErrorCode };
+  error?: { code: TranscriptionModelErrorCode | ModelEndpointRefusalCode };
 }
 
 type TranscriptionModelPin = { providerSlug: string; modelId: string } | null;
 interface Candidate extends TranscriptionModelOption {
   resolved: ResolvedTranscriptionModel;
+}
+
+/** The candidate a policy selects, and the refusal the EU/EEA rule gives
+ * it when it gives one. */
+interface TranscriptionSelection {
+  candidate: Candidate;
+  refusal?: ModelEndpointRefusalData;
 }
 
 async function readPin(
@@ -208,19 +229,45 @@ async function candidatesFor(
   return { candidates, failures };
 }
 
+/** Automatic passes over a candidate the organization's EU/EEA rule
+ * refuses. A pin the rule refuses comes back with its refusal, and so does
+ * Automatic's first candidate when every one is refused and no provider
+ * failed (a failed one might have served from the region). */
 function selectCandidate(
   discovery: Awaited<ReturnType<typeof candidatesFor>>,
   pin: TranscriptionModelPin,
-): Candidate {
-  const selected =
-    pin === null
-      ? discovery.candidates[0]
-      : discovery.candidates.find(
-          (candidate) =>
-            candidate.providerSlug === pin.providerSlug &&
-            candidate.modelId === pin.modelId,
-        );
-  if (selected !== undefined) return selected;
+  endpointPolicy: ModelEndpointPolicy,
+): TranscriptionSelection {
+  const refusalOf = (candidate: Candidate) =>
+    modelEndpointRefusal(endpointPolicy, candidate.resolved);
+  if (pin !== null) {
+    const pinned = discovery.candidates.find(
+      (candidate) =>
+        candidate.providerSlug === pin.providerSlug &&
+        candidate.modelId === pin.modelId,
+    );
+    if (pinned !== undefined) {
+      const refusal = refusalOf(pinned);
+      return {
+        candidate: pinned,
+        ...(refusal !== undefined ? { refusal } : {}),
+      };
+    }
+  } else {
+    const allowed = discovery.candidates.find(
+      (candidate) => refusalOf(candidate) === undefined,
+    );
+    if (allowed !== undefined) return { candidate: allowed };
+    const first = discovery.candidates[0];
+    const refusal = first === undefined ? undefined : refusalOf(first);
+    if (
+      first !== undefined &&
+      refusal !== undefined &&
+      discovery.failures.size === 0
+    ) {
+      return { candidate: first, refusal };
+    }
+  }
   if (
     pin === null
       ? discovery.failures.size > 0
@@ -258,8 +305,16 @@ export async function inspectTranscriptionModels(
     );
     if (error !== undefined)
       return { models, pick: null, error: { code: error.code } };
+    const endpointPolicy = await readModelEndpointPolicy(ctx, organizationId);
     try {
-      const selected = selectCandidate(discovery, pin);
+      const { candidate: selected, refusal } = selectCandidate(
+        discovery,
+        pin,
+        endpointPolicy,
+      );
+      if (refusal !== undefined) {
+        return { models, pick: null, error: { code: refusal.code } };
+      }
       return {
         models,
         pick: {
@@ -283,20 +338,44 @@ export async function inspectTranscriptionModels(
   }
 }
 
+/** The model the organization transcribes with. A model its EU/EEA rule
+ * refuses is audited and thrown as a `ModelEndpointRefusal`, before any
+ * audio is sent. */
 export async function resolveTranscriptionModel(
   ctx: ActionCtx,
-  opts: { organizationId: string },
+  opts: { organizationId: string; actor?: ModelEndpointActor },
 ): Promise<ResolvedTranscriptionModel> {
   const pin = await readPin(ctx, opts.organizationId);
+  let selection: TranscriptionSelection;
   try {
     const discovery = await candidatesFor(
       ctx,
       opts.organizationId,
       pin?.providerSlug,
     );
-    return selectCandidate(discovery, pin).resolved;
+    selection = selectCandidate(
+      discovery,
+      pin,
+      await readModelEndpointPolicy(ctx, opts.organizationId),
+    );
   } catch (error) {
     if (error instanceof TranscriptionModelError) throw error;
     throw new TranscriptionModelError('TRANSCRIPTION_MODEL_RESOLUTION_FAILED');
   }
+  const { candidate, refusal } = selection;
+  if (refusal !== undefined) {
+    await refuseModelEndpoint(
+      ctx,
+      {
+        organizationId: opts.organizationId,
+        surface: 'transcription',
+        providerName: candidate.providerSlug,
+        modelId: candidate.modelId,
+        baseUrl: candidate.resolved.baseUrl,
+        ...(opts.actor !== undefined ? { actor: opts.actor } : {}),
+      },
+      refusal,
+    );
+  }
+  return candidate.resolved;
 }

@@ -166,6 +166,7 @@ voice:
   voiceOutputErrorOpenSettings: Open settings
   voiceOutputErrorQueueOverflow: Voice is falling behind — pausing further sentences
   voiceOutputErrorRateLimited: Voice rate limit hit — retrying
+  voiceOutputErrorRegion: Voice provider not allowed — this organization processes prompts only in the EU/EEA
   voiceOutputErrorTransient: Voice service unavailable — retrying
   voiceOutputLoading: Preparing voice…
   voiceOutputPlay: Play voice output
@@ -227,6 +228,8 @@ transcription:
   noModel: No compatible model is available for audio-file transcription.
   pinnedUnavailable: The selected audio transcription model is unavailable.
   policyInvalid: The audio transcription model setting is invalid.
+  outsideEu: This organization processes prompts only in the EU/EEA, and the audio transcription model is not known to process there.
+  endpointPolicyUnreadable: The model access policy could not be read, so audio is not transcribed.
   temporarilyUnavailable: Audio transcription availability could not be checked. Try again shortly.
   askAdmin: Ask an admin to check the transcription settings.
   configureProviders: Configure AI providers
