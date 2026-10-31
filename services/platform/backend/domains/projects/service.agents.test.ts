@@ -723,8 +723,9 @@ describe('listProjectsPage', () => {
       'ORDER BY created_at_ms DESC, id DESC LIMIT ?',
     );
     expect(listing?.values.at(-1)).toBe(3);
-    // (columns, org_id, include, only, exclude, …): exclude is the live branch.
-    expect(listing?.values.slice(2, 5)).toEqual([false, false, true]);
+    // (columns, readable projects, org_id, include, only, exclude, …):
+    // exclude is the live branch.
+    expect(listing?.values.slice(3, 6)).toEqual([false, false, true]);
     const done = await listProjectsPage(fakeSql(rows(2)).sql, auth, {
       archived: 'only',
       limit: 2,
@@ -741,7 +742,7 @@ describe('listProjectsPage', () => {
       cursor: { at: 500, id: 'p-7' },
     });
     const listing = statements.find((s) => s.text.includes('ORDER BY'));
-    expect(listing?.values.slice(2, 5)).toEqual([false, true, false]);
+    expect(listing?.values.slice(3, 6)).toEqual([false, true, false]);
     expect(listing?.values).toEqual(expect.arrayContaining([500, 'p-7']));
   });
 });
