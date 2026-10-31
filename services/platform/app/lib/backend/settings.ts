@@ -125,6 +125,7 @@ type ExtendErasureResult =
   ReturnsOf<'governance/erasure:extendErasureDeadline'>;
 type CloseMatterResult = ReturnsOf<'governance/legal_hold:closeLegalMatter'>;
 type CompetenceItem = ItemOf<'governance/competences:listCompetences'>;
+type MemberRightsResult = ReturnsOf<'governance/competences:getMemberRights'>;
 type OrgApiKeyItem = ItemOf<'governance/api_keys:listOrgApiKeys'>;
 type GrantCompetenceResult =
   ReturnsOf<'governance/competences:grantCompetence'>;
@@ -798,6 +799,24 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
         backendFetch<{ records: CompetenceItem[] }>('/governance/competences', {
           orgId,
         }).then((body) => body.records),
+    };
+  },
+  // Keyed under the register, so a grant or revocation made from the dialog
+  // reads the rights again. Its other reasons (the role, the model endpoints
+  // switch, the skill sharing policy) change elsewhere, unhinted: read them
+  // anew each time the dialog opens.
+  'governance/competences:getMemberRights': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined) return null;
+    const userId = stringArg(args, 'userId');
+    return {
+      queryKey: backendKey(orgId, COMPETENCE_ENTITY, 'rights', userId),
+      queryFn: () =>
+        backendFetch<MemberRightsResult>(
+          `/governance/members/${encodeURIComponent(userId)}/rights`,
+          { orgId },
+        ),
+      staleTime: 0,
     };
   },
   'governance/legal_hold_queries:listLegalMatters': (args, ctx) => {
