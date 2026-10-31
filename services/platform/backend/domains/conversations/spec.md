@@ -443,6 +443,19 @@ selection has to be sent in parts.
   `loadVisibleConversation` in `service.ts`), so an expired conversation is still listed,
   opened and answered, and no test covers it either way. One of the two is the intended
   rule.
+- **Undecided: can someone with the member role be made the assignee of a conversation?**
+  Assigning checks only that the person is an active member of the organization (`CONV-R4`,
+  `assertAssignableMember` in `service.ts`), so they can, and the `CONV-R4` tests assign such
+  a person as an ordinary case. Yet they can change none of the conversations assigned to
+  them, not even mark one as read (`CONV-R3`), so a conversation assigned to them alone waits
+  for someone else to answer it. Either assigning should refuse that role, or such an assignee
+  should be able to answer; which one is not decided.
+- **Undecided: can the replies of a bulk send be undone?** The bulk send dialog says "This
+  action can't be undone." (`bulkSend.description` in `messages/en/conversations.yml`). Yet
+  it sends one reply per conversation through the reply door, so each waits 10 seconds and
+  can be undone in its conversation (`CONV-R9`); neither the dialog nor the notice it shows
+  when done offers that undo (`use-bulk-actions.ts` in `app/features/conversations/hooks/`).
+  One of the two is the intended behaviour.
 - **Unreadable matches can empty a member's search.** Beside the two limits in `CONV-R2`, the
   search stops at 50 conversations matched by message text and at 25 matched contacts before
   `CONV-R1` is applied, and does not mark that answer as partial. The contract debt ledger

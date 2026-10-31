@@ -16,6 +16,7 @@
 import type { Sql } from 'postgres';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { ERASURE_WATCHDOG_TIMEOUT_MESSAGE } from '../../core/governance/erasure_constants.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
@@ -311,6 +312,42 @@ describe('retryErasure', () => {
     // A re-armed receipt starts clean: the recorded stop reason (a hold
     // token or the failed passes) must not follow it into `pending`.
     expect(rearm?.text).toContain('error = NULL');
+    expect(addJobInTx).not.toHaveBeenCalled();
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('refuses a receipt the watchdog stopped — a new request is filed instead [ERASE-R4]', async () => {
+    vi.mocked(loadActiveHolds).mockResolvedValue(noHolds);
+    const fake = fakeSql((text) => {
+      if (text.startsWith('SELECT target_user_id'))
+        return [
+          receiptRow({
+            status: 'failed',
+            effectiveAt: 1_000,
+            error: ERASURE_WATCHDOG_TIMEOUT_MESSAGE,
+          }),
+        ];
+      if (
+        text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'pending'",
+        )
+      )
+        return [{ id: 'req-1' }];
+      return undefined;
+    });
+
+    await expect(
+      retryErasure(fake.sql, { organizationId: 'org_1', requestId: 'req-1' }),
+    ).rejects.toMatchObject({ code: 'NOT_RETRIABLE', status: 409 });
+
+    // What the stopped run erased is unknown, so nothing is re-armed.
+    expect(
+      fake.statements.some((s) =>
+        s.text.startsWith(
+          "UPDATE app.gdpr_erasure_requests SET status = 'pending'",
+        ),
+      ),
+    ).toBe(false);
     expect(addJobInTx).not.toHaveBeenCalled();
     expect(createAuditLog).not.toHaveBeenCalled();
   });
