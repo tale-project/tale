@@ -108,17 +108,25 @@ function accountDb(account: Account): Sql {
   return tag as unknown as Sql;
 }
 
-/** One organization per policy, in order. */
-function organizations(...policies: Partial<TwoFactorPolicyConfig>[]): void {
+/** One organization per policy, in order; `null` is one that saved none. */
+function organizations(
+  ...policies: (Partial<TwoFactorPolicyConfig> | null)[]
+): void {
   h.userOrgIds.mockResolvedValue(policies.map((_, index) => `org-${index}`));
   h.readGovernancePolicyForOrg.mockImplementation(
-    (_db: unknown, organizationId: string) =>
-      Promise.resolve({
-        enforced: false,
-        gracePeriodDays: 7,
-        exemptSsoUsers: true,
-        ...policies[Number(organizationId.slice('org-'.length))],
-      }),
+    (_db: unknown, organizationId: string) => {
+      const policy = policies[Number(organizationId.slice('org-'.length))];
+      return Promise.resolve(
+        policy === null
+          ? null
+          : {
+              enforced: false,
+              gracePeriodDays: 7,
+              exemptSsoUsers: true,
+              ...policy,
+            },
+      );
+    },
   );
 }
 
@@ -175,6 +183,55 @@ describe('evaluateTwoFactorEnforcement', () => {
       expect(await decide({ signIns: ['saml'] })).toMatchObject({
         decision: 'blocked',
         policy: { enforced: true, exemptSsoUsers: false },
+      });
+    },
+  );
+
+  // An organization that requires nothing takes no part, whether it saved a
+  // policy or not: it shortens no grace and lifts no exemption.
+  const REQUIRED_WITHIN_30_DAYS = { enforced: true, gracePeriodDays: 30 };
+
+  it.each([
+    ['no saved policy', 'first', [REQUIRED_WITHIN_30_DAYS, null]],
+    ['no saved policy', 'last', [null, REQUIRED_WITHIN_30_DAYS]],
+    [
+      'a saved grace of 0 days',
+      'first',
+      [REQUIRED_WITHIN_30_DAYS, { gracePeriodDays: 0 }],
+    ],
+    [
+      'a saved grace of 0 days',
+      'last',
+      [{ gracePeriodDays: 0 }, REQUIRED_WITHIN_30_DAYS],
+    ],
+  ])(
+    'keeps the grace of the organization that requires a second factor next to one that requires nothing with %s, listed %s [TFA-R1]',
+    async (_saved, _listed, policies) => {
+      organizations(...policies);
+      expect(await decide({})).toMatchObject({
+        decision: 'grace',
+        graceUntilToSet: NOW + 30 * DAY_MS,
+        graceDeadline: NOW + 30 * DAY_MS,
+        policy: { enforced: true },
+      });
+    },
+  );
+
+  const REQUIRED_AT_ONCE_SSO_EXEMPT = {
+    ...REQUIRED_AT_ONCE,
+    exemptSsoUsers: true,
+  };
+
+  it.each([
+    ['first', [REQUIRED_AT_ONCE_SSO_EXEMPT, { exemptSsoUsers: false }]],
+    ['last', [{ exemptSsoUsers: false }, REQUIRED_AT_ONCE_SSO_EXEMPT]],
+  ])(
+    'keeps the SSO exemption of the organization that requires a second factor next to one that requires nothing and exempts nobody, listed %s [TFA-R1]',
+    async (_listed, policies) => {
+      organizations(...policies);
+      expect(await decide({ signIns: ['saml'] })).toMatchObject({
+        decision: 'ok',
+        policy: { enforced: true, exemptSsoUsers: true },
       });
     },
   );

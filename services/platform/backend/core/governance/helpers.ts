@@ -4,21 +4,25 @@ import {
 } from '@tale/shared/schemas/governance';
 
 /**
- * Resolve the strictest two-factor policy across all of a user's orgs.
- * Merge rule: enforcement wins (OR across orgs), shortest positive grace
- * wins, exemption requires unanimous agreement.
+ * Resolve the strictest two-factor policy across a user's orgs. Only the
+ * orgs that require a second factor take part: across them the shortest
+ * grace wins (0 included, which blocks at once) and SSO-only users are
+ * exempt only when every one of them exempts them. An org that requires
+ * nothing shortens no grace and lifts no exemption; when none requires
+ * one, nothing is asked (the default policy).
  */
 export function mergeStrictestTwoFactorPolicy(
   policies: readonly TwoFactorPolicyConfig[],
 ): TwoFactorPolicyConfig {
-  if (policies.length === 0) return { ...DEFAULT_TWO_FACTOR_POLICY };
-  return policies.reduce(
+  const enforcing = policies.filter((policy) => policy.enforced);
+  if (enforcing.length === 0) return { ...DEFAULT_TWO_FACTOR_POLICY };
+  return enforcing.reduce(
     (acc, p) => ({
-      enforced: acc.enforced || p.enforced,
+      enforced: true,
       gracePeriodDays: Math.min(acc.gracePeriodDays, p.gracePeriodDays),
       exemptSsoUsers: acc.exemptSsoUsers && p.exemptSsoUsers,
     }),
-    policies[0],
+    enforcing[0],
   );
 }
 
