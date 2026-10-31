@@ -10,6 +10,7 @@ import { Link } from '@tanstack/react-router';
 import { Settings, UserPlus, Users } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
+import { useMemberLookup } from '@/app/features/settings/organization/hooks/member-lookup';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar';
@@ -53,20 +54,34 @@ export function ConversationAssigneePicker({
   organizationId,
 }: ConversationAssigneePickerProps) {
   const { t } = useT('conversations');
+  const { t: tCommon } = useT('common');
   const { data: memberContext } = useCurrentMemberContext(organizationId);
   const isAdmin =
     !!memberContext &&
     'role' in memberContext &&
     (memberContext.role === 'admin' || memberContext.role === 'owner');
-  const { members = [] } = useMembers(organizationId);
+  const [open, setOpen] = useState(false);
+  // The options offer every member: they are read once the picker is first
+  // opened, never for a thread that is only read. The trigger names the
+  // assignee alone, looked up by id.
+  const [membersWanted, setMembersWanted] = useState(false);
+  const { members = [], isLoading: membersLoading } = useMembers(
+    organizationId,
+    { enabled: membersWanted },
+  );
   const { teams = [] } = useOrgTeams();
   const { mutate: assignConversation } = useAssignConversation();
   const { mutate: assignConversationTeam } = useAssignConversationTeam();
-  const [open, setOpen] = useState(false);
 
   const assigneeUserId = conversation.assigneeUserId ?? null;
   const assigneeTeamId = conversation.assigneeTeamId ?? null;
-  const assignee = members.find((m) => m.userId === assigneeUserId);
+  const assigneeLookup = useMemberLookup(
+    organizationId,
+    assigneeUserId === null ? [] : [{ userId: assigneeUserId }],
+  );
+  const assignee = assigneeLookup.members.find(
+    (m) => m.userId === assigneeUserId,
+  );
   const assigneeName = assignee?.displayName ?? assignee?.email;
   const team = teams.find((tm) => tm.id === assigneeTeamId);
   const teamName = team?.name;
@@ -264,7 +279,10 @@ export function ConversationAssigneePicker({
   return (
     <SearchableSelect
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (next) setMembersWanted(true);
+      }}
       // Two dimensions can be selected at once, so there is no single
       // controlled value; each option carries its own `selected` instead.
       value={null}
@@ -273,7 +291,9 @@ export function ConversationAssigneePicker({
       align="end"
       modal
       searchPlaceholder={t('header.assignSearchAll')}
-      emptyText={t('header.noAssignees')}
+      emptyText={
+        membersLoading ? tCommon('actions.loading') : t('header.noAssignees')
+      }
       aria-label={t('header.assignee')}
       trigger={
         <Button

@@ -4,7 +4,7 @@ import { filterByTextSearch } from '@tale/ui/filtering';
 import type { FilterConfig, FilterOption } from '@tale/ui/filters/filter-panel';
 import { useCallback, useMemo } from 'react';
 
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import { useMemberLookup } from '@/app/features/settings/organization/hooks/member-lookup';
 import {
   useTeamNames,
   useTeams,
@@ -18,6 +18,7 @@ import {
   ASSIGNEE_ME,
   ASSIGNEE_MY_TEAMS,
   ASSIGNEE_UNASSIGNED,
+  assigneeFacetIds,
   buildAssigneeOptions,
   matchesAssigneeFilter,
 } from '../lib/assignee-filter';
@@ -96,11 +97,20 @@ export function useInboxList({
   onBulkComplete,
 }: UseInboxListOptions) {
   const { t: tConversations } = useT('conversations');
-  // The assignee facet resolves ids to names through two directories that any
-  // member may read: every team of the organization, and the member list.
+  // The assignee facet resolves team ids through the team directory, which
+  // any member may read, and looks up only the people it offers, never every
+  // member.
   const { teams: myTeams } = useTeams();
   const { nameOf: teamNameOf } = useTeamNames();
-  const { members } = useMembers(organizationId);
+  const offeredPeople = useMemo(
+    () =>
+      [
+        ...assigneeFacetIds({ rows, selected: assigneeSelection, teamNameOf })
+          .personIds,
+      ].map((userId) => ({ userId })),
+    [rows, assigneeSelection, teamNameOf],
+  );
+  const { members } = useMemberLookup(organizationId, offeredPeople);
   const { data: memberContext } = useCurrentMemberContext(organizationId);
   const isAdmin = useAbility().can('read', 'orgSettings');
   const currentUserId =
@@ -113,7 +123,7 @@ export function useInboxList({
   );
   const personNameOf = useMemo(() => {
     const byId = new Map(
-      (members ?? []).map((member) => [
+      members.map((member) => [
         member.userId,
         member.displayName ?? member.email,
       ]),
