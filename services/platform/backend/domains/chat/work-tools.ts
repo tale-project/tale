@@ -72,7 +72,7 @@ const NO_CHAT_TOOLS: ChatToolsConfig = {
  * problem, and the tools return once it can be read. Only an absent file is
  * the defaults.
  */
-async function readChatToolSwitches(
+export async function readChatToolSwitches(
   sql: Sql,
   organizationId: string,
 ): Promise<{ switches: ChatToolsConfig; unreadable: boolean }> {
