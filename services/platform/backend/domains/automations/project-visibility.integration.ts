@@ -4,10 +4,19 @@ import type { Sql } from 'postgres';
 import { z } from 'zod';
 
 import { appOrigin } from '../../lib/write-origin.ts';
-import { getProjectAuthContext } from '../projects/service.ts';
+import {
+  getProjectAuthContext,
+  readableProjectsAmong,
+  type ProjectAuthContext,
+} from '../projects/service.ts';
 import { pgAutomationStore } from './dispatch-store.ts';
-import { readableProjectIds } from './project-visibility.ts';
-import { AutomationError, beginRun, setAutomationProjects } from './store.ts';
+import {
+  AutomationError,
+  beginRun,
+  listAutomations,
+  listRuns,
+  setAutomationProjects,
+} from './store.ts';
 /** Real HTTP sessions and PostgreSQL proof of automation project visibility.
  * Synthetic waiting runs have no jobs, so a worker cannot finish the fixture
  * before a read, answer or cancel. No vendor, harness or browser is involved. */
@@ -482,23 +491,78 @@ export async function checkAutomationProjectVisibility(
     `scope=${triggeredRow?.projectId}`,
   );
 
+  // The run and catalog reads join the projects the reader may read in
+  // their own statement, never an id list read first (#5201): an owner
+  // reads every project's [PROJ-R1]; this member, out of the private team
+  // again, the organization's and the open projects', the archived one
+  // included; a disabled seat no project's [PROJ-R2]. An automation
+  // installed only where the reader cannot read is left out [AUTO-R27].
+  const memberAuth = await getProjectAuthContext(sql, {
+    organizationId: orgId,
+    userId: member.userId,
+    role: 'member',
+  });
+  const readers: [string, ProjectAuthContext, (string | null)[]][] = [
+    [
+      'owner',
+      await getProjectAuthContext(sql, {
+        organizationId: orgId,
+        userId,
+        role: 'owner',
+      }),
+      [null, shared, hidden, archived],
+    ],
+    ['member', memberAuth, [null, shared, archived]],
+    ['disabled seat', { ...memberAuth, role: 'disabled' }, [null]],
+  ];
+  const installed: [string, string[]][] = [
+    [names.unbound, []],
+    [names.shared, [shared]],
+    [names.hidden, [hidden]],
+    [names.mixed, [shared, hidden]],
+    [names.archived, [archived]],
+  ];
+  for (const [who, viewer, scopes] of readers) {
+    const runScopes = new Set(
+      (await listRuns(sql, orgId, { name: names.mixed, viewer })).map(
+        (run) => run.projectId,
+      ),
+    );
+    const catalog = new Map(
+      (await listAutomations(sql, orgId, { viewer })).map((item) => [
+        item.name,
+        [...item.projectIds].sort().join(),
+      ]),
+    );
+    const asRead = installed.every(([name, bound]) => {
+      const readable = bound.filter((id) => scopes.includes(id));
+      return bound.length > 0 && readable.length === 0
+        ? !catalog.has(name)
+        : catalog.get(name) === readable.sort().join();
+    });
+    record(
+      'automation run and catalog reads join the projects the reader may read [PROJ-R1] [PROJ-R2]',
+      runScopes.size === scopes.length &&
+        scopes.every((scope) => runScopes.has(scope)) &&
+        asRead,
+      `${who}: run scopes=${[...runScopes].join('|')}, catalog=${JSON.stringify(installed.map(([name]) => catalog.get(name) ?? null))}`,
+    );
+  }
+
   // Saving bindings for someone who cannot read every bound project keeps
   // the bindings outside their view; one they cannot read and that is not
   // bound answers like a missing project.
-  const memberView = await readableProjectIds(
-    sql,
-    await getProjectAuthContext(sql, {
-      organizationId: orgId,
-      userId: member.userId,
-      role: 'member',
-    }),
-  );
+  const memberReads = await readableProjectsAmong(sql, memberAuth, [
+    shared,
+    hidden,
+    archived,
+  ]);
   await setAutomationProjects(sql, {
     organizationId: orgId,
     name: names.mixed,
     projectIds: [],
     origin: appOrigin(member.userId),
-    visibleProjectIds: memberView,
+    viewer: memberAuth,
   });
   const kept = await sql<{ projectId: string }[]>`
     SELECT project_id AS "projectId" FROM app.automation_project_bindings
@@ -509,7 +573,7 @@ export async function checkAutomationProjectVisibility(
     name: names.unbound,
     projectIds: [hidden],
     origin: appOrigin(member.userId),
-    visibleProjectIds: memberView,
+    viewer: memberAuth,
   }).then(
     () => 'saved',
     (error: unknown) =>
@@ -517,7 +581,9 @@ export async function checkAutomationProjectVisibility(
   );
   record(
     'a binding save within a partial view keeps hidden bindings',
-    !memberView.includes(hidden) &&
+    !memberReads.has(hidden) &&
+      memberReads.has(shared) &&
+      memberReads.has(archived) &&
       kept.map((row) => row.projectId).join() === hidden &&
       refusal === 'AUTOMATION_PROJECT_UNKNOWN',
     `kept=${kept.map((row) => row.projectId).join()}, refusal=${refusal}`,
