@@ -135,7 +135,7 @@ export async function walkChatCatalog(
 
 /** Where a call to `hit`'s model goes — the credential's own endpoint, else
  * the provider's base URL — as the EU/EEA gate judges a direct call. */
-export function chatCatalogEndpoint(hit: {
+function chatCatalogEndpoint(hit: {
   readonly connector: { readonly name: string; readonly baseUrl?: string };
   readonly credential: { readonly endpointUrl?: string };
 }): { providerName: string; baseUrl: string | undefined } {
