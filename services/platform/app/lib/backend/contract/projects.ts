@@ -336,15 +336,12 @@ export interface ProjectsContract {
     args: { limit?: number; organizationId: string };
     returns: { projects: ProjectSummary[]; isDone: boolean };
   };
+  /** Projects by name, at most 20, the unarchived first; list rows with
+   * their access flags, so a picker can search instead of listing. */
   'projects/queries:searchProjects': {
     kind: 'query';
-    args: { limit?: number; organizationId: string; query: string };
-    returns: Array<{
-      _id: string;
-      name: string;
-      icon: undefined | string;
-      color: undefined | string;
-    }>;
+    args: { organizationId: string; query: string };
+    returns: ProjectSummary[];
   };
   'projects/search:searchProjects': {
     kind: 'query';

@@ -58,7 +58,12 @@ import {
   ThreadListFrameProvider,
   type ThreadListFrame,
 } from '@/app/features/chat/components/thread-list-context';
-import { useThreadHolds } from '@/app/features/chat/data/chat-backend';
+import {
+  useChatProject,
+  useChatProjectChoices,
+  useThreadHolds,
+} from '@/app/features/chat/data/chat-backend';
+import type { ChatProjectSummary } from '@/app/features/chat/types';
 import {
   isTaskStatus,
   type TaskStatus,
@@ -414,16 +419,49 @@ export function HomeNavigator({
 
   // Scope applies on project-filterable views (All, Chats, or Tasks).
   const viewIncludesScope = view !== 'inbox';
-  const scopeProject =
-    viewIncludesScope && storedScope !== ''
-      ? data.projects.find((project) => project.id === storedScope)
-      : undefined;
+  const scopeWanted = viewIncludesScope && storedScope !== '';
+  const scopeInPage =
+    scopeWanted && data.projects.some((project) => project.id === storedScope);
+  // Home holds one page of the projects (#5194): a remembered project the
+  // page lacks, while the organization has more, is read by id.
+  const scopeBeyondPage =
+    scopeWanted && !scopeInPage && data.moreProjects ? storedScope : undefined;
+  const scopeRead = useChatProject(organizationId, scopeBeyondPage);
   // While the projects load, the stream already honours the remembered scope
-  // rather than flashing everything first.
-  const scopeId =
-    viewIncludesScope && storedScope !== '' && data.loading.projects
-      ? storedScope
-      : scopeProject?.id;
+  // rather than flashing everything first. A page that holds every project
+  // and lacks this one says it is gone, as does its own read answering none;
+  // a read that failed is no proof of that (#4605).
+  const scopeGone =
+    scopeBeyondPage === undefined
+      ? !scopeInPage && !data.loading.projects
+      : scopeRead.status === 'ready' && scopeRead.data === null;
+  const scopeId = scopeWanted && !scopeGone ? storedScope : undefined;
+
+  // The open project's page beside the panel, when the page of projects
+  // lacks it, is read by id as well: its row stays in the list.
+  const openProjectId =
+    location.kind === 'project' ? location.projectId : undefined;
+  const openRead = useChatProject(
+    organizationId,
+    viewIncludesScope &&
+      openProjectId !== undefined &&
+      data.moreProjects &&
+      !data.projects.some((project) => project.id === openProjectId)
+      ? openProjectId
+      : undefined,
+  );
+  const scopeExtra = scopeRead.status === 'ready' ? scopeRead.data : null;
+  const openExtra = openRead.status === 'ready' ? openRead.data : null;
+  // The projects Home lists: the page, and the scoped or open project past
+  // it — the page's own array while it holds both, so memos keyed on it hold.
+  const listedProjects = useMemo(() => {
+    const extras: ChatProjectSummary[] = [];
+    if (scopeExtra !== null) extras.push(scopeExtra);
+    if (openExtra !== null && openExtra.id !== scopeExtra?.id) {
+      extras.push(openExtra);
+    }
+    return extras.length === 0 ? data.projects : [...data.projects, ...extras];
+  }, [data.projects, scopeExtra, openExtra]);
 
   // One object per scope, so the memoized project rows a phone narrows the
   // stream with keep it across the panel's renders.
@@ -447,31 +485,33 @@ export function HomeNavigator({
   // Unchanged by a navigation, so the rows below it are too: the open
   // thread rides its own context (`activeThreadId`).
   const frame = useMemo<ThreadListFrame>(
-    () => ({
-      organizationId,
-      projects: data.projects,
-      orgHeld,
-      heldThreadIds,
-    }),
-    [organizationId, data.projects, orgHeld, heldThreadIds],
+    () => ({ organizationId, orgHeld, heldThreadIds }),
+    [organizationId, orgHeld, heldThreadIds],
   );
   const activeThreadId =
     location.kind === 'chat' ? location.threadId : undefined;
 
   const [search, setSearch] = useState('');
   const query = useDeferredValue(search.trim().toLowerCase());
+  // A row's project matches by name past the page too: while the page does
+  // not hold every project, the server's name search adds the ones it finds.
+  const projectChoices = useChatProjectChoices(organizationId, search);
+  const namedProjects =
+    projectChoices.status === 'ready'
+      ? projectChoices.data.projects
+      : data.projects;
 
   // Each project's name, lowercased once: the search matches every row's
   // project on every keystroke.
   const projectNames = useMemo(
     () =>
       new Map(
-        data.projects.map((project) => [
+        namedProjects.map((project) => [
           project.id,
           project.name.toLowerCase(),
         ]),
       ),
-    [data.projects],
+    [namedProjects],
   );
 
   const { serverEpochNow } = useClockOffset();
@@ -558,7 +598,7 @@ export function HomeNavigator({
     ],
   );
 
-  const scoped = scopeProject !== undefined;
+  const scoped = scopeId !== undefined;
   const streamLoading =
     (viewIncludes(view, 'chat') && data.loading.chats) ||
     (viewIncludes(view, 'task') && data.loading.tasks) ||
@@ -618,8 +658,8 @@ export function HomeNavigator({
   const entering = useEnteringKeys(streamKeys, view, streamLoading);
 
   const projectsById = useMemo(
-    () => new Map(data.projects.map((project) => [project.id, project])),
-    [data.projects],
+    () => new Map(listedProjects.map((project) => [project.id, project])),
+    [listedProjects],
   );
 
   const searchRecord: Record<string, unknown> = locationSearch;
@@ -648,6 +688,10 @@ export function HomeNavigator({
     if (item.kind === 'chat') {
       const thread = data.threadsById.get(item.id);
       if (thread === undefined) return null;
+      const project =
+        item.projectId !== undefined
+          ? projectsById.get(item.projectId)
+          : undefined;
       return (
         <HomeChatRow
           key={homeItemKey(item)}
@@ -655,9 +699,12 @@ export function HomeNavigator({
           draft={draft}
           item={item}
           thread={thread}
-          project={
-            item.projectId !== undefined
-              ? projectsById.get(item.projectId)
+          project={project}
+          // A project past the page: the row reads it by id. Once the page
+          // holds every project, one it lacks is gone.
+          projectId={
+            project === undefined && data.moreProjects
+              ? item.projectId
               : undefined
           }
           active={active}
@@ -731,14 +778,10 @@ export function HomeNavigator({
                 {viewIncludesScope && (
                   <HomeProjects
                     organizationId={organizationId}
-                    projects={data.projects}
+                    projects={listedProjects}
                     hasMore={data.moreProjects}
                     loading={data.loading.projects}
-                    activeProjectId={
-                      location.kind === 'project'
-                        ? location.projectId
-                        : undefined
-                    }
+                    activeProjectId={openProjectId}
                     {...(variant === 'screen' ? { scope: projectScope } : {})}
                   />
                 )}

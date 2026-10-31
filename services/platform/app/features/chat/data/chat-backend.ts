@@ -28,6 +28,7 @@
  * the live generation alone opts out, because its absence IS its signal.
  */
 
+import { useDebounce } from '@tale/ui/use-debounce';
 import {
   keepPreviousData,
   QueryClient,
@@ -37,11 +38,15 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 
+import {
+  mergeProjectChoices,
+  PROJECT_SEARCH_DEBOUNCE_MS,
+  projectSearchTerm,
+} from '@/app/features/projects/lib/project-choices';
 import { BackendApiError, backendFetch } from '@/app/lib/backend/api-client';
 import {
   fileStatusesQuery,
   myPreferencesQuery,
-  chatProjectsQuery,
   holdTargetsQuery,
   setProjectPinnedRequest,
   setChatModelPreference,
@@ -72,7 +77,12 @@ import {
   arenaPairQuery,
 } from '@/app/lib/backend/chat';
 import type { ArgsOf, QueryName, ReturnsOf } from '@/app/lib/backend/contract';
-import { sidebarProjectsQuery } from '@/app/lib/backend/projects';
+import {
+  NAVIGATOR_PROJECT_LIMIT,
+  projectDetailQuery,
+  searchProjectsQuery,
+  sidebarProjectsQuery,
+} from '@/app/lib/backend/projects';
 import { backendKey } from '@/app/lib/backend/query-keys';
 import { tasksFromThreadQuery } from '@/app/lib/backend/tasks';
 import type { ReasoningEffort } from '@/lib/chat/effort';
@@ -183,8 +193,16 @@ const HTTP_READS: Record<
     ),
   'user_preferences/queries:getMyPreferences': (args) =>
     myPreferencesQuery(String(args.organizationId)),
-  'projects/queries:listProjects': (args) =>
-    chatProjectsQuery(String(args.organizationId)),
+  'projects/queries:getProject': (args) =>
+    projectDetailQuery({
+      organizationId: String(args.organizationId),
+      projectId: String(args.projectId),
+    }),
+  'projects/queries:searchProjects': (args) =>
+    searchProjectsQuery({
+      organizationId: String(args.organizationId),
+      query: String(args.query),
+    }),
   'projects/queries:listSidebarProjects': (args) =>
     sidebarProjectsQuery({
       organizationId: String(args.organizationId),
@@ -244,7 +262,13 @@ export function invalidateBudgetStanding(
 export function useChatQuery<Name extends QueryName>(
   name: Name,
   args: ArgsOf<Name> | 'skip',
-  options?: { readonly cache?: boolean },
+  options?: {
+    readonly cache?: boolean;
+    /** `false` for a read whose previous answer must never stand in for
+     * the next one's while it loads (one record by id: another record's
+     * answer is no placeholder for it). */
+    readonly keepPrevious?: boolean;
+  },
 ): ChatQuery<ReturnsOf<Name>> {
   const skip = args === 'skip';
   // Key the read by NAME + the JSON of its args, never by object identity:
@@ -268,7 +292,9 @@ export function useChatQuery<Name extends QueryName>(
       // oxlint-disable-next-line typescript/no-unsafe-assignment -- the adapter table is the untyped boundary
       queryFn: httpOptions?.queryFn ?? (async () => null),
       enabled: httpOptions !== undefined,
-      placeholderData: keepPreviousData,
+      ...(options?.keepPrevious === false
+        ? {}
+        : { placeholderData: keepPreviousData }),
       // A paged read merges what a re-read answers into what it holds.
       structuralSharing: httpOptions?.structuralSharing ?? true,
     },
@@ -329,27 +355,6 @@ export function useChatThreads(
   return useChatQuery('chat/threads:listThreads', { organizationId });
 }
 
-/**
- * The projects chats are filed under — Home's PROJECTS section and the
- * move-to-project menu. The projects feature owns the table; this read
- * reduces its rows to what a project row renders, through the same
- * degrade-to-unavailable seam as every chat read.
- */
-export function useChatProjects(
-  organizationId: string,
-): ChatQuery<readonly ChatProjectSummary[]> {
-  const projects = useChatQuery('projects/queries:listProjects', {
-    organizationId,
-  });
-  return useMemo(() => {
-    if (projects.status !== 'ready') return projects;
-    return { status: 'ready', data: projects.data.map(toChatProjectSummary) };
-  }, [projects]);
-}
-
-/** How many projects Home's navigator lists: one page, the most it holds. */
-const NAVIGATOR_PROJECT_LIMIT = 100;
-
 /** One page of the projects Home's navigator lists, and whether it holds
  * them all. */
 export interface NavigatorProjects {
@@ -382,7 +387,83 @@ export function useNavigatorProjects(
   }, [page]);
 }
 
-type ProjectRow = ReturnsOf<'projects/queries:listProjects'>[number];
+const NO_PROJECT_ROWS: readonly ProjectRow[] = [];
+
+/**
+ * What a chat picker offers for what was typed — the move-to-project menu,
+ * Create task from chat, Home's search by project name: the navigator's page
+ * (the pinned first) and, while that page does not hold every project, the
+ * server's name search for the typed text, debounced — never the whole list
+ * (#5194). An archived project is offered nowhere, as before. `isDone` says
+ * whether the page holds every project.
+ */
+export function useChatProjectChoices(
+  organizationId: string,
+  query: string,
+): ChatQuery<NavigatorProjects> {
+  const page = useChatQuery('projects/queries:listSidebarProjects', {
+    organizationId,
+    limit: NAVIGATOR_PROJECT_LIMIT,
+  });
+  const typed = useDebounce(query, PROJECT_SEARCH_DEBOUNCE_MS);
+  const term = projectSearchTerm(
+    typed,
+    page.status === 'ready' ? page.data.isDone : undefined,
+  );
+  const search = useChatQuery(
+    'projects/queries:searchProjects',
+    term === null ? 'skip' : { organizationId, query: term },
+  );
+  // A failed search offers the page alone: what was found adds to it.
+  const found =
+    term !== null && search.status === 'ready' ? search.data : NO_PROJECT_ROWS;
+  return useMemo(() => {
+    if (page.status !== 'ready') return page;
+    return {
+      status: 'ready',
+      data: {
+        projects: mergeProjectChoices(page.data.projects, found).map(
+          toChatProjectSummary,
+        ),
+        isDone: page.data.isDone,
+      },
+    };
+  }, [page, found]);
+}
+
+const NO_PROJECT = { status: 'ready', data: null } as const;
+
+/**
+ * One project by id, as a chat row renders it — the chat header's chip, the
+ * move menu's current project, a Home marker or scope past the navigator's
+ * page (#5194). `null` for no id, and when the project is gone, out of the
+ * caller's reach or archived: chat shows no archived project.
+ */
+export function useChatProject(
+  organizationId: string,
+  projectId: string | undefined,
+): ChatQuery<ChatProjectSummary | null> {
+  const project = useChatQuery(
+    'projects/queries:getProject',
+    projectId === undefined ? 'skip' : { organizationId, projectId },
+    { keepPrevious: false },
+  );
+  return useMemo(() => {
+    if (projectId === undefined) return NO_PROJECT;
+    if (project.status !== 'ready') return project;
+    const row = project.data;
+    return {
+      status: 'ready',
+      data:
+        row === null || row.archivedAt !== undefined
+          ? null
+          : toChatProjectSummary(row),
+    };
+  }, [project, projectId]);
+}
+
+type ProjectRow =
+  ReturnsOf<'projects/queries:listSidebarProjects'>['projects'][number];
 
 /** One summary per project row: a refetch keeps every unchanged row's object
  * (react-query shares the structure of an equal answer), so the summary —
@@ -405,7 +486,6 @@ function toChatProjectSummary(project: ProjectRow): ChatProjectSummary {
     ...(project.managedAgentCount !== undefined
       ? { managedAgentCount: project.managedAgentCount }
       : {}),
-    // The chat's own projects read carries it when the backend does.
     ...(typeof project.canEdit === 'boolean'
       ? { canEdit: project.canEdit }
       : {}),
@@ -428,13 +508,13 @@ export function useProjectPin(organizationId: string): {
   const setPinned = useCallback(
     async (projectId: string, pinned: boolean): Promise<void> => {
       await setProjectPinnedRequest(organizationId, projectId, pinned);
-      void queryClient.invalidateQueries({
-        queryKey: chatProjectsQuery(organizationId).queryKey,
-      });
-      // Home's navigator orders by the pin, at every page size.
-      void queryClient.invalidateQueries({
-        queryKey: backendKey(organizationId, 'project', 'sidebar'),
-      });
+      // Home's navigator orders by the pin, at every page size; a project
+      // read by id or found by name carries the pin too.
+      for (const read of ['sidebar', 'detail', 'search'] as const) {
+        void queryClient.invalidateQueries({
+          queryKey: backendKey(organizationId, 'project', read),
+        });
+      }
     },
     [queryClient, organizationId],
   );
