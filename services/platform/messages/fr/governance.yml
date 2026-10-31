@@ -1197,6 +1197,7 @@ competences:
   grantDialog:
     title: Attribuer une compétence
     description: Le membre ou l'équipe choisis la détiennent dans cette organisation jusqu'à son expiration ou jusqu'à ce qu'un admin la révoque. Les membres d'une équipe la détiennent tant qu'ils en font partie.
+    fixedDescription: '{member} détient « {competence} » dans cette organisation jusqu''à son expiration ou jusqu''à ce qu''un admin la révoque.'
     holderLabel: Attribuer à
     holderOptions:
       member: Un membre

@@ -52,9 +52,13 @@ Seule une adhésion qu’un propriétaire ou un admin a créée dans **Paramètr
 
 Une équipe ne détient que des capacités de la plateforme. Attribue une qualification à chaque membre qui en a besoin, car une politique de relecture l’exige de la personne qui approuve.
 
+Tu peux aussi attribuer une capacité de la plateforme depuis **Paramètres > Membres** : ouvre le menu de la ligne du membre, choisis **Droits** et active l’interrupteur de la capacité. La même boîte de dialogue s’ouvre avec le membre et la capacité déjà choisis, et l’attribution rejoint ce registre. [Consulter les droits d’un membre](/fr/platform/admin/members-and-roles#member-rights) explique ce que montrent les interrupteurs et leurs raisons.
+
 ## Révoquer une compétence
 
 Choisis **Révoquer** sur la ligne et confirme avec **Révoquer**. Le membre perd la compétence immédiatement ; pour une attribution à une équipe, ses membres la perdent aussi, sauf s’ils la détiennent par une attribution à leur nom. L’attribution reste dans le registre comme historique, avec le statut **Révoquée** et la date de révocation ; survole la date pour voir qui l’a révoquée, ou pourquoi.
+
+Dans **Paramètres > Membres**, tu révoques une capacité de la plateforme de la même façon : choisis **Droits** dans le menu de la ligne du membre, désactive l’interrupteur de la capacité et confirme avec **Révoquer**.
 
 ## Lire le registre {#read-the-register}
 
