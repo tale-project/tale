@@ -139,7 +139,9 @@ magnitude:
   files; a German or French one adds the topics its first page reads,
   `PERF-P15`) and the favicon file
   (favicon.ico) transfers under 20 KB. The number to compare against is the `Cold-load JS:` line
-  `scripts/check-entry-budget.ts` prints in the build log.
+  `scripts/check-entry-budget.ts` prints in the build log: 925 KB gzip in
+  7 preloaded modules on 31 Oct 2026, under the **976 KB** ceiling above
+  which the build fails.
 - [ ] `PERF-P11` · **Search palette without a GPU** — Start Chrome with
   `--disable-gpu`, open any dashboard page, press ⌘K (Ctrl+K) and type a word
   quickly → each keystroke paints promptly (DevTools → Performance: no

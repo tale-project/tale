@@ -13,6 +13,9 @@
  * route's code loads with its route (`ENTRY_ROUTES` in `vite.config.ts`), and
  * a static import from the entry would bring one back to every page.
  *
+ * The cold load as a whole is held to a gzip ceiling (`COLD_LOAD_MAX_GZIP`),
+ * so it cannot creep back up one module at a time.
+ *
  * The code editor is held to a budget of its own: what its lazy view chunk
  * loads beyond the cold load (`LAZY_BUDGETS`) — the editor's packages and
  * nothing more, no other language's grammar, no code built from strings.
@@ -289,6 +292,38 @@ export function gzipTotal(dist: string, urls: string[]): number {
   return total;
 }
 
+/**
+ * The most the cold load may weigh, gzip: every module `dist/index.html`
+ * loads before the first page paints. A cold sign-in page once carried
+ * every page's code and all three languages, 2 MB; it is to stay within
+ * 1.0 MB, and 976 KB is the most that does (PERF-P10 gives the whole
+ * transfer 1.5 MB). Code that would push it over belongs with the page that
+ * needs it.
+ */
+export const COLD_LOAD_MAX_GZIP = 976 * 1024;
+
+/** What a cold load weighs, and what is wrong with it. */
+export interface ColdLoadReport {
+  gzip: number;
+  problems: string[];
+}
+
+/** Hold the preloaded modules' gzip total to `maxGzip`. */
+export function checkColdLoad(
+  dist: string,
+  urls: string[],
+  maxGzip: number = COLD_LOAD_MAX_GZIP,
+): ColdLoadReport {
+  const gzip = gzipTotal(dist, urls);
+  const problems =
+    gzip > maxGzip
+      ? [
+          `${(gzip / 1024).toFixed(0)} KB gzip, over its ${(maxGzip / 1024).toFixed(0)} KB`,
+        ]
+      : [];
+  return { gzip, problems };
+}
+
 /** A lazy chunk whose static closure is held to a size and a content. */
 export interface LazyBudget {
   /** The chunk's name, as the build prefixes its file (`code-editor-view-…`). */
@@ -467,11 +502,16 @@ if (import.meta.main) {
     ...findForbiddenContent(dist, urls),
   ];
   const unchecked = uncheckedContent(dist, urls);
-  const total = gzipTotal(dist, urls);
+  const coldLoad = checkColdLoad(dist, urls);
   console.log(
-    `Cold-load JS: ${urls.length} preloaded modules, ${(total / 1024).toFixed(0)} KB gzip`,
+    `Cold-load JS: ${urls.length} preloaded modules, ${(coldLoad.gzip / 1024).toFixed(0)} KB gzip (budget ${(COLD_LOAD_MAX_GZIP / 1024).toFixed(0)} KB)`,
   );
   let failed = false;
+  if (coldLoad.problems.length > 0) {
+    console.error('The cold load is over its budget:');
+    for (const problem of coldLoad.problems) console.error(`  - ${problem}`);
+    failed = true;
+  }
   if (forbidden.length > 0) {
     console.error(
       'Chunks that must stay behind a dynamic import are preloaded:',
