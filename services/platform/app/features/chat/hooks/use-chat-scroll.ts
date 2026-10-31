@@ -35,6 +35,7 @@ import {
   type RefObject,
 } from 'react';
 
+import { HELD_SCROLLPORTS } from '@/app/features/tasks/hooks/use-task-history-anchor';
 import { useAutoScroll } from '@/app/hooks/use-auto-scroll';
 import { usePrefersReducedMotion } from '@/app/hooks/use-prefers-reduced-motion';
 
@@ -363,6 +364,10 @@ export type ContentTickAction = 'snap' | 'hold' | 'follow' | 'none';
  * resize of the message list):
  *  - a pending send/edit intent always wins and becomes the snap hold, even
  *    over a live position hold (the send is the stronger user action);
+ *  - otherwise, while a history read holds the reader's place ("Show earlier
+ *    messages" — see useTaskHistoryAnchor), nothing re-pins: the read keeps
+ *    the place itself, and a live hold is dropped, its target now pointing
+ *    at rows that landed in front;
  *  - otherwise a live hold re-pins — a hold counts as live while its window
  *    is open OR the send glide is still in flight (the glide must never lose
  *    its anchor to the clock);
@@ -377,8 +382,10 @@ export function resolveContentTickAction(opts: {
   now: number;
   gliding: boolean;
   following: boolean;
+  held: boolean;
 }): ContentTickAction {
   if (opts.intent) return 'snap';
+  if (opts.held) return 'none';
   if (opts.hold && (opts.gliding || opts.now < opts.hold.until)) return 'hold';
   if (opts.following) return 'follow';
   return 'none';
@@ -618,6 +625,7 @@ export function useChatScroll({
         now: Date.now(),
         gliding: smoothSnapRafId !== null,
         following: followBottomRef.current,
+        held: HELD_SCROLLPORTS.has(container),
       });
       if (action === 'snap') {
         // Forced snap (user action: send / edit-branch): anchor the last
@@ -655,8 +663,9 @@ export function useChatScroll({
         updateButton();
         return;
       }
-      // Expired settle hold (position holds release via their timer) — drop
-      // it. OUTSIDE any hold, content growth never scrolls on its own: AI
+      // Expired settle hold (position holds release via their timer), or any
+      // hold a history read stood down — drop it. OUTSIDE any hold, content
+      // growth never scrolls on its own: AI
       // generation streams below the fold and only explicit user actions
       // move the view — the follow latch being one of them.
       if (hold) cancelHold();

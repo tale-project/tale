@@ -1,10 +1,15 @@
-import { queryOptions, type QueryClient } from '@tanstack/react-query';
+import {
+  queryOptions,
+  replaceEqualDeep,
+  type QueryClient,
+} from '@tanstack/react-query';
 
 import type { ReturnsOf } from '@/app/lib/backend/contract';
 import {
   DEFERRED_SEND_HINT_ENTITY,
   VIDEO_LINK_HINT_ENTITY,
 } from '@/lib/shared/hint-entities';
+import { isRecord } from '@/lib/utils/type-utils';
 
 import {
   BackendApiError,
@@ -424,15 +429,260 @@ export function invalidateChatThreads(
 
 // -------------------------------------------------------------- turn family
 
-/** One thread's messages — the rows already carry the view shape. */
+/** The transcript as far as it is loaded — the rows carry the view shape. */
+export type ChatMessagePage = ReturnsOf<'chat/messages:listMessages'>;
+type ChatMessageRow = ChatMessagePage['messages'][number];
+/** Where a page starts: its oldest row's place in the thread. */
+export type ChatMessageCursor = NonNullable<ChatMessagePage['nextBefore']>;
+
+function isChatMessagePage(value: unknown): value is ChatMessagePage {
+  return (
+    isRecord(value) &&
+    Array.isArray(value.messages) &&
+    typeof value.hasMore === 'boolean'
+  );
+}
+
+function isChatMessageRow(value: unknown): value is ChatMessageRow {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    typeof value.sequence === 'number' &&
+    Array.isArray(value.parts)
+  );
+}
+
+/** One page of the thread's messages: the newest, or the one before
+ * `before`. Each page answers the cursor of the page before it. */
+function fetchChatMessagePage(
+  organizationId: string,
+  threadId: string,
+  before?: ChatMessageCursor,
+  signal?: AbortSignal,
+): Promise<ChatMessagePage> {
+  const query =
+    before === undefined
+      ? ''
+      : `?beforeOrder=${before.order}&beforeStep=${before.stepOrder}`;
+  return backendFetch<ChatMessagePage>(
+    `/chat/threads/${encodeURIComponent(threadId)}/messages${query}`,
+    { signal, orgId: organizationId },
+  ).then(({ messages, hasMore, nextBefore }) => ({
+    messages,
+    hasMore,
+    nextBefore,
+  }));
+}
+
+/**
+ * A re-read answers the newest page only, so the older rows already loaded
+ * stay in front of it. The page holds every row from its cursor on: a loaded
+ * row before that cursor — an older `sequence`, or the cursor's own on a row
+ * the page does not carry — is one the page did not reach. A page that
+ * reached the thread's start is the whole thread.
+ *
+ * The loaded rows run without a gap from their own cursor, so they join the
+ * page only when they reach it: a row in the page, or one past its cursor.
+ * Rows that end before the page begins (more than a page was written while
+ * this tab read nothing) would leave the rows between them unread with no
+ * way back to them; the page then stands alone, with its own cursor.
+ */
+export function keepOlderChatMessages(
+  previous: unknown,
+  next: unknown,
+): unknown {
+  if (!isChatMessagePage(previous) || !isChatMessagePage(next)) return next;
+  const cut = next.nextBefore;
+  if (!next.hasMore || cut === null) return next;
+  const inPage = new Set(next.messages.map((row) => row.id));
+  const reaches = previous.messages.some(
+    (row) => row.sequence > cut.order || inPage.has(row.id),
+  );
+  if (!reaches) return next;
+  const older = previous.messages.filter(
+    (row) =>
+      row.sequence < cut.order ||
+      (row.sequence === cut.order && !inPage.has(row.id)),
+  );
+  if (older.length === 0) return next;
+  return {
+    messages: [...older, ...next.messages],
+    hasMore: previous.hasMore,
+    nextBefore: previous.nextBefore,
+  };
+}
+
+/**
+ * One thread's messages: the newest page, and the older pages read on
+ * demand ({@link loadEarlierChatMessages}). Opening the thread, a nudge and
+ * a hint each read one page — never the whole thread.
+ */
 export function chatMessagesQuery(organizationId: string, threadId: string) {
   return queryOptions({
     queryKey: backendKey(organizationId, 'chat_message', threadId),
     queryFn: ({ signal }) =>
-      backendFetch<{ messages: unknown[] }>(
-        `/chat/threads/${encodeURIComponent(threadId)}/messages`,
-        { signal, orgId: organizationId },
-      ).then((body) => body.messages),
+      fetchChatMessagePage(organizationId, threadId, undefined, signal),
+    // Merged where the cache writes it, so a page read while an older one
+    // lands keeps both; unchanged rows keep their identity, as by default.
+    structuralSharing: (previous: unknown, next: unknown) =>
+      replaceEqualDeep(previous, keepOlderChatMessages(previous, next)),
+  });
+}
+
+/**
+ * The whole thread, every page read in turn — for a reader that needs the
+ * whole conversation (an export, a task drafted from the chat), never the
+ * transcript. It keys under the transcript's prefix, so a nudge or a retry
+ * of the transcript reaches it too; a settle marks it for a re-read
+ * ({@link applySettledChatMessage}).
+ */
+export function chatWholeMessagesQuery(
+  organizationId: string,
+  threadId: string,
+) {
+  return queryOptions({
+    queryKey: backendKey(organizationId, 'chat_message', threadId, 'whole'),
+    queryFn: async ({ signal }): Promise<ChatMessagePage> => {
+      let page = await fetchChatMessagePage(
+        organizationId,
+        threadId,
+        undefined,
+        signal,
+      );
+      const messages = [page.messages];
+      while (page.hasMore && page.nextBefore !== null) {
+        page = await fetchChatMessagePage(
+          organizationId,
+          threadId,
+          page.nextBefore,
+          signal,
+        );
+        messages.unshift(page.messages);
+      }
+      return { messages: messages.flat(), hasMore: false, nextBefore: null };
+    },
+  });
+}
+
+function sameCursor(
+  a: ChatMessageCursor | null,
+  b: ChatMessageCursor | null,
+): boolean {
+  return a?.order === b?.order && a?.stepOrder === b?.stepOrder;
+}
+
+/** Put the page read before `before` in front of the loaded rows — unless
+ * the loaded rows no longer start at `before` (that page is in already). */
+export function prependChatMessages<T>(
+  loaded: T,
+  before: ChatMessageCursor,
+  older: ChatMessagePage,
+): T | ChatMessagePage {
+  if (!isChatMessagePage(loaded) || !sameCursor(loaded.nextBefore, before)) {
+    return loaded;
+  }
+  const kept = new Set(loaded.messages.map((row) => row.id));
+  return {
+    messages: [
+      ...older.messages.filter((row) => !kept.has(row.id)),
+      ...loaded.messages,
+    ],
+    hasMore: older.hasMore,
+    nextBefore: older.nextBefore,
+  };
+}
+
+/**
+ * Read the page before the oldest loaded row and put it in front. Resolves
+ * whether the loaded rows now begin elsewhere — false when there was nothing
+ * to read: the thread's first row is already in.
+ */
+export async function loadEarlierChatMessages(
+  queryClient: QueryClient,
+  organizationId: string,
+  threadId: string,
+): Promise<boolean> {
+  const { queryKey } = chatMessagesQuery(organizationId, threadId);
+  const loaded = queryClient.getQueryData(queryKey);
+  if (loaded === undefined || !loaded.hasMore || loaded.nextBefore === null) {
+    return false;
+  }
+  const before = loaded.nextBefore;
+  const older = await fetchChatMessagePage(organizationId, threadId, before);
+  queryClient.setQueryData(queryKey, (current) =>
+    current === undefined
+      ? current
+      : prependChatMessages(current, before, older),
+  );
+  return !sameCursor(
+    queryClient.getQueryData(queryKey)?.nextBefore ?? null,
+    before,
+  );
+}
+
+/** Put a settled row in its place: over the row with its id, or after the
+ * last row it does not precede. A row older than the loaded rows belongs to
+ * a page not read yet, and is left to it. */
+export function upsertChatMessage<T>(
+  loaded: T,
+  row: ChatMessageRow,
+): T | ChatMessagePage {
+  if (!isChatMessagePage(loaded)) return loaded;
+  const { messages, hasMore, nextBefore } = loaded;
+  if (messages.some((message) => message.id === row.id)) {
+    return {
+      ...loaded,
+      messages: messages.map((message) =>
+        message.id === row.id ? row : message,
+      ),
+    };
+  }
+  if (hasMore && nextBefore !== null && row.sequence < nextBefore.order) {
+    return loaded;
+  }
+  let at = messages.length;
+  while (at > 0 && (messages[at - 1]?.sequence ?? 0) > row.sequence) at -= 1;
+  return {
+    ...loaded,
+    messages: [...messages.slice(0, at), row, ...messages.slice(at)],
+  };
+}
+
+/**
+ * The stream settled a turn and sent its row: put it in the transcript
+ * instead of re-reading the thread. With no row, nothing loaded to put it
+ * in, or a re-read still in flight — it read before the settle, and would
+ * put the unsettled row back — the transcript re-reads its newest page
+ * instead.
+ *
+ * Only the transcript takes the row. A whole-thread read is re-read instead:
+ * one no dialog showed when the turn opened never read the turn's prompt,
+ * and a write would stamp it fresh without it.
+ */
+export function applySettledChatMessage(
+  queryClient: QueryClient,
+  organizationId: string,
+  threadId: string,
+  message: unknown,
+): void {
+  const { queryKey } = chatMessagesQuery(organizationId, threadId);
+  if (
+    !isChatMessageRow(message) ||
+    queryClient.getQueryData(queryKey) === undefined ||
+    queryClient.isFetching({ queryKey, exact: true }) > 0
+  ) {
+    invalidateChatMessages(queryClient, organizationId, threadId);
+    return;
+  }
+  queryClient.setQueryData(queryKey, (loaded) =>
+    loaded === undefined ? loaded : upsertChatMessage(loaded, message),
+  );
+  void queryClient.invalidateQueries({
+    queryKey: chatWholeMessagesQuery(organizationId, threadId).queryKey,
+    exact: true,
+  });
+  void queryClient.invalidateQueries({
+    queryKey: backendKey(organizationId, DEFERRED_SEND_HINT_ENTITY, threadId),
   });
 }
 

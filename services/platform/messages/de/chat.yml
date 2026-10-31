@@ -175,6 +175,8 @@ voice:
   voiceOutputStopped: Gestoppt
   voiceOutputThreadSaveFailed: Sprach-Einstellung für diesen Chat konnte nicht gespeichert werden
 notFound: Dieser Chat ist nicht verfügbar.
+showEarlierMessages: Frühere Nachrichten anzeigen
+earlierMessagesFailed: Frühere Nachrichten konnten nicht geladen werden
 placeholder: Stell eine Frage…
 generationIncomplete: Das Modell hat keine Antwort geliefert. Versuch es erneut oder wähle ein anderes Modell.
 generationIncompleteFiltered: Der Inhaltsfilter des Modellanbieters hat diese Antwort zurückgehalten. Versuch, deine Nachricht umzuformulieren.
