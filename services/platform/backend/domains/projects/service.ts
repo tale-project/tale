@@ -63,6 +63,7 @@ import {
   PROJECT_RESOURCE_TYPE,
 } from '../../core/projects/audit_actions.ts';
 import { normalizeToolGrants } from '../../core/sandbox/tool_names.ts';
+import { likeContains } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { retireApiKeysInTx } from '../api_keys/retire.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
@@ -261,7 +262,7 @@ export interface ProjectListRow extends ProjectRow {
   canAdminister: boolean;
 }
 
-function stampAccessFlags(
+export function stampAccessFlags(
   row: ProjectRow,
   auth: ProjectAuthContext,
 ): ProjectListRow {
@@ -1115,6 +1116,18 @@ export async function updateProjectInstructions(
   await hintProject(tx, auth.organizationId, projectId);
 }
 
+/** A project's instructions as their managed configuration and its hash:
+ * what the read of one project answers and the settings listing pages. */
+export function projectInstructionsSnapshot(
+  project: Pick<ProjectRow, 'id' | 'instructions'>,
+) {
+  const config = {
+    projectId: project.id,
+    instructions: project.instructions ?? '',
+  };
+  return { config, hash: managedConfigurationHash(config) };
+}
+
 export async function readProjectInstructionsConfiguration(
   sql: Sql | TransactionSql,
   auth: ProjectAuthContext,
@@ -1122,8 +1135,7 @@ export async function readProjectInstructionsConfiguration(
 ) {
   const project = await loadProjectOrThrow(sql, projectId);
   assertReadable(project, auth);
-  const config = { projectId, instructions: project.instructions ?? '' };
-  return { config, hash: managedConfigurationHash(config) };
+  return projectInstructionsSnapshot(project);
 }
 
 export async function updateProjectSharing(
@@ -2262,8 +2274,7 @@ export async function readAgentInstructionsConfiguration(
   const agent = await getProjectAgent(sql, auth, projectId, agentId);
   if (!agent)
     throw new ProjectError('PROJECT_AGENT_NOT_FOUND', 'Agent not found', 404);
-  const config = { projectId, agentId, instructions: agent.instructions ?? '' };
-  return { config, hash: managedConfigurationHash(config) };
+  return agentInstructionsSnapshot(agent);
 }
 
 /** Instructions have no authority to replace equipment, credential grants or
@@ -2331,15 +2342,15 @@ export async function readAgentToolsConfiguration(
   const agent = await getProjectAgent(sql, auth, projectId, agentId);
   if (!agent)
     throw new ProjectError('PROJECT_AGENT_NOT_FOUND', 'Agent not found', 404);
-  const config = {
-    projectId,
-    agentId,
-    tools: validateProjectAgentTools(agent.tools),
-  };
-  return { config, hash: managedConfigurationHash(config) };
+  return agentToolsSnapshot(agent);
 }
 
-function agentModelConfiguration(agent: ProjectAgentRow) {
+function agentModelConfiguration(
+  agent: Pick<
+    ProjectAgentRow,
+    'id' | 'projectId' | 'harness' | 'model' | 'modelProvider'
+  >,
+) {
   return {
     projectId: agent.projectId,
     agentId: agent.id,
@@ -2358,8 +2369,93 @@ export async function readAgentModelConfiguration(
   const agent = await getProjectAgent(sql, auth, projectId, agentId);
   if (!agent)
     throw new ProjectError('PROJECT_AGENT_NOT_FOUND', 'Agent not found', 404);
+  return agentModelSnapshot(agent);
+}
+
+/** An agent as its managed configurations are made of it, and where a
+ * page of agents stands. */
+export type ProjectAgentConfigurationRow = Pick<
+  ProjectAgentRow,
+  | 'id'
+  | 'projectId'
+  | 'instructions'
+  | 'tools'
+  | 'harness'
+  | 'model'
+  | 'modelProvider'
+  | 'createdAt'
+>;
+
+/** An agent's instructions as their managed configuration and its hash:
+ * what the read of one agent answers and the settings listing pages. */
+export function agentInstructionsSnapshot(
+  agent: Pick<ProjectAgentRow, 'id' | 'projectId' | 'instructions'>,
+) {
+  const config = {
+    projectId: agent.projectId,
+    agentId: agent.id,
+    instructions: agent.instructions ?? '',
+  };
+  return { config, hash: managedConfigurationHash(config) };
+}
+
+/** An agent's tools as their managed configuration and its hash. */
+export function agentToolsSnapshot(
+  agent: Pick<ProjectAgentRow, 'id' | 'projectId' | 'tools'>,
+) {
+  const config = {
+    projectId: agent.projectId,
+    agentId: agent.id,
+    tools: validateProjectAgentTools(agent.tools),
+  };
+  return { config, hash: managedConfigurationHash(config) };
+}
+
+/** An agent's runtime, model and provider as their managed configuration
+ * and its hash. */
+export function agentModelSnapshot(
+  agent: Pick<
+    ProjectAgentRow,
+    'id' | 'projectId' | 'harness' | 'model' | 'modelProvider'
+  >,
+) {
   const config = agentModelConfiguration(agent);
   return { config, hash: managedConfigurationHash(config) };
+}
+
+/**
+ * One page of the agents of the projects the caller may read, newest
+ * first, keyed on `(created_at_ms DESC, id DESC)` like
+ * {@link listProjectsPage}: one statement through
+ * {@link readableProjectsSql}, archived projects left out, reading only
+ * what the agents' managed configurations are made of. Answers one row
+ * more than `limit` asks for, so the caller can tell whether a next page
+ * exists.
+ */
+export async function listReadableProjectAgentsPage(
+  sql: Sql,
+  auth: ProjectAuthContext,
+  options: { limit: number; cursor: { at: number; id: string } | null },
+): Promise<{ agents: ProjectAgentConfigurationRow[]; hasMore: boolean }> {
+  const cursorAt = options.cursor?.at ?? null;
+  const cursorId = options.cursor?.id ?? null;
+  const rows = await sql<ProjectAgentConfigurationRow[]>`
+    SELECT a.id, a.project_id AS "projectId", a.instructions, a.tools,
+           a.harness, a.model, a.model_provider AS "modelProvider",
+           a.created_at_ms::float8 AS "createdAt"
+    FROM app.project_agents a
+    JOIN ${readableProjectsSql(sql, auth)} rp ON rp.project_id = a.project_id
+    WHERE a.org_id = ${auth.organizationId}
+      AND (${cursorAt}::bigint IS NULL
+        OR a.created_at_ms < ${cursorAt}
+        OR (a.created_at_ms = ${cursorAt} AND a.id < ${cursorId}))
+    ORDER BY a.created_at_ms DESC, a.id DESC
+    LIMIT ${options.limit + 1}
+  `;
+  return {
+    agents: rows.slice(0, options.limit),
+    hasMore: rows.length > options.limit,
+  };
 }
 
 /** Serving choices affect only future admissions. Already admitted runs carry
@@ -3435,7 +3531,9 @@ export type ProjectArchivedFilter = 'exclude' | 'include' | 'only';
  * door's list, keyed like every keyset listing on the door on
  * `(created_at_ms DESC, id DESC)`; `cursor` is the previous page's last
  * row. Answers one row more than `limit` asks for, so the caller can tell
- * whether a next page exists without a count.
+ * whether a next page exists without a count. The projects are those of
+ * {@link readableProjectsSql}, joined in the statement that reads them;
+ * `name` keeps those whose name holds it, in any case.
  */
 export async function listProjectsPage(
   sql: Sql,
@@ -3446,17 +3544,23 @@ export async function listProjectsPage(
     cursor: { at: number; id: string } | null;
     /** Leave `instructions` out, as {@link ProjectReadOptions} does. */
     summary?: boolean;
+    /** Only the projects whose name holds this text; blank for all. */
+    name?: string;
   },
 ): Promise<{ projects: ProjectRow[]; hasMore: boolean }> {
   const cursorAt = options.cursor?.at ?? null;
   const cursorId = options.cursor?.id ?? null;
+  const name = options.name?.trim() ?? '';
+  const namePattern = name === '' ? null : likeContains(name);
   const rows = await sql<ProjectRow[]>`
     SELECT ${sql.unsafe(options.summary === true ? PROJECT_SUMMARY_COLUMNS : PROJECT_COLUMNS)} FROM app.projects
+    JOIN ${readableProjectsSql(sql, auth, { includeArchived: options.archived !== 'exclude' })} rp
+      ON rp.project_id = app.projects.id
     WHERE org_id = ${auth.organizationId}
       AND (${options.archived === 'include'}
         OR (${options.archived === 'only'} AND archived_at_ms IS NOT NULL)
         OR (${options.archived === 'exclude'} AND archived_at_ms IS NULL))
-      AND ${visibilityClause(sql, auth)}
+      AND (${namePattern}::text IS NULL OR name ILIKE ${namePattern})
       AND (${cursorAt}::bigint IS NULL
         OR created_at_ms < ${cursorAt}
         OR (created_at_ms = ${cursorAt} AND id < ${cursorId}))
