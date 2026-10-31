@@ -45,6 +45,7 @@ const setPreviousVersionMock = mock();
 const confirmMock = mock();
 const loggerInfoMock = mock();
 const loggerErrorMock = mock();
+const loggerSuccessMock = mock();
 const execMock = mock(async () => ({
   success: true,
   stdout: '',
@@ -72,6 +73,18 @@ const continuedLedger = [
 ];
 let migrateDuringPull = false;
 let targetProtocol: string | undefined;
+/** Off: no platform tag is on this host yet, as after `tale update --version`. */
+let targetImageLocal = true;
+const noSuchImage = {
+  success: false,
+  exitCode: 1,
+  stdout: '',
+  stderr: 'Error response from daemon: No such image',
+};
+const inspectsPlatformTag = (args: string[]) =>
+  args[0] === 'image' &&
+  args[1] === 'inspect' &&
+  args[2]?.includes('/tale-platform:') === true;
 const databaseId = 'a'.repeat(64);
 
 mock.module('../state/get-current-color', () => ({
@@ -132,7 +145,7 @@ mock.module('../../utils/logger', () => ({
   error: loggerErrorMock,
   warn: mock(),
   step: mock(),
-  success: mock(),
+  success: loggerSuccessMock,
   header: mock(),
   blank: mock(),
   debug: mock(),
@@ -179,8 +192,10 @@ beforeEach(() => {
   ledgerOverride = undefined;
   migrateDuringPull = false;
   targetProtocol = undefined;
+  targetImageLocal = true;
   execMock.mockImplementation(
     async (_command?: string, args: string[] = []) => {
+      if (!targetImageLocal && inspectsPlatformTag(args)) return noSuchImage;
       let value: unknown = '';
       if (args[0] === 'ps' && args.includes('--no-trunc')) {
         value = args.at(-1)?.includes('.Label')
@@ -288,6 +303,8 @@ beforeEach(() => {
   // One platform replica in the live colour, so the version probe has
   // something to read.
   dockerMock.mockImplementation((...args: string[]) => {
+    if (!targetImageLocal && inspectsPlatformTag(args))
+      return Promise.resolve(noSuchImage);
     if (args[0] === 'pull' && migrateDuringPull) protocolFloor = 2;
     const argv = args.join(' ');
     let stdout = '';
@@ -331,6 +348,7 @@ afterEach(() => {
   confirmMock.mockReset();
   loggerInfoMock.mockReset();
   loggerErrorMock.mockReset();
+  loggerSuccessMock.mockReset();
   execMock.mockClear();
   rmSync(env.DEPLOY_DIR, { recursive: true, force: true });
 });
@@ -527,6 +545,66 @@ describe('rollback confirmation', () => {
         );
       }),
     ).toBe(false);
+  });
+
+  describe('deploy --dry-run on a protocol-2 install', () => {
+    const target = 'ghcr.io/tale-project/tale/tale-platform:0.9.2';
+    const pendingCheck = `[DRY-RUN] Would check after pulling that ${target} is an automation writer protocol 2 image (v0.5.78 or later) proving its source, version and repository digest. It is not on this host yet, so this preview skips that check.`;
+    const preview = () =>
+      deploy({
+        env,
+        version: '0.9.2',
+        stop: false,
+        hostAlias: '',
+        dryRun: true,
+      });
+    const infoLines = () => loggerInfoMock.mock.calls.map((c) => String(c[0]));
+    const inspectedTarget = () =>
+      execMock.mock.calls.some((call) => {
+        const args = (call as unknown[])[1];
+        return (
+          Array.isArray(args) && args.join(' ') === `image inspect ${target}`
+        );
+      });
+
+    test('previews an upgrade whose image is not pulled yet, naming the check the deploy runs after its pull', async () => {
+      arrangePatchRollback();
+      protocolFloor = 2;
+      targetImageLocal = false;
+      await preview();
+      expect(infoLines()).toContain(`[DRY-RUN] Would pull: ${target}`);
+      expect(infoLines()).toContain(pendingCheck);
+      expect(loggerSuccessMock).toHaveBeenCalledWith(
+        '[DRY-RUN] Dry-run complete! Would deploy version 0.9.2',
+      );
+      expect(inspectedTarget()).toBe(false);
+      expect(dockerComposeMock).not.toHaveBeenCalled();
+      expect(setCurrentColorMock).not.toHaveBeenCalled();
+      expect(
+        dockerMock.mock.calls.some((call) => ['pull', 'tag'].includes(call[0])),
+      ).toBe(false);
+    });
+
+    test('still admits a target image already on this host', async () => {
+      arrangePatchRollback();
+      protocolFloor = 2;
+      targetProtocol = '2';
+      await preview();
+      expect(inspectedTarget()).toBe(true);
+      expect(infoLines()).not.toContain(pendingCheck);
+      expect(loggerSuccessMock).toHaveBeenCalledWith(
+        '[DRY-RUN] Dry-run complete! Would deploy version 0.9.2',
+      );
+    });
+
+    test('still refuses a local target image of the older protocol', async () => {
+      arrangePatchRollback();
+      protocolFloor = 2;
+      await expect(preview()).rejects.toThrow('requires a compatible runtime');
+      expect(infoLines()).toContain(`[DRY-RUN] Would pull: ${target}`);
+      expect(infoLines()).not.toContain(pendingCheck);
+      expect(loggerSuccessMock).not.toHaveBeenCalled();
+    });
   });
 
   test('a compatible protocol image retains ordinary rollback behavior', async () => {

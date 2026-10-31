@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { parse } from 'yaml';
 
+import { CliError, ExitCode } from '../../utils/fail';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
 import { setProjectId } from '../project/project-context';
 import {
@@ -181,6 +182,22 @@ test('tag admission binds source and digest and all backend roles consume that d
       exec: async () => ok([{ ...metadata, Config: {} }]),
     }),
   ).toBeUndefined();
+  // Before a pull the selected tag is simply not on the host: the failed read
+  // names that image and the read, not the installed writer.
+  const failure = await admitTagAutomationImage(config, 2, {
+    exec: async () => ({
+      success: false,
+      exitCode: 1,
+      stdout: '',
+      stderr: 'Error response from daemon: No such image',
+    }),
+  }).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(CliError);
+  expect((failure as CliError).info.code).toBe(ExitCode.ExternalDep);
+  expect((failure as CliError).message).toContain(
+    `\`docker image inspect ${config.registry}/tale-platform:${config.version}\` failed`,
+  );
+  expect((failure as CliError).message).not.toContain('installed');
 });
 
 test('fresh tag deployment requires absence of existing database and project volumes', async () => {
