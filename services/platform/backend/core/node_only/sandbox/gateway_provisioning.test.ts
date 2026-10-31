@@ -9,7 +9,7 @@ import {
 } from '../../governance/model_endpoint_gate';
 import type { ActionCtx } from '../../lib/ctx';
 import { getProviderCatalog } from '../../lib/providers/catalog_fetch';
-import { loadProviderDefinitions } from '../../lib/providers/load_system_config';
+import { loadProviderDefinitions as loadShippedProviders } from '../../lib/providers/load_system_config';
 import { resolveProvidersForOrgId } from '../../lib/providers/org_providers';
 import type { Id } from '../../lib/rows';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
@@ -1051,7 +1051,7 @@ describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
     shippedName: string,
     own: { name?: string; baseUrl: string; harnessBaseUrl?: string },
   ): ProviderDefinition {
-    const shipped = loadProviderDefinitions().find(
+    const shipped = loadShippedProviders().find(
       (entry) => entry.name === shippedName,
     );
     if (shipped === undefined) {
@@ -1076,7 +1076,7 @@ describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
   /** Serve the shipped connectors with the org's own `extra` on top. */
   function withConnectors(...extra: ProviderDefinition[]): void {
     vi.mocked(resolveProvidersForOrgId).mockImplementation(async () => [
-      ...loadProviderDefinitions().filter(
+      ...loadShippedProviders().filter(
         (entry) => !extra.some((own) => own.name === entry.name),
       ),
       ...extra,
@@ -1106,7 +1106,7 @@ describe('provisionSessionGatewayKey — the EU/EEA rule [GOV-R17]', () => {
 
   afterEach(() => {
     vi.mocked(resolveProvidersForOrgId).mockImplementation(async () => [
-      ...loadProviderDefinitions(),
+      ...loadShippedProviders(),
     ]);
   });
 
