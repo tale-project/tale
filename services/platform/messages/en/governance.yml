@@ -1063,6 +1063,9 @@ competences:
     qualificationsGroup: Your organization
     qualificationOption: Qualification
     qualificationOptionDescription: A name your review policy asks for
+    modelApiOff:
+      description: Model endpoints are not enabled for this organization. The member can call the models only once they are.
+      link: Open model access
     qualificationLabel: Qualification name
     qualificationDescription: The name your review policy uses, for example tax-reviewer.
     expiryLabel: Expires
