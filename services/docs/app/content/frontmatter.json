@@ -284,14 +284,6 @@
       "description": "Finde protokollierte Änderungen, prüfe Ereignisdetails, exportiere Ergebnisse und kontrolliere die Audit-Kette."
     }
   },
-  "de:platform/admin/governance/competences": {
-    "slug": "platform/admin/governance/competences",
-    "locale": "de",
-    "frontmatter": {
-      "title": "Kompetenzen",
-      "description": "Gib einem Mitglied oder einem Team ein einzelnes, eng begrenztes Recht oder einem Mitglied eine Qualifikation ohne Admin-Rolle und widerrufe es, wenn es nicht mehr gebraucht wird."
-    }
-  },
   "de:platform/admin/governance/content-models": {
     "slug": "platform/admin/governance/content-models",
     "locale": "de",
@@ -346,6 +338,14 @@
     "frontmatter": {
       "title": "Richtlinien und Limits",
       "description": "Lege Budgets, Uploadregeln, Aufbewahrung, Funktionskontrollen, einen Vertraulichkeitshinweis im Chat, das Teilen von Skills mit allen und die Zuordnung eingehender Konversationen fest."
+    }
+  },
+  "de:platform/admin/governance/rights-and-qualifications": {
+    "slug": "platform/admin/governance/rights-and-qualifications",
+    "locale": "de",
+    "frontmatter": {
+      "title": "Rechte und Qualifikationen",
+      "description": "Gib einem Mitglied oder einem Team ein einzelnes, eng begrenztes Recht oder einem Mitglied eine Qualifikation ohne Admin-Rolle und widerrufe es, wenn es nicht mehr gebraucht wird."
     }
   },
   "de:platform/admin/governance/trash": {
@@ -1527,14 +1527,6 @@
       "description": "Find recorded organization changes, inspect event details, export results, and check the audit chain."
     }
   },
-  "en:platform/admin/governance/competences": {
-    "slug": "platform/admin/governance/competences",
-    "locale": "en",
-    "frontmatter": {
-      "title": "Competences",
-      "description": "Give a member or a team one narrow right, or a member a qualification, without an Admin role, and revoke it when it is no longer needed."
-    }
-  },
   "en:platform/admin/governance/content-models": {
     "slug": "platform/admin/governance/content-models",
     "locale": "en",
@@ -1589,6 +1581,14 @@
     "frontmatter": {
       "title": "Policies and limits",
       "description": "Set spending budgets, upload rules, retention periods, feature controls, a chat confidentiality notice, who may share skills with everyone, and inbound-conversation routing."
+    }
+  },
+  "en:platform/admin/governance/rights-and-qualifications": {
+    "slug": "platform/admin/governance/rights-and-qualifications",
+    "locale": "en",
+    "frontmatter": {
+      "title": "Rights and qualifications",
+      "description": "Give a member or a team one narrow right, or a member a qualification, without an Admin role, and revoke it when it is no longer needed."
     }
   },
   "en:platform/admin/governance/trash": {
@@ -2767,14 +2767,6 @@
       "description": "Retrouve les changements enregistrés, examine les événements, exporte les résultats et vérifie la chaîne d’audit."
     }
   },
-  "fr:platform/admin/governance/competences": {
-    "slug": "platform/admin/governance/competences",
-    "locale": "fr",
-    "frontmatter": {
-      "title": "Compétences",
-      "description": "Accorde à un membre ou à une équipe un droit bien délimité, ou à un membre une qualification, sans rôle Admin, et révoque-le quand il n’est plus nécessaire."
-    }
-  },
   "fr:platform/admin/governance/content-models": {
     "slug": "platform/admin/governance/content-models",
     "locale": "fr",
@@ -2829,6 +2821,14 @@
     "frontmatter": {
       "title": "Politiques et limites",
       "description": "Définis les budgets, règles d’import, durées de rétention, contrôles de fonctionnalités, l’avis de confidentialité du chat, le partage des skills avec tout le monde et le routage des conversations entrantes."
+    }
+  },
+  "fr:platform/admin/governance/rights-and-qualifications": {
+    "slug": "platform/admin/governance/rights-and-qualifications",
+    "locale": "fr",
+    "frontmatter": {
+      "title": "Droits et qualifications",
+      "description": "Accorde à un membre ou à une équipe un droit bien délimité, ou à un membre une qualification, sans rôle Admin, et révoque-le quand il n’est plus nécessaire."
     }
   },
   "fr:platform/admin/governance/trash": {

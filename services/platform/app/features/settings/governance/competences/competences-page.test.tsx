@@ -81,7 +81,7 @@ beforeEach(() => {
 });
 
 describe('CompetencesPage', () => {
-  it('opens on active grants, naming capability, holder and grantor', () => {
+  it('opens on active grants, naming right, holder and grantor', () => {
     state.records = [
       record({ id: 'live', evidence: 'Relays office answers' }),
       record({
@@ -94,6 +94,9 @@ describe('CompetencesPage', () => {
     ];
     render(<CompetencesPage organizationId="org-a" />);
 
+    expect(
+      screen.getByRole('columnheader', { name: 'Right or qualification' }),
+    ).toBeInTheDocument();
     const rows = screen.getAllByRole('row').slice(1);
     expect(rows).toHaveLength(2);
     const live = within(rows[0]!);
@@ -111,7 +114,9 @@ describe('CompetencesPage', () => {
 
   it('shows the empty state for an empty register, not "no results"', () => {
     render(<CompetencesPage organizationId="org-a" />);
-    expect(screen.getByText('No competences granted yet')).toBeInTheDocument();
+    expect(
+      screen.getByText('No rights or qualifications granted yet'),
+    ).toBeInTheDocument();
     expect(screen.queryByText('No results found')).not.toBeInTheDocument();
   });
 
@@ -142,7 +147,7 @@ describe('CompetencesPage', () => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
     expect(state.toast).toHaveBeenCalledWith(
-      expect.objectContaining({ title: 'Competence revoked' }),
+      expect.objectContaining({ title: 'Grant revoked' }),
     );
   });
 
@@ -171,7 +176,9 @@ describe('CompetencesPage', () => {
 
     await waitFor(() => {
       expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-      expect(screen.getByRole('region', { name: 'Competences' })).toHaveFocus();
+      expect(
+        screen.getByRole('region', { name: 'Rights and qualifications' }),
+      ).toHaveFocus();
     });
   });
 
@@ -187,9 +194,9 @@ describe('CompetencesPage', () => {
 
     expect(state.toast).toHaveBeenCalledWith(
       expect.objectContaining({
-        title: "Couldn't revoke the competence",
+        title: "Couldn't revoke the grant",
         description:
-          'Only organization owners and admins can grant or revoke competences.',
+          'Only organization owners and admins can grant or revoke rights and qualifications.',
         variant: 'destructive',
       }),
     );
@@ -345,7 +352,7 @@ describe('CompetencesPage', () => {
     render(<CompetencesPage organizationId="org-a" />);
     expect(
       screen.getByText(
-        'Only organization owners and admins can manage competences.',
+        'Only organization owners and admins can manage rights and qualifications.',
       ),
     ).toBeInTheDocument();
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
