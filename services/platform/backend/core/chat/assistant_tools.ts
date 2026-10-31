@@ -887,9 +887,10 @@ export function createChatToolExecutor(
     return orgSlugPromise;
   };
 
-  /** The turn user's FULL visibility (their teams + every readable project
-   * + the org hub) — the same rules the library listings enforce, so a chat
-   * search can never surface a document the Documents page would hide.
+  /** The turn user's FULL knowledge visibility (their teams + the readable
+   * projects that hold a document + the org hub) — the same rules the
+   * library listings enforce, so a chat search can never surface a document
+   * the Documents page would hide.
    * Resolved once per turn: membership is already re-checked per dispatch by
    * `readAllowed`, and a mid-turn team change taking one turn to bite is the
    * same window every listing query has. Never handed to a leg directly:
@@ -907,16 +908,23 @@ export function createChatToolExecutor(
    * Null for a personal thread. A project the user lost access to stays the
    * boundary (nothing else is reached instead) — the scopes below then hold
    * no project at all, and the listing label says why. */
+  let pinnedPromise: Promise<boolean> | null = null;
   const pinnedProject = async (): Promise<{
     id: string;
     readable: boolean;
   } | null> => {
-    if (who.projectId === null) return null;
-    const base = await baseAccess();
-    return {
-      id: who.projectId,
-      readable: base.projectIds.includes(who.projectId),
-    };
+    const projectId = who.projectId;
+    if (projectId === null) return null;
+    // The one project, checked on its own: the knowledge scope carries only
+    // the projects that hold a document.
+    pinnedPromise ??= ctx
+      .runQuery(internal.projects.internal_queries.assertProjectAccessForChat, {
+        projectId,
+        organizationId: who.organizationId,
+        userId: who.userId,
+      })
+      .then((access: { allowed: boolean }) => access.allowed);
+    return { id: projectId, readable: await pinnedPromise };
   };
 
   /** `base` with its project set replaced by `projectIds` — the archive
@@ -964,11 +972,28 @@ export function createChatToolExecutor(
    * task tools have), every readable project in a personal thread. */
   let workPromise: Promise<KnowledgeAccessScope> | null = null;
   const workAccess = (): Promise<KnowledgeAccessScope> => {
-    workPromise ??= Promise.all([baseAccess(), pinnedProject()]).then(
-      ([base, project]) =>
-        project === null
-          ? base
-          : withProjects(base, project.readable ? [project.id] : []),
+    workPromise ??= Promise.all([
+      baseAccess(),
+      ctx.runQuery(
+        internal.projects.internal_queries.resolveWorkProjectsForChat,
+        { organizationId: who.organizationId, userId: who.userId },
+      ),
+      pinnedProject(),
+    ]).then(
+      ([base, work, project]: [
+        KnowledgeAccessScope,
+        { projectIds: string[]; archivedProjectIds: string[] },
+        { id: string; readable: boolean } | null,
+      ]) => {
+        const readable: KnowledgeAccessScope = {
+          ...base,
+          projectIds: work.projectIds,
+          archivedProjectIds: work.archivedProjectIds,
+        };
+        return project === null
+          ? readable
+          : withProjects(readable, project.readable ? [project.id] : []);
+      },
     );
     return workPromise;
   };
