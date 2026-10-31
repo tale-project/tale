@@ -34601,6 +34601,15 @@ async function checkControlDrain(
     'tale_backend_automation_trigger_scan_last_success_timestamp_seconds',
   );
   const hasHttp = metricsBody.includes('tale_backend_http_requests_total');
+  // The agent runs' totals and waiting runs, read from the database on the
+  // scrape (TASK-R86): every label of the closed set is there from zero.
+  const hasAgentRuns = [
+    'tale_backend_agent_run_parks_total{reason="org_limit"}',
+    'tale_backend_agent_run_wakes_total{source="watchdog"}',
+    'tale_backend_agent_run_wake_failures_total{source="release"}',
+    'tale_backend_agent_run_failures_total{code="resource_exhausted"}',
+    'tale_backend_agent_runs_waiting{reason="host"}',
+  ].every((series) => metricsBody.includes(series));
   // The route label must be the bounded class, never a path with ids in it.
   const labelledByClass = /route="\/api\/app\/[a-z_-]+"/.test(metricsBody);
   const noIdsInLabels = !/route="[^"]*[0-9a-f]{8}-[0-9a-f]{4}/.test(
@@ -34617,9 +34626,10 @@ async function checkControlDrain(
       hasDrain &&
       hasScan &&
       hasHttp &&
+      hasAgentRuns &&
       labelledByClass &&
       noIdsInLabels,
-    `status=${metricsRes.status}, process=${hasProcess} sla=${hasSla} jobs=${hasJobs} generations=${hasGenerations} streams=${hasStreams} drain=${hasDrain} scan=${hasScan} http=${hasHttp}, routeClass=${labelledByClass} noIds=${noIdsInLabels}`,
+    `status=${metricsRes.status}, process=${hasProcess} sla=${hasSla} jobs=${hasJobs} generations=${hasGenerations} streams=${hasStreams} drain=${hasDrain} scan=${hasScan} http=${hasHttp} agentRuns=${hasAgentRuns}, routeClass=${labelledByClass} noIds=${noIdsInLabels}`,
   );
 
   record(
@@ -47324,6 +47334,19 @@ async function checkTaskAgentRuns(
     ? runsView.data.runs.find((run) => run.id === runId)
     : undefined;
 
+  // The deployment's running totals of parks, wakes and failures (TASK-R86),
+  // read before and after the lane's own, through the real upsert.
+  const agentRunTotals = async (): Promise<Map<string, number>> =>
+    new Map(
+      (
+        await sql<{ key: string; total: string }[]>`
+          SELECT event || ':' || label AS key, total::text AS total
+          FROM app.agent_run_counters
+        `
+      ).map((row) => [row.key, Number(row.total)]),
+    );
+  const totalsBefore = await agentRunTotals();
+
   // Park (the host's shim ref) → the wake CLAIMS it (clearing the stamp is
   // the single-winner election: a second wake finds nothing).
   const { agentTurnShimHandlers: runShim } =
@@ -47616,6 +47639,21 @@ async function checkTaskAgentRuns(
     error: 'a second chain must not re-stamp',
   });
   const failedLedger = await ledgerRows(failedRunId);
+  // Four parks without a reason, a wake of each source and one failure of
+  // code `deadline`, each added once committed. ≥, not ==: a live worker may
+  // count events of its own in the same window.
+  const totalsAfter = await agentRunTotals();
+  const added = (key: string): number =>
+    (totalsAfter.get(key) ?? 0) - (totalsBefore.get(key) ?? 0);
+  record(
+    'the run ledger’s parks, wakes and failure add to the deployment’s running totals [TASK-R86]',
+    added('park:unknown') >= 4 &&
+      added('wake:watchdog') >= 1 &&
+      added('wake:scheduled') >= 1 &&
+      added('wake:release') >= 1 &&
+      added('failure:deadline') >= 1,
+    `parks unknown +${added('park:unknown')} (want ≥4), wakes watchdog +${added('wake:watchdog')} scheduled +${added('wake:scheduled')} release +${added('wake:release')} (want ≥1 each), failures deadline +${added('failure:deadline')} (want ≥1)`,
+  );
   const finalRun = await agentRuns.getAgentRun(sql, orgId, runId);
 
   // A live run makes a concurrent kick REUSE it; a terminal one mints anew
