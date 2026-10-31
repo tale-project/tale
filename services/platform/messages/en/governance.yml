@@ -1027,7 +1027,8 @@ moderationProvider:
     Send a sample message through the real provider path.
     Verifies the API key, endpoint URL, request template, response parser, and
     category mappings in one round-trip. No chat message is saved — this call
-    bypasses the thread and audit pipeline.
+    bypasses the thread and audit pipeline; only a refusal because prompts must
+    stay in the EU/EEA is recorded in the audit log.
   testPlaceholder: Type a sample message to send through the provider…
   testDefaultText: I want to kill everyone in this building
   testing: Testing…
@@ -1047,6 +1048,14 @@ moderationProvider:
   testResultCircuitOpened: Opened by this failure
   saved: Moderation provider saved
   saveFailed: Save failed
+  euEndpointVendor:
+    This organization processes prompts only in the EU/EEA, and {host} may
+    process them outside it, so the moderation provider can't use it. Point
+    it at {euEndpoint} instead.
+  euEndpointNotKnown:
+    This organization processes prompts only in the EU/EEA, and {host} is not
+    known to process there, so the moderation provider can't use it. If it
+    does, list the host under Model access first.
   presetAzure: Use Azure Content Safety
   presetAzureActive: Azure Content Safety
   presetAzureNote: Replace the subdomain with your own Azure resource name.
@@ -1495,17 +1504,18 @@ modelAccess:
     enabled: Enable model endpoints for API keys
   euProcessing:
     title: Process prompts only in the EU/EEA
-    description: Send model calls only to endpoints known to process in the
-      EU/EEA — eu.openrouter.ai, eu.api.openai.com, api.eu.mistral.ai and the
-      hosts attested below. Any other call is refused before anything is
-      sent, and the refusal is recorded in the audit log. Coding agents in
-      sandboxes and the guardrails' moderation provider are not held to it
-      yet.
+    description: Send model calls, and the text the guardrails' moderation
+      provider checks, only to endpoints known to process in the EU/EEA —
+      eu.openrouter.ai, eu.api.openai.com, api.eu.mistral.ai and the hosts
+      attested below. Any other call is refused before anything is sent, and
+      the refusal is recorded in the audit log. Coding agents in sandboxes are
+      not held to it yet.
     enabled: Process prompts only in the EU/EEA
     hostsLabel: Endpoints attested as processing in the EU/EEA
-    hostsHelp: One host per line, as it appears in a provider's base URL — the
-      server of a custom provider, or an Azure resource deployed in an EU/EEA
-      region. Attest only endpoints you know process there; up to {max}.
+    hostsHelp: One host per line, as it appears in a provider's base URL or the
+      moderation provider's endpoint URL — the server of a custom provider, or
+      an Azure resource deployed in an EU/EEA region. Attest only endpoints you
+      know process there; up to {max}.
     hostsPlaceholder: my-resource.openai.azure.com
     invalidHost: '{host} is not a host name: write the host alone, without
       https://, a port or a path.'

@@ -39,11 +39,13 @@ An email address is recognized in full even when the part before the `@` contain
 
 Test the formats you actually use with synthetic values. Pattern detection can miss unusual formats and can flag ordinary text. Check input and output separately.
 
-## Add external moderation
+## Add external moderation {#moderation}
 
 The moderation layer sends text to a configured classifier, such as OpenAI, Azure, Perspective, or a custom endpoint. Configure its credentials, categories, and actions, and choose the directions it should inspect.
 
 Decide what should happen if the provider is unavailable: fail-open allows the message, while fail-closed refuses it. Review provider errors and circuit-open events when unexpected refusals or unfiltered messages occur. Enabling this layer introduces another service that processes the text; use the provider and endpoint approved for your organization.
+
+While [Process prompts only in the EU/EEA](/platform/admin/governance/content-models#eu-processing) is on, the provider receives text only at an endpoint that switch lets through: a vendor's EU endpoint, or a host attested under **Model access**. Saving the provider with another endpoint is refused, and the message says what to change. If the switch is turned on while the provider points elsewhere, no text is sent: the check fails as if the provider were unavailable, so fail-open allows the message and fail-closed refuses it. Its event under **Recent events** shows the error class `eu_processing`, and the refusal is recorded in the [audit log](/platform/admin/governance/audit-logs) as **Model access denied**. **Test connection** gives the same reason.
 
 ## Set organization instructions
 
