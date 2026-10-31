@@ -18,7 +18,7 @@ import { toast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
-import { useProjects } from '@/app/features/projects/hooks/queries';
+import { ProjectSelect } from '@/app/features/projects/components/project-select';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { cronParseProblem } from '@/lib/automations/cron';
 import { generatedAutomationSlug, slugFromName } from '@/lib/automations/slug';
@@ -861,20 +861,14 @@ function ProjectQuestion({
   description?: string;
 }) {
   const { t } = useT('automations');
-  const { projects } = useProjects(organizationId);
-  const options = useMemo(
-    () =>
-      projects.map((project) => ({ value: project._id, label: project.name })),
-    [projects],
-  );
   return (
-    <SearchableSelect
+    <ProjectSelect
+      organizationId={organizationId}
       id={id}
       label={label}
       placeholder={t('templates.projectPlaceholder')}
       searchPlaceholder={t('templates.projectSearch')}
       emptyText={t('templates.projectEmpty')}
-      options={options}
       value={value === '' ? null : value}
       onValueChange={onChange}
       required

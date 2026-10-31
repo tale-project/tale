@@ -12,8 +12,18 @@ const state = vi.hoisted(() => ({
 vi.mock('@/app/hooks/use-ability', () => ({
   useAbility: () => ({ can: () => state.canRun }),
 }));
+const named = vi.hoisted(() => ({ ids: [] as string[] }));
+// The run's own project is named by id, never out of every project (#5204).
 vi.mock('@/app/features/projects/hooks/queries', () => ({
-  useProjects: () => ({ projects: [{ _id: 'p1', name: 'Engineering' }] }),
+  useNamedProjects: (_organizationId: string, ids: readonly string[]) => {
+    named.ids = [...ids];
+    return {
+      projects: new Map(
+        ids.includes('p1') ? [['p1', { _id: 'p1', name: 'Engineering' }]] : [],
+      ),
+      isPending: false,
+    };
+  },
 }));
 vi.mock('../hooks/mutations', () => ({
   useStartAutomationRun: () => ({ mutate: state.mutate, isPending: false }),
@@ -53,6 +63,8 @@ it('continues the pinned version, mode and project, keeps failures editable, the
   );
   const { user } = render(<IssueImportContinuation {...props} />);
   await user.click(screen.getByRole('button', { name: 'Continue import' }));
+  expect(screen.getByText('Engineering')).toBeVisible();
+  expect(named.ids).toEqual(['p1']);
   await user.click(screen.getByRole('button', { name: 'Run live' }));
   expect(state.mutate).toHaveBeenLastCalledWith(
     {

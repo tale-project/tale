@@ -1,5 +1,5 @@
 import { useDebounce } from '@tale/ui/use-debounce';
-import { keepPreviousData } from '@tanstack/react-query';
+import { keepPreviousData, type UseQueryResult } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 
 import {
@@ -9,7 +9,10 @@ import {
 } from '@/app/features/projects/lib/project-choices';
 import { PROJECTS_PAGE_SIZE } from '@/app/features/projects/projects-page-size';
 import { useActionQuery } from '@/app/hooks/use-action-query';
-import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import {
+  useBackendQueries,
+  useBackendQuery,
+} from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import type { ItemOf, PageItemOf, ReturnsOf } from '@/app/lib/backend/contract';
@@ -212,8 +215,10 @@ export function useProjects(
   };
 }
 
-const NO_PROJECT_CHOICES: readonly ItemOf<'projects/queries:searchProjects'>[] =
-  [];
+/** A project as a picker offers it and a screen names it. */
+export type ProjectChoice = ItemOf<'projects/queries:searchProjects'>;
+
+const NO_PROJECT_CHOICES: readonly ProjectChoice[] = [];
 
 /**
  * What a project picker offers for what was typed — the project breadcrumb
@@ -261,6 +266,81 @@ export function useProjectChoices(organizationId: string, query: string) {
     ...readStateOf(page),
     retry,
   };
+}
+
+const NO_PROJECT_IDS: readonly string[] = [];
+
+export interface NamedProjects {
+  /** Each named project the caller can read, by id, archived ones too. One
+   * that is gone, out of reach or whose read failed is absent. */
+  projects: ReadonlyMap<string, ProjectChoice>;
+  /** A named project is still being read. */
+  isPending: boolean;
+}
+
+interface ProjectsById {
+  rows: ProjectChoice[];
+  isPending: boolean;
+}
+
+/**
+ * The projects a screen names by id (the projects an automation is bound
+ * to, the one a dialog targets), never the whole list {@link useProjects}
+ * reads (#5204). Home's navigator page answers the ones it holds: the read
+ * {@link useProjectChoices} makes, so a screen with both makes it once.
+ * Each id the page lacks is read on its own, under the key the project's
+ * own pages read it by. No ids, no read.
+ */
+export function useNamedProjects(
+  organizationId: string,
+  projectIds: readonly string[],
+): NamedProjects {
+  // The same ids, in any order, are the same reads.
+  const signature = [...new Set(projectIds)].sort().join('\n');
+  const page = useBackendQuery(
+    'projects/queries:listSidebarProjects',
+    signature === ''
+      ? 'skip'
+      : { organizationId, limit: NAVIGATOR_PROJECT_LIMIT },
+  );
+  const onPage = page.data?.projects;
+  // A page that cannot be read names nothing: every id is read on its own.
+  const pageSettled = onPage !== undefined || readStateOf(page).unavailable;
+  const pastPage = useMemo(() => {
+    if (signature === '' || !pageSettled) return NO_PROJECT_IDS;
+    const listed = new Set((onPage ?? []).map((project) => project._id));
+    return signature.split('\n').filter((id) => !listed.has(id));
+  }, [signature, pageSettled, onPage]);
+  const argsList = useMemo(
+    () => pastPage.map((projectId) => ({ organizationId, projectId })),
+    [pastPage, organizationId],
+  );
+  const combine = useCallback(
+    (
+      results: UseQueryResult<ReturnsOf<'projects/queries:getProject'>>[],
+    ): ProjectsById => ({
+      rows: results.flatMap((result) => (result.data ? [result.data] : [])),
+      isPending: results.some((result) => result.isPending),
+    }),
+    [],
+  );
+  const byId = useBackendQueries(
+    'projects/queries:getProject',
+    argsList,
+    combine,
+  );
+  return useMemo(() => {
+    const named = new Set(signature === '' ? [] : signature.split('\n'));
+    const projects = new Map<string, ProjectChoice>();
+    for (const project of onPage ?? []) {
+      if (named.has(project._id)) projects.set(project._id, project);
+    }
+    for (const project of byId.rows) projects.set(project._id, project);
+    return {
+      projects,
+      isPending: signature !== '' && (!pageSettled || byId.isPending),
+    };
+  }, [signature, onPage, pageSettled, byId]);
 }
 
 /**

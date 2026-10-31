@@ -76,10 +76,7 @@ import {
   useState,
 } from 'react';
 
-import {
-  useProjectHarnesses,
-  useProjects,
-} from '@/app/features/projects/hooks/queries';
+import { useProjectHarnesses } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { readStateOf } from '@/app/lib/backend/read-state';
@@ -120,6 +117,7 @@ import {
   useInvalidateAutomationValidation,
   VALIDATION_DEBOUNCE_MS,
 } from '../hooks/use-automation-validation';
+import { useBoundProjects } from '../hooks/use-bound-projects';
 import { useDeployVersion } from '../hooks/use-deploy-version';
 import {
   focusAutomationNode,
@@ -581,7 +579,6 @@ function AutomationEditorScope({
   const runsQuery = useAutomationRuns(organizationId, automationSlug, 5);
   const catalogQuery = useNodeTypeCatalog(organizationId);
   const boundProjectIds = useAutomationProjects(organizationId, automationSlug);
-  const { projects } = useProjects(organizationId);
   const save = useSaveAutomation();
   const startRun = useStartAutomationRun();
   const tryRun = useTryAutomation();
@@ -589,10 +586,7 @@ function AutomationEditorScope({
   // The projects a run may target: the automation's own bindings, resolved to
   // names. A run scope only needs choosing when there are two or more — one
   // binding is auto-applied server-side, none means org-wide.
-  const boundProjects = useMemo(() => {
-    const ids = new Set((boundProjectIds.data ?? []).map(String));
-    return projects.filter((project) => ids.has(project._id));
-  }, [boundProjectIds.data, projects]);
+  const boundProjects = useBoundProjects(organizationId, boundProjectIds.data);
   const canChooseRunProject = boundProjects.length >= 2;
 
   // What actually rides on the run: the chosen project, but only while it is
@@ -3508,6 +3502,7 @@ function AutomationEditorScope({
 
       {runRequest !== null && (
         <AutomationRunDialog
+          organizationId={organizationId}
           request={runRequest}
           {...(runRequest.mode === 'mock' && {
             sources: {
@@ -3516,7 +3511,6 @@ function AutomationEditorScope({
               items: runSources,
             },
           })}
-          projects={projects}
           pending={startRun.isPending || tryRun.isPending}
           error={tryRefusal ?? refusal}
           onClose={() => {

@@ -31,10 +31,7 @@ import {
 import { guidedIssueSource } from '../lib/issue-import';
 import { nodeTitle } from '../lib/node-face';
 import { runInputProviders } from '../lib/run-input-completion';
-import {
-  IssueImportFields,
-  type IssueImportProject,
-} from './issue-import-fields';
+import { IssueImportFields } from './issue-import-fields';
 
 export interface AutomationRunRequest {
   automationSlug?: string;
@@ -63,8 +60,6 @@ export interface RunSources {
   memoryKey: string;
   items: readonly RunInputSource[];
 }
-
-const NO_PROJECTS: readonly IssueImportProject[] = [];
 
 function readMemory(key: string | undefined): string | null {
   if (key === undefined) return null;
@@ -116,18 +111,19 @@ function RunInputLoader({
 /** Mounted for one reviewed version and run scope. The server remains the
  * authority; client validation gives feedback before scheduling any work. */
 export function AutomationRunDialog({
+  organizationId,
   request,
   sources,
-  projects = NO_PROJECTS,
   pending = false,
   error,
   onClose,
   onConfirm,
 }: {
+  /** Whose projects an issue import's project is picked from. */
+  organizationId: string;
   request: AutomationRunRequest;
   /** Where the input can start from (a test run in the editor). */
   sources?: RunSources;
-  projects?: readonly IssueImportProject[];
   pending?: boolean;
   error?: string | null;
   onClose: () => void;
@@ -303,15 +299,12 @@ export function AutomationRunDialog({
       {source !== null ? (
         <>
           <IssueImportFields
+            organizationId={organizationId}
             source={source}
             value={values}
-            projects={
-              request.projectId === undefined
-                ? projects
-                : projects.filter(
-                    (project) => project._id === request.projectId,
-                  )
-            }
+            {...(request.projectId !== undefined && {
+              pinnedProjectId: request.projectId,
+            })}
             disabled={pending}
             onChange={setValues}
           />

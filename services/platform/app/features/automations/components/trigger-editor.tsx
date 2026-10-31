@@ -16,7 +16,6 @@ import { Plus, Trash2 } from 'lucide-react';
 import { useCallback, useId, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useProjects } from '@/app/features/projects/hooks/queries';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
 import type { Issue } from '@/lib/engine/core/types';
@@ -32,6 +31,7 @@ import {
   useAutomationTriggers,
   useDeployedAutomation,
 } from '../hooks/queries';
+import { useBoundProjects } from '../hooks/use-bound-projects';
 import { useTriggerDraft } from '../hooks/use-trigger-draft';
 import { useTriggerInputCheck } from '../hooks/use-trigger-input-check';
 import { TRIGGER_DIRTY_KEY } from '../lib/dirty-keys';
@@ -140,11 +140,7 @@ export function TriggerEditor({
   // The projects the automation is installed in, by name: where a run it
   // starts acts.
   const boundQuery = useAutomationProjects(organizationId, name);
-  const { projects } = useProjects(organizationId);
-  const boundProjects = useMemo(() => {
-    const ids = new Set((boundQuery.data ?? []).map(String));
-    return projects.filter((project) => ids.has(project._id));
-  }, [boundQuery.data, projects]);
+  const boundProjects = useBoundProjects(organizationId, boundQuery.data);
   const place: TriggerPlace = { organizationId, projectId, name };
   // A trigger names no project: a sole installation is where its runs act,
   // and otherwise they act organization-wide.
