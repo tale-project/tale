@@ -24,13 +24,18 @@ import {
 import { isAdminOrDeveloperRole } from '../../auth/membership.ts';
 import { listConnectorSummaries } from '../../core/connector_credentials/connector_catalog.ts';
 import { loadHarnesses } from '../../core/lib/providers/load_system_config.ts';
+import {
+  mintCursorFor,
+  verifyCursorFor,
+} from '../../core/lib/signed_cursor.ts';
+import {
+  formatKeysetCursor,
+  parseKeysetCursor,
+} from '../../lib/keyset-cursor.ts';
 import { listAgentSecrets } from '../agent_secrets/service.ts';
 import { getOrgAutomationMetrics } from '../automations/metrics.ts';
-import {
-  automationVisible,
-  readableProject,
-} from '../automations/project-visibility.ts';
-import { listAutomations } from '../automations/store.ts';
+import { readableProject } from '../automations/project-visibility.ts';
+import { installedAutomationNames } from '../automations/store.ts';
 import {
   listAutomationCapabilities,
   listGovernedChatModels,
@@ -38,7 +43,12 @@ import {
   listProjectCapabilities,
 } from '../chat/composer.ts';
 import { listConnectedConnectorSlugs } from '../connector_credentials/service.ts';
-import { getProjectAuthContext, listProjects } from '../projects/service.ts';
+import {
+  getProjectAuthContext,
+  listProjectsPage,
+  PROJECT_PAGE_LIMITS,
+  stampAccessFlags,
+} from '../projects/service.ts';
 import type { McpCaller } from './caller.ts';
 import { dispatchSettingsTool } from './settings/tools.ts';
 
@@ -289,36 +299,50 @@ async function listSecrets(sql: Sql, caller: McpCaller): Promise<unknown> {
 }
 
 /** The projects the caller can read, as the projects list shows them, with
- * the automations installed in each. */
+ * the automations installed in each: one page at a time, newest first, the
+ * name searched in the statement that reads the page, and the automations
+ * read for that page's projects alone. */
 async function listProjectsTool(
   sql: Sql,
   caller: McpCaller,
   params: Record<string, unknown>,
 ): Promise<unknown> {
-  const query = text(params.query);
-  const auth = await projectAuth(sql, caller);
-  const projects = (
-    await listProjects(sql, auth, {
-      includeArchived: params.includeArchived === true,
-      summary: true,
-    })
-  ).filter((project) => matches(query, project.name));
-  const installed = new Map<string, string[]>();
-  if (projects.length > 0) {
-    const readable = new Set(projects.map((project) => project.id));
-    for (const automation of await listAutomations(
-      sql,
-      caller.organizationId,
-    )) {
-      if (!automationVisible(automation.projectIds, readable)) continue;
-      for (const projectId of automation.projectIds) {
-        installed.set(projectId, [
-          ...(installed.get(projectId) ?? []),
-          automation.name,
-        ]);
-      }
-    }
+  const query = text(params.query)?.trim() ?? '';
+  const includeArchived = params.includeArchived === true;
+  const cursor = text(params.cursor);
+  // A cursor redeems only in the listing that answered it: the caller's
+  // organization, with the same query and archived filter.
+  const listing = `mcp-projects:${includeArchived ? 'all' : 'active'}:${query}`;
+  const after =
+    cursor === undefined
+      ? null
+      : parseKeysetCursor(
+          verifyCursorFor(caller.organizationId, listing, cursor),
+        );
+  if (cursor !== undefined && after === null) {
+    return {
+      error: 'params.cursor is not a nextCursor this listing answered',
+      code: 'INVALID_CURSOR',
+      hint: 'pass the nextCursor list_projects answered, unchanged and with the same query and includeArchived, or omit cursor for the first page',
+    };
   }
+  const auth = await projectAuth(sql, caller);
+  const page = await listProjectsPage(sql, auth, {
+    archived: includeArchived ? 'include' : 'exclude',
+    limit: PROJECT_PAGE_LIMITS.fallback,
+    cursor: after,
+    summary: true,
+    name: query,
+  });
+  const projects = page.projects.map((project) =>
+    stampAccessFlags(project, auth),
+  );
+  const installed = await installedAutomationNames(
+    sql,
+    caller.organizationId,
+    projects.map((project) => project.id),
+  );
+  const last = projects.at(-1);
   return {
     projects: projects.map((project) => ({
       id: project.id,
@@ -327,7 +351,15 @@ async function listProjectsTool(
       writable: project.canEdit,
       automations: installed.get(project.id) ?? [],
     })),
-    hint: 'start_run, save_automation and set_automation_projects take a project id; installing or running in one needs writable',
+    nextCursor:
+      page.hasMore && last !== undefined
+        ? mintCursorFor(
+            caller.organizationId,
+            listing,
+            formatKeysetCursor(last.createdAt, last.id),
+          )
+        : null,
+    hint: 'start_run, save_automation and set_automation_projects take a project id; installing or running in one needs writable. A nextCursor pages on: pass it as cursor, with the same query and includeArchived',
   };
 }
 
