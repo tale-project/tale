@@ -33,3 +33,5 @@ Envisage Tale si ton équipe a besoin d’un tableau de projet pour découper un
 Prends un brief client fictif et une checklist à laquelle il manque une exigence. Dans chaque solution, prépare le plan d’accueil, attribue la question ouverte à un responsable, puis révise le plan après son retour. Simule une mise à jour externe échouée pour examiner la reprise.
 
 Note qui repère l’exception, où l’équipe voit le travail restant et ce dont la personne qui valide a besoin pour accepter le plan. Évalue toute la transmission. [Demande une démo de Tale](https://tale.dev/fr/request-demo) à partir de ce cas.
+
+Cette comparaison s’appuie sur la documentation publique examinée le 3 octobre 2026, sans test comparatif pratique.

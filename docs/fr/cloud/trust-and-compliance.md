@@ -3,7 +3,7 @@ title: Sécurité et conformité
 description: Trouver les certifications, comprendre les responsabilités et réunir les preuves pour une revue de sécurité.
 ---
 
-Ruler GmbH, l’entreprise qui développe Tale, est certifiée ISO/IEC 27001. Cette certification couvre son offre Tale Enterprise et ses services. Pour une revue de sécurité, demande à ton contact Tale le certificat applicable, son périmètre et les justificatifs correspondant au service souscrit par ton organisation.
+Ruler GmbH, l’entreprise qui développe Tale, est certifiée ISO/IEC 27001. Le périmètre de cette certification couvre Tale Enterprise et les services professionnels. Pour une revue de sécurité, demande à ton contact Tale le certificat applicable, son périmètre et les justificatifs correspondant au service souscrit par ton organisation.
 
 Les contrôles du produit accompagnent les procédures de ton organisation. Le respect de tes obligations dépend aussi de la configuration, des fournisseurs connectés et des pratiques d’exploitation.
 

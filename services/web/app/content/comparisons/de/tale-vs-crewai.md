@@ -33,3 +33,5 @@ Prüfe Tale, wenn Teammitglieder und konfigurierte Agenten unmittelbar in einem 
 Erstelle ein kleines Marktrecherche-Briefing mit drei Fragen und klaren Anforderungen an Belege. Lass aus Recherche und Zusammenfassung eine Empfehlung erstellen. Eine separate prüfende Person weist anschließend eine unbelegte Aussage zurück und fordert eine Überarbeitung.
 
 Bewerte den Aufwand, den Ablauf zu konfigurieren oder zu entwickeln, den Fortschritt für Kollegen verständlich darzustellen und die zurückgewiesene Aufgabe ohne Verlust nützlicher Belege fortzusetzen. Kläre, wer die einzelnen Teile in sechs Monaten pflegen wird. Eine überzeugende erste Antwort allein entscheidet nicht über Eigenentwicklung oder Produktnutzung. [Buche eine Tale-Demo](https://tale.dev/de/request-demo) für dieses gemeinsame Rechercheprojekt.
+
+Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 3. Oktober 2026, und ist kein praktischer Benchmark.
