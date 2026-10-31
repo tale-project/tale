@@ -421,7 +421,7 @@ async function checkNotificationPagePlans(
         sql,
         (template) =>
           template.includes('FROM app.user_notifications') &&
-          template.includes('ORDER BY seq DESC'),
+          template.includes('ORDER BY user_notifications.seq DESC'),
         (tx) => listMyNotifications(tx, { ...who, ...page.filters }),
         { analyze: true, json: true },
       );
