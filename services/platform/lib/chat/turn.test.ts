@@ -3567,6 +3567,265 @@ describe('runTurn — the files a tool made', () => {
   });
 });
 
+/**
+ * A reply's text and its files settle apart, and only the instructions held
+ * them together: a reply could say the file is attached over a call that
+ * failed, a call the cap withheld, or a code run that stored nothing
+ * (#5168). The turn reads the settled reply against its files and stamps
+ * the disagreement.
+ */
+describe('runTurn — a reply that speaks of a file it does not carry [CHAT-R35]', () => {
+  const SVG = {
+    ref: 's3:org/hero',
+    name: 'hero.svg',
+    mediaType: 'image/svg+xml',
+    sizeBytes: 812,
+  };
+  /** What `create_file` answers when it stored nothing. */
+  const NOT_STORED = {
+    status: 'invalid_args',
+    message: '"content" is empty; write the file out.',
+  };
+
+  /** A reply that calls `tool` once a round, answering each call with the
+   * next of `outputs`, then closes with `closing`. */
+  function fileReply(
+    tool: string,
+    outputs: readonly unknown[],
+    closing: string,
+  ): {
+    model: ModelCall;
+    tools: ChatToolExecutor;
+    executed: ToolCallRequest[];
+  } {
+    const executed: ToolCallRequest[] = [];
+    let round = 0;
+    return {
+      executed,
+      model: async function* stream() {
+        round += 1;
+        if (round <= outputs.length) {
+          yield {
+            text: '',
+            toolCalls: [
+              { id: `call_${round}`, name: tool, input: { name: 'hero.svg' } },
+            ],
+          };
+          return;
+        }
+        yield { text: closing };
+      },
+      tools: {
+        wireTools: [
+          { name: tool, description: 'Make a file.', parameters: {} },
+        ],
+        execute(call) {
+          executed.push(call);
+          return Promise.resolve(outputs[executed.length - 1]);
+        },
+      },
+    };
+  }
+
+  async function settle(overrides: Partial<TurnDeps>) {
+    const d = deps(overrides);
+    const outcome = await runTurn(
+      request({ userText: 'draw me a hero as an SVG' }),
+      d.deps,
+    );
+    return { outcome, stored: d.store.finalized.at(-1) };
+  }
+
+  it('says no file was attached when create_file failed and the reply claims one', async () => {
+    const { model, tools, executed } = fileReply(
+      'create_file',
+      [NOT_STORED],
+      'Here is your hero. The SVG file is attached.',
+    );
+
+    const { outcome, stored } = await settle({ model, tools });
+
+    expect(executed).toHaveLength(1);
+    expect(outcome).toMatchObject({
+      status: 'completed',
+      usage: { fileNotAttached: true },
+    });
+    expect(stored).toMatchObject({ usage: { fileNotAttached: true } });
+  });
+
+  it('says so when a file tool stored nothing, whatever the reply says', async () => {
+    const { model, tools } = fileReply(
+      'generate_image',
+      [{ status: 'error', message: 'The image model did not answer.' }],
+      'Voilà ton héros, dans une ruelle sombre.',
+    );
+
+    const { stored } = await settle({ model, tools });
+
+    expect(stored).toMatchObject({ usage: { fileNotAttached: true } });
+  });
+
+  it('says so when code ran, stored nothing, and the reply claims a file', async () => {
+    // The code wrote its file outside the output directory, so nothing was
+    // attached; the reply says otherwise.
+    const { model, tools } = fileReply(
+      'run_code',
+      [{ status: 'ok', stdout: 'wrote /tmp/planets.csv' }],
+      "I've attached planets.csv.",
+    );
+
+    const { stored } = await settle({ model, tools });
+
+    expect(stored).toMatchObject({ usage: { fileNotAttached: true } });
+  });
+
+  it('says nothing when only its words speak of a file', async () => {
+    // A letter the reply drafts claims an attachment in its writer's voice.
+    const drafted = await settle({
+      model: streamingModel([
+        'Hi Anna,\n\nPlease find attached ',
+        'the Q3 report.\n\nBest, Max',
+      ]),
+    });
+    expect(drafted.stored?.usage).not.toHaveProperty('fileNotAttached');
+
+    // The person's own upload, described after a calculation.
+    const { model, tools } = fileReply(
+      'run_code',
+      [{ status: 'ok', stdout: '3' }],
+      'The PDF you sent is attached to your message, and it lists three items.',
+    );
+    const described = await settle({ model, tools });
+    expect(described.stored?.usage).not.toHaveProperty('fileNotAttached');
+  });
+
+  it('says so when the output cap withheld the create_file call', async () => {
+    const executed: ToolCallRequest[] = [];
+    let round = 0;
+    const model: ModelCall = async function* stream() {
+      round += 1;
+      if (round === 1) {
+        yield {
+          text: '',
+          usage: { inputTokens: 100, outputTokens: 64, totalTokens: 164 },
+          toolCalls: [
+            { id: 'call_1', name: 'create_file', input: { name: 'hero.svg' } },
+          ],
+          finishReason: 'length',
+        };
+        return;
+      }
+      yield { text: 'I have attached hero.svg.' };
+    };
+
+    const { stored } = await settle({
+      model,
+      tools: {
+        wireTools: [
+          { name: 'create_file', description: 'Make a file.', parameters: {} },
+        ],
+        execute(call) {
+          executed.push(call);
+          return Promise.resolve({ status: 'ok', artifacts: [SVG] });
+        },
+      },
+    });
+
+    expect(executed).toHaveLength(0);
+    expect(stored).toMatchObject({ usage: { fileNotAttached: true } });
+  });
+
+  it('says nothing when the reply carries the file it speaks of', async () => {
+    const { model, tools } = fileReply(
+      'create_file',
+      [{ status: 'ok', artifacts: [SVG] }],
+      'The SVG file is attached.',
+    );
+
+    const { outcome, stored } = await settle({ model, tools });
+
+    expect(outcome.status === 'completed' && outcome.usage).not.toHaveProperty(
+      'fileNotAttached',
+    );
+    expect(stored?.usage).not.toHaveProperty('fileNotAttached');
+  });
+
+  it('says nothing when a failed call is tried again and stores the file', async () => {
+    const { model, tools, executed } = fileReply(
+      'create_file',
+      [NOT_STORED, { status: 'ok', artifacts: [SVG] }],
+      'Attached it below.',
+    );
+
+    const { stored } = await settle({ model, tools });
+
+    expect(executed).toHaveLength(2);
+    expect(stored?.usage).not.toHaveProperty('fileNotAttached');
+  });
+
+  it('says nothing on a reply that speaks of no file', async () => {
+    const plain = await settle({});
+    expect(plain.stored?.usage).not.toHaveProperty('fileNotAttached');
+
+    // A calculation stores nothing by design: a code run is no attempt.
+    const { model, tools } = fileReply(
+      'run_code',
+      [{ status: 'ok', stdout: '4.2' }],
+      'The mean is 4.2.',
+    );
+    const computed = await settle({ model, tools });
+    expect(computed.stored?.usage).not.toHaveProperty('fileNotAttached');
+  });
+
+  it('says nothing on a reply the guardrails blocked: the block shows instead', async () => {
+    const { model, tools, executed } = fileReply(
+      'create_file',
+      [NOT_STORED],
+      'The SVG file is attached.',
+    );
+
+    const { outcome, stored } = await settle({
+      model,
+      tools,
+      outputFilters: [blockingFilter('moderation_provider')],
+    });
+
+    expect(executed).toHaveLength(1);
+    expect(outcome.status).toBe('refused');
+    expect(stored).toMatchObject({ blockedReason: expect.any(String) });
+    expect(stored?.usage).not.toHaveProperty('fileNotAttached');
+  });
+
+  it('yields to the notice that its file tools could not be set up [CHAT-R28]', async () => {
+    // One missing file, one notice: the reply already says why it could
+    // make none, so a file tool it calls anyway — one it was never offered
+    // — adds no second line.
+    const { model, tools } = fileReply(
+      'create_file',
+      [{ status: 'not_found', message: 'No tool is named create_file.' }],
+      "I've attached the SVG.",
+    );
+    const d = deps({ model, tools: { ...tools, wireTools: [] } });
+    const outcome = await runTurn(
+      request({
+        userText: 'draw me a hero as an SVG',
+        workToolsUnavailable: 'setup_failed',
+      }),
+      d.deps,
+    );
+
+    expect(outcome).toMatchObject({
+      status: 'completed',
+      usage: { workToolsUnavailable: 'setup_failed' },
+    });
+    const stored = d.store.finalized.at(-1);
+    expect(stored).toMatchObject({
+      usage: { workToolsUnavailable: 'setup_failed' },
+    });
+    expect(stored?.usage).not.toHaveProperty('fileNotAttached');
+  });
+});
+
 describe('attachArtifact', () => {
   const file = (
     fileId: string,

@@ -35,6 +35,8 @@ Die Dateien erscheinen unter der Antwort, in der Reihenfolge ihrer Entstehung. P
 
 Überarbeitet der Assistent eine Datei in derselben Antwort, etwa nachdem er sein Ergebnis geprüft hat, zeigt die Karte nur die endgültige Fassung. Bitte in einer Folgenachricht um eine Änderung, um in der nächsten Antwort eine neue Fassung zu erhalten.
 
+Hat der Assistent vergeblich versucht, eine Datei zu erstellen, oder hat er Code in der leichten Sandbox ausgeführt und schreibt danach, er habe eine Datei angehängt, die es nicht gibt, steht unter der Antwort **An diese Antwort wurde keine Datei angehängt**. Frag in einer Folgenachricht noch einmal nach der Datei.
+
 Die Dateien gehören zum Gespräch: Wer das Gespräch öffnen kann, kann auch seine Dateien öffnen.
 
 ## Eine angehängte Datei ändern

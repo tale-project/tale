@@ -106,6 +106,10 @@ export interface ChatMessageUsage {
    * Chat tools policy could not be read, or setting them up failed —
    * rendered as a notice on the message. */
   readonly workToolsUnavailable?: 'policy_unreadable' | 'setup_failed';
+  /** The reply speaks of a file it does not carry — a file tool stored
+   * nothing, or its text claims an attachment — rendered as a notice
+   * under the message. */
+  readonly fileNotAttached?: boolean;
   /** Why the final round stopped (`length` = the output cap cut the reply
    * short), when the provider or the platform said. */
   readonly finishReason?:

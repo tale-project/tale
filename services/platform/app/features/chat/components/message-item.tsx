@@ -64,6 +64,10 @@ import { MessageEditForm } from './message-edit-form';
 import { MessageMarkdown } from './message-markdown';
 import { MessageParts } from './message-parts';
 import { MessageToolbar } from './message-toolbar';
+import {
+  NoFileAttachedNotice,
+  fileNotAttached,
+} from './no-file-attached-notice';
 import { SourceCards } from './source-cards';
 import { StepLimitNotice, stepLimitHit } from './step-limit-notice';
 import { ThoughtTimeline } from './thought-timeline';
@@ -675,6 +679,10 @@ function AssistantBody({
           exists: the deliverable sits right under the answer, never behind
           the tool steps. */}
       <MessageArtifacts parts={message.parts} organizationId={organizationId} />
+      {/* The reply spoke of a file it does not carry — a file tool stored
+          nothing, or the text claims an attachment: say so where the file
+          would be, so the prose is not taken for a delivery. */}
+      {fileNotAttached(message.usage) && <NoFileAttachedNotice />}
       {/* What this answer actually read — pages fetched, documents loaded —
           derived from the tool results, never from the prose. Settle-gated:
           the strip appears once (with its fade), never card-by-card while

@@ -411,6 +411,21 @@ streams, after a reload and on a reply tried again.
   card for it shows under the reply, also after she reloads the chat; she opens its preview or
   downloads it.
 
+### CHAT-R35 · A reply that speaks of a file it does not carry says no file was attached
+
+A reply that carries no file, but set out to write one or to generate an image, or that ran
+code and says in its own voice that it attached a file (in English, German or French), reads
+under it that no file was attached to this reply. Its words alone mark nothing: a letter it
+drafts, a sentence it translates and words about the person's own upload say "attached" too.
+A code run alone is no attempt either: a calculation stores nothing by design. A reply that
+carries a file, or speaks of none, says nothing; neither does a reply that already says its
+files could not be made (CHAT-R28), nor one the guardrails blocked, which shows why instead.
+
+- **Example**: Mia asks her chat for an SVG; writing the file fails, and the reply still says
+  the file is attached → under the reply reads "No file was attached to this reply."
+- **Example**: Mia asks her chat to draft an e-mail that says the Q3 report is attached → the
+  draft reads "Please find attached the Q3 report", and no line shows under the reply.
+
 ## Not yet
 
 - **Attachments on a message**: the gate that holds a message to at most 10 files of the

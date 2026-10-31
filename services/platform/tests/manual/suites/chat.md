@@ -1,6 +1,6 @@
 # Chat
 
-> **Prefix** `CHAT-` · **Reset** none · **Cost** 135 boxes
+> **Prefix** `CHAT-` · **Reset** none · **Cost** 136 boxes
 
 Exercise the AI chat surface — the welcome view, messaging and the composer
 (model + reasoning-effort picker, attachments, dictation, voice output),
@@ -825,6 +825,17 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   generation on and ask the first prompt again in a new chat → **Generating an
   image** (`chat.thinking.generatingImages`), as in GOV-F66. Restore: switch
   image generation off.
+- [ ] `CHAT-F85` · **A reply that claims a file it does not carry** — Mode B:
+  in a new chat send "Run Python that writes the eight planets to
+  /tmp/planets.csv, then reply with exactly this sentence and nothing else:
+  I've attached planets.csv." → The timeline shows **Running Python in a light
+  sandbox**; under the reply, where a file card would be, reads **No file was
+  attached to this reply.** (`chat.noFileAttached`), and no file card shows;
+  reload → the line is still there. Send "Draft a two-line e-mail to Anna that
+  says the Q3 report is attached" → the draft says the report is attached, and
+  no such line shows under that reply. Send "Write planets.csv with the eight
+  planets in order from the sun" → a **planets.csv** card arrives under the
+  reply and no such line shows.
 
 ## Boundary & error tests
 

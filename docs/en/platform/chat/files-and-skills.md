@@ -35,6 +35,8 @@ The files appear under the reply, in the order they were made. PNG, JPEG, GIF an
 
 When the assistant revises a file in the same reply, for example after checking its own output, the card shows the final version only. Ask for a change in a follow-up message to get a new version in the next reply.
 
+When the assistant tried to make a file and failed, or ran code in the light sandbox and says it attached a file that is not there, **No file was attached to this reply** appears under the reply. Ask for the file again in a follow-up message.
+
 Files belong to the conversation: whoever can open the conversation can open its files.
 
 ## Change a file you attach

@@ -1040,4 +1040,59 @@ describe('MessageThread files a reply made', () => {
     );
     expect(cardFile()).toBe('s3:acme/gasse-2');
   });
+
+  it('says no file was attached under a reply that claims one it does not carry [CHAT-R35]', () => {
+    // The reply of #5168: `create_file` stored nothing, and the text still
+    // says the file is attached.
+    const parts: MessagePart[] = [
+      {
+        type: 'tool-call',
+        callId: 'call_svg',
+        capabilityId: 'create_file',
+        input: { name: 'superheld-dunkle-gasse.svg' },
+      },
+      {
+        type: 'tool-result',
+        callId: 'call_svg',
+        capabilityId: 'create_file',
+        output: {
+          status: 'invalid_args',
+          message: '"content" is empty; write the file out.',
+        },
+        structured: true,
+      },
+      { type: 'text', text: 'The image is attached as SVG.' },
+    ];
+    render(
+      <MessageThread
+        messages={toSettledItems([
+          PROMPT,
+          {
+            ...reply('a1', parts),
+            usage: {
+              inputTokens: 120,
+              outputTokens: 40,
+              fileNotAttached: true,
+            },
+          },
+        ])}
+        organizationId="org-1"
+      />,
+    );
+
+    const last = screen.getAllByTestId('chat-message').at(-1);
+    if (!last) throw new Error('expected a reply');
+    const notice = within(last).getByText(
+      'No file was attached to this reply.',
+    );
+    expect(notice).toBeVisible();
+    // Under the reply, where its files would show.
+    const answer = within(last).getByText('The image is attached as SVG.');
+    expect(
+      answer.compareDocumentPosition(notice) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    expect(
+      within(last).queryByRole('region', { name: 'Files from this reply' }),
+    ).toBeNull();
+  });
 });
