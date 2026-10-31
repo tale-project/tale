@@ -10,7 +10,8 @@ import {
   useArchivedThreads,
   useChatGeneration,
   useChatMessages,
-  useChatProjects,
+  useChatProject,
+  useChatProjectChoices,
   useChatQuery,
   useChatSend,
   useChatThreads,
@@ -152,6 +153,7 @@ describe('useChatQuery HTTP lane (migrated thread family)', () => {
       Promise.resolve(
         new Response(
           JSON.stringify({
+            isDone: true,
             projects: [
               {
                 id: 'project-1',
@@ -173,11 +175,11 @@ describe('useChatQuery HTTP lane (migrated thread family)', () => {
       ),
     );
     function ProjectsProbe() {
-      const read = useChatProjects('org-projects');
+      const read = useChatProjectChoices('org-projects', '');
       return (
         <output>
           {read.status === 'ready'
-            ? read.data
+            ? read.data.projects
                 .map(
                   (project) =>
                     `${project.name}:${project.agentCount}/${project.managedAgentCount ?? '-'}`,
@@ -1036,6 +1038,164 @@ describe('useEarlierChatMessages', () => {
       );
       await screen.findByText('4 rows');
       expect(frames.at(-1)).toBe('4');
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+// A picker offers the navigator's page and, past it, what the server finds
+// by name (#5194): never the whole list.
+describe('useChatProjectChoices', () => {
+  const page = Array.from({ length: 100 }, (_, index) => ({
+    id: `p-${index + 1}`,
+    name: `Project ${index + 1}`,
+  }));
+
+  function ChoicesProbe({ org, query }: { org: string; query: string }) {
+    const read = useChatProjectChoices(org, query);
+    return (
+      <output>
+        {read.status === 'ready'
+          ? `${read.data.projects.length} [${read.data.projects
+              .slice(100)
+              .map((project) => `${project.name}:${String(project.canEdit)}`)
+              .join(' ')}] done=${String(read.data.isDone)}`
+          : read.status}
+      </output>
+    );
+  }
+
+  it('adds what the server finds past the page, archived projects dropped', async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation((url) =>
+      Promise.resolve(
+        typeof url === 'string' && url.includes('/projects/search?')
+          ? jsonResponse({
+              projects: [
+                { id: 'p-10', name: 'Project 10' },
+                { id: 'p-101', name: 'Project 101', canEdit: true },
+                { id: 'p-1010', name: 'Project 1010', archivedAt: 5 },
+              ],
+            })
+          : jsonResponse({ projects: page, isDone: false }),
+      ),
+    );
+    try {
+      const { rerender } = render(<ChoicesProbe org="org-choices" query="" />);
+      expect(await screen.findByText('100 [] done=false')).toBeInTheDocument();
+
+      rerender(<ChoicesProbe org="org-choices" query=" Project 10 " />);
+
+      expect(
+        await screen.findByText('101 [Project 101:true] done=false'),
+      ).toBeInTheDocument();
+      expect(fetchSpy).toHaveBeenCalledWith(
+        '/api/app/projects/search?q=Project%2010&summary=true&orgId=org-choices',
+        expect.anything(),
+      );
+      expect(
+        fetchSpy.mock.calls.some(
+          ([url]) =>
+            typeof url === 'string' && url.startsWith('/api/app/projects?'),
+        ),
+      ).toBe(false);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('asks the server nothing when the page holds every project', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation(() =>
+        Promise.resolve(
+          jsonResponse({ projects: page.slice(0, 3), isDone: true }),
+        ),
+      );
+    try {
+      render(<ChoicesProbe org="org-choices-done" query="Project 2" />);
+      expect(await screen.findByText('3 [] done=true')).toBeInTheDocument();
+      // Past the debounce: still no search.
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(
+        fetchSpy.mock.calls.some(
+          ([url]) => typeof url === 'string' && url.includes('/search?'),
+        ),
+      ).toBe(false);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
+// The selected project resolves by id wherever the page lacks it (#5194).
+describe('useChatProject', () => {
+  function ProjectProbe({ org, id }: { org: string; id: string | undefined }) {
+    const read = useChatProject(org, id);
+    return (
+      <output>
+        {read.status === 'ready'
+          ? read.data === null
+            ? 'none'
+            : `${read.data.name}:${String(read.data.canEdit)}`
+          : read.status}
+      </output>
+    );
+  }
+
+  it('reads a project by id; an archived, gone or absent one is null', async () => {
+    const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation((url) => {
+      const path = typeof url === 'string' ? url : '';
+      if (path.startsWith('/api/app/projects/p-101?'))
+        return Promise.resolve(
+          jsonResponse({
+            project: { id: 'p-101', name: 'Project 101', canEdit: true },
+          }),
+        );
+      if (path.startsWith('/api/app/projects/p-archived?'))
+        return Promise.resolve(
+          jsonResponse({
+            project: { id: 'p-archived', name: 'Old', archivedAt: 5 },
+          }),
+        );
+      return Promise.resolve(jsonResponse({ error: 'PROJECT_NOT_FOUND' }, 404));
+    });
+    try {
+      const { rerender, unmount } = render(
+        <ProjectProbe org="org-by-id" id="p-101" />,
+      );
+      expect(await screen.findByText('Project 101:true')).toBeInTheDocument();
+
+      rerender(<ProjectProbe org="org-by-id" id="p-archived" />);
+      // Another project's answer never stands in while this one loads.
+      expect(screen.queryByText('Project 101:true')).not.toBeInTheDocument();
+      expect(await screen.findByText('none')).toBeInTheDocument();
+      unmount();
+
+      render(<ProjectProbe org="org-by-id" id="p-gone" />);
+      expect(await screen.findByText('none')).toBeInTheDocument();
+      expect(fetchSpy).toHaveBeenCalledWith(
+        '/api/app/projects/p-gone?orgId=org-by-id',
+        expect.anything(),
+      );
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('reads nothing for no id', () => {
+    const fetchSpy = vi.spyOn(window, 'fetch');
+    try {
+      render(<ProjectProbe org="org-by-id-none" id={undefined} />);
+      expect(screen.getByText('none')).toBeInTheDocument();
+      expect(fetchSpy).not.toHaveBeenCalled();
     } finally {
       fetchSpy.mockRestore();
     }

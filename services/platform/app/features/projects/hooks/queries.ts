@@ -1,11 +1,19 @@
-import { useCallback } from 'react';
+import { useDebounce } from '@tale/ui/use-debounce';
+import { keepPreviousData } from '@tanstack/react-query';
+import { useCallback, useMemo } from 'react';
 
+import {
+  mergeProjectChoices,
+  PROJECT_SEARCH_DEBOUNCE_MS,
+  projectSearchTerm,
+} from '@/app/features/projects/lib/project-choices';
 import { PROJECTS_PAGE_SIZE } from '@/app/features/projects/projects-page-size';
 import { useActionQuery } from '@/app/hooks/use-action-query';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { useOrganizationId } from '@/app/hooks/use-organization-id';
 import type { ItemOf, PageItemOf, ReturnsOf } from '@/app/lib/backend/contract';
+import { NAVIGATOR_PROJECT_LIMIT } from '@/app/lib/backend/projects';
 import {
   backendKey,
   projectCapabilityCatalogKey,
@@ -201,6 +209,57 @@ export function useProjects(
     // Whether the list has answered: a first read held back while the
     // browser is offline is not `isLoading`, and no empty list either.
     hasAnswer: query.data !== undefined,
+  };
+}
+
+const NO_PROJECT_CHOICES: readonly ItemOf<'projects/queries:searchProjects'>[] =
+  [];
+
+/**
+ * What a project picker offers for what was typed — the project breadcrumb
+ * switcher: Home's navigator page (the pinned first) and, while that page
+ * does not hold every project, the server's name search for the typed text,
+ * debounced — never the whole list {@link useProjects} reads, however many
+ * projects the organization has (#5194). No archived project is offered.
+ * The read stands as the page's does (`readStateOf`): a failed search offers
+ * the page alone. `isDone` says whether the page holds every project.
+ */
+export function useProjectChoices(organizationId: string, query: string) {
+  const page = useBackendQuery('projects/queries:listSidebarProjects', {
+    organizationId,
+    limit: NAVIGATOR_PROJECT_LIMIT,
+  });
+  const typed = useDebounce(query, PROJECT_SEARCH_DEBOUNCE_MS);
+  const term = projectSearchTerm(typed, page.data?.isDone);
+  const search = useBackendQuery(
+    'projects/queries:searchProjects',
+    term === null ? 'skip' : { organizationId, query: term },
+    // The last term's hits stay while the next one loads; the picker's own
+    // filter narrows them to what is typed.
+    { placeholderData: keepPreviousData },
+  );
+  const rows = page.data?.projects;
+  const found = term === null ? undefined : search.data;
+  const projects = useMemo(
+    () =>
+      mergeProjectChoices(
+        rows ?? NO_PROJECT_CHOICES,
+        found ?? NO_PROJECT_CHOICES,
+      ),
+    [rows, found],
+  );
+  const { refetch } = page;
+  const retry = useCallback(() => {
+    void refetch();
+  }, [refetch]);
+  return {
+    projects,
+    isDone: page.data?.isDone,
+    isLoading: page.isLoading,
+    error: page.isError,
+    isRetrying: page.isFetching,
+    ...readStateOf(page),
+    retry,
   };
 }
 

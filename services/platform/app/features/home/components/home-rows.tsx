@@ -38,6 +38,7 @@ import {
   ThreadRenameInput,
   ThreadRowMenu,
 } from '@/app/features/chat/components/thread-row';
+import { useChatProject } from '@/app/features/chat/data/chat-backend';
 import type {
   ChatProjectSummary,
   ChatThreadSummary,
@@ -219,6 +220,21 @@ function ProjectMarker({ project }: { project: ChatProjectSummary }) {
   );
 }
 
+/**
+ * The marker of a project past Home's page of projects (#5194), read by id:
+ * the plain chat label until it answers, and when the project is gone, out
+ * of reach or archived.
+ */
+function ProjectMarkerById({ projectId }: { projectId: string }) {
+  const { t } = useT('home');
+  const { organizationId } = useThreadListFrame();
+  const project = useChatProject(organizationId, projectId);
+  if (project.status === 'ready' && project.data !== null) {
+    return <ProjectMarker project={project.data} />;
+  }
+  return <span className="truncate">{t('row.chat')}</span>;
+}
+
 // ───────────────────────────── chats ─────────────────────────────
 
 /**
@@ -231,6 +247,7 @@ export const HomeChatRow = memo(function HomeChatRow({
   item,
   thread,
   project,
+  projectId,
   active,
   entering = false,
   draft = false,
@@ -239,6 +256,9 @@ export const HomeChatRow = memo(function HomeChatRow({
   item: HomeChatItem;
   thread: ChatThreadSummary;
   project: ChatProjectSummary | undefined;
+  /** The chat's project when Home's page of projects lacks it: the row
+   * reads it by id. */
+  projectId?: string;
   active: boolean;
   /** The row just joined the list — it slides in. */
   entering?: boolean;
@@ -326,6 +346,8 @@ export const HomeChatRow = memo(function HomeChatRow({
                   </span>
                 ) : project !== undefined ? (
                   <ProjectMarker project={project} />
+                ) : projectId !== undefined ? (
+                  <ProjectMarkerById projectId={projectId} />
                 ) : (
                   <span className="truncate">{t('row.chat')}</span>
                 )}

@@ -94,7 +94,7 @@ import {
   useArenaPair,
   useChatGeneration,
   useChatModelPreference,
-  useChatProjects,
+  useChatProject,
   useChatSend,
   useChatThread,
   useChatThreads,
@@ -598,9 +598,9 @@ function ChatSurfaceInner({
   // the same one-bulk-read hold gating for the destructive tail.
   const { t: tCommon } = useT('common');
   const { t: tLegalHold } = useT('legalHold');
-  const projectsQuery = useChatProjects(organizationId);
-  const headerProjects =
-    projectsQuery.status === 'ready' ? projectsQuery.data : [];
+  // The header's project chip reads the chat's project by id, never every
+  // project (#5194); an archived or unreachable one shows no chip.
+  const headerProject = useChatProject(organizationId, headerThread?.projectId);
   const holdsQuery = useThreadHolds(organizationId);
   const threadHeld =
     holdsQuery.status === 'ready' &&
@@ -683,7 +683,7 @@ function ChatSurfaceInner({
             },
             moveToProjectMenuItem({
               t,
-              projects: headerProjects,
+              organizationId,
               currentProjectId: activeThread.projectId,
               onMove: headerMenuActions.moveToProject,
             }),
@@ -1969,8 +1969,8 @@ function ChatSurfaceInner({
       : undefined,
   );
   const activeProject =
-    headerThread?.projectId !== undefined
-      ? headerProjects.find((project) => project.id === headerThread.projectId)
+    headerProject.status === 'ready' && headerProject.data !== null
+      ? headerProject.data
       : undefined;
 
   return (
