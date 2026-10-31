@@ -4,7 +4,7 @@ import {
   type PendingReviewIdentity,
   type TaskReviewRecipient,
 } from '@tale/shared/schemas/task-review';
-import type { Sql, TransactionSql } from 'postgres';
+import type { Fragment, Sql, TransactionSql } from 'postgres';
 
 import {
   getUserTeamIds,
@@ -1269,13 +1269,14 @@ const PENDING_REVIEW_SCAN_CAP = 50;
 
 /**
  * Pending review-gate approvals whose `metadata.projectId` is in the set —
- * one bounded org-level read (pending reviews are rare org-wide) feeding
- * the board's review chips and the "Needs my review" facet.
+ * a relation of `project_id`s the read joins (`readableProjectsSql`) — one
+ * bounded org-level read (pending reviews are rare org-wide) feeding the
+ * board's review chips and the "Needs my review" facet.
  */
 export async function collectPendingReviewsForProjects(
   sql: Sql,
   organizationId: string,
-  projectIds: readonly string[],
+  projects: Fragment,
 ): Promise<
   Array<{
     taskId: string;
@@ -1284,7 +1285,6 @@ export async function collectPendingReviewsForProjects(
     reviewer: TaskReviewRecipient | null;
   }>
 > {
-  if (projectIds.length === 0) return [];
   const rows = await sql<
     {
       taskId: string;
@@ -1292,13 +1292,13 @@ export async function collectPendingReviewsForProjects(
       metadata: Record<string, unknown> | null;
     }[]
   >`
-    SELECT resource_id AS "taskId", id AS "approvalId",
-           metadata
-    FROM app.approvals
-    WHERE org_id = ${organizationId} AND status = 'pending'
-      AND resource_type = 'task_review'
-      AND metadata ->> 'projectId' IN ${sql([...projectIds])}
-    ORDER BY seq DESC
+    SELECT a.resource_id AS "taskId", a.id AS "approvalId",
+           a.metadata
+    FROM app.approvals a
+    JOIN ${projects} rp ON rp.project_id = a.metadata ->> 'projectId'
+    WHERE a.org_id = ${organizationId} AND a.status = 'pending'
+      AND a.resource_type = 'task_review'
+    ORDER BY a.seq DESC
     LIMIT ${PENDING_REVIEW_SCAN_CAP}
   `;
   return rows.map((row) => {

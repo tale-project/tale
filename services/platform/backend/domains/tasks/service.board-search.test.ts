@@ -20,15 +20,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectAuthContext, ProjectRow } from '../projects/service.ts';
 
-const { loadProjectOrThrow, listProjects } = vi.hoisted(() => ({
+const { loadProjectOrThrow } = vi.hoisted(() => ({
   loadProjectOrThrow: vi.fn(),
-  listProjects: vi.fn(),
 }));
 
 vi.mock('../projects/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../projects/service.ts')>()),
   loadProjectOrThrow,
-  listProjects,
 }));
 
 import { MENTION_URL_SQL_PATTERN } from '../../core/tasks/mentions.ts';
@@ -140,7 +138,6 @@ const COMMENT_LEG =
 beforeEach(() => {
   vi.clearAllMocks();
   loadProjectOrThrow.mockResolvedValue(project());
-  listProjects.mockResolvedValue([project()]);
 });
 
 describe('taskSearchPatterns', () => {
@@ -330,6 +327,101 @@ describe('the palette and the board search alike', () => {
   });
 });
 
+describe('a search across projects reads them in its own statements (#5156)', () => {
+  it('joins every project the caller may read, archived ones included, to both legs [PROJ-R1] [PROJ-R2]', async () => {
+    const { sql, statements } = recordingSql();
+    await searchTasks(sql, auth, { query: 'needle' });
+
+    expect(loadProjectOrThrow).not.toHaveBeenCalled();
+    // The recorder logs each nested fragment: the relation is one of them.
+    const relation = statements.find((s) =>
+      s.text.startsWith('( SELECT id AS project_id'),
+    );
+    expect(relation?.text).toContain(
+      'FROM app.projects WHERE org_id = ? AND ? AND (? OR archived_at_ms IS NULL) AND (? OR cardinality(',
+    );
+    // The org, a seat that is not disabled, archived projects included,
+    // and an owner's grant: every project, whatever its teams.
+    expect(relation?.values).toEqual(['org-a', true, true, true, []]);
+    const legs = statements.filter(
+      (statement) =>
+        statement.text.startsWith('SELECT') &&
+        statement.text.includes('LIKE ALL'),
+    );
+    expect(legs).toHaveLength(2);
+    for (const leg of legs) {
+      expect(leg.text).toContain(
+        `JOIN ${relation?.text} rp ON rp.project_id = t.project_id`,
+      );
+      expect(leg.text).not.toContain('ANY(');
+    }
+    // No project list is read before the search.
+    expect(statements.filter((s) => s.text.startsWith('SELECT')).length).toBe(
+      2,
+    );
+  });
+
+  it('labels a hit with its project key and archived project from the join', async () => {
+    const hit = {
+      title: 'needle',
+      status: 'todo',
+      description: null,
+      updatedAt: 2,
+      number: 7,
+      archivedAt: null,
+    };
+    const { sql } = recordingSql((text) =>
+      text.startsWith('SELECT t.id AS "taskId"')
+        ? [
+            {
+              ...hit,
+              taskId: 'shelved',
+              projectId: 'proj-1',
+              projectKey: 'WEB',
+              projectArchived: true,
+            },
+            {
+              ...hit,
+              taskId: 'keyless',
+              projectId: 'proj-2',
+              projectKey: null,
+              projectArchived: false,
+              updatedAt: 1,
+            },
+          ]
+        : [],
+    );
+    const hits = await searchTasks(sql, auth, { query: 'needle' });
+    expect(hits[0]).toMatchObject({
+      taskId: 'shelved',
+      projectKey: 'WEB',
+      projectArchived: true,
+    });
+    expect(hits[1]?.taskId).toBe('keyless');
+    expect(hits[1]).not.toHaveProperty('projectKey');
+    expect(hits[1]).not.toHaveProperty('projectArchived');
+  });
+
+  it('searches one project through the project it has checked', async () => {
+    const { sql, statements } = recordingSql();
+    await searchTasks(sql, auth, { query: 'needle', projectId: 'proj-1' });
+
+    expect(loadProjectOrThrow).toHaveBeenCalledWith(sql, 'proj-1');
+    const legs = statements.filter(
+      (statement) =>
+        statement.text.startsWith('SELECT') &&
+        statement.text.includes('LIKE ALL'),
+    );
+    expect(legs).toHaveLength(2);
+    for (const leg of legs) {
+      expect(leg.text).toContain(
+        'JOIN ( SELECT id AS project_id, key AS project_key, archived_at_ms AS project_archived_at_ms FROM app.projects WHERE org_id = ? AND id = ? ) rp ON rp.project_id = t.project_id',
+      );
+      expect(leg.values.slice(0, 2)).toEqual(['org-a', 'proj-1']);
+    }
+  });
+});
+
 describe('a search reads a mention by its name', () => {
   it('matches neither leg on a mention address', async () => {
     const palette = recordingSql();
@@ -437,12 +529,11 @@ describe('a board filter is in the statement only when it is set', () => {
     const board = boardStatement(statements);
     // The literal archived predicate proves the partial index's own.
     expect(board.text).toContain(
-      'WHERE org_id = ? AND project_id = ANY(?) AND t.archived_at_ms IS NULL AND t.status = ANY(?) AND t.assignee_id = ? ORDER BY updated_at_ms DESC LIMIT ?',
+      ') rp USING (project_id) WHERE org_id = ? AND t.archived_at_ms IS NULL AND t.status = ANY(?) AND t.assignee_id = ? ORDER BY updated_at_ms DESC LIMIT ?',
     );
     expect(board.text).not.toMatch(/IS NULL OR\b/);
-    expect(board.values.slice(1)).toEqual([
+    expect(board.values.slice(-4)).toEqual([
       'org-a',
-      ['proj-1'],
       OPEN_STATUSES,
       'user-1',
       2001,
@@ -455,7 +546,7 @@ describe('a board filter is in the statement only when it is set', () => {
 
     const board = boardStatement(statements);
     expect(board.text).toContain(
-      'AND project_id = ANY(?) AND t.archived_at_ms IS NULL ORDER BY updated_at_ms DESC LIMIT ?',
+      ') rp USING (project_id) WHERE org_id = ? AND t.archived_at_ms IS NULL ORDER BY updated_at_ms DESC LIMIT ?',
     );
     for (const absent of [
       'assignee_id',
@@ -465,7 +556,7 @@ describe('a board filter is in the statement only when it is set', () => {
     ])
       expect(board.text).not.toContain(absent);
     expect(board.text).not.toMatch(/IS NULL OR\b/);
-    expect(board.values.slice(1)).toEqual(['org-a', ['proj-1'], 2001]);
+    expect(board.values.slice(-2)).toEqual(['org-a', 2001]);
   });
 
   it('drops the archived predicate when archived tasks are asked for', async () => {
@@ -477,7 +568,8 @@ describe('a board filter is in the statement only when it is set', () => {
 
     const board = boardStatement(statements);
     expect(board.text).toContain('AND TRUE AND t.assignee_id = ? ORDER BY');
-    expect(board.text).not.toContain('archived_at_ms');
+    // The tasks' own; an archived project's tasks stay off the board.
+    expect(board.text).not.toContain('t.archived_at_ms');
   });
 
   it('writes each filter that is set as its own predicate, an empty one included', async () => {

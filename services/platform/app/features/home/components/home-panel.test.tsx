@@ -174,6 +174,7 @@ function data(overrides: Partial<HomeData> = {}): HomeData {
       ],
     ]),
     projects: [{ id: 'p1', name: 'Website relaunch', key: 'WEB' }],
+    moreProjects: false,
     loading: {
       chats: false,
       tasks: false,
@@ -481,6 +482,21 @@ describe('HomeNavigator', () => {
     expect(
       within(projects).getByRole('link', { name: /Website relaunch/ }),
     ).toHaveAttribute('href', '/dashboard/org-1/projects/p1');
+  });
+
+  // Home lists one page of the projects (#5156): past it, the collapsed
+  // count is a floor, not the organization's total.
+  it('counts the collapsed projects as "N+" when Home lists only some of them', async () => {
+    const view = render(<HomeNavigator organizationId="org-1" />);
+    const projects = screen.getByRole('region', { name: 'Projects' });
+    const toggle = within(projects).getByRole('button', { name: /^Projects/ });
+    await view.user.click(toggle);
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(toggle).toHaveTextContent(/^Projects1$/);
+
+    homeData.current = data({ moreProjects: true });
+    view.rerender(<HomeNavigator organizationId="org-1" />);
+    expect(toggle).toHaveTextContent(/^Projects1\+$/);
   });
 
   it('offers New project only to a role that may create one', () => {

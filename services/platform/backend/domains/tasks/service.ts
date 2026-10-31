@@ -8,7 +8,7 @@ import {
   type SetTaskReviewerInput,
   type TaskReviewRecipient,
 } from '@tale/shared/schemas/task-review';
-import type { Sql, TransactionSql } from 'postgres';
+import type { Fragment, Sql, TransactionSql } from 'postgres';
 import { z } from 'zod';
 
 import {
@@ -88,9 +88,10 @@ import {
 import { emitEvent } from '../events/emit.ts';
 import { firstForeignUpload } from '../files/upload-intents.ts';
 import {
+  checkedProjectSql,
   getProjectAuthContext,
-  listProjects,
   loadProjectOrThrow,
+  readableProjectsSql,
   type ProjectAuthContext,
   type ProjectRow,
 } from '../projects/service.ts';
@@ -4100,21 +4101,17 @@ export async function listTasksForAccessibleProjects(
     truncated: boolean;
   } & TaskAccess
 > {
-  const projects = await listProjects(sql, auth, { summary: true });
   const access: TaskAccess = {
     canEdit: EDITOR_ROLES.has(auth.role),
     canCreate: auth.role !== 'disabled',
   };
-  if (projects.length === 0) {
-    return { tasks: [], truncated: false, ...access };
-  }
-  const projectKeys = new Map(
-    projects.map((project) => [project.id, project.key]),
-  );
-  const rows = await sql<BoardTaskRow[]>`
-    SELECT ${sql.unsafe(filters.summary === false ? TASK_COLUMNS : BOARD_TASK_COLUMNS)} FROM app.tasks t
+  // The readable projects join the task read: one statement, no id list.
+  const rows = await sql<(BoardTaskRow & { projectKey: string | null })[]>`
+    SELECT ${sql.unsafe(filters.summary === false ? TASK_COLUMNS : BOARD_TASK_COLUMNS)},
+           rp.project_key AS "projectKey"
+    FROM app.tasks t
+    JOIN ${readableProjectsSql(sql, auth)} rp USING (project_id)
     WHERE org_id = ${auth.organizationId}
-      AND project_id = ANY(${[...projectKeys.keys()]})
       AND ${boardFilterClause(sql, filters)}
     ORDER BY updated_at_ms DESC
     LIMIT ${TASK_BOARD_CAP + 1}
@@ -4137,15 +4134,14 @@ export async function listTasksForAccessibleProjects(
   }
   const facts = await collectFolderFacts(sql, auth.organizationId, byProject);
   return {
-    tasks: page.map((task) => {
-      const key = projectKeys.get(task.projectId) ?? null;
+    tasks: page.map(({ projectKey, ...task }) => {
       const decorated = decorateTaskRow(
         task,
         labelMap,
         facts.get(task.projectId) ?? NO_FOLDER_FACTS,
       );
-      return key !== null
-        ? Object.assign(decorated, { projectKey: key })
+      return projectKey !== null
+        ? Object.assign(decorated, { projectKey })
         : decorated;
     }),
     truncated,
@@ -4387,31 +4383,23 @@ export async function searchTasks(
   const patterns = taskSearchPatterns(args.query);
   if (patterns.length === 0) return [];
 
-  let projectIds: string[];
-  const projectKeys = new Map<string, string | null>();
-  // #2999: archived work stays searchable and says it is archived. An archived
-  // project is read here so its live tasks are findable at all, and its id is
-  // kept so every hit from it can carry `projectArchived`.
-  const archivedProjectIds = new Set<string>();
   if (args.projectId !== undefined) {
     const project = await loadProjectOrThrow(sql, args.projectId);
     assertTaskReadable(project, auth);
-    projectIds = [project.id];
-    projectKeys.set(project.id, project.key);
-    if (project.archivedAt !== null) archivedProjectIds.add(project.id);
-  } else {
-    const projects = await listProjects(sql, auth, { includeArchived: true });
-    projectIds = projects.map((project) => project.id);
-    for (const project of projects) {
-      projectKeys.set(project.id, project.key);
-      if (project.archivedAt !== null) archivedProjectIds.add(project.id);
-    }
   }
-  if (projectIds.length === 0) return [];
+  // The projects searched join each statement that reads their tasks.
+  // #2999: archived work stays searchable and says it is archived, so an
+  // archived project's live tasks are found and carry `projectArchived`.
+  const searched = () =>
+    args.projectId !== undefined
+      ? checkedProjectSql(sql, auth, args.projectId)
+      : readableProjectsSql(sql, auth, { includeArchived: true });
 
   interface FieldHit {
     taskId: string;
     projectId: string;
+    projectKey: string | null;
+    projectArchived: boolean;
     title: string;
     status: TaskStatus;
     description: string | null;
@@ -4420,12 +4408,15 @@ export async function searchTasks(
     archivedAt: number | null;
   }
   const fieldHits = await sql<FieldHit[]>`
-    SELECT t.id AS "taskId", t.project_id AS "projectId", t.title, t.status,
+    SELECT t.id AS "taskId", t.project_id AS "projectId",
+           rp.project_key AS "projectKey",
+           rp.project_archived_at_ms IS NOT NULL AS "projectArchived",
+           t.title, t.status,
            t.description, t.updated_at_ms::float8 AS "updatedAt", t.number,
            t.archived_at_ms::float8 AS "archivedAt"
     FROM app.tasks t
+    JOIN ${searched()} rp ON rp.project_id = t.project_id
     WHERE t.org_id = ${auth.organizationId}
-      AND t.project_id = ANY(${projectIds})
       AND ${taskFieldsSearchMatch(sql, patterns)}
     ORDER BY (t.archived_at_ms IS NOT NULL), t.updated_at_ms DESC
     LIMIT ${SEARCH_MAX_RESULTS}
@@ -4436,7 +4427,6 @@ export async function searchTasks(
   // and is cut after that, so it never ends in half a mention.
   let names: Map<string, string> = new Map();
   const toHit = (hit: FieldHit, snippetSource: string): TaskSearchHit => {
-    const key = projectKeys.get(hit.projectId) ?? null;
     const row: TaskSearchHit = {
       taskId: hit.taskId,
       projectId: hit.projectId,
@@ -4448,9 +4438,9 @@ export async function searchTasks(
       updatedAt: hit.updatedAt,
     };
     if (hit.number !== null) row.number = hit.number;
-    if (key !== null) row.projectKey = key;
+    if (hit.projectKey !== null) row.projectKey = hit.projectKey;
     if (hit.archivedAt !== null) row.archived = true;
-    if (archivedProjectIds.has(hit.projectId)) row.projectArchived = true;
+    if (hit.projectArchived) row.projectArchived = true;
     return row;
   };
   names = await currentMentionNames(
@@ -4466,15 +4456,18 @@ export async function searchTasks(
 
   const commentHits = await sql<(FieldHit & { body: string })[]>`
     SELECT DISTINCT ON ((t.archived_at_ms IS NOT NULL), t.updated_at_ms, t.id)
-           t.id AS "taskId", t.project_id AS "projectId", t.title, t.status,
+           t.id AS "taskId", t.project_id AS "projectId",
+           rp.project_key AS "projectKey",
+           rp.project_archived_at_ms IS NOT NULL AS "projectArchived",
+           t.title, t.status,
            t.description, t.updated_at_ms::float8 AS "updatedAt", t.number,
            t.archived_at_ms::float8 AS "archivedAt",
            m.text AS body
     FROM app.task_discussion_message_meta meta
     JOIN app.messages m ON m.id = meta.message_id
     JOIN app.tasks t ON t.id = meta.task_id
+    JOIN ${searched()} rp ON rp.project_id = t.project_id
     WHERE meta.org_id = ${auth.organizationId}
-      AND t.project_id = ANY(${projectIds})
       AND ${commentSearchMatch(sql, patterns)}
     ORDER BY (t.archived_at_ms IS NOT NULL), t.updated_at_ms DESC, t.id,
              m.created_at_ms DESC
@@ -5226,12 +5219,13 @@ export interface TaskOpsIndicators {
   automationWaits: TaskOpsAutomationWait[];
 }
 
-/** The live agent runs of the given projects (`TaskOpsIndicators.runs`):
+/** The live agent runs of the given projects (`TaskOpsIndicators.runs`),
+ * a relation of `project_id`s the read joins ({@link readableProjectsSql}):
  * one bounded read, the cap plus one row to tell a truncated list. */
 async function readLiveAgentRuns(
   sql: Sql,
   organizationId: string,
-  projectIds: readonly string[],
+  projects: Fragment,
 ): Promise<Pick<TaskOpsIndicators, 'runs' | 'runsTruncated'>> {
   const rows = await sql<
     {
@@ -5257,7 +5251,8 @@ async function readLiveAgentRuns(
            started_at_ms::float8 AS "startedAt",
            launched_at_ms::float8 AS "launchedAt"
     FROM app.project_agent_runs
-    WHERE org_id = ${organizationId} AND project_id = ANY(${projectIds})
+    JOIN ${projects} rp USING (project_id)
+    WHERE org_id = ${organizationId}
       AND status IN ('queued', 'running')
     ORDER BY (status = 'running') DESC, started_at_ms, seq
     LIMIT ${TASK_OPS_INDICATOR_CAP + 1}
@@ -5379,13 +5374,17 @@ export async function getTaskOpsIndicators(
   const pending = await collectPendingReviewsForProjects(
     sql,
     auth.organizationId,
-    [projectId],
+    checkedProjectSql(sql, auth, projectId),
   );
   return {
     runningTaskIds,
     askingTaskIds,
     pendingReviews: projectPendingReviews(pending),
-    ...(await readLiveAgentRuns(sql, auth.organizationId, [projectId])),
+    ...(await readLiveAgentRuns(
+      sql,
+      auth.organizationId,
+      checkedProjectSql(sql, auth, projectId),
+    )),
     automationWaits,
   };
 }
@@ -5400,34 +5399,27 @@ export async function getTaskOpsIndicatorsForAccessibleProjects(
   sql: Sql,
   auth: ProjectAuthContext,
 ): Promise<TaskOpsIndicators> {
-  const projects = await listProjects(sql, auth, { summary: true });
-  if (projects.length === 0) {
-    return {
-      runningTaskIds: [],
-      askingTaskIds: [],
-      pendingReviews: [],
-      runs: [],
-      runsTruncated: false,
-      automationWaits: [],
-    };
-  }
-  const projectIds = projects.map((project) => project.id);
+  // Each read joins the readable projects: no id list goes back and forth.
   const running = await sql<{ taskId: string }[]>`
     SELECT DISTINCT task_id AS "taskId" FROM app.project_agent_runs
+    JOIN ${readableProjectsSql(sql, auth)} rp USING (project_id)
     WHERE org_id = ${auth.organizationId} AND status = 'running'
-      AND project_id = ANY(${projectIds})
     LIMIT ${TASK_OPS_INDICATOR_CAP}
   `;
   const pending = await collectPendingReviewsForProjects(
     sql,
     auth.organizationId,
-    projectIds,
+    readableProjectsSql(sql, auth),
   );
   return {
     runningTaskIds: running.map((row) => row.taskId),
     askingTaskIds: [],
     pendingReviews: projectPendingReviews(pending),
-    ...(await readLiveAgentRuns(sql, auth.organizationId, projectIds)),
+    ...(await readLiveAgentRuns(
+      sql,
+      auth.organizationId,
+      readableProjectsSql(sql, auth),
+    )),
     automationWaits: [],
   };
 }

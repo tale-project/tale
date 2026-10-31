@@ -1,6 +1,7 @@
 // @vitest-environment node
 import type { Context } from 'hono';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 import type { OrgEnv } from '../../auth/org.ts';
 
@@ -44,8 +45,9 @@ beforeEach(() => {
   reads.listProjectsOverview.mockResolvedValue({
     projects: [],
     overdueTruncated: false,
+    hasMore: false,
   });
-  reads.listSidebarProjects.mockResolvedValue([]);
+  reads.listSidebarProjects.mockResolvedValue({ projects: [], hasMore: false });
   reads.searchProjects.mockResolvedValue([]);
   reads.getProject.mockResolvedValue({ id: 'p1', instructions: 'Full body' });
 });
@@ -70,7 +72,9 @@ describe('project summary read doors', () => {
           ...(name === 'listProjects' || name === 'listProjectsOverview'
             ? { includeArchived: true }
             : {}),
-          ...(name === 'listProjectsOverview' ? { asOf: 50 } : {}),
+          ...(name === 'listProjectsOverview'
+            ? { asOf: 50, limit: 50, cursor: null }
+            : {}),
           ...(flag === 'true' ? { summary: true } : {}),
         });
       }
@@ -91,5 +95,86 @@ describe('project summary read doors', () => {
     await expect(response.json()).resolves.toMatchObject({
       project: { instructions: 'Full body' },
     });
+  });
+});
+
+describe('the project list doors answer one page (#5156)', () => {
+  const app = () =>
+    createProjectRoutes({ sql: {} as never, auth: {} as never });
+  const lastOptions = (read: typeof reads.listProjectsOverview) =>
+    read.mock.calls.at(-1)?.at(-1);
+
+  it('pages the projects list with the cursor of its last row', async () => {
+    reads.listProjectsOverview.mockResolvedValueOnce({
+      projects: [
+        { id: 'p3', createdAt: 30 },
+        { id: 'p2', createdAt: 20 },
+      ],
+      overdueTruncated: false,
+      hasMore: true,
+    });
+    const first = await app().request('/overview?limit=2');
+    expect(first.status).toBe(200);
+    const page = z
+      .object({ isDone: z.boolean(), continueCursor: z.string() })
+      .parse(await first.json());
+    expect(page).toEqual({ isDone: false, continueCursor: '20:p2' });
+    expect(lastOptions(reads.listProjectsOverview)).toMatchObject({
+      limit: 2,
+      cursor: null,
+    });
+
+    reads.listProjectsOverview.mockResolvedValueOnce({
+      projects: [{ id: 'p1', createdAt: 10 }],
+      overdueTruncated: false,
+      hasMore: false,
+    });
+    const next = await app().request(
+      `/overview?limit=2&cursor=${encodeURIComponent(page.continueCursor)}`,
+    );
+    await expect(next.json()).resolves.toMatchObject({
+      projects: [{ id: 'p1' }],
+      isDone: true,
+      continueCursor: '',
+    });
+    expect(lastOptions(reads.listProjectsOverview)).toMatchObject({
+      cursor: { at: 20, id: 'p2' },
+    });
+  });
+
+  it('refuses a cursor the list never answered, and reads nothing', async () => {
+    const response = await app().request('/overview?cursor=not-a-cursor');
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: 'INVALID_CURSOR',
+    });
+    expect(reads.listProjectsOverview).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['', 50],
+    ['&limit=7', 7],
+    ['&limit=0', 1],
+    ['&limit=5000', 100],
+    ['&limit=abc', 50],
+  ])('reads a page size of %s as %i', async (query, limit) => {
+    await app().request(`/overview?includeArchived=false${query}`);
+    expect(lastOptions(reads.listProjectsOverview)).toMatchObject({ limit });
+    await app().request(`/sidebar?summary=true${query}`);
+    expect(reads.listSidebarProjects.mock.calls.at(-1)?.[2]).toBe(limit);
+  });
+
+  it('tells Home whether projects lie beyond its page', async () => {
+    reads.listSidebarProjects.mockResolvedValueOnce({
+      projects: [{ id: 'p1' }],
+      hasMore: true,
+    });
+    const more = await app().request('/sidebar?limit=1');
+    await expect(more.json()).resolves.toEqual({
+      projects: [{ id: 'p1' }],
+      isDone: false,
+    });
+    const all = await app().request('/sidebar?limit=1');
+    await expect(all.json()).resolves.toEqual({ projects: [], isDone: true });
   });
 });

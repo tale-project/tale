@@ -229,12 +229,16 @@ const HomeProjectRow = memo(function HomeProjectRow({
 export function HomeProjects({
   organizationId,
   projects,
+  hasMore = false,
   loading,
   activeProjectId,
   scope,
 }: {
   organizationId: string;
   projects: readonly ChatProjectSummary[];
+  /** The organization has more projects than `projects` holds: the
+   * collapsed count says so (`100+`), and All projects lists them all. */
+  hasMore?: boolean;
   loading: boolean;
   activeProjectId?: string;
   /** Phone Home: rows narrow the stream instead of opening the project. */
@@ -331,7 +335,9 @@ export function HomeProjects({
           <span className="truncate">{t('projects.title')}</span>
           {!open && projects.length > 0 && (
             <span className="text-muted-foreground/70 font-medium tabular-nums">
-              {projects.length}
+              {hasMore
+                ? t('projects.countMore', { count: projects.length })
+                : projects.length}
             </span>
           )}
         </button>
