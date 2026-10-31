@@ -3,9 +3,9 @@ import type { Sql, TransactionSql } from 'postgres';
 import {
   assertReadable,
   assertWritable,
-  listProjects,
   loadProjectOrThrow,
   ProjectError,
+  readableProjectsAmong,
   type ProjectAuthContext,
   type ProjectRow,
 } from '../projects/service.ts';
@@ -40,15 +40,18 @@ export async function readableProject(
   }
 }
 
-/** Every project the actor may read, archived ones included — the filter
- * run listings and binding lists go through. */
-export async function readableProjectIds(
+/** The installations of one automation the actor may read, in their
+ * order, archived projects included: those projects asked for alone
+ * (`readableProjectsAmong`), never every project the actor reads (#5201).
+ * A run listing and the catalog join the readable projects in their own
+ * statement instead (`readableProjectsSql`). */
+export async function visibleInstallations(
   sql: Sql | TransactionSql,
   auth: ProjectAuthContext,
+  bindings: readonly string[],
 ): Promise<string[]> {
-  return (await listProjects(sql, auth, { includeArchived: true })).map(
-    (project) => project.id,
-  );
+  const readable = await readableProjectsAmong(sql, auth, bindings);
+  return bindings.filter((id) => readable.has(id));
 }
 
 /**

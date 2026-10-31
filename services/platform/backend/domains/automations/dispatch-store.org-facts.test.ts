@@ -12,14 +12,9 @@ import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgFactsQuery } from '../../../lib/engine/core/slots.ts';
-import { listProjects, type ProjectListRow } from '../projects/service.ts';
 
 const { readOrgFacts } = vi.hoisted(() => ({ readOrgFacts: vi.fn() }));
 vi.mock('./org-facts.ts', () => ({ readOrgFacts }));
-vi.mock('../projects/service.ts', async (original) => ({
-  ...(await original<typeof import('../projects/service.ts')>()),
-  listProjects: vi.fn(),
-}));
 
 import { appOrigin, mcpOrigin } from '../../lib/write-origin.ts';
 import { ORG_FACTS_BUDGET_MS, pgAutomationStore } from './dispatch-store.ts';
@@ -44,10 +39,6 @@ function sqlAs(role: string): Sql {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(listProjects).mockResolvedValue([
-    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the field the viewer reads
-    { id: 'proj_sales' } as unknown as ProjectListRow,
-  ]);
 });
 
 describe('pgAutomationStore.orgFacts', () => {
@@ -72,8 +63,18 @@ describe('pgAutomationStore.orgFacts', () => {
       QUERY,
       expect.any(Function),
     );
+    // The actor's project read rule, which the installations meet: those
+    // are asked for alone, never every project the actor reads (#5201).
     expect(facts).toEqual({
-      viewer: { role: 'member', readable: new Set(['proj_sales']) },
+      viewer: {
+        role: 'member',
+        auth: {
+          organizationId: 'org_acme',
+          userId: 'user_mia',
+          role: 'member',
+          teamIds: [],
+        },
+      },
     });
   });
 
@@ -91,7 +92,7 @@ describe('pgAutomationStore.orgFacts', () => {
       origin: appOrigin('user_noah'),
     });
     expect(await store.orgFacts?.(QUERY)).toEqual({
-      viewer: { role: 'developer', readable: null },
+      viewer: { role: 'developer', auth: null },
     });
   });
 

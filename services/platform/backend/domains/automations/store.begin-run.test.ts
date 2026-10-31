@@ -8,6 +8,7 @@ vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx: vi.fn() }));
 
 import { RUN_CLAIM_PROMISE_MS } from '../../core/automations/liveness.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import type { ProjectAuthContext } from '../projects/service.ts';
 import { beginRun } from './store.ts';
 
 function fakeStore(deployed: number | undefined = 1, projects: string[] = []) {
@@ -56,6 +57,15 @@ const args = {
   startedBy: 'user-1',
   mode: 'live' as const,
   input: { orderId: 'order-1' },
+};
+
+/** The app member starting it, who reads `p-1` alone: the fake answers
+ * every project read with that one. */
+const member: ProjectAuthContext = {
+  organizationId: 'org-1',
+  userId: 'user-1',
+  role: 'member',
+  teamIds: [],
 };
 
 beforeEach(() => vi.clearAllMocks());
@@ -182,7 +192,7 @@ describe('durable run admission', () => {
     'refuses hidden bindings at admission even when the app omitted projectId: %j',
     async (...projects) => {
       const { sql, writes } = fakeStore(1, projects);
-      const admission = { ...args, visibleProjectIds: ['p-1'] };
+      const admission = { ...args, viewer: member };
       await expect(beginRun(sql, admission)).rejects.toMatchObject({
         code: 'PROJECT_NOT_FOUND',
         status: 404,
@@ -194,11 +204,7 @@ describe('durable run admission', () => {
 
   it('keeps a readable explicit project when other bindings are hidden', async () => {
     const { sql, writes } = fakeStore(1, ['p-1', 'hidden']);
-    const admission = {
-      ...args,
-      projectId: 'p-1',
-      visibleProjectIds: ['p-1'],
-    };
+    const admission = { ...args, projectId: 'p-1', viewer: member };
     await beginRun(sql, admission);
     expect(writes[0]?.[3]).toBe('p-1');
   });
