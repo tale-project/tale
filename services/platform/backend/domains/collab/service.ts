@@ -553,6 +553,8 @@ export async function listMyNotifications(
   },
 ): Promise<{ rows: UserNotificationRow[]; nextCursor: number | null }> {
   const limit = Math.min(Math.max(args.limit ?? 30, 1), 100);
+  // Order by the qualified column: a bare `seq` names the float8 output
+  // column, which no index holds in order, so the plan would sort every row.
   const page = await sql<(UserNotificationRow & { seq: number })[]>`
     SELECT id, type, title_key AS "titleKey", body_key AS "bodyKey", params,
            resource_type AS "resourceType", resource_id AS "resourceId",
@@ -563,7 +565,7 @@ export async function listMyNotifications(
     WHERE user_id = ${args.userId} AND org_id = ${args.organizationId}
       ${args.unreadOnly === true ? sql`AND read = false` : sql``}
       ${args.cursor === undefined ? sql`` : sql`AND seq < ${args.cursor}`}
-    ORDER BY seq DESC
+    ORDER BY user_notifications.seq DESC
     LIMIT ${limit + 1}
   `;
   const rows = page.slice(0, limit);
