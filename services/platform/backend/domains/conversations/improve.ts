@@ -88,8 +88,9 @@ const IMPROVE_CALL_MAX_MS = IMPROVE_TIMEOUT_MS + 60_000;
  * while it runs and booked in its hold's place — with the gate's own code
  * (`MODEL_ENDPOINT_OUTSIDE_EU`, `MODEL_ENDPOINT_POLICY_UNREADABLE`; 403) when
  * the organization's EU/EEA rule refuses the model's endpoint before anything
- * is sent (GOV-R17), and with `IMPROVE_FAILED` (502) when the provider
- * answered nothing usable.
+ * is sent (GOV-R17) or left out every provider that could rewrite it
+ * (GOV-R22), and with `IMPROVE_FAILED` (502) when the provider answered
+ * nothing usable.
  */
 export async function improveConversationMessage(
   sql: Sql,
@@ -115,6 +116,21 @@ export async function improveConversationMessage(
     args.userId,
   );
   if ('missing' in picked) {
+    if (picked.missing === 'endpoint') {
+      // The EU/EEA rule left out every provider that could (GOV-R22): the
+      // gate's own code, as when it refuses the call itself.
+      throw picked.hiddenBy === 'eu'
+        ? new ConversationError(
+            'MODEL_ENDPOINT_OUTSIDE_EU',
+            'This organization processes prompts only in the EU/EEA, and no AI provider that could rewrite this message is served from an endpoint known to process there. An admin can serve a model through a provider whose endpoint does.',
+            403,
+          )
+        : new ConversationError(
+            'MODEL_ENDPOINT_POLICY_UNREADABLE',
+            'The model access policy cannot be read, so no AI provider can rewrite this message until an admin restores it.',
+            403,
+          );
+    }
     throw picked.missing === 'model-access'
       ? new ConversationError(
           'IMPROVE_NO_MODEL_ACCESS',

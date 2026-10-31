@@ -337,6 +337,7 @@ export function ProjectAgentsTab({
         organizationId={organizationId}
         harnesses={harnesses}
         models={models}
+        modelsHiddenBy={rosterQuery.data?.modelsHiddenBy}
         skills={skills}
         catalogRead={catalogRead}
         connectors={connectors}

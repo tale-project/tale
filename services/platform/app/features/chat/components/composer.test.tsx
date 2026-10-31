@@ -71,6 +71,7 @@ beforeEach(() => {
 /** Renders the composer with real selection state so picks stick. */
 function renderComposer({
   models = [MODEL],
+  modelsHiddenBy,
   subscriptionProviders,
   initial = {},
   onSend = vi.fn(),
@@ -99,6 +100,7 @@ function renderComposer({
   skillChoices,
 }: {
   models?: ComposerModelOption[];
+  modelsHiddenBy?: 'eu' | 'unreadable';
   subscriptionProviders?: readonly string[];
   initial?: ComposerSelection;
   onSend?: (text: string) => void;
@@ -138,6 +140,7 @@ function renderComposer({
       <Composer
         draftKey={draftKey}
         models={models}
+        modelsHiddenBy={modelsHiddenBy}
         {...(subscriptionProviders !== undefined
           ? { subscriptionProviders }
           : {})}
@@ -292,6 +295,21 @@ describe('Composer model picker', () => {
     await screen.findByRole('menuitemradio', { name: /^Claude Fable 5/ });
     expect(screen.queryByText(/run only in tasks/)).toBeNull();
   });
+
+  it.each([undefined, 'eu' as const])(
+    'says under the model list why the EU/EEA rule left models out, and nothing while it is off (hidden by %s) [GOV-R22]',
+    async (modelsHiddenBy) => {
+      const { user } = renderComposer({ modelsHiddenBy });
+
+      await openSection(user, /^Model/);
+      await screen.findByRole('menuitemradio', { name: /^Claude Fable 5/ });
+      expect(
+        screen.queryByText(
+          /Only models whose endpoint processes prompts in the EU\/EEA are offered/,
+        ) !== null,
+      ).toBe(modelsHiddenBy !== undefined);
+    },
+  );
 
   it('lists the models under the Model section, and a pick sticks', async () => {
     const { user, selection } = renderComposer({

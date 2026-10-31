@@ -23,7 +23,12 @@ vi.mock('./servable_catalog', () => ({
   getServableCatalog: (...args: unknown[]) => catalogMock(...(args as [])),
 }));
 
-import { walkChatCatalog, type ChatCatalogCredential } from './chat_catalog';
+import {
+  chatProviderRefusedBy,
+  walkChatCatalog,
+  withoutRefusedChatHits,
+  type ChatCatalogCredential,
+} from './chat_catalog';
 
 const ORG = 'org_a';
 // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the walk reads nothing off ctx itself
@@ -194,5 +199,84 @@ describe('walkChatCatalog — listing credential', () => {
       bearerFor: async () => undefined,
     });
     expect(catalogMock).toHaveBeenLastCalledWith(OPENAI, ['gpt-5']);
+  });
+});
+
+describe('withoutRefusedChatHits — the EU/EEA processing rule', () => {
+  const EU = { kind: 'eu', attestedHosts: ['llm.example.eu'] } as const;
+
+  async function hitsFor(credentials: ChatCatalogCredential[]) {
+    catalogMock.mockResolvedValue([
+      entry('gpt-5'),
+      entry('text-embedding-3-small', ['embedding']),
+    ]);
+    return walkChatCatalog(ctx, ORG, credentials);
+  }
+
+  it('keeps every hit, and says nothing, while the rule is off [GOV-R22]', async () => {
+    const hits = await hitsFor([credential()]);
+    expect(withoutRefusedChatHits({ kind: 'open' }, hits)).toEqual({
+      kept: hits,
+    });
+  });
+
+  it('leaves out a hit whose endpoint the rule refuses, and says why [GOV-R22]', async () => {
+    const hits = await hitsFor([
+      credential(),
+      {
+        providerSlug: 'openai',
+        authMethod: 'api-key',
+        endpointUrl: 'https://llm.example.eu/v1',
+      },
+    ]);
+    const offered = withoutRefusedChatHits(EU, hits);
+    expect(
+      offered.kept.map((hit) => [hit.credential.endpointUrl, hit.entry.id]),
+    ).toEqual([
+      ['https://llm.example.eu/v1', 'gpt-5'],
+      ['https://llm.example.eu/v1', 'text-embedding-3-small'],
+    ]);
+    expect(offered.hiddenBy).toBe('eu');
+  });
+
+  it('says nothing when only a model no chat picker lists was left out [GOV-R22]', async () => {
+    catalogMock.mockResolvedValue([
+      entry('text-embedding-3-small', ['embedding']),
+    ]);
+    const hits = await walkChatCatalog(ctx, ORG, [credential()]);
+    expect(withoutRefusedChatHits(EU, hits)).toEqual({ kept: [] });
+  });
+
+  it('leaves out every hit while the policy cannot be read [GOV-R22]', async () => {
+    const hits = await hitsFor([credential()]);
+    expect(withoutRefusedChatHits({ kind: 'unreadable' }, hits)).toEqual({
+      kept: [],
+      hiddenBy: 'unreadable',
+    });
+  });
+});
+
+describe('chatProviderRefusedBy [GOV-R22]', () => {
+  const EU = { kind: 'eu', attestedHosts: ['llm.example.eu'] } as const;
+
+  it('refuses nothing while the rule is off [GOV-R22]', () => {
+    expect(chatProviderRefusedBy({ kind: 'open' }, OPENAI, undefined)).toBe(
+      undefined,
+    );
+  });
+
+  it('judges the credential’s endpoint before the provider’s [GOV-R22]', () => {
+    expect(chatProviderRefusedBy(EU, OPENAI, undefined)).toBe('eu');
+    expect(
+      chatProviderRefusedBy(EU, OPENAI, {
+        endpointUrl: 'https://llm.example.eu/v1',
+      }),
+    ).toBe(undefined);
+  });
+
+  it('refuses every provider while the policy cannot be read [GOV-R22]', () => {
+    expect(
+      chatProviderRefusedBy({ kind: 'unreadable' }, OPENAI, undefined),
+    ).toBe('unreadable');
   });
 });
