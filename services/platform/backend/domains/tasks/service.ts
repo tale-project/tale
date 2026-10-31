@@ -5204,6 +5204,11 @@ export interface TaskOpsIndicators {
    * neither `runningTaskIds` nor `askingTaskIds`; at most
    * {@link TASK_OPS_INDICATOR_CAP}. */
   automationWaits: TaskOpsAutomationWait[];
+  /** Live automation runs exist that these lists leave out: more than the
+   * scan reads, more than a list keeps, or a run behind its task's running
+   * agent run or newer automation run. A count of live runs is then a lower
+   * bound, never the whole project's. */
+  automationRunsTruncated: boolean;
 }
 
 /** The live agent runs of the given projects (`TaskOpsIndicators.runs`),
@@ -5306,7 +5311,7 @@ export async function getTaskOpsIndicators(
 
   const askingTaskIds: string[] = [];
   const automationWaits: TaskOpsAutomationWait[] = [];
-  const liveRuns = await sql<
+  const scanned = await sql<
     {
       runId: string;
       taskId: string | null;
@@ -5329,10 +5334,17 @@ export async function getTaskOpsIndicators(
       AND (r.project_id = ${projectId} OR r.project_id IS NULL)
       AND r.status IN ('queued', 'running', 'waiting')
     ORDER BY r.started_at_ms DESC
-    LIMIT ${TASK_OPS_RUN_SCAN_CAP}
+    LIMIT ${TASK_OPS_RUN_SCAN_CAP + 1}
   `;
-  for (const run of liveRuns) {
-    if (run.taskId === null || seen.has(run.taskId)) continue;
+  // A run the lists leave out still runs: say so, so that no count of the
+  // live runs reads as the whole project's.
+  let automationRunsTruncated = scanned.length > TASK_OPS_RUN_SCAN_CAP;
+  for (const run of scanned.slice(0, TASK_OPS_RUN_SCAN_CAP)) {
+    if (run.taskId === null) continue;
+    if (seen.has(run.taskId)) {
+      automationRunsTruncated = true;
+      continue;
+    }
     seen.add(run.taskId);
     const waitingFor = runWaitingFor({
       status: run.status,
@@ -5345,7 +5357,10 @@ export async function getTaskOpsIndicators(
       waitingFor === 'agent' ||
       waitingFor === 'ask'
     ) {
-      if (runningTaskIds.length >= TASK_OPS_INDICATOR_CAP) continue;
+      if (runningTaskIds.length >= TASK_OPS_INDICATOR_CAP) {
+        automationRunsTruncated = true;
+        continue;
+      }
       runningTaskIds.push(run.taskId);
       if (run.hasPendingAsk) askingTaskIds.push(run.taskId);
     } else if (automationWaits.length < TASK_OPS_INDICATOR_CAP) {
@@ -5355,6 +5370,8 @@ export async function getTaskOpsIndicators(
         status: run.status,
         ...(waitingFor !== undefined ? { waitingFor } : {}),
       });
+    } else {
+      automationRunsTruncated = true;
     }
   }
 
@@ -5373,6 +5390,7 @@ export async function getTaskOpsIndicators(
       checkedProjectSql(sql, auth, projectId),
     )),
     automationWaits,
+    automationRunsTruncated,
   };
 }
 
@@ -5385,7 +5403,7 @@ export async function getTaskOpsIndicators(
 export async function getTaskOpsIndicatorsForAccessibleProjects(
   sql: Sql,
   auth: ProjectAuthContext,
-): Promise<TaskOpsIndicators> {
+): Promise<Omit<TaskOpsIndicators, 'automationRunsTruncated'>> {
   // Each read joins the readable projects: no id list goes back and forth.
   const running = await sql<{ taskId: string }[]>`
     SELECT DISTINCT task_id AS "taskId" FROM app.project_agent_runs
