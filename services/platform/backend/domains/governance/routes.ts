@@ -47,6 +47,7 @@ import {
   listOrgCompetences,
   listUserCompetences,
   revokeCompetence,
+  updateCompetence,
 } from './competence.ts';
 import { readMemberRights } from './member-rights.ts';
 import { readModelEndpointPolicyForOrg } from './model-endpoints.ts';
@@ -216,8 +217,8 @@ export function createGovernanceRoutes(deps: {
   /**
    * Competence register — who is qualified to respond to a governed review.
    * Reads are org-member (a responder must be able to see why they were
-   * refused); grants and revocations are admin-only and audited, including
-   * the refusal of a non-admin attempt.
+   * refused); grants, edits and revocations are admin-only and audited,
+   * including the refusal of a non-admin attempt.
    */
   app.get('/competences', async (c) => {
     const userId = c.req.query('userId');
@@ -265,6 +266,40 @@ export function createGovernanceRoutes(deps: {
             : {}),
         }),
         201,
+      );
+    } catch (error) {
+      return competenceError(c, error);
+    }
+  });
+
+  /** An active grant's expiry (`null` = open-ended) and evidence (`null` or
+   * empty clears it), changed in place; a field left out stays as it is. */
+  app.patch('/competences/:recordId', async (c) => {
+    const body = z
+      .object({
+        expiresAt: epochMsSchema.nullable().optional(),
+        evidence: z.string().max(4000).nullable().optional(),
+      })
+      .refine(
+        (value) =>
+          value.expiresAt !== undefined || value.evidence !== undefined,
+        { message: 'name expiresAt, evidence or both' },
+      )
+      .safeParse(await c.req.json().catch(() => null));
+    if (!body.success) return invalidBodyResponse(c, body.error);
+    try {
+      return c.json(
+        await updateCompetence(deps.sql, {
+          organizationId: c.get('orgId'),
+          actor: actorOf(c),
+          recordId: c.req.param('recordId'),
+          ...(body.data.expiresAt !== undefined
+            ? { expiresAt: body.data.expiresAt }
+            : {}),
+          ...(body.data.evidence !== undefined
+            ? { evidence: body.data.evidence }
+            : {}),
+        }),
       );
     } catch (error) {
       return competenceError(c, error);
