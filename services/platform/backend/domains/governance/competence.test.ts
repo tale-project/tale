@@ -19,6 +19,7 @@ import {
   CompetenceError,
   grantCompetence,
   holdsCapability,
+  listRecordsVouchingFor,
   PLATFORM_CAPABILITIES,
   revokeCompetence,
 } from './competence.ts';
@@ -35,7 +36,8 @@ interface Captured {
 
 /** Tagged-template Sql double answering a read by its text; `begin` runs the
  * callback on the same double. A template that is no statement (a condition
- * such as `vouchesForUser`) is a fragment the enclosing statement binds. */
+ * such as `vouchesForUser`) is a fragment the enclosing statement binds, and
+ * `unsafe` text (the column list) is a value it splices in. */
 function fakeSql(answer: (text: string) => object[] | undefined): {
   sql: Sql;
   queries: Captured[];
@@ -50,8 +52,12 @@ function fakeSql(answer: (text: string) => object[] | undefined): {
     return Promise.resolve(answer(text) ?? []);
   };
   const begin = (callback: (tx: unknown) => Promise<unknown>) => callback(tag);
+  const unsafe = (text: string) => ({
+    unsafe: text.replace(/\s+/g, ' ').trim(),
+  });
+  const double = Object.assign(tag, { begin, unsafe });
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double
-  return { sql: Object.assign(tag, { begin }) as unknown as Sql, queries };
+  return { sql: double as unknown as Sql, queries };
 }
 
 /** The register's writes for a member of `org-1`. */
@@ -452,5 +458,126 @@ describe('revokeCompetence — a team grant [GOV-R19]', () => {
         newState: { teamId: 'team-7', teamName: null, revokedBy: 'admin-1' },
       }),
     );
+  });
+});
+
+describe('the writes a right’s switch makes in Settings › Members [GOV-R21]', () => {
+  it('grants with an end date, and audits the grant with it', async () => {
+    const expiresAt = Date.now() + 30 * 86_400_000;
+    const { sql, queries } = fakeSql(register);
+    await expect(
+      grantCompetence(sql, {
+        organizationId: 'org-1',
+        actor: ADMIN,
+        userId: 'u-1',
+        competence: 'tale:rest.act-as',
+        expiresAt,
+      }),
+    ).resolves.toEqual({ recordId: 'record-1' });
+    const insert = queries.find((query) =>
+      query.text.startsWith('INSERT INTO app.competence_records'),
+    );
+    expect(insert?.values).toEqual(
+      expect.arrayContaining(['u-1', 'tale:rest.act-as', expiresAt]),
+    );
+    expect(createAuditLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'competence_granted',
+        category: 'security',
+        resourceId: 'record-1',
+        resourceName: 'tale:rest.act-as',
+        newState: {
+          userId: 'u-1',
+          competence: 'tale:rest.act-as',
+          grantedBy: 'admin-1',
+          expiresAt,
+        },
+      }),
+    );
+  });
+
+  it('revokes the live grant, and audits who revoked it', async () => {
+    const { sql, queries } = fakeSql((text) =>
+      text.includes('FOR UPDATE')
+        ? [
+            {
+              competence: 'tale:rest.act-as',
+              userId: 'u-1',
+              teamId: null,
+              revokedAt: null,
+            },
+          ]
+        : undefined,
+    );
+    await revokeCompetence(sql, {
+      organizationId: 'org-1',
+      actor: ADMIN,
+      recordId: 'record-1',
+    });
+    expect(
+      queries.some((query) =>
+        query.text.startsWith(
+          'UPDATE app.competence_records SET revoked_at_ms',
+        ),
+      ),
+    ).toBe(true);
+    expect(createAuditLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'competence_revoked',
+        resourceId: 'record-1',
+        resourceName: 'tale:rest.act-as',
+        status: 'success',
+        newState: { userId: 'u-1', revokedBy: 'admin-1' },
+      }),
+    );
+  });
+
+  it('refuses a non-admin’s revocation before reading the register, and audits the refusal', async () => {
+    const { sql, queries } = fakeSql(register);
+    await expect(
+      revokeCompetence(sql, {
+        organizationId: 'org-1',
+        actor: { userId: 'u-1', role: 'member' },
+        recordId: 'record-1',
+      }),
+    ).rejects.toMatchObject({ code: 'COMPETENCE_FORBIDDEN', status: 403 });
+    expect(createAuditLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'competence_revoke_denied',
+        resourceId: 'record-1',
+        errorMessage: 'admin role required',
+      }),
+    );
+    expect(queries).toEqual([]);
+  });
+});
+
+describe('listRecordsVouchingFor [GOV-R21]', () => {
+  it('lists the member’s unrevoked records by the rule holdsCapability reads: their own, and their teams’', async () => {
+    const rows = [{ id: 'record-1' }];
+    const { sql, queries } = fakeSql((text) =>
+      text.includes('FROM app.competence_records') ? rows : undefined,
+    );
+    await expect(listRecordsVouchingFor(sql, 'org-1', 'u-1')).resolves.toBe(
+      rows,
+    );
+    expect(queries).toHaveLength(1);
+    const [query] = queries;
+    expect(query?.text).toBe(
+      'SELECT $? FROM app.competence_records WHERE id IN ( SELECT c.id FROM app.competence_records c WHERE c.org_id = $? AND c.revoked_at_ms IS NULL AND $? ) ORDER BY granted_at_ms DESC',
+    );
+    expect(query?.values).toEqual([
+      { unsafe: expect.stringContaining('team_id AS "teamId"') },
+      'org-1',
+      {
+        fragment: expect.stringMatching(
+          /^\( c\.user_id = \$\? OR \(c\.team_id IS NOT NULL AND EXISTS .* JOIN app\.admin_added_team_members a .*\)$/,
+        ),
+        values: ['u-1', 'u-1'],
+      },
+    ]);
   });
 });

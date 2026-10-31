@@ -273,6 +273,19 @@ export function useCompetences(organizationId: string | undefined) {
   );
 }
 
+/** One member's platform rights, with the reasons the server weighs.
+ * Owners and admins only: `enabled: false` skips the read. */
+export function useMemberRights(
+  organizationId: string,
+  userId: string,
+  options: { enabled: boolean },
+) {
+  return useBackendQuery(
+    'governance/competences:getMemberRights',
+    options.enabled ? { organizationId, userId } : 'skip',
+  );
+}
+
 export function useUploadPolicy(organizationId: string): UploadPolicyLimits {
   const { data: policy } = useGovernancePolicy(organizationId, 'upload_policy');
 
