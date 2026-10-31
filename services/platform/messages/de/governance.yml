@@ -1097,6 +1097,9 @@ competences:
     qualificationsGroup: Deine Organisation
     qualificationOption: Qualifikation
     qualificationOptionDescription: Ein Name aus deiner Freigaberichtlinie
+    modelApiOff:
+      description: Die Modell-Endpunkte sind für diese Organisation nicht aktiviert. Das Mitglied kann die Modelle erst aufrufen, wenn sie aktiviert sind.
+      link: Modellzugriff öffnen
     qualificationLabel: Name der Qualifikation
     qualificationDescription: Der Name, den deine Freigaberichtlinie verwendet, zum Beispiel tax-reviewer.
     expiryLabel: Läuft ab
