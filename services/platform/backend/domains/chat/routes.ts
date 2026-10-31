@@ -56,7 +56,7 @@ import {
 } from './deferred-sends.ts';
 import { createGenerationWatch } from './generation-watch.ts';
 import { getOrgChatHealth } from './health.ts';
-import { listMessageViews } from './message-views.ts';
+import { listMessageViewsPage } from './message-views.ts';
 import { runChatTurn } from './service.ts';
 import { appendMessageRow } from './store.ts';
 import { readChatWorkToolsStatus } from './work-tools-status.ts';
@@ -157,6 +157,20 @@ const archivedQuerySchema = z.object({
   cursor: z.coerce.number().int().positive().optional(),
   limit: z.coerce.number().int().min(1).max(50).optional(),
 });
+
+// The transcript's page cursor, the store's `(order, stepOrder)` keyset:
+// both halves or neither, coerced and bounded for the reason above. Both
+// columns are Postgres `integer`, which refuses a value past 2^31 - 1 with an
+// out-of-range 500 — so the bound is the column's.
+const messagesQuerySchema = z
+  .object({
+    beforeOrder: z.coerce.number().int().min(0).max(2_147_483_647).optional(),
+    beforeStep: z.coerce.number().int().min(0).max(2_147_483_647).optional(),
+  })
+  .refine(
+    (query) =>
+      (query.beforeOrder === undefined) === (query.beforeStep === undefined),
+  );
 
 const arenaTurnSchema = z.object({
   userText: z.string().max(200_000),
@@ -1045,6 +1059,9 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
   });
 
   app.get('/threads/:threadId/messages', async (c) => {
+    const query = messagesQuerySchema.safeParse(c.req.query());
+    if (!query.success) return c.json({ error: 'invalid query' }, 400);
+    const { beforeOrder, beforeStep } = query.data;
     const { organizationId, userId } = caller(c);
     // Owner, or a conversation its owner shared with a project the caller
     // can read (never write) — the 0.4 `listMessages` posture.
@@ -1074,12 +1091,17 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     if (thread === null) {
       return c.json({ error: 'thread not found' }, 404);
     }
-    const messages = await listMessageViews(
+    // One page — the newest, or the one before the cursor the previous
+    // page answered — never the whole thread.
+    const page = await listMessageViewsPage(
       deps.sql,
       organizationId,
       rowsThreadId ?? thread.id,
+      beforeOrder !== undefined && beforeStep !== undefined
+        ? { before: { order: beforeOrder, stepOrder: beforeStep } }
+        : {},
     );
-    return c.json({ thread, messages });
+    return c.json({ thread, ...page });
   });
 
   /** Create (or return) the arena pair for a conversation. */

@@ -6,8 +6,9 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { useThreadStream } from './thread-stream';
 
 /**
- * Which lane events nudge the message and tray reads. `settled` always did;
- * a turn OPENING — the first `progress` over an idle or resolving lane —
+ * Which lane events nudge the message and tray reads. `settled` puts its
+ * row in the transcript instead, and nudges the transcript only without
+ * one; a turn OPENING — the first `progress` over an idle or resolving lane —
  * must too: a parked (send-then-wait) send fires server-side with no
  * optimistic bubble, so without the nudge the transcript lacked its user
  * bubble and the tray kept the row as "Queued" for the whole generation. An
@@ -57,7 +58,8 @@ function Probe({
   );
 }
 
-/** Mount one lane and report the entity slot of every invalidation. */
+/** Mount one lane and report the entity slot of every invalidation — the
+ * whole-thread read (Export, Create task) as `chat_message/whole`. */
 function openLane(threadId: string) {
   const queryClient = new QueryClient();
   const invalidate = vi
@@ -70,9 +72,16 @@ function openLane(threadId: string) {
     invalidate.mock.calls.map((call) => {
       const [filters] = call;
       const key = filters?.queryKey;
-      return Array.isArray(key) ? String(key[2]) : 'unknown';
+      if (!Array.isArray(key)) return 'unknown';
+      return key[4] === 'whole' ? `${String(key[2])}/whole` : String(key[2]);
     });
-  return { view, source, nudged, state: () => view.getByRole('status') };
+  return {
+    view,
+    source,
+    nudged,
+    queryClient,
+    state: () => view.getByRole('status'),
+  };
 }
 
 const PROGRESS = JSON.stringify({ messageId: 'm_1', text: 'hi' });
@@ -100,8 +109,8 @@ describe('useThreadStream read nudges', () => {
     lane.source.emit('progress', PROGRESS);
     expect(lane.nudged()).toHaveLength(2);
 
-    // Settle keeps its nudge (messages, tray, thread list) — and the next
-    // turn opening nudges again.
+    // A settle without its row keeps the nudge (messages, tray, thread
+    // list) — and the next turn opening nudges again.
     lane.source.emit('settled', JSON.stringify({ message: null }));
     expect(lane.state()).toHaveTextContent('idle');
     expect(lane.nudged().slice(2)).toEqual([
@@ -111,6 +120,75 @@ describe('useThreadStream read nudges', () => {
     ]);
     lane.source.emit('progress', PROGRESS);
     expect(lane.nudged().slice(5)).toEqual(['chat_message', 'chat_deferred']);
+    lane.view.unmount();
+  });
+
+  it('puts the settled row in the transcript instead of re-reading the thread', () => {
+    const lane = openLane('thread_settle');
+    const key = ['backend', 'org_1', 'chat_message', 'thread_settle'];
+    const user = { id: 'm_0', role: 'user', parts: [], sequence: 0 };
+    lane.queryClient.setQueryData(key, {
+      messages: [
+        user,
+        { id: 'm_1', role: 'assistant', parts: [], sequence: 1 },
+      ],
+      hasMore: false,
+      nextBefore: null,
+    });
+    lane.source.emit('idle');
+    lane.source.emit('progress', PROGRESS);
+    const reply = {
+      id: 'm_1',
+      role: 'assistant',
+      parts: [{ type: 'text', text: 'hi' }],
+      sequence: 1,
+      status: 'complete',
+    };
+
+    lane.source.emit('settled', JSON.stringify({ message: reply }));
+
+    expect(lane.state()).toHaveTextContent('idle');
+    // The whole-thread read, the tray and the thread list still re-read;
+    // the transcript does not.
+    expect(lane.nudged().slice(2)).toEqual([
+      'chat_message/whole',
+      'chat_deferred',
+      'chat_thread',
+    ]);
+    expect(lane.queryClient.getQueryData(key)).toEqual({
+      messages: [user, reply],
+      hasMore: false,
+      nextBefore: null,
+    });
+    lane.view.unmount();
+  });
+
+  it('re-reads the newest page when a settle races a re-read still in flight', () => {
+    const lane = openLane('thread_race');
+    const key = ['backend', 'org_1', 'chat_message', 'thread_race'];
+    lane.queryClient.setQueryData(key, {
+      messages: [{ id: 'm_1', role: 'assistant', parts: [], sequence: 1 }],
+      hasMore: false,
+      nextBefore: null,
+    });
+    // The turn-open re-read read before the settle: its answer would put
+    // the unsettled row back over the settled one.
+    vi.spyOn(lane.queryClient, 'isFetching').mockReturnValue(1);
+    lane.source.emit('idle');
+    lane.source.emit('progress', PROGRESS);
+
+    lane.source.emit(
+      'settled',
+      JSON.stringify({
+        message: { id: 'm_1', role: 'assistant', parts: [], sequence: 1 },
+      }),
+    );
+
+    expect(lane.nudged().slice(2)).toEqual([
+      'chat_message',
+      'chat_deferred',
+      'chat_thread',
+    ]);
     lane.view.unmount();
   });
 
