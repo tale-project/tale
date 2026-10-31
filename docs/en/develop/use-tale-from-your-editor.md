@@ -18,7 +18,7 @@ An editor can use two of them with the same key: the model endpoints as its mode
 
 ## Create an API key
 
-Every path from outside the app starts with a personal API key, except that a coding agent can sign itself in to the MCP endpoint ([Bring Tale's tools into your coding agent](#connect-opencode-or-claude-code)). Owners, Admins, and Developers create one under **Settings > API > REST** with **Create API key**, choosing a name and an expiration, and so can a member an Admin granted a competence that is used with a key, such as **Call models over the API**. The secret is shown once; copy it into your secret store or a private shell environment before closing the dialog. [API keys](/platform/admin/api-keys) covers creation, rotation, and revocation.
+Every path from outside the app starts with a personal API key, except that a coding agent can sign itself in to the MCP endpoint ([Bring Tale's tools into your coding agent](#connect-opencode-or-claude-code)). Owners, Admins, and Developers create one under **Settings > API > REST** with **Create API key**, choosing a name and an expiration, and so can a member an Admin granted a right that is used with a key, such as **Call models over the API**. The secret is shown once; copy it into your secret store or a private shell environment before closing the dialog. [API keys](/platform/admin/api-keys) covers creation, rotation, and revocation.
 
 A key acts as you. It carries your current role and project access, and the usage it causes is booked under your name. Chat turns, model calls, and automation runs you start with the key also record the key, so API-key limits apply to them as well; a project-agent run is booked to you alone. An Admin can cap what you spend with a personal, team, or role budget under [Policies and limits](/platform/admin/governance/policies-and-limits); a request over a cap is refused with `429 BUDGET_EXCEEDED`.
 
@@ -30,7 +30,7 @@ The model endpoints let opencode, Claude Code, and scripts built on the OpenAI o
 
 ### Before you start
 
-The endpoints are off until an Admin turns on **Model endpoints for API keys** under **Settings > Governance > Models**; [Models](/platform/admin/governance/content-models#model-endpoints) describes the switch. Owners, Admins, and Developers may then call them through their role; any other member needs the competence **Call models over the API**, which an Admin grants under [Competences](/platform/admin/governance/competences). `GET /api/v1/me` answers `capabilities.modelApi: true` once your key may call them.
+The endpoints are off until an Admin turns on **Model endpoints for API keys** under **Settings > Governance > Models**; [Models](/platform/admin/governance/content-models#model-endpoints) describes the switch. Owners, Admins, and Developers may then call them through their role; any other member needs the right **Call models over the API**, which an Admin grants under [Rights and qualifications](/platform/admin/governance/rights-and-qualifications). `GET /api/v1/me` answers `capabilities.modelApi: true` once your key may call them.
 
 **Settings > API > Models** collects what your tools need: both base URLs, the organization slug, the models you can call with a copy button for each id, and configuration to copy for opencode, Claude Code, and the OpenAI SDK for Python. While your organization has not turned the endpoints on, the tab reads **Model endpoints are not enabled for your organization**, and Owners and Admins find **Open model access** there.
 
@@ -175,7 +175,7 @@ print(message.content[0].text)
 
 Each call is governed like a chat request, for the person whose key sent it:
 
-- **The switch and your right.** The organization has turned the endpoints on, and your role or competence lets you call them.
+- **The switch and your right.** The organization has turned the endpoints on, and your role or a granted right lets you call them.
 - **The model.** It must be on your list, and the organization's model access must allow it for you at the moment of the call. The model allowlist of the provider credential applies as well.
 - **What the model can read.** Images need a model with vision, and tools a model that takes them. Images travel as OpenAI `image_url` parts with a `data:` or `https:` URL, or as Anthropic `image` blocks in base64 or with an `https:` URL, also inside tool results. Documents travel as OpenAI `file` parts or Anthropic `document` blocks.
 - **The input guardrails.** The organization's content safety, personal-data protection, and moderation provider read every text the request carries before it is sent on: system and developer instructions, your turns and the assistant's, tool calls, tool results and tool definitions, and documents given as text. A block refuses the request, and a mask sends the model the masked text. The model's answers, and images and documents that are not text, are not filtered. [Guardrails](/platform/admin/governance/guardrails#model-endpoints) has the details.

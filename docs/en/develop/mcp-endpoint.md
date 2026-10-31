@@ -46,7 +46,7 @@ An agent that asks for more than the endpoint grants is not refused for it: Code
 
 #### Who may connect {#who-may-connect}
 
-An Owner, Admin or Developer may connect an agent to the organization and give it any access. A member may connect one only with a competence that is used with a key, and may give it **Read and test** and **Read settings**. Anyone else is told on the consent page that they may not connect an agent in that organization. Anything beyond **Read and test** and **Read settings** needs a sign-in from the last day, so the page asks for the password first.
+An Owner, Admin or Developer may connect an agent to the organization and give it any access. A member may connect one only with a right that is used with a key, and may give it **Read and test** and **Read settings**. Anyone else is told on the consent page that they may not connect an agent in that organization. Anything beyond **Read and test** and **Read settings** needs a sign-in from the last day, so the page asks for the password first.
 
 #### Access levels {#access-levels}
 

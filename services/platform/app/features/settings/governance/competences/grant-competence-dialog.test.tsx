@@ -157,13 +157,17 @@ async function choose(
 }
 
 describe('GrantCompetenceDialog', () => {
-  it('grants a platform capability that never expires', async () => {
+  it('grants a right that never expires', async () => {
     state.grant.mockResolvedValue({ recordId: 'record-a' });
     const { user, onOpenChange } = renderDialog();
 
     await choose(user, 'Member', 'Integration Worker worker@example.com');
-    await choose(user, 'Competence', 'Act for another member tale:rest.act-as');
-    // The chosen capability explains itself under the field.
+    await choose(
+      user,
+      'Right or qualification',
+      'Act for another member tale:rest.act-as',
+    );
+    // The chosen right explains itself under the field.
     expect(
       screen.getByText(/so the record shows that person instead of the key/),
     ).toBeInTheDocument();
@@ -175,7 +179,7 @@ describe('GrantCompetenceDialog', () => {
       competence: 'tale:rest.act-as',
     });
     expect(state.toast).toHaveBeenCalledWith(
-      expect.objectContaining({ title: 'Competence granted' }),
+      expect.objectContaining({ title: 'Grant added' }),
     );
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
@@ -187,7 +191,7 @@ describe('GrantCompetenceDialog', () => {
     await choose(user, 'Member', 'Tax Reviewer reviewer@example.com');
     await choose(
       user,
-      'Competence',
+      'Right or qualification',
       'Qualification A name your review policy asks for',
     );
     await user.type(
@@ -221,7 +225,7 @@ describe('GrantCompetenceDialog', () => {
     await choose(user, 'Member', 'Tax Reviewer reviewer@example.com');
     await choose(
       user,
-      'Competence',
+      'Right or qualification',
       'Qualification A name your review policy asks for',
     );
     await user.type(
@@ -231,7 +235,7 @@ describe('GrantCompetenceDialog', () => {
 
     expect(
       await screen.findByText(
-        'Names starting with "tale:" are reserved for platform capabilities.',
+        'Names starting with "tale:" are reserved for rights.',
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Grant' })).toBeDisabled();
@@ -245,23 +249,48 @@ describe('GrantCompetenceDialog', () => {
     const { user, onOpenChange } = renderDialog();
 
     await choose(user, 'Member', 'Integration Worker worker@example.com');
-    await choose(user, 'Competence', 'Act for another member tale:rest.act-as');
+    await choose(
+      user,
+      'Right or qualification',
+      'Act for another member tale:rest.act-as',
+    );
     await user.click(screen.getByRole('button', { name: 'Grant' }));
 
     const dialog = screen.getByRole('dialog');
     expect(
-      within(dialog).getByText(/This member already holds this competence/),
+      within(dialog).getByText(
+        /This member already holds this right or qualification/,
+      ),
     ).toBeInTheDocument();
     expect(onOpenChange).not.toHaveBeenCalledWith(false);
 
     await choose(
       user,
-      'Competence',
+      'Right or qualification',
       'Export notifications tale:notifications.export',
     );
     expect(
-      within(dialog).queryByText(/This member already holds this competence/),
+      within(dialog).queryByText(
+        /This member already holds this right or qualification/,
+      ),
     ).not.toBeInTheDocument();
+  });
+
+  // #5192: the picker names the two kinds a grant can be.
+  it('groups the picker into Rights and Qualifications', async () => {
+    const { user } = renderDialog();
+
+    await user.click(
+      screen.getByRole('button', { name: 'Right or qualification' }),
+    );
+    const listbox = await screen.findByRole('listbox');
+    expect(within(listbox).getByText('Rights')).toBeInTheDocument();
+    expect(within(listbox).getByText('Qualifications')).toBeInTheDocument();
+    expect(
+      within(listbox).getByRole('option', {
+        name: 'Qualification A name your review policy asks for',
+      }),
+    ).toBeInTheDocument();
   });
 
   it('passes an axe audit when open', async () => {
@@ -285,7 +314,7 @@ describe('GrantCompetenceDialog', () => {
 
       await choose(user, 'Member', 'Tax Reviewer reviewer@example.com');
       expect(screen.queryByText(OFF)).not.toBeInTheDocument();
-      await choose(user, 'Competence', MODELS_API);
+      await choose(user, 'Right or qualification', MODELS_API);
 
       const notice = screen
         .getByText(OFF)
@@ -308,15 +337,15 @@ describe('GrantCompetenceDialog', () => {
       });
     });
 
-    it('says nothing of them for another capability', async () => {
+    it('says nothing of them for another right', async () => {
       setModelApi('off');
       const { user } = renderDialog();
 
-      await choose(user, 'Competence', MODELS_API);
+      await choose(user, 'Right or qualification', MODELS_API);
       expect(screen.getByText(OFF)).toBeInTheDocument();
       await choose(
         user,
-        'Competence',
+        'Right or qualification',
         'Export notifications tale:notifications.export',
       );
       expect(screen.queryByText(OFF)).not.toBeInTheDocument();
@@ -328,7 +357,7 @@ describe('GrantCompetenceDialog', () => {
         setModelApi(read);
         const { user } = renderDialog();
 
-        await choose(user, 'Competence', MODELS_API);
+        await choose(user, 'Right or qualification', MODELS_API);
         expect(screen.queryByText(OFF)).not.toBeInTheDocument();
         expect(
           screen.queryByRole('link', { name: 'Open model access' }),
@@ -413,7 +442,7 @@ describe('GrantCompetenceDialog', () => {
     });
   });
 
-  // A grant can name a team: its members hold the capability while they are
+  // A grant can name a team: its members hold the right while they are
   // in the team, a member who joins later included (GOV-R19).
   describe('to a team', () => {
     const MODELS_API = 'Call models over the API tale:models.api';
@@ -425,7 +454,7 @@ describe('GrantCompetenceDialog', () => {
       await user.click(await screen.findByRole('option', { name: 'A team' }));
     }
 
-    it('grants a platform capability to a team in one dialog', async () => {
+    it('grants a right to a team in one dialog', async () => {
       state.grant.mockResolvedValue({ recordId: 'record-team' });
       const { user, onOpenChange } = renderDialog();
 
@@ -437,7 +466,7 @@ describe('GrantCompetenceDialog', () => {
         screen.getByText(/including members who join later/),
       ).toBeInTheDocument();
       await choose(user, 'Team', 'Billing');
-      await choose(user, 'Competence', MODELS_API);
+      await choose(user, 'Right or qualification', MODELS_API);
       await checkAccessibility(document.body);
       await user.click(screen.getByRole('button', { name: 'Grant' }));
 
@@ -467,14 +496,16 @@ describe('GrantCompetenceDialog', () => {
 
       await choose(
         user,
-        'Competence',
+        'Right or qualification',
         'Qualification A name your review policy asks for',
       );
       await chooseTeamHolder(user);
       expect(
         screen.queryByRole('textbox', { name: 'Qualification name' }),
       ).not.toBeInTheDocument();
-      await user.click(screen.getByRole('button', { name: 'Competence' }));
+      await user.click(
+        screen.getByRole('button', { name: 'Right or qualification' }),
+      );
       expect(
         await screen.findByRole('option', { name: MODELS_API }),
       ).toBeInTheDocument();
@@ -491,12 +522,12 @@ describe('GrantCompetenceDialog', () => {
 
       await chooseTeamHolder(user);
       await choose(user, 'Team', 'Billing');
-      await choose(user, 'Competence', MODELS_API);
+      await choose(user, 'Right or qualification', MODELS_API);
       await user.click(screen.getByRole('button', { name: 'Grant' }));
 
       expect(
         within(screen.getByRole('dialog')).getByText(
-          /This team already holds this competence/,
+          /This team already holds this right/,
         ),
       ).toBeInTheDocument();
       expect(onOpenChange).not.toHaveBeenCalledWith(false);
