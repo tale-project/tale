@@ -43,7 +43,8 @@ import { vouchesForUser } from './vouches-for.ts';
  *    behind every review it once justified;
  *  - a member holds at most one LIVE grant per competence (the partial
  *    unique index enforces it), so "who holds this right now" has exactly
- *    one answer and re-granting means revoking first;
+ *    one answer and re-granting means revoking first — an ACTIVE grant's
+ *    expiry and evidence are changed in place instead (`updateCompetence`);
  *  - a refusal NAMES what is missing, and an approval records WHICH grants
  *    justified it — a governed decision has to be explainable afterwards.
  */
@@ -245,7 +246,7 @@ async function requireAdminForWrite(
   );
   throw new CompetenceError(
     'COMPETENCE_FORBIDDEN',
-    'Only organization admins may grant or revoke rights and qualifications.',
+    'Only organization admins may grant, change or revoke rights and qualifications.',
     403,
   );
 }
@@ -558,6 +559,142 @@ export async function revokeCompetence(
         revokedBy: args.actor.userId,
       },
     });
+  });
+}
+
+/**
+ * Change an ACTIVE grant's expiry or evidence in place. A revoked record is
+ * history and an expired one no longer vouches (granting it again renews
+ * it), so neither is edited. `expiresAt: null` makes the grant open-ended;
+ * an empty or null `evidence` clears it. An edit that changes nothing writes
+ * nothing. The audit entry names the holder as the grant's does (the member,
+ * or the team), the old and new expiry and WHICH fields changed, never the
+ * evidence text: like the grant's, it stays in the register, which an admin
+ * can edit, not in the append-only audit chain. A team's grant changes like a
+ * member's: the edit keeps its holder, and the grant still reaches only the
+ * members an admin added to the team.
+ */
+export async function updateCompetence(
+  sql: Sql,
+  args: {
+    organizationId: string;
+    actor: AdminActor;
+    recordId: string;
+    expiresAt?: number | null;
+    evidence?: string | null;
+  },
+): Promise<{ changed: boolean }> {
+  await requireAdminForWrite(
+    sql,
+    args.organizationId,
+    args.actor,
+    'competence_update_denied',
+    { resourceId: args.recordId },
+  );
+  const now = Date.now();
+  if (
+    args.expiresAt !== undefined &&
+    args.expiresAt !== null &&
+    args.expiresAt <= now
+  ) {
+    throw new CompetenceError(
+      'COMPETENCE_EXPIRY_IN_PAST',
+      'expiresAt must be in the future (or null for no expiry)',
+      400,
+    );
+  }
+  const evidence =
+    args.evidence === undefined ? undefined : (args.evidence ?? '').trim();
+  if (evidence !== undefined && evidence.length > COMPETENCE_EVIDENCE_MAX) {
+    throw new CompetenceError(
+      'COMPETENCE_EVIDENCE_TOO_LONG',
+      `evidence must be at most ${COMPETENCE_EVIDENCE_MAX} characters`,
+      400,
+    );
+  }
+  return sql.begin(async (tx) => {
+    const rows = await tx<
+      {
+        competence: string;
+        userId: string | null;
+        teamId: string | null;
+        expiresAt: number | null;
+        revokedAt: number | null;
+        evidence: string | null;
+      }[]
+    >`
+      SELECT competence, user_id AS "userId", team_id AS "teamId",
+             expires_at_ms::float8 AS "expiresAt",
+             revoked_at_ms::float8 AS "revokedAt", evidence
+      FROM app.competence_records
+      WHERE id = ${args.recordId} AND org_id = ${args.organizationId}
+      FOR UPDATE
+    `;
+    const record = rows[0];
+    if (record === undefined) {
+      throw new CompetenceError(
+        'COMPETENCE_NOT_FOUND',
+        'no such grant in this organization',
+        404,
+      );
+    }
+    if (record.revokedAt !== null) {
+      throw new CompetenceError(
+        'COMPETENCE_ALREADY_REVOKED',
+        'this grant is already revoked',
+        409,
+      );
+    }
+    if (!isCompetenceRecordActive(record, now)) {
+      throw new CompetenceError(
+        'COMPETENCE_EXPIRED',
+        'this grant has expired — grant it again instead',
+        409,
+      );
+    }
+    const expiresAt =
+      args.expiresAt === undefined ? record.expiresAt : args.expiresAt;
+    const nextEvidence =
+      evidence === undefined
+        ? record.evidence
+        : evidence === ''
+          ? null
+          : evidence;
+    const changedFields = [
+      ...(expiresAt === record.expiresAt ? [] : ['expiresAt']),
+      ...(nextEvidence === record.evidence ? [] : ['evidence']),
+    ];
+    if (changedFields.length === 0) return { changed: false };
+    await tx`
+      UPDATE app.competence_records
+      SET expires_at_ms = ${expiresAt}, evidence = ${nextEvidence}
+      WHERE id = ${args.recordId}
+    `;
+    const holder = holderState({
+      ...record,
+      teamName:
+        record.teamId === null
+          ? null
+          : await teamName(tx, args.organizationId, record.teamId),
+    });
+    await createAuditLog(tx, {
+      organizationId: args.organizationId,
+      actorId: args.actor.userId,
+      ...(args.actor.email !== undefined
+        ? { actorEmail: args.actor.email }
+        : {}),
+      actorType: 'user',
+      action: 'competence_updated',
+      category: 'security',
+      resourceType: COMPETENCE_RESOURCE_TYPE,
+      resourceId: args.recordId,
+      resourceName: record.competence,
+      status: 'success',
+      previousState: { ...holder, expiresAt: record.expiresAt },
+      newState: { ...holder, expiresAt },
+      changedFields,
+    });
+    return { changed: true };
   });
 }
 

@@ -129,6 +129,8 @@ type MemberRightsResult = ReturnsOf<'governance/competences:getMemberRights'>;
 type OrgApiKeyItem = ItemOf<'governance/api_keys:listOrgApiKeys'>;
 type GrantCompetenceResult =
   ReturnsOf<'governance/competences:grantCompetence'>;
+type UpdateCompetenceResult =
+  ReturnsOf<'governance/competences:updateCompetence'>;
 
 /** Query-key entity of the competence register. */
 const COMPETENCE_ENTITY = 'competence';
@@ -1994,6 +1996,25 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
         `/governance/competences/${encodeURIComponent(stringArg(args, 'recordId'))}/revoke`,
         { orgId: requireOrg(args, ctx), body: {} },
       ).then(() => null),
+    invalidate: invalidateCompetences,
+  },
+  'governance/competences:updateCompetence': {
+    run: (args, ctx) =>
+      backendFetch<UpdateCompetenceResult>(
+        `/governance/competences/${encodeURIComponent(stringArg(args, 'recordId'))}`,
+        {
+          orgId: requireOrg(args, ctx),
+          method: 'PATCH',
+          body: {
+            ...(typeof args.expiresAt === 'number' || args.expiresAt === null
+              ? { expiresAt: args.expiresAt }
+              : {}),
+            ...(typeof args.evidence === 'string' || args.evidence === null
+              ? { evidence: args.evidence }
+              : {}),
+          },
+        },
+      ),
     invalidate: invalidateCompetences,
   },
   'governance/legal_hold:closeLegalMatter': {

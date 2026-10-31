@@ -8,7 +8,7 @@ En tant qu’admin ou propriétaire, tiens le registre des droits et qualificati
 - Un **droit** permet à un membre une seule action bien délimitée qui demanderait sinon un rôle plus élevé. Attribue-le au compte qui se trouve derrière une intégration plutôt que d’en faire un admin, ce qui lui permettrait aussi de gérer les membres, l’authentification unique et les mots de passe.
 - Une **qualification** est un nom que la politique de relecture de ton organisation peut exiger de la personne qui approuve une relecture.
 
-Tu attribues un droit ou une qualification à un membre, ou un droit à une [équipe](#grant-a-right-to-a-team). Une attribution ne s’applique que dans cette organisation. Tale enregistre chaque attribution et chaque révocation dans le journal d’audit, et retirer un membre de l’organisation révoque ses attributions.
+Tu attribues un droit ou une qualification à un membre, ou un droit à une [équipe](#grant-a-right-to-a-team). Une attribution ne s’applique que dans cette organisation. Tale enregistre chaque attribution, chaque modification et chaque révocation dans le journal d’audit, et retirer un membre de l’organisation révoque ses attributions.
 
 ## Droits
 
@@ -36,7 +36,7 @@ Les propriétaires et les admins ont les quatre par leur rôle ; les développe
 5. Si tu le souhaites, note le **Justificatif** : pourquoi ce membre reçoit l’attribution, par exemple un certificat, un ticket ou le système qu’elle sert. Il reste dans le registre.
 6. Choisis **Attribuer**.
 
-L’attribution s’applique à la requête suivante du membre ; une intégration n’a pas besoin de redémarrer. Un membre ou une équipe détient chaque droit et chaque qualification une seule fois à la fois : pour en changer l’expiration ou le justificatif, révoque l’attribution et crée-en une nouvelle. Si l’attribution existe déjà, la boîte de dialogue le signale et n’attribue rien.
+L’attribution s’applique à la requête suivante du membre ; une intégration n’a pas besoin de redémarrer. Un membre ou une équipe détient chaque droit et chaque qualification une seule fois à la fois. Si l’attribution existe déjà, la boîte de dialogue le signale et n’attribue rien ; [modifie plutôt l’attribution](#change-a-grant).
 
 ## Attribuer un droit à une équipe {#grant-a-right-to-a-team}
 
@@ -54,6 +54,16 @@ Une équipe ne détient que des droits. Attribue une qualification à chaque mem
 
 Tu peux aussi attribuer un droit depuis **Paramètres > Membres** : ouvre le menu de la ligne du membre, choisis **Droits** et active l’interrupteur du droit. La même boîte de dialogue s’ouvre avec le membre et le droit déjà choisis, et l’attribution rejoint ce registre. [Consulter les droits d’un membre](/fr/platform/admin/members-and-roles#member-rights) explique ce que montrent les interrupteurs et leurs raisons.
 
+## Modifier une attribution {#change-a-grant}
+
+Choisis le bouton crayon sur la ligne d’une attribution active, nommé **Modifier** avec le droit ou la qualification et le membre ou l’équipe, pour changer quand l’attribution expire ou son justificatif. L’attribution d’une équipe se modifie de la même façon.
+
+1. Choisis quand elle **Expire** : garde la date actuelle avec **Inchangée**, ou choisis **Jamais**, **Dans 30 jours**, **Dans 90 jours** ou **Dans 1 an**, à compter de l’enregistrement.
+2. Modifie le **Justificatif**, ou efface-le.
+3. Choisis **Enregistrer**.
+
+La modification s’applique à la requête suivante. Le journal d’audit consigne chaque modification avec l’ancienne et la nouvelle date d’expiration et indique si le justificatif a changé ; le justificatif lui-même reste dans le registre. Une attribution expirée ou révoquée ne peut pas être modifiée : crée plutôt une nouvelle attribution.
+
 ## Révoquer une attribution
 
 Choisis **Révoquer** sur la ligne et confirme avec **Révoquer**. Le membre perd immédiatement le droit ou la qualification ; pour une attribution à une équipe, ses membres perdent aussi le droit, sauf s’ils le détiennent par une attribution à leur nom. L’attribution reste dans le registre comme historique, avec le statut **Révoquée** et la date de révocation ; survole la date pour voir qui l’a révoquée, ou pourquoi.
@@ -70,7 +80,7 @@ La liste s’ouvre sur les attributions **Active**. Utilise **Filtre > Statut** 
 | **Expirée**  | La date d’expiration, affichée sous le statut, est passée. Refais l’attribution si le membre en a encore besoin.                                             |
 | **Révoquée** | Un admin ou un propriétaire l’a révoquée, une nouvelle attribution l’a remplacée après son expiration, son membre a quitté l’organisation, ou son équipe a été supprimée. La date de révocation est affichée sous le statut. |
 
-Une attribution à une équipe indique l’équipe, avec la mention **Équipe** ; une fois l’équipe supprimée, elle indique **Équipe supprimée**. Chaque attribution à une équipe et chaque révocation est enregistrée dans le [journal d’audit](/fr/platform/admin/governance/audit-logs) avec l’identifiant et le nom de l’équipe.
+Une attribution à une équipe indique l’équipe, avec la mention **Équipe** ; une fois l’équipe supprimée, elle indique **Équipe supprimée**. Chaque attribution à une équipe, chaque modification et chaque révocation est enregistrée dans le [journal d’audit](/fr/platform/admin/governance/audit-logs) avec l’identifiant et le nom de l’équipe.
 
 Retirer un membre révoque chaque attribution active qu’il détient — droits comme qualifications —, de sorte qu’un membre réintégré repart sans elles. Une attribution révoquée dont le titulaire a quitté l’organisation l’indique comme **Ancien membre**. Le registre liste toutes les attributions actives et expirées, et comme historique les 1 000 dernières révoquées.
 

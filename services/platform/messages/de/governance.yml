@@ -1126,7 +1126,7 @@ groups:
   dataSubjectRequests: Anfragen betroffener Personen
 competences:
   title: Rechte und Qualifikationen
-  description: Weise einem Mitglied oder einem Team ein Recht für eine einzelne, eng begrenzte Aktion zu, ohne eine Admin-Rolle zu vergeben, oder halte eine Qualifikation fest, die deine Freigaberichtlinie verlangt. Jede Zuweisung und jeder Widerruf wird protokolliert, und wer aus der Organisation entfernt wird, verliert seine Zuweisungen.
+  description: Weise einem Mitglied oder einem Team ein Recht für eine einzelne, eng begrenzte Aktion zu, ohne eine Admin-Rolle zu vergeben, oder halte eine Qualifikation fest, die deine Freigaberichtlinie verlangt. Jede Zuweisung, jede Änderung und jeder Widerruf wird protokolliert, und wer aus der Organisation entfernt wird, verliert seine Zuweisungen.
   accessDenied: Nur Inhaber und Admins der Organisation können Rechte und Qualifikationen verwalten.
   grantedBy: von {name}
   revokedBy: Widerrufen von {name}
@@ -1169,6 +1169,7 @@ competences:
     grant: Recht oder Qualifikation zuweisen
     revoke: Widerrufen
     revokeFor: '{competence} für {member} widerrufen'
+    editFor: '{competence} für {member} ändern'
   grantDialog:
     title: Recht oder Qualifikation zuweisen
     description: Die Zuweisung gilt in dieser Organisation, bis sie abläuft oder ein Admin sie widerruft. Die Mitglieder eines Teams haben das Recht, solange sie im Team sind.
@@ -1217,6 +1218,12 @@ competences:
       qualificationTooLong: Verwende höchstens 120 Zeichen.
       qualificationReserved: 'Namen, die mit "tale:" beginnen, sind für Rechte reserviert.'
       evidenceTooLong: Verwende höchstens 2000 Zeichen.
+  editDialog:
+    title: Zuweisung ändern
+    description: '"{competence}" für {member}. Ein neuer Ablauf zählt ab dem Speichern, und das Audit-Log hält die Änderung fest.'
+    descriptionTeam: '"{competence}" für die Mitglieder von {team}. Ein neuer Ablauf zählt ab dem Speichern, und das Audit-Log hält die Änderung fest.'
+    expiryKeep: Unverändert (bis {date})
+    submit: Speichern
   revokeDialog:
     title: Zuweisung widerrufen?
     description: '{member} verliert "{competence}" in dieser Organisation sofort. Die Zuweisung bleibt als Verlauf im Register.'
@@ -1226,12 +1233,13 @@ competences:
     granted: Zuweisung hinzugefügt
     revoked: Zuweisung widerrufen
     revokeFailed: Zuweisung konnte nicht widerrufen werden
+    updated: Zuweisung geändert
   errors:
     generic: Die Änderung konnte nicht gespeichert werden. Versuch es noch einmal.
-    alreadyGranted: Dieses Mitglied hat dieses Recht oder diese Qualifikation bereits. Widerrufe die bestehende Zuweisung, bevor du eine neue erstellst.
-    alreadyGrantedTeam: Dieses Team hat dieses Recht bereits. Widerrufe die bestehende Zuweisung, bevor du eine neue erstellst.
+    alreadyGranted: Dieses Mitglied hat dieses Recht oder diese Qualifikation bereits. Ändere die bestehende Zuweisung, oder widerrufe sie, bevor du eine neue erstellst.
+    alreadyGrantedTeam: Dieses Team hat dieses Recht bereits. Ändere die bestehende Zuweisung, oder widerrufe sie, bevor du eine neue erstellst.
     notMember: Diese Person ist kein Mitglied der Organisation.
-    forbidden: Nur Inhaber und Admins der Organisation können Rechte und Qualifikationen zuweisen oder widerrufen.
+    forbidden: Nur Inhaber und Admins der Organisation können Rechte und Qualifikationen zuweisen, ändern oder widerrufen.
     capabilityUnknown: Dieses Recht gibt es nicht.
     expiryInPast: Der Ablauf muss in der Zukunft liegen.
     evidenceTooLong: Der Nachweis darf höchstens 2000 Zeichen haben.
@@ -1241,6 +1249,7 @@ competences:
     teamCapabilityOnly: Einem Team kannst du nur Rechte zuweisen. Weise eine Qualifikation jedem Mitglied einzeln zu.
     teamNotFound: Dieses Team gibt es nicht mehr.
     teamSynced: Dein Identitätsanbieter verwaltet die Mitglieder dieses Teams. Weise das Recht einem Team zu, das ein Admin verwaltet, oder jedem Mitglied einzeln.
+    expired: Diese Zuweisung ist abgelaufen. Erstelle stattdessen eine neue.
 trash:
   title: Papierkorb
   description:

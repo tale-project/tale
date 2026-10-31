@@ -1161,7 +1161,7 @@ groups:
   dataSubjectRequests: Personnes concernées
 competences:
   title: Droits et qualifications
-  description: Accorde à un membre ou à une équipe un droit pour une seule action bien délimitée, sans rôle d'admin, ou enregistre une qualification exigée par ta politique de relecture. Chaque attribution et chaque révocation est auditée, et retirer un membre révoque ses attributions.
+  description: Accorde à un membre ou à une équipe un droit pour une seule action bien délimitée, sans rôle d'admin, ou enregistre une qualification exigée par ta politique de relecture. Chaque attribution, chaque modification et chaque révocation est auditée, et retirer un membre révoque ses attributions.
   accessDenied: Seuls les propriétaires et les admins de l'organisation peuvent gérer les droits et les qualifications.
   grantedBy: par {name}
   revokedBy: Révoquée par {name}
@@ -1204,6 +1204,7 @@ competences:
     grant: Attribuer un droit ou une qualification
     revoke: Révoquer
     revokeFor: Révoquer {competence} pour {member}
+    editFor: Modifier {competence} pour {member}
   grantDialog:
     title: Attribuer un droit ou une qualification
     description: L'attribution vaut dans cette organisation jusqu'à son expiration ou jusqu'à ce qu'un admin la révoque. Les membres d'une équipe détiennent le droit tant qu'ils en font partie.
@@ -1252,6 +1253,12 @@ competences:
       qualificationTooLong: Utilise au plus 120 caractères.
       qualificationReserved: 'Les noms qui commencent par "tale:" sont réservés aux droits.'
       evidenceTooLong: Utilise au plus 2 000 caractères.
+  editDialog:
+    title: Modifier l'attribution
+    description: '"{competence}" pour {member}. Une nouvelle expiration compte à partir de l''enregistrement, et le journal d''audit consigne la modification.'
+    descriptionTeam: '"{competence}" pour les membres de {team}. Une nouvelle expiration compte à partir de l''enregistrement, et le journal d''audit consigne la modification.'
+    expiryKeep: Inchangée (jusqu'au {date})
+    submit: Enregistrer
   revokeDialog:
     title: Révoquer l'attribution ?
     description: '{member} perd "{competence}" dans cette organisation immédiatement. L''attribution reste dans le registre comme historique.'
@@ -1261,12 +1268,13 @@ competences:
     granted: Attribution ajoutée
     revoked: Attribution révoquée
     revokeFailed: Impossible de révoquer l'attribution
+    updated: Attribution modifiée
   errors:
     generic: Impossible d'enregistrer la modification. Réessaie.
-    alreadyGranted: Ce membre détient déjà ce droit ou cette qualification. Révoque l'attribution en cours avant d'en créer une nouvelle.
-    alreadyGrantedTeam: Cette équipe détient déjà ce droit. Révoque l'attribution en cours avant d'en créer une nouvelle.
+    alreadyGranted: Ce membre détient déjà ce droit ou cette qualification. Modifie l'attribution en cours, ou révoque-la avant d'en créer une nouvelle.
+    alreadyGrantedTeam: Cette équipe détient déjà ce droit. Modifie l'attribution en cours, ou révoque-la avant d'en créer une nouvelle.
     notMember: Cette personne n'est pas membre de l'organisation.
-    forbidden: Seuls les propriétaires et les admins de l'organisation peuvent attribuer ou révoquer des droits et des qualifications.
+    forbidden: Seuls les propriétaires et les admins de l'organisation peuvent attribuer, modifier ou révoquer des droits et des qualifications.
     capabilityUnknown: Ce droit n'existe pas.
     expiryInPast: L'expiration doit être dans le futur.
     evidenceTooLong: Le justificatif peut contenir au plus 2 000 caractères.
@@ -1276,6 +1284,7 @@ competences:
     teamCapabilityOnly: Une équipe ne peut détenir que des droits. Attribue une qualification à chaque membre.
     teamNotFound: Cette équipe n'existe plus.
     teamSynced: Ton fournisseur d'identité gère les membres de cette équipe. Attribue le droit à une équipe gérée par un admin, ou à chaque membre.
+    expired: Cette attribution a expiré. Crée-en plutôt une nouvelle.
 trash:
   title: Corbeille
   description:

@@ -30,6 +30,13 @@ import {
 import { useGrantCompetence } from '../hooks/mutations';
 import { useMyModelApiAccess, useOrgMembersForPicker } from '../hooks/queries';
 import { mapCompetenceError } from './competence-errors';
+import {
+  EVIDENCE_MAX,
+  EXPIRY_CHOICES,
+  type ExpiryChoice,
+  expiresAtFor,
+  isExpiryChoice,
+} from './competence-expiry';
 import { capabilityMessageKey } from './competence-labels';
 
 /** The competence picker's entry for an organization's own qualification. */
@@ -39,23 +46,8 @@ const QUALIFICATION = 'qualification';
  * endpoints switch (`backend/domains/model_api/access.ts`). */
 const MODEL_API_CAPABILITY: PlatformCapability = 'tale:models.api';
 
-/** The longest competence name and evidence the register accepts. */
+/** The longest competence name the register accepts. */
 const COMPETENCE_MAX = 120;
-const EVIDENCE_MAX = 2000;
-
-const DAY_SECONDS = 24 * 60 * 60;
-const EXPIRY_CHOICES = ['never', '30days', '90days', '1year'] as const;
-type ExpiryChoice = (typeof EXPIRY_CHOICES)[number];
-const EXPIRY_SECONDS: Record<ExpiryChoice, number> = {
-  never: 0,
-  '30days': 30 * DAY_SECONDS,
-  '90days': 90 * DAY_SECONDS,
-  '1year': 365 * DAY_SECONDS,
-};
-
-function isExpiryChoice(value: string): value is ExpiryChoice {
-  return (EXPIRY_CHOICES as readonly string[]).includes(value);
-}
 
 /** Whom the grant names: one member, or a team whose members hold it — a
  * platform capability only (`grantCompetence`). */
@@ -288,7 +280,7 @@ export function GrantCompetenceDialog({
 
   const onSubmit = handleSubmit(async (values) => {
     setSubmitError(null);
-    const seconds = EXPIRY_SECONDS[values.expiry];
+    const expiresAt = expiresAtFor(values.expiry, Date.now());
     const evidence = values.evidence.trim();
     try {
       await mutateAsync({
@@ -300,7 +292,7 @@ export function GrantCompetenceDialog({
           values.competence === QUALIFICATION
             ? values.qualification.trim()
             : values.competence,
-        ...(seconds > 0 ? { expiresAt: Date.now() + seconds * 1000 } : {}),
+        ...(expiresAt !== null ? { expiresAt } : {}),
         ...(evidence !== '' ? { evidence } : {}),
       });
       toast({ title: t('competences.toasts.granted'), variant: 'success' });
