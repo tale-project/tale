@@ -92,6 +92,92 @@ beforeEach(() => {
 });
 
 describe('SandboxQuotaEditor', () => {
+  const GIB = 1024 ** 3;
+  /** #3977's host: 15.6 GiB and its spawner's reserve of a tenth. */
+  const HOST = Math.round(15.6 * GIB);
+  const RESERVE = Math.floor(HOST / 10);
+
+  it('names the memory one sandbox may use beside the deployment capacity', () => {
+    render(
+      <EditorView
+        deploymentLimits={{
+          status: 'available',
+          maxSessions: 3,
+          sessionMemoryBytes: 4 * GIB,
+          hostMemoryBytes: HOST,
+          memoryReserveBytes: RESERVE,
+        }}
+      />,
+    );
+    expect(
+      screen.getByText(
+        'Each sandbox on the deployment may use up to 4 GiB of memory.',
+      ),
+    ).toBeVisible();
+    expect(document.querySelector('[data-slot="alert"]')).toBeNull();
+  });
+
+  it('warns, without announcing it, when the deployment capacity at that limit exceeds its host memory', () => {
+    render(
+      <EditorView
+        deploymentLimits={{
+          status: 'available',
+          maxSessions: 8,
+          // The devices' sandboxes run on their own machines.
+          deviceSessions: 4,
+          sessionMemoryBytes: 4 * GIB,
+          hostMemoryBytes: HOST,
+          memoryReserveBytes: RESERVE,
+        }}
+      />,
+    );
+    const warning = document.querySelector('[data-slot="alert"]');
+    expect(warning).toHaveAttribute('data-variant', 'warning');
+    expect(warning).toHaveTextContent(
+      'At its capacity of 8 sandboxes with up to 4 GiB of memory each, the deployment can use 32 GiB, more than the 14 GiB its host has for sandboxes (15.6 GiB less 1.6 GiB kept free). Sandboxes working at the same time can run the host out of memory: set SANDBOX_MAX_SESSIONS or SANDBOX_AGENT_MEMORY lower.',
+    );
+    // A standing condition, not a live alert.
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.queryByText(/Each sandbox on the deployment/)).toBeNull();
+  });
+
+  it('says one sandbox, and compares only once the spawner has read its host', () => {
+    const { rerender } = render(
+      <EditorView
+        deploymentLimits={{
+          status: 'available',
+          maxSessions: 1,
+          sessionMemoryBytes: 8 * GIB,
+          hostMemoryBytes: 4 * GIB,
+          memoryReserveBytes: GIB,
+        }}
+      />,
+    );
+    expect(document.querySelector('[data-slot="alert"]')).toHaveTextContent(
+      'At its capacity of 1 sandbox with up to 8 GiB of memory each, the deployment can use 8 GiB, more than the 3 GiB its host has for sandboxes (4 GiB less 1 GiB kept free).',
+    );
+    rerender(
+      <EditorView
+        deploymentLimits={{
+          status: 'available',
+          maxSessions: 1,
+          sessionMemoryBytes: 8 * GIB,
+        }}
+      />,
+    );
+    expect(document.querySelector('[data-slot="alert"]')).toBeNull();
+    expect(
+      screen.getByText(
+        'Each sandbox on the deployment may use up to 8 GiB of memory.',
+      ),
+    ).toBeVisible();
+  });
+
+  it('says nothing of memory when the spawner names no session limit', () => {
+    render(<EditorView />);
+    expect(screen.queryByText(/GiB/)).toBeNull();
+  });
+
   it('recomputes the limits live and saves a total equal to deployment capacity', async () => {
     const { user } = render(<EditorView />);
     const total = screen.getByRole('status', {

@@ -24,6 +24,7 @@ import {
   type BuildkitHelperReading,
   type BuildkitNetworkPlan,
 } from './buildkit-resources.ts';
+import { dockerMemoryBytes } from './host-memory.ts';
 import {
   operationSignal,
   outsideOperationBudget,
@@ -296,16 +297,6 @@ async function withBuildkitdOperation<T>(
 const DOCKER_ID_RE = /^[a-f0-9]{12,64}$/;
 
 const MIB = 1024 * 1024;
-
-/** A Docker memory size (`8g`, `1536m`, `4294967296`) in bytes, or null. */
-function dockerMemoryBytes(value: string): number | null {
-  const m = /^(\d+(?:\.\d+)?)([bkmg])?$/i.exec(value.trim());
-  if (!m) return null;
-  const unit = { b: 1, k: 1024, m: MIB, g: 1024 * MIB }[
-    (m[2] ?? 'b').toLowerCase()
-  ];
-  return unit === undefined ? null : Number(m[1]) * unit;
-}
 
 /** The memory one organization's builder may use: the operator's
  * (SANDBOX_BUILDKITD_MEMORY), else twice an agent session's — every agent

@@ -28,6 +28,11 @@ limits:
   totalHintWithDevices: Somme des limites ci-dessus / capacité du déploiement plus les {deviceSessions} sandboxes de tes appareils. Les autres organisations partagent la capacité du déploiement.
   totalExceedsDeployment: Le total de {total} sessions dépasse la capacité du déploiement de {maxSessions}. Réduis au moins une limite pour enregistrer.
   totalExceedsCapacity: 'Le total de {total} sessions dépasse la capacité de {maxSessions} : {deploymentSessions} dans le déploiement et {deviceSessions} sur tes appareils. Réduis au moins une limite pour enregistrer.'
+  # Sous le total : la mémoire qu’une sandbox du déploiement peut utiliser, et
+  # quand la capacité du déploiement à cette limite demande plus que ce que son
+  # hôte garde pour les sandboxes (le service des sandboxes le signale au démarrage).
+  sessionMemory: Chaque sandbox du déploiement peut utiliser jusqu’à {memory} Gio de mémoire.
+  sessionMemoryExceedsHost: 'Avec sa capacité de {maxSessions, plural, one {# sandbox} other {# sandboxes}} et jusqu’à {memory} Gio de mémoire pour chacune, le déploiement peut utiliser {needed} Gio, plus que les {available} Gio dont son hôte dispose pour les sandboxes ({hostMemory} Gio moins {reserve} Gio laissés libres). Des sandboxes qui travaillent en même temps peuvent épuiser la mémoire de l’hôte : donne une valeur plus basse à SANDBOX_MAX_SESSIONS ou à SANDBOX_AGENT_MEMORY.'
   capacityUnavailable: La capacité du déploiement est indisponible. Tu peux abaisser les limites ; actualise les données de l'infrastructure avant d'en augmenter une.
   capacityLoading: Vérification de la capacité du déploiement…
   saveFailed: Impossible d'enregistrer les limites des sandboxes

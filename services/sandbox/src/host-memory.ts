@@ -1,4 +1,6 @@
-// What the Docker host has left in memory, for admission and capacity sizing.
+// What the Docker host has left in memory, for admission and capacity sizing,
+// and whether the session capacity fits it with every agent session at its
+// memory limit (the warning the spawner logs once it reads the host).
 //
 // A session's memory limit is a ceiling, not a reservation: an idle session
 // uses ~60 MB and an agent turn a few hundred, so counting sessions alone
@@ -17,6 +19,7 @@
 import { release } from 'node:os';
 
 import { parseMemory } from './proc-stats.ts';
+import { sessionAgentProfile } from './session/session-profile.ts';
 import { runDocker, type RunDockerResult } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
 import type { SandboxSessionProfile } from './wire.ts';
@@ -107,6 +110,99 @@ export function sessionWorkingSetBytes(
   return dockerInside
     ? SESSION_WORKING_SET_BYTES.dind
     : SESSION_WORKING_SET_BYTES.agent;
+}
+
+/** A Docker memory size (`8g`, `1536m`, `4294967296`) in bytes, or null. */
+export function dockerMemoryBytes(value: string): number | null {
+  const m = /^(\d+(?:\.\d+)?)([bkmg])?$/i.exec(value.trim());
+  if (!m) return null;
+  const unit = { b: 1, k: 1024, m: MIB, g: GIB }[(m[2] ?? 'b').toLowerCase()];
+  return unit === undefined ? null : Number(m[1]) * unit;
+}
+
+/** What the session capacity is weighed with. */
+type SessionCapacityConfig = Pick<
+  SpawnerConfig,
+  'session' | 'dockerInContainer' | 'dockerWorkloads' | 'deviceConfigPath'
+>;
+
+/** The memory limit of the largest agent session this spawner starts: one
+ * with Docker inside wherever a workload may run it. Null where that limit is
+ * no size this reads. */
+export function agentSessionMemoryBytes(
+  cfg: SessionCapacityConfig,
+): number | null {
+  const bytes = dockerMemoryBytes(
+    sessionAgentProfile(
+      cfg,
+      cfg.dockerInContainer && cfg.dockerWorkloads?.length !== 0,
+    ).memory,
+  );
+  return bytes === null || bytes <= 0 ? null : Math.floor(bytes);
+}
+
+function gib(bytes: number): string {
+  return `${Number((bytes / GIB).toFixed(1))} GiB`;
+}
+
+/** The warning a session capacity gets when that many agent sessions, each
+ * at its memory limit, would need more than the host has for them after its
+ * reserve; null where they fit. `explicit`: SANDBOX_MAX_SESSIONS set the
+ * capacity, which turns memory admission off. */
+export function sessionMemoryWarning(
+  figures: {
+    sessions: number;
+    sessionBytes: number;
+    totalBytes: number;
+    reserveBytes: number;
+  },
+  explicit: boolean,
+): string | null {
+  const { sessions, sessionBytes, totalBytes, reserveBytes } = figures;
+  const needed = sessions * sessionBytes;
+  const left = Math.max(0, totalBytes - reserveBytes);
+  if (needed <= left) return null;
+  const sizing = `${sessions} session${sessions === 1 ? '' : 's'} (${explicit ? 'SANDBOX_MAX_SESSIONS' : 'sized from the host'}) of up to ${gib(sessionBytes)} each (SANDBOX_AGENT_MEMORY) can use ${gib(needed)}, more than the ${gib(left)} the host has for them: ${gib(totalBytes)} less its ${gib(reserveBytes)} reserve (SANDBOX_MIN_FREE_MEMORY).`;
+  return explicit
+    ? `[sandbox] ${sizing} With SANDBOX_MAX_SESSIONS set, memory admission is off, so sessions working at once can run the host out of memory: lower SANDBOX_MAX_SESSIONS or SANDBOX_AGENT_MEMORY, or unset SANDBOX_MAX_SESSIONS to size the capacity from the host and hold starts while its memory is short.`
+    : `[sandbox] ${sizing} A start waits while the host's memory is short, but running sessions can still grow to their limits together: set SANDBOX_MAX_SESSIONS or SANDBOX_AGENT_MEMORY lower if many work at once.`;
+}
+
+/** The session capacity once the host's memory is read: the operator's
+ * SANDBOX_MAX_SESSIONS where set, else sized from the host (`sized`), with
+ * the warning sessionMemoryWarning gives it. Neither is cut to fit: an
+ * explicit capacity is the operator's, and a sized one plans on the working
+ * set, with memory admission holding each start while memory is short. A
+ * device's spawner never warns: its capacity is the one `tale sandbox
+ * connect` chose, not a setting of its own. */
+export function hostSessionCapacity(
+  cfg: SessionCapacityConfig,
+  totalBytes: number,
+  cpus: number | null,
+): { maxSessions: number; sized: boolean; warning: string | null } {
+  const reserveBytes = memoryReserveBytes(
+    totalBytes,
+    cfg.session.minFreeMemoryBytes,
+  );
+  const sized = cfg.session.autoMaxSessions === true;
+  const maxSessions = sized
+    ? autoSessionCapacity(
+        totalBytes,
+        reserveBytes,
+        cfg.dockerInContainer,
+        cfg.dockerWorkloads,
+        cpus,
+      )
+    : cfg.session.maxSessions;
+  const sessionBytes = agentSessionMemoryBytes(cfg);
+  const warning =
+    sessionBytes === null || cfg.deviceConfigPath !== null
+      ? null
+      : sessionMemoryWarning(
+          { sessions: maxSessions, sessionBytes, totalBytes, reserveBytes },
+          !sized,
+        );
+  return { maxSessions, sized, warning };
 }
 
 /** A MemAvailable reading may be reused this long: a burst of creates reads
