@@ -8,7 +8,6 @@ import { FileUpload } from '@tale/ui/file-upload';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { IssueList } from '@tale/ui/issue-list';
 import { Row, Stack } from '@tale/ui/layout';
-import { Select } from '@tale/ui/select';
 import { Text } from '@tale/ui/text';
 import { useFocusHandoff } from '@tale/ui/use-focus-handoff';
 import { toast } from '@tale/ui/use-toast';
@@ -24,7 +23,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
-import { useProjects } from '@/app/features/projects/hooks/queries';
+import { ProjectSelect } from '@/app/features/projects/components/project-select';
 import { configKeys } from '@/app/hooks/config-query-keys';
 import { useBackendClient } from '@/app/hooks/use-backend-client';
 import { backendErrorFromResponse } from '@/app/lib/backend/adapters';
@@ -145,7 +144,10 @@ export function UploadAutomationDialog({
   const abortRef = useRef<AbortController | null>(null);
   const deploy = useDeployAutomation();
 
-  const { projects } = useProjects(organizationId);
+  const targetOptions = useMemo(
+    () => [{ value: ORG_TARGET, label: t('upload.targetOrg') }],
+    [t],
+  );
   const client = useBackendClient();
   // Arrow wrappers rather than `.bind`: binding erases the name's generic
   // instantiation, collapsing the answer to the union over every contract
@@ -595,19 +597,17 @@ export function UploadAutomationDialog({
           )}
 
           {projectId === undefined && (
-            <Select
+            <ProjectSelect
+              organizationId={organizationId}
               label={t('upload.targetLabel')}
-              hint={t('upload.targetHelp')}
+              description={t('upload.targetHelp')}
+              searchPlaceholder={t('bindings.searchPlaceholder')}
+              emptyText={t('bindings.empty')}
+              leadingOptions={targetOptions}
               value={target}
               onValueChange={setTarget}
-              options={[
-                { value: ORG_TARGET, label: t('upload.targetOrg') },
-                ...projects.map((project) => ({
-                  value: project._id,
-                  label: project.name,
-                })),
-              ]}
               disabled={pending}
+              modal
             />
           )}
         </Stack>

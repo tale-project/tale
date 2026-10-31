@@ -279,6 +279,28 @@ describe('MultiSelect', () => {
     });
   });
 
+  describe('reporting the typed query', () => {
+    it('reports every keystroke to the consumer', async () => {
+      const onSearchChange = vi.fn();
+      const { user } = renderSelect({ onSearchChange });
+      await user.click(screen.getByText('Open select'));
+      await user.type(screen.getByRole('combobox'), 'ap');
+      expect(onSearchChange.mock.calls.map(([q]) => q)).toEqual(['a', 'ap']);
+    });
+
+    // A consumer deriving a server search from the query would otherwise keep
+    // searching for a term the (now empty) search box no longer shows.
+    it('reports the reset when the popover closes', async () => {
+      const onSearchChange = vi.fn();
+      const { user } = renderSelect({ onSearchChange });
+      await user.click(screen.getByText('Open select'));
+      await user.type(screen.getByRole('combobox'), 'ap');
+      await user.keyboard('{Escape}');
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+      expect(onSearchChange).toHaveBeenLastCalledWith('');
+    });
+  });
+
   describe('keyboard navigation without a search input', () => {
     it('focuses the listbox on open so it is keyboard-operable', async () => {
       const { user } = renderSelect({ searchable: false });
