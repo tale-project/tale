@@ -21,6 +21,10 @@ vi.mock('@/app/features/settings/governance/components/budget-editor', () => ({
   BudgetEditor: () => null,
 }));
 vi.mock(
+  '@/app/features/settings/governance/components/chat-tool-status',
+  () => ({ ChatToolStatus: () => null }),
+);
+vi.mock(
   '@/app/features/settings/governance/components/chat-tools-policy-editor',
   () => ({ ChatToolsPolicyEditor: () => null }),
 );
