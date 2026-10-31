@@ -5,13 +5,14 @@ import { Button } from '@tale/ui/button';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
+import { IconButton } from '@tale/ui/icon-button';
 import { HStack } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useToast } from '@tale/ui/use-toast';
 import type { ColumnDef } from '@tanstack/react-table';
-import { BadgeCheck, Ban, Plus } from 'lucide-react';
+import { BadgeCheck, Ban, Pencil, Plus } from 'lucide-react';
 import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
@@ -31,6 +32,7 @@ import { useRevokeCompetence } from '../hooks/mutations';
 import { useCompetences } from '../hooks/queries';
 import { mapCompetenceError } from './competence-errors';
 import { capabilityMessageKey } from './competence-labels';
+import { EditCompetenceDialog } from './edit-competence-dialog';
 import { GrantCompetenceDialog } from './grant-competence-dialog';
 
 const STATUSES: readonly CompetenceRecordStatus[] = [
@@ -78,8 +80,9 @@ interface Props {
  * Settings → Governance → Rights and qualifications: the organization's
  * competence register. Admins grant a member a right (one platform capability,
  * a narrow right without an admin seat) or a qualification a review policy asks
- * for, or grant a team a right its members hold, and revoke it; revoked and
- * expired grants stay listed as the audit trail.
+ * for, or grant a team a right its members hold, change a live grant's end
+ * date and evidence, and revoke it; revoked and expired grants stay listed as
+ * the audit trail.
  */
 export function CompetencesPage({ organizationId }: Props) {
   const { t } = useT('governance');
@@ -96,6 +99,7 @@ export function CompetencesPage({ organizationId }: Props) {
     'active',
   ]);
   const [grantOpen, setGrantOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<CompetenceRow | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<CompetenceRow | null>(null);
   const [revoking, setRevoking] = useState(false);
   // A revoked row can leave the filtered list; focus then returns to the
@@ -357,25 +361,37 @@ export function CompetencesPage({ organizationId }: Props) {
           <span className="sr-only">{t('competences.columns.actions')}</span>
         ),
         meta: { isAction: true },
-        // Sized for the widest label across locales ("Widerrufen", ~154px
-        // rendered with its icon and the cell padding).
-        size: 160,
+        // Sized for the edit icon beside the widest Revoke label across
+        // locales ("Widerrufen", ~154px rendered with its icon and the cell
+        // padding).
+        size: 200,
         cell: ({ row }) =>
           row.original.status === 'active' ? (
-            <Button
-              variant="secondary"
-              icon={Ban}
-              aria-label={t('competences.actions.revokeFor', {
-                competence: competenceName(row.original),
-                member: row.original.holder.name,
-              })}
-              onClick={() => setRevokeTarget(row.original)}
-            >
-              {/* Icon-only on mobile; the aria-label keeps the full name. */}
-              <span className="max-sm:sr-only">
-                {t('competences.actions.revoke')}
-              </span>
-            </Button>
+            <div className="flex items-center justify-end gap-2">
+              {/* The aria-label names the grant, and shows as the tooltip. */}
+              <IconButton
+                icon={Pencil}
+                aria-label={t('competences.actions.editFor', {
+                  competence: competenceName(row.original),
+                  member: row.original.holder.name,
+                })}
+                onClick={() => setEditTarget(row.original)}
+              />
+              <Button
+                variant="secondary"
+                icon={Ban}
+                aria-label={t('competences.actions.revokeFor', {
+                  competence: competenceName(row.original),
+                  member: row.original.holder.name,
+                })}
+                onClick={() => setRevokeTarget(row.original)}
+              >
+                {/* Icon-only on mobile; the aria-label keeps the full name. */}
+                <span className="max-sm:sr-only">
+                  {t('competences.actions.revoke')}
+                </span>
+              </Button>
+            </div>
           ) : null,
       },
     ],
@@ -443,6 +459,22 @@ export function CompetencesPage({ organizationId }: Props) {
         onOpenChange={setGrantOpen}
         organizationId={organizationId}
       />
+
+      {/* Mounted per grant, so the form starts from that grant's values. */}
+      {editTarget !== null && (
+        <EditCompetenceDialog
+          key={editTarget.record.id}
+          open
+          onOpenChange={(open) => {
+            if (!open) setEditTarget(null);
+          }}
+          organizationId={organizationId}
+          record={editTarget.record}
+          competenceName={competenceName(editTarget)}
+          holder={editTarget.holder}
+          onRefused={() => void competences.refetch()}
+        />
+      )}
 
       <ConfirmDialog
         open={revokeTarget !== null}
