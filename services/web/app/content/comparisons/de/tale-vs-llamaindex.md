@@ -33,3 +33,5 @@ Prüfe Tale, wenn dein Team ein Projekt rund um diese Arbeit braucht: Kontext sa
 Nutze ein fiktives Unternehmensprofil, eine PDF-Tabelle mit auswählbarem Text und einen Textbericht mit einer widersprüchlichen Zahl. Fordere eine Zusammenfassung mit Quellen, eine Liste unsicherer Werte und eine Empfehlung an, die ein zweites Teammitglied hinterfragen kann.
 
 Konzentriere dich bei LlamaIndex auf die Dokumentenpipeline und den Aufwand für einen nutzbaren Dienst. Prüfe bei Tale, wie Unsicherheiten zu zugewiesenen Aufgaben werden und wie die Empfehlung geprüft wird. Bewahre für beide Tests die Originaldokumente auf. Kontrolliere, ob die prüfende Person die Begründung nachvollziehen kann. [Buche eine Tale-Demo](https://tale.dev/de/request-demo) mit diesem Recherchematerial.
+
+Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 3. Oktober 2026, und ist kein praktischer Benchmark.

@@ -8,7 +8,7 @@ reviewed: "2026-10-03"
 draft: false
 ---
 
-Symphony et Tale se rencontrent au moment de confier une tâche à un agent, mais correspondent à deux choix différents. Il s’agit d’adopter une application de projet partagée ou d’exploiter un service d’orchestration autour de votre processus de développement existant.
+Symphony et Tale se rencontrent au moment de confier une tâche à un agent, mais correspondent à deux choix différents. Il s’agit d’adopter une application de projet partagée ou d’exploiter un service d’orchestration autour de ton processus de développement existant.
 
 ## Comparaison en bref
 
