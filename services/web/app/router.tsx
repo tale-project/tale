@@ -1,12 +1,14 @@
 import { reportBrowserError } from '@tale/ui/monitoring/browser';
 import { createRouter } from '@tanstack/react-router';
 
+import { ErrorPage } from './pages/error-page';
 import { NotFoundPage } from './pages/not-found-page';
 import { routeTree } from './routeTree.gen';
 
 export const router = createRouter({
   routeTree,
   defaultNotFoundComponent: NotFoundPage,
+  defaultErrorComponent: ErrorPage,
   defaultOnCatch: reportBrowserError,
   defaultPreload: 'intent',
 });

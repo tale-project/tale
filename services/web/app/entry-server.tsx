@@ -15,6 +15,7 @@ import { renderToString } from 'react-dom/server';
 import { i18n } from '@/lib/i18n/i18n';
 import { detectInitialLocale, resolveRegionalLocale } from '@/lib/i18n/locales';
 
+import { ErrorPage } from './pages/error-page';
 import { NotFoundPage } from './pages/not-found-page';
 import { routeTree } from './routeTree.gen';
 
@@ -37,6 +38,7 @@ export async function render(url: string): Promise<RenderResult> {
   const router = createRouter({
     routeTree,
     defaultNotFoundComponent: NotFoundPage,
+    defaultErrorComponent: ErrorPage,
     defaultPreload: 'intent',
     history: createMemoryHistory({ initialEntries: [url] }),
   });
