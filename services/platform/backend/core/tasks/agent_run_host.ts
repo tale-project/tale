@@ -3127,7 +3127,7 @@ export async function steerTaskAgentTurnImpl(
       { ...args, execId },
       {
         errored: true,
-        reason: `the run could not be restarted to take a new comment: ${runFailureMessage(err)}`,
+        reason: `the run could not be restarted to take a new comment: ${err instanceof ModelEndpointRefusal ? err.data.message : runFailureMessage(err)}`,
         text: '',
         // Retryable: the retry run's resume prompt carries the comment via
         // the discussion delta, so the steer is not lost with the restart.

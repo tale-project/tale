@@ -40,6 +40,12 @@ export function classifyStartFailure(err: unknown): {
       failureCode: 'budget_exceeded',
     };
   }
+  if (err instanceof ModelEndpointRefusal) {
+    return {
+      reason: `the agent run could not start: ${err.data.message}`,
+      failureCode: 'agent_model_missing',
+    };
+  }
   const retryAtMs = credentialRetryAtMs(err);
   return {
     reason: `the agent run could not start: ${runFailureMessage(err)}`,
@@ -48,11 +54,9 @@ export function classifyStartFailure(err: unknown): {
         ? 'credential_cooldown'
         : isSkillUnavailableError(err)
           ? 'equipment_missing'
-          : err instanceof ModelEndpointRefusal
-            ? 'agent_model_missing'
-            : isTaskInputMissingError(err)
-              ? 'input_missing'
-              : 'start_failed',
+          : isTaskInputMissingError(err)
+            ? 'input_missing'
+            : 'start_failed',
     ...(retryAtMs !== undefined && { retryAtMs }),
   };
 }

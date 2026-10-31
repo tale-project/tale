@@ -2547,7 +2547,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
           reason:
             roomWait !== undefined
               ? roomWait.reason
-              : `the agent turn could not resume after the answer: ${destroying ? SANDBOX_DESTROY_PENDING_MESSAGE : runFailureMessage(err)}`,
+              : `the agent turn could not resume after the answer: ${destroying ? SANDBOX_DESTROY_PENDING_MESSAGE : err instanceof ModelEndpointRefusal ? err.data.message : runFailureMessage(err)}`,
           failureCode: destroying
             ? 'sandbox_destroying'
             : endpointRefused
