@@ -119,7 +119,7 @@ modelEndpoints:
   forbidden:
     title: Your role cannot call the model endpoints
     description: Owners, admins and developers can. Ask an admin to grant
-      you the Call models over the API competence.
+      you the Call models over the API right.
   openaiUrl:
     label: OpenAI-compatible base URL
     description: For the OpenAI SDKs, opencode and other OpenAI-compatible
@@ -301,7 +301,7 @@ organization:
   memberRights:
     action: Rights
     title: Rights of {name}
-    description: What this member may do in the organization, and why. A switch grants the right as a competence, which can expire, or revokes the grant. Every change is recorded in the audit log.
+    description: What this member may do in the organization, and why. A switch grants the right, with an end date if you want one, or revokes the grant. Every change is recorded in the audit log.
     loadFailed: Couldn't load the rights.
     refreshFailed: Couldn't refresh the rights. What you see may be out of date.
     held: Allowed
@@ -373,7 +373,7 @@ teams:
     summary: 'This team has {members, plural, one {# member} other {# members}}. It is on the audience of {projects, plural, one {# project} other {# projects}}, {folders, plural, one {# folder} other {# folders}} and {documents, plural, one {# document} other {# documents}}, and {conversations, plural, one {# conversation is} other {# conversations are}} in its queue.'
     becomeOrgWide: '{count, plural, one {# item has} other {# items have}} no other team and will become visible to everyone in the organization.'
     apiKeys: '{count, plural, one {# API key belongs to this team and will stop working.} other {# API keys belong to this team and will stop working.}}'
-    competenceGrants: '{count, plural, one {# competence granted to this team will be revoked: its members lose it unless they hold it themselves.} other {# competences granted to this team will be revoked: its members lose them unless they hold them themselves.}}'
+    competenceGrants: '{count, plural, one {# right granted to this team will be revoked: its members lose it unless they hold it themselves.} other {# rights granted to this team will be revoked: its members lose them unless they hold them themselves.}}'
   description: Create and manage teams within your organization for granular
     access control
 credentials:
