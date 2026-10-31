@@ -1404,8 +1404,12 @@ describe('new project routes answer the published wire schemas', () => {
     if (text.includes('FROM app.tasks WHERE id')) return [task];
     if (text.includes('FROM app.threads t')) return [projectThread];
     if (text.includes('FROM app.automation_runs')) return [projectRun];
+    // Read as the caller sees it, each installation says whether its
+    // project is readable (#5201).
     if (text.includes('FROM app.automation_project_bindings'))
-      return [{ automationName: automation.name, projectId: 'p-1' }];
+      return [
+        { automationName: automation.name, projectId: 'p-1', readable: true },
+      ];
     if (text.includes('FROM app.automations a')) return [automation];
     // The version lookup the runs door answers 404 without.
     if (text.includes('FROM app.automations'))
