@@ -43,8 +43,8 @@ const member = vi.hoisted(() => ({ role: 'member' }));
 
 const visibility = vi.hoisted(() => ({
   readableProject: vi.fn(),
-  readableProjectIds: vi.fn(),
   runControlAccess: vi.fn(),
+  visibleInstallations: vi.fn(),
 }));
 
 vi.mock('./store.ts', async (importOriginal) => {
@@ -126,6 +126,15 @@ function post(path: string, body: unknown): Promise<Response> {
   });
 }
 
+/** The signed-in member as the project read rule sees them: the store
+ * joins the projects they read in its own statements (#5201). */
+const VIEWER = {
+  organizationId: 'o1',
+  userId: 'u1',
+  role: 'member',
+  teamIds: [],
+};
+
 /** A stored run row in the given scope — just the fields the doors read. */
 function run(id: string, projectId: string | null) {
   return {
@@ -148,7 +157,11 @@ beforeEach(() => {
     async (_sql: unknown, _auth: unknown, projectId: string) =>
       projectId === HIDDEN ? null : { id: projectId },
   );
-  visibility.readableProjectIds.mockResolvedValue([SHARED]);
+  // The installations the member reads: every one but the hidden project.
+  visibility.visibleInstallations.mockImplementation(
+    async (_sql: unknown, _auth: unknown, bindings: string[]) =>
+      bindings.filter((id) => id !== HIDDEN),
+  );
   // The real read-vs-control rule over the mocked project lookup: an org run
   // is controllable by any member; a hidden project run is 'hidden'; a readable
   // project run is controllable ('ok') unless a case marks it read-only.
@@ -192,10 +205,8 @@ describe('app automation door — runs follow the project read rule', () => {
     expect(store.listRuns).toHaveBeenCalledWith(
       expect.anything(),
       'o1',
-      expect.objectContaining({
-        name: 'ops/sync',
-        visibleProjectIds: [SHARED],
-      }),
+      // The store joins the projects this viewer reads in the run read.
+      expect.objectContaining({ name: 'ops/sync', viewer: VIEWER }),
     );
   });
 
@@ -232,11 +243,7 @@ describe('app automation door — runs follow the project read rule', () => {
     expect(store.listTriggerRuns).toHaveBeenCalledWith(
       expect.anything(),
       'o1',
-      {
-        name: 'ops/sync',
-        limit: 5,
-        visibleProjectIds: [SHARED],
-      },
+      { name: 'ops/sync', limit: 5, viewer: VIEWER },
     );
   });
 
@@ -341,66 +348,55 @@ describe('app automation door — runs follow the project read rule', () => {
     expect(store.answerAsk).not.toHaveBeenCalled();
   });
 
-  it('carries readable projects into admission when the request omits its project', async () => {
+  it('carries the starter into admission when the request omits its project', async () => {
     store.beginRun.mockResolvedValue({ runId: 'r-new', version: 1 });
     const response = await post('/ops/sync/start', { mode: 'mock' });
     expect(response.status).toBe(201);
+    // Admission asks for the projects it resolves, as this viewer reads them.
     expect(store.beginRun).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ visibleProjectIds: [SHARED] }),
+      expect.objectContaining({ viewer: VIEWER }),
     );
   });
 });
 
 describe('app automation door — bindings name readable projects only', () => {
-  it('drops hidden projects from the listing and refuses a hidden project scope [AUTO-R2]', async () => {
+  it('reads the listing as the viewer sees it and refuses a hidden project scope [AUTO-R2]', async () => {
     store.listAutomationsForApp.mockResolvedValue([
-      { name: 'ops/sync', projectIds: [SHARED, HIDDEN] },
+      { name: 'ops/sync', projectIds: [SHARED] },
     ]);
     const listing = await request('/listing?includeProjectBound=true');
+    // The store joins the projects the viewer reads (#5201), so its answer
+    // already names only their installations.
+    expect(store.listAutomationsForApp).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      { includeProjectBound: true, viewer: VIEWER },
+    );
     expect(await listing.json()).toEqual({
       automations: [{ name: 'ops/sync', projectIds: [SHARED] }],
     });
 
     const scoped = await request(`/listing?projectId=${HIDDEN}`);
     expect(await scoped.json()).toEqual({ automations: [] });
+    expect(store.listAutomationsForApp).toHaveBeenCalledTimes(1);
   });
 
-  it('leaves out an automation bound only to hidden projects', async () => {
-    store.listAutomationsForApp.mockResolvedValue([
-      { name: 'ops/hidden-only', projectIds: [HIDDEN] },
-      { name: 'ops/org', projectIds: [] },
-    ]);
-    const listing = await request('/listing?includeProjectBound=true');
-    // Listed with no bindings it would read as an organization automation,
-    // which the member could not start.
-    expect(await listing.json()).toEqual({
-      automations: [{ name: 'ops/org', projectIds: [] }],
-    });
-  });
-
-  it('keeps a listed row trigger and drops it with a row only hidden projects bind [AUTO-R27]', async () => {
+  it('answers the rows the store reads for the viewer with their triggers, as read [AUTO-R27]', async () => {
     const paused = {
       kind: 'schedule',
       enabled: false,
       lastSkipReason: 'paused_after_failures',
     };
-    store.listAutomationsForApp.mockResolvedValue([
-      {
-        name: 'ops/hidden-only',
-        projectIds: [HIDDEN],
-        trigger: { kind: 'webhook', enabled: true, lastSkipReason: null },
-      },
-      { name: 'ops/sync', projectIds: [SHARED, HIDDEN], trigger: paused },
+    // An automation installed only in hidden projects is not among them:
+    // the store leaves it out rather than listing it with no bindings.
+    const rows = [
+      { name: 'ops/sync', projectIds: [SHARED], trigger: paused },
       { name: 'ops/by-hand', projectIds: [], trigger: null },
-    ]);
+    ];
+    store.listAutomationsForApp.mockResolvedValue(rows);
     const listing = await request('/listing?includeProjectBound=true');
-    expect(await listing.json()).toEqual({
-      automations: [
-        { name: 'ops/sync', projectIds: [SHARED], trigger: paused },
-        { name: 'ops/by-hand', projectIds: [], trigger: null },
-      ],
-    });
+    expect(await listing.json()).toEqual({ automations: rows });
   });
 
   it('saves bindings within the author view so hidden bindings survive', async () => {
@@ -409,10 +405,7 @@ describe('app automation door — bindings name readable projects only', () => {
     expect(response.status).toBe(200);
     expect(store.setAutomationProjects).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({
-        projectIds: [],
-        visibleProjectIds: [SHARED],
-      }),
+      expect.objectContaining({ projectIds: [], viewer: VIEWER }),
     );
   });
 
@@ -420,6 +413,13 @@ describe('app automation door — bindings name readable projects only', () => {
     store.bindingProjectIds.mockResolvedValue([HIDDEN, SHARED]);
     const response = await request('/ops/sync/projects');
     expect(await response.json()).toEqual({ projectIds: [SHARED] });
+    // Those installations are asked for alone, never every project the
+    // viewer reads.
+    expect(visibility.visibleInstallations).toHaveBeenCalledWith(
+      expect.anything(),
+      VIEWER,
+      [HIDDEN, SHARED],
+    );
   });
 });
 
