@@ -231,6 +231,17 @@ imageGeneration:
   resolutionFailed:
     Tale n'a pas pu vérifier le modèle d'images. Vérifie la connexion au
     fournisseur et réessaie.
+  outsideEu:
+    Cette organisation ne traite les prompts que dans l'UE/EEE, et rien
+    n'indique que l'endpoint du modèle d'images les traite dans cette zone,
+    donc ni le chat ni les agents ne peuvent créer d'images. Fais pointer
+    son fournisseur vers un endpoint dans l'UE/EEE, ajoute l'hôte sous Accès
+    aux modèles s'il y traite les prompts, ou choisis un autre modèle.
+  endpointPolicyUnreadable:
+    La politique d'accès aux modèles n'a pas pu être lue. Tale ne peut donc
+    pas savoir si les prompts doivent rester dans l'UE/EEE, et ni le chat ni
+    les agents ne peuvent créer d'images. Rétablis une politique d'accès aux
+    modèles valide.
   loadFailed: Impossible de charger les réglages de la génération d'images. Réessaie de les charger.
   invalidSelection: Configuration enregistrée invalide
   unknownSelection: Impossible de lire la sélection enregistrée
@@ -276,6 +287,16 @@ transcriptionModel:
   resolutionFailed:
     Tale n'a pas pu vérifier le modèle de transcription audio. Vérifie la
     connexion au fournisseur et réessaie.
+  outsideEu:
+    Cette organisation ne traite les prompts que dans l'UE/EEE, et rien
+    n'indique que l'endpoint du modèle audio les traite dans cette zone,
+    donc l'audio n'est pas transcrit. Fais pointer son fournisseur vers un
+    endpoint dans l'UE/EEE, ajoute l'hôte sous Accès aux modèles s'il y
+    traite les prompts, ou choisis un autre modèle.
+  endpointPolicyUnreadable:
+    La politique d'accès aux modèles n'a pas pu être lue. Tale ne peut donc
+    pas savoir si les prompts doivent rester dans l'UE/EEE, et l'audio n'est
+    pas transcrit. Rétablis une politique d'accès aux modèles valide.
   loadFailed: Impossible de charger les réglages du modèle audio. Réessaie de les charger.
   invalidSelection: Configuration enregistrée invalide
   unknownSelection: Impossible de lire la sélection enregistrée
@@ -1497,6 +1518,29 @@ modelAccess:
       et passent par les garde-fous d'entrée ; les réponses des modèles ne
       sont pas filtrées.
     enabled: Activer les endpoints de modèles pour les clés API
+  euProcessing:
+    title: Traiter les prompts uniquement dans l'UE/EEE
+    description: N'envoie les appels de modèles qu'aux endpoints dont on sait
+      qu'ils traitent les prompts dans l'UE/EEE — eu.openrouter.ai,
+      eu.api.openai.com, api.eu.mistral.ai et les hôtes ajoutés ci-dessous.
+      Tout autre appel est refusé avant que quoi que ce soit ne soit envoyé,
+      et le refus est consigné dans le journal d'audit. Les agents de code
+      dans les sandboxes et le fournisseur de modération des garde-fous n'y
+      sont pas encore soumis.
+    enabled: Traiter les prompts uniquement dans l'UE/EEE
+    hostsLabel: Endpoints dont le traitement dans l'UE/EEE est confirmé
+    hostsHelp: Un hôte par ligne, tel qu'il figure dans l'URL de base d'un
+      fournisseur — le serveur d'un fournisseur personnalisé, ou une
+      ressource Azure déployée dans une région de l'UE/EEE. N'ajoute que des
+      endpoints dont tu sais qu'ils y traitent les prompts ; {max} au
+      plus.
+    hostsPlaceholder: my-resource.openai.azure.com
+    invalidHost: "{host} n'est pas un nom d'hôte : indique l'hôte seul,
+      sans https://, port ni chemin."
+    vendorHost: "{host} ne peut pas être ajouté : ce fournisseur ne compte
+      que par son endpoint dans l'UE, {euHost}."
+    tooMany: Ajoute au plus {max} hôtes.
+    saveHosts: Enregistrer les endpoints
 dataSubjectRequests:
   title: Demandes de personnes concernées
   entityLabel: demandes

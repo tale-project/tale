@@ -1243,7 +1243,7 @@ Sur la route Anthropic, qui ajoute l’en-tête `request-id` :
 | --- | --- | --- |
 | **403** | `MODEL_API_DISABLED` | L’organisation n’a pas activé les endpoints. |
 | **403** | `MODEL_API_FORBIDDEN` | Le rôle du détenteur de la clé ne peut pas les appeler, et il n’a pas d’attribution `tale:models.api` active. |
-| **403** | `MODEL_API_MODEL_FORBIDDEN` | L’accès aux modèles de l’organisation bloque ce modèle pour le détenteur de la clé. |
+| **403** | `MODEL_API_MODEL_FORBIDDEN` | L’accès aux modèles de l’organisation bloque ce modèle pour le détenteur de la clé, ou l’organisation [traite les prompts uniquement dans l’UE/EEE](/fr/platform/admin/governance/content-models#eu-processing) et l’endpoint du modèle n’est pas connu pour y traiter les prompts. Le message dit lequel des deux. |
 | **404** | `MODEL_API_MODEL_UNKNOWN` | Aucun modèle que le détenteur peut appeler ne porte cet identifiant ; `GET /api/v1/openai/models` les liste. |
 | **400** | `MODEL_API_VISION_UNSUPPORTED` | La requête contient des images, et le modèle ne les lit pas. |
 | **400** | `MODEL_API_TOOLS_UNSUPPORTED` | La requête propose des outils, et le modèle n’en accepte pas. |
@@ -1307,11 +1307,13 @@ Les erreurs d’embedding demandent des traitements distincts :
 - **409**, `EMBEDDING_NOT_CONFIGURED` : aucun modèle d’embedding n’est configuré.
 - **409**, `EMBEDDING_CREDIT_EXHAUSTED` : le fournisseur refuse pour une raison de compte, comme un solde épuisé, un plafond de dépenses ou un forfait sans accès au modèle.
 - **409**, `EMBEDDING_CREDENTIAL_REJECTED` : le fournisseur rejette la clé ou son accès au modèle. Le même code répond quand la plateforme n’a aucun identifiant utilisable à envoyer : le fournisseur n’a pas d’identifiants par défaut, ou ceux que nomment les réglages d’embedding ont été supprimés, désactivés ou sont illisibles ; `error` en donne la raison.
+- **409**, `MODEL_ENDPOINT_OUTSIDE_EU` : l’organisation ne fait traiter les prompts que dans l’UE/EEE, et l’endpoint du modèle d’embedding n’est pas connu pour les traiter dans cette zone. Aucun texte n’est envoyé. Un administrateur fait pointer le fournisseur vers un endpoint UE, ou inscrit dans la politique d’accès aux modèles un endpoint qui traite les prompts dans l’UE/EEE ; `error` en donne la raison.
+- **409**, `MODEL_ENDPOINT_POLICY_UNREADABLE` : la politique d’accès aux modèles est illisible, donc aucun appel de modèle ne part. Un administrateur doit rétablir une politique valide.
 - **503**, `EMBEDDING_UPSTREAM_ERROR` : autre panne du fournisseur, avec `Retry-After`. Réessaie en espaçant progressivement les tentatives.
 - **503**, `KNOWLEDGE_DATABASE_UNAVAILABLE` : la base de connaissances ne répond pas. Celle du déploiement ou celle de l’organisation redémarre, ou son hôte est en panne ou refuse la connexion. Respecte `Retry-After` et réessaie en espaçant progressivement les tentatives. Une base qui refuse ses identifiants ou qui n’existe pas n’est pas une panne : la recherche répond **500**, `INTERNAL_ERROR`, et l’erreur est signalée.
 - **429**, `BUDGET_EXCEEDED` : l’embedding de la requête est une requête de modèle que paie la personne titulaire de la clé. Un plafond de budget qui s’applique à elle, à l’une de ses équipes, au projet recherché, à l’organisation ou à la clé est atteint ; rien n’est recherché. `data` nomme le plafond et `Retry-After` le délai jusqu’à la réinitialisation de sa période.
 
-Les refus liés au compte ou aux identifiants ne sont pas des limites de débit. Ils nécessitent une correction par un administrateur, pas une simple attente.
+Les refus liés au compte, aux identifiants ou à la règle UE/EEE ne sont pas des limites de débit. Ils nécessitent une correction par un administrateur, pas une simple attente.
 
 Pour rechercher dans les documents visibles de l’organisation et des équipes hors projet, ou dans les sites web enregistrés, utilise `POST /api/v1/knowledge/search`. Son `corpus` accepte `"documents"`, `"web"` ou `"all"`, qui est la valeur par défaut. Cette route exclut les fichiers de projet et les pièces jointes d’e-mails.
 

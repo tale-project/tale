@@ -215,8 +215,10 @@ interface HandlerNames {
     internal_mutations: FunctionRef & {
       recordChatFilterEvent: FunctionRef;
       recordConnectorUsage: FunctionRef;
+      recordModelEndpointRefusal: FunctionRef;
     };
     internal_queries: FunctionRef & {
+      getModelEndpointPolicyInternal: FunctionRef;
       getPolicyConfigInternal: FunctionRef;
       resolveModelGovernanceInternal: FunctionRef;
     };

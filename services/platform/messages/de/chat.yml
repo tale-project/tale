@@ -166,6 +166,7 @@ voice:
   voiceOutputErrorOpenSettings: Einstellungen öffnen
   voiceOutputErrorQueueOverflow: Sprachausgabe kommt nicht hinterher — weitere Sätze werden pausiert
   voiceOutputErrorRateLimited: Sprach-Limit erreicht — neuer Versuch läuft
+  voiceOutputErrorRegion: Sprach-Anbieter nicht erlaubt — diese Organisation verarbeitet Prompts nur in der EU/im EWR
   voiceOutputErrorTransient: Sprach-Dienst nicht erreichbar — neuer Versuch läuft
   voiceOutputLoading: Sprache wird vorbereitet…
   voiceOutputPlay: Sprachausgabe abspielen
@@ -227,6 +228,8 @@ transcription:
   noModel: Für die Transkription von Audiodateien ist kein kompatibles Modell verfügbar.
   pinnedUnavailable: Das ausgewählte Modell für Audiotranskription ist nicht verfügbar.
   policyInvalid: Die Einstellung für das Audiotranskriptionsmodell ist ungültig.
+  outsideEu: Diese Organisation verarbeitet Prompts nur in der EU/im EWR, und vom Modell für Audiotranskription ist nicht bekannt, dass es dort verarbeitet.
+  endpointPolicyUnreadable: Die Modellzugriffsrichtlinie konnte nicht gelesen werden, daher wird Audio nicht transkribiert.
   temporarilyUnavailable: Die Verfügbarkeit der Audiotranskription konnte nicht geprüft werden. Versuche es in Kürze erneut.
   askAdmin: Bitte einen Admin, die Transkriptionseinstellungen zu prüfen.
   configureProviders: KI-Anbieter konfigurieren

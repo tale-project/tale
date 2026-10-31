@@ -3,7 +3,6 @@ import type { Sql } from 'postgres';
 import { estimateCostCents } from '../../../lib/chat/turn.ts';
 import { DIRECT_API_AGENT_SLUG } from '../../../lib/shared/constants/usage.ts';
 import type { ActionCtx } from '../../core/lib/ctx.ts';
-import { ridesAnthropicHarnessEndpoint } from '../../core/lib/providers/agent_serving.ts';
 import {
   gatewayProvisioningFailureStage,
   provisionSessionGatewayKey,
@@ -37,7 +36,7 @@ import {
   settleSessionOpSpend,
 } from '../sandbox/spend-settlement.ts';
 import { reserveTurnBudget } from '../sandbox/turn-budget.ts';
-import type { ModelApiModel } from './models.ts';
+import { type ModelApiModel, ridesModelApiAnthropicLane } from './models.ts';
 import { relayLifetime, type RelayOutcome } from './relay.ts';
 import { ModelApiRefusal, type ModelApiWire } from './wire.ts';
 
@@ -354,9 +353,9 @@ export async function openModelApiLease(
   },
 ): Promise<ModelApiLease> {
   const startedAtMs = Date.now();
-  const anthropicHarnessLane = ridesAnthropicHarnessEndpoint(
-    args.wire === 'anthropic' ? 'anthropic' : 'openai-chat',
-    args.model.connector,
+  const anthropicHarnessLane = ridesModelApiAnthropicLane(
+    args.wire,
+    args.model,
   );
   const routing = resolveGatewayRouting(
     args.organizationId,

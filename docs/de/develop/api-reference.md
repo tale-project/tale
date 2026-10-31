@@ -1099,7 +1099,7 @@ Auf der Anthropic-Route, die zusätzlich den Header `request-id` setzt:
 | --- | --- | --- |
 | **403** | `MODEL_API_DISABLED` | Die Organisation hat die Endpunkte nicht eingeschaltet. |
 | **403** | `MODEL_API_FORBIDDEN` | Die Rolle des Schlüsselinhabers darf sie nicht aufrufen, und er hat keine gültige `tale:models.api`-Zuweisung. |
-| **403** | `MODEL_API_MODEL_FORBIDDEN` | Der Modellzugriff der Organisation sperrt das Modell für den Schlüsselinhaber. |
+| **403** | `MODEL_API_MODEL_FORBIDDEN` | Der Modellzugriff der Organisation sperrt das Modell für den Schlüsselinhaber, oder die Organisation [verarbeitet Prompts nur in der EU/im EWR](/de/platform/admin/governance/content-models#eu-processing) und vom Endpunkt des Modells ist nicht bekannt, dass er dort verarbeitet. Die Meldung sagt, was zutrifft. |
 | **404** | `MODEL_API_MODEL_UNKNOWN` | Kein Modell, das der Schlüsselinhaber aufrufen darf, hat diese ID; `GET /api/v1/openai/models` listet sie. |
 | **400** | `MODEL_API_VISION_UNSUPPORTED` | Die Anfrage enthält Bilder, und das Modell liest keine. |
 | **400** | `MODEL_API_TOOLS_UNSUPPORTED` | Die Anfrage bietet Tools an, und das Modell nimmt keine an. |
@@ -1154,11 +1154,13 @@ Jeder Treffer enthält die Passage und ihre `source`. `diagnostics.cached` und `
 | **409** `EMBEDDING_NOT_CONFIGURED` | Ein Admin muss ein Embedding-Modell konfigurieren. |
 | **409** `EMBEDDING_CREDIT_EXHAUSTED` | Guthaben, Ausgabenlimit und Tarif des Anbieterkontos prüfen. |
 | **409** `EMBEDDING_CREDENTIAL_REJECTED` | Zugangsdaten und Berechtigung für das Modell korrigieren. Denselben Code liefert die Suche, wenn die Plattform gar keine nutzbaren Zugangsdaten senden kann: Der Anbieter hat keinen Standard, oder die in den Embedding-Einstellungen genannten wurden gelöscht, deaktiviert oder sind nicht lesbar; `error` nennt den Grund. |
+| **409** `MODEL_ENDPOINT_OUTSIDE_EU` | Die Organisation lässt Prompts nur in der EU/im EWR verarbeiten, und der Endpunkt des Embedding-Modells ist nicht als dort verarbeitend bekannt. Es wird kein Text gesendet. Ein Admin stellt den Anbieter auf einen EU-Endpunkt um oder trägt einen Endpunkt, der in der EU/im EWR verarbeitet, in die Modellzugriffsrichtlinie ein; `error` nennt den Grund. |
+| **409** `MODEL_ENDPOINT_POLICY_UNREADABLE` | Die Modellzugriffsrichtlinie ist nicht lesbar, deshalb wird kein Modellaufruf gesendet. Ein Admin muss eine gültige Richtlinie wiederherstellen. |
 | **503** `EMBEDDING_UPSTREAM_ERROR` | `Retry-After` beachten und mit wachsender Wartezeit erneut versuchen. |
 | **503** `KNOWLEDGE_DATABASE_UNAVAILABLE` | Die Wissensdatenbank antwortet nicht: Die des Deployments oder die eigene der Organisation startet neu, oder ihr Host ist ausgefallen oder lehnt die Verbindung ab. `Retry-After` beachten und mit wachsender Wartezeit erneut versuchen. Lehnt sie ihre Zugangsdaten ab oder existiert sie nicht, ist das kein Ausfall: Die Suche antwortet mit **500** `INTERNAL_ERROR`, und der Fehler wird gemeldet. |
 | **429** `BUDGET_EXCEEDED` | Das Embedding der Suchanfrage ist eine Modellanfrage, die die Schlüsselinhaberin oder der Schlüsselinhaber bezahlt. Eine Budgetgrenze der Person, eines ihrer Teams, des durchsuchten Projekts, der Organisation oder des Schlüssels ist erreicht; es wird nichts gesucht. `data` nennt die Grenze, `Retry-After` die Wartezeit, bis ihr Zeitraum zurückgesetzt wird. |
 
-Die beiden Kontofehler sind keine Rate-Limits; Warten allein behebt sie nicht. Für sichtbare Dokumente der Wissensdatenbank und von Teams ohne Projektzuordnung sowie registrierte Websites verwendest du `POST /api/v1/knowledge/search`. Dort erlaubt `corpus` `"documents"`, `"web"` und den Standard `"all"`. Projektdateien und E-Mail-Anhänge sind ausgeschlossen. Beide Suchen finden nur dateigestützte Dokumente; Inline-`content` wird nicht indexiert.
+Weder die Kontofehler noch die Ablehnungen der EU/EWR-Regel sind Rate-Limits; Warten allein behebt sie nicht. Für sichtbare Dokumente der Wissensdatenbank und von Teams ohne Projektzuordnung sowie registrierte Websites verwendest du `POST /api/v1/knowledge/search`. Dort erlaubt `corpus` `"documents"`, `"web"` und den Standard `"all"`. Projektdateien und E-Mail-Anhänge sind ausgeschlossen. Beide Suchen finden nur dateigestützte Dokumente; Inline-`content` wird nicht indexiert.
 
 ## Ein externes System in ein Projekt spiegeln
 

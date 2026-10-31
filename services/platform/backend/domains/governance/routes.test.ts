@@ -589,6 +589,54 @@ describe('POST /policies/standard_agent — the runtime a project agent may use'
   });
 });
 
+describe('POST /policies/model_access — the hosts attested as processing in the EU/EEA', () => {
+  function modelAccess(hosts: string[]) {
+    return {
+      enabled: false,
+      mode: 'blocklist',
+      rules: [],
+      euProcessing: { enabled: true, hosts },
+    };
+  }
+
+  it('refuses a vendor host the rule ignores, naming the vendor’s EU endpoint, before any write [GOV-R17]', async () => {
+    const response = await post('/policies/model_access', {
+      config: modelAccess([
+        'llm.example.eu',
+        'openrouter.ai',
+        'us.api.openai.com',
+      ]),
+    });
+
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as {
+      error: string;
+      message: string;
+      data: { hosts: string[] };
+    };
+    expect(body.error).toBe('EU_PROCESSING_HOST_NOT_ATTESTABLE');
+    expect(body.data.hosts).toEqual(['openrouter.ai', 'us.api.openai.com']);
+    expect(body.message).toContain('openrouter.ai (use eu.openrouter.ai)');
+    expect(body.message).toContain('us.api.openai.com (use eu.api.openai.com)');
+    expect(body.message).not.toContain('llm.example.eu');
+    expect(writeGovernancePolicyFile).not.toHaveBeenCalled();
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('saves a host of the organization’s own and a vendor’s EU endpoint [GOV-R17]', async () => {
+    const config = modelAccess(['llm.example.eu', 'eu.openrouter.ai']);
+    const response = await post('/policies/model_access', { config });
+
+    expect(response.status).toBe(200);
+    expect(writeGovernancePolicyFile).toHaveBeenCalledWith(
+      expect.anything(),
+      'acme',
+      'model_access',
+      config,
+    );
+  });
+});
+
 describe('GET /my/model-api', () => {
   async function read(sql: never = {} as never): Promise<Response> {
     return await createGovernanceRoutes({ sql, auth: {} as never }).request(

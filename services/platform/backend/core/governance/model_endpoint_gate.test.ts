@@ -1,0 +1,290 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { createCtxShim } from '../../lib/ctx-shim.ts';
+import type { ActionCtx } from '../lib/ctx.ts';
+import {
+  assertModelEndpointAllowed,
+  gatewayBuiltinRefusal,
+  isModelEndpointRefusalCode,
+  ModelEndpointRefusal,
+  type ModelEndpointCall,
+  type ModelEndpointPolicy,
+  modelEndpointPolicyOf,
+  modelEndpointRefusal,
+  readModelEndpointPolicy,
+} from './model_endpoint_gate.ts';
+
+const EU: ModelEndpointPolicy = {
+  kind: 'eu',
+  attestedHosts: ['llm.example.eu'],
+};
+
+function call(baseUrl: string | undefined): ModelEndpointCall {
+  return {
+    organizationId: 'org_1',
+    surface: 'chat',
+    providerName: 'openrouter',
+    modelId: 'openai/gpt-5',
+    baseUrl,
+    actor: { id: 'user_1', type: 'user' },
+  };
+}
+
+/** A ctx whose governance seam answers `policy`, recording every write —
+ * dispatched by name, as every shim host dispatches it. */
+function gateCtx(
+  policy: unknown,
+  write: (args: unknown) => Promise<unknown> = async () => null,
+) {
+  const runQuery = vi.fn(async (_args: unknown) => policy);
+  const runMutation = vi.fn(write);
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the gate reaches only these two seams
+  const ctx = createCtxShim({
+    'governance/internal_queries:getModelEndpointPolicyInternal': runQuery,
+    'governance/internal_mutations:recordModelEndpointRefusal': runMutation,
+  }) as unknown as ActionCtx;
+  return { ctx, runQuery, runMutation };
+}
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
+
+describe('modelEndpointPolicyOf', () => {
+  it('is open without a policy or with the switch off [GOV-R17]', () => {
+    expect(modelEndpointPolicyOf(null)).toEqual({ kind: 'open' });
+    expect(
+      modelEndpointPolicyOf({
+        enabled: true,
+        mode: 'allowlist',
+        rules: [],
+        euProcessing: { enabled: false, hosts: ['llm.example.eu'] },
+      }),
+    ).toEqual({ kind: 'open' });
+  });
+
+  it('carries the attested hosts when the switch is on, whatever the rules say [GOV-R17]', () => {
+    expect(
+      modelEndpointPolicyOf({
+        enabled: false,
+        mode: 'blocklist',
+        rules: [],
+        euProcessing: {
+          enabled: true,
+          hosts: ['b.example.eu', 'a.example.eu'],
+        },
+      }),
+    ).toEqual({ kind: 'eu', attestedHosts: ['a.example.eu', 'b.example.eu'] });
+  });
+});
+
+describe('modelEndpointRefusal', () => {
+  it('lets every call through while the rule is off [GOV-R17]', () => {
+    expect(
+      modelEndpointRefusal(
+        { kind: 'open' },
+        call('https://openrouter.ai/api/v1'),
+      ),
+    ).toBeUndefined();
+    expect(
+      modelEndpointRefusal({ kind: 'open' }, call(undefined)),
+    ).toBeUndefined();
+  });
+
+  it.each([
+    'https://eu.openrouter.ai/api/v1',
+    'https://eu.api.openai.com/v1',
+    'https://api.eu.mistral.ai/v1',
+    'https://llm.example.eu/v1',
+  ])('lets %s through under the rule [GOV-R17]', (url) => {
+    expect(modelEndpointRefusal(EU, call(url))).toBeUndefined();
+  });
+
+  it('refuses the global OpenRouter host and names its EU endpoint [GOV-R17]', () => {
+    const refusal = modelEndpointRefusal(
+      EU,
+      call('https://openrouter.ai/api/v1'),
+    );
+    expect(refusal).toMatchObject({
+      code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+      provider: 'openrouter',
+      host: 'openrouter.ai',
+      reason: 'vendor-global',
+    });
+    expect(refusal?.message).toContain('only in the EU/EEA');
+    expect(refusal?.message).toContain('eu.openrouter.ai');
+    expect(refusal?.message).toContain('was not sent');
+  });
+
+  it('refuses a vendor US endpoint and names the EU one [GOV-R17]', () => {
+    const refusal = modelEndpointRefusal(
+      EU,
+      call('https://us.api.openai.com/v1'),
+    );
+    expect(refusal).toMatchObject({
+      host: 'us.api.openai.com',
+      reason: 'regional-outside-eu',
+    });
+    expect(refusal?.message).toContain('eu.api.openai.com');
+  });
+
+  it('refuses a host no admin attested and says where to attest it [GOV-R17]', () => {
+    const refusal = modelEndpointRefusal(EU, call('https://api.anthropic.com'));
+    expect(refusal).toMatchObject({
+      code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+      host: 'api.anthropic.com',
+      reason: 'not-attested',
+    });
+    expect(refusal?.message).toContain(
+      'Settings → Governance → Models → Model access',
+    );
+  });
+
+  it('refuses a provider that names no endpoint [GOV-R17]', () => {
+    const refusal = modelEndpointRefusal(EU, call(undefined));
+    expect(refusal).toMatchObject({
+      code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+      reason: 'unknown-endpoint',
+    });
+    expect(refusal).not.toHaveProperty('host');
+    expect(refusal?.message).toContain('names no endpoint');
+  });
+
+  it('refuses every call while the policy cannot be read [GOV-R17]', () => {
+    const refusal = modelEndpointRefusal(
+      { kind: 'unreadable' },
+      call('https://eu.openrouter.ai/api/v1'),
+    );
+    expect(refusal).toMatchObject({
+      code: 'MODEL_ENDPOINT_POLICY_UNREADABLE',
+      provider: 'openrouter',
+    });
+    expect(refusal?.message).toContain('cannot be read');
+  });
+});
+
+describe('gatewayBuiltinRefusal', () => {
+  it('lets the gateway’s built-in connection through while the rule is off [GOV-R17]', () => {
+    expect(gatewayBuiltinRefusal({ kind: 'open' }, 'openrouter')).toBe(
+      undefined,
+    );
+  });
+
+  it('refuses it under the rule, whatever the admin attested, and says what to do [GOV-R17]', () => {
+    const refusal = gatewayBuiltinRefusal(
+      { kind: 'eu', attestedHosts: ['openrouter.ai', 'api.groq.com'] },
+      'groq',
+    );
+    expect(refusal).toEqual({
+      code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+      message: expect.stringContaining('through its built-in connection'),
+      provider: 'groq',
+      reason: 'gateway-builtin',
+    });
+    expect(refusal?.message).toContain(
+      'An admin can serve the model through a custom provider whose endpoint processes in the EU/EEA.',
+    );
+  });
+
+  it('refuses it while the policy cannot be read [GOV-R17]', () => {
+    expect(
+      gatewayBuiltinRefusal({ kind: 'unreadable' }, 'openrouter'),
+    ).toMatchObject({
+      code: 'MODEL_ENDPOINT_POLICY_UNREADABLE',
+      provider: 'openrouter',
+    });
+  });
+});
+
+describe('isModelEndpointRefusalCode', () => {
+  it('knows both refusal codes and nothing else', () => {
+    expect(isModelEndpointRefusalCode('MODEL_ENDPOINT_OUTSIDE_EU')).toBe(true);
+    expect(isModelEndpointRefusalCode('MODEL_ENDPOINT_POLICY_UNREADABLE')).toBe(
+      true,
+    );
+    expect(isModelEndpointRefusalCode('CHAT_MODEL_UNKNOWN')).toBe(false);
+    expect(isModelEndpointRefusalCode(undefined)).toBe(false);
+  });
+});
+
+describe('readModelEndpointPolicy', () => {
+  it('asks the governance seam for the organization [GOV-R17]', async () => {
+    const { ctx, runQuery } = gateCtx(EU);
+    await expect(readModelEndpointPolicy(ctx, 'org_1')).resolves.toEqual(EU);
+    expect(runQuery).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org_1',
+    });
+  });
+
+  it.each([null, undefined, { kind: 'eu' }, { kind: 'closed' }, 'open'])(
+    'reads an answer it does not recognize as unreadable: %j [GOV-R17]',
+    async (answer) => {
+      const { ctx } = gateCtx(answer);
+      await expect(readModelEndpointPolicy(ctx, 'org_1')).resolves.toEqual({
+        kind: 'unreadable',
+      });
+    },
+  );
+});
+
+describe('assertModelEndpointAllowed', () => {
+  it('passes a compliant call without a write [GOV-R17]', async () => {
+    const { ctx, runMutation } = gateCtx(EU);
+    await expect(
+      assertModelEndpointAllowed(ctx, call('https://eu.openrouter.ai/api/v1')),
+    ).resolves.toBeUndefined();
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
+  it('passes every call while the rule is off [GOV-R17]', async () => {
+    const { ctx, runMutation } = gateCtx({ kind: 'open' });
+    await expect(
+      assertModelEndpointAllowed(ctx, call('https://openrouter.ai/api/v1')),
+    ).resolves.toBeUndefined();
+    expect(runMutation).not.toHaveBeenCalled();
+  });
+
+  it('audits a refused call, then throws its reason [GOV-R17]', async () => {
+    const { ctx, runMutation } = gateCtx(EU);
+    const refused = assertModelEndpointAllowed(
+      ctx,
+      call('https://openrouter.ai/api/v1'),
+    );
+    await expect(refused).rejects.toBeInstanceOf(ModelEndpointRefusal);
+    await expect(refused).rejects.toMatchObject({
+      data: { code: 'MODEL_ENDPOINT_OUTSIDE_EU', host: 'openrouter.ai' },
+    });
+    expect(runMutation).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org_1',
+      surface: 'chat',
+      provider: 'openrouter',
+      model: 'openai/gpt-5',
+      host: 'openrouter.ai',
+      reason: 'vendor-global',
+      code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+      message: expect.stringContaining('eu.openrouter.ai'),
+      actor: { id: 'user_1', type: 'user' },
+    });
+  });
+
+  it('uses the policy a caller already read [GOV-R17]', async () => {
+    const { ctx, runQuery } = gateCtx({ kind: 'open' });
+    await expect(
+      assertModelEndpointAllowed(ctx, call('https://api.anthropic.com'), EU),
+    ).rejects.toMatchObject({ data: { reason: 'not-attested' } });
+    expect(runQuery).not.toHaveBeenCalled();
+  });
+
+  it('still refuses when the audit entry cannot be written [GOV-R17]', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { ctx } = gateCtx({ kind: 'unreadable' }, async () => {
+      throw new Error('database down');
+    });
+    await expect(
+      assertModelEndpointAllowed(ctx, call('https://eu.openrouter.ai/api/v1')),
+    ).rejects.toMatchObject({
+      data: { code: 'MODEL_ENDPOINT_POLICY_UNREADABLE' },
+    });
+    expect(warn).toHaveBeenCalledOnce();
+  });
+});

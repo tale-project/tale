@@ -259,6 +259,10 @@ describe('reasonFamily', () => {
     expect(reasonFamily('BUDGET_EXCEEDED')).toBe('budget_exceeded');
   });
 
+  it('reads a model endpoint the EU/EEA rule refused as a model that cannot be used [GOV-R17]', () => {
+    expect(reasonFamily('LLM_ENDPOINT_REFUSED')).toBe('model_not_found');
+  });
+
   it('names a family for every reason', () => {
     for (const reason of STEP_FAILURE_REASONS) {
       expect(reasonFamily(reason)).toMatch(/^[a-z_]+$/);
