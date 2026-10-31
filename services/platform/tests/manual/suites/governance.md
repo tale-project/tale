@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 102 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 103 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -1176,6 +1176,37 @@ agent.
   **Couldn't load API keys.** (`governance.budgets.apiKeysLoadFailed`) with
   **Try again**, and its list never **No teams found** or **No API keys
   found**. No toast; every label reads in German and French too.
+- [ ] `GOV-B28` · **With the EU/EEA rule on, moderation reaches only an endpoint
+  in the region** — With **Process prompts only in the EU/EEA** (GOV-F70) off
+  and a custom provider's host attested under it, enable the **Moderation
+  provider** (`governance.moderationProvider.title`) with **Use OpenAI
+  Moderation** (`governance.moderationProvider.presetOpenai`), **Apply to**
+  (`governance.moderationProvider.applyTo`) on **User input** only, and **Fail
+  behavior** for **Input** on **Fail open (pass)**
+  (`governance.moderationProvider.failOpen`). Turn the switch on, then set input
+  to **Fail closed (block)** → the save is refused with a toast that names
+  `eu.api.openai.com` (`governance.moderationProvider.euEndpointVendor`), and
+  after a reload input is still fail-open. **Test connection** → **Run test**
+  reads **Step error (eu_processing)**
+  (`governance.moderationProvider.testStepError`) with the same sentence, and
+  nothing reaches OpenAI. As a member, send a chat message with the custom
+  provider's model → it is answered; **Recent events**
+  (`governance.guardrailsOverview.recentEvents.title`) lists a **Step error**
+  row whose **Event details** show the **Error class** `eu_processing`, and
+  **Logs** lists one **Model access denied** row for the turn with the surface
+  `moderation` and the host `api.openai.com`. Turn the switch off, set input to
+  **Fail closed (block)**, turn the switch on and send a message → the reply
+  reads **This response was blocked by your organization's content policy.**
+  (`chat.blockedNotice.body`), and its **Message information** names
+  `moderation_provider` and `eu_processing`; with the model endpoints on
+  (GOV-F41), a Developer's chat completion naming the custom provider's model
+  answers 503 `MODEL_API_GUARDRAIL_UNAVAILABLE`. Point the endpoint at a host no
+  admin attested → the toast says to list the host under **Model access** first
+  (`governance.moderationProvider.euEndpointNotKnown`); attest the host under
+  **Endpoints attested as processing in the EU/EEA** and save the endpoint again
+  → it is saved, and **Run test** no longer reads `eu_processing`. Turn the
+  switch off → **Use OpenAI Moderation** saves again. Restore the state you
+  found.
 
 ## Accessibility (WCAG 2.1 AA)
 

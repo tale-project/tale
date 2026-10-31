@@ -19,7 +19,15 @@ import { safeFetch, SafeFetchError } from '../../../lib/net/safe-fetch.ts';
 import type { GuardrailsDirection } from '../../../lib/pii/core/outcome.ts';
 import { AppError } from '../../../lib/shared/errors/app-error.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
+import {
+  type ModelEndpointActor,
+  moderationEndpointRefusal,
+} from '../../core/governance/model_endpoint_gate.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
+import {
+  readModelEndpointPolicyForOrg,
+  recordModelEndpointRefusal,
+} from './model-endpoints.ts';
 import {
   MODERATION_SECRET_NAME,
   readGovernanceSecret,
@@ -37,6 +45,11 @@ import {
  * `step_error` outcome and the chain applies the policy's fail behaviour.
  * Nothing here logs headers, bodies, or the text under review — only the
  * status / class / timing facts the chat-filter event carries.
+ *
+ * With the model-access policy's EU/EEA processing rule on, the text goes
+ * only to an endpoint known to process there (GOV-R23): a round asks the
+ * rule before anything else, and a refused endpoint comes back as an
+ * audited `eu_processing` step error without a request being made.
  */
 
 // ------------------------------------------------------------ circuit breaker
@@ -642,12 +655,16 @@ export interface RunModerationArgs {
   readonly direction: GuardrailsDirection;
   readonly text: string;
   readonly config: ModerationProviderConfig;
+  /** Who the text is moderated for — the audit entry of a refusal names
+   * them; absent, the platform itself. */
+  readonly actor?: ModelEndpointActor;
 }
 
 /**
- * One round through the configured provider. Reads the stored auth header,
- * respects the breaker, classifies every failure, and maps the provider's
- * categories through the admin's mapping.
+ * One round through the configured provider. Holds the endpoint to the
+ * EU/EEA processing rule, reads the stored auth header, respects the
+ * breaker, classifies every failure, and maps the provider's categories
+ * through the admin's mapping.
  */
 export async function runModerationProvider(
   sql: Sql,
@@ -674,6 +691,37 @@ export async function runModerationProvider(
           circuitOpened: recordCircuitFailure(organizationId, direction)
             .justOpened,
         });
+
+  // The rule goes first: a refused endpoint receives nothing, and a refusal
+  // is the organization's rule rather than a provider fault, so it never
+  // touches the breaker.
+  const refusal = moderationEndpointRefusal(
+    await readModelEndpointPolicyForOrg(sql, organizationId),
+    config.endpoint.url,
+  );
+  if (refusal !== undefined) {
+    try {
+      await recordModelEndpointRefusal(sql, {
+        organizationId,
+        surface: 'moderation',
+        provider: refusal.provider,
+        ...(refusal.host !== undefined ? { host: refusal.host } : {}),
+        ...(refusal.reason !== undefined ? { reason: refusal.reason } : {}),
+        code: refusal.code,
+        message: refusal.message,
+        ...(args.actor !== undefined ? { actor: args.actor } : {}),
+      });
+    } catch (error) {
+      console.warn(
+        `[moderation] ${organizationId}: the audit entry for a refused moderation endpoint could not be written:`,
+        error,
+      );
+    }
+    return stepError({
+      errorClass: 'eu_processing',
+      refusalMessage: refusal.message,
+    });
+  }
 
   if (isCircuitOpen(organizationId, direction)) {
     return stepError({ errorClass: 'unknown', circuitOpen: true });
@@ -779,6 +827,7 @@ export async function testModerationProvider(
   sql: Sql,
   organizationId: string,
   args: { text: string; direction?: GuardrailsDirection },
+  actor?: ModelEndpointActor,
 ): Promise<ModerationTestResult> {
   const config = await readGovernancePolicyForOrg(
     sql,
@@ -800,6 +849,7 @@ export async function testModerationProvider(
     direction: args.direction ?? 'input',
     text: args.text,
     config,
+    ...(actor !== undefined ? { actor } : {}),
   });
   const extras = {
     ...(run.extras.httpStatus !== undefined
@@ -834,6 +884,9 @@ export async function testModerationProvider(
           ? {
               hint: 'The provider circuit is open after repeated failures — it closes again after a minute.',
             }
+          : {}),
+        ...(run.extras.refusalMessage !== undefined
+          ? { hint: run.extras.refusalMessage }
           : {}),
       };
     default: {
