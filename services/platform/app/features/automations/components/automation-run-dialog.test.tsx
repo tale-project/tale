@@ -5,6 +5,30 @@ import { render, screen, waitFor, within } from '@/tests/utils/render';
 import { runInputSources } from '../lib/automation-tests/run-sources';
 import { AutomationRunDialog, type RunSources } from './automation-run-dialog';
 
+// An issue import's project field offers the org's projects; a page that
+// holds every project offers them all, so no search runs. A pinned project is
+// named by id.
+const PROJECTS = vi.hoisted(() => [
+  { _id: 'project-1', name: 'Engineering' },
+  { _id: 'project-2', name: 'Other' },
+]);
+vi.mock('@/app/features/projects/hooks/queries', () => ({
+  useProjectChoices: () => ({
+    projects: PROJECTS,
+    isDone: true,
+    isLoading: false,
+  }),
+  useNamedProjects: (_organizationId: string, ids: readonly string[]) => ({
+    projects: new Map(
+      PROJECTS.filter((project) => ids.includes(project._id)).map((project) => [
+        project._id,
+        project,
+      ]),
+    ),
+    isPending: false,
+  }),
+}));
+
 // A run chosen to start from is read once it is chosen.
 vi.mock('../hooks/queries', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks/queries')>()),
@@ -74,6 +98,7 @@ it('keeps a continuation for batch-size edits but resets it when the source chan
   const onConfirm = vi.fn();
   const { user } = render(
     <AutomationRunDialog
+      organizationId="org-1"
       request={{
         automationSlug: 'github-import-issues',
         mode: 'mock',
@@ -88,10 +113,6 @@ it('keeps a continuation for batch-size edits but resets it when the source chan
           cursor: 'next-page',
         },
       }}
-      projects={[
-        { _id: 'project-1', name: 'Engineering' },
-        { _id: 'project-2', name: 'Other' },
-      ]}
       onClose={() => {}}
       onConfirm={onConfirm}
     />,
@@ -132,6 +153,7 @@ it.each(['github', 'glitchtip'] as const)(
     const onConfirm = vi.fn();
     const { user } = render(
       <AutomationRunDialog
+        organizationId="org-1"
         request={{
           automationSlug: `${source}/import-issues`,
           mode: 'mock',
@@ -139,7 +161,6 @@ it.each(['github', 'glitchtip'] as const)(
           scopeText: 'Organization-wide',
           schema: schemaFor(source),
         }}
-        projects={[{ _id: 'project-1', name: 'Engineering' }]}
         onClose={() => {}}
         onConfirm={onConfirm}
       />,
@@ -207,6 +228,7 @@ it('keeps the generic input editor for an importer with a customized schema', ()
   const schema = schemaFor('github');
   render(
     <AutomationRunDialog
+      organizationId="org-1"
       request={{
         automationSlug: 'github/import-issues',
         mode: 'mock',
@@ -239,6 +261,7 @@ it('shows start failures inside the dialog and retains the entered source', asyn
   };
   const { user, rerender } = render(
     <AutomationRunDialog
+      organizationId="org-1"
       request={request}
       onClose={() => {}}
       onConfirm={() => {}}
@@ -250,6 +273,7 @@ it('shows start failures inside the dialog and retains the entered source', asyn
   );
   rerender(
     <AutomationRunDialog
+      organizationId="org-1"
       request={request}
       error="Connect GitHub before importing."
       onClose={() => {}}
@@ -266,6 +290,7 @@ it('identifies invalid JSON as run input and prevents scheduling', async () => {
   let scheduled = false;
   const { user } = render(
     <AutomationRunDialog
+      organizationId="org-1"
       request={{
         mode: 'mock',
         version: 1,
@@ -293,6 +318,7 @@ it('keeps a custom required cursor editable through the generic JSON form', () =
   const schema = schemaFor('github');
   render(
     <AutomationRunDialog
+      organizationId="org-1"
       request={{
         automationSlug: 'github-import-issues',
         mode: 'mock',
@@ -313,6 +339,7 @@ it('takes the run input in the code editor and starts the run on Mod-Enter', asy
   const onConfirm = vi.fn();
   const { user } = render(
     <AutomationRunDialog
+      organizationId="org-1"
       request={{
         mode: 'mock',
         version: 3,
@@ -342,6 +369,7 @@ it('takes the run input in the code editor and starts the run on Mod-Enter', asy
 it('shows the input schema as a tree of its fields', async () => {
   const { user } = render(
     <AutomationRunDialog
+      organizationId="org-1"
       request={{
         mode: 'mock',
         version: 3,
@@ -367,6 +395,7 @@ it('asks whether the draft or the saved version runs, and checks each against it
   const quantity = { type: 'integer' };
   const { user } = render(
     <AutomationRunDialog
+      organizationId="org-1"
       request={{
         mode: 'mock',
         version: 3,
@@ -411,6 +440,7 @@ it('tries the draft with the input it takes', async () => {
   const onConfirm = vi.fn();
   const { user } = render(
     <AutomationRunDialog
+      organizationId="org-1"
       request={{
         mode: 'mock',
         version: 3,
@@ -433,6 +463,7 @@ it('starts the input from a test, and tries the draft with its stand-ins', async
   const onConfirm = vi.fn();
   const { user } = render(
     <AutomationRunDialog
+      organizationId="org-1"
       request={{ mode: 'mock', version: 3, draft: {}, scopeText: '' }}
       sources={SOURCES}
       onClose={() => {}}
@@ -484,6 +515,7 @@ it('starts the input from a test, and tries the draft with its stand-ins', async
 it('reads the input of a run chosen to start from', async () => {
   const { user } = render(
     <AutomationRunDialog
+      organizationId="org-1"
       request={{ mode: 'mock', version: 3, scopeText: '' }}
       sources={SOURCES}
       onClose={() => {}}
@@ -506,6 +538,7 @@ it('opens on the input it last started from for the automation', () => {
   window.sessionStorage.setItem(SOURCES.memoryKey, 'test:small order');
   render(
     <AutomationRunDialog
+      organizationId="org-1"
       request={{ mode: 'mock', version: 3, scopeText: '' }}
       sources={SOURCES}
       onClose={() => {}}
