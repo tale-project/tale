@@ -454,7 +454,9 @@ export interface ModerationBackend {
 }
 
 /** How a provider round failed — the class the chat-filter event and the
- * settings page's test result carry; never the provider's words. */
+ * settings page's test result carry; never the provider's words.
+ * `eu_processing`: the organization's EU/EEA processing rule refused the
+ * provider's endpoint, so nothing was sent. */
 export type ModerationErrorClass =
   | 'timeout'
   | 'network'
@@ -462,6 +464,7 @@ export type ModerationErrorClass =
   | 'http_4xx'
   | 'http_5xx'
   | 'config'
+  | 'eu_processing'
   | 'unknown';
 
 /** The audit facts of one provider round. Never the text, never the body. */
@@ -474,6 +477,9 @@ export interface ModerationExtras {
   readonly circuitOpened?: boolean;
   /** The breaker was already open, so no request was made. */
   readonly circuitOpen?: boolean;
+  /** Why the EU/EEA processing rule kept the text from the provider, in a
+   * sentence an admin can act on — set with `eu_processing` only. */
+  readonly refusalMessage?: string;
 }
 
 /** The provider's verdict as the chain consumes it — `step_error` for every

@@ -67,10 +67,11 @@ While the switch is on, the model pickers offer only models whose endpoint it le
 - **Transcription and voice output**: dictation and audio uploads in the chat say that the audio transcription model isn't known to process in the EU/EEA, and voice output says that the voice provider isn't allowed.
 - **Knowledge**: indexing documents, emails and websites is refused, and so is searching them. A document that failed shows the reason. Once its endpoint is fixed or attested, select **Retry indexing**: a policy change doesn't queue the document again, but saving the embedding model or its credential does.
 - **API**: the [model endpoints for API keys](/platform/admin/governance/content-models#model-endpoints) list only the models the switch lets through, and a call that names another answers `403` with `MODEL_API_MODEL_FORBIDDEN` and the reason. A model of a catalog provider is refused there even on an EU endpoint, because the model gateway calls the vendor's own endpoint for it.
+- **Guardrails**: the [moderation provider](/platform/admin/governance/guardrails#moderation) receives no text, and its check fails with the error class `eu_processing`, as if the provider were unavailable. Fail-open lets the message through, and fail-closed refuses it: a call to the model endpoints for API keys then answers `503` with `MODEL_API_GUARDRAIL_UNAVAILABLE`. Saving the provider with such an endpoint is refused, and the message says what to change.
 
 On the Models page, the image generation and audio transcription settings also warn when their model's endpoint isn't known to process in the EU/EEA. A refusal is recorded in the [audit log](/platform/admin/governance/audit-logs) under **Settings > Governance > Logs** as **Model access denied**, with the surface, provider, model and host.
 
-Three parts don't follow the switch yet: the picker for the model that reads images still offers every model, and neither the model traffic of agent runtimes such as Claude Code or Codex in a sandbox nor the moderation provider of [Guardrails](/platform/admin/governance/guardrails) is held to it.
+Two parts don't follow the switch yet: the picker for the model that reads images still offers every model, and the model traffic of agent runtimes such as Claude Code or Codex in a sandbox is not held to it.
 
 ## Review a new integration
 
