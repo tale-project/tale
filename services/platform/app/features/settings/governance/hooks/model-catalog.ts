@@ -5,6 +5,7 @@ import {
   useProviderCredentials,
 } from '@/app/features/settings/providers/hooks/queries';
 import type { ModelInfoCapabilities } from '@/app/features/shared/models/model-info-popover';
+import type { HiddenModelsRule } from '@/app/lib/backend/contract/lib';
 
 /**
  * The provider/model catalog the governance model-policy editors (default
@@ -29,6 +30,9 @@ export interface CatalogProviderRecord {
   name: string;
   displayName?: string;
   models?: unknown;
+  /** The EU/EEA processing rule refuses a call through the provider's
+   * default credential (GOV-R22); absent while the rule is off. */
+  endpointRefusedBy?: HiddenModelsRule;
   [key: string]: unknown;
 }
 
@@ -71,6 +75,7 @@ export function useListProviders(organizationId: string): {
           supportsTools: model.supportsTools,
           outputsMedia: model.outputsMedia === true,
         })),
+        endpointRefusedBy: provider.endpointRefusedBy,
       }));
     return list.length === 0 ? EMPTY_PROVIDERS : list;
   }, [catalogs, credentials]);

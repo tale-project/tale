@@ -63,6 +63,9 @@ function fakeCtx(args: {
   rows: Record<string, unknown>;
   /** Models the organization's model access rules keep from the member. */
   blocked?: readonly string[];
+  /** What the governance seam answers for the EU/EEA processing rule;
+   * open when not given. */
+  endpointPolicy?: unknown;
 }) {
   const preferred =
     args.preferredModelId === null
@@ -82,6 +85,12 @@ function fakeCtx(args: {
         supportedModels?: string[];
       },
     ) => {
+      if (
+        functionRefName(ref) ===
+        'governance/internal_queries:getModelEndpointPolicyInternal'
+      ) {
+        return args.endpointPolicy ?? { kind: 'open' };
+      }
       if (
         functionRefName(ref) ===
         'governance/internal_queries:resolveModelGovernanceInternal'
@@ -683,6 +692,44 @@ describe('resolveDirectModel — why there is no model', () => {
     const serving = servingCtx();
     await expect(
       resolveDirectModel(serving.ctx, ORG, null, USER),
+    ).resolves.toEqual({
+      target: { providerSlug: 'openai', modelId: 'gpt-4o-mini' },
+      thinks: false,
+    });
+  });
+
+  it('says endpoint when the EU/EEA rule refuses every provider that could serve, and why [GOV-R22]', async () => {
+    const outsideEu = fakeCtx({
+      preferredModelId: null,
+      rows: { openai: { authMethod: 'api-key', status: 'active' } },
+      endpointPolicy: { kind: 'eu', attestedHosts: [] },
+    });
+    await expect(
+      resolveDirectModel(outsideEu.ctx, ORG, null, USER),
+    ).resolves.toEqual({ missing: 'endpoint', hiddenBy: 'eu' });
+
+    const unreadable = fakeCtx({
+      preferredModelId: null,
+      rows: { openai: { authMethod: 'api-key', status: 'active' } },
+      endpointPolicy: { kind: 'unreadable' },
+    });
+    await expect(
+      resolveDirectModel(unreadable.ctx, ORG, null, USER),
+    ).resolves.toEqual({ missing: 'endpoint', hiddenBy: 'unreadable' });
+
+    const euEndpoint = fakeCtx({
+      preferredModelId: null,
+      rows: {
+        openai: {
+          authMethod: 'api-key',
+          status: 'active',
+          endpointUrl: 'https://eu.api.openai.com/v1',
+        },
+      },
+      endpointPolicy: { kind: 'eu', attestedHosts: [] },
+    });
+    await expect(
+      resolveDirectModel(euEndpoint.ctx, ORG, null, USER),
     ).resolves.toEqual({
       target: { providerSlug: 'openai', modelId: 'gpt-4o-mini' },
       thinks: false,

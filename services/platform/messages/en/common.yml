@@ -123,3 +123,8 @@ sessionIdle:
     with the page or use the button below to keep working.
   staySignedIn: Stay signed in
   signedOutNotice: You were signed out because your session was inactive for too long.
+hiddenModels:
+  eu: Only models whose endpoint processes prompts in the EU/EEA are offered,
+    as your organization's model access policy requires.
+  unreadable: No model is offered while the model access policy can't be
+    read. An admin must restore it.
