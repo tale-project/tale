@@ -28,6 +28,13 @@
  * Auto-selection deliberately reads only defaults: picking a non-default
  * credential is a user act, never something a background capability does.
  *
+ * Under the EU/EEA processing rule (GOV-R17) auto-selection also passes over
+ * a provider whose gateway record the rule refuses
+ * ({@link gatewayModelRefusal}): the session key's provision refuses every
+ * model the key may call, so a refused pick would cost the whole turn, not
+ * just the lane. A pin the rule refuses stays the admin's word; the
+ * provision refuses the turn with the rule's reason, audited.
+ *
  * "Vision-capable chat model" is stricter here than the catalog tags: media
  * generators (image in, audio/image/video out) and free-tier lanes are
  * excluded — both list a token price of 0 and would otherwise always win the
@@ -42,6 +49,10 @@ import {
   modelIdsEquivalent,
 } from '@tale/shared/utils/model-ref';
 
+import {
+  gatewayModelRefusal,
+  readModelEndpointPolicy,
+} from '../../governance/model_endpoint_gate';
 import type { ActionCtx } from '../ctx';
 import { internal } from '../handler_names';
 import { getProviderCatalog } from './catalog_fetch';
@@ -371,7 +382,11 @@ async function resolveVisionModel(
   let preferred: { pick: VisionModelPick; rank: number } | null = null;
   let cheapest: { pick: VisionModelPick; price: number } | null = null;
 
+  // GOV-R17, judged as the provision judges the vision ref: off the
+  // Anthropic harness lane.
+  const endpointPolicy = await readModelEndpointPolicy(ctx, organizationId);
   for (const provider of providers) {
+    if (gatewayModelRefusal(endpointPolicy, provider) !== undefined) continue;
     const entries = await eligibleEntriesFor(ctx, organizationId, provider);
     if (entries === null) continue;
 

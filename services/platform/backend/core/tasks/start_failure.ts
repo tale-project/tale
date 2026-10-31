@@ -1,3 +1,4 @@
+import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import { isTurnBudgetExceededError } from '../node_only/sandbox/turn_budget';
 import {
   credentialRetryAtMs,
@@ -9,10 +10,13 @@ import { isTaskInputMissingError } from './task_input_missing_error';
 
 /**
  * How a run that could not START settles: the reason the run row shows and
- * the failure code the auto-retry reads. Three start failures are decisions
+ * the failure code the auto-retry reads. Four start failures are decisions
  * or facts a retry cannot change, and never retried — the organization's
  * spend cap, a skill the run cannot reach (the agent's configuration; three
- * retries used to burn on it before the author could act), and an attachment
+ * retries used to burn on it before the author could act), a model the
+ * organization's EU/EEA rule refuses (GOV-R17: `agent_model_missing`, as a
+ * native turn's refusal settles, until an admin gives its provider an
+ * endpoint that processes there or changes the rule), and an attachment
  * whose bytes left the object store (named in the reason; whoever can change
  * the task removes it or uploads it again). Everything else is
  * `start_failed`, retried by default.
@@ -34,6 +38,12 @@ export function classifyStartFailure(err: unknown): {
     return {
       reason: `the agent run was refused by the organization's spend cap: ${err.reason}`,
       failureCode: 'budget_exceeded',
+    };
+  }
+  if (err instanceof ModelEndpointRefusal) {
+    return {
+      reason: `the agent run could not start: ${err.data.message}`,
+      failureCode: 'agent_model_missing',
     };
   }
   const retryAtMs = credentialRetryAtMs(err);

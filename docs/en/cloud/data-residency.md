@@ -68,10 +68,11 @@ While the switch is on, the model pickers offer only models whose endpoint it le
 - **Knowledge**: indexing documents, emails and websites is refused, and so is searching them. A document that failed shows the reason. Once its endpoint is fixed or attested, select **Retry indexing**: a policy change doesn't queue the document again, but saving the embedding model or its credential does.
 - **API**: the [model endpoints for API keys](/platform/admin/governance/content-models#model-endpoints) list only the models the switch lets through, and a call that names another answers `403` with `MODEL_API_MODEL_FORBIDDEN` and the reason. A model of a catalog provider is refused there even on an EU endpoint, because the model gateway calls the vendor's own endpoint for it.
 - **Guardrails**: the [moderation provider](/platform/admin/governance/guardrails#moderation) receives no text, and its check fails with the error class `eu_processing`, as if the provider were unavailable. Fail-open lets the message through, and fail-closed refuses it: a call to the model endpoints for API keys then answers `503` with `MODEL_API_GUARDRAIL_UNAVAILABLE`. Saving the provider with such an endpoint is refused, and the message says what to change.
+- **Coding agents in a sandbox**: Claude Code, Codex and the other coding agents get no key or credential for the endpoint. A task's agent run fails before the agent starts, without an automatic retry: the task says **The agent couldn't finish this task**, and **View** on the run in the task's history shows the reason. An automation's agent step fails with the reason, without an automatic retry either.
 
 On the Models page, the image generation and audio transcription settings also warn when their model's endpoint isn't known to process in the EU/EEA. A refusal is recorded in the [audit log](/platform/admin/governance/audit-logs) under **Settings > Governance > Logs** as **Model access denied**, with the surface, provider, model and host.
 
-Two parts don't follow the switch yet: the picker for the model that reads images still offers every model, and the model traffic of agent runtimes such as Claude Code or Codex in a sandbox is not held to it.
+One part doesn't follow the switch yet: the picker for the model that reads images still offers every model.
 
 ## Review a new integration
 

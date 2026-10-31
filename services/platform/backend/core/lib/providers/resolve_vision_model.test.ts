@@ -1,6 +1,8 @@
 import type { ProviderDefinition } from '@tale/shared/schemas/providers';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { shimFunctionName } from '../../../lib/ctx-shim';
+import type { ModelEndpointPolicy } from '../../governance/model_endpoint_gate';
 import type { ActionCtx } from '../ctx';
 import { getProviderCatalog } from './catalog_fetch';
 import { resolveProvidersForOrgId } from './org_providers';
@@ -43,23 +45,33 @@ interface FakeCredentialRow {
   modelAllowlist?: string[];
 }
 
+const ENDPOINT_POLICY_QUERY =
+  'governance/internal_queries:getModelEndpointPolicyInternal';
+
 /**
- * Fake ActionCtx serving the two internal queries this module reads:
- * `getDefaultCredentialInternal` (keyed by provider slug) and
- * `getPolicyConfigInternal` (the `vision_model` pin, `null` = Auto).
+ * Fake ActionCtx serving the three internal queries this module reads:
+ * `getDefaultCredentialInternal` (keyed by provider slug),
+ * `getPolicyConfigInternal` (the `vision_model` pin, `null` = Auto) and
+ * `getModelEndpointPolicyInternal` (the EU/EEA rule, open unless a test turns
+ * it on).
  */
 function fakeCtx(
   rows: Record<string, FakeCredentialRow | null>,
   pinnedConfig: unknown = null,
+  endpointPolicy: ModelEndpointPolicy = { kind: 'open' },
 ): ActionCtx {
   const runQuery = vi.fn(
     async (
-      _ref: unknown,
+      ref: unknown,
       args: { providerSlug?: string; policyType?: string },
-    ) =>
-      args.policyType !== undefined
+    ) => {
+      if (shimFunctionName(ref) === ENDPOINT_POLICY_QUERY) {
+        return endpointPolicy;
+      }
+      return args.policyType !== undefined
         ? pinnedConfig
-        : (rows[args.providerSlug ?? ''] ?? null),
+        : (rows[args.providerSlug ?? ''] ?? null);
+    },
   );
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only runQuery is exercised by this module
   return { runQuery } as unknown as ActionCtx;
@@ -375,6 +387,150 @@ describe('resolveOrgVisionModel', () => {
   });
 });
 
+describe('auto-selection under the EU/EEA rule [GOV-R17]', () => {
+  const active: FakeCredentialRow = { authMethod: 'api-key', status: 'active' };
+
+  function euRule(...attestedHosts: string[]): ModelEndpointPolicy {
+    return { kind: 'eu', attestedHosts };
+  }
+
+  function at(name: string, baseUrl: string): ProviderDefinition {
+    return { ...provider(name), baseUrl };
+  }
+
+  /** Two vision providers, the first listing the cheaper model; both hold
+   * an active default credential. */
+  function cheapAndDear(
+    cheap: ProviderDefinition,
+    dear: ProviderDefinition,
+  ): Record<string, FakeCredentialRow> {
+    mockProviders([cheap, dear]);
+    mockedCatalog.mockImplementation(async (listed) =>
+      listed.name === cheap.name
+        ? [entry({ id: 'cheap-vl', inputPrice: 5 })]
+        : [entry({ id: 'dear-vl', inputPrice: 500 })],
+    );
+    return { [cheap.name]: active, [dear.name]: active };
+  }
+
+  it('passes over a provider not known to process in the EU/EEA, for one at an EU endpoint', async () => {
+    const rows = cheapAndDear(
+      at('outside', 'https://llm.example.com/v1'),
+      at('mistral-eu', 'https://api.eu.mistral.ai/v1'),
+    );
+    await expect(
+      resolveOrgVisionModel(fakeCtx(rows, null, euRule()), 'org_1'),
+    ).resolves.toEqual({
+      providerSlug: 'mistral-eu',
+      modelId: 'dear-vl',
+      source: 'cheapest',
+    });
+    // Passed over unasked: neither its catalog nor its credential is read.
+    expect(
+      mockedCatalog.mock.calls.some(([listed]) => listed.name === 'outside'),
+    ).toBe(false);
+    // With the rule off the cheaper provider wins, as it always did.
+    await expect(
+      resolveOrgVisionModel(fakeCtx(rows), 'org_1'),
+    ).resolves.toEqual({
+      providerSlug: 'outside',
+      modelId: 'cheap-vl',
+      source: 'cheapest',
+    });
+  });
+
+  it('picks a provider on a host an admin attested', async () => {
+    const rows = cheapAndDear(
+      at('outside', 'https://llm.example.com/v1'),
+      at('own-proxy', 'https://llm.eu-proxy.example/v1'),
+    );
+    await expect(
+      resolveOrgVisionModel(
+        fakeCtx(rows, null, euRule('llm.eu-proxy.example')),
+        'org_1',
+      ),
+    ).resolves.toEqual({
+      providerSlug: 'own-proxy',
+      modelId: 'dear-vl',
+      source: 'cheapest',
+    });
+  });
+
+  it('reaches OpenRouter only through a record pointed at eu.openrouter.ai', async () => {
+    // The gateway's built-in OpenRouter connection calls openrouter.ai
+    // whatever the standard record's base URL says; a custom record calls
+    // its own, and openrouter.ai itself may process anywhere.
+    mockProviders([
+      at('openrouter', 'https://eu.openrouter.ai/api/v1'),
+      at('openrouter-global', 'https://openrouter.ai/api/v1'),
+      at('openrouter-eu', 'https://eu.openrouter.ai/api/v1'),
+    ]);
+    mockedCatalog.mockImplementation(async (listed) => [
+      entry({
+        id: `${listed.name}-vl`,
+        inputPrice: listed.name === 'openrouter-eu' ? 500 : 5,
+      }),
+    ]);
+    const ctx = fakeCtx(
+      {
+        openrouter: active,
+        'openrouter-global': active,
+        'openrouter-eu': active,
+      },
+      null,
+      euRule(),
+    );
+    await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
+      providerSlug: 'openrouter-eu',
+      modelId: 'openrouter-eu-vl',
+      source: 'cheapest',
+    });
+  });
+
+  it.each<[string, ModelEndpointPolicy]>([
+    ['refuses every provider', euRule()],
+    ['cannot be read', { kind: 'unreadable' }],
+  ])(
+    'finds no vision model when the rule %s, and the turn runs text-only',
+    async (_case, endpointPolicy) => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const rows = cheapAndDear(
+        at('outside', 'https://llm.example.com/v1'),
+        at('openrouter', 'https://eu.openrouter.ai/api/v1'),
+      );
+      const ctx = fakeCtx(rows, null, endpointPolicy);
+      await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toBeNull();
+      await expect(
+        resolveTurnVisionModel(ctx, 'org_1', {
+          providerSlug: 'outside',
+          modelId: 'text-only',
+        }),
+      ).resolves.toBeNull();
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('no vision-capable model is reachable'),
+      );
+      warn.mockRestore();
+    },
+  );
+
+  it("returns a pin the rule refuses: the admin's word, which the key's provision refuses with the rule's reason", async () => {
+    mockProviders([at('outside', 'https://llm.example.com/v1')]);
+    mockedCatalog.mockResolvedValue([
+      entry({ id: 'pinned-vl', inputPrice: 5 }),
+    ]);
+    const ctx = fakeCtx(
+      { outside: active },
+      { providerSlug: 'outside', modelId: 'pinned-vl' },
+      euRule(),
+    );
+    await expect(resolveOrgVisionModel(ctx, 'org_1')).resolves.toEqual({
+      providerSlug: 'outside',
+      modelId: 'pinned-vl',
+      source: 'pinned',
+    });
+  });
+});
+
 describe('explicit vision policy boundaries', () => {
   it.each([
     'missing-provider',
@@ -640,8 +796,11 @@ describe('resolveTurnVisionModel', () => {
     const ctx = fakeCtx({ alpha: { authMethod: 'api-key', status: 'active' } });
     // The serving entry resolves (catalog answers once), then the credential
     // read behind the org resolution fails.
-    vi.spyOn(ctx, 'runQuery').mockImplementation(async (_ref, args) => {
+    vi.spyOn(ctx, 'runQuery').mockImplementation(async (ref, args) => {
       if (args.policyType) return null;
+      if (shimFunctionName(ref) === ENDPOINT_POLICY_QUERY) {
+        return { kind: 'open' };
+      }
       throw new Error('private credential path');
     });
     await expect(
