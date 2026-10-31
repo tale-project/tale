@@ -1,8 +1,11 @@
+import { readFileSync } from 'node:fs';
+
 import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
 
 import {
   ALL_SUPPORTED_EXTENSIONS,
+  extractDocument,
   extractText,
   isImageFile,
   isSupported,
@@ -85,6 +88,31 @@ describe('extractText', () => {
     await expect(extractText(enc('data'), 'archive.zip')).rejects.toThrow(
       'Unsupported file type',
     );
+  });
+});
+
+describe('extractDocument', () => {
+  // A sync stores a Loop page as the PDF Microsoft makes of it, under the
+  // page's name with `.pdf` added; the fixture is synthetic (see its README).
+  it('reads a Loop page kept as its PDF, under the name the sync stored [ODRIVE-R10]', async () => {
+    const bytes = new Uint8Array(
+      readFileSync(
+        new URL(
+          '../../../../../tests/integration/fixtures/loop/standup.loop.pdf',
+          import.meta.url,
+        ),
+      ),
+    );
+    const extracted = await extractDocument(bytes, 'Daily stand-up.loop.pdf');
+    expect(extracted.text).toContain('Daily stand-up');
+    expect(extracted.text).toContain(
+      'Jonas checks that search finds the stand-up notes.',
+    );
+    expect(extracted).toMatchObject({
+      visionUsed: false,
+      pageCount: 1,
+      scannedPagesDetected: 0,
+    });
   });
 });
 
