@@ -45,7 +45,7 @@ Use Backlog to review ideas before committing them to the team's work.
 
 </CardGroup>
 
-Every project you can open is listed under **Projects** in [Home](/platform#home), where **All projects** opens the full list. A project opens on its task board; **General**, **Chats**, **Knowledge**, and **Agents** sit beside the task views. For Owners, Admins, and Developers, a bound automation adds an **Automations** surface; project administrators can configure [**Environment**](#environment-credentials). Installed apps may add further tabs; you do not need them to start with files, chats, and tasks.
+Up to 100 of the projects you can open are listed under **Projects** in [Home](/platform#home), the pinned ones first; **All projects** opens the full list, newest first, and loads more as you scroll. A project opens on its task board; **General**, **Chats**, **Knowledge**, and **Agents** sit beside the task views. For Owners, Admins, and Developers, a bound automation adds an **Automations** surface; project administrators can configure [**Environment**](#environment-credentials). Installed apps may add further tabs; you do not need them to start with files, chats, and tasks.
 
 ## Project credentials {#environment-credentials}
 

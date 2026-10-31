@@ -25,6 +25,7 @@ projects:
   allProjects: Tous les projets
   actions: 'Actions pour {project}'
   empty: Aucun projet pour le moment
+  countMore: '{count}+'
 scope:
   open: Ouvrir le projet
   emptyChatsTitle: Aucun chat dans ce projet

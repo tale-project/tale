@@ -4,15 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ProjectAuthContext, ProjectRow } from '../projects/service.ts';
 
-const { loadProjectOrThrow, listProjects } = vi.hoisted(() => ({
+const { loadProjectOrThrow } = vi.hoisted(() => ({
   loadProjectOrThrow: vi.fn(),
-  listProjects: vi.fn(),
 }));
 
 vi.mock('../projects/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../projects/service.ts')>()),
   loadProjectOrThrow,
-  listProjects,
 }));
 
 import {
@@ -118,9 +116,14 @@ function task(
   };
 }
 
+/** The SQL tag of a board read: `tasks` answer the task read, which the
+ * readable projects join with their keys (`keyOf`), and `folders` the
+ * folder walk. */
 function boardSql(
   tasks: TaskRow[],
   folders: Array<{ rootId: string; projectId: string; hasFiles: boolean }>,
+  keyOf: (projectId: string) => string | null = (projectId) =>
+    projectId.toUpperCase(),
 ) {
   const statements: Array<{ text: string; values: unknown[] }> = [];
   const columns: string[] = [];
@@ -129,9 +132,11 @@ function boardSql(
     if (/^(SELECT|WITH RECURSIVE)\b/.test(text))
       statements.push({ text, values });
     if (text.includes('FROM app.tasks t')) {
+      const joined = text.includes('rp.project_key AS "projectKey"');
       return Promise.resolve(
         tasks.map((row) => {
-          if (values[0] !== BOARD_TASK_COLUMNS) return { ...row };
+          const key = joined ? { projectKey: keyOf(row.projectId) } : {};
+          if (values[0] !== BOARD_TASK_COLUMNS) return { ...row, ...key };
           const {
             description: _description,
             attachments: _attachments,
@@ -139,7 +144,7 @@ function boardSql(
             externalIssue: _externalIssue,
             ...metadata
           } = row;
-          return metadata;
+          return { ...metadata, ...key };
         }),
       );
     }
@@ -159,13 +164,11 @@ function boardSql(
 beforeEach(() => {
   vi.clearAllMocks();
   loadProjectOrThrow.mockResolvedValue(project('p0'));
-  listProjects.mockResolvedValue([project('p0')]);
 });
 
 describe('task board reads scale with the page, rather than its project count', () => {
   it('reads folder facts once for forty projects, deduplicating exact root bindings', async () => {
     const projects = Array.from({ length: 40 }, (_, i) => project(`p${i}`));
-    listProjects.mockResolvedValue(projects);
     const tasks = projects.flatMap(({ id }, i) => [
       task(`t${i}-a`, id, `f${i}`),
       task(`t${i}-b`, id, `f${i}`),
@@ -217,7 +220,6 @@ describe('task board reads scale with the page, rather than its project count', 
   });
 
   it('keeps folder facts under their project, including a wrong-project binding and missing roots', async () => {
-    listProjects.mockResolvedValue([project('p0'), project('p1')]);
     const { sql } = boardSql(
       [
         task('bound', 'p0', 'f0'),
@@ -237,6 +239,32 @@ describe('task board reads scale with the page, rather than its project count', 
       missing: [false, false],
       unbound: [true, false],
     });
+  });
+
+  it('reads the readable projects in the task read itself, with no id list [PROJ-R1] [PROJ-R2]', async () => {
+    const { sql, statements } = boardSql(
+      [task('keyed', 'p0', null), task('keyless', 'p1', null)],
+      [],
+      (projectId) => (projectId === 'p0' ? 'P0' : null),
+    );
+    const result = await listTasksForAccessibleProjects(sql, auth);
+
+    // One statement reads the tasks and joins the projects they may read:
+    // no project list is read first and sent back as `ANY(<ids>)` (#5156).
+    expect(
+      statements.filter(({ text }) => text.includes('FROM app.projects')),
+    ).toEqual([]);
+    const read = statements.find(({ text }) =>
+      text.includes('FROM app.tasks t'),
+    );
+    expect(read?.text).toContain(
+      'rp.project_key AS "projectKey" FROM app.tasks t JOIN ? rp USING (project_id) WHERE org_id = ?',
+    );
+    expect(read?.text).not.toContain('ANY(');
+    expect(
+      Object.fromEntries(result.tasks.map((row) => [row.id, row.projectKey])),
+    ).toEqual({ keyed: 'P0', keyless: undefined });
+    expect(result.tasks[1]).not.toHaveProperty('projectKey');
   });
 
   it('does not query folders when no task names a folder', async () => {

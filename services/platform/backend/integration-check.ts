@@ -159,6 +159,7 @@ import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-r
 import { orgCreateScaffoldPayload } from './domains/organizations/scaffold.ts';
 import { checkProductImageReleaseHolders } from './domains/products/image-release.integration.ts';
 import { checkManagedInstructions } from './domains/projects/managed-instructions.integration.ts';
+import { checkProjectReads } from './domains/projects/project-reads.integration.ts';
 import { checkStandardAgent } from './domains/projects/standard-agent.integration.ts';
 import { checkBrokerAccountSelection } from './domains/provider_credentials/broker-selection.integration.ts';
 import { checkProviderCredentialConfiguration } from './domains/provider_credentials/configuration.integration.ts';
@@ -66875,6 +66876,7 @@ async function main(): Promise<void> {
         'checkTaskBoardSearch',
         () => checkTaskBoardSearch(sql, baseUrl, authCtx, record),
       ],
+      ['checkProjectReads', () => checkProjectReads(sql, authCtx, record)],
       [
         'checkArchivedTaskWrites',
         () => checkArchivedTaskWrites(sql, baseUrl, authCtx, record),

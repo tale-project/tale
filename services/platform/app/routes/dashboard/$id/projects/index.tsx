@@ -10,12 +10,15 @@ import { z } from 'zod';
 
 import { HomeBackButton } from '@/app/features/home/components/home-back-button';
 import { ProjectsTable } from '@/app/features/projects/components/projects-table';
-import { projectsOverviewArgs } from '@/app/features/projects/hooks/queries';
+import {
+  PROJECTS_PAGE_SIZE,
+  projectsOverviewArgs,
+} from '@/app/features/projects/hooks/queries';
 import {
   parseAudienceFilter,
   serializeAudienceFilter,
 } from '@/app/features/settings/teams/lib/audience-filter';
-import { projectsOverviewQuery } from '@/app/lib/backend/projects';
+import { prefetchAdaptedPaginatedQuery } from '@/app/lib/backend/prefetch';
 import { useT } from '@/lib/i18n/client';
 import { seo } from '@/lib/utils/seo';
 
@@ -34,13 +37,16 @@ export const Route = createFileRoute('/dashboard/$id/projects/')({
   }),
   validateSearch: searchSchema,
   loader: ({ context, params }) => {
-    // Warm the projects list so the table paints without a skeleton on first
-    // nav. The args MUST match what ProjectsTable subscribes with or the cache
-    // key misses — hence the shared builder (the same one the hook's adapter
-    // row uses). Its `asOf` is bucketed, so a bucket roll between loader and
-    // mount costs one redundant fetch and self-heals.
-    void context.queryClient.prefetchQuery(
-      projectsOverviewQuery(projectsOverviewArgs(params.id, false)),
+    // Warm the projects list's first page so the table paints without a
+    // skeleton on first nav. The args and the page size MUST match what
+    // ProjectsTable subscribes with or the cache key misses — hence the
+    // shared builder. Its `asOf` is bucketed, so a bucket roll between loader
+    // and mount costs one redundant fetch and self-heals.
+    prefetchAdaptedPaginatedQuery(
+      context.queryClient,
+      'projects/queries:listProjectsOverview',
+      projectsOverviewArgs(params.id, false),
+      PROJECTS_PAGE_SIZE,
     );
   },
   component: ProjectsPage,

@@ -45,7 +45,7 @@ Utilise le Backlog pour étudier les idées avant de les intégrer au travail pr
 
 </CardGroup>
 
-Tous les projets que tu peux ouvrir figurent sous **Projets** dans [Accueil](/fr/platform#home), où **Tous les projets** ouvre la liste complète. Un projet s’ouvre sur son tableau des tâches ; **Général**, **Chats**, **Connaissances** et **Agents** complètent les vues des tâches. Pour les propriétaires, les admins et les développeurs, une automatisation liée au projet ajoute l’espace **Automatisations** ; les administrateurs du projet peuvent configurer l’[**Environnement**](#environment-credentials). Les applications installées peuvent ajouter d’autres onglets. Elles ne sont pas nécessaires pour commencer avec les fichiers, les chats et les tâches.
+Jusqu’à 100 des projets que tu peux ouvrir figurent sous **Projets** dans [Accueil](/fr/platform#home), les projets épinglés en premier ; **Tous les projets** ouvre la liste complète, des plus récents aux plus anciens, et en charge davantage au défilement. Un projet s’ouvre sur son tableau des tâches ; **Général**, **Chats**, **Connaissances** et **Agents** complètent les vues des tâches. Pour les propriétaires, les admins et les développeurs, une automatisation liée au projet ajoute l’espace **Automatisations** ; les administrateurs du projet peuvent configurer l’[**Environnement**](#environment-credentials). Les applications installées peuvent ajouter d’autres onglets. Elles ne sont pas nécessaires pour commencer avec les fichiers, les chats et les tâches.
 
 ## Identifiants du projet {#environment-credentials}
 
