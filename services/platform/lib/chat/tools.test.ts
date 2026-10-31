@@ -219,6 +219,12 @@ describe('CHAT_WIRE_TOOLS — the model-facing contract', () => {
     expect(text).toMatch(/stop reading it once you hold\s+the link/i);
   });
 
+  it('web_fetch says it reads the main content, without the site chrome', () => {
+    const text = wireDescription('web_fetch');
+    expect(text).toMatch(/read its main content as\s+text/i);
+    expect(text).toMatch(/without the site's navigation, header and footer/i);
+  });
+
   it('web_fetch accepts a URL the instructions name', () => {
     expect(wireDescription('web_fetch')).toMatch(/one your instructions name/);
   });
