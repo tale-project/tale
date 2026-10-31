@@ -102,6 +102,21 @@ describe('project metadata read projections', () => {
     },
   );
 
+  it('stamps the access flags a list row carries on a search row', async () => {
+    const [found] = await searchProjects(projectSql().sql, auth, 'Apollo');
+    const [listed] = await listProjects(projectSql().sql, auth);
+    expect(found).toMatchObject({
+      isOrgWide: true,
+      canEdit: true,
+      canAdminister: true,
+    });
+    expect(found).toMatchObject({
+      isOrgWide: listed?.isOrgWide,
+      canEdit: listed?.canEdit,
+      canAdminister: listed?.canAdminister,
+    });
+  });
+
   it('keeps the default list and full detail read complete', async () => {
     const { sql, columns } = projectSql();
     const rows = await listProjects(sql, auth);

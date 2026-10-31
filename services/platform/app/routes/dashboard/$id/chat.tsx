@@ -27,15 +27,11 @@ export const Route = createFileRoute('/dashboard/$id/chat')({
   // chat seam subscribes to raw watches on the same Convex client React Query
   // rides, so a prefetched query answers the seam's first snapshot
   // synchronously — and React Query keeps the subscription live for its
-  // gcTime after unmount, so re-entering chat stays warm. The projects args
-  // must stay exactly the seam's `{ organizationId }`: the projects page
-  // prefetches with `includeArchived`, which is a different query identity
-  // that the seam's watch would miss.
+  // gcTime after unmount, so re-entering chat stays warm. No projects: the
+  // header reads the chat's own project by id, and the pickers read Home's
+  // page when they open (#5194).
   loader: ({ context, params }) => {
     prefetchAdaptedQuery(context.queryClient, 'chat/threads:listThreads', {
-      organizationId: params.id,
-    });
-    prefetchAdaptedQuery(context.queryClient, 'projects/queries:listProjects', {
       organizationId: params.id,
     });
     // The sticky model pick: warm so the composer seeds its model on first

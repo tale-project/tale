@@ -29,7 +29,11 @@ import {
   ProjectMoveConfirmDialog,
   type PendingProjectMove,
 } from '../components/project-move-confirm';
-import { useThreadProjectMove } from '../data/chat-backend';
+import {
+  useChatProject,
+  useChatProjectChoices,
+  useThreadProjectMove,
+} from '../data/chat-backend';
 import { useThreadActions } from '../data/thread-actions';
 import { threadShareUrl, useThreadSharing } from '../data/thread-sharing';
 import type { ChatProjectSummary, ChatThreadSummary } from '../types';
@@ -55,8 +59,6 @@ export function useThreadMenuActions(
   organizationId: string,
   thread: Pick<ChatThreadSummary, 'id' | 'pinnedAt'> &
     Partial<Pick<ChatThreadSummary, 'projectId' | 'sharedWithProject'>>,
-  /** The projects the move names in its question. */
-  projects: readonly ChatProjectSummary[] = [],
 ): ThreadMenuActions {
   const { t } = useT('chat');
   const [pendingMove, setPendingMove] = useState<PendingProjectMove | null>(
@@ -124,7 +126,7 @@ export function useThreadMenuActions(
   const moveConfirmDialog = (
     <ProjectMoveConfirmDialog
       pending={pendingMove}
-      projects={projects}
+      organizationId={organizationId}
       onConfirm={(move) => {
         setPendingMove(null);
         moveNow(move.toProjectId);
@@ -171,12 +173,12 @@ export function useThreadMenuActions(
  * as redundant). */
 export function moveToProjectMenuItem({
   t,
-  projects,
+  organizationId,
   currentProjectId,
   onMove,
 }: {
   t: TFunction;
-  projects: readonly ChatProjectSummary[];
+  organizationId: string;
   currentProjectId: string | undefined;
   onMove: (projectId: string | null) => void;
 }): DropdownMenuGroup[number] {
@@ -192,7 +194,7 @@ export function moveToProjectMenuItem({
           content: (
             <ThreadProjectPicker
               t={t}
-              projects={projects}
+              organizationId={organizationId}
               currentProjectId={currentProjectId}
               onMove={onMove}
             />
@@ -203,23 +205,43 @@ export function moveToProjectMenuItem({
   };
 }
 
-/** A submenu's contents are mounted only while it is open. Keep the project
- * walk here, rather than in each closed row's menu definition: a large Home
- * list otherwise builds every project option once for every chat. The
+const NONE: readonly ChatProjectSummary[] = [];
+
+/** A submenu's contents are mounted only while it is open, so the projects
+ * are read here, and only then: Home's navigator page (a cache hit beside
+ * Home) and, past it, the server's search for what was typed — never every
+ * project (#5194). The current folder, when that page lacks it, is read by
+ * id and leads the list, so its selected row shows without a scroll. The
  * composer's project control lists the same rows (`onPicked` closes it). */
 export function ThreadProjectPicker({
   t,
-  projects,
+  organizationId,
   currentProjectId,
   onMove,
   onPicked,
 }: {
   t: TFunction;
-  projects: readonly ChatProjectSummary[];
+  organizationId: string;
   currentProjectId: string | undefined;
   onMove: (projectId: string | null) => void;
   onPicked?: () => void;
 }) {
+  const [query, setQuery] = useState('');
+  const choices = useChatProjectChoices(organizationId, query);
+  const listed = choices.status === 'ready' ? choices.data.projects : NONE;
+  const currentListed =
+    currentProjectId === undefined ||
+    choices.status !== 'ready' ||
+    listed.some((project) => project.id === currentProjectId);
+  const current = useChatProject(
+    organizationId,
+    currentListed ? undefined : currentProjectId,
+  );
+  const currentProject = current.status === 'ready' ? current.data : null;
+  const projects = useMemo(
+    () => (currentProject === null ? listed : [currentProject, ...listed]),
+    [listed, currentProject],
+  );
   const options = useMemo(
     () => [
       ...projects.map((project) => ({
@@ -260,6 +282,7 @@ export function ThreadProjectPicker({
       options={options}
       emptyHint={t('history.noProjects')}
       tall
+      onQueryChange={setQuery}
       {...(onPicked !== undefined ? { onPicked } : {})}
     />
   );

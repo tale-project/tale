@@ -20,21 +20,17 @@ import { useState } from 'react';
 import { ProjectAvatar } from '@/app/features/projects/components/project-avatar';
 import { useT } from '@/lib/i18n/client';
 
+import { useChatProject } from '../data/chat-backend';
 import { ThreadProjectPicker } from '../hooks/use-thread-menu-actions';
-import type { ChatProjectSummary } from '../types';
 
 export function ComposerProjectPicker({
-  projects,
-  projectsReady = true,
+  organizationId,
   projectId,
   draft,
   onChange,
   disabled,
 }: {
-  /** The projects the person can open (active ones). */
-  projects: readonly ChatProjectSummary[];
-  /** The projects have answered: one missing from them is unavailable. */
-  projectsReady?: boolean;
+  organizationId: string;
   /** The project the chat is filed in, or will be created in. */
   projectId: string | undefined;
   /** No message yet: a pick only says where the chat will be created. */
@@ -44,15 +40,15 @@ export function ComposerProjectPicker({
 }) {
   const { t } = useT('chat');
   const [open, setOpen] = useState(false);
+  // The project is read by id, never every project (#5194).
+  const read = useChatProject(organizationId, projectId);
   const project =
-    projectId === undefined
-      ? undefined
-      : projects.find((candidate) => candidate.id === projectId);
+    read.status === 'ready' && read.data !== null ? read.data : undefined;
   const name = project?.name;
-  // A project the person's list answered without — a stale link, one
-  // archived or deleted since — is named as unavailable, not as a project.
+  // A project its read answered without — a stale link, one archived or
+  // deleted since — is named as unavailable, not as a project.
   const unavailable =
-    projectId !== undefined && project === undefined && projectsReady;
+    projectId !== undefined && read.status === 'ready' && read.data === null;
   const label =
     projectId === undefined
       ? t('projectPicker.none')
@@ -113,7 +109,7 @@ export function ComposerProjectPicker({
             content: (
               <ThreadProjectPicker
                 t={t}
-                projects={projects}
+                organizationId={organizationId}
                 currentProjectId={projectId}
                 onMove={onChange}
                 onPicked={() => setOpen(false)}

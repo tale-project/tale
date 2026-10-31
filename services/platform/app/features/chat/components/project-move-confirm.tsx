@@ -15,7 +15,7 @@ import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 
 import { useT } from '@/lib/i18n/client';
 
-import type { ChatProjectSummary } from '../types';
+import { useChatProject } from '../data/chat-backend';
 
 /** A move waiting for its answer: the project it leaves, where it goes. */
 export interface PendingProjectMove {
@@ -38,21 +38,27 @@ export function moveEndsShare(
 
 export function ProjectMoveConfirmDialog({
   pending,
-  projects,
+  organizationId,
   onConfirm,
   onCancel,
 }: {
   pending: PendingProjectMove | null;
-  projects: readonly ChatProjectSummary[];
+  organizationId: string;
   onConfirm: (move: PendingProjectMove) => void;
   onCancel: () => void;
 }) {
   const { t } = useT('chat');
+  // Both projects are read by id, never every project (#5194).
+  const fromRead = useChatProject(organizationId, pending?.fromProjectId);
+  const toRead = useChatProject(
+    organizationId,
+    pending?.toProjectId ?? undefined,
+  );
   if (pending === null) return null;
-  const nameOf = (projectId: string): string =>
-    projects.find((project) => project.id === projectId)?.name ??
+  const nameOf = (read: typeof fromRead): string =>
+    (read.status === 'ready' ? read.data?.name : undefined) ??
     t('moveShared.thisProject');
-  const from = nameOf(pending.fromProjectId);
+  const from = nameOf(fromRead);
   const removing = pending.toProjectId === null;
   return (
     <ConfirmDialog
@@ -66,8 +72,7 @@ export function ProjectMoveConfirmDialog({
           ? t('moveShared.removeDescription', { from })
           : t('moveShared.description', {
               from,
-              to:
-                pending.toProjectId === null ? '' : nameOf(pending.toProjectId),
+              to: pending.toProjectId === null ? '' : nameOf(toRead),
             })
       }
       confirmText={t(
