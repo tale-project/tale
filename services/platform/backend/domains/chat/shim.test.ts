@@ -31,8 +31,14 @@ import { chatShimHandlers } from './shim.ts';
 /**
  * Where a chat dispatch begins — the reused 0.4 modules each 0.5 host hands
  * this shim to. `executeTurn` has no store of its own: the Postgres turn
- * store and usage ledger (`domains/chat/store.ts`) are REQUIRED overrides,
- * so no module on this walk is excluded.
+ * store and usage ledger (`domains/chat/store.ts`) are REQUIRED overrides.
+ *
+ * The one module the walk excludes is the crawl gate's own exclusion
+ * (`domains/websites/shim.test.ts`): `web_fetch` renders a page that needs a
+ * browser through the crawler's render lane, which reaches
+ * `core/node_only/sandbox/session_exec.ts` only through `runStepsInSession`,
+ * a function that dispatches nothing. The crawl gate asserts both halves of
+ * that reason; the module's own writes belong to the agent turn's harvest.
  */
 const CHAT_DISPATCH = {
   entryPoints: [
@@ -44,6 +50,7 @@ const CHAT_DISPATCH = {
     'core/lib/providers/resolve_tts_model.ts',
     'core/lib/providers/resolve_transcription_model.ts',
   ],
+  replacedModules: ['core/node_only/sandbox/session_exec.ts'],
 };
 
 describe('chatShimHandlers', () => {
@@ -68,6 +75,11 @@ describe('chatShimHandlers', () => {
         'tasks/search_for_chat:searchProjectsForChat',
         'conversations/search_for_chat:searchConversationsForChat',
         'knowledge_entries/internal_queries:listEntriesForAgent',
+        // web_fetch's render lane: its session verbs, so the exclusion above
+        // names a module this walk really reaches.
+        'sandbox/session_mutations:reserveSessionSlotAndInsert',
+        'sandbox/session_mutations:setSessionStatus',
+        'sandbox/session_mutations:markSessionRowDestroyed',
       ]),
     );
   });
