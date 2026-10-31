@@ -189,18 +189,28 @@ export interface ThreadMessageCursor {
  * first so a fresh message is always visible, and walks older pages through
  * `nextBefore`. One row past the limit is fetched to answer `hasMore`
  * without a count.
+ *
+ * A reader that answers a request names the caller's `organizationId`, so a
+ * thread id from another organization reads nothing, and may name its own
+ * `columns`: a module constant, never input, that aliases `"order"` and
+ * `step_order AS "stepOrder"` for the cursor (the chat transcript reads its
+ * view rows through the same keyset this way).
  */
-export async function listThreadMessagesTail(
+export async function listThreadMessagesTail<
+  Row extends ThreadMessageCursor = MessageRow,
+>(
   sql: Sql | TransactionSql,
   threadId: string,
   options: {
     before?: ThreadMessageCursor;
     limit?: number;
     excludeToolRoles?: boolean;
+    organizationId?: string;
+    columns?: string;
   } = {},
 ): Promise<{
   /** Chronological within the page (oldest first). */
-  messages: MessageRow[];
+  messages: Row[];
   /** Whether messages older than this page exist. */
   hasMore: boolean;
   /** The cursor for the next older page; null once the start is reached. */
@@ -212,9 +222,11 @@ export async function listThreadMessagesTail(
   );
   const excludeTools = options.excludeToolRoles ?? true;
   const before = options.before ?? null;
-  const rows = await sql<MessageRow[]>`
-    SELECT ${sql.unsafe(MESSAGE_COLUMNS)} FROM app.messages
+  const organizationId = options.organizationId ?? null;
+  const rows = await sql<Row[]>`
+    SELECT ${sql.unsafe(options.columns ?? MESSAGE_COLUMNS)} FROM app.messages
     WHERE thread_id = ${threadId}
+      AND (${organizationId === null} OR org_id = ${organizationId ?? ''})
       AND (${before === null}
         OR ("order", step_order) < (${before?.order ?? 0}, ${before?.stepOrder ?? 0}))
       AND (${!excludeTools} OR role IN ('user', 'assistant'))

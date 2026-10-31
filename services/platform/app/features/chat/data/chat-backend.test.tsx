@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useLayoutEffect, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { render, screen, waitFor } from '@/tests/utils/render';
@@ -9,12 +9,14 @@ import { render, screen, waitFor } from '@/tests/utils/render';
 import {
   useArchivedThreads,
   useChatGeneration,
+  useChatMessages,
   useChatProjects,
   useChatQuery,
   useChatSend,
   useChatThreads,
   useChatThreadsRetry,
   useComposerModels,
+  useEarlierChatMessages,
   useNavigatorProjects,
   useProjectPin,
 } from './chat-backend';
@@ -828,6 +830,212 @@ describe('useChatSend', () => {
       const cancels = callsTo(fetchSpy, '/cancel');
       expect(cancels).toHaveLength(1);
       expect(cancels[0]?.url).toContain('/chat/threads/thread-1/cancel');
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
+/**
+ * The transcript's way back reads one older page on request. What holds the
+ * reader's place lets go when loading ends, so loading ends in the frame
+ * that shows the older rows — a frame between them would drop the place.
+ */
+describe('useEarlierChatMessages', () => {
+  const row = (id: string, sequence: number) => ({
+    id,
+    role: sequence % 2 === 0 ? 'user' : 'assistant',
+    parts: [{ type: 'text', text: id }],
+    sequence,
+    createdAt: sequence,
+  });
+  const answer = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { 'content-type': 'application/json' },
+    });
+  const urlOf = (input: RequestInfo | URL) =>
+    typeof input === 'string'
+      ? input
+      : input instanceof URL
+        ? input.href
+        : input.url;
+  const newest = {
+    thread: {},
+    messages: [row('m3', 3), row('m4', 4)],
+    hasMore: true,
+    nextBefore: { order: 3, stepOrder: 0 },
+  };
+
+  /** The way back in a component of its own, logging each frame it commits:
+   * the rows shown, and whether it reads as loading. */
+  function WayBack({
+    org,
+    thread,
+    shown,
+    frames,
+  }: {
+    org: string;
+    thread: string;
+    shown: number;
+    frames: string[];
+  }) {
+    const { hasMore, loading, loadEarlier } = useEarlierChatMessages(
+      org,
+      thread,
+    );
+    const [failed, setFailed] = useState(false);
+    useLayoutEffect(() => {
+      frames.push(`${shown}${loading ? ' loading' : ''}`);
+    });
+    return (
+      <>
+        <output>
+          {`${shown} rows${hasMore ? ', more' : ''}${failed ? ', failed' : ''}`}
+        </output>
+        <button
+          type="button"
+          onClick={() => {
+            loadEarlier().catch(() => setFailed(true));
+          }}
+        >
+          Earlier
+        </button>
+      </>
+    );
+  }
+
+  /** The rows, read where the transcript reads them. */
+  function EarlierProbe({
+    org,
+    thread = 't1',
+    frames,
+  }: {
+    org: string;
+    thread?: string;
+    frames: string[];
+  }) {
+    const rows = useChatMessages(org, thread);
+    return (
+      <WayBack
+        org={org}
+        thread={thread}
+        shown={rows.status === 'ready' ? rows.data.length : 0}
+        frames={frames}
+      />
+    );
+  }
+
+  it('reads as loading until the frame that shows the older rows', async () => {
+    let answerOlder: (response: Response) => void = () => {};
+    const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation((input) =>
+      urlOf(input).includes('beforeOrder=3')
+        ? new Promise<Response>((resolve) => {
+            answerOlder = resolve;
+          })
+        : Promise.resolve(answer(newest)),
+    );
+    const frames: string[] = [];
+    try {
+      const { user } = render(
+        <QueryClientProvider client={new QueryClient()}>
+          <EarlierProbe org="org-earlier" frames={frames} />
+        </QueryClientProvider>,
+      );
+      await screen.findByText('2 rows, more');
+      await user.click(screen.getByRole('button', { name: 'Earlier' }));
+      expect(frames.at(-1)).toBe('2 loading');
+
+      answerOlder(
+        answer({
+          thread: {},
+          messages: [row('m1', 1), row('m2', 2)],
+          hasMore: false,
+          nextBefore: null,
+        }),
+      );
+      await screen.findByText('4 rows');
+
+      // No frame between: the way back's own state never ends loading ahead
+      // of the rows another component reads.
+      const since = frames.indexOf('2 loading');
+      expect([...new Set(frames.slice(since))]).toEqual(['2 loading', '4']);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('stops loading when the read fails, and keeps the rows it had', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation((input) =>
+        Promise.resolve(
+          urlOf(input).includes('beforeOrder=3')
+            ? answer({ error: 'internal' }, 500)
+            : answer(newest),
+        ),
+      );
+    const frames: string[] = [];
+    try {
+      const { user } = render(
+        <QueryClientProvider client={new QueryClient()}>
+          <EarlierProbe org="org-earlier-failed" frames={frames} />
+        </QueryClientProvider>,
+      );
+      await screen.findByText('2 rows, more');
+      await user.click(screen.getByRole('button', { name: 'Earlier' }));
+
+      await screen.findByText('2 rows, more, failed');
+      expect(frames).toContain('2 loading');
+      expect(frames.at(-1)).toBe('2');
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it('keeps a pending read to the thread it reads', async () => {
+    let answerOlder: (response: Response) => void = () => {};
+    const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation((input) =>
+      urlOf(input).includes('/t1/messages?beforeOrder=3')
+        ? new Promise<Response>((resolve) => {
+            answerOlder = resolve;
+          })
+        : Promise.resolve(answer(newest)),
+    );
+    const frames: string[] = [];
+    const client = new QueryClient();
+    const open = (thread: string) => (
+      <QueryClientProvider client={client}>
+        <EarlierProbe
+          org="org-earlier-threads"
+          thread={thread}
+          frames={frames}
+        />
+      </QueryClientProvider>
+    );
+    try {
+      const { user, rerender } = render(open('t1'));
+      await screen.findByText('2 rows, more');
+      await user.click(screen.getByRole('button', { name: 'Earlier' }));
+      expect(frames.at(-1)).toBe('2 loading');
+
+      // Another thread whose rows begin at the same place is not reading.
+      rerender(open('t2'));
+      await waitFor(() => expect(frames.at(-1)).toBe('2'));
+
+      // Back in the first, its read still runs, and lands.
+      rerender(open('t1'));
+      expect(frames.at(-1)).toBe('2 loading');
+      answerOlder(
+        answer({
+          thread: {},
+          messages: [row('m1', 1), row('m2', 2)],
+          hasMore: false,
+          nextBefore: null,
+        }),
+      );
+      await screen.findByText('4 rows');
+      expect(frames.at(-1)).toBe('4');
     } finally {
       fetchSpy.mockRestore();
     }
