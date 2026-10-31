@@ -16,6 +16,7 @@ import { Link } from '@tanstack/react-router';
 import { useMemo, useState } from 'react';
 import * as z from 'zod';
 
+import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -55,8 +56,19 @@ function isExpiryChoice(value: string): value is ExpiryChoice {
   return (EXPIRY_CHOICES as readonly string[]).includes(value);
 }
 
+/** Whom the grant names: one member, or a team whose members hold it — a
+ * platform capability only (`grantCompetence`). */
+const HOLDER_CHOICES = ['member', 'team'] as const;
+type HolderChoice = (typeof HOLDER_CHOICES)[number];
+
+function isHolderChoice(value: string): value is HolderChoice {
+  return (HOLDER_CHOICES as readonly string[]).includes(value);
+}
+
 interface FormValues {
+  holder: HolderChoice;
   userId: string;
+  teamId: string;
   competence: string;
   qualification: string;
   expiry: ExpiryChoice;
@@ -83,6 +95,7 @@ export function GrantCompetenceDialog({
   // one names the list with Try again above it.
   const membersAnswered = members.data !== undefined;
   const membersRead = readStateOf(members);
+  const teams = useOrgTeams(open);
   // A refusal the admin can act on stays in the form, beside the fields.
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -90,9 +103,9 @@ export function GrantCompetenceDialog({
     () =>
       z
         .object({
-          userId: z
-            .string()
-            .min(1, t('competences.grantDialog.validation.memberRequired')),
+          holder: z.enum(HOLDER_CHOICES),
+          userId: z.string(),
+          teamId: z.string(),
           competence: z
             .string()
             .min(1, t('competences.grantDialog.validation.competenceRequired')),
@@ -107,6 +120,20 @@ export function GrantCompetenceDialog({
             ),
         })
         .superRefine((values, ctx) => {
+          if (values.holder === 'member' && values.userId === '') {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['userId'],
+              message: t('competences.grantDialog.validation.memberRequired'),
+            });
+          }
+          if (values.holder === 'team' && values.teamId === '') {
+            ctx.addIssue({
+              code: 'custom',
+              path: ['teamId'],
+              message: t('competences.grantDialog.validation.teamRequired'),
+            });
+          }
           if (values.competence !== QUALIFICATION) return;
           const name = values.qualification.trim();
           const message =
@@ -130,7 +157,9 @@ export function GrantCompetenceDialog({
     resolver: zodResolver(schema),
     mode: 'onChange',
     defaultValues: {
+      holder: 'member',
       userId: '',
+      teamId: '',
       competence: '',
       qualification: '',
       expiry: 'never',
@@ -138,7 +167,9 @@ export function GrantCompetenceDialog({
     },
   });
   const { register, handleSubmit, formState, reset, setValue, watch } = form;
+  const holder = watch('holder');
   const userId = watch('userId');
+  const teamId = watch('teamId');
   const competence = watch('competence');
   const expiry = watch('expiry');
   // The switch as the server reads it for every surface (`readModelApiStanding`,
@@ -164,6 +195,31 @@ export function GrantCompetenceDialog({
     [members.data],
   );
 
+  // A team an identity provider syncs is listed but cannot be chosen: its
+  // roster is the provider's, and a grant to it would confer nothing.
+  const teamOptions = useMemo(
+    () =>
+      (teams.teams ?? []).map((team) => ({
+        value: team.id,
+        label: team.name,
+        disabled: team.synced === true,
+        description:
+          team.synced === true
+            ? t('competences.grantDialog.teamSynced')
+            : undefined,
+      })),
+    [teams.teams, t],
+  );
+
+  const holderOptions = useMemo(
+    () =>
+      HOLDER_CHOICES.map((choice) => ({
+        value: choice,
+        label: t(`competences.grantDialog.holderOptions.${choice}`),
+      })),
+    [t],
+  );
+
   // Rows stay one line wide (a name and its slug) so the list keeps the
   // field's width; the chosen capability's full explanation shows under the
   // field instead.
@@ -181,20 +237,26 @@ export function GrantCompetenceDialog({
         ),
         description: capability,
       })),
-      {
-        value: 'qualifications-heading',
-        label: t('competences.grantDialog.qualificationsGroup'),
-        isSectionHeader: true,
-      },
-      {
-        value: QUALIFICATION,
-        label: t('competences.grantDialog.qualificationOption'),
-        description: t(
-          'competences.grantDialog.qualificationOptionDescription',
-        ),
-      },
+      // A qualification is evidence about one person: a team holds
+      // capabilities only.
+      ...(holder === 'team'
+        ? []
+        : [
+            {
+              value: 'qualifications-heading',
+              label: t('competences.grantDialog.qualificationsGroup'),
+              isSectionHeader: true,
+            },
+            {
+              value: QUALIFICATION,
+              label: t('competences.grantDialog.qualificationOption'),
+              description: t(
+                'competences.grantDialog.qualificationOptionDescription',
+              ),
+            },
+          ]),
     ],
-    [t],
+    [holder, t],
   );
 
   const expiryOptions = useMemo(
@@ -219,7 +281,9 @@ export function GrantCompetenceDialog({
     try {
       await mutateAsync({
         organizationId,
-        userId: values.userId,
+        ...(values.holder === 'team'
+          ? { teamId: values.teamId }
+          : { userId: values.userId }),
         competence:
           values.competence === QUALIFICATION
             ? values.qualification.trim()
@@ -230,7 +294,7 @@ export function GrantCompetenceDialog({
       toast({ title: t('competences.toasts.granted'), variant: 'success' });
       close();
     } catch (err) {
-      setSubmitError(mapCompetenceError(err, t));
+      setSubmitError(mapCompetenceError(err, t, values.holder));
     }
   });
 
@@ -252,7 +316,64 @@ export function GrantCompetenceDialog({
         {submitError !== null && (
           <Alert variant="destructive" description={submitError} />
         )}
-        {membersRead.unavailable && (
+        <Select
+          id="competence-holder"
+          label={t('competences.grantDialog.holderLabel')}
+          value={holder}
+          onValueChange={(value) => {
+            if (!isHolderChoice(value)) return;
+            setSubmitError(null);
+            setValue('holder', value, {
+              shouldDirty: true,
+              shouldValidate: true,
+            });
+            // A team holds no qualification: the choice goes with the switch.
+            if (value === 'team' && competence === QUALIFICATION) {
+              setValue('competence', '', { shouldValidate: true });
+            }
+          }}
+          options={holderOptions}
+        />
+        {holder === 'team' && (
+          <>
+            {teams.unavailable && (
+              <CatalogLoadError
+                message={t('competences.grantDialog.teamLoadFailed')}
+                failureKey={teams.failureCount}
+                isRetrying={teams.retrying}
+                onRetry={teams.retry}
+                onFocusLost={() =>
+                  document.getElementById('competence-team')?.focus()
+                }
+              />
+            )}
+            <Skeletonize
+              loading={teams.teams === undefined && !teams.unavailable}
+            >
+              <SearchableSelect
+                id="competence-team"
+                label={t('competences.grantDialog.teamLabel')}
+                placeholder={t('competences.grantDialog.teamPlaceholder')}
+                searchPlaceholder={t('competences.grantDialog.teamSearch')}
+                emptyText={t('competences.grantDialog.teamEmpty')}
+                description={t('competences.grantDialog.teamDescription')}
+                required
+                disabled={teams.teams === undefined}
+                value={teamId || null}
+                onValueChange={(value) => {
+                  setSubmitError(null);
+                  setValue('teamId', value, {
+                    shouldDirty: true,
+                    shouldValidate: true,
+                  });
+                }}
+                options={teamOptions}
+                error={formState.errors.teamId !== undefined}
+              />
+            </Skeletonize>
+          </>
+        )}
+        {holder === 'member' && membersRead.unavailable && (
           <CatalogLoadError
             message={t('competences.grantDialog.memberLoadFailed')}
             failureKey={membersRead.failureCount}
@@ -265,28 +386,30 @@ export function GrantCompetenceDialog({
             }
           />
         )}
-        <Skeletonize loading={!membersAnswered && !membersRead.unavailable}>
-          <SearchableSelect
-            id="competence-member"
-            label={t('competences.grantDialog.memberLabel')}
-            placeholder={t('competences.grantDialog.memberPlaceholder')}
-            searchPlaceholder={t('competences.grantDialog.memberSearch')}
-            emptyText={t('competences.grantDialog.memberEmpty')}
-            required
-            disabled={!membersAnswered}
-            value={userId || null}
-            onValueChange={(value) => {
-              // A refusal was about the previous choice; a new one clears it.
-              setSubmitError(null);
-              setValue('userId', value, {
-                shouldDirty: true,
-                shouldValidate: true,
-              });
-            }}
-            options={memberOptions}
-            error={formState.errors.userId !== undefined}
-          />
-        </Skeletonize>
+        {holder === 'member' && (
+          <Skeletonize loading={!membersAnswered && !membersRead.unavailable}>
+            <SearchableSelect
+              id="competence-member"
+              label={t('competences.grantDialog.memberLabel')}
+              placeholder={t('competences.grantDialog.memberPlaceholder')}
+              searchPlaceholder={t('competences.grantDialog.memberSearch')}
+              emptyText={t('competences.grantDialog.memberEmpty')}
+              required
+              disabled={!membersAnswered}
+              value={userId || null}
+              onValueChange={(value) => {
+                // A refusal was about the previous choice; a new one clears it.
+                setSubmitError(null);
+                setValue('userId', value, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+              }}
+              options={memberOptions}
+              error={formState.errors.userId !== undefined}
+            />
+          </Skeletonize>
+        )}
         <SearchableSelect
           id="competence-name"
           label={t('competences.grantDialog.competenceLabel')}

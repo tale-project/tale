@@ -31,6 +31,8 @@ Eine Person kann mehreren Teams angehören. Ihr Zugriff kann über weitere Teams
 
 Benachrichtigungen folgen derselben Regel. Wer ein Projekt nicht mehr öffnen kann, erhält zu dessen Aufgaben keine neuen Benachrichtigungen oder E-Mails mehr, auch nicht zu Aufgaben, die die Person verfolgt. Was sie bereits erfahren hat, bleibt in ihren Benachrichtigungen. Erhält sie wieder Zugriff, wird sie zu den Aufgaben, die sie verfolgt, wieder benachrichtigt.
 
+Ein Team kann auch [Plattform-Berechtigungen](/de/platform/admin/governance/competences#grant-a-capability-to-a-team) haben, etwa **Modelle über die API aufrufen**. Wen du hier zum Team hinzufügst, hat sie, solange die Person im Team ist; entfernst du sie aus dem Team, endet das. Eine Mitgliedschaft, die dein Identitätsanbieter synchronisiert, bringt keine Berechtigung des Teams mit.
+
 Ein Team, das dein Identity Provider bereitstellt, trägt in der Liste die Markierung **Synchronisiert**. Name und Mitglieder gehören dem Anbieter: Der Bearbeitungsdialog zeigt sie nur an, weil der nächste Abgleich eine lokale Änderung zurücksetzen würde. Löschen kannst du ein solches Team trotzdem; der Anbieter kann es erneut anlegen.
 
 <Tip>
@@ -58,7 +60,7 @@ Bei eingehenden Konversationen können [Routing-Regeln](/de/platform/admin/gover
 
 ## Ein Team geordnet auflösen
 
-Wähle **Löschen** im Zeilenmenü. Die Bestätigung zählt die Mitglieder des Teams, die Projekte, Ordner und Dokumente, zu deren Reichweite es gehört, und die Konversationen in seiner Warteschlange. Sie nennt außerdem, wie viele dieser Elemente kein weiteres Team haben und für alle in der Organisation sichtbar werden, und wie viele [API-Schlüssel](/de/platform/admin/api-keys#create-a-key-for-someone-else) dem Team gehören: Sie funktionieren danach nicht mehr. Weise Arbeit, deren Zugriff eingeschränkt bleiben muss, vor dem Bestätigen neu zu.
+Wähle **Löschen** im Zeilenmenü. Die Bestätigung zählt die Mitglieder des Teams, die Projekte, Ordner und Dokumente, zu deren Reichweite es gehört, und die Konversationen in seiner Warteschlange. Sie nennt außerdem, wie viele dieser Elemente kein weiteres Team haben und für alle in der Organisation sichtbar werden, wie viele [API-Schlüssel](/de/platform/admin/api-keys#create-a-key-for-someone-else) dem Team gehören: Sie funktionieren danach nicht mehr, und wie viele [Kompetenzen](/de/platform/admin/governance/competences#grant-a-capability-to-a-team) dem Team zugewiesen sind: Sie werden mit ihm widerrufen. Weise Arbeit, deren Zugriff eingeschränkt bleiben muss, vor dem Bestätigen neu zu.
 
 <Warning>
 
@@ -66,6 +68,6 @@ Das Löschen eines Teams lässt sich nicht rückgängig machen. Jedes Projekt, j
 
 </Warning>
 
-Das Team, seine Mitgliedschaften, seine Einträge an jeder Ressource und eine Verknüpfung zum Identity Provider verschwinden in einem Schritt; ein halb gelöschtes Team kann nicht zurückbleiben. Eine Konversation verliert ihre Teamzuweisung. Ist auch keine Person zugewiesen, kehrt sie zur Sichtung durch die Administration zurück. Auch Dateiimporte verlieren diesen Teambezug. Die Konten der Teammitglieder werden nicht gelöscht.
+Das Team, seine Mitgliedschaften, seine Einträge an jeder Ressource und eine Verknüpfung zum Identity Provider verschwinden in einem Schritt, der auch die Kompetenz-Zuweisungen des Teams widerruft; ein halb gelöschtes Team kann nicht zurückbleiben. Das [Kompetenzregister](/de/platform/admin/governance/competences#read-the-register) behält diese Zuweisungen als Verlauf, unter **Gelöschtes Team**. Eine Konversation verliert ihre Teamzuweisung. Ist auch keine Person zugewiesen, kehrt sie zur Sichtung durch die Administration zurück. Auch Dateiimporte verlieren diesen Teambezug. Die Konten der Teammitglieder werden nicht gelöscht.
 
 Bei Teams aus [Enterprise SSO oder SCIM](/de/platform/admin/enterprise-sso) gelten zusätzlich die Bereitstellungsregeln des Identitätsanbieters. Prüfe diese Quelle, bevor du eine lokale Änderung vornimmst, die dauerhaft gelten soll.

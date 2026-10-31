@@ -6,8 +6,10 @@
  * `COMPETENCE_CAPABILITY_UNKNOWN` and the refusal is audited the way a denied
  * grant is, while a known capability grants like any competence — and only
  * an admin grants it, so a member cannot delegate the right to itself.
- * `holdsCapability` vouches only for the one live, unexpired grant of the
- * asking organization's member.
+ * `holdsCapability` vouches only for a live, unexpired grant of the asking
+ * organization's member — their own, or one of a team an admin added them
+ * to. A team holds a platform capability only, never a qualification, and
+ * never while an identity provider syncs its roster.
  */
 
 import type { Sql } from 'postgres';
@@ -18,6 +20,7 @@ import {
   grantCompetence,
   holdsCapability,
   PLATFORM_CAPABILITIES,
+  revokeCompetence,
 } from './competence.ts';
 
 const { createAuditLog } = vi.hoisted(() => ({
@@ -31,7 +34,8 @@ interface Captured {
 }
 
 /** Tagged-template Sql double answering a read by its text; `begin` runs the
- * callback on the same double. */
+ * callback on the same double. A template that is no statement (a condition
+ * such as `vouchesForUser`) is a fragment the enclosing statement binds. */
 function fakeSql(answer: (text: string) => object[] | undefined): {
   sql: Sql;
   queries: Captured[];
@@ -39,6 +43,9 @@ function fakeSql(answer: (text: string) => object[] | undefined): {
   const queries: Captured[] = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('$?').replace(/\s+/g, ' ').trim();
+    if (!/^(SELECT|INSERT|UPDATE|DELETE|WITH)\b/.test(text)) {
+      return { fragment: text, values };
+    }
     queries.push({ text, values });
     return Promise.resolve(answer(text) ?? []);
   };
@@ -172,7 +179,7 @@ describe('holdsCapability [GOV-R13]', () => {
     return { holds, queries };
   };
 
-  it('reads the one unrevoked grant of this organization’s member', async () => {
+  it('reads a live grant of this organization’s member, their own or their team’s', async () => {
     const { holds, queries } = await read([
       { expiresAt: null, revokedAt: null },
     ]);
@@ -180,12 +187,20 @@ describe('holdsCapability [GOV-R13]', () => {
     expect(queries).toHaveLength(1);
     const [query] = queries;
     expect(query?.text).toContain(
-      'FROM app.competence_records WHERE org_id = $? AND user_id = $? AND competence = $? AND revoked_at_ms IS NULL LIMIT 1',
+      'FROM app.competence_records c WHERE c.org_id = $? AND c.competence = $? AND c.revoked_at_ms IS NULL AND (c.expires_at_ms IS NULL OR c.expires_at_ms > $?) AND $? LIMIT 1',
     );
     expect(query?.values).toEqual([
       'org-1',
-      'u-1',
       'tale:notifications.export',
+      NOW,
+      // `vouchesForUser`: the member's own grant, or a grant of a team they
+      // belong to through a membership an admin made [GOV-R20].
+      {
+        fragment: expect.stringMatching(
+          /^\( c\.user_id = \$\? OR \(c\.team_id IS NOT NULL AND EXISTS \( SELECT 1 FROM "teamMember" tm JOIN app\.admin_added_team_members a ON a\.team_member_id = tm\."id" WHERE tm\."teamId" = c\.team_id AND tm\."userId" = \$\? AND a\.org_id = c\.org_id \)\) \)$/,
+        ),
+        values: ['u-1', 'u-1'],
+      },
     ]);
   });
 
@@ -200,6 +215,242 @@ describe('holdsCapability [GOV-R13]', () => {
     // A revoked row never vouches, should one ever reach the check.
     expect((await read([{ expiresAt: null, revokedAt: NOW - 1 }])).holds).toBe(
       false,
+    );
+  });
+});
+
+/** The register's answers for a team of `org-1`: `team` is what the team
+ * read finds (none: no such team in the organization). */
+function teamRegister(
+  team: { name: string; synced: boolean } | undefined,
+  inserted = true,
+) {
+  return (text: string): object[] | undefined => {
+    if (text.startsWith('SELECT t."name"')) return team ? [team] : [];
+    if (text.startsWith('INSERT INTO app.competence_records')) {
+      return inserted ? [{ id: 'record-7' }] : [];
+    }
+    return undefined;
+  };
+}
+
+describe('grantCompetence — a team holds a platform capability [GOV-R19]', () => {
+  it('grants it to the team, locked against its deletion, and audits the grant per team', async () => {
+    const { sql, queries } = fakeSql(
+      teamRegister({ name: 'Platform', synced: false }),
+    );
+    await expect(
+      grantCompetence(sql, {
+        organizationId: 'org-1',
+        actor: ADMIN,
+        teamId: 'team-7',
+        competence: 'tale:models.api',
+        evidence: 'the platform team runs the model gateway',
+      }),
+    ).resolves.toEqual({ recordId: 'record-7' });
+    // No member read: the team is the holder.
+    expect(queries.some((q) => q.text.includes('FROM "member"'))).toBe(false);
+    const teamRead = queries.find((q) => q.text.startsWith('SELECT t."name"'));
+    expect(teamRead?.text).toContain(
+      'FROM "team" t WHERE t."id" = $? AND t."organizationId" = $? FOR SHARE OF t',
+    );
+    expect(teamRead?.values).toEqual([
+      // The synced test (`teamIsSyncedSql`), bound into the read.
+      {
+        fragment: expect.stringContaining('app.sso_provisioning_links'),
+        values: [],
+      },
+      'team-7',
+      'org-1',
+    ]);
+    // A re-grant after expiry retires the team's expired row, not a member's.
+    const retire = queries.find((q) => q.text.startsWith('UPDATE'));
+    expect(retire?.values).toContainEqual({
+      fragment: 'team_id = $?',
+      values: ['team-7'],
+    });
+    const insert = queries.find((q) =>
+      q.text.startsWith('INSERT INTO app.competence_records'),
+    );
+    expect(insert?.text).toContain(
+      'org_id, user_id, team_id, competence, granted_by',
+    );
+    expect(insert?.values.slice(0, 5)).toEqual([
+      'org-1',
+      null,
+      'team-7',
+      'tale:models.api',
+      'admin-1',
+    ]);
+    expect(createAuditLog).toHaveBeenCalledTimes(1);
+    expect(createAuditLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'competence_granted',
+        resourceId: 'record-7',
+        resourceName: 'tale:models.api',
+        newState: {
+          teamId: 'team-7',
+          teamName: 'Platform',
+          competence: 'tale:models.api',
+          grantedBy: 'admin-1',
+        },
+      }),
+    );
+  });
+
+  it.each(['iso-13485-auditor', 'tax-reviewer'])(
+    'refuses the qualification %j for a team before any read',
+    async (competence) => {
+      const { sql, queries } = fakeSql(
+        teamRegister({ name: 'Platform', synced: false }),
+      );
+      await expect(
+        grantCompetence(sql, {
+          organizationId: 'org-1',
+          actor: ADMIN,
+          teamId: 'team-7',
+          competence,
+        }),
+      ).rejects.toMatchObject({
+        code: 'COMPETENCE_TEAM_CAPABILITY_ONLY',
+        status: 400,
+      });
+      expect(queries).toEqual([]);
+      expect(createAuditLog).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses a team an identity provider syncs, and writes nothing', async () => {
+    const { sql, queries } = fakeSql(
+      teamRegister({ name: 'Department.Platform', synced: true }),
+    );
+    await expect(
+      grantCompetence(sql, {
+        organizationId: 'org-1',
+        actor: ADMIN,
+        teamId: 'team-7',
+        competence: 'tale:models.api',
+      }),
+    ).rejects.toMatchObject({ code: 'COMPETENCE_TEAM_SYNCED', status: 409 });
+    expect(queries.map((q) => q.text.split(' ')[0])).toEqual(['SELECT']);
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('refuses a team this organization does not have', async () => {
+    const { sql, queries } = fakeSql(teamRegister(undefined));
+    await expect(
+      grantCompetence(sql, {
+        organizationId: 'org-1',
+        actor: ADMIN,
+        teamId: 'team-of-org-2',
+        competence: 'tale:models.api',
+      }),
+    ).rejects.toMatchObject({ code: 'COMPETENCE_TEAM_NOT_FOUND', status: 404 });
+    expect(queries.map((q) => q.text.split(' ')[0])).toEqual(['SELECT']);
+  });
+
+  it('refuses a second live grant of the competence to the team', async () => {
+    const { sql } = fakeSql(
+      teamRegister({ name: 'Platform', synced: false }, false),
+    );
+    await expect(
+      grantCompetence(sql, {
+        organizationId: 'org-1',
+        actor: ADMIN,
+        teamId: 'team-7',
+        competence: 'tale:models.api',
+      }),
+    ).rejects.toMatchObject({
+      code: 'COMPETENCE_ALREADY_GRANTED',
+      status: 409,
+      message: expect.stringContaining('this team already holds'),
+    });
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('refuses a non-admin, audited, before reading the team', async () => {
+    const { sql, queries } = fakeSql(
+      teamRegister({ name: 'Platform', synced: false }),
+    );
+    await expect(
+      grantCompetence(sql, {
+        organizationId: 'org-1',
+        actor: { userId: 'u-1', role: 'member' },
+        teamId: 'team-7',
+        competence: 'tale:models.api',
+      }),
+    ).rejects.toMatchObject({ code: 'COMPETENCE_FORBIDDEN', status: 403 });
+    expect(queries).toEqual([]);
+    expect(createAuditLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ action: 'competence_grant_denied' }),
+    );
+  });
+});
+
+describe('revokeCompetence — a team grant [GOV-R19]', () => {
+  it('revokes it and audits the revocation per team', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith('SELECT competence')) {
+        return [
+          {
+            competence: 'tale:models.api',
+            userId: null,
+            teamId: 'team-7',
+            revokedAt: null,
+          },
+        ];
+      }
+      if (text.startsWith('SELECT "name" FROM "team"')) {
+        return [{ name: 'Platform' }];
+      }
+      return undefined;
+    });
+    await revokeCompetence(sql, {
+      organizationId: 'org-1',
+      actor: ADMIN,
+      recordId: 'record-7',
+    });
+    expect(queries.some((q) => q.text.startsWith('UPDATE'))).toBe(true);
+    expect(createAuditLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        action: 'competence_revoked',
+        resourceId: 'record-7',
+        resourceName: 'tale:models.api',
+        newState: {
+          teamId: 'team-7',
+          teamName: 'Platform',
+          revokedBy: 'admin-1',
+        },
+      }),
+    );
+  });
+
+  it('still names the team by id once the team is gone', async () => {
+    const { sql } = fakeSql((text) =>
+      text.startsWith('SELECT competence')
+        ? [
+            {
+              competence: 'tale:models.api',
+              userId: null,
+              teamId: 'team-7',
+              revokedAt: null,
+            },
+          ]
+        : undefined,
+    );
+    await revokeCompetence(sql, {
+      organizationId: 'org-1',
+      actor: ADMIN,
+      recordId: 'record-7',
+    });
+    expect(createAuditLog).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        newState: { teamId: 'team-7', teamName: null, revokedBy: 'admin-1' },
+      }),
     );
   });
 });

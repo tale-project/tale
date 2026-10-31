@@ -44,3 +44,5 @@ providers:
     maxResponseBytes: Maximale Antwortgrösse (Bytes)
 teams:
   membershipRefreshConflict: Die Teammitglieder wurden in einer anderen Sitzung geändert. Schliesse diesen Dialog und öffne ihn erneut, um die aktuelle Liste zu prüfen.
+  deleteImpact:
+    competenceGrants: '{count, plural, one {# Kompetenz, die diesem Team zugewiesen ist, wird widerrufen: Seine Mitglieder verlieren sie, ausser sie haben sie selbst.} other {# Kompetenzen, die diesem Team zugewiesen sind, werden widerrufen: Seine Mitglieder verlieren sie, ausser sie haben sie selbst.}}'

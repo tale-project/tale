@@ -65,3 +65,6 @@ personalization:
     description: Wenn aktiviert, sind benutzerdefinierte Anweisungen für alle
       Mitglieder dieser Organisation standardmässig aktiv. Mitglieder, die sich
       explizit dagegen entscheiden, behalten ihre Wahl.
+competences:
+  revokeDialog:
+    descriptionTeam: 'Die Mitglieder von {team} verlieren "{competence}" in dieser Organisation sofort, ausser sie haben sie selbst. Die Zuweisung bleibt als Verlauf im Register.'

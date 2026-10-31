@@ -8,6 +8,8 @@ import {
 } from '../../../lib/shared/competences';
 import { findOrganizationMember, isAdminRole } from '../../auth/membership.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { teamIsSyncedSql } from '../teams/synced.ts';
+import { vouchesForUser } from './vouches-for.ts';
 
 /**
  * Competence records — per-member grants an organization admin makes,
@@ -27,6 +29,13 @@ import { createAuditLog } from '../audit_logs/service.ts';
  * Removing the membership revokes EVERY live grant the member holds here —
  * capabilities and qualifications alike (`removeMembershipCascade`) — so a
  * re-added member starts with none of them.
+ *
+ * A grant may name a TEAM instead of a member, for a platform capability
+ * only: the team's members hold it while they are in the team, through a
+ * membership an admin made (`vouchesForUser`), and deleting the team revokes
+ * it (`retireTeamScopes`). A qualification stays personal — it is evidence
+ * about one person — and a team an identity provider syncs cannot be named,
+ * since its roster is the provider's to change.
  *
  * Three rules carry over from 0.4 verbatim:
  *
@@ -66,7 +75,12 @@ export class CompetenceError extends Error {
 
 export interface CompetenceRecord {
   id: string;
-  userId: string;
+  /** The member who holds it; null on a team grant. */
+  userId: string | null;
+  /** The team whose members hold it; null on a member's grant. */
+  teamId: string | null;
+  /** The team's name; null on a member's grant and once the team is gone. */
+  teamName: string | null;
   competence: string;
   grantedBy: string;
   grantedAt: number;
@@ -77,7 +91,11 @@ export interface CompetenceRecord {
 }
 
 const COLUMNS = `
-  id, user_id AS "userId", competence, granted_by AS "grantedBy",
+  id, user_id AS "userId", team_id AS "teamId",
+  (SELECT t."name" FROM "team" t
+    WHERE t."id" = competence_records.team_id
+      AND t."organizationId" = competence_records.org_id) AS "teamName",
+  competence, granted_by AS "grantedBy",
   granted_at_ms::float8 AS "grantedAt", expires_at_ms::float8 AS "expiresAt",
   revoked_at_ms::float8 AS "revokedAt", revoked_by AS "revokedBy", evidence
 `;
@@ -138,10 +156,10 @@ export async function holdsAllCompetences(
 
 /**
  * Whether `userId` holds the platform `capability` in `organizationId` at
- * `now`: its one unrevoked grant (the partial unique index allows no second)
- * has not expired. Scoped by organization — a grant in another tenant
- * confers nothing here — and blind to role: the door decides whether a role
- * already carries the right.
+ * `now`: an unrevoked, unexpired grant of their own, or of a team they
+ * belong to through a membership an admin made (`vouchesForUser`). Scoped by
+ * organization — a grant in another tenant confers nothing here — and blind
+ * to role: the door decides whether a role already carries the right.
  */
 export async function holdsCapability(
   sql: Sql | TransactionSql,
@@ -153,11 +171,13 @@ export async function holdsCapability(
   const rows = await sql<
     { expiresAt: number | null; revokedAt: number | null }[]
   >`
-    SELECT expires_at_ms::float8 AS "expiresAt",
-           revoked_at_ms::float8 AS "revokedAt"
-    FROM app.competence_records
-    WHERE org_id = ${organizationId} AND user_id = ${userId}
-      AND competence = ${capability} AND revoked_at_ms IS NULL
+    SELECT c.expires_at_ms::float8 AS "expiresAt",
+           c.revoked_at_ms::float8 AS "revokedAt"
+    FROM app.competence_records c
+    WHERE c.org_id = ${organizationId} AND c.competence = ${capability}
+      AND c.revoked_at_ms IS NULL
+      AND (c.expires_at_ms IS NULL OR c.expires_at_ms > ${now})
+      AND ${vouchesForUser(sql, userId)}
     LIMIT 1
   `;
   const record = rows[0];
@@ -230,16 +250,20 @@ async function requireAdminForWrite(
   );
 }
 
+/** Who a grant names: one member, or one team (a platform capability only). */
+export type CompetenceHolder =
+  | { userId: string; teamId?: undefined }
+  | { teamId: string; userId?: undefined };
+
 export async function grantCompetence(
   sql: Sql,
   args: {
     organizationId: string;
     actor: AdminActor;
-    userId: string;
     competence: string;
     expiresAt?: number;
     evidence?: string;
-  },
+  } & CompetenceHolder,
 ): Promise<{ recordId: string }> {
   const competence = args.competence.trim();
   await requireAdminForWrite(
@@ -277,10 +301,20 @@ export async function grantCompetence(
       400,
     );
   }
-  if (args.userId.trim().length === 0) {
+  const teamId = args.teamId?.trim();
+  if (teamId === undefined && (args.userId ?? '').trim().length === 0) {
     throw new CompetenceError(
       'COMPETENCE_USER_REQUIRED',
       'the grant must name the member who holds the competence',
+      400,
+    );
+  }
+  // A qualification is evidence about one person, which a review policy asks
+  // of the one who approves; a team holds platform capabilities only.
+  if (teamId !== undefined && !KNOWN_PLATFORM_CAPABILITIES.has(competence)) {
+    throw new CompetenceError(
+      'COMPETENCE_TEAM_CAPABILITY_ONLY',
+      `a team can hold a platform capability only (${PLATFORM_CAPABILITIES.join(', ')}); grant a qualification to each member`,
       400,
     );
   }
@@ -302,36 +336,28 @@ export async function grantCompetence(
   }
 
   return sql.begin(async (tx) => {
-    // The register is the org's qualification ledger: a grant to someone who
-    // is not a member is fail-safe (`holdsAllCompetences` scopes by org and
-    // user) but pollutes it, and it reads as a qualification that is not one.
-    if (
-      (await findOrganizationMember(tx, args.organizationId, args.userId)) ===
-      null
-    ) {
-      throw new CompetenceError(
-        'COMPETENCE_USER_NOT_MEMBER',
-        'the named user is not a member of this organization',
-        400,
-      );
-    }
+    const holder =
+      teamId === undefined
+        ? await memberHolder(tx, args.organizationId, args.userId ?? '')
+        : await teamHolder(tx, args.organizationId, teamId);
     // An EXPIRED live row still occupies the partial-unique slot; retire it
     // so a re-grant after expiry is an ordinary act rather than a refusal
     // the admin cannot resolve (0.4 refused only on an ACTIVE duplicate).
     await tx`
       UPDATE app.competence_records
       SET revoked_at_ms = ${now}, revoked_by = 'system'
-      WHERE org_id = ${args.organizationId} AND user_id = ${args.userId}
+      WHERE org_id = ${args.organizationId}
+        AND ${holderColumn(tx, holder)}
         AND competence = ${competence} AND revoked_at_ms IS NULL
         AND expires_at_ms IS NOT NULL AND expires_at_ms <= ${now}
     `;
     const inserted = await tx<{ id: string }[]>`
       INSERT INTO app.competence_records (
-        org_id, user_id, competence, granted_by, granted_at_ms,
+        org_id, user_id, team_id, competence, granted_by, granted_at_ms,
         expires_at_ms, evidence
       ) VALUES (
-        ${args.organizationId}, ${args.userId}, ${competence},
-        ${args.actor.userId}, ${now}, ${args.expiresAt ?? null},
+        ${args.organizationId}, ${holder.userId}, ${holder.teamId},
+        ${competence}, ${args.actor.userId}, ${now}, ${args.expiresAt ?? null},
         ${evidence !== undefined && evidence !== '' ? evidence : null}
       )
       ON CONFLICT DO NOTHING
@@ -341,7 +367,7 @@ export async function grantCompetence(
     if (recordId === undefined) {
       throw new CompetenceError(
         'COMPETENCE_ALREADY_GRANTED',
-        'this member already holds an active grant of this competence — revoke it first to re-grant',
+        `this ${holder.teamId === null ? 'member' : 'team'} already holds an active grant of this competence — revoke it first to re-grant`,
         409,
       );
     }
@@ -359,7 +385,7 @@ export async function grantCompetence(
       resourceName: competence,
       status: 'success',
       newState: {
-        userId: args.userId,
+        ...holderState(holder),
         competence,
         grantedBy: args.actor.userId,
         ...(args.expiresAt !== undefined ? { expiresAt: args.expiresAt } : {}),
@@ -367,6 +393,96 @@ export async function grantCompetence(
     });
     return { recordId };
   });
+}
+
+/** The holder a grant writes: exactly one of the two ids is set (the
+ * `competence_records_one_holder` check). */
+type ResolvedHolder =
+  | { userId: string; teamId: null; teamName: null }
+  | { userId: null; teamId: string; teamName: string };
+
+/** The register row's holder column as a condition. */
+function holderColumn(sql: TransactionSql, holder: ResolvedHolder) {
+  return holder.teamId === null
+    ? sql`user_id = ${holder.userId}`
+    : sql`team_id = ${holder.teamId}`;
+}
+
+/** What the audit row names as the holder: the member, or the team. */
+function holderState(holder: {
+  userId: string | null;
+  teamId: string | null;
+  teamName: string | null;
+}): Record<string, string | null> {
+  return holder.teamId === null
+    ? { userId: holder.userId }
+    : { teamId: holder.teamId, teamName: holder.teamName };
+}
+
+/** A team's name for the audit row; null once the team is gone. */
+async function teamName(
+  tx: TransactionSql,
+  organizationId: string,
+  teamId: string,
+): Promise<string | null> {
+  const rows = await tx<{ name: string }[]>`
+    SELECT "name" FROM "team"
+    WHERE "id" = ${teamId} AND "organizationId" = ${organizationId}
+  `;
+  return rows[0]?.name ?? null;
+}
+
+async function memberHolder(
+  tx: TransactionSql,
+  organizationId: string,
+  userId: string,
+): Promise<ResolvedHolder> {
+  // The register is the org's qualification ledger: a grant to someone who
+  // is not a member is fail-safe (`holdsAllCompetences` scopes by org and
+  // user) but pollutes it, and it reads as a qualification that is not one.
+  if ((await findOrganizationMember(tx, organizationId, userId)) === null) {
+    throw new CompetenceError(
+      'COMPETENCE_USER_NOT_MEMBER',
+      'the named user is not a member of this organization',
+      400,
+    );
+  }
+  return { userId, teamId: null, teamName: null };
+}
+
+async function teamHolder(
+  tx: TransactionSql,
+  organizationId: string,
+  teamId: string,
+): Promise<ResolvedHolder> {
+  // FOR SHARE: a team deletion running at the same time either waits for this
+  // grant, and then revokes it with the team (`retireTeamScopes`), or deletes
+  // the team first, and this grant finds none.
+  const teams = await tx<{ name: string; synced: boolean }[]>`
+    SELECT t."name", ${teamIsSyncedSql(tx)} AS synced
+    FROM "team" t
+    WHERE t."id" = ${teamId} AND t."organizationId" = ${organizationId}
+    FOR SHARE OF t
+  `;
+  const team = teams[0];
+  if (team === undefined) {
+    throw new CompetenceError(
+      'COMPETENCE_TEAM_NOT_FOUND',
+      'no such team in this organization',
+      404,
+    );
+  }
+  // An identity provider owns a synced team's roster: a grant to it would
+  // read as a right its synced members hold, which only an admin's own
+  // memberships carry.
+  if (team.synced) {
+    throw new CompetenceError(
+      'COMPETENCE_TEAM_SYNCED',
+      `"${team.name}" is synced from your identity provider, which manages its members — grant to a team an admin manages, or to each member`,
+      409,
+    );
+  }
+  return { userId: null, teamId, teamName: team.name };
 }
 
 export async function revokeCompetence(
@@ -383,9 +499,14 @@ export async function revokeCompetence(
   const now = Date.now();
   await sql.begin(async (tx) => {
     const rows = await tx<
-      { competence: string; userId: string; revokedAt: number | null }[]
+      {
+        competence: string;
+        userId: string | null;
+        teamId: string | null;
+        revokedAt: number | null;
+      }[]
     >`
-      SELECT competence, user_id AS "userId",
+      SELECT competence, user_id AS "userId", team_id AS "teamId",
              revoked_at_ms::float8 AS "revokedAt"
       FROM app.competence_records
       WHERE id = ${args.recordId} AND org_id = ${args.organizationId}
@@ -424,7 +545,16 @@ export async function revokeCompetence(
       resourceId: args.recordId,
       resourceName: record.competence,
       status: 'success',
-      newState: { userId: record.userId, revokedBy: args.actor.userId },
+      newState: {
+        ...holderState({
+          ...record,
+          teamName:
+            record.teamId === null
+              ? null
+              : await teamName(tx, args.organizationId, record.teamId),
+        }),
+        revokedBy: args.actor.userId,
+      },
     });
   });
 }

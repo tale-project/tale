@@ -371,6 +371,7 @@ teams:
     summary: "Cette équipe compte {members, plural, one {# membre} other {# membres}}. Elle fait partie de l'audience de {projects, plural, one {# projet} other {# projets}}, {folders, plural, one {# dossier} other {# dossiers}} et {documents, plural, one {# document} other {# documents}}, et {conversations, plural, one {# conversation est} other {# conversations sont}} dans sa file."
     becomeOrgWide: "{count, plural, one {# élément n'a pas d'autre équipe et deviendra visible} other {# éléments n'ont pas d'autre équipe et deviendront visibles}} pour toute l'organisation."
     apiKeys: '{count, plural, one {# clé API appartient à cette équipe et cessera de fonctionner.} other {# clés API appartiennent à cette équipe et cesseront de fonctionner.}}'
+    competenceGrants: '{count, plural, one {# compétence attribuée à cette équipe sera révoquée : ses membres la perdent, sauf s''ils la détiennent eux-mêmes.} other {# compétences attribuées à cette équipe seront révoquées : ses membres les perdent, sauf s''ils les détiennent eux-mêmes.}}'
   description: Crée et gère des équipes au sein de ton organisation pour un
     contrôle d'accès granulaire
 credentials:
