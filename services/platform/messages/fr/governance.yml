@@ -1657,7 +1657,7 @@ dataSubjectRequests:
     automationAuthorship: Versions et déploiements d’automatisations
     reviewDecisions: Décisions de relecture
     mentions: Mentions dans le texte des tâches
-    authState: Tentatives de connexion et de double authentification
+    authState: Tentatives de connexion et de double facteur
     auditScrub: "Entrées du journal d'audit"
   legalHoldBlock:
     title: Effacement bloqué par une rétention légale

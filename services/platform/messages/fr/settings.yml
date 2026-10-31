@@ -1561,9 +1561,9 @@ logs:
       tts.synthesize_denied: Synthèse vocale refusée
       tts.capability_probe_denied: Test de synthèse vocale refusé
       remove_recommended_product: Produit recommandé retiré
-      2fa_enrolled: Authentification à deux facteurs activée
-      2fa_disabled: Authentification à deux facteurs désactivée
-      2fa_reset_by_admin: Authentification à deux facteurs réinitialisée par l'administrateur
+      2fa_enrolled: Authentification à double facteur activée
+      2fa_disabled: Authentification à double facteur désactivée
+      2fa_reset_by_admin: Authentification à double facteur réinitialisée par l'administrateur
       passkey_added: Passkey enregistré
       passkey_removed: Passkey supprimé
       passkey_revoked_by_admin: Passkey supprimé par l'administrateur
@@ -1687,7 +1687,7 @@ logs:
       video_link: Lien vidéo
       location_request: Demande de localisation
       document_write: Écriture de document
-      twoFactorAuth: Authentification à deux facteurs
+      twoFactorAuth: Authentification à double facteur
       user: Utilisateur
       thread: Chat
       file: Fichier

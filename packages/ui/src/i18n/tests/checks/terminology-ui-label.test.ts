@@ -511,6 +511,98 @@ describe('terminology UI labels', () => {
     ).toEqual([]);
   });
 
+  const shippedTwoFactor = (texts: Record<string, string>) =>
+    terminologyUiLabel
+      .run(context(null, texts))
+      .filter(({ detail }) =>
+        detail.includes('UI-label term "Two-factor authentication"'),
+      )
+      .map(({ locale, line, detail, suggest }) => ({
+        locale,
+        line,
+        detail,
+        suggest,
+      }));
+
+  it('rejects the French two-factor names that #4350 replaced', () => {
+    const nonShipped = (name: string) =>
+      `"${name}" is not the shipped name of UI-label term "Two-factor authentication"`;
+    const french = 'use "Authentification à double facteur"';
+    expect(
+      shippedTwoFactor({
+        fr: [
+          'Authentification à deux facteurs activée',
+          '#### Connexion à deux facteurs imposée',
+          'Il se peut que tu doives reconfigurer la double authentification.',
+          'Double authentification exigée',
+          'Active une double authentification pour chaque compte.',
+          'Two-factor authentication',
+        ].join('\n'),
+        de: 'Two-factor authentication ist aktiv.',
+      }),
+    ).toEqual([
+      {
+        locale: 'de',
+        line: 1,
+        detail:
+          'UI-label term "Two-factor authentication" must match shipped string',
+        suggest: 'use "Zwei-Faktor-Authentifizierung"',
+      },
+      {
+        locale: 'fr',
+        line: 1,
+        detail: nonShipped('à deux facteurs'),
+        suggest: french,
+      },
+      {
+        locale: 'fr',
+        line: 2,
+        detail: nonShipped('à deux facteurs'),
+        suggest: french,
+      },
+      {
+        locale: 'fr',
+        line: 3,
+        detail: nonShipped('double authentification'),
+        suggest: french,
+      },
+      {
+        locale: 'fr',
+        line: 4,
+        detail: nonShipped('Double authentification'),
+        suggest: french,
+      },
+      {
+        locale: 'fr',
+        line: 5,
+        detail: nonShipped('double authentification'),
+        suggest: french,
+      },
+      {
+        locale: 'fr',
+        line: 6,
+        detail:
+          'UI-label term "Two-factor authentication" must match shipped string',
+        suggest: french,
+      },
+    ]);
+  });
+
+  it('keeps the shipped two-factor names and ordinary French factors', () => {
+    expect(
+      shippedTwoFactor({
+        fr: [
+          'Authentification à double facteur',
+          'Active le double facteur pour ton compte.',
+          'Un compte sans aucun des deux facteurs est renvoyé vers la configuration.',
+          'Les deux facteurs restent liés au compte.',
+          'L’URL est déjà signée et le stockage refuse une double authentification.',
+        ].join('\n'),
+        de: 'Die Zwei-Faktor-Authentifizierung ist aktiv.',
+      }),
+    ).toEqual([]);
+  });
+
   // #4484: Google's product and a chat app's workspace keep the English
   // word, while a Tale workspace is an `Arbeitsbereich`.
   it('skips a match inside an allowed name of its locale only', () => {

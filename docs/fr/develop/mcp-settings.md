@@ -130,7 +130,7 @@ Le risque d’un plan est le plus élevé entre le risque de base de son type et
 
 | Effet | Risque | Quand un plan le nomme |
 | --- | --- | --- |
-| `may-lock-out-members` | critical | Le verrouillage de connexion est actif après la modification, la rotation des mots de passe commence ou se raccourcit, ou l’authentification à deux facteurs devient plus stricte |
+| `may-lock-out-members` | critical | Le verrouillage de connexion est actif après la modification, la rotation des mots de passe commence ou se raccourcit, ou l’authentification à double facteur devient plus stricte |
 | `signs-out-members` | critical | Le délai d’inactivité est activé ou raccourci |
 | `removes-human-approval` | critical | Une règle d’approbation ou une exigence de relecture ne demande plus l’avis d’une personne, ou une automatisation peut faire une écriture sans approbation |
 | `changes-serving-account` | high | Le point d’accès d’un fournisseur change, ou d’autres identifiants servent ses requêtes |

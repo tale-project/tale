@@ -437,7 +437,7 @@ L’environnement de la destination choisit le bloc : celui dont les identifiant
 
 Une déclaration qui nomme `identity.oidc` gère aussi la connexion déjà en place. Elle la lit d’abord et reconnaît deux connexions comme les siennes : la connexion Entra gérée et la connexion OpenID Connect générique pour l’émetteur déclaré. Elle remplace l’une par l’autre, et `ssoEnabled: false` retire l’une ou l’autre. Toute autre connexion, c’est-à-dire un autre fournisseur, un autre émetteur ou un émetteur que cet hôte ne fournit pas, arrête le déploiement avec un message qui nomme le fournisseur ; rien n’est écrit ni retiré. Une déclaration sans `identity.oidc` garde son comportement antérieur et ne reconnaît que la connexion Entra gérée.
 
-#### Connexion à deux facteurs imposée
+#### Connexion à double facteur imposée
 
 Un déploiement géré se connecte en tant qu’opérateur avec le seul mot de passe. Si l’organisation impose `two_factor_policy`, donne à l’opérateur un passkey et jamais d’application d’authentification : la connexion par mot de passe d’un compte doté d’une application d’authentification reçoit une demande de code, et un compte sans aucun des deux facteurs est renvoyé vers la configuration à la fin de sa période de grâce. La CLI s’arrête à l’une ou l’autre réponse et nomme celle qu’elle a reçue. Les personnes se connectent avec leurs propres comptes et peuvent utiliser l’un ou l’autre facteur.
 

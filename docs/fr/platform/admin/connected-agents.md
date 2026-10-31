@@ -53,7 +53,7 @@ Les trois premiers sont des niveaux : chacun s’ajoute au précédent. Les tro
 
 Les compétences concernées sont celles qui permettent de créer une clé API, comme **Appeler les modèles par l'API** ; [Compétences](/fr/platform/admin/governance/competences) les liste. Qui n’a pas le droit de connecter un agent dans une organisation voit pourquoi sur la page de consentement et ne peut pas la choisir.
 
-Tout accès qui va plus loin que **Lire et tester** et **Lire les paramètres** demande une connexion datant de moins de 24 heures. Si la tienne est plus ancienne, la page te demande d’abord ton mot de passe ; si ton compte se connecte via l’authentification de ton entreprise, elle te demande de te reconnecter. Dans les deux cas, ton choix est conservé. Les comptes dont l’adresse e-mail n’est pas confirmée, ou dont l’authentification à deux facteurs reste à activer, ne peuvent pas encore connecter d’agent.
+Tout accès qui va plus loin que **Lire et tester** et **Lire les paramètres** demande une connexion datant de moins de 24 heures. Si la tienne est plus ancienne, la page te demande d’abord ton mot de passe ; si ton compte se connecte via l’authentification de ton entreprise, elle te demande de te reconnecter. Dans les deux cas, ton choix est conservé. Les comptes dont l’adresse e-mail n’est pas confirmée, ou dont l’authentification à double facteur reste à activer, ne peuvent pas encore connecter d’agent.
 
 ## Consulter et déconnecter les agents
 
@@ -76,7 +76,7 @@ Pour déconnecter un agent, ouvre le menu de sa ligne et sélectionne **Déconne
 | Tu la déconnectes | par la personne qui l’a connecté |
 | Un propriétaire ou un Admin la déconnecte | par un Admin |
 | La personne quitte l’organisation ou en est retirée | fin de l’adhésion |
-| La personne change son mot de passe, ou un Admin le définit, retire son passkey ou réinitialise son authentification à deux facteurs | modification de la sécurité du compte |
+| La personne change son mot de passe, ou un Admin le définit, retire son passkey ou réinitialise son authentification à double facteur | modification de la sécurité du compte |
 | Une ancienne connexion a été réutilisée : un jeton de rafraîchissement présenté deux fois met fin à toutes les connexions de cette application pour cette personne | une ancienne connexion a été réutilisée |
 | L’enregistrement de l’application est supprimé | application supprimée |
 
@@ -88,7 +88,7 @@ Un agent resté inutilisé pendant 30 jours ne peut plus renouveler sa connexion
 | --- | --- |
 | L’agent dit qu’il a besoin d’une authentification | Lance sa commande de connexion, ou ouvre `/mcp` dans Claude Code, et termine les étapes dans le navigateur. |
 | La page de consentement dit que connecter un agent de code demande le rôle Propriétaire, Admin ou Développeur, ou une compétence | Demande le rôle ou la compétence à un Admin. |
-| La page de consentement dit que ton compte ne peut pas encore connecter d’agents | Confirme ton adresse e-mail ou active l’authentification à deux facteurs, puis relance depuis l’agent. |
+| La page de consentement dit que ton compte ne peut pas encore connecter d’agents | Confirme ton adresse e-mail ou active l’authentification à double facteur, puis relance depuis l’agent. |
 | La page de consentement dit que la demande a expiré | Relance la connexion depuis l’agent. |
 | L’agent peut lire mais pas enregistrer ni mettre en service | Il a moins d’accès que l’appel n’en demande. Reconnecte-le et autorise davantage ; **Modifier les automatisations** et **Modifier et mettre en service** ne sont possibles que pour les propriétaires, les admins et les développeurs. |
 | Un appel est refusé avec `ORG_MISMATCH` | L’appel nomme une autre organisation que celle à laquelle l’agent a été connecté. Connecte l’agent à chaque organisation où il doit travailler. |

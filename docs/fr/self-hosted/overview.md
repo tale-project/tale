@@ -41,7 +41,7 @@ Remplacer un conteneur ne préserve les données que si ses volumes persistants 
 
 `ENCRYPTION_SECRET_HEX` protège les identifiants des fournisseurs et les autres valeurs chiffrées dans la base applicative. SOPS et age protègent les fichiers de secrets associés aux configurations prises en charge, comme les mots de passe des stockages externes. Sauvegarde les clés nécessaires séparément des données qu’elles protègent : une nouvelle clé ne déchiffre pas les secrets existants.
 
-Better Auth fonctionne dans le backend. Connexion locale, authentification à deux facteurs, passkeys, SSO d’entreprise et authentification par en-têtes de confiance ont des prérequis différents. [Authentification](/fr/self-hosted/configuration/authentication) explique leur mise en place ; [Membres et rôles](/fr/platform/admin/members-and-roles) décrit les droits dans l’organisation.
+Better Auth fonctionne dans le backend. Connexion locale, authentification à double facteur, passkeys, SSO d’entreprise et authentification par en-têtes de confiance ont des prérequis différents. [Authentification](/fr/self-hosted/configuration/authentication) explique leur mise en place ; [Membres et rôles](/fr/platform/admin/members-and-roles) décrit les droits dans l’organisation.
 
 ## Prévoir la capacité et l’isolation
 

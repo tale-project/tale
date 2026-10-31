@@ -25,13 +25,13 @@ passkeys:
   description:
     Connecte-toi avec un passkey (Face ID, Touch ID, Windows Hello ou
     une clé de sécurité). Un passkey est résistant au phishing et satisfait
-    l'exigence de double authentification de ton organisation.
+    l'exigence de double facteur de ton organisation.
   addButton: Ajouter un passkey
   revokeButton: Supprimer
   revokeConfirmTitle: Supprimer le passkey ?
   revokeConfirmDescription: Cela supprime « {name} » qui ne pourra plus être
     utilisé pour se connecter. S'il s'agissait de ton seul second facteur, il
-    se peut que tu doives reconfigurer la double authentification.
+    se peut que tu doives reconfigurer l'authentification à double facteur.
   unnamed: Passkey
   registered: Passkey enregistré
   revoked: Passkey supprimé
