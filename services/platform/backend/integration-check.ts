@@ -50267,12 +50267,13 @@ async function checkChatDeferredAuto(
     );
   } finally {
     // Lift the pick pin — later checks (automation llm nodes, the
-    // governance scenario) bring their own policies.
+    // governance scenario) bring their own policies. Remove the file: a
+    // missing policy reads as open, while an `enabled: false` stub fails
+    // the strict schema read and closes model access instead.
     const configRoot = process.env.TALE_CONFIG_DIR ?? '';
-    await writeFile(
-      path.join(configRoot, orgSlug, 'governance', 'model-access.yml'),
-      'enabled: false\n',
-    );
+    await rm(path.join(configRoot, orgSlug, 'governance', 'model-access.yml'), {
+      force: true,
+    });
     const orgConfig = await import('./lib/org-config.ts');
     orgConfig.clearOrgConfigCaches();
     await new Promise<void>((resolve) => {
