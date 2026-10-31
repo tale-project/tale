@@ -128,6 +128,8 @@ items:
   pass: Passage {index}
   more: Afficher plus
   label: Éléments et passages de l’étape {step}
+  loadFailed: '{kind, select, passes {Impossible de charger les passages.} other {Impossible de charger les éléments.}}'
+  dataLoadFailed: '{kind, select, pass {Impossible de charger les données de ce passage.} other {Impossible de charger les données de cet élément.}}'
 list:
   caption: Exécutions de cette automatisation
   columns:

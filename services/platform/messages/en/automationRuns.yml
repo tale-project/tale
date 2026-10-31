@@ -128,6 +128,8 @@ items:
   pass: Pass {index}
   more: Show more
   label: Items and passes of {step}
+  loadFailed: "{kind, select, passes {Couldn't load the passes.} other {Couldn't load the items.}}"
+  dataLoadFailed: "{kind, select, pass {Couldn't load this pass's data.} other {Couldn't load this item's data.}}"
 list:
   caption: Runs of this automation
   columns:
