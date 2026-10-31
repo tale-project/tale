@@ -574,3 +574,85 @@ export async function dropOwnedDatabase(
     `[itest] dropped database ${name} in ${seconds.toFixed(1)} s of its ${deadlineText(OWNED_DATABASE_DDL_TIMEOUT_MS)} budget`,
   );
 }
+
+/** A tag's template, as postgres.js tells one from a helper call. */
+const isTemplate = (value: unknown): value is TemplateStringsArray =>
+  Array.isArray(value) && 'raw' in value;
+
+/** What {@link explainSentStatement} asks EXPLAIN for besides the plan. */
+export interface ExplainOptions {
+  /** Run the statement and count each node's rows (`ANALYZE`): the custom
+   * plan only, as the generic one has no values to run with. */
+  analyze?: boolean;
+  /** Each plan as one JSON document (`FORMAT JSON`) instead of text lines. */
+  json?: boolean;
+}
+
+/**
+ * The plans of the statement a read sends, as the read builds it — its
+ * fragments and its values: the custom plan, values bound, and the generic
+ * plan a prepared statement may settle on (`EXPLAIN (GENERIC_PLAN)`). The
+ * read runs in a transaction, on a tag that sends every other statement as it
+ * is; the one `sends` picks by its template's strings is planned both ways
+ * instead and answers no rows. On a harness's handful of rows the planner may
+ * prefer a sequential scan, or any index and a sort, so the transaction rules
+ * both out: the plan must take the rows, in their order, from an index, and
+ * shows whether one bounds and orders them.
+ */
+export async function explainSentStatement<Row extends object>(
+  sql: Sql,
+  sends: (template: string) => boolean,
+  read: (tx: TransactionSql) => Promise<unknown>,
+  options: ExplainOptions = {},
+): Promise<{ custom: Row[]; generic: Row[] }> {
+  const format = options.json === true ? ['FORMAT JSON'] : [];
+  const customOptions = [
+    ...(options.analyze === true ? ['ANALYZE'] : []),
+    ...format,
+  ];
+  const customPrefix =
+    customOptions.length === 0
+      ? 'EXPLAIN '
+      : `EXPLAIN (${customOptions.join(', ')}) `;
+  const genericPrefix = `EXPLAIN (${['GENERIC_PLAN', ...format].join(', ')}) `;
+  const plans: { custom: Row[]; generic: Row[] } = { custom: [], generic: [] };
+  await sql.begin(async (tx) => {
+    await tx`SET LOCAL enable_seqscan = off`;
+    await tx`SET LOCAL enable_sort = off`;
+    const explaining = new Proxy(tx, {
+      apply(target, thisArg: unknown, args: unknown[]): unknown {
+        const [strings, ...values] = args;
+        if (!isTemplate(strings) || !sends(strings.join(' '))) {
+          const passed: unknown = Reflect.apply(target, thisArg, args);
+          return passed;
+        }
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the read's own parameters, passed through
+        const parameters = values as never[];
+        const prefixed = Object.assign(
+          [`${customPrefix}${strings[0] ?? ''}`, ...strings.slice(1)],
+          {
+            raw: [
+              `${customPrefix}${strings.raw[0] ?? ''}`,
+              ...strings.raw.slice(1),
+            ],
+          },
+        );
+        const explain = async () => {
+          plans.custom = await target<Row[]>(
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template array with its raw strings, as postgres.js reads one
+            prefixed as unknown as TemplateStringsArray,
+            ...parameters,
+          );
+          const { string } = await target(strings, ...parameters).describe();
+          plans.generic = await target
+            .unsafe<Row[]>(`${genericPrefix}${string}`)
+            .simple();
+          return [];
+        };
+        return explain();
+      },
+    });
+    await read(explaining);
+  });
+  return plans;
+}
