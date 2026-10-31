@@ -1,20 +1,26 @@
 // @vitest-environment node
 
+import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
+import { mintCursorFor } from '../../../core/lib/signed_cursor.ts';
+import type { McpCaller } from '../caller.ts';
 import { refusalFromThrown } from '../refusals.ts';
 import {
   droppedMembers,
   identifySingle,
   identityOf,
+  type KeysetPosition,
   PAGE_CONFIG_CHARS,
   pageOf,
+  pageOfKeyset,
   pageOfRead,
   parseSettingsArgs,
   parseSettingsConfig,
   SettingsRefusalError,
 } from './kit.ts';
+import type { SettingsContext } from './registry.ts';
 
 function refused(run: () => unknown): SettingsRefusalError {
   try {
@@ -277,5 +283,160 @@ describe('pages of a listing read one resource at a time', () => {
       return resourceOf(id, 1);
     });
     expect(read).toEqual([0, 1, 2]);
+  });
+});
+
+describe('pages of a listing its store pages on a keyset', () => {
+  function contextIn(organizationId: string): SettingsContext {
+    const caller: McpCaller = {
+      organizationId,
+      orgSlug: 'acme',
+      userId: 'user-1',
+      role: 'member',
+      credential: { kind: 'api-key', apiKeyId: 'key-laptop' },
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test double: the pager reads no database
+    return { sql: {} as unknown as Sql, caller };
+  }
+  const ctx = contextIn('org-1');
+  /** Rows newest first, as the store orders them: row `n` stands at
+   * `1000 - n`, so a later row has an older position. */
+  const rows = Array.from({ length: 25 }, (_, index) => ({
+    id: `row-${String(index).padStart(2, '0')}`,
+    at: 1000 - index,
+    chars: 10,
+  }));
+  type Row = (typeof rows)[number];
+  /** The store: up to `limit` rows after `after`, and whether more follow. */
+  function store(of: readonly Row[], reads: (KeysetPosition | null)[] = []) {
+    return async (after: KeysetPosition | null, limit: number) => {
+      reads.push(after);
+      const rest = of.filter(
+        (row) =>
+          after === null ||
+          row.at < after.at ||
+          (row.at === after.at && row.id < after.id),
+      );
+      return {
+        rows: rest.slice(0, limit),
+        hasMore: rest.length > limit,
+      };
+    };
+  }
+  const resourceOf = (row: Row) => ({
+    id: row.id,
+    hash: `h-${row.id}`,
+    config: { text: 'x'.repeat(row.chars) },
+  });
+  const positionOf = (row: Row) => ({ at: row.at, id: row.id });
+  async function walk(of: readonly Row[], size: number) {
+    const pages: string[][] = [];
+    let cursor: string | undefined;
+    for (;;) {
+      const page = await pageOfKeyset(
+        ctx,
+        'project-instructions',
+        cursor,
+        size,
+        store(of),
+        resourceOf,
+        positionOf,
+      );
+      pages.push(page.items.map((item) => item.id ?? ''));
+      if (page.nextCursor === null) return pages;
+      cursor = page.nextCursor;
+    }
+  }
+
+  it('walks the listing page by page from the last resource each page holds [MCP-R35]', async () => {
+    const pages = await walk(rows, 10);
+    expect(pages.map((page) => page.length)).toEqual([10, 10, 5]);
+    expect(pages.flat()).toEqual(rows.map((row) => row.id));
+  });
+
+  it('answers no cursor once the store has nothing more', async () => {
+    const page = await pageOfKeyset(
+      ctx,
+      'project-instructions',
+      undefined,
+      10,
+      store(rows.slice(0, 10)),
+      resourceOf,
+      positionOf,
+    );
+    expect(page.items).toHaveLength(10);
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it('cuts a page once its configurations take the room an answer has, and goes on after the last one it holds [MCP-R35]', async () => {
+    const tenth = PAGE_CONFIG_CHARS / 10;
+    const heavy = rows.map((row) => ({ ...row, chars: tenth }));
+    const pages = await walk(heavy, 50);
+    expect(pages.map((page) => page.length)).toEqual([10, 10, 5]);
+    expect(pages.flat()).toEqual(rows.map((row) => row.id));
+  });
+
+  it('holds at least one resource on a page, even one that takes all the room [MCP-R35]', async () => {
+    const huge = rows.slice(0, 3).map(({ id, at }) => ({
+      id,
+      at,
+      chars: PAGE_CONFIG_CHARS * 2,
+    }));
+    expect(await walk(huge, 50)).toEqual([['row-00'], ['row-01'], ['row-02']]);
+  });
+
+  it('asks the store for one page after the position the cursor signs', async () => {
+    const reads: (KeysetPosition | null)[] = [];
+    const first = await pageOfKeyset(
+      ctx,
+      'project-instructions',
+      undefined,
+      3,
+      store(rows, reads),
+      resourceOf,
+      positionOf,
+    );
+    await pageOfKeyset(
+      ctx,
+      'project-instructions',
+      first.nextCursor ?? undefined,
+      3,
+      store(rows, reads),
+      resourceOf,
+      positionOf,
+    );
+    expect(reads).toEqual([null, { at: 998, id: 'row-02' }]);
+  });
+
+  it.each([
+    ['an offset cursor of the listing before it', 'p50'],
+    ['an unsigned position', '998:row-02'],
+    ['a made-up signature', '998:row-02.AAAAAAAAAAAAAAAAAAAAAA'],
+    [
+      "another kind's cursor",
+      mintCursorFor('org-1', 'mcp-settings:agent-tools', '998:row-02'),
+    ],
+    [
+      "another organization's cursor",
+      mintCursorFor('org-2', 'mcp-settings:project-instructions', '998:row-02'),
+    ],
+    [
+      'a signed token that is no position',
+      mintCursorFor('org-1', 'mcp-settings:project-instructions', 'p50'),
+    ],
+  ])('refuses %s, and reads nothing', async (_, cursor) => {
+    const reads: (KeysetPosition | null)[] = [];
+    await expect(
+      pageOfKeyset(
+        ctx,
+        'project-instructions',
+        cursor,
+        10,
+        store(rows, reads),
+        resourceOf,
+        positionOf,
+      ),
+    ).rejects.toMatchObject({ code: 'INVALID_CURSOR' });
+    expect(reads).toEqual([]);
   });
 });
