@@ -1,5 +1,10 @@
 import type { Sql } from 'postgres';
 
+import {
+  listThreadMessagesTail,
+  type ThreadMessageCursor,
+} from '../threads/store.ts';
+
 /**
  * A transcript row as the chat lane ships it: the thread read and the
  * stream's `settled` event answer the same shape, so one reader owns it.
@@ -25,6 +30,16 @@ type MessageViewRow = Omit<MessageView, 'model' | 'providerSlug' | 'usage'> & {
   usage: unknown;
 };
 
+/** The view's columns as the readers below select them, plus the keyset
+ * the threads store's tail reader pages on. */
+const MESSAGE_VIEW_PAGE_COLUMNS = `
+  id, role, parts, "order" AS sequence, model,
+  provider_slug AS "providerSlug", usage,
+  blocked_reason AS "blockedReason", error, status,
+  created_at_ms::float8 AS "createdAt",
+  "order", step_order AS "stepOrder"
+`;
+
 function toMessageView(row: MessageViewRow): MessageView {
   return Object.assign(
     {
@@ -43,22 +58,46 @@ function toMessageView(row: MessageViewRow): MessageView {
   );
 }
 
-/** Every row of one thread, in transcript order. */
-export async function listMessageViews(
+/** The rows a chat transcript reads at once: its newest page, and each
+ * older page a reader asks for. */
+export const MESSAGE_VIEW_PAGE_SIZE = 200;
+
+/** One page of a transcript and the way to the page before it. */
+export interface MessageViewPage {
+  /** In transcript order (oldest first). */
+  messages: MessageView[];
+  /** Whether rows older than this page exist. */
+  hasMore: boolean;
+  /** The cursor for the next older page; null once the start is reached. */
+  nextBefore: ThreadMessageCursor | null;
+}
+
+/**
+ * A thread's newest page of rows (or the page strictly before `before`),
+ * every role included and scoped to the caller's organization — the
+ * transcript reads its tail and walks back on request instead of reading the
+ * whole thread. The keyset is the threads store's.
+ */
+export async function listMessageViewsPage(
   sql: Sql,
   organizationId: string,
   threadId: string,
-): Promise<MessageView[]> {
-  const rows = await sql<MessageViewRow[]>`
-    SELECT id, role, parts, "order" AS sequence, model,
-           provider_slug AS "providerSlug", usage,
-           blocked_reason AS "blockedReason", error, status,
-           created_at_ms::float8 AS "createdAt"
-    FROM app.messages
-    WHERE thread_id = ${threadId} AND org_id = ${organizationId}
-    ORDER BY "order", step_order
-  `;
-  return rows.map(toMessageView);
+  options: { before?: ThreadMessageCursor; limit?: number } = {},
+): Promise<MessageViewPage> {
+  const page = await listThreadMessagesTail<
+    MessageViewRow & ThreadMessageCursor
+  >(sql, threadId, {
+    organizationId,
+    excludeToolRoles: false,
+    columns: MESSAGE_VIEW_PAGE_COLUMNS,
+    limit: options.limit ?? MESSAGE_VIEW_PAGE_SIZE,
+    ...(options.before !== undefined ? { before: options.before } : {}),
+  });
+  return {
+    messages: page.messages.map(toMessageView),
+    hasMore: page.hasMore,
+    nextBefore: page.nextBefore,
+  };
 }
 
 /**

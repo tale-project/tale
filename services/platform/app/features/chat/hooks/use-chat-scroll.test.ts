@@ -392,7 +392,13 @@ describe('resolveContentTickAction', () => {
     top: 501,
     until: now + 1500,
   };
-  const idle = { hold: null, now, gliding: false, following: false } as const;
+  const idle = {
+    hold: null,
+    now,
+    gliding: false,
+    following: false,
+    held: false,
+  } as const;
 
   it('a pending send wins over a live position hold (send right after opening a thread)', () => {
     expect(
@@ -448,5 +454,32 @@ describe('resolveContentTickAction', () => {
 
   it('with nothing engaged, a content tick moves nothing', () => {
     expect(resolveContentTickAction({ ...idle, intent: false })).toBe('none');
+  });
+
+  it('a history read holding the reader’s place stands a live hold and the follow latch down', () => {
+    // "Show earlier messages" right after opening a thread: the position
+    // hold's top now points into the rows that landed in front.
+    expect(
+      resolveContentTickAction({
+        ...idle,
+        intent: false,
+        hold: positionHold,
+        held: true,
+      }),
+    ).toBe('none');
+    expect(
+      resolveContentTickAction({
+        ...idle,
+        intent: false,
+        following: true,
+        held: true,
+      }),
+    ).toBe('none');
+  });
+
+  it('a send still wins while a history read holds the place', () => {
+    expect(
+      resolveContentTickAction({ ...idle, intent: 'smooth', held: true }),
+    ).toBe('snap');
   });
 });

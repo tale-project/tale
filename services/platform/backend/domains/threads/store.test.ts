@@ -7,10 +7,14 @@
  * lost race as an error while the deadline remains.
  */
 
-import type { TransactionSql } from 'postgres';
+import type { Sql, TransactionSql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
-import { MESSAGE_SLOT_CLAIM_DEADLINE_MS, saveMessage } from './store.ts';
+import {
+  listThreadMessagesTail,
+  MESSAGE_SLOT_CLAIM_DEADLINE_MS,
+  saveMessage,
+} from './store.ts';
 
 /** A `tx` whose INSERTs answer from `outcomes` in order (an empty array is a
  * lost race), recording every statement so the retry count is observable. */
@@ -125,5 +129,100 @@ describe('saveMessage — claiming a unique slot', () => {
     expect(statements.some((text) => text.includes('UPDATE app.threads'))).toBe(
       false,
     );
+  });
+});
+
+describe('listThreadMessagesTail — the newest page and the way back', () => {
+  /** A `sql` that answers every read with `rows` (newest first, as the
+   * keyset orders them) and records the statement and its values; `unsafe`
+   * hands its text through so the column list is observable. */
+  function fakeSql(rows: { order: number; stepOrder: number }[]): {
+    sql: Sql;
+    calls: { text: string; values: unknown[] }[];
+  } {
+    const calls: { text: string; values: unknown[] }[] = [];
+    const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+      calls.push({ text: strings.join('?'), values });
+      return Promise.resolve(rows);
+    };
+    Object.assign(tag, { unsafe: (text: string) => text });
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- only the tag call and `unsafe` are exercised
+    return { sql: tag as unknown as Sql, calls };
+  }
+
+  const newestFirst = (count: number, from: number) =>
+    Array.from({ length: count }, (_, index) => ({
+      order: from - index,
+      stepOrder: 0,
+    }));
+
+  it('answers the page oldest first and the cursor of its oldest row when more remain [THREAD-R3]', async () => {
+    const { sql, calls } = fakeSql(newestFirst(4, 10));
+
+    const page = await listThreadMessagesTail(sql, 't-1', { limit: 3 });
+
+    expect(page.messages.map((row) => row.order)).toEqual([8, 9, 10]);
+    expect(page.hasMore).toBe(true);
+    expect(page.nextBefore).toEqual({ order: 8, stepOrder: 0 });
+    // One row past the limit answers `hasMore` without a count.
+    expect(calls[0]?.values.at(-1)).toBe(4);
+  });
+
+  it('answers no cursor once the start of the thread is in the page [THREAD-R3]', async () => {
+    const { sql } = fakeSql(newestFirst(2, 1));
+
+    const page = await listThreadMessagesTail(sql, 't-1', { limit: 3 });
+
+    expect(page.messages.map((row) => row.order)).toEqual([0, 1]);
+    expect(page.hasMore).toBe(false);
+    expect(page.nextBefore).toBeNull();
+  });
+
+  it('keeps the task-comment read as it was: its own columns, no org clause, tool roles left out [THREAD-R4]', async () => {
+    const { sql, calls } = fakeSql([]);
+
+    await listThreadMessagesTail(sql, 't-1', {
+      limit: 50,
+      before: { order: 7, stepOrder: 0 },
+    });
+
+    const [call] = calls;
+    expect(call?.values[0]).toContain('author_id AS "authorId"');
+    expect(call?.text).toContain('OR org_id = ?');
+    // [threadId, org clause off, its value, cursor off, order, step,
+    //  tools clause off, limit + 1]
+    expect(call?.values.slice(1)).toEqual([
+      't-1',
+      true,
+      '',
+      false,
+      7,
+      0,
+      false,
+      51,
+    ]);
+  });
+
+  it('scopes the page to an organization, keeps every role and reads the named columns, 200 to a page [THREAD-R3] [THREAD-R4] [THREAD-R5]', async () => {
+    const { sql, calls } = fakeSql([]);
+
+    await listThreadMessagesTail(sql, 't-1', {
+      organizationId: 'org-1',
+      excludeToolRoles: false,
+      columns: 'id, "order", step_order AS "stepOrder", model',
+    });
+
+    const [call] = calls;
+    expect(call?.values).toEqual([
+      'id, "order", step_order AS "stepOrder", model',
+      't-1',
+      false,
+      'org-1',
+      true,
+      0,
+      0,
+      true,
+      201,
+    ]);
   });
 });

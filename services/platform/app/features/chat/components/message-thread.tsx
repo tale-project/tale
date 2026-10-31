@@ -36,10 +36,13 @@ import { THREAD_COLUMN_CLASS } from '@tale/ui/thread/layout';
 import { ArrowDown, MessageSquare } from 'lucide-react';
 import {
   memo,
+  useCallback,
   useLayoutEffect,
   useRef,
   useState,
   type MutableRefObject,
+  type ReactNode,
+  type RefObject,
 } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -121,6 +124,13 @@ interface MessageThreadProps extends MessageThreadHandlers {
   /** Show the org's confidentiality notice on the last message; until there
    * is one, the chat surface shows it under the composer. */
   dataNotice?: boolean;
+  /** Above the first row: the way to the older messages not loaded yet. Its
+   * layout effects run before this transcript's own, so a read it lands has
+   * placed the view before the rows in view wake. */
+  earlier?: ReactNode;
+  /** The list of rows, for the caller holding the reader's place while older
+   * rows land in front of them (see useTaskHistoryAnchor). */
+  historyRef?: RefObject<HTMLElement | null>;
   className?: string;
 }
 
@@ -151,6 +161,8 @@ export const MessageThread = memo(function MessageThread({
   voiceEnabled,
   speakAvailable,
   dataNotice,
+  earlier,
+  historyRef,
   className,
 }: MessageThreadProps) {
   const { t } = useT('chat');
@@ -162,6 +174,15 @@ export const MessageThread = memo(function MessageThread({
   // element rects, so the element type never matters.
   const listRef = useRef<HTMLDivElement | null>(null);
   const slackRef = useRef<HTMLDivElement | null>(null);
+  // The caller holding the reader's place across a history read measures
+  // the same list.
+  const setListRef = useCallback(
+    (list: HTMLDivElement | null) => {
+      listRef.current = list;
+      if (historyRef) historyRef.current = list;
+    },
+    [historyRef],
+  );
 
   const { containerRef, contentRef, scrollToBottom, showScrollButton } =
     useChatScroll({
@@ -215,8 +236,9 @@ export const MessageThread = memo(function MessageThread({
     slackEnabled,
   });
 
-  // After the scroll hooks' own layout effects: the view is placed, so the
-  // rows that just mounted dormant inside it wake before the first paint.
+  // After the scroll hooks' own layout effects and `earlier`'s: the view is
+  // placed, so the rows that just mounted dormant inside it wake before the
+  // first paint.
   useLayoutEffect(() => {
     rowWaker.sync();
   });
@@ -224,9 +246,12 @@ export const MessageThread = memo(function MessageThread({
   // The ids present when this conversation first rendered. A message NOT in
   // this snapshot arrived live during the mount — the auto-voice chunker
   // reads only those, so revisiting a thread never re-reads old replies.
+  // Rows read back in front of the first one it opened with ("Show earlier
+  // messages") are history too.
   const initialIdsRef = useRef<{
     threadId: string | undefined;
     ids: ReadonlySet<string>;
+    firstId: string | undefined;
   } | null>(null);
   if (
     messages.length > 0 &&
@@ -236,10 +261,16 @@ export const MessageThread = memo(function MessageThread({
     initialIdsRef.current = {
       threadId,
       ids: new Set(messages.map((message) => message.id)),
+      firstId: messages[0]?.id,
     };
   }
-  const isFreshSinceMount = (id: string): boolean =>
-    initialIdsRef.current !== null && !initialIdsRef.current.ids.has(id);
+  const opened = initialIdsRef.current;
+  const openedFrom =
+    opened === null
+      ? -1
+      : messages.findIndex((message) => message.id === opened.firstId);
+  const isFreshSinceMount = (id: string, index: number): boolean =>
+    opened !== null && index > openedFrom && !opened.ids.has(id);
 
   const renderItem = (
     message: ChatMessageItem,
@@ -264,7 +295,7 @@ export const MessageThread = memo(function MessageThread({
       voiceEnabled={voiceEnabled}
       speakAvailable={speakAvailable}
       voicePillForced={message.id === forceVoicePillMessageId}
-      isFreshSinceMount={isFreshSinceMount(message.id)}
+      isFreshSinceMount={isFreshSinceMount(message.id, index)}
       deferred={index < firstEagerIdx}
       // The newest row only: a reply shows it once it settles (AssistantBody
       // holds it until then); any other row while no turn runs, so a send
@@ -296,9 +327,10 @@ export const MessageThread = memo(function MessageThread({
           ref={contentRef}
           className={cn(THREAD_COLUMN_CLASS, 'py-6', className)}
         >
+          {messages.length > 0 && earlier}
           {messages.length > 0 && (
             <RowWakerContext.Provider value={rowWaker}>
-              <Stack as="ol" gap={3} ref={listRef}>
+              <Stack as="ol" gap={3} ref={setListRef}>
                 {messages.map((message, index) =>
                   renderItem(message, index, regionOf(index)),
                 )}
