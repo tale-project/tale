@@ -158,13 +158,13 @@ restores it (`MODEL_ENDPOINT_POLICY_UNREADABLE`). Each refusal is written to the
 rule holds for chat replies and their titles, rewrites with Improve with AI, task turns, an
 automation's `llm` steps, the model API, embeddings, image generation, transcription and speech.
 It holds for a coding agent in a sandbox too, on a task or an automation's agent step, through the
-model gateway or a subscription: the run fails before the agent's session starts, it gets no key
-or credential, and the refusal is audited. The gateway calls a provider it has a built-in
-connection for at the vendor's own endpoint, whatever base URL the provider names, so such a
-provider is refused there unless Claude Code calls it at a coding-agent endpoint that counts;
-OpenRouter reaches a coding agent only through a custom provider at `eu.openrouter.ai`. The
-automatic image-reading model passes over a provider the rule refuses. With the rule off, nothing
-changes.
+model gateway or a subscription: the run fails before the agent starts, with no key or credential
+handed to its sandbox, and the refusal is audited. The gateway calls a provider it has a built-in
+connection for at the vendor's own endpoint, whatever base URL the provider names, so the rule
+refuses such a provider there, unless Claude Code calls it at a coding-agent endpoint that counts.
+OpenRouter thus reaches a coding agent only at `eu.openrouter.ai`, through a custom provider or
+such an endpoint. The automatic image-reading model passes over a provider the rule refuses. With
+the rule off, nothing changes.
 
 - **Example**: The rule is on, and the OpenAI provider points at `api.openai.com` → Mia's
   message is refused with a sentence that names `eu.api.openai.com`, and nothing reaches
