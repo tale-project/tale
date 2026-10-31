@@ -13,6 +13,7 @@
  * `.agents/translation/locales/`.
  */
 
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -124,12 +125,6 @@ describe('two-factor authentication terminology', () => {
 // `competences.*` keys, the `governance/competences` route and the API's
 // `competence` field remain contracts.
 describe('rights and qualifications terminology', () => {
-  // French also says `compétences` for skills, as the site description does.
-  const skillsSense = new Set([
-    'fr:metadata.default.description',
-    'fr:metadata.keywords',
-  ]);
-
   for (const [locale, messages, page, rights, qualifications, retired] of [
     [
       'en',
@@ -166,7 +161,6 @@ describe('rights and qualifications terminology', () => {
 
     it(`${locale}: calls no right or qualification by a retired name`, () => {
       const inspect = (value: unknown, at: string): void => {
-        if (skillsSense.has(`${locale}:${at}`)) return;
         if (typeof value === 'string') {
           expect(value.replace(/\{[^{}]*\}/g, ''), at).not.toMatch(retired);
         } else if (value !== null && typeof value === 'object') {
@@ -178,4 +172,16 @@ describe('rights and qualifications terminology', () => {
       inspect(messages, '');
     });
   }
+});
+
+// #4127: the shell's static description is what a link preview shows before
+// the app sets its own, so it says what the app's default description says.
+describe('default page description', () => {
+  it('matches the English catalog in index.html', () => {
+    const html = readFileSync(path.resolve(HERE, '../../index.html'), 'utf8');
+    const description = /<meta\s+name="description"\s+content="([^"]*)"/.exec(
+      html,
+    )?.[1];
+    expect(description).toBe(enMessages.metadata.default.description);
+  });
 });
