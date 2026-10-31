@@ -27,6 +27,8 @@ vi.mock('@/app/lib/backend/chat', () => ({
   trashChatThread,
   invalidateChatThreads,
   setChatBranchSelection: vi.fn(),
+  // The paginated lane's registry reads the family's listing row on load.
+  chatPaginatedAdapters: {},
 }));
 vi.mock('./chat-backend', () => ({
   useChatQueryClient: () => ({}),
