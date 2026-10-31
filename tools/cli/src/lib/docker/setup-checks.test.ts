@@ -1,11 +1,12 @@
 import { describe, expect, mock, test } from 'bun:test';
 
+import { MIN_DOCKER_ENGINE_MAJOR } from '@tale/shared/docker-engine';
+
 import {
   assertDockerEngineSupported,
   checkCompose,
   checkDockerEngine,
   collectSetupChecks,
-  MIN_DOCKER_ENGINE_MAJOR,
 } from './setup-checks';
 
 /** `docker version --format '{{json .Server}}'` as a Docker Engine answers. */
@@ -205,6 +206,20 @@ describe('first-run setup checks', () => {
 describe('the Docker Engine floor', () => {
   test('is Engine 24, which also pulls the zstd-compressed images Tale publishes', () => {
     expect(MIN_DOCKER_ENGINE_MAJOR).toBe(24);
+  });
+
+  // Settings → Sandboxes judges a device's engine against the same floor.
+  test('refuses below the shared floor and accepts the floor itself', () => {
+    const below = `${MIN_DOCKER_ENGINE_MAJOR - 1}.0.0`;
+    expect(checkDockerEngine(dockerServer(below))).toMatchObject({
+      status: 'fail',
+      detail: expect.stringContaining(
+        `older than ${MIN_DOCKER_ENGINE_MAJOR}.0`,
+      ),
+    });
+    expect(
+      checkDockerEngine(dockerServer(`${MIN_DOCKER_ENGINE_MAJOR}.0.0`)),
+    ).toMatchObject({ status: 'ok' });
   });
 
   test('accepts Engine 24 and later, release candidates and distribution builds', () => {

@@ -88,6 +88,8 @@ Connected devices also raise the ceiling for your organization's [workload limit
 
 A device on another release than the server takes no new sandboxes until it updates. **Update needed** means the device does not update itself; **Update failed** means its last automatic update did not succeed. In both cases, run `tale sandbox update` on the machine.
 
+When the machine's Docker Engine is older than 24.0, the status also names the engine's version. Update Docker on the machine first: `tale sandbox update` refuses an older engine, and an engine older than 23.0 cannot download Tale's images. Then run `tale sandbox update`; a device that updates itself also tries again on its own.
+
 ## Look after a device from the machine
 
 Run these commands on the device itself:

@@ -188,6 +188,7 @@ devices:
   updatingTo: 'Mise à jour vers {version}'
   updateFailedHint: La mise à jour vers {version} a échoué. L'appareil réessaie de lui-même.
   outdatedHint: Utilise une autre version que Tale ({version}). Exécute tale sandbox update sur la machine.
+  engineTooOld: Utilise Docker Engine {version}, alors que Tale demande au moins la version {minimum}. Mets à jour Docker sur la machine.
   empty:
     title: Aucun appareil pour l'instant
     description: Ajoute une machine Linux ou macOS avec Docker pour y exécuter les sandboxes de ton organisation.

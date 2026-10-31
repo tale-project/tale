@@ -196,6 +196,64 @@ describe('SandboxDevicesSection', () => {
     ).toBeVisible();
   });
 
+  // #4733: an engine too old for Tale's images failed every automatic update
+  // with Docker's own pull error, and nothing named the cause.
+  describe('names a Docker Engine older than Tale supports', () => {
+    function failedOn(id: string, dockerVersion: string): SandboxDeviceView {
+      return device({
+        id,
+        name: `device-${dockerVersion}`,
+        status: 'update_failed',
+        platform: {
+          os: 'linux',
+          arch: 'x64',
+          cpus: 8,
+          memoryBytes: 16 * 1024 ** 3,
+          dockerVersion,
+        },
+        update: {
+          state: 'failed',
+          targetVersion: '0.5.61',
+          error: 'pulling tale-sandbox:0.5.61 failed',
+          atMs: 1,
+        },
+      });
+    }
+
+    function rowOf(name: string): HTMLElement {
+      return within(screen.getByRole('table', { name: 'Devices' }))
+        .getByText(name)
+        .closest('tr') as HTMLElement;
+    }
+
+    it('next to the failed update, with its version and the minimum', () => {
+      renderSection({ view: view([failedOn('dev-1', '20.10.24')]) });
+      const row = rowOf('device-20.10.24');
+      expect(within(row).getByText('Update failed')).toBeInTheDocument();
+      expect(
+        within(row).getByText(
+          'Runs Docker Engine 20.10.24; Tale needs 24.0 or later. Update Docker on the machine.',
+        ),
+      ).toBeVisible();
+      expect(
+        within(row).getByText('pulling tale-sandbox:0.5.61 failed'),
+      ).toBeVisible();
+    });
+
+    it('but not a supported engine, nor the release of another engine', () => {
+      // A Podman socket reports Podman's own release where Docker reports
+      // the engine's.
+      renderSection({
+        view: view([failedOn('dev-1', '24.0.7'), failedOn('dev-2', '5.2.0')]),
+      });
+      for (const name of ['device-24.0.7', 'device-5.2.0']) {
+        const row = rowOf(name);
+        expect(within(row).getByText('Update failed')).toBeInTheDocument();
+        expect(within(row).queryByText(/Docker Engine/)).toBeNull();
+      }
+    });
+  });
+
   it('explains an empty list', () => {
     renderSection({});
     expect(screen.getByText('No devices yet')).toBeInTheDocument();

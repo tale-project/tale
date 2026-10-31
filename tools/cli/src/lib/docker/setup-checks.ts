@@ -1,5 +1,10 @@
 import { createServer } from 'node:net';
 
+import {
+  dockerEngineMajor,
+  MIN_DOCKER_ENGINE_MAJOR,
+  ZSTD_DOCKER_ENGINE_MAJOR,
+} from '@tale/shared/docker-engine';
 import { z } from 'zod';
 
 import { preconditionError } from '../../utils/fail';
@@ -56,14 +61,6 @@ export async function assertComposeAvailable(): Promise<void> {
     throw preconditionError(result.detail, result.fix);
 }
 
-/**
- * The oldest Docker Engine Tale supports. Tale publishes its images with
- * zstd-compressed layers, which Docker pulls from Engine 23.0 on, and keeps
- * the Compose files and health checks it generates working down to Engine 24.
- */
-export const MIN_DOCKER_ENGINE_MAJOR = 24;
-const ZSTD_DOCKER_ENGINE_MAJOR = 23;
-
 const engineSchema = z.object({
   Version: z.string().optional(),
   Platform: z.object({ Name: z.string() }).optional(),
@@ -119,8 +116,8 @@ export function checkDockerEngine(server: unknown): SetupCheck {
     };
   }
   const version = engine.Version ?? '';
-  const major = Number(/^v?(\d+)\./.exec(version)?.[1] ?? Number.NaN);
-  if (!Number.isInteger(major)) return unknown;
+  const major = dockerEngineMajor(version);
+  if (major === null) return unknown;
   if (major < MIN_DOCKER_ENGINE_MAJOR) {
     return {
       id: 'engine',
