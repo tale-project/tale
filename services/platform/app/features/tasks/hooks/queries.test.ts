@@ -253,6 +253,8 @@ describe('board read defaults', () => {
       running: ops.result.current.runningTaskIds,
       asking: ops.result.current.askingTaskIds,
       reviews: ops.result.current.pendingReviews,
+      runs: ops.result.current.runs,
+      waits: ops.result.current.automationWaits,
       acrossRunning: across.result.current.runningTaskIds,
       acrossReviews: across.result.current.pendingReviews,
       edges: deps.result.current.edges,
@@ -264,6 +266,8 @@ describe('board read defaults', () => {
     expect(ops.result.current.runningTaskIds).toBe(first.running);
     expect(ops.result.current.askingTaskIds).toBe(first.asking);
     expect(ops.result.current.pendingReviews).toBe(first.reviews);
+    expect(ops.result.current.runs).toBe(first.runs);
+    expect(ops.result.current.automationWaits).toBe(first.waits);
     expect(across.result.current.runningTaskIds).toBe(first.acrossRunning);
     expect(across.result.current.pendingReviews).toBe(first.acrossReviews);
     expect(deps.result.current.edges).toBe(first.edges);

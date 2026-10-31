@@ -18,7 +18,7 @@ import { partitionSubtasks } from '../lib/subtasks';
 import { BoardColumn } from './board-column';
 import type { LaneQuickAddConfig } from './lane-quick-add';
 import { useRunCancelConfirm } from './run-cancel-confirm';
-import { useTaskBoardContext } from './task-board-context';
+import { isRunLive, useTaskBoardContext } from './task-board-context';
 import { readOnlyBoard, TaskCard, type TaskRow } from './task-card';
 
 /**
@@ -63,7 +63,7 @@ export const KanbanBoard = memo(function KanbanBoard({
   const { t } = useT('tasks');
   const { confirmCancel, dialog } = useRunCancelConfirm();
   const dnd = useTaskBoardDnd(tasks, { confirmCancel, projectKey });
-  const { isAgentWorking } = useTaskBoardContext();
+  const { runState } = useTaskBoardContext();
   // Single-project boards scope contracts to that project; mixed boards load
   // org + project-bound automations so drop hints still name the right verb.
   const choreographyProjectId = useMemo(() => {
@@ -90,7 +90,8 @@ export const KanbanBoard = memo(function KanbanBoard({
     const task = dnd.activeTask;
     if (!task) return null;
     const ownership = resolveTaskOwnership(task, automations, locale);
-    const runActive = isAgentWorking(task._id);
+    // Queued and waiting runs are live too: the drop cancels them as well.
+    const runActive = isRunLive(runState(task._id));
     const hints = new Map<string, string>();
     for (const status of BOARD_TASK_STATUSES) {
       if (status === task.status) continue;
@@ -116,7 +117,7 @@ export const KanbanBoard = memo(function KanbanBoard({
       }
     }
     return hints.size > 0 ? hints : null;
-  }, [automations, dnd.activeTask, isAgentWorking, locale, t]);
+  }, [automations, dnd.activeTask, runState, locale, t]);
 
   const board = (
     <DndContext

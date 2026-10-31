@@ -5,6 +5,7 @@ import { fireEvent, render, screen } from '@/tests/utils/render';
 
 import { useAssignableActors } from '../hooks/use-actor-directory';
 import type { TaskDoc } from '../lib/display';
+import { TaskBoardProvider } from './task-board-context';
 import { TasksList } from './tasks-list';
 
 type TaskRow = TaskDoc;
@@ -296,5 +297,56 @@ describe('TasksList hidden labels', () => {
     expect(
       screen.queryByRole('button', { name: /more label/ }),
     ).not.toBeInTheDocument();
+  });
+});
+
+// #5147: the row showed nothing of the task's run, so a run that waited for
+// room looked like no run at all.
+describe('TasksList run line', () => {
+  const parked = makeTask({
+    _id: 'parked',
+    status: 'in_progress',
+    assigneeType: 'agent',
+    assigneeId: 'agent-1',
+  });
+
+  it('says on the row, and with its title, that the run waits and why', async () => {
+    const { container } = render(
+      <TaskBoardProvider
+        tasks={[parked]}
+        dependencyEdges={[]}
+        runs={[
+          {
+            taskId: 'parked',
+            runId: 'run-1',
+            agentId: 'agent-1',
+            status: 'queued',
+            waiting: true,
+            waitingReason: 'org_limit',
+            startedAt: 0,
+          },
+        ]}
+      >
+        <TasksList tasks={[parked]} />
+      </TaskBoardProvider>,
+    );
+    expect(
+      screen.getByRole('button', { name: parked.title }),
+    ).toHaveAccessibleDescription('Waiting for a worker');
+    expect(
+      screen.getByText('Waiting for a worker', { selector: 'span > span' }),
+    ).toBeInTheDocument();
+    await checkAccessibility(container);
+  });
+
+  it('says nothing on a row whose task has no live run', () => {
+    render(
+      <TaskBoardProvider tasks={[parked]} dependencyEdges={[]} runs={[]}>
+        <TasksList tasks={[parked]} />
+      </TaskBoardProvider>,
+    );
+    expect(
+      screen.getByRole('button', { name: parked.title }),
+    ).not.toHaveAccessibleDescription();
   });
 });

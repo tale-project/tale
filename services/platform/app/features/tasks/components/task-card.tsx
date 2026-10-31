@@ -6,7 +6,7 @@ import { cn } from '@tale/ui/cn';
 import { Row } from '@tale/ui/layout';
 import { Text } from '@tale/ui/text';
 import { Tooltip } from '@tale/ui/tooltip';
-import { Bot, Eye, GitBranch, MessageCircleQuestion } from 'lucide-react';
+import { Eye, GitBranch } from 'lucide-react';
 import { memo } from 'react';
 
 import { useT } from '@/lib/i18n/client';
@@ -34,6 +34,11 @@ import {
   useTaskCardStateLabels,
 } from './task-indicators';
 import { TaskLabelBadge, TaskLabelOverflow } from './task-label-badge';
+import {
+  type TaskLiveLine,
+  TaskLiveLineView,
+  useTaskRunLine,
+} from './task-run-line';
 import { TaskTitleButton } from './task-title-button';
 
 /** The board's default decision: no task is workable. */
@@ -108,18 +113,13 @@ function TaskCardView({
 }: TaskCardProps & { directory: CardDirectory }) {
   const { t } = useT('tasks');
   const stateLabels = useTaskCardStateLabels();
+  const runLine = useTaskRunLine();
   const resolvedProjectKey = task.projectKey ?? projectKey;
   const identifier = formatTaskIdentifier(resolvedProjectKey, task.number);
   const assignTask = useAssignTask();
   const updateTask = useUpdateTask();
-  const {
-    isBlocked,
-    getTask,
-    isAgentWorking,
-    isAgentAsking,
-    needsReview,
-    reviewRecipient,
-  } = useTaskBoardContext();
+  const { isBlocked, getTask, runState, needsReview, reviewRecipient } =
+    useTaskBoardContext();
   // Drag and the inline pickers are for whoever may work this task.
   const editable = canWorkTask(task) && task.archivedAt == null;
   const blocked = isBlocked(task._id);
@@ -138,40 +138,23 @@ function TaskCardView({
       : undefined;
 
   // The one thing on the card that is someone's move or in motion, said in
-  // words: an agent waiting for an answer, a review waiting on someone, an
-  // agent at work — in that order, the most urgent only.
-  const asking = isAgentAsking(task._id);
-  const reviewing = needsReview(task._id);
-  const working = isAgentWorking(task._id) && !asking;
+  // words: an agent waiting for an answer, a review waiting on someone, then
+  // what the task's run does (at work, waiting and why, queued) — in that
+  // order, the most urgent only.
+  const run = runState(task._id);
   const agentName =
     task.assigneeType === 'agent' && task.assigneeId
       ? resolveActor('agent', task.assigneeId).name
       : undefined;
-  const liveLine = asking
-    ? {
-        icon: MessageCircleQuestion,
-        text: t('agentRuns.needsAnswer'),
-        className: 'text-amber-700 dark:text-amber-400',
-        pulse: false,
-      }
-    : reviewing
+  const liveLine: TaskLiveLine | null =
+    run?.kind !== 'asking' && needsReview(task._id)
       ? {
           icon: Eye,
           text: stateLabels.review(reviewerActor, reviewerIsMe),
           className: 'text-blue-700 dark:text-blue-400',
           pulse: false,
         }
-      : working
-        ? {
-            icon: Bot,
-            text:
-              agentName !== undefined
-                ? t('board.agentWorking', { name: agentName })
-                : t('agentRuns.working'),
-            className: 'text-primary',
-            pulse: true,
-          }
-        : null;
+      : runLine(run, agentName);
 
   const stateDescription = [
     blocked && stateLabels.blocked,
@@ -277,22 +260,7 @@ function TaskCardView({
 
         {liveLine !== null && (
           // Read with the title through its description; shown once here.
-          <p
-            aria-hidden="true"
-            className={cn(
-              'mt-2 flex min-w-0 items-center gap-1.5 text-xs font-medium',
-              liveLine.className,
-            )}
-          >
-            <liveLine.icon
-              className={cn(
-                'size-3.5 shrink-0',
-                liveLine.pulse && 'animate-pulse motion-reduce:animate-none',
-              )}
-              aria-hidden="true"
-            />
-            <span className="min-w-0 truncate">{liveLine.text}</span>
-          </p>
+          <TaskLiveLineView as="p" line={liveLine} className="mt-2" />
         )}
 
         {/* Above the title's stretched hit layer: the pickers keep their own
@@ -329,7 +297,7 @@ function TaskCardView({
             <TaskAutomationBadge
               organizationId={task.organizationId}
               task={task}
-              runActive={isAgentWorking(task._id)}
+              runActive={run !== undefined}
             />
             <RepeatIndicator
               repeat={task.repeat}

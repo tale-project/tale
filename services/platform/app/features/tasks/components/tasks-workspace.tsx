@@ -158,7 +158,14 @@ export function TasksWorkspace({
   );
   const acrossOps = useTaskOpsIndicatorsAcrossProjects(allProjects);
   const ops = allProjects ? acrossOps : projectOps;
-  const { runningTaskIds, askingTaskIds, pendingReviews } = ops;
+  const {
+    runningTaskIds,
+    askingTaskIds,
+    runs,
+    runsTruncated,
+    automationWaits,
+    pendingReviews,
+  } = ops;
   const reviewRequestedFor = useMemo(
     () =>
       new Map(
@@ -606,6 +613,9 @@ export function TasksWorkspace({
             dependencyEdges={edges}
             runningTaskIds={runningTaskIds}
             askingTaskIds={askingTaskIds}
+            runs={runs}
+            runsTruncated={runsTruncated}
+            automationWaits={automationWaits}
             pendingReviews={pendingReviewRefs}
           >
             {/* One directory names every card's assignee and reviewer; a card

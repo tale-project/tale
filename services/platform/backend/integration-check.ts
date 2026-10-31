@@ -2984,6 +2984,7 @@ async function checkTasks(
     runningTaskIds: z.array(z.string()),
     askingTaskIds: z.array(z.string()),
     pendingReviews: z.array(z.object({ taskId: z.string() }).loose()),
+    automationWaits: z.array(z.object({ taskId: z.string() }).loose()),
   });
   const projectIndicators = indicatorShape.safeParse(
     await get(
@@ -3018,6 +3019,7 @@ async function checkTasks(
     projectIndicators.success &&
       projectIndicators.data.runningTaskIds.length === 0 &&
       projectIndicators.data.pendingReviews.length === 0 &&
+      projectIndicators.data.automationWaits.length === 0 &&
       orgIndicators.success &&
       subscription.success &&
       subscription.data.subscribed &&

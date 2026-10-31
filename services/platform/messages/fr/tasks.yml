@@ -266,6 +266,18 @@ views:
   list: Liste
 board:
   agentWorking: '{name} y travaille'
+  # A task's automation run that waits instead of working, on its card and
+  # list row — the automation run view's own words, without its step.
+  # `unknown` is a wait whose park the board can't tell.
+  automationWaiting:
+    approval: En attente d’approbation
+    room: En attente d’une place de sandbox
+    repeat: Interrogation
+    in_doubt: En attente d’une décision
+    unknown: En attente
+  # When the board lists more live runs than it shows, a card it can't tell
+  # about says so rather than look idle.
+  runUnknown: État de l’exécution inconnu
   addTask: Ajouter une tâche
   addToLane: 'Ajouter une tâche dans {status}'
   collapseLane: 'Replier {status}'

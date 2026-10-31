@@ -1,6 +1,10 @@
 import { DndContext } from '@dnd-kit/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import type {
+  TaskOpsAutomationWaitIndicator,
+  TaskOpsRunIndicator,
+} from '@/app/lib/backend/contract/tasks';
 import { i18n } from '@/lib/i18n/i18n';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import { render, screen, waitFor } from '@/tests/utils/render';
@@ -328,7 +332,13 @@ describe('TaskCard hidden labels', () => {
 
 function liveCard(
   overrides: Partial<TaskRow>,
-  indicators: { running?: string[]; asking?: string[] },
+  indicators: {
+    running?: string[];
+    asking?: string[];
+    runs?: TaskOpsRunIndicator[];
+    runsTruncated?: boolean;
+    automationWaits?: TaskOpsAutomationWaitIndicator[];
+  },
 ) {
   const row = { ...task, ...overrides };
   return render(
@@ -338,6 +348,9 @@ function liveCard(
         dependencyEdges={[]}
         runningTaskIds={indicators.running ?? []}
         askingTaskIds={indicators.asking ?? []}
+        runs={indicators.runs ?? []}
+        runsTruncated={indicators.runsTruncated ?? false}
+        automationWaits={indicators.automationWaits ?? []}
       >
         <TaskCard task={row} canWorkTask={() => true} />
       </TaskBoardProvider>
@@ -386,4 +399,123 @@ describe('TaskCard live line', () => {
       screen.queryByText(/is working|Waiting for/),
     ).not.toBeInTheDocument();
   });
+
+  // #5147: a run parked for room put nothing on its card, which looked idle
+  // and was started again.
+  it.each([
+    ['en', 'org_limit', 'Waiting for a worker'],
+    ['en', 'host', 'Waiting for room'],
+    ['en', undefined, 'Waiting for a worker'],
+    ['de', 'host', 'Wartet auf freien Platz'],
+    ['fr', 'host', 'En attente de place'],
+  ] as const)(
+    'says in %s that a run parked for %s waits, and why',
+    async (locale, reason, words) => {
+      state.locale = locale;
+      const { container } = liveCard(
+        { _id: 'parked', status: 'in_progress', ...agentAssignee },
+        {
+          runs: [
+            agentRun('parked', {
+              waiting: true,
+              ...(reason !== undefined ? { waitingReason: reason } : {}),
+            }),
+          ],
+        },
+      );
+      // Shown once on the card, and said with its title.
+      expect(
+        screen.getByText(words, { selector: 'p > span' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole('button', { name: task.title }),
+      ).toHaveAccessibleDescription(endsWith(words));
+      expect(
+        screen.queryByText(/Ava Editor (is working|arbeitet|y travaille)/),
+      ).not.toBeInTheDocument();
+      await checkAccessibility(container);
+    },
+  );
+
+  it('says a queued run that is not parked is queued, not at work', () => {
+    liveCard(
+      { _id: 'queued', status: 'in_progress', ...agentAssignee },
+      { runs: [agentRun('queued', { waiting: false })] },
+    );
+    expect(
+      screen.getByRole('button', { name: task.title }),
+    ).toHaveAccessibleDescription(endsWith('Queued'));
+    expect(screen.queryByText('Ava Editor is working')).not.toBeInTheDocument();
+  });
+
+  it('names the agent at work from the live runs alone', () => {
+    liveCard(
+      { _id: 'running', status: 'in_progress', ...agentAssignee },
+      { runs: [agentRun('running', { status: 'running' })] },
+    );
+    expect(
+      screen.getByRole('button', { name: task.title }),
+    ).toHaveAccessibleDescription(endsWith('Ava Editor is working'));
+  });
+
+  it('reads a card a truncated run list may hide as unknown, never idle', () => {
+    liveCard(
+      { _id: 'unlisted', status: 'in_progress', ...agentAssignee },
+      { runs: [agentRun('other', { waiting: true })], runsTruncated: true },
+    );
+    expect(
+      screen.getByRole('button', { name: task.title }),
+    ).toHaveAccessibleDescription(endsWith('Run status unknown'));
+  });
+
+  it.each([
+    [{ status: 'waiting', waitingFor: 'approval' }, 'Waiting for approval'],
+    [{ status: 'waiting', waitingFor: 'room' }, 'Waiting for a sandbox slot'],
+    [{ status: 'waiting' }, 'Waiting'],
+    [{ status: 'queued' }, 'Queued'],
+  ] as const)(
+    'says an automation run that waits (%o) waits, never works',
+    (wait, words) => {
+      liveCard(
+        { _id: 'automated', status: 'in_progress', ...agentAssignee },
+        {
+          automationWaits: [{ taskId: 'automated', runId: 'auto-1', ...wait }],
+        },
+      );
+      expect(
+        screen.getByRole('button', { name: task.title }),
+      ).toHaveAccessibleDescription(endsWith(words));
+      expect(
+        screen.queryByText('Ava Editor is working'),
+      ).not.toBeInTheDocument();
+    },
+  );
 });
+
+const agentAssignee = {
+  assigneeType: 'agent',
+  assigneeId: 'agent-1',
+  reviewerUserId: undefined,
+  commentCount: 0,
+} as const;
+
+/** The card's description after the drag instructions a workable card's
+ * title carries first. */
+function endsWith(words: string): RegExp {
+  return new RegExp(`(^| )${words.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`);
+}
+
+function agentRun(
+  taskId: string,
+  fields: Partial<TaskOpsRunIndicator> = {},
+): TaskOpsRunIndicator {
+  return {
+    taskId,
+    runId: `run-${taskId}`,
+    agentId: 'agent-1',
+    status: 'queued',
+    waiting: false,
+    startedAt: 0,
+    ...fields,
+  };
+}
