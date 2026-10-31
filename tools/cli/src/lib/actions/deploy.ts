@@ -45,6 +45,7 @@ import {
   tagDeploymentProtocol,
 } from '../deployment/tag-automation-protocol';
 import { dockerCompose } from '../docker/docker-compose';
+import { imagePresent } from '../docker/ensure-image-present';
 import { ensureNetwork, ensureSandboxNetwork } from '../docker/ensure-network';
 import { ensureVolumes } from '../docker/ensure-volumes';
 import { exec } from '../docker/exec';
@@ -382,8 +383,12 @@ export async function deploy(options: DeployOptions): Promise<void> {
         imagesToPull.push(buildkitdImageRemote);
       }
 
+      // Set by a dry run whose target image is not on this host yet: the real
+      // deploy reads its protocol after the pull, so until then there is no
+      // target to compare the installed writer with.
+      let targetUnpulled = false;
       const checkInstalledWriter = async () => {
-        if (rotatableToUpdate.length === 0) return;
+        if (rotatableToUpdate.length === 0 || targetUnpulled) return;
         requireAutomationProtocol(
           await tagDeploymentProtocol(getProjectId(), !isFirstDeploy),
           serviceConfig.platformImage === undefined ? 1 : 2,
@@ -391,11 +396,26 @@ export async function deploy(options: DeployOptions): Promise<void> {
       };
 
       if (dryRun) {
-        if (rotatableToUpdate.length > 0 && installedProtocol === 2)
-          serviceConfig.platformImage = await admitTagAutomationImage(
-            serviceConfig,
-            installedProtocol,
-          );
+        for (const image of imagesToPull) {
+          logger.info(`${prefix}Would pull: ${image}`);
+        }
+        if (rotatableToUpdate.length > 0 && installedProtocol === 2) {
+          // Admission inspects the pulled image, and a dry run pulls nothing:
+          // an image already here is admitted as the deploy would, one not
+          // pulled yet leaves its check to the deploy.
+          const target = imageRef(serviceConfig, 'platform');
+          if (await imagePresent(target)) {
+            serviceConfig.platformImage = await admitTagAutomationImage(
+              serviceConfig,
+              installedProtocol,
+            );
+          } else {
+            targetUnpulled = true;
+            logger.info(
+              `${prefix}Would check after pulling that ${target} is an automation writer protocol 2 image (v0.5.78 or later) proving its source, version and repository digest. It is not on this host yet, so this preview skips that check.`,
+            );
+          }
+        }
         if (rotatableToUpdate.length > 0 && installedProtocol === 1) {
           // The target's protocol is known only once its image is pulled.
           // Every release since v0.5.78 is protocol 2, so say what crossing
@@ -417,9 +437,6 @@ export async function deploy(options: DeployOptions): Promise<void> {
               `${prefix}${error instanceof Error ? error.message : String(error)}`,
             );
           }
-        }
-        for (const image of imagesToPull) {
-          logger.info(`${prefix}Would pull: ${image}`);
         }
         await checkInstalledWriter();
         if (runtimeImageRemote) {

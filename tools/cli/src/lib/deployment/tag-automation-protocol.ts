@@ -1,5 +1,6 @@
 import { z } from 'zod';
 
+import { externalDepError } from '../../utils/fail';
 import { imageRef, type ServiceConfig } from '../compose/types';
 import { getProjectId } from '../project/project-context';
 import type { AutomationWriterProtocol } from './automation-model';
@@ -135,6 +136,19 @@ export async function admitTagAutomationImage(
   admission: { legacyCutover?: boolean } = {},
 ): Promise<string | undefined> {
   const reference = imageRef(config, 'platform');
+  let inspected: string;
+  try {
+    inspected = await protocolRead(
+      ['image', 'inspect', reference],
+      dependencies,
+    );
+  } catch {
+    // protocolRead's own sentence is about the installed writer; this read is
+    // the selected image's, so name the image and the read instead.
+    throw externalDepError(
+      `Could not read the automation writer protocol of the selected image: \`docker image inspect ${reference}\` failed.`,
+    );
+  }
   const [image] = z
     .array(
       imageInspectSchema.extend({
@@ -142,11 +156,7 @@ export async function admitTagAutomationImage(
       }),
     )
     .length(1)
-    .parse(
-      JSON.parse(
-        await protocolRead(['image', 'inspect', reference], dependencies),
-      ),
-    );
+    .parse(JSON.parse(inspected));
   const protocol = imageWriterProtocol(image.Config.Labels);
   requireAutomationProtocol(installed, protocol);
   if (protocol === 1) return undefined;
