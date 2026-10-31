@@ -47,6 +47,14 @@ A picture you attach can also be the starting point for a new image when your or
 
 A skill is a tested procedure for a kind of work, such as a document format or a house style. Your skill library holds the skills shared with the whole organization and with your teams; the built-in skills `docx`, `xlsx`, `pptx` and `pdf` cover the Office and PDF formats.
 
+There are three ways to use a skill in a chat:
+
+| How you use it | Which replies read it |
+| --- | --- |
+| Start a message with `/` and the skill’s name | The reply to that message, before it answers |
+| Check it under **Skills** in the model picker | Every reply in the conversation, each before it answers |
+| Leave it to the assistant, which reads a skill that fits your request | The reply it reads the skill for |
+
 To use a skill for one message, type `/` at the start of the message box, or choose **Use a skill** in the composer’s **+** menu. The skills you can use appear above the box; type to narrow them, then press Enter or select one. Your message then starts with the skill’s name, such as `/docx Write the cover letter`, and shows it as a chip once sent. The reply reads the skill before it answers: its first step is **Reading the docx skill**.
 
 ![A new chat with a slash typed in the message box. Above the box, a list of skills: docx, pdf, pptx, visual-aspect-analyzer and xlsx, each with the start of its description, and docx highlighted.](/images/platform/chat-skill-picker.webp)
@@ -55,7 +63,9 @@ To use skills for a whole conversation, open the model picker, go to **Skills** 
 
 The assistant also reads a skill on its own when one fits your request, or when you name it in your words. It sees the name and description of every skill in your library; in a library of more than 40 skills, it sees the first 40 in alphabetical order, so choose any other one with `/`. A skill whose author marked it for explicit use only is meant for when you choose it: the assistant is asked not to use it otherwise.
 
-A skill guides the assistant; it does not change what the assistant is allowed to do. A skill’s scripts and templates run in the light sandbox, like the assistant’s own code. When an administrator turns off **Skills** under Chat tools, there is nothing to choose, and a message that starts with `/` is sent as written.
+A skill can also say how the assistant writes: a tone, a format, a closing line for every reply. The assistant follows a skill throughout the reply that reads it, in how it writes as much as in what it does. A skill the assistant reads on its own is read for that reply; later replies read it again only when the assistant picks it again. To have a skill shape every reply, check it under **Skills**: each reply then reads it in full before it answers.
+
+A skill guides the assistant; it does not change what the assistant is allowed to do, and where it conflicts with the assistant’s other instructions, such as your organization’s, those win. A skill’s scripts and templates run in the light sandbox, like the assistant’s own code; a skill made only of instructions starts no sandbox. When an administrator turns off **Skills** under Chat tools, there is nothing to choose, and a message that starts with `/` is sent as written.
 
 ## Know the limits
 
