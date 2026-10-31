@@ -156,7 +156,9 @@ trying again, that wait is not counted as a start. A second wait in a row is.
 
 A run the provider refused because its model is at capacity is not counted either: its retry
 waits on the model (`TASK-R40`), which spaces the attempts out and ends them, so it cannot
-restart the task in a loop.
+restart the task in a loop. Nor is a run that a new comment restarted and whose sandbox had no
+room for the restart: only a comment ends a run so, and its retry waits for room like any start
+(`TASK-R25`).
 
 - **Example**: A schedule has started the agent on a task three times since 14:00. At 14:40
   another agent starts it again → refused as `paused`, with the time after which it may retry.
@@ -376,6 +378,14 @@ takes the room freed for a waiting run: it waits behind that run.
 - **Example**: Lector's run waits. "Changelog" finishes and frees a worker, which goes to
   Lector's run. A manager agent starts Scribe on "Press kit" before Lector's run has started →
   "Press kit" waits, and Lector's run starts.
+
+A run that restarts to take a new comment (`TASK-R3`) and finds no room in its sandbox for the
+restart ends, and its automatic retry, which uses no attempt, waits like any start: it starts by
+itself once there is room, with the comment in its brief.
+
+- **Example**: Scribe works "Changelog" in a sandbox with no room left for another process.
+  Ada comments on the task, which restarts Scribe's run → the run ends, and its retry, which
+  uses no attempt, starts by itself once the sandbox has room, with Ada's comment in its brief.
 
 Until it starts, a waiting run can be taken back: stopping it cancels it, and handing the task to
 someone else cancels it on the way. A run that has started is still stopped before the task

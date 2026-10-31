@@ -116,7 +116,8 @@ import {
  *   automations and agents per task in any rolling hour, every automatic
  *   retry included — the retries of a run a person started too (a broker
  *   cooldown after its own 429, the first two consecutive broker credential
- *   rotations and a model at capacity spend no second start), so two
+ *   rotations, a model at capacity and a comment's restart that found no
+ *   room in its sandbox spend no second start), so two
  *   agents (or an agent and a schedule) cannot restart one task in a loop, and
  *   failing retries cannot stretch the budget. The refusal
  *   lands on the task's timeline (`agent_run.refused`, `task_circuit_breaker`); a person's own Start is
@@ -155,8 +156,9 @@ export const DISPATCH_REVOKED_BEFORE_LAUNCH =
 /** Starts by automations and agents one task takes in any rolling hour —
  * every automatic retry included, a person's run's too, except the free
  * cooldown wait after the run's own 429, the first two consecutive
- * credential rotations and a run the provider refused because its model is
- * at capacity — before the circuit breaker refuses the next. */
+ * credential rotations, a run the provider refused because its model is at
+ * capacity and a run whose restart for a comment found no room in its
+ * sandbox — before the circuit breaker refuses the next. */
 export const AUTOMATED_STARTS_PER_TASK_PER_HOUR = 3;
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -233,6 +235,8 @@ export async function automatedStartWindow(
   // counted, so a genuinely dead grant still closes the task's circuit. A run
   // the provider refused for model capacity is no restart loop either: its
   // retries wait on the model's hold, which spaces them out and ends them.
+  // Nor is a run whose restart for a comment found no room in its sandbox:
+  // only a new comment ends a run so, and its retry waits for room.
   // Every automatic retry counts, a person's run's included; a person's own
   // start (no provenance, trigger `manual` or `mention`) never does. The
   // trigger column is nullable: a run without one reads as no retry.

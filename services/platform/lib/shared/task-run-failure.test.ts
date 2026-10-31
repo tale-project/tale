@@ -28,6 +28,7 @@ describe('taskRunFailureClass', () => {
     ['turn_stalled', 'stalled'],
     ['harvest_failed', 'interrupted'],
     ['steer_restart_failed', 'interrupted'],
+    ['sandbox_capacity', 'interrupted'],
   ])('reads %s as %s', (code, failureClass) => {
     expect(taskRunFailureClass(code)).toBe(failureClass);
   });

@@ -23,11 +23,13 @@ import { releaseTurnKey } from '../automations/agent_host';
 import { loadHarnesses } from '../lib/providers/load_system_config';
 import { resolveModel } from '../lib/providers/resolve_model';
 import { encryptSecret } from '../lib/secret_box';
+import { SessionMemoryBusyError } from '../node_only/sandbox/helpers/session_client';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import {
   AWAITING_ROOM_RESULT_STATUS,
   SANDBOX_DESTROY_PENDING_MESSAGE,
 } from '../sandbox/session_constants';
+import { resolveAutoRetryBudget } from './task_auto_retry';
 
 const io = vi.hoisted(() => ({
   instructions: [] as string[],
@@ -44,7 +46,8 @@ const io = vi.hoisted(() => ({
     stdin?: string;
   }>,
   builds: [] as Array<{ execId: string; contextWindow?: number }>,
-  /** The windows the drain answers, in order; `running` once they run out. */
+  /** The windows the drain answers, in order; `running` once they run out.
+   * An error is thrown instead, as a start the sandbox refused is. */
   windows: [] as unknown[],
   subscription: undefined as
     | undefined
@@ -96,7 +99,9 @@ vi.mock('../chat/external_turn_shared', async (importActual) => {
             : {}),
         });
       }
-      return io.windows.shift() ?? { kind: 'running', text: '', timeline: [] };
+      const next = io.windows.shift();
+      if (next instanceof Error) throw next;
+      return next ?? { kind: 'running', text: '', timeline: [] };
     },
   };
 });
@@ -343,6 +348,30 @@ beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'error').mockImplementation(() => {});
 });
+
+/** The start window of an exec the workspace's runtime refused before it
+ * spawned: the spawner's result for runnerd's `fail` (no exit, no output). */
+function refusedExecWindow(errorCode: string, errorMessage: string) {
+  return {
+    kind: 'terminal',
+    text: '',
+    textTruncated: false,
+    answerText: '',
+    timeline: [],
+    exited: true,
+    execResult: {
+      status: 'failed',
+      exitCode: null,
+      durationMs: 0,
+      stdoutBase64: '',
+      stderrBase64: '',
+      truncated: { stdout: false, stderr: false },
+      errorCode,
+      errorMessage,
+    },
+    outputTokens: 0,
+  };
+}
 
 describe('a task agent start', () => {
   it.each([
@@ -755,30 +784,6 @@ describe('a task agent start', () => {
     ).toBe(false);
   });
 
-  /** The start window of an exec the workspace's runtime refused before it
-   * spawned: the spawner's result for runnerd's `fail` (no exit, no output). */
-  function refusedExecWindow(errorCode: string, errorMessage: string) {
-    return {
-      kind: 'terminal',
-      text: '',
-      textTruncated: false,
-      answerText: '',
-      timeline: [],
-      exited: true,
-      execResult: {
-        status: 'failed',
-        exitCode: null,
-        durationMs: 0,
-        stdoutBase64: '',
-        stderrBase64: '',
-        truncated: { stdout: false, stderr: false },
-        errorCode,
-        errorMessage,
-      },
-      outputTokens: 0,
-    };
-  }
-
   it('parks a launched start whose exec found every live-exec place of its workspace taken, instead of failing it', async () => {
     // The agent's other runs hold all of the workspace's exec places: the
     // runtime refuses the fifth exec before it spawns (`EXEC_LIMIT`).
@@ -1018,6 +1023,120 @@ describe('a task agent steer restart', () => {
       retryAtMs,
       error:
         'the run could not be restarted to take a new comment: Every account behind credential "Synthetic broker" is cooling down after a rate limit — try again in 42 seconds.',
+    });
+  });
+
+  /** Dana's comment restarts a Codex run, which takes no stdin steering. */
+  async function steerWithComment(
+    ctx: ReturnType<typeof makeCtx>['ctx'],
+  ): Promise<void> {
+    await steerTaskAgentTurnImpl(ctx, {
+      ...KEYS,
+      harness: 'codex',
+      model: 'qwen3-32b',
+      feedback: 'Use the second address.',
+      author: 'Dana',
+      authorId: 'user-dana',
+      attempt: 0,
+    } as never);
+  }
+
+  /** The retry budget once the steered run failed as stamped, behind the
+   * three failures its task already counted. */
+  function budgetAfter(failureCode: unknown) {
+    const counted = {
+      agentId: 'alice',
+      status: 'failed',
+      failureCode: 'harness_error',
+    } as const;
+    return resolveAutoRetryBudget([
+      { agentId: 'alice', status: 'failed', failureCode: String(failureCode) },
+      counted,
+      counted,
+      counted,
+    ]);
+  }
+
+  it.each([
+    [
+      'its session is short of memory',
+      () =>
+        new SessionMemoryBusyError(
+          'pa-alice',
+          'exec-rotated',
+          5_000,
+          'session memory busy',
+        ),
+    ],
+    [
+      'every live-exec place of its workspace is taken',
+      () => refusedExecWindow('EXEC_LIMIT', 'live exec cap 4 reached'),
+    ],
+  ])(
+    'ends a restart refused because %s as a room wait, its retry free and waiting [TASK-R25]',
+    async (_why, refusal) => {
+      io.windows = [refusal()];
+      const { ctx, mutations } = makeCtx({
+        status: 'running',
+        execId: 'exec-1',
+      });
+      const before = Date.now();
+
+      await steerWithComment(ctx);
+
+      expect(io.starts.map((s) => s.execId)).toEqual(['exec-rotated']);
+      const failed = mutations.find(
+        (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
+      )?.args;
+      expect(failed).toMatchObject({
+        runId: 'run-1',
+        execId: 'exec-rotated',
+        failureCode: 'sandbox_capacity',
+      });
+      expect(failed?.error).toMatch(
+        /^the run could not be restarted to take a new comment: sandbox session pa-alice refused exec exec-rotated: /,
+      );
+      // Its retry spends no attempt, even behind a spent budget, and starts
+      // only once the refusal's wait has passed.
+      expect(budgetAfter(failed?.failureCode)).toMatchObject({ retry: true });
+      expect(failed?.retryAtMs).toBeGreaterThanOrEqual(before + 15_000);
+      expect(failed?.retryAtMs).toBeLessThanOrEqual(Date.now() + 15_000);
+      // The restarted exec never ran: its key and op row close as the
+      // kick's room waits do, never as a failed turn.
+      expect(releaseTurnKey).toHaveBeenCalledExactlyOnceWith(ctx, {
+        organizationId: 'org-1',
+        sessionId: 'pa-alice',
+        execId: 'exec-rotated',
+        status: 'cancelled',
+        agentResultStatus: AWAITING_ROOM_RESULT_STATUS,
+      });
+      expect(console.error).not.toHaveBeenCalled();
+    },
+  );
+
+  it('still fails a restart that broke for any other reason, spending an attempt [TASK-R25]', async () => {
+    io.windows = [new Error('sandbox session exec failed (500)')];
+    const { ctx, mutations } = makeCtx({ status: 'running', execId: 'exec-1' });
+
+    await steerWithComment(ctx);
+
+    const failed = mutations.find(
+      (m) => m.name === 'tasks/agent_runs:markTaskAgentRunFailed',
+    )?.args;
+    expect(failed).toMatchObject({
+      runId: 'run-1',
+      execId: 'exec-rotated',
+      failureCode: 'steer_restart_failed',
+      error:
+        'the run could not be restarted to take a new comment: sandbox session exec failed (500)',
+    });
+    expect(failed).not.toHaveProperty('retryAtMs');
+    expect(budgetAfter(failed?.failureCode)).toMatchObject({ retry: false });
+    expect(releaseTurnKey).toHaveBeenCalledExactlyOnceWith(ctx, {
+      organizationId: 'org-1',
+      sessionId: 'pa-alice',
+      execId: 'exec-rotated',
+      status: 'failed',
     });
   });
 });

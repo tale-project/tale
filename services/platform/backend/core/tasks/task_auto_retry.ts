@@ -8,7 +8,9 @@
  * immediately unless the task is in a rapid crash loop. A run the provider
  * ended because its model is at capacity is no crash: its retry spends no
  * attempt and waits, parked with every other run on that model, until the
- * model answers again (`domains/tasks/model-capacity-holds.ts`).
+ * model answers again (`domains/tasks/model-capacity-holds.ts`). Nor is a
+ * comment's restart that found no room in the run's sandbox: its retry
+ * spends no attempt and waits for room like any start.
  * Other harness errors retain their existing request recovery; an unconfined
  * fresh task start bounds transient broker GET recovery within the admitted
  * run. The loop detector is a CONSECUTIVE-failure budget
@@ -82,6 +84,13 @@ export type TaskRunFailureCode =
   | 'start_failed'
   | 'harvest_failed'
   | 'steer_restart_failed'
+  /** A comment's restart of a working run found no room in its sandbox: the
+   * exec start was refused for memory (`session_memory_busy`) or for a place
+   * among the workspace's live execs (`EXEC_LIMIT`), so nothing ran. No fault
+   * of the run — its retry spends no attempt ({@link freeCapacityWaits}),
+   * keeps the account eligible, and starts once the refusal's wait has
+   * passed, then waits for room like any start. */
+  | 'sandbox_capacity'
   /** A SUCCESSFUL harness end with no final text — the model emitted a bare
    * end-of-turn mid-work, so there is no report and the work is not done.
    * Retryable: the retry resumes the conversation and asks it to continue. */
@@ -298,18 +307,24 @@ export function freeCooldownWaits(
 
 /**
  * Which rows of a task's newest-first run history are FREE capacity waits:
- * every `model_capacity` failure. The provider refused the model, not the
- * task: the retry waits on the model's capacity hold
- * (`domains/tasks/model-capacity-holds.ts`), which spaces the attempts out
- * (1 to 15 minutes, one probing run at a time) and ends the wait after
- * twelve hours — no crash loop for the budget or the hourly automated-start
- * circuit to stop.
+ * every `model_capacity` and every `sandbox_capacity` failure. The provider
+ * refused the model, not the task: the retry waits on the model's capacity
+ * hold (`domains/tasks/model-capacity-holds.ts`), which spaces the attempts
+ * out (1 to 15 minutes, one probing run at a time) and ends the wait after
+ * twelve hours. A comment's restart that found no room in the run's sandbox
+ * ran nothing either: only a new comment ends a run so, and its retry is a
+ * start, which waits for room without failing
+ * (`parkTaskAgentRunForCapacity`). Neither is a crash loop for the budget or
+ * the hourly automated-start circuit to stop.
  */
 export function freeCapacityWaits(
   rows: readonly AutoRetryRunFacts[],
 ): boolean[] {
   return rows.map(
-    (row) => row.status === 'failed' && row.failureCode === 'model_capacity',
+    (row) =>
+      row.status === 'failed' &&
+      (row.failureCode === 'model_capacity' ||
+        row.failureCode === 'sandbox_capacity'),
   );
 }
 
@@ -321,10 +336,11 @@ export function freeCapacityWaits(
  * reassignment boundary all count as intervention/progress), or whose
  * attempt executed ≥ the progress threshold and did not run out of memory
  * ({@link refreshesRetryBudget}). A free credential rotation
- * ({@link freeCredentialRotations}) or cooldown wait
- * ({@link freeCooldownWaits}) is skipped — neither counted nor ending the
- * streak — and, when it is the run that just failed, is retried whatever
- * the streak behind it: the broker cut or held the turn, not a crash loop.
+ * ({@link freeCredentialRotations}), cooldown wait
+ * ({@link freeCooldownWaits}) or capacity wait ({@link freeCapacityWaits})
+ * is skipped — neither counted nor ending the streak — and, when it is the
+ * run that just failed, is retried whatever the streak behind it: the
+ * broker, the model or the sandbox cut or held the turn, not a crash loop.
  */
 export function resolveAutoRetryBudget(
   rows: readonly AutoRetryRunFacts[],

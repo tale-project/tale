@@ -831,7 +831,8 @@ export async function failAgentRunFromTurn(
     failureCode?: string;
     apiErrorStatus?: number;
     /** No retry can start before this, epoch ms — every account of the
-     * subscription broker was cooling down after a rate limit. The retry is
+     * subscription broker was cooling down after a rate limit, or a
+     * comment's restart found no room in the run's sandbox. The retry is
      * still kicked at once, so the card shows it queued; its start waits. */
     retryAtMs?: number;
   },
@@ -924,9 +925,10 @@ export async function failAgentRunFromTurn(
       }
     }
     if (retrying) {
-      // The broker's cooldown stays inside the stranded-queued-run sweep: the
-      // retry is queued at once and its start job waits. A model at capacity
-      // needs no delay here: the retry's claim parks it on the model's hold.
+      // The broker's cooldown — or the sandbox's wait for room — stays inside
+      // the stranded-queued-run sweep: the retry is queued at once and its
+      // start job waits. A model at capacity needs no delay here: the retry's
+      // claim parks it on the model's hold.
       const startAfterMs =
         args.failureCode !== 'model_capacity' &&
         args.retryAtMs !== undefined &&

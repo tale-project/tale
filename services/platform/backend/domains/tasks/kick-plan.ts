@@ -3,6 +3,7 @@ import type { Sql, TransactionSql } from 'postgres';
 import { harnessResumesConversations } from '../../core/chat/external_turn_shared.ts';
 import {
   AUTO_RETRY_HISTORY_LIMIT,
+  freeCapacityWaits,
   freeCredentialRotations,
   type AutoRetryRunFacts,
 } from '../../core/tasks/task_auto_retry.ts';
@@ -110,16 +111,16 @@ export async function resolveTaskKickStartArgs(
   // A free credential rotation left a healthy account behind — its token was
   // refreshed under the turn — so the next vend may pick it again. The retry
   // budget skips the same rows (`resolveAutoRetryBudget`).
-  const freeRotations = freeCredentialRotations(
-    runs.map((run) => ({
-      agentId: run.agentId,
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the column CHECK admits exactly these statuses
-      status: run.status as AutoRetryRunFacts['status'],
-      launchedAt: run.launchedAt ?? undefined,
-      settledAt: run.settledAt ?? undefined,
-      failureCode: run.failureCode ?? undefined,
-    })),
-  );
+  const facts = runs.map((run) => ({
+    agentId: run.agentId,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the column CHECK admits exactly these statuses
+    status: run.status as AutoRetryRunFacts['status'],
+    launchedAt: run.launchedAt ?? undefined,
+    settledAt: run.settledAt ?? undefined,
+    failureCode: run.failureCode ?? undefined,
+  }));
+  const freeRotations = freeCredentialRotations(facts);
+  const capacityWaits = freeCapacityWaits(facts);
   for (const [index, run] of runs.entries()) {
     if (index >= KICK_RESUME_PREDECESSOR_SCAN_LIMIT) {
       exhausted = true;
@@ -134,13 +135,15 @@ export async function resolveTaskKickStartArgs(
     // terminal row that is not this agent's failure.
     if (collectingHashes && terminal) {
       if (run.status === 'failed' && run.agentId === args.agentId) {
-        // Model capacity says nothing about the account's health. Keep it
-        // eligible without changing counted retry/circuit budgets, and
-        // continue collecting every other failed account in the prefix.
+        // A capacity wait — the model at capacity, or no room in the
+        // sandbox for a comment's restart — says nothing about the
+        // account's health. Keep it eligible without changing counted
+        // retry/circuit budgets, and continue collecting every other failed
+        // account in the prefix.
         if (
           run.brokerTokenHash !== null &&
           !freeRotations[index] &&
-          run.failureCode !== 'model_capacity'
+          !capacityWaits[index]
         ) {
           excludeBrokerTokenHashes.add(run.brokerTokenHash);
         }

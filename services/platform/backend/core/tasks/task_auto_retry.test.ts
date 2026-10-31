@@ -149,6 +149,48 @@ describe('resolveAutoRetryBudget', () => {
     ).toBe(false);
   });
 
+  it('spends no attempt on a restart for a comment that found no room in its sandbox, and never turns its wait into a free account cooldown [TASK-R25]', () => {
+    const noRoom = failed({ failureCode: 'sandbox_capacity' });
+    expect(resolveAutoRetryBudget([noRoom])).toEqual({
+      retry: true,
+      attempt: 0,
+    });
+    expect(
+      resolveAutoRetryBudget([noRoom, noRoom, noRoom, noRoom, noRoom]).retry,
+    ).toBe(true);
+    // The retry shows the attempt the restarted run showed.
+    expect(
+      resolveAutoRetryBudget([
+        failed({ failureCode: 'sandbox_capacity', autoRetryAttempt: 2 }),
+        failed(),
+        failed(),
+      ]),
+    ).toEqual({ retry: true, attempt: 2 });
+    expect(freeCooldownWaits([cooled(), noRoom])).toEqual([false, false]);
+    expect(freeCredentialRotations([noRoom])).toEqual([false]);
+  });
+
+  it('keeps counting real failures around a restart that found no room, and counts a restart that broke [TASK-R25]', () => {
+    const noRoom = failed({ failureCode: 'sandbox_capacity' });
+    expect(
+      resolveAutoRetryBudget([failed(), noRoom, failed(), noRoom, failed()]),
+    ).toEqual({ retry: true, attempt: AUTO_RETRY_MAX_ATTEMPTS });
+    expect(
+      resolveAutoRetryBudget([
+        failed(),
+        noRoom,
+        failed(),
+        failed(),
+        noRoom,
+        failed(),
+      ]).retry,
+    ).toBe(false);
+    const broke = failed({ failureCode: 'steer_restart_failed' });
+    expect(
+      resolveAutoRetryBudget([broke, failed(), failed(), failed()]).retry,
+    ).toBe(false);
+  });
+
   it('counts consecutive short failures and stops one past the budget', () => {
     expect(resolveAutoRetryBudget([failed()])).toEqual({
       retry: true,
@@ -399,6 +441,17 @@ describe('freeCapacityWaits', () => {
         failed(),
         failed({ status: 'settled', failureCode: 'model_capacity' }),
         failed({ failureCode: 'credential_cooldown' }),
+      ]),
+    ).toEqual([true, false, false, false]);
+  });
+
+  it('frees every restart for a comment that found no room in its sandbox, and no other restart [TASK-R25]', () => {
+    expect(
+      freeCapacityWaits([
+        failed({ failureCode: 'sandbox_capacity' }),
+        failed({ failureCode: 'steer_restart_failed' }),
+        failed({ status: 'cancelled', failureCode: 'sandbox_capacity' }),
+        failed({ failureCode: 'harness_error' }),
       ]),
     ).toEqual([true, false, false, false]);
   });
