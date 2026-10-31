@@ -15,8 +15,10 @@ async function createVolume(volumeName: string): Promise<boolean> {
   }
 
   logger.info(`Creating volume: ${volumeName}`);
-  // Label the volume with its project ID so `tale reset` can prune only this
-  // project's volumes (symmetric with network pruning).
+  // Label the volume with its project ID, as `ensure-network.ts` labels the
+  // networks: `docker volume ls --filter label=project=<id>` lists them.
+  // `tale reset --all` deletes volumes by name, not by this label: the
+  // snapshots and the dev stack's volumes carry it too.
   const result = await docker(
     'volume',
     'create',

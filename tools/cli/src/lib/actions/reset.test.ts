@@ -19,6 +19,7 @@ const dockerMock = mock();
 const stopContainerMock = mock();
 const removeContainerMock = mock();
 const confirmMock = mock();
+const loggerInfoMock = mock();
 const loggerWarnMock = mock();
 
 mock.module('../docker/docker', () => ({ docker: dockerMock }));
@@ -30,7 +31,7 @@ mock.module('../docker/remove-container', () => ({
 }));
 mock.module('../../utils/prompt', () => ({ confirm: confirmMock }));
 mock.module('../../utils/logger', () => ({
-  info: mock(),
+  info: loggerInfoMock,
   error: mock(),
   warn: loggerWarnMock,
   step: mock(),
@@ -53,13 +54,52 @@ const env: DeploymentEnv = {
 
 const PRUNED = { success: true, stdout: '', stderr: '', exitCode: 0 };
 
+/**
+ * The volumes `tale deploy` creates for project `tale`: the eleven that
+ * #4981 saw survive `reset --all`, without `tale_backups`, which holds the
+ * snapshots `tale restore` lists.
+ */
+const DATA_VOLUMES = [
+  'tale_static-assets',
+  'tale_platform-data',
+  'tale_convex-data',
+  'tale_config-data',
+  'tale_caddy-data',
+  'tale_caddy-config',
+  'tale_db-data',
+  'tale_db-backup',
+  'tale_object-store-data',
+  'tale_llm-gateway-data',
+];
+
+function failed(stderr: string) {
+  return { success: false, stdout: '', stderr, exitCode: 1 };
+}
+
 function removedContainers(): string[] {
   return removeContainerMock.mock.calls.map((call) => String(call[0]));
 }
 
-/** Docker calls that CHANGE something — `ps` is discovery, not an action. */
+/**
+ * Docker calls that CHANGE something — `ps` and `volume inspect` are
+ * discovery, not actions.
+ */
 function mutatingDockerCalls(): unknown[][] {
-  return dockerMock.mock.calls.filter((call) => call[0] !== 'ps');
+  return dockerMock.mock.calls.filter(
+    (call) =>
+      call[0] !== 'ps' && !(call[0] === 'volume' && call[1] === 'inspect'),
+  );
+}
+
+/** What each `docker volume rm` call was asked to delete. */
+function volumeRemovals(): unknown[][] {
+  return dockerMock.mock.calls
+    .filter((call) => call[0] === 'volume' && call[1] === 'rm')
+    .map((call) => call.slice(2));
+}
+
+function logged(logger: { mock: { calls: unknown[][] } }): string[] {
+  return logger.mock.calls.map((call) => String(call[0]));
 }
 
 beforeEach(() => {
@@ -71,6 +111,9 @@ beforeEach(() => {
   // prove it removes what compose actually created rather than a guessed
   // name. Routed through the docker mock rather than module-mocking the
   // lister: `mock.module` is process-global in Bun and leaks across files.
+  // Every other call succeeds, `volume inspect tale_backups` too: reset asks
+  // the docker runner itself, so another file's `ensure-volumes` stub cannot
+  // answer in this mock's place.
   dockerMock.mockImplementation((...args: string[]) => {
     if (args[0] !== 'ps') return Promise.resolve(PRUNED);
     const argv = args.join(' ');
@@ -94,6 +137,7 @@ afterEach(() => {
   stopContainerMock.mockReset();
   removeContainerMock.mockReset();
   confirmMock.mockReset();
+  loggerInfoMock.mockReset();
   loggerWarnMock.mockReset();
   setActiveOutputMode(resolveOutputMode({}, {}));
   rmSync(env.DEPLOY_DIR, { recursive: true, force: true });
@@ -129,19 +173,15 @@ describe('reset', () => {
     );
   });
 
-  test('without --all leaves the stateful tier and the sidecar alone', async () => {
+  test('without --all leaves the stateful tier, the sidecar and every volume alone', async () => {
     await reset({ env, force: true, includeStateful: false, dryRun: false });
 
     expect(removedContainers()).not.toContain('tale-db');
     expect(removedContainers()).not.toContain('tale-bgutil-provider');
-    // Volume prune is gated on --all too — volume data is not recoverable.
-    expect(dockerMock).not.toHaveBeenCalledWith(
-      'volume',
-      'prune',
-      '-f',
-      '--filter',
-      'label=project=tale',
-    );
+    // Volume deletion is gated on --all too — volume data is not recoverable.
+    expect(
+      dockerMock.mock.calls.filter((call) => call[0] === 'volume'),
+    ).toHaveLength(0);
   });
 
   test('--all removes the bgutil-provider sidecar with the stateful tier', async () => {
@@ -151,13 +191,92 @@ describe('reset', () => {
     // CLI is gone and pins the project network against the prune.
     expect(removedContainers()).toContain('tale-db');
     expect(removedContainers()).toContain('tale-bgutil-provider');
-    expect(dockerMock).toHaveBeenCalledWith(
-      'volume',
-      'prune',
-      '-f',
-      '--filter',
-      'label=project=tale',
-    );
+  });
+
+  test('--all deletes each data volume by name, never the snapshots or the dev stack', async () => {
+    await reset({ env, force: true, includeStateful: true, dryRun: false });
+
+    // By name, one volume per call: on Docker Engine 23 and later a
+    // `volume prune` removes only anonymous volumes, and every volume of a
+    // project is named (#4981).
+    expect(volumeRemovals()).toEqual(DATA_VOLUMES.map((volume) => [volume]));
+    expect(volumeRemovals().flat()).not.toContain('tale_backups');
+    expect(
+      dockerMock.mock.calls.some(
+        (call) => call[0] === 'volume' && call[1] === 'prune',
+      ),
+    ).toBe(false);
+    // The dev stack's volumes carry the same project label; nothing names them.
+    expect(
+      dockerMock.mock.calls.flat().some((arg) => String(arg).includes('-dev_')),
+    ).toBe(false);
+  });
+
+  test('names each volume it deleted and the snapshots volume it kept', async () => {
+    await reset({ env, force: true, includeStateful: true, dryRun: false });
+
+    const info = logged(loggerInfoMock);
+    for (const volume of DATA_VOLUMES) {
+      expect(info).toContain(`Removed volume: ${volume}`);
+    }
+    // `volume inspect` finds it, so it is named with the command that would
+    // delete it as well.
+    expect(
+      info.filter(
+        (line) =>
+          line.startsWith('Kept volume: tale_backups') &&
+          line.includes('docker volume rm tale_backups'),
+      ),
+    ).toHaveLength(1);
+  });
+
+  test('a volume already gone is no failure, and another failure names its volume', async () => {
+    dockerMock.mockImplementation((...args: string[]) => {
+      if (args[0] !== 'volume') return Promise.resolve(PRUNED);
+      if (args[2] === 'tale_platform-data' || args[2] === 'tale_backups') {
+        return Promise.resolve(
+          failed(`Error response from daemon: get ${args[2]}: no such volume`),
+        );
+      }
+      if (args[2] === 'tale_db-data') {
+        return Promise.resolve(
+          failed(
+            'Error response from daemon: remove tale_db-data: volume is in use - [4f1c2a]',
+          ),
+        );
+      }
+      return Promise.resolve(PRUNED);
+    });
+
+    await reset({ env, force: true, includeStateful: true, dryRun: false });
+
+    expect(
+      logged(loggerWarnMock).filter((line) => line.startsWith('Failed')),
+    ).toEqual([
+      'Failed to remove volume tale_db-data: Error response from daemon: remove tale_db-data: volume is in use - [4f1c2a]',
+    ]);
+    // A failure stops nothing: the volumes after it are still deleted.
+    expect(volumeRemovals()).toEqual(DATA_VOLUMES.map((volume) => [volume]));
+    const info = logged(loggerInfoMock);
+    expect(info).not.toContain('Removed volume: tale_platform-data');
+    expect(info).not.toContain('Removed volume: tale_db-data');
+    expect(info).toContain('Removed volume: tale_llm-gateway-data');
+    // No snapshots volume on this host, so none is reported as kept.
+    expect(info.some((line) => line.includes('tale_backups'))).toBe(false);
+  });
+
+  test('names the volumes --all deletes before asking, and a refusal deletes none', async () => {
+    confirmMock.mockResolvedValue(false);
+
+    await reset({ env, force: false, includeStateful: true, dryRun: false });
+
+    const warnings = logged(loggerWarnMock).join('\n');
+    for (const volume of DATA_VOLUMES) {
+      expect(warnings).toContain(volume);
+    }
+    expect(warnings).toContain('tale_backups are kept');
+    expect(confirmMock).toHaveBeenCalledTimes(1);
+    expect(mutatingDockerCalls()).toHaveLength(0);
   });
 
   test('--dry-run removes nothing and never prompts', async () => {
@@ -167,6 +286,15 @@ describe('reset', () => {
     // only reports what it would do.
     expect(removeContainerMock).not.toHaveBeenCalled();
     expect(mutatingDockerCalls()).toHaveLength(0);
+    const info = logged(loggerInfoMock);
+    for (const volume of DATA_VOLUMES) {
+      expect(info).toContain(`[DRY-RUN] Would remove volume: ${volume}`);
+    }
+    expect(
+      info.some((line) =>
+        line.startsWith('[DRY-RUN] Would keep volume: tale_backups'),
+      ),
+    ).toBe(true);
   });
 
   test('warns when the project network prune fails instead of hiding it', async () => {

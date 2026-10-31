@@ -759,13 +759,13 @@ Avec `--json`, le rapport liste chaque vérification avec son statut (`pass`, `f
 `tale reset` — supprimer tous les conteneurs blue-green.
 
 - `-f, --force` — ignorer l'invite de confirmation.
-- `-a, --all` — supprimer aussi les conteneurs d'infrastructure avec état.
+- `-a, --all` — supprimer aussi les conteneurs d'infrastructure avec état et les volumes de données du projet : sa base de données, la configuration des organisations, les fichiers téléversés, les certificats du proxy et le stockage de la passerelle de modèles. C'est irréversible. Le volume `backups` du projet, qui contient les snapshots que liste `tale restore`, est conservé ; supprime-le avec `docker volume rm <project-id>_backups` quand tu n'en as plus besoin.
 - `--dry-run` — prévisualiser la réinitialisation sans rien modifier.
 
 `tale uninstall` — supprimer le binaire CLI `tale` de ce système. Il demande confirmation avant de supprimer quoi que ce soit et _propose_ aussi de déconnecter l’[appareil de sandbox](#sandbox-device) de cette machine, de retirer `~/.tale-daemon` laissé par l’ancien `tale daemon` et de démanteler les ressources Docker et les fichiers d'un projet. Sans `--purge`, un projet et ses conteneurs restent intacts — lance `tale reset --all` à l'intérieur pour les supprimer. Si l’appareil de sandbox ne peut pas être arrêté, rien n’est désinstallé.
 
 - `-f, --force` — ignorer l'invite de confirmation (supprime uniquement le binaire ; les nettoyages optionnels nécessitent toujours `--purge`).
-- `--purge` — déconnecter aussi l’appareil de sandbox et supprimer ses espaces de travail, retirer `~/.tale-daemon` et, pour un projet trouvé depuis le répertoire courant, démanteler ses ressources Docker et supprimer ses fichiers. Irréversible.
+- `--purge` — déconnecter aussi l’appareil de sandbox et supprimer ses espaces de travail, retirer `~/.tale-daemon` et, pour un projet trouvé depuis le répertoire courant, démanteler ses ressources Docker comme le fait `tale reset --all`, en conservant son volume `backups`, et supprimer ses fichiers. Irréversible.
 - `--dry-run` — montrer ce qui serait supprimé sans rien supprimer.
 
 `tale config show` — afficher le répertoire du projet local résolu et la version de CLI. Hors d’un projet, la commande signale qu’aucun projet n’a été trouvé et se termine sans erreur.

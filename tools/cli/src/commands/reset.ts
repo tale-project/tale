@@ -15,7 +15,7 @@ export function createResetCommand(): Command {
     .option('-f, --force', 'Skip confirmation prompt', false)
     .option(
       '-a, --all',
-      `Also remove infrastructure (${[...STATEFUL_SERVICES, ...SIDECAR_SERVICES].join(', ')})`,
+      `Also remove infrastructure (${[...STATEFUL_SERVICES, ...SIDECAR_SERVICES].join(', ')}) and delete the project's data volumes; the backups volume and its snapshots are kept`,
       false,
     )
     .option('--dry-run', 'Preview reset without making changes', false)

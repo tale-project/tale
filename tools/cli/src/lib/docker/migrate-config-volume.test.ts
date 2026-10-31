@@ -120,7 +120,7 @@ describe('migrateConfigVolume', () => {
     );
   });
 
-  test('labels the volume it creates so `tale reset` can prune it', async () => {
+  test('labels the volume it creates with the project, as ensureVolumes does', async () => {
     const deps = fakeDeps({
       content: { 'tale_config-data': false, 'tale_convex-data': true },
     });

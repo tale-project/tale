@@ -343,8 +343,9 @@ async function runUpgradeCheck(options: UpgradeCheckOptions): Promise<void> {
       await run(cli, ['--yes', '--ci', 'reset', '--all', '--force'], {
         cwd: workspace,
       });
-      // `reset --all` prunes, and Docker 23+ prunes only anonymous volumes;
-      // remove this project's own named ones.
+      // `reset --all` keeps the `<project>_backups` snapshots, and the CLI
+      // under test may predate deleting the data volumes by name; remove
+      // whatever is left of this project's own volumes.
       const volumes = (
         await run(
           'docker',
