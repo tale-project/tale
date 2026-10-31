@@ -38,7 +38,7 @@ describe('listMyNotifications', () => {
       expect(statements).toHaveLength(1);
       const [statement] = statements;
       expect(statement?.text).toContain(
-        `FROM app.user_notifications WHERE user_id = ? AND org_id = ?${predicates} ORDER BY seq DESC LIMIT ?`,
+        `FROM app.user_notifications WHERE user_id = ? AND org_id = ?${predicates} ORDER BY user_notifications.seq DESC LIMIT ?`,
       );
       expect(statement?.text).not.toMatch(/IS NULL|\bOR\b/);
       expect(statement?.values).toEqual([
