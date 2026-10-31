@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html class="ltr" dir="ltr" lang="en-GB">
+
+<head>
+	<!--
+	  Recorded 2026-10-31 for main-content.test.ts from
+	  https://ted.europa.eu/en/notice/-/detail/650000-2025 with a browser's user agent
+	  ("Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko)
+	  Chrome/141.0.0.0 Safari/537.36"); the site answered 200 with 180 KB of Liferay page
+	  whose notice a script draws into <ted-v2-react-widget>. Trimmed to its skeleton: the
+	  head keeps its title, viewport, a script and the canonical link; scripts and styles
+	  are emptied; Liferay's portlet wrappers, blank lines and most list items are cut. The
+	  remaining tags, attributes and text are as served.
+	-->
+	<title>650000-2025 - Result - TED</title>
+
+	<script defer src="https://webtools.europa.eu/load.js" type="text/javascript"></script>
+
+	<meta content="initial-scale=1.0, width=device-width" name="viewport" />
+<script type="importmap"></script><link data-senna-track="temporary" href="https://ted.europa.eu/en/notice/-/detail/650000-2025" rel="canonical" />
+<link data-senna-track="temporary" href="https://ted.europa.eu/es/notice/-/detail/650000-2025" hreflang="es-ES" rel="alternate" />
+</head>
+
+<body class="chrome change-tracking-enabled controls-visible  yui3-skin-sam signed-out public-page site spa">
+<a class="skip-link" href="#ted-main-container">Skip to main content</a>
+<script type="application/json"></script>
+<script></script>
+<div class="d-flex flex-column min-vh-100">
+	<div class="d-flex flex-column flex-fill position-relative" id="wrapper">
+		<div id="content">
+			<div class="container" style="padding: 0;">
+				<div id="globan-here"  style="min-height: 28px"></div>
+			</div>
+		<div id="master-layout-wrapper">
+<div id="fragment-9784ea82-b431-e576-2b4e-601ff18f8346">
+<header class="ted-header">
+	<div></div>
+	<div class="ted-header__main">
+		<div class="container">
+			<div class="ted-header__wrapper-top">
+				<div class="ted-header__logo-eu">
+					<a href="https://european-union.europa.eu/index_en" target="_blank">
+						<img data-labels-key="lbl_header_eu_alternative_text" alt="European Union" class="d-block d-sm-none" src="https://ted.europa.eu/o/ted2-theme/images/eu/condensed/logo-eu--en.svg">
+					</a>
+				</div>
+				<div class="ted-header__account dropdown" data-e2e="ted-header-login-button">
+						<div class="ted-header__account-button" data-e2e="ted-header-signin">
+							<img data-labels-key="lbl_avatar_alternative_text" alt="Avatar" src="https://ted.europa.eu/o/ted2-theme/images/user.png">
+								<a class="ted-header__account-user" data-labels-key="lbl_header_signin" href="https://ted.europa.eu/c/portal/login?p_l_id=625&amp;redirect=%2Fen%2Fnotice%2F-%2Fdetail%2F650000-2025">Log in</a>
+						</div>
+				</div>
+				<div class="ted-language dropdown" data-e2e="ted-language-selector-button">
+			<button aria-label="Change language English" type="button" class="ted-language__button" data-toggle="dropdown" data-display="static">
+				<img data-labels-key="lbl_globe_alternative_text" alt="Select language for browsing" src="https://ted.europa.eu/o/ted2-theme/images/globe.png">
+				<span class="ted-language__text">English</span>
+			</button>
+	<div class="dropdown-menu">
+			<a class="ted-language__item" data-id="bg" data-e2e="bg" href="https://ted.europa.eu/bg/notice">български (BG)</a>
+			<a class="ted-language__item" data-id="de" data-e2e="de" href="https://ted.europa.eu/de/notice">deutsch (DE)</a>
+			<a class="ted-language__item active" data-id="en" data-e2e="en" href="https://ted.europa.eu/en/notice">english (EN)</a>
+			<a class="ted-language__item" data-id="fr" data-e2e="fr" href="https://ted.europa.eu/fr/notice">français (FR)</a>
+	</div>
+				</div>
+			</div>
+			<div class="ted-header__wrapper-bottom">
+				<div class="ted-header__logo">
+					<a class="ted-header__logo-link" href="https://ted.europa.eu">
+						<span data-labels-key="lbl_header_eutenders" class="ted-header__logo-title">EU tenders</span>
+                            <span data-labels-key="lbl_header_ted2" class="ted-header__logo-main">Ted • tenders electronic daily</span>
+						<span data-labels-key="lbl_header_title" class="ted-header__logo-tagline d-none d-sm-inline-block">Supplement to the Official Journal of the EU</span>
+					</a>
+				</div>
+			</div>
+		</div>
+	</div>
+</header>
+<div class="ted-header-modal modal fade" id="tedHeaderModal" style="display: none;">
+	<div class="modal-dialog modal-dialog-centered">
+		<div class="modal-content ted-modal__content">
+			<div class="modal-header ted-modal__header">
+				<span class="modal-title ted-modal__title" data-labels-key="lbl_signoutmodal_title">Successfully signed out</span>
+				<button type="button" class="close ted-modal__close" data-dismiss="modal" aria-label="Close">
+					<span>×</span>
+				</button>
+			</div>
+			<div class="modal-body ted-modal__body">
+			<p>You are signed out of the TED application, but you 're still logged in to EU Login. If you wish to logout of EU Login, please click <a href="https://ecas.ec.europa.eu/cas/logout.cgi">here</a></p>
+			</div>
+		</div>
+	</div>
+</div></div><style ></style><script type="module" ></script>
+<div id="fragment-ae785b81-8ef5-2cb8-c49f-233647c9c701">
+<div class="ted-search isNotHomepage">
+	<div class="container">
+		<div class="ted-search__wrapper">
+			<div class="row">
+				<div class="col-auto">
+	<div class="ted-controls">
+		<div class="ted-nav">
+			<div class="ted-nav-desktop-container">
+				<button class="ted-nav-btn js-nav-btn-desktop d-none d-lg-inline-flex">
+					<div class="ted-nav-btn__icon">
+						<span></span>
+						<span></span>
+						<span></span>
+					</div>
+					<span data-labels-key="lbl_menu_text" class="ted-nav-btn__text d-none d-sm-inline">Menu</span>
+				</button>
+				<div class="ted-nav-dropdown-wrapper d-none d-lg-block">
+					<nav class="ted-nav-dropdown">
+						<div class="row">
+							<div class="col-4">
+								<div class="ted-nav__header_main_menu">
+									<span class="ted-panel__heading"><span>SIMAP</span></span>
+								</div>
+									<div class="ted-nav__list-parent">
+			<div class="ted-nav__list-item main-menu-css-only">
+				<a href="https://ted.europa.eu/en/simap/european-public-procurement">European public procurement</a>
+			</div>
+			<div class="ted-nav__list-item main-menu-css-only">
+				<a href="https://ted.europa.eu/en/simap/statistics-on-ted-notices">Statistics on TED notices</a>
+			</div>
+									</div>
+							</div><div class="col-4">
+								<div class="ted-nav__header_main_menu">
+									<span class="ted-panel__heading"><span>What's new</span></span>
+								</div>
+									<div class="ted-nav__list-parent">
+			<div class="ted-nav__list-item main-menu-css-only">
+				<a href="https://ted.europa.eu/en/news">See all our news here</a>
+			</div>
+									</div>
+							</div>
+						</div>
+					</nav>
+				</div>
+			</div>
+		</div>
+	</div>
+				</div>
+<div class="col pl-0 pl-lg-3">
+<div class="ted-search">
+<form id="ted-search-form" action="https://ted.europa.eu/en/search/result?FT=test&amp;scope=ALL&amp;simpleSearchRef=true" method="post" class="ted-search___input-group">
+<input data-labels-key="lbl_quicksearch_searchtext" id="ted-search-input-text" data-e2e="ted-global-search-input" type="text" name="ted-search-input-text" class="ted-search__form-control" aria-label="Quick search in TED for notices" placeholder="Quick search in TED for notices">
+<div class="ted-search__input-group-append">
+<button id="ted-search-submit" class="ted-search__button-search" type="button" data-e2e="ted-global-search-button">
+<span data-labels-key="lbl_quicksearch_searchbutton" class="d-none d-md-inline">Search</span>
+</button>
+</div>
+</form>
+<div class="ted-search__options-desktop d-none d-md-flex">
+<span data-labels-key="lbl_quicksearch_moreoptions" class="ted-search__text">More search options:</span>
+<a id="advanced-search-nav-button" data-labels-key="lbl_quicksearch_advancedsearchbuttton" data-senna-off="true" href="https://ted.europa.eu/search/search" class="ted-search__button-options" data-e2e="ted-header-advanced-search-button">Advanced search</a>
+<a id="expert-search-nav-button" data-labels-key="lbl_quicksearch_expertsearchbutton" data-senna-off="true" href="https://ted.europa.eu/search/expert-search" class="ted-search__button-options" data-e2e="ted-header-expert-search-button">Expert search</a>
+<div class="ted-search__dropdown">
+<button data-labels-key="lbl_quicksearch_browsebysubjectbutton" class="ted-search__button-options ted-search__dropdown-toggle dropdown-toggle" type="button" data-toggle="dropdown" data-e2e="ted-header-advanced-browse-by-toggle-button">
+Browse by subject
+</button>
+<div class="ted-search__dropdown-menu dropdown-menu">
+<a data-senna-off="true" class="ted-search__dropdown-item" href="https://ted.europa.eu/browse-by-business-opportunity" data-e2e="ted-header-advanced-browse-by-business-opportunities-button">
+<span data-labels-key="lbl_quicksearch_businessopportunity">Business opportunity</span>
+</a>
+<a data-senna-off="true" class="ted-search__dropdown-item" href="https://ted.europa.eu/browse-by-business-sector" data-e2e="ted-header-advanced-browse-by-business-sector-button">
+<span data-labels-key="lbl_quicksearch_businesssector">Business sector (CPV)</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+</div>
+			</div>
+		</div>
+	</div>
+</div>
+</div><style ></style>
+<div id="fragment-f36005f5-b807-51af-8f53-c0055894016b">
+<section class="ted-main" id="ted-main-container">
+	<div class="container">
+		<div><div class="row align-items-lg-start align-items-sm-start align-items-start align-items-md-start flex-lg-row flex-sm-row flex-row flex-md-row"><div class="col col-lg-8 col-sm-12 col-12 col-md-8">
+<nav aria-label="Breadcrumb" id="_com_liferay_site_navigation_breadcrumb_web_portlet_SiteNavigationBreadcrumbPortlet_INSTANCE_raai_breadcrumbs-defaultScreen">
+			<div class="ted-breadcrumb d-none d-md-inline-flex">
+				<a href="https://ted.europa.eu/en/">TED</a>
+				<img alt="" src="https://ted.europa.eu/o/ted2-theme/images/arrow-right-gray.png">
+				<span>650000-2025 - Result</span>
+	</div>
+</nav>
+</div><div class="col col-lg-4 col-sm-12 col-12 col-md-4"><div id="fragment-e2cc7058-8ccf-0d1a-2f2c-d691943f6c86">
+<div class="ted-toolbar">
+	<div class="ted-aside-mobile-placeholder d-md-none"></div>
+	<div class="ted-mini-toolbar">
+			<a href="https://ted.europa.eu/help" class="ted-help" id="show-help-button-links" data-e2e="ted-help-button">
+				<img class="ted-help__icon" data-labels-key="lbl_help_alternative_text" alt="Help icon" src="https://ted.europa.eu/o/ted2-theme/images/help-icon.png">
+				<span data-labels-key="lbl_socialshare_help" class="ted-help__text">Help</span>
+			</a>
+			<button class="ted-print" id="show-print-button-links" data-e2e="ted-print-button">
+				<img class="ted-print__icon" data-labels-key="lbl_print_alternative_text" alt="Print icon" src="https://ted.europa.eu/o/ted2-theme/images/print-icon.png">
+				<span data-labels-key="lbl_socialshare_print" class="ted-print__text">Print</span>
+			</button>
+	</div>
+</div>
+</div><style></style><script type="module"></script></div></div><div class="row align-items-lg-start align-items-sm-start align-items-start align-items-md-start flex-lg-row flex-sm-row flex-row flex-md-row"><div class="col col-lg-8 col-sm-12 col-12 col-md-8"><div id="fragment-38fc30b0-4509-3b43-13e2-5b7485f644b2"> <div class="fragment_201">
+	<div class="ted-title">
+					<h1>650000-2025 - Result</h1>
+	</div>
+</div></div><style></style></div><div class="col col-lg-4 col-sm-12 col-12 col-md-4"></div></div><div class="layout-content portlet-layout" id="main-content" role="main"><div class="lfr-layout-structure-item-com-liferay-client-extension-web-internal-portlet-clientextensionentryportlet-20099-lxc-ted-v2-react-widget lfr-layout-structure-item-04859b0a-718c-9893-08b4-4615906e684a " data-layout-structure-item-id="04859b0a-718c-9893-08b4-4615906e684a"><div id="fragment-8521204e-1f4b-3da2-0622-895e78ed77ab"><link href="https://ted.europa.eu/o/ted-v2-react-widget/index.css?t=1793288718180" rel="stylesheet" type="text/css">
+<script src="https://ted.europa.eu/o/ted-v2-react-widget/AccordionDetails.js?t=1793288718180" type="module"></script>
+<script src="https://ted.europa.eu/o/ted-v2-react-widget/index.js?t=1793288718180" type="module"></script>
+<script src="https://ted.europa.eu/o/ted-v2-react-widget/types.js?t=1793288718180" type="module"></script>
+	<div class="portlet-boundary portlet-boundary_com_liferay_client_extension_web_internal_portlet_ClientExtensionEntryPortlet_20099_LXC_ted_v2_react_widget_  portlet-static portlet-static-end portlet-naked portlet-client-extension " id="p_p_id_com_liferay_client_extension_web_internal_portlet_ClientExtensionEntryPortlet_20099_LXC_ted_v2_react_widget_">
+		<span id="p_com_liferay_client_extension_web_internal_portlet_ClientExtensionEntryPortlet_20099_LXC_ted_v2_react_widget"></span>
+<section class="portlet" id="portlet_com_liferay_client_extension_web_internal_portlet_ClientExtensionEntryPortlet_20099_LXC_ted_v2_react_widget">
+	<div class="portlet-content">
+			<div class=" portlet-content-container">
+	<div class="portlet-body">
+		<ted-v2-react-widget liferaywebdavurl="https://ted.europa.eu/webdav/ted/document_library"></ted-v2-react-widget>
+	</div>
+			</div>
+	</div>
+</section>
+	</div>
+</div></div><div class="lfr-layout-structure-item-cookies-banner-mobile-css lfr-layout-structure-item-5a738c5e-0a86-67cd-8490-1b637369afe5 " data-layout-structure-item-id="5a738c5e-0a86-67cd-8490-1b637369afe5"><div id="fragment-bd8fb6de-8a90-27f8-e9bc-5988b306238f"> <span></span></div><style></style></div></div></div>
+	</div>
+</section></div>
+<div id="fragment-42c36fbb-754d-e0dc-fd4d-551f1a120617" > <div class="ted-footer">
+<div class="container">
+<div class="row">
+<div class="col-md-12 col-lg-4">
+<div class="ted-footer__rich-text">
+<div style="margin-top: -20px;">
+<div style="margin: 0 !important; padding: 0; font-size: 14px; !important;">This website is managed by:</div>
+&nbsp;
+<div style="margin: -10px 0 0 0 !important; padding: 0 !important; font-size: 14px;"><a href="https://op.europa.eu/en/" target="_blank"><img alt="" data-fileentryid="10259232" src="/documents/d/ted/ted-logo-blue" style="display: block; margin: 0px !important; padding: 0px !important;" width="80"></a> <a href="https://op.europa.eu/en/" rel="noopener noreferrer" style="font-weight: bold; color: #003399; font-size: 14px;" target="_blank">Publications Office of the European Union</a><br>
+<span style="color: #003399; font-size: 14px;">Law | Data | Publications</span></div>
+<p>&nbsp;</p>
+</div>
+</div>
+</div>
+<div class="col-md-12 col-lg-4">
+<div class="ted-eu-display">
+<span class="ted-footer__title">EU institutions and bodies</span>
+<ul class="ted-footer__list">
+<li class="ted-footer__list-item">
+<a class="ted-footer__list-item-link" href="https://european-union.europa.eu/institutions-law-budget/institutions-and-bodies/search-all-eu-institutions-and-bodies_en" target="_blank">Search all EU institutions and bodies</a>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</div></div><style ></style>
+</div>
+<form action="#" aria-hidden="true" class="hide" id="hrefFm" method="post" name="hrefFm"><span></span><button hidden type="submit">Hidden</button></form>
+<button type="button" class="ted-back-to-top__button" data-e2e="back_to_top_button" data-toggle="tooltip" data-placement="top" title="Back to top">
+<img data-labels-key="lbl_backtotop_alternative_text" alt="Back to top" class="ted-back-to-top" src="https://ted.europa.eu/o/ted2-theme/images/to-top-icon-blue.png" />
+</button>
+</div>
+</div>
+</div>
+<script type="text/javascript"></script><script></script>
+	<script type="module"></script>
+<script src="https://ted.europa.eu/o/ted2-theme/js/main.js?browserId=chrome&amp;minifierType=js&amp;languageId=en_GB&amp;t=1793288716000" type="text/javascript"></script>
+<script type="module"></script>
+</body>
+</html>

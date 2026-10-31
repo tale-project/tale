@@ -394,7 +394,8 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     'absent, or say exactly which part you read (compare "totalChars" to ' +
     'what you have seen).',
   web_fetch:
-    'Fetch a live public https:// page and read it as text. Use it when ' +
+    'Fetch a live public https:// page and read its main content as ' +
+    "text, without the site's navigation, header and footer. Use it when " +
     'you hold a concrete URL — one the user gave, one a search row ' +
     'carried, one your instructions name, or a well-known public page — ' +
     "and the organization's " +

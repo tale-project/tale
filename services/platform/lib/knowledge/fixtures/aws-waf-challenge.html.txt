@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!--
+      Recorded 2026-10-31 for main-content.test.ts from
+      https://ted.europa.eu/en/notice/-/detail/650000-2025 as web_fetch asks for it (user
+      agent "TaleAssistant/1.0 (+chat web_fetch)"): AWS WAF answered 202, with
+      `x-amzn-waf-action: challenge`, and this page in place of the notice. The challenge's
+      key, iv and context and its script's address are replaced with placeholders; the rest
+      is as served.
+    -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title></title>
+    <style>
+        body {
+            font-family: "Arial";
+        }
+    </style>
+    <script type="text/javascript">
+    window.awsWafCookieDomainList = ['ted.europa.eu','spikeseed.cloud'];
+    window.gokuProps = {
+"key":"KEY-PLACEHOLDER",
+          "iv":"IV-PLACEHOLDER",
+          "context":"CONTEXT-PLACEHOLDER"
+};
+    </script>
+    <script src="https://PLACEHOLDER.eu-central-1.token.awswaf.com/PLACEHOLDER/challenge.js"></script>
+</head>
+<body>
+    <div id="challenge-container"></div>
+    <script type="text/javascript">
+        AwsWafIntegration.saveReferrer();
+        AwsWafIntegration.checkForceRefresh().then((forceRefresh) => {
+            if (forceRefresh) {
+                AwsWafIntegration.forceRefreshToken().then(() => {
+                    window.location.reload(true);
+                });
+            } else {
+                AwsWafIntegration.getToken().then(() => {
+                    window.location.reload(true);
+                });
+            }
+        });
+    </script>
+    <noscript>
+        <h1>JavaScript is disabled</h1>
+        In order to continue, we need to verify that you're not a robot.
+        This requires JavaScript. Enable JavaScript and then reload the page.
+    </noscript>
+</body>
+</html>
