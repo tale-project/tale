@@ -645,6 +645,47 @@ chatTools:
     PowerPoint and PDF files, charts and calculations. Counts toward the
     light sandbox limit under Sandboxes.
   saveFailed: Couldn't save the chat tools
+chatToolStatus:
+  title: Chat tool status
+  description:
+    Whether chat in this organization can make files, run code, use skills
+    and make images right now, and what stands in the way where it can't.
+  checkAgain: Check again
+  checkedAt: Checked at {time}
+  loadFailed: Couldn't check the chat tools.
+  refreshFailed:
+    Couldn't check the chat tools again. This shows the last check.
+  images: Images
+  imageModel: Uses {model} from {provider}.
+  states:
+    available: Available
+    limited: Limited
+    unavailable: Unavailable
+  reasons:
+    policyOff: Switched off under Chat tools on this page.
+    policyUnreadable:
+      The Chat tools policy can't be read, which keeps this tool off until
+      it's repaired.
+    sandboxNotConfigured:
+      No sandbox service is set up for this deployment, so no code can run.
+    sandboxUnreachable:
+      The sandbox service didn't answer just now, so no code can run.
+    sandboxStartFailed: 'Last sandbox start, {when}: {failure}.'
+    skillLibraryUnreadable: The organization's skill library can't be read.
+    documentSkillsMissing:
+      'Document skills missing from the organization''s skill library:
+      {skills}.'
+    imageGenerationOff: Image generation is switched off under Models.
+    imagePolicyUnreadable: The Image generation policy can't be read.
+    noImageModel: No connected provider offers an image model.
+    imageModelUnavailable: The image model chosen under Models can't be used.
+    imageModelOutsideEu:
+      This organization processes prompts only in the EU/EEA, and the image
+      model's endpoint isn't known to process there.
+    modelAccessUnreadable:
+      The Model access policy can't be read, so Tale can't tell whether
+      prompts must stay in the EU/EEA.
+    imageModelCheckFailed: The image models couldn't be checked.
 skillSharing:
   title: Skill sharing
   description: Choose who may share a skill with the whole organization.
