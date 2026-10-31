@@ -252,7 +252,7 @@ Both deployed-run tools use the durable runner with the same authorization and e
 | `list_skills` | The organization's skills; with `projectId`, also the team skills of that project, the ones a run in it can use. A project you can't read answers `PROJECT_NOT_FOUND`. |
 | `list_connectors` | The connectors this deployment offers, whether your organization connected each (`connected`) and how many actions it has; `query` filters. A connector whose credential also opens Git remotes names the host as `gitHost`: `github.com`, or `endpoint` for the host of each credential's instance address. `search_catalog` lists the actions. |
 | `list_agent_secrets` | The names of the organization's agent secrets with a masked `preview`, never a value. Owners, Admins and Developers see them; anyone else gets an empty list with a `note`. |
-| `list_projects` | The projects you can read: whether each is `writable` or `archived`, and the `automations` installed in it that you may see. `query` filters by name; `includeArchived` adds archived projects. |
+| `list_projects` | The projects you can read, newest first and 50 per page: whether each is `writable` or `archived`, and the `automations` installed in it that you may see. `query` filters by name; `includeArchived` adds archived projects. `nextCursor` (null on the last page) is the `cursor` of the next page; pass it unchanged with the same `query` and `includeArchived`. |
 | `list_events` | The events Tale raises, each with when it fires: what an event trigger can wait for. |
 
 Each answer carries a `hint` that names the tool or the setting that changes it.

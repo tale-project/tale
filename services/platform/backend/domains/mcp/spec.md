@@ -313,9 +313,12 @@ connectors, the names of agent secrets, projects and events — from the readers
 pickers use, for the person and in their organization only: the models their model access allows,
 the skills of the organization and of a project they can read (any other project, or another
 organization's, is "not found"), whether each connector is connected, the projects they can read
-with only the automations they may see in each. The names of agent secrets go only to an owner,
-admin or developer, with a masked preview; anyone else gets an empty list that says why. No
-answer carries a secret's value.
+with only the automations they may see in each. The projects come a page at a time, newest first
+and at most 50, with `nextCursor` while more remain; the name is searched in the read that answers
+the page, and only that page's automations are read. A cursor pages on only with the search and the
+archived choice that answered it. The names of agent secrets go only to an owner, admin or
+developer, with a masked preview; anyone else gets an empty list that says why. No answer carries
+a secret's value.
 
 - **Example**: Mia, an ordinary member, asks for the agent secrets → an empty list saying only
   owners, admins and developers see them; Ada, an admin, gets `CRM_TOKEN` with its masked preview
@@ -410,8 +413,9 @@ several kinds answers no `nextCursor`, so no page is taken for another kind's. A
 the kind that issued it: another kind's, or one no listing answered, is refused (`INVALID_CURSOR`)
 beside what the other kinds read. A page of the listings of free text — a project's instructions,
 an agent's instructions, tools and model — ends once what it read would crowd the answer (about
-200,000 characters), and agents are paged over their (project, agent) pairs, so reading them all
-takes as many pages as it takes, never repeating or skipping one.
+200,000 characters). Projects and agents are listed newest first, the agents across every project
+the person reads, so reading them all takes as many pages as it takes, never repeating or skipping
+one.
 
 - **Example**: Ada's agent reads the instructions of her 25 projects, each as long as one may be.
   The first page holds ten of them and the cursor under `cursors["project-instructions"]`; it
