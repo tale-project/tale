@@ -159,19 +159,26 @@ export interface ChatContract {
   };
   'chat/messages:listMessages': {
     kind: 'query';
-    args: { organizationId: string; threadId: string };
-    returns: Array<{
-      id: string;
-      role: 'user' | 'assistant' | 'tool' | 'system';
-      parts: MessagePart[];
-      sequence: number;
-      model: undefined | string;
-      providerSlug: undefined | string;
-      usage: unknown;
-      blockedReason: undefined | string;
-      error: undefined | string;
-      createdAt: number;
-    }>;
+    /** `whole` reads every page — for an export, never the transcript. */
+    args: { organizationId: string; threadId: string; whole?: boolean };
+    /** The rows loaded so far, oldest first, and where the page before
+     * them starts (`null` once the thread's first row is in). */
+    returns: {
+      messages: Array<{
+        id: string;
+        role: 'user' | 'assistant' | 'tool' | 'system';
+        parts: MessagePart[];
+        sequence: number;
+        model: undefined | string;
+        providerSlug: undefined | string;
+        usage: unknown;
+        blockedReason: undefined | string;
+        error: undefined | string;
+        createdAt: number;
+      }>;
+      hasMore: boolean;
+      nextBefore: { order: number; stepOrder: number } | null;
+    };
   };
   'chat/project_threads:listThreadsForProject': {
     kind: 'query';
