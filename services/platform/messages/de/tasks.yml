@@ -459,7 +459,7 @@ review:
   independentReviewerRequired: Deine Organisation verlangt ein unabhängiges
     Review — die Arbeit muss jemand anderes freigeben.
   competenceRequired: Für diese Freigabe fehlt dir eine erforderliche
-    Kompetenz. Bitte einen Admin deiner Organisation, sie dir zuzuweisen.
+    Qualifikation. Bitte einen Admin deiner Organisation, sie dir zuzuweisen.
 reviewer:
   none: Kein Reviewer
   assignToMe: Selbst prüfen

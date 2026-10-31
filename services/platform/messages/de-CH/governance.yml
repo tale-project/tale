@@ -67,4 +67,4 @@ personalization:
       explizit dagegen entscheiden, behalten ihre Wahl.
 competences:
   revokeDialog:
-    descriptionTeam: 'Die Mitglieder von {team} verlieren "{competence}" in dieser Organisation sofort, ausser sie haben sie selbst. Die Zuweisung bleibt als Verlauf im Register.'
+    descriptionTeam: 'Die Mitglieder von {team} verlieren "{competence}" in dieser Organisation sofort, ausser sie haben das Recht selbst. Die Zuweisung bleibt als Verlauf im Register.'

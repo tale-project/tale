@@ -223,7 +223,7 @@ async function validatePendingAgentReview(
   if ((policy?.requiredCompetences ?? []).length > 0) {
     throw new TaskError(
       'TASK_REVIEW_HUMAN_COMPETENCE_REQUIRED',
-      'This review requires human competence records; explicitly transfer it to an eligible person',
+      'This review requires human qualifications; explicitly transfer it to an eligible person',
       403,
     );
   }

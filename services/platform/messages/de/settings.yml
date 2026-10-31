@@ -122,7 +122,7 @@ modelEndpoints:
   forbidden:
     title: Deine Rolle kann die Modell-Endpunkte nicht aufrufen
     description: Inhaber, Admins und Entwickler können das. Bitte einen
-      Admin, dir die Kompetenz „Modelle über die API aufrufen“ zuzuweisen.
+      Admin, dir das Recht „Modelle über die API aufrufen“ zuzuweisen.
   openaiUrl:
     label: OpenAI-kompatible Basis-URL
     description: Für die OpenAI-SDKs, opencode und andere OpenAI-kompatible
@@ -311,7 +311,7 @@ organization:
   memberRights:
     action: Rechte
     title: Rechte von {name}
-    description: Was dieses Mitglied in der Organisation darf, und warum. Ein Schalter weist das Recht als Kompetenz zu, auf Wunsch befristet, oder widerruft die Zuweisung. Jede Änderung wird im Audit-Log festgehalten.
+    description: Was dieses Mitglied in der Organisation darf, und warum. Ein Schalter weist das Recht zu, auf Wunsch befristet, oder widerruft die Zuweisung. Jede Änderung wird im Audit-Log festgehalten.
     loadFailed: Die Rechte konnten nicht geladen werden.
     refreshFailed: Die Rechte konnten nicht aktualisiert werden. Was du siehst, ist vielleicht nicht mehr aktuell.
     held: Erlaubt
@@ -381,7 +381,7 @@ teams:
     summary: 'Dieses Team hat {members, plural, one {# Mitglied} other {# Mitglieder}}. Es gehört zur Reichweite von {projects, plural, one {# Projekt} other {# Projekten}}, {folders, plural, one {# Ordner} other {# Ordnern}} und {documents, plural, one {# Dokument} other {# Dokumenten}}, und {conversations, plural, one {# Unterhaltung liegt} other {# Unterhaltungen liegen}} in seiner Warteschlange.'
     becomeOrgWide: '{count, plural, one {# Element hat kein weiteres Team und wird} other {# Elemente haben kein weiteres Team und werden}} für alle in der Organisation sichtbar.'
     apiKeys: '{count, plural, one {# API-Schlüssel gehört diesem Team und funktioniert danach nicht mehr.} other {# API-Schlüssel gehören diesem Team und funktionieren danach nicht mehr.}}'
-    competenceGrants: '{count, plural, one {# Kompetenz, die diesem Team zugewiesen ist, wird widerrufen: Seine Mitglieder verlieren sie, außer sie haben sie selbst.} other {# Kompetenzen, die diesem Team zugewiesen sind, werden widerrufen: Seine Mitglieder verlieren sie, außer sie haben sie selbst.}}'
+    competenceGrants: '{count, plural, one {# Recht, das diesem Team zugewiesen ist, wird widerrufen: Seine Mitglieder verlieren es, außer sie haben es selbst.} other {# Rechte, die diesem Team zugewiesen sind, werden widerrufen: Seine Mitglieder verlieren sie, außer sie haben sie selbst.}}'
   description: Teams innerhalb deiner Organisation erstellen und verwalten für
     granulare Zugriffskontrolle
 credentials:

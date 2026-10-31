@@ -36,7 +36,7 @@ Certaines modifications restent dans Tale :
 - Par MCP, le modèle d’embedding lui-même ne change que tant que les connaissances de l’organisation ne contiennent aucun document et aucun site web : ainsi, les vecteurs de deux modèles ne se rencontrent jamais dans une même recherche. Son seuil de similarité et ses limites d’utilisation changent à tout moment ; si des documents sont indexés, une personne change le modèle dans Tale.
 - Par MCP, un agent ne crée ni projet, ni étiquette, ni agent de projet, ni tâche, et n’accorde à aucun agent ses connectors, secrets ou skills. C’est le rôle d’une personne dans Tale, ou de la [déclaration d’un déploiement géré](/fr/self-hosted/install/cli-install#configurer-la-plateforme), qui lit aussi les secrets d’agent et les identifiants de connector dans son propre environnement.
 - L’agent standard d’un projet suit la politique `standard_agent`, que modifie le type `governance` ; ses propres instructions, outils et modèle ne sont pas des paramètres.
-- Aucun type ne couvre les membres, les équipes, les connectors, les skills, les compétences, les conservations légales, les journaux d’audit, les métriques ni les paramètres personnels. `get_settings` sans arguments indique ce que couvre chaque type.
+- Aucun type ne couvre les membres, les équipes, les connectors, les skills, les droits et qualifications, les conservations légales, les journaux d’audit, les métriques ni les paramètres personnels. `get_settings` sans arguments indique ce que couvre chaque type.
 
 ## Faire une modification {#make-a-change}
 

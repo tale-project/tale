@@ -174,7 +174,7 @@ describe('SettingsRail', () => {
     expect(nav.queryByRole('link', { name: 'MCP' })).not.toBeInTheDocument();
   });
 
-  it('opens REST alone to a member granted another competence used with a key', async () => {
+  it('opens REST alone to a member granted another right used with a key', async () => {
     ability.canEverything = false;
     apiAccess.apiKeys = true;
 
