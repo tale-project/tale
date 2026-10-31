@@ -50,8 +50,8 @@ import { knowledgeShimHandlers } from '../knowledge/service.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
 import {
   checkProjectAdministrable,
+  fallbackProjectId,
   getProjectAuthContext,
-  listProjects,
   loadProjectOrThrow,
   ProjectError,
   type ProjectAuthContext,
@@ -1105,10 +1105,8 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         assertTaskReadable(project, auth);
         projectId = project.id;
       } else {
-        const projects = await listProjects(deps.sql, auth);
-        const fallback =
-          projects.find((project) => project.isOrgWide) ?? projects[0];
-        if (!fallback) {
+        const fallback = await fallbackProjectId(deps.sql, auth);
+        if (fallback === null) {
           return c.json(
             { error: 'NO_PROJECT', message: 'Create a project first' },
             400,
@@ -1116,9 +1114,9 @@ export function createTaskRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
         }
         console.warn(
           '[create-task] no projectId supplied; falling back to org-wide project',
-          { organizationId: auth.organizationId, projectId: fallback.id },
+          { organizationId: auth.organizationId, projectId: fallback },
         );
-        projectId = fallback.id;
+        projectId = fallback;
       }
 
       const result = await transactSerializable(deps.sql, async (tx) => {

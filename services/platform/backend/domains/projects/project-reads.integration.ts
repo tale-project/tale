@@ -2,14 +2,17 @@
  * Real Postgres proof of who reads which projects (#5156). "Every project I
  * can read" is one relation that the all-projects task reads (the board,
  * search, the ops indicators) join in the statement that reads the tasks,
- * and the project lists read one page at a time. Fixture rows go in by SQL,
- * in an organization of their own so that no other lane's project counts;
- * every read goes through the service.
+ * and the project lists read one page at a time. The readers that pick from
+ * it or count it join it too (#5193): the document search, the project a
+ * create that names none falls back to, and the chat hand-over's projects
+ * with agents. Fixture rows go in by SQL, in an organization of their own so
+ * that no other lane's project counts; every read goes through the service.
  */
 import { randomUUID } from 'node:crypto';
 
 import type { Sql } from 'postgres';
 
+import { searchDocumentsView } from '../documents/service.ts';
 import {
   getTaskOpsIndicators,
   getTaskOpsIndicatorsForAccessibleProjects,
@@ -17,9 +20,11 @@ import {
   searchTasks,
 } from '../tasks/service.ts';
 import {
+  fallbackProjectId,
   listProjectsOverview,
   listSidebarProjects,
   readableProjectsSql,
+  readProjectAgentCoverage,
   type ProjectAuthContext,
 } from './service.ts';
 
@@ -34,6 +39,13 @@ interface FixtureProject {
   pinned?: boolean;
   /** In another organization. */
   foreign?: boolean;
+  /** Agents of its own: what the chat's hand-over note counts. */
+  agents?: number;
+}
+
+/** Open to the whole organization: no teams, and no legacy pair's team. */
+function isOrgWide(project: FixtureProject) {
+  return project.teamIds.length === 0 && project.teamId === undefined;
 }
 
 /** The same ids, in any order. */
@@ -57,11 +69,11 @@ export async function checkProjectReads(
   // Oldest first; the projects list reads them newest first.
   const fixtures: FixtureProject[] = [
     { name: 'open', key: 'OPEN', teamIds: [], pinned: true },
-    { name: 'finance', key: 'FIN', teamIds: [finance] },
+    { name: 'finance', key: 'FIN', teamIds: [finance], agents: 1 },
     { name: 'shared', key: 'SHR', teamIds: [finance, legal] },
-    { name: 'legacy', key: 'LEG', teamIds: [], teamId: legal },
-    { name: 'archived', key: 'ARC', teamIds: [], archived: true },
-    { name: 'foreign', key: 'FOR', teamIds: [], foreign: true },
+    { name: 'legacy', key: 'LEG', teamIds: [], teamId: legal, agents: 2 },
+    { name: 'archived', key: 'ARC', teamIds: [], archived: true, agents: 1 },
+    { name: 'foreign', key: 'FOR', teamIds: [], foreign: true, agents: 1 },
   ];
   const projects = fixtures.map((fixture, index) =>
     Object.assign(fixture, {
@@ -129,15 +141,32 @@ export async function checkProjectReads(
   try {
     for (const [index, project] of projects.entries()) {
       const org = project.foreign === true ? foreignOrgId : orgId;
+      // The agent count matches the agent rows, so the rollup repair that
+      // may run meanwhile finds nothing to correct.
       await sql`
         INSERT INTO app.projects (id, org_id, name, key, team_ids, team_id,
-          archived_at_ms, pinned_at_ms, created_by, created_at_ms,
-          updated_at_ms)
+          archived_at_ms, pinned_at_ms, project_agent_count, created_by,
+          created_at_ms, updated_at_ms)
         VALUES (${project.id}, ${org}, ${`Reads ${project.name}`},
           ${project.key}, ${sql.array(project.teamIds)}::text[],
           ${project.teamId ?? null}, ${project.archived === true ? now : null},
-          ${project.pinned === true ? now : null}, ${ctx.userId},
-          ${project.createdAt}, ${project.createdAt})
+          ${project.pinned === true ? now : null}, ${project.agents ?? 0},
+          ${ctx.userId}, ${project.createdAt}, ${project.createdAt})
+      `;
+      for (let agent = 0; agent < (project.agents ?? 0); agent += 1) {
+        await sql`
+          INSERT INTO app.project_agents (id, org_id, project_id, name,
+            harness, model, created_by, created_at_ms, updated_at_ms)
+          VALUES (${randomUUID()}, ${org}, ${project.id},
+            ${`Reads agent ${agent + 1}`}, 'claude-code', 'itest-model',
+            ${ctx.userId}, ${now}, ${now})
+        `;
+      }
+      await sql`
+        INSERT INTO app.documents (org_id, title, project_id, created_by,
+          created_at_ms, updated_at_ms)
+        VALUES (${org}, ${`${term} ${project.name}`}, ${project.id},
+          ${ctx.userId}, ${project.createdAt}, ${project.createdAt})
       `;
       await sql`
         INSERT INTO app.tasks (id, org_id, project_id, title, status, rank,
@@ -170,6 +199,13 @@ export async function checkProjectReads(
           })}, ${now})
       `;
     }
+    // A hub file open to everyone: the hub's own rule, beside the projects'.
+    const hubFile = await sql<{ id: string }[]>`
+      INSERT INTO app.documents (org_id, title, created_by, created_at_ms,
+        updated_at_ms)
+      VALUES (${orgId}, ${`${term} hub`}, ${ctx.userId}, ${now}, ${now})
+      RETURNING id
+    `;
 
     for (const { who, auth, reads } of viewers) {
       const readable = reads.map((name) => named(name).id);
@@ -250,6 +286,71 @@ export async function checkProjectReads(
           runs: ops.runs.map((run) => run.taskId),
           reviews: ops.pendingReviews.map((review) => review.taskId),
         }),
+      );
+
+      // The palette's document search: a project's files as its tasks,
+      // the archived project's included, labelled and sorted last.
+      const files = await searchDocumentsView(sql, auth, term);
+      const projectFiles = files.filter((hit) => hit.projectId !== undefined);
+      record(
+        `project reads: a document search by ${who} finds the files of exactly those projects and the archived one, labelled archived and last`,
+        sameIds(
+          projectFiles.map((hit) => hit.projectId ?? ''),
+          searchable,
+        ) &&
+          projectFiles.every(
+            (hit) =>
+              (hit.projectArchived === true) ===
+              (hit.projectId === named('archived').id),
+          ) &&
+          (!searchable.includes(named('archived').id) ||
+            files.at(-1)?.projectId === named('archived').id),
+        JSON.stringify(
+          files.map(({ documentId, projectId, projectArchived }) => ({
+            documentId,
+            projectId,
+            projectArchived,
+          })),
+        ),
+      );
+
+      // A task created with no project lands in the newest active project
+      // open to everyone the viewer reads, else in the newest they read.
+      const fallback =
+        projects
+          .filter((project) => reads.includes(project.name))
+          .sort(
+            (a, b) =>
+              Number(isOrgWide(b)) - Number(isOrgWide(a)) ||
+              b.createdAt - a.createdAt,
+          )[0]?.id ?? null;
+      const picked = await fallbackProjectId(sql, auth);
+      record(
+        `project reads: a create by ${who} that names no project falls back to the newest of those projects open to everyone`,
+        picked === fallback,
+        JSON.stringify({ picked, fallback }),
+      );
+
+      // The chat's hand-over note names the newest active projects with an
+      // agent, one here, and counts the rest with and without one.
+      const withAgents = projects
+        .filter(
+          (project) =>
+            reads.includes(project.name) && (project.agents ?? 0) > 0,
+        )
+        .sort((a, b) => b.createdAt - a.createdAt);
+      const coverage = await readProjectAgentCoverage(sql, auth, 1);
+      record(
+        `project reads: the hand-over note of ${who} names the newest of those projects with an agent and counts the rest`,
+        JSON.stringify(coverage) ===
+          JSON.stringify({
+            named: withAgents
+              .slice(0, 1)
+              .map((project) => `Reads ${project.name}`),
+            withAgents: withAgents.length,
+            withoutAgents: reads.length - withAgents.length,
+          }),
+        JSON.stringify(coverage),
       );
 
       // The HTTP doors refuse a disabled seat before the lists read.
@@ -364,6 +465,36 @@ export async function checkProjectReads(
         archivedHits[0]?.projectArchived === true &&
         archivedHits[0]?.projectKey === 'ARC',
       JSON.stringify(archivedHits),
+    );
+
+    const memberFiles = await searchDocumentsView(
+      sql,
+      viewer('member', []),
+      term,
+    );
+    record(
+      "project reads: a document search finds the hub's file open to everyone beside the project files",
+      memberFiles.some(
+        (hit) =>
+          hit.documentId === hubFile[0]?.id && hit.projectId === undefined,
+      ),
+      JSON.stringify(memberFiles.map((hit) => hit.documentId)),
+    );
+
+    // Last, as it archives the open project: with no project open to
+    // everyone left, the fallback is the newest project the caller reads.
+    await sql`
+      UPDATE app.projects SET archived_at_ms = ${now}
+      WHERE id = ${named('open').id}
+    `;
+    const teamFallback = await fallbackProjectId(
+      sql,
+      viewer('member', [finance]),
+    );
+    record(
+      'project reads: with no project open to everyone, a create that names none falls back to the newest project the member reads',
+      teamFallback === named('shared').id,
+      JSON.stringify({ teamFallback, shared: named('shared').id }),
     );
   } finally {
     // The live rows that background work acts on go; the projects and
