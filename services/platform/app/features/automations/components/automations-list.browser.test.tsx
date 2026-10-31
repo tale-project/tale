@@ -95,7 +95,7 @@ vi.mock('@/app/features/projects/hooks/queries', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('@/app/features/projects/hooks/queries')
   >()),
-  useProjects: () => ({ projects: [], isLoading: false }),
+  useNamedProjects: () => ({ projects: new Map(), isPending: false }),
 }));
 
 vi.mock('@/app/hooks/use-ability', async (importOriginal) => ({

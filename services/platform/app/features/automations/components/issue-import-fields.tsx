@@ -1,30 +1,57 @@
 'use client';
 
 import { Input } from '@tale/ui/input';
-import { SearchableSelect } from '@tale/ui/searchable-select';
+import {
+  SearchableSelect,
+  type SearchableSelectProps,
+} from '@tale/ui/searchable-select';
 import { Text } from '@tale/ui/text';
+import { useMemo } from 'react';
 
+import { ProjectSelect } from '@/app/features/projects/components/project-select';
+import { useNamedProjects } from '@/app/features/projects/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 
 import type { IssueSource } from '../lib/issue-import';
 
-export interface IssueImportProject {
-  _id: string;
-  name: string;
+/** A run scoped to a project imports into that project alone: the field
+ * offers it, read by id, and no other. */
+function PinnedProjectSelect({
+  organizationId,
+  projectId,
+  ...field
+}: Omit<SearchableSelectProps, 'options'> & {
+  organizationId: string;
+  projectId: string;
+}) {
+  const { projects } = useNamedProjects(organizationId, [projectId]);
+  const project = projects.get(projectId);
+  const options = useMemo(
+    () =>
+      project === undefined
+        ? []
+        : [{ value: project._id, label: project.name }],
+    [project],
+  );
+  return <SearchableSelect {...field} options={options} />;
 }
 
 /** Both importers use the same destination, source-filter, and batch controls.
  * Credentials stay in Connectors; run inputs never carry a secret. */
 export function IssueImportFields({
+  organizationId,
   source,
   value,
-  projects,
+  pinnedProjectId,
   disabled = false,
   onChange,
 }: {
+  /** Whose projects the destination is picked from. */
+  organizationId: string;
   source: IssueSource;
   value: Record<string, unknown>;
-  projects: readonly IssueImportProject[];
+  /** The run's own project, when the run is scoped to one. */
+  pinnedProjectId?: string;
   disabled?: boolean;
   onChange: (value: Record<string, unknown>) => void;
 }) {
@@ -58,19 +85,34 @@ export function IssueImportFields({
           {t('issueImport.continuing')}
         </Text>
       )}
-      <SearchableSelect
-        required
-        disabled={disabled}
-        label={t('issueImport.fields.projectId')}
-        placeholder={t('issueImport.chooseProject')}
-        options={projects.map((project) => ({
-          value: project._id,
-          label: project.name,
-        }))}
-        value={typeof value.projectId === 'string' ? value.projectId : ''}
-        onValueChange={(next) => set('projectId', next)}
-        emptyText={t('issueImport.noProjects')}
-      />
+      {pinnedProjectId === undefined ? (
+        // Home's page of projects, and past it what the server finds for
+        // what is typed: never every project (#5204).
+        <ProjectSelect
+          organizationId={organizationId}
+          required
+          disabled={disabled}
+          label={t('issueImport.fields.projectId')}
+          placeholder={t('issueImport.chooseProject')}
+          value={typeof value.projectId === 'string' ? value.projectId : null}
+          onValueChange={(next) => set('projectId', next)}
+          emptyText={t('issueImport.noProjects')}
+          modal
+        />
+      ) : (
+        <PinnedProjectSelect
+          organizationId={organizationId}
+          projectId={pinnedProjectId}
+          required
+          disabled={disabled}
+          label={t('issueImport.fields.projectId')}
+          placeholder={t('issueImport.chooseProject')}
+          value={typeof value.projectId === 'string' ? value.projectId : ''}
+          onValueChange={(next) => set('projectId', next)}
+          emptyText={t('issueImport.noProjects')}
+          modal
+        />
+      )}
       {source === 'github' ? (
         <>
           {textField('owner', true)}
