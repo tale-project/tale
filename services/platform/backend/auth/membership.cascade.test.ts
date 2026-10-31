@@ -85,6 +85,51 @@ describe('removeMembershipCascade — competence grants', () => {
   });
 });
 
+describe('removeMembershipCascade — team competence grants [GOV-R20]', () => {
+  it('forgets that an admin made the memberships it removes, and leaves the teams’ grants to the teams', async () => {
+    installFakeBoss();
+    const statements: { text: string; values: unknown[] }[] = [];
+    const tag = (
+      strings: TemplateStringsArray | readonly string[],
+      ...values: unknown[]
+    ) => {
+      // `tx(ids)` is a value list the enclosing statement binds.
+      if (!('raw' in strings)) return { list: [...strings] };
+      const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
+      statements.push({ text, values });
+      return Promise.resolve(
+        text.startsWith('DELETE FROM "teamMember"')
+          ? [
+              { id: 'tm-1', teamId: 't-1' },
+              { id: 'tm-2', teamId: 't-2' },
+            ]
+          : [],
+      );
+    };
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template-tag stand-in for postgres.js
+    const tx = tag as unknown as TransactionSql;
+    await expect(removeMembershipCascade(tx, 'org-1', 'u-1')).resolves.toEqual({
+      teamIds: ['t-1', 't-2'],
+    });
+
+    const removedAt = statements.findIndex((statement) =>
+      statement.text.startsWith('DELETE FROM "teamMember"'),
+    );
+    expect(statements[removedAt]?.text).toContain('RETURNING "id", "teamId"');
+    expect(statements[removedAt + 1]).toEqual({
+      text: 'DELETE FROM app.admin_added_team_members WHERE team_member_id IN ?',
+      values: [{ list: ['tm-1', 'tm-2'] }],
+    });
+    // The member's own grants are revoked; a team's grant is the team's and
+    // is not touched — the member stopped holding it with the memberships.
+    const revoke = statements.find((statement) =>
+      statement.text.startsWith('UPDATE app.competence_records'),
+    );
+    expect(revoke?.text).toContain('user_id = ?');
+    expect(revoke?.text).not.toContain('team_id');
+  });
+});
+
 describe('removeMembershipCascade — coding agents [AGCONN-R4]', () => {
   it('ends the agents the member connected in this organization, for the platform, and no other organization’s', async () => {
     installFakeBoss();
