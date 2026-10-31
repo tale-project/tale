@@ -26772,6 +26772,9 @@ async function checkCompetences(
     .object({ error: z.string() })
     .loose()
     .safeParse(await expiredRefused.json());
+  // The sealer chains audit rows off the write path, so both may still be
+  // unsealed here (`chain_seq` NULL, in no order): read them in the order it
+  // seals them, oldest `ts` first.
   const editAudits = await sql<
     { changedFields: unknown; previousState: unknown; newState: unknown }[]
   >`
@@ -26780,7 +26783,7 @@ async function checkCompetences(
     FROM app.audit_logs
     WHERE org_id = ${orgId} AND action = 'competence_updated'
       AND resource_id = ${recordId}
-    ORDER BY chain_seq
+    ORDER BY ts ASC, id ASC
   `;
   const auditText = JSON.stringify(editAudits);
   const firstEdit = editAudits[0];
