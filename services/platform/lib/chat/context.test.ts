@@ -618,6 +618,21 @@ describe('assembleContext — the skill catalog', () => {
     ).not.toContain('chosen-skills');
   });
 
+  it('says the chosen skills hold for the whole reply, how it is written too [CHAT-R34]', () => {
+    expect(
+      assembleContext(input({ chosenSkills: ['sign-off'] })).volatileSuffix,
+    ).toContain(
+      'The person chose this skill for this reply: sign-off. Its instructions were read with load_skill at the start of this reply: follow them throughout it, in what you do and in how you write it.',
+    );
+    const both = assembleContext(
+      input({ chosenSkills: ['docx', 'house-style'] }),
+    ).volatileSuffix;
+    expect(both).toContain(
+      'Their instructions were read with load_skill at the start of this reply: follow them throughout it',
+    );
+    expect(both).not.toContain('for the work they cover');
+  });
+
   it('renders nothing for an empty catalog or a sub-agent turn', () => {
     expect(
       assembleContext(input({ skillCatalog: [] })).blocks.map(

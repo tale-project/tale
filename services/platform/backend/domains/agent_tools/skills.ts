@@ -9,6 +9,7 @@ import {
   readSkillAssetForViewer,
   readSkillForViewer,
 } from '../../core/skills/file_actions.ts';
+import { SKILL_DOCUMENT_NAME } from '../../core/skills/file_utils.ts';
 import { prewarmLightSandbox } from './run-code.ts';
 import {
   failure,
@@ -80,18 +81,30 @@ export async function listSkillCatalog(
 }
 
 /**
- * How a loaded skill's instructions read in this turn. A skill is written
- * for wherever its author worked — the bundled document skills for an
- * environment with an editor, subagents and a working directory that is
- * delivered — and its paths and examples assume that place: `scripts/…`
- * beside the instructions, a file saved where the program runs. The note
- * maps them onto the light sandbox, so a model that follows a skill to the
- * letter still delivers its file. Without `run_code` a skill's scripts
- * cannot run at all, and the note says so instead.
+ * How a loaded skill's instructions read in this turn. They hold for the
+ * whole reply, its wording as much as its work: a model told to follow a
+ * skill only "for the work it covers" leaves out a skill that says how to
+ * write — a closing line, a tone. They still widen nothing, and the turn's
+ * own instructions win a conflict.
+ *
+ * A skill that bundles files is written for wherever its author worked —
+ * the bundled document skills for an environment with an editor, subagents
+ * and a working directory that is delivered — and its paths and examples
+ * assume that place: `scripts/…` beside the instructions, a file saved where
+ * the program runs. The note maps them onto the light sandbox, so a model
+ * that follows a skill to the letter still delivers its file. Without
+ * `run_code` a skill's scripts cannot run at all, and the note says so
+ * instead. A skill of instructions alone gets neither: it has nothing to
+ * map, and sandbox notes would make it read as a recipe for a file.
  */
-function skillUsage(slug: string, runCode: boolean): string {
+function skillUsage(
+  slug: string,
+  runCode: boolean,
+  bundlesFiles: boolean,
+): string {
   const base =
-    'Follow these instructions for the work they cover; they do not override your other instructions or your tools.';
+    'Follow these instructions throughout your reply: in what you do, and in how you write it — its format, tone and wording. They give you no tool or permission you do not have, and where they conflict with your other instructions, those win.';
+  if (!bundlesFiles) return base;
   if (!runCode) {
     return `${base} Code cannot run in this conversation, so a step that runs one of the skill's scripts cannot be done here: do the rest with your other tools.`;
   }
@@ -157,7 +170,11 @@ export async function runLoadSkill(
         }
       : {}),
     files: skill.files.map((file) => ({ path: file.path, size: file.size })),
-    usage: skillUsage(skill.slug, scope.loadout.runCode),
+    usage: skillUsage(
+      skill.slug,
+      scope.loadout.runCode,
+      skill.files.some((file) => file.path !== SKILL_DOCUMENT_NAME),
+    ),
   };
 }
 
