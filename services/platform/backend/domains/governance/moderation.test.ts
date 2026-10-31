@@ -4,12 +4,19 @@ import { moderationProviderConfigSchema } from '@tale/shared/schemas/governance'
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { safeFetchMock, readGovernanceSecret, readGovernancePolicyForOrg } =
-  vi.hoisted(() => ({
-    safeFetchMock: vi.fn(),
-    readGovernanceSecret: vi.fn(),
-    readGovernancePolicyForOrg: vi.fn(),
-  }));
+const {
+  safeFetchMock,
+  readGovernanceSecret,
+  readGovernancePolicyForOrg,
+  readModelEndpointPolicyForOrg,
+  recordModelEndpointRefusal,
+} = vi.hoisted(() => ({
+  safeFetchMock: vi.fn(),
+  readGovernanceSecret: vi.fn(),
+  readGovernancePolicyForOrg: vi.fn(),
+  readModelEndpointPolicyForOrg: vi.fn(),
+  recordModelEndpointRefusal: vi.fn(),
+}));
 
 // `safeFetch` is the one network edge; `SafeFetchError` stays real so the
 // classifier sees the same class the module catches.
@@ -25,6 +32,11 @@ vi.mock('./settings-tail.ts', () => ({
   readGovernanceSecret,
 }));
 vi.mock('../../lib/org-config.ts', () => ({ readGovernancePolicyForOrg }));
+// The EU/EEA processing rule's seams: the policy read and the audit entry.
+vi.mock('./model-endpoints.ts', () => ({
+  readModelEndpointPolicyForOrg,
+  recordModelEndpointRefusal,
+}));
 
 import { SafeFetchError } from '../../../lib/net/safe-fetch.ts';
 import {
@@ -95,9 +107,22 @@ beforeEach(() => {
   safeFetchMock.mockReset();
   readGovernanceSecret.mockReset();
   readGovernancePolicyForOrg.mockReset();
+  readModelEndpointPolicyForOrg.mockReset();
+  recordModelEndpointRefusal.mockReset();
   resetModerationCircuitsForTesting();
   readGovernanceSecret.mockResolvedValue('sk-live');
+  // The switch is off unless a test turns it on.
+  readModelEndpointPolicyForOrg.mockResolvedValue({ kind: 'open' });
+  recordModelEndpointRefusal.mockResolvedValue(undefined);
 });
+
+function withUrl(
+  url: string,
+): ReturnType<typeof moderationProviderConfigSchema.parse> {
+  return { ...config(), endpoint: { ...config().endpoint, url } };
+}
+
+const EU_ONLY = { kind: 'eu', attestedHosts: [] } as const;
 
 describe('substituteModerationTemplate', () => {
   it('keeps the body valid JSON whatever the text contains', () => {
@@ -303,10 +328,6 @@ describe('runModerationProvider', () => {
   });
 
   it('refuses a private endpoint unless the operator opted in, then names it to safeFetch', async () => {
-    const withUrl = (url: string) => ({
-      ...config(),
-      endpoint: { ...config().endpoint, url },
-    });
     const refused = await runModerationProvider(sql, {
       organizationId: ORG,
       direction: 'input',
@@ -416,6 +437,182 @@ describe('runModerationProvider', () => {
   });
 });
 
+describe('runModerationProvider under the EU/EEA processing rule', () => {
+  const ADMIN = { id: 'user_1', type: 'user' } as const;
+
+  it('[GOV-R23] keeps the text from an endpoint not known to process in the EU/EEA and audits the refusal', async () => {
+    readModelEndpointPolicyForOrg.mockResolvedValue(EU_ONLY);
+
+    const run = await runModerationProvider(sql, {
+      organizationId: ORG,
+      direction: 'output',
+      text: 'some text',
+      config: config(),
+      actor: ADMIN,
+    });
+
+    expect(run.outcome).toEqual({
+      kind: 'step_error',
+      filterName: 'moderation_provider',
+      reason: 'eu_processing',
+    });
+    expect(run.extras.refusalMessage).toContain(
+      'moderation.example.com is not an endpoint known to process there, so the text was not sent to the moderation provider',
+    );
+    expect(readModelEndpointPolicyForOrg).toHaveBeenCalledWith(sql, ORG);
+    expect(safeFetchMock).not.toHaveBeenCalled();
+    expect(readGovernanceSecret).not.toHaveBeenCalled();
+    expect(recordModelEndpointRefusal).toHaveBeenCalledExactlyOnceWith(sql, {
+      organizationId: ORG,
+      surface: 'moderation',
+      provider: 'moderation_provider',
+      host: 'moderation.example.com',
+      reason: 'not-attested',
+      code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+      message: run.extras.refusalMessage,
+      actor: ADMIN,
+    });
+  });
+
+  it("[GOV-R23] refuses a vendor's global endpoint and names its EU one", async () => {
+    readModelEndpointPolicyForOrg.mockResolvedValue({
+      kind: 'eu',
+      // An attestation never makes a vendor's global endpoint count.
+      attestedHosts: ['api.openai.com'],
+    });
+
+    const run = await runModerationProvider(sql, {
+      organizationId: ORG,
+      direction: 'input',
+      text: 'x',
+      config: withUrl('https://api.openai.com/v1/moderations'),
+    });
+
+    expect(run.outcome).toMatchObject({ reason: 'eu_processing' });
+    expect(run.extras.refusalMessage).toContain(
+      'An admin can point the moderation provider at eu.api.openai.com instead.',
+    );
+    expect(recordModelEndpointRefusal).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({
+        host: 'api.openai.com',
+        reason: 'vendor-global',
+      }),
+    );
+    // No actor: the platform itself asked.
+    expect(recordModelEndpointRefusal.mock.calls[0]?.[1]).not.toHaveProperty(
+      'actor',
+    );
+    expect(safeFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("[GOV-R23] sends the text to a vendor's EU endpoint and to a host an admin attested", async () => {
+    readModelEndpointPolicyForOrg.mockResolvedValue({
+      kind: 'eu',
+      attestedHosts: ['moderation.example.com'],
+    });
+    safeFetchMock.mockResolvedValue(ok(openAiBody({})));
+
+    const attested = await runModerationProvider(sql, {
+      organizationId: ORG,
+      direction: 'input',
+      text: 'x',
+      config: config(),
+    });
+    const vendorEu = await runModerationProvider(sql, {
+      organizationId: ORG,
+      direction: 'input',
+      text: 'x',
+      config: withUrl('https://eu.api.openai.com/v1/moderations'),
+    });
+
+    expect(attested.outcome).toEqual({ kind: 'pass' });
+    expect(vendorEu.outcome).toEqual({ kind: 'pass' });
+    expect(safeFetchMock.mock.calls.map(([url]) => url)).toEqual([
+      'https://moderation.example.com/v1/moderations',
+      'https://eu.api.openai.com/v1/moderations',
+    ]);
+    expect(recordModelEndpointRefusal).not.toHaveBeenCalled();
+  });
+
+  it('[GOV-R23] refuses every endpoint while the model access policy cannot be read', async () => {
+    readModelEndpointPolicyForOrg.mockResolvedValue({ kind: 'unreadable' });
+
+    const run = await runModerationProvider(sql, {
+      organizationId: ORG,
+      direction: 'input',
+      text: 'x',
+      config: withUrl('https://eu.api.openai.com/v1/moderations'),
+    });
+
+    expect(run.outcome).toMatchObject({ reason: 'eu_processing' });
+    expect(run.extras.refusalMessage).toContain(
+      'The model access policy cannot be read',
+    );
+    expect(recordModelEndpointRefusal).toHaveBeenCalledWith(sql, {
+      organizationId: ORG,
+      surface: 'moderation',
+      provider: 'moderation_provider',
+      code: 'MODEL_ENDPOINT_POLICY_UNREADABLE',
+      message: run.extras.refusalMessage,
+    });
+    expect(safeFetchMock).not.toHaveBeenCalled();
+  });
+
+  it('[GOV-R23] still keeps the text back when the audit entry cannot be written', async () => {
+    readModelEndpointPolicyForOrg.mockResolvedValue(EU_ONLY);
+    recordModelEndpointRefusal.mockRejectedValue(new Error('db down'));
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const run = await runModerationProvider(sql, {
+        organizationId: ORG,
+        direction: 'input',
+        text: 'x',
+        config: config(),
+      });
+      expect(run.outcome).toMatchObject({ reason: 'eu_processing' });
+      expect(safeFetchMock).not.toHaveBeenCalled();
+      expect(warn).toHaveBeenCalledWith(
+        `[moderation] ${ORG}: the audit entry for a refused moderation endpoint could not be written:`,
+        expect.any(Error),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('[GOV-R23] never opens the circuit — a refusal is the rule, not a provider fault', async () => {
+    readModelEndpointPolicyForOrg.mockResolvedValue(EU_ONLY);
+    for (let attempt = 0; attempt < 12; attempt += 1) {
+      const run = await runModerationProvider(sql, {
+        organizationId: ORG,
+        direction: 'input',
+        text: 'x',
+        config: config(),
+      });
+      expect(run.outcome).toMatchObject({ reason: 'eu_processing' });
+      expect(run.extras.circuitOpened).toBeUndefined();
+    }
+    expect(isCircuitOpen(ORG, 'input')).toBe(false);
+  });
+
+  it('[GOV-R23] changes nothing with the switch off', async () => {
+    safeFetchMock.mockResolvedValueOnce(ok(openAiBody({})));
+
+    const run = await runModerationProvider(sql, {
+      organizationId: ORG,
+      direction: 'input',
+      text: 'x',
+      config: withUrl('https://api.openai.com/v1/moderations'),
+    });
+
+    expect(run.outcome).toEqual({ kind: 'pass' });
+    expect(run.extras.refusalMessage).toBeUndefined();
+    expect(safeFetchMock).toHaveBeenCalledOnce();
+    expect(recordModelEndpointRefusal).not.toHaveBeenCalled();
+  });
+});
+
 describe('testModerationProvider', () => {
   it('reports not_configured without a policy or with a disabled one', async () => {
     readGovernancePolicyForOrg.mockResolvedValueOnce(null);
@@ -458,5 +655,27 @@ describe('testModerationProvider', () => {
       errorClass: 'parse',
       httpStatus: 200,
     });
+  });
+
+  it('[GOV-R23] answers a refused endpoint with its class, says why, and audits the admin who probed', async () => {
+    readGovernancePolicyForOrg.mockResolvedValueOnce(config());
+    readModelEndpointPolicyForOrg.mockResolvedValue(EU_ONLY);
+    const admin = { id: 'user_admin', type: 'user' } as const;
+
+    await expect(
+      testModerationProvider(sql, ORG, { text: 'probe' }, admin),
+    ).resolves.toEqual({
+      ok: false,
+      kind: 'step_error',
+      errorClass: 'eu_processing',
+      hint: expect.stringContaining(
+        'moderation.example.com is not an endpoint known to process there',
+      ),
+    });
+    expect(safeFetchMock).not.toHaveBeenCalled();
+    expect(recordModelEndpointRefusal).toHaveBeenCalledWith(
+      sql,
+      expect.objectContaining({ surface: 'moderation', actor: admin }),
+    );
   });
 });

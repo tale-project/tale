@@ -358,6 +358,57 @@ describe('planning a policy change', () => {
     expect(writeGovernancePolicyFile).not.toHaveBeenCalled();
   });
 
+  it('refuses a moderation endpoint the EU/EEA rule refuses, as the Settings page does [GOV-R23]', async () => {
+    vi.stubEnv('TALE_CONFIG_DIR', '/config');
+    stored.set('model_access', {
+      enabled: false,
+      mode: 'blocklist',
+      rules: [],
+      euProcessing: { enabled: true, hosts: [] },
+    });
+    const moderationAt = (url: string) => ({
+      enabled: true,
+      appliesTo: ['input'],
+      endpoint: { url, headers: {}, requestTemplate: '{"input": {{text}}}' },
+      responseShape: { type: 'openai_moderation' },
+      categoryMappings: [],
+      failBehavior: { input: 'open', output: 'closed' },
+    });
+    try {
+      const global = await planSettings(contextOf('admin'), registry, [
+        {
+          kind: 'governance',
+          id: 'moderation_provider',
+          op: 'set',
+          config: moderationAt('https://api.openai.com/v1/moderations'),
+        },
+      ]);
+      expect(global.changes[0]?.refusal).toMatchObject({
+        code: 'MODERATION_ENDPOINT_OUTSIDE_EU',
+        error: expect.stringContaining(
+          'Point it at eu.api.openai.com instead.',
+        ),
+        data: {
+          host: 'api.openai.com',
+          reason: 'vendor-global',
+          euEndpoint: 'eu.api.openai.com',
+        },
+      });
+      const eu = await planSettings(contextOf('admin'), registry, [
+        {
+          kind: 'governance',
+          id: 'moderation_provider',
+          op: 'set',
+          config: moderationAt('https://eu.api.openai.com/v1/moderations'),
+        },
+      ]);
+      expect(eu.changes[0]?.refusal).toBeUndefined();
+      expect(writeGovernancePolicyFile).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('says what a change does beyond its value, and that a change to what is stored does nothing', async () => {
     const current = stored.get('password_policy') as Record<string, unknown>;
     const plan = await planSettings(contextOf('admin'), registry, [

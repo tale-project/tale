@@ -11,6 +11,10 @@
  * (`model_access.denied`) and thrown as {@link ModelEndpointRefusal}, whose
  * message says why.
  *
+ * The guardrails' moderation provider receives the text under review, so
+ * the rule holds its endpoint too ({@link moderationEndpointRefusal},
+ * GOV-R23); the moderation step asks before it sends anything.
+ *
  * The policy is read strictly, the way the model endpoints' door reads it: a
  * residency rule cannot read as "off" because the file that turns it on
  * cannot be read. A missing file is off; an unreadable one refuses every
@@ -82,7 +86,10 @@ export type ModelEndpointSurface =
   | 'embedding'
   | 'image-generation'
   | 'transcription'
-  | 'speech';
+  | 'speech'
+  /** The guardrails' moderation provider, which receives the text under
+   * review (GOV-R23). */
+  | 'moderation';
 
 /** Who a model call is made for; absent, the platform itself. */
 export interface ModelEndpointActor {
@@ -161,11 +168,45 @@ function outsideEuMessage(
 const UNREADABLE_MESSAGE =
   'The model access policy cannot be read, so whether prompts must stay in the EU/EEA is unknown and the call was not sent. An admin must restore a valid model access policy.';
 
-function unreadableRefusal(provider: string): ModelEndpointRefusalData {
+function unreadableRefusal(
+  provider: string,
+  message = UNREADABLE_MESSAGE,
+): ModelEndpointRefusalData {
   return {
     code: 'MODEL_ENDPOINT_POLICY_UNREADABLE',
-    message: UNREADABLE_MESSAGE,
+    message,
     provider,
+  };
+}
+
+/** How a refusal is told: a model call's words, or another surface's. */
+interface RefusalWords {
+  outsideEu(
+    provider: string,
+    host: string | undefined,
+    reason: EuProcessingRefusal,
+  ): string;
+  readonly unreadable: string;
+}
+
+function endpointRefusal(
+  policy: ModelEndpointPolicy,
+  providerName: string,
+  baseUrl: string | undefined,
+  words: RefusalWords,
+): ModelEndpointRefusalData | undefined {
+  if (policy.kind === 'open') return undefined;
+  if (policy.kind === 'unreadable') {
+    return unreadableRefusal(providerName, words.unreadable);
+  }
+  const verdict = euProcessingVerdict(baseUrl, policy.attestedHosts);
+  if (verdict.allowed) return undefined;
+  return {
+    code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+    message: words.outsideEu(providerName, verdict.host, verdict.reason),
+    provider: providerName,
+    ...(verdict.host !== undefined ? { host: verdict.host } : {}),
+    reason: verdict.reason,
   };
 }
 
@@ -176,17 +217,51 @@ export function modelEndpointRefusal(
   policy: ModelEndpointPolicy,
   call: Pick<ModelEndpointCall, 'providerName' | 'baseUrl'>,
 ): ModelEndpointRefusalData | undefined {
-  if (policy.kind === 'open') return undefined;
-  if (policy.kind === 'unreadable') return unreadableRefusal(call.providerName);
-  const verdict = euProcessingVerdict(call.baseUrl, policy.attestedHosts);
-  if (verdict.allowed) return undefined;
-  return {
-    code: 'MODEL_ENDPOINT_OUTSIDE_EU',
-    message: outsideEuMessage(call.providerName, verdict.host, verdict.reason),
-    provider: call.providerName,
-    ...(verdict.host !== undefined ? { host: verdict.host } : {}),
-    reason: verdict.reason,
-  };
+  return endpointRefusal(policy, call.providerName, call.baseUrl, {
+    outsideEu: outsideEuMessage,
+    unreadable: UNREADABLE_MESSAGE,
+  });
+}
+
+/** The provider name a moderation refusal carries — its audit entry's. */
+const MODERATION_PROVIDER = 'moderation_provider';
+
+const MODERATION_NOT_SENT =
+  'so the text was not sent to the moderation provider';
+
+const MODERATION_UNREADABLE_MESSAGE =
+  'The model access policy cannot be read, so whether prompts must stay in the EU/EEA is unknown and the text was not sent to the moderation provider. An admin must restore a valid model access policy.';
+
+function moderationOutsideEuMessage(
+  _provider: string,
+  host: string | undefined,
+  reason: EuProcessingRefusal,
+): string {
+  if (host === undefined || reason === 'unknown-endpoint') {
+    return `${EU_RULE}, and the moderation provider names no endpoint known to process there, ${MODERATION_NOT_SENT}. An admin can point it at an endpoint that does.`;
+  }
+  if (reason === 'not-attested') {
+    return `${EU_RULE}, and ${host} is not an endpoint known to process there, ${MODERATION_NOT_SENT}. If it does process in the EU/EEA, an admin can list it under ${POLICY_PLACE}.`;
+  }
+  const euHost = vendorEuEndpoint(host);
+  return `${EU_RULE}, and ${host} may process prompts outside it, ${MODERATION_NOT_SENT}. An admin can point the moderation provider at ${euHost ?? 'an endpoint that processes in the EU/EEA'} instead.`;
+}
+
+/**
+ * {@link modelEndpointRefusal} for the guardrails' moderation provider
+ * (GOV-R23): it receives the text under review — prompts and replies — so
+ * the rule holds its endpoint to the region as it holds a model call's,
+ * with the same verdict and codes, told in its own words. Undefined when
+ * the rule lets the endpoint through.
+ */
+export function moderationEndpointRefusal(
+  policy: ModelEndpointPolicy,
+  endpointUrl: string,
+): ModelEndpointRefusalData | undefined {
+  return endpointRefusal(policy, MODERATION_PROVIDER, endpointUrl, {
+    outsideEu: moderationOutsideEuMessage,
+    unreadable: MODERATION_UNREADABLE_MESSAGE,
+  });
 }
 
 /** {@link modelEndpointRefusal} for a call through the model gateway's
