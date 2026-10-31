@@ -41,6 +41,7 @@ vi.mock('../hooks/queries', () => ({
     refetch: state.refetch,
   }),
   useOrgMembersForPicker: () => ({ data: [], isLoading: false }),
+  useMyModelApiAccess: () => ({ data: undefined, isLoading: true }),
 }));
 vi.mock('../hooks/mutations', () => ({
   useRevokeCompetence: () => ({ mutateAsync: state.revoke, isPending: false }),
