@@ -39,6 +39,20 @@ async function expandSection(
 }
 
 describe('DataTableFilters', () => {
+  it('tells its owner when the filter panel opens', async () => {
+    const onFiltersOpenChange = vi.fn();
+    const { user } = render(
+      <DataTableFilters
+        filters={[createFilter()]}
+        onFiltersOpenChange={onFiltersOpenChange}
+      />,
+    );
+
+    await openFilterPanel(user);
+
+    expect(onFiltersOpenChange).toHaveBeenCalledWith(true);
+  });
+
   describe('single-select (radio) filters', () => {
     it('selects option when clicking the row button', async () => {
       const onChange = vi.fn();
