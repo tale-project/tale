@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 101 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 103 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -24,7 +24,7 @@ All routes are under `/dashboard/{org}/settings/governance/…`. The bare
 | Content & Models      | `content-models`                          | Default models, Model access, Model endpoints for API keys, Vision model, Image generation, Standard agent, Audio transcription model |
 | Policies & Limits     | `policies-limits`                         | Budget rules, Upload policy, Retention policy, feature flags, personalization, voice output, confidentiality notice, skill sharing, conversation routing |
 | Security & Monitoring | `security-monitoring`                     | Login attempt limits, Password policy, Two-factor policy, Session idle timeout              |
-| Competences           | `competences`                             | Competence register: grants (member, competence, status, granted, evidence); **Grant competence**, per-row **Revoke** |
+| Competences           | `competences`                             | Competence register: grants (member, competence, status, granted, evidence); **Grant competence**, per-row **Change** and **Revoke** |
 | Guardrails            | `guardrails`                              | Guardrails overview, Custom instructions, Content safety, PII protection, Moderation provider |
 | Logs                  | `logs` (+ `?category=`)                   | Tabs: Audit logs · Sign-in blocks · Activity logs · Error logs; Export CSV/JSON             |
 | Usage                 | `usage`                                   | Read-only org usage metrics (cards + chart + tables)                                        |
@@ -500,6 +500,20 @@ agent.
   `removal-check` as **Former member**, revoked today. Re-add the same e-mail
   → the **Active** view stays empty for them (no grant re-attaches) and
   **Logs** shows a `competence_revoked` line per grant.
+- [ ] `GOV-F72` · **Change a grant in place** — On GOV-F23's `tax-reviewer`
+  row press the pencil named **Change tax-reviewer for …**
+  (`governance.competences.actions.editFor`) → the dialog
+  (`governance.competences.editDialog.title`) shows **Expires** =
+  **Unchanged (until** the date 30 days out**)**
+  (`governance.competences.editDialog.expiryKeep`) and **Save** disabled →
+  **Expires** = **In 1 year**, add a line of **Evidence** → **Save**
+  (`governance.competences.editDialog.submit`) → toast **Competence updated**
+  (`governance.competences.toasts.updated`); the same row, still alone, reads
+  **Until** the date a year out and shows the new evidence. **Logs** lists one
+  `competence_updated` line whose details read **Changed fields**
+  `expiresAt, evidence` with both dates under **Previous state** and **New
+  state**, and never the evidence text. Saving **Expires** = **Never** next
+  turns the row to **No expiry** and adds a second line.
 - [ ] `GOV-F25` · **Route by mailbox and address** — With TWO mailboxes on one
   email connector (A and B) and a team T1 and T2, `policies-limits` →
   **Conversation routing** → add three rules: **Any mailbox** · `support@…` →
@@ -910,14 +924,22 @@ agent.
   workflow, render and light sandbox limits.
 - [ ] `GOV-B8` · **A second live grant is refused in the form** — Grant
   GOV-F22's member **Act for another member** again → the dialog stays open
-  with **"This member already holds this competence. Revoke the current grant
-  before you grant it again."** (`governance.competences.errors.alreadyGranted`);
+  with **"This member already holds this competence. Change the current
+  grant, or revoke it before you grant it again."**
+  (`governance.competences.errors.alreadyGranted`);
   no second row appears. Picking another competence clears the message.
 - [ ] `GOV-B9` · **The platform namespace is reserved** — **Competence** =
   **Qualification**, **Qualification name** `tale:anything` → the field
   reports **"Names starting with "tale:" are reserved for platform
   capabilities."** (`governance.competences.grantDialog.validation.qualificationReserved`)
   and **Grant** stays disabled.
+- [ ] `GOV-B24` · **A grant revoked meanwhile is not changed** — Open GOV-F72's
+  **Change** dialog, revoke the same grant from a second session, then type
+  in **Evidence** and **Save** → the dialog stays open with **"This grant has
+  already been revoked."** (`governance.competences.errors.alreadyRevoked`),
+  the row leaves the **Active** list behind it, and **Logs** gains no
+  `competence_updated` line. **Filter** → **Status** → **Expired** and
+  **Revoked** rows offer no **Change**.
 - [ ] `GOV-B10` · **Long owners in the trash** — `trash` with a trashed row
   whose owner is a long unbroken address (a test account's email will do) →
   The **Owner** cell (`governance.trash.column.owner`) ends in an ellipsis
@@ -1087,9 +1109,12 @@ agent.
   returns focus to the trigger.
 - [ ] `GOV-A4` · **Competences by keyboard** → Tab to **Grant competence**,
   open it with Enter, and complete a grant with Tab, arrows and Enter only;
-  each field is announced by its label. Tab to a row's **Revoke** — its name
-  says which competence and member (`governance.competences.actions.revokeFor`)
-  — confirm the revocation, and focus lands on the register region named
+  each field is announced by its label. Tab to a row's **Change**, whose name
+  and tooltip say which competence and member
+  (`governance.competences.actions.editFor`); Enter opens its dialog and
+  Escape returns focus to it. Tab on to **Revoke** — its name says which
+  competence and member (`governance.competences.actions.revokeFor`) —
+  confirm the revocation, and focus lands on the register region named
   **Competences**, not on the page body.
 - [ ] `GOV-A5` · **Routing rules by keyboard** → Tab to **Add rule**, open it
   with Enter, and complete a rule with Tab, arrows and Enter only: **Arrives
