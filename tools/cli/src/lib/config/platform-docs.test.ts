@@ -61,6 +61,7 @@ const CHECKED_CI_FILES = [
   '.github/workflows/sandbox-incus-e2e.yml',
   '.github/workflows/sast.yml',
   '.github/workflows/security.yml',
+  '.github/workflows/release-tag.yml',
   '.github/actions/setup-cli/action.yml',
   '.github/workflows/scorecard.yml',
   '.github/scripts/pull-ci-images.sh',

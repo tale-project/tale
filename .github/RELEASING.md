@@ -19,7 +19,7 @@ maintained, and `release/0.7` opens as the next feature line.
 | 1. Choose | Record the candidate SHA and the version. | You, explicitly. |
 | 2. Validate | Send one `release-candidate` repository dispatch for the SHA. | The seven existing workflows and their candidate receipts. |
 | 3. Gate | Run the release gate script. | Its state: only `eligible` proceeds. |
-| 4. Tag | Push `vX.Y.Z` at the SHA. | `release.yml`, as for every release. |
+| 4. Tag | Send one `release-tag` repository dispatch for the SHA and the version. | The gate, run again by the Release tag workflow; then `release.yml`, as for every release. |
 | 5. Verify | Check the Release run, the GitHub release and the images. | Their recorded revision. |
 
 ## Write the user-facing release notes
@@ -255,7 +255,28 @@ a candidate receipt, and the gate does not read it.
 
 ## 4. Tag the candidate
 
-Only after the gate answers `eligible`:
+Only after the gate answers `eligible`, ask the **Release tag** workflow
+(`.github/workflows/release-tag.yml`) for the tag:
+
+```bash
+gh api repos/tale-project/tale/dispatches -f event_type=release-tag \
+  -f 'client_payload[candidate_sha]=<sha>' -f 'client_payload[version]=vX.Y.Z'
+```
+
+Sending it takes write access to the repository. The workflow refuses a candidate that is not a
+full commit SHA, a version that `release.yml`'s Prepare would refuse and a commit that is not on
+`main`, then runs the gate of step 3 again in the candidate's checkout. Only when the gate answers
+`eligible` does it push `vX.Y.Z` at the candidate; anything else ends the run red, pushes nothing
+and leaves the gate's report in the run's summary. One request runs at a time, and a later one
+waits instead of cancelling it. The run's title is `Release tag vX.Y.Z at <sha>`:
+
+```bash
+gh run list --repo tale-project/tale --workflow release-tag.yml --limit 5 \
+  --json databaseId,displayTitle,status,conclusion
+gh run watch <run id> --repo tale-project/tale --exit-status
+```
+
+A person with the admin or maintain role can still push the tag by hand, after the same gate:
 
 ```bash
 git fetch origin
@@ -263,10 +284,10 @@ git tag vX.Y.Z <sha>
 git push origin refs/tags/vX.Y.Z
 ```
 
-The tag starts `release.yml`. It builds both architectures from the tag, runs its container
-test gate, then publishes the manifests, the GitHub release, the CLI binaries and the package
-tags. Prepare validates the version's authored notes before anything is built, so a version
-whose notes it refuses publishes nothing.
+The tag starts `release.yml` either way. It builds both architectures from the tag, runs its
+container test gate, then publishes the manifests, the GitHub release, the CLI binaries and the
+package tags. Prepare validates the version's authored notes before anything is built, so a
+version whose notes it refuses publishes nothing.
 
 The package tags `ui-vX.Y.Z` and `marketing-ui-vX.Y.Z` follow the release. Once
 `Create release` has checked that the tag names the release commit, `Publish package tags`
@@ -332,6 +353,42 @@ succeeds; if they differ, it fails. Reconcile that conflict using the recorded s
 publication evidence, preserving the existing tags. Never dispatch Publish packages on a tag or any ref other than
 `main`: the run would use that ref's copy of the workflow and publisher, and the copy in an
 older tag also force-moves `dist/ui` and `dist/marketing-ui` back to the tagged commit.
+
+### How the Release tag workflow is set up
+
+The **Release tags** ruleset (`refs/tags/v*`, `refs/tags/[0-9]*`) lets only the admin and
+maintain roles create a release tag, and the agents that release hold the write role: a token
+that could create a release tag could publish any commit it can push, without review or CI. A
+push with a job's `GITHUB_TOKEN` would start no workflow. So the Release tag workflow pushes with
+a deploy key that only it can use. An admin sets it up once:
+
+1. **The key.** Make a key pair and add its public half as the repository's write deploy key
+   `release-tag workflow`:
+
+   ```bash
+   ssh-keygen -t ed25519 -N '' -C 'release-tag workflow' -f release-tag
+   gh repo deploy-key add release-tag.pub --repo tale-project/tale --allow-write \
+     --title 'release-tag workflow'
+   ```
+
+2. **The environment.** The environment `release` admits deployments from the branch `main`
+   only, and its secret `RELEASE_TAG_DEPLOY_KEY` holds the private half. Then delete both files:
+   the key exists only in the secret.
+
+   ```bash
+   gh secret set RELEASE_TAG_DEPLOY_KEY --repo tale-project/tale --env release < release-tag
+   rm release-tag release-tag.pub
+   ```
+
+3. **The ruleset.** The Release tags ruleset's bypass list names **Deploy keys** beside the
+   admin and maintain roles. That bypass names no key: every deploy key with write access may
+   create a release tag, so `release-tag workflow` stays the repository's only write deploy key.
+
+A repository dispatch runs the workflow from `main`, and the environment admits only `main`, so
+a branch cannot carry a changed copy of the workflow to the key. Only `release-tag.yml` names the
+environment: `tools/cli/scripts/release-tag-workflow.test.ts` refuses another workflow that names
+it, its secret or its concurrency group. To rotate the key, make a new pair, replace the deploy
+key and the secret together, and delete the old deploy key.
 
 ## 5. Verify the release
 
@@ -429,6 +486,10 @@ fails the candidate. Work in this order.
   continues.
 - **A real defect.** Do not release. Fix it on `main`, then choose a new candidate explicitly and
   say that it replaces the old one. Never tag a SHA other than the validated one.
+- **A red Release tag run.** Its error names the step that refused, and its summary says whether
+  the tag was pushed and holds the gate's report: wait for a `pending` candidate, repair a
+  `blocked` one, and reconcile `allocated` or `conflict` as the release lease below says. Then
+  send the same dispatch again.
 - **Do not re-run an old `main` Build run** to validate a candidate. It keeps its ordinary
   path-filtered graph and does not produce the complete candidate receipt.
 - **A missing or expired receipt** leaves the gate `blocked` and names the run. Expiry follows the

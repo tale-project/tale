@@ -70,7 +70,7 @@ and the workspaces' unit lanes, the UI shards, `Performance`, `Browser`, the Pla
 `ubuntu-latest` while self-hosted machines are shared by many jobs at once. A pull request from a
 fork always runs on `ubuntu-latest`, so code from outside never reaches a self-hosted machine. Each self-hosted runner
 has a Docker daemon of its own that is emptied after every job, so jobs keep the fixed ports,
-container names and prune steps they use on hosted runners. The release, the Incus end-to-end
+container names and prune steps they use on hosted runners. The release and its tag, the Incus end-to-end
 suite, the load test, the workspace upgrade check and the macOS, Windows and arm64 legs stay on
 GitHub-hosted runners.
 
@@ -157,6 +157,12 @@ GitHub-hosted runners.
   six-job limit. Separate service/architecture registry cache images survive tag boundaries;
   main's amd64 service caches can warm a first release. Only trusted Release writes registry
   caches; a failed optional export does not block publication.
+- **Release tag** (`release-tag.yml`) runs on a `release-tag` repository dispatch only. It
+  refuses a malformed request and a commit that is not on `main`, runs the release gate in the
+  candidate's checkout, and pushes the version tag at an `eligible` candidate with the deploy
+  key that only its `release` environment holds; a deploy key's push starts Release.
+  `tools/cli/scripts/release-tag-workflow.test.ts` runs the job step by step against a local
+  remote. `.github/RELEASING.md` step 4 says how to ask for a tag and how the key is set up.
 - **CLI** runs source tests on native Linux, macOS and Windows rows. Cross-compilation rows
   still generate and build their binaries; repeating the same source suite on the same
   host OS adds no platform coverage. Cross legs use a proven CLI-only frozen install
@@ -700,7 +706,8 @@ bun test --timeout 30000 tools/cli/scripts/ci-*.test.ts \
   tools/cli/scripts/cli-ci.test.ts \
   tools/cli/scripts/deployment-ci.test.ts \
   tools/cli/scripts/release-candidate-workflows.test.ts \
-  tools/cli/scripts/release-candidate-gate.test.ts
+  tools/cli/scripts/release-candidate-gate.test.ts \
+  tools/cli/scripts/release-tag-workflow.test.ts
 ```
 
 Also run `actionlint`, the cache-input guards, and `bun run check`. When a matrix or
@@ -972,8 +979,9 @@ The complete [release-candidate gate](RELEASING.md) remains required before tagg
 
 `tools/cli/scripts/forgejo-port/` turns these workflows into the ones Forgejo's runner runs. It
 is applied once, when the repository moves to Forgejo, and changes no workflow here until then;
-the cut-over adds one condition, to the `publish` job of `publish-packages.yml`, so that it
-publishes nothing once Forgejo is the source. The unit tests of `@tale/cli` run the port over
+the cut-over adds two conditions, to the `publish` job of `publish-packages.yml` and the `tag`
+job of `release-tag.yml`, so that they publish and tag nothing once Forgejo is the source.
+The unit tests of `@tale/cli` run the port over
 these workflows. They fail a change when the generator crashes on a workflow, when
 `declared-checks.yml` no longer lists the `CI ready (…)` checks the workflows define (a change
 that adds, renames or removes one runs `bun tools/cli/scripts/forgejo-port.ts checks --write`),

@@ -1,0 +1,181 @@
+name: Release tag
+
+# Tags a release candidate the release gate calls eligible (.github/RELEASING.md,
+# step 4). The tag is pushed with a deploy key that only this workflow's
+# environment holds: the agents' write role cannot create a release tag, so they
+# ask this workflow, which tags only an eligible commit of main.
+on:
+  repository_dispatch:
+    types: [release-tag]
+
+run-name: ${{ format('Release tag {0} at {1}', github.event.client_payload.version, github.event.client_payload.candidate_sha) }}
+
+permissions:
+  contents: read
+  actions: read
+
+# One tag at a time and never cancelled: a later request waits, and its gate
+# then sees the tag the earlier one pushed.
+concurrency:
+  group: release-tag
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  tag:
+    name: Tag
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Only main may deploy to this environment, and only it holds
+    # RELEASE_TAG_DEPLOY_KEY. No other workflow names it
+    # (tools/cli/scripts/release-tag-workflow.test.ts).
+    environment: release
+    steps:
+      # Anyone with Contents-write can send the payload: it reaches the shell
+      # only through env, and a refusal does not print it.
+      - name: Validate the request
+        id: request
+        env:
+          CANDIDATE_SHA: ${{ github.event.client_payload.candidate_sha }}
+          VERSION: ${{ github.event.client_payload.version }}
+        run: |
+          if [[ ! "$CANDIDATE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+            echo '::error::The candidate must be a full commit SHA'; exit 1
+          fi
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.-]+)?$ ]]; then
+            echo '::error::The version must be vX.Y.Z'; exit 1
+          fi
+          {
+            echo "sha=$CANDIDATE_SHA"
+            echo "version=$VERSION"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Checkout the candidate
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          ref: ${{ steps.request.outputs.sha }}
+          fetch-depth: 0
+          fetch-tags: true
+          persist-credentials: false
+
+      - name: Refuse a candidate that is not on main
+        env:
+          CANDIDATE_SHA: ${{ steps.request.outputs.sha }}
+        run: |
+          if ! git merge-base --is-ancestor "$CANDIDATE_SHA" origin/main; then
+            echo "::error::$CANDIDATE_SHA is not on main"; exit 1
+          fi
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+
+      # The gate imports zod. A frozen install takes only what the lockfile pins,
+      # and no package's install script runs in the job that later holds the key.
+      - name: Install the gate's dependencies
+        working-directory: tools/cli
+        run: bun install --frozen-lockfile --filter @tale/cli --ignore-scripts
+
+      # The report goes to the summary and never to the log, where a line it
+      # quotes could be read as a workflow command.
+      - name: Run the release gate
+        id: gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_SHA: ${{ steps.request.outputs.sha }}
+          VERSION: ${{ steps.request.outputs.version }}
+        run: |
+          report="$RUNNER_TEMP/release-candidate-gate.json"
+          errors="$RUNNER_TEMP/release-candidate-gate.log"
+          status=0
+          bun tools/cli/scripts/release-candidate-gate.ts --sha "$CANDIDATE_SHA" --version "$VERSION" \
+            > "$report" 2> "$errors" || status=$?
+          state=$(jq -r '.state | strings' "$report" 2> /dev/null || true)
+          if [[ ! "$state" =~ ^[a-z]+$ ]]; then
+            state=unreadable
+          fi
+          echo "state=$state" >> "$GITHUB_OUTPUT"
+          {
+            echo '## Release candidate gate'
+            echo
+            echo "State \`$state\`, exit $status."
+            echo
+            echo '```json'
+            cat "$report"
+            echo '```'
+            if [ -s "$errors" ]; then
+              echo
+              echo '```text'
+              cat "$errors"
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [ "$status" -ne 0 ] || [ "$state" != eligible ]; then
+            echo "::error::The release gate answered $state (exit $status); its report is in the summary"
+            exit 1
+          fi
+
+      # Read over TLS from GitHub's API, never taken on first use from whatever
+      # answers on port 22 (ssh-keyscan).
+      - name: Pin github.com's host keys
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          keys=$(gh api meta --jq '.ssh_keys[]')
+          if [ -z "$keys" ]; then
+            echo '::error::api.github.com/meta lists no SSH host keys'; exit 1
+          fi
+          pattern='^[A-Za-z0-9@.-]+ [A-Za-z0-9+/]+=*$'
+          while IFS= read -r key; do
+            if [[ ! "$key" =~ $pattern ]]; then
+              echo '::error::api.github.com/meta lists an SSH host key that is not a key'; exit 1
+            fi
+            printf 'github.com %s\n' "$key" >> "$RUNNER_TEMP/release-tag-known-hosts"
+          done <<< "$keys"
+
+      # A deploy key's push starts release.yml as a person's push does; a push
+      # with GITHUB_TOKEN would start no workflow. The key is a file only until
+      # the next step, which removes it whatever happened.
+      - name: Push the tag
+        id: push
+        env:
+          DEPLOY_KEY: ${{ secrets.RELEASE_TAG_DEPLOY_KEY }}
+          CANDIDATE_SHA: ${{ steps.request.outputs.sha }}
+          VERSION: ${{ steps.request.outputs.version }}
+        run: |
+          if [ -z "$DEPLOY_KEY" ]; then
+            echo '::error::The release environment holds no RELEASE_TAG_DEPLOY_KEY'; exit 1
+          fi
+          key="$RUNNER_TEMP/release-tag-deploy-key"
+          (umask 077 && printf '%s\n' "$DEPLOY_KEY" > "$key")
+          unset DEPLOY_KEY
+          export GIT_SSH_COMMAND="ssh -F /dev/null -i '$key' -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile='$RUNNER_TEMP/release-tag-known-hosts' -o GlobalKnownHostsFile=/dev/null"
+          git push git@github.com:tale-project/tale.git "$CANDIDATE_SHA:refs/tags/$VERSION"
+
+      - name: Remove the key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release-tag-deploy-key" "$RUNNER_TEMP/release-tag-known-hosts"
+
+      - name: Summary
+        if: always()
+        env:
+          CANDIDATE_SHA: ${{ steps.request.outputs.sha }}
+          VERSION: ${{ steps.request.outputs.version }}
+          STATE: ${{ steps.gate.outputs.state }}
+          PUSHED: ${{ steps.push.outcome }}
+        run: |
+          pushed='not pushed'
+          if [ "$PUSHED" = success ]; then
+            pushed=pushed
+          fi
+          {
+            echo '## Release tag'
+            echo
+            echo "- **Tag**: \`${VERSION:-none}\`, $pushed"
+            echo "- **Commit**: \`${CANDIDATE_SHA:-none}\`"
+            echo "- **Gate**: \`${STATE:-not run}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
