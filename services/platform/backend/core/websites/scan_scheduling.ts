@@ -146,12 +146,17 @@ export type WebsiteEmbeddingFailureClass =
   (typeof WEBSITE_EMBEDDING_FAILURE_CLASSES)[number];
 
 /** The reason a scan the embedding model stopped ends under:
- * `The embedding model could not embed the pages [credential]: 401 User not found.` */
+ * `The embedding model could not embed the pages [credential]: 401 User not found.`
+ * Without a class when the sentence alone says the cause and the fix (the
+ * organization's EU/EEA rule refusing the model's endpoint); the page then
+ * points at the embedding model, as for a reason written before classes. */
 export function websiteEmbeddingFailureReason(
-  failureClass: WebsiteEmbeddingFailureClass,
+  failureClass: WebsiteEmbeddingFailureClass | null,
   sentence: string,
 ): string {
-  return `${WEBSITE_EMBEDDING_FAILED_PREFIX} [${failureClass}]: ${sentence}`;
+  return failureClass === null
+    ? `${WEBSITE_EMBEDDING_FAILED_PREFIX}: ${sentence}`
+    : `${WEBSITE_EMBEDDING_FAILED_PREFIX} [${failureClass}]: ${sentence}`;
 }
 
 const EMBEDDING_FAILURE_REASON = new RegExp(

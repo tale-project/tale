@@ -8,8 +8,10 @@ import {
   type ComposerModelOption,
   servedByDirectCredential,
 } from '../../core/chat/composer.ts';
+import { ridesAnthropicHarnessEndpoint } from '../../core/lib/providers/agent_serving.ts';
 import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers.ts';
 import { listGovernedChatModels } from '../chat/composer.ts';
+import type { ModelApiWire } from './wire.ts';
 
 /**
  * The models a key holder may call through the model endpoints for API keys,
@@ -45,9 +47,10 @@ export interface ModelApiModel {
   /** The catalog's price — with the cache rates where the catalog names
    * them, which the settlement prices a reported cache read at. */
   pricing?: ModelCatalogEntry['pricing'];
-  /** The connector declares a native Anthropic endpoint for Anthropic-wire
-   * clients (`harnessEndpoint`) — the Anthropic door rides it. */
-  connector: Pick<ProviderDefinition, 'name' | 'harnessEndpoint'>;
+  /** The connector's endpoint, and the native Anthropic endpoint it may
+   * declare for Anthropic-wire clients (`harnessEndpoint`) — the Anthropic
+   * door rides it. */
+  connector: Pick<ProviderDefinition, 'name' | 'baseUrl' | 'harnessEndpoint'>;
 }
 
 export function modelApiId(providerSlug: string, modelId: string): string {
@@ -62,6 +65,19 @@ export function splitModelApiId(
   const slash = id.indexOf('/');
   if (slash <= 0 || slash === id.length - 1) return null;
   return { providerSlug: id.slice(0, slash), modelId: id.slice(slash + 1) };
+}
+
+/** Whether `model`'s requests on `wire` ride the connector's native
+ * Anthropic endpoint — a gateway record of their own, whose upstream is that
+ * endpoint (`resolveGatewayRouting`'s Anthropic lane). */
+export function ridesModelApiAnthropicLane(
+  wire: ModelApiWire,
+  model: Pick<ModelApiModel, 'connector'>,
+): boolean {
+  return ridesAnthropicHarnessEndpoint(
+    wire === 'anthropic' ? 'anthropic' : 'openai-chat',
+    model.connector,
+  );
 }
 
 /** Whether the gateway can serve a connector at all. */
@@ -87,6 +103,9 @@ function toModel(
     ...(option.pricing !== undefined ? { pricing: option.pricing } : {}),
     connector: {
       name: connector.name,
+      ...(connector.baseUrl !== undefined
+        ? { baseUrl: connector.baseUrl }
+        : {}),
       ...(connector.harnessEndpoint !== undefined
         ? { harnessEndpoint: connector.harnessEndpoint }
         : {}),
