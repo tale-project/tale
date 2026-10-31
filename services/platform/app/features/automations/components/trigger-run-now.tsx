@@ -186,6 +186,7 @@ export function TriggerRunNow({
 
       {deployedVersion !== undefined && dialogInput !== null && (
         <AutomationRunDialog
+          organizationId={place.organizationId}
           request={{
             automationSlug: place.name,
             mode: 'live',

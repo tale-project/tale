@@ -6,8 +6,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { act, render, screen, waitFor } from '@/tests/utils/render';
 
-// The section reads the bound set and the org's projects reactively and saves
-// through the reconcile mutation; the tests stub all three seams.
+// The section reads the bound set and the projects it offers and names
+// reactively, and saves through the reconcile mutation; the tests stub every
+// seam. A page that holds every project offers them all, so no search runs;
+// project-bindings-section.search.test.tsx covers more projects than a page.
 let boundData: string[] | undefined;
 const setProjects = { mutateAsync: vi.fn(), isPending: false };
 
@@ -17,14 +19,25 @@ vi.mock('../hooks/queries', () => ({
 vi.mock('../hooks/mutations', () => ({
   useSetAutomationProjects: () => setProjects,
 }));
+const PROJECTS = vi.hoisted(() => [
+  { _id: 'proj_1', name: 'Document desk' },
+  { _id: 'proj_2', name: 'Getting started' },
+  { _id: 'proj_3', name: 'Field service' },
+]);
 vi.mock('@/app/features/projects/hooks/queries', () => ({
-  useProjects: () => ({
-    projects: [
-      { _id: 'proj_1', name: 'Document desk' },
-      { _id: 'proj_2', name: 'Getting started' },
-      { _id: 'proj_3', name: 'Field service' },
-    ],
+  useProjectChoices: () => ({
+    projects: PROJECTS,
+    isDone: true,
     isLoading: false,
+  }),
+  useNamedProjects: (_organizationId: string, ids: readonly string[]) => ({
+    projects: new Map(
+      PROJECTS.filter((project) => ids.includes(project._id)).map((project) => [
+        project._id,
+        project,
+      ]),
+    ),
+    isPending: false,
   }),
 }));
 vi.mock('@tale/ui/i18n/client', () => ({
