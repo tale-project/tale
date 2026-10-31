@@ -7,7 +7,7 @@
 
 import { execFile } from 'node:child_process';
 import { createReadStream } from 'node:fs';
-import { readFile, stat } from 'node:fs/promises';
+import { stat } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 
 /** `/proc/meminfo`'s total and available memory, in bytes. */
@@ -97,18 +97,6 @@ export function readKernelLog(): Promise<
       },
     );
   });
-}
-
-/** A file read as text, or null when it is missing or unreadable. */
-export async function readText(path: string): Promise<string | null> {
-  try {
-    return await readFile(path, 'utf8');
-  } catch (error) {
-    console.warn(
-      `[burst] cannot read ${path}: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return null;
-  }
 }
 
 /** A file's size, so a later scan reads only what was written after it. */

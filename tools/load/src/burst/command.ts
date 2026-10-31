@@ -48,7 +48,7 @@ interface BurstFlags {
 }
 
 /** 0 when every expectation held, 1 when one missed. */
-export function burstExitCode(report: BurstReport): 0 | 1 {
+function burstExitCode(report: BurstReport): 0 | 1 {
   return report.pass ? 0 : 1;
 }
 
