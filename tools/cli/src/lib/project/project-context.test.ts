@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { CliError, ExitCode } from '../../utils/fail';
 import {
   invalidProjectIdMessage,
   isValidProjectId,
@@ -75,9 +76,12 @@ describe.each([
   test('refuses an invalid ID with the rule and the fix', async () => {
     const dir = projectWithId('2024_site');
     try {
-      await expect(resolve(dir)).rejects.toThrow(
-        invalidProjectIdMessage('2024_site'),
-      );
+      const error = await resolve(dir).catch((caught: unknown) => caught);
+      expect(error).toBeInstanceOf(CliError);
+      expect((error as CliError).info).toEqual({
+        summary: invalidProjectIdMessage('2024_site'),
+        code: ExitCode.Precondition,
+      });
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

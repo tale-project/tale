@@ -230,7 +230,11 @@ describe('tale deploy checks the project ID before Docker', () => {
       (caught: unknown) => caught,
     );
 
-    expect((error as Error).message).toBe(invalidProjectIdMessage('2024_site'));
+    expect(error).toBeInstanceOf(CliError);
+    expect((error as CliError).info).toEqual({
+      summary: invalidProjectIdMessage('2024_site'),
+      code: ExitCode.Precondition,
+    });
     expect(calls).toEqual({ project: 1, docker: 0 });
   });
 });

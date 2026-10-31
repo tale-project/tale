@@ -1,5 +1,6 @@
 import { basename, join } from 'node:path';
 
+import { preconditionError } from '../../utils/fail';
 import * as logger from '../../utils/logger';
 import {
   generateProjectId,
@@ -51,7 +52,7 @@ export async function resolveProjectContext(projectDir: string): Promise<void> {
     );
   }
   if (!isValidProjectId(id)) {
-    throw new Error(invalidProjectIdMessage(id));
+    throw preconditionError(invalidProjectIdMessage(id));
   }
   setProjectId(id);
 }
@@ -74,7 +75,7 @@ export async function resolveOrAssignProjectContext(
   const id = project.id;
   if (typeof id === 'string' && id.trim() !== '') {
     if (!isValidProjectId(id)) {
-      throw new Error(invalidProjectIdMessage(id));
+      throw preconditionError(invalidProjectIdMessage(id));
     }
     setProjectId(id);
     return;
