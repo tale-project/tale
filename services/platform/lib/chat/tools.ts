@@ -395,7 +395,9 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     'what you have seen).',
   web_fetch:
     'Fetch a live public https:// page and read its main content as ' +
-    "text, without the site's navigation, header and footer. Use it when " +
+    "text, without the site's navigation, header and footer; a page that " +
+    'builds its content in the browser is rendered once in a sandboxed ' +
+    'browser, and its result says "rendered": true. Use it when ' +
     'you hold a concrete URL — one the user gave, one a search row ' +
     'carried, one your instructions name, or a well-known public page — ' +
     "and the organization's " +
