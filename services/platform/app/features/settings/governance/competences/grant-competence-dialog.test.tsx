@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
@@ -13,6 +14,9 @@ const state = vi.hoisted(() => ({
   refetchMembers: vi.fn(),
   // The member list as `useOrgMembersForPicker` answers it (`setMembers`).
   members: {} as Record<string, unknown>,
+  // The model endpoints switch as `useMyModelApiAccess` answers it
+  // (`setModelApi`).
+  modelApi: {} as Record<string, unknown>,
 }));
 
 vi.mock('../hooks/mutations', () => ({
@@ -20,6 +24,23 @@ vi.mock('../hooks/mutations', () => ({
 }));
 vi.mock('../hooks/queries', () => ({
   useOrgMembersForPicker: () => state.members,
+  useMyModelApiAccess: () => state.modelApi,
+}));
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  Link: ({
+    children,
+    to,
+    className,
+  }: {
+    children: ReactNode;
+    to: string;
+    className?: string;
+  }) => (
+    <a href={to} className={className}>
+      {children}
+    </a>
+  ),
 }));
 vi.mock('@tale/ui/use-toast', () => ({
   useToast: () => ({ toast: state.toast }),
@@ -59,9 +80,26 @@ function setMembers(read: MembersRead) {
   };
 }
 
+/** How the model endpoints switch reads: answered on or off, still
+ * pending, or failed with no answer. */
+type ModelApiRead = 'on' | 'off' | 'pending' | 'failed';
+
+/** Set the switch's read, in the shape of the react-query result. */
+function setModelApi(read: ModelApiRead) {
+  state.modelApi = {
+    data:
+      read === 'on' || read === 'off'
+        ? { enabled: read === 'on', allowed: true, models: [] }
+        : undefined,
+    isLoading: read === 'pending',
+    isError: read === 'failed',
+  };
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   setMembers({ rows: MEMBERS });
+  setModelApi('on');
 });
 
 function renderDialog() {
@@ -197,6 +235,73 @@ describe('GrantCompetenceDialog', () => {
     renderDialog();
     await screen.findByRole('dialog');
     await checkAccessibility(document.body);
+  });
+
+  // The model endpoints are the organization's to enable: a grant of Call
+  // models over the API while they are off says so, with the way to them,
+  // and is still allowed. Only an answer says they are off (#4586).
+  describe('while the model endpoints are off', () => {
+    const OFF =
+      'Model endpoints are not enabled for this organization. The member can call the models only once they are.';
+    const MODELS_API = 'Call models over the API tale:models.api';
+
+    it('says so for Call models over the API, links to Models and still grants', async () => {
+      setModelApi('off');
+      state.grant.mockResolvedValue({ recordId: 'record-c' });
+      const { user } = renderDialog();
+
+      await choose(user, 'Member', 'Tax Reviewer reviewer@example.com');
+      expect(screen.queryByText(OFF)).not.toBeInTheDocument();
+      await choose(user, 'Competence', MODELS_API);
+
+      const notice = screen
+        .getByText(OFF)
+        .closest<HTMLElement>('[data-slot="alert"]');
+      if (notice === null) throw new Error(`"${OFF}" is in no alert`);
+      expect(notice).toHaveAttribute('data-variant', 'warning');
+      expect(
+        within(notice).getByRole('link', { name: 'Open model access' }),
+      ).toHaveAttribute(
+        'href',
+        '/dashboard/$id/settings/governance/content-models',
+      );
+      await checkAccessibility(document.body);
+
+      await user.click(screen.getByRole('button', { name: 'Grant' }));
+      expect(state.grant).toHaveBeenCalledWith({
+        organizationId: 'org-a',
+        userId: 'user-reviewer',
+        competence: 'tale:models.api',
+      });
+    });
+
+    it('says nothing of them for another capability', async () => {
+      setModelApi('off');
+      const { user } = renderDialog();
+
+      await choose(user, 'Competence', MODELS_API);
+      expect(screen.getByText(OFF)).toBeInTheDocument();
+      await choose(
+        user,
+        'Competence',
+        'Export notifications tale:notifications.export',
+      );
+      expect(screen.queryByText(OFF)).not.toBeInTheDocument();
+    });
+
+    it.each(['on', 'pending', 'failed'] as const)(
+      'says nothing of them when the switch read is %s',
+      async (read) => {
+        setModelApi(read);
+        const { user } = renderDialog();
+
+        await choose(user, 'Competence', MODELS_API);
+        expect(screen.queryByText(OFF)).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole('link', { name: 'Open model access' }),
+        ).not.toBeInTheDocument();
+      },
+    );
   });
 
   // A member list that has not answered offers nobody, and that never reads
