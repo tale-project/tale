@@ -3129,6 +3129,49 @@ function visibilityClause(sql: Sql | TransactionSql, auth: ProjectAuthContext) {
   return audienceClause(sql, 'project_team_ids', auth);
 }
 
+/**
+ * The projects the caller may read, as a relation the reader joins in the
+ * statement that reads their rows: `project_id`, `project_key` and
+ * `project_archived_at_ms`, named so they shadow no column of the table
+ * they join (`JOIN ${readableProjectsSql(sql, auth)} rp USING
+ * (project_id)`). Every "all my projects" read filters through it, in one
+ * statement, instead of reading the id list first and sending it back as
+ * `ANY(<ids>)` (#5156). The rule is {@link visibilityClause}'s, and a
+ * disabled seat reads nothing, as {@link readableProjectsAmong} answers.
+ * Archived projects stay out unless `includeArchived`.
+ */
+export function readableProjectsSql(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  options: { includeArchived?: boolean } = {},
+) {
+  return sql`(
+    SELECT id AS project_id, key AS project_key,
+           archived_at_ms AS project_archived_at_ms
+    FROM app.projects
+    WHERE org_id = ${auth.organizationId}
+      AND ${auth.role !== 'disabled'}
+      AND (${options.includeArchived === true} OR archived_at_ms IS NULL)
+      AND ${visibilityClause(sql, auth)}
+  )`;
+}
+
+/** One project, archived or not, in the shape of
+ * {@link readableProjectsSql}: for a reader of a single project that has
+ * already checked the caller may read it. */
+export function checkedProjectSql(
+  sql: Sql | TransactionSql,
+  auth: ProjectAuthContext,
+  projectId: string,
+) {
+  return sql`(
+    SELECT id AS project_id, key AS project_key,
+           archived_at_ms AS project_archived_at_ms
+    FROM app.projects
+    WHERE org_id = ${auth.organizationId} AND id = ${projectId}
+  )`;
+}
+
 /** Which of the named projects the caller may read, archived ones
  * included: the many-project form of {@link assertReadable}, for a read
  * that names other projects only to who may read them. */
@@ -3168,12 +3211,17 @@ export interface ProjectOverviewRow extends ProjectListRow {
   overdueTaskCount: number;
 }
 
+/** The page sizes of the app's project pages: the list's and Home's. */
+export const PROJECT_PAGE_LIMITS = { fallback: 50, max: 100 } as const;
+
 /**
- * The projects list page read: visible projects + at-a-glance rollups.
- * Open/done/agent counts come off the denormalized columns; the overdue
- * count is one grouped scan over the org's due tasks against `asOf` (the
- * client's bucketed clock, so its cache key rotates — SQL counts exactly,
- * `overdueTruncated` is kept `false` for 0.4 API-shape stability).
+ * The projects list page read, one page at a time (#5156): visible
+ * projects through {@link listProjectsPage}'s keyset (newest first), with
+ * at-a-glance rollups. Open/done/agent counts come off the denormalized
+ * columns; the overdue count is one grouped scan over the page's projects'
+ * due tasks against `asOf` (the client's bucketed clock, so its cache key
+ * rotates — SQL counts exactly, `overdueTruncated` is kept `false` for 0.4
+ * API-shape stability).
  */
 export async function listProjectsOverview(
   sql: Sql,
@@ -3181,9 +3229,21 @@ export async function listProjectsOverview(
   options: ProjectReadOptions & {
     includeArchived?: boolean;
     asOf?: number;
+    limit?: number;
+    cursor?: { at: number; id: string } | null;
   } = {},
-): Promise<{ projects: ProjectOverviewRow[]; overdueTruncated: boolean }> {
-  const projects = await listProjects(sql, auth, options);
+): Promise<{
+  projects: ProjectOverviewRow[];
+  overdueTruncated: boolean;
+  hasMore: boolean;
+}> {
+  const page = await listProjectsPage(sql, auth, {
+    archived: options.includeArchived === true ? 'include' : 'exclude',
+    limit: options.limit ?? PROJECT_PAGE_LIMITS.fallback,
+    cursor: options.cursor ?? null,
+    summary: options.summary === true,
+  });
+  const projects = page.projects.map((row) => stampAccessFlags(row, auth));
   const asOf = options.asOf ?? Date.now();
   const overdueRows =
     projects.length === 0
@@ -3192,6 +3252,7 @@ export async function listProjectsOverview(
           SELECT project_id AS "projectId", count(*)::text AS count
           FROM app.tasks
           WHERE org_id = ${auth.organizationId}
+            AND project_id = ANY(${projects.map((project) => project.id)})
             AND due_date_ms > 0 AND due_date_ms <= ${asOf}
             AND archived_at_ms IS NULL
             AND status NOT IN ('done', 'cancelled')
@@ -3207,6 +3268,7 @@ export async function listProjectsOverview(
       }),
     ),
     overdueTruncated: false,
+    hasMore: page.hasMore,
   };
 }
 
@@ -3246,23 +3308,31 @@ export async function searchProjects(
 }
 
 /**
- * Sidebar ordering: pinned first (most recently pinned on top), then by
- * recency. Bounded — the sidebar shows a short list.
+ * Home's navigator (#5156): pinned first (most recently pinned on top),
+ * then by recency, with the access flags {@link listProjects} stamps.
+ * One bounded page — Home reads no further, the projects list pages the
+ * rest — so `hasMore` says whether projects beyond it exist.
  */
 export async function listSidebarProjects(
   sql: Sql,
   auth: ProjectAuthContext,
-  limit = 50,
+  limit: number = PROJECT_PAGE_LIMITS.fallback,
   options: ProjectReadOptions = {},
-): Promise<ProjectRow[]> {
-  return sql<ProjectRow[]>`
+): Promise<{ projects: ProjectListRow[]; hasMore: boolean }> {
+  const size = Math.min(limit, PROJECT_PAGE_LIMITS.max);
+  // One row past the page tells Home whether more projects exist.
+  const rows = await sql<ProjectRow[]>`
     SELECT ${sql.unsafe(options.summary === true ? PROJECT_SUMMARY_COLUMNS : PROJECT_COLUMNS)} FROM app.projects
     WHERE org_id = ${auth.organizationId}
       AND archived_at_ms IS NULL
       AND ${visibilityClause(sql, auth)}
-    ORDER BY pinned_at_ms DESC NULLS LAST, updated_at_ms DESC
-    LIMIT ${Math.min(limit, 100)}
+    ORDER BY pinned_at_ms DESC NULLS LAST, updated_at_ms DESC, id DESC
+    LIMIT ${size + 1}
   `;
+  return {
+    projects: rows.slice(0, size).map((row) => stampAccessFlags(row, auth)),
+    hasMore: rows.length > size,
+  };
 }
 
 /**
@@ -3332,12 +3402,14 @@ export async function listProjectsPage(
     archived: ProjectArchivedFilter;
     limit: number;
     cursor: { at: number; id: string } | null;
+    /** Leave `instructions` out, as {@link ProjectReadOptions} does. */
+    summary?: boolean;
   },
 ): Promise<{ projects: ProjectRow[]; hasMore: boolean }> {
   const cursorAt = options.cursor?.at ?? null;
   const cursorId = options.cursor?.id ?? null;
   const rows = await sql<ProjectRow[]>`
-    SELECT ${sql.unsafe(PROJECT_COLUMNS)} FROM app.projects
+    SELECT ${sql.unsafe(options.summary === true ? PROJECT_SUMMARY_COLUMNS : PROJECT_COLUMNS)} FROM app.projects
     WHERE org_id = ${auth.organizationId}
       AND (${options.archived === 'include'}
         OR (${options.archived === 'only'} AND archived_at_ms IS NOT NULL)
