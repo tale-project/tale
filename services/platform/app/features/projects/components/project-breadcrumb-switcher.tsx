@@ -4,11 +4,11 @@ import { HeaderBreadcrumbSwitcher } from '@tale/ui/header-breadcrumb-switcher';
 import type { SearchableSelectOption } from '@tale/ui/searchable-select';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { Layers } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
-import { useProjects } from '../hooks/queries';
+import { useProjectChoices } from '../hooks/queries';
 import { projectSwitchPathname } from '../lib/project-switch-path';
 
 /** Sentinel value for the Tasks-only "All projects" aggregate scope. */
@@ -30,6 +30,9 @@ export function isProjectTasksPath(
  * tasks, overview, …) stay put; bound-view / nested-automation paths reset to
  * Tasks.
  *
+ * The menu offers Home's page of projects and, for what is typed, the
+ * server's name search past it — never every project (#5194).
+ *
  * On Tasks paths the menu also offers "All projects" — an aggregate board that
  * disables the non-Tasks project tabs while active (`?projects=all`).
  */
@@ -45,7 +48,11 @@ export function ProjectBreadcrumbSwitcher({
   const { t } = useT('projects');
   const navigate = useNavigate();
   const location = useLocation();
-  const { projects, error, isRetrying, retry } = useProjects(organizationId);
+  const [query, setQuery] = useState('');
+  const { projects, isDone, error, isRetrying, retry } = useProjectChoices(
+    organizationId,
+    query,
+  );
 
   const onTasksPath = isProjectTasksPath(location.pathname, projectId);
   const allProjectsActive =
@@ -60,6 +67,17 @@ export function ProjectBreadcrumbSwitcher({
       value: project._id,
       label: project.name,
     }));
+    // The current project may lie past the page: it stays offered, under the
+    // name the breadcrumb shows, without a read of its own. A page that holds
+    // every project lacks it only when it is archived, which the menu never
+    // offered; with nothing else to switch to, the plain name stays.
+    if (
+      isDone === false &&
+      projectOptions.length > 0 &&
+      !projects.some((project) => project._id === projectId)
+    ) {
+      projectOptions.push({ value: projectId, label: projectName });
+    }
     if (!onTasksPath) return projectOptions;
     return [
       {
@@ -68,7 +86,7 @@ export function ProjectBreadcrumbSwitcher({
       },
       ...projectOptions,
     ];
-  }, [projects, onTasksPath, t]);
+  }, [projects, isDone, projectId, projectName, onTasksPath, t]);
 
   const selectedValue = allProjectsActive
     ? ALL_PROJECTS_SWITCHER_VALUE
@@ -102,6 +120,7 @@ export function ProjectBreadcrumbSwitcher({
       emptyText={t('switcher.empty')}
       ariaLabel={t('switcher.ariaLabel', { name: displayName })}
       {...(allProjectsActive && { leadingIcon: Layers })}
+      onSearchChange={setQuery}
       onValueChange={(nextId) => {
         if (nextId === ALL_PROJECTS_SWITCHER_VALUE) {
           void navigate({
