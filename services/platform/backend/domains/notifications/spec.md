@@ -5,8 +5,8 @@
 A notification tells a person that something needs them: a task was assigned, an agent asked
 a question, an account was locked. It shows in the bell, can be sent as an email, and can be
 exported to another system over the API. These rules cover what a notification email carries,
-where a notification's link leads, and who can export notifications. The bell itself is not
-covered; see Not yet.
+where a notification's link leads, who can export notifications, and what the bell counts as
+unread for the organization's own notifications. The bell's list is not covered; see Not yet.
 
 ## Notification emails
 
@@ -72,10 +72,44 @@ cannot be matched to exactly one verified member gets nothing.
 - **Example**: An integration exports notifications for Mia, a member → security notifications
   meant for admins are not among them.
 
+## The bell
+
+The bell shows the organization's notifications to its members and counts the ones a person
+has not read yet. Each person reads them for themselves: one by one, or all at once with
+**Mark all as read**.
+
+### NOTIF-R6 · Only owners and admins see, count and mark security notifications
+
+A member's bell neither lists nor counts a security notification, and a member cannot mark one
+as read, one by one or all at once. A member who is made an admin later finds the security
+notifications they never saw unread.
+
+- **Example**: Mia, an admin, and Noah, a member, open the bell after an account was locked →
+  Mia's bell lists and counts the alert, and Noah's shows nothing. Noah marks all as read, and
+  is made an admin → the alert is unread for Noah.
+
+### NOTIF-R7 · The bell counts what a person has not read since they last read all
+
+The count is the notifications the person can see that came after they last marked all as
+read, less the ones they read one by one since. Reading one that is already read changes
+nothing.
+
+- **Example**: Mia marked all as read yesterday. Three notifications came in since, and Mia
+  opened one → Mia's bell counts 2.
+
+### NOTIF-R8 · Mark all as read leaves unread what was still being written
+
+Marking all as read marks every notification the person can see at that moment. A notification
+whose writing had started but not finished then stays unread, unless its writing took more than
+five minutes.
+
+- **Example**: Mia marks all as read while an account lockout is being recorded → the lockout's
+  alert arrives in Mia's bell unread.
+
 ## Not yet
 
-- **The bell**: listing, the unread count and marking as read, and that a member never sees a
-  security notification there (`routes.ts`, `service.ts`). No test holds these yet.
+- **The bell's list**: its order and its paging (`listNotifications` in `service.ts`). No test
+  holds these yet.
 - **Which events notify whom**: decided by the domains that raise them.
 - **The wording of each notification** in each language (`core/notifications/`).
 - **Notifications over the API are not typed and are not pushed**: the contract debt ledger in
