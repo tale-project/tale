@@ -5,6 +5,7 @@ import {
   isFilePolicyType,
   isPolicyReadableByMember,
   modelAccessConfigSchema,
+  moderationProviderConfigSchema,
   POLICY_SCHEMAS,
   sandboxQuotaConfigSchema,
   sandboxQuotaTotal,
@@ -19,6 +20,7 @@ import {
   vendorEuEndpoint,
 } from '../../../lib/chat/serving.ts';
 import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '../../../lib/shared/hint-entities';
+import { moderationEndpointRefusal } from '../../core/governance/model_endpoint_gate.ts';
 import { isAdmin } from '../../core/lib/rls/helpers/role_helpers.ts';
 import {
   readGovernancePolicyForOrg,
@@ -29,6 +31,7 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { eligibleProjectAgentHarnesses } from '../projects/service.ts';
 import { getSandboxDeploymentLimits } from '../sandbox/limits.ts';
 import { recordUnusedWorkspaceRule } from '../sandbox/unused-rule.ts';
+import { readModelEndpointPolicyForOrg } from './model-endpoints.ts';
 
 /**
  * The organization's policies, read and changed by one set of rules: who
@@ -172,8 +175,9 @@ export interface CheckedGovernancePolicy {
  * the expected hash is well formed, the config is the policy's own, a
  * standard agent names a runtime the managed lane can run, the hosts
  * attested as processing in the EU/EEA are ones an attestation lets
- * through, and the sandbox budgets fit the deployment's capacity as it is
- * now.
+ * through, a moderation provider turned on while prompts stay in the
+ * EU/EEA has an endpoint that rule lets through, and the sandbox budgets
+ * fit the deployment's capacity as it is now.
  */
 export async function checkGovernancePolicy(
   sql: Sql,
@@ -249,6 +253,40 @@ export async function checkGovernancePolicy(
         `These hosts cannot be attested as processing in the EU/EEA: ${named.join(', ')}. A vendor whose EU endpoint is known counts only as that endpoint.`,
         400,
         { data: { hosts: ignored }, answersMessage: true },
+      );
+    }
+  }
+  if (policyType === 'moderation_provider') {
+    // The provider receives the text under review, so while prompts stay
+    // in the EU/EEA its endpoint must be one the rule lets through (GOV-R23)
+    // — refused here rather than saved to fail every round. An unreadable
+    // model access policy refuses at the round, with its own reason.
+    const moderation = moderationProviderConfigSchema.parse(parsed.data);
+    const rule = moderation.enabled
+      ? await readModelEndpointPolicyForOrg(sql, actor.organizationId)
+      : undefined;
+    const refusal =
+      rule?.kind === 'eu'
+        ? moderationEndpointRefusal(rule, moderation.endpoint.url)
+        : undefined;
+    if (refusal !== undefined) {
+      const { host, reason } = refusal;
+      const euEndpoint =
+        host === undefined ? undefined : vendorEuEndpoint(host);
+      throw new GovernancePolicyError(
+        'MODERATION_ENDPOINT_OUTSIDE_EU',
+        euEndpoint !== undefined
+          ? `This organization processes prompts only in the EU/EEA, and ${host} may process them outside it, so the moderation provider cannot be pointed at it. Point it at ${euEndpoint} instead.`
+          : `This organization processes prompts only in the EU/EEA, and ${host ?? 'its endpoint'} is not known to process there, so the moderation provider cannot be pointed at it. If it does process in the EU/EEA, list its host under Settings → Governance → Models → Model access first.`,
+        400,
+        {
+          data: {
+            ...(host !== undefined ? { host } : {}),
+            ...(reason !== undefined ? { reason } : {}),
+            ...(euEndpoint !== undefined ? { euEndpoint } : {}),
+          },
+          answersMessage: true,
+        },
       );
     }
   }

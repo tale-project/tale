@@ -27,6 +27,8 @@ interface FakeCtx {
   events: Array<Record<string, unknown>>;
   /** Every moderation round the host asked the seam to run. */
   moderated: Array<{ direction: string; text: string }>;
+  /** Who each of those rounds ran for. */
+  actors: unknown[];
 }
 
 function fakeCtx(
@@ -38,6 +40,7 @@ function fakeCtx(
 ): FakeCtx {
   const events: Array<Record<string, unknown>> = [];
   const moderated: Array<{ direction: string; text: string }> = [];
+  const actors: unknown[] = [];
   const ctx = {
     runQuery: (ref: unknown, args: { policyType: string }) => {
       expect(shimFunctionName(ref)).toBe(
@@ -55,11 +58,15 @@ function fakeCtx(
       events.push(args);
       return Promise.resolve(null);
     },
-    runAction: (ref: unknown, args: { direction: string; text: string }) => {
+    runAction: (
+      ref: unknown,
+      args: { direction: string; text: string; actor?: unknown },
+    ) => {
       expect(shimFunctionName(ref)).toBe(
         'governance/internal_actions:runModerationProvider',
       );
       moderated.push({ direction: args.direction, text: args.text });
+      actors.push(args.actor);
       return Promise.resolve(
         options.moderationRun ?? {
           outcome: { kind: 'pass' },
@@ -68,7 +75,7 @@ function fakeCtx(
       );
     },
   } as unknown as ActionCtx;
-  return { ctx, events, moderated };
+  return { ctx, events, moderated, actors };
 }
 
 const CHAT_FILTER = {
@@ -357,6 +364,74 @@ describe('buildTurnGuardrails', () => {
         kind: 'step_error',
         errorClass: 'timeout',
         attempt: 2,
+      }),
+    ]);
+  });
+
+  it('applies the fail behaviour to an endpoint the EU/EEA rule refused, asking once per turn for whom it runs [GOV-R23]', async () => {
+    const fake = fakeCtx(
+      {
+        moderation_provider: {
+          ...MODERATION,
+          appliesTo: ['input', 'output'],
+          failBehavior: { input: 'open', output: 'closed' },
+        },
+      },
+      {
+        moderationRun: {
+          outcome: {
+            kind: 'step_error',
+            filterName: 'moderation_provider',
+            reason: 'eu_processing',
+          },
+          extras: {
+            errorClass: 'eu_processing',
+            refusalMessage:
+              'This organization processes prompts only in the EU/EEA',
+          },
+        },
+      },
+    );
+    const deps = buildTurnGuardrails(fake.ctx, {
+      organizationId: ORG,
+      threadId: THREAD,
+      agentSlug: 'assistant',
+      policies: await readTurnPolicies(fake.ctx, ORG),
+      actor: { id: 'user_1', type: 'user' },
+    });
+    // input is fail-OPEN: the message goes on, unmoderated.
+    const inbound = await runGuardrailChain(
+      'a message',
+      'input',
+      deps.inputFilters ?? [],
+      deps.guardrailOptions,
+    );
+    expect(inbound.refusal).toBeUndefined();
+    expect(inbound.text).toBe('a message');
+    // output is fail-CLOSED: the reply is refused — on the rule's answer to
+    // the first round, without asking the refused endpoint again.
+    const outbound = await runGuardrailChain(
+      'a reply',
+      'output',
+      deps.outputFilters ?? [],
+      deps.guardrailOptions,
+    );
+    expect(outbound.refusal).toMatchObject({
+      filterName: 'moderation_provider',
+      stepError: 'eu_processing',
+    });
+    expect(fake.moderated).toEqual([{ direction: 'input', text: 'a message' }]);
+    expect(fake.actors).toEqual([{ id: 'user_1', type: 'user' }]);
+    expect(fake.events).toEqual([
+      expect.objectContaining({
+        direction: 'input',
+        kind: 'step_error',
+        errorClass: 'eu_processing',
+      }),
+      expect.objectContaining({
+        direction: 'output',
+        kind: 'step_error',
+        errorClass: 'eu_processing',
       }),
     ]);
   });

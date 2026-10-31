@@ -704,6 +704,142 @@ describe('POST /policies/model_access — the hosts attested as processing in th
   });
 });
 
+describe('POST /policies/moderation_provider — the endpoint while prompts stay in the EU/EEA', () => {
+  function moderation(url: string, enabled = true) {
+    return {
+      enabled,
+      appliesTo: ['input'],
+      endpoint: { url, headers: {}, requestTemplate: '{"input": {{text}}}' },
+      responseShape: { type: 'openai_moderation' },
+      categoryMappings: [],
+      failBehavior: { input: 'open', output: 'closed' },
+    };
+  }
+
+  function euRule(enabled: boolean) {
+    readGovernancePolicyForOrg.mockImplementation(
+      async (_sql: unknown, _org: string, policyType: string) =>
+        policyType === 'model_access'
+          ? {
+              enabled: false,
+              mode: 'blocklist',
+              rules: [],
+              euProcessing: { enabled, hosts: ['moderation.example.eu'] },
+            }
+          : ON_DISK,
+    );
+  }
+
+  beforeEach(() => {
+    vi.stubEnv('TALE_CONFIG_DIR', '/config');
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('refuses a vendor’s global endpoint, naming its EU endpoint, before any write [GOV-R23]', async () => {
+    euRule(true);
+    const response = await post('/policies/moderation_provider', {
+      config: moderation('https://api.openai.com/v1/moderations'),
+    });
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({
+      error: 'MODERATION_ENDPOINT_OUTSIDE_EU',
+      message:
+        'This organization processes prompts only in the EU/EEA, and api.openai.com may process them outside it, so the moderation provider cannot be pointed at it. Point it at eu.api.openai.com instead.',
+      data: {
+        host: 'api.openai.com',
+        reason: 'vendor-global',
+        euEndpoint: 'eu.api.openai.com',
+      },
+    });
+    expect(readGovernancePolicyForOrg).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      'model_access',
+      { strict: true },
+    );
+    expect(writeGovernancePolicyFile).not.toHaveBeenCalled();
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+
+  it('refuses a host no admin attested, and says where to attest it [GOV-R23]', async () => {
+    euRule(true);
+    const response = await post('/policies/moderation_provider', {
+      config: moderation('https://moderation.example.com/v1'),
+    });
+
+    expect(response.status).toBe(400);
+    const body = (await response.json()) as {
+      error: string;
+      message: string;
+      data: Record<string, unknown>;
+    };
+    expect(body.error).toBe('MODERATION_ENDPOINT_OUTSIDE_EU');
+    expect(body.data).toEqual({
+      host: 'moderation.example.com',
+      reason: 'not-attested',
+    });
+    expect(body.message).toContain(
+      'list its host under Settings → Governance → Models → Model access first',
+    );
+    expect(writeGovernancePolicyFile).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['an attested host', true, moderation('https://moderation.example.eu/v1')],
+    [
+      'a vendor’s EU endpoint',
+      true,
+      moderation('https://eu.api.openai.com/v1/moderations'),
+    ],
+    [
+      'a provider turned off',
+      true,
+      moderation('https://api.openai.com/v1/moderations', false),
+    ],
+    [
+      'any endpoint while the rule is off',
+      false,
+      moderation('https://api.openai.com/v1/moderations'),
+    ],
+  ])('saves %s [GOV-R23]', async (_case, ruleOn, config) => {
+    euRule(ruleOn);
+    const response = await post('/policies/moderation_provider', { config });
+
+    expect(response.status).toBe(200);
+    expect(writeGovernancePolicyFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('saves while the model access policy cannot be read, which each round refuses instead [GOV-R23]', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    readGovernancePolicyForOrg.mockImplementation(
+      async (_sql: unknown, _org: string, policyType: string) => {
+        if (policyType === 'model_access') {
+          throw new Error('model-access.yml does not match its schema');
+        }
+        return ON_DISK;
+      },
+    );
+    try {
+      const response = await post('/policies/moderation_provider', {
+        config: moderation('https://api.openai.com/v1/moderations'),
+      });
+
+      expect(response.status).toBe(200);
+      expect(writeGovernancePolicyFile).toHaveBeenCalledTimes(1);
+      expect(logged).toHaveBeenCalledWith(
+        expect.stringContaining('the model access policy cannot be read'),
+        expect.any(Error),
+      );
+    } finally {
+      logged.mockRestore();
+    }
+  });
+});
+
 describe('GET /my/model-api', () => {
   async function read(sql: never = {} as never): Promise<Response> {
     return await createGovernanceRoutes({ sql, auth: {} as never }).request(

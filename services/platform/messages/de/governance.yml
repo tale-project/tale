@@ -1072,7 +1072,8 @@ moderationProvider:
     Anbieterpfad. Prüft API-Schlüssel, Endpoint-URL, Request-Template,
     Response-Parser und Kategorie-Zuordnungen in einem Roundtrip. Es wird
     keine Chat-Nachricht gespeichert — dieser Aufruf umgeht Thread und
-    Audit-Pipeline.
+    Audit-Pipeline; nur eine Ablehnung, weil Prompts in der EU/im EWR bleiben
+    müssen, wird im Audit-Log festgehalten.
   testPlaceholder: Gib eine Beispielnachricht ein, die durch den Anbieter geschickt wird…
   testDefaultText: Ich will alle in diesem Gebäude umbringen
   testing: Teste…
@@ -1092,6 +1093,16 @@ moderationProvider:
   testResultCircuitOpened: Durch diesen Fehler geöffnet
   saved: Moderations-Anbieter gespeichert
   saveFailed: Speichern fehlgeschlagen
+  euEndpointVendor:
+    Diese Organisation verarbeitet Prompts nur in der EU/im EWR, und {host}
+    kann sie außerhalb davon verarbeiten, daher kann der Moderations-Anbieter
+    diesen Endpunkt nicht verwenden. Stelle den Moderations-Anbieter
+    stattdessen auf {euEndpoint} um.
+  euEndpointNotKnown:
+    Diese Organisation verarbeitet Prompts nur in der EU/im EWR, und von
+    {host} ist nicht bekannt, dass er dort verarbeitet, daher kann der
+    Moderations-Anbieter diesen Endpunkt nicht verwenden. Wenn er dort
+    verarbeitet, trage den Host zuerst unter Modellzugriff ein.
   presetAzure: Azure Content Safety verwenden
   presetAzureActive: Azure Content Safety
   presetAzureNote: Ersetze die Subdomain durch den Namen deiner eigenen Azure-Ressource.
@@ -1549,19 +1560,20 @@ modelAccess:
     enabled: Modell-Endpunkte für API-Schlüssel aktivieren
   euProcessing:
     title: Prompts nur in der EU/im EWR verarbeiten
-    description: Sende Modellaufrufe nur an Endpunkte, von denen bekannt ist,
-      dass sie Prompts in der EU/im EWR verarbeiten — eu.openrouter.ai,
+    description: Sende Modellaufrufe und den Text, den der Moderations-Anbieter
+      der Guardrails prüft, nur an Endpunkte, von denen bekannt ist, dass sie
+      Prompts in der EU/im EWR verarbeiten — eu.openrouter.ai,
       eu.api.openai.com, api.eu.mistral.ai und die unten eingetragenen Hosts.
       Jeder andere Aufruf wird abgelehnt, bevor etwas gesendet wird, und die
       Ablehnung wird im Audit-Log festgehalten. Coding-Agenten in Sandboxes
-      und der Moderations-Anbieter der Guardrails sind noch nicht daran
-      gebunden.
+      sind noch nicht daran gebunden.
     enabled: Prompts nur in der EU/im EWR verarbeiten
     hostsLabel: Endpunkte mit bestätigter Verarbeitung in der EU/im EWR
     hostsHelp: Ein Host pro Zeile, so wie er in der Basis-URL eines Anbieters
-      steht — der Server eines eigenen Anbieters oder eine Azure-Ressource in
-      einer Region der EU/des EWR. Trage nur Endpunkte ein, von denen du
-      weißt, dass sie dort verarbeiten; höchstens {max}.
+      oder in der Endpoint-URL des Moderations-Anbieters steht — der Server
+      eines eigenen Anbieters oder eine Azure-Ressource in einer Region der
+      EU/des EWR. Trage nur Endpunkte ein, von denen du weißt, dass sie dort
+      verarbeiten; höchstens {max}.
     hostsPlaceholder: my-resource.openai.azure.com
     invalidHost: '{host} ist kein Hostname: Gib nur den Host an, ohne
       https://, Port oder Pfad.'

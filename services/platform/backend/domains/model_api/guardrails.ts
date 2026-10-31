@@ -14,6 +14,7 @@ import {
   buildTurnGuardrails,
   type TurnPolicies,
 } from '../../core/chat/guardrails.ts';
+import type { ModelEndpointActor } from '../../core/governance/model_endpoint_gate.ts';
 import type { ActionCtx } from '../../core/lib/ctx.ts';
 import { createCtxShim } from '../../lib/ctx-shim.ts';
 import { readGovernancePolicy } from '../../lib/org-config.ts';
@@ -332,6 +333,9 @@ export async function buildModelApiGuardrails(
     orgSlug: string;
     requestId: string;
     callerRequestId: string | undefined;
+    /** The key holder — the audit entry of a moderation endpoint the EU/EEA
+     * processing rule refused names them. */
+    actor: ModelEndpointActor;
     /** Awaited once, before the first chain run that may call the paid
      * moderation provider — the caller's budget read. Throws to refuse. */
     beforePaidCall: () => Promise<void>;
@@ -368,6 +372,7 @@ export async function buildModelApiGuardrails(
       ? { requestId: args.callerRequestId }
       : {}),
     policies,
+    actor: args.actor,
   });
   const filters: readonly GuardrailFilter[] = built.inputFilters ?? [];
   if (

@@ -1108,7 +1108,8 @@ moderationProvider:
     fournisseur. Vérifie la clé API, l'URL de l'endpoint, le template de
     requête, le parseur de réponse et les correspondances de catégories en un
     seul aller-retour. Aucun message de chat n'est enregistré — cet appel
-    contourne le fil et le pipeline d'audit.
+    contourne le fil et le pipeline d'audit ; seul un refus parce que les
+    prompts doivent rester dans l'UE/EEE est consigné dans le journal d'audit.
   testPlaceholder: Écris un message d'exemple à envoyer via le fournisseur…
   testDefaultText: Je veux tuer tout le monde dans ce bâtiment
   testing: Test en cours…
@@ -1128,6 +1129,15 @@ moderationProvider:
   testResultCircuitOpened: Ouvert par cet échec
   saved: Fournisseur de modération enregistré
   saveFailed: Échec de l'enregistrement
+  euEndpointVendor:
+    Cette organisation ne traite les prompts que dans l'UE/EEE, et {host}
+    peut les traiter hors de cette zone, donc le fournisseur de modération ne
+    peut pas l'utiliser. Fais-le plutôt pointer vers {euEndpoint}.
+  euEndpointNotKnown:
+    Cette organisation ne traite les prompts que dans l'UE/EEE, et rien
+    n'indique que {host} les traite dans cette zone, donc le fournisseur de
+    modération ne peut pas l'utiliser. S'il les y traite, ajoute d'abord
+    l'hôte sous Accès aux modèles.
   presetAzure: Utiliser Azure Content Safety
   presetAzureActive: Azure Content Safety
   presetAzureNote: Remplace le sous-domaine par le nom de ta propre ressource Azure.
@@ -1589,20 +1599,20 @@ modelAccess:
     enabled: Activer les endpoints de modèles pour les clés API
   euProcessing:
     title: Traiter les prompts uniquement dans l'UE/EEE
-    description: N'envoie les appels de modèles qu'aux endpoints dont on sait
+    description: N'envoie les appels de modèles, et le texte que vérifie le
+      fournisseur de modération des garde-fous, qu'aux endpoints dont on sait
       qu'ils traitent les prompts dans l'UE/EEE — eu.openrouter.ai,
       eu.api.openai.com, api.eu.mistral.ai et les hôtes ajoutés ci-dessous.
       Tout autre appel est refusé avant que quoi que ce soit ne soit envoyé,
       et le refus est consigné dans le journal d'audit. Les agents de code
-      dans les sandboxes et le fournisseur de modération des garde-fous n'y
-      sont pas encore soumis.
+      dans les sandboxes n'y sont pas encore soumis.
     enabled: Traiter les prompts uniquement dans l'UE/EEE
     hostsLabel: Endpoints dont le traitement dans l'UE/EEE est confirmé
     hostsHelp: Un hôte par ligne, tel qu'il figure dans l'URL de base d'un
-      fournisseur — le serveur d'un fournisseur personnalisé, ou une
-      ressource Azure déployée dans une région de l'UE/EEE. N'ajoute que des
-      endpoints dont tu sais qu'ils y traitent les prompts ; {max} au
-      plus.
+      fournisseur ou dans l'URL de l'endpoint du fournisseur de modération —
+      le serveur d'un fournisseur personnalisé, ou une ressource Azure déployée
+      dans une région de l'UE/EEE. N'ajoute que des endpoints dont tu sais
+      qu'ils y traitent les prompts ; {max} au plus.
     hostsPlaceholder: my-resource.openai.azure.com
     invalidHost: "{host} n'est pas un nom d'hôte : indique l'hôte seul,
       sans https://, port ni chemin."

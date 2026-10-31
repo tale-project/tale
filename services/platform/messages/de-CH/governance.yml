@@ -36,12 +36,19 @@ legalHold:
         verknüpfte Hold(s) eingereicht. Jede Freigabe benötigt weiterhin
         Vier-Augen-Genehmigung.
       submit: Fall schliessen
+moderationProvider:
+  euEndpointVendor:
+    Diese Organisation verarbeitet Prompts nur in der EU/im EWR, und {host}
+    kann sie ausserhalb davon verarbeiten, daher kann der Moderations-Anbieter
+    diesen Endpunkt nicht verwenden. Stelle den Moderations-Anbieter
+    stattdessen auf {euEndpoint} um.
 modelAccess:
   euProcessing:
     hostsHelp: Ein Host pro Zeile, so wie er in der Basis-URL eines Anbieters
-      steht — der Server eines eigenen Anbieters oder eine Azure-Ressource in
-      einer Region der EU/des EWR. Trage nur Endpunkte ein, von denen du
-      weisst, dass sie dort verarbeiten; höchstens {max}.
+      oder in der Endpoint-URL des Moderations-Anbieters steht — der Server
+      eines eigenen Anbieters oder eine Azure-Ressource in einer Region der
+      EU/des EWR. Trage nur Endpunkte ein, von denen du weisst, dass sie dort
+      verarbeiten; höchstens {max}.
 dataSubjectRequests:
   reasonCodes:
     unlawful_processing:
