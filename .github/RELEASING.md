@@ -29,13 +29,20 @@ version. Lead with **Highlights** describing verified user outcomes, followed by
 with operator actions and compatibility constraints. The [authoring guide](release-notes/README.md)
 has the structure. Generated API contract notes and the PR list follow these sections.
 
-Run `bun tools/cli/scripts/release-notes.ts --version vX.Y.Z` on the checkout you intend to select.
-Only select a candidate containing that reviewed file. The existing candidate gate checks CI
-and source identity; it does not check the prose. Release Prepare runs the same validator before
-any image builds. It rejects a missing file, a missing, repeated or misordered section, and a
-section that contains TODO or TBD or nothing but comments and `*`, `_` or `-` markers. It cannot
-recognise leftover template prose or a wrong claim; the review must. Content-only `sites_only`
-builds are exempt.
+Run `bun tools/cli/scripts/release-notes.ts --version vX.Y.Z` on the checkout you intend to select,
+in a clone that has the release tags (`git fetch --tags`). Only select a candidate containing that
+reviewed file. The existing candidate gate checks CI and source identity; it does not check the
+prose. The validator rejects a missing file, a missing, repeated or misordered section, and a
+section that contains TODO or TBD or nothing but comments and `*`, `_` or `-` markers. It also
+compares **Upgrade notes** with what the checkout brings since the previous release tag, which
+it finds with `git describe` from the checkout's parent (`--previous-tag vA.B.C` names it
+instead). It rejects them unless they name each migration file added to
+`services/platform/backend/db/migrations`, by its file name, and the new `API_CONTRACT_VERSION`
+when it changed, and its error names what is missing. Naming more, such as an earlier release's
+migration, is allowed. It cannot recognise leftover template prose or a wrong claim; the review
+must. Release Prepare runs the same validator before any image builds, with `--shape-only`: it
+checks the sections but does not compare, because it runs after the tag, where a refusal costs
+the version, and its checkout has no history. Content-only `sites_only` builds are exempt.
 
 ## 1. Choose the candidate
 
