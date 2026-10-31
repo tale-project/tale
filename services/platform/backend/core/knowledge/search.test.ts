@@ -46,6 +46,7 @@ vi.mock('./corpus', () => ({
 }));
 
 const { searchKnowledge } = await import('./search');
+const { embedderForOrg } = await import('./embedding');
 
 function hit(corpus: 'documents' | 'web', ref: string) {
   return {
@@ -284,5 +285,52 @@ describe('the documents searched by meaning', () => {
     expect(documentReaders).toEqual([
       [expect.anything(), 'acme', 'text-embedding-3-small'],
     ]);
+  });
+});
+
+/**
+ * With the organization's EU/EEA rule on, the embedder refuses an endpoint
+ * outside the region and audits who asked (GOV-R17): a search hands it the
+ * person it runs for, and a search for no one leaves the platform named.
+ */
+describe('the embedder a search binds [GOV-R17]', () => {
+  beforeEach(() => {
+    retrieveMock.mockReset();
+    retrieveMock.mockResolvedValue({ hits: [], diagnostics: {} });
+    readOrgEmbeddingConfig.mockResolvedValue(null);
+    vi.mocked(embedderForOrg).mockClear();
+  });
+
+  it('names the person the search runs for', async () => {
+    await searchKnowledge({ runQuery: vi.fn() } as never, {
+      organizationId: 'org_1',
+      orgSlug: 'acme',
+      query: 'policy',
+      access: {
+        teamIds: [],
+        projectIds: [],
+        includeHub: true,
+        userId: 'user_1',
+      },
+    });
+    expect(embedderForOrg).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.objectContaining({
+        organizationId: 'org_1',
+        actor: { id: 'user_1', type: 'user' },
+      }),
+    );
+  });
+
+  it('names no one for a search made for no person', async () => {
+    await searchKnowledge({ runQuery: vi.fn() } as never, {
+      organizationId: 'org_1',
+      orgSlug: 'acme',
+      query: 'policy',
+    });
+    expect(embedderForOrg).toHaveBeenCalledExactlyOnceWith(
+      expect.anything(),
+      expect.not.objectContaining({ actor: expect.anything() }),
+    );
   });
 });

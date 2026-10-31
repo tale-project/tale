@@ -12,12 +12,25 @@
  * Failures are coded `AppError`s that `errorCodeFromCaught` classifies
  * into the closed `TtsErrorCode` enum — the codes fan out to every org
  * member on the chunk rows, so no free text ever leaves here.
+ *
+ * With the organization's EU/EEA processing rule on (GOV-R17), a provider
+ * whose endpoint the rule refuses is passed over; when no other provider
+ * can speak, the first refused one is audited and thrown as a
+ * `ModelEndpointRefusal` before any text is sent.
  */
 
 import type { AudioFormat } from '@tale/shared/schemas/providers';
 import { modelAllowlistPermits } from '@tale/shared/utils/model-ref';
 
 import { AppError } from '../../../../lib/shared/errors/app-error';
+import {
+  type ModelEndpointActor,
+  type ModelEndpointCall,
+  type ModelEndpointRefusalData,
+  modelEndpointRefusal,
+  readModelEndpointPolicy,
+  refuseModelEndpoint,
+} from '../../governance/model_endpoint_gate';
 import { resolveProviderCredential } from '../../provider_credentials/resolve_credential';
 import type { ActionCtx } from '../ctx';
 import { internal } from '../handler_names';
@@ -38,9 +51,21 @@ export interface ResolvedTtsModel {
 
 export async function resolveTtsModel(
   ctx: ActionCtx,
-  opts: { organizationId: string; locale: string; providerName?: string },
+  opts: {
+    organizationId: string;
+    locale: string;
+    providerName?: string;
+    actor?: ModelEndpointActor;
+  },
 ): Promise<ResolvedTtsModel> {
   const providers = await resolveProvidersForOrgId(ctx, opts.organizationId);
+  const endpointPolicy = await readModelEndpointPolicy(
+    ctx,
+    opts.organizationId,
+  );
+  let refused:
+    | { call: ModelEndpointCall; refusal: ModelEndpointRefusalData }
+    | undefined;
   const ordered =
     opts.providerName === undefined
       ? providers
@@ -101,6 +126,24 @@ export async function resolveTtsModel(
     }
     const baseUrl = credential.endpointUrl ?? provider.baseUrl;
     if (!baseUrl) continue;
+    const refusal = modelEndpointRefusal(endpointPolicy, {
+      providerName: provider.name,
+      baseUrl,
+    });
+    if (refusal !== undefined) {
+      refused ??= {
+        call: {
+          organizationId: opts.organizationId,
+          surface: 'speech',
+          providerName: provider.name,
+          modelId: entry.id,
+          baseUrl,
+          ...(opts.actor !== undefined ? { actor: opts.actor } : {}),
+        },
+        refusal,
+      };
+      continue;
+    }
 
     const tts = entry.tts;
     const baseLocale = opts.locale.split('-')[0] ?? opts.locale;
@@ -133,6 +176,9 @@ export async function resolveTtsModel(
     };
   }
 
+  if (refused !== undefined) {
+    await refuseModelEndpoint(ctx, refused.call, refused.refusal);
+  }
   throw new AppError({
     code: 'NO_PROVIDER',
     message: 'No text-to-speech model is configured for this organization.',

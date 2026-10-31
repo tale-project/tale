@@ -776,7 +776,11 @@ export async function synthesizeChunk(
     modelData = await resolveTtsModel(
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 resolver; every ctx facility it touches is covered by chatShimHandlers
       shim as unknown as Parameters<typeof resolveTtsModel>[0],
-      { organizationId: args.organizationId, locale: args.locale },
+      {
+        organizationId: args.organizationId,
+        locale: args.locale,
+        actor: { id: args.userId, type: 'user' },
+      },
     );
   } catch (error) {
     const { code } = errorCodeFromCaught(error);

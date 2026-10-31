@@ -567,6 +567,7 @@ async function workRun(
           ? { providerSlug: run.modelProvider, providerStrict: true }
           : {}),
         locale: language.defaultLocale,
+        surface: 'task',
       },
       {
         deps: {

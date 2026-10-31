@@ -134,6 +134,26 @@ describe('classifyChatErrorCode', () => {
     ).toBe('model_not_found');
   });
 
+  it('classifies the EU/EEA rule’s refusals as model_not_found by code, whatever host the sentence names [GOV-R17]', () => {
+    expect(
+      classifyChatErrorCode({
+        data: {
+          code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+          message:
+            'This organization processes prompts only in the EU/EEA, and dns-403.example.com is not an endpoint known to process there, so the call was not sent.',
+        },
+      }),
+    ).toBe('model_not_found');
+    expect(
+      classifyChatErrorCode({
+        data: {
+          code: 'MODEL_ENDPOINT_POLICY_UNREADABLE',
+          message: 'The model access policy cannot be read.',
+        },
+      }),
+    ).toBe('model_not_found');
+  });
+
   it('classifies auth errors by 401/403 and message', () => {
     expect(classifyChatErrorCode({ status: 401 })).toBe('auth_error');
     expect(classifyChatErrorCode({ status: 403 })).toBe('auth_error');
