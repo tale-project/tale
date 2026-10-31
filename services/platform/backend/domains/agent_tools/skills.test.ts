@@ -108,6 +108,76 @@ describe('load_skill', () => {
     expect(usage).not.toContain('run_code');
   });
 
+  it('says a skill’s instructions hold for the whole reply, its wording too [CHAT-R34]', async () => {
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the view fields the tool reads
+    vi.mocked(readSkillForViewer).mockResolvedValue(skill() as never);
+    const { scope } = testScope();
+
+    const usage = (
+      (await runLoadSkill(scope, { name: 'docx' })) as { usage: string }
+    ).usage;
+
+    expect(usage).toContain('Follow these instructions throughout your reply');
+    expect(usage).toContain(
+      'in how you write it — its format, tone and wording',
+    );
+    // They still widen nothing, and lose a conflict.
+    expect(usage).toContain('They give you no tool or permission');
+    expect(usage).toContain('where they conflict with your other instructions');
+    expect(usage).not.toContain('for the work they cover');
+  });
+
+  it('gives a skill of instructions alone no word of a sandbox [CHAT-R34]', async () => {
+    vi.mocked(readSkillForViewer).mockResolvedValue(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the view fields the tool reads
+      skill({
+        slug: 'sign-off',
+        body: 'End every chat reply with 😎.',
+        files: [{ path: 'SKILL.md', size: 242 }],
+      }) as never,
+    );
+
+    for (const runCode of [true, false]) {
+      const { scope } = testScope({ loadout: { ...FULL_LOADOUT, runCode } });
+      const result = await runLoadSkill(scope, { name: 'sign-off' });
+      const usage = (result as { usage: string }).usage;
+
+      expect(result).toMatchObject({
+        status: 'ok',
+        instructions: 'End every chat reply with 😎.',
+      });
+      expect(usage).toContain(
+        'Follow these instructions throughout your reply',
+      );
+      for (const sandbox of ['/agent/', 'run_code', 'sandbox', 'Code cannot']) {
+        expect(usage).not.toContain(sandbox);
+      }
+    }
+    expect(prewarmLightSandbox).not.toHaveBeenCalled();
+  });
+
+  it('maps a skill that bundles a file of words onto the sandbox, without starting it', async () => {
+    vi.mocked(readSkillForViewer).mockResolvedValue(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the view fields the tool reads
+      skill({
+        slug: 'house-style',
+        files: [
+          { path: 'SKILL.md', size: 10 },
+          { path: 'reference.md', size: 20 },
+        ],
+      }) as never,
+    );
+    const { scope } = testScope();
+
+    const usage = (
+      (await runLoadSkill(scope, { name: 'house-style' })) as { usage: string }
+    ).usage;
+
+    // Its files are read from code by their sandbox path.
+    expect(usage).toContain('/agent/skills/house-style/');
+    expect(prewarmLightSandbox).not.toHaveBeenCalled();
+  });
+
   it('starts the light sandbox early for a skill with scripts, not for one of words alone', async () => {
     const { scope } = testScope();
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the view fields the tool reads
