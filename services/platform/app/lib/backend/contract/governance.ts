@@ -97,6 +97,18 @@ export interface GovernanceContract {
     args: { organizationId: string; recordId: string };
     returns: null;
   };
+  /** An active grant's expiry (`null` = none) and evidence (`null` clears
+   * it), changed in place; a field left out stays as it is. */
+  'governance/competences:updateCompetence': {
+    kind: 'mutation';
+    args: {
+      organizationId: string;
+      recordId: string;
+      expiresAt?: number | null;
+      evidence?: string | null;
+    };
+    returns: { changed: boolean };
+  };
   'governance/dsar_policy:cancelPendingDsarPolicyChange': {
     kind: 'mutation';
     args: { organizationId: string };

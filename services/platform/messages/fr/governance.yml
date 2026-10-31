@@ -1104,7 +1104,7 @@ groups:
   dataSubjectRequests: Personnes concernées
 competences:
   title: Compétences
-  description: Permets à un membre une seule action bien délimitée sans rôle d'admin, ou enregistre une qualification exigée par ta politique de relecture. Chaque attribution et chaque révocation est auditée, et retirer un membre révoque ses attributions.
+  description: Permets à un membre une seule action bien délimitée sans rôle d'admin, ou enregistre une qualification exigée par ta politique de relecture. Chaque attribution, chaque modification et chaque révocation est auditée, et retirer un membre révoque ses attributions.
   accessDenied: Seuls les propriétaires et les admins de l'organisation peuvent gérer les compétences.
   grantedBy: par {name}
   revokedBy: Révoquée par {name}
@@ -1143,6 +1143,7 @@ competences:
     grant: Attribuer une compétence
     revoke: Révoquer
     revokeFor: Révoquer {competence} pour {member}
+    editFor: Modifier {competence} pour {member}
   grantDialog:
     title: Attribuer une compétence
     description: Le membre la détient dans cette organisation jusqu'à son expiration ou jusqu'à ce qu'un admin la révoque.
@@ -1178,6 +1179,11 @@ competences:
       qualificationTooLong: Utilise au plus 120 caractères.
       qualificationReserved: 'Les noms qui commencent par "tale:" sont réservés aux capacités de la plateforme.'
       evidenceTooLong: Utilise au plus 2 000 caractères.
+  editDialog:
+    title: Modifier l'attribution
+    description: '"{competence}" pour {member}. Une nouvelle expiration compte à partir de l''enregistrement, et le journal d''audit consigne la modification.'
+    expiryKeep: Inchangée (jusqu'au {date})
+    submit: Enregistrer
   revokeDialog:
     title: Révoquer la compétence ?
     description: '{member} perd "{competence}" dans cette organisation immédiatement. L''attribution reste dans le registre comme historique.'
@@ -1186,17 +1192,19 @@ competences:
     granted: Compétence attribuée
     revoked: Compétence révoquée
     revokeFailed: Impossible de révoquer la compétence
+    updated: Compétence modifiée
   errors:
     generic: Impossible d'enregistrer la modification. Réessaie.
-    alreadyGranted: Ce membre détient déjà cette compétence. Révoque l'attribution en cours avant de l'attribuer à nouveau.
+    alreadyGranted: Ce membre détient déjà cette compétence. Modifie l'attribution en cours, ou révoque-la avant de l'attribuer à nouveau.
     notMember: Cette personne n'est pas membre de l'organisation.
-    forbidden: Seuls les propriétaires et les admins de l'organisation peuvent attribuer ou révoquer des compétences.
+    forbidden: Seuls les propriétaires et les admins de l'organisation peuvent attribuer, modifier ou révoquer des compétences.
     capabilityUnknown: Ce n'est pas une capacité de la plateforme.
     expiryInPast: L'expiration doit être dans le futur.
     evidenceTooLong: Le justificatif peut contenir au plus 2 000 caractères.
     invalid: Un nom de compétence compte de 1 à 120 caractères.
     notFound: Cette attribution n'existe plus.
     alreadyRevoked: Cette attribution a déjà été révoquée.
+    expired: Cette attribution a expiré. Attribue à nouveau la compétence.
 trash:
   title: Corbeille
   description:

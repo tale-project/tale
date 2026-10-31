@@ -29,6 +29,7 @@ const state = vi.hoisted(() => ({
   records: [] as CompetenceRecordWire[],
   canWrite: true,
   revoke: vi.fn(),
+  update: vi.fn(),
   refetch: vi.fn(),
   toast: vi.fn(),
 }));
@@ -46,6 +47,7 @@ vi.mock('../hooks/queries', () => ({
 vi.mock('../hooks/mutations', () => ({
   useRevokeCompetence: () => ({ mutateAsync: state.revoke, isPending: false }),
   useGrantCompetence: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateCompetence: () => ({ mutateAsync: state.update, isPending: false }),
 }));
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
   useMembers: () => ({
@@ -78,6 +80,34 @@ beforeEach(() => {
 });
 
 describe('CompetencesPage', () => {
+  it('changes an active grant in place from its row [GOV-R18]', async () => {
+    state.records = [
+      record({ id: 'live', competence: 'tax-reviewer', evidence: 'Course' }),
+    ];
+    state.update.mockResolvedValue({ changed: true });
+    const { user } = render(<CompetencesPage organizationId="org-a" />);
+
+    await user.click(
+      screen.getByRole('button', {
+        name: 'Change tax-reviewer for Integration Worker',
+      }),
+    );
+    const dialog = await screen.findByRole('dialog');
+    const evidence = within(dialog).getByRole('textbox', { name: 'Evidence' });
+    expect(evidence).toHaveValue('Course');
+    await user.type(evidence, ' 2026');
+    await user.click(within(dialog).getByRole('button', { name: 'Save' }));
+
+    expect(state.update).toHaveBeenCalledWith({
+      organizationId: 'org-a',
+      recordId: 'live',
+      evidence: 'Course 2026',
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+    );
+  });
+
   it('opens on active grants, naming capability, holder and grantor', () => {
     state.records = [
       record({ id: 'live', evidence: 'Relays office answers' }),
@@ -186,7 +216,7 @@ describe('CompetencesPage', () => {
       expect.objectContaining({
         title: "Couldn't revoke the competence",
         description:
-          'Only organization owners and admins can grant or revoke competences.',
+          'Only organization owners and admins can grant, change or revoke competences.',
         variant: 'destructive',
       }),
     );

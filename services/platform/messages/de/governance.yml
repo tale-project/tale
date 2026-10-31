@@ -1067,7 +1067,7 @@ groups:
   dataSubjectRequests: Anfragen betroffener Personen
 competences:
   title: Kompetenzen
-  description: Erlaube einem Mitglied eine einzelne, eng begrenzte Berechtigung ohne Admin-Rolle, oder halte eine Qualifikation fest, die deine Freigaberichtlinie verlangt. Jede Zuweisung und jeder Widerruf wird protokolliert, und wer aus der Organisation entfernt wird, verliert seine Zuweisungen.
+  description: Erlaube einem Mitglied eine einzelne, eng begrenzte Berechtigung ohne Admin-Rolle, oder halte eine Qualifikation fest, die deine Freigaberichtlinie verlangt. Jede Zuweisung, jede Änderung und jeder Widerruf wird protokolliert, und wer aus der Organisation entfernt wird, verliert seine Zuweisungen.
   accessDenied: Nur Inhaber und Admins der Organisation können Kompetenzen verwalten.
   grantedBy: von {name}
   revokedBy: Widerrufen von {name}
@@ -1106,6 +1106,7 @@ competences:
     grant: Kompetenz zuweisen
     revoke: Widerrufen
     revokeFor: '{competence} für {member} widerrufen'
+    editFor: '{competence} für {member} ändern'
   grantDialog:
     title: Kompetenz zuweisen
     description: Das Mitglied hat sie in dieser Organisation, bis sie abläuft oder ein Admin sie widerruft.
@@ -1141,6 +1142,11 @@ competences:
       qualificationTooLong: Verwende höchstens 120 Zeichen.
       qualificationReserved: 'Namen, die mit "tale:" beginnen, sind für Plattform-Berechtigungen reserviert.'
       evidenceTooLong: Verwende höchstens 2000 Zeichen.
+  editDialog:
+    title: Zuweisung ändern
+    description: '"{competence}" für {member}. Ein neuer Ablauf zählt ab dem Speichern, und das Audit-Log hält die Änderung fest.'
+    expiryKeep: Unverändert (bis {date})
+    submit: Speichern
   revokeDialog:
     title: Kompetenz widerrufen?
     description: '{member} verliert "{competence}" in dieser Organisation sofort. Die Zuweisung bleibt als Verlauf im Register.'
@@ -1149,17 +1155,19 @@ competences:
     granted: Kompetenz zugewiesen
     revoked: Kompetenz widerrufen
     revokeFailed: Kompetenz konnte nicht widerrufen werden
+    updated: Kompetenz geändert
   errors:
     generic: Die Änderung konnte nicht gespeichert werden. Versuch es noch einmal.
-    alreadyGranted: Dieses Mitglied hat diese Kompetenz bereits. Widerrufe die bestehende Zuweisung, bevor du sie erneut zuweist.
+    alreadyGranted: Dieses Mitglied hat diese Kompetenz bereits. Ändere die bestehende Zuweisung, oder widerrufe sie, bevor du sie erneut zuweist.
     notMember: Diese Person ist kein Mitglied der Organisation.
-    forbidden: Nur Inhaber und Admins der Organisation können Kompetenzen zuweisen oder widerrufen.
+    forbidden: Nur Inhaber und Admins der Organisation können Kompetenzen zuweisen, ändern oder widerrufen.
     capabilityUnknown: Das ist keine Plattform-Berechtigung.
     expiryInPast: Der Ablauf muss in der Zukunft liegen.
     evidenceTooLong: Der Nachweis darf höchstens 2000 Zeichen haben.
     invalid: Ein Kompetenzname hat 1 bis 120 Zeichen.
     notFound: Diese Zuweisung gibt es nicht mehr.
     alreadyRevoked: Diese Zuweisung wurde bereits widerrufen.
+    expired: Diese Zuweisung ist abgelaufen. Weise die Kompetenz stattdessen erneut zu.
 trash:
   title: Papierkorb
   description:

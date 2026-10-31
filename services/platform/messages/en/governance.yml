@@ -1029,7 +1029,7 @@ groups:
   dataSubjectRequests: Data subject requests
 competences:
   title: Competences
-  description: Let a member do one narrow thing without an admin seat, or record a qualification your review policy asks for. Every grant and revocation is audited, and removing a member revokes their grants.
+  description: Let a member do one narrow thing without an admin seat, or record a qualification your review policy asks for. Every grant, change and revocation is audited, and removing a member revokes their grants.
   accessDenied: Only organization owners and admins can manage competences.
   grantedBy: by {name}
   revokedBy: Revoked by {name}
@@ -1068,6 +1068,7 @@ competences:
     grant: Grant competence
     revoke: Revoke
     revokeFor: Revoke {competence} from {member}
+    editFor: Change {competence} for {member}
   grantDialog:
     title: Grant a competence
     description: The member holds it in this organization until it expires or an admin revokes it.
@@ -1103,6 +1104,11 @@ competences:
       qualificationTooLong: Use at most 120 characters.
       qualificationReserved: 'Names starting with "tale:" are reserved for platform capabilities.'
       evidenceTooLong: Use at most 2,000 characters.
+  editDialog:
+    title: Change grant
+    description: '"{competence}" for {member}. A new expiry counts from when you save, and the audit log records the change.'
+    expiryKeep: Unchanged (until {date})
+    submit: Save
   revokeDialog:
     title: Revoke competence?
     description: '{member} loses "{competence}" in this organization right away. The grant stays in the register as history.'
@@ -1111,17 +1117,19 @@ competences:
     granted: Competence granted
     revoked: Competence revoked
     revokeFailed: Couldn't revoke the competence
+    updated: Competence updated
   errors:
     generic: Couldn't save the change. Try again.
-    alreadyGranted: This member already holds this competence. Revoke the current grant before you grant it again.
+    alreadyGranted: This member already holds this competence. Change the current grant, or revoke it before you grant it again.
     notMember: This person is not a member of the organization.
-    forbidden: Only organization owners and admins can grant or revoke competences.
+    forbidden: Only organization owners and admins can grant, change or revoke competences.
     capabilityUnknown: This is not a platform capability.
     expiryInPast: The expiry has to be in the future.
     evidenceTooLong: Evidence can be at most 2,000 characters.
     invalid: A competence name has 1 to 120 characters.
     notFound: This grant no longer exists.
     alreadyRevoked: This grant has already been revoked.
+    expired: This grant has expired. Grant the competence again instead.
 trash:
   title: Trash
   description: Recover retention-trashed records before they are permanently
