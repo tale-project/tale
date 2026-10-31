@@ -13,6 +13,7 @@ import { taskExternalIssueSchema } from '@tale/shared/schemas/task-external-issu
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { explainSentStatement } from '../../integration-lane-helpers.ts';
 import { listTasksForAccessibleProjects } from './service.ts';
 
 const BOARD_STATUSES = [
@@ -700,10 +701,6 @@ async function checkProjectSummaries(
 /** What Home reads as "assigned to me": the work that is not done. */
 const OPEN_STATUSES = ['backlog', 'todo', 'in_progress', 'in_review'];
 
-/** A tag's template, as postgres.js tells one from a helper call. */
-const isTemplate = (value: unknown): value is TemplateStringsArray =>
-  Array.isArray(value) && 'raw' in value;
-
 /**
  * Home's "assigned to me" (#4708): one person's open tasks across the projects
  * the caller reads, newest activity first. The read returns the rows, in the
@@ -854,56 +851,28 @@ async function checkTaskBoardAssignedRead(
   // must take the person's tasks, newest first, from an index, and only the
   // assignee index both bounds and orders them. The former
   // `(… IS NULL OR …)` filters left a generic plan neither.
-  const plans = { custom: '', generic: '' };
-  await sql.begin(async (tx) => {
-    await tx`SET LOCAL enable_seqscan = off`;
-    await tx`SET LOCAL enable_sort = off`;
-    const explaining = new Proxy(tx, {
-      apply(target, thisArg: unknown, args: unknown[]): unknown {
-        const [strings, ...values] = args;
-        if (
-          !isTemplate(strings) ||
-          !strings.join(' ').includes('FROM app.tasks t') ||
-          !strings.join(' ').includes('ORDER BY updated_at_ms DESC')
-        ) {
-          const passed: unknown = Reflect.apply(target, thisArg, args);
-          return passed;
-        }
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the read's own parameters, passed through
-        const parameters = values as never[];
-        const prefixed = Object.assign(
-          [`EXPLAIN ${strings[0] ?? ''}`, ...strings.slice(1)],
-          { raw: [`EXPLAIN ${strings.raw[0] ?? ''}`, ...strings.raw.slice(1)] },
-        );
-        const explain = async () => {
-          const custom = await target<{ 'QUERY PLAN': string }[]>(
-            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a template array with its raw strings, as postgres.js reads one
-            prefixed as unknown as TemplateStringsArray,
-            ...parameters,
-          );
-          const { string } = await target(strings, ...parameters).describe();
-          const generic = await target
-            .unsafe<{ 'QUERY PLAN': string }[]>(
-              `EXPLAIN (GENERIC_PLAN) ${string}`,
-            )
-            .simple();
-          plans.custom = custom.map((row) => row['QUERY PLAN']).join('\n');
-          plans.generic = generic.map((row) => row['QUERY PLAN']).join('\n');
-          return [];
-        };
-        return explain();
-      },
-    });
-    await listTasksForAccessibleProjects(
-      explaining,
-      { organizationId: orgId, userId, role: 'owner', teamIds: [] },
-      { includeArchived: false, assigneeId: memberId, statuses: OPEN_STATUSES },
-    );
-  });
+  const plans = await explainSentStatement<{ 'QUERY PLAN': string }>(
+    sql,
+    (template) =>
+      template.includes('FROM app.tasks t') &&
+      template.includes('ORDER BY updated_at_ms DESC'),
+    (tx) =>
+      listTasksForAccessibleProjects(
+        tx,
+        { organizationId: orgId, userId, role: 'owner', teamIds: [] },
+        {
+          includeArchived: false,
+          assigneeId: memberId,
+          statuses: OPEN_STATUSES,
+        },
+      ),
+  );
+  const custom = plans.custom.map((row) => row['QUERY PLAN']).join('\n');
+  const generic = plans.generic.map((row) => row['QUERY PLAN']).join('\n');
   record(
     "Home's assigned statement reads tasks_org_assignee_updated in its custom and generic plans",
-    plans.custom.includes('tasks_org_assignee_updated') &&
-      plans.generic.includes('tasks_org_assignee_updated'),
-    `custom: ${plans.custom} | generic: ${plans.generic}`,
+    custom.includes('tasks_org_assignee_updated') &&
+      generic.includes('tasks_org_assignee_updated'),
+    `custom: ${custom} | generic: ${generic}`,
   );
 }
