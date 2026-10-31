@@ -202,7 +202,8 @@ Tale is a monorepo on Bun workspaces; every workspace script runs through
 - **A release tags one validated candidate** — a version tag goes only on the full `main` SHA
   whose `build.yml` candidate run and release gate
   (`tools/cli/scripts/release-candidate-gate.ts`) passed, and merging never freezes for it:
-  [`.github/RELEASING.md`](../.github/RELEASING.md). That is the stable line's release; the
+  [`.github/RELEASING.md`](../.github/RELEASING.md). An agent asks `release-tag.yml` for the
+  tag, which runs the gate again and pushes it with a deploy key no agent holds. That is the stable line's release; the
   feature line's from `release/0.6` waits until the release lane knows two lines. No per-day limit holds a release back;
   a red `main` does, so read and repair it first
   ([a release that has to go out](../.github/RELEASING.md#a-release-that-has-to-go-out)).

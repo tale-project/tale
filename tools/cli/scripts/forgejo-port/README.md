@@ -86,6 +86,7 @@ so its scope steps answer that it owes everything. Each pull request lands on it
 | --- | --- | --- |
 | `release.yml` | github | the release lane: its jobs and runs are what the release adopter reads, it builds arm64 images, signs the macOS and Windows binaries and creates the GitHub release |
 | `release-candidate-source.yml`, `release-candidate-receipt.yml` | github | reusable workflows of the candidate dispatch, which only GitHub can send |
+| `release-tag.yml` | github | pushes a release tag with a deploy key that a GitHub environment holds, on a repository dispatch only GitHub can send |
 | `scorecard.yml` | github | OpenSSF Scorecard publishes with GitHub's OIDC identity |
 | `load.yml` | github | a manual load test GitHub-hosted runners serve as it is |
 | `workspace-upgrade.yml` | github | upgrades a workspace from the published releases, resolved through GitHub's release API |
@@ -94,9 +95,9 @@ so its scope steps answer that it owes everything. Each pull request lands on it
 | `sandbox-incus-e2e.yml` | later | builds an Incus node with a ZFS pool on the runner, which needs a virtual machine |
 | `cli.yml` | port | ported without its manual `release` job and without the macOS and Windows rows |
 
-`github` prints the one edit GitHub's own copies need: `publish-packages.yml` publishes
-nothing while the repository variable `TALE_SOURCE` is `forgejo`, because the mirror deletes
-a ref only GitHub made.
+`github` prints the two edits GitHub's own copies need: `publish-packages.yml` publishes
+nothing and `release-tag.yml` tags nothing while the repository variable `TALE_SOURCE` is
+`forgejo`, because the mirror deletes a ref only GitHub made.
 
 ## Checks
 

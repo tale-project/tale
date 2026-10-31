@@ -96,6 +96,13 @@ export const MANIFEST: Manifest = {
         "  publish:\n    name: Publish ${{ matrix.package }}\n    # Forgejo publishes the snapshots and its push mirror carries them to GitHub, which\n    # deletes any ref Forgejo does not hold: a snapshot made here would not stay.\n    if: vars.TALE_SOURCE != 'forgejo'\n",
       why: 'the release lane still dispatches this workflow on GitHub, and it must publish nothing once Forgejo is the source',
     },
+    {
+      file: 'release-tag.yml',
+      find: '  tag:\n    name: Tag\n',
+      replace:
+        "  tag:\n    name: Tag\n    # Release tags are pushed to Forgejo, and its push mirror deletes any ref Forgejo does\n    # not hold: a tag pushed here would not stay.\n    if: vars.TALE_SOURCE != 'forgejo'\n",
+      why: 'a release tag it pushes to GitHub would not stay once Forgejo is the source, where release tags are pushed',
+    },
   ],
   workflows: {
     'cli.yml': {
@@ -121,6 +128,10 @@ export const MANIFEST: Manifest = {
     'release-candidate-receipt.yml': {
       kind: 'github',
       why: 'a reusable workflow of the candidate dispatch, which only GitHub can send',
+    },
+    'release-tag.yml': {
+      kind: 'github',
+      why: 'it pushes a release tag with a deploy key that a GitHub environment holds, on a repository dispatch only GitHub can send',
     },
     'scorecard.yml': {
       kind: 'github',
