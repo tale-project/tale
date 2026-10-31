@@ -117,6 +117,12 @@ export interface RenderBatchArgs {
   /** The site's robots.txt `Crawl-delay`, in ms — the pause the worker
    * keeps between two page loads (2026-09-18 evaluation, J6-8). */
   crawlDelayMs?: number;
+  /** Who the session row names as its creator: the crawler by default, the
+   * member whose chat asked for the page otherwise. */
+  createdBy?: string;
+  /** How the browser introduces itself: the crawler's `TaleBot` token by
+   * default; a chat read, which never consults robots.txt, carries its own. */
+  userAgent?: string;
 }
 
 /**
@@ -245,7 +251,7 @@ export async function renderUrlsInSandbox(
         profile: 'default',
         ownerType: 'render',
         ownerId: sessionId,
-        createdBy: 'system:crawler',
+        createdBy: args.createdBy ?? 'system:crawler',
       },
     );
   } catch (error) {
@@ -302,7 +308,7 @@ export async function renderUrlsInSandbox(
       // just the probe leg (2026-09-18 evaluation, J6-8).
       crawlDelayMs: args.crawlDelayMs ?? 0,
       // The same identity the probe leg sends (2026-09-15 evaluation, i6).
-      userAgent: crawlerUserAgent(process.env.TALE_VERSION),
+      userAgent: args.userAgent ?? crawlerUserAgent(process.env.TALE_VERSION),
       // What is the lane's fault, not the page's — one definition, handed
       // in because the worker cannot import it.
       proxyErrorPattern: RENDER_PROXY_ERROR_PATTERN.source,

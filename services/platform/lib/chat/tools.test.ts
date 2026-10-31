@@ -225,6 +225,14 @@ describe('CHAT_WIRE_TOOLS — the model-facing contract', () => {
     expect(text).toMatch(/without the site's navigation, header and footer/i);
   });
 
+  it('web_fetch says a page that needs a browser is rendered, and how the result tells', () => {
+    const text = wireDescription('web_fetch');
+    expect(text).toMatch(
+      /a page that\s+builds its content in the browser is rendered once/i,
+    );
+    expect(text).toContain('"rendered": true');
+  });
+
   it('web_fetch accepts a URL the instructions name', () => {
     expect(wireDescription('web_fetch')).toMatch(/one your instructions name/);
   });

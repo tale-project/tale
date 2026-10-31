@@ -197,7 +197,10 @@ const BATCH = {
   execTimeoutMs: 120_000,
 };
 
-function renderRun(rowId: string) {
+function renderRun(
+  rowId: string,
+  identity: { createdBy?: string; userAgent?: string } = {},
+) {
   const events: string[] = [];
   const runMutation = vi.fn(
     async (ref: unknown, _args: unknown): Promise<string | null> => {
@@ -210,7 +213,7 @@ function renderRun(rowId: string) {
   return {
     events,
     runMutation,
-    render: () => renderUrlsInSandbox(ctx, BATCH),
+    render: () => renderUrlsInSandbox(ctx, { ...BATCH, ...identity }),
     mutationArgs: (name: string) =>
       runMutation.mock.calls
         .filter(([ref]) => functionRefName(ref).split(':')[1] === name)
@@ -286,6 +289,43 @@ describe('renderUrlsInSandbox — the session lifecycle', () => {
       'markSessionRowDestroyed',
     ]);
     expect(spawner.sessionDestroyIfIdle).not.toHaveBeenCalled();
+  });
+
+  it("names the crawler as the session's creator and its browser, unless the caller names its own", async () => {
+    /** The worker input the batch staged last. */
+    const staged = (): Record<string, unknown> => {
+      const files = spawner.sessionStageFiles.mock.calls.at(-1)?.[1] as {
+        path: string;
+        contentBase64: string;
+      }[];
+      const input = files.find((file) => file.path === 'code/urls.json');
+      return JSON.parse(
+        Buffer.from(input?.contentBase64 ?? '', 'base64').toString('utf8'),
+      ) as Record<string, unknown>;
+    };
+
+    const crawl = renderRun('row_1');
+    scriptSpawner(crawl.events);
+    await crawl.render();
+    expect(crawl.mutationArgs('reserveSessionSlotAndInsert')).toEqual([
+      expect.objectContaining({
+        ownerType: 'render',
+        createdBy: 'system:crawler',
+      }),
+    ]);
+    expect(staged().userAgent).toMatch(/^TaleBot\//);
+
+    // A chat's web_fetch: the member who asked, and the chat's own name.
+    const chat = renderRun('row_2', {
+      createdBy: 'user_1',
+      userAgent: 'TaleAssistant/1.0 (+chat web_fetch)',
+    });
+    scriptSpawner(chat.events);
+    await chat.render();
+    expect(chat.mutationArgs('reserveSessionSlotAndInsert')).toEqual([
+      expect.objectContaining({ ownerType: 'render', createdBy: 'user_1' }),
+    ]);
+    expect(staged().userAgent).toBe('TaleAssistant/1.0 (+chat web_fetch)');
   });
 
   it('asks for a short idle window, so a batch that died before its destroy frees its render slot within minutes', async () => {
