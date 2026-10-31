@@ -58,6 +58,47 @@ export function isRunLive(state: TaskRunState | undefined): boolean {
   return state !== undefined && state.kind !== 'unknown';
 }
 
+/** What a live run is doing, as the board's activity summary counts it: at
+ * work, waiting on a person, or waiting for its turn or for room. */
+export type RunActivity = 'running' | 'waitingForInput' | 'queued';
+
+/** The activity a run state counts under; none for `unknown`, a run the
+ * board cannot see, which is never counted. */
+export function runActivity(state: TaskRunState): RunActivity | undefined {
+  switch (state.kind) {
+    case 'working':
+      return 'running';
+    case 'asking':
+      return 'waitingForInput';
+    case 'automationWaiting':
+      // An approval or an in-doubt step waits on a person's decision.
+      return state.waitingFor === 'approval' || state.waitingFor === 'in_doubt'
+        ? 'waitingForInput'
+        : 'queued';
+    case 'waiting':
+    case 'queued':
+      return 'queued';
+    case 'unknown':
+      return undefined;
+    default: {
+      const exhaustive: never = state;
+      return exhaustive;
+    }
+  }
+}
+
+/** One live run the ops indicators list: what the board's activity summary
+ * counts, one entry per run, never per task or per agent. */
+export interface LiveRun {
+  taskId: string;
+  /** The run, when the indicators name it: an agent run, or an automation
+   * run that waits. A working automation run is known by its task alone. */
+  runId?: string;
+  /** The agent whose run it is, for an agent run. */
+  agentId?: string;
+  state: TaskRunState;
+}
+
 interface TaskBoardContextValue {
   /** True when the task has at least one unfinished blocker. */
   isBlocked: (taskId: string) => boolean;
@@ -210,6 +251,34 @@ export function TaskBoardProvider({
   );
 }
 
+/** An agent run's state: at work, parked for room, or queued. */
+function agentRunState(run: TaskOpsRunIndicator): TaskRunState {
+  if (run.status === 'running') return { kind: 'working' };
+  if (!run.waiting) return { kind: 'queued' };
+  return {
+    kind: 'waiting',
+    ...(run.waitingReason !== undefined ? { reason: run.waitingReason } : {}),
+  };
+}
+
+/** The state of an automation run that waits instead of working. */
+function automationWaitState(
+  wait: TaskOpsAutomationWaitIndicator,
+): TaskRunState {
+  if (wait.status === 'queued') return { kind: 'queued' };
+  return {
+    kind: 'automationWaiting',
+    ...(wait.waitingFor !== undefined ? { waitingFor: wait.waitingFor } : {}),
+  };
+}
+
+interface OpsRunLists {
+  runningTaskIds?: readonly string[];
+  askingTaskIds?: readonly string[];
+  runs?: readonly TaskOpsRunIndicator[];
+  automationWaits?: readonly TaskOpsAutomationWaitIndicator[];
+}
+
 /** Each task's live-run state from the ops indicators, the most telling
  * first: a question to a person, then work, then the agent run's wait, then
  * the automation run's. */
@@ -218,12 +287,7 @@ function readRunStates({
   askingTaskIds,
   runs,
   automationWaits,
-}: {
-  runningTaskIds?: readonly string[];
-  askingTaskIds?: readonly string[];
-  runs?: readonly TaskOpsRunIndicator[];
-  automationWaits?: readonly TaskOpsAutomationWaitIndicator[];
-}): Map<string, TaskRunState> {
+}: OpsRunLists): Map<string, TaskRunState> {
   const states = new Map<string, TaskRunState>();
   const set = (taskId: string, state: TaskRunState) => {
     if (!states.has(taskId)) states.set(taskId, state);
@@ -232,35 +296,49 @@ function readRunStates({
   for (const taskId of runningTaskIds ?? []) set(taskId, { kind: 'working' });
   // Running runs come first, so a task's working run wins over its queued
   // one.
-  for (const run of runs ?? []) {
-    set(
-      run.taskId,
-      run.status === 'running'
-        ? { kind: 'working' }
-        : run.waiting
-          ? {
-              kind: 'waiting',
-              ...(run.waitingReason !== undefined
-                ? { reason: run.waitingReason }
-                : {}),
-            }
-          : { kind: 'queued' },
-    );
-  }
+  for (const run of runs ?? []) set(run.taskId, agentRunState(run));
   for (const wait of automationWaits ?? []) {
-    set(
-      wait.taskId,
-      wait.status === 'queued'
-        ? { kind: 'queued' }
-        : {
-            kind: 'automationWaiting',
-            ...(wait.waitingFor !== undefined
-              ? { waitingFor: wait.waitingFor }
-              : {}),
-          },
-    );
+    set(wait.taskId, automationWaitState(wait));
   }
   return states;
+}
+
+/** Every live run the ops indicators list, read with the same states as the
+ * cards. A task can hold an agent run and an automation run at once, so a
+ * task id in `runningTaskIds` is a run of its own unless it is the task's
+ * listed working agent run or its automation run's question. */
+export function readLiveRuns({
+  runningTaskIds,
+  askingTaskIds,
+  runs,
+  automationWaits,
+}: OpsRunLists): LiveRun[] {
+  const live: LiveRun[] = [];
+  const agentWorking = new Set<string>();
+  for (const run of runs ?? []) {
+    const state = agentRunState(run);
+    if (state.kind === 'working') agentWorking.add(run.taskId);
+    live.push({
+      taskId: run.taskId,
+      runId: run.runId,
+      agentId: run.agentId,
+      state,
+    });
+  }
+  const asking = new Set(askingTaskIds);
+  for (const taskId of asking) live.push({ taskId, state: { kind: 'asking' } });
+  for (const taskId of new Set(runningTaskIds)) {
+    if (asking.has(taskId) || agentWorking.has(taskId)) continue;
+    live.push({ taskId, state: { kind: 'working' } });
+  }
+  for (const wait of automationWaits ?? []) {
+    live.push({
+      taskId: wait.taskId,
+      runId: wait.runId,
+      state: automationWaitState(wait),
+    });
+  }
+  return live;
 }
 
 export function useTaskBoardContext(): TaskBoardContextValue {

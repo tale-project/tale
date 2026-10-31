@@ -52,6 +52,7 @@ import {
 } from '../lib/filter-tasks';
 import { readFailed, readRetrying } from '../lib/read-state';
 import { isTaskView, type TaskView } from '../lib/view';
+import { AgentActivitySummary } from './agent-activity-summary';
 import { KanbanBoard } from './kanban-board';
 import type { LaneQuickAddConfig } from './lane-quick-add';
 import { TaskBoardProvider } from './task-board-context';
@@ -103,13 +104,14 @@ export function TasksWorkspace({
   const [priorityFilter, setPriorityFilter] =
     useState<TaskPriorityFilter>(ALL_PRIORITY_FILTER);
   const [needsMyReviewFilter, setNeedsMyReviewFilter] = useState(false);
-  const { agents, currentUserId } = useActorDirectory(
-    organizationId,
-    // Agents are project-scoped; in all-projects mode the filter lists no
-    // agent, and agent assignees resolve via the directory without a
-    // project agent catalog.
-    allProjects ? undefined : projectId,
-  );
+  const { agents, currentUserId, resolveActor, agentsLoading } =
+    useActorDirectory(
+      organizationId,
+      // Agents are project-scoped; in all-projects mode the filter lists no
+      // agent, and agent assignees resolve via the directory without a
+      // project agent catalog.
+      allProjects ? undefined : projectId,
+    );
   // The assignee filter offers every member: they are read once the reader
   // first opens the filters, never for a board that is only looked at.
   const [membersWanted, setMembersWanted] = useState(false);
@@ -321,6 +323,18 @@ export function TasksWorkspace({
   const handleOpenTask = useCallback(
     (task: TaskRow) => setOpenTaskId(task._id, task.projectId),
     [setOpenTaskId],
+  );
+  // The live-run summary opens a task of this project, on the board or not.
+  const openProjectTask = useCallback(
+    (taskId: string) => setOpenTaskId(taskId, typedProjectId),
+    [setOpenTaskId, typedProjectId],
+  );
+  // A run's agent by name; none while the agents load, so the line says
+  // "Agent is working…" rather than call a known agent deleted.
+  const runAgentName = useCallback(
+    (agentId: string) =>
+      agentsLoading ? undefined : resolveActor('agent', agentId).name,
+    [agentsLoading, resolveActor],
   );
 
   const handleAssigneeFilterChange = useCallback((values: string[]) => {
@@ -543,6 +557,25 @@ export function TasksWorkspace({
             })}
             className="w-auto"
           />
+          {/* The project's live agent runs, apart from the columns: the
+              all-projects read lists no automation run, so it would count
+              short there. */}
+          {!allProjects && (
+            <AgentActivitySummary
+              read={projectOps.read}
+              runningTaskIds={projectOps.runningTaskIds}
+              askingTaskIds={projectOps.askingTaskIds}
+              runs={projectOps.runs}
+              automationWaits={projectOps.automationWaits}
+              partial={
+                projectOps.runsTruncated || projectOps.automationRunsTruncated
+              }
+              projectKey={projectKey}
+              getTask={resolveLoadedTask}
+              agentName={runAgentName}
+              onOpenTask={openProjectTask}
+            />
+          )}
         </Row>
       </DataTableToolbar>
 

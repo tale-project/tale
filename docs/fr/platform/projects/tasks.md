@@ -245,3 +245,15 @@ Une carte affiche jusqu’à quatre étiquettes, et une ligne de la **Liste** ju
 Si tu peux modifier la tâche, place le focus sur son titre et appuie sur **Espace** pour la saisir. Déplace-la avec les touches fléchées, puis appuie de nouveau sur **Espace** pour la déposer. **Échap** annule le déplacement et laisse la tâche à sa place. Un lecteur d’écran nomme la tâche quand tu la saisis, puis annonce son statut et sa position pendant le déplacement.
 
 Si une modification est refusée, vérifie l’état de la tâche avant de réessayer : une exécution active empêche de réassigner l’agent, des sous-tâches ouvertes empêchent la clôture, et ton rôle, ainsi que le fait que la tâche soit la tienne ou non, déterminent si tu peux la modifier.
+
+### Voir quels agents travaillent {#live-agent-runs}
+
+Une colonne indique où en est une tâche, pas si un agent y travaille. Une tâche permanente qu’une planification démarre avec `moveToInProgress: false` reste dans **À faire** pendant que son agent travaille, et une tâche peut rester dans **En cours** après la fin de son exécution. **Exécutions d’agents**, à côté de **Filtre** au-dessus du tableau, répond à cette question, par exemple avec **Exécutions d’agents : 2 en cours · 1 en file d’attente**. Chaque exécution d’agent active y compte une fois, et non chaque tâche ou chaque agent :
+
+- **en cours** : l’agent travaille.
+- **en attente de saisie** : l’exécution attend qu’une personne réponde à sa question, approuve une étape ou prenne une décision.
+- **en file d’attente** : l’exécution attend son tour ou de la place, par exemple un worker libre ou un emplacement de sandbox.
+
+Le décompte couvre tout le projet, quels que soient ta recherche et tes filtres. Il n’indique **aucune en cours** qu’une fois les exécutions du projet chargées. Pendant le chargement, il indique **chargement…**, et si elles ne peuvent pas être chargées, **indisponible** au lieu d’un nombre : qu’aucune exécution ne soit alors comptée ne veut pas dire qu’aucun agent ne travaille. Un **+** après un nombre, comme **2+ en cours**, signifie que toutes les exécutions actives n’ont pas pu être listées : il peut y en avoir davantage. Le tableau de tous les projets n’affiche pas de décompte ; ouvre le tableau d’un projet pour voir ses exécutions.
+
+Choisis **Exécutions d’agents** pour lister les exécutions par type, chacune avec sa tâche et ce que fait son agent. Une exécution sur une tâche que le tableau n’affiche pas compte aussi, sous **Une tâche que cette vue n’affiche pas**. Choisis une exécution pour ouvrir sa tâche. La liste montre seulement les exécutions : elle ne démarre, n’arrête et ne déplace rien. Au clavier, appuie sur **Entrée** sur **Exécutions d’agents**, parcours les exécutions avec les touches fléchées, puis appuie sur **Entrée** pour en ouvrir une.

@@ -9,6 +9,7 @@ import { render, screen } from '@/tests/utils/render';
 import type { TaskDoc } from '../lib/display';
 import {
   isRunLive,
+  readLiveRuns,
   TaskBoardProvider,
   type TaskRunState,
   useTaskBoardContext,
@@ -182,5 +183,76 @@ describe('the board’s one reading of a task’s live run', () => {
       expect(isRunLive({ kind })).toBe(true);
     }
     expect(isRunLive({ kind: 'automationWaiting' })).toBe(true);
+  });
+});
+
+describe('the live runs the board counts', () => {
+  it('lists each live run once, and two runs of one task as two [TASK-R87]', () => {
+    expect(
+      readLiveRuns({
+        runningTaskIds: ['works', 'both', 'asks', 'unlisted'],
+        askingTaskIds: ['asks'],
+        runs: [
+          // A working agent run is listed, and named in `runningTaskIds`.
+          run('works', { status: 'running' }),
+          run('works', {
+            runId: 'run-works-2',
+            agentId: 'agent-2',
+            status: 'running',
+          }),
+          run('both'),
+        ],
+        automationWaits: [
+          {
+            taskId: 'waits',
+            runId: 'auto-1',
+            status: 'waiting',
+            waitingFor: 'room',
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        taskId: 'works',
+        runId: 'run-works',
+        agentId: 'agent-1',
+        state: { kind: 'working' },
+      },
+      {
+        taskId: 'works',
+        runId: 'run-works-2',
+        agentId: 'agent-2',
+        state: { kind: 'working' },
+      },
+      {
+        taskId: 'both',
+        runId: 'run-both',
+        agentId: 'agent-1',
+        state: { kind: 'queued' },
+      },
+      // An automation run's question: once, though it is also running.
+      { taskId: 'asks', state: { kind: 'asking' } },
+      // The automation run beside the task's queued agent run.
+      { taskId: 'both', state: { kind: 'working' } },
+      // A working run the capped list of agent runs leaves out.
+      { taskId: 'unlisted', state: { kind: 'working' } },
+      {
+        taskId: 'waits',
+        runId: 'auto-1',
+        state: { kind: 'automationWaiting', waitingFor: 'room' },
+      },
+    ]);
+  });
+
+  it('lists none for an empty or absent read [TASK-R87]', () => {
+    expect(
+      readLiveRuns({
+        runningTaskIds: [],
+        askingTaskIds: [],
+        runs: [],
+        automationWaits: [],
+      }),
+    ).toEqual([]);
+    expect(readLiveRuns({})).toEqual([]);
   });
 });
