@@ -229,6 +229,23 @@ other way made, such as an invitation that names a team.
   provider adds Ben to it → Ben's calls are refused; once Ada removes him from the team and
   adds him herself, they are allowed.
 
+### GOV-R21 · An admin sees whether a member has each right, and why
+
+For one member, each of the platform's rights reads as the check that enforces it answers, with
+the reasons it weighs: the member's role, their own grant (by whom, until when, or expired), the
+grant of each team an admin added them to (GOV-R19, GOV-R20), or the lack of any, the
+organization's model API switch, and the skill sharing policy. A seat that is disabled has none
+of them. Only an owner or admin can read them (`FORBIDDEN`); someone who is not a member is not
+found (`MEMBER_NOT_FOUND`). From there an admin grants each right to the member, with or without
+an end date, or withdraws that grant, and each change is written to the audit log like any
+other. A team's grant is the team's: it is withdrawn in the register, not from the member's
+rights.
+
+- **Example**: The model API is off for the organization, and Ada granted Mia the right to call
+  it → Mia's rights show that she lacks it because it is off, and name Ada's grant.
+- **Example**: Ada granted the Ops team the right to act for another member, and added Mia to
+  Ops → Mia's rights show that she has it through Ops, with no grant of her own.
+
 ## Not yet
 
 - **Whose spend a piece of work is booked under**: the rules are in
