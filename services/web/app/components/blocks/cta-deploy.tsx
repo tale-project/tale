@@ -6,7 +6,7 @@ import {
   SectionHeading,
 } from '@/app/components/marketing';
 import { REQUEST_DEMO_PATH } from '@/app/content/site-ctas';
-import { getStartedUrl } from '@/lib/docs-url';
+import { getSelfHostedQuickstartUrl, getStartedUrl } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 
@@ -43,6 +43,7 @@ export function CtaDeploy() {
           copyLabel={t('cta.copy')}
           copiedLabel={t('cta.copied')}
           docsLabel={t('cta.docsLink')}
+          docsHref={getSelfHostedQuickstartUrl(locale)}
         />
       </Reveal>
     </PageSection>

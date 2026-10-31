@@ -20,12 +20,7 @@ export function getStartedUrl(locale: SupportedLocale): string {
   return getDocsUrl(locale, '/get-started/quickstart');
 }
 
-export const GET_STARTED_URL = getStartedUrl('en');
-
-/** Localize the document path inside the configured docs mount. */
+/** Self-hosted install walk — the four-command sequence on the homepage CTA. */
 export function getSelfHostedQuickstartUrl(locale: SupportedLocale): string {
   return getDocsUrl(locale, '/self-hosted/install/quickstart');
 }
-
-/** Self-hosted install walk — the four-command sequence on the homepage CTA. */
-export const SELF_HOSTED_QUICKSTART_URL = getSelfHostedQuickstartUrl('en');

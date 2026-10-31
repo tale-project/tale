@@ -35,3 +35,5 @@ Die Entscheidung bedeutet nicht zwangsläufig, jedes bestehende Abonnement aufzu
 Gib beiden Workspaces dieselben fiktiven Ziele und Fortschrittsnotizen. Weise einen Planentwurf zu, lass ein zweites Teammitglied eine Annahme hinterfragen und überführe einen offenen Punkt in eine Folgeaufgabe.
 
 Prüfe, wie Personen den aktuellen Verantwortlichen finden, Belege prüfen, Änderungen anfordern und eine Woche später weiterarbeiten. Beziehe Administratoreinrichtung und den tatsächlich genutzten Ausführungsmodus ein. [Buche eine Tale-Demo](https://tale.dev/de/request-demo) mit diesem Planungsablauf.
+
+Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 3. Oktober 2026, und ist kein praktischer Benchmark.
