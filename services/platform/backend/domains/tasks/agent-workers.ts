@@ -309,7 +309,7 @@ async function readDeviceRoom(
     WHERE r.id = ${args.runId} AND r.org_id = ${args.organizationId}
       AND cardinality(r.host_refused_session_ids) > 0
   `;
-  if (rows[0]?.ask !== true) return undefined;
+  if (!rows[0]?.ask) return undefined;
   try {
     const hub = await sandboxDevices(args.organizationId);
     const roomy = new Set(
