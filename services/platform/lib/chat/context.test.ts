@@ -47,6 +47,7 @@ function input(overrides: Partial<ContextInput> = {}): ContextInput {
 /** A person with one project that has an agent, in German. */
 const HANDOVER: TaskHandover = {
   projectsWithAgents: ['Website relaunch'],
+  moreProjectsWithAgents: 0,
   projectsWithoutAgents: 1,
   canAddAgents: false,
   automationOff: false,

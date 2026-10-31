@@ -10,10 +10,12 @@ import { describe, expect, it } from 'vitest';
 
 import {
   checkedProjectSql,
+  fallbackProjectId,
   listProjectsOverview,
   listSidebarProjects,
   PROJECT_PAGE_LIMITS,
   readableProjectsSql,
+  readProjectAgentCoverage,
   type ProjectAuthContext,
 } from './service.ts';
 
@@ -251,5 +253,113 @@ describe("Home's navigator reads one page", () => {
     const page = await listSidebarProjects(sql, owner, 10_000);
     expect(page).toEqual({ projects: [], hasMore: false });
     expect(statements.at(-1)?.values.at(-1)).toBe(PROJECT_PAGE_LIMITS.max + 1);
+  });
+});
+
+describe('the readers that pick or count projects join the relation (#5193)', () => {
+  const JOINED = `JOIN ${RELATION} rp ON rp.project_id = p.id`;
+  /** The statements run, not the fragments they embed. */
+  const readsOf = (statements: { text: string; values: unknown[] }[]) =>
+    statements.filter((s) => s.text.startsWith('SELECT'));
+
+  it('falls back to the newest organization-wide project an owner reads, one row [PROJ-R1]', async () => {
+    const { sql, statements } = recordingSql((text) =>
+      text.startsWith('SELECT p.id') ? [{ id: 'p-open' }] : [],
+    );
+    expect(await fallbackProjectId(sql, owner)).toBe('p-open');
+    const reads = readsOf(statements);
+    expect(reads).toHaveLength(1);
+    const read = reads[0];
+    expect(read?.text).toBe(
+      `SELECT p.id FROM app.projects p ${JOINED} ORDER BY cardinality(?) = 0 DESC, p.updated_at_ms DESC, p.id DESC LIMIT 1`,
+    );
+    // Org · not a disabled seat · archived projects left out · admin.
+    expect(read?.values).toEqual(['org-a', true, false, true, [], TEAMS]);
+  });
+
+  it('falls back only to a project a member reaches [PROJ-R2]', async () => {
+    const { sql, statements } = recordingSql();
+    expect(await fallbackProjectId(sql, member)).toBeNull();
+    const [read] = readsOf(statements);
+    expect(read?.text).toContain(JOINED);
+    expect(read?.values).toEqual([
+      'org-a',
+      true,
+      false,
+      false,
+      ['team-finance'],
+      TEAMS,
+    ]);
+  });
+
+  it('has no project to fall back to for a disabled seat [PROJ-R2]', async () => {
+    const { sql, statements } = recordingSql();
+    expect(
+      await fallbackProjectId(sql, { ...member, role: 'disabled' }),
+    ).toBeNull();
+    expect(readsOf(statements)[0]?.values.slice(0, 2)).toEqual([
+      'org-a',
+      false,
+    ]);
+  });
+
+  it('counts the projects an owner reads by agents and names a bounded few [PROJ-R1]', async () => {
+    const { sql, statements } = recordingSql((text) =>
+      text.startsWith('SELECT ARRAY(')
+        ? [{ named: ['Website relaunch'], withAgents: 7, withoutAgents: 2 }]
+        : [],
+    );
+    expect(await readProjectAgentCoverage(sql, owner, 5)).toEqual({
+      named: ['Website relaunch'],
+      withAgents: 7,
+      withoutAgents: 2,
+    });
+    const reads = readsOf(statements);
+    expect(reads).toHaveLength(1);
+    const read = reads[0];
+    expect(read?.text).toBe(
+      `SELECT ARRAY( SELECT p.name FROM app.projects p ${JOINED} WHERE p.project_agent_count > 0 ORDER BY p.updated_at_ms DESC, p.id DESC LIMIT ? ) AS named, (count(*) FILTER (WHERE p.project_agent_count > 0))::int AS "withAgents", (count(*) FILTER (WHERE p.project_agent_count = 0))::int AS "withoutAgents" FROM app.projects p ${JOINED}`,
+    );
+    // The names' relation and bound, then the counts' relation: active
+    // projects only, the owner's admin grant in both.
+    expect(read?.values).toEqual([
+      'org-a',
+      true,
+      false,
+      true,
+      [],
+      5,
+      'org-a',
+      true,
+      false,
+      true,
+      [],
+    ]);
+  });
+
+  it('counts only the projects a member reaches, and nothing for a disabled seat [PROJ-R2]', async () => {
+    const { sql, statements } = recordingSql();
+    expect(await readProjectAgentCoverage(sql, member, 5)).toEqual({
+      named: [],
+      withAgents: 0,
+      withoutAgents: 0,
+    });
+    expect(readsOf(statements)[0]?.values).toEqual([
+      'org-a',
+      true,
+      false,
+      false,
+      ['team-finance'],
+      5,
+      'org-a',
+      true,
+      false,
+      false,
+      ['team-finance'],
+    ]);
+    await readProjectAgentCoverage(sql, { ...member, role: 'disabled' }, 5);
+    const disabled = readsOf(statements)[1];
+    expect(disabled?.values.slice(0, 2)).toEqual(['org-a', false]);
+    expect(disabled?.values.slice(6, 8)).toEqual(['org-a', false]);
   });
 });
