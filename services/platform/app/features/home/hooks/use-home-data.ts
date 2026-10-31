@@ -5,9 +5,9 @@ import { useMemo, useState } from 'react';
 
 import {
   useArchivedThreads,
-  useChatProjects,
   useChatThreads,
   useChatThreadsRetry,
+  useNavigatorProjects,
 } from '@/app/features/chat/data/chat-backend';
 import type {
   ChatProjectSummary,
@@ -44,7 +44,10 @@ export interface HomeData {
   readonly items: readonly HomeItem[];
   /** The chat rows' full summaries — the row menu acts on these. */
   readonly threadsById: ReadonlyMap<string, ChatThreadSummary>;
+  /** One page of the projects, the pinned first — never the whole list. */
   readonly projects: readonly ChatProjectSummary[];
+  /** The organization has more projects than `projects` holds. */
+  readonly moreProjects: boolean;
   /** Per-source readiness, so each masks only its own rows while it loads. */
   readonly loading: {
     readonly chats: boolean;
@@ -180,7 +183,7 @@ export function useHomeData(
   // again, so its failure is held here until that retry settles: the notice
   // keeps its busy Try again instead of giving way to the skeleton.
   const [chatRetryPending, setChatRetryPending] = useState(false);
-  const projectsQuery = useChatProjects(organizationId);
+  const projectsQuery = useNavigatorProjects(organizationId);
   const { data: me } = useCurrentUser();
   const myUserId = me?.userId;
 
@@ -214,7 +217,11 @@ export function useHomeData(
   });
 
   const projects =
-    projectsQuery.status === 'ready' ? projectsQuery.data : NO_PROJECTS;
+    projectsQuery.status === 'ready'
+      ? projectsQuery.data.projects
+      : NO_PROJECTS;
+  const moreProjects =
+    projectsQuery.status === 'ready' && !projectsQuery.data.isDone;
   const activeThreadRows =
     threads.status === 'ready' ? threads.data : NO_THREADS;
   const archivedThreadRows =
@@ -360,6 +367,7 @@ export function useHomeData(
     items,
     threadsById,
     projects,
+    moreProjects,
     loading: {
       chats: chatsLoading && !chatsFailed,
       tasks:
