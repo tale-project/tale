@@ -692,6 +692,17 @@ agent.
   403 `MODEL_API_FORBIDDEN` again, and **Logs** lists `competence_granted` and
   `competence_revoked`. What the member sees under **Settings → API** is
   SET-B26.
+- [ ] `GOV-F69` · **Call models over the API while the endpoints are off** —
+  With the **Model endpoints for API keys** switch
+  (`governance.modelAccess.modelApi.enabled`) off on `content-models`, open
+  `competences` → **Grant competence** → **Competence** = **Call models over
+  the API** → a warning under the field reads **"Model endpoints are not
+  enabled for this organization. The member can call the models only once
+  they are."** (`governance.competences.grantDialog.modelApiOff.description`)
+  with **Open model access** (`governance.competences.grantDialog.modelApiOff.link`),
+  and **Grant** stays enabled. Choosing another competence takes the warning
+  away; **Open model access** opens `content-models`. Turn the switch on, open
+  the dialog again and choose the same capability → no warning.
 - [ ] `GOV-F44` · **A budget cap refuses a model call in the interface's
   shape** — Save the GOV-F4b rule on a key at **Max requests** 1, spend that
   request with one REST send (`POST /api/v1/threads/{id}/messages`) or one
