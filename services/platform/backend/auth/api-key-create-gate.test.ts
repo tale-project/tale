@@ -12,7 +12,8 @@ import {
 /**
  * Who may create a personal API key: an owner, admin or developer of any
  * organization, or a member holding a live grant of a competence that is
- * used with a key, in an organization whose seat is not disabled.
+ * used with a key — their own or their team's — in an organization whose
+ * seat is not disabled.
  */
 
 interface Seat {
@@ -31,6 +32,9 @@ function database(seats: Seat[], grant: boolean) {
       .join('?')
       .replaceAll(/\s+/g, ' ')
       .trim();
+    // A nested condition (`vouchesForUser`) is a fragment of the read that
+    // binds it, not a query of its own.
+    if (!text.startsWith('SELECT')) return { fragment: text, values };
     queries.push({ text, values });
     if (text.includes('FROM "member"')) return Promise.resolve(seats);
     return Promise.resolve(grant ? [{ id: 'grant-1' }] : []);
@@ -39,6 +43,15 @@ function database(seats: Seat[], grant: boolean) {
 }
 
 const NOW = 1_800_000_000_000;
+
+/** The condition `vouchesForUser` binds for `userId`: the member's own
+ * grant, or one of a team an admin added them to. */
+const vouchesFor = (userId: string) => ({
+  fragment: expect.stringMatching(
+    /c\.user_id = \?.*c\.team_id IS NOT NULL.*"teamMember" tm.*app\.admin_added_team_members a/,
+  ),
+  values: [userId, userId],
+});
 
 describe('mayCreateApiKeys', () => {
   it.each(['owner', 'admin', 'developer', 'Developer'])(
@@ -72,16 +85,18 @@ describe('mayCreateApiKeys', () => {
     );
     expect(await mayCreateApiKeys(sql, 'u1', NOW)).toBe(true);
     const grantRead = queries[1];
-    expect(grantRead?.text).toContain('FROM app.competence_records');
-    expect(grantRead?.text).toContain('revoked_at_ms IS NULL');
+    expect(grantRead?.text).toContain('FROM app.competence_records c');
+    expect(grantRead?.text).toContain('c.revoked_at_ms IS NULL');
     expect(grantRead?.text).toContain(
-      '(expires_at_ms IS NULL OR expires_at_ms > ?)',
+      '(c.expires_at_ms IS NULL OR c.expires_at_ms > ?)',
     );
+    // Their own grant or their team's: the one condition every capability
+    // door reads (`vouchesForUser`), so a team grant opens this door too.
     expect(grantRead?.values).toEqual([
-      'u1',
       ['o1'],
       [...API_KEY_CAPABILITIES],
       NOW,
+      vouchesFor('u1'),
     ]);
   });
 
@@ -102,7 +117,7 @@ describe('mayCreateApiKeys', () => {
       true,
     );
     await mayCreateApiKeys(sql, 'u1', NOW);
-    expect(queries[1]?.values[1]).toEqual(['o2']);
+    expect(queries[1]?.values[0]).toEqual(['o2']);
   });
 
   it('refuses a caller whose every seat is disabled, without reading grants', async () => {
@@ -149,14 +164,14 @@ describe('mayConnectAgentIn [AGCONN-R7]', () => {
   it('lets a member holding a live key-using grant in this organization connect one, and reads only this organization’s grants', async () => {
     const { allowed, queries } = await ask('member', true, 'org-7');
     expect(allowed).toBe(true);
-    expect(queries[0]?.text).toContain('FROM app.competence_records');
-    expect(queries[0]?.text).toContain('org_id = ?');
-    expect(queries[0]?.text).toContain('revoked_at_ms IS NULL');
+    expect(queries[0]?.text).toContain('FROM app.competence_records c');
+    expect(queries[0]?.text).toContain('c.org_id = ?');
+    expect(queries[0]?.text).toContain('c.revoked_at_ms IS NULL');
     expect(queries[0]?.values).toEqual([
-      'u1',
       'org-7',
       [...API_KEY_CAPABILITIES],
       NOW,
+      vouchesFor('u1'),
     ]);
   });
 

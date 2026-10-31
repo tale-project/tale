@@ -82,3 +82,38 @@ describe('POST /competences holds expiresAt to the epoch bound', () => {
     );
   });
 });
+
+describe('POST /competences names exactly one holder [GOV-R19]', () => {
+  const send = (body: Record<string, unknown>) =>
+    createGovernanceRoutes({ sql: {} as never, auth: {} as never }).request(
+      '/competences',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ competence: 'tale:models.api', ...body }),
+      },
+    );
+
+  it.each([
+    ['no holder', {}],
+    ['a member and a team', { userId: 'u2', teamId: 't1' }],
+  ])('refuses %s with a 400 before the register', async (_label, holder) => {
+    const res = await send(holder);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ error: 'invalid body' });
+    expect(grantCompetence).not.toHaveBeenCalled();
+  });
+
+  it('hands a team holder to the register, with no member', async () => {
+    const res = await send({ teamId: 't1' });
+    expect(res.status).toBe(201);
+    expect(grantCompetence).toHaveBeenCalledTimes(1);
+    const [, args] = grantCompetence.mock.calls[0] as [unknown, object];
+    expect(args).toMatchObject({
+      organizationId: 'o1',
+      teamId: 't1',
+      competence: 'tale:models.api',
+    });
+    expect(args).not.toHaveProperty('userId');
+  });
+});

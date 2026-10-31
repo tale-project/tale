@@ -10,10 +10,18 @@ import { pickString, readBackendErrorData } from '../backend-error-data';
 
 type Translator = (key: string, options?: Record<string, unknown>) => string;
 
-export function mapCompetenceError(err: unknown, t: Translator): string {
+/** `holder` names whom a refused grant was for, so a duplicate reads as the
+ * team's when the grant named a team. */
+export function mapCompetenceError(
+  err: unknown,
+  t: Translator,
+  holder: 'member' | 'team' = 'member',
+): string {
   switch (pickString(readBackendErrorData(err), 'code')) {
     case 'COMPETENCE_ALREADY_GRANTED':
-      return t('competences.errors.alreadyGranted');
+      return holder === 'team'
+        ? t('competences.errors.alreadyGrantedTeam')
+        : t('competences.errors.alreadyGranted');
     case 'COMPETENCE_USER_NOT_MEMBER':
     case 'COMPETENCE_USER_REQUIRED':
       return t('competences.errors.notMember');
@@ -31,6 +39,12 @@ export function mapCompetenceError(err: unknown, t: Translator): string {
       return t('competences.errors.notFound');
     case 'COMPETENCE_ALREADY_REVOKED':
       return t('competences.errors.alreadyRevoked');
+    case 'COMPETENCE_TEAM_CAPABILITY_ONLY':
+      return t('competences.errors.teamCapabilityOnly');
+    case 'COMPETENCE_TEAM_NOT_FOUND':
+      return t('competences.errors.teamNotFound');
+    case 'COMPETENCE_TEAM_SYNCED':
+      return t('competences.errors.teamSynced');
     default:
       return t('competences.errors.generic');
   }

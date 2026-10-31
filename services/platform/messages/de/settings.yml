@@ -358,6 +358,7 @@ teams:
     summary: 'Dieses Team hat {members, plural, one {# Mitglied} other {# Mitglieder}}. Es gehört zur Reichweite von {projects, plural, one {# Projekt} other {# Projekten}}, {folders, plural, one {# Ordner} other {# Ordnern}} und {documents, plural, one {# Dokument} other {# Dokumenten}}, und {conversations, plural, one {# Unterhaltung liegt} other {# Unterhaltungen liegen}} in seiner Warteschlange.'
     becomeOrgWide: '{count, plural, one {# Element hat kein weiteres Team und wird} other {# Elemente haben kein weiteres Team und werden}} für alle in der Organisation sichtbar.'
     apiKeys: '{count, plural, one {# API-Schlüssel gehört diesem Team und funktioniert danach nicht mehr.} other {# API-Schlüssel gehören diesem Team und funktionieren danach nicht mehr.}}'
+    competenceGrants: '{count, plural, one {# Kompetenz, die diesem Team zugewiesen ist, wird widerrufen: Seine Mitglieder verlieren sie, außer sie haben sie selbst.} other {# Kompetenzen, die diesem Team zugewiesen sind, werden widerrufen: Seine Mitglieder verlieren sie, außer sie haben sie selbst.}}'
   description: Teams innerhalb deiner Organisation erstellen und verwalten für
     granulare Zugriffskontrolle
 credentials:

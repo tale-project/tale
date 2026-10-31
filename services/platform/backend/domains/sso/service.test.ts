@@ -607,12 +607,19 @@ describe('syncTeamsFromGroupNames — provenance-scoped reconcile', () => {
     const removed = deletes(queries);
     expect(removed.map((q) => q.text.split(' WHERE')[0])).toEqual([
       'DELETE FROM "teamMember"',
+      // Had an admin added the member back by hand, the record that let the
+      // membership carry the team's competence grants goes with it.
+      'DELETE FROM app.admin_added_team_members',
       'DELETE FROM app.sso_synced_team_members',
       'DELETE FROM "team"',
       'DELETE FROM app.sso_synced_teams',
+      // The reaped team's records go with its scopes (`retireTeamScopes`).
+      'DELETE FROM app.admin_added_team_members',
     ]);
     expect(removed[0]?.values).toEqual(['tm-ops']);
-    expect(removed[2]?.values).toEqual(['t-ops', 'org-1']);
+    expect(removed[1]?.values).toEqual(['tm-ops']);
+    expect(removed[3]?.values).toEqual(['t-ops', 'org-1']);
+    expect(removed[5]?.values).toEqual(['org-1', 't-ops']);
     // The reaped team's scopes go with it: whatever an admin pointed at the
     // synced team meanwhile must not stay pointed at a ghost.
     const retired = queries.find((q) =>

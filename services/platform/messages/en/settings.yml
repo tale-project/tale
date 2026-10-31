@@ -350,6 +350,7 @@ teams:
     summary: 'This team has {members, plural, one {# member} other {# members}}. It is on the audience of {projects, plural, one {# project} other {# projects}}, {folders, plural, one {# folder} other {# folders}} and {documents, plural, one {# document} other {# documents}}, and {conversations, plural, one {# conversation is} other {# conversations are}} in its queue.'
     becomeOrgWide: '{count, plural, one {# item has} other {# items have}} no other team and will become visible to everyone in the organization.'
     apiKeys: '{count, plural, one {# API key belongs to this team and will stop working.} other {# API keys belong to this team and will stop working.}}'
+    competenceGrants: '{count, plural, one {# competence granted to this team will be revoked: its members lose it unless they hold it themselves.} other {# competences granted to this team will be revoked: its members lose them unless they hold them themselves.}}'
   description: Create and manage teams within your organization for granular
     access control
 credentials:

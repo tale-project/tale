@@ -17,6 +17,9 @@ const state = vi.hoisted(() => ({
   // The model endpoints switch as `useMyModelApiAccess` answers it
   // (`setModelApi`).
   modelApi: {} as Record<string, unknown>,
+  // The team list as `useOrgTeams` answers it (`setTeams`).
+  teams: {} as Record<string, unknown>,
+  retryTeams: vi.fn(),
 }));
 
 vi.mock('../hooks/mutations', () => ({
@@ -25,6 +28,9 @@ vi.mock('../hooks/mutations', () => ({
 vi.mock('../hooks/queries', () => ({
   useOrgMembersForPicker: () => state.members,
   useMyModelApiAccess: () => state.modelApi,
+}));
+vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
+  useOrgTeams: () => state.teams,
 }));
 vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@tanstack/react-router')>()),
@@ -64,6 +70,17 @@ const MEMBERS = [
   },
 ];
 
+const TEAMS = [
+  { id: 'team-billing', name: 'Billing', memberCount: 3, createdAt: null },
+  {
+    id: 'team-directory',
+    name: 'Directory group',
+    memberCount: 9,
+    createdAt: null,
+    synced: true,
+  },
+];
+
 /** How the member list reads: answered with its rows, still pending, or
  * failed with no answer (`readStateOf`'s `unavailable`). */
 type MembersRead = { rows: readonly object[] } | 'pending' | 'failed';
@@ -77,6 +94,21 @@ function setMembers(read: MembersRead) {
     isFetching: read === 'pending',
     errorUpdateCount: read === 'failed' ? 1 : 0,
     refetch: state.refetchMembers,
+  };
+}
+
+/** Set the team list's read, in the shape `useOrgTeams` returns. */
+function setTeams(read: MembersRead) {
+  const failed = read === 'failed';
+  state.teams = {
+    teams: typeof read === 'object' ? read.rows : undefined,
+    isLoading: read === 'pending',
+    error: failed ? new Error('teams unavailable') : null,
+    unavailable: failed,
+    stale: false,
+    retrying: false,
+    failureCount: failed ? 1 : 0,
+    retry: state.retryTeams,
   };
 }
 
@@ -100,6 +132,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   setMembers({ rows: MEMBERS });
   setModelApi('on');
+  setTeams({ rows: TEAMS });
 });
 
 function renderDialog() {
@@ -377,6 +410,114 @@ describe('GrantCompetenceDialog', () => {
       expect(screen.getByRole('button', { name: 'Member' })).toHaveTextContent(
         'Tax Reviewer',
       );
+    });
+  });
+
+  // A grant can name a team: its members hold the capability while they are
+  // in the team, a member who joins later included (GOV-R19).
+  describe('to a team', () => {
+    const MODELS_API = 'Call models over the API tale:models.api';
+
+    async function chooseTeamHolder(
+      user: ReturnType<typeof renderDialog>['user'],
+    ) {
+      await user.click(screen.getByRole('combobox', { name: 'Grant to' }));
+      await user.click(await screen.findByRole('option', { name: 'A team' }));
+    }
+
+    it('grants a platform capability to a team in one dialog', async () => {
+      state.grant.mockResolvedValue({ recordId: 'record-team' });
+      const { user, onOpenChange } = renderDialog();
+
+      await chooseTeamHolder(user);
+      expect(
+        screen.queryByRole('button', { name: 'Member' }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText(/including members who join later/),
+      ).toBeInTheDocument();
+      await choose(user, 'Team', 'Billing');
+      await choose(user, 'Competence', MODELS_API);
+      await checkAccessibility(document.body);
+      await user.click(screen.getByRole('button', { name: 'Grant' }));
+
+      expect(state.grant).toHaveBeenCalledWith({
+        organizationId: 'org-a',
+        teamId: 'team-billing',
+        competence: 'tale:models.api',
+      });
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+
+    it('lists a team the identity provider syncs without offering it', async () => {
+      const { user } = renderDialog();
+
+      await chooseTeamHolder(user);
+      await user.click(screen.getByRole('button', { name: 'Team' }));
+      const synced = await screen.findByRole('option', {
+        name: 'Directory group Synced from your identity provider',
+      });
+      expect(synced).toHaveAttribute('aria-disabled', 'true');
+      await user.click(synced);
+      expect(synced).toHaveAttribute('aria-selected', 'false');
+    });
+
+    it('offers a team no qualification, and drops one chosen for a member', async () => {
+      const { user } = renderDialog();
+
+      await choose(
+        user,
+        'Competence',
+        'Qualification A name your review policy asks for',
+      );
+      await chooseTeamHolder(user);
+      expect(
+        screen.queryByRole('textbox', { name: 'Qualification name' }),
+      ).not.toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Competence' }));
+      expect(
+        await screen.findByRole('option', { name: MODELS_API }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('option', { name: /^Qualification/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("names a refused duplicate as the team's", async () => {
+      state.grant.mockRejectedValue({
+        data: { code: 'COMPETENCE_ALREADY_GRANTED' },
+      });
+      const { user, onOpenChange } = renderDialog();
+
+      await chooseTeamHolder(user);
+      await choose(user, 'Team', 'Billing');
+      await choose(user, 'Competence', MODELS_API);
+      await user.click(screen.getByRole('button', { name: 'Grant' }));
+
+      expect(
+        within(screen.getByRole('dialog')).getByText(
+          /This team already holds this competence/,
+        ),
+      ).toBeInTheDocument();
+      expect(onOpenChange).not.toHaveBeenCalledWith(false);
+    });
+
+    it('names a failed team read with Try again, never as no teams', async () => {
+      setTeams('failed');
+      const { user } = renderDialog();
+
+      await chooseTeamHolder(user);
+      expect(document.getElementById('competence-team')).toBeDisabled();
+      expect(screen.queryByText('No teams found')).not.toBeInTheDocument();
+      const alert = screen
+        .getByText("Couldn't load the teams.")
+        .closest<HTMLElement>('[role="alert"]');
+      if (alert === null) throw new Error('The failed team read is no alert');
+      await user.click(
+        within(alert).getByRole('button', { name: 'Try again' }),
+      );
+      expect(state.retryTeams).toHaveBeenCalledTimes(1);
+      await checkAccessibility(document.body);
     });
   });
 });

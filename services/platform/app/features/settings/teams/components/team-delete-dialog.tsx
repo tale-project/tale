@@ -105,6 +105,13 @@ export function TeamDeleteDialog({
               })}
             </span>
           ) : null}
+          {(impact?.competenceGrants ?? 0) > 0 ? (
+            <span className="block font-medium">
+              {tSettings('teams.deleteImpact.competenceGrants', {
+                count: impact?.competenceGrants ?? 0,
+              })}
+            </span>
+          ) : null}
         </span>
       }
       deleteText={tCommon('actions.delete')}

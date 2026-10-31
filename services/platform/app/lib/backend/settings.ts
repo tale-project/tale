@@ -1955,7 +1955,9 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
       backendFetch<GrantCompetenceResult>('/governance/competences', {
         orgId: requireOrg(args, ctx),
         body: {
-          userId: stringArg(args, 'userId'),
+          ...(typeof args.teamId === 'string'
+            ? { teamId: args.teamId }
+            : { userId: stringArg(args, 'userId') }),
           competence: stringArg(args, 'competence'),
           ...(typeof args.expiresAt === 'number'
             ? { expiresAt: args.expiresAt }
