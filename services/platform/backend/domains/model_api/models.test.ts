@@ -16,9 +16,11 @@ vi.mock('../../core/lib/providers/org_providers.ts', () => providers);
 const {
   listModelApiModels,
   modelApiId,
+  offeredModelApiModels,
   ridesModelApiAnthropicLane,
   splitModelApiId,
 } = await import('./models.ts');
+type ModelApiModel = import('./models.ts').ModelApiModel;
 
 function option(
   providerSlug: string,
@@ -84,9 +86,11 @@ describe('listModelApiModels', () => {
       userId: 'user-1',
     });
 
+    // Every model, the ones the EU/EEA rule refuses a direct call too: the
+    // endpoints judge the gateway's upstream on each wire instead.
     expect(composer.listGovernedChatModels).toHaveBeenCalledWith(
       expect.anything(),
-      { organizationId: 'org-1', userId: 'user-1' },
+      { organizationId: 'org-1', userId: 'user-1', withRefusedEndpoints: true },
     );
     expect(providers.resolveProvidersForOrg).toHaveBeenCalledWith('acme');
     expect(models).toEqual([
@@ -178,5 +182,65 @@ describe('the Anthropic lane', () => {
         connector: { name: 'openrouter' },
       }),
     ).toBe(false);
+  });
+});
+
+describe('what a key holder is offered under the EU/EEA processing rule [GOV-R22]', () => {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the rule reads only the provider and its connector
+  const models = [
+    {
+      id: 'openrouter/anthropic/claude-sonnet-4.6',
+      providerSlug: 'openrouter',
+      connector: {
+        name: 'openrouter',
+        baseUrl: 'https://openrouter.ai/api/v1',
+        harnessEndpoint: {
+          baseUrl: 'https://eu.openrouter.ai/api',
+          apiFormat: 'anthropic',
+        },
+      },
+    },
+    {
+      id: 'acme/acme-large',
+      providerSlug: 'acme',
+      connector: { name: 'acme', baseUrl: 'https://llm.acme.eu/v1' },
+    },
+    {
+      id: 'deepseek/deepseek-v4-flash',
+      providerSlug: 'deepseek',
+      connector: { name: 'deepseek', baseUrl: 'https://api.deepseek.com' },
+    },
+  ] as unknown as ModelApiModel[];
+  const eu = { kind: 'eu', attestedHosts: ['llm.acme.eu'] } as const;
+
+  function offered(...args: Parameters<typeof offeredModelApiModels>) {
+    const { kept, hiddenBy } = offeredModelApiModels(...args);
+    return { kept: kept.map((model) => model.id), hiddenBy };
+  }
+
+  it('offers every model while the rule is off', () => {
+    expect(offered({ kind: 'open' }, models, ['openai', 'anthropic'])).toEqual({
+      kept: models.map((model) => model.id),
+      hiddenBy: undefined,
+    });
+  });
+
+  it('judges the upstream of each wire, and keeps a model one of them lets through', () => {
+    // The gateway's built-in connection to a vendor never qualifies; an
+    // endpoint the connector names does when it processes in the EU/EEA.
+    expect(offered(eu, models, ['openai'])).toEqual({
+      kept: ['acme/acme-large'],
+      hiddenBy: 'eu',
+    });
+    expect(offered(eu, models, ['openai', 'anthropic'])).toEqual({
+      kept: ['openrouter/anthropic/claude-sonnet-4.6', 'acme/acme-large'],
+      hiddenBy: 'eu',
+    });
+  });
+
+  it('offers nothing while the policy cannot be read, and says so', () => {
+    expect(
+      offered({ kind: 'unreadable' }, models, ['openai', 'anthropic']),
+    ).toEqual({ kept: [], hiddenBy: 'unreadable' });
   });
 });

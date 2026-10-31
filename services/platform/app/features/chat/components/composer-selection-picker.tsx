@@ -27,7 +27,9 @@ import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { BookOpen, ChevronDown, Cpu, Gauge } from 'lucide-react';
 import { useMemo, useState, type ComponentType } from 'react';
 
+import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
 import type { ComposerSkillChoice } from '@/app/lib/backend/chat';
+import type { HiddenModelsRule } from '@/app/lib/backend/contract/lib';
 import { EFFORT_LEVELS, type ReasoningEffort } from '@/lib/chat/effort';
 import { useT } from '@/lib/i18n/client';
 import { CHOSEN_SKILLS_MAX } from '@/lib/skills/slash';
@@ -62,6 +64,9 @@ interface ComposerSelectionPickerProps {
    * (a subscription runs only in its vendor's own runtime, in tasks and
    * automations), and the model list says so under its rows. */
   subscriptionProviders?: readonly string[];
+  /** The organization's EU/EEA processing rule left models out (GOV-R22);
+   * the model list says so under its rows. */
+  modelsHiddenBy?: HiddenModelsRule;
   selection: ComposerSelection;
   onSelectionChange: (next: ComposerSelection) => void;
   /** The skills the person may choose; none hides the Skills section. */
@@ -75,6 +80,7 @@ interface ComposerSelectionPickerProps {
 export function ComposerSelectionPicker({
   models,
   subscriptionProviders = [],
+  modelsHiddenBy,
   selection,
   onSelectionChange,
   skills = [],
@@ -260,6 +266,10 @@ export function ComposerSelectionPicker({
                     {subscriptionNote}
                   </p>
                 )}
+                <HiddenModelsNote
+                  rule={modelsHiddenBy}
+                  className="max-w-56 px-2 pt-1.5 pb-1 leading-snug"
+                />
               </div>
             ),
           },
@@ -360,6 +370,7 @@ export function ComposerSelectionPicker({
   }, [
     modelChoices,
     subscriptionNote,
+    modelsHiddenBy,
     selection,
     onSelectionChange,
     selectedModel,

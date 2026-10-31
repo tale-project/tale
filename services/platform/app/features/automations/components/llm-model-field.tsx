@@ -28,6 +28,7 @@ import { SearchableSelect } from '@tale/ui/searchable-select';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useId, useState } from 'react';
 
+import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
 import { useT } from '@/lib/i18n/client';
 
 import { useLlmModelOptions } from '../hooks/use-llm-model-options';
@@ -49,8 +50,15 @@ export function LlmModelField({
   const { t: tProjects } = useT('projects');
   const inputId = useId();
   const pickerId = `${inputId}-picker`;
-  const { options, loaded, unavailable, retrying, failureCount, retry } =
-    useLlmModelOptions(organizationId);
+  const {
+    options,
+    loaded,
+    modelsHiddenBy,
+    unavailable,
+    retrying,
+    failureCount,
+    retry,
+  } = useLlmModelOptions(organizationId);
   const [typing, setTyping] = useState(false);
 
   const listed = options.some((option) => option.value === model);
@@ -85,6 +93,7 @@ export function LlmModelField({
           }}
         />
       </Skeletonize>
+      <HiddenModelsNote rule={modelsHiddenBy} />
       {unavailable && (
         <CatalogLoadError
           message={t('editor.llm.modelsLoadFailed')}

@@ -31,6 +31,7 @@ const {
   readOrgEmbeddingConfig,
   listEmbeddingRecommendationsForOrg,
   listCredentials,
+  readModelEndpointPolicyForOrg,
   orgMember,
 } = vi.hoisted(() => ({
   writeKnowledgeConnection: vi.fn(),
@@ -46,6 +47,9 @@ const {
   readOrgEmbeddingConfig: vi.fn(async (): Promise<unknown> => null),
   listEmbeddingRecommendationsForOrg: vi.fn(),
   listCredentials: vi.fn(async (): Promise<unknown[]> => []),
+  readModelEndpointPolicyForOrg: vi.fn(async (): Promise<unknown> => ({
+    kind: 'open',
+  })),
   // The role the mocked org gate grants — `admin` unless a case says not.
   orgMember: { role: 'admin' },
 }));
@@ -79,6 +83,10 @@ vi.mock('../../core/knowledge/connection.ts', async (importOriginal) => ({
     typeof import('../../core/knowledge/connection.ts')
   >()),
   readOrgEmbeddingConfig,
+}));
+
+vi.mock('../governance/model-endpoints.ts', () => ({
+  readModelEndpointPolicyForOrg,
 }));
 
 vi.mock('./service.ts', () => {
@@ -561,6 +569,28 @@ describe('GET /knowledge/embedding/recommendations — the wire body', () => {
     expect(listEmbeddingRecommendationsForOrg).toHaveBeenCalledWith(
       'acme',
       credentials,
+      { kind: 'open' },
+    );
+  });
+
+  it('judges the picks by the organization’s EU/EEA processing rule [GOV-R22]', async () => {
+    const rule = { kind: 'eu', attestedHosts: ['llm.example.eu'] };
+    readModelEndpointPolicyForOrg.mockResolvedValueOnce(rule);
+    listEmbeddingRecommendationsForOrg.mockResolvedValueOnce(view);
+
+    const response = await makeApp().request(
+      '/embedding/recommendations?orgId=o1',
+    );
+
+    expect(response.status).toBe(200);
+    expect(readModelEndpointPolicyForOrg).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+    );
+    expect(listEmbeddingRecommendationsForOrg).toHaveBeenCalledWith(
+      'acme',
+      [],
+      rule,
     );
   });
 

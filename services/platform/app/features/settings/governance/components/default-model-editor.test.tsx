@@ -42,6 +42,7 @@ const { state } = vi.hoisted(() => ({
     // What the providers with an active credential offer; `null` while unknown.
     offered: null as ReadonlyMap<string, ReadonlySet<string>> | null,
     mutateAsync: vi.fn(async (_args: unknown) => undefined),
+    mistralRefusedBy: undefined as 'eu' | undefined,
   },
 }));
 
@@ -98,6 +99,20 @@ vi.mock('../hooks/model-catalog', () => ({
           },
         ],
       },
+      // The EU/EEA processing rule refuses its endpoint while it is on.
+      {
+        name: 'mistral',
+        displayName: 'Mistral',
+        models: [
+          {
+            id: 'mistral/mistral-large',
+            displayName: 'Mistral Large',
+            tags: ['chat'],
+            supportsTools: true,
+          },
+        ],
+        endpointRefusedBy: state.mistralRefusedBy,
+      },
     ],
     offered: state.offered,
     isLoading: false,
@@ -123,6 +138,7 @@ function setLoaded() {
     ],
   };
   state.accessConfig = null;
+  state.mistralRefusedBy = undefined;
   refreshPolicy();
 }
 function setLoading() {
@@ -260,6 +276,34 @@ describe('DefaultModelEditor', () => {
       screen.queryByRole('option', { name: 'GPT-5 Image Mini' }),
     ).not.toBeInTheDocument();
   });
+
+  it.each([
+    [undefined, true],
+    ['eu' as const, false],
+  ])(
+    'offers a provider the EU/EEA rule refuses only while the rule is off (refused by %s) [GOV-R22]',
+    async (refusedBy, offered) => {
+      setLoaded();
+      state.mistralRefusedBy = refusedBy;
+      const { user } = render(<DefaultModelEditor organizationId="org-1" />);
+      await user.click(screen.getByRole('button', { name: /edit rule 1/i }));
+      const dialog = screen.getByRole('dialog');
+      await user.click(
+        within(dialog).getByRole('button', { name: 'Provider' }),
+      );
+      expect(
+        screen.getByRole('option', { name: 'OpenAI' }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('option', { name: 'Mistral' }) !== null).toBe(
+        offered,
+      );
+      expect(
+        within(dialog).queryByText(
+          /Only models whose endpoint processes prompts in the EU\/EEA are offered/,
+        ) !== null,
+      ).toBe(!offered);
+    },
+  );
 
   it('marks a rule whose provider is gone, shows it in the dialog and saves it unchanged', async () => {
     setLoaded();

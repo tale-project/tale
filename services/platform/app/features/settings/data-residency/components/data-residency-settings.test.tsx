@@ -87,7 +87,15 @@ const fixtures = vi.hoisted(() => ({
   embeddingSupport: [] as Array<{
     providerSlug: string;
     support: 'supported' | 'unsupported' | 'unknown';
+    baseUrl?: string;
   }>,
+  // The EU/EEA processing rule (GOV-R22) as the recommendations read
+  // answers it: undefined while it is off.
+  endpointRule: undefined as
+    | undefined
+    | { kind: 'eu'; attestedHosts: string[] }
+    | { kind: 'unreadable' },
+  modelsHiddenBy: undefined as undefined | 'eu' | 'unreadable',
   // How the recommendations read — picks and declarations — stands: answered,
   // still in flight, failed, or retrying after that first failure.
   recommendationsRead: 'answered' as
@@ -156,6 +164,8 @@ vi.mock('../hooks/queries', () => ({
           data: {
             recommendations: fixtures.embeddingRecommendations,
             providers: fixtures.embeddingSupport,
+            endpointRule: fixtures.endpointRule,
+            modelsHiddenBy: fixtures.modelsHiddenBy,
           },
           isPending: false,
           isError: false,
@@ -300,6 +310,8 @@ describe('DataResidencySettings', () => {
     setEmbeddingFixture({ configured: false });
     fixtures.embeddingRecommendations = [];
     fixtures.embeddingSupport = [];
+    fixtures.endpointRule = undefined;
+    fixtures.modelsHiddenBy = undefined;
     fixtures.recommendationsRead = 'answered';
     fixtures.catalogsRead = 'answered';
     fixtures.backfill = null;
@@ -969,6 +981,75 @@ describe('DataResidencySettings', () => {
       baseUrl: undefined,
     });
   });
+
+  it.each([
+    { rule: undefined, refused: false },
+    {
+      rule: { kind: 'eu' as const, attestedHosts: ['llm.acme.eu'] },
+      refused: true,
+    },
+  ])(
+    'refuses an embedding endpoint outside the EU/EEA, and says why, only while the rule is on (refused: $refused) [GOV-R22]',
+    async ({ rule, refused }) => {
+      fixtures.credentials = [
+        { id: 'cred-1', providerSlug: 'openai', name: 'Team key' },
+      ];
+      fixtures.embeddingSupport = [
+        {
+          providerSlug: 'openai',
+          support: 'supported',
+          baseUrl: 'https://api.openai.com/v1',
+        },
+      ];
+      fixtures.catalogs = [
+        {
+          name: 'openai',
+          origin: 'shipped',
+          catalogSource: 'models-endpoint',
+          models: [
+            {
+              id: 'text-embedding-3-small',
+              tags: ['embedding'],
+              embedding: { dimensions: 1536 },
+            },
+          ],
+        },
+      ];
+      fixtures.endpointRule = rule;
+      fixtures.modelsHiddenBy = refused ? 'eu' : undefined;
+
+      const { user, capture } = renderWithController();
+
+      const section = sectionByHeading('Embedding model');
+      await user.click(
+        within(section).getByRole('switch', { name: 'Embedding model' }),
+      );
+      await user.click(
+        within(section).getByRole('combobox', { name: 'Provider' }),
+      );
+      await user.click(screen.getByRole('option', { name: 'openai' }));
+
+      // Refused, the row names the rule instead of offering a model, and the
+      // shared Save stays off; the section says why picks are missing.
+      expect(
+        within(section).queryByText('Refused by the EU/EEA rule') !== null,
+      ).toBe(refused);
+      expect(
+        within(section).queryAllByText(
+          /only allows endpoints that process prompts in the EU\/EEA/,
+        ).length > 0,
+      ).toBe(refused);
+      expect(
+        within(section).queryByRole('combobox', { name: 'Model' }) !== null,
+      ).toBe(!refused);
+      expect(
+        screen.queryByText(
+          /Only models whose endpoint processes prompts in the EU\/EEA are offered/,
+        ) !== null,
+      ).toBe(refused);
+      if (refused) expect(capture.current?.isValid).toBe(false);
+    },
+  );
 
   it('refuses a provider declared unable to embed, whatever its listing carries', async () => {
     fixtures.credentials = [

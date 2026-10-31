@@ -24,6 +24,13 @@
 import type { ModelCatalogEntry } from '@tale/shared/schemas/providers';
 import { modelAllowlistPermits } from '@tale/shared/utils/model-ref';
 
+import { answersChatTurns } from '../../../../lib/shared/providers/chat_turn_models';
+import {
+  type HiddenModelsRule,
+  type ModelEndpointPolicy,
+  modelEndpointRefusal,
+  withoutRefusedModels,
+} from '../../governance/model_endpoint_gate';
 import type { ActionCtx } from '../ctx';
 import { credentialAuthFor } from './credential_auth';
 import { resolveProvidersForOrgId } from './org_providers';
@@ -39,6 +46,9 @@ export interface ChatCatalogCredential {
   readonly providerSlug: string;
   readonly authMethod: Parameters<typeof credentialAuthFor>[1];
   readonly modelAllowlist?: readonly string[];
+  /** The credential's own endpoint, which a call goes to instead of the
+   * provider's base URL — absent when it names none. */
+  readonly endpointUrl?: string;
 }
 
 export interface ChatCatalogHit {
@@ -121,4 +131,55 @@ export async function walkChatCatalog(
     }
   }
   return hits;
+}
+
+/** Where a call to `hit`'s model goes — the credential's own endpoint, else
+ * the provider's base URL — as the EU/EEA gate judges a direct call. */
+export function chatCatalogEndpoint(hit: {
+  readonly connector: { readonly name: string; readonly baseUrl?: string };
+  readonly credential: { readonly endpointUrl?: string };
+}): { providerName: string; baseUrl: string | undefined } {
+  return {
+    providerName: hit.connector.name,
+    baseUrl: hit.credential.endpointUrl ?? hit.connector.baseUrl,
+  };
+}
+
+/** Why the organization's EU/EEA rule refuses every chat call through
+ * `provider` and its serving credential (GOV-R22), judged on the endpoint
+ * {@link chatCatalogEndpoint} names — undefined when it lets them through.
+ * The default-models editor leaves such a provider's models out, as the Auto
+ * pick does. */
+export function chatProviderRefusedBy(
+  policy: ModelEndpointPolicy,
+  provider: { readonly name: string; readonly baseUrl?: string },
+  credential: { readonly endpointUrl?: string } | undefined,
+): HiddenModelsRule | undefined {
+  if (policy.kind === 'open') return undefined;
+  const refusal = modelEndpointRefusal(
+    policy,
+    chatCatalogEndpoint({ connector: provider, credential: credential ?? {} }),
+  );
+  return refusal === undefined ? undefined : policy.kind;
+}
+
+/**
+ * The walk's `hits` without the ones whose endpoint the organization's
+ * EU/EEA rule refuses (GOV-R22) — the composer's listing and the Auto pick
+ * both read through this, so Auto never picks a model the picker left out.
+ * `hiddenBy` says why when a chat model was among them; a refused voice or
+ * embedding entry is no model a chat picker lists.
+ */
+export function withoutRefusedChatHits(
+  policy: ModelEndpointPolicy,
+  hits: readonly ChatCatalogHit[],
+): { readonly kept: ChatCatalogHit[]; readonly hiddenBy?: HiddenModelsRule } {
+  const offered = withoutRefusedModels(policy, hits, (hit) =>
+    modelEndpointRefusal(policy, chatCatalogEndpoint(hit)),
+  );
+  if (offered.hiddenBy === undefined) return offered;
+  const kept = new Set(offered.kept);
+  return hits.some((hit) => !kept.has(hit) && answersChatTurns(hit.entry))
+    ? offered
+    : { kept: offered.kept };
 }
