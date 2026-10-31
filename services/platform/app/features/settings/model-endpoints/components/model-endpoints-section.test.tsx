@@ -30,6 +30,7 @@ const state = vi.hoisted(() => ({
           enabled: boolean;
           allowed: boolean;
           models: { id: string; label: string }[];
+          modelsHiddenBy?: 'eu' | 'unreadable';
         },
     refetch: vi.fn(),
   },
@@ -112,6 +113,24 @@ describe('ModelEndpointsSection', () => {
     expect(
       screen.getByRole('link', { name: 'REST API keys.' }),
     ).toHaveAttribute('href', '/dashboard/$id/settings/api/rest');
+  });
+
+  it('says why models are missing when the EU/EEA rule left some out, and nothing while it is off [GOV-R22]', () => {
+    const note =
+      /Only models whose endpoint processes prompts in the EU\/EEA are offered/;
+    const { unmount } = render(
+      <ModelEndpointsSection organizationId="org-1" />,
+    );
+    expect(screen.queryByText(note)).not.toBeInTheDocument();
+    unmount();
+    state.access.data = {
+      enabled: true,
+      allowed: true,
+      models: MODELS.slice(1),
+      modelsHiddenBy: 'eu',
+    };
+    render(<ModelEndpointsSection organizationId="org-1" />);
+    expect(screen.getByText(note)).toBeInTheDocument();
   });
 
   it('bakes the facts into the three setups, the first model named', () => {

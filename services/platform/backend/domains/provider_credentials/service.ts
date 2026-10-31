@@ -318,6 +318,9 @@ export interface ServingCredentialFacts {
   providerSlug: string;
   authMethod: 'api-key' | 'env' | 'subscription-key' | 'subscription-broker';
   modelAllowlist?: string[];
+  /** The credential's own endpoint (an Azure resource), which a call goes
+   * to instead of the provider's base URL. */
+  endpointUrl?: string;
 }
 
 /**
@@ -339,10 +342,11 @@ export async function listServingCredentialFacts(
       providerSlug: string;
       authMethod: ServingCredentialFacts['authMethod'];
       modelAllowlist: string[] | null;
+      endpointUrl: string | null;
     }[]
   >`
     SELECT provider_slug AS "providerSlug", auth_method AS "authMethod",
-           model_allowlist AS "modelAllowlist"
+           model_allowlist AS "modelAllowlist", endpoint_url AS "endpointUrl"
     FROM app.provider_credentials
     WHERE org_id = ${organizationId} AND is_default AND status = 'active'
     ORDER BY provider_slug ASC
@@ -353,6 +357,7 @@ export async function listServingCredentialFacts(
       authMethod: row.authMethod,
     };
     if (row.modelAllowlist !== null) facts.modelAllowlist = row.modelAllowlist;
+    if (row.endpointUrl !== null) facts.endpointUrl = row.endpointUrl;
     return facts;
   });
 }

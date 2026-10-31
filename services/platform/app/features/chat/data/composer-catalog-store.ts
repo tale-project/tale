@@ -1,3 +1,4 @@
+import type { HiddenModelsRule } from '@/app/lib/backend/contract/lib';
 import { isRecord } from '@/lib/utils/type-utils';
 
 import type { ComposerModelOption } from '../types';
@@ -20,6 +21,8 @@ import type { ComposerModelOption } from '../types';
 
 export interface ComposerCatalog {
   readonly models: readonly ComposerModelOption[];
+  /** The EU/EEA processing rule left chat models out (GOV-R22). */
+  readonly modelsHiddenBy?: HiddenModelsRule;
   /** Non-chat capability facts (see `listComposerModels`). */
   readonly voice: {
     readonly ttsAvailable: boolean;
@@ -61,8 +64,15 @@ function parseRecord(raw: string): ComposerCatalog | null {
       return null;
     }
     if (!isRecord(catalog)) return null;
-    const { models, voice } = catalog;
+    const { models, modelsHiddenBy, voice } = catalog;
     if (!Array.isArray(models) || !models.every(isModelOption)) return null;
+    if (
+      modelsHiddenBy !== undefined &&
+      modelsHiddenBy !== 'eu' &&
+      modelsHiddenBy !== 'unreadable'
+    ) {
+      return null;
+    }
     if (
       !isRecord(voice) ||
       typeof voice.ttsAvailable !== 'boolean' ||
@@ -77,6 +87,7 @@ function parseRecord(raw: string): ComposerCatalog | null {
       return null;
     return {
       models,
+      ...(modelsHiddenBy === undefined ? {} : { modelsHiddenBy }),
       voice: {
         ttsAvailable: voice.ttsAvailable,
         transcriptionAvailable: voice.transcriptionAvailable,
