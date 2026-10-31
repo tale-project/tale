@@ -7,6 +7,7 @@ import {
   resolveDirectModel,
   type PreferredChatModel,
 } from '../../core/chat/generate_title';
+import { ModelEndpointRefusal } from '../../core/governance/model_endpoint_gate';
 import type { ActionCtx } from '../../core/lib/ctx';
 import { internal } from '../../core/lib/handler_names';
 import { logDetail } from '../../db/unavailable.ts';
@@ -84,8 +85,11 @@ const IMPROVE_CALL_MAX_MS = IMPROVE_TIMEOUT_MS + 60_000;
  * the writer by its model access rules, with `BUDGET_EXCEEDED` (429) when a limit that binds the
  * writer has too little room for the rewrite's worst case — the call is a
  * direct call (`governance/direct-calls.ts`), held against their limits
- * while it runs and booked in its hold's place — and with `IMPROVE_FAILED`
- * (502) when the provider answered nothing usable.
+ * while it runs and booked in its hold's place — with the gate's own code
+ * (`MODEL_ENDPOINT_OUTSIDE_EU`, `MODEL_ENDPOINT_POLICY_UNREADABLE`; 403) when
+ * the organization's EU/EEA rule refuses the model's endpoint before anything
+ * is sent (GOV-R17), and with `IMPROVE_FAILED` (502) when the provider
+ * answered nothing usable.
  */
 export async function improveConversationMessage(
   sql: Sql,
@@ -172,6 +176,8 @@ export async function improveConversationMessage(
     const model = createBuilderModel(ctx, {
       organizationId: args.organizationId,
       target,
+      surface: 'prompt-improvement',
+      actor: { id: args.userId, type: 'user' },
       maxTokens: IMPROVE_MAX_OUTPUT_TOKENS,
       signal: deadline.signal,
     });
@@ -203,6 +209,11 @@ export async function improveConversationMessage(
     return { improvedMessage: improved };
   } catch (error) {
     if (error instanceof ConversationError) throw error;
+    if (error instanceof ModelEndpointRefusal) {
+      // Not a provider failure: nothing was sent, and the refusal's own
+      // sentence says why and what an admin can change.
+      throw new ConversationError(error.data.code, error.data.message, 403);
+    }
     console.error('[improveConversationMessage] model call failed:', error);
     throw new ConversationError(
       'IMPROVE_FAILED',

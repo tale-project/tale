@@ -5,6 +5,8 @@
  * status / message rules Whisper and OpenRouter actually return.
  */
 
+import { isModelEndpointRefusalCode } from '../../governance/model_endpoint_gate';
+
 export interface TranscriptionErrorClassification {
   readonly shouldRetry: boolean;
   readonly reason: string;
@@ -58,6 +60,11 @@ export function classifyTranscriptionError(
       shouldRetry: true,
       reason: 'transcription_model_resolution_failed',
     };
+  }
+  // The organization's EU/EEA rule refused the model before any audio left
+  // (GOV-R17): it holds until an admin changes the endpoint or the rule.
+  if (isModelEndpointRefusalCode(code)) {
+    return { shouldRetry: false, reason: 'model_endpoint_refused' };
   }
 
   if (status === 401 || status === 403) {

@@ -90,6 +90,7 @@ import {
   buildChatRequest,
   type ChatWireRequest,
 } from '../automations_builder/chat_wire';
+import { assertModelEndpointAllowed } from '../governance/model_endpoint_gate';
 import type { EmbeddingMeter } from '../knowledge/embedding';
 import {
   RAG_ERROR_PII_SCAN_FAILED,
@@ -166,12 +167,18 @@ export interface DirectWire {
  * direct chat turn cannot serve. Mirrors the one resolution every direct model
  * call shares: a subscription credential is bound to a vendor harness — the
  * vendors permit subscription tokens only in their own agent runtime — and
- * cannot answer a chat endpoint. */
-async function resolveDirectWire(
+ * cannot answer a chat endpoint. The organization's EU/EEA rule judges the
+ * endpoint last, once it is known (GOV-R17). Exported for its tests. */
+export async function resolveDirectWire(
   ctx: ActionCtx,
-  organizationId: string,
+  args: Pick<
+    ExecuteTurnArgs,
+    'organizationId' | 'userId' | 'apiKeyId' | 'surface'
+  >,
   connector: ProviderDefinition,
+  modelId: string,
 ): Promise<DirectWire> {
+  const { organizationId } = args;
   const credential = await resolveProviderCredential(ctx, {
     organizationId,
     providerSlug: connector.name,
@@ -189,6 +196,17 @@ async function resolveDirectWire(
       message: `Provider "${connector.name}" has no API endpoint configured.`,
     });
   }
+  await assertModelEndpointAllowed(ctx, {
+    organizationId,
+    surface: args.surface ?? 'chat',
+    providerName: connector.name,
+    modelId,
+    baseUrl,
+    actor: {
+      id: args.userId,
+      type: args.apiKeyId !== undefined ? 'api' : 'user',
+    },
+  });
   return {
     apiFormat: connector.apiFormat,
     ...(connector.wireDialect !== undefined
@@ -905,6 +923,10 @@ export interface ExecuteTurnArgs {
   /** Re-run the thread's trailing user message (a regenerate): `userText` is
    * that message's text and the pipeline must not append it again. */
   readonly resend?: boolean;
+  /** What the turn answers, as the audit entry of a model call the EU/EEA
+   * rule refused names it (GOV-R17): a chat, or an agent working a task.
+   * Absent, a chat. */
+  readonly surface?: 'chat' | 'task';
 }
 
 /** Overridable ports — tests swap the model call and stores, and the
@@ -1086,7 +1108,10 @@ export async function skillsNamedIn(
  */
 export function autoReroute(
   ctx: ActionCtx,
-  args: Pick<ExecuteTurnArgs, 'organizationId' | 'userId'>,
+  args: Pick<
+    ExecuteTurnArgs,
+    'organizationId' | 'userId' | 'apiKeyId' | 'surface'
+  >,
   prompt: { text: string; hasImages: boolean },
   budgetFor: (entry: ModelCatalogEntry) => TurnReroute['budget'],
   modelOverride: ModelCall | undefined,
@@ -1127,7 +1152,12 @@ export function autoReroute(
         ctx,
         args.organizationId,
         resolved.connector,
-        await resolveDirectWire(ctx, args.organizationId, resolved.connector),
+        await resolveDirectWire(
+          ctx,
+          args,
+          resolved.connector,
+          resolved.entry.id,
+        ),
       );
     return { model: resolved.entry, budget: budgetFor(resolved.entry), call };
   };
@@ -1762,8 +1792,9 @@ export async function executeTurn(
   } else {
     const wire = await resolveDirectWire(
       ctx,
-      args.organizationId,
+      args,
       resolved.connector,
+      resolved.entry.id,
     );
     model = createDirectModelCall(
       ctx,

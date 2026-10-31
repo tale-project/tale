@@ -483,7 +483,10 @@ export async function transcribeDictation(
   const modelData = await resolveTranscriptionModel(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 resolver; every ctx facility it touches is covered by chatShimHandlers
     shim as never,
-    { organizationId: args.organizationId },
+    {
+      organizationId: args.organizationId,
+      actor: { id: args.userId, type: 'user' },
+    },
   );
   // Defense-in-depth: re-check host policy at request time so a provider
   // file edited to point at an internal host cannot exfiltrate the bearer

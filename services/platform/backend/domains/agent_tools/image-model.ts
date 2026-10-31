@@ -15,7 +15,9 @@ import { chatShimHandlers } from '../chat/shim.ts';
  * every lane that offers `generate_image`: a chat reply and a task run read
  * the same policy and resolve the same model over the provider credentials,
  * the way the agents of the full workspace resolve it. A failure offers no
- * image tool rather than failing the turn.
+ * image tool rather than failing the turn, and so does a model the
+ * organization's EU/EEA rule refuses (GOV-R17): the turn asked for no image,
+ * so nothing is audited.
  */
 export async function offeredImageModel(
   sql: Sql,
@@ -32,9 +34,10 @@ export async function offeredImageModel(
   const shim = createCtxShim(chatShimHandlers(sql));
   try {
     const model = await resolveImageGenerationModel(
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the resolver reads org slugs, provider credentials and one policy, all served by these handlers
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the resolver reads org slugs, provider credentials and two policies, all served by these handlers
       shim as unknown as ActionCtx,
       organizationId,
+      { offer: true },
     );
     return model ?? undefined;
   } catch (error) {

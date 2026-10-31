@@ -97,6 +97,7 @@ function assertCrawlableUrl(url: string): void {
     throw new SafeFetchError('private_ip', `Crawl target refused: ${refusal}`);
   }
 }
+import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromIdOrNull } from '../lib/helpers/org_slug';
@@ -2014,6 +2015,13 @@ async function recordPageFailure(
  * did not finish. Any other error is handed back as it is.
  */
 function embeddingScanFailure(error: unknown): unknown {
+  // The organization's EU/EEA rule refused the model's endpoint before a
+  // page was sent; its sentence names the cause and the fix (GOV-R17).
+  if (error instanceof ModelEndpointRefusal) {
+    return new Error(websiteEmbeddingFailureReason(null, error.data.message), {
+      cause: error,
+    });
+  }
   const failureClass =
     error instanceof EmbeddingDimensionMismatch ||
     error instanceof UnsupportedVectorWidth

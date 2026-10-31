@@ -13,8 +13,12 @@ vi.mock('../chat/composer.ts', () => composer);
 const providers = vi.hoisted(() => ({ resolveProvidersForOrg: vi.fn() }));
 vi.mock('../../core/lib/providers/org_providers.ts', () => providers);
 
-const { listModelApiModels, modelApiId, splitModelApiId } =
-  await import('./models.ts');
+const {
+  listModelApiModels,
+  modelApiId,
+  ridesModelApiAnthropicLane,
+  splitModelApiId,
+} = await import('./models.ts');
 
 function option(
   providerSlug: string,
@@ -45,12 +49,13 @@ beforeEach(() => {
   providers.resolveProvidersForOrg.mockReturnValue([
     {
       name: 'openrouter',
+      baseUrl: 'https://openrouter.ai/api/v1',
       harnessEndpoint: {
         baseUrl: 'https://openrouter.ai/api',
         apiFormat: 'anthropic',
       },
     },
-    { name: 'deepseek' },
+    { name: 'deepseek', baseUrl: 'https://api.deepseek.com' },
     { name: 'azure', endpointMode: 'per-credential' },
     { name: 'anthropic' },
   ]);
@@ -97,6 +102,7 @@ describe('listModelApiModels', () => {
         pricing: { inputCentsPerMillion: 300, outputCentsPerMillion: 1500 },
         connector: {
           name: 'openrouter',
+          baseUrl: 'https://openrouter.ai/api/v1',
           harnessEndpoint: {
             baseUrl: 'https://openrouter.ai/api',
             apiFormat: 'anthropic',
@@ -111,7 +117,7 @@ describe('listModelApiModels', () => {
         vision: false,
         tools: true,
         contextWindow: 128_000,
-        connector: { name: 'deepseek' },
+        connector: { name: 'deepseek', baseUrl: 'https://api.deepseek.com' },
       },
     ]);
   });
@@ -150,5 +156,27 @@ describe('model ids', () => {
     expect(splitModelApiId('claude-sonnet-4-6')).toBeNull();
     expect(splitModelApiId('/x')).toBeNull();
     expect(splitModelApiId('x/')).toBeNull();
+  });
+});
+
+describe('the Anthropic lane', () => {
+  const native = {
+    connector: {
+      name: 'openrouter',
+      harnessEndpoint: {
+        baseUrl: 'https://eu.openrouter.ai/api',
+        apiFormat: 'anthropic' as const,
+      },
+    },
+  };
+
+  it('is ridden by the Anthropic wire on a connector with a native Anthropic endpoint, and by nothing else', () => {
+    expect(ridesModelApiAnthropicLane('anthropic', native)).toBe(true);
+    expect(ridesModelApiAnthropicLane('openai', native)).toBe(false);
+    expect(
+      ridesModelApiAnthropicLane('anthropic', {
+        connector: { name: 'openrouter' },
+      }),
+    ).toBe(false);
   });
 });

@@ -188,6 +188,8 @@ export const KNOWLEDGE_UNAVAILABLE_CODES: ReadonlySet<string> = new Set([
   'EMBEDDING_CREDENTIAL_REJECTED',
   'EMBEDDING_CREDIT_EXHAUSTED',
   'KNOWLEDGE_NOT_CONFIGURED',
+  'MODEL_ENDPOINT_OUTSIDE_EU',
+  'MODEL_ENDPOINT_POLICY_UNREADABLE',
 ]);
 
 /** `POST /api/app/knowledge/search?orgId=` → the number of hits. */
