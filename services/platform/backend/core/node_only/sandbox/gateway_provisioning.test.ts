@@ -780,7 +780,6 @@ describe('provisionSessionGatewayKey — request-scoped keys', () => {
     mockedResolve.mockResolvedValue(apiKeyResolution());
 
     await provisionSessionGatewayKey(fakeCtx(), {
-      surface: 'task',
       ...REQUEST,
       requestId: 'req-1',
     });
@@ -815,7 +814,6 @@ describe('provisionSessionGatewayKey — request-scoped keys', () => {
     );
 
     await provisionSessionGatewayKey(fakeCtx(), {
-      surface: 'task',
       ...REQUEST,
       requestId: 'req-1',
     });
@@ -837,7 +835,6 @@ describe('provisionSessionGatewayKey — request-scoped keys', () => {
 
     const refusal = await refusalOf(
       provisionSessionGatewayKey(fakeCtx(), {
-        surface: 'task',
         ...REQUEST,
         allowedModels: models,
         requestId: 'req-1',
@@ -904,7 +901,6 @@ describe('gatewayProvisioningFailureStage', () => {
     it('an unknown provider', async () => {
       const refusal = await refusalOf(
         provisionSessionGatewayKey(fakeCtx(), {
-          surface: 'task',
           ...ARGS,
           allowedModels: [{ providerSlug: 'not-a-provider', modelId: 'm' }],
         }),
@@ -933,7 +929,6 @@ describe('gatewayProvisioningFailureStage', () => {
 
       const refusal = await refusalOf(
         provisionSessionGatewayKey(fakeCtx(), {
-          surface: 'task',
           ...ARGS,
           allowedModels: [
             { providerSlug: 'anthropic', modelId: 'claude-fable-5' },
@@ -992,7 +987,6 @@ describe('gatewayProvisioningFailureStage', () => {
 
       const refusal = await refusalOf(
         provisionSessionGatewayKey(fakeCtx(), {
-          surface: 'task',
           ...ARGS,
           allowedModels: [
             { providerSlug: 'deepseek', modelId: 'deepseek-v4-flash' },
