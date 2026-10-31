@@ -17,11 +17,16 @@
  * partial run names the orgs that failed instead of stopping at the first.
  * Any failure is a CLI throw with that detail attached; the reseed is
  * idempotent, so re-running after a fix is always safe.
+ *
+ * Consent is asked by {@link confirmOverrideAll} before `tale deploy` changes
+ * anything: the flag forces `--stop` and recreates the containers only for
+ * the reseed, so asking here, after the rollout, would be too late to spare
+ * them.
  */
 
+import { CliError, ExitCode } from '../../utils/fail';
 import * as logger from '../../utils/logger';
 import { resolveConsent } from '../../utils/output-mode';
-import { confirm } from '../../utils/prompt';
 import {
   BACKEND_API_LABEL,
   backendApiContainer,
@@ -30,7 +35,13 @@ import {
 
 interface ReseedAllOrgsOptions {
   dryRun: boolean;
-  assumeYes: boolean;
+}
+
+/** The terminal the consent question needs, injectable for the tests. */
+interface ConsentTerminal {
+  /** Whether stdin and stdout are both a terminal, as `confirm` needs. */
+  isInteractive: () => boolean;
+  confirm: (message: string) => Promise<boolean>;
 }
 
 /**
@@ -90,18 +101,42 @@ function failureLines(result: ReseedResult): string[] {
     .map((r) => `  ${r.slug}: ${r.error}`);
 }
 
+/**
+ * The `--override-all` consent, resolved before the deploy changes anything:
+ * a decline, or no `--yes` without a terminal to ask on, ends the run while
+ * the running deployment is still untouched. `--yes`, the command's own or
+ * the global `tale -y`, consents; a dry run reseeds nothing, so it asks
+ * nothing.
+ */
+export async function confirmOverrideAll(
+  options: { dryRun: boolean; assumeYes: boolean | undefined },
+  terminal: ConsentTerminal,
+): Promise<void> {
+  if (options.dryRun || resolveConsent(options.assumeYes)) return;
+  if (!terminal.isInteractive()) {
+    throw new CliError({
+      summary:
+        '--override-all requires --yes (-y) without an interactive terminal (e.g. CI). Nothing was changed.',
+      next: 'tale deploy --override-all --yes',
+      code: ExitCode.UserAbort,
+    });
+  }
+  if (!(await terminal.confirm(CONFIRM_MESSAGE))) {
+    throw new CliError({
+      summary: '--override-all was not confirmed. Nothing was changed.',
+      code: ExitCode.UserAbort,
+    });
+  }
+}
+
 export async function reseedAllOrgsFromBuiltin(
   options: ReseedAllOrgsOptions,
   deps: ReseedDeps = DEFAULT_DEPS,
 ): Promise<void> {
-  const { dryRun, assumeYes } = options;
-
-  // Dry-run gate sits BEFORE the destructive confirm prompt AND before the
-  // api is looked up at all. Otherwise `tale deploy --override-all --dry-run`
-  // would (a) still ask the operator to confirm a destructive-shape operation
-  // that won't run, and (b) touch docker on hosts where no backend is up yet
-  // — defeating the point of a dry-run preview.
-  if (dryRun) {
+  // A dry run returns before the api is looked up at all: otherwise
+  // `tale deploy --override-all --dry-run` would touch docker on hosts where
+  // no backend is up yet — defeating the point of a dry-run preview.
+  if (options.dryRun) {
     logger.blank();
     logger.info(
       `[DRY-RUN] Would factory-reseed every registered org via POST /api/control/reseed in ${BACKEND_API_LABEL}.`,
@@ -109,24 +144,7 @@ export async function reseedAllOrgsFromBuiltin(
     return;
   }
 
-  // Gate non-interactive callers behind --yes to avoid silent abort in CI.
-  const isTty = Boolean(process.stdin.isTTY);
-  const consented = resolveConsent(assumeYes);
-  if (!consented && !isTty) {
-    throw new Error(
-      '--override-all requires --yes (-y) when stdin is not a TTY (e.g. CI).',
-    );
-  }
-  if (!consented && isTty) {
-    const ok = await confirm({ message: CONFIRM_MESSAGE, default: false });
-    if (!ok) {
-      logger.info('Aborted by user.');
-      return;
-    }
-  }
-
-  // The api is a replica set, so the container to address is discovered now
-  // — after the gates, so a refusal never depends on docker being reachable.
+  // The api is a replica set, so the container to address is discovered now.
   const container = await deps.backendApiContainer();
   if (container === null) {
     throw new Error(

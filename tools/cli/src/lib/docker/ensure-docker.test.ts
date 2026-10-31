@@ -1,7 +1,12 @@
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import { existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+import * as logger from '../../utils/logger';
+import {
+  resolveOutputMode,
+  setActiveOutputMode,
+} from '../../utils/output-mode';
 import {
   type DockerEnvProbe,
   type DockerPlatform,
@@ -301,5 +306,67 @@ describe('Linux Docker socket access recovery', () => {
     expect(result.status).toBe('failed');
     expect(result.detail).toContain('this session cannot access its socket');
     expect(strategies).toEqual(['get-docker']);
+  });
+});
+
+describe('Docker install consent', () => {
+  const missing = {
+    cliPresent: false,
+    daemonReachable: false,
+    detail: 'not installed',
+  };
+
+  afterEach(() => {
+    mock.restore();
+    setActiveOutputMode(resolveOutputMode({}, {}));
+  });
+
+  // Commander gives the root option every `--yes` on the line, so
+  // `tale --yes deploy` and `tale deploy --yes` both arrive here as the
+  // global flag, with the command's own `assumeYes` unset (#5175).
+  test('the global `tale --yes` lets a non-interactive run install Docker', async () => {
+    setActiveOutputMode(resolveOutputMode({ yes: true }, {}));
+    spyOn(logger, 'success').mockImplementation(() => {});
+    const strategies: InstallStrategyKind[] = [];
+
+    const result = await ensureDocker(
+      { interactive: false },
+      {
+        platform: 'linux',
+        detectDockerState: async () => missing,
+        probeDockerEnv: async () => probe({ platform: 'linux', hasCurl: true }),
+        runStrategy: async (strategy) => {
+          strategies.push(strategy.kind);
+          return true;
+        },
+      },
+    );
+
+    expect(result).toEqual({
+      status: 'installed',
+      detail: 'installed via get-docker',
+    });
+    expect(strategies).toEqual(['get-docker']);
+  });
+
+  test('without any --yes a non-interactive run is refused before anything is installed', async () => {
+    setActiveOutputMode(resolveOutputMode({}, {}));
+
+    const result = await ensureDocker(
+      { interactive: false },
+      {
+        platform: 'linux',
+        detectDockerState: async () => missing,
+        probeDockerEnv: async () => {
+          throw new Error('must not probe');
+        },
+        runStrategy: async () => {
+          throw new Error('must not install');
+        },
+      },
+    );
+
+    expect(result.status).toBe('refused');
+    expect(result.detail).toContain('Re-run with --yes');
   });
 });

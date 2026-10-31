@@ -125,9 +125,9 @@ Un échec lié à Docker, Compose, à un Docker Engine antérieur à la version 
 - `-s, --services <list>` — ne mettre à jour que ces services séparés par des virgules (par défaut : tous les services rotatifs).
 - `--host <hostname>` — servir cet hôte pour cette exécution au lieu du `HOST` de `.env`, en gardant le schéma et le port de `SITE_URL` ; `.env` n'est pas modifié. Les conteneurs que ce déploiement ne recrée pas gardent leur hôte : un `proxy` en marche demande `--stop`.
 - `--override` — écraser la config du conteneur depuis le workspace local (les `*.secrets.json` chiffrés et `.history/` sont toujours préservés).
-- `--override-all` — réinitialiser le catalogue intégré dans chaque organisation côté serveur ; implique `--stop`.
+- `--override-all` — réinitialiser le catalogue intégré dans chaque organisation côté serveur ; implique `--stop`. La confirmation est demandée avant que le déploiement ne modifie quoi que ce soit ; sans terminal, il faut `--yes`.
 - `-q, --quiet` — masquer les logs des conteneurs pendant le déploiement.
-- `-y, --yes` — accepter automatiquement les confirmations destructives (p. ex. `--override-all`).
+- `-y, --yes` — accepter automatiquement les invites (p. ex. installer Docker ou confirmer `--override-all`).
 - `--skip-backup` — ignorer le snapshot de volume automatique d'avant déploiement.
 - `--configuration-only` — applique uniquement la configuration gérée à chaud (instructions, outils et modèles des agents, contextes de révision, automatisations et répartition du travail des projets) au runtime sain exact d’un déploiement déjà prêt. Exige `--bundle <directory>` et saute le snapshot préalable au déploiement ainsi que le redémarrage. Utilise cette option quand seules ces ressources changent ; les paramètres du runtime et de l’identité doivent rester inchangés, sans déploiement du runtime en attente.
 - `--dry-run` — prévisualiser sans rien modifier : `.env` et `tale.json` restent tels quels, et l'aperçu indique ce qu'une vraie exécution y écrirait.

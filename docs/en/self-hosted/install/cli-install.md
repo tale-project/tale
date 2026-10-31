@@ -125,9 +125,9 @@ Docker, Compose, Docker Engine version or unsupported container-mode failures or
 - `-s, --services <list>` — update only these comma-separated services (default: all rotatable services).
 - `--host <hostname>` — serve this host for this run instead of `HOST` from `.env`, keeping the scheme and port of `SITE_URL`; `.env` is not changed. Containers this deploy does not recreate keep their host, so a running `proxy` needs `--stop`.
 - `--override` — overwrite container config from the host workspace (encrypted `*.secrets.json` and `.history/` are always preserved).
-- `--override-all` — factory-reseed the builtin catalog into every org server-side; implies `--stop`.
+- `--override-all` — factory-reseed the builtin catalog into every org server-side; implies `--stop`. It asks for confirmation before the deploy changes anything, and needs `--yes` without a terminal.
 - `-q, --quiet` — suppress container logs during the deploy.
-- `-y, --yes` — auto-accept destructive confirmation prompts (e.g. `--override-all`).
+- `-y, --yes` — auto-accept prompts (e.g. installing Docker or confirming `--override-all`).
 - `--skip-backup` — skip the automatic pre-deploy volume snapshot.
 - `--configuration-only` — with `--bundle <directory>` (required), apply only hot managed configuration (instructions, agent tools and models, review contexts, automations and project dispatch) to the exact healthy runtime of an already-ready deployment, skipping the pre-deploy snapshot and restart. Use it when only those resources change; runtime and identity inputs must stay unchanged, with no pending runtime rollout.
 - `--dry-run` — preview what would change without touching anything: `.env` and `tale.json` stay as they are, and the preview names what a real run would write there.

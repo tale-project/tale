@@ -59,7 +59,7 @@ export function createDeployCommand(): Command {
     )
     .option(
       '-y, --yes',
-      'Non-interactive: auto-accept destructive confirmation prompts (e.g. --override-all)',
+      'Non-interactive: auto-accept prompts (e.g. installing Docker, --override-all)',
       false,
     )
     .option(

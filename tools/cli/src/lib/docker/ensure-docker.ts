@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import * as logger from '../../utils/logger';
+import { resolveConsent } from '../../utils/output-mode';
 import { confirm } from '../../utils/prompt';
 import { daemonReachable } from './daemon-reachable';
 import { exec } from './exec';
@@ -301,7 +302,10 @@ async function waitForDockerReady(
 }
 
 interface EnsureDockerOptions {
-  /** Skip the consent prompt (e.g. `--yes`, CI). */
+  /**
+   * Skip the consent prompt (e.g. `--yes`, CI). The global `tale --yes`
+   * consents too, so a command that passes only its own flag still honours it.
+   */
   assumeYes?: boolean;
   /** Whether a TTY is attached. Defaults to the real stdin/stdout. */
   interactive?: boolean;
@@ -592,7 +596,8 @@ export async function ensureDocker(
 
   // Docker is missing entirely — install it.
   const interactive = isInteractive(opts);
-  if (!interactive && !opts.assumeYes) {
+  const assumeYes = resolveConsent(opts.assumeYes);
+  if (!interactive && !assumeYes) {
     return {
       status: 'refused',
       detail:
@@ -601,7 +606,7 @@ export async function ensureDocker(
     };
   }
 
-  if (!opts.assumeYes) {
+  if (!assumeYes) {
     logger.notice('Docker is required and was not found on this machine.');
     const consent = await confirm({
       message:
