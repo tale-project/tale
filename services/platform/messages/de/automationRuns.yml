@@ -128,6 +128,8 @@ items:
   pass: Durchgang {index}
   more: Mehr anzeigen
   label: Elemente und Durchgänge von {step}
+  loadFailed: '{kind, select, passes {Die Durchgänge konnten nicht geladen werden.} other {Die Elemente konnten nicht geladen werden.}}'
+  dataLoadFailed: '{kind, select, pass {Die Daten dieses Durchgangs konnten nicht geladen werden.} other {Die Daten dieses Elements konnten nicht geladen werden.}}'
 list:
   caption: Läufe dieser Automatisierung
   columns:
