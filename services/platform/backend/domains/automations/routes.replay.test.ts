@@ -36,7 +36,6 @@ vi.mock('./project-visibility.ts', async (importOriginal) => ({
     async (_sql: unknown, _auth: unknown, run: { id: string }) =>
       !access.hidden.has(run.id),
   ),
-  readableProjectIds: vi.fn(async () => ['p-1']),
 }));
 
 vi.mock('../projects/service.ts', async (importOriginal) => ({
@@ -150,7 +149,9 @@ describe('POST /runs/:runId/replay', () => {
       request: { kind: 'again' },
       startedBy: 'user:u1',
       canStartLive: false,
-      visibleProjectIds: ['p-1'],
+      // Admission asks for the projects it resolves, as this person reads
+      // them (#5201).
+      viewer: expect.objectContaining({ organizationId: 'o1', userId: 'u1' }),
       idempotencyKey: 'click-1',
     });
   });
