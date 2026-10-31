@@ -7,13 +7,19 @@ import { fireEvent, render, screen, waitFor } from '@/tests/utils/render';
 
 import { EditMemberDialog } from './member-edit-dialog';
 
-const { updateNameMock, updateRoleMock, setPasswordMock, toastMock } =
-  vi.hoisted(() => ({
-    updateNameMock: vi.fn(),
-    updateRoleMock: vi.fn(),
-    setPasswordMock: vi.fn(),
-    toastMock: vi.fn(),
-  }));
+const {
+  updateNameMock,
+  updateRoleMock,
+  setPasswordMock,
+  toastMock,
+  memberPasskeysMock,
+} = vi.hoisted(() => ({
+  updateNameMock: vi.fn(),
+  updateRoleMock: vi.fn(),
+  setPasswordMock: vi.fn(),
+  toastMock: vi.fn(),
+  memberPasskeysMock: vi.fn(),
+}));
 
 vi.mock('@tale/ui/use-toast', () => ({ toast: toastMock }));
 
@@ -26,7 +32,7 @@ vi.mock('../hooks/mutations', () => ({
 }));
 
 vi.mock('../hooks/queries', () => ({
-  useMemberPasskeys: () => ({ data: [] }),
+  useMemberPasskeys: memberPasskeysMock,
 }));
 
 vi.mock('@/app/features/settings/governance/hooks/queries', async () => {
@@ -39,6 +45,7 @@ function renderDialog(
   memberOverrides: Partial<
     NonNullable<Parameters<typeof EditMemberDialog>[0]['member']>
   > = {},
+  currentUserMemberId?: string,
 ) {
   const onOpenChange = vi.fn();
   return {
@@ -55,6 +62,7 @@ function renderDialog(
           role: 'member',
           ...memberOverrides,
         }}
+        currentUserMemberId={currentUserMemberId}
       />,
     ),
   };
@@ -63,6 +71,7 @@ function renderDialog(
 beforeEach(() => {
   vi.clearAllMocks();
   updateNameMock.mockResolvedValue(null);
+  memberPasskeysMock.mockReturnValue({ data: [] });
 });
 
 afterEach(() => {
@@ -255,5 +264,42 @@ describe('EditMemberDialog unrelated edits with legacy names', () => {
       role: 'editor',
     });
     expect(updateNameMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('EditMemberDialog passkeys', () => {
+  it('reads the passkeys of the member an admin opens and lists them', () => {
+    memberPasskeysMock.mockReturnValue({
+      data: [
+        {
+          id: 'passkey-1',
+          name: 'Work laptop',
+          deviceType: 'multiDevice',
+          backedUp: true,
+          createdAt: null,
+        },
+      ],
+    });
+
+    renderDialog({}, 'member-admin');
+
+    expect(memberPasskeysMock).toHaveBeenCalledWith('member-1');
+    expect(screen.getByText('Passkeys')).toBeInTheDocument();
+    expect(screen.getByText('Work laptop')).toBeInTheDocument();
+    expect(screen.getByText('Synced passkey')).toBeInTheDocument();
+  });
+
+  it('shows no passkey section for a member without passkeys', () => {
+    renderDialog({}, 'member-admin');
+
+    expect(memberPasskeysMock).toHaveBeenCalledWith('member-1');
+    expect(screen.queryByText('Passkeys')).not.toBeInTheDocument();
+  });
+
+  it('reads no passkeys when admins edit their own seat', () => {
+    renderDialog({}, 'member-1');
+
+    expect(memberPasskeysMock).not.toHaveBeenCalled();
+    expect(screen.queryByText('Passkeys')).not.toBeInTheDocument();
   });
 });

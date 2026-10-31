@@ -19,6 +19,7 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
+import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -30,6 +31,7 @@ import {
 } from '../hooks/queries';
 import {
   ActorDirectoryProvider,
+  memberActor,
   useActorDirectory,
 } from '../hooks/use-actor-directory';
 import { useCollapsedLanes } from '../hooks/use-collapsed-lanes';
@@ -89,6 +91,7 @@ export function TasksWorkspace({
   allProjects?: boolean;
 }) {
   const { t } = useT('tasks');
+  const { t: tCommon } = useT('common');
   const typedProjectId = asProjectId(projectId);
   const [includeArchived, setIncludeArchived] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -100,12 +103,27 @@ export function TasksWorkspace({
   const [priorityFilter, setPriorityFilter] =
     useState<TaskPriorityFilter>(ALL_PRIORITY_FILTER);
   const [needsMyReviewFilter, setNeedsMyReviewFilter] = useState(false);
-  const { members, agents, currentUserId } = useActorDirectory(
+  const { agents, currentUserId } = useActorDirectory(
     organizationId,
-    // Agents are project-scoped; in all-projects mode the filter still lists
-    // org members, and agent assignees resolve via the directory without a
+    // Agents are project-scoped; in all-projects mode the filter lists no
+    // agent, and agent assignees resolve via the directory without a
     // project agent catalog.
     allProjects ? undefined : projectId,
+  );
+  // The assignee filter offers every member: they are read once the reader
+  // first opens the filters, never for a board that is only looked at.
+  const [membersWanted, setMembersWanted] = useState(false);
+  const handleFiltersOpenChange = useCallback((open: boolean) => {
+    if (open) setMembersWanted(true);
+  }, []);
+  const allMembers = useMembers(organizationId, { enabled: membersWanted });
+  const formerMember = tCommon('formerMember');
+  const members = useMemo(
+    () =>
+      (allMembers.members ?? []).map((member) =>
+        memberActor(member, formerMember),
+      ),
+    [allMembers.members, formerMember],
   );
   const assigneeQueryFilter = resolveAssigneeQueryFilter(
     assigneeFilter,
@@ -509,6 +527,8 @@ export function TasksWorkspace({
               }),
             }}
             filters={taskFilterConfigs}
+            onFiltersOpenChange={handleFiltersOpenChange}
+            isLoading={allMembers.isLoading}
             onClearAll={handleClearFilters}
             // Whoever may create gets the widening archived filter, so the
             // button stays reachable over an empty default view (an

@@ -66,25 +66,26 @@ function MentionTriggerChipsContent({
   const { t } = useT('tasks');
   const mentions = useTaskMentionActors(organizationId, projectId);
 
-  // Parse per keystroke (cheap), query only when the settled set of
-  // mentioned agents changes — typing "@mar…" must not refire the query per
-  // character. One chip per agent, however the text named it.
+  // Read the draft once typing settles: a typed handle may name a person
+  // the member lookup is asked about, and typing "@mar…" must neither look
+  // up nor refire the query per character. One chip per agent, however the
+  // text named it.
+  const [settledDraft, setSettledDraft] = useState('');
+  useEffect(() => {
+    const timer = setTimeout(() => setSettledDraft(draft), DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [draft]);
   const tokensKey = useMemo(() => {
     const existing = new Set(
       baseline ? mentionedAgents(baseline, mentions) : [],
     );
-    return mentionedAgents(draft, mentions)
+    return mentionedAgents(settledDraft, mentions)
       .filter((id) => !existing.has(id))
       .join(',');
-  }, [draft, baseline, mentions]);
-  const [debouncedKey, setDebouncedKey] = useState('');
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedKey(tokensKey), DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [tokensKey]);
+  }, [settledDraft, baseline, mentions]);
   const slugs = useMemo(
-    () => (debouncedKey ? debouncedKey.split(',') : []),
-    [debouncedKey],
+    () => (tokensKey ? tokensKey.split(',') : []),
+    [tokensKey],
   );
 
   const { previews } = useMentionTriggerPreview(target, slugs);
