@@ -213,13 +213,25 @@ vi.mock('./template-preview-flow', () => ({
   ),
 }));
 
+// A page that holds every project offers them all, so no search runs.
+const PROJECTS = vi.hoisted(() => [
+  { _id: 'proj-7', name: 'Billing' },
+  { _id: 'proj-8', name: 'Website' },
+]);
 vi.mock('@/app/features/projects/hooks/queries', () => ({
-  useProjects: () => ({
-    projects: [
-      { _id: 'proj-7', name: 'Billing' },
-      { _id: 'proj-8', name: 'Website' },
-    ],
+  useProjectChoices: () => ({
+    projects: PROJECTS,
+    isDone: true,
     isLoading: false,
+  }),
+  useNamedProjects: (_organizationId: string, ids: readonly string[]) => ({
+    projects: new Map(
+      PROJECTS.filter((project) => ids.includes(project._id)).map((project) => [
+        project._id,
+        project,
+      ]),
+    ),
+    isPending: false,
   }),
 }));
 

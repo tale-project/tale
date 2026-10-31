@@ -121,13 +121,26 @@ vi.mock('../hooks/queries', () => ({
   }),
 }));
 
+// The editor names the bound projects it reads by id; a run's project field
+// offers a page that holds every project, so no search runs.
+const PROJECTS = vi.hoisted(() => [
+  { _id: 'proj-1', name: 'Document desk' },
+  { _id: 'proj-2', name: 'Support' },
+]);
 vi.mock('@/app/features/projects/hooks/queries', () => ({
-  useProjects: () => ({
-    projects: [
-      { _id: 'proj-1', name: 'Document desk' },
-      { _id: 'proj-2', name: 'Support' },
-    ],
+  useProjectChoices: () => ({
+    projects: PROJECTS,
+    isDone: true,
     isLoading: false,
+  }),
+  useNamedProjects: (_organizationId: string, ids: readonly string[]) => ({
+    projects: new Map(
+      PROJECTS.filter((project) => ids.includes(project._id)).map((project) => [
+        project._id,
+        project,
+      ]),
+    ),
+    isPending: false,
   }),
 }));
 
