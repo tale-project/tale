@@ -427,6 +427,25 @@ comes with none, and starts no sandbox.
 - **Example**: Mia asks for a Word letter and the assistant reads the `docx` skill on its own →
   it is told the same, and also where the skill's scripts are and where the letter must be saved.
 
+### CHAT-R35 · Admins see whether chat can use each work tool, and why not
+
+An Owner or Admin reads, for files, code, skills and images, whether chat in the organization
+can use the tool now, and what stands in the way where it cannot: a Chat tools switch that is
+off or a policy that cannot be read, a sandbox service that is not set up or does not answer,
+the newest sandbox start of a reply when it failed and none started since, a skill library
+that cannot be read or lacks a document skill (`docx`, `pdf`, `pptx`, `xlsx`), and image
+generation that is off, has no image model to serve it, or has only one whose endpoint the
+organization's EU/EEA rule (`GOV-R17`) refuses. The answer is read from what a reply reads and
+changes nothing. Anyone else is refused.
+
+- **Example**: Code is on, but the newest reply that ran code found no runtime image on the
+  sandbox host → Jonas sees Code as limited, with that failed start and when it happened.
+- **Example**: The `pptx` skill was deleted from the skill library → Skills is limited, and
+  `pptx` is named as missing.
+- **Example**: Jonas's organization processes prompts only in the EU/EEA, and its image model's
+  endpoint is not known to process there → Images is unavailable, and says that this is why.
+- **Example**: Mia, a Member, asks for the status → the request is refused with 403.
+
 ## Not yet
 
 - **Attachments on a message**: the gate that holds a message to at most 10 files of the
