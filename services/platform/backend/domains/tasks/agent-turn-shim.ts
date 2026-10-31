@@ -133,10 +133,12 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
           sessionId: string;
           organizationId: string;
           brokerTokenHash: string | null;
+          startedBy: string;
         }[]
       >`
         SELECT status, exec_id AS "execId", session_id AS "sessionId",
-               org_id AS "organizationId", broker_token_hash AS "brokerTokenHash"
+               org_id AS "organizationId", broker_token_hash AS "brokerTokenHash",
+               started_by AS "startedBy"
         FROM app.project_agent_runs WHERE id = ${args.runId} LIMIT 1
       `;
       return rows[0] ?? null;
