@@ -1,5 +1,6 @@
 /**
- * Map a refused competence grant or revocation onto the admin's language.
+ * Map a refused competence grant, edit or revocation onto the admin's
+ * language.
  * The register (`backend/domains/governance/competence.ts`) answers
  * `{ error: <code>, message }`; the adapter turns that into an `AppError`
  * whose `data.code` is read here — the backend `message` is developer-facing
@@ -45,6 +46,8 @@ export function mapCompetenceError(
       return t('competences.errors.teamNotFound');
     case 'COMPETENCE_TEAM_SYNCED':
       return t('competences.errors.teamSynced');
+    case 'COMPETENCE_EXPIRED':
+      return t('competences.errors.expired');
     default:
       return t('competences.errors.generic');
   }

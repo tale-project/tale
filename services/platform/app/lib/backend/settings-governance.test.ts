@@ -321,6 +321,55 @@ describe('competence register adapters', () => {
     expect(client.getQueryState(other)?.isInvalidated).toBe(false);
     client.clear();
   });
+
+  it('changes a grant in place with only the fields given, a null included', async () => {
+    const fetch = vi
+      .spyOn(window, 'fetch')
+      .mockImplementation(() =>
+        Promise.resolve(Response.json({ changed: true })),
+      );
+    const adapter =
+      settingsWriteAdapters['governance/competences:updateCompetence'];
+    await expect(
+      adapter?.run(
+        { organizationId: 'org-a', recordId: 'record/a', expiresAt: null },
+        {},
+      ),
+    ).resolves.toEqual({ changed: true });
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/app/governance/competences/record%2Fa?orgId=org-a',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ expiresAt: null }),
+      }),
+    );
+
+    await adapter?.run(
+      {
+        organizationId: 'org-a',
+        recordId: 'record-a',
+        expiresAt: 1_800_000_000_000,
+        evidence: 'Certified',
+      },
+      {},
+    );
+    expect(fetch).toHaveBeenLastCalledWith(
+      '/api/app/governance/competences/record-a?orgId=org-a',
+      expect.objectContaining({
+        body: JSON.stringify({
+          expiresAt: 1_800_000_000_000,
+          evidence: 'Certified',
+        }),
+      }),
+    );
+
+    const client = new QueryClient();
+    const own = backendKey('org-a', 'competence', 'list');
+    client.setQueryData(own, []);
+    adapter?.invalidate?.(client, { organizationId: 'org-a' }, {});
+    expect(client.getQueryState(own)?.isInvalidated).toBe(true);
+    client.clear();
+  });
 });
 
 describe('governance policy writes', () => {
