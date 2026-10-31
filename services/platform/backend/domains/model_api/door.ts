@@ -270,6 +270,7 @@ export async function relayModelApiRequest(
     orgSlug: caller.orgSlug,
     requestId,
     callerRequestId: caller.requestId,
+    actor: { id: caller.userId, type: 'api' },
     beforePaidCall: () => assertModelApiBudgetRoom(sql, budgetHolder),
   });
   await guardrails.apply(request);
