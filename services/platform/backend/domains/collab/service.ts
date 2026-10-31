@@ -530,6 +530,18 @@ export interface UserNotificationRow {
   createdAt: number;
 }
 
+/**
+ * One page of a person's bell in one organization, newest first: the rows
+ * below `cursor` (a `seq`), and the cursor of the next page.
+ *
+ * The unread filter and the cursor are written as their plain predicates when
+ * set and left out when not — never as `(${value} IS NULL OR …)`. Each
+ * combination is a statement of its own, so its plan, generic ones included,
+ * can start at the cursor in an index that holds the page in order —
+ * `user_notifications_user_seq` (migration 0225) for every row,
+ * `user_notifications_user_unread` for unread ones — and the `LIMIT` ends
+ * the scan after one page of entries.
+ */
 export async function listMyNotifications(
   sql: Sql,
   args: {
@@ -549,9 +561,8 @@ export async function listMyNotifications(
            seq::float8 AS seq
     FROM app.user_notifications
     WHERE user_id = ${args.userId} AND org_id = ${args.organizationId}
-      AND (${args.unreadOnly === true} = false OR read = false)
-      AND (${args.cursor ?? null}::bigint IS NULL
-           OR seq < ${args.cursor ?? null})
+      ${args.unreadOnly === true ? sql`AND read = false` : sql``}
+      ${args.cursor === undefined ? sql`` : sql`AND seq < ${args.cursor}`}
     ORDER BY seq DESC
     LIMIT ${limit + 1}
   `;
