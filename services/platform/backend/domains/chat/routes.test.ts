@@ -897,7 +897,56 @@ describe('GET /threads/:threadId/messages for a project reader [CHAT-R2]', () =>
     const rows = statements.find(({ text }) =>
       text.includes('FROM app.messages'),
     );
-    expect(rows?.values).toEqual(['leaf', 'o1']);
+    expect(rows?.values).toContain('leaf');
+    expect(rows?.values).toContain('o1');
+    expect(rows?.values).not.toContain('root');
+  });
+
+  it('answers one page and the cursor of the page before it', async () => {
+    const { sql, statements } = fakeSql();
+    loadProjectSharedThread.mockResolvedValue({
+      id: 'root',
+      organizationId: 'o1',
+      userId: 'owner',
+    });
+    projectSharedViewLeaf.mockResolvedValue('leaf');
+
+    const res = await makeApp(sql).request(
+      '/threads/root/messages?orgId=o1&beforeOrder=12&beforeStep=1',
+    );
+
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      messages: { id: string }[];
+      hasMore: boolean;
+      nextBefore: unknown;
+    };
+    expect(body.messages.map((row) => row.id)).toEqual(['m-leaf']);
+    expect(body.hasMore).toBe(false);
+    expect(body.nextBefore).toBeNull();
+    const rows = statements.find(({ text }) =>
+      text.includes('FROM app.messages'),
+    );
+    expect(rows?.text).toContain('LIMIT ?');
+    expect(rows?.values).toEqual(expect.arrayContaining([12, 1, 201]));
+  });
+
+  it.each([
+    ['half a cursor', 'beforeOrder=12'],
+    ['a cursor that is not a number', 'beforeOrder=x&beforeStep=0'],
+    ['a negative cursor', 'beforeOrder=-1&beforeStep=0'],
+    // Safe integers past the `integer` columns: Postgres would refuse them.
+    ['an order past the column', 'beforeOrder=2147483648&beforeStep=0'],
+    ['a step past the column', 'beforeOrder=12&beforeStep=2147483648'],
+  ])('answers 400 to %s and reads nothing', async (_label, query) => {
+    const { sql, statements } = fakeSql();
+
+    const res = await makeApp(sql).request(
+      `/threads/root/messages?orgId=o1&${query}`,
+    );
+
+    expect(res.status).toBe(400);
+    expect(statements).toEqual([]);
   });
 
   it('answers 404 when the root is not shared with a project the caller reads', async () => {
