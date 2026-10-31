@@ -2286,7 +2286,8 @@ async function settleTaskAgentTurn(
     providerErrorKind?: 'subscription_access_disabled';
     /** No retry can start before this, epoch ms: the subscription broker's
      * every account was cooling down after a rate limit
-     * (`classifyStartFailure`). */
+     * (`classifyStartFailure`), or a comment's restart found no room in the
+     * run's sandbox (`sandbox_capacity`). */
     retryAtMs?: number;
     /** The harness's own token totals, booked alongside the gateway spend. */
     usageTotals?: { inputTokens: number; outputTokens: number };
@@ -2320,11 +2321,16 @@ async function settleTaskAgentTurn(
     await releaseProjectAgentSlotAfterSettle(ctx, args);
     return;
   }
+  // A restart refused for room ran no harness turn: its key and op row close
+  // as the kick's room waits do — cancelled, nothing spent, marked as a room
+  // wait — so the external-turn metrics count no outcome for it.
+  const roomWait = result.failureCode === 'sandbox_capacity';
   const release = await releaseTurnKey(ctx, {
     organizationId: args.organizationId,
     sessionId: args.sessionId,
     execId: args.execId,
-    status: result.errored ? 'failed' : 'completed',
+    status: roomWait ? 'cancelled' : result.errored ? 'failed' : 'completed',
+    ...(roomWait ? { agentResultStatus: AWAITING_ROOM_RESULT_STATUS } : {}),
     ...(result.usageTotals !== undefined
       ? { usageTotals: result.usageTotals }
       : {}),
@@ -3034,12 +3040,37 @@ export async function steerTaskAgentTurnImpl(
       onText: progress.onText,
       onTimeline: progress.onTimeline,
     });
+    throwIfExecPlacesTaken(window, keys);
     await progress.flush();
     await continueOrSettle(ctx, keys, window);
   } catch (err) {
     // A restart that failed to LAUNCH must not strand the run at `running`
     // with no engine: settle it under the NEW exec (first-wins,
     // exec-guarded), so Retry works and the comment heads the next brief.
+    // A restart the sandbox refused for room (its memory nearly spent, its
+    // live-exec places taken) is no fault of the run: it ends as a room
+    // wait, whose retry spends no attempt, keeps its account eligible and
+    // starts once the refusal's wait has passed, then parks for room like
+    // any start (`freeCapacityWaits`). A pending Destroy is no want of room:
+    // that restart fails as below.
+    const noRoom = sandboxCapacityRefusal(err);
+    if (noRoom !== null) {
+      console.warn(
+        `[task-agent] no ${capacityShortOf(noRoom.scope)} to restart ${args.execId} as ${execId} — ending the run; its retry waits for room`,
+      );
+      await settleTaskAgentTurn(
+        ctx,
+        { ...args, execId },
+        {
+          errored: true,
+          reason: `the run could not be restarted to take a new comment: ${runFailureMessage(err)}`,
+          text: '',
+          failureCode: 'sandbox_capacity',
+          retryAtMs: Date.now() + noRoom.retryAfterMs,
+        },
+      );
+      return null;
+    }
     console.error('[task-agent] steer restart failed:', err);
     // A broker pool cooling down says when its first account is back: the
     // retry waits for it (`classifyStartFailure`).

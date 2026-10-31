@@ -589,6 +589,30 @@ describe('the turn host’s terminal marks write the provenance entry', () => {
         expect.not.objectContaining({ startAfterMs: expect.anything() }),
       ]);
     });
+
+    it('arms the retry of a restart that found no sandbox room to start once the refusal’s wait has passed, holding no model [TASK-R25]', async () => {
+      await failAgentRunFromTurn(refusedOnModel(), {
+        runId: 'run-1',
+        execId: 'exec-1-2',
+        error:
+          'the run could not be restarted to take a new comment: sandbox session pa-alice refused exec exec-1-2: every live-exec place is taken',
+        failureCode: 'sandbox_capacity',
+        retryAtMs: NOW + 15_000,
+      });
+      expect(recordModelCapacityRefusalInTx).not.toHaveBeenCalled();
+      expect(announceAgentRunFailed).not.toHaveBeenCalled();
+      expect(addJobInTx).toHaveBeenCalledExactlyOnceWith(
+        expect.anything(),
+        'task.agent_retry',
+        {
+          organizationId: 'org-1',
+          taskId: 'task-1',
+          agentId: 'agent-1',
+          expectedRunId: 'run-1',
+          startAfterMs: NOW + 15_000,
+        },
+      );
+    });
   });
 
   it('failAgentRunFromTurn: a non-retryable failure records the entry but arms nothing', async () => {

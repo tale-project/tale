@@ -508,7 +508,8 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
             : {}),
           autoRetryAttempt: budget.attempt,
           // Queued now, so the card shows the retry; started once the
-          // broker's cooldown has an account back.
+          // broker's cooldown has an account back, or the sandbox's wait
+          // for room has passed.
           ...(input.startAfterMs !== undefined
             ? { startAfterMs: input.startAfterMs }
             : {}),

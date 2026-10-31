@@ -205,6 +205,31 @@ describe('resolveTaskKickStartArgs', () => {
     expect(plan.resume).toBe('conv-claude-old');
   });
 
+  it('keeps the account of a restart that found no sandbox room eligible, and steps past one whose restart broke', async () => {
+    const plan = await resolveTaskKickStartArgs(
+      fakeSql({
+        liveSession: { createdAt: 1000 },
+        runs: [
+          // The comment's restart was refused for room under its new exec;
+          // the conversation it would have continued is the run's own.
+          run({
+            failureCode: 'sandbox_capacity',
+            execId: 'exec-restart',
+            brokerTokenHash: 'roomless-account',
+          }),
+          run({
+            failureCode: 'steer_restart_failed',
+            brokerTokenHash: 'broken-account',
+          }),
+        ],
+      }),
+      { ...KICK, harness: 'claude-code' },
+    );
+    expect(plan.excludeBrokerTokenHashes).toEqual(['broken-account']);
+    expect(plan.predecessorExecId).toBe('exec-restart');
+    expect(plan.resume).toBe('conv-claude-old');
+  });
+
   it('burns the account on the third rotation in a row', async () => {
     const plan = await resolveTaskKickStartArgs(
       fakeSql({

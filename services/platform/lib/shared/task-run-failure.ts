@@ -76,6 +76,7 @@ const CLASS_BY_CODE: Record<TaskRunFailureCode, TaskRunFailureClass> = {
   resource_exhausted: 'out_of_memory',
   harvest_failed: 'interrupted',
   steer_restart_failed: 'interrupted',
+  sandbox_capacity: 'interrupted',
 };
 
 function isKnownCode(code: string): code is TaskRunFailureCode {
