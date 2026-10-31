@@ -748,6 +748,32 @@ describe('POST /policies/moderation_provider — the endpoint while prompts stay
     expect(response.status).toBe(200);
     expect(writeGovernancePolicyFile).toHaveBeenCalledTimes(1);
   });
+
+  it('saves while the model access policy cannot be read, which each round refuses instead [GOV-R23]', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    readGovernancePolicyForOrg.mockImplementation(
+      async (_sql: unknown, _org: string, policyType: string) => {
+        if (policyType === 'model_access') {
+          throw new Error('model-access.yml does not match its schema');
+        }
+        return ON_DISK;
+      },
+    );
+    try {
+      const response = await post('/policies/moderation_provider', {
+        config: moderation('https://api.openai.com/v1/moderations'),
+      });
+
+      expect(response.status).toBe(200);
+      expect(writeGovernancePolicyFile).toHaveBeenCalledTimes(1);
+      expect(logged).toHaveBeenCalledWith(
+        expect.stringContaining('the model access policy cannot be read'),
+        expect.any(Error),
+      );
+    } finally {
+      logged.mockRestore();
+    }
+  });
 });
 
 describe('GET /my/model-api', () => {
