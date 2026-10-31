@@ -29,7 +29,7 @@ tale-project standard ([`AGENTS.md`](../../../../AGENTS.md) "Manual tests"), and
 
 ## The suites
 
-1595 boxes across 22 suites. Every suite declares the ID prefix its
+1596 boxes across 22 suites. Every suite declares the ID prefix its
 boxes carry, in its header blockquote; a box ID is unique across this whole
 directory and greppable as one token.
 
@@ -39,7 +39,7 @@ directory and greppable as one token.
 | [approvals](suites/approvals.md) | `APV-` | human-in-the-loop: run approval/ask cards, task review gate, DSAR dual-approval | 22 |
 | [auth](suites/auth.md) | `AUTH-` | login, SSO, 2FA, passkeys, password policy, first-run setup, RBAC | 60 |
 | [automations](suites/automations.md) | `AUTO-` | draft→deploy→version automations: list, the self-arranging canvas, paths, code fields, Source, upload, trigger, runs, bindings, versions, tests | 193 |
-| [chat](suites/chat.md) | `CHAT-` | messages, attachments, tools + approvals, arena, share, reasoning, the chat header and rows | 108 |
+| [chat](suites/chat.md) | `CHAT-` | messages, attachments, tools + approvals, arena, share, reasoning, the chat header and rows | 109 |
 | [connectors](suites/connectors.md) | `CONN-` | credential table + catalog picker; mailbox (IMAP/SMTP), OAuth, MCP endpoint | 41 |
 | [conversations](suites/conversations.md) | `CONV-` | the shared Inbox: statuses, priority, search, mailbox sync | 63 |
 | [data-residency](suites/data-residency.md) | `DATA-` | BYO knowledge database + object storage, embedding settings | 27 |
