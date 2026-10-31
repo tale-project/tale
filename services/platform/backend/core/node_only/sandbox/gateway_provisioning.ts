@@ -47,13 +47,11 @@ import { AppError } from '../../../../lib/shared/errors/app-error';
 import { isRecord } from '../../../../lib/utils/type-utils';
 import { traceSandboxPhase } from '../../../tracing';
 import {
-  gatewayBuiltinRefusal,
-  modelEndpointRefusal,
+  gatewayModelRefusal,
   readModelEndpointPolicy,
   refuseModelEndpoint,
   type ModelEndpointActor,
   type ModelEndpointPolicy,
-  type ModelEndpointRefusalData,
   type ModelEndpointSurface,
 } from '../../governance/model_endpoint_gate';
 import type { ActionCtx } from '../../lib/ctx';
@@ -343,14 +341,9 @@ export interface SessionGatewayKey {
 
 /**
  * The EU/EEA rule (GOV-R17) on every model the key may call, judged by the
- * record the mint binds it to (resolveGatewayRouting) — whether or not this
- * call provisions that record, since the mint falls back to the org's record
- * of an earlier provision. A standard record rides the gateway's built-in
- * connection, which reaches the vendor's own endpoint whatever base URL the
- * connector names; every other record calls the connector's base URL, or its
- * native Anthropic endpoint on that lane (the URL the provision pushes). So
- * OpenRouter passes only on a record pointed at eu.openrouter.ai: a custom
- * provider's, or its Anthropic lane's. The first refused model is audited and
+ * record the mint binds it to ({@link gatewayModelRefusal}) — whether or not
+ * this call provisions that record, since the mint falls back to the org's
+ * record of an earlier provision. The first refused model is audited and
  * thrown; a connector nobody defines is left to the provision, which refuses
  * it.
  */
@@ -361,24 +354,15 @@ async function assertRecordsAllowed(
 ): Promise<void> {
   const connectors = await resolveProvidersForOrgId(ctx, args.organizationId);
   for (const ref of args.allowedModels) {
-    const anthropicLane = ref.anthropicHarnessLane === true;
-    let baseUrl: string | undefined;
-    let refusal: ModelEndpointRefusalData | undefined;
-    if (isStandardGatewayProvider(ref.providerSlug) && !anthropicLane) {
-      refusal = gatewayBuiltinRefusal(policy, ref.providerSlug);
-    } else {
-      const connector = connectors.find(
-        (entry) => entry.name === ref.providerSlug,
-      );
-      if (!connector) continue;
-      baseUrl =
-        (anthropicLane ? connector.harnessEndpoint?.baseUrl : undefined) ??
-        connector.baseUrl;
-      refusal = modelEndpointRefusal(policy, {
-        providerName: ref.providerSlug,
-        baseUrl,
-      });
-    }
+    const connector = connectors.find(
+      (entry) => entry.name === ref.providerSlug,
+    );
+    if (!connector) continue;
+    const refusal = gatewayModelRefusal(
+      policy,
+      connector,
+      ref.anthropicHarnessLane === true,
+    );
     if (refusal === undefined) continue;
     await refuseModelEndpoint(
       ctx,
@@ -387,7 +371,6 @@ async function assertRecordsAllowed(
         surface: args.surface,
         providerName: ref.providerSlug,
         modelId: ref.modelId,
-        baseUrl,
         ...(args.actor !== undefined ? { actor: args.actor } : {}),
       },
       refusal,
