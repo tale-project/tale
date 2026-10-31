@@ -32,8 +32,8 @@ import {
 import { AgentSecretsField } from '@/app/features/projects/components/agent-secrets-field';
 import {
   useAgentSecrets,
+  useNamedProjects,
   useProjectHarnesses,
-  useProjects,
 } from '@/app/features/projects/hooks/queries';
 import { useAgentToolOptions } from '@/app/features/projects/hooks/use-agent-tool-options';
 import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
@@ -72,6 +72,7 @@ import { TriggerInputPreview } from './trigger-input-preview';
 import { webhookBase } from './trigger-webhook-panel';
 
 const NO_WARNINGS: readonly never[] = [];
+const NO_PROJECT_IDS: readonly string[] = [];
 
 const EMPTY_BINDING: SkillsSelection = {
   skills: [],
@@ -108,11 +109,15 @@ export function BlankAutomationDialog({
     open ? organizationId : undefined,
   );
   // Created in a project, the automation is installed there: an event
-  // trigger says that project's events reach it, once its name is read.
-  const { projects } = useProjects(organizationId);
+  // trigger says that project's events reach it, once its name is read (that
+  // project alone, never every project: #5204).
+  const { projects } = useNamedProjects(
+    organizationId,
+    open && projectId !== undefined ? [projectId] : NO_PROJECT_IDS,
+  );
   const installedIn = useMemo(() => {
     if (projectId === undefined) return [];
-    const project = projects.find((candidate) => candidate._id === projectId);
+    const project = projects.get(projectId);
     return project === undefined ? undefined : [project.name];
   }, [projectId, projects]);
   const { mutateAsync: saveAutomation } = useSaveAutomation();

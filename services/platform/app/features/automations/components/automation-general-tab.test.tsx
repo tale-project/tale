@@ -109,10 +109,12 @@ vi.mock('../hooks/mutations', () => ({
 }));
 
 vi.mock('@/app/features/projects/hooks/queries', () => ({
-  useProjects: () => ({
+  useProjectChoices: () => ({
     projects: [{ _id: 'proj_1', name: 'Document desk' }],
+    isDone: true,
     isLoading: false,
   }),
+  useNamedProjects: () => ({ projects: new Map(), isPending: false }),
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({

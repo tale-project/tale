@@ -5,8 +5,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, screen } from '@/tests/utils/render';
 
+/** The bound projects the column names, by id, and the ids it asked for:
+ * never every project (#5204). */
+const named = vi.hoisted(() => ({
+  projects: new Map<string, { _id: string; name: string }>(),
+  ids: [] as string[],
+}));
 vi.mock('@/app/features/projects/hooks/queries', () => ({
-  useProjects: () => ({ projects: [], isLoading: false }),
+  useNamedProjects: (_organizationId: string, ids: readonly string[]) => {
+    named.ids = [...ids];
+    return { projects: named.projects, isPending: false };
+  },
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({
@@ -102,6 +111,8 @@ import { AutomationsList } from './automations-list';
 describe('AutomationsList', () => {
   beforeEach(() => {
     navigate.mockClear();
+    named.projects = new Map();
+    named.ids = [];
   });
 
   it('navigates an org-page row to the org automation route', async () => {
@@ -171,6 +182,41 @@ describe('AutomationsList', () => {
     expect(screen.getAllByText('automations.list.projectBound')).toHaveLength(
       2,
     );
+  });
+
+  it("names each row's bound projects from the projects it names", () => {
+    named.projects = new Map([
+      ['proj_1', { _id: 'proj_1', name: 'Document desk' }],
+      ['proj_150', { _id: 'proj_150', name: 'Field service' }],
+    ]);
+    automationsData = [
+      { name: 'desk/prepare-return', latest: 1, projectIds: ['proj_1'] },
+      {
+        name: 'field/dispatch',
+        latest: 1,
+        projectIds: ['proj_150', 'proj_gone'],
+      },
+      { name: 'org/digest', latest: 1, projectIds: [] },
+    ];
+    render(<AutomationsList organizationId="org-1" />);
+
+    expect(named.ids).toEqual(['proj_1', 'proj_150', 'proj_gone']);
+    expect(screen.getByText('Document desk')).toBeInTheDocument();
+    expect(screen.getByText('Field service')).toBeInTheDocument();
+    // A project no read names keeps the generic chip.
+    expect(screen.getAllByText('automations.list.projectBound')).toHaveLength(
+      1,
+    );
+  });
+
+  it('names no project in a project tab, which has no projects column', () => {
+    automationsData = [
+      { name: 'desk/prepare-return', latest: 1, projectIds: ['proj_1'] },
+    ];
+    render(
+      <AutomationsList organizationId="org-1" projectId={'proj_1' as string} />,
+    );
+    expect(named.ids).toEqual([]);
   });
 });
 
