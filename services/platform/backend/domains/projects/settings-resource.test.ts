@@ -88,6 +88,27 @@ vi.mock('./service.ts', async (original) => {
       );
     }
   };
+  /** The store's keyset: newest first, up to `limit` rows after `cursor`,
+   * and whether more follow. A row is as new as its place in its map, so
+   * the latest one put is the newest. */
+  const keysetPage = <T extends { id: string; createdAt: number }>(
+    rows: T[],
+    options: { limit: number; cursor: { at: number; id: string } | null },
+  ) => {
+    const after = options.cursor;
+    const rest = rows
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .filter(
+        (row) =>
+          after === null ||
+          row.createdAt < after.at ||
+          (row.createdAt === after.at && row.id < after.id),
+      );
+    return {
+      rows: rest.slice(0, options.limit),
+      hasMore: rest.length > options.limit,
+    };
+  };
   return {
     ...actual,
     checkAgentModelConfiguration: async (
@@ -100,18 +121,46 @@ vi.mock('./service.ts', async (original) => {
       _sql: unknown,
       member: { organizationId: string; userId: string; role: string },
     ) => ({ ...member, teamIds: [] }),
-    listProjects: async () =>
-      [...projects.entries()]
-        .filter(([, entry]) => !entry.archived)
-        .map(([id]) => ({ id })),
-    listProjectAgents: async (
+    listProjectsPage: async (
       _sql: unknown,
       _auth: unknown,
-      projectId: string,
-    ) =>
-      [...agents.keys()]
-        .filter((key) => key.startsWith(`${projectId}/`))
-        .map((key) => ({ id: key.slice(projectId.length + 1) })),
+      options: {
+        archived: 'exclude' | 'include' | 'only';
+        limit: number;
+        cursor: { at: number; id: string } | null;
+      },
+    ) => {
+      const page = keysetPage(
+        [...projects.entries()]
+          // oxlint-disable-next-line oxc/no-map-spread -- copies: the test's own entries stay as it put them
+          .map(([id, entry], index) => ({ id, ...entry, createdAt: index }))
+          .filter(
+            (entry) =>
+              options.archived === 'include' ||
+              (options.archived === 'only') === entry.archived,
+          ),
+        options,
+      );
+      return { projects: page.rows, hasMore: page.hasMore };
+    },
+    // The agents of the projects the caller reads that are not archived.
+    listReadableProjectAgentsPage: async (
+      _sql: unknown,
+      _auth: unknown,
+      options: { limit: number; cursor: { at: number; id: string } | null },
+    ) => {
+      const page = keysetPage(
+        [...agents.entries()]
+          // oxlint-disable-next-line oxc/no-map-spread -- copies: the test's own entries stay as it put them
+          .map(([key, entry], index) => {
+            const [projectId = '', id = ''] = key.split('/');
+            return { id, projectId, ...entry, createdAt: index };
+          })
+          .filter((entry) => projects.get(entry.projectId)?.archived === false),
+        options,
+      );
+      return { agents: page.rows, hasMore: page.hasMore };
+    },
     loadProjectOrThrow: async (_sql: unknown, id: string) => projectOf(id),
     assertWritable: (entry: { editable: boolean }) => {
       if (!entry.editable) {
@@ -394,7 +443,7 @@ describe('who reads and changes project settings [MCP-R10]', () => {
 });
 
 describe('reading project settings', () => {
-  it('pages the instructions of the projects the caller reads, archived ones aside', async () => {
+  it('pages the instructions of the projects the caller reads, newest first, archived ones aside', async () => {
     for (let index = 0; index < 60; index += 1)
       project(`p-${String(index).padStart(2, '0')}`);
     project('p-archived', { archived: true });
@@ -402,14 +451,38 @@ describe('reading project settings', () => {
       kinds: ['project-instructions'],
     });
     expect(first.resources).toHaveLength(50);
-    expect(first.nextCursor).toBe('project-instructions:p50');
+    expect(first.nextCursor).toMatch(/^project-instructions:./);
     const second = await getSettings(contextOf('member'), registry, {
       kinds: ['project-instructions'],
-      cursor: 'project-instructions:p50',
+      cursor: first.nextCursor as string,
     });
     expect(second.resources).toHaveLength(10);
     expect(second.nextCursor).toBe(null);
+    const resources = [first, second].flatMap(
+      (page) => page.resources as Array<{ id: string }>,
+    );
+    expect(resources.map((resource) => resource.id)).toEqual(
+      Array.from(
+        { length: 60 },
+        (_, index) => `p-${String(59 - index).padStart(2, '0')}`,
+      ),
+    );
     expect(JSON.stringify([first, second])).not.toContain('p-archived');
+  });
+
+  it('refuses the offset cursor the listing answered before it paged on a keyset', async () => {
+    project('p-1');
+    const answer = await getSettings(contextOf('member'), registry, {
+      kinds: ['project-instructions'],
+      cursor: 'project-instructions:p50',
+    });
+    expect(answer.resources).toEqual([]);
+    expect(answer.refused).toEqual([
+      expect.objectContaining({
+        kind: 'project-instructions',
+        code: 'INVALID_CURSOR',
+      }),
+    ]);
   });
 
   it('cuts a page of instructions once they take the room an answer has, and walks every project once [MCP-R35]', async () => {
@@ -437,7 +510,7 @@ describe('reading project settings', () => {
     expect(ids).toEqual(
       Array.from(
         { length: 25 },
-        (_, index) => `p-${String(index).padStart(2, '0')}`,
+        (_, index) => `p-${String(24 - index).padStart(2, '0')}`,
       ),
     );
     expect(sizes.length).toBeGreaterThan(1);
@@ -445,7 +518,7 @@ describe('reading project settings', () => {
     expect(Math.max(...sizes)).toBeLessThan(250_000);
   });
 
-  it('pages agents over their projects and cuts a project in two when its agents take the room [MCP-R35]', async () => {
+  it('pages the agents of every project the caller reads, newest first, and cuts a page when they take the room [MCP-R35]', async () => {
     project('p-1');
     project('p-2');
     for (let index = 0; index < 15; index += 1) {
@@ -468,17 +541,21 @@ describe('reading project settings', () => {
       if (page.nextCursor === null) break;
       cursor = page.nextCursor as string;
     }
-    // Every agent of every project, once and in order, over more than one
-    // page — the first of them cut inside p-1.
-    expect(keys).toHaveLength(16);
-    expect(new Set(keys).size).toBe(16);
-    expect(keys[0]).toBe('agent-instructions/p-1/a-00');
-    expect(keys.at(-1)).toBe('agent-instructions/p-2/a-00');
+    // Every agent of every project the caller reads, once and newest first,
+    // over more than one page: the first cut among p-1's agents.
+    expect(keys).toEqual([
+      'agent-instructions/p-2/a-00',
+      ...Array.from(
+        { length: 15 },
+        (_, index) =>
+          `agent-instructions/p-1/a-${String(14 - index).padStart(2, '0')}`,
+      ),
+    ]);
     expect(pageSizes.length).toBeGreaterThan(1);
-    expect(pageSizes[0]).toBeLessThan(15);
+    expect(pageSizes[0]).toBeLessThan(16);
   });
 
-  it("lists every agent's tools by project and agent", async () => {
+  it("lists every agent's tools, newest agent first", async () => {
     project('p-1');
     agent('p-1/a-1', { tools: ['task_find'] });
     agent('p-1/a-2');
@@ -486,12 +563,42 @@ describe('reading project settings', () => {
       kinds: ['agent-tools'],
     });
     expect(answer.resources).toEqual([
+      expect.objectContaining({ key: 'agent-tools/p-1/a-2' }),
       expect.objectContaining({
         key: 'agent-tools/p-1/a-1',
         config: { projectId: 'p-1', agentId: 'a-1', tools: ['task_find'] },
       }),
-      expect.objectContaining({ key: 'agent-tools/p-1/a-2' }),
     ]);
+  });
+
+  it('lists each resource with the config and hash its own read answers, so a listed hash sets it', async () => {
+    project('p-1', { instructions: 'Be brief.' });
+    agent('p-1/a-1', {
+      instructions: 'Answer in English.',
+      tools: ['task_find'],
+      model: 'model-b',
+    });
+    for (const [kind, id] of [
+      ['project-instructions', 'p-1'],
+      ['agent-instructions', 'p-1/a-1'],
+      ['agent-tools', 'p-1/a-1'],
+      ['agent-model', 'p-1/a-1'],
+    ] as const) {
+      const listed = await getSettings(contextOf('member'), registry, {
+        kinds: [kind],
+      });
+      const read = await getSettings(contextOf('member'), registry, {
+        kinds: [kind],
+        ids: [id],
+      });
+      expect(read.resources).toEqual([
+        expect.objectContaining({
+          key: `${kind}/${id}`,
+          hash: expect.any(String),
+        }),
+      ]);
+      expect(listed.resources).toEqual(read.resources);
+    }
   });
 });
 

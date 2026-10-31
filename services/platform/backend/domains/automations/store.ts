@@ -1763,6 +1763,34 @@ export async function bindingProjectIds(
   return rows.map((row) => row.projectId);
 }
 
+/**
+ * The automations installed in each of the named projects, by name, in the
+ * order {@link listAutomations} lists them: one grouped read of those
+ * projects' bindings, for a page of projects, instead of every automation
+ * of the organization. A binding whose automation has no version is not an
+ * automation the listing knows, so it names none.
+ */
+export async function installedAutomationNames(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  projectIds: readonly string[],
+): Promise<Map<string, string[]>> {
+  if (projectIds.length === 0) return new Map();
+  const rows = await sql<{ projectId: string; names: string[] }[]>`
+    SELECT b.project_id AS "projectId",
+           array_agg(b.automation_name ORDER BY b.automation_name) AS names
+    FROM app.automation_project_bindings b
+    WHERE b.org_id = ${organizationId}
+      AND b.project_id = ANY(${[...projectIds]})
+      AND EXISTS (
+        SELECT 1 FROM app.automations a
+        WHERE a.org_id = b.org_id AND a.name = b.automation_name
+      )
+    GROUP BY b.project_id
+  `;
+  return new Map(rows.map((row) => [row.projectId, row.names]));
+}
+
 // ---------------------------------------------------------------- triggers
 
 /** A trigger as a caller writes it — the shared write schema's input. The
