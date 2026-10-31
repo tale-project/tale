@@ -11,6 +11,7 @@ import {
   type ModelEndpointPolicy,
   modelEndpointPolicyOf,
   modelEndpointRefusal,
+  moderationEndpointRefusal,
   readModelEndpointPolicy,
   withoutRefusedModels,
 } from './model_endpoint_gate.ts';
@@ -161,6 +162,77 @@ describe('modelEndpointRefusal', () => {
       provider: 'openrouter',
     });
     expect(refusal?.message).toContain('cannot be read');
+  });
+});
+
+describe('moderationEndpointRefusal', () => {
+  it('lets every moderation endpoint through while the rule is off [GOV-R23]', () => {
+    expect(
+      moderationEndpointRefusal(
+        { kind: 'open' },
+        'https://api.openai.com/v1/moderations',
+      ),
+    ).toBeUndefined();
+  });
+
+  it.each([
+    'https://eu.api.openai.com/v1/moderations',
+    'https://llm.example.eu/moderate',
+  ])('lets %s through under the rule [GOV-R23]', (url) => {
+    expect(moderationEndpointRefusal(EU, url)).toBeUndefined();
+  });
+
+  it('refuses a vendor’s global endpoint and names its EU one, in the moderation step’s words [GOV-R23]', () => {
+    expect(
+      moderationEndpointRefusal(EU, 'https://api.openai.com/v1/moderations'),
+    ).toEqual({
+      code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+      message:
+        'This organization processes prompts only in the EU/EEA, and api.openai.com may process prompts outside it, so the text was not sent to the moderation provider. An admin can point the moderation provider at eu.api.openai.com instead.',
+      provider: 'moderation_provider',
+      host: 'api.openai.com',
+      reason: 'vendor-global',
+    });
+  });
+
+  it('refuses a host no admin attested and says where to attest it [GOV-R23]', () => {
+    const refusal = moderationEndpointRefusal(
+      EU,
+      'https://moderation.example.com/v1',
+    );
+    expect(refusal).toMatchObject({
+      code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+      provider: 'moderation_provider',
+      host: 'moderation.example.com',
+      reason: 'not-attested',
+    });
+    expect(refusal?.message).toBe(
+      'This organization processes prompts only in the EU/EEA, and moderation.example.com is not an endpoint known to process there, so the text was not sent to the moderation provider. If it does process in the EU/EEA, an admin can list it under Settings → Governance → Models → Model access.',
+    );
+  });
+
+  it('refuses an endpoint that names no host [GOV-R23]', () => {
+    const refusal = moderationEndpointRefusal(EU, 'not a url');
+    expect(refusal).toMatchObject({ reason: 'unknown-endpoint' });
+    expect(refusal).not.toHaveProperty('host');
+    expect(refusal?.message).toContain(
+      'the moderation provider names no endpoint known to process there',
+    );
+  });
+
+  it('refuses every endpoint while the policy cannot be read [GOV-R23]', () => {
+    expect(
+      moderationEndpointRefusal(
+        { kind: 'unreadable' },
+        'https://eu.api.openai.com/v1/moderations',
+      ),
+    ).toEqual({
+      code: 'MODEL_ENDPOINT_POLICY_UNREADABLE',
+      message: expect.stringContaining(
+        'the text was not sent to the moderation provider',
+      ),
+      provider: 'moderation_provider',
+    });
   });
 });
 
