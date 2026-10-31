@@ -31,6 +31,15 @@ export function jsonParam(
 }
 
 /**
+ * A LIKE pattern matching `token` literally anywhere in the value: `%`, `_`
+ * and `\` (the default escape) are LIKE metacharacters, so they are escaped
+ * and never widen the match.
+ */
+export function likeContains(token: string): string {
+  return `%${token.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
+}
+
+/**
  * A Postgres unique-index violation (SQLSTATE 23505) — the error a writer
  * that lets the database arbitrate a race (a partial unique index instead of
  * a check-then-insert) catches to land on the winner's row.
