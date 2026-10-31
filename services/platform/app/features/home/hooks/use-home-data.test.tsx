@@ -17,7 +17,17 @@ const reads = vi.hoisted(() => ({
   inboxAvailability: { hasInbox: true, showInbox: true, isLoading: false },
 }));
 
+/** The paging half of a chat list read whose last page is in. */
+const LAST_PAGE = {
+  canLoadMore: false,
+  isLoadingMore: false,
+  loadMore: () => {},
+  pageFailed: false,
+  retryPage: () => {},
+};
+
 const CHATS = {
+  ...LAST_PAGE,
   status: 'ready',
   data: [
     {
@@ -425,6 +435,38 @@ describe('useHomeData', () => {
       inbox: 1,
     });
   });
+
+  it('passes the chat list paging through, one object while it holds', () => {
+    const loadMore = vi.fn();
+    reads.threads.mockImplementation(() => ({
+      ...CHATS,
+      canLoadMore: true,
+      loadMore,
+    }));
+    const { result, rerender } = renderHook(() => useHomeData('org-1'));
+    const paging = result.current.chatPaging;
+    expect(paging).toEqual({
+      canLoadMore: true,
+      isLoadingMore: false,
+      loadMore,
+    });
+    rerender();
+    expect(result.current.chatPaging).toBe(paging);
+    result.current.chatPaging.loadMore();
+    expect(loadMore).toHaveBeenCalledTimes(1);
+
+    reads.threads.mockImplementation(() => ({
+      ...CHATS,
+      isLoadingMore: true,
+      loadMore,
+    }));
+    rerender();
+    expect(result.current.chatPaging).toEqual({
+      canLoadMore: false,
+      isLoadingMore: true,
+      loadMore,
+    });
+  });
 });
 
 /**
@@ -505,7 +547,7 @@ describe('useHomeData when a read fails', () => {
   });
 
   it('names an unavailable chat read, and holds it until its retry settles', async () => {
-    reads.threads.mockReturnValue({ status: 'unavailable' });
+    reads.threads.mockReturnValue({ ...LAST_PAGE, status: 'unavailable' });
     let settle = () => {};
     reads.retryChats.mockReturnValue(
       new Promise<void>((resolve) => {
@@ -531,7 +573,7 @@ describe('useHomeData when a read fails', () => {
 
     // The seam answers `loading` while the read is asked for again; the
     // failure stands until that retry settles.
-    reads.threads.mockReturnValue({ status: 'loading' });
+    reads.threads.mockReturnValue({ ...LAST_PAGE, status: 'loading' });
     rerender();
     expect(result.current.failed.chats).toBe(true);
     expect(result.current.loading.chats).toBe(false);
@@ -549,6 +591,55 @@ describe('useHomeData when a read fails', () => {
       'task',
       'conversation',
     ]);
+  });
+
+  it('names a chat page that failed after the ones before it, keeps those, and asks for that page alone again', () => {
+    const retryPage = vi.fn();
+    const failedPage = {
+      ...CHATS,
+      canLoadMore: true,
+      pageFailed: true,
+      retryPage,
+    };
+    reads.threads.mockReturnValue(failedPage);
+    const { result, rerender } = renderHook(() => useHomeData('org-1'));
+
+    // The chats that loaded stay listed; the notice names the rest.
+    expect(kinds(result.current.items)).toEqual([
+      'chat',
+      'chat',
+      'task',
+      'conversation',
+    ]);
+    expect(result.current.failed).toEqual({
+      chats: true,
+      tasks: false,
+      conversations: false,
+    });
+    expect(result.current.loading.chats).toBe(false);
+    expect(result.current.attention.chats).toBeNull();
+    // Its Try again asks for that page: the stream offers no further one.
+    expect(result.current.chatPaging.canLoadMore).toBe(false);
+
+    act(() => result.current.retry());
+    expect(retryPage).toHaveBeenCalledTimes(1);
+    expect(reads.retryChats).not.toHaveBeenCalled();
+
+    // While the page is asked for again the failure stands, and the stream
+    // shows no spinner of its own.
+    reads.threads.mockReturnValue({ ...failedPage, isLoadingMore: true });
+    rerender();
+    expect(result.current.failed.chats).toBe(true);
+    expect(result.current.retrying).toBe(true);
+    expect(result.current.chatPaging.isLoadingMore).toBe(false);
+    act(() => result.current.retry());
+    expect(retryPage).toHaveBeenCalledTimes(1);
+
+    reads.threads.mockReturnValue({ ...CHATS, canLoadMore: true });
+    rerender();
+    expect(result.current.failed.chats).toBe(false);
+    expect(result.current.retrying).toBe(false);
+    expect(result.current.chatPaging.canLoadMore).toBe(true);
   });
 
   it('counts a failed archive read as a chat failure while archived chats are shown', () => {
@@ -570,7 +661,7 @@ describe('useHomeData when a read fails', () => {
     const inbox = failedInboxRead();
     const assigned = failedTaskRead();
     const reviews = failedTaskRead();
-    reads.threads.mockReturnValue({ status: 'unavailable' });
+    reads.threads.mockReturnValue({ ...LAST_PAGE, status: 'unavailable' });
     reads.conversations.mockReturnValue(inbox);
     reads.tasks.mockImplementation((options: { reviewerId?: string }) =>
       options.reviewerId === undefined ? assigned : reviews,

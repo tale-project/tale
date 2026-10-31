@@ -1190,3 +1190,14 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
   messages with find-in-page → the find lands in a right-aligned bubble as
   wide as the ones around it, and the message stays where it was found while
   it finishes rendering.
+- [ ] `CHAT-P7` · **The chat list loads a page at a time** — As a member with
+  120+ chats of their own, 3 of them pinned, open Home at 1440 px and at
+  390 px, in **All** and in **Chats** → **Pinned** and the newest chats show
+  at once; scrolling to the end shows a spinner under the rows, then older
+  chats, without the rows above moving; each chat shows once, and at the
+  oldest chat the spinner stops for good. Search for the title of the oldest
+  chat → the list reaches back on its own until it shows. Set the network
+  offline in DevTools just before the end comes into view → the list keeps
+  the chats it has and says it couldn't load your chats; back online,
+  **Try again** loads the missed page alone (the Network tab shows no request
+  without a `cursor`), and scrolling on loads the rest.

@@ -8,6 +8,7 @@ import { AbilityContext } from '@/app/context/ability-context';
 import { defineAbilityFor } from '@/lib/permissions/ability';
 import { checkAccessibility } from '@/tests/utils/a11y';
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -186,6 +187,7 @@ function data(overrides: Partial<HomeData> = {}): HomeData {
     retry: vi.fn(),
     hasInbox: true,
     attention: { chats: 0, tasks: 1, inbox: 1 },
+    chatPaging: { canLoadMore: false, isLoadingMore: false, loadMore: vi.fn() },
     ...overrides,
   };
 }
@@ -867,6 +869,160 @@ describe('HomeNavigator when a read fails', () => {
     });
     const again = render(<HomeNavigator organizationId="org-1" />);
     await checkAccessibility(again.container);
+  });
+});
+
+/**
+ * The chat list arrives a page at a time (#5153): the stream asks for the
+ * next page as its end comes into view and says while one loads — and while
+ * one is left, it neither calls itself empty nor claims its length.
+ */
+describe('HomeNavigator while more chats can load', () => {
+  /** The stream's end, under the test's control: jsdom lays nothing out, so
+   * "scrolled to the end" is said here. */
+  const ends = new Set<IntersectionObserverCallback>();
+  class ControlledIntersectionObserver {
+    readonly root = null;
+    readonly rootMargin = '';
+    readonly thresholds: readonly number[] = [];
+    private readonly callback: IntersectionObserverCallback;
+    constructor(callback: IntersectionObserverCallback) {
+      this.callback = callback;
+    }
+    observe() {
+      ends.add(this.callback);
+    }
+    unobserve() {
+      ends.delete(this.callback);
+    }
+    disconnect() {
+      ends.delete(this.callback);
+    }
+    takeRecords() {
+      return [];
+    }
+  }
+
+  function scrollToEnd() {
+    act(() => {
+      for (const callback of ends) {
+        callback(
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the end reads `isIntersecting` alone
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- unused by the end
+          {} as IntersectionObserver,
+        );
+      }
+    });
+  }
+
+  function paging(
+    overrides: Partial<HomeData['chatPaging']>,
+  ): HomeData['chatPaging'] {
+    return {
+      canLoadMore: true,
+      isLoadingMore: false,
+      loadMore: vi.fn(),
+      ...overrides,
+    };
+  }
+
+  const chatRow = () =>
+    within(stream())
+      .getByRole('link', { name: /Quarterly report/ })
+      .closest('li');
+
+  beforeEach(() => {
+    vi.stubGlobal('IntersectionObserver', ControlledIntersectionObserver);
+  });
+
+  afterEach(() => {
+    ends.clear();
+    vi.unstubAllGlobals();
+  });
+
+  it('asks for the next page as the end comes into view, says while it loads, and claims no length until the last', async () => {
+    const loadMore = vi.fn();
+    homeData.current = data({ chatPaging: paging({ loadMore }) });
+    const { container, rerender } = render(
+      <HomeNavigator organizationId="org-1" />,
+    );
+    expect(chatRow()).toHaveAttribute('aria-posinset', '1');
+    expect(chatRow()).toHaveAttribute('aria-setsize', '-1');
+    expect(loadMore).not.toHaveBeenCalled();
+
+    scrollToEnd();
+    expect(loadMore).toHaveBeenCalledTimes(1);
+
+    homeData.current = data({
+      chatPaging: paging({ canLoadMore: false, isLoadingMore: true, loadMore }),
+    });
+    rerender(<HomeNavigator organizationId="org-1" />);
+    expect(screen.getByText('Loading more chats…')).toHaveAttribute(
+      'role',
+      'status',
+    );
+    // A page on its way is not asked for twice.
+    scrollToEnd();
+    expect(loadMore).toHaveBeenCalledTimes(1);
+    await checkAccessibility(container);
+
+    homeData.current = data({
+      chatPaging: paging({ canLoadMore: false, loadMore }),
+    });
+    rerender(<HomeNavigator organizationId="org-1" />);
+    expect(screen.queryByText('Loading more chats…')).not.toBeInTheDocument();
+    expect(chatRow()).toHaveAttribute('aria-setsize', '3');
+  });
+
+  it('keeps reaching for chats while a search hides every one loaded, and says nothing matched once none is left', async () => {
+    const loadMore = vi.fn();
+    homeData.current = data({ chatPaging: paging({ loadMore }) });
+    const { rerender } = render(<HomeNavigator organizationId="org-1" />);
+    fireEvent.change(screen.getByRole('textbox'), {
+      target: { value: 'nothing matches this' },
+    });
+
+    // No chat loaded so far matches: the stream holds its skeleton, not
+    // its empty state, and reaches for the next page.
+    expect(await screen.findByText('Loading more chats…')).toHaveAttribute(
+      'role',
+      'status',
+    );
+    expect(screen.queryByText('Nothing here yet')).not.toBeInTheDocument();
+    scrollToEnd();
+    expect(loadMore).toHaveBeenCalledTimes(1);
+
+    // That page matched nothing either and another is left: the end, still
+    // in view, asks again.
+    homeData.current = data({
+      chatPaging: paging({ canLoadMore: false, isLoadingMore: true, loadMore }),
+    });
+    rerender(<HomeNavigator organizationId="org-1" />);
+    homeData.current = data({ chatPaging: paging({ loadMore }) });
+    rerender(<HomeNavigator organizationId="org-1" />);
+    scrollToEnd();
+    expect(loadMore).toHaveBeenCalledTimes(2);
+
+    homeData.current = data({
+      chatPaging: paging({ canLoadMore: false, loadMore }),
+    });
+    rerender(<HomeNavigator organizationId="org-1" />);
+    expect(screen.getByText('Nothing here yet')).toBeInTheDocument();
+    expect(screen.queryByText('Loading more chats…')).not.toBeInTheDocument();
+  });
+
+  it('reaches for no chats in a view that lists none', async () => {
+    homeData.current = data({ chatPaging: paging({}) });
+    const { user } = render(<HomeNavigator organizationId="org-1" />);
+    await user.click(screen.getByRole('radio', { name: /Tasks/ }));
+
+    expect(ends.size).toBe(0);
+    expect(
+      within(stream())
+        .getByRole('link', { name: /Review the launch checklist/ })
+        .closest('li'),
+    ).toHaveAttribute('aria-setsize', '1');
   });
 });
 

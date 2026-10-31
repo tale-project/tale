@@ -12,6 +12,10 @@ import { PROJECT_TEAM_IDS_SQL } from '../../core/lib/audience.ts';
 import { checkProjectAccess } from '../../core/projects/access.ts';
 import { PROJECT_AUDIT_ACTIONS } from '../../core/projects/audit_actions.ts';
 import { toJson } from '../../db/sql.ts';
+import {
+  formatKeysetCursor,
+  parseKeysetCursor,
+} from '../../lib/keyset-cursor.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { assertNotHeld, loadActiveHolds } from '../legal_holds/service.ts';
 
@@ -282,47 +286,129 @@ export async function projectSharedViewLeaf(
   return resolveViewLeaf(sql, shared.organizationId, shared.userId, shared.id);
 }
 
-/** The generating thread ids of one org (a generation row exists exactly
- * while a turn is in flight). */
-async function generatingThreadIds(
-  sql: Sql,
-  organizationId: string,
-): Promise<Set<string>> {
-  const rows = await sql<{ threadId: string }[]>`
-    SELECT thread_id AS "threadId" FROM app.generations
-    WHERE org_id = ${organizationId}
-  `;
-  return new Set(rows.map((row) => row.threadId));
+export const THREAD_PAGE_DEFAULT = 50;
+export const THREAD_PAGE_MAX = 100;
+
+/** Where the next page of the thread list starts: after the row named, in the
+ * walk it came from. The list is two keyset walks back to back — the pinned
+ * rows (`pinned_at_ms DESC, id DESC`), then the rest (`updated_at_ms DESC,
+ * id DESC`) — so the cursor says which one it continues. */
+export interface ThreadListCursor {
+  walk: 'pinned' | 'recent';
+  at: number;
+  id: string;
 }
 
+/** `pinned:<pinnedAt>:<id>` or `recent:<updatedAt>:<id>`: the shared keyset
+ * codec behind the walk's name. Opaque to the client, which passes the
+ * page's `continueCursor` back as `cursor`. */
+export function formatThreadListCursor(cursor: ThreadListCursor): string {
+  return `${cursor.walk}:${formatKeysetCursor(cursor.at, cursor.id)}`;
+}
+
+/** The inverse of {@link formatThreadListCursor}, or null for a token this
+ * list never answered — the route turns that into a 400. */
+export function parseThreadListCursor(raw: string): ThreadListCursor | null {
+  const split = raw.indexOf(':');
+  const walk = raw.slice(0, split);
+  if (walk !== 'pinned' && walk !== 'recent') return null;
+  const position = parseKeysetCursor(raw.slice(split + 1));
+  return position === null ? null : { walk, ...position };
+}
+
+export interface ThreadPage {
+  page: ThreadSummary[];
+  isDone: boolean;
+  /** The next page's `cursor`; empty once `isDone`. */
+  continueCursor: string;
+}
+
+/** A listed row: the thread and whether a turn is generating in it. */
+type ListedThreadRow = ThreadRow & { generating: boolean };
+
 /**
- * The caller's ACTIVE threads — live, visible (not a hidden branch sibling),
- * unarchived — newest activity first with pinned rows floated on top.
- * Deliberately unpaginated like 0.4: the panel buckets the full set, and the
- * walk pre-filters to the bounded active set.
+ * One page of the caller's ACTIVE threads — live, visible (not a hidden
+ * branch sibling), unarchived: the pinned rows first, newest pin first, then
+ * the rest, newest activity first; the thread id breaks a tie in either walk,
+ * so a page boundary never drops or repeats a row. Each walk reads at most
+ * one page past its cursor: the pins from `thread_metadata_pinned` (0224),
+ * the rest from `threads_org_user`. A row's generating flag probes
+ * `app.generations` by that row's id, so a page reads its own threads'
+ * generations and no one else's.
  */
 export async function listThreads(
   sql: Sql,
   organizationId: string,
   userId: string,
-): Promise<ThreadSummary[]> {
-  const rows = await sql<ThreadRow[]>`
-    SELECT ${sql.unsafe(THREAD_COLUMNS)}
-    FROM app.threads t
-    JOIN app.thread_metadata tm ON tm.thread_id = t.id
-    WHERE t.org_id = ${organizationId} AND t.user_id = ${userId}
-      AND tm.status = 'active' AND tm.archived = false
-      AND tm.hidden IS NOT true
-    ORDER BY t.updated_at_ms DESC
-  `;
-  const generating = await generatingThreadIds(sql, organizationId);
-  const pinned = rows
-    .filter((row) => row.pinnedAt !== null)
-    .sort((a, b) => (b.pinnedAt ?? 0) - (a.pinnedAt ?? 0));
-  const unpinned = rows.filter((row) => row.pinnedAt === null);
-  return [...pinned, ...unpinned].map((row) =>
-    toSummary(row, generating.has(row.id)),
+  options: { cursor?: ThreadListCursor; limit?: number } = {},
+): Promise<ThreadPage> {
+  const limit = Math.min(
+    Math.max(options.limit ?? THREAD_PAGE_DEFAULT, 1),
+    THREAD_PAGE_MAX,
   );
+  const after = options.cursor;
+  const pinned =
+    after?.walk === 'recent'
+      ? []
+      : await sql<ListedThreadRow[]>`
+          SELECT ${sql.unsafe(THREAD_COLUMNS)},
+            EXISTS (
+              SELECT 1 FROM app.generations g WHERE g.thread_id = t.id
+            ) AS generating
+          FROM app.thread_metadata tm
+          JOIN app.threads t ON t.id = tm.thread_id
+          WHERE tm.org_id = ${organizationId} AND tm.user_id = ${userId}
+            AND tm.pinned_at_ms IS NOT NULL
+            AND t.org_id = ${organizationId} AND t.user_id = ${userId}
+            AND tm.status = 'active' AND tm.archived = false
+            AND tm.hidden IS NOT true
+            ${
+              after === undefined
+                ? sql``
+                : sql`AND (tm.pinned_at_ms, tm.thread_id) < (${after.at}::bigint, ${after.id}::text)`
+            }
+          ORDER BY tm.pinned_at_ms DESC, tm.thread_id DESC
+          LIMIT ${limit + 1}
+        `;
+  // The recent walk fills what the pins left of the page, plus the one row
+  // that tells whether another page follows.
+  const recent =
+    pinned.length > limit
+      ? []
+      : await sql<ListedThreadRow[]>`
+          SELECT ${sql.unsafe(THREAD_COLUMNS)},
+            EXISTS (
+              SELECT 1 FROM app.generations g WHERE g.thread_id = t.id
+            ) AS generating
+          FROM app.threads t
+          JOIN app.thread_metadata tm ON tm.thread_id = t.id
+          WHERE t.org_id = ${organizationId} AND t.user_id = ${userId}
+            AND tm.status = 'active' AND tm.archived = false
+            AND tm.hidden IS NOT true AND tm.pinned_at_ms IS NULL
+            ${
+              after?.walk === 'recent'
+                ? sql`AND (t.updated_at_ms, t.id) < (${after.at}::bigint, ${after.id}::text)`
+                : sql``
+            }
+          ORDER BY t.updated_at_ms DESC, t.id DESC
+          LIMIT ${limit - pinned.length + 1}
+        `;
+  const rows = [...pinned, ...recent];
+  const page = rows.slice(0, limit);
+  const isDone = rows.length <= limit;
+  const last = page.at(-1);
+  return {
+    page: page.map((row) => toSummary(row, row.generating)),
+    isDone,
+    continueCursor:
+      isDone || last === undefined
+        ? ''
+        : formatThreadListCursor(
+            last.pinnedAt !== null
+              ? { walk: 'pinned', at: last.pinnedAt, id: last.id }
+              : { walk: 'recent', at: last.updatedAt, id: last.id },
+          ),
+  };
 }
 
 const ARCHIVED_PAGE_DEFAULT = 30;

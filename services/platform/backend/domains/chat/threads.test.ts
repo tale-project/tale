@@ -6,7 +6,8 @@
  * too, and refiling a project-shared thread never carries its audience into
  * the new project, and every refiling leaves an audit row on the project the
  * chat lands in, and a project reader is served the branch on the owner's
- * screen, never the version they replaced. The real-Postgres probes ride
+ * screen, never the version they replaced. The list answers one page at a
+ * time, pinned chats first. The real-Postgres probes ride
  * `integration-check.ts`;
  * these lock the statements the rules live in.
  */
@@ -42,10 +43,13 @@ import {
   branchForEdit,
   branchForRegenerate,
   createThread,
+  formatThreadListCursor,
   getSharedThread,
   listThreadBranches,
+  listThreads,
   loadProjectSharedThread,
   moveThreadToProject,
+  parseThreadListCursor,
   projectSharedViewLeaf,
   readConversationSkills,
   searchChats,
@@ -114,6 +118,80 @@ function fakeSql(answer: (statement: Statement) => unknown[] | undefined): {
   tag.begin = (fn: (tx: unknown) => Promise<unknown>) => fn(tag);
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the thread functions exercise exactly the tag, unsafe, json, and begin surfaces faked here
   return { sql: tag as unknown as Sql, statements };
+}
+
+const FRAGMENT = Symbol('fragment');
+interface Fragment {
+  [FRAGMENT]: true;
+  text: string;
+  values: unknown[];
+}
+
+function isFragment(value: unknown): value is Fragment {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (value as { [FRAGMENT]?: true })[FRAGMENT] === true
+  );
+}
+
+/**
+ * A `sql` stand-in for the list's reads. Nested `sql\`…\`` fragments and
+ * `sql.unsafe` text inline the way postgres.js inlines them, so a recorded
+ * statement is the one Postgres would see; a fragment alone reads no table
+ * and is not recorded.
+ */
+function listingSql(answer: (statement: Statement) => unknown[]): {
+  sql: Sql;
+  statements: Statement[];
+} {
+  const statements: Statement[] = [];
+  const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    let text = '';
+    const flat: unknown[] = [];
+    strings.forEach((part, index) => {
+      text += part;
+      if (index >= values.length) return;
+      const value = values[index];
+      if (isFragment(value)) {
+        text += value.text;
+        flat.push(...value.values);
+      } else {
+        text += '?';
+        flat.push(value);
+      }
+    });
+    text = text.replace(/\s+/g, ' ').trim();
+    const statement = { text, values: flat };
+    const reads = text.includes(' FROM ');
+    if (reads) statements.push(statement);
+    const fragment: Fragment = { [FRAGMENT]: true, text, values: flat };
+    return Object.assign(
+      Promise.resolve(reads ? answer(statement) : []),
+      fragment,
+    );
+  };
+  const unsafe = (text: string): Fragment => ({
+    [FRAGMENT]: true,
+    text,
+    values: [],
+  });
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the list exercises exactly the tag and unsafe surfaces faked here
+  return { sql: Object.assign(tag, { unsafe }) as unknown as Sql, statements };
+}
+
+/** A row of the list's reads: an owned thread and its generating flag. */
+function listed(
+  id: string,
+  fields: { pinnedAt?: number; updatedAt: number; generating?: boolean },
+) {
+  return {
+    ...OWNED_ROW,
+    id,
+    pinnedAt: fields.pinnedAt ?? null,
+    updatedAt: fields.updatedAt,
+    generating: fields.generating ?? false,
+  };
 }
 
 beforeEach(() => {
@@ -1275,5 +1353,193 @@ describe('the project share read grant [CHAT-R2]', () => {
     expect(
       statements.some(({ text }) => text.includes('tm.branch_root_id = ?')),
     ).toBe(false);
+  });
+});
+
+describe('listThreads answers one page of the list, pinned chats first [CHAT-R35]', () => {
+  const readsPins = (statement: Statement) =>
+    statement.text.includes('tm.pinned_at_ms IS NOT NULL');
+
+  it('takes the pins first, then fills the page from the newest activity', async () => {
+    const { sql, statements } = listingSql((statement) =>
+      readsPins(statement)
+        ? [
+            listed('thread_p2', { pinnedAt: 900, updatedAt: 10 }),
+            listed('thread_p1', { pinnedAt: 800, updatedAt: 20 }),
+          ]
+        : [
+            listed('thread_r9', { updatedAt: 70 }),
+            listed('thread_r8', { updatedAt: 60 }),
+            listed('thread_r7', { updatedAt: 60 }),
+            listed('thread_r6', { updatedAt: 50 }),
+          ],
+    );
+    const result = await listThreads(sql, 'org_1', 'user_1', { limit: 5 });
+    expect(result.page.map((thread) => thread.id)).toEqual([
+      'thread_p2',
+      'thread_p1',
+      'thread_r9',
+      'thread_r8',
+      'thread_r7',
+    ]);
+    expect(result.isDone).toBe(false);
+    // The last row's own walk and position: the next page starts after it,
+    // even where the next row shares its timestamp.
+    expect(result.continueCursor).toBe('recent:60:thread_r7');
+    expect(statements).toHaveLength(2);
+    const [pins, recent] = statements;
+    expect(pins?.text).toContain(
+      'ORDER BY tm.pinned_at_ms DESC, tm.thread_id DESC',
+    );
+    expect(pins?.values.at(-1)).toBe(6);
+    expect(recent?.text).toContain('tm.pinned_at_ms IS NULL');
+    expect(recent?.text).toContain('ORDER BY t.updated_at_ms DESC, t.id DESC');
+    // What the two pins left of the page, plus the row that tells whether
+    // another page follows.
+    expect(recent?.values.at(-1)).toBe(4);
+    for (const statement of statements) {
+      expect(statement.text).toContain('t.org_id = ? AND t.user_id = ?');
+      expect(statement.values).toEqual(
+        expect.arrayContaining(['org_1', 'user_1']),
+      );
+    }
+  });
+
+  it("reads whether a chat is generating from the page's own generations", async () => {
+    const { sql, statements } = listingSql((statement) =>
+      readsPins(statement)
+        ? []
+        : [
+            listed('thread_r9', { updatedAt: 70, generating: true }),
+            listed('thread_r8', { updatedAt: 60 }),
+          ],
+    );
+    const result = await listThreads(sql, 'org_1', 'user_1');
+    expect(result.page.map((thread) => [thread.id, thread.generating])).toEqual(
+      [
+        ['thread_r9', true],
+        ['thread_r8', false],
+      ],
+    );
+    // Each walk asks for its own rows' generations; nothing reads the
+    // organization's generations beside them.
+    expect(statements).toHaveLength(2);
+    for (const statement of statements) {
+      expect(statement.text).toContain(
+        'EXISTS ( SELECT 1 FROM app.generations g WHERE g.thread_id = t.id ) AS generating',
+      );
+    }
+  });
+
+  it('stops at a page of pins and answers a cursor in the pinned walk', async () => {
+    const { sql, statements } = listingSql(() => [
+      listed('thread_p3', { pinnedAt: 900, updatedAt: 10 }),
+      listed('thread_p2', { pinnedAt: 900, updatedAt: 20 }),
+      listed('thread_p1', { pinnedAt: 800, updatedAt: 30 }),
+    ]);
+    const result = await listThreads(sql, 'org_1', 'user_1', { limit: 2 });
+    expect(result.page.map((thread) => thread.id)).toEqual([
+      'thread_p3',
+      'thread_p2',
+    ]);
+    expect(result).toMatchObject({
+      isDone: false,
+      continueCursor: 'pinned:900:thread_p2',
+    });
+    expect(statements).toHaveLength(1);
+  });
+
+  it('goes on from a pinned cursor, then reads the newest activity from its top', async () => {
+    const { sql, statements } = listingSql((statement) =>
+      readsPins(statement)
+        ? [listed('thread_p1', { pinnedAt: 900, updatedAt: 30 })]
+        : [listed('thread_r9', { updatedAt: 70 })],
+    );
+    await listThreads(sql, 'org_1', 'user_1', {
+      cursor: { walk: 'pinned', at: 900, id: 'thread_p2' },
+      limit: 5,
+    });
+    const [pins, recent] = statements;
+    expect(pins?.text).toContain(
+      'AND (tm.pinned_at_ms, tm.thread_id) < (?::bigint, ?::text)',
+    );
+    expect(pins?.values).toEqual(expect.arrayContaining([900, 'thread_p2']));
+    expect(recent?.text).not.toContain('(t.updated_at_ms, t.id) <');
+    expect(recent?.values.at(-1)).toBe(5);
+  });
+
+  it('reads no pins once the cursor is past them, and ends on the last page', async () => {
+    const { sql, statements } = listingSql(() => [
+      listed('thread_r6', { updatedAt: 60 }),
+    ]);
+    const result = await listThreads(sql, 'org_1', 'user_1', {
+      cursor: { walk: 'recent', at: 60, id: 'thread_r7' },
+      limit: 5,
+    });
+    expect(statements).toHaveLength(1);
+    const [recent] = statements;
+    expect(recent?.text).toContain('tm.pinned_at_ms IS NULL');
+    expect(recent?.text).toContain(
+      'AND (t.updated_at_ms, t.id) < (?::bigint, ?::text)',
+    );
+    expect(recent?.values).toEqual(expect.arrayContaining([60, 'thread_r7']));
+    expect(recent?.values.at(-1)).toBe(6);
+    expect(result).toEqual({
+      page: [expect.objectContaining({ id: 'thread_r6' })],
+      isDone: true,
+      continueCursor: '',
+    });
+  });
+
+  it('answers an empty list as one finished page', async () => {
+    const { sql } = listingSql(() => []);
+    await expect(listThreads(sql, 'org_1', 'user_1')).resolves.toEqual({
+      page: [],
+      isDone: true,
+      continueCursor: '',
+    });
+  });
+
+  it('reads 50 chats by default and holds a page between 1 and 100', async () => {
+    const limitsAsked = async (limit?: number) => {
+      const { sql, statements } = listingSql(() => []);
+      await listThreads(
+        sql,
+        'org_1',
+        'user_1',
+        limit === undefined ? {} : { limit },
+      );
+      return statements.map((statement) => statement.values.at(-1));
+    };
+    expect(await limitsAsked()).toEqual([51, 51]);
+    expect(await limitsAsked(0)).toEqual([2, 2]);
+    expect(await limitsAsked(500)).toEqual([101, 101]);
+  });
+});
+
+describe('the thread list cursor', () => {
+  it('reads back the position it wrote, in either walk', () => {
+    for (const cursor of [
+      { walk: 'pinned', at: 1_700_000_000_000, id: 'thread_9' },
+      { walk: 'recent', at: 0, id: 'thread:with:colons' },
+    ] as const) {
+      expect(parseThreadListCursor(formatThreadListCursor(cursor))).toEqual(
+        cursor,
+      );
+    }
+  });
+
+  it.each([
+    '',
+    'abc',
+    'later:1:thread_1',
+    'pinned:1.5:thread_1',
+    'recent:1e3:thread_1',
+    'recent:9999999999999999:thread_1',
+    'recent::thread_1',
+    'recent:1',
+    'pinned:1:',
+  ])('refuses %j, a token the list never minted', (raw) => {
+    expect(parseThreadListCursor(raw)).toBeNull();
   });
 });

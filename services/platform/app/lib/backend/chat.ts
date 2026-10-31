@@ -6,6 +6,7 @@ import {
   VIDEO_LINK_HINT_ENTITY,
 } from '@/lib/shared/hint-entities';
 
+import type { AdaptedPage, PaginatedAdapter } from './adapters';
 import {
   BackendApiError,
   backendApiErrorFromBody,
@@ -18,9 +19,10 @@ import { backendEntityPrefix, backendKey } from './query-keys';
 /**
  * The chat THREAD family off the 0.5 backend — the first chat family to
  * leave the Convex websocket. Reads are `queryOptions` the seam's engine
- * (`useChatQuery`'s HTTP lane) consumes; writes are plain fetch functions
- * the action hooks call. Everything keys under
- * `['backend', orgId, 'chat_thread', …]`, the prefix the route layer's
+ * (`useChatQuery`'s HTTP lane) consumes, except the thread list: it pages,
+ * so it is a row of the app-wide paginated lane (`chatPaginatedAdapters`).
+ * Writes are plain fetch functions the action hooks call. Everything keys
+ * under `['backend', orgId, 'chat_thread', …]`, the prefix the route layer's
  * user-targeted hints invalidate — so another tab's rename/archive/trash
  * reflects here within a hint round-trip, and the writer's own tab
  * invalidates the same prefix locally for instant truth.
@@ -81,17 +83,52 @@ function projectThreadSummary(row: ThreadSummaryWire): Record<string, unknown> {
   };
 }
 
-/** The caller's active thread list (pinned floated, newest first). */
-export function chatThreadsQuery(organizationId: string) {
-  return queryOptions({
-    queryKey: backendKey(organizationId, 'chat_thread', 'list'),
-    queryFn: ({ signal }) =>
-      backendFetch<{ threads: ThreadSummaryWire[] }>('/chat/threads', {
-        signal,
-        orgId: organizationId,
-      }).then((body) => body.threads.map(projectThreadSummary)),
-  });
+/** One page of `GET /chat/threads`, or the whole list an older backend
+ * answers with. */
+type ThreadPageWire =
+  | { page: ThreadSummaryWire[]; isDone: boolean; continueCursor: string }
+  | { threads: ThreadSummaryWire[] };
+
+function threadPageView(body: ThreadPageWire): AdaptedPage {
+  // An older backend may still answer with the whole list during a roll.
+  if ('threads' in body) {
+    return {
+      page: body.threads.map(projectThreadSummary),
+      isDone: true,
+      continueCursor: '',
+    };
+  }
+  return {
+    page: body.page.map(projectThreadSummary),
+    isDone: body.isDone,
+    continueCursor: body.continueCursor,
+  };
 }
+
+/** The key of the caller's paged thread list. A retry refetches it. */
+export function chatThreadPageKey(organizationId: string) {
+  return backendKey(organizationId, 'chat_thread', 'page');
+}
+
+/** The caller's active threads, a page at a time: pinned first (the newest
+ * pin first), then the most recently updated. */
+export const chatPaginatedAdapters: Record<string, PaginatedAdapter> = {
+  'chat/threads:listThreads': (args, ctx) => {
+    const orgId =
+      typeof args.organizationId === 'string' && args.organizationId !== ''
+        ? args.organizationId
+        : ctx.organizationId;
+    if (orgId === undefined) return null;
+    return {
+      queryKey: chatThreadPageKey(orgId),
+      fetchPage: (cursor, numItems) =>
+        backendFetch<ThreadPageWire>(
+          `/chat/threads?limit=${numItems}${cursor !== null && cursor !== '' ? `&cursor=${encodeURIComponent(cursor)}` : ''}`,
+          { orgId },
+        ).then(threadPageView),
+    };
+  },
+};
 
 /** One page of the caller's archived threads. */
 export function archivedThreadsQuery(organizationId: string, cursor?: number) {

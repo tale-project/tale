@@ -6,8 +6,12 @@ import {
 } from '@tanstack/react-router';
 
 import { ChatSurface } from '@/app/features/chat/components/chat-surface';
+import { CHAT_THREADS_PAGE_SIZE } from '@/app/features/chat/data/chat-backend';
 import { dataNoticePolicyArgs } from '@/app/features/governance/lib/data-notice';
-import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
+import {
+  prefetchAdaptedPaginatedQuery,
+  prefetchAdaptedQuery,
+} from '@/app/lib/backend/prefetch';
 import { seo } from '@/lib/utils/seo';
 
 /**
@@ -32,9 +36,13 @@ export const Route = createFileRoute('/dashboard/$id/chat')({
   // prefetches with `includeArchived`, which is a different query identity
   // that the seam's watch would miss.
   loader: ({ context, params }) => {
-    prefetchAdaptedQuery(context.queryClient, 'chat/threads:listThreads', {
-      organizationId: params.id,
-    });
+    // The thread list pages: warm its first page, at the size the seam reads.
+    prefetchAdaptedPaginatedQuery(
+      context.queryClient,
+      'chat/threads:listThreads',
+      { organizationId: params.id },
+      CHAT_THREADS_PAGE_SIZE,
+    );
     prefetchAdaptedQuery(context.queryClient, 'projects/queries:listProjects', {
       organizationId: params.id,
     });

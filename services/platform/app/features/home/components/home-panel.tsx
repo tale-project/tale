@@ -31,6 +31,7 @@ import { Link, useLocation } from '@tanstack/react-router';
 import {
   Inbox,
   ListChecks,
+  Loader2Icon,
   MessageSquareDashed,
   SquarePen,
 } from 'lucide-react';
@@ -598,6 +599,38 @@ export function HomeNavigator({
     location.kind === 'chat' &&
     location.threadId === undefined &&
     viewIncludes(view, 'chat');
+  const streamEmpty = groups.length === 0 && !draftingChat;
+
+  // The chat list arrives a page at a time. While a page is left, a stream
+  // listing chats is not yet whole, and an empty one is not yet empty.
+  const {
+    canLoadMore: chatsCanLoadMore,
+    isLoadingMore: chatsLoadingMore,
+    loadMore: loadMoreChats,
+  } = data.chatPaging;
+  const moreChats =
+    viewIncludes(view, 'chat') && (chatsCanLoadMore || chatsLoadingMore);
+  // The end of the stream asks for the next page as it comes into view, and
+  // again after each page while it stays there — so a search or a project
+  // that hides every chat loaded so far reaches further until the end leaves
+  // the view or no page is left. The observer is made afresh as each page
+  // settles: its first report says whether the end is still in view. A
+  // folded panel shows no end, so it asks for nothing.
+  const [chatsEnd, setChatsEnd] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (chatsEnd === null || !chatsCanLoadMore) return undefined;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) loadMoreChats();
+      },
+      { rootMargin: '160px' },
+    );
+    observer.observe(chatsEnd);
+    return () => observer.disconnect();
+  }, [chatsEnd, chatsCanLoadMore, loadMoreChats]);
+  // What the stream shows while it reaches for more: a spinner under its
+  // rows, or the skeleton when none matched yet.
+  const loadingMoreChats = moreChats && (chatsLoadingMore || streamEmpty);
 
   const streamLayout = useMemo(
     () =>
@@ -824,10 +857,23 @@ export function HomeNavigator({
                     <Skeletonize loading className="flex flex-col gap-0.5 pt-2">
                       <HomeRowsSkeleton />
                     </Skeletonize>
-                  ) : groups.length === 0 && !draftingChat ? (
-                    // A failed read has said so above: an empty state here
-                    // would claim a list nobody could read is empty.
-                    streamFailed ? null : (
+                  ) : streamEmpty ? (
+                    // While a page of chats is left, nothing has matched in
+                    // the ones loaded so far: the end of the stream is its
+                    // top, and the skeleton stands in for what the next may
+                    // bring. A failed read has said so above: an empty state
+                    // here would claim a list nobody could read is empty.
+                    moreChats ? (
+                      <>
+                        <div ref={setChatsEnd} aria-hidden className="h-px" />
+                        <Skeletonize
+                          loading
+                          className="flex flex-col gap-0.5 pt-2"
+                        >
+                          <HomeRowsSkeleton />
+                        </Skeletonize>
+                      </>
+                    ) : streamFailed ? null : (
                       <HomeEmpty
                         view={view}
                         organizationId={organizationId}
@@ -836,27 +882,44 @@ export function HomeNavigator({
                       />
                     )
                   ) : (
-                    <HomeStream
-                      // Re-keyed per view, so switching views fades the new
-                      // list in instead of swapping rows in place.
-                      key={view}
-                      groups={groups}
-                      draft={
-                        draftingChat ? (
-                          <HomeDraftChatRow
-                            organizationId={organizationId}
-                            {...(draftProjectId !== undefined
-                              ? { projectId: draftProjectId }
-                              : {})}
+                    <>
+                      <HomeStream
+                        // Re-keyed per view, so switching views fades the new
+                        // list in instead of swapping rows in place.
+                        key={view}
+                        groups={groups}
+                        draft={
+                          draftingChat ? (
+                            <HomeDraftChatRow
+                              organizationId={organizationId}
+                              {...(draftProjectId !== undefined
+                                ? { projectId: draftProjectId }
+                                : {})}
+                            />
+                          ) : null
+                        }
+                        renderRow={renderRow}
+                        ariaLabel={t('aria.stream')}
+                        scrollElement={streamElement}
+                        activeKey={highlightKey}
+                        sizeUnknown={moreChats}
+                      />
+                      {moreChats && (
+                        <div ref={setChatsEnd} aria-hidden className="h-px" />
+                      )}
+                      {loadingMoreChats && (
+                        <div className="flex justify-center py-2">
+                          <Loader2Icon
+                            aria-hidden
+                            className="text-muted-foreground size-4 animate-spin"
                           />
-                        ) : null
-                      }
-                      renderRow={renderRow}
-                      ariaLabel={t('aria.stream')}
-                      scrollElement={streamElement}
-                      activeKey={highlightKey}
-                    />
+                        </div>
+                      )}
+                    </>
                   )}
+                  <span role="status" className="sr-only">
+                    {loadingMoreChats ? t('aria.loadingMoreChats') : null}
+                  </span>
                 </HomeStreamScroller>
 
                 {(view === 'all' || view === 'chats') && !scopeId && (

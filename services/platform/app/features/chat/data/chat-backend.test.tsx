@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import {
+  CHAT_THREADS_PAGE_SIZE,
   useArchivedThreads,
   useChatGeneration,
   useChatProjects,
@@ -67,18 +68,38 @@ describe('useChatQuery subscription stability', () => {
  * cache can't leak between cases.
  */
 
-function ThreadsProbe({ org }: { org: string }) {
-  return <output>{useChatThreads(org).status}</output>;
-}
-
 function WatchProbe({ org, threadId }: { org: string; threadId?: string }) {
   // An ADAPTED read, skipped when no thread is selected — what the seam's
   // 'skip' contract is actually about.
   const read = useChatQuery(
-    'chat/threads:listThreads',
-    threadId !== undefined ? { organizationId: org } : 'skip',
+    'chat/threads:getThread',
+    threadId !== undefined ? { organizationId: org, threadId } : 'skip',
   );
   return <output>{read.status}</output>;
+}
+
+/** A thread row as `GET /chat/threads*` answers it. */
+function wireThread(id: string) {
+  return {
+    id,
+    title: null,
+    kind: 'direct',
+    agentSlug: null,
+    harness: null,
+    capabilities: null,
+    reasoningEffort: null,
+    projectId: null,
+    sharedWithProject: null,
+    archived: false,
+    pinnedAt: null,
+    lastReplyAt: null,
+    lastReadAt: null,
+    isShared: null,
+    createdAt: 1,
+    updatedAt: 2,
+    generating: false,
+    viewerIsOwner: true,
+  };
 }
 
 function GenerationProbe({ org, threadId }: { org: string; threadId: string }) {
@@ -89,19 +110,19 @@ describe('useChatQuery HTTP lane (migrated thread family)', () => {
   it('serves ready from the backend with a steady status and ONE fetch', async () => {
     const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation(() =>
       Promise.resolve(
-        new Response(JSON.stringify({ threads: [] }), {
+        new Response(JSON.stringify({ thread: wireThread('thread-1') }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         }),
       ),
     );
     try {
-      render(<ThreadsProbe org="org-http" />);
+      render(<WatchProbe org="org-http" threadId="thread-1" />);
       await screen.findByText('ready');
       expect(fetchSpy).toHaveBeenCalledTimes(1);
       const firstUrl = fetchSpy.mock.calls[0]?.[0];
       expect(typeof firstUrl === 'string' ? firstUrl : '').toContain(
-        '/api/app/chat/threads',
+        '/api/app/chat/threads/thread-1/summary',
       );
     } finally {
       fetchSpy.mockRestore();
@@ -298,6 +319,156 @@ describe('useNavigatorProjects', () => {
   });
 });
 
+describe('useChatThreads', () => {
+  // The list arrives a page at a time (#5153): the first page at the page
+  // size, each next one asked for with the cursor the last one gave.
+  it('asks for the next page with the cursor the last one gave, and appends its rows', async () => {
+    let releasePageTwo = () => {};
+    const pageTwoReleased = new Promise<void>((resolve) => {
+      releasePageTwo = resolve;
+    });
+    const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const next = typeof input === 'string' && input.includes('cursor=c1');
+      const body = next
+        ? { page: [wireThread('t3')], isDone: true, continueCursor: '' }
+        : {
+            page: [wireThread('t1'), wireThread('t2')],
+            isDone: false,
+            continueCursor: 'c1',
+          };
+      const response = new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+      return next
+        ? pageTwoReleased.then(() => response)
+        : Promise.resolve(response);
+    });
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    function PagesProbe() {
+      const threads = useChatThreads('org-pages');
+      const ids =
+        threads.status === 'ready'
+          ? threads.data.map((thread) => thread.id).join(' ')
+          : threads.status;
+      return (
+        <button
+          type="button"
+          disabled={!threads.canLoadMore}
+          onClick={threads.loadMore}
+        >
+          {threads.isLoadingMore ? `${ids} …` : ids}
+        </button>
+      );
+    }
+    try {
+      const { user } = render(
+        <QueryClientProvider client={client}>
+          <PagesProbe />
+        </QueryClientProvider>,
+      );
+      await screen.findByText('t1 t2');
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+      await user.click(screen.getByRole('button'));
+      await screen.findByText('t1 t2 …');
+      releasePageTwo();
+      await screen.findByText('t1 t2 t3');
+      expect(screen.getByRole('button')).toBeDisabled();
+      const urls = fetchSpy.mock.calls.map(([input]) =>
+        typeof input === 'string' ? input : '',
+      );
+      expect(urls).toHaveLength(2);
+      expect(urls[0]).toContain(
+        `/api/app/chat/threads?limit=${CHAT_THREADS_PAGE_SIZE}&orgId=org-pages`,
+      );
+      expect(urls[1]).toContain(
+        `/api/app/chat/threads?limit=${CHAT_THREADS_PAGE_SIZE}&cursor=c1&orgId=org-pages`,
+      );
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  // A page after the first that fails leaves the pages before it listed and
+  // is named; only its retry asks for it again, since the scroll sentinel and
+  // the search drain ask for more on every render.
+  it('keeps the pages that loaded when the next one fails, and asks for that page alone again', async () => {
+    let pageTwoStatus = 503;
+    const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation((input) => {
+      const next = typeof input === 'string' && input.includes('cursor=c1');
+      const status = next ? pageTwoStatus : 200;
+      const body =
+        status !== 200
+          ? { error: 'Unavailable' }
+          : next
+            ? { page: [wireThread('t3')], isDone: true, continueCursor: '' }
+            : {
+                page: [wireThread('t1'), wireThread('t2')],
+                isDone: false,
+                continueCursor: 'c1',
+              };
+      return Promise.resolve(
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { 'content-type': 'application/json' },
+        }),
+      );
+    });
+    // The listing asks again for a fault on its own first: no wait between.
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, retryDelay: 0 } },
+    });
+    function FailedPageProbe() {
+      const threads = useChatThreads('org-page-fault');
+      if (threads.status !== 'ready') return <p>{threads.status}</p>;
+      const ids = threads.data.map((thread) => thread.id).join(' ');
+      return (
+        <>
+          <p>{threads.pageFailed ? `${ids} failed` : ids}</p>
+          <button type="button" onClick={threads.loadMore}>
+            more
+          </button>
+          <button type="button" onClick={threads.retryPage}>
+            retry
+          </button>
+        </>
+      );
+    }
+    const asked = (pageTwo: boolean) =>
+      fetchSpy.mock.calls.filter(
+        ([input]) =>
+          typeof input === 'string' && input.includes('cursor=c1') === pageTwo,
+      ).length;
+    try {
+      const { user } = render(
+        <QueryClientProvider client={client}>
+          <FailedPageProbe />
+        </QueryClientProvider>,
+      );
+      await screen.findByText('t1 t2');
+
+      await user.click(screen.getByRole('button', { name: 'more' }));
+      await screen.findByText('t1 t2 failed');
+      const pageTwoAsks = asked(true);
+      // Asking for more while that page stands failed asks for nothing.
+      await user.click(screen.getByRole('button', { name: 'more' }));
+      expect(asked(true)).toBe(pageTwoAsks);
+
+      pageTwoStatus = 200;
+      await user.click(screen.getByRole('button', { name: 'retry' }));
+      await screen.findByText('t1 t2 t3');
+      expect(asked(true)).toBe(pageTwoAsks + 1);
+      // The retry did not read the first page again.
+      expect(asked(false)).toBe(1);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+});
+
 describe('useChatThreadsRetry', () => {
   // The Home stream's Try again (#4093): a list read that came back
   // `unavailable` is asked for again on the seam's own client, and the
@@ -310,14 +481,17 @@ describe('useChatThreadsRetry', () => {
         Promise.resolve(
           new Response(
             JSON.stringify(
-              status === 200 ? { threads: [] } : { error: 'Unavailable' },
+              status === 200
+                ? { page: [], isDone: true, continueCursor: '' }
+                : { error: 'Unavailable' },
             ),
             { status, headers: { 'content-type': 'application/json' } },
           ),
         ),
       );
+    // The listing asks again for a fault on its own first: no wait between.
     const client = new QueryClient({
-      defaultOptions: { queries: { retry: false } },
+      defaultOptions: { queries: { retry: false, retryDelay: 0 } },
     });
     function RetryProbe() {
       const threads = useChatThreads('org-retry');
@@ -338,12 +512,12 @@ describe('useChatThreadsRetry', () => {
         </QueryClientProvider>,
       );
       await screen.findByText('unavailable');
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const asked = fetchSpy.mock.calls.length;
 
       status = 200;
       await user.click(screen.getByRole('button'));
       await screen.findByText('ready');
-      expect(fetchSpy).toHaveBeenCalledTimes(2);
+      expect(fetchSpy).toHaveBeenCalledTimes(asked + 1);
       const urls = fetchSpy.mock.calls.map(([input]) =>
         typeof input === 'string' ? input : '',
       );
@@ -363,7 +537,7 @@ describe('useChatThreadsRetry', () => {
         typeof input === 'string' && input.includes('/chat/threads/archived');
       const status = archived ? archivedStatus : 200;
       const body = !archived
-        ? { threads: [] }
+        ? { page: [], isDone: true, continueCursor: '' }
         : status === 200
           ? { rows: [], nextCursor: null }
           : { error: 'Unavailable' };
@@ -416,15 +590,15 @@ describe('useChatThreadsRetry', () => {
 });
 
 describe('useChatQuery session cache', () => {
-  /** An ADAPTED read (the threads listing) whose answer the seam caches. */
+  /** An ADAPTED read (the projects listing) whose answer the seam caches. */
   function CachedProbe({ org }: { org: string }) {
-    return <output>{useChatThreads(org).status}</output>;
+    return <output>{useChatProjects(org).status}</output>;
   }
 
   it('serves the last answer across a remount while it revalidates', async () => {
     const fetchSpy = vi.spyOn(window, 'fetch').mockImplementation(() =>
       Promise.resolve(
-        new Response(JSON.stringify({ threads: [] }), {
+        new Response(JSON.stringify({ projects: [] }), {
           status: 200,
           headers: { 'content-type': 'application/json' },
         }),

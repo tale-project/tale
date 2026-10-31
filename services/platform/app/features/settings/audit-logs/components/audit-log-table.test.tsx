@@ -324,6 +324,7 @@ function listing(
     retry: vi.fn(),
     isRetrying: false,
     unavailable: false,
+    loadMoreFailed: false,
     errorCount: 0,
     ...overrides,
   };

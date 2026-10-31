@@ -276,30 +276,46 @@ export interface ChatContract {
       nextCursor: null | number;
     };
   };
+  /** The caller's active threads as a keyset PAGE walk: pinned first (the
+   * newest pin first), then the most recently updated. */
   'chat/threads:listThreads': {
     kind: 'query';
-    args: { organizationId: string };
-    returns: Array<{
-      id: string;
-      title?: string;
-      kind: 'sandbox' | 'direct';
-      agentSlug?: string;
-      harness?: string;
-      capabilities?: { skills: string[]; connectors: string[] };
-      reasoningEffort?: 'low' | 'medium' | 'high' | 'extra' | 'max';
-      projectId?: string;
-      sharedWithProject?: boolean;
-      archived: boolean;
-      pinnedAt?: number;
-      lastReplyAt?: number;
-      lastReadAt?: number;
-      isShared?: boolean;
-      inArena?: boolean;
-      createdAt: number;
-      updatedAt: number;
-      generating: boolean;
-      viewerIsOwner: boolean;
-    }>;
+    args: {
+      organizationId: string;
+      paginationOpts: {
+        id?: number;
+        endCursor?: null | string;
+        maximumRowsRead?: number;
+        maximumBytesRead?: number;
+        numItems: number;
+        cursor: null | string;
+      };
+    };
+    returns: {
+      page: Array<{
+        id: string;
+        title?: string;
+        kind: 'sandbox' | 'direct';
+        agentSlug?: string;
+        harness?: string;
+        capabilities?: { skills: string[]; connectors: string[] };
+        reasoningEffort?: 'low' | 'medium' | 'high' | 'extra' | 'max';
+        projectId?: string;
+        sharedWithProject?: boolean;
+        archived: boolean;
+        pinnedAt?: number;
+        lastReplyAt?: number;
+        lastReadAt?: number;
+        isShared?: boolean;
+        inArena?: boolean;
+        createdAt: number;
+        updatedAt: number;
+        generating: boolean;
+        viewerIsOwner: boolean;
+      }>;
+      isDone: boolean;
+      continueCursor: string;
+    };
   };
   'chat/threads:setThreadSharedWithProject': {
     kind: 'mutation';

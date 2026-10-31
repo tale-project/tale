@@ -13,6 +13,7 @@ import type { OrgEnv } from '../../auth/org.ts';
 
 const {
   trashThread,
+  listThreads,
   listArchivedThreads,
   branchForEdit,
   branchForRegenerate,
@@ -34,6 +35,7 @@ const {
   listChatSkillChoices,
 } = vi.hoisted(() => ({
   trashThread: vi.fn(),
+  listThreads: vi.fn(),
   listArchivedThreads: vi.fn(),
   branchForEdit: vi.fn(),
   branchForRegenerate: vi.fn(),
@@ -60,6 +62,7 @@ vi.mock('./bulk.ts', () => ({ bulkUpdateThreads }));
 vi.mock('./threads.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./threads.ts')>()),
   trashThread,
+  listThreads,
   listArchivedThreads,
   branchForEdit,
   branchForRegenerate,
@@ -944,6 +947,58 @@ describe('GET /threads/archived — the numeric query params are a boundary', ()
 
     expect(res.status).toBe(400);
     expect(listArchivedThreads).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /threads — one page of the list at a time [CHAT-R35]', () => {
+  beforeEach(() => {
+    listThreads.mockResolvedValue({
+      page: [],
+      isDone: true,
+      continueCursor: '',
+    });
+  });
+
+  it('reads the first page at the default size when no query is given', async () => {
+    const res = await makeApp().request('/threads?orgId=o1');
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      page: [],
+      isDone: true,
+      continueCursor: '',
+    });
+    expect(listThreads).toHaveBeenCalledWith(expect.anything(), 'o1', 'u1', {});
+  });
+
+  it('passes the limit and the decoded cursor of the walk it continues', async () => {
+    const res = await makeApp().request(
+      `/threads?orgId=o1&limit=20&cursor=${encodeURIComponent('recent:1700000000000:thread_9')}`,
+    );
+
+    expect(res.status).toBe(200);
+    expect(listThreads).toHaveBeenCalledWith(expect.anything(), 'o1', 'u1', {
+      cursor: { walk: 'recent', at: 1_700_000_000_000, id: 'thread_9' },
+      limit: 20,
+    });
+  });
+
+  it('answers 400 to a cursor the list never minted', async () => {
+    for (const cursor of ['abc', 'later:1:thread_1', 'pinned:1.5:thread_1']) {
+      const res = await makeApp().request(
+        `/threads?orgId=o1&cursor=${encodeURIComponent(cursor)}`,
+      );
+      expect(res.status).toBe(400);
+    }
+    expect(listThreads).not.toHaveBeenCalled();
+  });
+
+  it('answers 400 to a limit outside the page ceiling', async () => {
+    for (const limit of ['0', '101', 'ten']) {
+      const res = await makeApp().request(`/threads?orgId=o1&limit=${limit}`);
+      expect(res.status).toBe(400);
+    }
+    expect(listThreads).not.toHaveBeenCalled();
   });
 });
 

@@ -6,6 +6,7 @@ import { VIDEO_LINK_HINT_ENTITY } from '@/lib/shared/hint-entities';
 import { BackendApiError } from './api-client';
 import { budgetScopeOf } from './budget-refusal';
 import {
+  chatPaginatedAdapters,
   sendChatTurn,
   videoJobsForThreadQuery,
   videoJobsPollInterval,
@@ -192,6 +193,132 @@ describe('the video-link chip reads', () => {
       videoJobsUnboundQuery('org1'),
     ]) {
       expect(typeof options.refetchInterval).toBe('function');
+    }
+  });
+});
+
+/** A thread row as `GET /chat/threads` answers it: `null` for every field
+ * the row does not carry. */
+function wireThread(id: string, overrides: Record<string, unknown> = {}) {
+  return {
+    id,
+    title: null,
+    kind: 'direct',
+    agentSlug: null,
+    harness: null,
+    capabilities: null,
+    reasoningEffort: null,
+    projectId: null,
+    sharedWithProject: null,
+    archived: false,
+    pinnedAt: null,
+    lastReplyAt: null,
+    lastReadAt: null,
+    isShared: null,
+    createdAt: 1,
+    updatedAt: 2,
+    generating: false,
+    viewerIsOwner: true,
+    ...overrides,
+  };
+}
+
+function threadPages() {
+  const adapter = chatPaginatedAdapters['chat/threads:listThreads'];
+  const options = adapter?.({ organizationId: 'org1' }, {});
+  if (options === undefined || options === null) {
+    throw new Error('the thread list has no paginated row');
+  }
+  return options;
+}
+
+/**
+ * The thread list used to come back whole, every active chat in one answer
+ * (#5153); it now arrives a keyset page at a time, and the cursor each page
+ * answers is what asks for the next.
+ */
+describe('the paged thread list', () => {
+  it('asks for a page of the given size, then passes the cursor on, and maps the rows', async () => {
+    // The client asks by path, so the address arrives as a string.
+    const fetchMock = vi.fn(async (input: string) =>
+      Response.json(
+        input.includes('cursor=')
+          ? { page: [wireThread('t3')], isDone: true, continueCursor: '' }
+          : {
+              page: [
+                wireThread('t1', { title: 'Pinned', pinnedAt: 9 }),
+                wireThread('t2'),
+              ],
+              isDone: false,
+              continueCursor: '2:t2/next',
+            },
+      ),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      const { queryKey, fetchPage } = threadPages();
+      // Under the entity the backend hints, so a write elsewhere refetches it.
+      expect(queryKey.slice(0, 3)).toEqual(['backend', 'org1', 'chat_thread']);
+
+      const first = await fetchPage(null, 50);
+      expect(fetchMock.mock.calls[0]?.[0]).toBe(
+        '/api/app/chat/threads?limit=50&orgId=org1',
+      );
+      expect(first).toEqual({
+        page: [
+          {
+            id: 't1',
+            kind: 'direct',
+            archived: false,
+            createdAt: 1,
+            updatedAt: 2,
+            generating: false,
+            viewerIsOwner: true,
+            title: 'Pinned',
+            pinnedAt: 9,
+          },
+          {
+            id: 't2',
+            kind: 'direct',
+            archived: false,
+            createdAt: 1,
+            updatedAt: 2,
+            generating: false,
+            viewerIsOwner: true,
+          },
+        ],
+        isDone: false,
+        continueCursor: '2:t2/next',
+      });
+
+      const second = await fetchPage(first.continueCursor, 50);
+      expect(fetchMock.mock.calls[1]?.[0]).toBe(
+        `/api/app/chat/threads?limit=50&cursor=${encodeURIComponent('2:t2/next')}&orgId=org1`,
+      );
+      expect(second).toMatchObject({
+        page: [{ id: 't3' }],
+        isDone: true,
+        continueCursor: '',
+      });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('reads the whole list an older backend answers as one finished page', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({ threads: [wireThread('t1'), wireThread('t2')] }),
+      ),
+    );
+    try {
+      const page = await threadPages().fetchPage(null, 50);
+      expect(page.isDone).toBe(true);
+      expect(page.continueCursor).toBe('');
+      expect(page.page).toMatchObject([{ id: 't1' }, { id: 't2' }]);
+    } finally {
+      vi.unstubAllGlobals();
     }
   });
 });

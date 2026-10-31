@@ -75,3 +75,4 @@ aria:
   stream: Your chats, tasks and conversations
   inbox: Inbox conversations
   attention: '{count, plural, one {# item needs you} other {# items need you}}'
+  loadingMoreChats: Loading more chats…

@@ -37,6 +37,7 @@ import {
 } from '@tanstack/react-query';
 import { useCallback, useContext, useEffect, useMemo } from 'react';
 
+import { useCachedPaginatedQuery } from '@/app/hooks/use-cached-paginated-query';
 import { BackendApiError, backendFetch } from '@/app/lib/backend/api-client';
 import {
   fileStatusesQuery,
@@ -53,8 +54,8 @@ import {
   chatComposerSkillsQuery,
   chatMessagesQuery,
   chatSearchQuery,
+  chatThreadPageKey,
   chatThreadQuery,
-  chatThreadsQuery,
   createChatThread,
   enqueueDeferredSendRequest,
   invalidateChatMessages,
@@ -145,8 +146,6 @@ const HTTP_READS: Record<
   string,
   (args: Record<string, unknown>) => HttpReadOptions
 > = {
-  'chat/threads:listThreads': (args) =>
-    chatThreadsQuery(String(args.organizationId)),
   'chat/threads:listArchivedThreads': (args) =>
     archivedThreadsQuery(
       String(args.organizationId),
@@ -308,11 +307,63 @@ export function useChatQuery<Name extends QueryName>(
   return result;
 }
 
-/** The caller's chats — the Home stream's chat rows. */
-export function useChatThreads(
-  organizationId: string,
-): ChatQuery<readonly ChatThreadSummary[]> {
-  return useChatQuery('chat/threads:listThreads', { organizationId });
+/** How many chats a page of the caller's list holds: the first page, and
+ * each one after it that Home loads as its stream reaches the end. */
+export const CHAT_THREADS_PAGE_SIZE = 50;
+
+/** The caller's chats as far as their pages have loaded, and the way on. */
+export type ChatThreadsQuery = ChatQuery<readonly ChatThreadSummary[]> & {
+  /** A further page is there to load. */
+  readonly canLoadMore: boolean;
+  /** The next page is on its way. */
+  readonly isLoadingMore: boolean;
+  /** Load the next page: a no-op while one loads, when none is left, or
+   * after the last one failed. */
+  readonly loadMore: () => void;
+  /** The next page failed: the pages before it stand, and `retryPage` asks
+   * for it again (`isLoadingMore` while it does). */
+  readonly pageFailed: boolean;
+  readonly retryPage: () => void;
+};
+
+/**
+ * The caller's chats — the Home stream's chat rows — a page at a time,
+ * pinned first, then the most recently updated. `ready` carries the pages
+ * loaded so far.
+ */
+export function useChatThreads(organizationId: string): ChatThreadsQuery {
+  const {
+    results,
+    status,
+    error,
+    unavailable,
+    loadMore: loadPage,
+    loadMoreFailed,
+    retry: retryPage,
+  } = useCachedPaginatedQuery(
+    'chat/threads:listThreads',
+    { organizationId },
+    { initialNumItems: CHAT_THREADS_PAGE_SIZE },
+  );
+  const loadMore = useCallback(
+    () => loadPage(CHAT_THREADS_PAGE_SIZE),
+    [loadPage],
+  );
+  // `unavailable` means what it means for every chat read: the first page
+  // failed and nothing is shown. A retry reads as `loading` until it settles.
+  const failed = unavailable && error !== null;
+  return useMemo<ChatThreadsQuery>(() => {
+    const paging = {
+      canLoadMore: status === 'CanLoadMore',
+      isLoadingMore: status === 'LoadingMore',
+      loadMore,
+      pageFailed: loadMoreFailed,
+      retryPage,
+    };
+    if (failed) return { status: 'unavailable', ...paging };
+    if (status === 'LoadingFirstPage') return { status: 'loading', ...paging };
+    return { status: 'ready', data: results, ...paging };
+  }, [failed, status, results, loadMore, loadMoreFailed, retryPage]);
 }
 
 /**
@@ -489,7 +540,7 @@ export function useChatThreadsRetry(
   return useCallback(
     async (reads) => {
       const keys = [
-        ...(reads.threads ? [chatThreadsQuery(organizationId).queryKey] : []),
+        ...(reads.threads ? [chatThreadPageKey(organizationId)] : []),
         ...(reads.archived
           ? [archivedThreadsQuery(organizationId).queryKey]
           : []),
