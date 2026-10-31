@@ -31,6 +31,10 @@ enterpriseSso:
     App-Registrierung — sie muss exakt übereinstimmen (Schema, Host, Pfad, kein
     abschliessender Schrägstrich), sonst schlägt die Anmeldung mit AADSTS50011
     fehl.
+organization:
+  memberRights:
+    reasons:
+      roleRefuses: Die Rolle {role} schliesst jedes Recht aus, auch ein zugewiesenes.
 providers:
   subscriptionScope:
     description: >-

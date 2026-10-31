@@ -4,7 +4,13 @@ import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@tale/ui/entity/entity-row-actions';
-import { ArrowRightLeft, KeyRound, Pencil, Trash2 } from 'lucide-react';
+import {
+  ArrowRightLeft,
+  KeyRound,
+  Pencil,
+  ShieldCheck,
+  Trash2,
+} from 'lucide-react';
 import { useMemo } from 'react';
 
 import { MemberApiKeysDialog } from '@/app/features/settings/api-keys/components/member-api-keys-dialog';
@@ -12,6 +18,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { DeleteMemberDialog } from './member-delete-dialog';
 import { EditMemberDialog } from './member-edit-dialog';
+import { MemberRightsDialog } from './member-rights-dialog';
 import { TransferOwnershipDialog } from './transfer-ownership-dialog';
 
 type MemberItem = {
@@ -45,12 +52,15 @@ export function MemberRowActions({
   const dialogs = useEntityRowDialogs([
     'edit',
     'apiKeys',
+    'rights',
     'delete',
     'transferOwnership',
   ]);
 
   const isViewingSelf = memberContext?.member?._id === member._id;
   const canManageMembers = memberContext?.canManageMembers ?? false;
+  // A member's rights, and the register behind their switches, are for
+  // owners and admins (GOV-R21) — anyone's, their own and the owner's too.
   const callerIsAdmin = memberContext?.isAdmin ?? false;
   const isOwner = member.role?.toLowerCase() === 'owner';
   const callerIsOwner = memberContext?.role?.toLowerCase() === 'owner';
@@ -72,6 +82,13 @@ export function MemberRowActions({
         icon: KeyRound,
         onClick: dialogs.open.apiKeys,
         visible: callerIsAdmin && !isViewingSelf,
+      },
+      {
+        key: 'rights',
+        label: tSettings('organization.memberRights.action'),
+        icon: ShieldCheck,
+        onClick: dialogs.open.rights,
+        visible: callerIsAdmin,
       },
       {
         key: 'transferOwnership',
@@ -110,7 +127,7 @@ export function MemberRowActions({
       <EntityRowActions actions={actions} contentWidth="w-[11.5rem]" />
 
       {/* Each dialog mounts from its first open: every row of the list
-          carries all four. */}
+          carries all five. */}
       {dialogs.mounted.edit && (
         <EditMemberDialog
           open={dialogs.isOpen.edit}
@@ -124,6 +141,15 @@ export function MemberRowActions({
         <MemberApiKeysDialog
           open={dialogs.isOpen.apiKeys}
           onOpenChange={dialogs.setOpen.apiKeys}
+          organizationId={member.organizationId}
+          member={member}
+        />
+      )}
+
+      {dialogs.mounted.rights && (
+        <MemberRightsDialog
+          open={dialogs.isOpen.rights}
+          onOpenChange={dialogs.setOpen.rights}
           organizationId={member.organizationId}
           member={member}
         />

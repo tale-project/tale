@@ -317,6 +317,29 @@ organization:
     Es-tu sûr de vouloir transférer la propriété à
     {name} ? Tu seras rétrogradé au rôle d'administrateur.
   ownershipTransferred: Propriété transférée avec succès
+  memberRights:
+    action: Droits
+    title: Droits de {name}
+    description: Ce que ce membre peut faire dans l'organisation, et pourquoi. Un interrupteur attribue le droit comme compétence, avec une expiration si tu veux, ou révoque l'attribution. Chaque changement est consigné dans le journal d'audit.
+    loadFailed: Impossible de charger les droits.
+    refreshFailed: Impossible d'actualiser les droits. Ce que tu vois n'est peut-être plus à jour.
+    held: Autorisé
+    notHeld: Non autorisé
+    reasons:
+      modelApiOn: Les endpoints de modèles pour les clés API sont activés pour cette organisation.
+      modelApiOff: Les endpoints de modèles pour les clés API ne sont pas activés pour cette organisation, donc personne ne peut appeler les modèles par l'API.
+      modelApiUnreadable: La politique d'accès aux modèles est illisible, donc les endpoints de modèles comptent comme non activés.
+      skillSharing: Le partage des skills est réglé sur « {mode} ».
+      roleAdmits: Son rôle, {role}, inclut ce droit.
+      roleGrant: Son rôle, {role}, demande une attribution pour ce droit.
+      roleRefuses: Son rôle, {role}, exclut tout droit, même attribué.
+      grantActive: Attribué par {name} le {granted}, sans expiration.
+      grantActiveUntil: Attribué par {name} le {granted}, jusqu'au {expires}.
+      grantExpired: L'attribution par {name} a expiré le {expires}.
+      teamGrantActive: Attribué à l'équipe « {team} » par {name} le {granted}, sans expiration.
+      teamGrantActiveUntil: Attribué à l'équipe « {team} » par {name} le {granted}, jusqu'au {expires}.
+      teamGrantExpired: L'attribution à l'équipe « {team} » par {name} a expiré le {expires}.
+      noGrant: Non attribué.
 teams:
   title: Équipes
   entityLabel: équipes

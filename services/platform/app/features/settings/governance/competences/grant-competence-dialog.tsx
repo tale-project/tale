@@ -9,6 +9,7 @@ import { Input } from '@tale/ui/input';
 import { SearchableSelect } from '@tale/ui/searchable-select';
 import { Select } from '@tale/ui/select';
 import { Skeletonize } from '@tale/ui/skeleton-context';
+import { Text } from '@tale/ui/text';
 import { Textarea } from '@tale/ui/textarea';
 import { useForm } from '@tale/ui/use-form';
 import { useToast } from '@tale/ui/use-toast';
@@ -79,23 +80,34 @@ interface GrantCompetenceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   organizationId: string;
+  /** The member and the right, chosen already: a right's switch in
+   * Settings › Members grants that right to that member (GOV-R21). The
+   * pickers give way to a sentence that names both. */
+  fixed?: {
+    userId: string;
+    memberName: string;
+    capability: PlatformCapability;
+  };
 }
 
 export function GrantCompetenceDialog({
   open,
   onOpenChange,
   organizationId,
+  fixed,
 }: GrantCompetenceDialogProps) {
   const { t } = useT('governance');
   const { toast } = useToast();
   const { mutateAsync, isPending } = useGrantCompetence();
-  const members = useOrgMembersForPicker(open ? organizationId : undefined);
+  const members = useOrgMembersForPicker(
+    open && fixed === undefined ? organizationId : undefined,
+  );
   // Until the member list answers it offers nobody, and that never reads as
   // nobody to grant to (#4586): a pending read masks the picker, a failed
   // one names the list with Try again above it.
   const membersAnswered = members.data !== undefined;
   const membersRead = readStateOf(members);
-  const teams = useOrgTeams(open);
+  const teams = useOrgTeams(open && fixed === undefined);
   // A refusal the admin can act on stays in the form, beside the fields.
   const [submitError, setSubmitError] = useState<string | null>(null);
 
@@ -158,9 +170,9 @@ export function GrantCompetenceDialog({
     mode: 'onChange',
     defaultValues: {
       holder: 'member',
-      userId: '',
+      userId: fixed?.userId ?? '',
       teamId: '',
-      competence: '',
+      competence: fixed?.capability ?? '',
       qualification: '',
       expiry: 'never',
       evidence: '',
@@ -306,7 +318,16 @@ export function GrantCompetenceDialog({
         else close();
       }}
       title={t('competences.grantDialog.title')}
-      description={t('competences.grantDialog.description')}
+      description={
+        fixed === undefined
+          ? t('competences.grantDialog.description')
+          : t('competences.grantDialog.fixedDescription', {
+              member: fixed.memberName,
+              competence: t(
+                `competences.capabilities.${capabilityMessageKey(fixed.capability)}.label`,
+              ),
+            })
+      }
       isSubmitting={isPending}
       isValid={formState.isValid}
       onSubmit={onSubmit}
@@ -316,123 +337,136 @@ export function GrantCompetenceDialog({
         {submitError !== null && (
           <Alert variant="destructive" description={submitError} />
         )}
-        <Select
-          id="competence-holder"
-          label={t('competences.grantDialog.holderLabel')}
-          value={holder}
-          onValueChange={(value) => {
-            if (!isHolderChoice(value)) return;
-            setSubmitError(null);
-            setValue('holder', value, {
-              shouldDirty: true,
-              shouldValidate: true,
-            });
-            // A team holds no qualification: the choice goes with the switch.
-            if (value === 'team' && competence === QUALIFICATION) {
-              setValue('competence', '', { shouldValidate: true });
-            }
-          }}
-          options={holderOptions}
-        />
-        {holder === 'team' && (
+        {fixed !== undefined && (
+          <Text variant="muted">
+            {t(
+              `competences.capabilities.${capabilityMessageKey(fixed.capability)}.description`,
+            )}
+          </Text>
+        )}
+        {fixed === undefined && (
           <>
-            {teams.unavailable && (
+            <Select
+              id="competence-holder"
+              label={t('competences.grantDialog.holderLabel')}
+              value={holder}
+              onValueChange={(value) => {
+                if (!isHolderChoice(value)) return;
+                setSubmitError(null);
+                setValue('holder', value, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                });
+                // A team holds no qualification: the choice goes with the switch.
+                if (value === 'team' && competence === QUALIFICATION) {
+                  setValue('competence', '', { shouldValidate: true });
+                }
+              }}
+              options={holderOptions}
+            />
+            {holder === 'team' && (
+              <>
+                {teams.unavailable && (
+                  <CatalogLoadError
+                    message={t('competences.grantDialog.teamLoadFailed')}
+                    failureKey={teams.failureCount}
+                    isRetrying={teams.retrying}
+                    onRetry={teams.retry}
+                    onFocusLost={() =>
+                      document.getElementById('competence-team')?.focus()
+                    }
+                  />
+                )}
+                <Skeletonize
+                  loading={teams.teams === undefined && !teams.unavailable}
+                >
+                  <SearchableSelect
+                    id="competence-team"
+                    label={t('competences.grantDialog.teamLabel')}
+                    placeholder={t('competences.grantDialog.teamPlaceholder')}
+                    searchPlaceholder={t('competences.grantDialog.teamSearch')}
+                    emptyText={t('competences.grantDialog.teamEmpty')}
+                    description={t('competences.grantDialog.teamDescription')}
+                    required
+                    disabled={teams.teams === undefined}
+                    value={teamId || null}
+                    onValueChange={(value) => {
+                      setSubmitError(null);
+                      setValue('teamId', value, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }}
+                    options={teamOptions}
+                    error={formState.errors.teamId !== undefined}
+                  />
+                </Skeletonize>
+              </>
+            )}
+            {holder === 'member' && membersRead.unavailable && (
               <CatalogLoadError
-                message={t('competences.grantDialog.teamLoadFailed')}
-                failureKey={teams.failureCount}
-                isRetrying={teams.retrying}
-                onRetry={teams.retry}
+                message={t('competences.grantDialog.memberLoadFailed')}
+                failureKey={membersRead.failureCount}
+                isRetrying={membersRead.retrying}
+                onRetry={() => void members.refetch()}
+                // A retry that brings the list takes the alert away: the focus
+                // it held goes to the picker, not the page.
                 onFocusLost={() =>
-                  document.getElementById('competence-team')?.focus()
+                  document.getElementById('competence-member')?.focus()
                 }
               />
             )}
-            <Skeletonize
-              loading={teams.teams === undefined && !teams.unavailable}
-            >
-              <SearchableSelect
-                id="competence-team"
-                label={t('competences.grantDialog.teamLabel')}
-                placeholder={t('competences.grantDialog.teamPlaceholder')}
-                searchPlaceholder={t('competences.grantDialog.teamSearch')}
-                emptyText={t('competences.grantDialog.teamEmpty')}
-                description={t('competences.grantDialog.teamDescription')}
-                required
-                disabled={teams.teams === undefined}
-                value={teamId || null}
-                onValueChange={(value) => {
-                  setSubmitError(null);
-                  setValue('teamId', value, {
-                    shouldDirty: true,
-                    shouldValidate: true,
-                  });
-                }}
-                options={teamOptions}
-                error={formState.errors.teamId !== undefined}
-              />
-            </Skeletonize>
-          </>
-        )}
-        {holder === 'member' && membersRead.unavailable && (
-          <CatalogLoadError
-            message={t('competences.grantDialog.memberLoadFailed')}
-            failureKey={membersRead.failureCount}
-            isRetrying={membersRead.retrying}
-            onRetry={() => void members.refetch()}
-            // A retry that brings the list takes the alert away: the focus
-            // it held goes to the picker, not the page.
-            onFocusLost={() =>
-              document.getElementById('competence-member')?.focus()
-            }
-          />
-        )}
-        {holder === 'member' && (
-          <Skeletonize loading={!membersAnswered && !membersRead.unavailable}>
+            {holder === 'member' && (
+              <Skeletonize
+                loading={!membersAnswered && !membersRead.unavailable}
+              >
+                <SearchableSelect
+                  id="competence-member"
+                  label={t('competences.grantDialog.memberLabel')}
+                  placeholder={t('competences.grantDialog.memberPlaceholder')}
+                  searchPlaceholder={t('competences.grantDialog.memberSearch')}
+                  emptyText={t('competences.grantDialog.memberEmpty')}
+                  required
+                  disabled={!membersAnswered}
+                  value={userId || null}
+                  onValueChange={(value) => {
+                    // A refusal was about the previous choice; a new one clears it.
+                    setSubmitError(null);
+                    setValue('userId', value, {
+                      shouldDirty: true,
+                      shouldValidate: true,
+                    });
+                  }}
+                  options={memberOptions}
+                  error={formState.errors.userId !== undefined}
+                />
+              </Skeletonize>
+            )}
             <SearchableSelect
-              id="competence-member"
-              label={t('competences.grantDialog.memberLabel')}
-              placeholder={t('competences.grantDialog.memberPlaceholder')}
-              searchPlaceholder={t('competences.grantDialog.memberSearch')}
-              emptyText={t('competences.grantDialog.memberEmpty')}
+              id="competence-name"
+              label={t('competences.grantDialog.competenceLabel')}
+              placeholder={t('competences.grantDialog.competencePlaceholder')}
               required
-              disabled={!membersAnswered}
-              value={userId || null}
+              value={competence || null}
               onValueChange={(value) => {
-                // A refusal was about the previous choice; a new one clears it.
                 setSubmitError(null);
-                setValue('userId', value, {
+                setValue('competence', value, {
                   shouldDirty: true,
                   shouldValidate: true,
                 });
               }}
-              options={memberOptions}
-              error={formState.errors.userId !== undefined}
+              options={competenceOptions}
+              description={
+                isPlatformCapability(competence)
+                  ? t(
+                      `competences.capabilities.${capabilityMessageKey(competence)}.description`,
+                    )
+                  : undefined
+              }
+              error={formState.errors.competence !== undefined}
             />
-          </Skeletonize>
+          </>
         )}
-        <SearchableSelect
-          id="competence-name"
-          label={t('competences.grantDialog.competenceLabel')}
-          placeholder={t('competences.grantDialog.competencePlaceholder')}
-          required
-          value={competence || null}
-          onValueChange={(value) => {
-            setSubmitError(null);
-            setValue('competence', value, {
-              shouldDirty: true,
-              shouldValidate: true,
-            });
-          }}
-          options={competenceOptions}
-          description={
-            isPlatformCapability(competence)
-              ? t(
-                  `competences.capabilities.${capabilityMessageKey(competence)}.description`,
-                )
-              : undefined
-          }
-          error={formState.errors.competence !== undefined}
-        />
         {modelApiOff && (
           <Alert
             variant="warning"

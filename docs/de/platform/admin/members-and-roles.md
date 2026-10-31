@@ -65,6 +65,26 @@ Im Dialog kannst du auch den Anzeigenamen ändern. Die E-Mail-Adresse ist schrei
 
 Deine eigene Rolle lässt sich über dieses Menü nicht ändern. Inhaber lässt sich nicht im Rollenfeld vergeben, und der letzte Administrator darf nicht herabgestuft werden. Auch bestehende Inhaber und der Ersteller der Organisation haben geschützte Rollen. Prüfe bei einer Ablehnung das betroffene Konto, bevor du eine andere Rolle versuchst.
 
+## Die Rechte eines Mitglieds prüfen {#member-rights}
+
+Vier Plattform-Rechte erlauben einem Mitglied je eine eng begrenzte Aktion, für die sonst eine höhere Rolle nötig wäre: **Modelle über die API aufrufen**, **Benachrichtigungen exportieren**, **Für ein anderes Mitglied handeln** und **Skills für die Organisation veröffentlichen**. Um zu sehen, was eine Person darf und warum, öffne ihr Zeilenmenü und wähle **Rechte**. Diese Aktion sehen nur Inhaber und Admins, in jeder Zeile, auch in der eigenen und in der des Inhabers.
+
+Der Dialog listet die vier Rechte. Jedes zeigt **Erlaubt** oder **Nicht erlaubt**, also dieselbe Antwort, die Tale gibt, wenn die Person das Recht nutzt, und darunter die Gründe dafür:
+
+- **Die Einstellung der Organisation.** Bei **Modelle über die API aufrufen**, ob die [Modell-Endpunkte für API-Schlüssel](/de/platform/admin/governance/content-models#model-endpoints) aktiviert sind. Solange sie aus sind, hat niemand dieses Recht, unabhängig von Rolle und Zuweisung; lässt sich die Einstellung nicht lesen, gelten die Endpunkte als aus. Bei **Skills für die Organisation veröffentlichen** die Stufe der [Richtlinie zur Skill-Freigabe](/de/platform/admin/governance/policies-and-limits#skill-sharing); lässt sich die Richtlinie nicht lesen, gilt **Nur Inhaber und Admins**.
+- **Die Rolle.** Sie umfasst das Recht, braucht dafür eine Zuweisung oder schließt bei **Deaktiviert** jedes Recht aus, auch ein zugewiesenes.
+- **Die Zuweisung.** Wer das Recht wann zugewiesen hat und bis wann, falls die Zuweisung abläuft, oder wann eine abgelaufene Zuweisung geendet hat. Hat die Person, die zugewiesen hat, die Organisation verlassen, erscheint sie als **Ehemaliges Mitglied**.
+- **Die Zuweisung an ein Team.** Ist das Recht einem [Team](/de/platform/admin/governance/competences#grant-a-capability-to-a-team) zugewiesen, dem ein Inhaber oder Admin die Person hinzugefügt hat: das Team, wer das Recht wann zugewiesen hat und bis wann, eine Zeile je Team. Die Person hat das Recht über das Team, solange sie ihm angehört. Ein Team, dem sie über deinen Identitätsanbieter angehört, gibt ihr keine Zuweisung und erscheint deshalb nicht.
+
+Braucht die Rolle eine Zuweisung und hat weder die Person noch eines ihrer Teams eine, steht dort, dass das Recht nicht zugewiesen ist.
+
+Der Schalter neben jedem Recht steht für die eigene Zuweisung der Person im [Kompetenzregister](/de/platform/admin/governance/competences), nicht für die Antwort: Er ist an, solange die Person selbst eine aktive Zuweisung hat. Ein Schalter kann also an sein, während das Recht **Nicht erlaubt** zeigt, etwa solange die Modell-Endpunkte aus sind oder wenn das Mitglied die Rolle **Deaktiviert** hat. Umfasst die Rolle das Recht oder gilt eine Zuweisung an ein Team, zeigt es **Erlaubt** bei ausgeschaltetem Schalter. Die Zuweisung an ein Team hat hier keinen Schalter: Widerrufe sie unter [Kompetenzen](/de/platform/admin/governance/competences) oder entferne die Person aus dem Team.
+
+- Um ein Recht zuzuweisen, aktiviere seinen Schalter. **Kompetenz zuweisen** öffnet sich mit Person und Recht bereits gewählt: Lege unter **Läuft ab** fest, wann die Zuweisung endet, halte bei Bedarf einen **Nachweis** fest und wähle **Zuweisen**.
+- Um die Zuweisung zu widerrufen, deaktiviere den Schalter und bestätige mit **Widerrufen**.
+
+Beides wirkt wie Zuweisen und Widerrufen unter [Kompetenzen](/de/platform/admin/governance/competences), mit denselben Prüfungen, und jede Änderung steht im Register und im Audit-Log. Der Dialog liest die Rechte bei jedem Öffnen neu; lassen sie sich nicht laden, wähle **Erneut versuchen**.
+
 ## Inhaberschaft übertragen
 
 Als Inhaber kannst du im Zeilenmenü eines anderen Mitglieds **Inhaberschaft übertragen** wählen. Lies die Bestätigung sorgfältig: Die gewählte Person wird Inhaber, du selbst wirst Admin. Verwende diese Aktion für eine Übergabe der Verantwortung, nicht für eine normale Rollenänderung.
