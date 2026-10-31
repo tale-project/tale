@@ -298,6 +298,29 @@ organization:
   transferOwnership: Transfer ownership
   transferOwnershipConfirmation: Transfer ownership to {name}? You'll be demoted to admin.
   ownershipTransferred: Ownership transferred
+  memberRights:
+    action: Rights
+    title: Rights of {name}
+    description: What this member may do in the organization, and why. A switch grants the right as a competence, which can expire, or revokes the grant. Every change is recorded in the audit log.
+    loadFailed: Couldn't load the rights.
+    refreshFailed: Couldn't refresh the rights. What you see may be out of date.
+    held: Allowed
+    notHeld: Not allowed
+    reasons:
+      modelApiOn: Model endpoints for API keys are on for this organization.
+      modelApiOff: Model endpoints for API keys are off for this organization, so no one can call the models over the API.
+      modelApiUnreadable: The model access policy can't be read, so the model endpoints count as off.
+      skillSharing: 'Skill sharing is set to "{mode}".'
+      roleAdmits: Their role, {role}, carries this right.
+      roleGrant: Their role, {role}, needs a grant for this right.
+      roleRefuses: Their role, {role}, rules out every right, even a granted one.
+      grantActive: Granted by {name} on {granted}, with no end date.
+      grantActiveUntil: Granted by {name} on {granted}, until {expires}.
+      grantExpired: The grant by {name} ended on {expires}.
+      teamGrantActive: 'Granted to the team "{team}" by {name} on {granted}, with no end date.'
+      teamGrantActiveUntil: 'Granted to the team "{team}" by {name} on {granted}, until {expires}.'
+      teamGrantExpired: 'The grant to the team "{team}" by {name} ended on {expires}.'
+      noGrant: Not granted.
 teams:
   title: Teams
   entityLabel: teams

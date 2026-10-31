@@ -45,6 +45,7 @@ import {
   listUserCompetences,
   revokeCompetence,
 } from './competence.ts';
+import { readMemberRights } from './member-rights.ts';
 import { testModerationProvider } from './moderation.ts';
 import {
   assertGovernancePolicyReadable,
@@ -563,6 +564,23 @@ export function createGovernanceRoutes(deps: {
     isAdmin(c.get('orgMember').role)
       ? null
       : c.json({ error: 'FORBIDDEN' }, 403);
+
+  /**
+   * One member's platform rights with the reasons the doors give — the
+   * Rights dialog of Settings › Members (GOV-R21). Owners and admins only,
+   * who alone grant and revoke them; a member reads their own standing from
+   * `GET /api/v1/me`.
+   */
+  app.get('/members/:userId/rights', async (c) => {
+    const denied = requireAdmin(c);
+    if (denied) return denied;
+    const rights = await readMemberRights(deps.sql, {
+      organizationId: c.get('orgId'),
+      userId: c.req.param('userId'),
+    });
+    if (rights === null) return c.json({ error: 'MEMBER_NOT_FOUND' }, 404);
+    return c.json(rights);
+  });
 
   app.get('/trash', async (c) => {
     const denied = requireAdmin(c);

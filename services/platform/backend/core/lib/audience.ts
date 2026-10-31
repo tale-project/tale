@@ -26,6 +26,8 @@
 import type { OrgWideAudienceMode } from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
+import type { RoleStanding } from '../../../lib/shared/competences.ts';
+
 /** Organization roles that see and administer everything. */
 export const ADMIN_ROLES: ReadonlySet<string> = new Set(['owner', 'admin']);
 
@@ -280,6 +282,20 @@ export function roleMayChooseOrgWideAudience(
 }
 
 /**
+ * What the role alone says about an organization-wide audience under
+ * `mode`: a disabled seat never chooses one, a role
+ * {@link roleMayChooseOrgWideAudience} admits does, anyone else only through
+ * the rule's grant.
+ */
+export function orgWideAudienceRoleStanding(
+  role: string,
+  mode: OrgWideAudienceMode,
+): RoleStanding {
+  if (role === 'disabled') return 'refuses';
+  return roleMayChooseOrgWideAudience(role, mode) ? 'admits' : 'grant';
+}
+
+/**
  * The one rule for choosing an organization-wide audience — an empty team
  * list, which every member then sees. Where {@link assertTeamsAssignable}
  * decides which teams a writer may name, this decides whether they may name
@@ -292,7 +308,7 @@ export async function mayChooseOrgWideAudience(
   viewer: { readonly role: string },
   rule: OrgWideAudienceRule,
 ): Promise<boolean> {
-  if (viewer.role === 'disabled') return false;
-  if (roleMayChooseOrgWideAudience(viewer.role, rule.mode)) return true;
+  const standing = orgWideAudienceRoleStanding(viewer.role, rule.mode);
+  if (standing !== 'grant') return standing === 'admits';
   return rule.holdsGrant();
 }

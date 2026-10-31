@@ -65,6 +65,26 @@ Le dialogue permet aussi de changer le nom affiché. Le courriel est en lecture 
 
 Ce menu ne permet pas de modifier ton propre rôle, d’attribuer Propriétaire dans la liste des rôles, ni de rétrograder le dernier administrateur. Les propriétaires existants et le créateur de l’organisation ont aussi des rôles protégés. Si une modification est refusée, vérifie le compte concerné avant d’essayer un autre rôle.
 
+## Consulter les droits d’un membre {#member-rights}
+
+Quatre droits de la plateforme permettent chacun à un membre une action bien délimitée qui demanderait sinon un rôle plus élevé : **Appeler les modèles par l'API**, **Exporter les notifications**, **Agir pour un autre membre** et **Publier des skills pour l'organisation**. Pour voir ce qu’une personne peut faire et pourquoi, ouvre le menu de sa ligne et choisis **Droits**. Seuls les propriétaires et les admins voient cette action, sur chaque ligne, y compris la leur et celle du propriétaire.
+
+La boîte de dialogue liste les quatre droits. Chacun affiche **Autorisé** ou **Non autorisé**, c’est-à-dire la réponse que Tale donne quand la personne utilise ce droit, suivie des raisons qui la fondent :
+
+- **Le réglage de l’organisation.** Pour **Appeler les modèles par l'API**, si les [endpoints de modèles pour les clés API](/fr/platform/admin/governance/content-models#model-endpoints) sont activés. Tant qu’ils sont désactivés, personne n’a ce droit, quels que soient son rôle et ses attributions ; si le réglage est illisible, les endpoints comptent comme désactivés. Pour **Publier des skills pour l'organisation**, le mode de la [politique de partage des skills](/fr/platform/admin/governance/policies-and-limits#skill-sharing) ; si la politique est illisible, c’est **Propriétaires et admins uniquement** qui s’applique.
+- **Le rôle.** Il inclut le droit, demande une attribution pour ce droit ou, pour **Désactivé**, exclut tout droit, même attribué.
+- **L’attribution.** Qui a attribué le droit et quand, et jusqu’à quand si l’attribution expire, ou quand une attribution expirée a pris fin. Si la personne qui l’a attribué a quitté l’organisation, elle apparaît comme **Ancien membre**.
+- **L’attribution à une équipe.** Si le droit est attribué à une [équipe](/fr/platform/admin/governance/competences#grant-a-capability-to-a-team) à laquelle un propriétaire ou un admin a ajouté la personne : l’équipe, qui a attribué le droit et quand, et jusqu’à quand, une ligne par équipe. La personne détient le droit par l’équipe tant qu’elle en fait partie. Une équipe dont elle fait partie par ton fournisseur d’identité ne lui apporte aucune attribution et n’apparaît donc pas.
+
+Si le rôle demande une attribution et que ni la personne ni l’une de ses équipes n’en détient, la raison indique que le droit n’est pas attribué.
+
+L’interrupteur à côté de chaque droit représente l’attribution propre de la personne dans le [registre des compétences](/fr/platform/admin/governance/competences), pas la réponse : il est activé tant qu’elle détient elle-même une attribution active. Un interrupteur peut donc être activé alors que le droit affiche **Non autorisé**, par exemple tant que les endpoints de modèles sont désactivés ou si le membre a le rôle **Désactivé**. Un rôle qui inclut le droit, ou une attribution à une équipe, affiche **Autorisé** avec l’interrupteur désactivé. L’attribution à une équipe n’a pas d’interrupteur ici : révoque-la dans [Compétences](/fr/platform/admin/governance/competences), ou retire la personne de l’équipe.
+
+- Pour attribuer un droit, active son interrupteur. **Attribuer une compétence** s’ouvre avec la personne et le droit déjà choisis : choisis quand l’attribution **Expire**, note si tu le souhaites le **Justificatif**, puis choisis **Attribuer**.
+- Pour révoquer l’attribution, désactive l’interrupteur et confirme avec **Révoquer**.
+
+Les deux fonctionnent comme l’attribution et la révocation dans [Compétences](/fr/platform/admin/governance/competences), avec les mêmes vérifications, et chaque changement est consigné dans le registre et dans le journal d’audit. La boîte de dialogue relit les droits à chaque ouverture ; s’ils ne peuvent pas être chargés, choisis **Réessayer**.
+
 ## Transférer la propriété
 
 Un propriétaire peut sélectionner **Transférer la propriété** dans le menu d’un autre membre. Lis la confirmation : la personne choisie devient Propriétaire et le propriétaire qui effectue le transfert devient Admin. Utilise cette action pour transmettre la responsabilité de l’organisation, pas pour une promotion ordinaire.

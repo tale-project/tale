@@ -52,9 +52,13 @@ Nur eine Mitgliedschaft, die ein Inhaber oder Admin unter **Einstellungen > Team
 
 Ein Team kann nur Plattform-Berechtigungen haben. Weise eine Qualifikation jedem Mitglied einzeln zu, das sie braucht, denn eine Freigaberichtlinie verlangt sie von der Person, die freigibt.
 
+Eine Plattform-Berechtigung kannst du auch unter **Einstellungen > Mitglieder** zuweisen: Öffne das Zeilenmenü des Mitglieds, wähle **Rechte** und aktiviere den Schalter der Berechtigung. Derselbe Dialog öffnet sich mit Mitglied und Berechtigung bereits gewählt, und die Zuweisung landet in diesem Register. [Die Rechte eines Mitglieds prüfen](/de/platform/admin/members-and-roles#member-rights) erklärt, was die Schalter und ihre Gründe zeigen.
+
 ## Eine Kompetenz widerrufen
 
 Wähle in der Zeile **Widerrufen** und bestätige mit **Widerrufen**. Das Mitglied verliert die Kompetenz sofort; bei einer Zuweisung an ein Team verlieren sie seine Mitglieder, außer sie haben sie über eine eigene Zuweisung. Die Zuweisung bleibt als Verlauf im Register, mit dem Status **Widerrufen** und dem Datum des Widerrufs. Zeige auf das Datum, um zu sehen, wer sie widerrufen hat oder warum.
+
+Unter **Einstellungen > Mitglieder** widerrufst du eine Plattform-Berechtigung auf dieselbe Weise: Wähle im Zeilenmenü des Mitglieds **Rechte**, deaktiviere den Schalter der Berechtigung und bestätige mit **Widerrufen**.
 
 ## Das Register lesen {#read-the-register}
 
