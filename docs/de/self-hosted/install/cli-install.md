@@ -763,13 +763,13 @@ Mit `--json` führt der Bericht jede Prüfung mit Status (`pass`, `fail` oder `s
 `tale reset` — alle Blue-Green-Container entfernen.
 
 - `-f, --force` — die Bestätigungsabfrage überspringen.
-- `-a, --all` — auch die zustandsbehafteten Infrastruktur-Container entfernen.
+- `-a, --all` — auch die zustandsbehafteten Infrastruktur-Container entfernen und die Daten-Volumes des Projekts löschen: die Datenbank, die Konfiguration der Organisationen, die hochgeladenen Dateien, die Proxy-Zertifikate und den Speicher des Modell-Gateways. Das lässt sich nicht rückgängig machen. Das Volume `backups` des Projekts mit den Snapshots, die `tale restore` auflistet, bleibt erhalten; lösch es mit `docker volume rm <project-id>_backups`, sobald du sie nicht mehr brauchst.
 - `--dry-run` — den Reset vorab anzeigen, ohne Änderungen.
 
 `tale uninstall` — das `tale`-CLI-Binary von diesem System entfernen. Fragt nach, bevor etwas gelöscht wird, und _bietet an_, zusätzlich das [Sandbox-Gerät](#sandbox-device) dieses Rechners zu trennen, das vom eingestellten `tale daemon` hinterlassene `~/.tale-daemon` zu entfernen und die Docker-Ressourcen und Dateien eines Projekts abzubauen. Ohne `--purge` bleiben ein Projekt und seine Container unangetastet — führ darin `tale reset --all` aus, um sie zu entfernen. Lässt sich das Sandbox-Gerät nicht stoppen, wird nichts deinstalliert.
 
 - `-f, --force` — die Bestätigungsabfrage überspringen (entfernt nur das Binary; die optionalen Aufräumschritte brauchen weiterhin `--purge`).
-- `--purge` — zusätzlich das Sandbox-Gerät trennen und seine Arbeitsbereiche löschen, `~/.tale-daemon` entfernen und, für ein vom aktuellen Verzeichnis aus gefundenes Projekt, dessen Docker-Ressourcen abbauen und seine Dateien löschen. Nicht umkehrbar.
+- `--purge` — zusätzlich das Sandbox-Gerät trennen und seine Arbeitsbereiche löschen, `~/.tale-daemon` entfernen und, für ein vom aktuellen Verzeichnis aus gefundenes Projekt, dessen Docker-Ressourcen wie `tale reset --all` abbauen, wobei sein Volume `backups` erhalten bleibt, und seine Dateien löschen. Nicht umkehrbar.
 - `--dry-run` — anzeigen, was entfernt würde, ohne etwas zu entfernen.
 
 `tale config show` — das aufgelöste lokale Projektverzeichnis und die CLI-Version ausgeben. Außerhalb eines Projekts meldet der Befehl, dass er keines gefunden hat, und endet ohne Fehler.

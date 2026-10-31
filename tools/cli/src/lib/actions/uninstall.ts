@@ -92,7 +92,8 @@ const defaultDeps: UninstallDeps = {
     const env = loadEnv(projectDir);
     // `force: true` — we already consented at the uninstall level, so skip
     // reset's own inner confirmation. `includeStateful` removes the db/proxy
-    // containers and prunes the project's volumes too.
+    // containers and deletes the project's data volumes too; the `backups`
+    // volume with its snapshots stays.
     await reset({ env, force: true, includeStateful: true, dryRun: false });
   },
   confirm: (message) => promptConfirm({ message, default: false }),

@@ -758,13 +758,13 @@ With `--json`, the report lists each check with its status (`pass`, `fail` or `s
 `tale reset` — remove all blue-green containers.
 
 - `-f, --force` — skip the confirmation prompt.
-- `-a, --all` — also remove the stateful infrastructure containers.
+- `-a, --all` — also remove the stateful infrastructure containers and delete the project's data volumes: its database, organization configuration, uploaded files, proxy certificates and model gateway store. This cannot be undone. The project's `backups` volume, which holds the snapshots `tale restore` lists, is kept; delete it with `docker volume rm <project-id>_backups` once you no longer need them.
 - `--dry-run` — preview the reset without making changes.
 
 `tale uninstall` — remove the `tale` CLI binary from this system. It prompts before deleting anything and _offers_ to also disconnect this machine's [sandbox device](#sandbox-device), remove `~/.tale-daemon` left by the retired `tale daemon`, and tear down a project's Docker resources and files. Without `--purge`, a project and its containers are left intact — run `tale reset --all` inside one to remove those. If the sandbox device cannot be stopped, nothing is uninstalled.
 
 - `-f, --force` — skip the confirmation prompt (removes the binary only; the optional cleanups still need `--purge`).
-- `--purge` — also disconnect the sandbox device and delete its workspaces, remove `~/.tale-daemon` and, for a project found from the current directory, tear down its Docker resources and delete its files. Irreversible.
+- `--purge` — also disconnect the sandbox device and delete its workspaces, remove `~/.tale-daemon` and, for a project found from the current directory, tear down its Docker resources as `tale reset --all` does, keeping its `backups` volume, and delete its files. Irreversible.
 - `--dry-run` — show what would be removed without removing anything.
 
 `tale config show`—print the resolved local project directory and CLI version. Outside a project, it reports that no project was found and exits successfully.

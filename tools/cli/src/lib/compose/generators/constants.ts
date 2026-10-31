@@ -5,10 +5,11 @@ export const DEV_VOLUME_NAMES = [
   'static-assets',
   'db-data',
   'db-backup',
-  // Retired names, kept as unused stubs so teardown (`tale reset --all`,
-  // `tale uninstall --purge`) and upgrade diagnostics still see them, and so
-  // an operator past the upgrade window can delete them deliberately rather
-  // than find them orphaned:
+  // Retired names, kept as unused stubs so upgrade diagnostics still see
+  // them, so `tale reset --all` and `tale uninstall --purge` delete them in
+  // production with the rest of REQUIRED_VOLUMES (neither touches the dev
+  // stack's volumes), and so an operator past the upgrade window can delete
+  // them deliberately rather than find them orphaned:
   //   platform-data — pre-0.3.0 split of platform and convex data.
   //   convex-data   — the org config store before it became `config-data`;
   //                   `migrate-config-volume.ts` copies it across on the
@@ -28,7 +29,8 @@ export const DEV_VOLUME_NAMES = [
 
 // All volumes that must exist before any `docker compose up` in production.
 // Every volume declared as `external: true` in the stateful or color compose
-// must appear here so `ensureVolumes` pre-creates it.
+// must appear here so `ensureVolumes` pre-creates it. `tale reset --all`
+// deletes each of them by name, except the snapshots' `backups` volume.
 export const REQUIRED_VOLUMES = [
   'static-assets',
   // See DEV_VOLUME_NAMES for the retired-stub rationale.
