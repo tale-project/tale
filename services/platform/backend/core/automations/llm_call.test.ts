@@ -13,6 +13,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import { EmptyReplyError } from '../automations_builder/chat_wire';
+import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
 import { NodeFailure } from './failure';
 
@@ -601,6 +602,72 @@ describe('automationLlmCall and the run’s budgets', () => {
     ).rejects.toThrow('credential absent');
     expect(runMutation).not.toHaveBeenCalled();
     expect(builderModel).not.toHaveBeenCalled();
+  });
+
+  it('fails the step for good, without blaming the provider, when the EU/EEA rule refuses its endpoint [GOV-R17]', async () => {
+    const message =
+      'This organization processes prompts only in the EU/EEA, and api.example.com is not an endpoint known to process there, so the call was not sent.';
+    Object.assign(builderModel, {
+      prepare: vi.fn().mockRejectedValue(
+        new ModelEndpointRefusal({
+          code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+          message,
+          provider: 'first',
+          host: 'api.example.com',
+          reason: 'not-attested',
+        }),
+      ),
+    });
+
+    const refusal = automationLlmCall(
+      ctx,
+      ORG,
+      RUN,
+    )({ model: 'vendor/small-1', prompt: 'x' });
+
+    await expect(refusal).rejects.toBeInstanceOf(NodeFailure);
+    await expect(refusal).rejects.toMatchObject({
+      code: 'model_not_found',
+      message: expect.stringContaining(message),
+      hint: expect.stringContaining('processes prompts in the EU/EEA'),
+      // The run page explains it as the policy at work, with the refusal's
+      // own sentence under the technical details.
+      failure: { reason: 'LLM_ENDPOINT_REFUSED', params: { detail: message } },
+    });
+    expect(createBuilderModel).toHaveBeenCalledWith(
+      ctx,
+      expect.objectContaining({
+        surface: 'automation',
+        actor: { id: RUN, type: 'workflow' },
+      }),
+    );
+    // Nothing was reserved, booked or sent.
+    expect(runMutation).not.toHaveBeenCalled();
+    expect(builderModel).not.toHaveBeenCalled();
+  });
+
+  it('asks for the policy to be restored while it cannot be read [GOV-R17]', async () => {
+    Object.assign(builderModel, {
+      prepare: vi.fn().mockRejectedValue(
+        new ModelEndpointRefusal({
+          code: 'MODEL_ENDPOINT_POLICY_UNREADABLE',
+          message: 'The model access policy cannot be read.',
+          provider: 'first',
+        }),
+      ),
+    });
+
+    await expect(
+      automationLlmCall(
+        ctx,
+        ORG,
+        RUN,
+      )({ model: 'vendor/small-1', prompt: 'x' }),
+    ).rejects.toMatchObject({
+      code: 'model_not_found',
+      hint: expect.stringContaining('restore a valid model access policy'),
+      failure: { reason: 'LLM_ENDPOINT_REFUSED' },
+    });
   });
 
   it('closes a proven pre-dispatch cancellation at zero without calling the provider', async () => {

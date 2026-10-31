@@ -61,6 +61,7 @@ export const STEP_FAILURE_REASONS = [
   'NOTIFY_RUN_LIMIT',
   'LLM_OUTPUT_INVALID',
   'LLM_PROVIDER',
+  'LLM_ENDPOINT_REFUSED',
   'AGENT_FAILED',
   'SUBAUTOMATION_FAILED',
   'SUBAUTOMATION_INPUT_REFUSED',
@@ -167,6 +168,9 @@ export const STEP_FAILURE_META: Readonly<
   NOTIFY_RUN_LIMIT: { params: ['limit'] },
   LLM_OUTPUT_INVALID: { params: ['model'] },
   LLM_PROVIDER: { params: ['model', 'providerCode'] },
+  // The model access policy's own sentence: the endpoint it refused and
+  // why, or that the policy cannot be read (GOV-R17).
+  LLM_ENDPOINT_REFUSED: { params: [], technical: ['detail'] },
   AGENT_FAILED: { params: ['agentCode'], optional: ['harness', 'attempts'] },
   SUBAUTOMATION_FAILED: { params: ['automation', 'version', 'childPath'] },
   SUBAUTOMATION_INPUT_REFUSED: NONE,
@@ -234,6 +238,11 @@ export function reasonFamily(reason: string, params?: FailureParams): string {
       return 'budget_exceeded';
     case 'LLM_OUTPUT_INVALID':
       return 'llm_output_invalid';
+    // The organization's EU/EEA rule refused the model's endpoint: the
+    // model cannot be used here until an admin changes it, as one no
+    // provider serves cannot.
+    case 'LLM_ENDPOINT_REFUSED':
+      return 'model_not_found';
     case 'EXECUTION_LIMIT':
       return 'execution_limit';
     case 'APPROVAL_REJECTED':

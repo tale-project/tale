@@ -3,6 +3,7 @@
 import type { Sql } from 'postgres';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ModelEndpointRefusal } from '../../core/governance/model_endpoint_gate.ts';
 import { resolveImageGenerationModel } from '../../core/lib/providers/resolve_image_model.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import { offeredImageModel } from './image-model.ts';
@@ -37,9 +38,11 @@ describe('offeredImageModel — the image model an agent turn may use', () => {
       'org_1',
       'image_generation',
     );
+    // Only offered: a model the EU/EEA rule refuses is no audit entry.
     expect(resolveImageGenerationModel).toHaveBeenCalledWith(
       expect.anything(),
       'org_1',
+      { offer: true },
     );
   });
 
@@ -74,6 +77,25 @@ describe('offeredImageModel — the image model an agent turn may use', () => {
     expect(warn).toHaveBeenCalledWith(
       expect.stringContaining('image generation not offered'),
       expect.any(Error),
+    );
+    warn.mockRestore();
+  });
+
+  it('offers no image tool when the EU/EEA rule refuses the model [GOV-R17]', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.mocked(resolveImageGenerationModel).mockRejectedValue(
+      new ModelEndpointRefusal({
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        message: 'refused',
+        provider: 'openrouter',
+      }),
+    );
+
+    await expect(offeredImageModel(sql, 'org_1')).resolves.toBeUndefined();
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('image generation not offered'),
+      expect.any(ModelEndpointRefusal),
     );
     warn.mockRestore();
   });

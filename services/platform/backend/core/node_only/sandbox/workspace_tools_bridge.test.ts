@@ -332,6 +332,30 @@ describe('dispatchWorkspaceToolImpl', () => {
     expect(blocker?.guidance).toContain('Do not treat it as nothing found.');
   });
 
+  it('rag_search says the EU/EEA rule stopped it, in the rule’s own words [GOV-R17]', async () => {
+    const { ModelEndpointRefusal, modelEndpointRefusal } =
+      await import('../../governance/model_endpoint_gate');
+    const data = modelEndpointRefusal(
+      { kind: 'eu', attestedHosts: [] },
+      { providerName: 'openai', baseUrl: 'https://api.openai.com/v1' },
+    );
+    if (data === undefined) throw new Error('expected a refusal');
+    searchKnowledgeMock.mockRejectedValueOnce(new ModelEndpointRefusal(data));
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    const { dispatch } = await getActions();
+    const result = await dispatch(createCtx({}).ctx, {
+      ...BASE,
+      tool: 'rag_search',
+      callArgs: { query: 'anything' },
+    });
+    expect(result.status).toBe('unavailable');
+    const [blocker] = result.blockers as { code: string; guidance: string }[];
+    expect(blocker?.code).toBe('model_endpoint_refused');
+    expect(blocker?.guidance).toContain(data.message);
+    expect(blocker?.guidance).not.toContain('"code"');
+    expect(blocker?.guidance).toContain('Do not treat it as nothing found.');
+  });
+
   it('rag_search carries the SESSION-derived access scope, never a body one', async () => {
     searchKnowledgeMock.mockResolvedValueOnce({ hits: [] });
     const scope = {

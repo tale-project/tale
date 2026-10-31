@@ -40,6 +40,7 @@ import {
 } from '../../lib/org-config.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { modelEndpointShimHandlers } from '../governance/model-endpoints.ts';
 import {
   brokerFailureArgsSchema,
   brokerSelectionArgsSchema,
@@ -196,7 +197,9 @@ function rowOrNull(rows: ResolverRow[]): ResolverRow | null {
 }
 
 /** The credential-row shim handlers, shared with every reused 0.4 module
- * that resolves credentials (knowledge embedding, the chat gateway later). */
+ * that resolves credentials (knowledge embedding, the chat gateway later),
+ * with the EU/EEA processing rule each of them checks once it knows the
+ * endpoint a credential calls (GOV-R17). */
 export function credentialShimHandlers(
   sql: Sql,
 ): Record<string, (raw: unknown) => Promise<unknown>> {
@@ -235,6 +238,7 @@ export function credentialShimHandlers(
     return loaded;
   };
   return {
+    ...modelEndpointShimHandlers(sql),
     'provider_credentials/mutations:selectBrokerAccountInternal': (raw) => {
       defaults.clear();
       return selectBrokerAccount(sql, brokerSelectionArgsSchema.parse(raw));

@@ -9,6 +9,7 @@ import { answersChatTurns } from '../../../lib/shared/providers/chat_turn_models
 import { logDetail } from '../../db/unavailable';
 import { EmptyReplyError } from '../automations_builder/chat_wire';
 import { createBuilderModel } from '../automations_builder/model_call';
+import { ModelEndpointRefusal } from '../governance/model_endpoint_gate';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { directActiveCredential } from '../lib/providers/direct_credential';
@@ -316,8 +317,9 @@ interface TitleDeadline {
 }
 
 /** One model attempt at a title. Never throws — every miss (no model, a
- * reached limit, provider failure, empty reply) means "use the fallback",
- * so errors are logged here rather than escaping past the fallback write. */
+ * reached limit, an endpoint the EU/EEA rule refuses, provider failure, empty
+ * reply) means "use the fallback", so errors are logged here rather than
+ * escaping past the fallback write. */
 async function generateWithModel(
   ctx: ActionCtx,
   organizationId: string,
@@ -401,6 +403,8 @@ async function generateWithModel(
       const model = createBuilderModel(ctx, {
         organizationId,
         target,
+        surface: 'chat-title',
+        actor: { id: userId, type: 'user' },
         maxTokens: budget,
         signal: deadline.signal,
       });
@@ -447,6 +451,15 @@ async function generateWithModel(
       return null;
     }
     await release();
+    if (error instanceof ModelEndpointRefusal) {
+      // The organization's rule kept the message from this endpoint
+      // (GOV-R17): nothing was sent, the gate audited it, and the thread is
+      // named from its own words — a policy at work, not a fault.
+      console.warn(
+        `[generateThreadTitle] ${error.data.code} for ${error.data.provider}; fallback title used`,
+      );
+      return null;
+    }
     if (deadline.signal.aborted) {
       // The race was lost and the call torn down on purpose — the fallback
       // title is already on its way; this is the expected shape, not a fault.
