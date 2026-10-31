@@ -99,6 +99,9 @@ export interface DataTableFiltersProps {
    * from the button's bottom-right corner instead of running off-viewport.
    */
   align?: 'start' | 'end';
+  /** Told each time the reader opens or closes the filter panel — see
+   * `FilterPanel`'s `onOpenChange`. */
+  onFiltersOpenChange?: (open: boolean) => void;
   /** Additional class name */
   className?: string;
 }
@@ -162,6 +165,7 @@ export function DataTableFilters({
   children,
   actions,
   align = 'start',
+  onFiltersOpenChange,
   className,
 }: DataTableFiltersProps) {
   const { t } = useT('common');
@@ -228,6 +232,7 @@ export function DataTableFilters({
             isLoading={isLoading}
             disabled={disabled}
             align={align}
+            onOpenChange={onFiltersOpenChange}
           />
         </div>
 

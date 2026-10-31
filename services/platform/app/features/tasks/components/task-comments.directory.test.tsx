@@ -16,7 +16,16 @@ import { TaskConversation } from './task-conversation';
 // cost seconds to open and to close a task with hundreds of comments. These
 // pin the list to ONE directory, whether the surface provides it or not.
 
-const reads = vi.hoisted(() => ({ members: 0, editors: 0 }));
+const reads = vi.hoisted(() => ({ lookups: 0, everyMember: 0, editors: 0 }));
+
+const roster = vi.hoisted(() => [
+  {
+    userId: 'user-ada',
+    displayName: 'Ada Lovelace',
+    email: 'ada@example.com',
+    role: 'member' as const,
+  },
+]);
 
 vi.mock('@tale/ui/i18n/locale-provider', () => ({
   useLocale: () => ({ locale: 'en' }),
@@ -28,19 +37,27 @@ vi.mock('@tale/ui/i18n/client', () => ({
 
 vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
   useMembers: () => {
-    reads.members += 1;
-    return {
-      members: [
-        {
-          userId: 'user-ada',
-          displayName: 'Ada Lovelace',
-          email: 'ada@example.com',
-          role: 'member',
-        },
-      ],
-    };
+    reads.everyMember += 1;
+    return { members: roster };
   },
 }));
+
+// The directory names the people it shows through the member lookup.
+vi.mock(
+  '@/app/features/settings/organization/hooks/member-lookup',
+  async () => {
+    const standIn = (
+      await import('@/tests/utils/member-lookup-stand-in')
+    ).memberLookupStandIn(() => roster);
+    return {
+      ...standIn,
+      useAskedMemberLookup: (organizationId: string) => {
+        reads.lookups += 1;
+        return standIn.useAskedMemberLookup(organizationId);
+      },
+    };
+  },
+);
 
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjectAgents: () => ({ agents: [], isLoading: false }),
@@ -143,7 +160,8 @@ function renderComments(wrap?: (children: ReactNode) => ReactNode) {
 
 describe('TaskConversation — one actor directory per discussion', () => {
   beforeEach(() => {
-    reads.members = 0;
+    reads.lookups = 0;
+    reads.everyMember = 0;
     reads.editors = 0;
   });
 
@@ -161,7 +179,9 @@ describe('TaskConversation — one actor directory per discussion', () => {
     );
     // The provider's directory, read in its own renders — not once per
     // comment and per text run (that was 200+ reads here).
-    expect(reads.members).toBeLessThanOrEqual(3);
+    expect(reads.lookups).toBeLessThanOrEqual(3);
+    // Naming the authors reads no member list.
+    expect(reads.everyMember).toBe(0);
     expect(reads.editors).toBe(0);
   });
 
@@ -172,7 +192,8 @@ describe('TaskConversation — one actor directory per discussion', () => {
     expect(screen.getAllByText('@Ada Lovelace')).toHaveLength(
       COMMENTS.length * 2,
     );
-    expect(reads.members).toBeLessThanOrEqual(3);
+    expect(reads.lookups).toBeLessThanOrEqual(3);
+    expect(reads.everyMember).toBe(0);
     expect(reads.editors).toBe(0);
   });
 });

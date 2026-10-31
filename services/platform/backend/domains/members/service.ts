@@ -4,6 +4,7 @@ import {
   MEMBER_HINT_ENTITY,
   TEAM_HINT_ENTITY,
 } from '../../../lib/shared/hint-entities.ts';
+import { memberMentionEntry } from '../../../lib/shared/mention-handles.ts';
 import { endAllAccessOf } from '../../auth/account-security.ts';
 import {
   findOrganizationMember,
@@ -118,10 +119,15 @@ export interface MemberListItem {
   displayName: string | null;
   email: string | null;
   twoFactorEnabled: boolean;
-  passkeyCount: number;
 }
 
-/** The members table: member ⋈ user ⋈ passkey counts, one statement. */
+function memberRole(stored: string): MemberRole {
+  const role = stored.toLowerCase();
+  return isValidRole(role) ? role : 'member';
+}
+
+/** The members table: member ⋈ user, one statement. A member's passkeys are
+ * read one member at a time, by an admin (MEMBER-R6). */
 export async function listByOrganization(
   sql: Sql,
   organizationId: string,
@@ -136,34 +142,117 @@ export async function listByOrganization(
       displayName: string | null;
       email: string | null;
       twoFactorEnabled: boolean | null;
-      passkeyCount: string;
     }[]
   >`
     SELECT m."id", m."organizationId", m."userId", m."role",
            m."createdAt"::text AS "createdAt",
            u."name" AS "displayName", u."email",
-           u."twoFactorEnabled" AS "twoFactorEnabled",
-           (SELECT count(*) FROM "passkey" p WHERE p."userId" = m."userId")::text
-             AS "passkeyCount"
+           u."twoFactorEnabled" AS "twoFactorEnabled"
     FROM "member" m
     LEFT JOIN "user" u ON u."id" = m."userId"
     WHERE m."organizationId" = ${organizationId}
     ORDER BY m."createdAt" ASC
   `;
-  return rows.map((row) => {
-    const role = row.role.toLowerCase();
-    return {
+  return rows.map((row) => ({
+    id: row.id,
+    organizationId: row.organizationId,
+    userId: row.userId,
+    role: memberRole(row.role),
+    createdAt: row.createdAt,
+    displayName: row.displayName,
+    email: row.email,
+    twoFactorEnabled: row.twoFactorEnabled === true,
+  }));
+}
+
+/** One member as the people of the organization see them: no sign-in
+ * factor [MEMBER-R11]. */
+export interface MemberDirectoryEntry {
+  id: string;
+  userId: string;
+  role: MemberRole;
+  createdAt: string;
+  displayName: string | null;
+  email: string | null;
+}
+
+// What JavaScript's `toLowerCase()` folds into a typeable handle, folded the
+// same way whatever the database's collation: A–Z, and the Kelvin sign, the
+// one other character that lowercases to ASCII.
+const FOLD_FROM = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ\u212A';
+const FOLD_TO = 'abcdefghijklmnopqrstuvwxyzk';
+
+/** A handle without its dots: the name a name handle is made of, with its
+ * spaces dropped (`nameHandleForms`). */
+function nameKey(handle: string): string {
+  return handle.replaceAll('.', '');
+}
+
+/**
+ * The members of one organization a screen names, by user id or by a plain
+ * `@handle` (`lib/shared/mention-handles.ts`), in the order they joined: the
+ * people a screen shows, without reading every member [MEMBER-R11]. The
+ * statement narrows to the members whose id, email name or name could make
+ * the handle; the shared handle rules then keep exactly those who answer to
+ * one asked for, so the server and the app agree on whom a handle names.
+ */
+export async function lookupMembers(
+  sql: Sql,
+  organizationId: string,
+  query: { userIds: readonly string[]; handles: readonly string[] },
+): Promise<MemberDirectoryEntry[]> {
+  const userIds = [...new Set(query.userIds)];
+  const handles = [...new Set(query.handles.map((h) => h.toLowerCase()))];
+  if (userIds.length === 0 && handles.length === 0) return [];
+  const nameKeys = [...new Set(handles.map(nameKey))];
+  const rows = await sql<
+    {
+      id: string;
+      userId: string;
+      role: string;
+      createdAt: string;
+      displayName: string | null;
+      email: string | null;
+    }[]
+  >`
+    SELECT m."id", m."userId", m."role",
+           m."createdAt"::text AS "createdAt",
+           u."name" AS "displayName", u."email"
+    FROM "member" m
+    LEFT JOIN "user" u ON u."id" = m."userId"
+    WHERE m."organizationId" = ${organizationId}
+      AND (
+        m."userId" = ANY(${userIds})
+        OR translate(m."userId", ${FOLD_FROM}, ${FOLD_TO}) = ANY(${handles})
+        OR translate(split_part(u."email", '@', 1), ${FOLD_FROM}, ${FOLD_TO})
+          = ANY(${handles})
+        OR regexp_replace(
+             translate(coalesce(u."name", ''), ${FOLD_FROM}, ${FOLD_TO}),
+             '[^a-z0-9/_-]', '', 'g'
+           ) = ANY(${nameKeys})
+      )
+    ORDER BY m."createdAt" ASC, m."id" ASC
+  `;
+  const askedIds = new Set(userIds);
+  const askedHandles = new Set(handles);
+  return rows
+    .filter(
+      (row) =>
+        askedIds.has(row.userId) ||
+        memberMentionEntry({
+          id: row.userId,
+          name: row.displayName,
+          email: row.email,
+        }).handles.some(({ handle }) => askedHandles.has(handle)),
+    )
+    .map((row) => ({
       id: row.id,
-      organizationId: row.organizationId,
       userId: row.userId,
-      role: isValidRole(role) ? role : 'member',
+      role: memberRole(row.role),
       createdAt: row.createdAt,
       displayName: row.displayName,
       email: row.email,
-      twoFactorEnabled: row.twoFactorEnabled === true,
-      passkeyCount: Number(row.passkeyCount),
-    };
-  });
+    }));
 }
 
 interface MemberRow {

@@ -226,6 +226,7 @@ function AssigneePickerList({
     assignableMembers,
     assignableAgents,
     agentsLoading,
+    membersLoading,
     currentUserId,
     resolveActor,
     // Agents are the project editors' to add; everyone else reads them.
@@ -576,7 +577,12 @@ function AssigneePickerList({
       modal
       trigger={trigger}
       searchPlaceholder={t('assignee.search')}
-      emptyText={tCommon('search.noResults')}
+      // Every member is read once the picker is first opened.
+      emptyText={
+        membersLoading
+          ? tCommon('actions.loading')
+          : tCommon('search.noResults')
+      }
       aria-label={t('fields.assignee')}
       optionAction={(opt) => {
         if (opt.isSectionHeader) return null;
