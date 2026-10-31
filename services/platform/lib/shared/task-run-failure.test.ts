@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { deMessages, enMessages, frMessages } from '@/tests/utils/messages';
 
 import {
+  isTaskRunFailureCode,
   TASK_RUN_FAILURE_CLASSES,
+  TASK_RUN_FAILURE_CODES,
   taskRunFailureClass,
 } from './task-run-failure';
 
@@ -59,5 +61,26 @@ describe('every failure class has its sentence', () => {
     for (const failureClass of TASK_RUN_FAILURE_CLASSES) {
       expect(typeof sentences[failureClass]).toBe('string');
     }
+  });
+});
+
+describe('the failure codes the backend’s metrics count by [TASK-R86]', () => {
+  it('lists every known code once, out of memory among them', () => {
+    expect(TASK_RUN_FAILURE_CODES).toContain('resource_exhausted');
+    expect(new Set(TASK_RUN_FAILURE_CODES).size).toBe(
+      TASK_RUN_FAILURE_CODES.length,
+    );
+    // Each one has a class of its own: no code falls back to unknown.
+    for (const code of TASK_RUN_FAILURE_CODES) {
+      expect(isTaskRunFailureCode(code)).toBe(true);
+      expect(taskRunFailureClass(code)).not.toBe('unknown');
+    }
+  });
+
+  it('tells a stored code this build knows from none or a foreign one', () => {
+    expect(isTaskRunFailureCode('deadline')).toBe(true);
+    expect(isTaskRunFailureCode('teapot_overflow')).toBe(false);
+    expect(isTaskRunFailureCode(null)).toBe(false);
+    expect(isTaskRunFailureCode(undefined)).toBe(false);
   });
 });
