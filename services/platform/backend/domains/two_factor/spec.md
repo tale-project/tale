@@ -12,10 +12,13 @@ audit entries are not covered; see Not yet.
 ### TFA-R1 · A person is held to the strictest policy among their organizations
 
 When none of their organizations requires a second factor, nothing is asked. When one does,
-its requirement applies to the account, and of two policies the stricter one counts.
+its requirement applies to the account, and of two that require it, the stricter one counts.
 
 - **Example**: Mia belongs to one organization that requires a second factor and one that does
   not → her account must have one.
+- **Example**: Mia's first organization requires a second factor within 30 days. Her second
+  requires none and has its grace period set to 0 days. She signs in → she has 30 days to set
+  one up.
 
 ### TFA-R2 · An authenticator app or a passkey meets the requirement
 

@@ -25,8 +25,9 @@ import {
  *    lockouts (reused `computeLockedUntil` + strictest `login_policy`) —
  *    otherwise a caller who knows the password could brute-force the
  *    ~10^6 TOTP space freely.
- *  - ORG ENFORCEMENT: the strictest `two_factor_policy` across the user's
- *    orgs decides at sign-in — enrolled TOTP or a registered passkey
+ *  - ORG ENFORCEMENT: the strictest `two_factor_policy` among the user's
+ *    orgs that require a second factor decides at sign-in (an org that
+ *    requires none takes no part) — enrolled TOTP or a registered passkey
  *    satisfies it; SSO-only users are exempt when the policy permits; the
  *    grace anchor is set ONCE on first sign-in (stored app-side in
  *    `app.two_factor_grace` — the 0.4 user-row column moved off the Better
@@ -184,8 +185,9 @@ export interface TwoFactorEnforcement {
 
 /**
  * Resolve the enforcement decision for one user at sign-in time —
- * strictest policy across their orgs; TOTP OR a passkey satisfies it;
- * SSO-only users exempt when permitted; grace anchored once.
+ * strictest policy among their orgs that require a second factor; TOTP OR
+ * a passkey satisfies it; SSO-only users exempt when permitted; grace
+ * anchored once.
  */
 export async function evaluateTwoFactorEnforcement(
   db: Db,
@@ -213,10 +215,7 @@ export async function evaluateTwoFactorEnforcement(
       return policy ?? DEFAULT_TWO_FACTOR_POLICY;
     }),
   );
-  const policy =
-    policies.length === 0
-      ? { ...DEFAULT_TWO_FACTOR_POLICY }
-      : mergeStrictestTwoFactorPolicy(policies);
+  const policy = mergeStrictestTwoFactorPolicy(policies);
   const wire = {
     enforced: policy.enforced,
     exemptSsoUsers: policy.exemptSsoUsers,
