@@ -455,8 +455,8 @@ review:
   needsMyReview: En attente de ma relecture
   independentReviewerRequired: Ton organisation exige une relecture
     indépendante — quelqu'un d'autre doit approuver ce travail.
-  competenceRequired: Approuver cette relecture demande une compétence que tu
-    n'as pas. Demande à un admin de ton organisation de te l'accorder.
+  competenceRequired: Approuver cette relecture demande une qualification que
+    tu n'as pas. Demande à un admin de ton organisation de te l'accorder.
 reviewer:
   none: Aucun relecteur
   assignToMe: Relire moi-même
