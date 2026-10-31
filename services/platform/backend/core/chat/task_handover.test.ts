@@ -16,10 +16,10 @@ describe('readTaskHandover', () => {
   it('builds the note’s facts and labels the controls as the person’s interface does', async () => {
     const handover = await readTaskHandover(
       ctxAnswering(() => ({
-        projects: [
-          { name: 'Website relaunch', agentCount: 2, canEdit: false },
-          { name: 'Getting started', agentCount: 0, canEdit: false },
-        ],
+        projectsWithAgents: ['Website relaunch'],
+        moreProjectsWithAgents: 3,
+        projectsWithoutAgents: 1,
+        canAddAgents: false,
         automationEnabled: true,
         standardAgent: true,
       })),
@@ -28,6 +28,7 @@ describe('readTaskHandover', () => {
 
     expect(handover).toEqual({
       projectsWithAgents: ['Website relaunch'],
+      moreProjectsWithAgents: 3,
       projectsWithoutAgents: 1,
       canAddAgents: false,
       automationOff: false,
@@ -42,13 +43,12 @@ describe('readTaskHandover', () => {
     });
   });
 
-  it('knows the person can add an agent only where one is missing', async () => {
+  it('reads a missing permission or switch as off', async () => {
     const handover = await readTaskHandover(
       ctxAnswering(() => ({
-        projects: [
-          { name: 'Has one', agentCount: 1, canEdit: true },
-          { name: 'Empty', agentCount: 0, canEdit: false },
-        ],
+        projectsWithAgents: ['Has one'],
+        moreProjectsWithAgents: 0,
+        projectsWithoutAgents: 1,
         automationEnabled: false,
       })),
       ARGS,
@@ -56,11 +56,26 @@ describe('readTaskHandover', () => {
 
     expect(handover?.canAddAgents).toBe(false);
     expect(handover?.automationOff).toBe(true);
+    expect(handover?.standardAgent).toBe(false);
+  });
+
+  it('writes no note from facts of another shape', async () => {
+    const handover = await readTaskHandover(
+      ctxAnswering(() => ({
+        projects: [{ name: 'Has one', agentCount: 1, canEdit: true }],
+        automationEnabled: true,
+      })),
+      ARGS,
+    );
+
+    expect(handover).toBeUndefined();
   });
 
   it('writes no note for a turn sent with an API key, and reads nothing', async () => {
     const runQuery = vi.fn(async () => ({
-      projects: [],
+      projectsWithAgents: [],
+      moreProjectsWithAgents: 0,
+      projectsWithoutAgents: 0,
       automationEnabled: true,
     }));
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a one-member stand-in for the action context
