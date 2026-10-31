@@ -75,11 +75,11 @@ interface Props {
 }
 
 /**
- * Settings → Governance → Competences: the organization's competence
- * register. Admins grant a member one platform capability (a narrow right
- * without an admin seat) or a qualification a review policy asks for, or
- * grant a team a platform capability its members hold, and revoke it;
- * revoked and expired grants stay listed as the audit trail.
+ * Settings → Governance → Rights and qualifications: the organization's
+ * competence register. Admins grant a member a right (one platform capability,
+ * a narrow right without an admin seat) or a qualification a review policy asks
+ * for, or grant a team a right its members hold, and revoke it; revoked and
+ * expired grants stay listed as the audit trail.
  */
 export function CompetencesPage({ organizationId }: Props) {
   const { t } = useT('governance');
