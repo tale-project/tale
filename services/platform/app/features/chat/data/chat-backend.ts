@@ -69,6 +69,7 @@ import {
   arenaPairQuery,
 } from '@/app/lib/backend/chat';
 import type { ArgsOf, QueryName, ReturnsOf } from '@/app/lib/backend/contract';
+import { sidebarProjectsQuery } from '@/app/lib/backend/projects';
 import { backendKey } from '@/app/lib/backend/query-keys';
 import { tasksFromThreadQuery } from '@/app/lib/backend/tasks';
 import type { ReasoningEffort } from '@/lib/chat/effort';
@@ -172,6 +173,11 @@ const HTTP_READS: Record<
     myPreferencesQuery(String(args.organizationId)),
   'projects/queries:listProjects': (args) =>
     chatProjectsQuery(String(args.organizationId)),
+  'projects/queries:listSidebarProjects': (args) =>
+    sidebarProjectsQuery({
+      organizationId: String(args.organizationId),
+      ...(typeof args.limit === 'number' ? { limit: args.limit } : {}),
+    }),
   'tasks/queries:listTasksFromThread': (args) =>
     tasksFromThreadQuery(String(args.organizationId), String(args.threadId)),
   'governance/legal_hold_queries:listActiveHoldTargetIds': (args) =>
@@ -327,6 +333,41 @@ export function useChatProjects(
   }, [projects]);
 }
 
+/** How many projects Home's navigator lists: one page, the most it holds. */
+const NAVIGATOR_PROJECT_LIMIT = 100;
+
+/** One page of the projects Home's navigator lists, and whether it holds
+ * them all. */
+export interface NavigatorProjects {
+  readonly projects: readonly ChatProjectSummary[];
+  /** `false` when the organization has more projects than the page holds. */
+  readonly isDone: boolean;
+}
+
+/**
+ * Home's PROJECTS section: ONE page of the unarchived projects, the pinned
+ * first, then the most recently updated — never the whole list, however
+ * many the organization has. `isDone` says whether the page holds them all.
+ */
+export function useNavigatorProjects(
+  organizationId: string,
+): ChatQuery<NavigatorProjects> {
+  const page = useChatQuery('projects/queries:listSidebarProjects', {
+    organizationId,
+    limit: NAVIGATOR_PROJECT_LIMIT,
+  });
+  return useMemo(() => {
+    if (page.status !== 'ready') return page;
+    return {
+      status: 'ready',
+      data: {
+        projects: page.data.projects.map(toChatProjectSummary),
+        isDone: page.data.isDone,
+      },
+    };
+  }, [page]);
+}
+
 type ProjectRow = ReturnsOf<'projects/queries:listProjects'>[number];
 
 /** One summary per project row: a refetch keeps every unchanged row's object
@@ -375,6 +416,10 @@ export function useProjectPin(organizationId: string): {
       await setProjectPinnedRequest(organizationId, projectId, pinned);
       void queryClient.invalidateQueries({
         queryKey: chatProjectsQuery(organizationId).queryKey,
+      });
+      // Home's navigator orders by the pin, at every page size.
+      void queryClient.invalidateQueries({
+        queryKey: backendKey(organizationId, 'project', 'sidebar'),
       });
     },
     [queryClient, organizationId],

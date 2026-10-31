@@ -34,6 +34,11 @@ import {
   checkUserRateLimit,
   RateLimitExceededError,
 } from '../../lib/rate-limit.ts';
+import {
+  formatKeysetCursor,
+  pageLimit,
+  parseKeysetCursor,
+} from '../../rest/shared.ts';
 import { syncRagDocumentScopes } from '../knowledge/service.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
 import { ensureDefaultProjectLabels } from '../tasks/service.ts';
@@ -66,6 +71,7 @@ import {
   listProjects,
   listProjectsOverview,
   listSidebarProjects,
+  PROJECT_PAGE_LIMITS,
   ProjectError,
   readProjectInstructionsConfiguration,
   readAgentInstructionsConfiguration,
@@ -468,25 +474,53 @@ export function createProjectRoutes(deps: {
     }
   });
 
+  // One page of the projects list (#5156): the previous page's
+  // `continueCursor` comes back as `cursor`.
   app.get('/overview', async (c) => {
     const auth = await authCtx(c);
     const includeArchived = c.req.query('includeArchived') === 'true';
     const asOfRaw = c.req.query('asOf');
     const asOf = asOfRaw === undefined ? Number.NaN : Number(asOfRaw);
-    return c.json(
-      await listProjectsOverview(deps.sql, auth, {
-        includeArchived,
-        ...readOptions(c),
-        ...(Number.isFinite(asOf) && asOf > 0 ? { asOf } : {}),
-      }),
-    );
+    const rawCursor = c.req.query('cursor') ?? '';
+    const cursor = parseKeysetCursor(rawCursor);
+    if (rawCursor !== '' && cursor === null) {
+      return c.json(
+        {
+          error: 'INVALID_CURSOR',
+          message: 'The "cursor" query parameter is not one this list answered',
+        },
+        400,
+      );
+    }
+    const page = await listProjectsOverview(deps.sql, auth, {
+      includeArchived,
+      ...readOptions(c),
+      ...(Number.isFinite(asOf) && asOf > 0 ? { asOf } : {}),
+      limit: pageLimit(c.req.query('limit'), PROJECT_PAGE_LIMITS),
+      cursor,
+    });
+    const last = page.projects.at(-1);
+    return c.json({
+      projects: page.projects,
+      overdueTruncated: page.overdueTruncated,
+      isDone: !page.hasMore,
+      continueCursor:
+        page.hasMore && last !== undefined
+          ? formatKeysetCursor(last.createdAt, last.id)
+          : '',
+    });
   });
 
+  // Home's navigator: one bounded page, pinned projects first.
   app.get('/sidebar', async (c) => {
     const auth = await authCtx(c);
-    return c.json({
-      projects: await listSidebarProjects(deps.sql, auth, 50, readOptions(c)),
-    });
+    const page = await listSidebarProjects(
+      deps.sql,
+      auth,
+      pageLimit(c.req.query('limit'), PROJECT_PAGE_LIMITS),
+      readOptions(c),
+    );
+    return c.json({ projects: page.projects, isDone: !page.hasMore });
   });
 
   app.get('/search', async (c) => {
