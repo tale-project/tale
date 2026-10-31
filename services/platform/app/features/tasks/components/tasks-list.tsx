@@ -17,6 +17,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useAssignTask, useUpdateTask } from '../hooks/mutations';
 import { TaskActorDirectoryProvider } from '../hooks/task-actor-directory-context';
+import { useProvidedActorDirectory } from '../hooks/use-actor-directory';
 import { useTaskBoardDnd } from '../hooks/use-task-board-dnd';
 import { BOARD_TASK_STATUSES, type TaskStatus } from '../lib/display';
 import { partitionSubtasks, subtaskProgress } from '../lib/subtasks';
@@ -34,6 +35,7 @@ import {
   SubtaskProgress,
 } from './task-indicators';
 import { TaskLabelBadge, TaskLabelOverflow } from './task-label-badge';
+import { TaskLiveLineView, useTaskRunLine } from './task-run-line';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskTitleButton } from './task-title-button';
 import {
@@ -348,7 +350,19 @@ const TaskListRow = memo(function TaskListRow({
   );
   const assignTask = useAssignTask();
   const updateTask = useUpdateTask();
-  const blocked = useTaskBoardContext().isBlocked(task._id);
+  const { isBlocked, runState } = useTaskBoardContext();
+  const blocked = isBlocked(task._id);
+  // What the task's run does, worded as on its board card.
+  const resolveActor = useProvidedActorDirectory(
+    task.organizationId,
+    task.projectId,
+  )?.resolveActor;
+  const runLine = useTaskRunLine()(
+    runState(task._id),
+    task.assigneeType === 'agent' && task.assigneeId && resolveActor
+      ? resolveActor('agent', task.assigneeId).name
+      : undefined,
+  );
   const hasSubtasks = (subtasks?.length ?? 0) > 0;
   const { done, total } = subtaskProgress(subtasks);
   // Drag and the inline pickers are for whoever may work this task.
@@ -440,6 +454,7 @@ const TaskListRow = memo(function TaskListRow({
         title={task.title}
         sortable={sortable}
         draggable={draggable}
+        {...(runLine !== null ? { description: runLine.text } : {})}
         onOpen={() => onOpen?.(task)}
         className={cn(
           'text-foreground line-clamp-1 min-w-0 flex-1 text-left text-sm focus-visible:after:ring-inset',
@@ -448,6 +463,15 @@ const TaskListRow = memo(function TaskListRow({
       />
       {task.archivedAt != null && (
         <TaskArchivedBadge className="shrink-0 px-1.5 py-px text-[10px]" />
+      )}
+      {runLine !== null && (
+        // Read with the title through its description; on a narrow row
+        // the icon stands alone.
+        <TaskLiveLineView
+          line={runLine}
+          className="max-w-[12rem] shrink-0"
+          textClassName="hidden sm:inline"
+        />
       )}
       {task.labels && task.labels.length > 0 && (
         <span className="relative z-10 hidden shrink-0 items-center gap-1 md:flex">

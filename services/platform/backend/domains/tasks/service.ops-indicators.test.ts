@@ -62,9 +62,37 @@ function liveRun(n: number, fields: Partial<LiveRunRow> = {}): LiveRunRow {
   };
 }
 
-/** A SQL tag answering the live-run read with `runs` and every other read
- * with nothing; the live-run read's text and values are kept. */
-function opsSql(runs: LiveRunRow[]) {
+interface AutomationRunRow {
+  runId: string;
+  taskId: string | null;
+  status: 'queued' | 'running' | 'waiting';
+  detail: string | null;
+  hasPendingAsk: boolean;
+}
+
+function automationRun(
+  n: number,
+  fields: Partial<AutomationRunRow> = {},
+): AutomationRunRow {
+  return {
+    runId: `auto-${n}`,
+    taskId: `task-${n}`,
+    status: 'running',
+    detail: null,
+    hasPendingAsk: false,
+    ...fields,
+  };
+}
+
+/** A SQL tag answering the live-run read with `runs`, the live automation
+ * run read with `automationRuns`, the read of tasks with a running agent run
+ * with `agentWorkingTaskIds` and every other read with nothing; the
+ * live-run read's text and values are kept. */
+function opsSql(
+  runs: LiveRunRow[],
+  automationRuns: AutomationRunRow[] = [],
+  agentWorkingTaskIds: string[] = [],
+) {
   const reads: Array<{ text: string; values: unknown[] }> = [];
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
     const text = strings.join('?').replaceAll(/\s+/g, ' ').trim();
@@ -74,6 +102,12 @@ function opsSql(runs: LiveRunRow[]) {
       return Promise.resolve(
         typeof limit === 'number' ? runs.slice(0, limit) : runs,
       );
+    }
+    if (text.includes('AS "hasPendingAsk"')) {
+      return Promise.resolve(automationRuns);
+    }
+    if (text.includes('SELECT DISTINCT task_id')) {
+      return Promise.resolve(agentWorkingTaskIds.map((taskId) => ({ taskId })));
     }
     return Promise.resolve([]);
   };
@@ -193,5 +227,100 @@ describe('the board reads every live agent run with its worker and wait', () => 
     expect(ops.runsTruncated).toBe(false);
     expect(reads).toHaveLength(1);
     expect(reads[0]?.values.at(-2)).toEqual(['p0', 'p1']);
+  });
+});
+
+describe('the board reads what a task’s live automation run does', () => {
+  it('reads a run as working only while it works, and says what a waiting one waits on', async () => {
+    const { sql } = opsSql(
+      [],
+      [
+        automationRun(1),
+        automationRun(2, { status: 'waiting', detail: 'agent:write' }),
+        automationRun(3, {
+          status: 'waiting',
+          detail: 'agent:write',
+          hasPendingAsk: true,
+        }),
+        automationRun(4, { status: 'queued' }),
+        automationRun(5, { status: 'waiting', detail: 'approval:publish' }),
+        automationRun(6, { status: 'waiting', detail: 'room:write' }),
+        automationRun(7, { status: 'waiting', detail: 'repeat:poll' }),
+        automationRun(8, { status: 'waiting', detail: 'in_doubt:send' }),
+        automationRun(9, { status: 'waiting', detail: null }),
+      ],
+    );
+    const ops = await getTaskOpsIndicators(sql, auth, 'p0');
+    expect(ops.runningTaskIds).toEqual(['task-1', 'task-2', 'task-3']);
+    expect(ops.askingTaskIds).toEqual(['task-3']);
+    expect(ops.automationWaits).toEqual([
+      { taskId: 'task-4', runId: 'auto-4', status: 'queued' },
+      {
+        taskId: 'task-5',
+        runId: 'auto-5',
+        status: 'waiting',
+        waitingFor: 'approval',
+      },
+      {
+        taskId: 'task-6',
+        runId: 'auto-6',
+        status: 'waiting',
+        waitingFor: 'room',
+      },
+      {
+        taskId: 'task-7',
+        runId: 'auto-7',
+        status: 'waiting',
+        waitingFor: 'repeat',
+      },
+      {
+        taskId: 'task-8',
+        runId: 'auto-8',
+        status: 'waiting',
+        waitingFor: 'in_doubt',
+      },
+      { taskId: 'task-9', runId: 'auto-9', status: 'waiting' },
+    ]);
+  });
+
+  it('reads each task by its newest automation run, after its running agent run', async () => {
+    const { sql } = opsSql(
+      [],
+      [
+        automationRun(1, { taskId: 'task-a', status: 'queued' }),
+        automationRun(2, { taskId: 'task-a' }),
+        automationRun(3, { taskId: 'task-b' }),
+        automationRun(4, { taskId: 'task-b', status: 'queued' }),
+        automationRun(5, { taskId: 'task-c', status: 'queued' }),
+        automationRun(6, { taskId: null, status: 'queued' }),
+      ],
+      ['task-c'],
+    );
+    const ops = await getTaskOpsIndicators(sql, auth, 'p0');
+    expect(ops.runningTaskIds).toEqual(['task-c', 'task-b']);
+    expect(ops.automationWaits).toEqual([
+      { taskId: 'task-a', runId: 'auto-1', status: 'queued' },
+    ]);
+  });
+
+  it('keeps fifty tasks of each kind', async () => {
+    const { sql } = opsSql(
+      [],
+      Array.from({ length: 120 }, (_, index) =>
+        automationRun(index, {
+          status: index % 2 === 0 ? 'running' : 'queued',
+        }),
+      ),
+    );
+    const ops = await getTaskOpsIndicators(sql, auth, 'p0');
+    expect(ops.runningTaskIds).toHaveLength(50);
+    expect(ops.automationWaits).toHaveLength(50);
+  });
+
+  it('reads no automation run across every project', async () => {
+    const { sql } = opsSql([], [automationRun(1, { status: 'queued' })]);
+    const ops = await getTaskOpsIndicatorsForAccessibleProjects(sql, auth);
+    expect(ops.runningTaskIds).toEqual([]);
+    expect(ops.automationWaits).toEqual([]);
   });
 });

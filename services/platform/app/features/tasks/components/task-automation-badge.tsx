@@ -30,8 +30,9 @@ interface TaskAutomationBadgeProps {
   };
   /** Icon + automation name (the modal); default icon-only (board card). */
   showName?: boolean;
-  /** True while a run is live on the task — the working pulse next door
-   * already tells that story, so the chip stays quiet. */
+  /** True while the card's live line says what the task's run does — at
+   * work, waiting or queued, or that it can't be told — so the chip stays
+   * quiet. */
   runActive?: boolean;
   className?: string;
 }

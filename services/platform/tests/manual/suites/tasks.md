@@ -910,6 +910,16 @@ the task's description: `e2e:make-file`, `e2e:make-spreadsheet` and
   for your answer** instead; one at the review gate shows **Waiting on you** or
   **Waiting on {name}**. An agent-assigned card names its agent beside the
   avatar. The card's title reads the same sentence to a screen reader.
+- [ ] `TASK-F75a` · **A card says why its run waits** — With both workers of
+  `TASK-F81` busy, start the agent on a third task (`TASK-F82`) → its card
+  shows **Waiting for a worker** (`tasks.agentRun.waiting.org_limit`) under
+  its title with a still clock, never **{agent} is working**, and its row in
+  **List** shows the same words (on a phone, the clock alone); both titles
+  read the words to a screen reader. Let one of the first two runs finish →
+  the card turns to **{agent} is working** without a reload. A task whose
+  automation run waits for an approval reads **Waiting for approval**
+  (`tasks.board.automationWaiting.approval`), not working. Repeat in Deutsch
+  and Français.
 - [ ] `TASK-F76` · **Fold the finished lanes** — On a board with tasks in
   **Done** and **Cancelled**, hover **Done** → beside **+** a fold icon
   (**Collapse Done**, `tasks.board.collapseLane`); select it, then fold

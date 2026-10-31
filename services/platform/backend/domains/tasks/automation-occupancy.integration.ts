@@ -317,6 +317,12 @@ export async function checkTaskAutomationOccupancy(
           !board.runningTaskIds.includes(target) &&
           !board.runningTaskIds.includes(unrelated) &&
           !board.runningTaskIds.includes('not-a-task-id') &&
+          board.automationWaits.every(
+            (wait) =>
+              wait.taskId !== target &&
+              wait.taskId !== unrelated &&
+              wait.taskId !== 'not-a-task-id',
+          ) &&
           isRecord(transfer.value) &&
           transfer.value.changed === true,
         `live=${live !== null} latest=${latest !== null} changed=${isRecord(transfer.value) && transfer.value.changed === true}`,

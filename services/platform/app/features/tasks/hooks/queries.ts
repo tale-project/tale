@@ -60,6 +60,7 @@ const NO_EDGES: readonly never[] = [];
 const NO_REVIEWS: readonly never[] = [];
 const NO_ACTIVITY: never[] = [];
 const NO_RUNS: never[] = [];
+const NO_WAITS: never[] = [];
 
 interface BoardReadOptions {
   includeArchived?: boolean;
@@ -365,6 +366,9 @@ export function useTaskOpsIndicators(projectId: string | undefined) {
     // list never means "not waiting" for a task missing from it.
     runs: data?.runs ?? NO_RUNS,
     runsTruncated: data?.runsTruncated ?? false,
+    // Tasks whose live automation run is queued or parked instead of
+    // working: the card says what it waits on, never that it works.
+    automationWaits: data?.automationWaits ?? NO_WAITS,
   };
 }
 
@@ -380,11 +384,13 @@ export function useTaskOpsIndicatorsAcrossProjects(enabled = true) {
     ...readControls(query),
     runningTaskIds: data?.runningTaskIds ?? NO_IDS,
     // Always empty today: the aggregate query omits automation-run indicators
-    // (see getTaskOpsIndicatorsForAccessibleProjects), the ask set with them.
+    // (see getTaskOpsIndicatorsForAccessibleProjects), the ask set and the
+    // automation waits with them.
     askingTaskIds: data?.askingTaskIds ?? NO_IDS,
     pendingReviews: data?.pendingReviews ?? NO_REVIEWS,
     runs: data?.runs ?? NO_RUNS,
     runsTruncated: data?.runsTruncated ?? false,
+    automationWaits: data?.automationWaits ?? NO_WAITS,
   };
 }
 

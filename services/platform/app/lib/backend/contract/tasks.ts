@@ -9,7 +9,10 @@ import type {
 
 import type { TaskStatusSnapshot } from '@/backend/domains/tasks/external-status';
 import type { PendingTaskReview } from '@/backend/domains/tasks/reviews';
-import type { TaskOpsRun } from '@/backend/domains/tasks/service';
+import type {
+  TaskOpsAutomationWait,
+  TaskOpsRun,
+} from '@/backend/domains/tasks/service';
 import type { AgentRunWaitingReason } from '@/lib/shared/agent-run-waiting';
 import type { TaskRepeat } from '@/lib/shared/task-repeat';
 
@@ -83,6 +86,11 @@ export interface TaskPendingReviewIndicator {
 /** One live agent run on the board's ops read: running, queued, or waiting
  * for a worker with its reason (`TaskOpsRun`). */
 export type TaskOpsRunIndicator = TaskOpsRun;
+
+/** A task whose newest live automation run waits instead of working: queued,
+ * or parked on approval, a sandbox slot, a poll or a decision
+ * (`TaskOpsAutomationWait`). */
+export type TaskOpsAutomationWaitIndicator = TaskOpsAutomationWait;
 
 /** The board and Home only read task metadata. Full descriptions and files
  * are loaded by the task detail read before its editor mounts. */
@@ -571,6 +579,10 @@ export interface TasksContract {
       /** More live runs exist than `runs` lists: a task missing from it may
        * still have one, so read it as unknown, never as idle. */
       runsTruncated: boolean;
+      /** Tasks whose newest live automation run waits instead of working;
+       * at most 50. Such a task is in neither `runningTaskIds` nor
+       * `askingTaskIds`. */
+      automationWaits: TaskOpsAutomationWaitIndicator[];
     };
   };
   'tasks/queries:getTaskOpsIndicatorsForAccessibleProjects': {
@@ -582,6 +594,7 @@ export interface TasksContract {
       pendingReviews: TaskPendingReviewIndicator[];
       runs: TaskOpsRunIndicator[];
       runsTruncated: boolean;
+      automationWaits: never[];
     };
   };
   'tasks/queries:listProjectDependencies': {

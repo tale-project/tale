@@ -72,6 +72,7 @@ import {
 } from '../../lib/project-work-lock.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
+import { runWaitingFor } from '../automations/store.ts';
 import {
   currentMentionNames,
   prepareSurfaceText,
@@ -5164,8 +5165,23 @@ export interface TaskOpsRun {
   worker?: number;
 }
 
+/** A task's newest live automation run while it waits instead of working:
+ * queued for a server, or parked on something other than its agent's turn
+ * or a person's answer (`runWaitingFor`). */
+export interface TaskOpsAutomationWait {
+  taskId: string;
+  runId: string;
+  status: 'queued' | 'waiting';
+  /** What it is parked on, while it waits and the park is known. */
+  waitingFor?: 'approval' | 'room' | 'repeat' | 'in_doubt';
+}
+
 export interface TaskOpsIndicators {
+  /** Tasks with a running agent run, or whose newest live automation run
+   * works: running, or parked on its agent's turn or a person's answer. */
   runningTaskIds: string[];
+  /** The tasks of `runningTaskIds` whose automation run waits on a person's
+   * answer. */
   askingTaskIds: string[];
   pendingReviews: {
     taskId: string;
@@ -5180,6 +5196,10 @@ export interface TaskOpsIndicators {
    * from a truncated list may still have a run, waiting or working: read it
    * as unknown, never as idle, and count the list as "50+". */
   runsTruncated: boolean;
+  /** Tasks whose newest live automation run waits instead of working, in
+   * neither `runningTaskIds` nor `askingTaskIds`; at most
+   * {@link TASK_OPS_INDICATOR_CAP}. */
+  automationWaits: TaskOpsAutomationWait[];
 }
 
 /** The live agent runs of the given projects (`TaskOpsIndicators.runs`):
@@ -5257,9 +5277,10 @@ function projectPendingReviews(
 /**
  * One project's ops indicators (the 0.4 walk): tasks with a RUNNING
  * task-agent run, plus subject-linked live AUTOMATION runs (newest-first
- * bounded scan; a run parked on an unanswered, unexpired ask flips the task
- * into `askingTaskIds` — the viewer's move, not the agent's), plus the
- * pending review gates.
+ * bounded scan, each task by its newest run; a run parked on an unanswered,
+ * unexpired ask flips the task into `askingTaskIds` — the viewer's move, not
+ * the agent's — and one that is queued or parked on anything but its
+ * agent's turn waits in `automationWaits`), plus the pending review gates.
  */
 export async function getTaskOpsIndicators(
   sql: Sql,
@@ -5278,10 +5299,18 @@ export async function getTaskOpsIndicators(
   const seen = new Set(runningTaskIds);
 
   const askingTaskIds: string[] = [];
+  const automationWaits: TaskOpsAutomationWait[] = [];
   const liveRuns = await sql<
-    { runId: string; taskId: string | null; hasPendingAsk: boolean }[]
+    {
+      runId: string;
+      taskId: string | null;
+      status: 'queued' | 'running' | 'waiting';
+      detail: string | null;
+      hasPendingAsk: boolean;
+    }[]
   >`
     SELECT r.id AS "runId", r.input -> 'task' ->> 'id' AS "taskId",
+           r.status, r.detail,
            EXISTS (
              SELECT 1 FROM app.automation_human_asks a
              WHERE a.run_id = r.id AND a.status = 'pending'
@@ -5297,11 +5326,30 @@ export async function getTaskOpsIndicators(
     LIMIT ${TASK_OPS_RUN_SCAN_CAP}
   `;
   for (const run of liveRuns) {
-    if (runningTaskIds.length >= TASK_OPS_INDICATOR_CAP) break;
     if (run.taskId === null || seen.has(run.taskId)) continue;
-    runningTaskIds.push(run.taskId);
     seen.add(run.taskId);
-    if (run.hasPendingAsk) askingTaskIds.push(run.taskId);
+    const waitingFor = runWaitingFor({
+      status: run.status,
+      detail: run.detail,
+      askPending: run.hasPendingAsk,
+    });
+    if (
+      run.hasPendingAsk ||
+      run.status === 'running' ||
+      waitingFor === 'agent' ||
+      waitingFor === 'ask'
+    ) {
+      if (runningTaskIds.length >= TASK_OPS_INDICATOR_CAP) continue;
+      runningTaskIds.push(run.taskId);
+      if (run.hasPendingAsk) askingTaskIds.push(run.taskId);
+    } else if (automationWaits.length < TASK_OPS_INDICATOR_CAP) {
+      automationWaits.push({
+        taskId: run.taskId,
+        runId: run.runId,
+        status: run.status,
+        ...(waitingFor !== undefined ? { waitingFor } : {}),
+      });
+    }
   }
 
   const pending = await collectPendingReviewsForProjects(
@@ -5314,13 +5362,15 @@ export async function getTaskOpsIndicators(
     askingTaskIds,
     pendingReviews: projectPendingReviews(pending),
     ...(await readLiveAgentRuns(sql, auth.organizationId, [projectId])),
+    automationWaits,
   };
 }
 
 /**
  * All-projects sibling: running task-agent turns + pending reviews across
  * every readable project. Automation-run indicators (and with them
- * `askingTaskIds`) are omitted — the 0.4 aggregate makes the same call.
+ * `askingTaskIds` and `automationWaits`) are omitted — the 0.4 aggregate
+ * makes the same call.
  */
 export async function getTaskOpsIndicatorsForAccessibleProjects(
   sql: Sql,
@@ -5334,6 +5384,7 @@ export async function getTaskOpsIndicatorsForAccessibleProjects(
       pendingReviews: [],
       runs: [],
       runsTruncated: false,
+      automationWaits: [],
     };
   }
   const projectIds = projects.map((project) => project.id);
@@ -5353,6 +5404,7 @@ export async function getTaskOpsIndicatorsForAccessibleProjects(
     askingTaskIds: [],
     pendingReviews: projectPendingReviews(pending),
     ...(await readLiveAgentRuns(sql, auth.organizationId, projectIds)),
+    automationWaits: [],
   };
 }
 
