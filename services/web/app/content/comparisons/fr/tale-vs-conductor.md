@@ -24,7 +24,7 @@ Conductor présente des agents de programmation dans le cloud, des espaces où p
 
 Tale organise le travail de l’entreprise en projets et tâches. Une sortie de produit peut réunir modification de code, étude client, guide de migration et textes de campagne. Les collègues attribuent ces tâches à des agents de projet équipés et examinent les fichiers et rapports sur le tableau. Une préparation technique reste nécessaire : fournisseurs, outils, autorisations et capacité des sandboxes doivent être configurés avant de déléguer un travail avancé.
 
-Évalue Conductor si le dépôt et l’espace de programmation structurent votre collaboration. Évalue Tale si plusieurs métiers doivent planifier et examiner leurs livrables dans un projet commun. Une tâche sans code permet de tester ce choix, sans présumer que Conductor ne puisse pas la réaliser.
+Évalue Conductor si le dépôt et l’espace de programmation structurent la collaboration de ton équipe. Évalue Tale si plusieurs métiers doivent planifier et examiner leurs livrables dans un projet commun. Une tâche sans code permet de tester ce choix, sans présumer que Conductor ne puisse pas la réaliser.
 
 ## Tester aussi l’accès par abonnement
 

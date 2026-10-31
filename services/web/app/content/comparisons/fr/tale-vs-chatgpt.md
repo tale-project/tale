@@ -35,3 +35,5 @@ Ce choix n’impose pas d’abandonner tous les abonnements existants. Tale pren
 Donne aux deux espaces les mêmes objectifs fictifs et notes d’avancement. Attribue un premier plan, fais contester une hypothèse par un collègue et transforme un point ouvert en tâche de suivi.
 
 Évalue comment retrouver le responsable, examiner les preuves, demander des modifications et reprendre une semaine plus tard. Inclus la configuration administrative et le mode d’exécution utilisé. [Demande une démo de Tale](https://tale.dev/fr/request-demo) avec ce parcours.
+
+Cette comparaison s’appuie sur la documentation publique examinée le 3 octobre 2026, sans test comparatif pratique.

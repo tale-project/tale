@@ -10,11 +10,10 @@ import {
 import { COMPARISON_NAV_ITEM } from '@/app/content/nav-menus';
 import {
   FOOTER_COMPANY_CTAS,
-  GET_STARTED_HREF,
   HEADER_CTAS,
   HEADER_PRIMARY_CTA,
 } from '@/app/content/site-ctas';
-import { GET_STARTED_URL } from '@/lib/docs-url';
+import { DOCS_URL } from '@/lib/docs-url';
 import { EXTERNAL_LINKS } from '@/lib/external-links';
 
 describe('site content contracts', () => {
@@ -81,11 +80,24 @@ describe('site content contracts', () => {
     expect(HEADER_PRIMARY_CTA).toMatchObject({
       kind: 'external',
       labelKey: 'getStarted',
-      href: GET_STARTED_URL,
     });
     expect(HEADER_CTAS).toEqual([HEADER_PRIMARY_CTA]);
-    expect(GET_STARTED_HREF).toBe(GET_STARTED_URL);
   });
+
+  // #4127: the header must not send a German or French reader to the
+  // English docs.
+  it.each([
+    ['en', ''],
+    ['de', '/de'],
+    ['fr', '/fr'],
+  ] as const)(
+    'links the %s header Get started to its own docs',
+    (locale, prefix) => {
+      expect(HEADER_PRIMARY_CTA.href(locale)).toBe(
+        `${DOCS_URL}${prefix}/get-started/quickstart`,
+      );
+    },
+  );
 
   it('pins footer company CTAs: About us + Contact us + Request a demo', () => {
     expect(FOOTER_COMPANY_CTAS.map((c) => c.labelKey)).toEqual([
