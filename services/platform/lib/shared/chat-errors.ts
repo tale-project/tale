@@ -269,6 +269,17 @@ export function classifyChatErrorCode(error: unknown): ChatErrorCode {
   if (code === 'CHAT_MODEL_UNKNOWN' || code === 'CHAT_PROVIDER_UNAVAILABLE') {
     return 'model_not_found';
   }
+  // The organization's EU/EEA rule refused the endpoint the model would be
+  // called at, or its policy could not be read (`ModelEndpointRefusal`,
+  // GOV-R17): the model is unavailable here until an admin changes its
+  // endpoint or the policy, so no retry helps. By code, before any wording —
+  // the sentence names hosts the patterns below could misread.
+  if (
+    code === 'MODEL_ENDPOINT_OUTSIDE_EU' ||
+    code === 'MODEL_ENDPOINT_POLICY_UNREADABLE'
+  ) {
+    return 'model_not_found';
+  }
 
   // Org has no usable provider / no API key at all — actionable setup error.
   if (

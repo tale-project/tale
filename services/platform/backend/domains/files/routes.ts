@@ -11,6 +11,7 @@ import {
 import type { Auth } from '../../auth/auth.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession } from '../../auth/session.ts';
+import { ModelEndpointRefusal } from '../../core/governance/model_endpoint_gate.ts';
 import { publicOrigin } from '../../core/lib/helpers/public_origin.ts';
 import { TranscriptionModelError } from '../../core/lib/providers/resolve_transcription_model.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
@@ -95,6 +96,11 @@ function handleError<E extends OrgEnv>(
       error.code === 'TRANSCRIPTION_MODEL_POLICY_UNAVAILABLE' ||
       error.code === 'TRANSCRIPTION_MODEL_RESOLUTION_FAILED';
     return c.json({ error: error.code }, transient ? 503 : 409);
+  }
+  if (error instanceof ModelEndpointRefusal) {
+    // The organization's EU/EEA rule refused the transcription model before
+    // any audio left (GOV-R17); its sentence says what an admin can change.
+    return c.json({ error: error.data.code, message: error.data.message }, 403);
   }
   if (error instanceof RateLimitExceededError) {
     return rateLimitedResponse(c, error);

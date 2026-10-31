@@ -4,6 +4,7 @@ import type { KnowledgeEmbeddingConfig } from '@tale/shared/schemas/knowledge';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
+import { shimFunctionName } from '../../lib/ctx-shim';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import type { Id } from '../lib/rows';
@@ -57,7 +58,14 @@ const BASE_ROW = {
   status: 'active',
 };
 const runQuery = vi.fn<(...args: unknown[]) => Promise<unknown>>();
-const ctx = { runQuery } as unknown as ActionCtx;
+// The EU/EEA rule is off here; embedding.eu_processing.test.ts turns it on.
+const ctx = {
+  runQuery: async (ref: unknown, args: unknown) =>
+    shimFunctionName(ref) ===
+    'governance/internal_queries:getModelEndpointPolicyInternal'
+      ? { kind: 'open' }
+      : runQuery(ref, args),
+} as unknown as ActionCtx;
 
 function resolve(config: KnowledgeEmbeddingConfig = CONFIG) {
   return embedderForOrg(ctx, {

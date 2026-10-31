@@ -333,6 +333,31 @@ describe('planning a policy change', () => {
     });
   });
 
+  it('refuses a vendor host attested as processing in the EU/EEA, which the rule would ignore [GOV-R17]', async () => {
+    const plan = await planSettings(contextOf('admin'), registry, [
+      {
+        kind: 'governance',
+        id: 'model_access',
+        op: 'set',
+        config: {
+          enabled: false,
+          mode: 'blocklist',
+          rules: [],
+          euProcessing: {
+            enabled: true,
+            hosts: ['llm.example.eu', 'api.mistral.ai'],
+          },
+        },
+      },
+    ]);
+    expect(plan.changes[0]?.refusal).toMatchObject({
+      code: 'EU_PROCESSING_HOST_NOT_ATTESTABLE',
+      error: expect.stringContaining('api.mistral.ai (use api.eu.mistral.ai)'),
+      data: { hosts: ['api.mistral.ai'] },
+    });
+    expect(writeGovernancePolicyFile).not.toHaveBeenCalled();
+  });
+
   it('says what a change does beyond its value, and that a change to what is stored does nothing', async () => {
     const current = stored.get('password_policy') as Record<string, unknown>;
     const plan = await planSettings(contextOf('admin'), registry, [
