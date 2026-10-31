@@ -33,3 +33,5 @@ Envisage Tale si l’application recherchée est un espace projet commun aux col
 Crée un incident fictif avec sa chronologie, deux pistes d’investigation et un brouillon de communication client. Demande à chaque solution de soutenir des investigations parallèles selon sa configuration, une recommandation commune et une demande de preuves supplémentaires lors de la relecture.
 
 Examine comment les développeurs rendent visibles l’avancement et les interruptions dans leur application, puis comment le cycle des tâches de Tale représente le même travail. Fais reprendre une tâche ouverte par un collègue qui n’a pas construit la configuration. Note l’effort pour rendre cette transmission compréhensible, en plus des résultats des agents. [Demande une démo de Tale](https://tale.dev/fr/request-demo) avec ce projet.
+
+Cette comparaison s’appuie sur la documentation publique examinée le 3 octobre 2026, sans test comparatif pratique.

@@ -79,7 +79,7 @@ Pour une tâche pilotée par une automatisation, mentionne celle qui en est resp
 
 Une tâche ne peut avoir qu’une seule exécution en file d’attente, en cours ou en attente à la fois, quelle que soit l’automatisation qui l’a démarrée. Répéter une demande de démarrage tant qu’elle est active renvoie à l’exécution existante, même si elle nomme une autre automatisation. Une fois celle-ci terminée, un nouveau démarrage peut créer une autre exécution et répéter le travail. Vérifie donc l’exécution actuelle et ses effets avant une nouvelle tentative.
 
-## Confier la file de travail à un agent coordinateur
+## Confier la file de travail à un agent coordinateur {#let-a-manager-agent-keep-the-queue-moving}
 
 Un agent coordinateur est un agent de projet dont les instructions consistent à lire tout le tableau, à distribuer le travail prêt et à répondre aux questions de routine que laissent les autres agents, pour que les personnes ne voient que ce qui demande leur intervention. Il lit avec **Trouver des tâches** et **Lire une tâche** ; aucun de ces deux outils ne modifie quoi que ce soit.
 

@@ -33,3 +33,5 @@ Consider Tale when the primary requirement is an existing workspace where teamma
 Use a fictional customer escalation requiring evidence collection, a proposed response, and a reviewer's decision. Halfway through, add a contradictory source and ask the reviewer to send the draft back.
 
 Assess how each approach represents the interruption, preserves useful context, and makes the next responsible person obvious. For a framework prototype, include the work needed to expose these states to nondevelopers. For Tale, verify the configured review behavior and permissions. Compare the complete usable workflow rather than just the agent's output. [Request a Tale demo](https://tale.dev/request-demo) with this escalation case.
+
+This comparison describes public documentation reviewed on 3 October 2026; it is not a hands-on benchmark.

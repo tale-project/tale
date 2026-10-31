@@ -1,12 +1,7 @@
 suffix: Tale
 default:
-  title: The Orchestration Layer for AI Agents
-  description: Local AI models, agents, skills, and automations — on your own
-    infrastructure, connected to your data
-keywords: sovereign AI, local AI, self-hosted AI platform, AI agents, AI
-  automations, on-premises AI, data sovereignty, private infrastructure, AI
-  skills, local language models, enterprise AI, data privacy, agentic AI,
-  workflow automation
+  title: Project workspace for teams and AI agents
+  description: Plan projects, delegate tasks to AI agents, and review results with your team.
 chat:
   title: Chat
   description: Chat with AI to get help with your tasks.

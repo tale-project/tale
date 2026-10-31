@@ -33,3 +33,5 @@ Envisage Tale si l’entreprise a besoin de planifier le travail, de déléguer 
 Prends une version fictive avec un journal des modifications, des notes de test et deux problèmes ouverts. Demande une synthèse de préparation, attribue des investigations et fais exiger une correction par le responsable produit avant acceptation.
 
 Dans le prototype Mastra, inclus l’interface et les commandes nécessaires aux non-développeurs. Dans Tale, vérifie l’adéquation du modèle de tâches et de validation. Sépare le travail de développement de l’effort de la personne qui pilote le lancement. Recommence avec un nouveau collègue pour vérifier la compréhension des responsabilités. [Demande une démo de Tale](https://tale.dev/fr/request-demo) avec ton processus.
+
+Cette comparaison s’appuie sur la documentation publique examinée le 3 octobre 2026, sans test comparatif pratique.

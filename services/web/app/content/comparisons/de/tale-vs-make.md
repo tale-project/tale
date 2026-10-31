@@ -33,3 +33,5 @@ Prüfe Tale, wenn dein Team ein Projektboard braucht, um ein Ergebnis in Aufgabe
 Nutze ein beispielhaftes Kundenbriefing und eine Checkliste, in der eine Anforderung fehlt. Erstelle in beiden Kandidaten den Onboarding-Plan, leite die offene Frage an eine verantwortliche Person weiter und überarbeite den Plan nach dem Feedback. Baue eine fehlgeschlagene Aktualisierung in einem externen System ein, um die Wiederaufnahme zu prüfen.
 
 Halte fest, wer die Ausnahme bemerkt, wo das Team offene Arbeit sieht und welche Informationen die prüfende Person für die Freigabe braucht. Bewerte die gesamte Übergabe. [Buche eine Tale-Demo](https://tale.dev/de/request-demo) mit diesem Onboarding-Fall.
+
+Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 3. Oktober 2026, und ist kein praktischer Benchmark.

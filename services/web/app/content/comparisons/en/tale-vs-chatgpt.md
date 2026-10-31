@@ -35,3 +35,5 @@ The choice need not mean abandoning every existing subscription. Tale supports c
 Give both workspaces the same fictional objectives and progress notes. Assign a draft plan, ask a second teammate to challenge an assumption, and carry one unresolved item into a follow-up task.
 
 Evaluate how people discover the current owner, inspect evidence, request changes, and resume work a week later. Include administrator setup and the execution mode actually used. [Request a Tale demo](https://tale.dev/request-demo) with this planning workflow.
+
+This comparison describes public documentation reviewed on 3 October 2026; it is not a hands-on benchmark.

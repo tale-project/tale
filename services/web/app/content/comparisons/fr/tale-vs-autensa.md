@@ -24,7 +24,7 @@ Autensa, publié dans le dépôt crshdn/mission-control, présente un parcours d
 
 Tale fournit un tableau de projet partagé. Équipe les agents pour des tâches précises, ajoute un brief et des fichiers de référence, lance le travail et examine le résultat. Un agent de coordination peut lancer d’autres tâches admissibles dans les limites configurées. Les collègues peuvent aussi prendre des tâches en charge. Selon la configuration, une personne ou un agent indépendant examine le résultat.
 
-Autensa peut convenir si vous cherchez un processus récurrent d’amélioration produit menant à des modifications de dépôt. Tale peut convenir si l’équipe doit décider et coordonner le travail d’un projet plus large. Cela inclut le logiciel, mais aussi les projets dont le résultat final est une recommandation documentée ou un livrable sans pull request.
+Autensa peut convenir si tu cherches un processus récurrent d’amélioration produit menant à des modifications de dépôt. Tale peut convenir si l’équipe doit décider et coordonner le travail d’un projet plus large. Cela inclut le logiciel, mais aussi les projets dont le résultat final est une recommandation documentée ou un livrable sans pull request.
 
 ## Tester avant d’automatiser le cycle complet
 

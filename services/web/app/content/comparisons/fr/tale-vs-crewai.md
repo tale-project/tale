@@ -33,3 +33,5 @@ Envisage Tale si ton objectif immédiat est de faire travailler collègues et ag
 Prépare un petit brief d’étude de marché avec trois questions et des exigences de preuve explicites. Fais produire une recommandation à partir de la recherche et de la synthèse. Demande ensuite à une personne distincte de rejeter une affirmation sans source et d’exiger une révision.
 
 Évalue l’effort pour configurer ou construire le parcours, rendre l’avancement lisible et reprendre la tâche refusée sans perdre les éléments utiles. Détermine qui entretiendra chaque partie dans six mois. Une première réponse convaincante ne suffit pas à trancher entre développement et adoption. [Demande une démo de Tale](https://tale.dev/fr/request-demo) pour ce projet de recherche partagé.
+
+Cette comparaison s’appuie sur la documentation publique examinée le 3 octobre 2026, sans test comparatif pratique.
