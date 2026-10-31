@@ -22,6 +22,7 @@ import { checkProviderHostPolicy } from '../../../../lib/net/host-policy';
 import { AppError } from '../../../../lib/shared/errors/app-error';
 import { isOpenRouterProvider } from '../../../../lib/shared/providers/attribution';
 import {
+  type HiddenModelsRule,
   type ModelEndpointActor,
   type ModelEndpointPolicy,
   type ModelEndpointRefusalCode,
@@ -29,6 +30,7 @@ import {
   modelEndpointRefusal,
   readModelEndpointPolicy,
   refuseModelEndpoint,
+  withoutRefusedModels,
 } from '../../governance/model_endpoint_gate';
 import {
   isTerminalCredentialRefusal,
@@ -93,8 +95,11 @@ export class TranscriptionModelError extends AppError<{
   }
 }
 
+/** A model the organization's EU/EEA rule refuses is not offered, and
+ * `modelsHiddenBy` says the rule left some out (GOV-R22). */
 export interface TranscriptionModelStatus {
   models: TranscriptionModelOption[];
+  modelsHiddenBy?: HiddenModelsRule;
   pick: TranscriptionModelPick | null;
   error?: { code: TranscriptionModelErrorCode | ModelEndpointRefusalCode };
 }
@@ -296,16 +301,28 @@ export async function inspectTranscriptionModels(
   }
   try {
     const discovery = await candidatesFor(ctx, organizationId);
-    const models = discovery.candidates.map(
-      ({ providerSlug, providerDisplayName, modelId }) => ({
-        providerSlug,
-        providerDisplayName,
-        modelId,
-      }),
-    );
-    if (error !== undefined)
-      return { models, pick: null, error: { code: error.code } };
     const endpointPolicy = await readModelEndpointPolicy(ctx, organizationId);
+    // A model whose endpoint the EU/EEA rule refuses is not offered: a pin
+    // on it would be refused at every call (GOV-R22).
+    const offered = withoutRefusedModels(
+      endpointPolicy,
+      discovery.candidates,
+      (candidate) => modelEndpointRefusal(endpointPolicy, candidate.resolved),
+    );
+    const models = {
+      models: offered.kept.map(
+        ({ providerSlug, providerDisplayName, modelId }) => ({
+          providerSlug,
+          providerDisplayName,
+          modelId,
+        }),
+      ),
+      ...(offered.hiddenBy !== undefined
+        ? { modelsHiddenBy: offered.hiddenBy }
+        : {}),
+    };
+    if (error !== undefined)
+      return { ...models, pick: null, error: { code: error.code } };
     try {
       const { candidate: selected, refusal } = selectCandidate(
         discovery,
@@ -313,10 +330,10 @@ export async function inspectTranscriptionModels(
         endpointPolicy,
       );
       if (refusal !== undefined) {
-        return { models, pick: null, error: { code: refusal.code } };
+        return { ...models, pick: null, error: { code: refusal.code } };
       }
       return {
-        models,
+        ...models,
         pick: {
           providerSlug: selected.providerSlug,
           modelId: selected.modelId,
@@ -325,7 +342,7 @@ export async function inspectTranscriptionModels(
       };
     } catch (caught) {
       if (!(caught instanceof TranscriptionModelError)) throw caught;
-      return { models, pick: null, error: { code: caught.code } };
+      return { ...models, pick: null, error: { code: caught.code } };
     }
   } catch {
     return {
