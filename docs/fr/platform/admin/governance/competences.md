@@ -25,7 +25,7 @@ Les propriétaires et les admins ont les quatre par leur rôle ; les développe
 
 **Publier des skills pour l'organisation** ne compte que tant que la politique de partage des skills réserve les skills partagés avec l’organisation. Avec **Éditeurs et au-delà**, les éditeurs et les développeurs l’ont déjà par leur rôle. Sans elle, un membre ne peut partager des skills qu’avec ses propres équipes ; l’éditeur de skills, les téléversements et l’API REST refusent un skill partagé avec l’organisation par `403 SKILL_PUBLISH_FORBIDDEN`.
 
-**Appeler les modèles par l'API** ne prend effet que lorsque l’organisation a activé les endpoints de modèles dans [Modèles](/fr/platform/admin/governance/content-models#model-endpoints). Un membre qui la détient ouvre **Paramètres > API** avec les onglets **REST** et **Modèles**, pour créer une clé personnelle et copier la configuration ; les onglets **MCP** et **WebDAV** restent réservés aux propriétaires, admins et développeurs. Une fois l’attribution révoquée, Tale refuse l’appel de modèle suivant du membre.
+**Appeler les modèles par l'API** ne prend effet que lorsque l’organisation a activé les endpoints de modèles dans [Modèles](/fr/platform/admin/governance/content-models#model-endpoints). Tant qu’ils sont désactivés, la boîte de dialogue le signale quand tu choisis cette capacité et y renvoie avec **Ouvrir l'accès aux modèles** ; tu peux quand même l’attribuer. Un membre qui la détient ouvre **Paramètres > API** avec les onglets **REST** et **Modèles**, pour créer une clé personnelle et copier la configuration ; les onglets **MCP** et **WebDAV** restent réservés aux propriétaires, admins et développeurs. Une fois l’attribution révoquée, Tale refuse l’appel de modèle suivant du membre.
 
 ## Attribuer une compétence
 
