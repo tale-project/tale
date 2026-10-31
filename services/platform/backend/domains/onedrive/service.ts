@@ -5,6 +5,7 @@ import { isRecord } from '../../../lib/utils/type-utils.ts';
 import { extractExtension } from '../../core/documents/extract_extension.ts';
 import { sourceFromProvider } from '../../core/file_metadata/source_from_provider.ts';
 import { audienceMirror } from '../../core/lib/audience.ts';
+import { sniffDocumentExtension } from '../../core/lib/knowledge/extraction/sniff.ts';
 import { getFileMetadata } from '../../core/onedrive/get_file_metadata.ts';
 import { importFiles } from '../../core/onedrive/import_files.ts';
 import type { FileItem } from '../../core/onedrive/list_folder_contents.ts';
@@ -151,11 +152,13 @@ export interface SyncProviderAdapter {
     unauthorized?: boolean;
     error?: string;
   }>;
-  /** Vendor download URL for one item (the import deps' fetch target). */
+  /** Vendor download URL for one item (the import deps' fetch target);
+   *  with `format`, the vendor's conversion of the item, where it has one. */
   buildDownloadUrl(args: {
     itemId: string;
     siteId?: string;
     driveId?: string;
+    format?: 'pdf';
   }): string;
   /** Run the provider's REUSED 0.4 import pipeline with pg deps. */
   runImport(
@@ -492,6 +495,19 @@ const DOC_SYNC_COLUMNS = `
  * for a 512 MB file on a slow link, finite for a stalled one. */
 const VENDOR_DOWNLOAD_TIMEOUT_MS = 15 * 60 * 1000;
 
+/** A conversion's answer that asking again will not change: a 4xx that is
+ * no token refusal (401), no timeout (408) and no rate limit (429). Graph
+ * documents no codes of its own for a file it does not convert. */
+function isConversionRefused(status: number): boolean {
+  return (
+    status >= 400 &&
+    status < 500 &&
+    status !== 401 &&
+    status !== 408 &&
+    status !== 429
+  );
+}
+
 async function fetchVendorContentToStorage(
   sql: Sql,
   adapter: SyncProviderAdapter,
@@ -501,6 +517,8 @@ async function fetchVendorContentToStorage(
     token: string;
     siteId?: string;
     driveId?: string;
+    /** Land the vendor's conversion of the item instead of the item. */
+    format?: 'pdf';
   },
 ): Promise<{
   success: boolean;
@@ -512,6 +530,9 @@ async function fetchVendorContentToStorage(
   unauthorized?: boolean;
   /** A refusal a person can read — the file is past the size cap. */
   refusal?: { code: string; message: string };
+  /** The vendor would not convert the item (`format`): it refused, or
+   *  answered bytes that are no PDF. Nothing was stored. */
+  notConvertible?: boolean;
 }> {
   const url = adapter.buildDownloadUrl(args);
   try {
@@ -526,15 +547,31 @@ async function fetchVendorContentToStorage(
         success: false,
         error: `Failed to download file: ${download.status} ${errorText}`,
         ...(download.status === 401 && { unauthorized: true }),
+        ...(args.format !== undefined &&
+          isConversionRefused(download.status) && { notConvertible: true }),
       };
     }
-    const mimeType =
-      download.headers.get('content-type') || 'application/octet-stream';
     // Buffered (the blob store signs whole bodies), but never unbounded: the
     // declared length is refused before a byte is read and the received
     // bytes abort at the cap — `putOrgBlobBytes` re-checks the same ceiling,
     // it just can no longer be the FIRST check a multi-GB file meets.
     const bytes = await readBodyBounded(download, MAX_UPLOAD_BYTES);
+    // A conversion is kept only as what was asked for — the bytes decide,
+    // not the declared type: an empty or foreign body is not stored as one.
+    if (
+      args.format === 'pdf' &&
+      (await sniffDocumentExtension(bytes)) !== '.pdf'
+    ) {
+      return {
+        success: false,
+        error: `The conversion to PDF answered ${bytes.byteLength} bytes that are no PDF`,
+        notConvertible: true,
+      };
+    }
+    const mimeType =
+      args.format === 'pdf'
+        ? 'application/pdf'
+        : download.headers.get('content-type') || 'application/octet-stream';
     const ref = await putOrgBlobBytes(sql, args.organizationId, {
       bytes,
       contentType: mimeType,
@@ -617,11 +654,11 @@ async function scheduleDocumentRagIndexing(
   // again; a title ending in `.pdf` over a `standup.loop` queued a job the
   // indexer only refuses.
   if (!isRagIndexableFile(file.fileName)) {
-    // A file no extractor reads — a Loop page (`.loop`, served as
-    // `application/octet-stream`), a legacy `.doc` — gets the terminal state
-    // the indexer would give it; its empty status used to read "Not indexed"
-    // with a Reindex that could never succeed. A `.log`, which a Reindex can
-    // index, keeps its empty status.
+    // A file no extractor reads — a Loop page Microsoft did not convert
+    // (`.loop`, served as `application/octet-stream`), a legacy `.doc` —
+    // gets the terminal state the indexer would give it; its empty status
+    // used to read "Not indexed" with a Reindex that could never succeed.
+    // A `.log`, which a Reindex can index, keeps its empty status.
     await markRagUnsupportedIfNoExtractor(sql, file.id, file.fileName);
     return false;
   }
@@ -657,6 +694,7 @@ export interface PgSyncImportDeps {
     token: string;
     siteId?: string;
     driveId?: string;
+    format?: 'pdf';
   }) => Promise<{
     success: boolean;
     storageId?: never;
@@ -665,6 +703,7 @@ export interface PgSyncImportDeps {
     error?: string;
     unauthorized?: boolean;
     refusal?: { code: string; message: string };
+    notConvertible?: boolean;
   }>;
   findDocumentByExternalId: (args: {
     organizationId: string;
@@ -1818,10 +1857,17 @@ export const ONEDRIVE_SYNC_ADAPTER: SyncProviderAdapter = {
   listFolderContents: (args) => listFolderContents(args),
   getFileMetadata: (itemId, token, siteId, driveId) =>
     getFileMetadata(itemId, token, siteId, driveId),
-  buildDownloadUrl: (args) =>
-    args.siteId && args.driveId
-      ? `https://graph.microsoft.com/v1.0/sites/${args.siteId}/drives/${args.driveId}/items/${args.itemId}/content`
-      : `https://graph.microsoft.com/v1.0/me/drive/items/${args.itemId}/content`,
+  buildDownloadUrl: (args) => {
+    const content =
+      args.siteId && args.driveId
+        ? `https://graph.microsoft.com/v1.0/sites/${args.siteId}/drives/${args.driveId}/items/${args.itemId}/content`
+        : `https://graph.microsoft.com/v1.0/me/drive/items/${args.itemId}/content`;
+    // Graph's own conversion of the item (a Loop page to a PDF): the same
+    // door, the same `Files.Read`, answered by a redirect fetch follows.
+    return args.format === undefined
+      ? content
+      : `${content}?format=${args.format}`;
+  },
   runImport: (sql, args) =>
     importFiles(
       args,

@@ -89,7 +89,7 @@ function selectedColumns(read: string | undefined): string[] {
   return list.split(',').map((column) => column.trim().split(' ')[0] ?? '');
 }
 
-/** A Microsoft Loop page, as OneDrive stores it. */
+/** A Microsoft Loop page kept as it is: Microsoft did not convert it. */
 const LOOP = { fileName: 'standup.loop' };
 
 /** Neither lane ran: no terminal state, no queued run. */
@@ -144,6 +144,20 @@ describe.each<[string, (sql: Sql, organizationId: string) => PgSyncImportDeps]>(
     );
     expect(markRagQueued).not.toHaveBeenCalled();
     expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  // A page Microsoft converted is stored as the PDF it made, under a name
+  // that says so (ODRIVE-R10): the name the indexer reads.
+  it('queues a Loop page stored as the PDF Microsoft made of it', async () => {
+    const { sql, tx } = fakeSql({ fileName: 'standup.loop.pdf' });
+
+    await createDeps(sql, 'org-1').scheduleHubDocumentRagIndexing('doc-1');
+
+    expect(markRagQueued).toHaveBeenCalledWith(tx, 'file-1');
+    expect(addJobInTx).toHaveBeenCalledWith(tx, 'rag.index_file', {
+      fileId: 'file-1',
+    });
+    expect(markRagUnsupportedIfNoExtractor).not.toHaveBeenCalled();
   });
 
   // The indexer reads a file by its name alone, and refuses one without an

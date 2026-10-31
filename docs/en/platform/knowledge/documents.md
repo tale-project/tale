@@ -29,7 +29,8 @@ A stored file and a searchable file are different states. Tale needs to extract 
 | PDF with embedded text, `.docx`, `.xlsx`, `.pptx`, `.odt`, CSV, plain text | Supported for text extraction and indexing. Check the result for the particular file. |
 | Legacy Office `.doc`, `.xls`, `.ppt` | Can be stored and downloaded; convert to a modern format for indexing. |
 | Images such as JPG, PNG, GIF, WEBP | Can be stored and downloaded; the knowledge index does not extract text from them. |
-| Microsoft Loop files (`.loop`) imported from Microsoft 365 | Can be imported and downloaded; Tale cannot extract their text, so their status is **Not supported**. |
+| Microsoft Loop pages (`.loop`) imported from Microsoft 365 | Imported as the PDF Microsoft makes of the page, named after the page with `.pdf` added, and indexed like any PDF. A page Microsoft does not convert, or one larger than 2 MB, is kept as it is with the status **Not supported**. |
+| Loop pages (`.loop`) uploaded by hand, and `.fluid` files | Can be stored and downloaded; Tale cannot extract their text, so their status is **Not supported**. To make a Loop page searchable, import it from Microsoft 365. |
 | Scanned PDF without readable text | Supply an OCR-processed or text version if search needs its content. |
 
 Unsupported formats are not made searchable by repeatedly reindexing. For a question about an image, see [Chat attachments](/platform/chat/attachments), where an available vision model may read it directly.

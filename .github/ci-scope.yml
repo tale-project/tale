@@ -2,6 +2,7 @@
 integration:
   - 'services/platform/backend/**'
   - 'services/platform/tests/fixtures/automation-legacy-v1/**'
+  - 'services/platform/tests/integration/fixtures/loop/**'
   - 'services/platform/lib/**'
   - 'services/platform/messages/**'
   - 'services/platform/sla-targets.ts'

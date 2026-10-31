@@ -37194,6 +37194,8 @@ async function checkOneDriveSync(
     folder?: boolean;
     /** Graph `lastModifiedDateTime` — the change key for a hash-less file. */
     modified?: string;
+    /** What `/content?format=pdf` answers; none = Graph refuses to convert. */
+    pdf?: Uint8Array<ArrayBuffer>;
   }
   const drive = new Map<string, DriveNode>();
   const seed = (node: DriveNode): void => void drive.set(node.id, node);
@@ -37249,6 +37251,8 @@ async function checkOneDriveSync(
   seed({ id: 'f-huge', name: 'huge.bin', mime: 'application/octet-stream' });
   const GRAPH_FAKE_PAGE = 100;
   let hugeBodyPulls = 0;
+  // The items anyone asked Graph to convert to a PDF, in order.
+  const pdfConversions: string[] = [];
 
   const graphAuth: string[] = [];
   let refreshCalls = 0;
@@ -37329,6 +37333,21 @@ async function checkOneDriveSync(
           },
         },
       );
+    }
+    if (leaf === '/content' && url.searchParams.get('format') === 'pdf') {
+      // Graph converts the file on its side, and answers a 4xx for one it
+      // does not convert.
+      pdfConversions.push(node.id);
+      if (node.pdf === undefined) {
+        return jsonResponse({ error: { code: 'notSupported' } }, 406);
+      }
+      return new Response(node.pdf, {
+        status: 200,
+        headers: {
+          'content-type': 'application/pdf',
+          'content-length': String(node.pdf.length),
+        },
+      });
     }
     if (leaf === '/content') {
       const content = node.content ?? '';
@@ -38466,16 +38485,35 @@ async function checkOneDriveSync(
       `import=${nohashImport.success ? nohashImport.data.successCount : 'ERR'}/1 hash=${String(nohashV1?.contentHash)} (want null), idle: refStable=${nohashIdle?.fileRef === nohashV1?.fileRef} history=${nohashIdle?.historyFiles.length}/0 status=${nohashIdleConfig?.lastSyncStatus}; edit: refChanged=${nohashV2?.fileRef !== nohashV1?.fileRef} history=${nohashV2?.historyFiles.length}/1 oldKept=${nohashV2?.historyFiles[0] === nohashV1?.fileRef} releaseJobs=${nohashReleases[0]?.count}/1`,
     );
 
-    // 13. A file no extractor reads — a Microsoft Loop page arrives as
-    //     `.loop`, `application/octet-stream` — used to be left with no
-    //     indexing status: the list read "Not indexed" with a Reindex that
-    //     could never succeed, and REST `pending`. The sync now lands it on
-    //     the terminal `unsupported` state without queueing a job; the
-    //     retry door refuses it, and a rescan (which re-offers every
-    //     unchanged file) leaves it there.
+    // 13. A Microsoft Loop page (`.loop`, served as `application/octet-
+    //     stream`) is read by no extractor, so the sync asks Graph for the
+    //     PDF it makes of the page and keeps that, named after the page with
+    //     `.pdf` added, queued like any PDF. A page Graph does not convert
+    //     is kept as it is. It used to be left with no indexing status: the
+    //     list read "Not indexed" with a Reindex that could never succeed,
+    //     and REST `pending`. It now lands on the terminal `unsupported`
+    //     state without queueing a job; the retry door refuses it, and a
+    //     rescan (which re-offers every unchanged file) leaves it there.
+    //     Neither page is sent to Graph's conversion again while unchanged.
+    const standupPdf = new Uint8Array(
+      await readFile(
+        new URL(
+          '../tests/integration/fixtures/loop/standup.loop.pdf',
+          import.meta.url,
+        ),
+      ),
+    );
+    seed({
+      id: 'f-loop-pdf',
+      name: 'standup.loop',
+      content: 'loop v1',
+      hash: 'h-loop-pdf-v1',
+      mime: 'application/octet-stream',
+      pdf: standupPdf,
+    });
     seed({
       id: 'f-loop',
-      name: 'standup.loop',
+      name: 'retro.loop',
       content: 'loop v1',
       hash: 'h-loop-v1',
       mime: 'application/octet-stream',
@@ -38486,17 +38524,67 @@ async function checkOneDriveSync(
           importType: 'sync',
           items: [
             {
-              id: 'f-loop',
+              id: 'f-loop-pdf',
               name: 'standup.loop',
               size: 7,
               relativePath: 'standup.loop',
+              isDirectlySelected: true,
+            },
+            {
+              id: 'f-loop',
+              name: 'retro.loop',
+              size: 7,
+              relativePath: 'retro.loop',
               isDirectlySelected: true,
             },
           ],
         })
       ).json(),
     );
+    const loopIndexJobs = async (
+      fileId: string | undefined,
+    ): Promise<number> => {
+      const rows = await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM pgboss.job
+        WHERE name = 'rag.index_file' AND data->>'fileId' = ${fileId ?? ''}
+      `;
+      return Number(rows[0]?.count ?? '0');
+    };
+    const pdfPage = (
+      await sql<
+        {
+          title: string;
+          conversion: string | null;
+          fileId: string;
+          fileName: string;
+          contentType: string;
+          size: number;
+        }[]
+      >`
+        SELECT d.title, d.metadata->>'sourceConversion' AS conversion,
+               f.id AS "fileId", f.file_name AS "fileName",
+               f.content_type AS "contentType", f.size::int AS size
+        FROM app.documents d
+        JOIN app.file_metadata f
+          ON f.org_id = d.org_id AND f.storage_ref = d.file_ref
+        WHERE d.org_id = ${orgId} AND d.external_item_id = 'f-loop-pdf'
+        LIMIT 1
+      `
+    )[0];
+    // Its job is muted at once, like every write of this check's — and
+    // only its, so the rescan below still judges the page Graph refused.
+    await sql`
+      UPDATE app.file_metadata SET skip_rag_indexing = true
+      WHERE org_id = ${orgId} AND id = ${pdfPage?.fileId ?? ''}
+    `;
+    const pdfPageJobs = await loopIndexJobs(pdfPage?.fileId);
     const loopDoc = (await docsByExternalId('f-loop'))[0];
+    const loopConversion = (
+      await sql<{ conversion: string | null }[]>`
+        SELECT metadata->>'sourceConversion' AS conversion
+        FROM app.documents WHERE id = ${loopDoc?.id ?? ''}
+      `
+    )[0]?.conversion;
     const loopFileRow = async () =>
       (
         await sql<
@@ -38515,14 +38603,8 @@ async function checkOneDriveSync(
         `
       )[0];
     const loopFile = await loopFileRow();
-    const loopIndexJobs = async (): Promise<number> => {
-      const rows = await sql<{ count: string }[]>`
-        SELECT count(*)::text AS count FROM pgboss.job
-        WHERE name = 'rag.index_file' AND data->>'fileId' = ${loopFile?.id ?? ''}
-      `;
-      return Number(rows[0]?.count ?? '0');
-    };
-    const loopJobsAfterImport = await loopIndexJobs();
+    const loopJobsAfterImport = await loopIndexJobs(loopFile?.id);
+    const conversionsAfterImport = [...pdfConversions].sort();
     // What the Documents list renders: `unsupported` hides Reindex.
     const loopView = z
       .object({
@@ -38559,18 +38641,40 @@ async function checkOneDriveSync(
         ).json(),
       );
     const loopConfig = await configByItem('f-loop');
+    const pdfPageConfig = await configByItem('f-loop-pdf');
+    // The refused page first: `runConfig` mutes every row after its run,
+    // and a muted row is never judged again.
     await runConfig(loopConfig?.id ?? '');
+    await runConfig(pdfPageConfig?.id ?? '');
     const loopRescanned = await loopFileRow();
     const loopRescanConfig = await configByItem('f-loop');
-    const loopJobsAfterRescan = await loopIndexJobs();
-    if (loopConfig !== null) {
-      await post(`/sync-configs/${loopConfig.id}/cancel`, {});
+    const pdfPageRescanConfig = await configByItem('f-loop-pdf');
+    const loopJobsAfterRescan = await loopIndexJobs(loopFile?.id);
+    for (const config of [loopConfig, pdfPageConfig]) {
+      if (config !== null) {
+        await post(`/sync-configs/${config.id}/cancel`, {});
+      }
     }
-    const loopSentence = 'No text extractor exists for "standup.loop".';
     record(
-      'onedrive file no extractor reads (.loop): terminal unsupported, never queued, retry refused',
+      'onedrive Loop page: imported as the PDF Graph makes of it, queued, not converted again while unchanged',
       loopImport.success &&
-        loopImport.data.successCount === 1 &&
+        loopImport.data.successCount === 2 &&
+        isDeepStrictEqual(conversionsAfterImport, ['f-loop', 'f-loop-pdf']) &&
+        pdfPage?.title === 'standup.loop.pdf' &&
+        pdfPage.fileName === 'standup.loop.pdf' &&
+        pdfPage.contentType === 'application/pdf' &&
+        pdfPage.size === standupPdf.length &&
+        pdfPage.conversion === 'pdf' &&
+        pdfPageJobs === 1 &&
+        pdfPageRescanConfig?.lastSyncStatus === 'success' &&
+        pdfConversions.length === 2,
+      `import=${loopImport.success ? loopImport.data.successCount : 'ERR'}/2, asked to convert=${conversionsAfterImport.join(',')} (want f-loop,f-loop-pdf), page=${pdfPage?.title}|${pdfPage?.fileName} (want standup.loop.pdf) ${pdfPage?.contentType} ${pdfPage?.size}/${standupPdf.length}B marker=${pdfPage?.conversion} (want pdf), jobs=${pdfPageJobs}/1, rescan=${pdfPageRescanConfig?.lastSyncStatus} conversions=${pdfConversions.length}/2`,
+    );
+    const loopSentence = 'No text extractor exists for "retro.loop".';
+    record(
+      'onedrive Loop page Graph refuses: kept as it is, terminal unsupported, never queued, retry refused',
+      loopImport.success &&
+        loopConversion === 'none' &&
         loopFile?.ragStatus === 'unsupported' &&
         loopFile.ragErrorCode === 'unsupported_type' &&
         loopFile.ragError === loopSentence &&
@@ -38584,7 +38688,7 @@ async function checkOneDriveSync(
         loopRescanConfig?.lastSyncStatus === 'success' &&
         loopRescanned?.ragStatus === 'unsupported' &&
         loopJobsAfterRescan === 0,
-      `import=${loopImport.success ? loopImport.data.successCount : 'ERR'}/1, file=${loopFile?.ragStatus}/${loopFile?.ragErrorCode} (want unsupported/unsupported_type), jobs=${loopJobsAfterImport}/0, view=${loopView.success ? `${loopView.data.document.ragStatus}/${loopView.data.document.ragErrorCode}` : 'ERR'}, retry=${loopRetry.success ? `${loopRetry.data.success}: ${loopRetry.data.error}` : 'ERR'} (want refused with the sentence), rescan=${loopRescanConfig?.lastSyncStatus}: ${loopRescanned?.ragStatus} jobs=${loopJobsAfterRescan}/0`,
+      `marker=${loopConversion} (want none), file=${loopFile?.ragStatus}/${loopFile?.ragErrorCode} (want unsupported/unsupported_type), jobs=${loopJobsAfterImport}/0, view=${loopView.success ? `${loopView.data.document.ragStatus}/${loopView.data.document.ragErrorCode}` : 'ERR'}, retry=${loopRetry.success ? `${loopRetry.data.success}: ${loopRetry.data.error}` : 'ERR'} (want refused with the sentence), rescan=${loopRescanConfig?.lastSyncStatus}: ${loopRescanned?.ragStatus} jobs=${loopJobsAfterRescan}/0`,
     );
   } finally {
     globalThis.fetch = realFetch;

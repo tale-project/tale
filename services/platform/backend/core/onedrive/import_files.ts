@@ -2,7 +2,10 @@
  * Import Files - Business logic for importing files from OneDrive/SharePoint
  */
 
-import { resolveFileType } from '../../../lib/shared/file-types';
+import {
+  extractExtension,
+  resolveFileType,
+} from '../../../lib/shared/file-types';
 import {
   ImportFileRefusal,
   ImportGrant,
@@ -91,6 +94,8 @@ export interface ImportFilesDependencies {
     token: string;
     siteId?: string;
     driveId?: string;
+    /** Land the provider's conversion of the file instead of the file. */
+    format?: 'pdf';
   }) => Promise<{
     success: boolean;
     storageId?: BlobRef;
@@ -101,6 +106,9 @@ export interface ImportFilesDependencies {
     unauthorized?: boolean;
     /** A refusal a person can read: the file is past the size cap. */
     refusal?: ImportFileReason;
+    /** The provider would not convert the file (`format`); nothing was
+     *  stored. A passing fault (a 5xx, a timeout) is no such answer. */
+    notConvertible?: boolean;
   }>;
   findDocumentByExternalId: (args: {
     organizationId: string;
@@ -255,6 +263,11 @@ function inheritedSyncBinding(
   return kept;
 }
 
+/** Graph converts a file of at most "2 MB" (`/content?format=`), read here
+ *  as decimal megabytes: a Loop page past it is kept as it is, never sent
+ *  to a conversion that is documented to refuse it. */
+const GRAPH_CONVERSION_MAX_BYTES = 2_000_000;
+
 export async function importFiles(
   args: {
     items: ImportItem[];
@@ -388,11 +401,24 @@ export async function importFiles(
       ? existingDoc.metadata
       : {};
 
+    // A Loop page (`.loop`) is read by no extractor, so Graph is asked for
+    // the PDF it makes of the page, which is kept in its place (ODRIVE-R10).
+    // A page kept as it is before Tale converted them carries no
+    // `sourceConversion` and is converted once, even unchanged.
+    const loopPage = extractExtension(item.name) === 'loop';
+    // Graph's size first; a single-file sync sends none of its own (0), so a
+    // page whose size nobody knows is left to Graph to judge.
+    const sourceSize = metadataResult.data.size ?? item.size;
+    const convertible = loopPage && sourceSize <= GRAPH_CONVERSION_MAX_BYTES;
+    const awaitsConversion =
+      convertible && existingMeta.sourceConversion === undefined;
+
     // Unchanged by hash, or — when the vendor sent none — by the stamped
     // size + modified fingerprint; a file with neither re-downloads.
     const fingerprint = sourceFingerprint(metadataResult.data);
     if (
       existingDoc &&
+      !awaitsConversion &&
       isSourceUnchanged({
         hash: contentHash,
         storedHash: existingDoc.contentHash,
@@ -442,12 +468,23 @@ export async function importFiles(
       };
     }
 
-    const stored = await deps.downloadToStorage({
-      itemId: item.id,
-      token,
-      siteId: item.siteId,
-      driveId: item.driveId,
-    });
+    const download = (format?: 'pdf') =>
+      deps.downloadToStorage({
+        itemId: item.id,
+        token,
+        siteId: item.siteId,
+        driveId: item.driveId,
+        ...(format !== undefined && { format }),
+      });
+    let stored = await download(convertible ? 'pdf' : undefined);
+    let converted = convertible;
+    if (convertible && stored.notConvertible === true) {
+      // Microsoft would not convert this page: it is kept as it is, which
+      // the indexing lane marks as not supported, once. A passing fault is
+      // no refusal — it fails the file, and the next scan asks again.
+      stored = await download();
+      converted = false;
+    }
 
     if (!stored.success || !stored.storageId) {
       const failure = stored.error || 'Failed to download file';
@@ -461,8 +498,12 @@ export async function importFiles(
     }
 
     const storageId = stored.storageId;
+    // A converted page is a PDF, and its name says so: every lane reads the
+    // stored name (the indexer, the preview, the download), and the page's
+    // own name before `.pdf` keeps it apart from a real PDF beside it.
+    const fileName = converted ? `${item.name}.pdf` : item.name;
     const contentType = resolveFileType(
-      item.name,
+      fileName,
       stored.mimeType || 'application/octet-stream',
     );
     // Size, most-reliable first: the transferred byte count, then the Graph
@@ -483,6 +524,7 @@ export async function importFiles(
       storagePath,
       size: fileSize,
       ...(fingerprint !== undefined && { sourceFingerprint: fingerprint }),
+      ...(loopPage && { sourceConversion: converted ? 'pdf' : 'none' }),
       ...(syncConfigId && { syncConfigId }),
       ...selectionOf(item),
       ...(item.siteId && { siteId: item.siteId }),
@@ -500,7 +542,7 @@ export async function importFiles(
     if (existingDoc) {
       await deps.updateDocument({
         documentId: existingDoc._id,
-        title: item.name,
+        title: fileName,
         fileId: storageId,
         mimeType: contentType,
         sourceProvider,
@@ -514,7 +556,7 @@ export async function importFiles(
     } else {
       documentId = await deps.createDocument({
         organizationId: args.organizationId,
-        title: item.name,
+        title: fileName,
         fileId: storageId,
         mimeType: contentType,
         sourceProvider,
@@ -529,7 +571,7 @@ export async function importFiles(
 
     await deps.saveFileMetadata(
       storageId,
-      item.name,
+      fileName,
       contentType,
       fileSize,
       documentId,
