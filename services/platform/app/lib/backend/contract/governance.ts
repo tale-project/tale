@@ -663,6 +663,7 @@ export interface GovernanceContract {
       durationMs?: number;
       errorClass?:
         | 'config'
+        | 'eu_processing'
         | 'timeout'
         | 'network'
         | 'parse'
