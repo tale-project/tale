@@ -505,6 +505,23 @@ ones.
 - **Example**: Scribe's run on "Changelog" runs out of memory → the failed runs of code
   `resource_exhausted` rise by one.
 
+### TASK-R87 · The board counts the live runs of its whole project, whatever it shows
+
+A project's board says how many agent and automation runs are live on its tasks: each run once,
+as running, waiting for input (a question, an approval or a decision a person owes it) or
+queued (waiting for its turn or for room). It counts runs, not tasks or agents, and the whole
+project's, whatever the board's search, filters and pages show. A task's column counts nothing:
+a task In progress without a live run is not counted, and the run of a standing task that stays
+in To do is. When the board's read leaves live runs out, the counts are said to be at least that
+many; when the read has failed or not answered yet, the board says the count is unavailable,
+never zero. Counting starts, stops and reserves nothing.
+
+- **Example**: Scribe works "Release notes", which is In progress, while the triage role works
+  its standing task, which stays in To do; "Press kit" is In progress, but its run ended. Ada
+  filters the board to "Press kit" → it still reads "2 running".
+- **Example**: Ada's board cannot reach the server when it reads the runs → it reads
+  "Unavailable", not "None live".
+
 ## Dispatch
 
 A project's dispatch starts its ready work on its idle agents without anyone starting each run.

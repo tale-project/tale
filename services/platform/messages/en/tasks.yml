@@ -285,6 +285,36 @@ board:
   quickAddLabel: New task title
   quickAdded: 'Added “{title}”'
   noTasks: No tasks
+# The board's count of the project's live agent runs (TASK-R87), apart from
+# the status columns: one per run, whatever the board's search, filters and
+# cap show. `label` leads the counts on the button; `scope` follows them for
+# a screen reader only. `atLeast` counts a read that lists fewer runs than
+# there are.
+liveRuns:
+  label: 'Agent runs:'
+  scope: in this whole project
+  count:
+    running: '{count} running'
+    waitingForInput: '{count} waiting for input'
+    queued: '{count} queued'
+  atLeast:
+    running: '{count}+ running'
+    waitingForInput: '{count}+ waiting for input'
+    queued: '{count}+ queued'
+  none: none live
+  loading: loading…
+  unavailable: unavailable
+  title: Live agent runs in this project
+  scopeNote: Each live run in this project counts once, whatever the board's search and filters show.
+  noneNote: No agent run is live in this project.
+  partialNote: Not every live run could be listed, so there may be more than these.
+  loadingNote: Loading the live runs…
+  unavailableNote: Couldn't load the live runs, so they aren't counted. That doesn't mean no agent is working.
+  groups:
+    running: Running
+    waitingForInput: Waiting for input
+    queued: Queued
+  unlistedTask: A task this view doesn't show
 list:
   showArchived: Show archived
   noMatches: No tasks match these filters.

@@ -286,6 +286,36 @@ board:
   quickAddLabel: Titre de la nouvelle tâche
   quickAdded: '« {title} » ajoutée'
   noTasks: Aucune tâche
+# The board's count of the project's live agent runs (TASK-R87), apart from
+# the status columns: one per run, whatever the board's search, filters and
+# cap show. `label` leads the counts on the button; `scope` follows them for
+# a screen reader only. `atLeast` counts a read that lists fewer runs than
+# there are.
+liveRuns:
+  label: 'Exécutions d’agents :'
+  scope: dans tout le projet
+  count:
+    running: '{count} en cours'
+    waitingForInput: '{count} en attente de saisie'
+    queued: '{count} en file d’attente'
+  atLeast:
+    running: '{count}+ en cours'
+    waitingForInput: '{count}+ en attente de saisie'
+    queued: '{count}+ en file d’attente'
+  none: aucune en cours
+  loading: chargement…
+  unavailable: indisponible
+  title: Exécutions d’agents actives dans ce projet
+  scopeNote: Chaque exécution active de ce projet compte une fois, quels que soient la recherche et les filtres du tableau.
+  noneNote: Aucune exécution d’agent n’est active dans ce projet.
+  partialNote: "Toutes les exécutions actives n’ont pas pu être listées : il peut y en avoir davantage."
+  loadingNote: Chargement des exécutions actives…
+  unavailableNote: Impossible de charger les exécutions actives, elles ne sont donc pas comptées. Cela ne veut pas dire qu’aucun agent ne travaille.
+  groups:
+    running: En cours
+    waitingForInput: En attente de saisie
+    queued: En file d’attente
+  unlistedTask: Une tâche que cette vue n’affiche pas
 list:
   showArchived: Afficher les archivées
   noMatches: Aucune tâche ne correspond à ces filtres.

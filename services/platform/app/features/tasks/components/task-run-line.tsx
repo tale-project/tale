@@ -19,7 +19,7 @@ import {
 import { useT } from '@/lib/i18n/client';
 
 import { waitingCopyKey } from './task-agent-run-waiting';
-import type { TaskRunState } from './task-board-context';
+import { runActivity, type TaskRunState } from './task-board-context';
 
 export interface TaskLiveLine {
   icon: LucideIcon;
@@ -78,9 +78,7 @@ export function useTaskRunLine(): (
           icon: Clock,
           text: t(`board.automationWaiting.${state.waitingFor ?? 'unknown'}`),
           className:
-            state.waitingFor === 'approval' || state.waitingFor === 'in_doubt'
-              ? SOMEONES_MOVE
-              : QUIET,
+            runActivity(state) === 'waitingForInput' ? SOMEONES_MOVE : QUIET,
           pulse: false,
         };
       case 'unknown':
