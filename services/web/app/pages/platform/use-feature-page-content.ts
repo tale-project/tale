@@ -1,7 +1,8 @@
 import type { PlatformPageId } from '@/app/content/platform-pages';
 import type { FeaturePageContent } from '@/app/pages/platform/feature-page-layout';
-import { DOCS_URL } from '@/lib/docs-url';
+import { getDocsUrl } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
+import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
 
 type FeatureNamespace =
   | 'platformAgents'
@@ -39,6 +40,10 @@ export function useFeaturePageContent(
   'visual' | 'tourHeading' | 'tourDescription' | 'tourStages'
 > {
   const { t } = useT(namespace);
+  const locale = useCurrentLocale();
+  // A docs path opens in the page's language; a full URL is linked as written.
+  const docsHref = (path: string) =>
+    path.startsWith('http') ? path : getDocsUrl(locale, path);
 
   const capabilities = t('capabilities.items', {
     returnObjects: true,
@@ -66,11 +71,7 @@ export function useFeaturePageContent(
         title: item.title,
         body: item.body,
         docsLabel: item.docsLabel,
-        docsHref: docsMatch
-          ? docsMatch.path.startsWith('http')
-            ? docsMatch.path
-            : `${DOCS_URL}${docsMatch.path}`
-          : undefined,
+        docsHref: docsMatch ? docsHref(docsMatch.path) : undefined,
       };
     }),
     faqHeading: t('faq.heading'),
@@ -80,9 +81,7 @@ export function useFeaturePageContent(
     })),
     docsLinks: docs.map((item) => ({
       label: item.label,
-      href: item.path.startsWith('http')
-        ? item.path
-        : `${DOCS_URL}${item.path}`,
+      href: docsHref(item.path),
     })),
   };
 }

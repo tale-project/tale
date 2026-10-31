@@ -33,3 +33,5 @@ Consider Tale when the team needs a project around the resulting work: gathering
 Use a fictional company overview, a PDF table with selectable text, and a text report containing one conflicting figure. Request a source-linked summary, a list of uncertain values, and a recommendation that a second teammate can challenge.
 
 For LlamaIndex, focus on the document pipeline and the work required to turn it into a usable service. For Tale, focus on how uncertain items become assigned tasks and how the final recommendation gets reviewed. Preserve the original documents for both evaluations and check whether the reviewer can reconstruct the reasoning. [Request a Tale demo](https://tale.dev/request-demo) with this research pack.
+
+This comparison describes public documentation reviewed on 3 October 2026; it is not a hands-on benchmark.

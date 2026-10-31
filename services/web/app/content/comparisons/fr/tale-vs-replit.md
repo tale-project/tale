@@ -32,6 +32,6 @@ Utilise le même besoin fictif dans les deux essais : les salariés soumettent 
 
 Demande à une personne responsable du processus, sans profil technique, d’examiner le résultat avec quelqu’un capable de vérifier les accès et le comportement logiciel. Note la configuration, les transmissions et les modifications après retour.
 
-Replit convient si le parcours intégré de création et de publication est prioritaire. Tale convient si le projet global, les rôles variés des agents et les livrables vérifiés structurent votre travail. Le tableau seul ne les distingue pas : décide à partir du projet réel de ton équipe.
+Replit convient si le parcours intégré de création et de publication est prioritaire. Tale convient si le projet global, les rôles variés des agents et les livrables vérifiés structurent ton travail. Le tableau seul ne les distingue pas : décide à partir du projet réel de ton équipe.
 
 Consulte le [guide Tale correspondant](https://docs.tale.dev/fr/platform/projects/overview) ou [demande une démo](https://tale.dev/fr/request-demo) avec ta propre tâche d’évaluation. Cette comparaison repose sur la documentation publique consultée le 3 octobre 2026 ; ce n’est pas un test pratique des performances.

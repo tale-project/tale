@@ -33,3 +33,5 @@ Prüfe Tale, wenn die benötigte Anwendung ein gemeinsamer Projektraum für Team
 Erstelle einen fiktiven Vorfall mit Zeitverlauf, zwei Untersuchungssträngen und einem Entwurf für die Kundenkommunikation. Lass beide Kandidaten parallele Untersuchungen im konfigurierten Rahmen, eine gemeinsame Empfehlung und eine Nachfrage nach weiteren Belegen unterstützen.
 
 Bewerte, wie Entwickler Fortschritt und Unterbrechungen in einer Framework-Anwendung darstellen und wie Tales Aufgabenablauf dieselbe Arbeit abbildet. Lass einen Kollegen, der die Einrichtung nicht kennt, eine offene Aufgabe übernehmen. Erfasse neben den Agentenergebnissen auch den Aufwand für eine verständliche Übergabe. [Buche eine Tale-Demo](https://tale.dev/de/request-demo) mit diesem Nachbereitungsprojekt.
+
+Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 3. Oktober 2026, und ist kein praktischer Benchmark.

@@ -33,3 +33,5 @@ Envisage Tale si les personnes qui réalisent le travail ont besoin d’un espac
 Donne aux deux solutions un questionnaire fournisseur fictif et quelques justificatifs. Demande un premier avis, les questions sans réponse et une recommandation révisée après qu’un collègue a contesté une conclusion.
 
 Avec StackAI, teste la publication de cette évaluation comme service interne réutilisable. Avec Tale, répartis recherche, rédaction et relecture en tâches de projet. Dans les deux cas, remonte d’une réponse contestée à sa source et identifie la personne chargée de la corriger. Inclus l’entretien du processus après le pilote. [Demande une démo de Tale](https://tale.dev/fr/request-demo) avec ce parcours.
+
+Cette comparaison s’appuie sur la documentation publique examinée le 3 octobre 2026, sans test comparatif pratique.

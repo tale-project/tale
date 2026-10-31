@@ -35,3 +35,5 @@ Tale can also use compatible Anthropic subscriptions through Claude Code for tas
 Use a fictional launch brief with source notes, a draft announcement, and a review checklist. Ask for a revised announcement and a separate task to resolve an unsupported claim. Have a different teammate take over that task after the first review.
 
 Assess how each setup preserves the brief, exposes the current responsibility, and keeps review feedback usable for the next contributor. Include the administrator's work to grant the necessary access. [Request a Tale demo](https://tale.dev/request-demo) with this campaign handoff.
+
+This comparison describes public documentation reviewed on 3 October 2026; it is not a hands-on benchmark.

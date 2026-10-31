@@ -33,3 +33,5 @@ Consider Tale when the people doing the work need a shared place to plan, delega
 Give both candidates a fictional vendor questionnaire and a small evidence pack. Ask for a draft assessment, a list of unanswered questions, and a revised recommendation after a colleague challenges one conclusion.
 
 For StackAI, test the experience of publishing this as a repeatable internal service. For Tale, test splitting research, drafting, and review into project tasks. In both cases, trace a disputed answer back to its source and identify the person responsible for correction. Include the effort to maintain the process after the pilot. [Request a Tale demo](https://tale.dev/request-demo) with your assessment workflow.
+
+This comparison describes public documentation reviewed on 3 October 2026; it is not a hands-on benchmark.

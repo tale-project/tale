@@ -30,6 +30,6 @@ Tale aborde ce besoin à travers des projets partagés par les collègues et les
 
 Lance une recherche courte et une tâche documentaire avec les environnements réellement prévus. Provoque un échec réversible, par exemple avec un accès de test indisponible. La personne responsable de l’exploitation doit en trouver la cause, puis un collègue du projet doit repérer le blocage et poursuivre après correction.
 
-Vérifie que les deux retrouvent le dernier livrable accepté et la décision encore attendue. Compare la préparation de chaque environnement, au-delà des logos. Prends aussi en compte les mises à jour et le support : le statut alpha de Mission Control invite à évaluer votre tolérance aux changements. Tale auto-hébergé exige également un responsable d’exploitation.
+Vérifie que les deux retrouvent le dernier livrable accepté et la décision encore attendue. Compare la préparation de chaque environnement, au-delà des logos. Prends aussi en compte les mises à jour et le support : le statut alpha de Mission Control invite à évaluer ta tolérance aux changements. Tale auto-hébergé exige également un responsable d’exploitation.
 
 Consulte le [guide Tale correspondant](https://docs.tale.dev/fr/platform/projects/overview) ou [demande une démo](https://tale.dev/fr/request-demo) avec ta propre tâche d’évaluation. Cette comparaison s’appuie sur la documentation publique examinée le 3 octobre 2026, sans test comparatif pratique.

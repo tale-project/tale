@@ -33,3 +33,5 @@ Consider Tale when the central requirement is a project shared by teammates and 
 Use a fictional event brief requiring an audience research note, an announcement draft, and a presentation outline. Change the audience after the first draft and ask a colleague to reject one unsupported claim.
 
 In both candidates, follow how the change reaches each deliverable and how a second teammate takes over unfinished work. Judge output usability and the clarity of responsibility separately. The result should help you decide whether artifact production or ongoing project coordination is the main need. [Request a Tale demo](https://tale.dev/request-demo) with this campaign pilot.
+
+This comparison describes public documentation reviewed on 3 October 2026; it is not a hands-on benchmark.

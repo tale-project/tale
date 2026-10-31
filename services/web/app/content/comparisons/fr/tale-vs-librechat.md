@@ -28,7 +28,7 @@ Dans Tale, le travail délégué dispose d'une tâche, d'un responsable, d'une d
 
 Fournis aux deux essais le même export anonymisé de retours clients. Demande une analyse et une courte présentation pour une réunion produit. Change ensuite le segment, corrige une hypothèse et fais demander une dernière révision par un autre collègue.
 
-Observe comment le contexte traverse ces changements. La personne suivante retrouve-t-elle le bon fichier et comprend-elle les modifications ? L'équipe distingue-t-elle une exploration inachevée d'un livrable accepté ? Compte les étapes entre conversation, exécution et examen. Ce test porte sur votre processus, pas sur la supériorité rédactionnelle d'un modèle.
+Observe comment le contexte traverse ces changements. La personne suivante retrouve-t-elle le bon fichier et comprend-elle les modifications ? L'équipe distingue-t-elle une exploration inachevée d'un livrable accepté ? Compte les étapes entre conversation, exécution et examen. Ce test porte sur le processus de ton équipe, pas sur la supériorité rédactionnelle d'un modèle.
 
 ## Choisir selon ton travail récurrent
 

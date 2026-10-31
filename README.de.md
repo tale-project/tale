@@ -19,7 +19,7 @@
 
 Tale gibt Teammitgliedern und KI-Agenten einen gemeinsamen Projektarbeitsbereich. Erstelle Aufgaben auf dem Board, weise sie Personen oder Agenten zu, verfolge die Arbeit und prüfe Berichte und gelieferte Dateien. Auftrag, Diskussionen, Projektwissen und Ergebnisse bleiben zusammen. Lass Agenten recherchieren, Dokumente prüfen, Berichte und Marketingmaterial erstellen oder eine Website, App oder ein internes Werkzeug entwickeln.
 
-Wähle für jeden Agenten Laufzeit, Modell, Skills und Werkzeuge. Statte einen koordinierenden Agenten so aus, dass er bereite Aufgaben delegieren und Folgearbeiten abstimmen kann. Agenten arbeiten in dauerhaften Sandbox-Arbeitsbereichen; deine eingerichtete Kapazität begrenzt die gleichzeitige Ausführung.
+Wähle für jeden Agenten Laufzeit, Modell, Skills und Werkzeuge. Statte einen Manager-Agenten so aus, dass er bereite Aufgaben delegieren und Folgearbeiten abstimmen kann. Agenten arbeiten in dauerhaften Sandbox-Arbeitsbereichen; deine eingerichtete Kapazität begrenzt die gleichzeitige Ausführung.
 
 Nutze eigene API-Schlüssel der Anbieter oder unterstützte Abonnements mit kompatiblen Agentenlaufzeiten. Die [Übersicht der Laufzeiten und Zugangsdaten](https://docs.tale.dev/de/platform/agents/harnesses) zeigt die verfügbaren Kombinationen.
 
@@ -64,7 +64,7 @@ Betreibe Tale auf eigener Infrastruktur oder nutze den verwalteten Cloud-Dienst.
 
 1. **Die Arbeit beschreiben.** Erstelle eine [Projektaufgabe](https://docs.tale.dev/de/platform/projects/tasks) mit dem Problem, den Quelldateien und den Abnahmekriterien.
 2. **Personen und Agenten zuweisen.** Richte [Projektagenten](https://docs.tale.dev/de/platform/projects/project-agents) für die Arbeit ein, wähle ihre Werkzeuge und starte die Aufgaben, die sie übernehmen sollen.
-3. **Koordinieren und prüfen.** Verfolge den Fortschritt auf dem Board, steuere Agenten mit @Erwähnungen in Aufgabenkommentaren und prüfe Berichte und Dateien. Ein [koordinierender Agent](https://docs.tale.dev/de/platform/projects/task-automation) kann bereite Aufgaben delegieren, wenn er die nötigen Werkzeuge hat.
+3. **Koordinieren und prüfen.** Verfolge den Fortschritt auf dem Board, steuere Agenten mit @Erwähnungen in Aufgabenkommentaren und prüfe Berichte und Dateien. Ein [Manager-Agent](https://docs.tale.dev/de/platform/projects/task-automation#let-a-manager-agent-keep-the-queue-moving) kann bereite Aufgaben delegieren, wenn er die nötigen Werkzeuge hat.
 4. **Einen festen Prozess wiederholen.** Nutze eine versionierte [Automatisierung](https://docs.tale.dev/de/platform/automations/concepts), wenn die Arbeit geplante Starts, festgelegte Schritte oder Genehmigungen für Connector-Aktionen braucht.
 
 ### Beispiel: ein Briefing zum Produktstart prüfen

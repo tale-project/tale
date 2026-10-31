@@ -33,3 +33,5 @@ Prüfe Tale, wenn dein Team ein Projektboard als Ort für Zuweisung, Koordinatio
 Nutze eine fiktive Einkaufsanfrage außerhalb der genehmigten Richtlinie. Lass beide Kandidaten fehlenden Kontext sammeln, eine Empfehlung formulieren und einen Review vor der dokumentierten Entscheidung ermöglichen.
 
 Prüfe, wie anfragende und prüfende Personen dieselben Belege finden, wie eine abgelehnte Empfehlung überarbeitet wird und wo die Verantwortung für Folgearbeit sichtbar wird. Baue eine Zugriffsbeschränkung ein, um das konfigurierte Verhalten zu prüfen. Teste Copilot Studio im vorgesehenen veröffentlichten Kanal und Tale im Projektaufgabenablauf. [Buche eine Tale-Demo](https://tale.dev/de/request-demo) mit diesem Ausnahmeprozess.
+
+Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 3. Oktober 2026, und ist kein praktischer Benchmark.

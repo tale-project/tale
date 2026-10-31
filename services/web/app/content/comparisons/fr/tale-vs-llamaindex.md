@@ -33,3 +33,5 @@ Envisage Tale si l’équipe a besoin d’un projet autour de ce travail : rass
 Utilise une présentation d’entreprise fictive, un tableau PDF dont le texte peut être sélectionné et un rapport contenant un chiffre contradictoire. Demande une synthèse avec ses sources, une liste de valeurs incertaines et une recommandation qu’un second collègue pourra contester.
 
 Avec LlamaIndex, concentre-toi sur la chaîne documentaire et l’effort pour en faire un service utilisable. Avec Tale, observe comment les incertitudes deviennent des tâches attribuées et comment la recommandation finale est vérifiée. Conserve les documents originaux pour les deux tests et vérifie si la personne qui relit peut reconstruire le raisonnement. [Demande une démo de Tale](https://tale.dev/fr/request-demo) avec ce dossier.
+
+Cette comparaison s’appuie sur la documentation publique examinée le 3 octobre 2026, sans test comparatif pratique.

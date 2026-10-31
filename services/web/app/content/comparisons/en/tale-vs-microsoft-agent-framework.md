@@ -33,3 +33,5 @@ Consider Tale when the required application is a shared project environment for 
 Create a fictional incident with a timeline, two investigation tracks, and a customer communication draft. Ask each candidate to support parallel investigation where configured, a combined recommendation, and a reviewer's request for further evidence.
 
 Assess how engineers expose progress and interruption in a framework implementation, and how Tale's task lifecycle represents the same work. Have a colleague who did not build the setup take over one unresolved task. Record the effort to make that handoff understandable as well as the agent results. [Request a Tale demo](https://tale.dev/request-demo) with this follow-up project.
+
+This comparison describes public documentation reviewed on 3 October 2026; it is not a hands-on benchmark.

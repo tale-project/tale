@@ -33,3 +33,5 @@ Envisage Tale si ton équipe veut un tableau de projet pour attribuer le travail
 Prends une demande d’achat fictive qui sort du cadre d’une politique approuvée. Demande à chaque solution de réunir le contexte manquant, de rédiger une recommandation et de permettre une relecture avant la décision de l’équipe.
 
 Vérifie comment demandeur et responsable de validation retrouvent les mêmes preuves, comment une recommandation refusée est corrigée et où apparaît la responsabilité du suivi. Ajoute une restriction d’accès pour vérifier le comportement configuré. Teste Copilot Studio dans le canal de publication prévu et Tale dans son parcours de tâches. [Demande une démo de Tale](https://tale.dev/fr/request-demo) avec ce processus d’exception.
+
+Cette comparaison s’appuie sur la documentation publique examinée le 3 octobre 2026, sans test comparatif pratique.

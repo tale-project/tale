@@ -79,7 +79,7 @@ Bei einer Aufgabe mit zuständiger Automatisierung erwähnst du diese Automatisi
 
 Eine Aufgabe kann nur einen eingereihten, laufenden oder wartenden Lauf zugleich haben, egal welche Automatisierung ihn gestartet hat. Ein erneuter Start während dieser Zeit verweist auf den vorhandenen Lauf, auch wenn er eine andere Automatisierung nennt. Nach dessen Ende kann ein weiterer Start einen neuen Lauf erzeugen und die Arbeit wiederholen. Prüfe deshalb den aktuellen Lauf und seine Auswirkungen vor einem weiteren Versuch.
 
-## Einen Manager-Agenten die Warteschlange betreuen lassen
+## Einen Manager-Agenten die Warteschlange betreuen lassen {#let-a-manager-agent-keep-the-queue-moving}
 
 Ein Manager-Agent ist ein Projektagent, der laut seinen Anweisungen das ganze Board liest, startbereite Arbeit verteilt und die Routinefragen anderer Agenten beantwortet, damit Personen nur noch sehen, was ihr Eingreifen braucht. Er liest mit **Aufgaben finden** und **Aufgabe lesen**; keines der beiden Tools ändert etwas.
 

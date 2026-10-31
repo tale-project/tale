@@ -33,3 +33,5 @@ Consider Tale when your team needs to turn source material into assigned, review
 Use three fictional technical specifications, including two conflicting revision dates. Ask for a consolidated requirements brief and a task list for unresolved differences. Have a domain expert correct one citation and request a new version.
 
 For Haystack, assess pipeline control and the effort to expose evidence and corrections in the finished application. For Tale, assess ownership, review, and continuity between revisions. Measure whether the team can explain the final decision, including the unresolved uncertainty. [Request a Tale demo](https://tale.dev/request-demo) using this document review.
+
+This comparison describes public documentation reviewed on 3 October 2026; it is not a hands-on benchmark.
