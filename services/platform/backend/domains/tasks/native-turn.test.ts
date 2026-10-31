@@ -8,6 +8,7 @@ import type { TurnOutcome } from '../../../lib/chat/turn.ts';
 import { MAX_RUN_OUTPUT_FILES } from '../../../lib/shared/run-output-cap.ts';
 import { findActingMember } from '../../auth/membership.ts';
 import { executeTurn } from '../../core/chat/turn_action.ts';
+import { ModelEndpointRefusal } from '../../core/governance/model_endpoint_gate.ts';
 import { assertChatTurnBudget } from '../chat/budget-admission.ts';
 import { createPgTurnStore } from '../chat/store.ts';
 import { eligibleProjectAgentHarnesses } from '../projects/service.ts';
@@ -230,6 +231,31 @@ describe('classifyNativeFailure — what a failed turn is to the run ledger [TAS
       'upstream said no',
     );
   });
+
+  it('reads the EU/EEA rule refusing the agent’s model as its model missing, which no retry changes, with the rule’s sentence as the reason [GOV-R17]', () => {
+    const message =
+      'This organization processes prompts only in the EU/EEA, and api.anthropic.com is not an endpoint known to process there, so the call was not sent.';
+    expect(
+      classifyNativeFailure(
+        new ModelEndpointRefusal({
+          code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+          message,
+          provider: 'anthropic',
+          host: 'api.anthropic.com',
+          reason: 'not-attested',
+        }),
+      ),
+    ).toEqual({ code: 'agent_model_missing', reason: message });
+    expect(
+      classifyNativeFailure(
+        new ModelEndpointRefusal({
+          code: 'MODEL_ENDPOINT_POLICY_UNREADABLE',
+          message: 'The model access policy cannot be read.',
+          provider: 'anthropic',
+        }),
+      ).code,
+    ).toBe('agent_model_missing');
+  });
 });
 
 describe('failureOfRefusal [TASK-R34]', () => {
@@ -446,6 +472,8 @@ describe('runNativeAgentTurn — the turn', () => {
       providerSlug: 'anthropic',
       providerStrict: true,
       locale: 'de',
+      // The EU/EEA rule's audit entry names a task, not a chat [GOV-R17].
+      surface: 'task',
     });
     expect(args?.userText).toContain('You are working on this task: Contacts');
     // The person's own context belongs to a chat with them, not to a task.

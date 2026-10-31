@@ -56,6 +56,10 @@ function errorMessageKey(code: string) {
       return 'imageGeneration.invalidPolicy';
     case 'IMAGE_GENERATION_POLICY_UNAVAILABLE':
       return 'imageGeneration.policyUnavailable';
+    case 'MODEL_ENDPOINT_OUTSIDE_EU':
+      return 'imageGeneration.outsideEu';
+    case 'MODEL_ENDPOINT_POLICY_UNREADABLE':
+      return 'imageGeneration.endpointPolicyUnreadable';
     default:
       return 'imageGeneration.resolutionFailed';
   }

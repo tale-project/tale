@@ -33,6 +33,11 @@
  * is what OpenAI-compatible servers implement, so an admin may PIN such a
  * provider's image model; automatic selection only uses the two providers
  * whose image APIs were verified against their documentation.
+ *
+ * With the organization's EU/EEA processing rule on (GOV-R17), a model
+ * whose endpoint the rule refuses is passed over by automatic selection; a
+ * pin it refuses, or an automatic selection left with nothing else, is
+ * refused with the rule's sentence before any prompt is sent.
  */
 
 import { imageGenerationConfigSchema } from '@tale/shared/schemas/governance';
@@ -52,6 +57,16 @@ import {
   isOpenRouterProvider,
   providerAttributionHeaders,
 } from '../../../../lib/shared/providers/attribution';
+import {
+  type ModelEndpointActor,
+  type ModelEndpointPolicy,
+  ModelEndpointRefusal,
+  type ModelEndpointRefusalCode,
+  type ModelEndpointRefusalData,
+  modelEndpointRefusal,
+  readModelEndpointPolicy,
+  refuseModelEndpoint,
+} from '../../governance/model_endpoint_gate';
 import {
   isTerminalCredentialRefusal,
   resolveProviderCredential,
@@ -166,7 +181,7 @@ export interface ImageGenerationStatus {
   enabled: boolean;
   models: ImageModelOption[];
   pick: ImageModelPick | null;
-  error?: { code: ImageGenerationErrorCode };
+  error?: { code: ImageGenerationErrorCode | ModelEndpointRefusalCode };
 }
 
 type ImageModelPin = { providerSlug: string; modelId: string } | null;
@@ -180,6 +195,14 @@ interface Candidate extends ImageModelOption {
   /** Whether automatic selection may use this candidate's provider. */
   verifiedWire: boolean;
   resolved: Omit<ResolvedImageModel, 'source'>;
+}
+
+/** The candidate a policy selects, and the refusal the EU/EEA rule gives
+ * it when it gives one. */
+interface ImageSelection {
+  candidate: Candidate;
+  source: ImageModelPick['source'];
+  refusal?: ModelEndpointRefusalData;
 }
 
 /** The provider's image wire, and whether the platform verified it against
@@ -390,18 +413,35 @@ async function imageCandidates(
   return { candidates, failures };
 }
 
-/** The candidate a policy selects, or the coded reason there is none. */
+/** The candidate a policy selects, or the coded reason there is none.
+ * Automatic selection passes over a candidate the organization's EU/EEA
+ * rule refuses. A pin the rule refuses comes back with its refusal, and so
+ * does the best refused candidate when nothing else can serve and no
+ * provider failed (a failed one might have served from the region). */
 function selectCandidate(
   discovery: Awaited<ReturnType<typeof imageCandidates>>,
   pin: ImageModelPin,
-): { candidate: Candidate; source: ImageModelPick['source'] } {
+  endpointPolicy: ModelEndpointPolicy,
+): ImageSelection {
+  const refusalOf = (candidate: Candidate) =>
+    modelEndpointRefusal(endpointPolicy, {
+      providerName: candidate.providerSlug,
+      baseUrl: candidate.resolved.baseUrl,
+    });
   if (pin !== null) {
     const pinned = discovery.candidates.find(
       (candidate) =>
         candidate.providerSlug === pin.providerSlug &&
         candidate.modelId === pin.modelId,
     );
-    if (pinned !== undefined) return { candidate: pinned, source: 'pinned' };
+    if (pinned !== undefined) {
+      const refusal = refusalOf(pinned);
+      return {
+        candidate: pinned,
+        source: 'pinned',
+        ...(refusal !== undefined ? { refusal } : {}),
+      };
+    }
     throw new ImageGenerationError(
       discovery.failures.has(pin.providerSlug)
         ? 'IMAGE_GENERATION_RESOLUTION_FAILED'
@@ -409,16 +449,32 @@ function selectCandidate(
     );
   }
   let best: { candidate: Candidate; rank: number } | null = null;
+  let refused: {
+    candidate: Candidate;
+    rank: number;
+    refusal: ModelEndpointRefusalData;
+  } | null = null;
   for (const candidate of discovery.candidates) {
     if (!candidate.verifiedWire) continue;
     const rank = PREFERRED_IMAGE_MODELS.findIndex((preferred) =>
       modelIdsEquivalent(preferred, candidate.modelId),
     );
-    if (rank !== -1 && (best === null || rank < best.rank)) {
-      best = { candidate, rank };
+    if (rank === -1) continue;
+    const refusal = refusalOf(candidate);
+    if (refusal === undefined) {
+      if (best === null || rank < best.rank) best = { candidate, rank };
+    } else if (refused === null || rank < refused.rank) {
+      refused = { candidate, rank, refusal };
     }
   }
   if (best !== null) return { candidate: best.candidate, source: 'preferred' };
+  if (refused !== null && discovery.failures.size === 0) {
+    return {
+      candidate: refused.candidate,
+      source: 'preferred',
+      refusal: refused.refusal,
+    };
+  }
   throw new ImageGenerationError(
     discovery.failures.size > 0
       ? 'IMAGE_GENERATION_RESOLUTION_FAILED'
@@ -429,26 +485,51 @@ function selectCandidate(
 /**
  * The model one generation call runs on: `null` while the policy is off,
  * the resolved model while it is on, a coded {@link ImageGenerationError}
- * when it is on and nothing can serve it.
+ * when it is on and nothing can serve it, and a {@link ModelEndpointRefusal}
+ * when the organization's EU/EEA rule refuses the model it would use. A
+ * call's refusal is audited; a turn only being offered the tool (`offer`)
+ * has asked for no image, so its refusal is thrown without an entry.
  */
 export async function resolveImageGenerationModel(
   ctx: ActionCtx,
   organizationId: string,
+  opts: { readonly offer?: boolean; readonly actor?: ModelEndpointActor } = {},
 ): Promise<ResolvedImageModel | null> {
   const policy = await readImageGenerationPolicy(ctx, organizationId);
   if (!policy.enabled) return null;
   let discovery: Awaited<ReturnType<typeof imageCandidates>>;
+  let endpointPolicy: ModelEndpointPolicy;
   try {
     discovery = await imageCandidates(
       ctx,
       organizationId,
       policy.pin?.providerSlug,
     );
+    endpointPolicy = await readModelEndpointPolicy(ctx, organizationId);
   } catch (error) {
     console.warn('[image-model] resolution failed:', error);
     throw new ImageGenerationError('IMAGE_GENERATION_RESOLUTION_FAILED');
   }
-  const { candidate, source } = selectCandidate(discovery, policy.pin);
+  const { candidate, source, refusal } = selectCandidate(
+    discovery,
+    policy.pin,
+    endpointPolicy,
+  );
+  if (refusal !== undefined) {
+    if (opts.offer === true) throw new ModelEndpointRefusal(refusal);
+    await refuseModelEndpoint(
+      ctx,
+      {
+        organizationId,
+        surface: 'image-generation',
+        providerName: candidate.providerSlug,
+        modelId: candidate.modelId,
+        baseUrl: candidate.resolved.baseUrl,
+        ...(opts.actor !== undefined ? { actor: opts.actor } : {}),
+      },
+      refusal,
+    );
+  }
   return { ...candidate.resolved, source };
 }
 
@@ -465,7 +546,9 @@ export async function resolveTurnImageGeneration(
   organizationId: string,
 ): Promise<ImageModelPick | null> {
   try {
-    const resolved = await resolveImageGenerationModel(ctx, organizationId);
+    const resolved = await resolveImageGenerationModel(ctx, organizationId, {
+      offer: true,
+    });
     if (resolved === null) return null;
     console.log(
       `[image-model] resolved ${resolved.providerSlug}/${resolved.modelId} for ${organizationId} (${resolved.source})`,
@@ -478,7 +561,11 @@ export async function resolveTurnImageGeneration(
   } catch (error) {
     console.warn(
       `[image-model] image generation not offered to this turn for ${organizationId}:`,
-      error instanceof ImageGenerationError ? error.code : error,
+      error instanceof ImageGenerationError
+        ? error.code
+        : error instanceof ModelEndpointRefusal
+          ? error.data.code
+          : error,
     );
     return null;
   }
@@ -502,8 +589,10 @@ export async function inspectImageGenerationModels(
         : new ImageGenerationError('IMAGE_GENERATION_POLICY_UNAVAILABLE');
   }
   let discovery: Awaited<ReturnType<typeof imageCandidates>>;
+  let endpointPolicy: ModelEndpointPolicy;
   try {
     discovery = await imageCandidates(ctx, organizationId);
+    endpointPolicy = await readModelEndpointPolicy(ctx, organizationId);
   } catch (caught) {
     console.warn('[image-model] model discovery failed:', caught);
     return {
@@ -524,7 +613,19 @@ export async function inspectImageGenerationModels(
     return { enabled: false, models, pick: null, error: { code: error.code } };
   }
   try {
-    const { candidate, source } = selectCandidate(discovery, policy.pin);
+    const { candidate, source, refusal } = selectCandidate(
+      discovery,
+      policy.pin,
+      endpointPolicy,
+    );
+    if (refusal !== undefined) {
+      return {
+        enabled: policy.enabled,
+        models,
+        pick: null,
+        error: { code: refusal.code },
+      };
+    }
     return {
       enabled: policy.enabled,
       models,

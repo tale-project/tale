@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 99 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 101 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -745,6 +745,38 @@ agent.
   row in `usage` (GOV-F45): the whole answer costs about its prompt, the stream
   its prompt plus the chunks received — never nothing, and never a full answer
   that was not delivered.
+- [ ] `GOV-F70` · **Process prompts only in the EU/EEA** — As an admin on
+  `content-models`, find **Process prompts only in the EU/EEA**
+  (`governance.modelAccess.euProcessing.title`) → its switch
+  (`governance.modelAccess.euProcessing.enabled`) is off. Enter
+  `api.openai.com` under **Endpoints attested as processing in the EU/EEA**
+  (`governance.modelAccess.euProcessing.hostsLabel`) → the field names
+  `eu.api.openai.com` (`governance.modelAccess.euProcessing.vendorHost`) and
+  **Save endpoints** saves nothing. Enter the host of a custom provider's base
+  URL instead and **Save endpoints** → it is still listed after a reload. Turn
+  the switch on → it saves at once, while **Enable model access policy** and
+  **Model endpoints for API keys** keep their own state. As a member, send a
+  chat message with a model of the OpenAI or OpenRouter catalog provider → the
+  chat shows the refusal's sentence, which names the vendor's EU endpoint and
+  says to serve the model through a provider whose endpoint it is, and no reply
+  appears; **Logs** lists **Model access denied** (`model_access.denied`) with
+  the surface `chat`, the model and the host. A model of the custom provider
+  whose host you attested gets past the rule. Turn the switch off → the refused
+  model answers again. Restore the state you found.
+- [ ] `GOV-F71` · **The EU/EEA rule holds beyond chat** — With the switch on
+  (GOV-F70) and the OpenAI catalog provider configured: run live an automation
+  whose `llm` step uses one of its models → the run fails with **The model
+  access policy stopped the step**
+  (`automationRuns.reasons.LLM_ENDPOINT_REFUSED.title`), whose fix says to
+  serve the model through a provider whose endpoint processes there; with an
+  OpenAI transcription model, dictate in the chat composer → the request
+  answers 403 `MODEL_ENDPOINT_OUTSIDE_EU` with the sentence, and no audio
+  reaches OpenAI; with the model endpoints on (GOV-F41), a Developer's chat
+  completion naming an OpenAI model → 403 `MODEL_API_MODEL_FORBIDDEN` whose
+  message says the model gateway calls the vendor's own endpoint and names a
+  custom provider as the way out. Each refusal adds one **Model access
+  denied** row to **Logs** with its surface (`automation`, `transcription`,
+  `model-api`). Turn the switch off → each call goes through again.
 - [ ] `GOV-F38` · **Image generation is off until an admin turns it on** — On
   `content-models` in a fresh organization, find **Image generation**
   (`governance.imageGeneration.title`), then **Start agent**
