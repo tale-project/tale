@@ -1,12 +1,7 @@
 suffix: Tale
 default:
-  title: Die Orchestrierungsebene für KI-Agenten
-  description: Lokale KI-Modelle, Agenten, Skills und Automatisierungen - auf
-    deiner eigenen Infrastruktur, verbunden mit deinen Daten
-keywords: souveräne KI, lokale KI, selbstgehostete KI-Plattform, KI-Agenten,
-  KI-Automatisierungen, On-Premise-KI, Datensouveränität, private
-  Infrastruktur, KI-Skills, lokale Sprachmodelle, Unternehmens-KI,
-  Datenschutz, agentische KI, Workflow-Automatisierung
+  title: Projektarbeit mit deinem Team und KI-Agenten
+  description: Plane Projekte, delegiere Aufgaben an KI-Agenten und prüfe Ergebnisse im Team.
 chat:
   title: Chat
   description: Chatte mit der KI, um Hilfe bei deinen Aufgaben zu erhalten.

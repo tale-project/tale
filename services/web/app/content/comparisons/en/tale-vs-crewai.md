@@ -33,3 +33,5 @@ Consider Tale when your immediate goal is for teammates and configured agents to
 Prepare a small market research brief with three questions and an explicit evidence standard. Have research and synthesis produce a recommendation, then let a separate reviewer reject one unsupported claim and request a revision.
 
 Assess the work needed to configure or build the flow, make progress understandable to a colleague, and recover the rejected task without losing useful evidence. Ask who will maintain each part six months later. A polished first answer alone does not settle the build-versus-adopt decision. [Request a Tale demo](https://tale.dev/request-demo) for this shared research project.
+
+This comparison describes public documentation reviewed on 3 October 2026; it is not a hands-on benchmark.

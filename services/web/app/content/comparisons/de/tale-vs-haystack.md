@@ -33,3 +33,5 @@ Prüfe Tale, wenn dein Team Quellenmaterial in zugewiesene und prüfbare Projekt
 Nutze drei fiktive technische Spezifikationen mit zwei widersprüchlichen Revisionsdaten. Fordere eine zusammengeführte Anforderungsübersicht und Aufgaben für ungelöste Unterschiede an. Lass eine Fachperson einen Quellenverweis korrigieren und eine neue Version anfordern.
 
 Bewerte bei Haystack die Kontrolle über die Pipeline und den Aufwand, Belege und Korrekturen in der fertigen Anwendung zugänglich zu machen. Prüfe bei Tale Zuständigkeiten, Reviews und die Fortsetzung über mehrere Versionen hinweg. Entscheidend ist, ob das Team die abschließende Entscheidung samt verbleibender Unsicherheit erklären kann. [Buche eine Tale-Demo](https://tale.dev/de/request-demo) mit diesem Dokumentenreview.
+
+Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 3. Oktober 2026, und ist kein praktischer Benchmark.

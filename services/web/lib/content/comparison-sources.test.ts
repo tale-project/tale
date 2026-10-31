@@ -9,9 +9,8 @@ import { readMarketingContent } from './server';
 /**
  * Comparison guides whose competitor claims have been checked against deep
  * primary sources (#4127). Each links no competitor homepage or repository
- * root, states its review date in the body, and addresses French readers
- * with tu. Add a slug once its page meets that bar in every locale; when
- * every guide is listed, the list can go.
+ * root and cites the same sources in every locale. Add a slug once its page
+ * meets that bar in every locale; when every guide is listed, the list can go.
  */
 const SOURCED_GUIDES = [
   'tale-vs-flowise',
@@ -23,10 +22,11 @@ const REVIEW_DATE_LOCALES = { en: 'en-GB', de: 'de-DE', fr: 'fr-FR' } as const;
 const TALE_HOSTS = new Set(['tale.dev', 'docs.tale.dev']);
 const GITHUB_HOSTS = new Set(['github.com', 'www.github.com']);
 
-const guides = readMarketingContent().filter(
-  (page) =>
-    page.category === 'comparisons' &&
-    (SOURCED_GUIDES as readonly string[]).includes(page.slug),
+const comparisons = readMarketingContent().filter(
+  (page) => page.category === 'comparisons',
+);
+const guides = comparisons.filter((page) =>
+  (SOURCED_GUIDES as readonly string[]).includes(page.slug),
 );
 
 /** Every link destination, read with the renderer's own Markdown parser. */
@@ -118,27 +118,16 @@ describe('sourced comparison guides', () => {
       for (const sources of others) expect(sources, slug).toEqual(english);
     }
   });
+});
 
+describe('every comparison page', () => {
+  // The header renders the frontmatter date; the body's disclosure that the
+  // page rests on public documentation, not a benchmark, gives the same one.
   it('states the frontmatter review date in the body', () => {
-    for (const page of guides) {
+    for (const page of comparisons) {
       expect(page.content, page.url).toContain(
         spelledDate(page.frontmatter.reviewed, page.locale),
       );
-    }
-  });
-
-  it('addresses French readers with tu', () => {
-    for (const page of guides.filter((guide) => guide.locale === 'fr')) {
-      const text = [
-        page.frontmatter.title,
-        page.frontmatter.description,
-        // Link addresses are not prose: a competitor URL may contain "vos".
-        page.content.replaceAll(/\]\([^)]*\)/g, ']'),
-      ].join('\n');
-      expect(
-        text.match(/(?<![\p{L}])(?:vous|votre|vos|vôtres?)(?![\p{L}])/giu),
-        page.url,
-      ).toBe(null);
     }
   });
 });

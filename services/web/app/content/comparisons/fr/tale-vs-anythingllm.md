@@ -32,7 +32,7 @@ Fais ensuite ajouter une exigence par un autre membre de l'équipe, qui demander
 
 ## Choisir le mode d'adoption
 
-Évalue AnythingLLM pour un assistant documentaire sur un ordinateur, ou si son édition serveur correspond à tes besoins de partage. Évalue Tale si le tableau de projet, l'attribution des agents et l'examen collectif doivent devenir votre processus commun. Pour les deux, examine ensemble modèle, stockage et outils externes : une installation locale ne décrit pas tous les flux de données.
+Évalue AnythingLLM pour un assistant documentaire sur un ordinateur, ou si son édition serveur correspond à tes besoins de partage. Évalue Tale si le tableau de projet, l'attribution des agents et l'examen collectif doivent devenir le processus commun de ton équipe. Pour les deux, examine ensemble modèle, stockage et outils externes : une installation locale ne décrit pas tous les flux de données.
 
 [Parcourir un projet d'équipe avec Tale](https://tale.dev/fr/request-demo).
 

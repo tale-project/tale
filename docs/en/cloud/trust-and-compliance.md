@@ -3,7 +3,7 @@ title: Security and compliance
 description: Find certification information, understand responsibilities, and collect evidence for a security review.
 ---
 
-Ruler GmbH, the company behind Tale, is ISO/IEC 27001 certified. The certification covers its Tale Enterprise offering and services. For a security review, ask your Tale contact for the applicable certificate, its scope, and supporting documents for the service your organization has purchased.
+Ruler GmbH, the company behind Tale, is ISO/IEC 27001 certified. The certification covers Tale Enterprise and professional services. For a security review, ask your Tale contact for the applicable certificate, its scope, and supporting documents for the service your organization has purchased.
 
 Product controls support your organization’s processes. Whether a particular use meets your obligations also depends on your configuration, connected providers, and operating procedures.
 

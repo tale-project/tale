@@ -6,7 +6,7 @@ reviewed: '2026-10-03'
 draft: false
 ---
 
-Commence par un problème que ton équipe veut résoudre. Dans Tale, vous organisez le travail en projets, confiez les tâches adaptées aux agents IA et examinez les résultats ensemble. Ce modèle de collaboration s’applique à différents domaines.
+Commence par un problème que ton équipe veut résoudre. Dans Tale, ton équipe organise le travail en projets, confie les tâches adaptées aux agents IA et examine les résultats ensemble. Ce modèle de collaboration s’applique à différents domaines.
 
 ## Choisir un point de départ
 

@@ -20,7 +20,6 @@ import {
 import type { NavMenuId } from '@/app/content/nav-menus';
 import { getPlatformIcon, getPlatformPage } from '@/app/content/platform-pages';
 import { HEADER_PRIMARY_CTA } from '@/app/content/site-ctas';
-import { getStartedUrl } from '@/lib/docs-url';
 import { useT } from '@/lib/i18n/client';
 import { localizedPath } from '@/lib/i18n/locales';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
@@ -98,7 +97,7 @@ export function SiteHeader() {
 
   const githubLabel = tFooter('githubAriaLabel');
   const getStartedLabel = t(HEADER_PRIMARY_CTA.labelKey);
-  const getStartedHref = getStartedUrl(locale);
+  const getStartedHref = HEADER_PRIMARY_CTA.href(locale);
 
   return (
     <SiteHeaderShell

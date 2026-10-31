@@ -33,3 +33,5 @@ Consider Tale when the team needs a project board to divide an outcome into task
 Use a sample customer brief and a checklist with one missing requirement. In each candidate, prepare the onboarding plan, route the missing detail to an owner, and revise the plan after feedback. Include a failed external update so you can inspect recovery.
 
 Record who notices the exception, where the team sees outstanding work, and what the reviewer needs to approve the final plan. Judge the full handoff, not just whether a record moved between apps. [Request a Tale demo](https://tale.dev/request-demo) using that onboarding case.
+
+This comparison describes public documentation reviewed on 3 October 2026; it is not a hands-on benchmark.
