@@ -149,7 +149,12 @@ import {
 } from './domains/knowledge_entries/write-races.integration.ts';
 import { checkMemberAccountAuthority } from './domains/members/authority.integration.ts';
 import { checkMemberLookup } from './domains/members/lookup.integration.ts';
-import { writeNotificationForOrgs } from './domains/notifications/service.ts';
+import {
+  markAllRead,
+  READ_ALL_SETTLE_MS,
+  unreadCount,
+  writeNotificationForOrgs,
+} from './domains/notifications/service.ts';
 import { ensureDefaultObjectStore } from './domains/object_storage/bootstrap.ts';
 import { checkOrphanedOrgRowsBackfill } from './domains/organizations/orphaned-rows.integration.ts';
 import { checkProductImageReleaseHolders } from './domains/products/image-release.integration.ts';
@@ -1242,6 +1247,222 @@ async function checkNotifications(
     'notification mark-read',
     readRes.ok && countAfterRead.success && countAfterRead.data.count === 0,
     `read → ${readRes.status}, unread=${countAfterRead.success ? countAfterRead.data.count : 'ERR'} (want 0)`,
+  );
+}
+
+/**
+ * The bell's read watermark (0228) on a real database: the count per role,
+ * read-one, Read all's settle window, the watermark it moves and the read
+ * rows it drops. Two throwaway members keep the shared user's bell as the
+ * later lanes expect it. Where this run's notifications must count as
+ * settled, `markAllRead` runs with a `now` past the settle window.
+ */
+async function checkNotificationReadWatermarks(
+  sql: Sql,
+  base: string,
+  ctx: { orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const api = `${base}/api/app/notifications`;
+  const admin = await signUpOrgMember(sql, base, orgId, 'bell-admin', 'admin');
+  const member = await signUpOrgMember(
+    sql,
+    base,
+    orgId,
+    'bell-member',
+    'member',
+  );
+  const adminScope = { orgId, userId: admin.userId, role: 'admin' };
+  const memberScope = { orgId, userId: member.userId, role: 'member' };
+  const settledNow = (): number => Date.now() + READ_ALL_SETTLE_MS + 60_000;
+  const unread = async (cookie: string): Promise<number | 'ERR'> => {
+    const body = z.object({ count: z.number() }).safeParse(
+      await (
+        await fetch(`${api}/unread-count?orgId=${orgId}`, {
+          headers: { cookie },
+        })
+      ).json(),
+    );
+    return body.success ? body.data.count : 'ERR';
+  };
+  const watermarksOf = (userId: string) => sql<
+    { category: string; ms: string; id: string }[]
+  >`
+    SELECT category, read_up_to_ms::text AS ms, read_up_to_id AS id
+    FROM app.notification_read_watermarks
+    WHERE org_id = ${orgId} AND user_id = ${userId}
+    ORDER BY category
+  `;
+  const readRowsOf = async (userId: string, ids: string[]): Promise<number> =>
+    Number(
+      (
+        await sql<{ count: string }[]>`
+          SELECT count(*)::text AS count FROM app.notification_reads
+          WHERE user_id = ${userId} AND notification_id = ANY(${ids})
+        `
+      )[0]?.count ?? -1,
+    );
+
+  // Both start from an empty bell: the organization's history settles under
+  // their watermarks.
+  for (const scope of [adminScope, memberScope]) {
+    await transactSerializable(sql, (tx) =>
+      markAllRead(tx, scope, settledNow()),
+    );
+  }
+  const adminStart = await unread(admin.cookie);
+  const memberStart = await unread(member.cookie);
+  const adminMarksBefore = await watermarksOf(admin.userId);
+
+  // One security and two system notifications, written now.
+  const run = randomUUID();
+  const written: { id: string; category: string }[] = [];
+  for (const [n, category] of (
+    ['security', 'system', 'system'] as const
+  ).entries()) {
+    const dedupeKey = `itest:watermark:${run}:${n}`;
+    await transactSerializable(sql, (tx) =>
+      writeNotificationForOrgs(tx, {
+        organizationIds: [orgId],
+        category,
+        severity: 'info',
+        titleKey: 'itestWatermark',
+        bodyKey: 'itestWatermarkBody',
+        params: { n },
+        dedupeKey,
+      }),
+    );
+    const [row] = await sql<{ id: string }[]>`
+      SELECT id FROM app.notifications
+      WHERE org_id = ${orgId} AND dedupe_key = ${dedupeKey}
+    `;
+    written.push({ id: row?.id ?? '', category });
+  }
+  const ids = written.map((row) => row.id);
+  const securityId = written[0]?.id ?? '';
+  const systemId = written[1]?.id ?? '';
+  const adminWritten = await unread(admin.cookie);
+  const memberWritten = await unread(member.cookie);
+  record(
+    'notification watermark: count after it, security for admins only',
+    adminStart === 0 &&
+      memberStart === 0 &&
+      ids.every((id) => id !== '') &&
+      adminWritten === 3 &&
+      memberWritten === 2,
+    `start admin=${adminStart} member=${memberStart} (want 0/0), after 1 security + 2 system: admin=${adminWritten} (want 3) member=${memberWritten} (want 2)`,
+  );
+
+  // Read one: the admin's system one; the member's try at the security one
+  // writes nothing.
+  const adminRead = await fetch(`${api}/${systemId}/read?orgId=${orgId}`, {
+    method: 'POST',
+    headers: { cookie: admin.cookie, origin: base },
+  });
+  const memberRead = await fetch(`${api}/${securityId}/read?orgId=${orgId}`, {
+    method: 'POST',
+    headers: { cookie: member.cookie, origin: base },
+  });
+  const adminAfterOne = await unread(admin.cookie);
+  const memberAfterOne = await unread(member.cookie);
+  const memberHiddenRows = await readRowsOf(member.userId, [securityId]);
+  record(
+    'notification watermark: read one, never a hidden one',
+    adminRead.ok &&
+      memberRead.ok &&
+      adminAfterOne === 2 &&
+      memberAfterOne === 2 &&
+      memberHiddenRows === 0,
+    `admin read → ${adminRead.status}, unread=${adminAfterOne} (want 2); member read of security → ${memberRead.status}, unread=${memberAfterOne} (want 2), rows=${memberHiddenRows} (want 0)`,
+  );
+
+  // Read all now: this run's notifications are inside the settle window, so
+  // they are marked one by one and the watermark stays.
+  const readAll = await fetch(`${api}/read-all?orgId=${orgId}`, {
+    method: 'POST',
+    headers: { cookie: admin.cookie, origin: base },
+  });
+  const adminAfterAll = await unread(admin.cookie);
+  const adminMarksAfterAll = await watermarksOf(admin.userId);
+  const adminWindowRows = await readRowsOf(admin.userId, ids);
+  record(
+    'notification watermark: read all leaves the settle window to read rows',
+    readAll.ok &&
+      adminAfterAll === 0 &&
+      adminWindowRows === 3 &&
+      JSON.stringify(adminMarksAfterAll) === JSON.stringify(adminMarksBefore),
+    `read-all → ${readAll.status}, unread=${adminAfterAll} (want 0), read rows=${adminWindowRows} (want 3), watermark ${JSON.stringify(adminMarksBefore)} → ${JSON.stringify(adminMarksAfterAll)} (want unchanged)`,
+  );
+
+  // Read all once they settled: both watermarks move past them and the read
+  // rows they now cover go.
+  await transactSerializable(sql, (tx) =>
+    markAllRead(tx, adminScope, settledNow()),
+  );
+  const adminMarksSettled = await watermarksOf(admin.userId);
+  const covered = await sql<{ id: string }[]>`
+    SELECT n.id FROM app.notifications n
+    JOIN app.notification_read_watermarks m
+      ON m.org_id = n.org_id AND m.user_id = ${admin.userId}
+     AND m.category = n.category
+    WHERE n.id = ANY(${ids})
+      AND (n.created_at_ms, n.id) <= (m.read_up_to_ms, m.read_up_to_id)
+  `;
+  const adminSettledRows = await readRowsOf(admin.userId, ids);
+  const adminSettled = await unread(admin.cookie);
+  const listed = z
+    .object({ items: z.array(z.object({ id: z.string(), read: z.boolean() })) })
+    .safeParse(
+      await (
+        await fetch(`${api}?orgId=${orgId}&limit=50`, {
+          headers: { cookie: admin.cookie },
+        })
+      ).json(),
+    );
+  const listedRead = listed.success
+    ? ids.every(
+        (id) => listed.data.items.find((item) => item.id === id)?.read === true,
+      )
+    : false;
+  record(
+    'notification watermark: read all moves it once settled and drops covered rows',
+    adminMarksSettled.length === 2 &&
+      adminMarksSettled[0]?.ms === adminMarksSettled[1]?.ms &&
+      adminMarksSettled[0]?.id === adminMarksSettled[1]?.id &&
+      covered.length === 3 &&
+      adminSettledRows === 0 &&
+      adminSettled === 0 &&
+      listedRead,
+    `watermark ${JSON.stringify(adminMarksSettled)}, covers ${covered.length}/3, read rows=${adminSettledRows} (want 0), unread=${adminSettled} (want 0), listed read=${listedRead}`,
+  );
+
+  // A member's Read all moves the system watermark alone: made an admin,
+  // they find every security notification unread.
+  await transactSerializable(sql, (tx) =>
+    markAllRead(tx, memberScope, settledNow()),
+  );
+  const memberMarks = await watermarksOf(member.userId);
+  const memberSettled = await unread(member.cookie);
+  const memberAsAdmin = await unreadCount(sql, {
+    ...memberScope,
+    role: 'admin',
+  });
+  const securityTotal = Number(
+    (
+      await sql<{ count: string }[]>`
+        SELECT count(*)::text AS count FROM app.notifications
+        WHERE org_id = ${orgId} AND category = 'security'
+      `
+    )[0]?.count ?? -1,
+  );
+  record(
+    "notification watermark: a member's read all leaves security unread",
+    memberMarks.length === 1 &&
+      memberMarks[0]?.category === 'system' &&
+      memberSettled === 0 &&
+      securityTotal >= 1 &&
+      memberAsAdmin === securityTotal,
+    `member watermarks=${memberMarks.map((mark) => mark.category).join(',')} (want system), unread=${memberSettled} (want 0), as admin=${memberAsAdmin} (want ${securityTotal})`,
   );
 }
 
@@ -66026,6 +66247,10 @@ async function main(): Promise<void> {
     // executed fewer checks than it contains.
     lanes = await runLanes(sql, baseUrl, authCtx, boundary, [
       ['checkNotifications', () => checkNotifications(sql, baseUrl, authCtx)],
+      [
+        'checkNotificationReadWatermarks',
+        () => checkNotificationReadWatermarks(sql, baseUrl, authCtx),
+      ],
       [
         'checkOutboxRetention',
         () => checkOutboxRetention(sql, baseUrl, authCtx),
