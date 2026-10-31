@@ -223,6 +223,16 @@ imageGeneration:
   resolutionFailed:
     Tale could not check the image model. Check the provider connection and
     retry.
+  outsideEu:
+    This organization processes prompts only in the EU/EEA, and the image
+    model's endpoint is not known to process there, so neither the chat nor
+    agents can create images. Point its provider at an endpoint in the
+    EU/EEA, list the host under Model access if it processes there, or
+    choose another model.
+  endpointPolicyUnreadable:
+    The model access policy could not be read, so Tale cannot tell whether
+    prompts must stay in the EU/EEA, and neither the chat nor agents can
+    create images. Restore a valid model access policy.
   loadFailed: Couldn't load the image generation settings. Retry to load them.
   invalidSelection: Invalid saved configuration
   unknownSelection: Saved selection could not be read
@@ -266,6 +276,15 @@ transcriptionModel:
   resolutionFailed:
     Tale could not check the audio transcription model. Check the provider
     connection and retry.
+  outsideEu:
+    This organization processes prompts only in the EU/EEA, and the audio
+    model's endpoint is not known to process there, so audio is not
+    transcribed. Point its provider at an endpoint in the EU/EEA, list the
+    host under Model access if it processes there, or choose another model.
+  endpointPolicyUnreadable:
+    The model access policy could not be read, so Tale cannot tell whether
+    prompts must stay in the EU/EEA, and audio is not transcribed. Restore a
+    valid model access policy.
   loadFailed: Couldn't load the audio model settings. Retry to load them.
   invalidSelection: Invalid saved configuration
   unknownSelection: Saved selection could not be read
@@ -1410,6 +1429,26 @@ modelAccess:
       Anthropic-compatible endpoints. Calls count against budgets and pass the
       input guardrails; the models' answers are not filtered.
     enabled: Enable model endpoints for API keys
+  euProcessing:
+    title: Process prompts only in the EU/EEA
+    description: Send model calls only to endpoints known to process in the
+      EU/EEA — eu.openrouter.ai, eu.api.openai.com, api.eu.mistral.ai and the
+      hosts attested below. Any other call is refused before anything is
+      sent, and the refusal is recorded in the audit log. Coding agents in
+      sandboxes and the guardrails' moderation provider are not held to it
+      yet.
+    enabled: Process prompts only in the EU/EEA
+    hostsLabel: Endpoints attested as processing in the EU/EEA
+    hostsHelp: One host per line, as it appears in a provider's base URL — the
+      server of a custom provider, or an Azure resource deployed in an EU/EEA
+      region. Attest only endpoints you know process there; up to {max}.
+    hostsPlaceholder: my-resource.openai.azure.com
+    invalidHost: '{host} is not a host name: write the host alone, without
+      https://, a port or a path.'
+    vendorHost: "{host} can't be attested: its vendor counts only through its
+      EU endpoint, {euHost}."
+    tooMany: Attest at most {max} hosts.
+    saveHosts: Save endpoints
 dataSubjectRequests:
   title: Data subject requests
   entityLabel: requests

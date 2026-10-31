@@ -63,6 +63,8 @@ const { EmbeddingBudgetExceeded, EmbeddingNotConfigured } =
   await import('../../core/knowledge/embedding.ts');
 const { EmbeddingDimensionMismatch, UnsupportedVectorWidth } =
   await import('../../core/knowledge/dimensions.ts');
+const { ModelEndpointRefusal, modelEndpointRefusal } =
+  await import('../../core/governance/model_endpoint_gate.ts');
 
 const MESSAGE_ID = '9e8d7c6b-5a49-4382-9170-6f5e4d3c2b1a';
 const SENT_AT = Date.UTC(2026, 8, 20, 9, 30);
@@ -345,6 +347,29 @@ describe('indexConversationMessage', () => {
     );
     await expect(indexConversationMessage(sql, MESSAGE_ID)).resolves.toBe(
       undefined,
+    );
+    warn.mockRestore();
+  });
+
+  it('ends quietly when the EU/EEA rule refuses the embedding endpoint, the rule’s code in the log [GOV-R17]', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const data = modelEndpointRefusal(
+      { kind: 'eu', attestedHosts: [] },
+      { providerName: 'openai', baseUrl: 'https://api.openai.com/v1' },
+    );
+    if (data === undefined) throw new Error('expected a refusal');
+    mocks.embedderForOrg.mockRejectedValue(new ModelEndpointRefusal(data));
+    const { sql } = fakeSql(row());
+    await expect(indexConversationMessage(sql, MESSAGE_ID)).resolves.toBe(
+      undefined,
+    );
+    expect(mocks.indexWholeDocument).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('the embedding endpoint was refused'),
+      expect.objectContaining({
+        code: 'MODEL_ENDPOINT_OUTSIDE_EU',
+        error: data.message,
+      }),
     );
     warn.mockRestore();
   });

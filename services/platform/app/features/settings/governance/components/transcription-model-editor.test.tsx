@@ -290,6 +290,27 @@ describe('audio model settings', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(message);
   });
 
+  it.each([
+    [
+      'MODEL_ENDPOINT_OUTSIDE_EU',
+      'processes prompts only in the EU/EEA, and the audio model',
+    ],
+    [
+      'MODEL_ENDPOINT_POLICY_UNREADABLE',
+      'The model access policy could not be read',
+    ],
+  ])(
+    'says why the EU/EEA rule leaves no audio model: %s [GOV-R17]',
+    async (code, message) => {
+      state.models = { models: [], pick: null, error: { code } };
+      await renderEditor();
+      expect(screen.getByRole('alert')).toHaveTextContent(message);
+      expect(
+        screen.queryByText(/Currently transcribing audio/),
+      ).not.toBeInTheDocument();
+    },
+  );
+
   it('shows readonly viewers the saved state without registering Save or Discard', async () => {
     state.canEdit = false;
     await renderEditor();
