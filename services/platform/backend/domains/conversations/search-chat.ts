@@ -5,6 +5,7 @@ import { findActingMember, getUserTeamIds } from '../../auth/membership.ts';
 import { conversationAssignmentAllows } from '../../core/lib/rls/helpers/conversation_assignment.ts';
 import { queryTokens, rowMatches } from '../../core/lib/search/relevance.ts';
 import { contactsSearchStrategy } from '../../core/lib/search/strategies/contacts.ts';
+import { likeContains } from '../../db/sql.ts';
 import { viewerIsAdmin } from './service.ts';
 
 /**
@@ -32,12 +33,6 @@ const CONTACT_MATCH_CAP = 25;
 const CONTACT_SCAN_CAP = 500;
 const MESSAGE_SCAN_CAP = 400;
 const BODY_MATCH_CAP = 50;
-
-/** A LIKE pattern matching `token` literally anywhere in the value —
- * `%`, `_` and `\` are LIKE metacharacters and must not widen the match. */
-function likeContains(token: string): string {
-  return `%${token.replace(/[\\%_]/g, (ch) => `\\${ch}`)}%`;
-}
 
 /** A one-field strategy: `subject` is the only prose a conversation row
  * carries. Declared here rather than exported from the shared strategies,

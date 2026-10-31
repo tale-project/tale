@@ -10,6 +10,14 @@ import type { SettingsKind } from '@tale/shared/schemas/settings-kinds';
 
 import { unstorableTexts } from '../../../../lib/shared/utils/storable-text.ts';
 import { isRecord } from '../../../../lib/utils/type-utils.ts';
+import {
+  mintCursorFor,
+  verifyCursorFor,
+} from '../../../core/lib/signed_cursor.ts';
+import {
+  formatKeysetCursor,
+  parseKeysetCursor,
+} from '../../../lib/keyset-cursor.ts';
 import type {
   SettingsChange,
   SettingsContext,
@@ -261,19 +269,22 @@ export function identityOf(
 /** A cursor this listing answered: the place its next page starts. */
 const CURSOR = /^p([1-9]\d{0,6})$/;
 
+/** The refusal of a cursor the listing did not answer. */
+function invalidCursor(): SettingsRefusalError {
+  return new SettingsRefusalError(
+    'INVALID_CURSOR',
+    'the cursor is not one this listing answered',
+    {
+      hint: 'pass the nextCursor get_settings answered for this kind, or none for its first page',
+    },
+  );
+}
+
 /** Where the page a cursor names starts; the first page when there is none. */
 function offsetOf(cursor: string | undefined): number {
   if (cursor === undefined) return 0;
   const match = CURSOR.exec(cursor);
-  if (match === null) {
-    throw new SettingsRefusalError(
-      'INVALID_CURSOR',
-      'the cursor is not one this listing answered',
-      {
-        hint: 'pass the nextCursor get_settings answered for this kind, or none for its first page',
-      },
-    );
-  }
+  if (match === null) throw invalidCursor();
   return Number(match[1]);
 }
 
@@ -327,6 +338,65 @@ export async function pageOfRead<T>(
     if (chars >= PAGE_CONFIG_CHARS) break;
   }
   return { items, nextCursor: next < ids.length ? `p${next}` : null };
+}
+
+/** Where a row stands in a listing keyed on `(<ts> DESC, id DESC)`. */
+export interface KeysetPosition {
+  readonly at: number;
+  readonly id: string;
+}
+
+/**
+ * One page of a listing its store pages on a keyset, so a page reads only
+ * the rows it answers: `read` answers up to `limit` rows after `after` (the
+ * first page for null) and whether more follow. The page is cut as
+ * {@link pageOfRead} cuts it, by `size` and by
+ * {@link PAGE_CONFIG_CHARS}, and its cursor is the position of the last
+ * resource it holds, signed for this kind and organization, so a cursor
+ * another listing answered, or one made up, is refused.
+ */
+export async function pageOfKeyset<T>(
+  ctx: SettingsContext,
+  kind: SettingsKind,
+  cursor: string | undefined,
+  size: number,
+  read: (
+    after: KeysetPosition | null,
+    limit: number,
+  ) => Promise<{ rows: readonly T[]; hasMore: boolean }>,
+  resourceOf: (row: T) => SettingsResource,
+  positionOf: (row: T) => KeysetPosition,
+): Promise<{ items: SettingsResource[]; nextCursor: string | null }> {
+  const listing = `mcp-settings:${kind}`;
+  const organizationId = ctx.caller.organizationId;
+  let after: KeysetPosition | null = null;
+  if (cursor !== undefined) {
+    after = parseKeysetCursor(verifyCursorFor(organizationId, listing, cursor));
+    if (after === null) throw invalidCursor();
+  }
+  const { rows, hasMore } = await read(after, size);
+  const items: SettingsResource[] = [];
+  let last: T | undefined;
+  let chars = 0;
+  for (const row of rows) {
+    if (items.length >= size) break;
+    const item = resourceOf(row);
+    items.push(item);
+    last = row;
+    chars += (JSON.stringify(item.config) ?? '').length;
+    if (chars >= PAGE_CONFIG_CHARS) break;
+  }
+  const more = hasMore || items.length < rows.length;
+  if (!more || last === undefined) return { items, nextCursor: null };
+  const position = positionOf(last);
+  return {
+    items,
+    nextCursor: mintCursorFor(
+      organizationId,
+      listing,
+      formatKeysetCursor(position.at, position.id),
+    ),
+  };
 }
 
 /** The person a change acts as and is recorded under. */
