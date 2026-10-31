@@ -2178,6 +2178,10 @@ function ChatSurfaceInner({
                 handleSelectionChange({ ...selection, modelId, providerSlug })
               }
               models={models}
+              {...(composerOptions.status === 'ready' &&
+              composerOptions.data.modelsHiddenBy !== undefined
+                ? { modelsHiddenBy: composerOptions.data.modelsHiddenBy }
+                : {})}
               modelBId={arenaModelBId}
               onModelBChange={(id, providerSlug) =>
                 setArenaModelB({ id, providerSlug })
@@ -2345,6 +2349,10 @@ function ChatSurfaceInner({
                   draftKey={draftKey}
                   models={models}
                   subscriptionProviders={subscriptionProviders}
+                  {...(composerOptions.status === 'ready' &&
+                  composerOptions.data.modelsHiddenBy !== undefined
+                    ? { modelsHiddenBy: composerOptions.data.modelsHiddenBy }
+                    : {})}
                   selection={selection}
                   onSelectionChange={stableSelectionChange}
                   skillChoices={skillChoices}

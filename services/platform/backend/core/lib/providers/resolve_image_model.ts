@@ -58,6 +58,7 @@ import {
   providerAttributionHeaders,
 } from '../../../../lib/shared/providers/attribution';
 import {
+  type HiddenModelsRule,
   type ModelEndpointActor,
   type ModelEndpointPolicy,
   ModelEndpointRefusal,
@@ -66,6 +67,7 @@ import {
   modelEndpointRefusal,
   readModelEndpointPolicy,
   refuseModelEndpoint,
+  withoutRefusedModels,
 } from '../../governance/model_endpoint_gate';
 import {
   isTerminalCredentialRefusal,
@@ -176,10 +178,13 @@ export class ImageGenerationError extends AppError<{
 }
 
 /** What the settings surface shows: whether the policy is on, every model
- * a pin may name, and what a turn would resolve right now. */
+ * a pin may name, and what a turn would resolve right now. A model the
+ * organization's EU/EEA rule refuses is not offered, and `modelsHiddenBy`
+ * says the rule left some out (GOV-R22). */
 export interface ImageGenerationStatus {
   enabled: boolean;
   models: ImageModelOption[];
+  modelsHiddenBy?: HiddenModelsRule;
   pick: ImageModelPick | null;
   error?: { code: ImageGenerationErrorCode | ModelEndpointRefusalCode };
 }
@@ -413,6 +418,17 @@ async function imageCandidates(
   return { candidates, failures };
 }
 
+/** The organization's EU/EEA rule on the endpoint `candidate` calls. */
+function candidateRefusal(
+  endpointPolicy: ModelEndpointPolicy,
+  candidate: Candidate,
+): ModelEndpointRefusalData | undefined {
+  return modelEndpointRefusal(endpointPolicy, {
+    providerName: candidate.providerSlug,
+    baseUrl: candidate.resolved.baseUrl,
+  });
+}
+
 /** The candidate a policy selects, or the coded reason there is none.
  * Automatic selection passes over a candidate the organization's EU/EEA
  * rule refuses. A pin the rule refuses comes back with its refusal, and so
@@ -424,10 +440,7 @@ function selectCandidate(
   endpointPolicy: ModelEndpointPolicy,
 ): ImageSelection {
   const refusalOf = (candidate: Candidate) =>
-    modelEndpointRefusal(endpointPolicy, {
-      providerName: candidate.providerSlug,
-      baseUrl: candidate.resolved.baseUrl,
-    });
+    candidateRefusal(endpointPolicy, candidate);
   if (pin !== null) {
     const pinned = discovery.candidates.find(
       (candidate) =>
@@ -602,15 +615,30 @@ export async function inspectImageGenerationModels(
       error: { code: error?.code ?? 'IMAGE_GENERATION_RESOLUTION_FAILED' },
     };
   }
-  const models = discovery.candidates.map(
+  // A model whose endpoint the EU/EEA rule refuses is not offered: a pin on
+  // it would be refused at every call (GOV-R22).
+  const offered = withoutRefusedModels(
+    endpointPolicy,
+    discovery.candidates,
+    (candidate) => candidateRefusal(endpointPolicy, candidate),
+  );
+  const models = offered.kept.map(
     ({ providerSlug, providerDisplayName, modelId }) => ({
       providerSlug,
       providerDisplayName,
       modelId,
     }),
   );
+  const hidden =
+    offered.hiddenBy !== undefined ? { modelsHiddenBy: offered.hiddenBy } : {};
   if (error !== undefined) {
-    return { enabled: false, models, pick: null, error: { code: error.code } };
+    return {
+      enabled: false,
+      models,
+      ...hidden,
+      pick: null,
+      error: { code: error.code },
+    };
   }
   try {
     const { candidate, source, refusal } = selectCandidate(
@@ -622,6 +650,7 @@ export async function inspectImageGenerationModels(
       return {
         enabled: policy.enabled,
         models,
+        ...hidden,
         pick: null,
         error: { code: refusal.code },
       };
@@ -629,6 +658,7 @@ export async function inspectImageGenerationModels(
     return {
       enabled: policy.enabled,
       models,
+      ...hidden,
       pick: {
         providerSlug: candidate.providerSlug,
         modelId: candidate.modelId,
@@ -640,6 +670,7 @@ export async function inspectImageGenerationModels(
     return {
       enabled: policy.enabled,
       models,
+      ...hidden,
       pick: null,
       error: { code: caught.code },
     };

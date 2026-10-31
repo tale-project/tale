@@ -49,6 +49,20 @@ describe('composer catalog store', () => {
     expect(readStoredComposerCatalog('org-other')).toBeNull();
   });
 
+  it('keeps why the EU/EEA rule left models out, and drops a record with an unknown reason [GOV-R22]', () => {
+    const hidden: ComposerCatalog = { ...CATALOG, modelsHiddenBy: 'eu' };
+    storeComposerCatalog('org-eu', hidden);
+    expect(readStoredComposerCatalog('org-eu')).toEqual(hidden);
+    window.localStorage.setItem(
+      'tale:composer-catalog:v6:org-eu-odd',
+      JSON.stringify({
+        catalog: { ...CATALOG, modelsHiddenBy: 'mars' },
+        savedAt: Date.now(),
+      }),
+    );
+    expect(readStoredComposerCatalog('org-eu-odd')).toBeNull();
+  });
+
   it('round-trips the empty catalog — "no provider yet" is an answer too', () => {
     storeComposerCatalog('org-empty', {
       models: [],

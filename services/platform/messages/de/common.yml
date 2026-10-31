@@ -124,3 +124,9 @@ sessionIdle:
     weiterzuarbeiten.
   staySignedIn: Angemeldet bleiben
   signedOutNotice: Du wurdest abgemeldet, weil deine Sitzung zu lange inaktiv war.
+hiddenModels:
+  eu: Angeboten werden nur Modelle, deren Endpunkt Prompts in der EU/im EWR
+    verarbeitet, wie es die Modellzugriffsrichtlinie deiner Organisation
+    verlangt.
+  unreadable: Solange die Modellzugriffsrichtlinie nicht gelesen werden kann,
+    wird kein Modell angeboten. Ein Admin muss sie wiederherstellen.

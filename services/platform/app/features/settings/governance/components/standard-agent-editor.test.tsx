@@ -47,6 +47,7 @@ const { state, saved, refetch, refetchAvailability } = vi.hoisted(() => ({
     policyError: undefined as unknown,
     canEdit: true,
     availability: undefined as Availability | undefined,
+    modelsHiddenBy: undefined as 'eu' | undefined,
   },
 }));
 
@@ -94,6 +95,7 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
           credential: { authMethod: 'api-key' },
         },
       ],
+      modelsHiddenBy: state.modelsHiddenBy,
     },
   }),
   useStandardAgentQuery: () => ({
@@ -145,6 +147,7 @@ beforeEach(() => {
   saved.mockReset().mockResolvedValue(null);
   refetch.mockReset();
   refetchAvailability.mockReset();
+  state.modelsHiddenBy = undefined;
   state.config = {};
   state.hasPolicy = true;
   state.policyError = undefined;
@@ -153,6 +156,18 @@ beforeEach(() => {
 });
 
 describe('standard agent settings', () => {
+  it('says why models are missing when the EU/EEA rule left some out, and nothing while it is off [GOV-R22]', async () => {
+    const note =
+      /Only models whose endpoint processes prompts in the EU\/EEA are offered/;
+    state.hasPolicy = false;
+    const { unmount } = await renderEditor();
+    expect(screen.queryByText(note)).not.toBeInTheDocument();
+    unmount();
+    state.modelsHiddenBy = 'eu';
+    await renderEditor();
+    expect(screen.getByText(note)).toBeInTheDocument();
+  });
+
   it('is on without a policy file, everything automatic, and says what it runs on for you', async () => {
     state.hasPolicy = false;
     await renderEditor();

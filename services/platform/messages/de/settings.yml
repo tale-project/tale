@@ -1894,6 +1894,13 @@ dataResidency:
       Tale konnte nicht prüfen, ob {provider} Embeddings bietet, daher lässt
       sich noch kein Modell wählen. Nutze oben „Erneut versuchen“.
     modelUnchecked: Prüfung fehlgeschlagen
+    modelEndpointRefused: Von der EU/EWR-Regel abgelehnt
+    modelEndpointRefusedHint:
+      Die Modellzugriffsrichtlinie deiner Organisation erlaubt nur Endpunkte,
+      die Prompts in der EU/im EWR verarbeiten, und vom Endpunkt dieser Auswahl
+      ist das nicht bekannt. Wähle Zugangsdaten oder eine Basis-URL, deren
+      Endpunkt das tut, oder einen anderen Anbieter.
+    modelPolicyUnreadable: Richtlinie nicht lesbar
     supportReadFailed:
       Tale konnte nicht prüfen, welche Anbieter Embeddings bieten. Bis die
       Prüfung antwortet, lässt sich kein Modell wählen.
