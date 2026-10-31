@@ -129,9 +129,9 @@ Fehler bei Docker, Compose, einer Docker Engine älter als 24.0, einem nicht unt
 - `-s, --services <list>` — nur diese kommagetrennten Dienste aktualisieren (Standard: alle rotierbaren Dienste).
 - `--host <hostname>` — diesen Host für diesen Lauf statt `HOST` aus `.env` bereitstellen; Schema und Port von `SITE_URL` bleiben, `.env` wird nicht geändert. Container, die dieses Deployment nicht neu erstellt, behalten ihren Host; ein laufender `proxy` braucht dafür `--stop`.
 - `--override` — Container-Config aus dem Host-Workspace überschreiben (verschlüsselte `*.secrets.json` und `.history/` bleiben stets erhalten).
-- `--override-all` — den Builtin-Katalog serverseitig in jede Organisation zurücksetzen; impliziert `--stop`.
+- `--override-all` — den Builtin-Katalog serverseitig in jede Organisation zurücksetzen; impliziert `--stop`. Die Bestätigung wird abgefragt, bevor das Deployment etwas ändert; ohne Terminal braucht es `--yes`.
 - `-q, --quiet` — Container-Logs während des Deployments unterdrücken.
-- `-y, --yes` — destruktive Bestätigungsabfragen automatisch akzeptieren (z. B. `--override-all`).
+- `-y, --yes` — Abfragen automatisch akzeptieren (z. B. Docker installieren oder `--override-all` bestätigen).
 - `--skip-backup` — den automatischen Pre-Deploy-Snapshot überspringen.
 - `--configuration-only` — wendet nur verwaltete Konfiguration (Anweisungen, Tools und Modelle der Agenten, Review-Kontexte, Automatisierungen und die Arbeitsverteilung von Projekten) im laufenden Betrieb auf die exakt passende, gesunde Runtime eines bereits bereiten Deployments an. Erfordert `--bundle <directory>` und überspringt den Snapshot vor dem Deployment sowie den Neustart. Nutze die Option, wenn sich nur diese Ressourcen ändern; Runtime- und Identitätsangaben müssen unverändert bleiben, und es darf kein Runtime-Rollout ausstehen.
 - `--dry-run` — Vorschau ohne Änderungen: `.env` und `tale.json` bleiben, wie sie sind, und die Vorschau nennt, was ein echter Lauf dort schreiben würde.

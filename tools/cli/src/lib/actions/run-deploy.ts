@@ -2,6 +2,7 @@ import pkg from '../../../package.json';
 import { preconditionError, usageError } from '../../utils/fail';
 import { loadEnv } from '../../utils/load-env';
 import * as logger from '../../utils/logger';
+import { confirm as promptConfirm, isInteractive } from '../../utils/prompt';
 import {
   type ServiceName,
   ALL_SERVICES,
@@ -24,6 +25,7 @@ import { isDevBuild } from '../version/self-update';
 import { checkBreakingCutover } from './breaking-cutover-guard';
 import { deploy } from './deploy';
 import { runDeployPreflight } from './deploy-preflight';
+import { confirmOverrideAll } from './reseed-all-orgs';
 
 /**
  * Options for {@link runDeploy} — the flag surface of `tale deploy`, also
@@ -46,9 +48,10 @@ interface RunDeployOptions {
 }
 
 /**
- * Injectable seams (project lookup, Docker, preflight, the deploy itself) so
- * what a run reads from and writes to `.env` is unit-testable without Docker.
- * Production passes the defaults below.
+ * Injectable seams (project lookup, Docker, preflight, the deploy itself,
+ * prompting) so what a run reads from and writes to `.env`, and what it asks
+ * before, is unit-testable without Docker or a terminal. Production passes
+ * the defaults below.
  */
 export interface RunDeployDeps {
   requireProject: typeof requireProject;
@@ -56,6 +59,8 @@ export interface RunDeployDeps {
   runDeployPreflight: typeof runDeployPreflight;
   checkBreakingCutover: typeof checkBreakingCutover;
   deploy: typeof deploy;
+  confirm: (message: string) => Promise<boolean>;
+  isInteractive: () => boolean;
 }
 
 const defaultDeps: RunDeployDeps = {
@@ -64,6 +69,8 @@ const defaultDeps: RunDeployDeps = {
   runDeployPreflight,
   checkBreakingCutover,
   deploy,
+  confirm: (message) => promptConfirm({ message, default: false }),
+  isInteractive,
 };
 
 /**
@@ -99,6 +106,11 @@ export async function runDeploy(
     options.host === undefined ? undefined : resolveDeployHost(options.host);
 
   const projectDir = deps.requireProject();
+  // `--override-all` is asked for before anything changes: a decline, or no
+  // `--yes` without a terminal, must leave the running deployment untouched.
+  if (options.overrideAll) {
+    await confirmOverrideAll({ dryRun, assumeYes: options.yes }, deps);
+  }
   await resolveOrAssignProjectContext(projectDir, { dryRun });
 
   // Zero-prerequisite: make sure Docker is usable before anything else.
@@ -206,7 +218,6 @@ export async function runDeploy(
     override: options.override,
     overrideAll: options.overrideAll,
     quiet: options.quiet,
-    assumeYes: options.yes,
     forceRecreate,
     skipBackup: options.skipBackup,
   });

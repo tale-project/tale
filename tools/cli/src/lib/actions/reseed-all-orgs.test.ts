@@ -6,9 +6,6 @@ import {
 } from '../../utils/output-mode';
 import { type ReseedDeps, reseedAllOrgsFromBuiltin } from './reseed-all-orgs';
 
-const confirmMock = mock();
-
-mock.module('../../utils/prompt', () => ({ confirm: confirmMock }));
 mock.module('../../utils/logger', () => ({
   info: mock(),
   error: mock(),
@@ -42,7 +39,7 @@ function makeDeps(): ReseedDeps & {
 
 const stdinDescriptor = Object.getOwnPropertyDescriptor(process.stdin, 'isTTY');
 
-/** Pretend stdin is a pipe (CI): the non-interactive consent gate applies. */
+/** Pretend stdin is a pipe (CI). */
 function detachTty(): void {
   Object.defineProperty(process.stdin, 'isTTY', {
     value: undefined,
@@ -51,7 +48,6 @@ function detachTty(): void {
 }
 
 afterEach(() => {
-  confirmMock.mockReset();
   setActiveOutputMode(resolveOutputMode({}, {}));
   if (stdinDescriptor) {
     Object.defineProperty(process.stdin, 'isTTY', stdinDescriptor);
@@ -61,42 +57,32 @@ afterEach(() => {
 });
 
 describe('reseedAllOrgsFromBuiltin', () => {
-  test('non-TTY without any --yes refuses before touching the door', async () => {
+  // Consent is confirmOverrideAll's, asked before the deploy began
+  // (run-deploy.test.ts): a second gate here, after the rollout, would
+  // refuse or ask over a deployment that is already live.
+  test('reseeds through the door without asking again, even without a terminal or --yes', async () => {
     detachTty();
+    setActiveOutputMode(resolveOutputMode({}, {}));
     const deps = makeDeps();
 
-    await expect(
-      reseedAllOrgsFromBuiltin({ dryRun: false, assumeYes: false }, deps),
-    ).rejects.toThrow('requires --yes');
-    expect(deps.backendApiContainer).not.toHaveBeenCalled();
-    expect(deps.controlCall).not.toHaveBeenCalled();
-  });
+    await reseedAllOrgsFromBuiltin({ dryRun: false }, deps);
 
-  test('non-TTY under the global `tale -y` proceeds with the local flag absent', async () => {
-    detachTty();
-    setActiveOutputMode(resolveOutputMode({ yes: true }, {}));
-    const deps = makeDeps();
-
-    await reseedAllOrgsFromBuiltin(
-      { dryRun: false, assumeYes: undefined as unknown as boolean },
-      deps,
-    );
-
-    expect(confirmMock).not.toHaveBeenCalled();
     expect(deps.controlCall).toHaveBeenCalledWith(
       'POST',
       '/api/control/reseed',
-      expect.objectContaining({ timeoutS: 1800 }),
+      expect.objectContaining({
+        container: 'tale-blue-backend-api-1',
+        timeoutS: 1800,
+      }),
     );
   });
 
-  test('--dry-run reports without confirming or calling the door', async () => {
-    detachTty();
+  test('--dry-run reports without looking up the api or calling the door', async () => {
     const deps = makeDeps();
 
-    await reseedAllOrgsFromBuiltin({ dryRun: true, assumeYes: false }, deps);
+    await reseedAllOrgsFromBuiltin({ dryRun: true }, deps);
 
-    expect(confirmMock).not.toHaveBeenCalled();
+    expect(deps.backendApiContainer).not.toHaveBeenCalled();
     expect(deps.controlCall).not.toHaveBeenCalled();
   });
 });

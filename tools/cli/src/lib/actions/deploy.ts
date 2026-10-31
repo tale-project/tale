@@ -146,12 +146,11 @@ interface DeployOptions {
    * Factory-reseed builtin → all orgs after deploy completes. Triggers a
    * server-side reseed action; preserves *.secrets.json, .history/, and
    * uploaded branding/images/. Combined with `override`, host-push runs
-   * first, then the all-orgs reseed.
+   * first, then the all-orgs reseed. Asks nothing: the caller has resolved
+   * the operator's consent before the deploy began (`confirmOverrideAll`).
    */
   overrideAll?: boolean;
   quiet?: boolean;
-  /** Non-interactive: accept destructive confirmation prompts (e.g. --override-all). */
-  assumeYes?: boolean;
   /**
    * Set by the caller when `ensureEnv` filled in auto-gen secrets headlessly
    * (e.g. an upgrade silently materialized `SANDBOX_TOKEN`). All subsequent
@@ -948,12 +947,9 @@ export async function deploy(options: DeployOptions): Promise<void> {
 
       // After deploy + optional host-push, trigger the server-side reseed of
       // the builtin catalog into every org, through the backend's control
-      // door.
+      // door. Its consent was resolved before the deploy began.
       if (options.overrideAll) {
-        await reseedAllOrgsFromBuiltin({
-          dryRun,
-          assumeYes: options.assumeYes ?? false,
-        });
+        await reseedAllOrgsFromBuiltin({ dryRun });
       }
 
       if (!dryRun) {
