@@ -1,13 +1,7 @@
 suffix: Tale
 default:
-  title: La couche d'orchestration pour agents IA
-  description:
-    Modèles d'IA locaux, agents, compétences et automatisations — sur
-    ta propre infrastructure, connectés à tes données
-keywords: IA souveraine, IA locale, plateforme d'IA auto-hébergée, agents IA,
-  automatisations IA, IA sur site, souveraineté des données, infrastructure
-  privée, compétences IA, modèles de langage locaux, IA d'entreprise,
-  confidentialité des données, IA agentique, automatisation des workflows
+  title: Projets en équipe avec des agents IA
+  description: Planifie tes projets, délègue des tâches aux agents IA et examine les résultats en équipe.
 chat:
   title: Chat
   description: Discute avec l'IA pour obtenir de l'aide sur tes tâches.

@@ -33,3 +33,5 @@ Prüfe Tale, wenn die ausführenden Personen einen gemeinsamen Ort für Planung,
 Gib beiden Kandidaten einen fiktiven Lieferantenfragebogen und einige Belege. Fordere einen Bewertungsentwurf, eine Liste offener Fragen und eine überarbeitete Empfehlung an, nachdem ein Kollege eine Schlussfolgerung angezweifelt hat.
 
 Teste bei StackAI die Bereitstellung als wiederverwendbaren internen Dienst. Teile in Tale Recherche, Entwurf und Review in Projektaufgaben auf. Verfolge in beiden Fällen eine strittige Antwort bis zur Quelle zurück und bestimme, wer sie korrigiert. Berücksichtige auch den Pflegeaufwand nach dem Pilotprojekt. [Buche eine Tale-Demo](https://tale.dev/de/request-demo) mit deinem Bewertungsablauf.
+
+Der Vergleich beruht auf öffentlicher Dokumentation, geprüft am 3. Oktober 2026, und ist kein praktischer Benchmark.
