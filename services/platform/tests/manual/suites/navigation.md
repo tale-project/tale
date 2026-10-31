@@ -389,8 +389,8 @@ loaded, and reads **No teams** for an account in none.
   tabs **Documents**, **Knowledge entries**, **Websites**, **Products** and
   **Contacts** (`knowledge.documents` … `knowledge.contacts`) carry the
   header's one line; the open page's tab is underlined and
-  `aria-current="page"`, and each page fades in under the strip. No panel
-  stands beside the page at any width.
+  `aria-current="page"`, and each page appears under the strip at once, with
+  no fade. No panel stands beside the page at any width.
 - [ ] `NAV-F33` · **One highlight glides through Home's lists** — At ≥ 768 px
   open a chat from the Home panel, then another chat, a task and a
   conversation from the stream; open a project from **Projects**; go back to
@@ -417,10 +417,11 @@ loaded, and reads **No teams** for an account in none.
   last, send the first message of a fresh composer → Each item opening where
   the last one stood fades in from faint (opacity only: nothing slides, the
   header and composer stay put, the transcript lands where it would without
-  the fade); each change of kind of page, and each change of project, fades
-  the page beside the panel while the panel stays still; the chat born from
-  its first message does NOT fade — the composer and the sent message stay as
-  they are while the URL gains the chat's id.
+  the fade); another project, or another kind of page, shows beside the panel
+  at once, with no fade of the page (only a task page fades in as it opens),
+  while the panel stays still; the chat born from its first message does NOT
+  fade — the composer and the sent message stay as they are while the URL
+  gains the chat's id.
 - [ ] `NAV-F36` · **Fold the panel from the keyboard** — On a chat, a task
   page, an open conversation and a project's page press ⌘\ (Ctrl+\ off a
   Mac) twice and hover the **Hide sidebar** toggle (`home.panel.hide`); then

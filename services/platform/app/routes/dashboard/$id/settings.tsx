@@ -13,7 +13,12 @@ import {
 import { MobileFloatingActions } from '@tale/ui/mobile-floating-actions';
 import { PageLayout } from '@tale/ui/page-layout';
 import { useIsMobile } from '@tale/ui/use-is-mobile';
-import { Outlet, createFileRoute, useLocation } from '@tanstack/react-router';
+import {
+  Outlet,
+  createFileRoute,
+  trimPathRight,
+  useChildMatches,
+} from '@tanstack/react-router';
 import { useState } from 'react';
 
 import { SettingsMobileBackButton } from '@/app/features/settings/components/settings-mobile-back-button';
@@ -41,11 +46,16 @@ export const Route = createFileRoute('/dashboard/$id/settings')({
 function SettingsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t: tNav } = useT('navigation');
-  const location = useLocation();
+  // The page the outlet shows, which the frame, its key and the header follow.
+  // Not the location: that names the next page as soon as a navigation
+  // starts, while the outlet keeps the current one until the next has loaded.
+  const shownPathname = useChildMatches({
+    select: (matches) => trimPathRight(matches.at(-1)?.pathname ?? ''),
+  });
 
   // The panel's header already names the section; the page header names the
   // open page (the index, which has none, keeps the section's name).
-  const page = useSettingsPage(organizationId);
+  const page = useSettingsPage(organizationId, shownPathname);
   const headerTitle = page?.title ?? tNav('userSettings');
 
   // Stable setter (from useState) goes in SetterContext so sub-page effects
@@ -55,10 +65,10 @@ function SettingsLayout() {
   );
 
   const usesBoundedLayout =
-    location.pathname.includes('/settings/governance') ||
-    location.pathname.includes('/settings/metrics') ||
-    location.pathname.includes('/settings/api') ||
-    location.pathname.includes('/settings/branding');
+    shownPathname.includes('/settings/governance') ||
+    shownPathname.includes('/settings/metrics') ||
+    shownPathname.includes('/settings/api') ||
+    shownPathname.includes('/settings/branding');
 
   return (
     <ActiveEditorProvider>
@@ -87,12 +97,13 @@ function SettingsLayout() {
             >
               <SettingsMobileActionBar />
               <ContentArea
-                // Fades in per page — keyed on the page, not the path, so a
+                // One frame per page, so each page opens at its top — at
+                // once, with no fade. Keyed on the page, not the path, so a
                 // drawer route inside one (a request over its list) keeps the
                 // page's state and scroll.
-                key={page?.key ?? location.pathname}
+                key={page?.key ?? shownPathname}
                 className={cn(
-                  'animate-in fade-in-0 min-w-0 overflow-y-auto duration-200 motion-reduce:animate-none',
+                  'min-w-0 overflow-y-auto',
                   // A bounded page lets its table scroll its own rows; on a
                   // short viewport it grows instead and the page scrolls, as
                   // a collection screen does (`ContentArea` `list`).

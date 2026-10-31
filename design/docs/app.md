@@ -16,8 +16,9 @@ drawn by `SlidingHighlight` and moved by a CSS transform on one shared timing, s
 lean animation bundle); with nothing open it fades out where it stood and lands on the next item with
 a fade, never sliding in from a corner. A row that joins an open list drops into place; new badges
 and unread dots pop in once; a list swapped for another fades in; another item opening in the same
-place fades its view in (`useSwapFade`, opacity only, so nothing the view measures moves); every
-motion honours `prefers-reduced-motion`.
+place fades its view in (`useSwapFade`, opacity only, so nothing the view measures moves), while a
+move to another page — a tab, a Settings page, another project — shows it at once, with no fade;
+every motion honours `prefers-reduced-motion`.
 
 ## Shell & layout
 

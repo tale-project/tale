@@ -4,7 +4,7 @@ import {
 } from '@tale/ui/adaptive-header';
 import { ContentArea } from '@tale/ui/content-area';
 import { PageLayout } from '@tale/ui/page-layout';
-import { createFileRoute, Outlet, useLocation } from '@tanstack/react-router';
+import { createFileRoute, Outlet } from '@tanstack/react-router';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { KnowledgeNavigation } from '@/app/features/knowledge/components/knowledge-navigation';
@@ -23,7 +23,6 @@ function KnowledgeLayout() {
   const { id: organizationId } = Route.useParams();
   const { t } = useT('knowledge');
   const { t: tAccess } = useT('accessDenied');
-  const { pathname } = useLocation();
 
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
@@ -51,13 +50,13 @@ function KnowledgeLayout() {
       }
       organizationId={organizationId}
     >
-      <ContentArea
-        key={pathname}
-        variant="list"
-        className="animate-in fade-in-0 duration-200 motion-reduce:animate-none"
-      >
-        {!abilityLoading && <Outlet />}
-      </ContentArea>
+      {/* One frame for every tab, neither keyed nor faded: a switch shows the
+          next tab's page at once, and each tab, a route of its own, mounts
+          its page fresh. A key read from the location would remount the page
+          being left too: the location names the next tab as soon as a
+          navigation starts, while the outlet keeps the current page until
+          the next one has loaded. */}
+      <ContentArea variant="list">{!abilityLoading && <Outlet />}</ContentArea>
     </PageLayout>
   );
 }
