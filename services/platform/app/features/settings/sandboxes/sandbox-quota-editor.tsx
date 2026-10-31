@@ -22,6 +22,7 @@ import {
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
+import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import type { ReturnsOf } from '@/app/lib/backend/contract';
@@ -54,6 +55,47 @@ const FORM_ID = 'sandbox-quota-form';
 const TOTAL_ID = `${FORM_ID}-total`;
 const TOTAL_ERROR_ID = `${FORM_ID}-total-error`;
 
+/**
+ * The memory one sandbox on the deployment may use, and whether the
+ * deployment's sessions at that limit need more than its host keeps for them:
+ * what the spawner warns about at startup. Devices run their sandboxes on
+ * their own machines, so only the deployment's sessions count. Undefined
+ * until the spawner names the limit; the comparison waits for its reading of
+ * the host.
+ */
+function deploymentMemoryNote(
+  limits: SandboxQuotaEditorProps['deploymentLimits'],
+  gib: (bytes: number) => string,
+) {
+  if (limits?.status !== 'available') return undefined;
+  const {
+    maxSessions,
+    sessionMemoryBytes,
+    hostMemoryBytes,
+    memoryReserveBytes,
+  } = limits;
+  if (sessionMemoryBytes === undefined) return undefined;
+  const memory = gib(sessionMemoryBytes);
+  if (hostMemoryBytes !== undefined && memoryReserveBytes !== undefined) {
+    const needed = maxSessions * sessionMemoryBytes;
+    const available = Math.max(0, hostMemoryBytes - memoryReserveBytes);
+    if (needed > available) {
+      return {
+        exceedsHost: true,
+        values: {
+          maxSessions,
+          memory,
+          needed: gib(needed),
+          available: gib(available),
+          hostMemory: gib(hostMemoryBytes),
+          reserve: gib(memoryReserveBytes),
+        },
+      };
+    }
+  }
+  return { exceedsHost: false, values: { memory } };
+}
+
 /** The organization's admission budgets share one settings editor. */
 export function SandboxQuotaEditor({
   organizationId,
@@ -63,6 +105,7 @@ export function SandboxQuotaEditor({
   waitingForWorkers,
 }: SandboxQuotaEditorProps) {
   const { t } = useT('sandboxes');
+  const { formatNumber } = useFormatNumber();
   const ability = useAbility();
 
   const upsertMutation = useUpsertGovernancePolicy({ errorToast: false });
@@ -116,6 +159,9 @@ export function SandboxQuotaEditor({
     deploymentLimits?.status === 'available'
       ? deploymentLimits.maxSessions + deviceSessions
       : undefined;
+  const memoryNote = deploymentMemoryNote(deploymentLimits, (bytes) =>
+    formatNumber(bytes / 1024 ** 3, { maximumFractionDigits: 1 }),
+  );
   const exceedsMessage = useCallback(
     (total: number, deploymentSessions: number, devices: number) =>
       devices > 0
@@ -406,6 +452,22 @@ export function SandboxQuotaEditor({
               ) : deploymentLimitsLoading ? (
                 <p role="status" className="text-muted-foreground text-sm">
                   {t('limits.capacityLoading')}
+                </p>
+              ) : null}
+              {memoryNote?.exceedsHost ? (
+                // A standing condition of the deployment, not of this form:
+                // a static banner, not announced on every refresh.
+                <Alert
+                  variant="warning"
+                  live="off"
+                  description={t(
+                    'limits.sessionMemoryExceedsHost',
+                    memoryNote.values,
+                  )}
+                />
+              ) : memoryNote ? (
+                <p className="text-muted-foreground text-xs">
+                  {t('limits.sessionMemory', memoryNote.values)}
                 </p>
               ) : null}
             </div>
