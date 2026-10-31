@@ -343,8 +343,8 @@ describe('task refusal sentences', () => {
     ]);
     expect([...(reached.get('domains/projects/service.ts') ?? [])]).toEqual(
       expect.arrayContaining([
+        'fallbackProjectId',
         'getProjectAuthContext',
-        'listProjects',
         'loadProjectOrThrow',
       ]),
     );
