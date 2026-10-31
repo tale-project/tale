@@ -197,7 +197,8 @@ export interface ContextInput {
    * The skills the person chose for this reply — named at the start of the
    * message, or used by the conversation — already read with `load_skill`
    * for them. Named after the catalog, so the model knows the choice was the
-   * person's and not its own. Skipped on a sub-agent turn.
+   * person's and not its own, and that it holds for the whole reply.
+   * Skipped on a sub-agent turn.
    */
   readonly chosenSkills?: readonly string[];
   /** The turn's wall clock, injected so assembly is deterministic in tests. */
@@ -466,11 +467,13 @@ const CUSTOM_INSTRUCTIONS_HEADER =
   "with the organization's or the project's instructions above, those take " +
   'precedence.';
 
-/** The skills the person chose for this reply, by name. Names are skill
- * folder names (`lib/skills/slash.ts`), so they need no escaping. */
+/** The skills the person chose for this reply, by name, and that they hold
+ * for all of it — how it is written as much as what it does. Names are
+ * skill folder names (`lib/skills/slash.ts`), so they need no escaping. */
 function renderChosenSkills(names?: readonly string[]): string | undefined {
   if (names === undefined || names.length === 0) return undefined;
-  return `The person chose ${names.length === 1 ? 'this skill' : 'these skills'} for this reply: ${names.join(', ')}. Their instructions are in this conversation, read with load_skill; follow them for the work they cover.`;
+  const one = names.length === 1;
+  return `The person chose ${one ? 'this skill' : 'these skills'} for this reply: ${names.join(', ')}. ${one ? 'Its' : 'Their'} instructions were read with load_skill at the start of this reply: follow them throughout it, in what you do and in how you write it.`;
 }
 
 function renderCustomInstructions(text?: string): string | undefined {
