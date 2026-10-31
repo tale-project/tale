@@ -508,7 +508,7 @@ const PLATFORM_TOOLS = [
   {
     name: 'list_projects',
     description:
-      'The projects you can read: whether you can edit each, whether it is archived, and the automations installed in it.',
+      'The projects you can read, newest first: whether you can edit each, whether it is archived, and the automations installed in it; page with nextCursor.',
     annotations: READ,
     group: 'discovery',
   },

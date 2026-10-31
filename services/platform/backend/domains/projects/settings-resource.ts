@@ -14,7 +14,7 @@ import { isRecord } from '../../../lib/utils/type-utils.ts';
 import {
   callerEmail,
   identityOf,
-  pageOfRead,
+  pageOfKeyset,
   parseSettingsConfig,
   SettingsRefusalError,
 } from '../mcp/settings/kit.ts';
@@ -26,15 +26,20 @@ import type {
   SettingsResource,
 } from '../mcp/settings/registry.ts';
 import {
+  agentInstructionsSnapshot,
+  agentModelSnapshot,
+  agentToolsSnapshot,
   assertProjectActive,
   assertWritable,
   checkAgentModelConfiguration,
   getProjectAgent,
   getProjectAuthContext,
-  listProjectAgents,
-  listProjects,
+  listProjectsPage,
+  listReadableProjectAgentsPage,
   loadProjectOrThrow,
+  type ProjectAgentConfigurationRow,
   type ProjectAuthContext,
+  projectInstructionsSnapshot,
   readAgentInstructionsConfiguration,
   readAgentModelConfiguration,
   readAgentToolsConfiguration,
@@ -270,50 +275,38 @@ function managedKind(spec: ManagedKind): SettingsKindHandler {
   };
 }
 
-/** The ids of the caller's projects that are not archived. */
-async function readableProjectIds(
-  ctx: SettingsContext,
-  auth: ProjectAuthContext,
-): Promise<string[]> {
-  const projects = await listProjects(ctx.sql, auth, { summary: true });
-  return projects.map((project) => project.id);
-}
-
-/** Every agent of the caller's projects, as the `<project>/<agent>` ids its
- * resources go by — in project order, then each project's own. */
-async function agentIds(
-  ctx: SettingsContext,
-  auth: ProjectAuthContext,
-): Promise<string[]> {
-  const projectIds = await readableProjectIds(ctx, auth);
-  const perProject = await Promise.all(
-    projectIds.map(async (projectId) =>
-      (await listProjectAgents(ctx.sql, auth, projectId)).map(
-        (agent) => `${projectId}/${agent.id}`,
-      ),
-    ),
-  );
-  return perProject.flat();
-}
+/** The projects a page of project instructions holds at most. */
+const PROJECT_PAGE_SIZE = 50;
 
 /** The agents a page holds at most, however small their configurations. */
 const AGENT_PAGE_SIZE = 50;
 
-/** One page of the agent resources of the caller's projects, over the
- * (project, agent) pairs and cut by the size of what the page read. */
-function agentListPage(read: ManagedKind['read']): ManagedKind['listPage'] {
+/** One page of the agent resources of the caller's projects that are not
+ * archived, newest agent first: one statement joins the projects the
+ * caller may read, and the page is cut by the size of what it holds. */
+function agentListPage(
+  kind: ManagedKind['kind'],
+  snapshotOf: (agent: ProjectAgentConfigurationRow) => {
+    config: unknown;
+    hash: string | null;
+  },
+): ManagedKind['listPage'] {
   return async (ctx, auth, cursor) =>
-    pageOfRead(
-      await agentIds(ctx, auth),
+    pageOfKeyset(
+      ctx,
+      kind,
       cursor,
       AGENT_PAGE_SIZE,
-      async (id) => {
-        const [projectId = '', agentId = ''] = id.split('/');
-        return managedResource(
-          id,
-          await read(ctx.sql, auth, [projectId, agentId]),
-        );
+      async (after, limit) => {
+        const page = await listReadableProjectAgentsPage(ctx.sql, auth, {
+          limit,
+          cursor: after,
+        });
+        return { rows: page.agents, hasMore: page.hasMore };
       },
+      (agent) =>
+        managedResource(`${agent.projectId}/${agent.id}`, snapshotOf(agent)),
+      (agent) => ({ at: agent.createdAt, id: agent.id }),
     );
 }
 
@@ -354,16 +347,25 @@ export const projectInstructionsSettings = managedKind({
       expectedHash,
     );
   },
+  // The caller's projects that are not archived, newest first, one page
+  // read in one statement.
   listPage: async (ctx, auth, cursor) =>
-    pageOfRead(
-      await readableProjectIds(ctx, auth),
+    pageOfKeyset(
+      ctx,
+      'project-instructions',
       cursor,
-      50,
-      async (projectId) =>
-        managedResource(
-          projectId,
-          await readProjectInstructionsConfiguration(ctx.sql, auth, projectId),
-        ),
+      PROJECT_PAGE_SIZE,
+      async (after, limit) => {
+        const page = await listProjectsPage(ctx.sql, auth, {
+          archived: 'exclude',
+          limit,
+          cursor: after,
+        });
+        return { rows: page.projects, hasMore: page.hasMore };
+      },
+      (project) =>
+        managedResource(project.id, projectInstructionsSnapshot(project)),
+      (project) => ({ at: project.createdAt, id: project.id }),
     ),
 });
 
@@ -382,7 +384,7 @@ export const agentInstructionsSettings = managedKind({
       managedAgentInstructionsSchema.parse(config),
       expectedHash,
     ),
-  listPage: agentListPage(readAgentInstructions),
+  listPage: agentListPage('agent-instructions', agentInstructionsSnapshot),
 });
 
 export const agentToolsSettings = managedKind({
@@ -400,7 +402,7 @@ export const agentToolsSettings = managedKind({
       managedAgentToolsSchema.parse(config),
       expectedHash,
     ),
-  listPage: agentListPage(readAgentTools),
+  listPage: agentListPage('agent-tools', agentToolsSnapshot),
 });
 
 /** What serves an agent's runs: its runtime, its model and their provider. */
@@ -445,5 +447,5 @@ export const agentModelSettings = managedKind({
       managedAgentModelSchema.parse(config),
       expectedHash,
     ),
-  listPage: agentListPage(readAgentModel),
+  listPage: agentListPage('agent-model', agentModelSnapshot),
 });

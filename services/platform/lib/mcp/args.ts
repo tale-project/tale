@@ -867,6 +867,12 @@ export const PLATFORM_TOOL_ARGS = {
       .boolean()
       .optional()
       .describe('Also archived projects (default false).'),
+    cursor: nonBlank()
+      .max(1000)
+      .optional()
+      .describe(
+        'The nextCursor the previous page answered — the next page. Pass it unchanged, with the same query and includeArchived.',
+      ),
   }),
   list_events: z.strictObject({}),
   get_settings: z

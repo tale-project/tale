@@ -3,7 +3,7 @@
 import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
-import { appPoolMax, authPoolMax, jsonParam } from './sql.ts';
+import { appPoolMax, authPoolMax, jsonParam, likeContains } from './sql.ts';
 
 /**
  * `jsonParam` binds any JSON value as one parameter, serialized up front: the
@@ -36,6 +36,17 @@ describe('jsonParam', () => {
   it('binds SQL NULL for an absent value', () => {
     expect(jsonParam(sql, undefined)).toBeNull();
     expect(jsonParam(sql, null)).toBeNull();
+  });
+});
+
+describe('likeContains', () => {
+  it('matches the token anywhere in the value', () => {
+    expect(likeContains('Discovery')).toBe('%Discovery%');
+  });
+
+  it('escapes the LIKE metacharacters, so they match only themselves', () => {
+    expect(likeContains('50%_off')).toBe('%50\\%\\_off%');
+    expect(likeContains('a\\b')).toBe('%a\\\\b%');
   });
 });
 
