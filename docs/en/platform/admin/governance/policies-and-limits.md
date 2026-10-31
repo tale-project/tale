@@ -99,6 +99,17 @@ The custom-instructions default switch stores the organization default for membe
 
 All three are on until you turn one off, and a missing policy file leaves them on. A policy file that exists but cannot be read turns all three off until it is repaired, so a broken file never switches back on what you turned off; this page then shows that the policy could not be read. Change the switches, then save the pending page changes in the header; the next reply in every chat follows them. Images are not part of this section: the chat creates them only while [image generation](/platform/admin/governance/content-models#let-agents-generate-images) is on. [Make files and use skills in chat](/platform/chat/files-and-skills) shows what members see.
 
+### See what chat can use {#chat-tool-status}
+
+**Chat tool status**, below the switches, shows Owners and Admins whether chat in your organization can make files, run code, use skills and create images right now. Each reads **Available**, **Limited** or **Unavailable**, with what stands in the way:
+
+- **Files**, **Code** and **Skills** are unavailable while their switch above is off, and all three while the policy file cannot be read.
+- **Code** also needs the deployment's sandbox service. It is unavailable when none is set up or the service does not answer, and limited when the newest light sandbox start of the past week failed; the panel then names when, and the reason the reply's step showed, such as **The sandbox isn't ready yet**.
+- **Skills** is limited when a built-in document skill (`docx`, `pdf`, `pptx` or `xlsx`) is missing from the organization's skill library, and names the missing ones. Code can still make those files, without the skill's guidance.
+- **Images** follows [image generation](/platform/admin/governance/content-models#let-agents-generate-images): unavailable while it is off, when no connected provider offers an image model, when the chosen model cannot be used, or when your organization [processes prompts only in the EU/EEA](/platform/admin/governance/content-models#eu-processing) and the image model's endpoint is not known to process there. When available, it names the model a reply uses.
+
+The panel reads what a reply reads and changes nothing. It checks again when you save a policy on this page; **Check again** looks anew after a change elsewhere, such as a provider credential. For a support request, an Owner or Admin signed in to Tale can open `/api/app/chat/work-tools?orgId=<organization ID>` in the same browser and pass on the JSON it shows.
+
 ## Show a confidentiality notice in chat
 
 **Confidentiality notice** adds a short line to chat for every member of your organization, such as a reminder not to share sensitive data: under the message field of a new chat, and under the last message once a chat has messages. It stays off until you turn it on.
