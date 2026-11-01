@@ -79,6 +79,14 @@ export function useSaveModerationSecret() {
   );
 }
 
+/** The Run check of the Chat tool status panel, which shows a failed
+ * request itself. */
+export function useRunChatSandboxCheck() {
+  return useBackendAction('chat/work_tools:runSandboxCheck', {
+    errorToast: false,
+  });
+}
+
 export function useTestModerationProvider() {
   return useBackendAction(
     'governance/moderation_provider/test_action:testModerationProvider',
