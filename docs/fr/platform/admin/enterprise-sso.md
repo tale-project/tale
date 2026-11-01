@@ -70,6 +70,8 @@ Une règle de source **Claim** lit la valeur indiquée par son **Chemin du claim
 
 Quand des groupes disparaissent, la synchronisation retire les appartenances qu’elle avait ajoutées et supprime les équipes qu’elle avait créées une fois vides. Elle préserve les appartenances créées manuellement ou par SCIM et laisse les groupes exclus tels quels. La page [Équipes](/fr/platform/admin/teams) décrit la gestion manuelle.
 
+Chaque enregistrement de ces réglages ou de la connexion écrit un événement dans le [journal d’audit](/fr/platform/admin/governance/audit-logs). Ses états précédent et nouveau montrent les réglages avant et après l’enregistrement, règles de rôle, synchronisation des équipes et groupes exclus compris, et ses champs modifiés nomment ce qui a changé. L’ID client, le secret client et la clé privée SP n’apparaissent parmi les champs modifiés que par leur nom, jamais avec leur valeur, et un certificat apparaît sous la forme de son empreinte SHA-256. Le point de terminaison du jeton apparaît comme `[REDACTED]`, car le journal d’audit masque tout champ dont le nom contient `token`.
+
 ## Provisionner les membres par SCIM
 
 1. Dans **Provisionnement SCIM**, choisis **Générer un jeton** et copie-le immédiatement : il n’est affiché qu’une fois.

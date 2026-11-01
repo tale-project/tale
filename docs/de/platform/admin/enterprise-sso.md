@@ -70,6 +70,8 @@ Eine Regel mit der Quelle **Claim** liest den Wert unter ihrem **Claim-Pfad**. P
 
 Verschwinden Gruppen, entfernt die Synchronisierung die zuvor von ihr vergebenen Mitgliedschaften. Von ihr erstellte Teams löscht sie, sobald diese leer sind. Manuell oder über SCIM angelegte Mitgliedschaften bleiben erhalten; ausgeschlossene Gruppen bleiben unberührt. Die manuelle Verwaltung beschreibt [Teams](/de/platform/admin/teams).
 
+Jedes Speichern dieser Einstellungen oder der Verbindung schreibt ein Ereignis ins [Audit-Log](/de/platform/admin/governance/audit-logs). Sein vorheriger und neuer Zustand zeigen die Einstellungen vor und nach dem Speichern, einschließlich der Rollenregeln, der Team-Synchronisierung und der ausgeschlossenen Gruppen, und seine geänderten Felder nennen, was sich geändert hat. Client-ID, Client-Secret und privater SP-Schlüssel erscheinen unter den geänderten Feldern nur mit ihrem Namen, nie mit ihrem Wert, und ein Zertifikat erscheint als sein SHA-256-Fingerabdruck. Der Token-Endpunkt erscheint als `[REDACTED]`, weil das Audit-Log jedes Feld zurückhält, dessen Name `token` enthält.
+
 ## Mitglieder über SCIM bereitstellen
 
 1. Wähle unter **SCIM-Bereitstellung** die Aktion **Token generieren** und kopiere das Token sofort. Es wird nur einmal angezeigt.
