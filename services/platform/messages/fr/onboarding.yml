@@ -3,6 +3,7 @@ subtitle: Quelques étapes rapides pour préparer ton espace de travail.
 backToApp: Retour à l'application
 stepsAriaLabel: Étapes d'onboarding
 progress: 'Étape {current} sur {total} : {label}'
+statusFailed: Impossible de vérifier si cette installation est déjà configurée.
 steps:
   account: Compte
   workspace: Espace de travail

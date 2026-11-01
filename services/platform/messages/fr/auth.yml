@@ -35,6 +35,7 @@ login:
   ssoNoOrganizations:
     Aucune organisation disponible pour la connexion. Contacte
     ton administration.
+  ssoOrganizationsFailed: Impossible de charger les organisations.
   proxyHandoff:
     pending: Connexion en cours via le service de connexion de ton organisation…
     stalled: La connexion automatique n’a pas abouti. Connecte-toi autrement

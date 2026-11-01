@@ -28,15 +28,29 @@ vi.mock('@tale/ui/i18n/client', () => ({
 vi.mock('@/lib/utils/seo', () => ({ seo: () => [] }));
 
 // ── Auth queries: a multi-connection deployment ──────────────────────────────
+// The org list's read as react-query reports it: `value` is `data`, and the
+// rest is what `readStateOf` reads to tell pending, failed and answered apart.
 const { mockSelectableOrgs } = vi.hoisted(() => ({
-  mockSelectableOrgs: { value: [] as Record<string, string>[] },
+  mockSelectableOrgs: {
+    value: [] as Record<string, string>[] | undefined,
+    isError: false,
+    isFetching: false,
+    errorUpdateCount: 0,
+    refetch: vi.fn(),
+  },
 }));
 vi.mock('@/app/features/auth/hooks/queries', () => ({
   useHasAnyUsers: () => ({ data: true, isLoading: false }),
   useIsSsoConfigured: () => ({
     data: { enabled: true, providerType: 'entra-id', multiple: true },
   }),
-  useSsoSelectableOrgs: () => ({ data: mockSelectableOrgs.value }),
+  useSsoSelectableOrgs: () => ({
+    data: mockSelectableOrgs.value,
+    isError: mockSelectableOrgs.isError,
+    isFetching: mockSelectableOrgs.isFetching,
+    errorUpdateCount: mockSelectableOrgs.errorUpdateCount,
+    refetch: mockSelectableOrgs.refetch,
+  }),
   useTrustedHeadersHandoff: () => ({ data: false, isLoading: false }),
 }));
 
@@ -57,6 +71,9 @@ const locationAssign = vi.fn();
 beforeEach(() => {
   mockSearch.value = {};
   mockSelectableOrgs.value = [];
+  mockSelectableOrgs.isError = false;
+  mockSelectableOrgs.isFetching = false;
+  mockSelectableOrgs.errorUpdateCount = 0;
   locationAssign.mockReset();
   Object.defineProperty(window, 'location', {
     configurable: true,
@@ -152,5 +169,89 @@ describe('LogInPage – multi-connection SSO org picker', () => {
     render(<LogInPage />);
 
     expect(screen.getByText('login.ssoNoOrganizations')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: 'actions.tryAgain' }),
+    ).not.toBeInTheDocument();
+  });
+});
+
+// Only an answer says which organizations offer SSO: a list that is still
+// loading or failed to load never reads as "none available" (#4606).
+describe('LogInPage – the SSO step before the org list answers', () => {
+  beforeEach(() => {
+    mockSearch.value = { method: 'sso' };
+  });
+
+  it('masks the picker while the list is loading, with no alert', () => {
+    mockSelectableOrgs.value = undefined;
+    mockSelectableOrgs.isFetching = true;
+
+    render(<LogInPage />);
+
+    expect(
+      screen.queryByText('login.ssoNoOrganizations'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+    // The placeholder rows take no pick.
+    for (const option of screen.getAllByRole('option')) {
+      expect(option).toHaveAttribute('inert');
+    }
+  });
+
+  it('names a failed list and offers Try again, which reads it again', async () => {
+    mockSelectableOrgs.value = undefined;
+    mockSelectableOrgs.isError = true;
+    mockSelectableOrgs.errorUpdateCount = 1;
+
+    const { user } = render(<LogInPage />);
+
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('login.ssoOrganizationsFailed');
+    expect(alert).not.toHaveTextContent('login.ssoNoOrganizations');
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    expect(screen.queryByRole('option')).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'actions.tryAgain' }));
+
+    expect(mockSelectableOrgs.refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the failure up, with Try again busy, while the retry runs', () => {
+    // react-query puts a read that never answered back to pending, with no
+    // error, the moment a retry starts.
+    mockSelectableOrgs.value = undefined;
+    mockSelectableOrgs.isFetching = true;
+    mockSelectableOrgs.errorUpdateCount = 1;
+
+    render(<LogInPage />);
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'login.ssoOrganizationsFailed',
+    );
+    expect(
+      screen.getByRole('button', { name: 'actions.tryAgain' }),
+    ).toHaveAttribute('aria-busy', 'true');
+    expect(
+      screen.queryByText('login.ssoNoOrganizations'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('keeps offering the list it had when a refresh fails', () => {
+    mockSelectableOrgs.value = [
+      { organizationId: 'org_x', displayName: 'Org X SSO', protocol: 'oidc' },
+    ];
+    mockSelectableOrgs.isError = true;
+    mockSelectableOrgs.errorUpdateCount = 1;
+
+    render(<LogInPage />);
+
+    expect(
+      screen.getByRole('option', { name: /Org X SSO/ }),
+    ).not.toHaveAttribute('inert');
+    expect(
+      screen.queryByText('login.ssoNoOrganizations'),
+    ).not.toBeInTheDocument();
   });
 });
