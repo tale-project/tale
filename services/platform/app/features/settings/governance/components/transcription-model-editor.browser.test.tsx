@@ -240,9 +240,7 @@ describe('audio model settings in Chromium with simulated HTTP', () => {
       });
       await waitFor(() => expect(picker).toBeEnabled());
       expect(picker).toHaveTextContent('Automatic');
-      await screen.findByText(
-        'Currently transcribing audio with openai · whisper-1.',
-      );
+      await screen.findByText('Currently transcribing audio with whisper-1.');
       expect(screen.getAllByRole('button', { name: 'Save' })).toHaveLength(1);
       expect(screen.getAllByRole('button', { name: 'Discard' })).toHaveLength(
         1,
@@ -250,7 +248,7 @@ describe('audio model settings in Chromium with simulated HTTP', () => {
       expect(picker.getBoundingClientRect().right).toBeLessThanOrEqual(width);
       await view.user.click(picker);
       await view.user.keyboard('{ArrowDown}{ArrowDown}{Enter}');
-      expect(picker).toHaveTextContent('Local audio · speech-model-2');
+      expect(picker).toHaveTextContent(/^speech-model-2$/);
       await waitFor(() => expect(picker).toHaveFocus());
       expect(backend.writes).toHaveLength(0);
       await view.user.keyboard('{Control>}s{/Control}');
@@ -261,7 +259,7 @@ describe('audio model settings in Chromium with simulated HTTP', () => {
         }),
       );
       await screen.findByText(
-        'Currently transcribing audio with local-audio · speech-model-2.',
+        'Currently transcribing audio with speech-model-2.',
       );
       expect(
         backend.reads.filter(
@@ -273,7 +271,7 @@ describe('audio model settings in Chromium with simulated HTTP', () => {
       await view.user.click(picker);
       await view.user.click(screen.getByRole('option', { name: /^Automatic/ }));
       await view.user.click(screen.getByRole('button', { name: 'Discard' }));
-      expect(picker).toHaveTextContent('Local audio · speech-model-2');
+      expect(picker).toHaveTextContent(/^speech-model-2$/);
       expect(backend.writes).toHaveLength(1);
 
       // A fresh router + empty QueryClient is a cold settings load: it must read
@@ -283,16 +281,12 @@ describe('audio model settings in Chromium with simulated HTTP', () => {
       picker = await screen.findByRole('button', {
         name: 'Model that transcribes audio',
       });
-      await waitFor(() =>
-        expect(picker).toHaveTextContent('Local audio · speech-model-2'),
-      );
+      await waitFor(() => expect(picker).toHaveTextContent(/^speech-model-2$/));
       await view.user.click(picker);
       await view.user.click(screen.getByRole('option', { name: /^Automatic/ }));
       await view.user.click(screen.getByRole('button', { name: 'Save' }));
       await waitFor(() => expect(backend.savedConfig()).toEqual({}));
-      await screen.findByText(
-        'Currently transcribing audio with openai · whisper-1.',
-      );
+      await screen.findByText('Currently transcribing audio with whisper-1.');
       expect(backend.writes).toEqual([
         { config: { providerSlug: 'local-audio', modelId: 'speech-model-2' } },
         { config: {} },
@@ -322,7 +316,7 @@ describe('audio model settings in Chromium with simulated HTTP', () => {
       expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled(),
     );
     expect(backend.savedConfig()).toBeNull();
-    expect(picker).toHaveTextContent('Local audio · speech-model-2');
+    expect(picker).toHaveTextContent(/^speech-model-2$/);
     await view.user.click(screen.getByRole('button', { name: 'Discard' }));
     expect(picker).toHaveTextContent('Automatic');
     view.close();

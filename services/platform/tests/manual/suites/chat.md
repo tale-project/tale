@@ -525,10 +525,16 @@ i18n keys were pruned in #2919 — so this guide carries no canvas cases.
 - [ ] `CHAT-F38` · **Sticky pick keeps its provider** — With two providers
   listing the same model id (a shipped provider plus a custom provider on
   another endpoint of the same vendor, settings.md `SET-F43`), open the picker
-  → each provider is its own section headed by its display name; pick the id
-  under the custom provider, send, then reload `/dashboard/{org}/chat` → The
-  trigger seeds the same model and the next turn runs on the custom provider
-  (CHAT-F13's info dialog names it), never on the shipped copy of the id.
+  → each provider is its own section headed by its display name, and a screen
+  reader reads each row as `Provider · model`; pick the id under the custom
+  provider → the closed trigger reads `Provider · model` with the custom
+  provider's name; a model whose name another provider's model shares
+  (OpenRouter's `openai/gpt-5.6-luna` beside OpenAI's `gpt-5.6-luna`) reads
+  with its provider too, while a model no other provider lists by id or name
+  reads by its name alone; send, then reload `/dashboard/{org}/chat` → The
+  trigger seeds the same model under the same provider name and the next turn
+  runs on the custom provider (CHAT-F13's info dialog names it), never on the
+  shipped copy of the id.
 - [ ] `CHAT-F39` · **Send always snaps the new message to the top** — Open a
   thread you visited before and send within a second of it appearing; then
   scroll to the bottom with a trackpad and send again while the momentum tail

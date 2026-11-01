@@ -33,7 +33,7 @@ Tu peux aussi partir d’une tâche : tant que le projet n’a pas d’agent, *
 
 <Step title="Choisir le modèle et le fournisseur">
 
-Recherche un **Modèle** par nom ou identifiant API. Le même modèle peut apparaître une fois par fournisseur : lis le fournisseur de l’entrée avant de la choisir. Cela fixe la combinaison pour les prochaines exécutions. Les offres par abonnement n’apparaissent qu’avec un environnement compatible, et un modèle qui n’appelle des tools que via l’API Responses d’OpenAI, comme GPT-6.1 Sol, n’apparaît qu’avec Codex.
+Recherche un **Modèle** par nom ou identifiant API. La liste range les modèles sous le fournisseur qui les sert : le même modèle peut donc apparaître une fois par fournisseur, choisis-le sous celui que tu veux. Lorsqu’un autre fournisseur propose le modèle choisi, ou un modèle du même nom, le champ nomme aussi le fournisseur, par exemple **OpenRouter · GPT 5.6 Luna**. Cela fixe la combinaison pour les prochaines exécutions. Les offres par abonnement n’apparaissent qu’avec un environnement compatible, et un modèle qui n’appelle des tools que via l’API Responses d’OpenAI, comme GPT-6.1 Sol, n’apparaît qu’avec Codex.
 
 Une ancienne configuration peut nommer un modèle sans fournisseur fixé. Le dialogue indique alors quel fournisseur le servirait actuellement ou pourquoi aucun ne peut le faire. Choisis une entrée pour fixer ce choix.
 

@@ -13,13 +13,17 @@ import type {
 } from '@/lib/shared/schemas/automation-issues';
 
 import { toFlowGraph, type AutomationFlowGraph } from '../lib/flow-graph';
-import type { NodeCatalogView, ReturnsSource } from '../lib/node-face';
+import type {
+  ModelLabel,
+  NodeCatalogView,
+  ReturnsSource,
+} from '../lib/node-face';
 import { automationPaths, type AutomationPaths } from '../lib/paths';
 
 export interface CanvasFlowInput {
   automation: Automation;
   catalog: NodeCatalogView;
-  modelLabel?: (id: string) => string | undefined;
+  modelLabel?: ModelLabel;
   /** The step types allowed to write without approval. */
   allowedWrites?: ReadonlySet<string>;
   /** Start's trigger rows. */

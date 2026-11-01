@@ -6,7 +6,11 @@ import { render, screen } from '@/tests/utils/render';
 import { AgentNodeFields } from './agent-node-fields';
 
 const { rosterState } = vi.hoisted(() => ({
-  rosterState: { modelsHiddenBy: undefined as 'eu' | undefined },
+  rosterState: {
+    modelsHiddenBy: undefined as 'eu' | undefined,
+    // Rows a test adds after the two below.
+    moreModels: [] as unknown[],
+  },
 }));
 
 // The picker's roster: the SAME model id served twice — the subscription copy
@@ -35,6 +39,7 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
             constraints: { harness: 'claude-code' },
           },
         },
+        ...rosterState.moreModels,
       ],
       modelsHiddenBy: rosterState.modelsHiddenBy,
     },
@@ -128,6 +133,58 @@ describe('AgentNodeFields model pin', () => {
 
     expect(screen.getByText('claude-fable-5')).toBeVisible();
     expect(screen.queryByText(/without a pinned provider/)).toBeNull();
+  });
+
+  it('names a model two providers offer by its provider, and groups the list by provider', async () => {
+    previewState.data = undefined;
+    rosterState.moreModels = [
+      {
+        id: 'anthropic/claude-fable-5',
+        label: 'anthropic/claude-fable-5',
+        providerSlug: 'eu-gateway',
+        providerLabel: 'EU Gateway',
+        credential: { authMethod: 'api-key' },
+      },
+    ];
+    try {
+      const { user, onChange } = renderFields({
+        id: 'agent',
+        type: 'agent',
+        model: 'anthropic/claude-fable-5',
+        modelProvider: 'eu-gateway',
+      });
+
+      const trigger = screen.getByRole('button', { name: 'Model' });
+      expect(trigger).toHaveTextContent(
+        'EU Gateway · anthropic/claude-fable-5',
+      );
+      await user.click(trigger);
+      for (const provider of ['OpenRouter', 'Anthropic', 'EU Gateway']) {
+        expect(screen.getByText(provider)).toBeVisible();
+      }
+      expect(
+        screen.getByRole('option', {
+          name: 'EU Gateway · anthropic/claude-fable-5',
+        }),
+      ).toHaveAttribute('aria-selected', 'true');
+      // A row shows the model's own name under its provider, and reads the
+      // provider to assistive technology, which hears no header.
+      expect(
+        screen.getByRole('option', { name: /^Anthropic · claude-fable-5/ }),
+      ).toHaveTextContent(/^claude-fable-5/);
+
+      await user.click(
+        screen.getByRole('option', {
+          name: 'OpenRouter · anthropic/claude-fable-5',
+        }),
+      );
+      expect(onChange).toHaveBeenCalledWith({
+        model: 'anthropic/claude-fable-5',
+        modelProvider: 'openrouter',
+      });
+    } finally {
+      rosterState.moreModels = [];
+    }
   });
 
   it('says why models are missing when the EU/EEA rule left some out, and nothing while it is off [GOV-R22]', () => {

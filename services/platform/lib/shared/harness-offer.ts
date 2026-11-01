@@ -24,7 +24,8 @@ export interface ModelOption {
   id: string;
   label: string;
   providerSlug: string;
-  /** The provider's human name, shown under each option. */
+  /** The provider's human name: the header the option sits under, and the
+   * name it leads where it stands alone (`model-name.ts`). */
   providerLabel: string;
   /** Present when a subscription credential serves this entry — usable only
    * by its forced harness, so the picker offers it for that harness alone. */
@@ -50,6 +51,17 @@ export interface ComposerModelListingRow {
         authMethod: 'subscription-key' | 'subscription-broker';
         constraints: { harness: string };
       };
+}
+
+/** A `listComposerModels` answer, narrowed to what the offer reads: the
+ * models the organization's providers serve, and the runtimes an agent can
+ * run on, each with the wire it speaks. */
+export interface AgentRoster {
+  readonly models: readonly ComposerModelListingRow[];
+  readonly harnesses: readonly {
+    readonly harness: string;
+    readonly toolCallingWire: HarnessToolWire;
+  }[];
 }
 
 /** Listing rows → picker options, subscription-served entries carrying the

@@ -49,7 +49,11 @@ import type {
 } from '@/lib/shared/schemas/automation-issues';
 
 import { useCanvasFlow } from '../hooks/use-canvas-flow';
-import type { NodeCatalogView, ReturnsSource } from '../lib/node-face';
+import type {
+  ModelLabel,
+  NodeCatalogView,
+  ReturnsSource,
+} from '../lib/node-face';
 import { runOverlay } from '../lib/run-overlay';
 import {
   realRunOf,
@@ -116,7 +120,7 @@ export interface AutomationCanvasProps {
    *  layout; a new key is another picture. */
   layoutKey: string;
   catalog: NodeCatalogView;
-  modelLabel?: (id: string) => string | undefined;
+  modelLabel?: ModelLabel;
   /** The step types allowed to write without approval: their boxes say so. */
   allowedWrites?: ReadonlySet<string>;
   /** Start's trigger rows; by hand, the API or MCP when left out. */

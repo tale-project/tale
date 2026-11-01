@@ -24,6 +24,11 @@ import {
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
+import {
+  modelOptionsByProvider,
+  pickedModelName,
+  qualifiedModelName,
+} from '@/app/features/shared/models/model-name';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 import { isRecord } from '@/lib/utils/type-utils';
@@ -163,24 +168,42 @@ export function TranscriptionModelEditor({
   );
   const selection = editor.form.watch('selection');
 
+  // What the server offers, as the shared model rule reads it.
+  const offeredModels = useMemo(
+    () =>
+      (stateQuery.data?.models ?? []).map((model) => ({
+        id: model.modelId,
+        providerSlug: model.providerSlug,
+        providerLabel: model.providerDisplayName,
+      })),
+    [stateQuery.data?.models],
+  );
+
   const options = useMemo<SearchableSelectOption[]>(() => {
+    const models = modelOptionsByProvider(offeredModels, (model) => ({
+      value: modelSelectionValue(model.providerSlug, model.id),
+    }));
     const rows: SearchableSelectOption[] = [
       {
         value: AUTOMATIC,
         label: t('transcriptionModel.automaticLabel'),
         description: t('transcriptionModel.automaticHint'),
       },
-      ...(stateQuery.data?.models ?? []).map((model) => ({
-        value: modelSelectionValue(model.providerSlug, model.modelId),
-        label: `${model.providerDisplayName} · ${model.modelId}`,
-      })),
     ];
-    if (!rows.some((row) => row.value === selection)) {
+    // A saved pick nothing offers leads with Automatic, outside the
+    // providers' sections.
+    if (
+      selection !== AUTOMATIC &&
+      !models.some((row) => row.value === selection)
+    ) {
       const pin = parseModelSelection(selection);
       rows.push({
         value: selection,
         label: pin
-          ? `${pin.providerSlug} · ${pin.modelId}`
+          ? qualifiedModelName({
+              id: pin.modelId,
+              providerSlug: pin.providerSlug,
+            })
           : selection === UNKNOWN
             ? t('transcriptionModel.unknownSelection')
             : t('transcriptionModel.invalidSelection'),
@@ -188,8 +211,9 @@ export function TranscriptionModelEditor({
         disabled: true,
       });
     }
+    rows.push(...models);
     return rows;
-  }, [selection, stateQuery.data?.models, t]);
+  }, [offeredModels, selection, t]);
 
   const errorText = readFailed
     ? t('transcriptionModel.loadFailed')
@@ -249,7 +273,10 @@ export function TranscriptionModelEditor({
                 {pick && (
                   <Text as="p" variant="muted" className="text-xs break-words">
                     {t('transcriptionModel.currentModel', {
-                      model: `${pick.providerSlug} · ${pick.modelId}`,
+                      model: pickedModelName(
+                        { id: pick.modelId, providerSlug: pick.providerSlug },
+                        offeredModels,
+                      ),
                     })}
                   </Text>
                 )}

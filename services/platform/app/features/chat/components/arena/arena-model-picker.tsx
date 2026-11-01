@@ -20,6 +20,9 @@ import {
 interface ArenaModelPickerProps {
   models: readonly ComposerModelOption[];
   modelId?: string;
+  /** The provider of the column's pick: two providers can offer `modelId`,
+   * and only the copy the column runs on reads as chosen. */
+  providerSlug?: string;
   onChange: (modelId: string, providerSlug: string) => void;
   /** Why the EU/EEA processing rule left models out of `models`, if it did. */
   modelsHiddenBy?: HiddenModelsRule;
@@ -28,6 +31,7 @@ interface ArenaModelPickerProps {
 export function ArenaModelPicker({
   models,
   modelId,
+  providerSlug,
   onChange,
   modelsHiddenBy,
 }: ArenaModelPickerProps) {
@@ -38,8 +42,9 @@ export function ArenaModelPicker({
       skills: [],
       connectors: [],
       ...(modelId !== undefined ? { modelId } : {}),
+      ...(providerSlug !== undefined ? { providerSlug } : {}),
     }),
-    [modelId],
+    [modelId, providerSlug],
   );
 
   return (

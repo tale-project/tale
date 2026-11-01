@@ -48,6 +48,8 @@ const { state, saved, refetch, refetchAvailability } = vi.hoisted(() => ({
     canEdit: true,
     availability: undefined as Availability | undefined,
     modelsHiddenBy: undefined as 'eu' | undefined,
+    // Roster rows a test adds after the two below.
+    moreModels: [] as unknown[],
   },
 }));
 
@@ -94,6 +96,7 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
           providerLabel: 'OpenAI',
           credential: { authMethod: 'api-key' },
         },
+        ...state.moreModels,
       ],
       modelsHiddenBy: state.modelsHiddenBy,
     },
@@ -148,6 +151,7 @@ beforeEach(() => {
   refetch.mockReset();
   refetchAvailability.mockReset();
   state.modelsHiddenBy = undefined;
+  state.moreModels = [];
   state.config = {};
   state.hasPolicy = true;
   state.policyError = undefined;
@@ -196,6 +200,104 @@ describe('standard agent settings', () => {
     ).toBeInTheDocument();
     expect(screen.queryByText(/For you, it runs on/)).not.toBeInTheDocument();
   });
+
+  it('names a model two providers offer by its provider, in its list, its control and what it works with', async () => {
+    state.moreModels = [
+      {
+        id: 'claude-sonnet-5',
+        label: 'Claude Sonnet 5',
+        providerSlug: 'eu-gateway',
+        providerLabel: 'EU Gateway',
+        credential: { authMethod: 'api-key' },
+      },
+    ];
+    state.availability = { ...AVAILABLE, engine: 'native' };
+    const { user } = await renderEditor();
+
+    expect(
+      screen.getByText(
+        'For you, it works with Anthropic · Claude Sonnet 5 and hands over to Claude Code when a task needs a full workspace.',
+      ),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: MODEL }));
+    for (const provider of ['Anthropic', 'OpenAI', 'EU Gateway']) {
+      expect(screen.getByText(provider)).toBeVisible();
+    }
+    // A row shows the model's own name under its provider, and reads the
+    // provider to assistive technology, which hears no header.
+    expect(
+      screen.getByRole('option', { name: 'OpenAI · GPT-5.5' }),
+    ).toHaveTextContent(/^GPT-5\.5/);
+    expect(
+      screen.getByRole('option', { name: 'Anthropic · Claude Sonnet 5' }),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole('option', { name: 'EU Gateway · Claude Sonnet 5' }),
+    );
+    expect(screen.getByRole('button', { name: MODEL })).toHaveTextContent(
+      'EU Gateway · Claude Sonnet 5',
+    );
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+
+    await waitFor(() =>
+      expect(saved).toHaveBeenCalledWith({
+        organizationId: 'org-standard',
+        policyType: 'standard_agent',
+        config: {
+          enabled: true,
+          providerSlug: 'eu-gateway',
+          modelId: 'claude-sonnet-5',
+        },
+      }),
+    );
+  });
+
+  it.each([
+    { boundTo: 'claude-code', name: 'GPT-5.5' },
+    { boundTo: 'codex', name: 'OpenAI · GPT-5.5' },
+  ])(
+    'names the model as the saved runtime’s picker does, beside a subscription copy bound to $boundTo',
+    async ({ boundTo, name }) => {
+      state.config = {
+        enabled: true,
+        harness: 'codex',
+        providerSlug: 'openai',
+        modelId: 'gpt-5.5',
+      };
+      state.availability = {
+        ...AVAILABLE,
+        harness: 'codex',
+        harnessLabel: 'Codex',
+        model: 'gpt-5.5',
+        modelLabel: 'GPT-5.5',
+        modelProvider: 'openai',
+        engine: 'native',
+      };
+      // Only the runtime a subscription is bound to is offered its copy.
+      state.moreModels = [
+        {
+          id: 'gpt-5.5',
+          label: 'GPT-5.5',
+          providerSlug: 'chatgpt',
+          providerLabel: 'ChatGPT',
+          credential: {
+            authMethod: 'subscription-broker',
+            constraints: { harness: boundTo },
+          },
+        },
+      ];
+      await renderEditor();
+
+      expect(
+        screen.getByText(
+          `For you, it works with ${name} and hands over to Codex when a task needs a full workspace.`,
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: MODEL }).textContent).toBe(
+        name,
+      );
+    },
+  );
 
   it('switches off at once, keeping its saved choices', async () => {
     state.config = {
@@ -371,9 +473,21 @@ describe('standard agent settings', () => {
     const { user } = await renderEditor();
 
     await user.click(screen.getByRole('button', { name: MODEL }));
+    const invalid = screen.getByRole('option', {
+      name: /^Invalid saved configuration/,
+    });
+    expect(invalid).toHaveAttribute('aria-disabled', 'true');
+    // It follows Automatic and leads the providers' sections, so no
+    // provider's header claims it.
     expect(
-      screen.getByRole('option', { name: /^Invalid saved configuration/ }),
-    ).toHaveAttribute('aria-disabled', 'true');
+      screen
+        .getByRole('option', { name: /^Automatic/ })
+        .compareDocumentPosition(invalid) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    expect(
+      invalid.compareDocumentPosition(screen.getByText('Anthropic')) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
     await user.click(screen.getByRole('option', { name: 'OpenAI · GPT-5.5' }));
     await user.click(screen.getByRole('button', { name: 'Save' }));
 

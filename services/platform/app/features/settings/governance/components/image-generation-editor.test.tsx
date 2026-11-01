@@ -182,7 +182,7 @@ describe('image generation settings', () => {
     );
     expect(
       screen.getByText(
-        'Images are currently created with openrouter · google/gemini-2.5-flash-image, the recommended choice.',
+        'Images are currently created with google/gemini-2.5-flash-image, the recommended choice.',
       ),
     ).toBeInTheDocument();
   });
@@ -207,6 +207,9 @@ describe('image generation settings', () => {
     await user.click(
       screen.getByRole('option', { name: 'OpenAI · gpt-image-1' }),
     );
+    expect(screen.getByRole('button', { name: PICKER })).toHaveTextContent(
+      'gpt-image-1',
+    );
     expect(
       screen.getByText('Save to apply this selection.'),
     ).toBeInTheDocument();
@@ -220,6 +223,62 @@ describe('image generation settings', () => {
           enabled: true,
           providerSlug: 'openai',
           modelId: 'gpt-image-1',
+        },
+      }),
+    );
+  });
+
+  it('names a model two providers offer by its provider, grouping the list by provider', async () => {
+    state.config = { enabled: true };
+    state.image = {
+      ...state.image,
+      enabled: true,
+      models: [
+        ...MODELS,
+        {
+          providerSlug: 'eu-gateway',
+          providerDisplayName: 'EU Gateway',
+          modelId: 'google/gemini-2.5-flash-image',
+        },
+      ],
+    };
+    const { user } = await renderEditor();
+    expect(
+      screen.getByText(
+        'Images are currently created with OpenRouter · google/gemini-2.5-flash-image, the recommended choice.',
+      ),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: PICKER }));
+    for (const provider of ['OpenRouter', 'OpenAI', 'EU Gateway']) {
+      expect(screen.getByText(provider)).toBeVisible();
+    }
+    // A row shows the model's own name under its provider, and reads the
+    // provider to assistive technology, which hears no header.
+    expect(
+      screen.getByRole('option', { name: 'OpenAI · gpt-image-1' }),
+    ).toHaveTextContent(/^gpt-image-1/);
+    expect(
+      screen.getByRole('option', {
+        name: 'OpenRouter · google/gemini-2.5-flash-image',
+      }),
+    ).toBeVisible();
+    await user.click(
+      screen.getByRole('option', {
+        name: 'EU Gateway · google/gemini-2.5-flash-image',
+      }),
+    );
+    expect(screen.getByRole('button', { name: PICKER })).toHaveTextContent(
+      'EU Gateway · google/gemini-2.5-flash-image',
+    );
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(saved).toHaveBeenCalledWith({
+        organizationId: 'org-images',
+        policyType: 'image_generation',
+        config: {
+          enabled: true,
+          providerSlug: 'eu-gateway',
+          modelId: 'google/gemini-2.5-flash-image',
         },
       }),
     );
@@ -248,11 +307,21 @@ describe('image generation settings', () => {
       '/dashboard/org-images/settings/providers',
     );
     await user.click(picker);
+    const pin = screen.getByRole('option', {
+      name: /removed-provider · old-image-model/,
+    });
+    expect(pin).toHaveAttribute('aria-disabled', 'true');
+    // It follows Automatic and leads the providers' sections, so no
+    // provider's header claims it.
     expect(
-      screen.getByRole('option', {
-        name: /removed-provider · old-image-model/,
-      }),
-    ).toHaveAttribute('aria-disabled', 'true');
+      screen
+        .getByRole('option', { name: /^Automatic/ })
+        .compareDocumentPosition(pin) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    expect(
+      pin.compareDocumentPosition(screen.getByText('OpenRouter')) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
   });
 
   it('explains that no recommended model is reachable only while on', async () => {
