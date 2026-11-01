@@ -126,6 +126,18 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await import('@/tests/utils/router-link-stub')).routerLinkStub,
   useNavigate: () => vi.fn(),
 }));
+// The people the pickers search: Alex.
+vi.mock('../hooks/use-assignable-members', () => {
+  const alex = {
+    members: [
+      { type: 'user', id: 'user-1', name: 'Alex', email: 'alex@example.com' },
+    ],
+    more: false,
+    searching: false,
+    unavailable: false,
+  };
+  return { useAssignableMembers: () => alex };
+});
 vi.mock('../hooks/use-actor-directory', () => {
   const resolveActor = (type: string, id: string) => ({
     type,
@@ -142,9 +154,6 @@ vi.mock('../hooks/use-actor-directory', () => {
       resolveActor,
     }),
     useAssignableActors: () => ({
-      assignableMembers: [
-        { type: 'user', id: 'user-1', name: 'Alex', email: 'alex@example.com' },
-      ],
       assignableAgents: [],
       agentsLoading: false,
       currentUserId: 'u-editor',

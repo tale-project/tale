@@ -81,6 +81,16 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: () => ({ data: undefined, isLoading: false }),
 }));
+// The assignee filter is never opened here: it looks nobody up.
+vi.mock(
+  '@/app/features/settings/organization/hooks/member-lookup',
+  async () => {
+    const nobody: never[] = [];
+    return (
+      await import('@/tests/utils/member-lookup-stand-in')
+    ).memberLookupStandIn(() => nobody);
+  },
+);
 vi.mock('@/app/hooks/use-current-member-context', () => {
   const member = { data: { userId: 'u-member' } };
   return { useCurrentMemberContext: () => member };
@@ -96,7 +106,6 @@ vi.mock('../hooks/use-actor-directory', () => {
     useActorDirectory: () => directory,
     useAssignableActors: () => ({
       ...directory,
-      assignableMembers: directory.members,
       assignableAgents: directory.agents,
     }),
     useProvidedActorDirectory: () => undefined,

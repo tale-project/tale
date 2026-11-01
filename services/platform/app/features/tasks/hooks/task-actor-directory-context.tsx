@@ -145,7 +145,7 @@ export function useTaskAssignableActors(
   projectId?: string,
 ) {
   const { directory } = useScopedDirectory(organizationId, projectId);
-  if (!('assignableMembers' in directory)) {
+  if (!('assignableAgents' in directory)) {
     throw new Error('Task assignment requires an assignable actor provider');
   }
   return directory;

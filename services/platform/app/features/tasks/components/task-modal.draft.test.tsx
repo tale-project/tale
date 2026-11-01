@@ -61,7 +61,6 @@ vi.mock('../hooks/use-actor-directory', () => ({
   }),
   useAssignableActors: () => ({
     subjectEntries: [],
-    assignableMembers: [],
     assignableAgents: [{ type: 'agent', id: 'agent-1', name: 'Analyst' }],
     agents: [],
     resolveActor: () => ({ name: 'Analyst' }),

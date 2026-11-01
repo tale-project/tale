@@ -67,10 +67,20 @@ export interface MentionTextareaProps<Kind extends string> extends Omit<
   /** Called once the field is first focused: the moment to read the
    * options, which nobody needs before. */
   onOptionsWanted?: () => void;
+  /** Called with what is typed after `@` while a mention is being typed,
+   * and with `null` while none is: what a field whose `options` are
+   * searched for on a server searches. The field still finds among the
+   * options it is given with `filterOptions`. */
+  onQueryChange?: (query: string | null) => void;
   /** The picker's accessible name. */
   listboxLabel?: string;
   /** What the picker says when the query finds nobody. */
   emptyLabel?: string;
+  /** A line the picker shows under what it lists, or under `emptyLabel`:
+   * why the options may not be all there are (they could not be searched,
+   * more match than are offered). It is read out when it says something
+   * new while the picker is open. */
+  note?: string;
   /** Where the picker opens. A composer at the foot of a panel wants
    * 'above'; a field near the top of a dialog wants 'below'. */
   placement?: 'above' | 'below';
@@ -277,8 +287,10 @@ export function MentionTextarea<Kind extends string>({
   nameOf,
   resolvePlain,
   onOptionsWanted,
+  onQueryChange,
   listboxLabel,
   emptyLabel,
+  note,
   placement = 'above',
   onKeyDown,
   onKeyUp,
@@ -355,6 +367,10 @@ export function MentionTextarea<Kind extends string>({
     () => (trigger === null ? [] : filterOptions(options, trigger.query)),
     [filterOptions, options, trigger],
   );
+  const query = trigger === null ? null : trigger.query;
+  useEffect(() => {
+    onQueryChange?.(query);
+  }, [query, onQueryChange]);
   const clampedHighlight = Math.min(highlight, Math.max(results.length - 1, 0));
   const generatedId = useId();
   const textareaId = id ?? generatedId;
@@ -367,6 +383,20 @@ export function MentionTextarea<Kind extends string>({
     !disabled &&
     !(trigger.query.includes(' ') && results.length === 0);
   const listed = open && results.length > 0;
+
+  // The note is a status: read out when it says something new while the
+  // picker is open, and not again for the same words in that opening, so a
+  // search that answers alike as someone types stays quiet.
+  const spokenNoteRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open) {
+      spokenNoteRef.current = null;
+      return;
+    }
+    if (note === undefined || note === spokenNoteRef.current) return;
+    spokenNoteRef.current = note;
+    announce(note);
+  }, [open, note, announce]);
 
   /** Commit the field's new text: map the mentions onto it, place the ones
    * an insert brought, and let go of any that would not survive saving. */
@@ -753,6 +783,7 @@ export function MentionTextarea<Kind extends string>({
           optionId={optionId}
           label={listboxLabel ?? t('listboxLabel')}
           emptyLabel={emptyLabel ?? t('empty')}
+          note={note}
           options={results.map((option) => ({
             key: `${option.kind}:${option.id}`,
             name: option.name,

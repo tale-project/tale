@@ -216,6 +216,13 @@ describe('validated reads through the real app', () => {
       400,
       'INVALID_URL',
     ],
+    [
+      'a NUL in the text of a member search',
+      'http://localhost/api/app/members/search?orgId=org-1&q=no%00ah',
+      { headers: { cookie: 'tale.session=good' } },
+      400,
+      'INVALID_URL',
+    ],
   ])(
     'answers %s uncacheable, without the REST door’s version header',
     async (_name, url, init, status, code) => {

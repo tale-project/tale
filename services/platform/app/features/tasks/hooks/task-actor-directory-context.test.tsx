@@ -46,8 +46,9 @@ vi.mock('./use-actor-directory', async (importOriginal) => {
       const value = directory(organizationId, projectId);
       return {
         ...value,
-        assignableMembers: value.members,
-        assignableAgents: [],
+        assignableAgents: [
+          { type: 'agent', id: 'agent-1', name: value.members[0]?.name },
+        ],
       };
     },
   };
@@ -72,7 +73,7 @@ const Candidate = withTaskAssignableActors(function Candidate({
   projectId?: string;
 }) {
   const directory = useTaskAssignableActors(organizationId, projectId);
-  return <output>{directory.assignableMembers[0]?.name}</output>;
+  return <output>{directory.assignableAgents[0]?.name}</output>;
 });
 
 beforeEach(() => {

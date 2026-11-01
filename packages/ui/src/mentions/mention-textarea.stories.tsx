@@ -35,7 +35,7 @@ const NAMES = new Map(
   OPTIONS.map((option) => [`${option.kind}:${option.id}`, option.name]),
 );
 
-function Field({ initial }: { initial: string }) {
+function Field({ initial, note }: { initial: string; note?: string }) {
   const [value, setValue] = useState(initial);
   return (
     <div className="flex w-96 flex-col gap-3">
@@ -48,6 +48,7 @@ function Field({ initial }: { initial: string }) {
         nameOf={(ref) => NAMES.get(`${ref.kind}:${ref.id}`)}
         value={value}
         onValueChange={setValue}
+        note={note}
       />
       <pre className="text-muted-foreground text-xs break-all whitespace-pre-wrap">
         {value}
@@ -86,11 +87,12 @@ import { MentionTextarea } from '@tale/ui/mentions/mention-textarea';
 - Typing inside a name makes it plain text; a selection that cuts into one grows to take it whole
 - Copy and paste between mention fields keep mentions; a mention never forms inside code
 - A name with spaces is searchable across them ("@my opus")
+- A \`note\` shows under the picker's options, or under its empty label, to say why they may not be all there are (a search that failed, more matches than are listed)
 
 ## Accessibility
 - The native textarea stays: IME, spellcheck, selection and screen readers work as in any field
 - The picker is a combobox listbox (Up/Down, Enter or Tab picks, Escape closes; a modified Enter is the caller's)
-- Each inserted or removed mention is announced in a polite live region
+- Each inserted or removed mention is announced in a polite live region, and so is a note that says something new while the picker is open
         `,
       },
     },
@@ -112,6 +114,21 @@ export const WithMentions: Story = {
       description: {
         story:
           'A stored text: each token shows the current name of whoever it names, whatever name it was saved with.',
+      },
+    },
+  },
+};
+
+export const WithNote: Story = {
+  args: {
+    initial: '',
+    note: 'Showing the first matches: type more of a name to narrow them.',
+  },
+  parameters: {
+    docs: {
+      description: {
+        story:
+          'Type `@`: the note under the options says why they may not be all there are, here more matches than are listed.',
       },
     },
   },

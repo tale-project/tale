@@ -1,7 +1,8 @@
 import type { Sql } from 'postgres';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { listAutomations } from '../automations/store.ts';
+import { lookupMembers } from '../members/service.ts';
 import {
   currentMentionNames,
   MentionDirectoryError,
@@ -9,6 +10,11 @@ import {
 } from './mention-directory.ts';
 
 vi.mock('../automations/store.ts', () => ({ listAutomations: vi.fn() }));
+// The real lookup, watched: which members a directory asks for.
+vi.mock('../members/service.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../members/service.ts')>();
+  return { ...actual, lookupMembers: vi.fn(actual.lookupMembers) };
+});
 
 type Row = Record<string, unknown>;
 
@@ -32,9 +38,16 @@ function fakeDb(
   }) as unknown as Sql;
 }
 
+/** The member lookup (`lookupMembers`), the one statement a directory reads
+ * members with. A fake answers it with everyone: the lookup itself keeps
+ * only the members who answer to what was asked, as the database does. */
+const isMemberLookup = (text: string) => text.includes('FROM "member" m');
+
 const ADA = {
+  id: 'm-ada',
   userId: 'u-ada',
   role: 'member',
+  createdAt: '2026-01-01 09:00:00+00',
   email: 'ada@example.com',
   displayName: 'Ada Lovelace',
 };
@@ -45,7 +58,7 @@ describe('mention directory — a leg that cannot be listed fails loudly [COLLAB
     // posted, but the named teammate got no bell and nothing told the
     // author. The surface must fail (retryable) instead.
     const db = fakeDb((text) => {
-      if (text.startsWith('SELECT m."userId"')) {
+      if (isMemberLookup(text)) {
         throw new Error('connection reset');
       }
       return [];
@@ -68,7 +81,7 @@ describe('mention directory — a leg that cannot be listed fails loudly [COLLAB
   it('a failed automation listing rejects too — the owning-automation trigger rides it', async () => {
     vi.mocked(listAutomations).mockRejectedValueOnce(new Error('store down'));
     const db = fakeDb((text) => {
-      if (text.startsWith('SELECT m."userId"')) return [ADA];
+      if (isMemberLookup(text)) return [ADA];
       if (text.includes('FROM app.projects')) return [{ teamIds: [] }];
       return [];
     });
@@ -87,9 +100,7 @@ describe('mention directory — a leg that cannot be listed fails loudly [COLLAB
   });
 
   it('a healthy directory still resolves the teammate by every handle', async () => {
-    const db = fakeDb((text) =>
-      text.startsWith('SELECT m."userId"') ? [ADA] : [],
-    );
+    const db = fakeDb((text) => (isMemberLookup(text) ? [ADA] : []));
     const resolved = await prepareSurfaceText(db, {
       organizationId: 'org-1',
       body: '@ada.lovelace please look, @ghost too',
@@ -112,7 +123,7 @@ describe('mention directory — a leg that cannot be listed fails loudly [COLLAB
       { code: '40001' },
     );
     const db = fakeDb((text) => {
-      if (text.startsWith('SELECT m."userId"')) throw conflict;
+      if (isMemberLookup(text)) throw conflict;
       return [];
     });
     await expect(
@@ -124,18 +135,61 @@ describe('mention directory — a leg that cannot be listed fails loudly [COLLAB
       }),
     ).rejects.toBe(conflict);
   });
+
+  it('a member lookup that fails for the agents’ handles is the members leg’s outage', async () => {
+    // The agents leg reads the members an agent's handle could clash with;
+    // the log and the error name the read that failed, not the agents.
+    vi.mocked(listAutomations).mockResolvedValueOnce([]);
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    let lookups = 0;
+    const db = fakeDb((text) => {
+      if (isMemberLookup(text)) {
+        lookups += 1;
+        if (lookups > 1) throw new Error('connection reset');
+        return [ADA];
+      }
+      if (text.includes('FROM app.projects')) return [{ teamIds: [] }];
+      if (text.includes('FROM app.project_agents')) {
+        return [
+          {
+            id: 'a-qa',
+            name: 'QA bot',
+            handle: 'qa-bot',
+            legacyHandles: [],
+            createdAt: 1,
+          },
+        ];
+      }
+      return [];
+    });
+
+    await expect(
+      prepareSurfaceText(db, {
+        organizationId: 'org-1',
+        projectId: 'proj-1',
+        body: '@ada ship it',
+        cap: 10_000,
+        mode: 'full',
+      }),
+    ).rejects.toMatchObject({ leg: 'members', status: 503 });
+    expect(lookups).toBe(2);
+    expect(logged.mock.calls.map(([message]) => message)).toEqual([
+      '[collab] mention directory: members listing failed',
+    ]);
+    logged.mockRestore();
+  });
 });
 
 describe('mention directory — an edit names only who it adds [COLLAB-R4]', () => {
   const BOB = {
+    id: 'm-bob',
     userId: 'u-bob',
     role: 'member',
+    createdAt: '2026-01-02 09:00:00+00',
     email: 'bob@example.com',
     displayName: 'Bob Stone',
   };
-  const members = fakeDb((text) =>
-    text.startsWith('SELECT m."userId"') ? [ADA, BOB] : [],
-  );
+  const members = fakeDb((text) => (isMemberLookup(text) ? [ADA, BOB] : []));
 
   it('without a previous text every mention is new', async () => {
     const resolved = await prepareSurfaceText(members, {
@@ -184,10 +238,7 @@ const ADA_TOKEN = '[@Ada Lovelace](mention:user/u-ada)';
 
 describe('a mention is saved as whom it names [COLLAB-R10]', () => {
   const members = (statements: string[] = []) =>
-    fakeDb(
-      (text) => (text.startsWith('SELECT m."userId"') ? [ADA] : []),
-      statements,
-    );
+    fakeDb((text) => (isMemberLookup(text) ? [ADA] : []), statements);
 
   it('stores a resolved handle as a token, and leaves a text without mentions alone', async () => {
     const resolved = await prepareSurfaceText(members(), {
@@ -250,9 +301,7 @@ describe('a mention is saved as whom it names [COLLAB-R10]', () => {
 });
 
 describe('a mention of someone who cannot be mentioned is saved as plain text [COLLAB-R12]', () => {
-  const members = fakeDb((text) =>
-    text.startsWith('SELECT m."userId"') ? [ADA] : [],
-  );
+  const members = fakeDb((text) => (isMemberLookup(text) ? [ADA] : []));
 
   it('turns a token naming nobody mentionable into escaped text and reports it', async () => {
     const resolved = await prepareSurfaceText(members, {
@@ -299,7 +348,7 @@ describe('a mention of someone who cannot be mentioned is saved as plain text [C
 describe('the agents of a project in the directory [COLLAB-R11]', () => {
   const agents = (rows: Row[]) =>
     fakeDb((text) => {
-      if (text.startsWith('SELECT m."userId"')) {
+      if (isMemberLookup(text)) {
         return [{ ...ADA, email: 'invoice-checker@example.com' }];
       }
       if (text.includes('FROM app.projects')) return [{ teamIds: [] }];
@@ -380,7 +429,7 @@ describe('an agent whose handle someone else came to answer to moves on [PROJ-R1
       },
     ]);
     const db = fakeDb((text) => {
-      if (text.startsWith('SELECT m."userId"')) return [ADA];
+      if (isMemberLookup(text)) return [ADA];
       if (text.includes('FROM app.projects')) return [{ teamIds: [] }];
       if (text.includes('FROM app.project_agents')) {
         return [
@@ -404,6 +453,95 @@ describe('an agent whose handle someone else came to answer to moves on [PROJ-R1
     });
     expect(resolved.mentions).toEqual([{ type: 'agent', id: 'a-invoice' }]);
     expect(resolved.unresolvedMentionTokens).toEqual(['invoice-checker']);
+  });
+});
+
+describe('a directory reads only the members a text names', () => {
+  beforeEach(() => {
+    vi.mocked(lookupMembers).mockClear();
+  });
+  const askedFor = () =>
+    vi.mocked(lookupMembers).mock.calls.map(([, , names]) => names);
+
+  it('looks up the handles and people’s tokens of the text, its languages and the text an edit replaces', async () => {
+    const statements: string[] = [];
+    const db = fakeDb(
+      (text) => (isMemberLookup(text) ? [ADA] : []),
+      statements,
+    );
+    const resolved = await prepareSurfaceText(db, {
+      organizationId: 'org-1',
+      previousBody: '@Dora please look',
+      body: '@ada and [@Bob Stone](mention:user/u-bob) please look',
+      bodyByLocale: { de: '@Carl bitte prüfen' },
+      cap: 10_000,
+      mode: 'full',
+    });
+
+    expect(askedFor()).toEqual([
+      { userIds: ['u-bob'], handles: ['ada', 'carl', 'dora'] },
+    ]);
+    // The lookup is the one statement that reads members.
+    expect(statements.filter((text) => text.includes('"member"'))).toHaveLength(
+      1,
+    );
+    expect(resolved.mentions).toEqual([{ type: 'user', id: 'u-ada' }]);
+  });
+
+  it('moves an agent past the handles people the text does not name answer to, as when everyone was read [PROJ-R19]', async () => {
+    // Ines's email name is the agent's stored handle and Marco's is the
+    // next one: the agent answers to `-03`, as its reads and its project's
+    // next save give it, though the text names neither of them.
+    vi.mocked(listAutomations).mockResolvedValue([]);
+    const ines = {
+      ...ADA,
+      id: 'm-ines',
+      userId: 'u-ines',
+      email: 'invoice-checker@example.com',
+      displayName: 'Ines Roth',
+    };
+    const marco = {
+      ...ADA,
+      id: 'm-marco',
+      userId: 'u-marco',
+      email: 'invoice-checker-02@example.com',
+      displayName: 'Marco Brun',
+    };
+    const db = fakeDb((text) => {
+      if (isMemberLookup(text)) return [ines, marco];
+      if (text.includes('FROM app.projects')) return [{ teamIds: [] }];
+      if (text.includes('FROM app.project_agents')) {
+        return [
+          {
+            id: 'a-invoice',
+            name: 'Invoice checker',
+            handle: 'invoice-checker',
+            legacyHandles: [],
+            createdAt: 1,
+          },
+        ];
+      }
+      return [];
+    });
+
+    const resolved = await prepareSurfaceText(db, {
+      organizationId: 'org-1',
+      projectId: 'proj-1',
+      body: '@invoice-checker-03 please check',
+      cap: 10_000,
+      mode: 'full',
+    });
+
+    expect(resolved.text).toBe(
+      '[@Invoice checker](mention:agent/a-invoice) please check',
+    );
+    // The text's handle, then each handle the agent holds or is given,
+    // once: never the whole organization.
+    expect(askedFor()).toEqual([
+      { userIds: [], handles: ['invoice-checker-03'] },
+      { userIds: [], handles: ['invoice-checker'] },
+      { userIds: [], handles: ['invoice-checker-02'] },
+    ]);
   });
 });
 
