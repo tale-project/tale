@@ -15,16 +15,27 @@ import { useState } from 'react';
 
 import { CodingAgentSetup } from '@/app/features/coding-agent/components/coding-agent-setup';
 import { SetupDialogFooter } from '@/app/features/coding-agent/components/setup-dialog-footer';
-import type { PromptContext } from '@/app/features/coding-agent/lib/prompts';
+import type {
+  PromptContext,
+  PromptProject,
+} from '@/app/features/coding-agent/lib/prompts';
+import { useNamedProjects } from '@/app/features/projects/hooks/queries';
 import { useAgentConnectionAccess } from '@/app/features/settings/agent-connections/hooks/queries';
 import { useT } from '@/lib/i18n/client';
+
+const NO_PROJECT_IDS: readonly string[] = [];
 
 /**
  * What the dialog is about: a new automation to build, the automation to
  * change, or a failed run of it to look into.
  */
 export type CodingAgentContext =
-  | { readonly kind: 'create' }
+  | {
+      readonly kind: 'create';
+      /** The project it goes into, from that project's list; none from the
+       *  organization's. */
+      readonly projectId?: string;
+    }
   | { readonly kind: 'edit'; readonly automationSlug: string }
   | {
       readonly kind: 'run';
@@ -139,9 +150,34 @@ function useDialogText(context: CodingAgentContext): {
   return { title: t('codingAgent.button'), body: t('codingAgent.body') };
 }
 
+/**
+ * The project a new automation goes into, named once its name is read (that
+ * project alone, never every project: #5204); none for any other context.
+ */
+function useCreateProject(
+  organizationId: string,
+  context: CodingAgentContext,
+): PromptProject | undefined {
+  const projectId = context.kind === 'create' ? context.projectId : undefined;
+  const { projects } = useNamedProjects(
+    organizationId,
+    projectId === undefined ? NO_PROJECT_IDS : [projectId],
+  );
+  if (projectId === undefined) return undefined;
+  const name = projects.get(projectId)?.name;
+  return name === undefined ? { id: projectId } : { id: projectId, name };
+}
+
 /** The prompt's context for what the dialog is about. */
-function promptContextOf(context: CodingAgentContext): PromptContext {
-  if (context.kind === 'create') return { kind: 'create' };
+function promptContextOf(
+  context: CodingAgentContext,
+  project: PromptProject | undefined,
+): PromptContext {
+  if (context.kind === 'create') {
+    return project === undefined
+      ? { kind: 'create' }
+      : { kind: 'create', project };
+  }
   if (context.kind === 'run') {
     return {
       kind: 'run',
@@ -181,10 +217,11 @@ export function CodingAgentDialog({
 
 /**
  * What the dialog holds once it is open: the guided setup, with a prompt that
- * names this automation (and the run), while agents may sign in; where the
- * operator turned that off, the name (and the run's id) to hand an agent that
- * holds a key — a new automation has none — and the way to the MCP settings,
- * which describe the key.
+ * names this automation (and the run), or the project a new one goes into,
+ * while agents may sign in; where the operator turned that off, the name (and
+ * the run's id) to hand an agent that holds a key — a new automation has none,
+ * only its project's id — and the way to the MCP settings, which describe the
+ * key.
  */
 function CodingAgentDialogBody({
   organizationId,
@@ -195,6 +232,7 @@ function CodingAgentDialogBody({
 }) {
   const { t } = useT('automations');
   const { data: access } = useAgentConnectionAccess(organizationId);
+  const project = useCreateProject(organizationId, context);
   if (access?.signInOn === false) {
     return (
       <>
@@ -209,6 +247,13 @@ function CodingAgentDialogBody({
           <CopyableField
             label={t('codingAgent.runLabel')}
             value={context.runId}
+            mono
+          />
+        )}
+        {project !== undefined && (
+          <CopyableField
+            label={t('codingAgent.projectLabel')}
+            value={project.id}
             mono
           />
         )}
@@ -238,7 +283,7 @@ function CodingAgentDialogBody({
     <>
       <CodingAgentSetup
         organizationId={organizationId}
-        promptContext={promptContextOf(context)}
+        promptContext={promptContextOf(context, project)}
       />
       <SetupDialogFooter />
     </>

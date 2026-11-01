@@ -56,16 +56,20 @@ vi.mock('./automation-row-actions', () => ({
 }));
 
 // The dialog is covered with its own tests: here it only has to open for a
-// new automation and go away again.
+// new automation, in the list's project, and go away again.
 vi.mock('./coding-agent-entry', () => ({
   CodingAgentDialog: ({
     context,
     onOpenChange,
   }: {
-    context: { kind: string };
+    context: { kind: string; projectId?: string };
     onOpenChange: (open: boolean) => void;
   }) => (
-    <div role="dialog" aria-label={`coding agent: ${context.kind}`}>
+    <div
+      role="dialog"
+      aria-label={`coding agent: ${context.kind}`}
+      data-project={context.projectId ?? 'none'}
+    >
       <button type="button" onClick={() => onOpenChange(false)}>
         close
       </button>
@@ -387,8 +391,31 @@ describe('AutomationsList create menu', () => {
     const dialog = await screen.findByRole('dialog', {
       name: 'coding agent: create',
     });
+    // The organization's list puts the new automation in no project.
+    expect(dialog).toHaveAttribute('data-project', 'none');
     await user.click(screen.getByRole('button', { name: 'close' }));
     expect(dialog).not.toBeInTheDocument();
+  });
+
+  it('opens the coding agent into the project whose list it is', async () => {
+    automationsData = [];
+    const { user } = render(
+      <AutomationsList organizationId="org-1" projectId="proj_1" />,
+    );
+
+    await user.click(
+      screen.getByRole('button', { name: 'automations.list.createButton' }),
+    );
+    await user.click(
+      screen.getByRole('menuitem', {
+        name: 'automations.createMenu.withAgent',
+      }),
+    );
+    // As from a template, blank or an upload, the new automation goes into
+    // the project: the dialog's prompt installs it there.
+    expect(
+      await screen.findByRole('dialog', { name: 'coding agent: create' }),
+    ).toHaveAttribute('data-project', 'proj_1');
   });
 
   it('keeps create in the table toolbar when rows exist', () => {
