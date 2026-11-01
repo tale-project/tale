@@ -243,7 +243,7 @@ describe('deleteAutomationCascade', () => {
     }).catch((error: unknown) => error);
     expect(refused).toMatchObject({
       code: 'AUTOMATION_VERSION_STALE',
-      data: { latestVersion: 5, expectedLatestVersion: 4 },
+      data: { name: 'ops/greet', latestVersion: 5, expectedLatestVersion: 4 },
     });
     expect(fake.statements.some((s) => s.text.startsWith('DELETE'))).toBe(
       false,
