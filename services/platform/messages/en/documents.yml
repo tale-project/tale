@@ -213,6 +213,8 @@ filter:
   teams:
     orgWide: Organization-wide
     mine: My teams
+  uploadedBy:
+    me: Me
 preview:
   loading: Loading…
   failedToLoad: Couldn't load document

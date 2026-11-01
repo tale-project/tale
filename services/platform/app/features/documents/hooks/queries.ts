@@ -236,17 +236,18 @@ interface ListDocumentsPaginatedArgs {
   folderId?: string;
   sourceProvider?: string;
   extension?: string;
+  /** The viewer's own uploads from every folder; `folderId` is unused. */
+  uploadedBy?: 'me';
   initialNumItems: number;
 }
 
 export function useListDocumentsPaginated(args: ListDocumentsPaginatedArgs) {
-  const { initialNumItems, folderId, ...queryArgs } = args;
+  const { initialNumItems, folderId, uploadedBy, ...queryArgs } = args;
   return useCachedPaginatedQuery(
     'documents/queries:listDocumentsPaginated',
-    {
-      ...queryArgs,
-      folderId: folderId ? folderId : undefined,
-    },
+    uploadedBy === 'me'
+      ? { ...queryArgs, uploadedBy }
+      : { ...queryArgs, folderId: folderId ? folderId : undefined },
     { initialNumItems },
   );
 }
