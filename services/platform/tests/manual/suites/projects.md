@@ -997,10 +997,11 @@ reach under Settings › Connectors, one of them the default.
   never as a person** — As an Owner, equip an agent with GitHub through a
   credential whose account is yours, and leave **Commit name** and **Commit
   email** empty. Start it on a task asking it to set `git config user.name`
-  and `user.email` to your name in a repository that credential reaches,
-  commit a file and push it to a new branch → on GitHub the commit names
-  **Tale** (`noreply@tale.dev`, a generic image) as author and committer,
-  never you, and your account only as the pusher. Give the agent a commit
-  identity and repeat → the new commit carries that identity instead. An
-  automation's agent step with GitHub equipped commits as Tale too.
+  and `git config user.email` to yours in a repository that credential
+  reaches, commit a file and push it to a new branch → on GitHub the commit
+  names **Tale** (`noreply@tale.dev`, a generic image) as author and
+  committer, never you, and your account only as the pusher. Give the agent
+  a commit identity and repeat → the new commit carries that identity
+  instead. An automation's agent step with GitHub equipped commits as Tale
+  too.
 
