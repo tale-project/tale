@@ -52,6 +52,16 @@ vi.mock('../hooks/mutations', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../hooks/mutations')>()),
   useCreateTask: () => ({ mutateAsync: mutations.createTask }),
 }));
+// The people the pickers and the mention field search: nobody here.
+vi.mock('../hooks/use-assignable-members', () => {
+  const nobody = {
+    members: [],
+    more: false,
+    searching: false,
+    unavailable: false,
+  };
+  return { useAssignableMembers: () => nobody };
+});
 vi.mock('../hooks/use-actor-directory', () => ({
   useProvidedActorDirectory: () => undefined,
   ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
@@ -62,7 +72,6 @@ vi.mock('../hooks/use-actor-directory', () => ({
   }),
   useAssignableActors: () => ({
     subjectEntries: [],
-    assignableMembers: [],
     assignableAgents: [{ type: 'agent', id: 'agent-1', name: 'Analyst' }],
     agents: [],
     resolveActor: () => ({ name: 'Analyst' }),

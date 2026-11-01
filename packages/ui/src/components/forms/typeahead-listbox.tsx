@@ -9,7 +9,8 @@
  * `listboxId` as its `aria-activedescendant` and `aria-controls`), Up/Down,
  * Enter or Tab and Escape being the field's to handle. A pointer picks on
  * mousedown, before the field would blur and close the picker. With nothing
- * to offer it says so instead of listing.
+ * to offer it says so instead of listing. A note under what it lists says
+ * why that may not be all there is; the field reads it out.
  */
 
 import { cn } from '@tale/ui/cn';
@@ -33,6 +34,10 @@ export interface TypeaheadListboxProps {
   readonly label: string;
   /** What the picker says when nothing matches. */
   readonly emptyLabel: ReactNode;
+  /** A muted line under the options, or under `emptyLabel`: why what is
+   * listed may not be all there is (a search that failed, more matches
+   * than are listed). */
+  readonly note?: ReactNode;
   readonly options: readonly TypeaheadListboxOption[];
   /** The option the keyboard is on. */
   readonly highlight: number;
@@ -48,6 +53,7 @@ export function TypeaheadListbox({
   optionId,
   label,
   emptyLabel,
+  note,
   options,
   highlight,
   placement = 'above',
@@ -140,6 +146,15 @@ export function TypeaheadListbox({
             );
           })}
         </div>
+      )}
+      {note !== undefined && (
+        <Text
+          as="div"
+          variant="caption"
+          className="text-muted-foreground border-border border-t px-3 py-2"
+        >
+          {note}
+        </Text>
       )}
     </div>
   );
