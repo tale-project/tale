@@ -2,14 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import {
-  isDestroyPendingRefusal,
-  sandboxCapacityRefusal,
-} from '../node_only/sandbox/capacity_refusal';
-import {
   SessionExecLimitError,
   SessionMemoryBusyError,
   SpawnerBusyError,
 } from '../node_only/sandbox/helpers/session_client';
+import {
+  isDestroyPendingRefusal,
+  sandboxCapacityRefusal,
+} from '../node_only/sandbox/start_refusal';
 import { runParkReason, SANDBOX_SESSION_HELD_REASON } from './run_park_reason';
 
 /** The reason a start's refusal parks its run with, as the host decides it. */
@@ -67,13 +67,31 @@ describe('why a parked agent run waits', () => {
       reason: SANDBOX_SESSION_HELD_REASON,
     });
     expect(reasonFor(held)).toBeUndefined();
-    // The same payload wrapped by a sub-mutation into a plain error.
+    // The sessions domain's own error, before a shim re-shapes it.
     expect(
       reasonFor(
-        new Error(
-          `QUOTA_EXCEEDED ${JSON.stringify({ reason: SANDBOX_SESSION_HELD_REASON })}`,
+        Object.assign(
+          new Error(
+            'This project_agent already has an active sandbox session.',
+          ),
+          { code: 'QUOTA_EXCEEDED', reason: SANDBOX_SESSION_HELD_REASON },
         ),
       ),
     ).toBeUndefined();
+  });
+
+  it("reads a refusal's reason from its fields, never from its words (#4159)", () => {
+    // A spent budget whose message merely quotes the held reason still
+    // blames the limit.
+    expect(
+      reasonFor(
+        Object.assign(
+          new Error(
+            `At most 2 workflow sandbox sessions ${JSON.stringify({ reason: SANDBOX_SESSION_HELD_REASON })}`,
+          ),
+          { code: 'QUOTA_EXCEEDED' },
+        ),
+      ),
+    ).toBe('org_limit');
   });
 });
