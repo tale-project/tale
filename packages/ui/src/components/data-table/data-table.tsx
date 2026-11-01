@@ -877,7 +877,13 @@ export function DataTable<TData, TValue = unknown>({
         // instead of being pinned to the visible viewport.
         stickyLayout
         aria-rowcount={
-          rowWindow.virtualized ? rows.length + headerGroups.length : undefined
+          // While more rows can load, the loaded ones are not the total, and
+          // ARIA asks for -1 when the total is unknown.
+          tableBodyState === 'data' && infiniteScroll?.hasMore
+            ? -1
+            : rowWindow.virtualized
+              ? rows.length + headerGroups.length
+              : undefined
         }
         // `table-fixed w-full`: columns share the available width by their
         // declared `size` (used as ratios) instead of `auto` layout growing

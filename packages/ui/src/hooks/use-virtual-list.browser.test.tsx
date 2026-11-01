@@ -1,4 +1,4 @@
-import { cleanup, renderHook } from '@testing-library/react';
+import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { observeElementOffset, useVirtualList } from './use-virtual-list';
@@ -134,5 +134,47 @@ describe('useVirtualList native offsets (Chromium)', () => {
 
     expect(port.scrollLeft).toBe(-350);
     expect(result.current.scrollOffset).toBe(350);
+  });
+});
+
+describe('useVirtualList scroll anchoring (Chromium)', () => {
+  // Forty 100px rows, the scrollport opened at `offset`.
+  function anchoredList(offset: number) {
+    const port = scrollport();
+    const { result } = renderHook(() =>
+      useVirtualList<HTMLDivElement, HTMLDivElement>({
+        count: 40,
+        estimateSize: () => 100,
+        getScrollElement: () => port,
+        initialOffset: offset,
+      }),
+    );
+    expect(port.scrollTop).toBe(offset);
+    return { port, list: result };
+  }
+
+  it('keeps a scroll restore when a row above it is measured before its scroll event arrives', () => {
+    const { port, list } = anchoredList(1000);
+    // A restore moves the scrollport; its scroll event arrives a frame later.
+    port.scrollTop = 500;
+    act(() => list.current.resizeItem(1, 180));
+    // TanStack alone compensates from the old offset, to 1080.
+    expect(port.scrollTop).toBe(500);
+    expect(list.current.getTotalSize()).toBe(4080);
+  });
+
+  it('keeps the rows in view in place when a row above them is measured for the first time', () => {
+    const { port, list } = anchoredList(1000);
+    act(() => list.current.resizeItem(1, 180));
+    expect(port.scrollTop).toBe(1080);
+  });
+
+  it('keeps the offset when a measured row across the top edge grows again', () => {
+    const { port, list } = anchoredList(1050);
+    act(() => list.current.resizeItem(10, 120));
+    expect(port.scrollTop).toBe(1070);
+    // Its growth lies below the top edge: following it would drag the view.
+    act(() => list.current.resizeItem(10, 200));
+    expect(port.scrollTop).toBe(1070);
   });
 });

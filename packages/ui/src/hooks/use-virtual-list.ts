@@ -81,6 +81,8 @@ type VirtualListResult<
   totalSize: number;
 };
 
+type FocusedRow = { key: string | number; index: number };
+
 const INITIAL_RECT = { width: 0, height: 600 };
 const NO_PINS: readonly number[] = [];
 
@@ -117,41 +119,54 @@ export function useVirtualList<
   const compatibilityVirtualized = count > threshold;
   const hasExplicitCompatibilityMode =
     options.threshold !== undefined || options.pinnedIndices !== undefined;
-  const focusedRow = useRef<{ key: string | number; index: number } | null>(
-    null,
-  );
+  // TanStack callers control virtualization through `enabled`. Compatibility
+  // callers control it through `threshold`; the latter must not make a modern
+  // caller's small list disappear from getVirtualItems().
+  const enabled = hasExplicitCompatibilityMode
+    ? compatibilityVirtualized
+    : options.enabled;
+  const measurementEnabled = hasExplicitCompatibilityMode
+    ? compatibilityVirtualized
+    : true;
+  // Only a windowed list unmounts rows, so only it pins the focused row.
+  const windowed = enabled !== false;
+  const focusedRow = useRef<FocusedRow | null>(null);
   const blurVersion = useRef(0);
   const blurFrame = useRef(0);
-  const [focusedIndexState, setFocusedIndexState] = useState<number | null>(
+  // Re-renders a windowed list when focus moves to another row, so its range
+  // pins that row. A list that renders every row keeps it null: there each
+  // focus move would re-render every row for nothing.
+  const [focusedRowState, setFocusedRowState] = useState<FocusedRow | null>(
     null,
   );
   const rowElements = useRef(new Map<string | number, HTMLElement>());
-  const currentOptions = useRef({ count, getItemKey });
+  const currentOptions = useRef({ count, getItemKey, windowed });
   const latestCount = useRef(count);
   const latestGetItemKey = useRef(getItemKey);
   latestCount.current = count;
   latestGetItemKey.current = getItemKey;
 
   useLayoutEffect(() => {
-    currentOptions.current = { count, getItemKey };
-  }, [count, getItemKey]);
+    currentOptions.current = { count, getItemKey, windowed };
+  }, [count, getItemKey, windowed]);
 
   const focusedIndex = useMemo(() => {
-    if (focusedIndexState === null) return null;
+    if (!windowed) return null;
+    // The ref also holds a row focused before the list grew into a window.
+    const focused = focusedRowState ?? focusedRow.current;
+    if (focused === null) return null;
     if (
-      focusedIndexState >= 0 &&
-      focusedIndexState < count &&
-      getItemKey(focusedIndexState) === focusedRow.current?.key
+      focused.index >= 0 &&
+      focused.index < count &&
+      getItemKey(focused.index) === focused.key
     ) {
-      return focusedIndexState;
+      return focused.index;
     }
-    const key = focusedRow.current?.key;
-    if (key === undefined) return null;
     for (let index = 0; index < count; index++) {
-      if (getItemKey(index) === key) return index;
+      if (getItemKey(index) === focused.key) return index;
     }
     return null;
-  }, [count, getItemKey, focusedIndexState]);
+  }, [count, getItemKey, focusedRowState, windowed]);
 
   const pinsKey = pinnedIndices.join(',');
   const rangeExtractor = useMemo(() => {
@@ -174,15 +189,6 @@ export function useVirtualList<
     };
   }, [focusedIndex, options.rangeExtractor, pinsKey]);
 
-  // TanStack callers control virtualization through `enabled`. Compatibility
-  // callers control it through `threshold`; the latter must not make a modern
-  // caller's small list disappear from getVirtualItems().
-  const enabled = hasExplicitCompatibilityMode
-    ? compatibilityVirtualized
-    : options.enabled;
-  const measurementEnabled = hasExplicitCompatibilityMode
-    ? compatibilityVirtualized
-    : true;
   const {
     threshold: _threshold,
     pinnedIndices: _pinnedIndices,
@@ -295,8 +301,13 @@ export function useVirtualList<
       cancelAnimationFrame(blurFrame.current);
       blurFrame.current = 0;
       focusedRow.current = row;
-      setFocusedIndexState((previous) =>
-        previous === row.index ? previous : row.index,
+      const windowedNow = currentOptions.current.windowed;
+      setFocusedRowState((previous) =>
+        !windowedNow
+          ? null
+          : previous?.key === row.key && previous.index === row.index
+            ? previous
+            : row,
       );
     },
     [registeredRow],
@@ -316,7 +327,7 @@ export function useVirtualList<
           focusedRow.current?.key === row.key
         ) {
           focusedRow.current = null;
-          setFocusedIndexState(null);
+          setFocusedRowState(null);
         }
       });
     },
