@@ -1160,6 +1160,10 @@ competences:
   revokedWithTeam: Widerrufen, als das Team gelöscht wurde
   teamBadge: Team
   deletedTeam: Gelöschtes Team
+  searchPlaceholder: Zuweisungen suchen
+  entityLabelOne: Zuweisung
+  entityLabel: Zuweisungen
+  refreshFailed: Die neuesten Zuweisungen konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
   columns:
     member: Mitglied oder Team
     competence: Recht oder Qualifikation

@@ -2,6 +2,7 @@
 
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import type { FilterConfig } from '@tale/ui/data-table/data-table-filters';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
@@ -10,17 +11,20 @@ import { HStack } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
+import { DEFAULT_LIST_PAGE_SIZE, useListPage } from '@tale/ui/use-list-page';
 import { useToast } from '@tale/ui/use-toast';
 import type { ColumnDef } from '@tanstack/react-table';
 import { BadgeCheck, Ban, Pencil, Plus } from 'lucide-react';
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import type { CompetenceRecordWire } from '@/app/lib/backend/contract/governance';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 import {
   type CompetenceRecordStatus,
@@ -102,9 +106,6 @@ export function CompetencesPage({ organizationId }: Props) {
   const [editTarget, setEditTarget] = useState<CompetenceRow | null>(null);
   const [revokeTarget, setRevokeTarget] = useState<CompetenceRow | null>(null);
   const [revoking, setRevoking] = useState(false);
-  // A revoked row can leave the filtered list; focus then returns to the
-  // section around the table.
-  const tableRegionRef = useRef<HTMLElement>(null);
 
   const people = useMemo(() => {
     const map = new Map<string, Person>();
@@ -210,6 +211,54 @@ export function CompetencesPage({ organizationId }: Props) {
     (row: CompetenceRow) => row.capabilityLabel ?? row.record.competence,
     [],
   );
+
+  // A failed read with nothing to show is the table's error state; rows a
+  // failed refresh left stay, and the failure is named above them. A revoked
+  // row can leave the filtered list too: focus then returns to the section
+  // around the table.
+  const { refetch } = competences;
+  const retry = useCallback(() => void refetch(), [refetch]);
+  const { retrying, failureCount } = readStateOf(competences);
+  const { regionRef, retryRead, focusRegion, failedWithRows } =
+    useListReadRecovery<HTMLElement>({
+      error: competences.error,
+      results: visibleRows,
+      retry,
+    });
+
+  // Names come from the member directory: wait for it too, so no row flashes
+  // "Former member" before the names arrive.
+  const loaded = competences.data !== undefined && !membersLoading;
+  const list = useListPage<CompetenceRow>({
+    dataSource: {
+      type: 'query',
+      data: loaded ? visibleRows : undefined,
+      error: competences.error,
+      retry: retryRead,
+    },
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    // The status facet sifts the rows before they reach the list, so another
+    // selection is another collection: its window starts over.
+    windowKey: effectiveFilter.join(' '),
+    search: {
+      // A right is found by its translated name or its id; a qualification
+      // has only its name.
+      fields: [
+        (row) => row.holder.name,
+        (row) => row.holder.email,
+        (row) => row.capabilityLabel,
+        (row) => row.record.competence,
+      ],
+      placeholder: t('competences.searchPlaceholder'),
+    },
+    filters: { configs: filterConfigs, onClear: () => setStatusFilter([]) },
+    getRowId: (row) => row.record.id,
+    approxRowCount: loaded ? visibleRows.length : undefined,
+    entityLabel: {
+      one: t('competences.entityLabelOne'),
+      other: t('competences.entityLabel'),
+    },
+  });
 
   const handleRevoke = async () => {
     if (!revokeTarget) return;
@@ -414,30 +463,27 @@ export function CompetencesPage({ organizationId }: Props) {
             row has left the list: a region by its heading, since ARIA lets
             no plain div carry a name. */}
         <SettingsSection
-          ref={tableRegionRef}
+          ref={regionRef}
           title={t('competences.title')}
           description={t('competences.description')}
           tabIndex={-1}
           className="min-h-0 flex-1 outline-none"
         >
+          {failedWithRows && (
+            <CatalogLoadError
+              // Each failure is announced again; Try again keeps its node, and
+              // the focus on it, while a retry runs and when it fails again.
+              failureKey={failureCount}
+              onFocusLost={focusRegion}
+              message={t('competences.refreshFailed')}
+              onRetry={retry}
+              isRetrying={retrying}
+            />
+          )}
           <div className="flex min-h-0 flex-1 flex-col">
             <DataTable<CompetenceRow>
               columns={columns}
               stickyLayout
-              data={visibleRows}
-              // Names come from the member directory: wait for it too, so no
-              // row flashes "Former member" before the names arrive.
-              isLoading={competences.isLoading || membersLoading}
-              approxRowCount={
-                competences.data === undefined || membersLoading
-                  ? undefined
-                  : visibleRows.length
-              }
-              error={competences.error}
-              onRetry={() => void competences.refetch()}
-              getRowId={(row) => row.record.id}
-              filters={filterConfigs}
-              onClearFilters={() => setStatusFilter([])}
               addAction={{
                 label: t('competences.actions.grant'),
                 icon: Plus,
@@ -449,6 +495,8 @@ export function CompetencesPage({ organizationId }: Props) {
                 description: t('competences.empty.description'),
               }}
               caption={t('competences.title')}
+              onErrorFocusLost={focusRegion}
+              {...list.tableProps}
             />
           </div>
         </SettingsSection>
@@ -500,7 +548,7 @@ export function CompetencesPage({ organizationId }: Props) {
         cancelText={tCommon('actions.cancel')}
         isLoading={revoking}
         onConfirm={() => void handleRevoke()}
-        restoreFocusRef={tableRegionRef}
+        restoreFocusRef={regionRef}
       />
     </>
   );

@@ -1113,6 +1113,10 @@ competences:
   revokedWithTeam: Revoked when the team was deleted
   teamBadge: Team
   deletedTeam: Deleted team
+  searchPlaceholder: Search grants
+  entityLabelOne: grant
+  entityLabel: grants
+  refreshFailed: Couldn't load the latest grants. What's listed may be incomplete or out of date.
   columns:
     member: Member or team
     competence: Right or qualification
