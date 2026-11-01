@@ -519,3 +519,27 @@ describe('governance policy writes', () => {
     client.clear();
   });
 });
+
+describe('chat tool status', () => {
+  it('runs the sandbox check of the active organization over POST [CHAT-R38]', async () => {
+    const answer = {
+      outcome: 'passed',
+      checkedAt: 1,
+      libraries: 57,
+      durationMs: 9_000,
+    };
+    const fetch = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(Response.json(answer));
+    const adapter = settingsWriteAdapters['chat/work_tools:runSandboxCheck'];
+
+    await expect(
+      adapter?.run({}, { organizationId: 'org-a' }),
+    ).resolves.toEqual(answer);
+    expect(fetch).toHaveBeenCalledExactlyOnceWith(
+      '/api/app/chat/work-tools/check?orgId=org-a',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(adapter?.invalidate).toBeUndefined();
+  });
+});
