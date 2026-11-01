@@ -3,11 +3,10 @@
 import { Badge } from '@tale/ui/badge';
 import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
-import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
-import { Row, Stack } from '@tale/ui/layout';
-import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/list-page-size';
+import { Stack } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
+import { DEFAULT_LIST_PAGE_SIZE, useListPage } from '@tale/ui/use-list-page';
 import type { ColumnDef } from '@tanstack/react-table';
 import { History } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -163,41 +162,61 @@ export function ReleaseHistorySection({
     [t],
   );
 
-  const isInitialLoading = result.status === 'LoadingFirstPage';
-  const hasMore =
-    result.status === 'CanLoadMore' || result.status === 'LoadingMore';
-  const isLoadingMore = result.status === 'LoadingMore';
+  const list = useListPage<HistoryRow>({
+    dataSource: {
+      type: 'paginated',
+      results: result.results,
+      status: result.status,
+      loadMore: result.loadMore,
+      isLoading: result.isLoading,
+      error: result.error,
+      retry: recovery.retryRead,
+      // A failed read stops the list where it stands, also when its last
+      // page was already in: the footer never claims "Showing all" then.
+      loadFailed: result.error !== null,
+    },
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    // The server reads one status at a time, so another status is another
+    // collection.
+    windowKey: status,
+    // No search: the server pages the history and takes none, and a search
+    // over loaded rows would read every page.
+    filters: {
+      configs: [
+        {
+          key: 'status',
+          title: t('legalHold.columns.status'),
+          options: statusOptions,
+          selectedValues: [status],
+          // Single-select with a mandatory value — the history query
+          // always filters by one status, so clearing falls back to the
+          // default bucket instead of an unfiltered view.
+          defaultValues: ['effected'],
+          // Switching bucket REVEALS rows the default one hides, so the
+          // filter stays usable on an empty "effected" history — disabling
+          // it there would strand the reader in the one empty bucket.
+          widensResultSet: true,
+          onChange: (values) =>
+            setStatus(
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options are constrained to ReleaseStatus
+              (values[0] as ReleaseStatus | undefined) ?? 'effected',
+            ),
+        },
+      ],
+      onClear: () => setStatus('effected'),
+    },
+    getRowId: (row) => row._id,
+    entityLabel: {
+      one: t('legalHold.sections.history.entityLabelOne'),
+      other: t('legalHold.sections.history.entityLabel'),
+    },
+  });
 
   return (
     <SettingsSection
       title={t('legalHold.sections.history.title')}
       description={t('legalHold.sections.history.description')}
     >
-      <Row gap={2}>
-        <DataTableFilters
-          filters={[
-            {
-              key: 'status',
-              title: t('legalHold.columns.status'),
-              options: statusOptions,
-              selectedValues: [status],
-              // Single-select with a mandatory value — the history query
-              // always filters by one status, so clearing falls back to the
-              // default bucket instead of an unfiltered view.
-              defaultValues: ['effected'],
-              // Switching bucket REVEALS rows the default one hides, so the
-              // filter stays usable on an empty "effected" history — disabling
-              // it there would strand the reader in the one empty bucket.
-              widensResultSet: true,
-              onChange: (values) =>
-                setStatus(
-                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options are constrained to ReleaseStatus
-                  (values[0] as ReleaseStatus | undefined) ?? 'effected',
-                ),
-            },
-          ]}
-        />
-      </Row>
       <div
         ref={recovery.regionRef}
         role="region"
@@ -216,30 +235,14 @@ export function ReleaseHistorySection({
         )}
         <DataTable<HistoryRow>
           columns={columns}
-          data={result.results}
-          isLoading={isInitialLoading}
-          error={result.results.length ? null : result.error}
-          onRetry={recovery.retryRead}
           onErrorFocusLost={recovery.focusRegion}
-          approxRowCount={isInitialLoading ? undefined : result.results.length}
-          getRowId={(row) => row._id}
-          infiniteScroll={{
-            hasMore,
-            onLoadMore: () => result.loadMore(DEFAULT_LIST_PAGE_SIZE),
-            isLoadingMore,
-            isInitialLoading,
-            loadFailed: !!result.error,
-            entityLabel: {
-              one: t('legalHold.sections.history.entityLabelOne'),
-              other: t('legalHold.sections.history.entityLabel'),
-            },
-          }}
           emptyState={{
             icon: History,
             title: t('legalHold.sections.history.empty.title'),
             description: t('legalHold.sections.history.empty.description'),
           }}
           caption={t('legalHold.sections.history.title')}
+          {...list.tableProps}
         />
       </div>
     </SettingsSection>

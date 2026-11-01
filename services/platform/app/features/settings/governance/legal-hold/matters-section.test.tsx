@@ -18,6 +18,8 @@ const query = vi.hoisted(() => ({
   isError: false,
   error: null as Error | null,
   refetch: vi.fn(),
+  isFetching: false,
+  errorUpdateCount: 0,
 }));
 
 vi.mock('../hooks/queries', () => ({
@@ -43,6 +45,8 @@ describe('MattersSection read states', () => {
     query.isError = false;
     query.error = null;
     query.refetch.mockReset();
+    query.isFetching = false;
+    query.errorUpdateCount = 0;
   });
 
   it('shows a failed read instead of an empty register and retries the query', async () => {
@@ -93,7 +97,7 @@ describe('MattersSection read states', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('reports a failed refresh even when the query retains cached matters', () => {
+  it('keeps cached matters on a failed refresh and names the failure above them', async () => {
     query.data = [
       {
         _id: 'matter-1',
@@ -105,15 +109,18 @@ describe('MattersSection read states', () => {
     ];
     query.isError = true;
     query.error = new Error('HTTP 503');
-    render(<MattersSection organizationId="org-1" />);
+    const { user } = render(<MattersSection organizationId="org-1" />);
 
+    expect(screen.getByText('Existing matter')).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: /something went wrong/i }),
+      screen.getByText(/something went wrong while loading this page/i),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('button', { name: /try again/i }),
-    ).toBeInTheDocument();
+      screen.queryByRole('heading', { name: /something went wrong/i }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText('No matters')).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /try again/i }));
+    expect(query.refetch).toHaveBeenCalledTimes(1);
   });
 
   describe('focus during read recovery', () => {
