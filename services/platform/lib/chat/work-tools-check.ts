@@ -36,8 +36,6 @@ export type ChatSandboxCheckFailure =
   /** The check did not finish within {@link CHAT_SANDBOX_CHECK_DEADLINE_MS}. */
   | { readonly piece: 'timed_out' };
 
-export type ChatSandboxCheckPiece = ChatSandboxCheckFailure['piece'];
-
 export type ChatSandboxCheck =
   | {
       readonly outcome: 'passed';
