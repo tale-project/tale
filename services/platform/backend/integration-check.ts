@@ -44671,31 +44671,50 @@ async function checkAutomationAgentNode(
   }
 }
 
+/** What {@link startTwoStepDestroyRun} hands its lane. */
+interface TwoStepDestroyRun {
+  saved: boolean;
+  deployStatus: number;
+  /** The run's session: the one its steps share, and the Destroy deletes. */
+  sessionId: string;
+  spawned: { creates: number; execs: number; deletes: number };
+  /** Settles once the first step's turn has reached the spawner. */
+  firstExec: Promise<void>;
+  /** Lets the first step's turn end. */
+  releaseFirstExec: () => void;
+  /** Makes the spawner refuse every delete, or take them again. */
+  setFailDeletes: (fail: boolean) => void;
+  post: (route: string, payload?: unknown) => Promise<Response>;
+  runRow: () => Promise<
+    | { status: string; detail: string | null; failureCode: string | null }
+    | undefined
+  >;
+  /** The states of the run's session's Destroy jobs, oldest first. */
+  destroyJobStates: () => Promise<string[]>;
+  /** Hands back whatever the lane left: the fakes, the environment, the
+   * run's Destroy jobs still waiting and its slot in the workflow budget. */
+  close: () => Promise<void>;
+}
+
 /**
- * An automation step whose run's workspace an administrator is destroying
- * fails with the reason at once, #4122. While the Destroy of a workflow
- * run's session is queued, retrying or running, its admission refuses the
- * run's next start (#4095). That refusal was read as a spent budget: the
- * step waited up to two hours for room, and once the Destroy had settled it
- * started over in a fresh, empty workspace, without what the run's earlier
- * steps left there. A real two-step run on a fake spawner: the first step's
- * turn is held while the run's session is destroyed through the Sandboxes
- * page's route, the spawner refusing the delete so the Destroy stays
- * pending between attempts; then the turn ends. The second step's start
- * must fail the run with the Destroy's reason while the Destroy is still
- * pending, and once it has settled nothing may start in the run again.
+ * A two-step automation run on a fake spawner, for the lanes that delete a
+ * run's workspace between its steps (#4122, #4159): steps `draft` and
+ * `publish`, the second asking for what the first left in the workspace.
+ * The spawner counts every create, exec and delete, holds the first exec
+ * (the first step's turn) until the lane releases it, and refuses a delete
+ * while the lane says so; the gateway mints and revokes each turn's key and
+ * spends nothing. A lane closes the run in its `finally`.
  */
-async function checkAutomationStepDestroyPending(
+async function startTwoStepDestroyRun(
   sql: Sql,
   base: string,
   ctx: { cookie: string; orgId: string },
-): Promise<void> {
+  slug: string,
+): Promise<TwoStepDestroyRun> {
   const { cookie, orgId } = ctx;
   const { createServer } = await import('node:http');
   const { sessionIdForWorkflowExecution } =
     await import('./core/sandbox/session_naming.ts');
-  const { SANDBOX_DESTROY_PENDING_MESSAGE } =
-    await import('./core/sandbox/session_constants.ts');
   const sessions = await import('./domains/sandbox/sessions.ts');
 
   // The steps run on `itestagent`: the provider the turn-drive lane left in
@@ -44957,6 +44976,31 @@ async function checkAutomationStepDestroyPending(
   });
 
   let sessionId = '';
+  const close = async (): Promise<void> => {
+    releaseFirstExec();
+    failDeletes = false;
+    restoreEnv();
+    if (sessionId !== '') {
+      // Hand back the workflow budget whatever happened above.
+      await sql`
+        DELETE FROM pgboss.job WHERE name = 'sandbox.destroy_session'
+          AND data ->> 'organizationId' = ${orgId}
+          AND data ->> 'sessionId' = ${sessionId}
+          AND state::text IN ('created', 'retry')
+      `;
+      await sessions.markSessionDestroyed(sql, {
+        organizationId: orgId,
+        sessionId,
+      });
+    }
+    await new Promise<void>((resolve) => {
+      spawner.close(() => resolve());
+    });
+    await new Promise<void>((resolve) => {
+      gateway.close(() => resolve());
+    });
+    await agentProvider?.cleanup();
+  };
   try {
     const post = (route: string, payload?: unknown): Promise<Response> =>
       fetch(`${base}${route}`, {
@@ -44964,7 +45008,7 @@ async function checkAutomationStepDestroyPending(
         headers: { 'content-type': 'application/json', cookie, origin: base },
         ...(payload !== undefined ? { body: JSON.stringify(payload) } : {}),
       });
-    const name = `ops/destroy-pending-${randomUUID().slice(0, 8)}`;
+    const name = `ops/${slug}-${randomUUID().slice(0, 8)}`;
     const saved = z.object({ version: z.number() }).safeParse(
       await (
         await post(`/api/app/automations/${name}/save?orgId=${orgId}`, {
@@ -45006,62 +45050,110 @@ async function checkAutomationStepDestroyPending(
     );
     const runId = started.success ? started.data.runId : '';
     sessionId = sessionIdForWorkflowExecution(runId);
-    const runRow = async () =>
-      (
-        await sql<
-          {
-            status: string;
-            detail: string | null;
-            failureCode: string | null;
-          }[]
-        >`
-          SELECT status, detail, failure_code AS "failureCode"
-          FROM app.automation_runs WHERE id = ${runId}
-        `
-      )[0];
-    const destroyJobStates = async () =>
-      (
-        await sql<{ state: string }[]>`
-          SELECT state::text AS state FROM pgboss.job
-          WHERE name = 'sandbox.destroy_session'
-            AND data ->> 'organizationId' = ${orgId}
-            AND data ->> 'sessionId' = ${sessionId}
-          ORDER BY created_on
-        `
-      ).map((job) => job.state);
+    return {
+      saved: saved.success,
+      deployStatus: deployed.status,
+      sessionId,
+      spawned,
+      firstExec,
+      releaseFirstExec,
+      setFailDeletes: (fail) => {
+        failDeletes = fail;
+      },
+      post,
+      runRow: async () =>
+        (
+          await sql<
+            {
+              status: string;
+              detail: string | null;
+              failureCode: string | null;
+            }[]
+          >`
+            SELECT status, detail, failure_code AS "failureCode"
+            FROM app.automation_runs WHERE id = ${runId}
+          `
+        )[0],
+      destroyJobStates: async () =>
+        (
+          await sql<{ state: string }[]>`
+            SELECT state::text AS state FROM pgboss.job
+            WHERE name = 'sandbox.destroy_session'
+              AND data ->> 'organizationId' = ${orgId}
+              AND data ->> 'sessionId' = ${sessionId}
+            ORDER BY created_on
+          `
+        ).map((job) => job.state),
+      close,
+    };
+  } catch (error) {
+    await close();
+    throw error;
+  }
+}
 
+/**
+ * An automation step whose run's workspace an administrator is destroying
+ * fails with the reason at once, #4122. While the Destroy of a workflow
+ * run's session is queued, retrying or running, its admission refuses the
+ * run's next start (#4095). That refusal was read as a spent budget: the
+ * step waited up to two hours for room, and once the Destroy had settled it
+ * started over in a fresh, empty workspace, without what the run's earlier
+ * steps left there. A real two-step run on a fake spawner: the first step's
+ * turn is held while the run's session is destroyed through the Sandboxes
+ * page's route, the spawner refusing the delete so the Destroy stays
+ * pending between attempts; then the turn ends. The second step's start
+ * must fail the run with the Destroy's reason while the Destroy is still
+ * pending, at its first try (a step retried on the refusal would only meet
+ * it again: its reason would name the attempts), and once the Destroy has
+ * settled nothing may start in the run again.
+ */
+async function checkAutomationStepDestroyPending(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const { WORKFLOW_DESTROY_PENDING_MESSAGE } =
+    await import('./core/sandbox/run_workspace_destroy.ts');
+  const sessions = await import('./domains/sandbox/sessions.ts');
+  const run = await startTwoStepDestroyRun(sql, base, ctx, 'destroy-pending');
+  try {
+    const { sessionId, spawned } = run;
     // The first step's turn runs in the run's workspace...
     const firstStepRunning = await Promise.race([
-      firstExec.then(() => true),
+      run.firstExec.then(() => true),
       sleep(30_000).then(() => false),
     ]);
     // ...when an administrator destroys it. The spawner refuses the delete,
     // so the Destroy waits for its next attempt: pending.
-    failDeletes = true;
-    const destroyRes = await post(
+    run.setFailDeletes(true);
+    const destroyRes = await run.post(
       `/api/app/sandbox/sessions/${sessionId}/destroy?orgId=${orgId}`,
     );
     const destroyPending = await waitFor(
-      async () => (await destroyJobStates()).includes('retry'),
+      async () => (await run.destroyJobStates()).includes('retry'),
       15_000,
     );
     // The first step's turn ends; the run moves on to the second step.
     const releasedAt = Date.now();
-    releaseFirstExec();
+    run.releaseFirstExec();
     await waitFor(async () => {
-      const row = await runRow();
+      const row = await run.runRow();
       return (
         row !== undefined &&
         (['success', 'failed', 'cancelled'].includes(row.status) ||
           row.detail === 'room:publish')
       );
     }, 30_000);
-    const atRefusal = await runRow();
+    const atRefusal = await run.runRow();
     const refusedAfterMs = Date.now() - releasedAt;
-    const destroyStillPending = (await destroyJobStates()).includes('retry');
+    const destroyStillPending = (await run.destroyJobStates()).includes(
+      'retry',
+    );
 
     // The Destroy settles: the spawner deletes, the retry runs now.
-    failDeletes = false;
+    run.setFailDeletes(false);
     await sql`
       UPDATE pgboss.job SET start_after = now()
       WHERE name = 'sandbox.destroy_session'
@@ -45070,7 +45162,9 @@ async function checkAutomationStepDestroyPending(
     `;
     const destroySettled = await waitFor(
       async () =>
-        (await destroyJobStates()).every((state) => state === 'completed') &&
+        (await run.destroyJobStates()).every(
+          (state) => state === 'completed',
+        ) &&
         (await sessions.getSessionBySessionId(sql, orgId, sessionId))
           ?.status === 'destroyed',
       15_000,
@@ -45078,30 +45172,31 @@ async function checkAutomationStepDestroyPending(
     // Whatever was still waiting comes back within its backoff, at most
     // half a minute after a first refusal: give it that long to show.
     await waitFor(async () => {
-      const row = await runRow();
+      const row = await run.runRow();
       return (
         row !== undefined &&
         ['success', 'failed', 'cancelled'].includes(row.status)
       );
     }, 40_000);
-    const afterwards = await runRow();
+    const afterwards = await run.runRow();
     const rows = await sql<{ status: string }[]>`
       SELECT status FROM app.sandbox_sessions
       WHERE org_id = ${orgId} AND session_id = ${sessionId}
       ORDER BY created_at_ms
     `;
     record(
-      'automation step: a pending Destroy of the run’s workspace fails the next step with its reason, never a wait for room or a fresh, empty workspace',
-      saved.success &&
-        deployed.status === 200 &&
+      'automation step: a pending Destroy of the run’s workspace fails the next step with its reason at its first try, never a wait for room or a fresh, empty workspace',
+      run.saved &&
+        run.deployStatus === 200 &&
         firstStepRunning &&
         destroyRes.status === 202 &&
         destroyPending &&
         atRefusal?.status === 'failed' &&
         atRefusal.failureCode === 'start_failed' &&
         (atRefusal.detail ?? '').startsWith('publish: ') &&
-        (atRefusal.detail ?? '').includes(SANDBOX_DESTROY_PENDING_MESSAGE) &&
+        (atRefusal.detail ?? '').includes(WORKFLOW_DESTROY_PENDING_MESSAGE) &&
         !(atRefusal.detail ?? '').includes('sandbox room') &&
+        !(atRefusal.detail ?? '').includes('attempts') &&
         destroyStillPending &&
         destroySettled &&
         afterwards?.status === 'failed' &&
@@ -45109,32 +45204,95 @@ async function checkAutomationStepDestroyPending(
         rows[0]?.status === 'destroyed' &&
         spawned.creates === 1 &&
         spawned.execs === 1,
-      `deploy=${deployed.status}, first step running=${firstStepRunning}, destroy=${destroyRes.status}, pending=${destroyPending}; ${refusedAfterMs} ms after the first step ended: run=${atRefusal?.status ?? 'missing'}/${atRefusal?.failureCode ?? '-'} (want failed/start_failed) "${(atRefusal?.detail ?? '').slice(0, 160)}", Destroy still pending then=${destroyStillPending}; Destroy settled=${destroySettled}, then run=${afterwards?.status ?? 'missing'} (want failed), session rows=${rows.map((row) => row.status).join(',')} (want destroyed: no fresh incarnation), spawner creates=${spawned.creates} execs=${spawned.execs} (want 1/1: the second step never ran)`,
+      `deploy=${run.deployStatus}, first step running=${firstStepRunning}, destroy=${destroyRes.status}, pending=${destroyPending}; ${refusedAfterMs} ms after the first step ended: run=${atRefusal?.status ?? 'missing'}/${atRefusal?.failureCode ?? '-'} (want failed/start_failed, at the first try: no attempts named) "${(atRefusal?.detail ?? '').slice(0, 320)}", Destroy still pending then=${destroyStillPending}; Destroy settled=${destroySettled}, then run=${afterwards?.status ?? 'missing'} (want failed), session rows=${rows.map((row) => row.status).join(',')} (want destroyed: no fresh incarnation), spawner creates=${spawned.creates} execs=${spawned.execs} (want 1/1: the second step never ran)`,
     );
   } finally {
-    releaseFirstExec();
-    failDeletes = false;
-    restoreEnv();
-    if (sessionId !== '') {
-      // Hand back the workflow budget whatever happened above.
-      await sql`
-        DELETE FROM pgboss.job WHERE name = 'sandbox.destroy_session'
-          AND data ->> 'organizationId' = ${orgId}
-          AND data ->> 'sessionId' = ${sessionId}
-          AND state::text IN ('created', 'retry')
-      `;
-      await sessions.markSessionDestroyed(sql, {
-        organizationId: orgId,
-        sessionId,
-      });
-    }
-    await new Promise<void>((resolve) => {
-      spawner.close(() => resolve());
-    });
-    await new Promise<void>((resolve) => {
-      gateway.close(() => resolve());
-    });
-    await agentProvider?.cleanup();
+    await run.close();
+  }
+}
+
+/**
+ * An automation step whose run's workspace was deleted after the run worked
+ * in it fails with the reason, #4159. Once an administrator's Destroy of a
+ * workflow run's session had settled, the run's next start found no live
+ * row and was given a fresh, empty workspace: the run went on without what
+ * its earlier steps left there. A real two-step run on a fake spawner: the
+ * first step's turn is held while the run's session is destroyed through
+ * the Sandboxes page's route, and the Destroy settles; then the turn ends.
+ * The second step's start must fail the run with the reason at its first
+ * try, and nothing may be created in the run again.
+ */
+async function checkAutomationStepDestroySettled(
+  sql: Sql,
+  base: string,
+  ctx: { cookie: string; orgId: string },
+): Promise<void> {
+  const { orgId } = ctx;
+  const { SANDBOX_WORKSPACE_DESTROYED_MESSAGE } =
+    await import('./core/sandbox/run_workspace_destroy.ts');
+  const sessions = await import('./domains/sandbox/sessions.ts');
+  const run = await startTwoStepDestroyRun(sql, base, ctx, 'destroy-settled');
+  try {
+    const { sessionId, spawned } = run;
+    // The first step's turn runs in the run's workspace...
+    const firstStepRunning = await Promise.race([
+      run.firstExec.then(() => true),
+      sleep(30_000).then(() => false),
+    ]);
+    // ...when an administrator destroys it, and the Destroy settles: the
+    // spawner deletes the workspace, the row reads destroyed.
+    const destroyRes = await run.post(
+      `/api/app/sandbox/sessions/${sessionId}/destroy?orgId=${orgId}`,
+    );
+    const destroySettled = await waitFor(async () => {
+      const states = await run.destroyJobStates();
+      return (
+        states.length > 0 &&
+        states.every((state) => state === 'completed') &&
+        (await sessions.getSessionBySessionId(sql, orgId, sessionId))
+          ?.status === 'destroyed'
+      );
+    }, 15_000);
+    // The first step's turn ends; the run moves on to the second step, whose
+    // start finds the workspace gone. A start retried on its refusal comes
+    // back within its backoff, at most half a minute later: give the run
+    // that long to end.
+    const releasedAt = Date.now();
+    run.releaseFirstExec();
+    await waitFor(async () => {
+      const row = await run.runRow();
+      return (
+        row !== undefined &&
+        ['success', 'failed', 'cancelled'].includes(row.status)
+      );
+    }, 40_000);
+    const ended = await run.runRow();
+    const endedAfterMs = Date.now() - releasedAt;
+    const rows = await sql<{ status: string }[]>`
+      SELECT status FROM app.sandbox_sessions
+      WHERE org_id = ${orgId} AND session_id = ${sessionId}
+      ORDER BY created_at_ms
+    `;
+    record(
+      'automation step: a settled Destroy of the run’s workspace fails the next step with its reason at its first try, never a fresh, empty workspace',
+      run.saved &&
+        run.deployStatus === 200 &&
+        firstStepRunning &&
+        destroyRes.status === 202 &&
+        destroySettled &&
+        ended?.status === 'failed' &&
+        ended.failureCode === 'start_failed' &&
+        (ended.detail ?? '').startsWith('publish: ') &&
+        (ended.detail ?? '').includes(SANDBOX_WORKSPACE_DESTROYED_MESSAGE) &&
+        !(ended.detail ?? '').includes('attempts') &&
+        rows.length === 1 &&
+        rows[0]?.status === 'destroyed' &&
+        spawned.creates === 1 &&
+        spawned.execs === 1,
+      `deploy=${run.deployStatus}, first step running=${firstStepRunning}, destroy=${destroyRes.status}, settled=${destroySettled}; ${endedAfterMs} ms after the first step ended: run=${ended?.status ?? 'missing'}/${ended?.failureCode ?? '-'} (want failed/start_failed, at the first try: no attempts named) "${(ended?.detail ?? '').slice(0, 320)}", session rows=${rows.map((row) => row.status).join(',')} (want destroyed: no fresh incarnation), spawner creates=${spawned.creates} execs=${spawned.execs} (want 1/1: the second step never ran)`,
+    );
+  } finally {
+    await run.close();
   }
 }
 
@@ -47275,12 +47433,14 @@ async function checkSandboxSpawner(
 
     // A retry outlives the row it was asked for: the spawner did delete the
     // workspace but the answer was lost, the reconcile heals the row, and a
-    // turn opens a fresh incarnation under the same id. The retry leaves that
-    // one alone, the list never reads it as being destroyed, and a Destroy
-    // asked for it is queued on its own rather than absorbed.
+    // turn opens a fresh incarnation under the same id — a light sandbox's,
+    // created again on its next call (an automation run whose workspace went
+    // is refused one instead, #4159). The retry leaves that one alone, the
+    // list never reads it as being destroyed, and a Destroy asked for it is
+    // queued on its own rather than absorbed.
     await provision('itest-spawn-3', {
-      ownerType: 'workflow_run',
-      ownerId: 'wf-22',
+      ownerType: 'light',
+      ownerId: 'itest-light-22',
     });
     const firstRowId = (
       await sessions.getSessionBySessionId(sql, orgId, 'itest-spawn-3')
@@ -47297,8 +47457,8 @@ async function checkSandboxSpawner(
       sessionId: 'itest-spawn-3',
     });
     await provision('itest-spawn-3', {
-      ownerType: 'workflow_run',
-      ownerId: 'wf-22',
+      ownerType: 'light',
+      ownerId: 'itest-light-22',
     });
     const freshRowId = (
       await sessions.getSessionBySessionId(sql, orgId, 'itest-spawn-3')
@@ -47350,11 +47510,13 @@ async function checkSandboxSpawner(
     // retry checks, so a turn let in here would be killed by the next
     // attempt, its workspace deleted and its tokens revoked. It is refused
     // before anything starts, the row keeps reading Destroying, and once the
-    // Destroy has finished the same start opens a fresh incarnation. In an
-    // organization of their own: the lane's organization may already hold
-    // as many project sessions as its budget allows. The Destroy is asked
-    // for through the route's own scheduler and read back through the
-    // page's own reader; the real worker runs it against this spawner.
+    // Destroy has finished the same start opens a fresh incarnation for a
+    // project agent; an automation run, whose earlier steps' files went with
+    // the workspace, is refused one (#4159). In an organization of their
+    // own: the lane's organization may already hold as many project
+    // sessions as its budget allows. The Destroy is asked for through the
+    // route's own scheduler and read back through the page's own reader;
+    // the real worker runs it against this spawner.
     const { ensureAgentSession } =
       await import('./core/node_only/sandbox/agent_session.ts');
     const { agentTurnShimHandlers, taskAgentShimScheduler } =
@@ -47365,6 +47527,8 @@ async function checkSandboxSpawner(
       await import('./domains/sandbox/destroy-schedule.ts');
     const { createCtxShim } = await import('./lib/ctx-shim.ts');
     const naming = await import('./core/sandbox/session_naming.ts');
+    const { isWorkspaceDestroyedRefusal } =
+      await import('./core/node_only/sandbox/start_refusal.ts');
     const taskShim = createCtxShim(agentTurnShimHandlers(sql), {
       scheduler: taskAgentShimScheduler(sql),
     });
@@ -47381,6 +47545,7 @@ async function checkSandboxSpawner(
         sessionId: naming.memberSessionIdForProjectAgent(resumeAgentId, userId),
         owner: { type: 'project_agent' as const, agentId: resumeAgentId },
         ownerId: naming.projectAgentOwnerId(resumeAgentId),
+        afterDestroy: 'fresh' as const,
       },
       {
         lane: "an agent's next task",
@@ -47388,6 +47553,7 @@ async function checkSandboxSpawner(
         sessionId: naming.standingSessionIdForProjectAgent(resumeAgentId),
         owner: { type: 'project_agent' as const, agentId: resumeAgentId },
         ownerId: naming.projectAgentOwnerId(resumeAgentId),
+        afterDestroy: 'fresh' as const,
       },
       {
         lane: "an automation's next step",
@@ -47395,6 +47561,7 @@ async function checkSandboxSpawner(
         sessionId: naming.sessionIdForWorkflowExecution(resumeRunId),
         owner: { type: 'workflow_run' as const, runId: resumeRunId },
         ownerId: naming.workflowExecutionOwnerId(resumeRunId),
+        afterDestroy: 'gone' as const,
       },
     ];
     const resumeRowStatus = async (sessionId: string) =>
@@ -47455,9 +47622,11 @@ async function checkSandboxSpawner(
             (started) =>
               started.liveCreatedAt === undefined ? 'fresh' : 'resumed',
             (error: unknown) =>
-              String(error).includes('is deleting this sandbox workspace')
-                ? 'refused'
-                : `error: ${String(error)}`,
+              isWorkspaceDestroyedRefusal(error)
+                ? 'gone'
+                : String(error).includes('is deleting this sandbox workspace')
+                  ? 'refused'
+                  : `error: ${String(error)}`,
           );
         const asked = await start();
         // What the turn would hold had it been let in: its session token.
@@ -47502,6 +47671,18 @@ async function checkSandboxSpawner(
             resumePath.sessionId,
           )
         )?.id;
+        const rowAfterwards = await resumeRowStatus(resumePath.sessionId);
+        // A project agent's start opens a fresh incarnation; an automation
+        // run's is refused, and nothing is created under its id.
+        const settledAsWanted =
+          resumePath.afterDestroy === 'fresh'
+            ? startedRowId !== undefined &&
+              startedRowId !== askedRowId &&
+              live.has(resumePath.sessionId) &&
+              rowAfterwards === 'active'
+            : startedRowId === askedRowId &&
+              !live.has(resumePath.sessionId) &&
+              rowAfterwards === 'destroyed';
         record(
           `sandbox Destroy retry never deletes work resumed after the request: ${resumePath.lane}`,
           queued &&
@@ -47512,14 +47693,11 @@ async function checkSandboxSpawner(
             pageAfterAsk === 'pending' &&
             resumeRetried &&
             tokens.length === 0 &&
-            afterwards === 'fresh' &&
-            startedRowId !== undefined &&
-            startedRowId !== askedRowId &&
-            live.has(resumePath.sessionId) &&
-            (await resumeRowStatus(resumePath.sessionId)) === 'active',
-          `queued=${queued}, first attempt failed=${firstFailed}, start between attempts=${asked} (want refused), container after it=${containerAfterAsk ? 'running' : 'none'}, row=${rowAfterAsk}, page=${pageAfterAsk ?? 'none'} (want pending), retry settled=${resumeRetried}, container after the retry=${containerAfterRetry ? 'running' : 'none'}, turn tokens revoked=${tokens.filter((token) => token.revoked).length}/${tokens.length}, start after the Destroy=${afterwards} (want fresh), rows=${startedRowId === askedRowId ? 'same' : 'distinct'}`,
+            afterwards === resumePath.afterDestroy &&
+            settledAsWanted,
+          `queued=${queued}, first attempt failed=${firstFailed}, start between attempts=${asked} (want refused), container after it=${containerAfterAsk ? 'running' : 'none'}, row=${rowAfterAsk}, page=${pageAfterAsk ?? 'none'} (want pending), retry settled=${resumeRetried}, container after the retry=${containerAfterRetry ? 'running' : 'none'}, turn tokens revoked=${tokens.filter((token) => token.revoked).length}/${tokens.length}, start after the Destroy=${afterwards} (want ${resumePath.afterDestroy}), rows=${startedRowId === askedRowId ? 'same' : 'distinct'}, row after it=${rowAfterwards ?? 'none'}, container after it=${live.has(resumePath.sessionId) ? 'running' : 'none'}`,
         );
-        // The fresh session holds one of the organization's project slots.
+        // A fresh session holds one of the organization's project slots.
         await sessions.markSessionDestroyed(sql, resumeArgs);
         live.delete(resumePath.sessionId);
       }
@@ -67690,6 +67868,10 @@ async function main(): Promise<void> {
       [
         'checkAutomationStepDestroyPending',
         () => checkAutomationStepDestroyPending(sql, baseUrl, authCtx),
+      ],
+      [
+        'checkAutomationStepDestroySettled',
+        () => checkAutomationStepDestroySettled(sql, baseUrl, authCtx),
       ],
       ['checkAskAnswer', () => checkAskAnswer(sql, baseUrl, authCtx)],
       [
