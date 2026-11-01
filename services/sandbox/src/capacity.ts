@@ -20,6 +20,7 @@ import {
 } from './session/session-naming.ts';
 import { runDocker, type RunDockerResult } from './spawn-util.ts';
 import type { SandboxBackendKind, SpawnerConfig } from './types.ts';
+import { msSince } from './wall-clock.ts';
 
 export type RuntimeState = 'running' | 'starting' | 'stopped';
 
@@ -275,7 +276,12 @@ export class CapacityReader {
   }
 
   private snapshot(): Promise<InfrastructureSnapshot> {
-    if (this.cached !== null && this.now() - this.cached.observedAt < 5_000) {
+    // A snapshot stamped ahead of the clock (it stepped back since) is
+    // observed again, not reported for as long as the step.
+    if (
+      this.cached !== null &&
+      msSince(this.cached.observedAt, this.now()) < 5_000
+    ) {
       return Promise.resolve(this.cached);
     }
     if (this.inFlight !== null) return this.inFlight;
@@ -414,7 +420,9 @@ export class CapacityReader {
    * the next snapshot asks again. */
   private readHostFacts(): Promise<HostFacts> {
     const facts = this.hostFacts;
-    if (facts !== null && this.now() - facts.observedAt < facts.ttlMs) {
+    // Facts stamped ahead of the clock are read again: they would otherwise
+    // hold, an unresolved endpoint's unknown usage with them, for the step.
+    if (facts !== null && msSince(facts.observedAt, this.now()) < facts.ttlMs) {
       return Promise.resolve(facts);
     }
     this.hostFactsInFlight ??= this.observeHostFacts()
@@ -530,8 +538,10 @@ export class CapacityReader {
     if (memory !== null) resources.memory.usedBytes = memory.usedBytes;
     if (cpu !== null && cpu.cores === resources.cpu.totalCores) {
       let sampledAt = this.now();
+      // A sample stamped ahead of the clock (it stepped back since) is of
+      // no known age, so it is no current reading either.
       let before =
-        sampledAt - this.previousCpuAt <= PREVIOUS_CPU_SAMPLE_MAX_AGE_MS
+        msSince(this.previousCpuAt, sampledAt) <= PREVIOUS_CPU_SAMPLE_MAX_AGE_MS
           ? this.previousCpu
           : null;
       let after = cpu;

@@ -7,6 +7,7 @@ import {
   spyOn,
   test,
 } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import {
   chmod,
   mkdtemp,
@@ -33,12 +34,15 @@ import {
   buildkitdMirrorVolumeName,
   buildkitdNetworkName,
   ensureBuildkitd,
+  forgetBuilderIdleAnchors,
   helperStamp,
   MIRROR_REGISTRIES,
   removeOrganizationBuildkit,
   resetBuildkitObservations,
   resetDiskPressurePause,
   retainBuildkitd,
+  setBuilderIdleClock,
+  setBuilderIdleFollowUpScheduler,
   sweepIdleBuildkitd,
 } from './buildkitd.ts';
 import { withOperationBudget } from './operation-budget.ts';
@@ -162,9 +166,24 @@ if (a[0] === 'exec') {
     }
     done('Total:\t0B');
   }
-  if (a[2] === 'buildctl') done(s.buildRunning ? 'COMPLETE\nSTARTED\n' : 'COMPLETE\n');
+  if (a[2] === 'buildctl') {
+    // Reading the history takes this long on the test's clock.
+    if (s.historyReadMs) s.historyClockMs = (s.historyClockMs ?? 0) + s.historyReadMs;
+    // One line per build record, its type and ref; a format without the ref
+    // prints the type alone.
+    const history = !s.histories?.length ? (s.buildRunning ? 'COMPLETE build-1\nSTARTED build-2\n' : 'COMPLETE build-1\n') : s.histories.length > 1 ? s.histories.shift() : s.histories[0];
+    if (history === null) { commit(); fail('buildctl: failed to dial the daemon'); }
+    done(flag('--format').includes('.Ref') ? history : history.split('\n').map(line => line.split(' ')[0]).join('\n'));
+  }
 }
-if (a[0] === 'update') { if (!find(a.at(-1))) fail('Error: No such container'); done(); }
+if (a[0] === 'update') {
+  if (!find(a.at(-1))) fail('Error: No such container');
+  if (s.updateGate) {
+    writeFileSync(join(dir, 'updating'), a.at(-1));
+    while (!existsSync(join(dir, 'release-update'))) await Bun.sleep(5);
+  }
+  done();
+}
 if (a[0] === 'image' && a[1] === 'inspect') { const id = (s.imageIds ?? {})[a.at(-1)]; if (!id) fail('Error: No such image: ' + a.at(-1)); done(id); }
 if (a[0] === 'pull') {
   if (s.pullGate) {
@@ -260,6 +279,15 @@ interface FakeState {
   stopFails: string | null;
   stopGate: boolean;
   buildRunning?: boolean;
+  /** What successive reads of the builder's build history print, a line of
+   * type and ref per record, the last one again; a null one fails. Unset: one
+   * build done, and one under way while `buildRunning`. */
+  histories?: Array<string | null>;
+  /** How far each read of the build history moves the clock of the builder
+   * idle checks on, while it runs. */
+  historyReadMs?: number;
+  /** How far the reads of the build history have moved that clock in all. */
+  historyClockMs?: number;
   /** `buildctl prune` inside the builder fails. */
   pruneFails?: boolean;
   /** `buildctl prune` runs until a `release-prune` file appears. */
@@ -268,6 +296,8 @@ interface FakeState {
   rmGate?: string;
   /** `docker pull` runs until a `release-pull` file appears. */
   pullGate?: boolean;
+  /** `docker update` runs until a `release-update` file appears. */
+  updateGate?: boolean;
   /** Images not on the host: a `run --pull never` of one fails. */
   missingImages?: string[];
   /** Images `docker pull` fetched, in order. */
@@ -447,6 +477,29 @@ async function sweepWarning(
 function nextOrg(): string {
   return `lifecycle-org-${++orgSequence}`;
 }
+/** The reads of a builder's build history, in order. */
+async function historyReads(): Promise<string[][]> {
+  return (await calls()).filter(
+    (args) =>
+      args[0] === 'exec' &&
+      args.slice(2, 5).join(' ') === 'buildctl debug histories',
+  );
+}
+
+/** What the clock of the builder idle checks reads: it stands still unless a
+ * test moves it on. */
+let idleClockMs = 0;
+
+/** A follow-up provisioning a builder hold scheduled. No timer runs it: a
+ * test does, once it has moved the clock on. */
+interface ScheduledFollowUp {
+  run: () => Promise<void>;
+  delayMs: number;
+  cancelled: boolean;
+}
+
+/** The follow-ups scheduled since the test began, in order. */
+let followUps: ScheduledFollowUp[] = [];
 
 beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'tale-buildkit-lifecycle-'));
@@ -454,8 +507,18 @@ beforeAll(async () => {
   await writeFile(executable, FAKE_DOCKER);
   await chmod(executable, 0o755);
   process.env.DOCKER_BIN = executable;
+  setBuilderIdleClock(() => idleClockMs);
+  setBuilderIdleFollowUpScheduler((run, delayMs) => {
+    const followUp = { run, delayMs, cancelled: false };
+    followUps.push(followUp);
+    return () => {
+      followUp.cancelled = true;
+    };
+  });
 });
 beforeEach(async () => {
+  forgetBuilderIdleAnchors();
+  followUps = [];
   resetBuildkitObservations();
   await Promise.all(
     [
@@ -465,11 +528,16 @@ beforeEach(async () => {
       'release-prune',
       'pulling',
       'release-pull',
+      'updating',
+      'release-update',
     ].map((name) => rm(join(root, name), { force: true })),
   );
   await writeFile(join(root, 'calls.jsonl'), '');
 });
 afterAll(async () => {
+  forgetBuilderIdleAnchors();
+  setBuilderIdleFollowUpScheduler();
+  setBuilderIdleClock();
   if (originalDockerBin === undefined) delete process.env.DOCKER_BIN;
   else process.env.DOCKER_BIN = originalDockerBin;
   await rm(root, { recursive: true, force: true });
@@ -640,7 +708,14 @@ describe('organization build-cache lifecycle', () => {
         await ensureBuildkitd(cfg, org);
         expect(await builderRuns(builder)).toEqual([]);
 
+        // The build is done: kept by the first provisioning to find none
+        // under way, recreated by one 3 s later that finds no build since.
         await save({ ...(await state()), buildRunning: false });
+        resetBuildkitObservations();
+        await writeFile(join(root, 'calls.jsonl'), '');
+        await ensureBuildkitd(cfg, org);
+        expect(await builderRuns(builder)).toEqual([]);
+        idleClockMs += 3_000;
         resetBuildkitObservations();
         await writeFile(join(root, 'calls.jsonl'), '');
         await ensureBuildkitd(cfg, org);
@@ -657,6 +732,82 @@ describe('organization build-cache lifecycle', () => {
       expect((await state()).volumes[buildkitdCacheVolumeName(org)]).toEqual(
         launched.volumes[buildkitdCacheVolumeName(org)],
       );
+    });
+
+    test('is recreated by the first read with no build under way once held a minute, though a build ran since every read before', async () => {
+      const org = nextOrg();
+      const builder = buildkitdContainerName(org);
+      const launched = await launchedWithoutGhcr(org);
+      // The ghcr.io mirror can run again, and a build fails on the builder
+      // between every two provisionings, a minute apart.
+      await save({
+        ...launched,
+        histories: [
+          'COMPLETE build-1\n',
+          'COMPLETE build-1\nSTARTED build-2\n',
+          'COMPLETE build-1\nCOMPLETE build-2\nCOMPLETE build-3\n',
+        ],
+      });
+      const log = spyOn(console, 'log').mockImplementation(() => {});
+      const warn = spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        resetBuildkitObservations();
+        await writeFile(join(root, 'calls.jsonl'), '');
+        await ensureBuildkitd(cfg, org);
+        expect(await builderRuns(builder)).toEqual([]);
+        // Held a minute, but a build is under way: kept.
+        idleClockMs += 60_000;
+        resetBuildkitObservations();
+        await writeFile(join(root, 'calls.jsonl'), '');
+        await ensureBuildkitd(cfg, org);
+        expect(await builderRuns(builder)).toEqual([]);
+        // None is a minute later, though another one ran: recreated.
+        idleClockMs += 60_000;
+        resetBuildkitObservations();
+        await writeFile(join(root, 'calls.jsonl'), '');
+        await ensureBuildkitd(cfg, org);
+        const runs = await builderRuns(builder);
+        expect(runs).toHaveLength(1);
+        expect(mirrorsEnv(runs[0])).toBe(
+          `TALE_BUILDKITD_MIRRORS=${fullMirrorMapping(org)}`,
+        );
+      } finally {
+        log.mockRestore();
+        warn.mockRestore();
+      }
+    });
+
+    test('is recreated by the follow-up of the provisioning that held it, with no create since', async () => {
+      const org = nextOrg();
+      const builder = buildkitdContainerName(org);
+      // The ghcr.io mirror can run again, and no build runs.
+      await save(await launchedWithoutGhcr(org));
+      const log = spyOn(console, 'log').mockImplementation(() => {});
+      const warn = spyOn(console, 'warn').mockImplementation(() => {});
+      try {
+        resetBuildkitObservations();
+        await writeFile(join(root, 'calls.jsonl'), '');
+        await ensureBuildkitd(cfg, org);
+        expect(await builderRuns(builder)).toEqual([]);
+        expect(
+          followUps.map(({ delayMs, cancelled }) => ({ delayMs, cancelled })),
+        ).toEqual([{ delayMs: 3_000, cancelled: false }]);
+        // Its time comes, and it reads no build since.
+        idleClockMs += 3_000;
+        await writeFile(join(root, 'calls.jsonl'), '');
+        await followUps[0]!.run();
+        const runs = await builderRuns(builder);
+        expect(runs).toHaveLength(1);
+        expect(mirrorsEnv(runs[0])).toBe(
+          `TALE_BUILDKITD_MIRRORS=${fullMirrorMapping(org)}`,
+        );
+        // Confirmed: no follow-up comes after it.
+        expect(followUps).toHaveLength(1);
+        expect(warn).not.toHaveBeenCalled();
+      } finally {
+        log.mockRestore();
+        warn.mockRestore();
+      }
     });
   });
 
@@ -687,9 +838,13 @@ describe('organization build-cache lifecycle', () => {
       ),
     );
 
-    // The operator caps it lower: the idle builder is recreated with it.
+    // The operator caps it lower: the idle builder is recreated with it, by
+    // the first provisioning 3 s after one that found no build under way.
     await writeFile(join(root, 'calls.jsonl'), '');
     const capped = { ...sized, buildkitdMaxCacheBytes: 2 * 1024 ** 3 };
+    await ensureBuildkitd(capped, org);
+    expect((await calls()).filter((args) => args[0] === 'run')).toEqual([]);
+    idleClockMs += 3_000;
     const log = spyOn(console, 'log').mockImplementation(() => {});
     try {
       await ensureBuildkitd(capped, org);
@@ -772,11 +927,21 @@ describe('organization build-cache lifecycle', () => {
       initial.containers[builder]?.id,
     );
 
-    // The build is done: the next ensure recreates the builder and its
-    // mirrors on the current image and bounds, keeping every volume.
+    // The build is done: the first ensure to find none under way keeps every
+    // helper, its bounds already applied, and one 3 s later that finds no
+    // build since recreates the builder and its mirrors on the current image
+    // and bounds, keeping every volume.
     const busy = await state();
     busy.buildRunning = false;
     await save(busy);
+    await writeFile(join(root, 'calls.jsonl'), '');
+    expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
+    expect(
+      (await calls()).filter((args) =>
+        ['run', 'rm', 'update'].includes(args[0] ?? ''),
+      ),
+    ).toEqual([]);
+    idleClockMs += 3_000;
     await writeFile(join(root, 'calls.jsonl'), '');
     expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
     log = await calls();
@@ -822,9 +987,17 @@ describe('organization build-cache lifecycle', () => {
     ).toEqual([]);
     expect((await state()).containers).toEqual(initial.containers);
 
+    // Kept by the first ensure to find no build under way, recreated by one
+    // 3 s later that finds no build since.
     const busy = await state();
     busy.buildRunning = false;
     await save(busy);
+    await writeFile(join(root, 'calls.jsonl'), '');
+    expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
+    expect(
+      (await calls()).filter((args) => args[0] === 'run' || args[0] === 'rm'),
+    ).toEqual([]);
+    idleClockMs += 3_000;
     await writeFile(join(root, 'calls.jsonl'), '');
     expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
 
@@ -870,9 +1043,17 @@ describe('organization build-cache lifecycle', () => {
       log.filter((args) => args[0] === 'run' || args[0] === 'update'),
     ).toEqual([]);
 
+    // Kept by the first ensure to find no build under way, recreated by one
+    // 3 s later that finds no build since.
     const busy = await state();
     busy.buildRunning = false;
     await save(busy);
+    await writeFile(join(root, 'calls.jsonl'), '');
+    expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
+    expect(
+      (await calls()).filter((args) => args[0] === 'run' || args[0] === 'rm'),
+    ).toEqual([]);
+    idleClockMs += 3_000;
     await writeFile(join(root, 'calls.jsonl'), '');
     expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
     log = await calls();
@@ -882,6 +1063,434 @@ describe('organization build-cache lifecycle', () => {
     const final = await state();
     expect(final.containers[builder]?.image).toBe('sha256:this-release');
     expect(final.volumes).toEqual(initial.volumes);
+  });
+
+  describe('a running builder on an image its reference no longer names', () => {
+    /** An organization whose builder runs the image of an earlier release,
+     * whose build history reads as given, one answer per read. */
+    async function retagged(
+      histories: Array<string | null>,
+    ): Promise<{ org: string; builder: string; initial: FakeState }> {
+      const org = nextOrg();
+      const initial = seed(org);
+      const builder = buildkitdContainerName(org);
+      initial.containers[builder]!.image = 'sha256:previous-release';
+      initial.imageIds = { [cfg.buildkitdImage]: 'sha256:this-release' };
+      initial.histories = histories;
+      await save(initial);
+      return { org, builder, initial };
+    }
+
+    /** The containers removed and launched since the call log was cleared,
+     * in order. */
+    async function changes(): Promise<string[]> {
+      return (await calls()).flatMap((args) => {
+        if (args[0] === 'rm') return [`rm ${args.at(-1)}`];
+        const name = args[args.indexOf('--name') + 1];
+        return args[0] === 'run' ? [`run ${name}`] : [];
+      });
+    }
+
+    /** Provision the organization `afterMs` after the provisioning before,
+     * answering the containers it removed and launched, in order. */
+    async function provision(org: string, afterMs = 0): Promise<string[]> {
+      idleClockMs += afterMs;
+      await writeFile(join(root, 'calls.jsonl'), '');
+      expect(await ensureBuildkitd(cfg, org)).toBe(buildkitdEndpoint(org));
+      return changes();
+    }
+
+    /** Run the follow-up scheduled `index`th, `afterMs` after the
+     * provisioning before, answering the containers it removed and launched,
+     * in order. */
+    async function followUp(index: number, afterMs: number): Promise<string[]> {
+      idleClockMs += afterMs;
+      await writeFile(join(root, 'calls.jsonl'), '');
+      const scheduled = followUps[index];
+      expect(scheduled?.cancelled).toBe(false);
+      await scheduled?.run();
+      return changes();
+    }
+
+    /** What a provisioning that recreates the builder alone removes and
+     * launches. */
+    const recreated = (builder: string) => [`rm ${builder}`, `run ${builder}`];
+
+    test('is kept, after one history read, by the first provisioning that finds no build under way', async () => {
+      const { org, builder, initial } = await retagged(['COMPLETE build-1\n']);
+      expect(await provision(org)).toEqual([]);
+      expect(await historyReads()).toHaveLength(1);
+      expect((await state()).containers[builder]).toEqual(
+        initial.containers[builder],
+      );
+    });
+
+    test('is recreated by a provisioning 3 s or more later whose read shows the same finished builds', async () => {
+      const { org, builder, initial } = await retagged([
+        'COMPLETE build-1\nCOMPLETE build-2\n',
+      ]);
+      expect(await provision(org)).toEqual([]);
+      expect(await provision(org, 3_000)).toEqual(recreated(builder));
+      expect((await historyReads()).map((args) => args.at(-1))).toEqual([
+        '{{.Type}} {{with .Record}}{{.Ref}}{{end}}',
+      ]);
+      const final = await state();
+      expect(final.containers[builder]?.image).toBe('sha256:this-release');
+      expect(final.volumes).toEqual(initial.volumes);
+    });
+
+    test('is kept when a build started and finished between two provisionings', async () => {
+      const { org, builder } = await retagged([
+        'COMPLETE build-1\n',
+        'COMPLETE build-1\nCOMPLETE build-2\n',
+      ]);
+      expect(await provision(org)).toEqual([]);
+      expect(await provision(org, 3_000)).toEqual([]);
+      // That read is the one to match now: unchanged 3 s on, the builder goes.
+      expect(await provision(org, 3_000)).toEqual(recreated(builder));
+    });
+
+    test('is kept when a build is under way at the second provisioning', async () => {
+      // The build under way is listed without its record: no ref gives it
+      // away, but its type does, and the confirmation starts over after it.
+      const { org, builder } = await retagged([
+        'COMPLETE build-1\n',
+        'COMPLETE build-1\nSTARTED\n',
+        'COMPLETE build-1\nCOMPLETE\n',
+      ]);
+      expect(await provision(org)).toEqual([]);
+      expect(await provision(org, 3_000)).toEqual([]);
+      expect(await provision(org, 3_000)).toEqual([]);
+      expect(await provision(org, 3_000)).toEqual(recreated(builder));
+    });
+
+    test('is kept when the second provisioning cannot read the build history', async () => {
+      const { org, builder } = await retagged([
+        'COMPLETE build-1\n',
+        null,
+        'COMPLETE build-1\n',
+      ]);
+      expect(await provision(org)).toEqual([]);
+      expect(await provision(org, 3_000)).toEqual([]);
+      // The failed read changed nothing: the next clean read, a moment
+      // later, still matches the first one.
+      expect(await provision(org, 1)).toEqual(recreated(builder));
+    });
+
+    test('is kept by a provisioning under 3 s after the first, and recreated by one 3 s after the first', async () => {
+      const { org, builder } = await retagged(['COMPLETE build-1\n']);
+      expect(await provision(org)).toEqual([]);
+      expect(await provision(org, 2_999)).toEqual([]);
+      // A millisecond after the second: the first read is still the one to
+      // match.
+      expect(await provision(org, 1)).toEqual(recreated(builder));
+    });
+
+    test('is kept by a read that starts under 3 s after the first read ended, though the clock passes 3 s during it', async () => {
+      const { org, builder, initial } = await retagged(['COMPLETE build-1\n']);
+      // Each read of the history takes 2 s.
+      await save({ ...initial, historyReadMs: 2_000 });
+      const historyClockMs = (): number =>
+        (
+          JSON.parse(
+            readFileSync(join(root, 'state.json'), 'utf8'),
+          ) as FakeState
+        ).historyClockMs ?? 0;
+      setBuilderIdleClock(() => idleClockMs + historyClockMs());
+      try {
+        expect(await provision(org)).toEqual([]);
+        // Starts 2 s after the first read ended, and ends 4 s after.
+        expect(await provision(org, 2_000)).toEqual([]);
+        // Starts 4 s after the first read ended.
+        expect(await provision(org)).toEqual(recreated(builder));
+      } finally {
+        idleClockMs += historyClockMs();
+        setBuilderIdleClock(() => idleClockMs);
+      }
+    });
+
+    test('schedules no follow-up after a read that finds a build under way or cannot be read', async () => {
+      const { org } = await retagged([
+        'COMPLETE build-1\nSTARTED build-2\n',
+        null,
+        'COMPLETE build-1\nCOMPLETE build-2\n',
+      ]);
+      expect(await provision(org)).toEqual([]);
+      expect(await provision(org, 3_000)).toEqual([]);
+      expect(followUps).toEqual([]);
+      // A read that holds it schedules one, 3 s on.
+      expect(await provision(org, 3_000)).toEqual([]);
+      expect(followUps.map(({ delayMs }) => delayMs)).toEqual([3_000]);
+    });
+
+    test('has one follow-up pending at most, and a follow-up that holds it again schedules the next', async () => {
+      const { org, builder } = await retagged([
+        'COMPLETE build-1\n',
+        'COMPLETE build-1\n',
+        'COMPLETE build-1\nCOMPLETE build-2\n',
+      ]);
+      expect(await provision(org)).toEqual([]);
+      expect(await provision(org, 1_000)).toEqual([]);
+      expect(followUps).toHaveLength(1);
+      // A build ran before the follow-up's read: held again, it schedules
+      // the next, which finds none since.
+      expect(await followUp(0, 3_000)).toEqual([]);
+      expect(followUps.map(({ delayMs }) => delayMs)).toEqual([3_000, 3_000]);
+      expect(await followUp(1, 3_000)).toEqual(recreated(builder));
+      expect(followUps).toHaveLength(2);
+    });
+
+    test('has its follow-up wait for a provisioning under way that held it meanwhile, and then read again', async () => {
+      const { org, builder } = await retagged(['COMPLETE build-1\n']);
+      expect(await provision(org)).toEqual([]);
+      expect(followUps).toHaveLength(1);
+      // A second provisioning holds it with the follow-up pending, so it
+      // schedules none, and is still bringing the builder's bounds up to date
+      // when the follow-up fires.
+      const held = await state();
+      held.containers[builder]!.labels['tale.helper-config'] = 'earlier';
+      held.updateGate = true;
+      await save(held);
+      idleClockMs += 1_000;
+      const second = ensureBuildkitd(cfg, org);
+      for (let i = 0; i < 400; i += 1) {
+        if (await Bun.file(join(root, 'updating')).exists()) break;
+        await Bun.sleep(5);
+      }
+      expect(await readFile(join(root, 'updating'), 'utf8')).toBe(builder);
+      expect(await historyReads()).toHaveLength(2);
+      idleClockMs += 2_000;
+      await writeFile(join(root, 'calls.jsonl'), '');
+      const fired = followUps[0]!.run();
+      await writeFile(join(root, 'release-update'), '');
+      expect(await second).toBe(buildkitdEndpoint(org));
+      await fired;
+      // Its own read, 3 s after the first, confirms.
+      expect(await historyReads()).toHaveLength(1);
+      expect(await changes()).toEqual(recreated(builder));
+      expect(followUps).toHaveLength(1);
+    });
+
+    test('has its follow-up wait for a provisioning under way that fails, and then provision', async () => {
+      const { org, builder } = await retagged(['COMPLETE build-1\n']);
+      expect(await provision(org)).toEqual([]);
+      expect(followUps).toHaveLength(1);
+      // A second provisioning holds it with the follow-up pending, so it
+      // schedules none, and runs out of its budget bringing the builder's
+      // bounds up to date: the follow-up fires meanwhile.
+      const held = await state();
+      held.containers[builder]!.labels['tale.helper-config'] = 'earlier';
+      held.updateGate = true;
+      await save(held);
+      idleClockMs += 1_000;
+      const second = rejection(
+        ensureBuildkitd({ ...cfg, buildkitdProvisionTimeoutMs: 2_000 }, org),
+      );
+      for (let i = 0; i < 400; i += 1) {
+        if (await Bun.file(join(root, 'updating')).exists()) break;
+        await Bun.sleep(5);
+      }
+      expect(await readFile(join(root, 'updating'), 'utf8')).toBe(builder);
+      idleClockMs += 2_000;
+      await writeFile(join(root, 'calls.jsonl'), '');
+      const warn = spyOn(console, 'warn').mockImplementation(() => {});
+      let warnings: string[] = [];
+      try {
+        const fired = followUps[0]!.run();
+        expect(await second).toMatch(/deadline exceeded/);
+        await fired;
+        warnings = warn.mock.calls.map((args) => args.map(String).join(' '));
+      } finally {
+        warn.mockRestore();
+      }
+      // Its own caller answers for the failure. The follow-up reads again
+      // once the failed one let go of the lock, 3 s after the first read,
+      // and confirms.
+      expect(warnings.filter((line) => line.includes('follow-up'))).toEqual([]);
+      expect(await historyReads()).toHaveLength(1);
+      expect(await changes()).toEqual(recreated(builder));
+      expect(followUps).toHaveLength(1);
+    }, 15_000);
+
+    test.each([
+      'finds it launched as now',
+      'starts it',
+      'launches it anew',
+      'recreates it for a stale fence',
+    ])(
+      'ends its hold when a provisioning %s, so that a later drift is held anew',
+      async (path) => {
+        const { org, builder } = await retagged(['COMPLETE build-1\n']);
+        expect(await provision(org)).toEqual([]);
+        // Whatever ran between the two provisionings brought it up to date,
+        // stopped it or left its fence stale.
+        const found = await state();
+        const helper = found.containers[builder]!;
+        if (path === 'finds it launched as now' || path === 'starts it') {
+          helper.image = 'sha256:this-release';
+        }
+        if (path === 'starts it' || path === 'launches it anew') {
+          helper.running = false;
+        }
+        if (path === 'recreates it for a stale fence') {
+          found.fenceProbe =
+            '#tale-fence marker 0\n#tale-fence toml\n[dns]\n nameservers = ["172.22.0.9"]\n#tale-fence resolved\n172.22.0.2 tale-buildkit-egress\n';
+        }
+        await save(found);
+        const warn = spyOn(console, 'warn').mockImplementation(() => {});
+        try {
+          expect(await provision(org, 1_000)).toEqual(
+            path === 'finds it launched as now' || path === 'starts it'
+              ? []
+              : recreated(builder),
+          );
+        } finally {
+          warn.mockRestore();
+        }
+        expect(followUps.map(({ cancelled }) => cancelled)).toEqual([true]);
+        // A minute on, it runs an image its reference no longer names again,
+        // with no build since: the first read holds it anew, and the read of
+        // its follow-up confirms.
+        const drifted = await state();
+        drifted.containers[builder]!.image = 'sha256:previous-release';
+        delete drifted.fenceProbe;
+        await save(drifted);
+        resetBuildkitObservations();
+        expect(await provision(org, 60_000)).toEqual([]);
+        expect(followUps.map(({ cancelled }) => cancelled)).toEqual([
+          true,
+          false,
+        ]);
+        expect(await followUp(1, 3_000)).toEqual(recreated(builder));
+      },
+    );
+
+    test('has its follow-up do nothing once a later read ended the hold', async () => {
+      const { org, builder } = await retagged(['COMPLETE build-1\n']);
+      expect(await provision(org)).toEqual([]);
+      expect(await provision(org, 3_000)).toEqual(recreated(builder));
+      await writeFile(join(root, 'calls.jsonl'), '');
+      await followUps[0]!.run();
+      expect(await calls()).toEqual([]);
+    });
+
+    test.each(['idle stop', 'removal'])(
+      'an organization’s %s cancels its pending follow-up and forgets the hold',
+      async (end) => {
+        const { org, initial } = await retagged(['COMPLETE build-1\n']);
+        expect(await provision(org)).toEqual([]);
+        const log = spyOn(console, 'log').mockImplementation(() => {});
+        try {
+          if (end === 'removal') {
+            expect((await removeOrganizationBuildkit(org)).containers).toBe(4);
+          } else {
+            const now = Date.now();
+            await sweepIdleBuildkitd(cfg, now);
+            expect((await sweepIdleBuildkitd(cfg, now + 1_000)).stopped).toBe(
+              4,
+            );
+          }
+        } finally {
+          log.mockRestore();
+        }
+        // The same helpers run again, a minute on, with no build since: the
+        // first read holds the builder anew.
+        await save(initial);
+        expect(await provision(org, 60_000)).toEqual([]);
+        expect(followUps.map(({ cancelled }) => cancelled)).toEqual([
+          true,
+          false,
+        ]);
+        // The cancelled one does nothing, should it run all the same.
+        await writeFile(join(root, 'calls.jsonl'), '');
+        await followUps[0]!.run();
+        expect(await calls()).toEqual([]);
+      },
+    );
+
+    test.each(['nothing', 'a teardown'])(
+      'has its follow-up, fired while the disk relief removes the organization’s helpers, provision nothing after it, with %s queued behind the relief',
+      async (queued) => {
+        resetDiskPressurePause();
+        const { org, initial } = await retagged(['COMPLETE build-1\n']);
+        expect(await provision(org)).toEqual([]);
+        expect(followUps).toHaveLength(1);
+        // Its helpers stop with the hold standing, and the session disk is
+        // short. The relief reads the disk again under the organization's
+        // lock, right before the removal, and the follow-up fires then.
+        const now = Date.now();
+        const stopped = await state();
+        for (const container of Object.values(stopped.containers)) {
+          container.running = false;
+          container.finishedAt = new Date(now - 60_000).toISOString();
+        }
+        await save(stopped);
+        const GIB = 1024 ** 3;
+        let reads = 0;
+        let reachedBaseline = (): void => {};
+        const atBaseline = new Promise<void>((resolve) => {
+          reachedBaseline = resolve;
+        });
+        let unblock = (): void => {};
+        const blocked = new Promise<void>((resolve) => {
+          unblock = resolve;
+        });
+        const sessionDisk = async () => {
+          reads += 1;
+          if (reads === 2) {
+            reachedBaseline();
+            await blocked;
+          }
+          // The removal frees enough.
+          const availableBytes = (reads < 3 ? 4 : 6) * GIB;
+          return { availableBytes, short: availableBytes < 5 * GIB };
+        };
+        const log = spyOn(console, 'log').mockImplementation(() => {});
+        const warn = spyOn(console, 'warn').mockImplementation(() => {});
+        let warnings: string[] = [];
+        try {
+          const sweep = sweepIdleBuildkitd(cfg, now, { sessionDisk });
+          await atBaseline;
+          await writeFile(join(root, 'calls.jsonl'), '');
+          const teardown =
+            queued === 'a teardown'
+              ? removeOrganizationBuildkit(org).catch((error: unknown) =>
+                  String(error),
+                )
+              : null;
+          const fired = followUps[0]!.run();
+          unblock();
+          expect((await sweep).relieved).toBe(1);
+          await fired;
+          // Not refused: the follow-up holds no create lease. The relief
+          // left it nothing to remove.
+          if (teardown !== null) {
+            expect(await teardown).toEqual({
+              containers: 0,
+              volumes: 0,
+              networks: 0,
+            });
+          }
+          warnings = warn.mock.calls.map((args) => args.map(String).join(' '));
+        } finally {
+          log.mockRestore();
+          warn.mockRestore();
+        }
+        expect(warnings).toEqual([]);
+        expect(
+          (await calls()).filter(([command]) => command === 'run'),
+        ).toEqual([]);
+        const final = await state();
+        expect(
+          Object.values(final.containers).filter(
+            (container) => container.labels['tale.org'] === org,
+          ),
+        ).toEqual([]);
+        for (const volume of Object.keys(initial.volumes)) {
+          expect(final.volumes[volume]).toBeUndefined();
+        }
+      },
+    );
   });
 
   test('a running builder whose fence went stale is recreated, keeping its cache', async () => {
