@@ -70,6 +70,10 @@ usageCreditsRequested: Nutzungskontingent angefragt
 usageCreditsRequestedBody: '{name} hat ein Nutzungslimit erreicht und um mehr Kontingent gebeten.'
 apiKeyCreatedForYou: API-Schlüssel für dich erstellt
 apiKeyCreatedForYouBody: '{name} hat den API-Schlüssel "{keyName}" für dich erstellt. Er handelt in dieser Organisation in deinem Namen; brauchst du ihn nicht, widerrufe ihn unter Einstellungen > API > REST.'
+apiKeyBlockedForYou: Dein API-Schlüssel wurde in dieser Organisation blockiert
+apiKeyBlockedForYouBody: '{name} hat deinen API-Schlüssel "{keyName}" in dieser Organisation blockiert. Seine Anfragen werden hier abgelehnt; in deinen anderen Organisationen gilt die Blockierung nicht.'
+apiKeyUnblockedForYou: Die Blockierung deines API-Schlüssels wurde in dieser Organisation aufgehoben
+apiKeyUnblockedForYouBody: '{name} hat die Blockierung deines API-Schlüssels "{keyName}" in dieser Organisation aufgehoben.'
 agentConnectionEnded: Coding-Agent getrennt
 agentConnectionEndedReuseBody: '{client} wurde getrennt, weil eine alte Anmeldung erneut verwendet wurde. Verbinde den Agenten erneut, wenn du das warst.'
 agentConnectionEndedAccountBody: '{client} wurde getrennt, weil sich dein Passwort oder eine andere Anmeldemethode geändert hat. Verbinde den Agenten erneut, wenn er wieder arbeiten soll.'
