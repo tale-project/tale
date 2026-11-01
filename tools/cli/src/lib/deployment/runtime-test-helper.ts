@@ -230,6 +230,7 @@ export const SPAWNER_CONFIG_SOURCE = [
   'services/sandbox/src/session/runnerd-protocol.ts',
   'services/sandbox/src/session/session-profile.ts',
   'services/sandbox/src/spawn-util.ts',
+  'services/sandbox/src/wall-clock.ts',
 ] as const;
 
 /**
