@@ -71,7 +71,7 @@ const MAX_REVOCATIONS_PER_RUN = 500;
 const MAX_STAMPS_PER_RUN = 500;
 
 /** Rows one clamp statement rewrites, so none holds the table for long. */
-export const SESSION_CLAMP_BATCH = 1_000;
+const SESSION_CLAMP_BATCH = 1_000;
 
 /**
  * Slack, in seconds, around the lifetimes a refresh writes: Better Auth

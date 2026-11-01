@@ -297,7 +297,7 @@ async function targetedReview(
  * own pending), oldest first, the first that no run holds. `busy` while
  * every such context is held; `none` without one.
  */
-export async function pickReviewContext(
+async function pickReviewContext(
   tx: TransactionSql,
   args: { organizationId: string; projectId: string; agentId: string },
 ): Promise<'none' | 'busy' | { taskId: string }> {
