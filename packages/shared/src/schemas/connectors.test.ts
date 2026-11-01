@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { connectorSchema } from './connectors';
+import {
+  CONNECTOR_SCENARIO_KINDS,
+  connectorScenarioSchema,
+  connectorSchema,
+  MINIMUM_SCENARIO_KINDS,
+} from './connectors';
 
 /** A realistic connector exercising every schema branch: two auth methods,
  * a yaml-js write action, a mock-only read action, and a native action. */
@@ -593,5 +598,419 @@ describe('connectorSchema', () => {
     expect(connectorSchema.safeParse({ ...github, extra: 1 }).success).toBe(
       false,
     );
+  });
+});
+
+describe('the scenarios an action ships [CONN-R33]', () => {
+  /** A case of each shape the kinds take, on made-up data. */
+  const SHAPES: [string, Record<string, unknown>][] = [
+    [
+      'a success, with the output the service answers',
+      {
+        name: 'found',
+        kind: 'success',
+        description: 'The repository exists and the credential may read it.',
+        output: { full_name: 'example-org/demo' },
+      },
+    ],
+    [
+      'an empty answer, with an output that holds nothing',
+      {
+        name: 'no_repos',
+        kind: 'empty',
+        description: 'The organisation has no repository yet.',
+        output: [],
+      },
+    ],
+    [
+      'an empty answer of null',
+      {
+        name: 'unset',
+        kind: 'empty',
+        description: 'The record holds no value.',
+        output: null,
+      },
+    ],
+    [
+      'an error, with the status it carries and the input it answers',
+      {
+        name: 'not_found',
+        kind: 'error',
+        description: 'No repository goes by that name.',
+        when: { owner: 'example-org', page: 2, archived: false },
+        error: { message: 'Not Found', status: 404 },
+      },
+    ],
+    [
+      'an error that carries no status',
+      {
+        name: 'unreachable',
+        kind: 'error',
+        description: 'The service does not answer.',
+        error: { message: 'fetch failed' },
+      },
+    ],
+    [
+      'a refusal',
+      {
+        name: 'archived',
+        kind: 'refusal',
+        description: 'The repository is archived and takes no issue.',
+        error: {
+          message: 'Repository was archived so is read-only.',
+          status: 403,
+        },
+      },
+    ],
+    [
+      'a duplicate answered with a second record',
+      {
+        name: 'same_title',
+        kind: 'duplicate',
+        description:
+          'An issue of this title is open; the service opens another.',
+        output: {
+          number: 102,
+          url: 'https://example.com/example-org/demo/issues/102',
+        },
+      },
+    ],
+    [
+      'a duplicate answered with a refusal',
+      {
+        name: 'already_open',
+        kind: 'duplicate',
+        description: 'The service refuses the same issue twice.',
+        error: { message: 'Validation Failed', status: 422 },
+      },
+    ],
+    [
+      'the longest name, description and message, and the lowest status',
+      {
+        name: `a${'b'.repeat(49)}`,
+        kind: 'error',
+        description: 'd'.repeat(500),
+        error: { message: 'm'.repeat(2000), status: 400 },
+      },
+    ],
+    [
+      'a name of a letter and a digit, and the highest status',
+      {
+        name: 'e5',
+        kind: 'refusal',
+        description: 'The service is down.',
+        error: { message: 'Service Unavailable', status: 599 },
+      },
+    ],
+    [
+      'a when of any JSON',
+      {
+        name: 'second_page',
+        kind: 'success',
+        description: 'The second page of open issues.',
+        when: {
+          labels: ['bug'],
+          filter: { state: 'open' },
+          cursor: null,
+        },
+        output: { items: [] },
+      },
+    ],
+  ];
+
+  it.each(SHAPES)('accepts %s, and keeps it whole', (_shape, scenario) => {
+    expect(connectorScenarioSchema.parse(scenario)).toEqual(scenario);
+  });
+
+  const OUTPUT = { full_name: 'example-org/demo' };
+  const ERROR = { message: 'Not Found', status: 404 };
+  const ANSWER_MISSING = 'a scenario answers with either an output or an error';
+
+  it.each<[string, Record<string, unknown>, Record<string, unknown>]>([
+    [
+      'both an output and an error',
+      { kind: 'duplicate', output: OUTPUT, error: ERROR },
+      { path: ['error'], message: ANSWER_MISSING },
+    ],
+    [
+      'neither an output nor an error',
+      { kind: 'duplicate' },
+      { path: [], message: ANSWER_MISSING },
+    ],
+    [
+      'a success that answers with an error',
+      { kind: 'success', error: ERROR },
+      { path: ['error'], message: 'a success scenario answers with an output' },
+    ],
+    [
+      'an empty answer that is an error',
+      { kind: 'empty', error: ERROR },
+      { path: ['error'], message: 'an empty scenario answers with an output' },
+    ],
+    [
+      'an error that answers with an output',
+      { kind: 'error', output: OUTPUT },
+      { path: ['output'], message: 'an error scenario answers with an error' },
+    ],
+    [
+      'a refusal that answers with an output',
+      { kind: 'refusal', output: OUTPUT },
+      { path: ['output'], message: 'a refusal scenario answers with an error' },
+    ],
+  ])('refuses %s, naming the answer', (_case, shape, issue) => {
+    const result = connectorScenarioSchema.safeParse({
+      name: 'found',
+      description: 'The repository exists.',
+      ...shape,
+    });
+    expect(result.error?.issues).toEqual([expect.objectContaining(issue)]);
+  });
+
+  it.each([
+    ['in camelCase', 'notFound'],
+    ['with an upper-case letter', 'Found'],
+    ['led by a digit', '1st_page'],
+    ['led by an underscore', '_found'],
+    ['with a dash', 'not-found'],
+    ['with a space', 'not found'],
+    ['that is empty', ''],
+    ['of 51 characters', `a${'b'.repeat(50)}`],
+  ])('refuses a name %s', (_case, name) => {
+    const result = connectorScenarioSchema.safeParse({
+      name,
+      kind: 'success',
+      description: 'The repository exists.',
+      output: OUTPUT,
+    });
+    expect(result.error?.issues).toEqual([
+      expect.objectContaining({
+        path: ['name'],
+        message:
+          'must be snake_case (lower-case, digits, underscores), at most 50 characters',
+      }),
+    ]);
+  });
+
+  it.each<[string, Record<string, unknown>, Record<string, unknown>]>([
+    [
+      'a kind it does not name',
+      { kind: 'timeout' },
+      { path: ['kind'], code: 'invalid_value' },
+    ],
+    [
+      'no description',
+      { description: undefined },
+      { path: ['description'], code: 'invalid_type' },
+    ],
+    [
+      'an empty description',
+      { description: '' },
+      { path: ['description'], code: 'too_small' },
+    ],
+    [
+      'a description past 500 characters',
+      { description: 'd'.repeat(501) },
+      { path: ['description'], code: 'too_big' },
+    ],
+    [
+      'a status below 400',
+      { error: { message: 'Moved', status: 399 } },
+      { path: ['error', 'status'], code: 'too_small' },
+    ],
+    [
+      'a status past 599',
+      { error: { message: 'Odd', status: 600 } },
+      { path: ['error', 'status'], code: 'too_big' },
+    ],
+    [
+      'a status that is not a whole number',
+      { error: { message: 'Not Found', status: 404.5 } },
+      { path: ['error', 'status'], code: 'invalid_type' },
+    ],
+    [
+      'a status given as text',
+      { error: { message: 'Not Found', status: '404' } },
+      { path: ['error', 'status'], code: 'invalid_type' },
+    ],
+    [
+      'an error without a message',
+      { error: { status: 404 } },
+      { path: ['error', 'message'], code: 'invalid_type' },
+    ],
+    [
+      'an empty message',
+      { error: { message: '' } },
+      { path: ['error', 'message'], code: 'too_small' },
+    ],
+    [
+      'a message past 2000 characters',
+      { error: { message: 'm'.repeat(2001) } },
+      { path: ['error', 'message'], code: 'too_big' },
+    ],
+    [
+      'a key a scenario does not take',
+      { delayMs: 100 },
+      { path: [], code: 'unrecognized_keys', keys: ['delayMs'] },
+    ],
+    [
+      'a key an error does not take',
+      { error: { message: 'Not Found', code: 'E_NOT_FOUND' } },
+      { path: ['error'], code: 'unrecognized_keys', keys: ['code'] },
+    ],
+    [
+      'a when given as a list',
+      { when: ['example-org'] },
+      { path: ['when'], code: 'invalid_type' },
+    ],
+    [
+      'a when given as text',
+      { when: 'example-org' },
+      { path: ['when'], code: 'invalid_type' },
+    ],
+  ])('refuses %s', (_case, change, issue) => {
+    const result = connectorScenarioSchema.safeParse({
+      name: 'not_found',
+      kind: 'error',
+      description: 'No repository goes by that name.',
+      error: ERROR,
+      ...change,
+    });
+    expect(result.error?.issues).toEqual([expect.objectContaining(issue)]);
+  });
+
+  /** GitHub with `scenarios` on its read action, `get_repo`. */
+  function withScenarios(scenarios: unknown) {
+    const github = connectorSchema.parse(GITHUB);
+    const [create, read] = github.actions;
+    return { ...github, actions: [create, { ...read, scenarios }] };
+  }
+  const scenario = (name: string) => ({
+    name,
+    kind: 'success',
+    description: 'The repository exists.',
+    output: OUTPUT,
+  });
+
+  it('takes scenarios on an action, which stay optional', () => {
+    const github = connectorSchema.parse(GITHUB);
+    const [create, read] = github.actions;
+    const write = [
+      {
+        name: 'created',
+        kind: 'success',
+        description: 'The issue is opened.',
+        output: {
+          number: 101,
+          url: 'https://example.com/example-org/demo/issues/101',
+        },
+      },
+      {
+        name: 'archived',
+        kind: 'refusal',
+        description: 'The repository is archived and takes no issue.',
+        error: {
+          message: 'Repository was archived so is read-only.',
+          status: 403,
+        },
+      },
+      {
+        name: 'same_title',
+        kind: 'duplicate',
+        description: 'The service refuses the same issue twice.',
+        error: { message: 'Validation Failed', status: 422 },
+      },
+    ];
+    const reads = [
+      scenario('found'),
+      {
+        name: 'empty_name',
+        kind: 'empty',
+        description: 'The repository has no full name.',
+        output: { full_name: '' },
+      },
+      {
+        name: 'not_found',
+        kind: 'error',
+        description: 'No repository goes by that name.',
+        when: { owner: 'nobody' },
+        error: ERROR,
+      },
+    ];
+    const parsed = connectorSchema.parse({
+      ...github,
+      actions: [
+        { ...create, scenarios: write },
+        { ...read, scenarios: reads },
+      ],
+    });
+    expect(parsed.actions[0]?.scenarios).toEqual(write);
+    expect(parsed.actions[1]?.scenarios).toEqual(reads);
+    // An action that ships none stays valid and has none.
+    expect(github.actions[0]?.scenarios).toBeUndefined();
+    expect(
+      connectorSchema.parse(withScenarios([])).actions[1]?.scenarios,
+    ).toEqual([]);
+  });
+
+  it('takes up to 50 scenarios on an action, and a name again on another action', () => {
+    const fifty = Array.from({ length: 50 }, (_, i) => scenario(`case_${i}`));
+    expect(connectorSchema.safeParse(withScenarios(fifty)).success).toBe(true);
+    const github = connectorSchema.parse(GITHUB);
+    const [create, read] = github.actions;
+    expect(
+      connectorSchema.safeParse({
+        ...github,
+        actions: [
+          { ...create, scenarios: [scenario('found')] },
+          { ...read, scenarios: [scenario('found')] },
+        ],
+      }).success,
+    ).toBe(true);
+  });
+
+  it.each<[string, unknown, Record<string, unknown>]>([
+    [
+      'two scenarios of one name',
+      [scenario('found'), { ...scenario('found'), kind: 'duplicate' }],
+      {
+        path: ['actions', 1, 'scenarios'],
+        message: 'scenario names must be unique per action',
+      },
+    ],
+    [
+      'more than 50 scenarios',
+      Array.from({ length: 51 }, (_, i) => scenario(`case_${i}`)),
+      { path: ['actions', 1, 'scenarios'], code: 'too_big' },
+    ],
+    [
+      'scenarios keyed by name instead of listed',
+      { found: scenario('found') },
+      { path: ['actions', 1, 'scenarios'], code: 'invalid_type' },
+    ],
+    [
+      'a scenario that answers twice',
+      [{ ...scenario('found'), error: ERROR }],
+      {
+        path: ['actions', 1, 'scenarios', 0, 'error'],
+        message: ANSWER_MISSING,
+      },
+    ],
+  ])('refuses an action with %s, naming where', (_case, scenarios, issue) => {
+    const result = connectorSchema.safeParse(withScenarios(scenarios));
+    expect(result.error?.issues).toEqual([expect.objectContaining(issue)]);
+  });
+
+  it('names the kinds each action ships at least, by its effect', () => {
+    expect(CONNECTOR_SCENARIO_KINDS).toEqual([
+      'success',
+      'empty',
+      'error',
+      'refusal',
+      'duplicate',
+    ]);
+    expect(MINIMUM_SCENARIO_KINDS).toEqual({
+      read: ['success', 'empty', 'error'],
+      write: ['success', 'refusal', 'duplicate'],
+    });
   });
 });

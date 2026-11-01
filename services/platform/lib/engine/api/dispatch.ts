@@ -1090,7 +1090,7 @@ function testSelection(
     return {
       error: 'the automation has no tests',
       code: 'INVALID_PARAMS',
-      hint: 'add a top-level tests: [{name, input, mocks?, failures?, expect?}] block, or run_automation to try it on one input',
+      hint: 'add a top-level tests: [{name, input, mocks?, failures?, scenarios?, expect?}] block, or run_automation to try it on one input',
     };
   }
   const select = new Set<number>();
@@ -1140,7 +1140,14 @@ function testDetailParam(
 }
 
 /** The params of a run on stand-ins. */
-const BENCH_PARAMS = ['mocks', 'failures', 'upTo', 'only', 'item'] as const;
+const BENCH_PARAMS = [
+  'mocks',
+  'failures',
+  'scenarios',
+  'upTo',
+  'only',
+  'item',
+] as const;
 
 /**
  * The stand-ins and scope a `run_automation` call carries, as the executor
@@ -1157,9 +1164,9 @@ function benchParams(
   const refuse = (field: string, wants: string): ParamRefusal => ({
     error: `params.${field} must be ${wants} — got ${JSON.stringify(p[field])}`,
     code: 'INVALID_PARAMS',
-    hint: 'a run on stand-ins takes mocks {node: its simulated output}, failures {node: a message}, upTo or only (a node id) and item (with only)',
+    hint: 'a run on stand-ins takes mocks {node: its simulated output}, failures {node: a message}, scenarios {node: a scenario its action ships}, upTo or only (a node id) and item (with only)',
   });
-  const { mocks, failures, upTo, only, item } = p;
+  const { mocks, failures, scenarios, upTo, only, item } = p;
   if (mocks !== undefined && !isJsonRecord(mocks)) {
     return refuse(
       'mocks',
@@ -1168,6 +1175,12 @@ function benchParams(
   }
   if (failures !== undefined && !isMessageRecord(failures)) {
     return refuse('failures', 'an object of node ids and a message each');
+  }
+  if (scenarios !== undefined && !isMessageRecord(scenarios)) {
+    return refuse(
+      'scenarios',
+      'an object of node ids and a scenario name each',
+    );
   }
   if (upTo !== undefined && typeof upTo !== 'string') {
     return refuse('upTo', 'a node id');
@@ -1182,6 +1195,7 @@ function benchParams(
     value: {
       ...(mocks !== undefined && { mocks }),
       ...(failures !== undefined && { failures }),
+      ...(scenarios !== undefined && { scenarios }),
       ...(typeof upTo === 'string' && { upTo }),
       ...(typeof only === 'string' && { only }),
       ...(typeof item === 'number' && { item }),
@@ -1875,6 +1889,11 @@ export async function dispatch(
             // The same signature as a JSON Schema — what validation types
             // a reference to this node's output against.
             entry.outputSchema = connectorOutputShape(t.connector);
+            // The cases a test can pick for this action (`scenarios` of
+            // run_automation and of a test), with what each answers.
+            if (t.connector.scenarios?.length) {
+              entry.scenarios = t.connector.scenarios;
+            }
           }
         }
         node_types.push(entry);

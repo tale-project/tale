@@ -139,6 +139,7 @@ describe('the words of a changed test', () => {
         'input',
         'mocks',
         'failures',
+        'scenarios',
         'expect.output',
         'expect.outputIncludes',
         'expect.effects',
@@ -150,6 +151,7 @@ describe('the words of a changed test', () => {
       'tests.fields.input',
       'tests.fields.mocks',
       'tests.fields.failures',
+      'tests.fields.scenarios',
       'tests.fields.expectOutput',
       'tests.fields.expectOutput',
       'tests.fields.expectActions',
@@ -182,6 +184,20 @@ describe('the words of a changed test', () => {
     ).tests;
     expect(testChangeSummary(test!, ctx)).toBe(
       'compare.summary.node:{"fields":"tests.fields.mocks and tests.fields.expectOutput","count":2}',
+    );
+  });
+
+  it('names a changed scenario pick by the test’s Scenarios', () => {
+    const [test] = diffAutomationDocuments(
+      withTest({ name: 'greets', input: {}, scenarios: { collect: 'empty' } }),
+      withTest({
+        name: 'greets',
+        input: {},
+        scenarios: { collect: 'refused' },
+      }),
+    ).tests;
+    expect(testChangeSummary(test!, ctx)).toBe(
+      'compare.summary.node:{"fields":"tests.fields.scenarios","count":1}',
     );
   });
 
