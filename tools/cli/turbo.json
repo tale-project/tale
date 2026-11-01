@@ -143,6 +143,7 @@
         "$TURBO_ROOT$/services/sandbox/src/session/runnerd-protocol.ts",
         "$TURBO_ROOT$/services/sandbox/src/session/session-profile.ts",
         "$TURBO_ROOT$/services/sandbox/src/spawn-util.ts",
+        "$TURBO_ROOT$/services/sandbox/src/wall-clock.ts",
         "$TURBO_ROOT$/services/platform/backend/db/migrations/**",
         "$TURBO_ROOT$/services/db/migrations/knowledge-db/**",
         "$TURBO_ROOT$/services/proxy/docker-entrypoint.sh",
