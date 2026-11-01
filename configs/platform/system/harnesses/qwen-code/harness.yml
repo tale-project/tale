@@ -78,16 +78,16 @@ exec:
                 tools:
                   exclude: [web_search, web_fetch]
             # MCP servers via the settings `mcpServers` map — the fork kept
-            # gemini-cli's env-resolved settings strings, so the bridge
-            # token rides `${TALE_GATEWAY_TOKEN}` and the staged settings
-            # file never contains the key itself.
+            # gemini-cli's env-resolved settings strings, so the bridge's
+            # bearer token rides `${TALE_GATEWAY_TOKEN}` and the staged
+            # settings file never contains the key itself. The bridge is the
+            # platform's MCP server, reached over HTTP (`httpUrl`: the fork
+            # reads a bare `url` as SSE), so no relay process starts.
             - mcpServers:
                 path: mcpServers
                 serverShape: command-args
-                bridgeEnvField: env
-                bridgeEnv:
-                  TALE_CONNECTORS_URL: '${bridgeUrl}'
-                  TALE_CONNECTORS_TOKEN: '${TALE_GATEWAY_TOKEN}'
+                bridgeHeaders:
+                  Authorization: 'Bearer ${TALE_GATEWAY_TOKEN}'
       - instructions: { key: system_prompt }
   env:
     # MANAGED: OpenAI-compatible route on the platform gateway — the fork

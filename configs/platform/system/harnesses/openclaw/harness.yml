@@ -134,7 +134,10 @@ exec:
             # env-template-resolved, so the wrapper substitutes
             # `${TALE_GATEWAY_TOKEN}` from its own environ when staging the
             # config (mcp env values only) — the payload that crosses the
-            # exec API still carries the placeholder, not the key.
+            # exec API still carries the placeholder, not the key. It keeps
+            # the relay rather than the platform's MCP server: a bearer
+            # header would put the key in the staged config itself, a file
+            # the agent can read.
             - mcpServers:
                 path: mcp.servers
                 serverShape: command-args

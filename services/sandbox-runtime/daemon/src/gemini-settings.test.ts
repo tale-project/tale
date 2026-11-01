@@ -92,10 +92,8 @@ describe('Gemini immutable system settings', () => {
           tools: { exclude: ['google_web_search', 'web_fetch'] },
           mcpServers: {
             connectors: {
-              env: {
-                TALE_CONNECTORS_URL: '${TALE_GEMINI_BRIDGE_URL}',
-                TALE_CONNECTORS_TOKEN: '${TALE_GATEWAY_TOKEN}',
-              },
+              httpUrl: '${TALE_GEMINI_BRIDGE_URL}/mcp',
+              headers: { Authorization: 'Bearer ${TALE_GATEWAY_TOKEN}' },
             },
           },
         },
@@ -132,7 +130,16 @@ describe('Gemini immutable system settings', () => {
       mcpServers: {
         connectors: {
           command: 'untrusted',
-          env: { TALE_CONNECTORS_URL: 'https://wrong.invalid' },
+          httpUrl: 'https://wrong.invalid/mcp',
+          headers: { Authorization: 'Bearer ${TALE_GATEWAY_TOKEN}' },
+        },
+      },
+    },
+    {
+      mcpServers: {
+        connectors: {
+          httpUrl: 'https://platform.invalid/bridge/mcp',
+          headers: { Authorization: 'Bearer untrusted' },
         },
       },
     },
@@ -144,6 +151,24 @@ describe('Gemini immutable system settings', () => {
     expect(result.stdout).toContain('settings do not match this sandbox image');
     expect(result.stdout).not.toContain('"argv"');
   });
+
+  pyTest.each([
+    { command: 'tale-connectors-mcp', env: { TALE_CONNECTORS_URL: 'u' } },
+    { httpUrl: 'https://platform.invalid/bridge' },
+    { httpUrl: '/mcp' },
+  ])(
+    "refuses connector settings without the bridge's MCP server URL: %j",
+    (connectors) => {
+      const payload = JSON.parse(geminiPayload(root));
+      payload.settings.mcpServers = { connectors };
+      const result = run(JSON.stringify(payload));
+      expect(result.status).toBe(1);
+      expect(result.stdout).toContain(
+        'connector settings must contain a bridge URL',
+      );
+      expect(result.stdout).not.toContain('"argv"');
+    },
+  );
 
   pyTest(
     "returns the CLI exit code, and the next exec removes the failed one's private context",
