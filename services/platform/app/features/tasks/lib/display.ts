@@ -100,6 +100,9 @@ export const TASK_ACTIVITY_LABEL_KEY: Record<string, string> = {
   'dependency.added': 'activity.dependencyAdded',
   'dependency.removed': 'activity.dependencyRemoved',
   'agent_run.refused': 'activity.agentRunRefused',
+  'mention_handoff.started': 'activity.mentionHandoffStarted',
+  'mention_handoff.refused': 'activity.mentionHandoffRefused',
+  'mention_handoff.dropped': 'activity.mentionHandoffDropped',
 };
 
 /**
@@ -121,6 +124,8 @@ export type TaskActivityValueKind =
   | 'repeat'
   /** A run-admission refusal code. */
   | 'refusal'
+  /** Why a handoff by mention started nobody, or is no longer wanted. */
+  | 'handoff'
   /** A reviewer choice with its actor kind, or a legacy member id. */
   | 'reviewer'
   /** A durable agent review decision, summarized without exposing its payload. */
@@ -181,6 +186,10 @@ export const TASK_ACTIVITY_FIELD: Record<string, TaskActivityField> = {
     emptyKey: 'activity.empty.attachments',
   },
   'agent_run.refused': { kind: 'refusal' },
+  // The agent a mention handed the task to; the reason one did not.
+  'mention_handoff.started': { kind: 'person' },
+  'mention_handoff.refused': { kind: 'handoff' },
+  'mention_handoff.dropped': { kind: 'handoff' },
   // The blocker task's id, and the next task's key: shown as stored.
   'dependency.added': { kind: 'text' },
   'dependency.removed': { kind: 'text' },
@@ -213,6 +222,38 @@ export const TASK_RUN_REFUSAL_LABEL_KEY: Record<string, string> = {
   automation_disabled: 'agentRuns.refused.automation_disabled',
   budget_paused: 'agentRuns.refused.budget_paused',
   task_circuit_breaker: 'agentRuns.refused.task_circuit_breaker',
+};
+
+/**
+ * Maps the reason a handoff by mention started nobody or was dropped (the
+ * `toValue` of a `mention_handoff.refused` or `mention_handoff.dropped`
+ * row; `MentionHandoffRefusal` and `MentionHandoffDrop` in
+ * `backend/domains/tasks/mention-handoffs.ts`) to its `tasks` i18n key.
+ * Unknown codes fall back to the raw string at the call site. Lowercase
+ * phrases: they render mid-sentence in the timeline.
+ */
+export const TASK_HANDOFF_REASON_LABEL_KEY: Record<string, string> = {
+  no_start_grant: 'activity.handoff.no_start_grant',
+  second_hop: 'activity.handoff.second_hop',
+  confined: 'activity.handoff.confined',
+  in_review: 'activity.handoff.in_review',
+  automation_holds_task: 'activity.handoff.automation_holds_task',
+  automation_disabled: 'activity.handoff.automation_disabled',
+  task_circuit_breaker: 'activity.handoff.task_circuit_breaker',
+  blocked: 'activity.handoff.blocked',
+  no_review_context: 'activity.handoff.no_review_context',
+  agent_unavailable: 'activity.handoff.agent_unavailable',
+  review_unavailable: 'activity.handoff.review_unavailable',
+  start_refused: 'activity.handoff.start_refused',
+  closed: 'activity.handoff.closed',
+  archived: 'activity.handoff.archived',
+  assigned_to_person: 'activity.handoff.assigned_to_person',
+  comment_deleted: 'activity.handoff.comment_deleted',
+  already_working: 'activity.handoff.already_working',
+  grant_lost: 'activity.handoff.grant_lost',
+  starter_lost: 'activity.handoff.starter_lost',
+  review_decided: 'activity.handoff.review_decided',
+  superseded: 'activity.handoff.superseded',
 };
 
 /** Statuses that count a blocker as resolved (no longer blocking its dependents). */
