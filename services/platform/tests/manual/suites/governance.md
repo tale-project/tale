@@ -1,6 +1,6 @@
 # Governance
 
-> **Prefix** `GOV-` · **Reset** none · **Cost** 105 boxes
+> **Prefix** `GOV-` · **Reset** none · **Cost** 106 boxes
 
 Exercise the org-wide governance controls — content/model defaults, guardrails
 (content-safety / PII / moderation), policies & limits (budgets, upload,
@@ -944,6 +944,20 @@ agent.
   (`governance.chatToolStatus.checkAgain`) moves **Checked at** to now. A
   Member does not see the section. Restore **Code** and switch image
   generation off.
+- [ ] `GOV-F81` · **Run check starts a light sandbox, or names what failed** —
+  Mode A with the sandbox service: under **Chat tool status** (GOV-F72) press
+  **Run check** (`governance.chatToolStatus.runCheck.run`) → the button spins
+  and `governance.chatToolStatus.runCheck.running` reads below it; within a
+  minute **Passed** (`governance.chatToolStatus.runCheck.passed`) with
+  **Checked at** now (`governance.chatToolStatus.checkedAt`) beside it, and
+  **All … document libraries are installed, and the sandbox made a Word
+  file** (`governance.chatToolStatus.runCheck.passedDetail`). Settings >
+  Sandboxes then lists no **Light sandbox** row of the check. Stop the spawner
+  and run it again → **Failed** with **The sandbox service can't be reached.**
+  (`chat.thinking.outcome.sandboxUnreachable`), never the spawner's own words
+  or a host name; start the spawner. With **Light sandboxes** at 1 and a chat's
+  program still running (CHAT-F76) → **All light sandboxes are in use.**
+  (`chat.thinking.outcome.sandboxesBusy`).
 - [ ] `GOV-F49` · **An erasure deletes the subject's workspaces** — With a
   Member whose own run of a project agent is listed on Sandboxes
   (`SET-F71`'s setup), file and run an erasure for them (`GOV-F8`) → the
