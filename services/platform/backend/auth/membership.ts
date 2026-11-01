@@ -70,6 +70,21 @@ export async function getUserOrganizations(
   }));
 }
 
+/**
+ * Every member row of a user, roles as stored. The process's cache keeps
+ * exactly these rows per user (`request-cache.ts`), so whoever reads them
+ * through it reads them here.
+ */
+export async function readUserMemberRows(
+  sql: Sql | TransactionSql,
+  userId: string,
+): Promise<OrganizationMember[]> {
+  return sql<OrganizationMember[]>`
+    SELECT "id", "organizationId", "userId", "role" FROM "member"
+    WHERE "userId" = ${userId}
+  `;
+}
+
 /** The user's member row in one org, or null. Role normalized lowercase. */
 export async function findOrganizationMember(
   sql: Sql | TransactionSql,
@@ -178,12 +193,7 @@ export async function requireOrganizationMembership(
       'ORG_ID_REQUIRED',
     );
   }
-  const rows = await through(
-    async () => sql<OrganizationMember[]>`
-      SELECT "id", "organizationId", "userId", "role" FROM "member"
-      WHERE "userId" = ${userId}
-    `,
-  );
+  const rows = await through(async () => readUserMemberRows(sql, userId));
   const row = rows.find(
     (candidate) => candidate.organizationId === organizationId,
   );

@@ -123,6 +123,7 @@ import {
   sessionOrganizationId,
 } from './session-authority.ts';
 import { sessionCookieCacheOption } from './session-cache.ts';
+import { sessionExpiryToWrite } from './session-refresh.ts';
 import type { SessionBundle } from './session.ts';
 import {
   openSignUpEnabled,
@@ -967,7 +968,8 @@ export function createAuth(config: AuthConfig) {
     session: {
       // Sliding idle window when SESSION_IDLE_TIMEOUT_MINUTES is set; else
       // default lifetime with updateAge tightened so `updatedAt` tracks
-      // activity for the per-org idle-revocation sweep.
+      // activity for the per-org idle-revocation sweep — five minutes, and a
+      // minute for a user an org's window covers (the session hooks below).
       ...sessionIdleWindowSeconds(),
       // Off unless SESSION_COOKIE_CACHE_SECONDS is set: a cached session
       // skips the database on ordinary requests, at the price of revocation
@@ -1027,7 +1029,7 @@ export function createAuth(config: AuthConfig) {
     databaseHooks: {
       session: {
         create: {
-          before: (session, ctx) => {
+          before: async (session, ctx) => {
             const mint = ctx === null ? null : sessionMintAuthority(ctx);
             if (mint !== null && mint.userId !== session.userId)
               throw refuseScopedSession();
@@ -1036,9 +1038,16 @@ export function createAuth(config: AuthConfig) {
               ctx?.path === '/reauthenticate' ||
               ctx?.path === '/two-factor/verify-totp' ||
               ctx?.path === '/two-factor/verify-backup-code';
-            return Promise.resolve({
+            return {
               data: {
                 ...session,
+                // Due for its first refresh in a minute when an idle window
+                // covers the user, in five otherwise (`session-refresh.ts`).
+                expiresAt: await sessionExpiryToWrite(sql, {
+                  userId: session.userId,
+                  expiresAt: session.expiresAt,
+                  now: Date.now(),
+                }),
                 ...(mint === null
                   ? {}
                   : {
@@ -1054,8 +1063,26 @@ export function createAuth(config: AuthConfig) {
                   ? { independentIdentityVerifiedAt: new Date() }
                   : {}),
               },
-            });
+            };
           },
+        },
+        update: {
+          // A refresh, the one update that writes `expiresAt`, slides the
+          // session the same way: a minute under an idle window, five
+          // minutes outside one (`session-refresh.ts`). Any other update
+          // goes through as it is.
+          before: async (session, ctx) => ({
+            data:
+              session.expiresAt instanceof Date
+                ? {
+                    expiresAt: await sessionExpiryToWrite(sql, {
+                      userId: ctx?.context.session?.session.userId ?? null,
+                      expiresAt: session.expiresAt,
+                      now: Date.now(),
+                    }),
+                  }
+                : {},
+          }),
         },
       },
       user: {
