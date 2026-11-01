@@ -200,6 +200,8 @@ Jede Ablehnung kommt im Fehlerformat der Schnittstelle, die du aufgerufen hast, 
 | --- | --- |
 | `401 UNAUTHORIZED` | Sende den Schlüssel als `Authorization: Bearer`, nie als `x-api-key`. Setze für Claude Code `ANTHROPIC_AUTH_TOKEN` und entferne `ANTHROPIC_API_KEY`; übergib den Schlüssel bei den Anthropic-SDKs als `auth_token` oder `authToken`. Auch ein widerrufener oder abgelaufener Schlüssel führt zu `401`. |
 | `400 ORG_SLUG_REQUIRED` | Du gehörst mehreren Organisationen an. Sende `X-Organization-Slug` mit. |
+| `403 API_KEY_PERSONAL_REFUSED` | Die Organisation nimmt keine Schlüssel an, die Mitglieder für sich selbst erstellen. Bitte einen Inhaber oder Admin dort, einen Schlüssel für dich zu erstellen, oder nenne in `X-Organization-Slug` eine andere deiner Organisationen. |
+| `503 PERSONAL_KEYS_POLICY_UNAVAILABLE` | Tale kann nicht lesen, ob die Organisation eigene Schlüssel der Mitglieder annimmt, und weist sie ab, bis es wieder geht. Warte gemäß `Retry-After` und versuche es erneut. |
 | `403 MODEL_API_DISABLED` | Die Organisation hat die Endpunkte nicht eingeschaltet. Wende dich an einen Admin. |
 | `403 MODEL_API_FORBIDDEN` | Deine Rolle darf sie nicht aufrufen. Frag einen Admin nach dem Recht **Modelle über die API aufrufen**. |
 | `404 MODEL_API_MODEL_UNKNOWN` | Die ID steht nicht auf deiner Liste. Kopiere eine aus `GET /api/v1/openai/models` oder dem Tab **Modelle**, samt Slug des Anbieters. |
