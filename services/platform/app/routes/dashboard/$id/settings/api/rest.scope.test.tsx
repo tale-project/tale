@@ -116,6 +116,10 @@ const scopeLabel = () => i18n.t('apiKeys.scope.label', { ns: 'settings' });
 const allKeys = () => i18n.t('apiKeys.scope.all', { ns: 'settings' });
 const allKeysDescription = () =>
   i18n.t('apiKeys.allKeysDescription', { ns: 'settings' });
+const refusedNotice = () =>
+  i18n.t('apiKeys.scope.personalKeysRefused', { ns: 'settings' });
+const unavailableNotice = () =>
+  i18n.t('apiKeys.scope.personalKeysUnavailable', { ns: 'settings' });
 
 describe('the API keys page’s choice of keys [APIKEY-R8]', () => {
   it('lists every key that works here when an Owner or Admin asks for it', async () => {
@@ -165,6 +169,37 @@ describe('the API keys page’s choice of keys [APIKEY-R8]', () => {
     expect(screen.getByText('CI deploy key')).toBeInTheDocument();
     expect(screen.getAllByText(blockedHere)).toHaveLength(1);
   });
+
+  it.each([
+    ['refused', refusedNotice],
+    ['unavailable', unavailableNotice],
+  ] as const)(
+    'says why every key here holds no member’s own key while they are %s [APIKEY-R12]',
+    async (personalKeys, notice) => {
+      h.member = { status: 'ok', userId: 'ada', role: 'owner', isAdmin: true };
+      // The door refuses every person's own key then, the Owner's too, so
+      // the server lists only the keys bound here.
+      backend.on(ALL, () => Response.json({ keys: [], personalKeys }));
+      const { user } = renderPage();
+
+      expect(await screen.findByText('CI deploy key')).toBeInTheDocument();
+      expect(document.body).not.toHaveTextContent(notice());
+
+      await user.click(screen.getByRole('radio', { name: allKeys() }));
+      expect(await screen.findByText(notice())).toBeVisible();
+      expect(screen.queryByText('Laptop')).not.toBeInTheDocument();
+      expect(screen.queryByText('CI deploy key')).not.toBeInTheDocument();
+
+      // The keys the Owner manages still hold their own, with no notice.
+      await user.click(
+        screen.getByRole('radio', {
+          name: i18n.t('apiKeys.scope.managed', { ns: 'settings' }),
+        }),
+      );
+      expect(await screen.findByText('CI deploy key')).toBeInTheDocument();
+      expect(document.body).not.toHaveTextContent(notice());
+    },
+  );
 
   it('gives a member no choice, and asks only for the keys they manage', async () => {
     h.member = { status: 'ok', userId: 'mia', role: 'member', isAdmin: false };

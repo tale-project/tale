@@ -11,6 +11,7 @@ import { API_KEY_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 import type {
   ApiKey,
+  ApiKeyListing,
   ApiKeyListScope,
   ApiKeyOwnerInput,
   MemberPersonalApiKeys,
@@ -32,9 +33,10 @@ interface CreateApiKeyResult {
  * loader warms the very entry the table reads: the viewer's own keys, the
  * keys made for them here and — for an Owner or Admin — every key bound to
  * the organization. An Owner or Admin may also ask for every key that works
- * here (`all`), which adds the members' own keys. Keyed under the `api_key`
- * hint entity, so a key another admin makes or ends here refreshes the open
- * list.
+ * here (`all`), which adds the members' own keys while they work here and
+ * says whether they do (`personalKeys`). Keyed under the `api_key` hint
+ * entity, so a key another admin makes or ends here, or the switch for the
+ * members' own keys, refreshes the open list.
  */
 export function apiKeysQuery(
   organizationId: string,
@@ -51,12 +53,12 @@ export function apiKeysQuery(
             scope,
           ),
     queryFn: ({ signal }) =>
-      backendFetch<{ keys: ApiKey[] }>(
+      backendFetch<ApiKeyListing>(
         scope === 'managed'
           ? '/api-keys'
           : `/api-keys?${new URLSearchParams({ scope })}`,
         { orgId: organizationId, signal },
-      ).then((body) => body.keys),
+      ),
     // Every key that works here also changes when a member is disabled or
     // leaves, which sends no `api_key` hint: read afresh each time the view
     // opens, never from the router's stale window.

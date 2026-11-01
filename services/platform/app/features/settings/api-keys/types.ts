@@ -1,3 +1,5 @@
+import type { ReturnsOf } from '@/app/lib/backend/contract';
+
 /**
  * Whose key it is. `user`: the viewer's own key, which works in every
  * organization they belong to. `personal`: another member's own key, which
@@ -30,6 +32,14 @@ export type ApiKeyOwner =
  * or Admin — every key that works here, the members' own keys included.
  */
 export type ApiKeyListScope = 'managed' | 'all';
+
+/**
+ * Whether the organization lets its members' own keys in (APIKEY-R12):
+ * `refused` while an Owner or Admin turned them off here, `unavailable` while
+ * the setting cannot be read, which refuses them too.
+ */
+export type PersonalKeysStanding =
+  ReturnsOf<'governance/queries:getMyApiKeyAccess'>['personalKeys'];
 
 /** The role a team's, a project's or the organization's key acts with. */
 export type ApiKeyRole = 'member' | 'editor' | 'developer' | 'admin';
@@ -73,6 +83,16 @@ export interface ApiKey {
    * Absent from a server that predates blocks.
    */
   blockedHere?: boolean;
+}
+
+/**
+ * What `GET /api/app/api-keys` answers. The list of every key also says
+ * whether the members' own keys work here: while they do not, it lists none
+ * of them.
+ */
+export interface ApiKeyListing {
+  keys: ApiKey[];
+  personalKeys?: PersonalKeysStanding;
 }
 
 /** Whose key a new one is, as the create dialog chooses it. */

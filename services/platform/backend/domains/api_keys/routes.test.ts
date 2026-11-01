@@ -193,7 +193,9 @@ describe('DELETE /api/app/api-keys/:keyId', () => {
 
 describe('GET /api/app/api-keys', () => {
   it('lists the keys the signed-in member may see here', async () => {
-    service.listApiKeysForViewer.mockResolvedValueOnce([{ id: 'key-1' }]);
+    service.listApiKeysForViewer.mockResolvedValueOnce({
+      keys: [{ id: 'key-1' }],
+    });
     const res = await app().request('/');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ keys: [{ id: 'key-1' }] });
@@ -209,7 +211,7 @@ describe('GET /api/app/api-keys', () => {
 
   it('tells the list when the session covers this organization alone [APIKEY-R13]', async () => {
     session.trustedOrganizationId = 'org-1';
-    service.listApiKeysForViewer.mockResolvedValueOnce([]);
+    service.listApiKeysForViewer.mockResolvedValueOnce({ keys: [] });
     await app().request('/');
     expect(service.listApiKeysForViewer.mock.calls[0]?.[1]).toMatchObject({
       sessionBound: true,
@@ -217,7 +219,7 @@ describe('GET /api/app/api-keys', () => {
   });
 
   it('passes on a request for every key here, and refuses any other scope [APIKEY-R8]', async () => {
-    service.listApiKeysForViewer.mockResolvedValueOnce([]);
+    service.listApiKeysForViewer.mockResolvedValueOnce({ keys: [] });
     const all = await app().request('/?scope=all');
     expect(all.status).toBe(200);
     expect(await all.json()).toEqual({ keys: [] });
@@ -227,6 +229,17 @@ describe('GET /api/app/api-keys', () => {
     expect(bogus.status).toBe(400);
     expect(await bogus.json()).toMatchObject({ code: 'INVALID_QUERY' });
     expect(service.listApiKeysForViewer).toHaveBeenCalledTimes(1);
+  });
+
+  it('answers every key here with whether the members’ own keys work here [APIKEY-R12]', async () => {
+    service.listApiKeysForViewer.mockResolvedValueOnce({
+      keys: [],
+      personalKeys: 'refused',
+    });
+    const all = await app().request('/?scope=all');
+    expect(all.status).toBe(200);
+    expect(await all.json()).toEqual({ keys: [], personalKeys: 'refused' });
+    expect(service.listApiKeysForViewer.mock.calls[0]?.[2]).toBe('all');
   });
 });
 

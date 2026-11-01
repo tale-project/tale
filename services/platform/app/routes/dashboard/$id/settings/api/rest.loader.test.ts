@@ -85,7 +85,9 @@ describe('API REST route loader', () => {
     } finally {
       settle();
     }
-    await waitFor(() => expect(queryClient.getQueryData(queryKey)).toEqual([]));
+    await waitFor(() =>
+      expect(queryClient.getQueryData(queryKey)).toEqual({ keys: [] }),
+    );
   });
 
   it('returns while a cold offline read is paused, without calling transport', () => {

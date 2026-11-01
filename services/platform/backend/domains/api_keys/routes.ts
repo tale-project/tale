@@ -30,7 +30,8 @@ import {
  *    they belong to), the keys made for them here and, for an Owner or
  *    Admin, every key bound to this organization. An Owner or Admin may ask
  *    for every key that works here (`scope=all`), which adds the members'
- *    own keys, read-only.
+ *    own keys, read-only, and says whether the organization lets them in
+ *    (`personalKeys`, APIKEY-R12): while it does not, none of them is listed.
  *  - `POST /` makes a key for another member, a team, a project or the
  *    organization (Owners and Admins). A person's own key is still made at
  *    the api-key plugin's `/api/auth/api-key/create`, behind its create gate
@@ -119,8 +120,8 @@ export function createApiKeyRoutes(deps: {
         400,
       );
     }
-    return c.json({
-      keys: await listApiKeysForViewer(
+    return c.json(
+      await listApiKeysForViewer(
         deps.sql,
         {
           organizationId: c.get('orgId'),
@@ -132,7 +133,7 @@ export function createApiKeyRoutes(deps: {
         },
         query.data.scope,
       ),
-    });
+    );
   });
 
   app.post('/', async (c) => {

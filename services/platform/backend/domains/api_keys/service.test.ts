@@ -7,6 +7,7 @@ import { mayConnectAgentIn } from '../../auth/api-key-create-gate.ts';
 import type { Auth } from '../../auth/auth.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { notifyUser } from '../collab/service.ts';
+import { personalKeysStandingOf } from './personal-keys.ts';
 import {
   API_KEY_CREATED_NOTIFICATION_TYPE,
   type ApiKeyActor,
@@ -39,6 +40,9 @@ vi.mock('../collab/service.ts', () => ({
 }));
 vi.mock('../../realtime/outbox.ts', () => ({
   emitHintInTx: vi.fn(() => Promise.resolve()),
+}));
+vi.mock('./personal-keys.ts', () => ({
+  personalKeysStandingOf: vi.fn(() => Promise.resolve('admitted')),
 }));
 
 const ORG = 'org-1';
@@ -813,9 +817,12 @@ describe('listApiKeysForViewer', () => {
       expect(statements[0]?.values.slice(3, 6)).toEqual(['mia', ORG, admin]);
       // A member's keys are the ones made for them here.
       expect(statements[0]?.values[6]).toBe('mia');
-      // The members' own keys stay out of the keys a viewer manages.
+      // The members' own keys stay out of the keys a viewer manages, and
+      // the viewer's own stay in: they are theirs to end wherever they work.
       expect(statements[0]?.values[7]).toBe(false);
+      expect(statements[0]?.values[8]).toBe(true);
     }
+    expect(personalKeysStandingOf).not.toHaveBeenCalled();
   });
 
   it('adds the members’ own keys only when an Owner or Admin asks for every key [APIKEY-R8]', async () => {
@@ -827,7 +834,8 @@ describe('listApiKeysForViewer', () => {
       ['admin', 'managed', false],
     ] as const) {
       const { sql, statements } = fakeSql();
-      await listApiKeysForViewer(
+      vi.mocked(personalKeysStandingOf).mockClear();
+      const listing = await listApiKeysForViewer(
         sql,
         { organizationId: ORG, userId: 'mia', role },
         scope,
@@ -836,6 +844,14 @@ describe('listApiKeysForViewer', () => {
       // Only a member of this organization's own key joins, by its holder.
       expect(statement?.values[2]).toBe(ORG);
       expect(statement?.values[7]).toBe(everyKey);
+      // Whether the organization lets them in is asked for every key alone.
+      expect(vi.mocked(personalKeysStandingOf).mock.calls).toEqual(
+        everyKey ? [[sql, ORG]] : [],
+      );
+      expect(statement?.values[8]).toBe(true);
+      expect(listing).toEqual(
+        everyKey ? { keys: [], personalKeys: 'admitted' } : { keys: [] },
+      );
       // Only while it can act here: no disabled member's key, and no
       // disabled or expired key.
       expect(statement?.text).toContain(`lower(m."role") <> 'disabled'`);
@@ -843,6 +859,27 @@ describe('listApiKeysForViewer', () => {
       expect(statement?.text).toContain('k."expiresAt" > now()');
     }
   });
+
+  it.each(['refused', 'unavailable'] as const)(
+    'lists no one’s own key among every key while the organization’s standing is %s, and says so [APIKEY-R8] [APIKEY-R12]',
+    async (standing) => {
+      vi.mocked(personalKeysStandingOf).mockResolvedValueOnce(standing);
+      const { sql, statements } = fakeSql();
+      const listing = await listApiKeysForViewer(
+        sql,
+        { organizationId: ORG, userId: 'ada', role: 'owner' },
+        'all',
+      );
+      expect(personalKeysStandingOf).toHaveBeenCalledWith(sql, ORG);
+      // The door refuses every person's own key then, the viewer's too:
+      // only the keys bound here stay.
+      expect(statements[0]?.text).toContain(
+        'AND (o.api_key_id IS NOT NULL OR ?::boolean) ORDER BY',
+      );
+      expect(statements[0]?.values[8]).toBe(false);
+      expect(listing).toEqual({ keys: [], personalKeys: standing });
+    },
+  );
 
   it('shows another member’s own key with its holder, read-only and with no last use [APIKEY-R8]', async () => {
     const lastRequest = new Date('2026-10-20T08:00:00.000Z');
@@ -859,7 +896,7 @@ describe('listApiKeysForViewer', () => {
         }),
       ],
     });
-    const keys = await listApiKeysForViewer(
+    const { keys } = await listApiKeysForViewer(
       sql,
       { organizationId: ORG, userId: 'ada', role: 'admin' },
       'all',
@@ -912,7 +949,7 @@ describe('listApiKeysForViewer', () => {
         row({ id: 'org', ownerKind: 'organization', role: 'admin' }),
       ],
     });
-    const keys = await listApiKeysForViewer(sql, {
+    const { keys } = await listApiKeysForViewer(sql, {
       organizationId: ORG,
       userId: 'ada',
       role: 'admin',
@@ -954,7 +991,7 @@ describe('listApiKeysForViewer', () => {
     const { sql, statements } = fakeSql({
       listed: [row({ id: 'own', blockedHere: true }), row({ id: 'other' })],
     });
-    const keys = await listApiKeysForViewer(sql, {
+    const { keys } = await listApiKeysForViewer(sql, {
       organizationId: ORG,
       userId: 'mia',
       role: 'member',
@@ -972,7 +1009,7 @@ describe('listApiKeysForViewer', () => {
   it('leaves another member’s own key blocked here out of every key, and keeps the viewer’s own with its mark [APIKEY-R8]', async () => {
     // Mia's own key is blocked here: her own list still shows it, marked.
     const mia = fakeSql({ listed: [row({ id: 'laptop', blockedHere: true })] });
-    const own = await listApiKeysForViewer(mia.sql, {
+    const { keys: own } = await listApiKeysForViewer(mia.sql, {
       organizationId: ORG,
       userId: 'mia',
       role: 'member',
@@ -980,7 +1017,7 @@ describe('listApiKeysForViewer', () => {
     expect(own).toMatchObject([{ id: 'laptop', blockedHere: true }]);
     // An admin's own blocked key keeps its place and its mark in every key.
     const ada = fakeSql({ listed: [row({ id: 'own', blockedHere: true })] });
-    const all = await listApiKeysForViewer(
+    const { keys: all } = await listApiKeysForViewer(
       ada.sql,
       { organizationId: ORG, userId: 'ada', role: 'admin' },
       'all',
@@ -1041,7 +1078,9 @@ describe('listApiKeysForViewer — who may end a key [APIKEY-R13]', () => {
       [{ userId: 'olav', role: 'owner' }, true],
     ] as const) {
       const { sql } = fakeSql({ listed: [ownersOwn] });
-      const [key] = await listApiKeysForViewer(sql, {
+      const {
+        keys: [key],
+      } = await listApiKeysForViewer(sql, {
         organizationId: ORG,
         ...viewer,
       });
@@ -1055,7 +1094,9 @@ describe('listApiKeysForViewer — who may end a key [APIKEY-R13]', () => {
       { ...ownersOwn, principalRole: 'member' },
     ]) {
       const { sql } = fakeSql({ listed: [listed] });
-      const [key] = await listApiKeysForViewer(sql, {
+      const {
+        keys: [key],
+      } = await listApiKeysForViewer(sql, {
         organizationId: ORG,
         userId: 'ada',
         role: 'admin',
@@ -1077,7 +1118,9 @@ describe('listApiKeysForViewer — who may end a key [APIKEY-R13]', () => {
       [false, true],
     ] as const) {
       const { sql } = fakeSql({ listed: [own] });
-      const [key] = await listApiKeysForViewer(sql, {
+      const {
+        keys: [key],
+      } = await listApiKeysForViewer(sql, {
         organizationId: ORG,
         userId: 'ada',
         role: 'admin',

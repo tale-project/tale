@@ -27,6 +27,10 @@ import {
   SCOPED_SERVICE_KEY_ROLES,
   type ServiceKeyRole,
 } from './owners.ts';
+import {
+  type PersonalKeysStanding,
+  personalKeysStandingOf,
+} from './personal-keys.ts';
 import { revokeBoundKeysInTx } from './retire.ts';
 
 /**
@@ -620,6 +624,14 @@ export interface ListedApiKey {
   blockedHere: boolean;
 }
 
+/** The keys, and — in the list of every key — whether the organization lets
+ * its members' own keys in (APIKEY-R12), so the page can say why it lists
+ * none of them. */
+export interface ApiKeyListing {
+  keys: ListedApiKey[];
+  personalKeys?: PersonalKeysStanding;
+}
+
 interface ListedRow {
   id: string;
   name: string | null;
@@ -685,7 +697,10 @@ const LISTED_KEY_LIMIT = 1000;
  * organization's own. An Owner or Admin who asks for all keys also gets the
  * live keys the organization's members made for themselves, which work here
  * too: read-only, and without their last use, which the key records across
- * every organization its holder belongs to.
+ * every organization its holder belongs to. That list follows the REST door:
+ * while the organization refuses its members' own keys (APIKEY-R12), or its
+ * setting cannot be read, it holds none of them, the viewer's own included,
+ * and says which.
  */
 export async function listApiKeysForViewer(
   db: Db,
@@ -698,9 +713,18 @@ export async function listApiKeysForViewer(
     sessionBound?: boolean;
   },
   scope: ApiKeyListScope = 'managed',
-): Promise<ListedApiKey[]> {
+): Promise<ApiKeyListing> {
   const admin = isAdminRole(viewer.role);
   const everyKey = admin && scope === 'all';
+  // The door refuses every person's own key, an Owner's or Admin's too,
+  // while the organization turned them off or its setting cannot be read:
+  // none of them works here then. The keys the viewer manages still list
+  // their own, which are theirs to end wherever they work.
+  const personalKeys = everyKey
+    ? await personalKeysStandingOf(db, viewer.organizationId)
+    : undefined;
+  const personalListed =
+    personalKeys === undefined || personalKeys === 'admitted';
   const rows = await db<ListedRow[]>`
     SELECT k."id", k."name", k."start", k."prefix", k."suffix", k."enabled",
            k."expiresAt", k."createdAt", k."lastRequest", k."referenceId",
@@ -734,7 +758,7 @@ export async function listApiKeysForViewer(
      AND m."userId" = k."referenceId"
      AND m."organizationId" = ${viewer.organizationId}
     LEFT JOIN "user" hu ON m."id" IS NOT NULL AND hu."id" = k."referenceId"
-    WHERE (o.api_key_id IS NULL AND k."referenceId" = ${viewer.userId})
+    WHERE ((o.api_key_id IS NULL AND k."referenceId" = ${viewer.userId})
        OR (o.org_id = ${viewer.organizationId} AND o.revoked_at_ms IS NULL
            AND (${admin}::boolean
                 OR (o.owner_kind = 'member'
@@ -746,7 +770,9 @@ export async function listApiKeysForViewer(
            AND lower(m."role") <> 'disabled'
            AND k."enabled" IS NOT FALSE
            AND (k."expiresAt" IS NULL OR k."expiresAt" > now())
-           AND b.api_key_id IS NULL)
+           AND b.api_key_id IS NULL))
+      -- A person's own key only while it may act here at all (APIKEY-R12).
+      AND (o.api_key_id IS NOT NULL OR ${personalListed}::boolean)
     ORDER BY k."createdAt" ASC, k."id" ASC
     LIMIT ${LISTED_KEY_LIMIT}
   `;
@@ -755,7 +781,7 @@ export async function listApiKeysForViewer(
       `[api-keys] the key list of organization ${viewer.organizationId} reached ${LISTED_KEY_LIMIT} rows; later keys are not shown`,
     );
   }
-  return rows.map((row): ListedApiKey => {
+  const keys = rows.map((row): ListedApiKey => {
     const owner = listedOwner(row, viewer.userId);
     // Another member's own key is theirs to end, and its last use may have
     // been in another organization: neither is the viewer's to see here.
@@ -797,6 +823,7 @@ export async function listApiKeysForViewer(
       blockedHere: row.blockedHere,
     };
   });
+  return personalKeys === undefined ? { keys } : { keys, personalKeys };
 }
 
 function listedOwner(row: ListedRow, viewerUserId: string): ListedApiKeyOwner {
