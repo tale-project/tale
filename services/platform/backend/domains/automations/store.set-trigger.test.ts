@@ -770,6 +770,7 @@ describe('setTrigger — the slot-wake opt-in (#4540) [AUTO-R29]', () => {
     expect(refused).toMatchObject({
       code: 'AUTOMATION_TRIGGER_INVALID',
       status: 409,
+      data: { reason: 'slot_freed_taken', name: 'ops/other-manager' },
     });
     expect(upsertOf(fake.statements)).toBeUndefined();
   });
@@ -835,6 +836,7 @@ describe('setTrigger — one wake target per project, kept by the database (#454
     expect(refused).toMatchObject({
       code: 'AUTOMATION_TRIGGER_INVALID',
       status: 409,
+      data: { reason: 'slot_freed_taken' },
     });
     expect(fake.order).not.toContain('hint');
   });
