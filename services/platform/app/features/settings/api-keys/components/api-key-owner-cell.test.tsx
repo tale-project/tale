@@ -56,6 +56,40 @@ describe('ApiKeyOwnerCell', () => {
     expect(screen.getByText('Former member')).toBeInTheDocument();
   });
 
+  it('names the member who holds their own key, with their address under the name', () => {
+    renderCell(
+      {
+        owner: {
+          kind: 'personal',
+          userId: 'mia',
+          name: 'Mia Keller',
+          email: 'mia@example.test',
+        },
+        role: null,
+        createdBy: null,
+      },
+      'ada',
+    );
+    expect(screen.getByText('Mia Keller')).toBeInTheDocument();
+    expect(screen.getByText('mia@example.test')).toBeInTheDocument();
+
+    renderCell(
+      {
+        owner: {
+          kind: 'personal',
+          userId: 'leo',
+          name: null,
+          email: 'leo@example.test',
+        },
+        role: null,
+        createdBy: null,
+      },
+      'ada',
+    );
+    // An address alone names the holder, once.
+    expect(screen.getAllByText('leo@example.test')).toHaveLength(1);
+  });
+
   it('names a team’s, a project’s and the organization’s key with the role it acts as', () => {
     renderCell({
       owner: { kind: 'team', teamId: 'finance', teamName: 'Finance' },
