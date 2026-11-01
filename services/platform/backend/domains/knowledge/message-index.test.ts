@@ -212,6 +212,37 @@ describe('indexConversationMessage', () => {
     });
   });
 
+  it('ends quietly when the policy could not scan the body [KNOW-R9]', async () => {
+    // The refusal is on the corpus row (`prepareDocument`, indexing.test.ts)
+    // and every retry would scan the same text: a save of the policy queues
+    // the body again, not the job's retry ladder.
+    mocks.readGovernancePolicy.mockResolvedValue({
+      enabled: true,
+      mode: 'block',
+      enabledPatterns: ['email'],
+    });
+    mocks.indexWholeDocument.mockResolvedValue({
+      fileId: `msg:${MESSAGE_ID}`,
+      chunksWritten: 0,
+      chunksTotal: 0,
+      chunksStored: 0,
+      partial: false,
+      skipped: 'pii-scan-failed',
+      refusal:
+        "Indexing refused: part of this document could not be scanned under the organization's PII policy; the cause is in the platform log.",
+    });
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const { sql } = fakeSql(row());
+    await expect(indexConversationMessage(sql, MESSAGE_ID)).resolves.toBe(
+      undefined,
+    );
+    expect(info).toHaveBeenCalledWith(
+      '[knowledge] email body not indexed: pii-scan-failed',
+      expect.anything(),
+    );
+    info.mockRestore();
+  });
+
   it('asks the message’s own liveness after the corpus row is claimed', async () => {
     const { sql } = fakeSql(row());
     await indexConversationMessage(sql, MESSAGE_ID);

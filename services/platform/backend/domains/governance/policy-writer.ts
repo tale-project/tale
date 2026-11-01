@@ -373,4 +373,43 @@ export async function saveGovernancePolicy(
         checked.expectedHash,
       );
   });
+  if (checked.policyType === 'pii_config') {
+    await requeueUnscannedDocuments(sql, organizationId, orgSlug);
+  }
+}
+
+/**
+ * Every save of the PII policy, an unchanged one included, queues again the
+ * documents it could not scan (`pii_scan_failed`): the save is how an admin
+ * says "try again" once the platform can scan. After the commit, never in
+ * it — the serializable callback runs again on a retry, and these jobs
+ * belong to a save that stands. Best effort: the policy is saved either way,
+ * and a document the re-queue missed keeps its Retry and the next save.
+ */
+async function requeueUnscannedDocuments(
+  sql: Sql,
+  organizationId: string,
+  orgSlug: string,
+): Promise<void> {
+  try {
+    const { requeuePiiScanFailedDocuments } =
+      await import('../knowledge/service.ts');
+    const { requeued } = await requeuePiiScanFailedDocuments(sql, {
+      organizationId,
+      orgSlug,
+    });
+    if (requeued > 0) {
+      console.info(
+        `[governance] PII policy saved; ${requeued} document(s) it could not scan queued again`,
+        { organizationId },
+      );
+    }
+  } catch (error) {
+    console.warn(
+      `[governance] PII policy saved; the documents it could not scan were not queued again: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      { organizationId },
+    );
+  }
 }

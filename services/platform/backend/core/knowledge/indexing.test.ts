@@ -2,18 +2,19 @@
 
 import { computeContentHash } from '@tale/shared/utils/hashing';
 import type { Sql } from 'postgres';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { chunkDocument } from '../../../lib/knowledge/chunking';
 import { scanForSecrets } from '../../../lib/knowledge/secret-scan';
 import type { EmbeddingModel } from '../../../lib/knowledge/types';
 import type { Embedder } from './embedding';
 import {
+  PII_SCAN_FAILED_REASONS,
   indexDocument,
   indexWholeDocument,
   markCorpusIndexingFailed,
 } from './indexing';
-import { applyPiiPolicyForIndexing } from './pii_gate';
+import { applyPiiPolicyForIndexing, type PiiScanFailure } from './pii_gate';
 
 // Passthrough spies: every suite below runs the real functions; the
 // once-per-document suite counts how often the write path calls them.
@@ -990,6 +991,122 @@ describe('the PII policy covers the chunk header and the stored name', () => {
     expect(bare).toBe(computeContentHash(clean));
     expect(masked).not.toBe(bare);
     expect(untouched).toBe(bare);
+  });
+});
+
+describe('a document the PII policy could not scan is not indexed', () => {
+  // The gate answers `unscanned` when the policy's scrubber cannot be built
+  // or a part of a text could not be scanned whole (its own tests force
+  // both). Here: what the write path does with that answer, wherever it
+  // comes from — the body, the chunk header or the stored name.
+  const POLICY = {
+    enabled: true,
+    mode: 'mask',
+    enabledPatterns: ['email'],
+  } as const;
+  const MARK = 'cannot-be-scanned';
+
+  /** Every text carrying `marker` is one the policy could not scan. */
+  async function unscannable(
+    marker: string,
+    cause: PiiScanFailure = 'incomplete',
+  ): Promise<void> {
+    const actual =
+      await vi.importActual<typeof import('./pii_gate')>('./pii_gate');
+    vi.mocked(applyPiiPolicyForIndexing).mockImplementation((text, config) =>
+      text.includes(marker)
+        ? { kind: 'unscanned', cause }
+        : actual.applyPiiPolicyForIndexing(text, config),
+    );
+  }
+
+  /** What the failure row recorded: organization, document, reason. */
+  function failure(db: FakeDb): unknown[] | undefined {
+    const at = db.statements.findIndex((text) => text.includes("'failed', $3"));
+    return at === -1 ? undefined : db.params[at];
+  }
+
+  afterEach(() => {
+    vi.mocked(applyPiiPolicyForIndexing).mockReset();
+  });
+
+  it('refuses a body it could not scan in every mode, with a cause of its own [KNOW-R9]', async () => {
+    await unscannable('Parental leave');
+    for (const mode of ['mask', 'block', 'tokenize']) {
+      const db = fakeDb();
+      const embedder = stubEmbedder();
+      const result = await indexDocument({
+        ...ARGS,
+        sql: db.sql,
+        embedder,
+        piiConfig: { ...POLICY, mode } as never,
+      });
+
+      expect(result.skipped).toBe('pii-scan-failed');
+      expect(result.refusal).toBe(PII_SCAN_FAILED_REASONS.incomplete);
+      expect(embedder.embedded).toEqual([]);
+      // Failed with that sentence — not a detection's, and never the text.
+      expect(failure(db)).toEqual([
+        'acme',
+        'handbook.pdf',
+        PII_SCAN_FAILED_REASONS.incomplete,
+      ]);
+      expect(db.statements.join('\n')).not.toContain(
+        'INSERT INTO private_knowledge.chunks',
+      );
+    }
+  });
+
+  it('refuses when only the chunk header or the stored name could not be scanned [KNOW-R9]', async () => {
+    // A name it could not scan is never embedded or stored as it is.
+    await unscannable(MARK);
+    for (const names of [
+      { title: `Application ${MARK}` },
+      { filename: `Application ${MARK}.pdf`, title: 'Application' },
+    ]) {
+      const db = fakeDb();
+      const embedder = stubEmbedder();
+      const result = await indexDocument({
+        ...ARGS,
+        ...names,
+        sql: db.sql,
+        embedder,
+        piiConfig: POLICY as never,
+      });
+
+      expect(result.skipped).toBe('pii-scan-failed');
+      expect(embedder.embedded).toEqual([]);
+      expect(db.params.flat().join('\n')).not.toContain(MARK);
+    }
+  });
+
+  it('names a detection over a part it could not scan [KNOW-R9]', async () => {
+    // As a blocked window wins over one the engine could not scan: the
+    // detection is what an admin can act on.
+    await unscannable(MARK);
+    const result = await indexDocument({
+      ...ARGS,
+      title: `Application ${MARK}`,
+      text: 'Please reach me at bob@example.test about the role.',
+      sql: fakeDb().sql,
+      embedder: stubEmbedder(),
+      piiConfig: { ...POLICY, mode: 'block' } as never,
+    });
+
+    expect(result.skipped).toBe('pii-blocked');
+    expect(result.refusal).toContain('email');
+  });
+
+  it('says whether the protection could not start or the text could not be scanned whole', async () => {
+    await unscannable('Parental leave', 'unavailable');
+    const result = await indexDocument({
+      ...ARGS,
+      sql: fakeDb().sql,
+      embedder: stubEmbedder(),
+      piiConfig: POLICY as never,
+    });
+
+    expect(result.refusal).toBe(PII_SCAN_FAILED_REASONS.unavailable);
   });
 });
 

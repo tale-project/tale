@@ -118,6 +118,8 @@ async function deferForUsageLimit(
  *    credential, a vector-width mismatch, the secret scan, the PII policy —
  *    ends the job quietly with a log line; a transient one (the provider, the
  *    corpus, a BM25 rebuild) throws, and the job's retry ladder runs it again.
+ *    A body the PII policy could not scan is queued again by the next save
+ *    of that policy (`requeuePiiScanFailedDocuments`).
  *    A message that never indexes is still found by the conversation search's
  *    keyword walk.
  *  - The secret scan reads the TEXT. A mail carries reset links and one-time
@@ -267,7 +269,8 @@ export async function indexConversationMessage(
     });
     if (
       result.skipped === 'secret-detected' ||
-      result.skipped === 'pii-blocked'
+      result.skipped === 'pii-blocked' ||
+      result.skipped === 'pii-scan-failed'
     ) {
       // The refusal is on the corpus row; the mail stays out of the index.
       console.info(

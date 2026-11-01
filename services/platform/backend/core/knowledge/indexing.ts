@@ -69,7 +69,7 @@ import {
 } from './dimensions';
 import type { Embedder } from './embedding';
 import { assertCorpusWritable } from './index_health';
-import { applyPiiPolicyForIndexing } from './pii_gate';
+import { applyPiiPolicyForIndexing, type PiiScanFailure } from './pii_gate';
 
 /** Chunks committed per slice. Small enough that a slice fits comfortably in
  * one invocation's budget, large enough that the per-slice overhead is noise. */
@@ -193,6 +193,7 @@ export interface IndexDocumentResult {
     | 'secret-detected'
     | 'empty'
     | 'pii-blocked'
+    | 'pii-scan-failed'
     | 'released';
   /** Present when the upload was refused, in words for the person who made it. */
   readonly refusal?: string;
@@ -208,11 +209,12 @@ export interface IndexDocumentResult {
  * several slices prepares it once and hands the result to every slice.
  */
 export type PreparedDocument =
-  /** Refused before anything is stored: a credential in the bytes, or the
-   * organization's PII policy said `block`. */
+  /** Refused before anything is stored: a credential in the bytes, the
+   * organization's PII policy said `block`, or that policy could not scan
+   * the document. */
   | {
       readonly kind: 'refused';
-      readonly skipped: 'secret-detected' | 'pii-blocked';
+      readonly skipped: 'secret-detected' | 'pii-blocked' | 'pii-scan-failed';
       /** The refusal, in words for the person who uploaded the file. */
       readonly reason: string | null;
     }
@@ -245,6 +247,27 @@ export interface PrepareDocumentArgs {
   /** What the chunk header announces when it should differ from `filename`
    * (see `IndexDocumentArgs.title`). */
   readonly title?: string;
+}
+
+/**
+ * The refusal stored for a document the organization's PII policy could not
+ * scan, one fixed sentence per cause. Fixed, because the policy save finds
+ * the email bodies it refused by it: they have no file row to carry
+ * `pii_scan_failed` (`requeuePiiScanFailedDocuments`).
+ */
+export const PII_SCAN_FAILED_REASONS = {
+  unavailable:
+    "Indexing refused: the organization's PII protection could not be started, so this document could not be scanned; the cause is in the platform log.",
+  incomplete:
+    "Indexing refused: part of this document could not be scanned under the organization's PII policy; the cause is in the platform log.",
+} as const satisfies Record<PiiScanFailure, string>;
+
+function scanFailed(cause: PiiScanFailure): PreparedDocument {
+  return {
+    kind: 'refused',
+    skipped: 'pii-scan-failed',
+    reason: PII_SCAN_FAILED_REASONS[cause],
+  };
 }
 
 /**
@@ -289,6 +312,11 @@ function prepareDocument(args: PrepareDocumentArgs): PreparedDocument {
       reason: `Indexing refused by the organization's PII policy (${[...new Set(refusedCategories)].join(', ')}).`,
     };
   }
+  // A detection wins, as a blocked window wins across a document's windows:
+  // it names what the admin can act on. Without one, a text or a name the
+  // policy could not scan keeps the whole document out, in every mode.
+  if (decision.kind === 'unscanned') return scanFailed(decision.cause);
+  if (names.kind === 'unscanned') return scanFailed(names.cause);
 
   const chunks = chunkDocument(decision.text, { title: names.header });
   if (chunks.length === 0) return { kind: 'empty' };
@@ -339,7 +367,8 @@ function prepareDocument(args: PrepareDocumentArgs): PreparedDocument {
  * from Name <address>`), so a policy that masks addresses in the body and
  * not in the header would still send every correspondent's address to the
  * embedding provider. `mask` masks both; `block` refuses the document when
- * either matches, as it does for the text.
+ * either matches, as it does for the text; and a name the policy could not
+ * scan refuses it in every mode — it is never stored or embedded as it is.
  */
 function prepareNames(
   args: PrepareDocumentArgs,
@@ -352,7 +381,8 @@ function prepareNames(
       /** Whether the policy rewrote the header. */
       readonly headerMasked: boolean;
     }
-  | { readonly kind: 'refuse'; readonly categoryIds: readonly string[] } {
+  | { readonly kind: 'refuse'; readonly categoryIds: readonly string[] }
+  | { readonly kind: 'unscanned'; readonly cause: PiiScanFailure } {
   const header = args.title ?? args.filename;
   // No policy, nothing to scrub — and no scan paid for twice.
   if (policy === null) {
@@ -379,6 +409,8 @@ function prepareNames(
       ],
     };
   }
+  if (headerDecision.kind === 'unscanned') return headerDecision;
+  if (filenameDecision.kind === 'unscanned') return filenameDecision;
   return {
     kind: 'index',
     header: headerDecision.text,

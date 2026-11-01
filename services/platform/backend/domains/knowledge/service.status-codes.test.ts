@@ -14,6 +14,7 @@ import {
   RAG_ERROR_MALFORMED,
   RAG_ERROR_NOT_TEXT,
   RAG_ERROR_PII_BLOCKED,
+  RAG_ERROR_PII_SCAN_FAILED,
   RAG_ERROR_SECRET_DETECTED,
   RAG_ERROR_UNSUPPORTED_TYPE,
 } from '../../core/knowledge/rag_error_codes.ts';
@@ -117,7 +118,9 @@ const lastStatusWrite = (log: Query[]): unknown[] =>
   log.findLast((q) => q.text.includes('UPDATE app.file_metadata'))?.values ??
   [];
 
-const skipped = (kind: 'empty' | 'secret-detected' | 'pii-blocked') => ({
+const skipped = (
+  kind: 'empty' | 'secret-detected' | 'pii-blocked' | 'pii-scan-failed',
+) => ({
   fileId: 's3:org-1/blob-1',
   chunksWritten: 0,
   chunksTotal: 0,
@@ -163,6 +166,7 @@ describe('indexUploadedFile — one stable code per failure', () => {
   it.each([
     ['secret-detected', RAG_ERROR_SECRET_DETECTED],
     ['pii-blocked', RAG_ERROR_PII_BLOCKED],
+    ['pii-scan-failed', RAG_ERROR_PII_SCAN_FAILED],
   ] as const)(
     'keeps a %s policy refusal on `failed` with its code (a retry is meaningful) [KNOW-R8] [KNOW-R9]',
     async (kind, code) => {
@@ -273,6 +277,7 @@ describe('the indexing codes, as the domain spec prints them', () => {
       RAG_ERROR_MALFORMED,
       RAG_ERROR_SECRET_DETECTED,
       RAG_ERROR_PII_BLOCKED,
+      RAG_ERROR_PII_SCAN_FAILED,
       RAG_ERROR_EMBEDDING_NOT_CONFIGURED,
       RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
       RAG_ERROR_EMBEDDING_UPSTREAM,
@@ -284,6 +289,7 @@ describe('the indexing codes, as the domain spec prints them', () => {
       RAG_ERROR_MALFORMED: 'malformed',
       RAG_ERROR_SECRET_DETECTED: 'secret_detected',
       RAG_ERROR_PII_BLOCKED: 'pii_blocked',
+      RAG_ERROR_PII_SCAN_FAILED: 'pii_scan_failed',
       RAG_ERROR_EMBEDDING_NOT_CONFIGURED: 'embedding_not_configured',
       RAG_ERROR_EMBEDDING_PROVIDER_REFUSED: 'embedding_provider_refused',
       RAG_ERROR_EMBEDDING_UPSTREAM: 'embedding_upstream',

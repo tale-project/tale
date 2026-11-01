@@ -893,5 +893,12 @@
  * refuses the platform's credentials or lacks its database, and a
  * connection the platform itself closed, stay a 500 `INTERNAL_ERROR`: they
  * are not outages to wait out. Wait and call again.
+ *
+ * 3.52.0 — 2026-11-01: a document's indexing `errorCode` gains
+ * `pii_scan_failed` — a `failed` document the organization's PII policy, in
+ * any mode, could not scan: its protection could not be started, or part of
+ * the text could not be scanned whole. The document is not indexed, where it
+ * used to be indexed unscanned, and every save of the PII policy, an
+ * unchanged one included, re-queues it. Additive.
  */
-export const API_CONTRACT_VERSION = '3.51.0';
+export const API_CONTRACT_VERSION = '3.52.0';
