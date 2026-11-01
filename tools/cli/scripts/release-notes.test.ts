@@ -231,6 +231,8 @@ describe('authored release notes', () => {
       ).toEqual([
         '.github/release-notes',
         'tools/cli/scripts/release-notes.ts',
+        // The moved-tag decision (release-source.test.ts), run before it.
+        'tools/cli/scripts/release-source.ts',
       ]);
       // Node built-ins only, so those two paths are all the validator reads.
       const source = await readFile(
@@ -589,6 +591,28 @@ const quiet: ReleaseChanges = {
   migrations: [],
   contract: { previous: '3.43.0', current: '3.43.0' },
 };
+/**
+ * v0.5.82 against v0.5.81 at the commit its tag names since it moved (#4741).
+ * Of what v0.5.81 already ships, its last migrations, the pull requests its
+ * notes cite and #4648, its own tag commit.
+ */
+const v0582: ReleaseChanges = {
+  candidate: '0381bc439d9de85079bcdd4e001ad7e989f76bb9',
+  previous: {
+    tag: 'v0.5.81',
+    commit: 'd1373d84cd56972501403f62145ec52e6f65d44a',
+  },
+  migrations: [],
+  earlierMigrations: [
+    '0167_project_agent_workers.sql',
+    '0168_project_wakes.sql',
+    '0169_attested_review_batches.sql',
+    '0180_mcp_client_activity.sql',
+    '0181_automation_version_attribution.sql',
+  ],
+  shipped: [4635, 4638, 4639, 4641, 4648],
+  contract: { previous: '3.27.0', current: '3.27.0' },
+};
 const upgrading = (text: string) =>
   `## Highlights\n\nUsage is booked per provider.\n\n## Upgrade notes\n\n${text}\n`;
 const migrationMissing =
@@ -932,6 +956,28 @@ describe('Upgrade notes against the release contents', () => {
         alreadyShips(4608, 'v0.5.82'),
         alreadyHas('0168 (0168_project_wakes.sql)', 'v0.5.82'),
       ].join('\n'),
+    );
+  });
+
+  test('accepts the corrected v0.5.82 notes for what its moved tag ships', async () => {
+    const corrected = await readFile(
+      join(root, '.github/release-notes/v0.5.82.md'),
+      'utf8',
+    );
+    expect(refusal(corrected, v0582)).toBe('');
+    // The merges 0381bc439 adds over 81ef78dcd, the commit the notes were
+    // first written for, that change what a reader observes; the other three
+    // (#4674, e6fb96249 and #4680) change only release.yml and a test.
+    for (const pull of [
+      4242, 4372, 4373, 4376, 4382, 4383, 4388, 4389, 4394, 4398, 4400, 4406,
+      4407, 4410, 4224, 4248, 4251, 4260, 4327, 4609, 4621, 4643,
+    ])
+      expect(corrected, `#${pull}`).toContain(
+        `(https://github.com/tale-project/tale/pull/${pull})`,
+      );
+    // Which commit the tag, the images and the CLI binaries come from.
+    expect(corrected.slice(corrected.indexOf('## Upgrade notes'))).toContain(
+      v0582.candidate,
     );
   });
 

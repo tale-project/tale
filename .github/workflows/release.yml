@@ -102,7 +102,8 @@ jobs:
             echo "source_sha=$SOURCE_SHA"
           } >> "$GITHUB_OUTPUT"
 
-      # Limit the checkout to the notes and their standalone validator.
+      # Limit the checkout to the notes, their standalone validator and the
+      # source decision.
       - name: Checkout release notes
         if: steps.version.outputs.sites_only != 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
@@ -111,13 +112,28 @@ jobs:
           sparse-checkout: |
             .github/release-notes
             tools/cli/scripts/release-notes.ts
+            tools/cli/scripts/release-source.ts
           sparse-checkout-cone-mode: false
 
-      - name: Setup Bun for release notes
+      - name: Setup Bun for the release checks
         if: steps.version.outputs.sites_only != 'true'
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
           bun-version: '1.4.2'
+
+      # A published release's tag never moves (v0.5.82, #4741): refuse a run
+      # whose tag names another commit, or whose version was published from
+      # another, before anything is built. The jobs that write decide again
+      # just before they write: a failed-jobs re-run keeps these outputs, and
+      # a tag can move while the images build.
+      - name: Refuse a moved release tag
+        if: steps.version.outputs.sites_only != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ steps.version.outputs.version }}
+          SOURCE_SHA: ${{ steps.version.outputs.source_sha }}
+        run: bun tools/cli/scripts/release-source.ts --repo "$REPOSITORY" --version "$TAG" --source "$SOURCE_SHA"
 
       # Shape only. The maintainers' run before the tag also compares the
       # Upgrade notes with the release's migrations and API contract
@@ -600,13 +616,14 @@ jobs:
         service: ${{ fromJSON(needs.prepare.outputs.service_names) }}
 
     steps:
-      # Only the dependency-free decision script; nothing is installed.
-      - name: Checkout the latest decision
+      # Only the dependency-free decision scripts; nothing is installed.
+      - name: Checkout the release decisions
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
         with:
           persist-credentials: false
           sparse-checkout: |
             tools/cli/scripts/release-latest.ts
+            tools/cli/scripts/release-source.ts
           sparse-checkout-cone-mode: false
 
       - name: Setup Bun
@@ -634,6 +651,18 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Decide again when writing (tools/cli/scripts/release-source.ts): the
+      # tag can move while the images build, and a failed-jobs re-run keeps
+      # Prepare's outputs.
+      - name: Refuse a moved release tag
+        if: needs.prepare.outputs.sites_only != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.version }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+        run: bun tools/cli/scripts/release-source.ts --repo "$REPOSITORY" --version "$TAG" --source "$SOURCE_SHA"
 
       # One call writes the index and every tag, so :version and :latest name
       # the same index digest, and a re-run of this job over the same images
@@ -739,13 +768,14 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
           # API snapshots are read with git show; only the notes, their
-          # dependency-free renderers and the latest decision need to be
-          # present in the working tree.
+          # dependency-free renderers and the latest and source decisions
+          # need to be present in the working tree.
           sparse-checkout: |
             .github/release-notes
             services/platform/scripts/openapi/contract-notes.ts
             tools/cli/scripts/release-notes.ts
             tools/cli/scripts/release-latest.ts
+            tools/cli/scripts/release-source.ts
           sparse-checkout-cone-mode: false
 
       - name: Setup Bun
@@ -846,6 +876,17 @@ jobs:
           MOVE="$(bun tools/cli/scripts/release-latest.ts --repo "$REPOSITORY" --version "$TAG" --sites-only "$SITES_ONLY")"
           echo "move=${MOVE}" >> "$GITHUB_OUTPUT"
 
+      # Decide again when writing, and before `gh release create`: on a tag
+      # that names another commit it would publish the release first, and the
+      # tag check after it could only fail the run.
+      - name: Refuse a moved release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.version }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+        run: bun tools/cli/scripts/release-source.ts --repo "$REPOSITORY" --version "$TAG" --source "$SOURCE_SHA"
+
       # GitHub marks a new release Latest unless told otherwise.
       - name: Create release
         env:
@@ -889,6 +930,30 @@ jobs:
       contents: read
 
     steps:
+      # Only the dependency-free decision script; nothing is installed.
+      - name: Checkout the source decision
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            tools/cli/scripts/release-source.ts
+          sparse-checkout-cone-mode: false
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: '1.4.2'
+
+      # The CLI workflow builds what the tag names when it runs: dispatch it
+      # only while the tag still names the commit this run published.
+      - name: Refuse a moved release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ needs.prepare.outputs.version }}
+          SOURCE_SHA: ${{ needs.prepare.outputs.source_sha }}
+        run: bun tools/cli/scripts/release-source.ts --repo "$REPOSITORY" --version "$TAG" --source "$SOURCE_SHA"
+
       - name: Dispatch CLI workflow
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
