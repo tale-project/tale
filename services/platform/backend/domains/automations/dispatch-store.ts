@@ -465,6 +465,7 @@ export function pgAutomationStore(
             'AUTOMATION_NAME_TAKEN',
             `An automation named "${name}" already exists — pick a different name.`,
             409,
+            { name },
           );
         }
       };

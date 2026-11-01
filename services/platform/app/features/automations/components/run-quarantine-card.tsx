@@ -7,11 +7,11 @@ import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { Text } from '@tale/ui/text';
 import { useId, useRef, useState } from 'react';
 
-import { failureDetail } from '@/app/lib/backend/adapters';
 import type { LegacyRunQuarantine } from '@/app/lib/backend/contract/automations';
 import { useT } from '@/lib/i18n/client';
 
 import { useRequestLegacyRunStop } from '../hooks/mutations';
+import { automationFailureDetail } from '../lib/errors';
 
 interface HoldRef {
   runId: string;
@@ -98,7 +98,7 @@ export function RunQuarantineCard({
           onReload();
         },
         (error: unknown) => {
-          setRefusal({ about, detail: failureDetail(error) });
+          setRefusal({ about, detail: automationFailureDetail(error) });
           setConfirming(null);
           onReload();
         },

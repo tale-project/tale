@@ -4,20 +4,24 @@ import {
   refusalIssuesSchema,
   type WireAutomationIssue,
 } from '@/lib/shared/schemas/automation-issues';
+import { isAutomationRefusalCode } from '@/lib/shared/schemas/automation-refusals';
 import {
   type AutomationWriteVia,
   isAutomationWriteVia,
 } from '@/lib/shared/schemas/automation-versions';
 
+import { automationRefusalText } from './refusal-text';
+
 /**
- * Author-facing message for a refused automation write.
+ * Author-facing message for a refused automation write, in the reader's
+ * language.
  *
- * The store throws structured `AppError`s whose `data.message` already names
- * the problem AND the fix — the deploy gate's "was saved with failing tests —
- * fix them and save a new version", the naming rule a slug broke, the automation
- * that has no version to run. Those sentences are the whole value of the
- * refusal, so they are surfaced verbatim rather than flattened into a generic
- * per-code line.
+ * The store refuses with a code from `AUTOMATION_REFUSAL_CODES` and puts the
+ * facts its sentence names under `data`: the deploy gate's version that was
+ * saved with failing tests, the name a slug broke the naming rule with, the
+ * version a stale save missed. `automationRefusalText` words each in the
+ * `automations` catalog, the problem AND the fix; the server's English
+ * sentence is the API's, the CLI's and the logs'.
  *
  * Duck-types `AppError.data` rather than using `instanceof`: Vite chunk
  * splitting can produce more than one copy of the class, which breaks the
@@ -36,13 +40,32 @@ function errorData(error: unknown): Record<string, unknown> | undefined {
 }
 
 /**
- * The server's own sentence. Without one, the failure's words as every
- * surface reads them (`failureDetail`: a lost connection, a lapsed session),
- * and for a fault that has none the generic sentence — never the error's
- * raw message, which for a structured error is its whole payload.
+ * `failureDetail` for an automation door: a refusal's words in the reader's
+ * language when the store refused with one of its codes, else the failure's
+ * words as every surface reads them — `undefined` when it has none, so a
+ * surface keeps its own line for that case.
+ */
+export function automationFailureDetail(error: unknown): string | undefined {
+  const data = errorData(error);
+  return data !== undefined && isAutomationRefusalCode(data.code)
+    ? automationRefusalText(data.code, data)
+    : failureDetail(error);
+}
+
+/**
+ * A refusal's words in the reader's language, chosen by its code and data.
+ * The server's own sentence only for a code this build does not know (a
+ * newer server). Without one, the failure's words as every surface reads
+ * them (`failureDetail`: a lost connection, a lapsed session), and for a
+ * fault that has none the generic sentence — never the error's raw message,
+ * which for a structured error is its whole payload.
  */
 export function automationErrorMessage(error: unknown): string {
-  const message = errorData(error)?.message;
+  const data = errorData(error);
+  if (data !== undefined && isAutomationRefusalCode(data.code)) {
+    return automationRefusalText(data.code, data);
+  }
+  const message = data?.message;
   if (typeof message === 'string' && message.length > 0) return message;
   return failureDetail(error) ?? i18n.t('errors.generic', { ns: 'common' });
 }

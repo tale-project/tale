@@ -66,7 +66,10 @@ import {
   type TriggerDraft,
   triggerDraftIssue,
 } from '../lib/trigger-draft';
-import { triggerIssueText } from '../lib/trigger-issue-text';
+import {
+  triggerIssueText,
+  triggerRefusalText,
+} from '../lib/trigger-issue-text';
 import { TriggerForm } from './trigger-form';
 import { TriggerInputPreview } from './trigger-input-preview';
 import { webhookBase } from './trigger-webhook-panel';
@@ -308,7 +311,7 @@ export function BlankAutomationDialog({
         // page (where the Trigger card lets them retry) with a warning.
         toast({
           title: t('blank.triggerFailed', {
-            error: automationErrorMessage(error),
+            error: triggerRefusalText(error, { t, tRecurrence, locale }),
           }),
           variant: 'destructive',
         });
