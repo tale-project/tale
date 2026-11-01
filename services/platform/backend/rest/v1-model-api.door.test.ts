@@ -25,6 +25,26 @@ vi.mock('../auth/auth.ts', () => ({
   loadTrustedProxies: () => Promise.resolve(['loopback', 'uniquelocal']),
 }));
 
+/** The `personal_keys` policy (APIKEY-R12) is stored nowhere, so members'
+ * own keys work, as in an organization that never turned them off; the real
+ * read is strict and keeps them out while `TALE_CONFIG_DIR` is unset. */
+vi.mock('../lib/org-config.ts', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('../lib/org-config.ts')>();
+  type Read = typeof original.readGovernancePolicy;
+  const readGovernancePolicy = async (
+    orgSlug: string,
+    policyType: Parameters<Read>[1],
+    options?: Parameters<Read>[2],
+  ): ReturnType<Read> => {
+    if (policyType !== 'personal_keys') {
+      return original.readGovernancePolicy(orgSlug, policyType, options);
+    }
+    return null;
+  };
+  return { ...original, readGovernancePolicy };
+});
+
 const GOOD_KEY = 'tale_good';
 const MULTI_ORG_KEY = 'tale_multi';
 
