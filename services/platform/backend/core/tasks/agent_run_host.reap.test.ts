@@ -239,7 +239,7 @@ function makeCtx(run: RunState) {
       if (name === 'governance/queries:getContextCapInternal') return null;
       // Of the other tasks' input copies, the domain names these stale.
       if (name === 'tasks/agent_runs:listStaleTaskInputMirrors') {
-        return { taskIds: ['task-closed'], reviewHashes: [] };
+        return { taskIds: ['task-closed'], reviewHashes: [], taskDirIds: [] };
       }
       throw new Error(`unexpected query ${name}`);
     },
