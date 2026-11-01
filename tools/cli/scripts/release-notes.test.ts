@@ -846,7 +846,7 @@ describe('Upgrade notes against the release contents', () => {
   test('a number that refers to no earlier work is no citation or migration', () => {
     for (const text of [
       'See [#4970](https://github.com/tale-project/tale/issues/4970).',
-      'See [Triggers](https://docs.tale.dev/platform/automations/triggers#4912).',
+      'See [Triggers](https://docs.example.com/platform/automations/triggers#4912).',
       'Port 4912 and image `ghcr.io/tale-project/tale/tale-db:4912` are unchanged.',
       'The entity &#4912; renders as before.',
       'See https://github.com/other/project/pull/4912 and tale-project/tale-cli#4912.',
