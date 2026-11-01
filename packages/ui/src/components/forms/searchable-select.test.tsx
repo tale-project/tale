@@ -358,6 +358,124 @@ describe('SearchableSelect', () => {
     });
   });
 
+  describe('whole names under section headers', () => {
+    // Two providers list the same model id: the rows lean on their headers,
+    // and each row's name says which provider it is.
+    const providerOptions: SearchableSelectOption[] = [
+      { value: 'header:a', label: 'Gateway A', isSectionHeader: true },
+      {
+        value: 'a::luna',
+        label: 'GPT Luna',
+        name: 'Gateway A · GPT Luna',
+        keywords: ['Gateway A', 'vendor/luna'],
+      },
+      { value: 'header:b', label: 'Gateway B', isSectionHeader: true },
+      {
+        value: 'b::luna',
+        label: 'GPT Luna',
+        name: 'Gateway B · GPT Luna',
+        keywords: ['Gateway B', 'vendor/luna'],
+      },
+      {
+        value: 'b::sol',
+        label: 'Sol',
+        keywords: ['Gateway B', 'vendor/sol'],
+      },
+    ];
+
+    it('shows the picked option by its name on the default trigger', () => {
+      render(
+        <SearchableSelect
+          value="b::luna"
+          onValueChange={vi.fn()}
+          options={providerOptions}
+          label="Model"
+        />,
+      );
+      expect(screen.getByRole('button', { name: 'Model' })).toHaveTextContent(
+        'Gateway B · GPT Luna',
+      );
+    });
+
+    it('shows the selected label on the default trigger, the row its name', async () => {
+      const { user } = render(
+        <SearchableSelect
+          value="a::sol"
+          onValueChange={vi.fn()}
+          options={[
+            { value: 'header:a', label: 'Gateway A', isSectionHeader: true },
+            {
+              value: 'a::sol',
+              label: 'Sol',
+              name: 'Gateway A · Sol',
+              selectedLabel: 'Sol',
+            },
+          ]}
+          label="Model"
+        />,
+      );
+      const trigger = screen.getByRole('button', { name: 'Model' });
+      expect(trigger).toHaveTextContent(/^Sol$/);
+      await user.click(trigger);
+      expect(screen.getByRole('option')).toHaveAccessibleName(
+        'Gateway A · Sol',
+      );
+    });
+
+    it('shows the label when an option has no name', () => {
+      render(
+        <SearchableSelect
+          value="b::sol"
+          onValueChange={vi.fn()}
+          options={providerOptions}
+          label="Model"
+        />,
+      );
+      expect(screen.getByRole('button', { name: 'Model' })).toHaveTextContent(
+        /^Sol$/,
+      );
+    });
+
+    it('names each row in full while it shows the label', async () => {
+      const { user } = renderSelect({ options: providerOptions });
+      await user.click(screen.getByText('Open select'));
+      const rows = screen.getAllByRole('option');
+      expect(rows.map((row) => row.textContent)).toEqual([
+        // The hidden whole name follows the shown label in the text.
+        'GPT LunaGateway A · GPT Luna',
+        'GPT LunaGateway B · GPT Luna',
+        'Sol',
+      ]);
+      expect(rows[0]).toHaveAccessibleName('Gateway A · GPT Luna');
+      expect(rows[1]).toHaveAccessibleName('Gateway B · GPT Luna');
+      expect(rows[2]).toHaveAccessibleName('Sol');
+    });
+
+    it('finds rows by their name and keywords', async () => {
+      const { user } = renderSelect({ options: providerOptions });
+      await user.click(screen.getByText('Open select'));
+      const search = screen.getByRole('combobox');
+
+      await user.type(search, 'gateway a');
+      expect(screen.getByRole('option')).toHaveAccessibleName(
+        'Gateway A · GPT Luna',
+      );
+      expect(screen.queryByText('Gateway B')).not.toBeInTheDocument();
+
+      await user.clear(search);
+      await user.type(search, 'vendor/sol');
+      expect(screen.getByRole('option')).toHaveAccessibleName('Sol');
+      expect(screen.getByText('Gateway B')).toBeInTheDocument();
+
+      // Only the whole name holds this text.
+      await user.clear(search);
+      await user.type(search, 'b · gpt');
+      expect(screen.getByRole('option')).toHaveAccessibleName(
+        'Gateway B · GPT Luna',
+      );
+    });
+  });
+
   describe('keyboard navigation', () => {
     it('moves highlight down with ArrowDown', async () => {
       const { user } = renderSelect();

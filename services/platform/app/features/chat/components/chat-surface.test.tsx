@@ -1313,9 +1313,31 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
 
     const { user } = render(<ChatSurface organizationId="org-1" />);
 
-    // The picker's sections read the providers' display names.
+    // The trigger names the provider, since two list the id.
+    const picker = screen.getByRole('button', {
+      name: 'Choose model, reasoning effort and skills',
+    });
+    expect(picker).toHaveTextContent('DeepSeek CN · deepseek-v4-pro');
+    // The picker's sections read the providers' display names, the slug
+    // standing in for a provider without one.
     await openSection(user, /^Model/);
     expect(await screen.findByText('DeepSeek CN')).toBeInTheDocument();
+    expect(screen.getByText('deepseek')).toBeInTheDocument();
+    expect(
+      screen.getByRole('menuitemradio', {
+        name: 'DeepSeek CN · deepseek-v4-pro',
+      }),
+    ).toHaveAttribute('aria-checked', 'true');
+    expect(
+      screen.getByRole('menuitemradio', { name: 'deepseek · deepseek-v4-pro' }),
+    ).toHaveAttribute('aria-checked', 'false');
+    // A row reads its provider to assistive technology, which hears no
+    // section header, even where one provider alone offers the model.
+    expect(
+      screen.getByRole('menuitemradio', {
+        name: 'deepseek · deepseek-v4-flash',
+      }),
+    ).toHaveTextContent(/^deepseek-v4-flash$/);
     await user.keyboard('{Escape}');
 
     await user.type(
@@ -1378,7 +1400,7 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
     await openSection(user, /^Model/);
     fireEvent.click(
       await screen.findByRole('menuitemradio', {
-        name: (name: string) => name.startsWith('deepseek-v4-pro'),
+        name: 'deepseek · deepseek-v4-pro',
       }),
     );
 

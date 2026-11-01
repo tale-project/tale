@@ -96,9 +96,9 @@ export interface ComposerModelOption {
   id: string;
   label: string;
   providerSlug: string;
-  /** The provider's human name (`displayName` in its yml) — pickers show it
-   * next to each model so two providers serving the same id are tellable
-   * apart. */
+  /** The provider's human name (`displayName` in its yml) — pickers head
+   * each provider's models with it, and a model named alone leads with it
+   * when another provider offers the same id or name. */
   providerLabel: string;
   credential: ComposerCredentialAuth;
   /** Present when the model's reasoning depth is controllable — the effort

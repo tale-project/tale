@@ -11,7 +11,9 @@ Dans Chat, **Auto** choisit un modèle pour chaque message d’après son texte�
 
 Choisis un modèle précis dans la zone de saisie pour comparer les résultats, maîtriser le choix ou traiter une tâche connue. Cette sélection reste en place jusqu’à ce que tu la changes ou reviennes à Auto. L’[Arène](/fr/platform/chat/arena-mode) compare deux modèles disponibles sur le même message.
 
-Les agents de projet et les étapes de workflow qui appellent un modèle utilisent leur configuration. Le sélecteur d’un agent distingue les fournisseurs, même lorsqu’ils servent le même identifiant de modèle. Choisir une entrée fixe cette combinaison fournisseur/modèle. Un échec est signalé ; la réponse ne provient pas discrètement d’un autre modèle.
+Les agents de projet et les étapes de workflow qui appellent un modèle utilisent leur configuration. Choisir le modèle d’un agent fixe la combinaison fournisseur/modèle. Un échec est signalé ; la réponse ne provient pas discrètement d’un autre modèle.
+
+Deux fournisseurs peuvent proposer le même modèle : OpenRouter et une passerelle compatible OpenAI, par exemple, peuvent tous deux lister `openai/gpt-5.6-luna`, et le `gpt-5.6-luna` d’OpenAI lui-même s’appelle aussi **GPT 5.6 Luna**. Les sélecteurs de modèle du chat, des agents et des réglages de l’agent standard, de la génération d’images, de la transcription audio et du modèle pour les images rangent chaque modèle sous le fournisseur qui le sert, et un lecteur d’écran annonce chaque modèle avec son fournisseur. Là où le nom d’un modèle apparaît seul, comme sur un sélecteur fermé, dans la ligne d’état d’un réglage ou sur le bloc d’un agent dont le fournisseur est fixé, sur le canevas d’un workflow, il commence par le fournisseur lorsque le sélecteur dont il provient propose aussi le même modèle, ou un modèle du même nom, chez un autre fournisseur, comme **OpenRouter · GPT 5.6 Luna** ; sinon, seul le nom du modèle apparaît. L’étape `llm` d’un workflow ne nomme aucun fournisseur, car chaque exécution en choisit un.
 
 ## Comprendre l’origine de la liste
 

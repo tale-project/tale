@@ -11,7 +11,9 @@ In Chat, **Auto** selects a model for each message from its text, for example ho
 
 Choose a specific model in the composer when you need to compare results, control the choice or use a model suited to a known task. That selection remains until you change it or return to Auto. [Arena](/platform/chat/arena-mode) lets you compare two available models with the same prompt.
 
-Project agents and workflow model steps use their configured model. An agent’s picker distinguishes entries from different providers, even when the model ID is the same. Selecting an entry pins that provider/model pair. A model failure is reported rather than silently answered by a different model.
+Project agents and workflow model steps use their configured model. Selecting an agent’s model pins that provider/model pair. A model failure is reported rather than silently answered by a different model.
+
+Two providers can offer the same model: OpenRouter and an OpenAI-compatible gateway, for example, can both list `openai/gpt-5.6-luna`, and OpenAI’s own `gpt-5.6-luna` reads **GPT 5.6 Luna** as well. The model pickers of Chat, of agents and of the standard agent, image generation, audio transcription and vision model settings list each model under the provider that serves it, and a screen reader hears each model with its provider. Where a model’s name stands alone, as on a closed picker, in a setting’s status line or on the box of an agent pinned to a provider on a workflow’s canvas, the provider comes first when the picker it comes from also offers the same model, or one of the same name, from another provider, as in **OpenRouter · GPT 5.6 Luna**; otherwise the model’s own name stands there. A workflow’s `llm` step names no provider, because each run picks one.
 
 ## Understand where the list comes from
 

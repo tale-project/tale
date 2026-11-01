@@ -25,6 +25,10 @@ import { BookOpen, ChevronDown, Cpu, Gauge } from 'lucide-react';
 import { useMemo, useState, type ComponentType } from 'react';
 
 import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
+import {
+  groupByProvider,
+  qualifiedModelName,
+} from '@/app/features/shared/models/model-name';
 import type { ComposerSkillChoice } from '@/app/lib/backend/chat';
 import type { HiddenModelsRule } from '@/app/lib/backend/contract/lib';
 import { EFFORT_LEVELS, type ReasoningEffort } from '@/lib/chat/effort';
@@ -32,7 +36,7 @@ import { useT } from '@/lib/i18n/client';
 import { CHOSEN_SKILLS_MAX } from '@/lib/skills/slash';
 
 import type { ComposerModelOption, ComposerSelection } from '../types';
-import { autoAvailable } from './composer-model-picker';
+import { autoAvailable, selectionName } from './composer-model-picker';
 import {
   PickerSearchList,
   type PickerSearchOption,
@@ -96,6 +100,7 @@ export function ComposerSelectionPicker({
         (selection.providerSlug === undefined ||
           model.providerSlug === selection.providerSlug),
     ) ?? models.find((model) => model.id === selection.modelId);
+  const selectedModelName = selectionName(models, selection);
 
   const effort = selection.reasoningEffort;
   const effortApplies = selectedModel?.reasoning !== undefined;
@@ -104,40 +109,40 @@ export function ComposerSelectionPicker({
    * resolver sends the catalog's off value regardless). */
   const effortLocked = selectedModel?.reasoning?.toolsRequireOff === true;
 
-  /** Model rows — provider-qualified (the provider's display name, so an
-   * org-defined provider reads by the name its admin gave it) so the same id
-   * under two providers is distinguishable, and searchable by the model's
+  /** Model rows, grouped under their providers (each headed by the
+   * provider's display name, so an org-defined provider reads by the name
+   * its admin gave it), as the arena's picker lists them. Each row reads
+   * `Provider · model` to assistive technology, which hears no header; the
+   * section row and the trigger name the pick as `selectionName` does, so
+   * two providers' copies stay apart. Rows are searchable by the model's
    * name or id (`gpt-5.6` finds "GPT 5.6 Luna"), the provider's name or its
-   * slug. Auto leads the list when the
-   * catalog offers a real choice; picking it clears the pinned model AND the
-   * effort (the pick that paired with the old model must not silently steer
-   * whatever Auto resolves). Picking a model drops the Auto mode likewise —
-   * the two spellings are mutually exclusive all the way to the wire. */
+   * slug. Auto leads the list when the catalog offers a real choice; picking
+   * it clears the pinned model AND the effort (the pick that paired with the
+   * old model must not silently steer whatever Auto resolves). Picking a
+   * model drops the Auto mode likewise — the two spellings are mutually
+   * exclusive all the way to the wire. */
   const modelChoices = useMemo<PickerSearchOption[]>(() => {
-    const rows: PickerSearchOption[] = models.map((model) => ({
-      key: `${model.providerSlug}:${model.id}`,
-      search: `${model.label} ${model.id} ${model.providerSlug} ${model.providerLabel ?? ''}`,
-      label: (
-        <span className="flex min-w-0 items-center gap-2">
-          <span className="truncate">{model.label}</span>
-          <span className="text-muted-foreground/70 shrink-0 text-xs">
-            {model.providerLabel ?? model.providerSlug}
-          </span>
-        </span>
-      ),
-      selected:
-        model.id === selection.modelId &&
-        (selection.providerSlug === undefined ||
-          model.providerSlug === selection.providerSlug),
-      onSelect: () => {
-        const { modelSelection: _auto, ...rest } = selection;
-        onSelectionChange({
-          ...rest,
-          modelId: model.id,
-          providerSlug: model.providerSlug,
-        });
-      },
-    }));
+    const rows = groupByProvider(models).flatMap((group) =>
+      group.models.map((model): PickerSearchOption => ({
+        key: `${model.providerSlug}:${model.id}`,
+        search: `${model.label} ${model.id} ${model.providerSlug} ${model.providerLabel ?? ''}`,
+        label: model.label,
+        ariaLabel: qualifiedModelName(model),
+        group: { key: group.providerSlug, label: group.providerLabel },
+        selected:
+          model.id === selection.modelId &&
+          (selection.providerSlug === undefined ||
+            model.providerSlug === selection.providerSlug),
+        onSelect: () => {
+          const { modelSelection: _auto, ...rest } = selection;
+          onSelectionChange({
+            ...rest,
+            modelId: model.id,
+            providerSlug: model.providerSlug,
+          });
+        },
+      })),
+    );
     if (!autoAvailable(models)) return rows;
     return [
       {
@@ -229,7 +234,7 @@ export function ComposerSelectionPicker({
         section(
           t('picker.sectionModel'),
           Cpu,
-          autoSelected ? t('modelSelector.auto') : selectedModel?.label,
+          autoSelected ? t('modelSelector.auto') : selectedModelName,
           {
             type: 'custom',
             content: (
@@ -349,7 +354,7 @@ export function ComposerSelectionPicker({
     modelsHiddenBy,
     selection,
     onSelectionChange,
-    selectedModel,
+    selectedModelName,
     autoSelected,
     effort,
     effortApplies,
@@ -363,7 +368,7 @@ export function ComposerSelectionPicker({
   // a muted suffix when one is picked.
   const triggerLabel = autoSelected
     ? t('modelSelector.auto')
-    : (selectedModel?.label ??
+    : (selectedModelName ??
       (models.length > 0
         ? t('modelSelector.label')
         : t('modelSelector.noModelsAvailable')));

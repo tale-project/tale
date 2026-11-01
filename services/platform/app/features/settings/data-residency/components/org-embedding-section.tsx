@@ -369,6 +369,21 @@ export function OrgEmbeddingSection({
     }
     return byProvider;
   }, [catalogsQuery.data]);
+  // The providers' display names, from the same listing: the provider pick,
+  // the recommendation and the row's hints name a provider as the AI
+  // providers page does. Its slug stands in until the listing answers, and
+  // for a provider the listing does not name.
+  const providerNames = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const provider of catalogsQuery.data ?? []) {
+      if (provider.displayName) names.set(provider.name, provider.displayName);
+    }
+    return names;
+  }, [catalogsQuery.data]);
+  const providerNameOf = useCallback(
+    (slug: string) => providerNames.get(slug) ?? slug,
+    [providerNames],
+  );
   // Each provider's declared embedding support, from the recommendations
   // read: "cannot embed" (refused) and "no curated width here" (typed by
   // hand) are different answers, and only the declaration can tell them
@@ -507,7 +522,7 @@ export function OrgEmbeddingSection({
               code: z.ZodIssueCode.custom,
               path: ['model'],
               message: t(REFUSAL_COPY[refusal.kind].hint, {
-                provider: values.providerSlug,
+                provider: providerNameOf(values.providerSlug),
               }),
             });
           } else if (endpointRefusal !== undefined) {
@@ -542,7 +557,14 @@ export function OrgEmbeddingSection({
             });
           }
         }),
-    [t, configured, shapeOf, endpointRefusalOf, endpointRefusalHint],
+    [
+      t,
+      configured,
+      shapeOf,
+      providerNameOf,
+      endpointRefusalOf,
+      endpointRefusalHint,
+    ],
   );
 
   const baselineSettled = catalogsSettled && supportSettled;
@@ -731,13 +753,15 @@ export function OrgEmbeddingSection({
   // missing. Before a provider is chosen, or after the listing failed, the
   // row keeps the neutral spelling hint.
   const modelRowHint = isRefusal(shape)
-    ? t(REFUSAL_COPY[shape.kind].hint, { provider: selectedProvider })
+    ? t(REFUSAL_COPY[shape.kind].hint, {
+        provider: providerNameOf(selectedProvider),
+      })
     : endpointRefusal !== undefined
       ? endpointRefusalHint(endpointRefusal)
       : shape.kind === 'free'
         ? baselineSettled && !catalogsReadFailed && selectedProvider !== ''
           ? t('dataResidency.orgEmbedding.modelUncuratedHint', {
-              provider: selectedProvider,
+              provider: providerNameOf(selectedProvider),
             })
           : t('dataResidency.orgEmbedding.modelHint')
         : !shape.allowCustom
@@ -748,14 +772,14 @@ export function OrgEmbeddingSection({
 
   // Provider options: every provider the org holds a credential for, plus the
   // stored value itself (so a config whose credential set changed still shows
-  // what it points at instead of a blank select).
+  // what it points at instead of a blank select), each by its display name.
   const providerOptions = useMemo(() => {
     const slugs = new Set(credentials.map((c) => c.providerSlug));
     if (selectedProvider) slugs.add(selectedProvider);
     return [...slugs]
-      .sort((a, b) => a.localeCompare(b))
-      .map((slug) => ({ value: slug, label: slug }));
-  }, [credentials, selectedProvider]);
+      .map((slug) => ({ value: slug, label: providerNameOf(slug) }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [credentials, providerNameOf, selectedProvider]);
 
   const credentialOptions = useMemo(() => {
     const own = credentials
@@ -821,7 +845,7 @@ export function OrgEmbeddingSection({
               <span>
                 {t('dataResidency.orgEmbedding.recommendationBody', {
                   model: recommendation.model,
-                  provider: recommendation.providerSlug,
+                  provider: providerNameOf(recommendation.providerSlug),
                   dimensions: recommendation.dimensions,
                 })}
               </span>

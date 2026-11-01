@@ -30,6 +30,7 @@ import {
 import { useAgentToolOptions } from '@/app/features/projects/hooks/use-agent-tool-options';
 import { useUnpinnedServingPreview } from '@/app/features/projects/hooks/use-unpinned-serving-preview';
 import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
+import { modelOptionsByProvider } from '@/app/features/shared/models/model-name';
 import type { NodeDef } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 import {
@@ -172,17 +173,17 @@ export function AgentNodeFields({
           });
   const modelOptions = useMemo(
     () =>
-      offeredModels.map((option, index) => ({
+      modelOptionsByProvider(offeredModels, (option, index) => ({
         // Index-keyed: model ids carry `/` and `:`, so no composed string
         // value can safely encode the (provider, id) pair.
         value: String(index),
-        label: option.label,
-        description:
-          option.subscription === undefined
-            ? option.providerLabel
-            : tProjects('agents.modelProviderSubscription', {
+        ...(option.subscription === undefined
+          ? {}
+          : {
+              description: tProjects('agents.modelProviderSubscription', {
                 provider: option.providerLabel,
               }),
+            }),
       })),
     [offeredModels, tProjects],
   );

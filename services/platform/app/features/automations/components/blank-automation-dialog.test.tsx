@@ -6,10 +6,11 @@ import { render, screen, within } from '@/tests/utils/render';
 import { BlankAutomationDialog } from './blank-automation-dialog';
 
 // The picker's roster: the SAME model served by a direct OpenRouter key and
-// an Anthropic subscription (lookalike ids), plus a subscription entry bound
-// to another harness. The wizard used to collapse options by id and store a
-// bare model string — the saved node then resolved to whichever provider the
-// walk reached first, never the one picked on screen.
+// an Anthropic subscription (lookalike ids), the Anthropic id again through
+// an EU gateway's key, plus a subscription entry bound to another harness.
+// The wizard used to collapse options by id and store a bare model string —
+// the saved node then resolved to whichever provider the walk reached first,
+// never the one picked on screen.
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useProjectHarnesses: () => ({
     data: {
@@ -31,6 +32,13 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
             authMethod: 'subscription-broker',
             constraints: { harness: 'claude-code' },
           },
+        },
+        {
+          id: 'claude-fable-5',
+          label: 'claude-fable-5',
+          providerSlug: 'eu-gateway',
+          providerLabel: 'EU Gateway',
+          credential: { authMethod: 'api-key' },
         },
         {
           id: 'gpt-6-codex',
@@ -118,7 +126,9 @@ function renderDialog() {
 async function reachTriggerStep(user: ReturnType<typeof renderDialog>['user']) {
   await user.type(screen.getByLabelText(/Name/i), 'Triage');
   await user.click(screen.getByRole('button', { name: /Agent model/i }));
-  await user.click(screen.getByRole('option', { name: /^claude-fable-5/ }));
+  await user.click(
+    screen.getByRole('option', { name: /^Anthropic · claude-fable-5/ }),
+  );
   await user.type(screen.getByLabelText(/What should it do\?/i), 'Scan issues');
   await user.click(screen.getByRole('button', { name: /Next/i }));
 }
@@ -298,7 +308,9 @@ describe('BlankAutomationDialog display name', () => {
       const { user } = renderDialog();
       await user.type(screen.getByLabelText(/Name/i), displayName);
       await user.click(screen.getByRole('button', { name: /Agent model/i }));
-      await user.click(screen.getByRole('option', { name: /^claude-fable-5/ }));
+      await user.click(
+        screen.getByRole('option', { name: /^Anthropic · claude-fable-5/ }),
+      );
       await user.type(screen.getByLabelText(/What should it do\?/i), 'Scan');
       await user.click(screen.getByRole('button', { name: /Next/i }));
       await user.click(
@@ -319,7 +331,9 @@ describe('BlankAutomationDialog display name', () => {
     await user.type(screen.getByLabelText(/Name/i), 'Eval-D agent 测试 🚀');
     expect(screen.getByText('Saved as: eval-d-agent')).toBeVisible();
     await user.click(screen.getByRole('button', { name: /Agent model/i }));
-    await user.click(screen.getByRole('option', { name: /^claude-fable-5/ }));
+    await user.click(
+      screen.getByRole('option', { name: /^Anthropic · claude-fable-5/ }),
+    );
     await user.type(screen.getByLabelText(/What should it do\?/i), 'Scan');
     await user.click(screen.getByRole('button', { name: /Next/i }));
     await user.click(
@@ -340,7 +354,9 @@ describe('BlankAutomationDialog display name', () => {
     expect(hint).toBeVisible();
     const slug = hint.textContent?.replace('Saved as: ', '') ?? '';
     await user.click(screen.getByRole('button', { name: /Agent model/i }));
-    await user.click(screen.getByRole('option', { name: /^claude-fable-5/ }));
+    await user.click(
+      screen.getByRole('option', { name: /^Anthropic · claude-fable-5/ }),
+    );
     await user.type(screen.getByLabelText(/What should it do\?/i), 'Scan');
     const next = screen.getByRole('button', { name: /Next/i });
     expect(next).toBeEnabled();
@@ -461,13 +477,22 @@ describe('BlankAutomationDialog model pin', () => {
     const { user } = renderDialog();
     await user.click(screen.getByRole('button', { name: /Agent model/i }));
 
-    // Both copies stay separately pickable — the id-keyed dedupe is gone —
-    // and the subscription copy names its serving lane.
+    // Every copy stays separately pickable — the id-keyed dedupe is gone —
+    // under its provider's header, and the subscription copy names its
+    // serving lane.
+    for (const provider of ['OpenRouter', 'Anthropic', 'EU Gateway']) {
+      expect(screen.getByText(provider)).toBeVisible();
+    }
     expect(
-      screen.getByRole('option', { name: /anthropic\/claude-fable-5/ }),
+      screen.getByRole('option', {
+        name: 'OpenRouter · anthropic/claude-fable-5',
+      }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole('option', { name: 'EU Gateway · claude-fable-5' }),
     ).toBeVisible();
     const subscriptionRow = screen.getByRole('option', {
-      name: /^claude-fable-5/,
+      name: /^Anthropic · claude-fable-5/,
     });
     expect(subscriptionRow).toBeVisible();
     expect(subscriptionRow.textContent).toContain('Anthropic · Subscription');
@@ -481,7 +506,14 @@ describe('BlankAutomationDialog model pin', () => {
 
     await user.type(screen.getByLabelText(/Name/i), 'Triage');
     await user.click(screen.getByRole('button', { name: /Agent model/i }));
-    await user.click(screen.getByRole('option', { name: /^claude-fable-5/ }));
+    await user.click(
+      screen.getByRole('option', { name: /^Anthropic · claude-fable-5/ }),
+    );
+    // The EU gateway offers the same id, so the closed control names the
+    // pick's provider.
+    expect(
+      screen.getByRole('button', { name: /Agent model/i }),
+    ).toHaveTextContent('Anthropic · claude-fable-5');
     await user.type(
       screen.getByLabelText(/What should it do\?/i),
       'Scan issues',

@@ -191,6 +191,7 @@ import {
   effectTitle,
   nodeCatalogView,
   nodeTitle,
+  servedModelLabel,
 } from '../lib/node-face';
 import { pathClauses } from '../lib/paths';
 import {
@@ -805,16 +806,10 @@ function AutomationEditorScope({
     },
     catalog,
   });
-  const modelNames = useMemo(
-    () =>
-      new Map(
-        (harnesses.data?.models ?? []).map((model) => [model.id, model.label]),
-      ),
-    [harnesses.data?.models],
-  );
-  const modelLabel = useCallback(
-    (id: string) => modelNames.get(id),
-    [modelNames],
+  // A node names its model as its picker names the pick.
+  const modelLabel = useMemo(
+    () => servedModelLabel(harnesses.data),
+    [harnesses.data],
   );
   // What this automation may write without a person: its boxes say so. A
   // rule of the organization's approval policy that requires a person wins

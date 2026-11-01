@@ -18,6 +18,11 @@ import { ChevronDown, Cpu } from 'lucide-react';
 import { useMemo } from 'react';
 
 import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
+import {
+  groupByProvider,
+  pickedModelName,
+  qualifiedModelName,
+} from '@/app/features/shared/models/model-name';
 import type { HiddenModelsRule } from '@/app/lib/backend/contract/lib';
 import { useT } from '@/lib/i18n/client';
 
@@ -125,6 +130,27 @@ export function directServedModels(
   );
 }
 
+/**
+ * What a closed composer picker calls `selection` (the shared rule of
+ * `pickedModelName`, among `models`): its own provider's copy of the model,
+ * so a pick whose provider no longer lists the id reads by that provider,
+ * never by the copy that stands in for it. A pick saved before providers
+ * were part of it reads by the model's bare name. Undefined when no provider
+ * lists the id.
+ */
+export function selectionName(
+  models: readonly ComposerModelOption[],
+  selection: ComposerSelection,
+): string | undefined {
+  const listed = models.find((model) => model.id === selection.modelId);
+  if (listed === undefined) return undefined;
+  if (selection.providerSlug === undefined) return listed.label;
+  return pickedModelName(
+    { id: listed.id, providerSlug: selection.providerSlug },
+    models,
+  );
+}
+
 export function ComposerModelPicker({
   models,
   selection,
@@ -134,33 +160,20 @@ export function ComposerModelPicker({
 }: ComposerModelPickerProps) {
   const { t } = useT('chat');
 
-  // Prefer the exact (provider, id) pair; fall back to the id alone for a
-  // selection saved before providers were part of the pick.
-  const selectedModel =
-    models.find(
-      (model) =>
-        model.id === selection.modelId &&
-        model.providerSlug === selection.providerSlug,
-    ) ?? models.find((model) => model.id === selection.modelId);
+  const selectedName = selectionName(models, selection);
 
   const items = useMemo<DropdownMenuGroup[]>(() => {
     if (models.length === 0) return [];
-    const providers = [...new Set(models.map((model) => model.providerSlug))];
-    // The section header is the provider's display name — an org-defined
-    // provider reads by the name its admin gave it — with the slug standing
-    // in for a catalog stored before the name rode the wire.
-    const providerLabels = new Map<string, string>();
-    for (const model of models) {
-      if (!providerLabels.has(model.providerSlug)) {
-        providerLabels.set(
-          model.providerSlug,
-          model.providerLabel ?? model.providerSlug,
-        );
-      }
-    }
     const itemOf = (model: ComposerModelOption) => ({
       type: 'item' as const,
-      label: model.label,
+      // The row reads its provider to assistive technology, which does not
+      // tie a row to its header.
+      label: (
+        <span className="min-w-0 flex-1 truncate">
+          <span aria-hidden>{model.label}</span>
+          <span className="sr-only">{qualifiedModelName(model)}</span>
+        </span>
+      ),
       icon: Cpu,
       selected:
         model.id === selection.modelId &&
@@ -177,18 +190,16 @@ export function ComposerModelPicker({
     // its header, so the two lanes read the same (the external lane often
     // narrows to a single provider's direct-served models, and its header
     // says exactly whose wire those are) and the same model id is findable —
-    // and PICKABLE — under each provider that serves it.
-    const groups = providers.map((provider) => {
-      const group: DropdownMenuGroup = [
-        {
-          type: 'label' as const,
-          content: providerLabels.get(provider) ?? provider,
-        },
+    // and PICKABLE — under each provider that serves it. The header is the
+    // provider's display name, an org-defined provider reading by the name
+    // its admin gave it, with the slug standing in for a catalog stored
+    // before the name rode the wire.
+    const groups = groupByProvider(models).map((group) => {
+      const section: DropdownMenuGroup = [
+        { type: 'label', content: group.providerLabel },
       ];
-      for (const model of models) {
-        if (model.providerSlug === provider) group.push(itemOf(model));
-      }
-      return group;
+      for (const model of group.models) section.push(itemOf(model));
+      return section;
     });
     if (modelsHiddenBy !== undefined) {
       groups.push([
@@ -210,7 +221,7 @@ export function ComposerModelPicker({
   // offer the trigger invites a pick; "no models" is reserved for a truly
   // empty menu, so the label never claims an absence that isn't there.
   const triggerLabel =
-    selectedModel?.label ??
+    selectedName ??
     (models.length > 0
       ? t('modelSelector.label')
       : t('modelSelector.noModelsAvailable'));

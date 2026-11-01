@@ -33,7 +33,7 @@ You can also start from a task: while the project has no agent, **Create an agen
 
 <Step title="Choose the model and provider">
 
-Search **Model** by name or API ID. The same model can appear once per provider; read the provider on the entry before selecting it. Selecting an entry pins that pair for future runs. Subscription entries appear only for a compatible runtime, and a model whose tool calls need OpenAI’s Responses API, such as GPT-6.1 Sol, appears only for Codex.
+Search **Model** by name or API ID. The list groups the models under the provider that serves them, so the same model can appear once per provider: pick it under the provider you want. When another provider also offers the model you pick, or one of the same name, the field names the provider with it, such as **OpenRouter · GPT 5.6 Luna**. Selecting an entry pins that pair for future runs. Subscription entries appear only for a compatible runtime, and a model whose tool calls need OpenAI’s Responses API, such as GPT-6.1 Sol, appears only for Codex.
 
 An older configuration may name a model without a pinned provider. The dialog reports which provider currently resolves it, or why none can serve it. Select an entry if you want to pin that choice.
 

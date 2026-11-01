@@ -33,6 +33,25 @@ export interface SearchableSelectOption {
   value: string;
   label: string;
   /**
+   * The option's whole name, for a row whose `label` leans on the section
+   * header above it (a model under its provider). Assistive technology reads
+   * it for the row (section headers are presentation only), and the default
+   * search matches it. Defaults to `label`.
+   */
+  name?: string;
+  /**
+   * What the closed trigger shows while this option is picked, where the
+   * whole `name` says more than a lone pick needs (a model only one provider
+   * offers). Defaults to `name`, then `label`.
+   */
+  selectedLabel?: string;
+  /**
+   * More words the default search matches, beyond the label, name and
+   * description: an id behind a display name, or what the section header
+   * above the row says.
+   */
+  keywords?: readonly string[];
+  /**
    * Optional inline badge rendered right after the label (e.g. a provider
    * tag on a model row). Wraps onto a second line when the label is long.
    */
@@ -109,7 +128,8 @@ export interface SearchableSelectProps {
   contentClassName?: string;
   /** Accessible name for the listbox/popover and fallback name for the search input. */
   'aria-label'?: string;
-  /** Custom filter function; defaults to case-insensitive match on label + description */
+  /** Custom filter function; defaults to a case-insensitive match on the
+   * label, name, description and keywords */
   filterFn?: (option: SearchableSelectOption, query: string) => boolean;
   /**
    * Notified whenever the search text changes, including the reset to `''`
@@ -185,10 +205,12 @@ const EMPTY_OPTIONS: readonly SearchableSelectOption[] = [];
 
 function defaultFilterFn(option: SearchableSelectOption, query: string) {
   const lower = query.toLowerCase();
-  return (
-    option.label.toLowerCase().includes(lower) ||
-    (option.description?.toLowerCase().includes(lower) ?? false)
-  );
+  return [
+    option.label,
+    option.name,
+    option.description,
+    ...(option.keywords ?? []),
+  ].some((text) => text?.toLowerCase().includes(lower) ?? false);
 }
 
 /**
@@ -330,7 +352,11 @@ function SearchableSelectBase({
         className={cn(selectTriggerClasses({ error }), triggerClassName)}
       >
         <span className={cn(!selectedOption && 'text-muted-foreground')}>
-          {selectedOption ? selectedOption.label : placeholder}
+          {selectedOption
+            ? (selectedOption.selectedLabel ??
+              selectedOption.name ??
+              selectedOption.label)
+            : placeholder}
         </span>
         <ChevronDown className="size-4 opacity-50" aria-hidden="true" />
       </button>
@@ -934,7 +960,16 @@ function SearchableSelectOptionItem({
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <Text as="span" variant="label">
-            {option.label}
+            {option.name !== undefined && option.name !== option.label ? (
+              // The row shows its label under the header; assistive
+              // technology, which hears no header, reads its whole name.
+              <>
+                <span aria-hidden="true">{option.label}</span>
+                <span className="sr-only">{option.name}</span>
+              </>
+            ) : (
+              option.label
+            )}
           </Text>
           {option.labelBadge}
         </div>

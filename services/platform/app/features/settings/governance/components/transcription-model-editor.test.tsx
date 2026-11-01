@@ -145,9 +145,7 @@ describe('audio model settings', () => {
         screen.getByRole('button', { name: 'Model that transcribes audio' }),
       ).toBeEnabled();
       expect(
-        screen.getByText(
-          'Currently transcribing audio with local-audio · opaque-model-id.',
-        ),
+        screen.getByText('Currently transcribing audio with opaque-model-id.'),
       ).toBeInTheDocument();
       expect(
         screen.getByText(/Browser speech recognition uses its own model/),
@@ -160,6 +158,7 @@ describe('audio model settings', () => {
     await user.click(
       screen.getByRole('button', { name: 'Model that transcribes audio' }),
     );
+    expect(screen.getByText('Local audio')).toBeVisible();
     await user.click(
       screen.getByRole('option', { name: 'Local audio · opaque-model-id' }),
     );
@@ -176,7 +175,13 @@ describe('audio model settings', () => {
   it('keeps an unavailable saved pin visible and offers a repair route', async () => {
     state.config = { providerSlug: 'removed-provider', modelId: 'old-audio' };
     state.models = {
-      models: [],
+      models: [
+        {
+          providerSlug: 'local-audio',
+          providerDisplayName: 'Local audio',
+          modelId: 'opaque-model-id',
+        },
+      ],
       pick: null,
       error: { code: 'TRANSCRIPTION_MODEL_UNAVAILABLE' },
     };
@@ -194,10 +199,21 @@ describe('audio model settings', () => {
       '/dashboard/org-audio/settings/providers',
     );
     await user.click(picker);
+    const pin = screen.getByRole('option', {
+      name: /removed-provider · old-audio/,
+    });
+    expect(pin).toHaveAttribute('aria-disabled', 'true');
+    // It follows Automatic and leads the providers' sections, so no
+    // provider's header claims it.
+    const automatic = screen.getByRole('option', { name: /^Automatic/ });
     expect(
-      screen.getByRole('option', { name: /removed-provider · old-audio/ }),
-    ).toHaveAttribute('aria-disabled', 'true');
-    await user.click(screen.getByRole('option', { name: /^Automatic/ }));
+      automatic.compareDocumentPosition(pin) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    expect(
+      pin.compareDocumentPosition(screen.getByText('Local audio')) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).not.toBe(0);
+    await user.click(automatic);
     await user.click(screen.getByRole('button', { name: 'Save' }));
     await waitFor(() =>
       expect(saved).toHaveBeenCalledWith({
