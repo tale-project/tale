@@ -5,6 +5,7 @@ import { useState } from 'react';
 
 import { ApiKeyScopeFilter } from '@/app/features/settings/api-keys/components/api-key-scope-filter';
 import { ApiKeysTable } from '@/app/features/settings/api-keys/components/api-keys-table';
+import { PersonalKeysListNotice } from '@/app/features/settings/api-keys/components/personal-keys-list-notice';
 import { PersonalKeysNotice } from '@/app/features/settings/api-keys/components/personal-keys-notice';
 import { PersonalKeysPolicyEditor } from '@/app/features/settings/api-keys/components/personal-keys-policy-editor';
 import {
@@ -56,7 +57,8 @@ function ApiRestPage() {
   // Only an Owner or Admin chooses; anyone else sees the keys they manage.
   const scope: ApiKeyListScope = canSeeAll ? chosen : 'managed';
 
-  const { data: apiKeys, error, refetch } = useApiKeys(organizationId, scope);
+  const { data: listing, error, refetch } = useApiKeys(organizationId, scope);
+  const apiKeys = listing?.keys;
   // A session that covers this organization alone ends none of the keys
   // that work everywhere: the list offers no way to, and this says why.
   const everywhereKeysListed =
@@ -95,6 +97,11 @@ function ApiRestPage() {
           </span>
         }
       >
+        {/* Every key that works here leaves out the members' own keys while
+            the organization refuses them, and says why. */}
+        {scope === 'all' && (
+          <PersonalKeysListNotice standing={listing?.personalKeys} />
+        )}
         <ApiKeysTable
           apiKeys={apiKeys}
           organizationId={organizationId}

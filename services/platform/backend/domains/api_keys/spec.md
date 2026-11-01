@@ -176,13 +176,18 @@ last use: the key may have been used in another organization, and nothing record
 alone. A disabled or expired key, a former or disabled member's key, and a member's own key this
 organization blocked (`APIKEY-R11`) are not listed, since none of them can act here; a blocked key
 stays in its member's row, where the block is lifted, and the viewer's own blocked key keeps its
-place and its mark. Anyone else who asks for every key gets the keys they see already; any other
-list is refused (`INVALID_QUERY`).
+place and its mark. While the organization refuses its members' own keys (`APIKEY-R12`), or that
+setting cannot be read, no one's own key can act here, the viewer's included: the list then adds
+none of them and says why (`personalKeys`). Anyone else who asks for every key gets the keys they
+see already; any other list is refused (`INVALID_QUERY`).
 
 - **Example**: Mia opens Settings > API > REST → she sees her own keys and "Billing sync", and
   can end it; she does not see the Finance team's key.
 - **Example**: Ada, an admin, picks All keys in this organization → she also sees Mia's own key
   "Laptop", with Mia's name and e-mail; it offers no way to end it.
+- **Example**: Ada turns members' personal keys off, then picks All keys in this organization →
+  neither Mia's "Laptop" nor Ada's own keys are listed, and the page says that members' personal
+  keys are turned off here.
 - **Example**: Ada blocks Mia's "Laptop" here → All keys in this organization no longer lists it,
   while Mia's own list still shows it, marked as blocked in this organization; Ada lifts the block
   → it is listed again.

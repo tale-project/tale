@@ -598,6 +598,11 @@ Restore any toggled setting after the run.
   SET-F103 does and open the view again → the key has left it; signed in as
   the Member, their own list still shows it, marked **Blocked in this
   organization** (`settings.apiKeys.owner.blockedHere`). Lift the block → it
+  is listed again. Turn **Members' personal keys work here**
+  (`settings.apiKeys.personalKeys.enabledLabel`) off and open the view again →
+  no one's own key is listed, the Member's and yours included, and the line
+  above the table says why (`settings.apiKeys.scope.personalKeysRefused`);
+  **Keys you manage** still lists your own. Turn it back on → the Member's key
   is listed again. Have an Owner block your own key → the view keeps it,
   marked the same way. Signed in as the Member, the page offers no **Keys to
   show**, and `GET /api/app/api-keys?scope=all` from their session answers

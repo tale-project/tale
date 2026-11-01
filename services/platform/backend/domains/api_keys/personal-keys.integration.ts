@@ -25,6 +25,15 @@ const refusalSchema = z.looseObject({
     .optional(),
 });
 const standingSchema = z.looseObject({ personalKeys: z.string() });
+const listingSchema = z.looseObject({
+  keys: z.array(
+    z.looseObject({
+      name: z.string().nullable(),
+      owner: z.looseObject({ kind: z.string() }),
+    }),
+  ),
+  personalKeys: z.string().optional(),
+});
 
 /**
  * An organization that turns members' own API keys off (APIKEY-R12, the
@@ -108,6 +117,27 @@ export async function checkPersonalKeysPolicy(
         .catch(() => null),
     );
     return parsed.success ? parsed.data.personalKeys : '';
+  };
+  // The Owner's list of every key that works here (APIKEY-R8): the kinds of
+  // key it holds, the names of the members' own, and what it says of them.
+  const everyKey = async () => {
+    const parsed = listingSchema.safeParse(
+      await (
+        await fetch(`${base}/api/app/api-keys?orgId=${orgId}&scope=all`, {
+          headers: { cookie: ctx.cookie, origin: base },
+        })
+      )
+        .json()
+        .catch(() => null),
+    );
+    const keys = parsed.success ? parsed.data.keys : [];
+    return {
+      kinds: [...new Set(keys.map((key) => key.owner.kind))].sort(),
+      personal: keys
+        .filter((key) => key.owner.kind === 'personal')
+        .map((key) => key.name),
+      personalKeys: parsed.success ? (parsed.data.personalKeys ?? '') : '',
+    };
   };
 
   // The member's own key, and the keys the Owner makes here.
@@ -205,6 +235,17 @@ export async function checkPersonalKeysPolicy(
         `refused=${refused.status}/${refused.code} listed=${JSON.stringify(refused.listed)} elsewhere=${elsewhere.status}/${elsewhere.slug} tab=${told}`,
       );
 
+      const listedOff = await everyKey();
+      record(
+        'personal keys: turned off, the Owner’s list of every key here holds no one’s own key, theirs included, and says why',
+        listedOff.personalKeys === 'refused' &&
+          !listedOff.kinds.includes('personal') &&
+          !listedOff.kinds.includes('user') &&
+          listedOff.kinds.includes('member') &&
+          listedOff.kinds.includes('organization'),
+        `kinds=${JSON.stringify(listedOff.kinds)} personalKeys=${listedOff.personalKeys}`,
+      );
+
       const asMember = await me(memberKey);
       const asOrganization = await me(orgKey);
       record(
@@ -226,6 +267,13 @@ export async function checkPersonalKeysPolicy(
           after.status === 200 &&
           (await standing()) === 'admitted',
         `save=${turnedOn.status} after=${after.status}`,
+      );
+      const listedOn = await everyKey();
+      record(
+        'personal keys: turned back on, the Owner’s list of every key here holds the member’s own key again',
+        listedOn.personalKeys === 'admitted' &&
+          listedOn.personal.includes(`itest-personal-${suffix}`),
+        `personal=${JSON.stringify(listedOn.personal)} personalKeys=${listedOn.personalKeys}`,
       );
     },
   );
