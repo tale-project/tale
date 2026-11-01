@@ -7,7 +7,9 @@
 // layer re-resolves from the backend by deterministic name
 // (SessionRoutes.ensureRegistered) and the periodic sweep re-adopts whatever
 // the backend lists. Per-exec AbortControllers live here too, keyed
-// sessionId/execId, so cancel can find them.
+// sessionId/execId, so cancel can find them; so do those of the attach
+// streams runnerd has answered, under a key no exec id can take: they count
+// as work in flight, and cancel never finds them.
 
 import type { SandboxSessionProfile, SandboxSessionState } from '../wire.ts';
 
@@ -24,7 +26,9 @@ export interface RegistrySession {
   /** runnerd base URL (resolved at create; re-resolved on K8s if the Pod IP
    * changed). */
   endpoint: string;
-  /** Live exec abort controllers, keyed execId. */
+  /** Live exec abort controllers, keyed execId, and those of the attach
+   * streams runnerd has answered, each under its own key holding a '/' (no
+   * exec id does). The session is busy while any is here. */
   liveExecs: Map<string, AbortController>;
   /** "Always-on": the idle/TTL reaper skips this session. In-memory only
    * (re-derived from the platform row after a spawner restart). */
@@ -67,7 +71,8 @@ export class SessionRegistry {
   delete(sessionId: string): void {
     const s = this.sessions.get(sessionId);
     if (s) {
-      // Abort any in-flight execs so their SSE streams unwind.
+      // Abort any in-flight execs and attach streams so their SSE streams
+      // unwind.
       for (const ac of s.liveExecs.values()) ac.abort();
       this.sessions.delete(sessionId);
     }
@@ -77,8 +82,18 @@ export class SessionRegistry {
     this.sessions.get(sessionId)?.liveExecs.set(execId, ac);
   }
 
-  unregisterExec(sessionId: string, execId: string): void {
-    this.sessions.get(sessionId)?.liveExecs.delete(execId);
+  /** Take a stream's key out of the entry the stream registered in, while
+   * the key still holds that stream's controller. By the entry, not the id:
+   * a destroy that fails puts the same entry back after the registry dropped
+   * it, and a key left in it would keep the session busy until a restart,
+   * while a replacement under the id never held the key. By the controller:
+   * a later stream under the same exec id keeps its own. */
+  unregisterExec(
+    session: RegistrySession,
+    execId: string,
+    ac: AbortController,
+  ): void {
+    if (session.liveExecs.get(execId) === ac) session.liveExecs.delete(execId);
   }
 
   getExec(sessionId: string, execId: string): AbortController | undefined {

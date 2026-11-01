@@ -95,7 +95,6 @@ case "$MAX_CLIENTS" in
     echo "[sandbox-egress] FATAL: SANDBOX_EGRESS_MAX_CLIENTS must be a whole number of connections above 0; got '${MAX_CLIENTS}'"
     exit 1 ;;
 esac
-export MAX_CLIENTS
 # A Kubernetes Pod spec sets no open-file limit, and a container runtime's
 # default soft limit can be as low as 1024: raise the soft limit to what the
 # connections need, as far as the hard limit allows (no privilege needed).
@@ -112,9 +111,21 @@ if [ "$_open_files" != unlimited ] && [ "$_need_files" -gt "$_open_files" ]; the
     _open_files="$(ulimit -n)"
   fi
 fi
+# When even that cannot hold them, serve only as many connections as the
+# limit holds (two descriptors each above the 64 kept for the rest), so
+# tinyproxy turns the surplus away at MaxClients rather than have its
+# accepts and upstream connects fail for want of a descriptor.
 if [ "$_open_files" != unlimited ] && [ "$_need_files" -gt "$_open_files" ]; then
-  echo "[sandbox-egress] WARN: ${MAX_CLIENTS} connections need about ${_need_files} open files, more than this container's limit of ${_open_files} allows; raise its nofile ulimit or lower SANDBOX_EGRESS_MAX_CLIENTS"
+  _held_clients=$(( (_open_files - 64) / 2 ))
+  _held_note="as many as that limit holds"
+  if [ "$_held_clients" -lt 1 ]; then
+    _held_clients=1
+    _held_note="though that limit holds none"
+  fi
+  echo "[sandbox-egress] WARN: ${MAX_CLIENTS} connections need about ${_need_files} open files, more than this container's limit of ${_open_files} allows; lowered MaxClients to ${_held_clients}, ${_held_note}; raise its nofile ulimit to serve ${MAX_CLIENTS}"
+  MAX_CLIENTS="$_held_clients"
 fi
+export MAX_CLIENTS
 
 # Outbound proxies. OUTBOUND_PROXY_URLS lists the HTTP proxies the platform
 # sends its requests to other websites through (the backend reads the same

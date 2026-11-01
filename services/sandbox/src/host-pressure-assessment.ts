@@ -23,6 +23,7 @@
 // which does not run.
 
 import { busyCpuShare } from './proc-stats.ts';
+import { msSince } from './wall-clock.ts';
 
 /** One reading of the host, as the pressure sampler takes it every few
  * seconds. Every value is null when it could not be read, never 0. */
@@ -274,7 +275,9 @@ export interface AssessHostPressureInput {
   pressured: boolean;
   now: number;
   /** When the last session start was let in. A start must be followed by a
-   * fresh pair of readings before the next: they are what shows its load. */
+   * fresh pair of readings before the next: they are what shows its load.
+   * Never ahead of `now`: the caller moves a start the clock stepped back
+   * past to now, and keeps it there (host-admission.ts). */
   lastStartAtMs?: number | null;
   minSpanMs?: number;
   maxSpanMs?: number;
@@ -348,7 +351,9 @@ export function assessHostPressure(
   if (last === null) {
     return unjudged('unavailable', UNAVAILABLE_RETRY_MS, null, null);
   }
-  if (now - last.atMs > freshMs || first === null) {
+  // A newest reading stamped ahead of `now` (the clock stepped back since)
+  // is stale too: it says nothing of the host now.
+  if (msSince(last.atMs, now) > freshMs || first === null) {
     return unjudged('stale', STALE_RETRY_MS, first, last);
   }
 

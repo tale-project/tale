@@ -264,7 +264,7 @@ describe('egress proxy connection limit', () => {
     }).stdout.trim();
     // 1000 connections need 2064 descriptors; a runtime's soft limit of 256
     // would hold about a hundred.
-    const { result } = boot('1000', 'ulimit -S -n 256');
+    const { result, config } = boot('1000', 'ulimit -S -n 256');
     expect(result.status).toBe(0);
     if (hard === 'unlimited' || Number(hard) >= 2064) {
       expect(result.stdout).toContain(
@@ -272,28 +272,65 @@ describe('egress proxy connection limit', () => {
       );
       expect(readFileSync(tinyproxyFiles, 'utf8').trim()).toBe('2064');
       expect(result.stdout).not.toContain('WARN');
+      expect(directive(config, 'MaxClients')).toEqual(['1000']);
     }
   });
 
   test('leaves a limit that already holds the connections alone', () => {
-    const { result } = boot('100', 'ulimit -S -n 1024');
+    const { result, config } = boot('100', 'ulimit -S -n 1024');
     expect(result.status).toBe(0);
     expect(result.stdout).not.toContain('raised the open-file limit');
     expect(readFileSync(tinyproxyFiles, 'utf8').trim()).toBe('1024');
+    expect(directive(config, 'MaxClients')).toEqual(['100']);
   });
 
-  test('warns when the open-file limit cannot hold the connections', () => {
+  test('warns and lowers MaxClients when the open-file limit cannot hold the connections', () => {
     // Constrain only the child shell. An inherited unlimited hard limit
     // otherwise lets the entrypoint raise even a very large soft limit.
-    const { result } = boot(
+    const { result, config } = boot(
       '3500',
       'ulimit -S -n 4096 && ulimit -H -n 4096 || exit 1',
     );
     expect(result.status).toBe(0);
+    // (4096 - 64) / 2: two descriptors a connection above the 64 kept for
+    // the rest.
     expect(result.stdout).toContain(
-      "WARN: 3500 connections need about 7064 open files, more than this container's limit of 4096 allows; raise its nofile ulimit",
+      "WARN: 3500 connections need about 7064 open files, more than this container's limit of 4096 allows; lowered MaxClients to 2016, as many as that limit holds; raise its nofile ulimit to serve 3500",
     );
+    expect(directive(config, 'MaxClients')).toEqual(['2016']);
+    expect(result.stdout).toContain('at most 2016 connections');
     expect(readFileSync(tinyproxyFiles, 'utf8').trim()).toBe('4096');
+  });
+
+  test('serves the default 2000 connections only as far as a hard open-file limit of 1024 holds them', () => {
+    // A runtime's low soft limit is raised as far as the hard limit allows
+    // first; what that still cannot hold is left out of MaxClients.
+    const { result, config } = boot(
+      undefined,
+      'ulimit -S -n 256 && ulimit -H -n 1024 || exit 1',
+    );
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      'raised the open-file limit from 256 to 1024 for 2000 connections',
+    );
+    expect(result.stdout).toContain(
+      "WARN: 2000 connections need about 4064 open files, more than this container's limit of 1024 allows; lowered MaxClients to 480, as many as that limit holds; raise its nofile ulimit to serve 2000",
+    );
+    expect(directive(config, 'MaxClients')).toEqual(['480']);
+    expect(result.stdout).toContain('at most 480 connections');
+    expect(readFileSync(tinyproxyFiles, 'utf8').trim()).toBe('1024');
+  });
+
+  test('keeps MaxClients at 1 when the open-file limit holds no connection at all', () => {
+    const { result, config } = boot(
+      '100',
+      'ulimit -S -n 40 && ulimit -H -n 40 || exit 1',
+    );
+    expect(result.status).toBe(0);
+    expect(result.stdout).toContain(
+      "WARN: 100 connections need about 264 open files, more than this container's limit of 40 allows; lowered MaxClients to 1, though that limit holds none; raise its nofile ulimit to serve 100",
+    );
+    expect(directive(config, 'MaxClients')).toEqual(['1']);
   });
 });
 
