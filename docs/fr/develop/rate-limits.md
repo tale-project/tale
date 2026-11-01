@@ -23,6 +23,8 @@ Un seau de jetons se remplit en continu jusqu’à sa capacité de rafale. Une c
 | Livraisons webhook avant validation du jeton | 120/minute | 240 | Adresse de l’expéditeur |
 | Livraisons à un déclencheur webhook vérifié | 20/minute | 40 | Déclencheur |
 
+Chaque serveur prélève les appels généraux `/api/v1` sur leur seau quelques requêtes à l’avance. Une rafale peut donc s’arrêter jusqu’à 10 requêtes avant 200 : prévoyez des rafales de 190 requêtes au plus.
+
 Un agent de code qu’une personne a connecté puise dans les budgets de cette personne, les mêmes que ceux que partagent ses clés API ; il n’a pas de clé à lui. Un jeton qui n’a jamais été valide compte comme une authentification échouée, comme une mauvaise clé ; un jeton simplement expiré, non, puisque l’agent le renouvelle ensuite. L’enregistrement et les demandes de jeton refusées sont imputés à l’adresse source ; une demande de jeton qui aboutit ne coûte rien, car les agents hébergés partagent leurs adresses.
 
 Les étapes HTTP des automatisations ont leur propre budget, par organisation : 120 appels par minute sur tout le déploiement, et 10 à la fois sur un serveur. Voir [Appeler une API depuis une automatisation](/fr/platform/automations/http).
