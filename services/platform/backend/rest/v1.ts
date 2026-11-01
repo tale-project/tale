@@ -19,6 +19,10 @@ import {
 } from '../auth/auth.ts';
 import { findOrganizationMember } from '../auth/membership.ts';
 import { getClientIp, nodePeerAddress } from '../core/lib/utils/client_ip.ts';
+import {
+  isApiKeyBlockedInOrg,
+  listBlockingOrgSlugs,
+} from '../domains/api_keys/block-check.ts';
 import { readApiKeyOwner } from '../domains/api_keys/owners.ts';
 import {
   organizationsAdmittingPersonalKeys,
@@ -462,6 +466,18 @@ export function createRestV1Routes(deps: {
         403,
       );
     }
+    // Where this key still works, for either refusal below to list: the
+    // holder's organizations that let members' own keys in and have not
+    // blocked this one.
+    const organizationsWhereKeyWorks = async () => {
+      const [organizations, blocking] = await Promise.all([
+        listSelectableOrganizations(deps.sql, session.user.id),
+        listBlockingOrgSlugs(deps.sql, apiKeyId),
+      ]);
+      return organizationsAdmittingPersonalKeys(
+        organizations.filter((org) => !blocking.has(org.slug)),
+      );
+    };
     // An Owner or Admin may refuse every member's own key in their
     // organization (APIKEY-R12, the `personal_keys` policy): such a key keeps
     // working in the holder's other organizations, which the refusal lists,
@@ -473,11 +489,7 @@ export function createRestV1Routes(deps: {
         {
           error: `Organization "${resolved.orgSlug}" does not accept members' own API keys. This key keeps working in your other organizations that accept them; for this one, an Owner or Admin there can make a key for you.`,
           code: 'API_KEY_PERSONAL_REFUSED',
-          data: {
-            organizations: await organizationsAdmittingPersonalKeys(
-              await listSelectableOrganizations(deps.sql, session.user.id),
-            ),
-          },
+          data: { organizations: await organizationsWhereKeyWorks() },
         },
         403,
       );
@@ -490,6 +502,21 @@ export function createRestV1Routes(deps: {
         },
         503,
         { 'retry-after': '30' },
+      );
+    }
+    // An Owner or Admin may block a person's own key in their organization
+    // and only there (APIKEY-R11): the key keeps working in the holder's
+    // other organizations, which the refusal lists.
+    if (
+      await isApiKeyBlockedInOrg(deps.sql, resolved.organizationId, apiKeyId)
+    ) {
+      return c.json(
+        {
+          error: `Organization "${resolved.orgSlug}" has blocked this API key; it works only in the organizations listed.`,
+          code: 'API_KEY_BLOCKED',
+          data: { organizations: await organizationsWhereKeyWorks() },
+        },
+        403,
       );
     }
 

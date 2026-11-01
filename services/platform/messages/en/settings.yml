@@ -1156,6 +1156,37 @@ apiKeys:
     deletedProject: Deleted project
     actsAs: Acts as {role}
     madeBy: Made by {name}
+    blockedHere: Blocked in this organization
+  memberKeys:
+    action: Personal API keys
+    title: Personal API keys of {name}
+    description: These keys belong to {name}. A key blocked here is refused in this organization only; the block does not reach their other organizations.
+    works: Works here
+    blocked: Blocked here
+    refused: Refused here
+    refusedNotice: Members' personal keys are turned off in this organization, so none of these keys works here. A block still applies once they are turned on again.
+    unavailableNotice: The members' personal keys setting can't be read right now, so it isn't known whether these keys work here. Try again shortly.
+    created: Added {date}
+    blockedBy: Blocked by {name} on {date}
+    block: Block
+    unblock: Lift block
+    empty: '{name} has no personal API keys.'
+    cannotBlock: Only an Owner can block an Owner's API keys.
+    loadFailed: The keys could not be loaded.
+    refreshFailed: The keys could not be refreshed; the list may be out of date.
+    blockDialog:
+      title: Block this key here?
+      description: 'Requests with "{keyName}" in this organization will be refused. The block does not reach the other organizations {name} belongs to, and {name} is notified.'
+      confirm: Block key
+    unblockDialog:
+      title: Lift the block?
+      description: 'This organization no longer blocks "{keyName}", and {name} is notified.'
+      confirm: Lift block
+    toasts:
+      blocked: Key blocked in this organization
+      unblocked: Block lifted
+      blockFailed: The key could not be blocked
+      unblockFailed: The block could not be lifted
   form:
     name: Key name
     namePlaceholder: Enter key name...
@@ -1403,6 +1434,8 @@ logs:
       api_key.created: API key created
       api_key.updated: API key updated
       api_key.revoked: API key revoked
+      api_key.blocked: API key blocked
+      api_key.unblocked: API key block lifted
       agent_connection.created: Coding agent connected
       agent_connection.updated: Coding agent's access changed
       agent_connection.revoked: Coding agent disconnected

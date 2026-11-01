@@ -5,7 +5,7 @@ import { render, screen } from '@/tests/utils/render';
 import type { ApiKey } from '../types';
 import { ApiKeyOwnerCell } from './api-key-owner-cell';
 
-type OwnerFacts = Pick<ApiKey, 'owner' | 'role' | 'createdBy'>;
+type OwnerFacts = Pick<ApiKey, 'owner' | 'role' | 'createdBy' | 'blockedHere'>;
 
 function renderCell(apiKey: OwnerFacts, viewerUserId = 'mia') {
   return render(
@@ -79,5 +79,32 @@ describe('ApiKeyOwnerCell', () => {
     });
     expect(screen.getByText('Organization')).toBeInTheDocument();
     expect(screen.getByText('Acts as Admin')).toBeInTheDocument();
+  });
+
+  it('marks the viewer’s own key that this organization blocked [APIKEY-R11]', () => {
+    renderCell({
+      owner: { kind: 'user' },
+      role: null,
+      createdBy: null,
+      blockedHere: true,
+    });
+    expect(screen.getByText('You')).toBeInTheDocument();
+    expect(
+      screen.getByText('Blocked in this organization'),
+    ).toBeInTheDocument();
+  });
+
+  it('marks nothing on a key that works here, or from a server without blocks [APIKEY-R11]', () => {
+    renderCell({
+      owner: { kind: 'user' },
+      role: null,
+      createdBy: null,
+      blockedHere: false,
+    });
+    renderCell({ owner: { kind: 'user' }, role: null, createdBy: null });
+    expect(screen.getAllByText('You')).toHaveLength(2);
+    expect(
+      screen.queryByText('Blocked in this organization'),
+    ).not.toBeInTheDocument();
   });
 });
