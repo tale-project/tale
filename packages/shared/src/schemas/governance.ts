@@ -112,6 +112,11 @@ export const POLICY_TYPES = [
   // `skillSharingConfigSchema`; decided by `mayChooseOrgWideAudience`
   // (`backend/core/lib/audience.ts`) at every skill write door.
   'skill_sharing',
+  // Whether the members' own (personal) API keys work in this organization.
+  // Missing file ⇒ they do, exactly as before the policy existed. See
+  // `personalKeysConfigSchema`; enforced at the `/api/v1` door
+  // (`backend/domains/api_keys/personal-keys.ts`).
+  'personal_keys',
 ] as const;
 export type PolicyType = (typeof POLICY_TYPES)[number];
 
@@ -1465,6 +1470,23 @@ export function skillOrgWideModeOf(
 }
 
 /**
+ * Whether a member's own API key — the one they make for themselves, which
+ * works in every organization they belong to — works in this organization.
+ * Off refuses every such key here alone; the keys an Owner or Admin makes
+ * here (for a member, a team, a project or the organization) keep working,
+ * and so do the personal keys in their holders' other organizations.
+ */
+export const personalKeysConfigSchema = z.object({
+  enabled: z.boolean(),
+});
+export type PersonalKeysConfig = z.infer<typeof personalKeysConfigSchema>;
+
+/** Whether a stored policy (or its absence) lets personal keys in. */
+export function personalKeysWorkOf(config: PersonalKeysConfig | null): boolean {
+  return config?.enabled ?? true;
+}
+
+/**
  * Maps each governance `PolicyType` to its config Zod schema. Single source
  * of truth replacing the per-type `safeParse` switch that used to live in
  * `governance/mutations.ts`. The file-based config store (`governance/file_utils.ts`)
@@ -1509,6 +1531,7 @@ export const POLICY_SCHEMAS = {
   review_policy: reviewPolicyConfigSchema,
   embedding: embeddingConfigSchema,
   skill_sharing: skillSharingConfigSchema,
+  personal_keys: personalKeysConfigSchema,
 } satisfies Partial<Record<PolicyType, z.ZodType>>;
 
 export const POLICY_READ_SCHEMAS = {

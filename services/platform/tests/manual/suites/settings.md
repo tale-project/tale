@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 165 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 167 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -486,6 +486,35 @@ Restore any toggled setting after the run.
   the project's threads asking for the organization's contacts gets none;
   the team's key lists the team's projects and the organization-wide ones,
   not another team's.
+- [ ] `SET-F104` · **Turn off members' personal keys** — with a Developer
+  who belongs to this organization and a second one and holds a key of
+  their own, a key of your own (both SET-F32's way), and SET-F77's and
+  SET-F78's keys live, as an Owner or Admin open
+  `/dashboard/{org}/settings/api/rest` → Below the keys table the section
+  **Members' personal keys** (`settings.apiKeys.personalKeys.title`) reads
+  `settings.apiKeys.personalKeys.description`, beside a switch that is on
+  and that a screen reader names **Members' personal keys work here**
+  (`settings.apiKeys.personalKeys.enabledLabel`). Turn it off → the toast
+  says `settings.apiKeys.personalKeys.saved`, and the switch is still off
+  after a reload. `GET /api/v1/me` with the Developer's key and this
+  organization's `X-Organization-Slug` answers 403
+  `API_KEY_PERSONAL_REFUSED`, whose `data.organizations` lists the second
+  organization and not this one; with the second organization's slug it
+  answers 200. Your own key gets the same 403 here, and so does SET-F33's
+  copied `tools/list` request with either key; `GET /api/v1/openai/models`
+  answers the code in the OpenAI error shape (GOV-F40), with no list.
+  SET-F77's and SET-F78's keys still answer 200. The audit log (**Settings
+  → Governance → Logs**) lists a `governance_policy.created` row for
+  `personal_keys` the first time the setting is saved here, and a
+  `governance_policy.updated` one after that, with `enabled` `true` under
+  **Previous state** and `false` under **New state**. Signed in as the
+  Developer, the page opens with **Your own keys don't work here**
+  (`settings.apiKeys.personalKeys.refusedTitle`) and
+  `settings.apiKeys.personalKeys.refusedBody`, shows no **Members' personal
+  keys** section, and **Create API key** still makes a key. Turn the switch
+  back on → the Developer's key answers 200 here again, the notice is gone
+  after a reload, and the audit log adds a `governance_policy.updated` row
+  from `false` to `true`.
 - [ ] `SET-F79` · **A key ends with what it belongs to** — with SET-F77's and
   SET-F78's keys live: open the team's **Delete** confirmation → it counts the
   team's API keys (`settings.teams.deleteImpact.apiKeys`); delete the team,
@@ -1315,6 +1344,30 @@ Restore any toggled setting after the run.
   blocked inline (`settings.apiKeys.form.nameRequired`), no row appears after
   reload; the revoked key is rejected (401/403) — it no longer authenticates
   the REST or MCP endpoint.
+- [ ] `SET-B47` · **Who turns members' personal keys off, and a setting
+  that cannot be read** — Signed in as a Member and as a Developer in turn,
+  run in the console, with the `orgId` of any `…?orgId=` request in DevTools
+  → Network, `fetch('/api/app/governance/policies/personal_keys?orgId={orgId}',
+  {method: 'POST', headers: {'content-type': 'application/json'}, body:
+  JSON.stringify({config: {enabled: false}})}).then((r) => r.json())` →
+  status 403 with `{"error": "FORBIDDEN"}`; the switch on the Owner's REST
+  page is still on and the audit log gains no row. Then, on a disposable
+  organization that SET-F104's Developer belongs to, with their own key and
+  a key an Admin made there for them (SET-F77), copy aside
+  `governance/personal-keys.yml` under `TALE_CONFIG_DIR/<org>/`, if there is
+  one, and write `enabled: perhaps` as its content → `GET /api/v1/me` with
+  the Developer's own key and that organization's slug answers 503
+  `PERSONAL_KEYS_POLICY_UNAVAILABLE` with `Retry-After: 30` and no `data`,
+  the key made there answers 200, and the own key of someone who is no
+  member there still answers 403 `ORG_FORBIDDEN`, never the 503. The
+  Developer's REST page opens with **Your own keys are paused here**
+  (`settings.apiKeys.personalKeys.unavailableTitle`) and
+  `settings.apiKeys.personalKeys.unavailableBody`; an Admin's shows, in
+  place of **Members' personal keys**, `governance.policyReadFailed` with
+  **Retry** (`governance.policyReadRetry`) and no switch, and the backend
+  logs that the personal keys policy cannot be read. Restore the file, or
+  delete it if there was none → **Retry** brings the switch back, and the
+  own key answers 200 again.
 - [ ] `SET-B9` · **WebDAV label bounds** — **Generate a new app-password**
   with an empty/whitespace label; then type past 64 characters → An empty
   label leaves the dialog unsubmittable (Generate does nothing); the input
