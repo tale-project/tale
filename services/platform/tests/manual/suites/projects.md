@@ -1,6 +1,6 @@
 # Projects & tasks
 
-> **Prefix** `PROJ-` · **Reset** none · **Cost** 72 boxes
+> **Prefix** `PROJ-` · **Reset** none · **Cost** 73 boxes
 
 Exercise projects (identity edit, sharing/visibility), their tabs (files,
 threads, agents, instructions, secrets, metrics, automations), the task
@@ -993,4 +993,14 @@ reach under Settings › Connectors, one of them the default.
   folder →
   only the organization skill appears in either. The run the dispatch starts
   on another such Billing task lists both.
+- [ ] `PROJ-F77` · **An agent without a commit identity commits as Tale,
+  never as a person** — As an Owner, equip an agent with GitHub through a
+  credential whose account is yours, and leave **Commit name** and **Commit
+  email** empty. Start it on a task asking it to set `git config user.name`
+  and `user.email` to your name in a repository that credential reaches,
+  commit a file and push it to a new branch → on GitHub the commit names
+  **Tale** (`noreply@tale.dev`, a generic image) as author and committer,
+  never you, and your account only as the pusher. Give the agent a commit
+  identity and repeat → the new commit carries that identity instead. An
+  automation's agent step with GitHub equipped commits as Tale too.
 

@@ -1546,8 +1546,8 @@ export interface ProjectAgentRow {
    * connector, by the credential's name (migration 0219); a connector it
    * does not name uses the organization's default. */
   connectorCredentials: ProjectAgentConnectorCredentials;
-  /** The name and email its commits carry where no person owns its
-   * workspace (migration 0219); `null` for none. */
+  /** The name and email its commits carry, as author and committer
+   * (migration 0219); `null` for Tale's own. */
   gitIdentity: ProjectAgentGitIdentity | null;
   instructions: string | null;
   /** The organization's standard agent (migration 0146): Tale created it

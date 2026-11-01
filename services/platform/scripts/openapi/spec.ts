@@ -13456,8 +13456,8 @@ curl -H "Authorization: Bearer <api-key>" \\
               required: ['name', 'email'],
               properties: { name: str, email: str },
               description:
-                'The name and email its commits carry where no person owns ' +
-                'its workspace; `null` for none.',
+                'The name and email its commits carry, as author and ' +
+                'committer; `null` for Tale’s own.',
             }),
             instructions: nullable(str),
             managed: {

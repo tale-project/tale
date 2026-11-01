@@ -328,8 +328,8 @@ export const managedProjectAgentSchema = z.strictObject({
       `An agent pins at most ${PROJECT_AGENT_BINDINGS_MAX} credentials`,
     )
     .optional(),
-  /** The name and email its commits carry where no person owns its
-   * workspace; `null` for none. */
+  /** The name and email its commits carry, as author and committer;
+   * `null` for Tale's own. */
   gitIdentity: managedGitIdentitySchema.nullable().optional(),
 });
 export type ManagedProjectAgent = z.infer<typeof managedProjectAgentSchema>;

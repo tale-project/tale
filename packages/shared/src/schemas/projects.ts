@@ -147,8 +147,8 @@ function isPlainGitName(value: string): boolean {
   return !/[<>\x00-\x1f\x7f]/.test(value);
 }
 
-/** The name and email the agent's commits carry, where no person owns its
- * workspace. */
+/** The name and email the agent's commits carry, as author and committer;
+ * without one they carry Tale's. */
 export const projectAgentGitIdentitySchema = z.object({
   name: z
     .string()

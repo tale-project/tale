@@ -56156,7 +56156,7 @@
                 "type": "string"
               }
             },
-            "description": "The name and email its commits carry where no person owns its workspace; `null` for none.",
+            "description": "The name and email its commits carry, as author and committer; `null` for Tale’s own.",
             "nullable": true
           },
           "instructions": {
