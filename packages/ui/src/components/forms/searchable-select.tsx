@@ -113,9 +113,9 @@ export interface SearchableSelectProps {
   filterFn?: (option: SearchableSelectOption, query: string) => boolean;
   /**
    * Notified whenever the search text changes, including the reset to `''`
-   * when the popover closes. The component keeps OWNING the value; this is a
-   * read-only mirror for consumers that must react to what was typed — a
-   * server-side search, or an action row appended to `options`.
+   * once the closed popover has left the page. The component keeps OWNING the
+   * value; this is a read-only mirror for consumers that must react to what
+   * was typed — a server-side search, or an action row appended to `options`.
    */
   onSearchChange?: (query: string) => void;
   /** Show a radio indicator instead of a check icon for the selected state */
@@ -344,6 +344,14 @@ function SearchableSelectBase({
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  // The popover stays on the page through its exit animation after `isOpen`
+  // turns false. Its rows and query stay with it, so the closing panel
+  // neither collapses nor shows the unfiltered list.
+  const [contentMounted, setContentMounted] = useState(false);
+  const trackContent = useCallback((node: HTMLDivElement | null) => {
+    setContentMounted(node !== null);
+  }, []);
+  const listMounted = isOpen || contentMounted;
 
   // The single write path for the query, so `onSearchChange` can't miss one —
   // the close reset below is a change like any other, and a consumer deriving
@@ -404,7 +412,7 @@ function SearchableSelectBase({
   const virtual = useVirtualList({
     // Closed triggers share their options as data, without constructing a
     // virtual row model or mounting any option controls.
-    count: isOpen ? filteredOptions.length : 0,
+    count: listMounted ? filteredOptions.length : 0,
     getScrollElement,
     getItemKey,
     estimateSize,
@@ -441,15 +449,24 @@ function SearchableSelectBase({
     scrollToIndex(highlightedIndex, { align: 'auto' });
   }, [highlightedIndex, isOpen, scrollToIndex, virtual.scrollElement]);
 
+  // The close reset: it waits until the popover has left the page, so the
+  // panel keeps its query while it fades out.
+  const listWasMounted = useRef(false);
+  useEffect(() => {
+    if (listMounted) {
+      listWasMounted.current = true;
+    } else if (listWasMounted.current) {
+      listWasMounted.current = false;
+      updateSearch('');
+    }
+  }, [listMounted, updateSearch]);
+
   const handleOpenChange = useCallback(
     (nextOpen: boolean) => {
       setIsOpen(nextOpen);
-      if (!nextOpen) {
-        updateSearch('');
-        suppressTooltipOpen();
-      }
+      if (!nextOpen) suppressTooltipOpen();
     },
-    [setIsOpen, updateSearch, suppressTooltipOpen],
+    [setIsOpen, suppressTooltipOpen],
   );
 
   const handleSelect = useCallback(
@@ -550,6 +567,7 @@ function SearchableSelectBase({
       <PopoverPrimitive.Portal>
         <SkeletonBox asChild>
           <PopoverPrimitive.Content
+            ref={trackContent}
             aria-label={pickerLabel}
             aria-labelledby={labelReference}
             align={align}

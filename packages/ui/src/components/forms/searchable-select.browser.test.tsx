@@ -241,3 +241,64 @@ it('keeps keyboard highlights mounted across the full list and searches offscree
   await userEvent.keyboard('{Enter}');
   expect(onValueChange).toHaveBeenCalledWith('project-1731');
 });
+
+const nextFrame = () =>
+  new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+it('keeps the filtered rows and the query while the closing popover fades out', async () => {
+  await page.viewport(800, 600);
+  const onSearchChange = vi.fn();
+  render(
+    <div style={{ padding: '480px 16px 0' }}>
+      <SearchableSelect
+        value={null}
+        onValueChange={vi.fn()}
+        onSearchChange={onSearchChange}
+        options={options}
+        side="top"
+        placeholder="Pick project"
+        aria-label="Project"
+        searchPlaceholder="Search projects"
+      />
+    </div>,
+  );
+  const trigger = screen.getByRole('button', { name: 'Pick project' });
+  await page.getByRole('button', { name: 'Pick project' }).click();
+  const panel = await screen.findByRole('dialog', { name: 'Project' });
+  await page.getByRole('combobox').fill('Project 001');
+  await expect.poll(() => screen.getAllByRole('option').length).toBe(10);
+  await Promise.all(
+    panel.getAnimations().map((animation) => animation.finished),
+  );
+  await nextFrame();
+  await nextFrame();
+  const rowsInPanel = () =>
+    Array.from(
+      panel.querySelectorAll('[role="option"]'),
+      (option) => option.textContent,
+    );
+  const openRows = rowsInPanel();
+  const openBox = panel.getBoundingClientRect();
+  // Above its trigger, a panel that lost its rows would drop towards it.
+  expect(openBox.bottom).toBeLessThanOrEqual(
+    trigger.getBoundingClientRect().top,
+  );
+
+  // Slows the exit fade down, so the closing panel can be read.
+  panel.style.setProperty('--duration-short', '60s');
+  await userEvent.keyboard('{Escape}');
+  await expect.poll(() => panel.dataset.state).toBe('closed');
+  await nextFrame();
+  await nextFrame();
+  expect(panel.isConnected).toBe(true);
+  expect(rowsInPanel()).toEqual(openRows);
+  expect(screen.getByRole('combobox')).toHaveValue('Project 001');
+  const closingBox = panel.getBoundingClientRect();
+  expect(closingBox.top).toBeCloseTo(openBox.top, 0);
+  expect(closingBox.height).toBeCloseTo(openBox.height, 0);
+  expect(onSearchChange).not.toHaveBeenCalledWith('');
+
+  for (const animation of panel.getAnimations()) animation.finish();
+  await expect.poll(() => panel.isConnected).toBe(false);
+  expect(onSearchChange).toHaveBeenLastCalledWith('');
+});
