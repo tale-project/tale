@@ -152,6 +152,10 @@ empty:
     longer than Workspace cleanup allows, or until its agent, project or member
     is removed. A workflow run's workspace is reclaimed once the run ends.
     Temporary crawler sessions are included in capacity counts above.
+# The workspaces table: its search, and the count under it.
+searchPlaceholder: Search workspaces
+entityLabel: workspaces
+entityLabelOne: workspace
 accessDenied: You need developer or admin access to manage sandboxes.
 # Which of its agent's workers a workspace is: the agent's own, or one that
 # runs the agent for a member who started it.
@@ -191,6 +195,10 @@ devices:
   empty:
     title: No devices yet
     description: Add a Linux or macOS machine with Docker to run your organization's sandboxes on it.
+  # The devices table: its search, and the count under it.
+  searchPlaceholder: Search devices
+  entityLabel: devices
+  entityLabelOne: device
   hub:
     notConfigured: This deployment's sandbox service doesn't accept devices. Ask your operator to turn on the device hub.
     unavailable: Couldn't reach the sandbox service. Device status may be out of date.
