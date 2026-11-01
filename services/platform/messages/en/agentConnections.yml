@@ -36,8 +36,6 @@ consent:
     settingsReadDescription: Read the settings your role can see. Secrets stay hidden.
     settingsWrite: Change settings
     settingsWriteDescription: Change the settings your role can change. Every change is recorded in the audit log.
-    subscriptions: Connect AI subscriptions
-    subscriptionsDescription: Ask to add an AI subscription. Nothing is added until you confirm it in Tale.
   summary:
     title: 'What {client} can do'
   duration: It stays connected until you disconnect it under Settings > API > Connected agents, or after 30 days without use.
@@ -113,4 +111,3 @@ scopes:
   automationsDeploy: Deploy and run live
   settingsRead: Read settings
   settingsWrite: Change settings
-  subscriptionsConnect: Connect subscriptions

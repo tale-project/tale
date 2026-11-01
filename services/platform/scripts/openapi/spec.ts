@@ -149,7 +149,7 @@ const AGENT_OAUTH_SCOPES: Record<AgentScope | typeof OFFLINE_ACCESS, string> = {
   'tale:settings.write':
     'Change settings: the settings the person’s role can change. Every change is recorded in the audit log.',
   'tale:subscriptions.connect':
-    'Connect AI subscriptions: ask to add one. Nothing is added until the person confirms it in Tale.',
+    'Connect AI subscriptions: no tool takes it yet. A request may name it, but the consent page does not offer it and a connection is not given it.',
   [OFFLINE_ACCESS]:
     'Stay connected: a refresh token, valid for thirty days without use.',
 };

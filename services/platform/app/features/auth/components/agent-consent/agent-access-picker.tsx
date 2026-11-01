@@ -73,15 +73,10 @@ export function AgentAccessPicker({
           label: t('consent.extras.settingsRead'),
           description: t('consent.extras.settingsReadDescription'),
         }
-      : extra === 'tale:settings.write'
-        ? {
-            label: t('consent.extras.settingsWrite'),
-            description: t('consent.extras.settingsWriteDescription'),
-          }
-        : {
-            label: t('consent.extras.subscriptions'),
-            description: t('consent.extras.subscriptionsDescription'),
-          };
+      : {
+          label: t('consent.extras.settingsWrite'),
+          description: t('consent.extras.settingsWriteDescription'),
+        };
 
   const describe = (description: string, why: Unavailable | null) =>
     why === null ? (

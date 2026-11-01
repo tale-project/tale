@@ -175,7 +175,6 @@ const LEVEL_VARIANT = {
 const EXTRA_VARIANT = {
   'tale:settings.read': 'slate',
   'tale:settings.write': 'orange',
-  'tale:subscriptions.connect': 'orange',
 } as const satisfies Record<ExtraScope, 'slate' | 'orange'>;
 
 /**
@@ -221,9 +220,7 @@ export function AgentAccessCell({ scopes }: AgentAccessCellProps) {
   const extraWords = (extra: ExtraScope) =>
     extra === 'tale:settings.read'
       ? t('consent.extras.settingsRead')
-      : extra === 'tale:settings.write'
-        ? t('consent.extras.settingsWrite')
-        : t('consent.extras.subscriptions');
+      : t('consent.extras.settingsWrite');
 
   return (
     <div className="flex flex-wrap gap-1">

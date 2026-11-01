@@ -4,6 +4,7 @@ import {
   AGENT_SCOPES,
   type AgentScope,
   EXTRA_SCOPES,
+  OFFERED_SCOPES,
   scopeCeilingForRole,
 } from '@/lib/shared/agent-access';
 
@@ -28,7 +29,12 @@ function offer(requested: readonly string[], ceiling: readonly string[]) {
   } satisfies ConsentOffer;
 }
 
+/** What an app asks for that asks for every scope the endpoint lists, as
+ * Claude Code and Codex do. */
 const EVERYTHING = ['offline_access', ...AGENT_SCOPES];
+/** What the consent context hands the page for that app: what the page
+ * offers, and staying connected. */
+const EVERYTHING_OFFERED = ['offline_access', ...OFFERED_SCOPES];
 const DEVELOPER = scopeCeilingForRole('developer');
 const MEMBER = scopeCeilingForRole('member');
 
@@ -50,9 +56,6 @@ describe('the levels and extras on offer [AGCONN-R8]', () => {
     expect(levelAvailability('deploy', reader)).toBe('roleCannot');
     expect(extraAvailability('tale:settings.read', reader)).toBeNull();
     expect(extraAvailability('tale:settings.write', reader)).toBe('roleCannot');
-    expect(extraAvailability('tale:subscriptions.connect', reader)).toBe(
-      'roleCannot',
-    );
   });
 
   it('says an app that did not ask for something cannot be given it, before the role is asked', () => {
@@ -60,7 +63,7 @@ describe('the levels and extras on offer [AGCONN-R8]', () => {
     expect(levelAvailability('read', narrow)).toBeNull();
     expect(levelAvailability('edit', narrow)).toBe('notRequested');
     expect(extraAvailability('tale:settings.read', narrow)).toBeNull();
-    expect(extraAvailability('tale:subscriptions.connect', narrow)).toBe(
+    expect(extraAvailability('tale:settings.write', narrow)).toBe(
       'notRequested',
     );
   });
@@ -84,12 +87,6 @@ describe('the levels and extras on offer [AGCONN-R8]', () => {
     );
   });
 
-  it('asks of connecting subscriptions only that it was asked for and allowed, not reading settings', () => {
-    const asked = offer(['tale:mcp', 'tale:subscriptions.connect'], DEVELOPER);
-    expect(extraAvailability('tale:subscriptions.connect', asked)).toBeNull();
-    expect(extraAvailability('tale:settings.read', asked)).toBe('notRequested');
-  });
-
   it('offers no level when reading and testing is not asked for or allowed', () => {
     expect(
       levelAvailability('read', offer(['tale:settings.read'], MEMBER)),
@@ -104,6 +101,19 @@ describe('what is chosen when the page opens [AGCONN-R9]', () => {
       level: 'edit',
       extras: new Set(),
     });
+  });
+
+  it('counts that app as asking for everything once the consent context leaves out the scope no tool takes', () => {
+    expect(initialChoice(offer(EVERYTHING_OFFERED, DEVELOPER), null)).toEqual({
+      level: 'edit',
+      extras: new Set(),
+    });
+    expect(
+      initialChoice(offer(EVERYTHING_OFFERED, DEVELOPER), [
+        'tale:mcp',
+        'tale:settings.read',
+      ]),
+    ).toEqual({ level: 'read', extras: new Set(['tale:settings.read']) });
   });
 
   it('is reading and testing where the role does not allow editing', () => {
@@ -226,7 +236,7 @@ describe('whether a choice still holds', () => {
     );
     expect(
       isChoiceOnOffer(
-        choice('read', 'tale:settings.read', 'tale:subscriptions.connect'),
+        choice('read', 'tale:settings.read', 'tale:settings.write'),
         reader,
       ),
     ).toBe(false);
@@ -237,9 +247,9 @@ describe('the extras', () => {
   const start: AccessChoice = { level: 'edit', extras: new Set() };
 
   it('switch on and off', () => {
-    const on = withExtra(start, 'tale:subscriptions.connect', true);
-    expect(on.extras).toEqual(new Set(['tale:subscriptions.connect']));
-    expect(withExtra(on, 'tale:subscriptions.connect', false).extras).toEqual(
+    const on = withExtra(start, 'tale:settings.read', true);
+    expect(on.extras).toEqual(new Set(['tale:settings.read']));
+    expect(withExtra(on, 'tale:settings.read', false).extras).toEqual(
       new Set(),
     );
   });
@@ -269,14 +279,14 @@ describe('the scopes a choice makes', () => {
     expect(
       chosenScopes({
         level: 'deploy',
-        extras: new Set(['tale:subscriptions.connect', 'tale:settings.read']),
+        extras: new Set(['tale:settings.write', 'tale:settings.read']),
       }),
     ).toEqual([
       'tale:mcp',
       'tale:automations.write',
       'tale:automations.deploy',
       'tale:settings.read',
-      'tale:subscriptions.connect',
+      'tale:settings.write',
     ]);
   });
 
@@ -291,7 +301,7 @@ describe('the scopes a choice makes', () => {
 });
 
 describe('the lines of what the agent will be able to do', () => {
-  it('list each scope the app asked for, what is allowed and what is not, and the role as the reason where it is the role', () => {
+  it('list each scope the app asked for that the page offers, what is allowed and what is not, and the role as the reason where it is the role', () => {
     const lines = summaryOf(
       { level: 'edit', extras: new Set(['tale:settings.read']) },
       offer(
@@ -311,11 +321,6 @@ describe('the lines of what the agent will be able to do', () => {
       { scope: 'tale:automations.write', allowed: true },
       { scope: 'tale:automations.deploy', allowed: false, why: 'roleCannot' },
       { scope: 'tale:settings.read', allowed: true },
-      {
-        scope: 'tale:subscriptions.connect',
-        allowed: false,
-        why: 'roleCannot',
-      },
     ]);
   });
 

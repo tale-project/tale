@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { AGENT_SCOPES } from '../shared/agent-access';
+import { OFFERED_SCOPES } from '../shared/agent-access';
 import { MCP_TOOL_GROUPS, MCP_TOOLS, type McpToolGroup } from './tools';
 
 /**
@@ -17,7 +17,7 @@ import { MCP_TOOL_GROUPS, MCP_TOOLS, type McpToolGroup } from './tools';
  * page teaching an inventory the endpoint no longer serves. Each group's
  * heading carries the same explicit id in every locale, and its first table
  * names one tool per row in the first column. The same goes for the page's
- * list of access levels: one entry per scope an agent connection can hold,
+ * list of access levels: one entry per scope the consent page offers,
  * listing the tools it opens, so a tool whose scope changes, or a scope
  * that gains a tool, fails here instead of the page promising access the
  * endpoint refuses. The pages are outside this workspace:
@@ -142,11 +142,13 @@ describe('the MCP endpoint page lists every access level with the tools it opens
         return { scope: words[0], tools: words.slice(1) };
       });
 
-      it('has one entry per scope an agent connection can hold, in the order the consent page teaches them', () => {
-        expect(entries.map((entry) => entry.scope)).toEqual([...AGENT_SCOPES]);
+      it('has one entry per scope the consent page offers, in the order it teaches them', () => {
+        expect(entries.map((entry) => entry.scope)).toEqual([
+          ...OFFERED_SCOPES,
+        ]);
       });
 
-      it.each(AGENT_SCOPES.map((scope) => [scope] as const))(
+      it.each(OFFERED_SCOPES.map((scope) => [scope] as const))(
         'the %s entry lists exactly the tools that name it first',
         (scope) => {
           const entry = entries.find((candidate) => candidate.scope === scope);

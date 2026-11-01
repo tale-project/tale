@@ -28,7 +28,8 @@ describe('summarizeAccess', () => {
     );
   });
 
-  it('lists the extras beside the level, in the order they are taught', () => {
+  it('lists the extras beside the level, and nothing for a scope the consent page does not offer', () => {
+    // A connection made before may hold one; it lets the agent do nothing.
     expect(
       summarizeAccess([
         'tale:subscriptions.connect',
@@ -37,7 +38,7 @@ describe('summarizeAccess', () => {
       ]),
     ).toEqual({
       level: 'read',
-      extras: ['tale:settings.read', 'tale:subscriptions.connect'],
+      extras: ['tale:settings.read'],
     });
   });
 

@@ -15,7 +15,8 @@ import { t } from './i18n';
 
 type DemoAgent = (typeof DEMO_AGENTS)[number];
 
-/** Everything an agent can ask for, so the page offers every choice. */
+/** Everything an agent can ask for, as Claude Code and Codex do, so the page
+ * offers every choice it has. */
 const ALL_AGENT_SCOPES = [
   'tale:mcp',
   'tale:automations.write',
@@ -39,7 +40,6 @@ const LEVEL_LABEL = {
 const EXTRA_LABEL = {
   settingsRead: 'agentConnections.consent.extras.settingsRead',
   settingsWrite: 'agentConnections.consent.extras.settingsWrite',
-  subscriptions: 'agentConnections.consent.extras.subscriptions',
 } as const;
 
 interface RegisteredAgent {

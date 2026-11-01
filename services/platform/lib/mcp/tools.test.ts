@@ -2,7 +2,11 @@ import Ajv2020 from 'ajv/dist/2020';
 import { describe, expect, test } from 'vitest';
 
 import { RUN_STATUSES } from '../engine/api/run-statuses';
-import { AGENT_SCOPES, type AgentScope } from '../shared/agent-access';
+import {
+  AGENT_SCOPES,
+  type AgentScope,
+  OFFERED_SCOPES,
+} from '../shared/agent-access';
 import { ENGINE_TOOL_ARGS } from './args';
 import { toolJsonSchema } from './json-schema';
 import {
@@ -393,7 +397,7 @@ describe('MCP tool access', () => {
       expect(tool.scopes.length, tool.name).toBeGreaterThan(0);
       expect(new Set(tool.scopes).size, tool.name).toBe(tool.scopes.length);
       for (const scope of tool.scopes) {
-        expect(AGENT_SCOPES, `${tool.name} needs ${scope}`).toContain(scope);
+        expect(OFFERED_SCOPES, `${tool.name} needs ${scope}`).toContain(scope);
       }
     }
   });
@@ -446,7 +450,13 @@ describe('MCP tool access', () => {
       'plan_settings',
       'apply_settings',
     ]);
-    expect(needing('tale:subscriptions.connect')).toEqual([]);
+  });
+
+  test('the consent page offers exactly the scopes the tools name: a scope no tool takes is no choice, and none a tool takes is missing', () => {
+    const named = new Set<string>(MCP_TOOLS.flatMap((tool) => tool.scopes));
+    expect(AGENT_SCOPES.filter((scope) => named.has(scope))).toEqual([
+      ...OFFERED_SCOPES,
+    ]);
   });
 
   test('a run started on the mocks needs only reading and testing; a live start, the default, needs the deploy access', () => {

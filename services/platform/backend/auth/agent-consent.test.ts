@@ -451,6 +451,50 @@ describe('making the consent', () => {
     });
   });
 
+  it('leaves a scope no tool takes out of the consent and the connection when the body names it [AGCONN-R25]', async () => {
+    const { handle, deps } = setup();
+    const answer = await agentConsentGate(
+      consent(
+        choose({
+          scope: 'tale:mcp tale:settings.read tale:subscriptions.connect',
+          oauth_query: agentQuery(
+            'tale:mcp tale:settings.read tale:subscriptions.connect offline_access',
+          ),
+        }),
+      ),
+      deps,
+      handle,
+    );
+    expect(answer.status).toBe(200);
+    expect(await handle.mock.calls[0]?.[0].json()).toMatchObject({
+      scope: 'tale:mcp tale:settings.read offline_access',
+    });
+    expect(connectAgent).toHaveBeenCalledWith(
+      deps.sql,
+      expect.objectContaining({ scopes: ['tale:mcp', 'tale:settings.read'] }),
+    );
+  });
+
+  it('leaves a scope no tool takes out of the consent and the connection when the body names no scope [AGCONN-R25]', async () => {
+    const { handle, deps } = setup();
+    const { scope: _scope, ...withoutScope } = choose({
+      oauth_query: agentQuery(
+        'tale:mcp tale:subscriptions.connect tale:automations.write offline_access',
+      ),
+    });
+    const answer = await agentConsentGate(consent(withoutScope), deps, handle);
+    expect(answer.status).toBe(200);
+    expect(await handle.mock.calls[0]?.[0].json()).toMatchObject({
+      scope: 'tale:mcp tale:automations.write offline_access',
+    });
+    expect(connectAgent).toHaveBeenCalledWith(
+      deps.sql,
+      expect.objectContaining({
+        scopes: ['tale:mcp', 'tale:automations.write'],
+      }),
+    );
+  });
+
   it('records the connection before the code is handed over: the app, where it came from and the access, without the request to stay signed in [AGCONN-R10]', async () => {
     const { handle, deps } = setup();
     const answer = await agentConsentGate(consent(choose()), deps, handle);

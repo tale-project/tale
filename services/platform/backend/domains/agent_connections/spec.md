@@ -43,9 +43,9 @@ keeps it.
 
 ### AGCONN-R9 · Access beyond reading needs a sign-in from the last day
 
-Allowing an agent to edit, deploy, change settings or connect a subscription takes a session that
-began within the last day (`SESSION_NOT_FRESH`); the person confirms their password first. Reading
-and testing, and reading settings, do not.
+Allowing an agent to edit, deploy or change settings takes a session that began within the last day
+(`SESSION_NOT_FRESH`); the person confirms their password first. Reading and testing, and reading
+settings, do not.
 
 - **Example**: Ada signed in two days ago and picks "Edit" → she confirms her password first. Picking
   "Read and test" needs nothing more.
@@ -64,15 +64,19 @@ be recorded, the agent gets no code and the person is told to try again
 
 A coding agent that asks to sign in, or to register, for every scope the sign-in server lists is not
 refused: Codex asks for `openid`, `profile`, `email` and `tale:organization` beside the agent scopes
-and `offline_access`. Tale takes what the endpoint grants — the agent scopes and `offline_access` — and
-leaves the rest out, so the consent page offers exactly those, the connection holds only those and the
-token says which. An agent is never granted an identity scope. An agent that asks for nothing the
-endpoint grants — identity scopes alone — is refused with `invalid_scope`, not given the agent scopes
-in their place.
+and `offline_access`. Tale takes what the endpoint grants — the agent scopes a tool of the endpoint
+takes, and `offline_access` — and leaves the rest out, so the consent page offers exactly those, the
+connection holds only those and the token says which. An agent is never granted an identity scope, nor
+`tale:subscriptions.connect` while no tool takes it; asking for it is no error. An agent that asks for
+nothing the endpoint grants — identity scopes alone — is refused with `invalid_scope`, not given the
+agent scopes in their place.
 
 - **Example**: Codex asks for `openid profile email tale:organization offline_access tale:mcp
   tale:automations.write` → the consent page offers Read and test or Edit automations, Ada allows Edit
   automations, and the token's scope is `tale:mcp tale:automations.write offline_access`; no `id_token`.
+- **Example**: Claude Code asks for every agent scope and `offline_access` → the consent page offers
+  the three levels, Read settings and Change settings, and Ada allows them all; the connection and the
+  token hold everything but `tale:subscriptions.connect`.
 
 ## Who sees and ends a connection
 

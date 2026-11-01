@@ -22,7 +22,7 @@ Un agent de code comme Claude Code, Codex ou Cursor peut se connecter lui-même 
 
 <Frame caption="La page de consentement d’une application qui s’est enregistrée elle-même : là où une application vérifiée montre son domaine, celle-ci porte l’avertissement « Application non vérifiée ».">
 
-![La page de consentement d’une application nommée Cursor : un avertissement indiquant que l’application n’est pas vérifiée, l’organisation où elle travaillera, trois niveaux d’accès et trois options supplémentaires à choisir, un résumé de ce qu’elle peut faire, ainsi que les boutons « Connecter » et « Annuler ».](/images/platform/agent-consent.webp)
+![La page de consentement d’une application nommée Cursor : un avertissement indiquant que l’application n’est pas vérifiée, l’organisation où elle travaillera, trois niveaux d’accès et deux options supplémentaires à choisir, un résumé de ce qu’elle peut faire, ainsi que les boutons « Connecter » et « Annuler ».](/images/platform/agent-consent.webp)
 
 </Frame>
 
@@ -39,16 +39,15 @@ Tant qu’elle est ouverte, la boîte de dialogue guette la connexion. Elle affi
 | **Modifier et mettre en service** | Mettre aussi en service, définir des déclencheurs et lancer des exécutions en réel qui agissent sur tes services connectés. |
 | **Lire les paramètres** | Lire les paramètres visibles pour ton rôle. Les secrets restent masqués. |
 | **Modifier les paramètres** | Modifier les paramètres que ton rôle peut modifier. Chaque modification est inscrite au journal d’audit. |
-| **Connecter des abonnements IA** | Demander l’ajout d’un abonnement IA. Aucun outil n’utilise encore ce choix. |
 
-Les trois premiers sont des niveaux : chacun s’ajoute au précédent. Les trois derniers sont des choix à part. [Niveaux d’accès](/fr/develop/mcp-endpoint#access-levels) liste les outils que chacun ouvre. La page ne propose que ce que l’agent a demandé et que ton rôle permet ; un choix que l’agent n’a pas demandé est indisponible et le dit. Quand un appel a besoin de plus d’accès que la connexion n’en détient, l’agent peut le demander à nouveau et tu autorises davantage sur la même page. Autoriser à nouveau la même application modifie sa connexion au lieu d’en ajouter une seconde.
+Les trois premiers sont des niveaux : chacun s’ajoute au précédent. Les deux derniers sont des choix à part. [Niveaux d’accès](/fr/develop/mcp-endpoint#access-levels) liste les outils que chacun ouvre. La page ne propose que ce que l’agent a demandé et que ton rôle permet ; un choix que l’agent n’a pas demandé est indisponible et le dit. Quand un appel a besoin de plus d’accès que la connexion n’en détient, l’agent peut le demander à nouveau et tu autorises davantage sur la même page. Autoriser à nouveau la même application modifie sa connexion au lieu d’en ajouter une seconde.
 
 ### Qui peut connecter
 
 | | Propriétaire, Admin ou Développeur | Membre avec une compétence utilisée avec une clé | Tout autre membre |
 | --- | --- | --- | --- |
 | Connecter un agent à l’organisation | Oui | Oui | Non |
-| Autoriser **Modifier les automatisations**, **Modifier et mettre en service**, **Modifier les paramètres** ou **Connecter des abonnements IA** | Oui | Non | Non |
+| Autoriser **Modifier les automatisations**, **Modifier et mettre en service** ou **Modifier les paramètres** | Oui | Non | Non |
 | Autoriser **Lire et tester** et **Lire les paramètres** | Oui | Oui | Non |
 
 Les compétences concernées sont celles qui permettent de créer une clé API, comme **Appeler les modèles par l'API** ; [Compétences](/fr/platform/admin/governance/competences) les liste. Qui n’a pas le droit de connecter un agent dans une organisation voit pourquoi sur la page de consentement et ne peut pas la choisir.

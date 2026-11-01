@@ -22,7 +22,7 @@ Ein Coding-Agent wie Claude Code, Codex oder Cursor kann sich selbst am [MCP-End
 
 <Frame caption="Die Zustimmungsseite einer App, die sich selbst registriert hat. Wo eine bestätigte App ihre Domain zeigt, steht hier die Warnung „Nicht bestätigte App“.">
 
-![Die Zustimmungsseite für eine App namens Cursor: eine Warnung, dass die App nicht bestätigt ist, die Organisation, in der sie arbeitet, drei Zugriffsstufen und drei Zusatzoptionen zur Auswahl, eine Zusammenfassung dessen, was sie darf, sowie die Schaltflächen „Verbinden“ und „Abbrechen“.](/images/platform/agent-consent.webp)
+![Die Zustimmungsseite für eine App namens Cursor: eine Warnung, dass die App nicht bestätigt ist, die Organisation, in der sie arbeitet, drei Zugriffsstufen und zwei Zusatzoptionen zur Auswahl, eine Zusammenfassung dessen, was sie darf, sowie die Schaltflächen „Verbinden“ und „Abbrechen“.](/images/platform/agent-consent.webp)
 
 </Frame>
 
@@ -39,16 +39,15 @@ Solange der Dialog offen ist, beobachtet er die Verbindung. Er zeigt **Warte dar
 | **Bearbeiten und live schalten** | Zusätzlich live schalten, Auslöser setzen und Live-Läufe starten, die in deinen verbundenen Diensten handeln. |
 | **Einstellungen lesen**          | Die Einstellungen lesen, die deine Rolle sieht. Geheimnisse bleiben verborgen.                                |
 | **Einstellungen ändern**         | Die Einstellungen ändern, die deine Rolle ändern darf. Jede Änderung steht im Audit-Log.                      |
-| **KI-Abos verbinden**            | Das Hinzufügen eines KI-Abos anfragen. Bisher nutzt kein Tool diese Wahl.                                       |
 
-Die ersten drei sind Stufen: Jede kommt zur vorigen hinzu. Die letzten drei wählst du einzeln. [Zugriffsstufen](/de/develop/mcp-endpoint#access-levels) listet die Tools, die jede davon freischaltet. Die Seite bietet nur an, was der Agent angefragt hat und deine Rolle erlaubt; eine Wahl, um die der Agent nicht gebeten hat, ist nicht wählbar und nennt den Grund. Braucht ein Aufruf mehr Zugriff, als die Verbindung hat, kann der Agent erneut anfragen, und du erlaubst auf derselben Seite mehr. Erlaubst du dieselbe App erneut, ändert das ihre Verbindung, statt eine zweite hinzuzufügen.
+Die ersten drei sind Stufen: Jede kommt zur vorigen hinzu. Die letzten beiden wählst du einzeln. [Zugriffsstufen](/de/develop/mcp-endpoint#access-levels) listet die Tools, die jede davon freischaltet. Die Seite bietet nur an, was der Agent angefragt hat und deine Rolle erlaubt; eine Wahl, um die der Agent nicht gebeten hat, ist nicht wählbar und nennt den Grund. Braucht ein Aufruf mehr Zugriff, als die Verbindung hat, kann der Agent erneut anfragen, und du erlaubst auf derselben Seite mehr. Erlaubst du dieselbe App erneut, ändert das ihre Verbindung, statt eine zweite hinzuzufügen.
 
 ### Wer einen Agent verbinden darf
 
 |                                                                                                                  | Inhaber, Admin oder Entwickler | Mitglied mit einer Kompetenz, die mit einem Schlüssel genutzt wird | Jedes andere Mitglied |
 | ---------------------------------------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------ | --------------------- |
 | Einen Agent mit der Organisation verbinden                                                                       | Ja                             | Ja                                                                 | Nein                  |
-| **Automatisierungen bearbeiten**, **Bearbeiten und live schalten**, **Einstellungen ändern** oder **KI-Abos verbinden** erlauben | Ja                             | Nein                                                               | Nein                  |
+| **Automatisierungen bearbeiten**, **Bearbeiten und live schalten** oder **Einstellungen ändern** erlauben        | Ja                             | Nein                                                               | Nein                  |
 | **Lesen und testen** und **Einstellungen lesen** erlauben                                                              | Ja                             | Ja                                                                 | Nein                  |
 
 Gemeint ist eine Kompetenz, die das Erstellen eines API-Schlüssels erlaubt, etwa **Modelle über die API aufrufen**; [Kompetenzen](/de/platform/admin/governance/competences) listet sie. Wer in einer Organisation keinen Agent verbinden darf, sieht auf der Zustimmungsseite, warum, und kann diese Organisation nicht wählen.

@@ -15,9 +15,10 @@ import { defineAbilityFor } from '../permissions/ability';
 /** Where the MCP endpoint answers, under a deployment's base path. */
 export const MCP_PATH = '/api/v1/mcp';
 
-/** The scopes an agent connection can hold, in the order they are taught:
+/** The scopes the endpoint takes for an agent, in the order they are taught:
  * read and test, then what edits automations, then settings, then
- * subscriptions. `tale:mcp` is part of every connection. */
+ * subscriptions. `tale:mcp` is part of every connection. A connection is
+ * given only the ones the consent page offers (`OFFERED_SCOPES`). */
 export const AGENT_SCOPES = [
   'tale:mcp',
   'tale:automations.write',
@@ -89,15 +90,38 @@ export function levelOf(scopes: Iterable<string>): AccessLevel | null {
 }
 
 /** The scopes that are a choice of their own beside the level: reading
- * settings, changing them (which brings reading them along) and connecting a
- * subscription. */
+ * settings and changing them (which brings reading them along). */
 export const EXTRA_SCOPES = [
   'tale:settings.read',
   'tale:settings.write',
-  'tale:subscriptions.connect',
 ] as const satisfies readonly AgentScope[];
 
 export type ExtraScope = (typeof EXTRA_SCOPES)[number];
+
+/** A scope the consent page offers: one of a level's, or an extra. */
+export type OfferedScope =
+  | (typeof ACCESS_LEVELS)[AccessLevel][number]
+  | ExtraScope;
+
+const OFFERED_SCOPE_SET: ReadonlySet<string> = new Set<string>([
+  ...Object.values(ACCESS_LEVELS).flat(),
+  ...EXTRA_SCOPES,
+]);
+
+/**
+ * The scopes the consent page offers and a connection is given, in the
+ * order they are taught: the ones a tool of the MCP endpoint takes, which
+ * `lib/mcp/tools.test.ts` holds equal to its inventory. A scope no tool takes
+ * yet (`tale:subscriptions.connect`) is no choice: a request for it is
+ * taken, and the consent gate leaves it out of what it grants.
+ */
+export const OFFERED_SCOPES: readonly OfferedScope[] = AGENT_SCOPES.filter(
+  (scope): scope is OfferedScope => OFFERED_SCOPE_SET.has(scope),
+);
+
+export function isOfferedScope(scope: string): scope is OfferedScope {
+  return OFFERED_SCOPE_SET.has(scope);
+}
 
 /** A scope in the words the consent page uses for the access it gives —
  * what a refusal that tells an agent to ask for more names it by. */

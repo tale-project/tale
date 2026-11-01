@@ -1,11 +1,11 @@
 import {
   ACCESS_LEVELS,
   type AccessLevel,
-  AGENT_SCOPES,
-  type AgentScope,
   EXTRA_SCOPES,
   type ExtraScope,
   levelOf,
+  OFFERED_SCOPES,
+  type OfferedScope,
 } from '@/lib/shared/agent-access';
 
 /**
@@ -59,7 +59,7 @@ export function levelAvailability(
 }
 
 /** The scopes an extra comes with: changing settings reads them too. */
-function extraScopes(extra: ExtraScope): readonly AgentScope[] {
+function extraScopes(extra: ExtraScope): readonly OfferedScope[] {
   return extra === 'tale:settings.write'
     ? ['tale:settings.read', 'tale:settings.write']
     : [extra];
@@ -78,11 +78,12 @@ export function extraAvailability(
  * level is on offer (the app asked for less than reading and testing, or the
  * role allows nothing).
  *
- * An app that asks for less than everything is taken at its word, held to
- * the role: the most it asked for and the role allows. One that asks for
- * everything gets what the person chose here before, and for a first
- * connection editing, or reading and testing where editing is not allowed;
- * deploying is never offered unasked, and the extras start unchecked.
+ * An app that asks for less than everything the page offers is taken at its
+ * word, held to the role: the most it asked for and the role allows. One
+ * that asks for everything gets what the person chose here before, and for a
+ * first connection editing, or reading and testing where editing is not
+ * allowed; deploying is never offered unasked, and the extras start
+ * unchecked.
  */
 export function initialChoice(
   offer: ConsentOffer,
@@ -96,7 +97,7 @@ export function initialChoice(
   const extras = EXTRA_SCOPES.filter(
     (extra) => extraAvailability(extra, offer) === null,
   );
-  const asksEverything = AGENT_SCOPES.every((scope) =>
+  const asksEverything = OFFERED_SCOPES.every((scope) =>
     offer.requested.has(scope),
   );
   if (!asksEverything) return { level: highest, extras: new Set(extras) };
@@ -154,31 +155,31 @@ export function withExtra(
 }
 
 /** The scopes a choice allows, in the order the scopes are taught. */
-export function chosenScopes(choice: AccessChoice): AgentScope[] {
-  const held = new Set<AgentScope>(ACCESS_LEVELS[choice.level]);
+export function chosenScopes(choice: AccessChoice): OfferedScope[] {
+  const held = new Set<OfferedScope>(ACCESS_LEVELS[choice.level]);
   for (const extra of choice.extras) {
     for (const scope of extraScopes(extra)) held.add(scope);
   }
-  return AGENT_SCOPES.filter((scope) => held.has(scope));
+  return OFFERED_SCOPES.filter((scope) => held.has(scope));
 }
 
 /** One line of what the choice lets the agent do. */
 export interface ConsentSummaryLine {
-  scope: AgentScope;
+  scope: OfferedScope;
   allowed: boolean;
   /** Why not, when the role does not allow it; a scope left unchecked is
    * simply not allowed. */
   why?: 'roleCannot';
 }
 
-/** The lines for every scope the app asked for, in the order they are
- * taught: what the choice allows and what it does not. */
+/** The lines for every scope the app asked for that the page offers, in
+ * the order they are taught: what the choice allows and what it does not. */
 export function summaryOf(
   choice: AccessChoice,
   offer: ConsentOffer,
 ): ConsentSummaryLine[] {
   const chosen = new Set(chosenScopes(choice));
-  return AGENT_SCOPES.filter((scope) => offer.requested.has(scope)).map(
+  return OFFERED_SCOPES.filter((scope) => offer.requested.has(scope)).map(
     (scope): ConsentSummaryLine => {
       const allowed = chosen.has(scope);
       return !allowed && !offer.ceiling.has(scope)

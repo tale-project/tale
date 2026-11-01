@@ -22,7 +22,7 @@ A coding agent such as Claude Code, Codex or Cursor can sign itself in to Tale's
 
 <Frame caption="The consent page of an app that registered itself. Where a verified app shows its domain, this one carries the Unverified app warning.">
 
-![The consent page for an app called Cursor: a warning that the app is unverified, the organization it will work in, three access levels and three extras to choose from, a summary of what it can do, and the Connect and Cancel buttons.](/images/platform/agent-consent.webp)
+![The consent page for an app called Cursor: a warning that the app is unverified, the organization it will work in, three access levels and two extras to choose from, a summary of what it can do, and the Connect and Cancel buttons.](/images/platform/agent-consent.webp)
 
 </Frame>
 
@@ -39,16 +39,15 @@ The dialog keeps watching while it is open. It reads **Waiting for your agent to
 | **Edit and deploy**          | Also deploy, set triggers and start live runs that act on your connected services.               |
 | **Read settings**            | Read the settings your role can see. Secrets stay hidden.                                        |
 | **Change settings**          | Change the settings your role can change. Every change is recorded in the audit log.             |
-| **Connect AI subscriptions** | Ask to add an AI subscription. No tool uses this choice yet.                                     |
 
-The first three are levels: each adds to the one before. The last three are separate choices. [Access levels](/develop/mcp-endpoint#access-levels) lists the tools each one opens. The page offers only what the agent asked for and your role allows; a choice the agent did not ask for is unavailable and says so. When a call needs more access than the connection holds, the agent can ask again and you allow more on the same page. Allowing the same app again changes its connection instead of adding a second one.
+The first three are levels: each adds to the one before. The last two are separate choices. [Access levels](/develop/mcp-endpoint#access-levels) lists the tools each one opens. The page offers only what the agent asked for and your role allows; a choice the agent did not ask for is unavailable and says so. When a call needs more access than the connection holds, the agent can ask again and you allow more on the same page. Allowing the same app again changes its connection instead of adding a second one.
 
 ### Who may connect
 
 |                                                                                      | Owner, Admin or Developer | Member with a competence used with a key | Any other member |
 | ------------------------------------------------------------------------------------ | ------------------------- | ---------------------------------------- | ---------------- |
 | Connect an agent to the organization                                                 | Yes                       | Yes                                      | No               |
-| Allow **Edit automations**, **Edit and deploy**, **Change settings** or **Connect AI subscriptions** | Yes                       | No                                       | No               |
+| Allow **Edit automations**, **Edit and deploy** or **Change settings**               | Yes                       | No                                       | No               |
 | Allow **Read and test** and **Read settings**                                                | Yes                       | Yes                                      | No               |
 
 A member's competence is the one that lets them create an API key, such as **Call models over the API**; [Competences](/platform/admin/governance/competences) lists them. Someone who may not connect an agent in an organization sees why on the consent page and cannot choose it.

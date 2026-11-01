@@ -5,6 +5,7 @@ import type { Sql } from 'postgres';
 
 import {
   isAgentScope,
+  isOfferedScope,
   needsFreshSession,
   OFFLINE_ACCESS,
   requestsAgentAccess,
@@ -171,7 +172,9 @@ function redirectHostOf(redirectUri: string | null): string {
  * - access beyond reading and reading settings needs a sign-in from the
  *   last day (`SESSION_NOT_FRESH`).
  *
- * Then the provider makes the consent for that organization, and the
+ * Then the provider makes the consent for that organization, with the access
+ * the consent page offers: a scope no tool takes yet is left out of the
+ * consent, its code and the connection, whatever the body names. The
  * connection is recorded before the code is handed over: if it cannot be,
  * the code is never delivered (`AGENT_CONNECTION_UNAVAILABLE`).
  */
@@ -306,10 +309,11 @@ export async function agentConsentGate(
     );
   }
 
-  // The provider makes the consent for the organization chosen; staying
-  // connected is not the person's choice, so a request for it keeps it.
+  // The provider makes the consent for the organization chosen, of what the
+  // page offers; staying connected is not the person's choice, so a request
+  // for it keeps it.
   const accepted = [
-    ...allowed.filter((scope) => scope !== OFFLINE_ACCESS),
+    ...allowed.filter(isOfferedScope),
     ...(requested.includes(OFFLINE_ACCESS) ? [OFFLINE_ACCESS] : []),
   ];
   const { tale: _tale, ...forwarded } = body;

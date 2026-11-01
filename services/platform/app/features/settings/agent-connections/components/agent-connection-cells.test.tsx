@@ -281,7 +281,7 @@ describe('AgentAccessCell [AGCONN-R24]', () => {
     expect(screen.queryByText('Edit automations')).not.toBeInTheDocument();
   });
 
-  it('adds what it may do beside the level', () => {
+  it('adds what it may do beside the level, and nothing for a scope no tool takes', () => {
     render(
       <AgentAccessCell
         scopes={[
@@ -296,7 +296,8 @@ describe('AgentAccessCell [AGCONN-R24]', () => {
     // Changing settings reads them too: one badge says both.
     expect(screen.getByText('Change settings')).toBeInTheDocument();
     expect(screen.queryByText('Read settings')).not.toBeInTheDocument();
-    expect(screen.getByText('Connect AI subscriptions')).toBeInTheDocument();
+    // A connection made before may hold it; it lets the agent do nothing.
+    expect(screen.queryByText(/subscription/i)).not.toBeInTheDocument();
   });
 
   it('says what it can of access that leaves out reading and testing', () => {

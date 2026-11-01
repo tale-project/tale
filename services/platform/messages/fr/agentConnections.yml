@@ -36,8 +36,6 @@ consent:
     settingsReadDescription: Lire les paramètres visibles pour ton rôle. Les secrets restent masqués.
     settingsWrite: Modifier les paramètres
     settingsWriteDescription: Modifier les paramètres que ton rôle peut modifier. Chaque modification est inscrite au journal d’audit.
-    subscriptions: Connecter des abonnements IA
-    subscriptionsDescription: Demander l’ajout d’un abonnement IA. Rien n’est ajouté avant que tu le confirmes dans Tale.
   summary:
     title: 'Ce que {client} peut faire'
   duration: La connexion reste active jusqu’à ce que tu la coupes dans Paramètres > API > Agents connectés, ou après 30 jours sans utilisation.
@@ -113,4 +111,3 @@ scopes:
   automationsDeploy: Mettre en service et exécuter en réel
   settingsRead: Lire les paramètres
   settingsWrite: Modifier les paramètres
-  subscriptionsConnect: Connecter des abonnements

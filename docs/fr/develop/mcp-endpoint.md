@@ -42,7 +42,7 @@ Un agent qui prend en charge l’autorisation MCP se connecte lui-même. La pers
 4. **Une personne le connecte.** L’agent ouvre Tale dans le navigateur. La personne se connecte, choisit l’organisation dans laquelle l’agent travaillera et l’accès à lui donner, puis sélectionne **Connecter** sur la page de consentement, qui nomme l’application et indique si elle a prouvé son domaine. Si la personne n’a pas le droit de connecter un agent dans cette organisation, la page le lui dit.
 5. **L’agent appelle le point d’accès.** Il reçoit un jeton d’accès valable cinq minutes et un jeton de rafraîchissement qui reste valable trente jours sans utilisation et qui est remplacé à chaque usage, et il renouvelle seul le jeton d’accès. Chaque appel porte `Authorization: Bearer <access token>`.
 
-Un agent qui demande plus que ce que le point d’accès accorde n’est pas refusé pour autant : Codex demande `openid`, `profile`, `email` et `tale:organization` en plus des portées d’agent, et Tale les écarte, car un agent ne reçoit jamais de portée d’identité. Un agent qui ne demande que des portées d’identité ne demande rien de ce que le point d’accès accorde et est refusé avec `invalid_scope`.
+Un agent qui demande plus que ce que le point d’accès accorde n’est pas refusé pour autant : Codex demande `openid`, `profile`, `email` et `tale:organization` en plus des portées d’agent, et Tale les écarte, car un agent ne reçoit jamais de portée d’identité. Un agent qui ne demande que des portées d’identité ne demande rien de ce que le point d’accès accorde et est refusé avec `invalid_scope`. Le point d’accès accepte aussi la portée `tale:subscriptions.connect`, qu’aucun outil n’utilise encore : un agent peut la demander, mais la page de consentement ne la propose pas et aucune connexion ne la reçoit.
 
 #### Qui peut connecter {#who-may-connect}
 
@@ -50,7 +50,7 @@ Un Propriétaire, un Admin ou un Développeur peut connecter un agent à l’org
 
 #### Niveaux d’accès {#access-levels}
 
-La page de consentement propose trois niveaux, chacun s’ajoutant au précédent, et trois choix supplémentaires. Ce que la personne autorise devient les portées du jeton de l’agent, et le point d’accès les vérifie à chaque appel en plus du rôle de la personne : un appel exige les deux, et le rôle est évalué en premier. Une portée n’élargit jamais un rôle.
+La page de consentement propose trois niveaux, chacun s’ajoutant au précédent, et deux choix supplémentaires. Ce que la personne autorise devient les portées du jeton de l’agent, et le point d’accès les vérifie à chaque appel en plus du rôle de la personne : un appel exige les deux, et le rôle est évalué en premier. Une portée n’élargit jamais un rôle.
 
 Chaque choix ci-dessous nomme sa portée et les outils qu’il ouvre :
 
@@ -59,7 +59,6 @@ Chaque choix ci-dessous nomme sa portée et les outils qu’il ouvre :
 - **Modifier et mettre en service** (`tale:automations.deploy`) : `deploy_automation`, `delete_automation`, `set_trigger`, `run_deployed`, `start_run`, `replay_run`, `cancel_run`, `answer_run_ask`, `set_automation_projects`, `delete_trigger`, `invoke_capability`
 - **Lire les paramètres** (`tale:settings.read`) : `get_settings`, `plan_settings`
 - **Modifier les paramètres** (`tale:settings.write`) : `apply_settings`
-- **Connecter des abonnements IA** (`tale:subscriptions.connect`) : Aucun outil n’utilise encore ce choix.
 
 Une exécution avec les mocks (`start_run` avec `mode: "mock"`) et le plan d’une relance n’exigent que **Lire et tester** ; un démarrage en réel et une relance en réel exigent **Modifier et mettre en service**. `get_settings` et `plan_settings` acceptent aussi **Modifier les paramètres** à la place de **Lire les paramètres**. Une connexion a l’accès que la personne a autorisé en la créant : autoriser à nouveau la même application modifie cette connexion et n’en ajoute jamais une seconde, et une application déconnectée puis autorisée de nouveau crée une nouvelle connexion.
 
