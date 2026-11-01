@@ -4633,9 +4633,10 @@ export async function taskHasLiveRun(
  * `findLiveAutomationRunForTask` probe) — the automation half of
  * `taskHasLiveRun`, for lanes that treat the two families differently (the
  * mention dispatcher steers an agent run but yields entirely to an
- * automation). An org-level run may carry this same task subject without a
- * project binding; a different non-NULL project never holds it here. */
-async function taskHasLiveAutomationRun(
+ * automation, and so does a handoff by mention). An org-level run may carry
+ * this same task subject without a project binding; a different non-NULL
+ * project never holds it here. */
+export async function taskHasLiveAutomationRun(
   tx: TransactionSql,
   task: Pick<TaskRow, 'id' | 'organizationId' | 'projectId'>,
 ): Promise<boolean> {

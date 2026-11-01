@@ -4,9 +4,12 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
+import { deMessages, enMessages, frMessages } from '@/tests/utils/messages';
+
 import {
   TASK_ACTIVITY_FIELD,
   TASK_ACTIVITY_LABEL_KEY,
+  TASK_HANDOFF_REASON_LABEL_KEY,
   TASK_RUN_REFUSAL_LABEL_KEY,
 } from './display';
 
@@ -126,5 +129,46 @@ describe('run-admission refusals', () => {
     expect(
       [...codes].filter((code) => !TASK_RUN_REFUSAL_LABEL_KEY[code]),
     ).toEqual([]);
+  });
+});
+
+/** The codes a union type of `mention-handoffs.ts` spells, doc comments
+ * aside. */
+function handoffReasons(type: string): string[] {
+  const source = readFileSync(
+    join(TASKS_DOMAIN, 'mention-handoffs.ts'),
+    'utf8',
+  ).replace(/\/\*[\s\S]*?\*\//g, '');
+  const union = new RegExp(`export type ${type} =([\\s\\S]*?);`).exec(source);
+  return [...(union?.[1] ?? '').matchAll(/'([a-z_]+)'/g)].map(
+    (member) => member[1] ?? '',
+  );
+}
+
+describe('handoffs by mention', () => {
+  const reasons = [
+    ...handoffReasons('MentionHandoffRefusal'),
+    ...handoffReasons('MentionHandoffDrop'),
+  ];
+
+  it('names every reason a handoff is refused or dropped for, in every locale', () => {
+    // A walk that found nothing would pass anything.
+    expect(reasons).toContain('no_start_grant');
+    expect(reasons).toContain('review_decided');
+    expect(
+      reasons.filter((code) => !TASK_HANDOFF_REASON_LABEL_KEY[code]),
+    ).toEqual([]);
+    for (const messages of [enMessages, deMessages, frMessages]) {
+      const tasks = messages.tasks as { activity: { handoff: object } };
+      expect(Object.keys(tasks.activity.handoff).sort()).toEqual(
+        [...reasons].sort(),
+      );
+    }
+  });
+
+  it('keeps no label for a reason the backend no longer records', () => {
+    expect(Object.keys(TASK_HANDOFF_REASON_LABEL_KEY).sort()).toEqual(
+      [...reasons].sort(),
+    );
   });
 });

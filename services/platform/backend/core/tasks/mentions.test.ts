@@ -12,6 +12,7 @@ import {
   descriptionMentionMode,
   editIntroducesMentions,
   findTaskMentions,
+  handoffMentionAgentIds,
   normalizeMentionText,
   relabelTaskMentions,
   taskMentionPlainText,
@@ -73,6 +74,28 @@ describe('findTaskMentions', () => {
     expect(typedHandles('contact me at user@example.com')).toEqual([]);
     expect(typedHandles('`@alice` and\n\n```\n@bob\n```')).toEqual([]);
     expect(typedHandles(`${ALICE} please`)).toEqual([]);
+  });
+});
+
+describe('the agents an agent’s comment hands its task to', () => {
+  const OTHER = '[@Reviewer](mention:agent/agent-reviewer)';
+
+  it('reads agent tokens outside quotes and code, each once, in order [TASK-R90]', () => {
+    expect(
+      handoffMentionAgentIds(
+        `${OTHER} please review, then ${OPUS} and ${OTHER}`,
+      ),
+    ).toEqual(['agent-reviewer', opus.id]);
+    expect(handoffMentionAgentIds(`> ${OTHER} said it is done`)).toEqual([]);
+    expect(
+      handoffMentionAgentIds(`\`${OTHER}\` and\n\n\`\`\`\n${OTHER}\n\`\`\``),
+    ).toEqual([]);
+    expect(handoffMentionAgentIds(`> quoted\n\n${OTHER} take it`)).toEqual([
+      'agent-reviewer',
+    ]);
+    // A typed handle was resolved to a token when the comment was saved; a
+    // person's token names nobody to hand on to.
+    expect(handoffMentionAgentIds(`@reviewer and ${ALICE}`)).toEqual([]);
   });
 });
 

@@ -300,8 +300,18 @@ const TOOL_DESCRIPTIONS: Record<string, string> = {
     'nonblank translations in bodyByLocale (the same limit each, at most ' +
     `${TASK_COMMENT_LOCALES_MAX} locales in all). ${LENGTH_UNIT_NOTE} ` +
     'Mention a person, agent or automation by copying a mention as task_get ' +
-    'shows it, or as @handle: a person you name is notified; an agent or ' +
-    'automation you name is not started.',
+    'shows it, or as @handle: a person you name is notified; an automation ' +
+    'you name is not started. An agent of the task’s project you name is ' +
+    'handed the task as if you had called task_start_agent, once your run ' +
+    'has ended and no other run holds the task — when your run is bound to ' +
+    'that project, your agent holds task_start_agent, and the run is ' +
+    'neither confined to its task nor started by another agent. Only the ' +
+    'first agent you name besides yourself counts; a mention in a quote or ' +
+    'code, or of an agent already working the task, starts nothing, and no ' +
+    'mention steers a running agent. On an in_review task whose pending ' +
+    'review is routed to that agent, it starts on one of its review ' +
+    'contexts and the review stays pending. The task’s history records ' +
+    'each handoff, and why one was refused or dropped.',
   task_update_status:
     'Move a task to another board column. Args: {taskId: string, status: ' +
     '"backlog"|"todo"|"in_progress"|"in_review"|"cancelled"}. Agents never ' +
