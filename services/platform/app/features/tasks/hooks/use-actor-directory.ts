@@ -9,7 +9,6 @@ import {
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
 import { projectAgentDetails } from '@/app/features/projects/lib/agent-details';
 import { useAskedMemberLookup } from '@/app/features/settings/organization/hooks/member-lookup';
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
 import { useBackendQuery } from '@/app/hooks/use-backend-query';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
 import { useT } from '@/lib/i18n/client';
@@ -20,6 +19,7 @@ import {
 } from '@/lib/shared/schemas/automation_presentation';
 
 import type { TaskActorType, TaskCreatorType } from '../lib/display';
+import { memberActor } from '../lib/member-actor';
 import {
   buildAgentRunPreview,
   buildTaskActorPreview,
@@ -94,27 +94,6 @@ export type MentionPendingRef =
   | { kind: MentionKind; id: string }
   | { handle: string };
 
-/** A member as the task surfaces list them. */
-export function memberActor(
-  member: {
-    userId: string;
-    displayName: string | undefined;
-    email: string | undefined;
-    role: string;
-  },
-  formerMember: string,
-): AssignableActor {
-  return {
-    type: 'user',
-    id: member.userId,
-    // An account that holds no name and no e-mail names nobody, as on the
-    // automation pages; its id would tell a reader nothing either.
-    name: member.displayName || member.email || formerMember,
-    email: member.email,
-    role: member.role,
-  };
-}
-
 // Shared frozen instances keep hook results referentially stable across
 // renders when a context has no project (and thus no agents) to draw from.
 const EMPTY_AGENT_LIST: AssignableActor[] = [];
@@ -127,14 +106,14 @@ const EMPTY_CATALOG = new Map<string, TaskActorCatalogEntry>();
  * human-readable display names, and exposes the project's agents for the
  * assignee picker. People are looked up as the surface names them
  * (`useAskedMemberLookup`): a board, a task or a thread names a handful of
- * the organization's members, never all of them — a picker reads every
- * member through {@link useAssignableActors}. Agents are the PROJECT's
- * user-created instances (`projectAgents` rows, from the project Agents
- * tab), so without a `projectId` no agent is assignable and a
- * historical/foreign agent actor reads as a deleted agent. A person the
- * lookup does not name reads as a former member once it has answered for
- * them; no actor is ever named by its raw id. The retired workflow catalog
- * stays empty until automations grow a task-side directory.
+ * the organization's members, never all of them — a picker searches them
+ * (`useAssignableMembers`). Agents are the PROJECT's user-created instances
+ * (`projectAgents` rows, from the project Agents tab), so without a
+ * `projectId` no agent is assignable and a historical/foreign agent actor
+ * reads as a deleted agent. A person the lookup does not name reads as a
+ * former member once it has answered for them; no actor is ever named by
+ * its raw id. The retired workflow catalog stays empty until automations
+ * grow a task-side directory.
  */
 export function useActorDirectory(organizationId: string, projectId?: string) {
   const memberLookup = useAskedMemberLookup(organizationId);
@@ -482,7 +461,7 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
       resolveAgentRunPreview,
       resolveWorkflowRunPreview,
       /** The people looked up so far — whom this surface named — not every
-       * member: a picker lists those through `useAssignableActors`. */
+       * member: a picker searches those (`useAssignableMembers`). */
       members: memberList,
       agents: agentList,
       /** Deployed automations visible from this context, slug + display name. */
@@ -505,7 +484,8 @@ export function useActorDirectory(organizationId: string, projectId?: string) {
       // `useActorDirectory` stays org-wide — it also resolves *historical* actors
       // (comment authors, a current assignee who has since lost access), which a
       // project filter would misname as former members. The project-scoped
-      // candidate lists for authoring live in `useAssignableActors` below.
+      // candidates for authoring are `useAssignableActors`' agents below and
+      // the people `useAssignableMembers` searches.
       projectId,
     }),
     [
@@ -599,25 +579,16 @@ export function useProvidedActorDirectory(
 }
 
 /**
- * The assignee picker and `@`-mention autocomplete build their candidate lists
- * from this: every member of the organization and the project's agents,
- * narrowed to who can actually access the project. It reads every member, so
- * it mounts only where a person picks — an opened picker, a focused mention
- * field — never where a surface only names people. Members outside the
- * project's team(s) are dropped and disabled members are always excluded;
- * agents are narrowed only by the standard agent — the directory already
- * lists only THIS project's instances, and the one Tale set up there stays
- * out while the standard agent cannot run for this viewer. The directory's
- * `agents` / `resolveActor` are still returned (spread from it) for
- * *display* of historical/current actors.
- *
- * With no `projectId` members degrade to org-wide and agents to none — an
- * agent exists only inside its project. While the access query is in flight,
- * members fall back to org-wide; the backend guard is the real gate.
- * `membersLoading` says every member has not arrived yet; `scopeReady` says
- * they have and the narrowing has happened, for a picker that must offer
- * only who the server will take (the reviewer picker lists nobody until it
- * is true).
+ * The agents the assignee and reviewer pickers and the `@`-mention
+ * autocomplete offer beside the people they search for
+ * (`useAssignableMembers`): the project's agents, narrowed only by the
+ * standard agent — the directory already lists only THIS project's
+ * instances, and the one Tale set up there stays out while the standard
+ * agent cannot run for this viewer. It mounts only where a person picks — an
+ * opened picker, a focused mention field — never where a surface only names
+ * people. The directory's `agents` / `resolveActor` are still returned
+ * (spread from it) for *display* of historical/current actors. With no
+ * `projectId` no agent is offered: an agent exists only inside its project.
  *
  * `canAddAgents` says whether this viewer may add an agent to the project —
  * its editors may, everyone else reads its agents — so a picker can offer a
@@ -634,27 +605,11 @@ export function useAssignableActors(
   projectId?: string,
 ) {
   const directory = useActorDirectory(organizationId, projectId);
-  const { members } = useMembers(organizationId);
-  const { t: tCommon } = useT('common');
-  const formerMember = tCommon('formerMember');
-  const scope = useBackendQuery(
-    'projects/queries:listAccessibleUserIds',
-    projectId ? { organizationId, projectId } : 'skip',
-  );
   // The same read as the project page's, so it is usually already cached.
   const project = useBackendQuery(
     'projects/queries:getProject',
     projectId ? { organizationId, projectId } : 'skip',
   );
-
-  const assignableMembers = useMemo<AssignableActor[]>(() => {
-    const nonDisabled = (members ?? [])
-      .filter((m) => m.role !== 'disabled')
-      .map((m) => memberActor(m, formerMember));
-    if (!projectId || !scope.data || scope.data.orgWide) return nonDisabled;
-    const ids = new Set(scope.data.userIds);
-    return nonDisabled.filter((m) => ids.has(m.id));
-  }, [members, formerMember, projectId, scope.data]);
 
   const standardAgentAvailable =
     useStandardAgent(projectId ? organizationId : undefined)?.available ===
@@ -670,29 +625,20 @@ export function useAssignableActors(
         : directory.agents.filter((agent) => agent.managed !== true),
     [directory.agents, standardAgentAvailable],
   );
-  const membersLoading = members === undefined;
-  const scopeReady =
-    !membersLoading && (!projectId || scope.data !== undefined);
   const projectResolved = project.data != null;
   const canAddAgents = project.data?.canEdit === true;
 
   return useMemo(
     () => ({
       ...directory,
-      assignableMembers,
       assignableAgents,
-      membersLoading,
-      scopeReady,
       projectResolved,
       canAddAgents,
       standardAgentAvailable,
     }),
     [
       directory,
-      assignableMembers,
       assignableAgents,
-      membersLoading,
-      scopeReady,
       projectResolved,
       canAddAgents,
       standardAgentAvailable,
