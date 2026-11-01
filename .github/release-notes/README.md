@@ -27,8 +27,12 @@ other than the public `tale` and `.github`, even in a comment: readers outside t
 cannot open them. It also reads from Git what the release brings since the previous release tag,
 and rejects Upgrade notes that do not name each migration file it adds, such as
 `0204_usage_ledger_provider.sql`, and its `API_CONTRACT_VERSION` when that changed, such as
-`3.44.0`. Naming more, such as an earlier release's migration, is allowed. A reviewer verifies the
-facts.
+`3.44.0`. It rejects notes that present the previous release's work as this one's: a migration
+that release already has, by its file name or as a number after "migration", a migration neither
+release adds, and a pull request or issue (`#N` or its address) that release already merged or
+closed and no commit since refers to again (`Refs #N`). A paragraph or list item that names the
+earlier release may name its work, as in "Upgrading from v0.5.87 also applies
+`0203_agent_connections.sql`". A reviewer verifies the facts.
 
 Run from the repository root, in a clone with the release tags (`git fetch --tags`), before
 recording the candidate SHA:
@@ -38,7 +42,8 @@ bun tools/cli/scripts/release-notes.ts --version vX.Y.Z
 ```
 
 It compares with the release tag `git describe` finds before the checkout; `--previous-tag vA.B.C`
-names another.
+names another, such as the last release users received when the one before the candidate was never
+published.
 
 The release workflow validates the same file again in Prepare, before building images, and the
 package workflow validates it at the released commit before pinning `ui-vX.Y.Z` and

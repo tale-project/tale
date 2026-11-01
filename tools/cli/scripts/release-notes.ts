@@ -99,6 +99,14 @@ export interface ReleaseChanges {
   previous: { tag: string; commit: string };
   /** Migration files added since that tag, by file name, in order. */
   migrations: string[];
+  /** Migration files that tag already has, by file name, in order. */
+  earlierMigrations: string[];
+  /**
+   * Pull requests and issues of tale-project/tale that tag already ships —
+   * merged (the squash-merged subject's `(#N)`) or closed (`Closes #N`) —
+   * and no commit since names again, in order: their work is not new.
+   */
+  shipped: number[];
   /** `API_CONTRACT_VERSION` at that tag and at the candidate. */
   contract: { previous: string; current: string };
 }
@@ -106,8 +114,55 @@ export interface ReleaseChanges {
 function git(root: string, args: string[]): string {
   return execFileSync('git', ['-C', root, ...args], {
     encoding: 'utf8',
+    // A release's whole history of commit messages, well past the 1 MiB default.
+    maxBuffer: 256 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+}
+
+/** Migration files in a NUL-separated list of paths, by file name, in order. */
+function migrationFiles(paths: string): string[] {
+  return paths
+    .split('\0')
+    .filter((path) => path.startsWith(`${MIGRATIONS}/`))
+    .map((path) => path.slice(MIGRATIONS.length + 1))
+    .filter((name) => !name.includes('/') && isMigrationFile(name))
+    .sort();
+}
+
+/**
+ * A reference to an issue or pull request of tale-project/tale: `#N`,
+ * `tale-project/tale#N` or its address; the number is the first group.
+ */
+const REFERENCE = String.raw`(?:(?<![\w&#/])#|tale-project\/tale#|github\.com\/tale-project\/tale\/(?:pull|issues)\/)(\d+)(?!\w)`;
+
+/** The numbers `text` refers to, as `REFERENCE` reads them. */
+function references(text: string): number[] {
+  return [...text.matchAll(new RegExp(REFERENCE, 'gi'))].map(([, n]) =>
+    Number(n),
+  );
+}
+
+/** GitHub's closing keywords: `Closes #N` closes issue N where it lands. */
+const CLOSING = String.raw`close[sd]?|fix(?:e[sd])?|resolve[sd]?`;
+
+/**
+ * The numbers the commit messages of `log` (`git log -z --format=%B`) name:
+ * the pull request a squash-merged subject ends with (`(#N)`), and each
+ * reference one of `keywords` leads (`Closes #N`).
+ */
+function numbersNamed(log: string, keywords: string): Set<number> {
+  const keyword = new RegExp(
+    String.raw`\b(?:${keywords}):?\s+${REFERENCE}`,
+    'gi',
+  );
+  const named = new Set<number>();
+  for (const message of log.split('\0')) {
+    const merged = /\(#(\d+)\)\s*$/.exec(message.split('\n', 1)[0]);
+    if (merged) named.add(Number(merged[1]));
+    for (const [, n] of message.matchAll(keyword)) named.add(Number(n));
+  }
+  return named;
 }
 
 function commitOf(root: string, ref: string, missing: string): string {
@@ -139,9 +194,11 @@ function contractVersion(root: string, commit: string, at: string): string {
 /**
  * Read from Git what `candidate` brings since the previous release: the
  * migration files it adds and its API contract version, beside that
- * release's. The previous release is `previousTag` when given, else the
- * nearest release tag before the candidate (`git describe` from its parent,
- * so a candidate already tagged still compares with the release before it).
+ * release's, and what that release already ships: its migration files and
+ * the pull requests and issues it merged or closed. The previous release is
+ * `previousTag` when given, else the nearest release tag before the
+ * candidate (`git describe` from its parent, so a candidate already tagged
+ * still compares with the release before it).
  */
 export function readReleaseChanges(options: {
   root: string;
@@ -193,26 +250,39 @@ export function readReleaseChanges(options: {
   if (commit === candidate || before.status !== 0) {
     throw new Error(`${tag} is not a release before ${candidate}`);
   }
-  const migrations = git(root, [
-    'diff',
-    '-z',
-    '--name-only',
-    '--no-renames',
-    '--diff-filter=A',
-    commit,
-    candidate,
-    '--',
-    MIGRATIONS,
-  ])
-    .split('\0')
-    .filter((path) => path.startsWith(`${MIGRATIONS}/`))
-    .map((path) => path.slice(MIGRATIONS.length + 1))
-    .filter((name) => !name.includes('/') && isMigrationFile(name))
-    .sort();
+  const migrations = migrationFiles(
+    git(root, [
+      'diff',
+      '-z',
+      '--name-only',
+      '--no-renames',
+      '--diff-filter=A',
+      commit,
+      candidate,
+      '--',
+      MIGRATIONS,
+    ]),
+  );
+  const earlierMigrations = migrationFiles(
+    git(root, ['ls-tree', '-z', '--name-only', commit, '--', `${MIGRATIONS}/`]),
+  );
+  // Shipped: merged or closed; `Refs #N` leaves an issue open. A number the
+  // release's own commits merge, close or refer to again has new work in it.
+  const since = numbersNamed(
+    git(root, ['log', '-z', '--format=%B', `${commit}..${candidate}`]),
+    `${CLOSING}|refs?|references|follow-up to|part of`,
+  );
+  const shipped = [
+    ...numbersNamed(git(root, ['log', '-z', '--format=%B', commit]), CLOSING),
+  ]
+    .filter((n) => !since.has(n))
+    .sort((a, b) => a - b);
   return {
     candidate,
     previous: { tag, commit },
     migrations,
+    earlierMigrations,
+    shipped,
     contract: {
       previous: contractVersion(root, commit, tag),
       current: contractVersion(root, candidate, candidate),
@@ -228,13 +298,99 @@ function names(text: string, pattern: string): boolean {
 }
 
 /**
+ * What one statement of the notes says: each paragraph and top-level list
+ * item, with its continuation lines and nested items. A comment names
+ * nothing, since the reader does not see it.
+ */
+function statements(notes: string): string[] {
+  return notes
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .split(/\n(?:[ \t]*\n)+(?=\S)|\n(?=(?:[-*+]|\d+[.)])[ \t])/)
+    .filter((statement) => statement.trim());
+}
+
+/**
+ * The migrations `statement` names: a migration file by its name, and a
+ * number in a run of them after "migration" or "migrations" ("migrations
+ * 0168 and 0194"). A four-digit number anywhere else is not a migration.
+ */
+function migrationsNamed(statement: string) {
+  const named = [
+    ...statement.matchAll(/(?<![\w.-])(\d{4})_\w+\.(?:sql|ts)(?![\w-]|\.\w)/g),
+  ].map(([file, number]) => ({ written: file, number, file }));
+  for (const [, run] of statement.matchAll(
+    /\bmigrations?((?:[\s,`–—-]|\b(?:and|or|to)\b|\d{4}\b)+)/gi,
+  ))
+    for (const [number] of run.matchAll(/\d{4}/g))
+      named.push({ written: number, number, file: '' });
+  return named;
+}
+
+/** Whether `statement` names a release no later than `tag`, such as v0.5.87. */
+function namesEarlierRelease(statement: string, tag: string): boolean {
+  const parts = (version: string) =>
+    version.slice(1).split(/[.-]/, 3).map(Number);
+  const [major, minor, patch] = parts(tag);
+  return [...statement.matchAll(/(?<![\w.-])v\d+\.\d+\.\d+(?![\w-]|\.\d)/g)]
+    .map(([version]) => parts(version))
+    .some(
+      ([a, b, c]) =>
+        a < major ||
+        (a === major && (b < minor || (b === minor && c <= patch))),
+    );
+}
+
+/**
+ * One refusal per migration or pull request the notes present as new that
+ * the previous release already ships, or per migration no release has. A
+ * paragraph or list item that names the earlier release may name its work,
+ * as v0.5.88's named the migrations v0.5.87's notes left out.
+ */
+function earlierWork(notes: string, changes: ReleaseChanges): string[] {
+  const { tag } = changes.previous;
+  const number = (file: string) => file.slice(0, 4);
+  const added = new Set(changes.migrations);
+  const addedNumbers = new Set(changes.migrations.map(number));
+  const shipped = new Set(changes.shipped);
+  const refused = new Set<string>();
+  for (const statement of statements(notes)) {
+    const attributed = namesEarlierRelease(statement, tag);
+    for (const { written, number: n, file } of migrationsNamed(statement)) {
+      if (file ? added.has(file) : addedNumbers.has(n)) continue;
+      const earlier = changes.earlierMigrations.filter((name) =>
+        file ? name === file : number(name) === n,
+      );
+      if (earlier.length === 0) {
+        refused.add(
+          `Release notes name migration ${written}, which neither ${tag} nor this release adds`,
+        );
+      } else if (!attributed) {
+        const which = file ? '' : ` (${earlier.join(', ')})`;
+        refused.add(
+          `Release notes name migration ${written}${which}, which ${tag} already has: name the earlier release beside it, in the same paragraph or list item, or leave it out`,
+        );
+      }
+    }
+    if (attributed) continue;
+    for (const cited of references(statement).filter((n) => shipped.has(n)))
+      refused.add(
+        `Release notes cite #${cited}, which ${tag} already ships and no commit since refers to: name the earlier release beside it, in the same paragraph or list item, or leave it out`,
+      );
+  }
+  return [...refused];
+}
+
+/**
  * Refuse Upgrade notes that leave out what the release brings: each
  * migration file added since the previous release, by its file name, and
- * the candidate's API contract version when it changed. Naming more, such
- * as an earlier release's migration, is not an error.
+ * the candidate's API contract version when it changed. Refuse notes that
+ * present the previous release's work as this release's: a migration it
+ * already has, or a pull request or issue it already merged or closed,
+ * unless the same paragraph or list item names the earlier release.
  */
 export function validateUpgradeNotes(raw: string, changes: ReleaseChanges) {
-  const [section] = sections(validateReleaseNotes(raw), 'Upgrade notes');
+  const notes = validateReleaseNotes(raw);
+  const [section] = sections(notes, 'Upgrade notes');
   // What the operator reads: a comment names nothing.
   const upgrade = section.replace(/<!--[\s\S]*?-->/g, '');
   const since = `since ${changes.previous.tag}`;
@@ -245,11 +401,11 @@ export function validateUpgradeNotes(raw: string, changes: ReleaseChanges) {
   if (current !== previous && !names(upgrade, `v?${literal(current)}`)) {
     missing.push(`API contract ${current}, changed from ${previous} ${since}`);
   }
-  if (missing.length > 0) {
-    throw new Error(
-      missing.map((what) => `Upgrade notes do not name ${what}`).join('\n'),
-    );
-  }
+  const refused = [
+    ...missing.map((what) => `Upgrade notes do not name ${what}`),
+    ...earlierWork(notes, changes),
+  ];
+  if (refused.length > 0) throw new Error(refused.join('\n'));
 }
 
 export function composeReleaseNotes(
