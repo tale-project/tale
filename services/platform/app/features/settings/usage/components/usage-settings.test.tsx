@@ -44,20 +44,52 @@ vi.mock('@tanstack/react-router', () => ({
     children,
     to,
     params,
+    search,
     className,
   }: {
     children: ReactNode;
     to: string;
-    params: { id: string };
+    params: Record<string, string>;
+    search?: Record<string, string>;
     className?: string;
-  }) => (
-    <a href={to.replace('$id', params.id)} className={className}>
-      {children}
-    </a>
-  ),
+  }) => {
+    const path = Object.entries(params).reduce(
+      (href, [key, value]) => href.replace(`$${key}`, value),
+      to,
+    );
+    const query = search ? `?${new URLSearchParams(search).toString()}` : '';
+    return (
+      <a href={`${path}${query}`} className={className}>
+        {children}
+      </a>
+    );
+  },
 }));
 
 const RESETS_AT = Date.UTC(2026, 9, 1);
+const GB = 1024 ** 3;
+
+/** A metered answer whose parts add up to `usedBytes`, as the server's do. */
+function metered(
+  usedBytes: number,
+  limitBytes: number,
+  overrides: Record<string, unknown> = {},
+) {
+  return {
+    limited: true,
+    usedBytes,
+    limitBytes,
+    breakdown: {
+      documents: usedBytes,
+      agentFiles: 0,
+      chatAttachments: 0,
+      other: 0,
+    },
+    chats: [],
+    chatCount: 0,
+    ...overrides,
+  };
+}
 
 function limit(overrides: Partial<MyBudgetUsageLimit>): MyBudgetUsageLimit {
   return {
@@ -212,17 +244,87 @@ describe('UsageSettings', () => {
   });
 
   it('meters storage against the per-user upload volume', () => {
-    state.storage.data = {
-      limited: true,
-      usedBytes: 1.5 * 1024 ** 3,
-      limitBytes: 10 * 1024 ** 3,
-    };
+    state.storage.data = metered(1.5 * GB, 10 * GB);
 
     render(<UsageSettings organizationId="org-1" />);
 
     const storage = section('Storage');
     expect(within(storage).getByText('Uploaded files')).toBeInTheDocument();
     expect(within(storage).getByText('1.5 GB of 10 GB')).toBeInTheDocument();
+  });
+
+  // #5042: the meter showed a total and nothing of the files behind it.
+  it('breaks the meter down by kind and links to where the files live', () => {
+    state.storage.data = metered(1.5 * GB, 10 * GB, {
+      breakdown: {
+        documents: GB,
+        agentFiles: 0.25 * GB,
+        chatAttachments: 0.25 * GB,
+        other: 0,
+      },
+      chats: [
+        { threadId: 'chat-big', title: 'Q3 review', bytes: 0.2 * GB },
+        { threadId: 'chat-small', title: null, bytes: 0.05 * GB },
+      ],
+      chatCount: 3,
+    });
+
+    render(<UsageSettings organizationId="org-1" />);
+
+    const storage = section('Storage');
+    expect(within(storage).getByText('1.5 GB of 10 GB')).toBeInTheDocument();
+    const parts = within(storage).getAllByRole('term');
+    expect(parts.map((part) => part.textContent)).toEqual([
+      'Documents',
+      'Chat attachments',
+      'Files made by agents',
+    ]);
+    expect(parts.map((part) => part.nextElementSibling?.textContent)).toEqual([
+      '1 GB',
+      '256 MB',
+      '256 MB',
+    ]);
+    expect(
+      within(storage).getByRole('link', {
+        name: 'View my documents in Knowledge',
+      }),
+    ).toHaveAttribute('href', '/dashboard/org-1/documents?uploadedBy=me');
+
+    const chats = within(storage).getByRole('list', {
+      name: 'Chats that hold your files',
+    });
+    expect(
+      within(chats).getByRole('link', { name: 'Q3 review' }),
+    ).toHaveAttribute('href', '/dashboard/org-1/chat/chat-big');
+    expect(
+      within(chats).getByRole('link', { name: 'Untitled chat' }),
+    ).toHaveAttribute('href', '/dashboard/org-1/chat/chat-small');
+    expect(within(storage).getByText('and 1 more chat')).toBeInTheDocument();
+  });
+
+  it('names other files only when some count', () => {
+    state.storage.data = metered(GB, 10 * GB);
+    const { unmount } = render(<UsageSettings organizationId="org-1" />);
+    expect(within(section('Storage')).queryByText('Other files')).toBeNull();
+    expect(
+      within(section('Storage')).queryByRole('list', {
+        name: 'Chats that hold your files',
+      }),
+    ).toBeNull();
+    unmount();
+
+    state.storage.data = metered(GB, 10 * GB, {
+      breakdown: {
+        documents: 0.5 * GB,
+        agentFiles: 0,
+        chatAttachments: 0,
+        other: 0.5 * GB,
+      },
+    });
+    render(<UsageSettings organizationId="org-1" />);
+    expect(
+      within(section('Storage')).getByText('Other files'),
+    ).toBeInTheDocument();
   });
 
   it('states when no storage limit applies', () => {
@@ -289,11 +391,7 @@ describe('UsageSettings', () => {
 
   it('keeps the last answer under a notice when a refresh fails', () => {
     state.storage = {
-      data: {
-        limited: true,
-        usedBytes: 1.5 * 1024 ** 3,
-        limitBytes: 10 * 1024 ** 3,
-      },
+      data: metered(1.5 * GB, 10 * GB),
       isLoading: false,
       isError: true,
       isFetching: false,
@@ -352,11 +450,16 @@ describe('UsageSettings', () => {
       limit({ costCents: { used: 1_240, limit: 5_000 } }),
       limit({ scope: 'org', tokens: { used: 5, limit: 10 } }),
     ];
-    state.storage.data = {
-      limited: true,
-      usedBytes: 1024,
-      limitBytes: 1024 ** 3,
-    };
+    state.storage.data = metered(GB, 10 * GB, {
+      breakdown: {
+        documents: 0.5 * GB,
+        agentFiles: 0.25 * GB,
+        chatAttachments: 0.25 * GB,
+        other: 0,
+      },
+      chats: [{ threadId: 'chat-1', title: 'Q3 review', bytes: 0.25 * GB }],
+      chatCount: 1,
+    });
 
     const { container } = render(<UsageSettings organizationId="org-1" />);
 
