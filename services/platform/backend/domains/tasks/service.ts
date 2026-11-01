@@ -1658,14 +1658,32 @@ const EDIT_ACTIVITY_ACTION: Record<string, string> = {
 };
 
 /**
- * Resolve a set of label ids to their catalog names in the same order.
- * Used by {@link updateTask} to turn a `labels.changed` row's id arrays
- * into something a reader can parse at a glance ("Bug, Feature" instead
- * of "lbl_3f7c, lbl_1a2b"). An id the catalog no longer has falls back
- * to its raw id — the stale row will read like the rest of the timeline
- * a getter pulls in a flaky data shape.
+ * Whether a task's labels moved from `before` to `after`: a label added or
+ * removed. The same set in another order is no change, so it earns neither
+ * a `labels.changed` row nor a diff in the audit row — on a person's edit
+ * ({@link updateTask}) and on an external-ref reconcile alike.
  */
-async function resolveLabelNames(
+export function labelSetChanged(
+  before: readonly string[],
+  after: readonly string[],
+): boolean {
+  const sortedBefore = [...before].sort();
+  const sortedAfter = [...after].sort();
+  return (
+    sortedBefore.length !== sortedAfter.length ||
+    sortedBefore.some((id, index) => id !== sortedAfter[index])
+  );
+}
+
+/**
+ * Resolve a set of label ids to their catalog names in the same order.
+ * Used by {@link updateTask} and the external-ref reconcile to turn a
+ * `labels.changed` row's id arrays into something a reader can parse at a
+ * glance ("Bug, Feature" instead of "lbl_3f7c, lbl_1a2b"). An id the catalog
+ * no longer has falls back to its raw id — the stale row will read like the
+ * rest of the timeline a getter pulls in a flaky data shape.
+ */
+export async function resolveLabelNames(
   tx: TransactionSql,
   projectId: string,
   ids: readonly string[],
@@ -1922,13 +1940,8 @@ async function updateTaskFields(
       })) ?? [];
     // Skip the no-op: a re-save that sends the same set of labels leaves
     // both the audit row's diff and the activity timeline's `labels.changed`
-    // empty — only an actual add / remove / reorder earns a row.
-    const sortedBefore = [...task.labelIds].sort();
-    const sortedAfter = [...labelIds].sort();
-    if (
-      sortedBefore.length !== sortedAfter.length ||
-      sortedBefore.some((id, index) => id !== sortedAfter[index])
-    ) {
+    // empty — only an actual add or remove earns a row.
+    if (labelSetChanged(task.labelIds, labelIds)) {
       previousState.labelIds = task.labelIds;
       newState.labelIds = labelIds;
     }

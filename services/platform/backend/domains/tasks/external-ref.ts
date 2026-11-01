@@ -37,8 +37,10 @@ import { assertTaskAutomationEnabled, lockTaskRunStart } from './run-start.ts';
 import {
   applyTaskCountTransition,
   computeEndRank,
+  labelSetChanged,
   nextTaskNumber,
   recordActivity,
+  resolveLabelNames,
   resolveProjectLabels,
   TASK_COLUMNS,
   taskCountBucket,
@@ -146,6 +148,10 @@ async function externalRefAudit(
     taskId: string;
     title: string;
     metadata: Record<string, unknown>;
+    /** The fields the write changed, before and after, as a person's edit
+     * records them. */
+    previousState?: Record<string, unknown>;
+    newState?: Record<string, unknown>;
   },
 ): Promise<void> {
   await createAuditLog(tx, {
@@ -158,6 +164,10 @@ async function externalRefAudit(
     resourceId: args.taskId,
     resourceName: args.title,
     metadata: { viaAgent: true, ...args.metadata },
+    ...(args.previousState !== undefined
+      ? { previousState: args.previousState }
+      : {}),
+    ...(args.newState !== undefined ? { newState: args.newState } : {}),
     status: 'success',
   });
 }
@@ -225,8 +235,10 @@ export interface UpsertTaskByExternalRefArgs {
   /** App ownership without the run-on-create coupling — wins over the
    * `runWorkflowSlug` derivation when both are present. */
   automationSlug?: string;
-  /** `'user'`: a human created the task (the owning automation becomes the
-   * ASSIGNEE, not the author). Absent = derived app/agent attribution. */
+  /** `'user'`: a human makes the call — a task it creates is theirs (the
+   * owning automation becomes the ASSIGNEE, not the author), and the label
+   * change of a reconcile reads as theirs on the timeline. Absent = derived
+   * app/agent attribution. */
   creatorType?: 'user';
   /** `'project'`: one task per issue per project; `'org'` (default): per org. */
   dedupeScope?: 'org' | 'project';
@@ -458,6 +470,7 @@ export async function upsertTaskByExternalRef(
             createIfMissing: args.mintLabels ?? true,
           })) ?? [])
         : existing.labelIds;
+    const labelsChanged = labelSetChanged(existing.labelIds, labelIds);
 
     // Attribution backfill for a task that predates its owner — an existing
     // assignee (human triage, another app) is never clobbered.
@@ -613,6 +626,25 @@ export async function upsertTaskByExternalRef(
         toValue: newStatus,
       });
     }
+    // The labels the call replaced read on the timeline as a person's edit
+    // puts them — by name, before and after — under whoever made the call:
+    // the reconcile used to swap them without a trace, a label a person put
+    // on the task included. A label the call minted is in the catalog by
+    // now, so it reads by name too.
+    if (labelsChanged) {
+      const [fromValue, toValue] = await Promise.all([
+        resolveLabelNames(tx, existing.projectId, existing.labelIds),
+        resolveLabelNames(tx, existing.projectId, labelIds),
+      ]);
+      await recordActivity(tx, {
+        task: existing,
+        actorType: args.creatorType === 'user' ? 'user' : 'agent',
+        actorId: args.actorId,
+        action: 'labels.changed',
+        fromValue,
+        toValue,
+      });
+    }
     // A non-workflow external close PARKS the card at `in_review`, and that
     // park IS the request for review — the gate belongs to the state, so the
     // reviewer is belled, the board gets its chip, and the later leave to
@@ -642,6 +674,12 @@ export async function upsertTaskByExternalRef(
       taskId: existing.id,
       title,
       metadata: { externalSystem, externalId },
+      ...(labelsChanged
+        ? {
+            previousState: { labelIds: existing.labelIds },
+            newState: { labelIds },
+          }
+        : {}),
     });
     return title;
   };
