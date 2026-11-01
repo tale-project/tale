@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import type { Sql } from 'postgres';
 
 import type {
@@ -19,6 +21,7 @@ import {
 } from '../../core/lib/helpers/public_origin.ts';
 import { getPublicHttpApiUrl } from '../../core/lib/helpers/public_storage_url.ts';
 import { resolveOrgSlug } from '../../lib/org-config.ts';
+import { computeChangedFields } from '../audit_logs/hash-input.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { getScimStatus } from '../scim/service.ts';
 import {
@@ -96,12 +99,19 @@ async function requireOrgSlug(
   return slug;
 }
 
+/** What a row records of a save: the states and the fields it changed. */
+interface AuditedChange {
+  previousState?: Record<string, unknown>;
+  newState?: Record<string, unknown>;
+  changedFields?: string[];
+}
+
 async function audit(
   sql: Sql,
   organizationId: string,
   actor: SsoActor,
   action: 'sso_configure' | 'sso_enabled' | 'sso_disabled' | 'sso_removed',
-  newState?: Record<string, unknown>,
+  change: AuditedChange = {},
 ): Promise<void> {
   await sql.begin((tx) =>
     createAuditLog(tx, {
@@ -114,10 +124,118 @@ async function audit(
       category: 'security',
       resourceType: 'sso',
       resourceId: organizationId,
-      ...(newState !== undefined ? { newState } : {}),
+      ...change,
       status: 'success',
     }),
   );
+}
+
+/**
+ * The SHA-256 fingerprint of a PEM certificate: the digest of its DER bytes,
+ * the form an identity provider shows it in.
+ */
+function certificateFingerprint(pem: string): string {
+  const der = Buffer.from(
+    pem.replace(/-----[^-]*-----/g, '').replace(/\s+/g, ''),
+    'base64',
+  );
+  return createHash('sha256')
+    .update(der)
+    .digest('hex')
+    .toUpperCase()
+    .replace(/(..)(?!$)/g, '$1:');
+}
+
+/**
+ * What an audit row records of a connection: the fields the settings view
+ * shows every member, flat so the row's changed fields name each one. No
+ * secret enters it (`changedSecrets` names the ones a save replaced), and a
+ * certificate — public, but up to 20,000 characters — is its fingerprint.
+ * The deprecated `enableOneDriveAccess` is left out: sign-in ignores it, and
+ * every save writes `false`.
+ */
+function auditedConnection(
+  config: SsoConnectionFile,
+  secrets: SsoConnectionSecrets,
+): Record<string, unknown> {
+  const { oidc, saml, provisioning } = config;
+  return {
+    enabled: config.enabled,
+    protocol: config.protocol ?? null,
+    displayName: config.displayName,
+    domain: config.domain ?? null,
+    ...(oidc
+      ? {
+          providerId: oidc.providerId,
+          issuer: oidc.issuer,
+          authorizationEndpoint: oidc.authorizationEndpoint ?? null,
+          tokenEndpoint: oidc.tokenEndpoint ?? null,
+          userinfoEndpoint: oidc.userinfoEndpoint ?? null,
+          scopes: oidc.scopes,
+          pkce: oidc.pkce ?? null,
+          domainHint: oidc.domainHint ?? null,
+          claimMappings: oidc.claimMappings ?? null,
+          trustEmail: oidc.trustEmail ?? null,
+        }
+      : {}),
+    ...(saml
+      ? {
+          idpEntityId: saml.idpEntityId,
+          idpSsoUrl: saml.idpSsoUrl,
+          idpCertificate: certificateFingerprint(saml.idpCertificate),
+          spCertificate:
+            saml.spCertificate !== undefined
+              ? certificateFingerprint(saml.spCertificate)
+              : null,
+          hasSpKeypair: !!secrets.spPrivateKey,
+          wantAssertionsSigned: saml.wantAssertionsSigned ?? null,
+          wantAssertionsEncrypted: saml.wantAssertionsEncrypted ?? null,
+          attributeMappings: saml.attributeMappings ?? null,
+        }
+      : {}),
+    autoProvisionRole: provisioning.autoProvisionRole,
+    defaultRole: provisioning.defaultRole,
+    roleMappingRules: provisioning.roleMappingRules,
+    autoProvisionTeam: provisioning.autoProvisionTeam,
+    excludeGroups: provisioning.excludeGroups,
+  };
+}
+
+const SECRET_NAMES: readonly (keyof SsoConnectionSecrets)[] = [
+  'clientId',
+  'clientSecret',
+  'spPrivateKey',
+];
+
+/** The names of the secrets a save replaced; their values stay in the sidecar. */
+function changedSecrets(
+  before: SsoConnectionSecrets,
+  after: SsoConnectionSecrets,
+): string[] {
+  return SECRET_NAMES.filter((name) => before[name] !== after[name]);
+}
+
+/**
+ * The audit record of a save: the connection before (when there was one)
+ * and after, and every field the save changed — a secret by its name alone.
+ */
+function savedChange(
+  existing: ExistingSsoFiles,
+  config: SsoConnectionFile,
+  secrets: SsoConnectionSecrets,
+): AuditedChange {
+  const previousState = existing.config
+    ? auditedConnection(existing.config, existing.secrets)
+    : undefined;
+  const newState = auditedConnection(config, secrets);
+  return {
+    ...(previousState !== undefined ? { previousState } : {}),
+    newState,
+    changedFields: [
+      ...computeChangedFields(previousState, newState),
+      ...changedSecrets(existing.secrets, secrets),
+    ],
+  };
 }
 
 export interface SsoProvisioningInput {
@@ -249,10 +367,13 @@ export async function upsertOidcConnection(
   };
 
   await persistFiles(sql, orgSlug, config, secrets);
-  await audit(sql, organizationId, actor, 'sso_configure', {
-    protocol,
-    providerId: args.providerId,
-  });
+  await audit(
+    sql,
+    organizationId,
+    actor,
+    'sso_configure',
+    savedChange(existing, config, secrets),
+  );
 }
 
 export interface UpsertSamlArgs extends SsoProvisioningInput {
@@ -322,9 +443,13 @@ export async function upsertSamlConnection(
   };
 
   await persistFiles(sql, orgSlug, config, secrets);
-  await audit(sql, organizationId, actor, 'sso_configure', {
-    protocol: 'saml',
-  });
+  await audit(
+    sql,
+    organizationId,
+    actor,
+    'sso_configure',
+    savedChange(existing, config, secrets),
+  );
 }
 
 /** Update only the provisioning policy (role mapping + team sync). */
@@ -346,9 +471,13 @@ export async function setSsoProvisioning(
     provisioning: provisioningFrom(args),
   };
   await persistFiles(sql, orgSlug, config, existing.secrets);
-  await audit(sql, organizationId, actor, 'sso_configure', {
-    provisioning: true,
-  });
+  await audit(
+    sql,
+    organizationId,
+    actor,
+    'sso_configure',
+    savedChange(existing, config, existing.secrets),
+  );
 }
 
 /** Enable / disable SSO sign-in (keeps config + secrets for re-enable). */
