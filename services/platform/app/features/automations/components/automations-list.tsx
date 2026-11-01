@@ -433,7 +433,10 @@ export function AutomationsList({
       {createDialog === 'agent' && (
         <CodingAgentDialog
           organizationId={organizationId}
-          context={{ kind: 'create' }}
+          context={{
+            kind: 'create',
+            ...(projectId !== undefined && { projectId }),
+          }}
           open
           onOpenChange={(next) => {
             if (!next) setCreateDialog(null);
