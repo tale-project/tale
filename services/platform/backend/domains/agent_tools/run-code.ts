@@ -37,6 +37,7 @@ import { stageUrlForBlobRef } from '../../core/node_only/sandbox/helpers/stage_u
 import { readSkillBundleForViewer } from '../../core/skills/file_actions.ts';
 import {
   acquireLightSession,
+  LIGHT_SANDBOX_FAILURES,
   LightSandboxBusyError,
   LightSandboxUnavailableError,
   type LightSessionLease,
@@ -147,22 +148,22 @@ const SANDBOX_UNAVAILABLE: Record<
   not_ready: failure(
     'unavailable',
     'The sandbox host has no runtime image ready yet, so no sandbox can start. Tell the user that code cannot run here at the moment and to try again in a few minutes; answer without running code meanwhile.',
-    'sandbox_not_ready',
+    LIGHT_SANDBOX_FAILURES.not_ready,
   ),
   unreachable: failure(
     'unavailable',
     'The sandbox service cannot be reached right now, so no code can run. Tell the user that code cannot run at the moment and answer without running code; do not call run_code again in this reply.',
-    'sandbox_unreachable',
+    LIGHT_SANDBOX_FAILURES.unreachable,
   ),
   failed: failure(
     'unavailable',
     'The light sandbox could not start. You may call run_code once more; if it fails again, tell the user that code cannot run right now and answer without running code.',
-    'sandbox_failed',
+    LIGHT_SANDBOX_FAILURES.failed,
   ),
   lost: failure(
     'unavailable',
     'The light sandbox stopped while the program ran (its host may have restarted), and the files it held are gone. Run the program again: a fresh sandbox starts.',
-    'sandbox_failed',
+    LIGHT_SANDBOX_FAILURES.failed,
   ),
 };
 
@@ -431,7 +432,7 @@ export async function runRunCode(
       return failure(
         'busy',
         `${error.message} Try again in a minute, or answer without running code.`,
-        error.kind === 'host' ? 'sandbox_host_busy' : 'sandboxes_busy',
+        LIGHT_SANDBOX_FAILURES[error.kind],
       );
     }
     if (error instanceof LightSandboxUnavailableError) {

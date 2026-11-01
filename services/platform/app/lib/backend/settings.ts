@@ -72,6 +72,7 @@ type ImageGenerationState =
   ReturnsOf<'lib/providers/image_generation_actions:getImageGenerationState'>;
 type ChatWorkToolsStatusResult =
   ReturnsOf<'chat/work_tools:getWorkToolsStatus'>;
+type ChatSandboxCheckResult = ReturnsOf<'chat/work_tools:runSandboxCheck'>;
 type ConnectorSummaryItem =
   ItemOf<'connector_credentials/connector_catalog:listConnectors'>;
 type ConnectorOauthAppItem = ItemOf<'connector_oauth_apps/queries:list'>;
@@ -2146,6 +2147,15 @@ export const settingsWriteAdapters: Record<string, WriteAdapter> = {
             ? { direction: args.direction }
             : {}),
         },
+      }),
+  },
+  // Starts a light sandbox and answers within a minute; it changes nothing
+  // the status read above shows, so it invalidates nothing.
+  'chat/work_tools:runSandboxCheck': {
+    run: (args, ctx) =>
+      backendFetch<ChatSandboxCheckResult>('/chat/work-tools/check', {
+        orgId: requireOrg(args, ctx),
+        body: {},
       }),
   },
 };
