@@ -74,6 +74,10 @@ function catalogRefreshHint(
       return "the provider's endpoint answered with a server error: refresh again later";
     case undefined:
       return "check the provider's endpoint and its credential, then refresh again";
+    default: {
+      const exhaustive: never = code;
+      return exhaustive;
+    }
   }
 }
 
