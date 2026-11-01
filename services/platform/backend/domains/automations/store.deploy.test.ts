@@ -147,6 +147,7 @@ describe('deploy — the tests verdict', () => {
     await expect(deploy(fake.sql, args)).rejects.toMatchObject({
       code: 'AUTOMATION_DEPLOY_REJECTED',
       status: 409,
+      data: { name: args.name, version: args.version },
     });
     expect(deployed(fake.statements)).toBe(false);
   });

@@ -315,6 +315,12 @@ entries:
   - 'automations.runs.waiting'
   # The same runReasonKey projection supplies the held-run list explanation.
   - 'automations.runs.quarantine.reason'
+  # How a refused automation write reads: app/features/automations/lib/
+  # refusal-text.ts renders `refusals.<CODE>` or `refusals.<CODE>.<variant>`
+  # from the refusal's code and data. lib/i18n/automation-refusal-keys.test.ts
+  # holds the catalog to the code list instead (every sentence in every
+  # locale, none left over, and the arguments each reads).
+  - 'automations.refusals'
 
   # How a validation issue reads: app/features/automations/lib/issue-text.ts
   # renders `codes.<CODE>.{title,explanation,cause,fix}` from the issue's
