@@ -129,6 +129,14 @@ describe('createSandboxLlmGatewayService memory limit', () => {
     }
   });
 
+  test('refuses the Kubernetes spelling, which compose refuses as mem_limit', () => {
+    for (const memory of ['4Gi', '4096Mi', '4gi']) {
+      expect(() => limitFor({ memory })).toThrow(
+        `Env var SANDBOX_LLM_GATEWAY_MEMORY is not a size such as 4g or 4096m: ${JSON.stringify(memory)}`,
+      );
+    }
+  });
+
   test('refuses a capacity the spawner would refuse at boot', () => {
     expect(() => limitFor({ sessions: 'many' })).toThrow(
       'Env var SANDBOX_MAX_SESSIONS is not a finite number: "many"',

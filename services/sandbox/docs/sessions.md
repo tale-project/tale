@@ -186,10 +186,12 @@ passes SIGTERM to execs when it receives a graceful stop, but does not await
 their completion before exiting. On Docker a stop removes the container with
 `docker rm --force`, which kills at once and delivers no graceful stop; only
 the max-linger self-reap's stop of a busy session asks first. Busy is an exec
-running through this spawner or, failing one, a live exec or an operation
-under way as runnerd's health reports it (asked with a 3 s bound): the
-platform follows a long turn by attach and hangs up at every drain window, so
-an exec it is draining is usually registered in no spawner. A daemon that
+running through this spawner or an attach stream through it that runnerd has
+answered and that is still open, or, failing both, a live exec or an
+operation under way as runnerd's health reports it (asked with a 3 s bound):
+the platform follows a long turn by attach and hangs up at every drain
+window, so an exec it is draining is registered in a spawner only while one
+of those attaches is open. A daemon that
 does not answer could not act on the stop and is removed at once. The
 max-linger self-reap stops a busy session with `docker stop -t 5` (`-t 20` for
 a Docker-in-sandbox session, whose supervisor also shuts its inner engine down
@@ -352,9 +354,13 @@ still running is joined, never stacked) **stops**:
   short window, and a runtime that does not report its engine keeps the full
   one;
 - a running session whose runnerd has not answered five sweeps in a row (a
-  wedged daemon used to hold its slot and limits until the 24 h TTL); a sweep
-  that cannot probe it — pinned, or an exec running through this spawner —
-  starts the count over;
+  wedged daemon used to hold its slot and limits until the 24 h TTL). A sweep
+  that finds it pinned, or busy in this spawner — an exec running through it,
+  or an attach stream through it that runnerd has answered and that is still
+  open — does not probe it and starts the count over. An attach still
+  waiting for runnerd's answer counts for nothing: it has no connect timeout,
+  and a daemon that answers no probe may never answer it either. Once an
+  attach has ended, five failed sweeps in a row stop the session as before;
 - compute whose process ended for good — a container exited or dead after a
   host reboot or an OOM-killed init, a Pod Failed or evicted — which adoption
   never registers and which used to stay (with, on Docker, its inner image
@@ -571,10 +577,16 @@ compute through `stopSession`, preserving the workspace. Busy, unresponsive and
 older daemons without this protocol are ineligible. The reclaim runs outside
 the admission lock — creates that still have room never queue behind a probe
 or a backend stop — and a daemon that fails its probe is skipped for a short
-back-off instead of costing every create at capacity a health timeout. Nearly
-every running turn is a candidate by the spawner's own count (the platform
-ends each exec stream at its drain window and follows the turn by attach), so
-the walk spares the busy ones: a daemon that answered, to a reclaim probe or
+back-off instead of costing every create at capacity a health timeout. A turn
+the platform follows by attach is no candidate once runnerd has answered the
+attach: the spawner counts that stream as an exec in flight, and neither the
+walk of a create at capacity nor the sweep's reclaim picks a session with one.
+Such a turn is a candidate by the spawner's own count only between two
+attaches (the platform ends each exec stream at its drain window), while its
+next attach still waits for runnerd's answer, or when another replica serves
+its streams; runnerd's own refusal then keeps it. So that those moments do
+not cost every create a probe of a busy daemon, the walk spares the busy
+ones: a daemon that answered, to a reclaim probe or
 to the sweep's, that its session cannot be reclaimed (held by a turn, working,
 pinned, or too old for the claim), or whose session a turn acquired through
 this spawner, is not asked again for 15 seconds unless the platform releases
@@ -602,9 +614,16 @@ its planned working set (agent 512 MiB, with Docker inside 1.5 GiB, crawler
 render 512 MiB), and each session started in the last 90 seconds at the part
 of it a linear decay leaves (its turn is still growing into it while
 MemAvailable shows only the idle footprint), the host must keep
-`SANDBOX_MIN_FREE_MEMORY` free (a tenth of it, at least 1 GiB). Short of it,
-the create reclaims a released idle session like one at capacity, then
-answers 429 `host_memory`. The decision is taken under the
+`SANDBOX_MIN_FREE_MEMORY` free (a tenth of it, at least 1 GiB). Short of it
+by the host's own reading — its available memory, less this create's working
+set, under the reserve — the create reclaims a released idle session like
+one at capacity and decides again on a reading taken after the reclaim. Short
+only of memory held for others (creates still starting, sessions that just
+started, waiters ahead), it stops nothing: those holds end on their own, and
+stopping a warm session for each refused create, and again for each retry,
+would make each stopped session's next turn a cold start. A create still
+short answers 429 `host_memory` with its place in line. The decision is
+taken under the
 admission lock from a reading the probe refreshes every second, so a burst
 sees each create admitted before it. Unknown memory never refuses a create,
 and the check cannot stop sessions already running from growing past it. An
@@ -616,8 +635,9 @@ a reserve at or above the host's total memory fails the capacity sizing at
 boot (a retry on a later sweep reports it), and a create refused with
 `host_memory` is logged.
 
-Warm idle-to-active acquisitions use the same memory guard and FIFO as new
-creates. They renew the 90-second growth reservation for the actual Docker
+Warm idle-to-active acquisitions use the same memory guard, FIFO and reclaim
+rule as new creates: only a deficit the host's own reading shows stops a
+released idle session for one. They renew the 90-second growth reservation for the actual Docker
 capability of that incarnation; repeated acquisition of already active work
 shares the reservation. Only a release acknowledged by runnerd's current
 generation gives it back early. An old release cannot free newer work's budget.
@@ -681,7 +701,10 @@ filesystem; unset, it is a twentieth of each, at least 2 GiB and at most
 20 GiB (`0` turns it off). Below either filesystem's floor every create
 answers 429 `host_disk`; no idle session is reclaimed for it, since a stopped
 session keeps its workspace. The spawner logs the disk going below its floor
-and coming back. Meanwhile each build-cache upkeep removes the helpers and
+and coming back, and each refusal the floor causes, of a create or of new
+work in a running session, with the disk that refused it (the session disk or
+Docker's data disk), its free space and its floor. Meanwhile
+each build-cache upkeep removes the helpers and
 caches of organizations whose helpers are all stopped and that no session or
 create may use, the longest-stopped first, at most three a run and only while
 the disk stays short. The disk is read right before and right after each
@@ -751,6 +774,20 @@ names the place it would have had and puts nobody back in line. The line
 keeps at most 10,000 waiters, the one that asked longest ago going first. It
 lives in the spawner's memory: a restart starts it afresh, and each
 Kubernetes replica keeps its own.
+
+The line, the growth reservations and the spawner's back-offs are timed by
+the wall clock, which can step back (an NTP step, a VM resume). What was
+stamped before such a step lies ahead of the clock afterwards. A waiter's last
+ask, a young session's start and a warm session's last admission then count
+from the first time the spawner looks at them after the step: a waiter that
+stopped asking leaves, and a reservation shrinks away, within its usual window
+from then, not that window and the step. A back-off counted from ahead of
+the clock is over: the pause before a session that failed a reclaim probe, or
+said it was busy, is probed again; the wait after a reclaim walk that found
+nothing; the spacing of starts under pressure; the wait before a failed
+removal of ended compute is retried; and the ten minutes between logs of the
+largest workspaces. Session lifetimes and the times the spawner reports are
+left as they are.
 
 Admission is serialized by the single Docker spawner. Kubernetes replicas
 read namespace occupancy before admitting a create. Pending, unknown and
@@ -874,7 +911,11 @@ A lease ends on its release, at its expiry (an expired lease is dropped on
 every read and by the session sweep each minute), or with its session: every
 path that drops a session from the registry ends its leases — an idle,
 lifetime or wedged stop, a reclaim, the linger reap, a destroy (one that then
-fails included), the eviction of a container that died or was replaced. The
+fails included), the eviction of a container that died or was replaced. A
+lease granted before the wall clock stepped back (an NTP step, a VM resume)
+counts from the first read after the step, its `acquiredAtMs` and
+`expiresAtMs` moved with it: its phase keeps its slot and what it announced
+until its holder releases it, for one more lifetime at most. The
 table lives in the spawner's memory, so a restart drops every lease; that is
 bounded by their expiry and by the pressure the next phase is judged by, and
 no running work depends on its lease. The lease routes of a session placed on

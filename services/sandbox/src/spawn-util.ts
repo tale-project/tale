@@ -4,7 +4,7 @@
 // every actual docker call goes through one shape with consistent stdout/stderr
 // handling and timeouts.
 
-import { operationSignal } from './operation-budget.ts';
+import { operationSignal, operationTimeLeftMs } from './operation-budget.ts';
 
 interface RunDockerOptions {
   timeoutMs?: number;
@@ -50,8 +50,10 @@ export interface RunDockerResult {
   // the wire.
   stdoutTruncated: boolean;
   stderrTruncated: boolean;
-  // True when no docker CLI slot came free within the call's budget: the
-  // command never ran, so the answer says nothing about the daemon.
+  // True when no docker CLI slot came free within the call's budget, or one
+  // came free with too little of it, or of the operation budget it runs
+  // under, left to run the command (DOCKER_CLI_MIN_RUN_MS): the command never
+  // ran, so the answer says nothing about the daemon.
   noSlot?: boolean;
 }
 
@@ -186,7 +188,23 @@ export const DOCKER_CLI_CONCURRENCY = 12;
  * failure was reported for a minute and the stop it fenced did not happen. */
 export const DOCKER_CLI_PRIORITY_CONCURRENCY = 4;
 
-type DockerCliSlot = (() => void) | null | 'aborted';
+/** The least of its budget, and of the operation budget it runs under, a
+ * call that queued for its slot must have left to be started. The CLI takes a
+ * while to start and reach the daemon, longer on the busy host a full queue
+ * means: started with less, it was killed before the daemon could answer, and
+ * the kill read as a daemon timeout (the health probe then reported the
+ * daemon down for a minute over a queue). Such a call answers
+ * {@link RunDockerResult.noSlot} instead, and its slot passes to the next call
+ * at once. A call that finds a slot free runs on whatever budget it was
+ * given. */
+export const DOCKER_CLI_MIN_RUN_MS = 1_000;
+
+/** A slot granted to a call — its release, and whether the call queued for
+ * it — null when the wait expired, or 'aborted' on cancellation. */
+type DockerCliSlot =
+  | { release: () => void; queued: boolean }
+  | null
+  | 'aborted';
 
 /** A pool of docker CLI slots, handed out first come, first served. */
 class DockerCliSlots {
@@ -207,7 +225,7 @@ class DockerCliSlots {
   take(waitMs: number | null, signal?: AbortSignal): Promise<DockerCliSlot> {
     if (signal?.aborted) return Promise.resolve('aborted');
     const free = this.takeFree();
-    if (free !== null) return Promise.resolve(free);
+    if (free !== null) return Promise.resolve({ release: free, queued: false });
     return new Promise((resolve) => {
       let timer: ReturnType<typeof setTimeout> | undefined;
       const cleanup = () => {
@@ -216,7 +234,7 @@ class DockerCliSlots {
       };
       const granted = () => {
         cleanup();
-        resolve(this.release());
+        resolve({ release: this.release(), queued: true });
       };
       const leave = (result: null | 'aborted') => {
         const at = this.waiting.indexOf(granted);
@@ -262,7 +280,7 @@ function dockerCliSlot(
   if (!priority) return sharedSlots.take(waitMs, signal);
   const free = sharedSlots.takeFree();
   return free !== null
-    ? Promise.resolve(free)
+    ? Promise.resolve({ release: free, queued: false })
     : prioritySlots.take(waitMs, signal);
 }
 
@@ -285,40 +303,87 @@ function abortedDockerResult(args: string[]): RunDockerResult {
   };
 }
 
+/** The answer of a call no slot came free for in time to run it. */
+function noSlotDockerResult(
+  args: string[],
+  budgetMs: number | null,
+): RunDockerResult {
+  return {
+    exitCode: 124,
+    stdout: '',
+    stderr: `docker ${args[0] ?? ''}: no docker CLI slot came free within ${budgetMs} ms`,
+    stdoutTruncated: false,
+    stderrTruncated: false,
+    noSlot: true,
+  };
+}
+
+/** What is left of a budget, for a message: none outside one. */
+function budgetLeft(leftMs: number): string {
+  return leftMs === Infinity
+    ? 'none'
+    : `${Math.max(0, Math.floor(leftMs))} ms left`;
+}
+
+/** The answer of a call whose slot came free with less than
+ * {@link DOCKER_CLI_MIN_RUN_MS} left to run it, by its own budget or by the
+ * operation's it runs under, whichever ends first. It names both. */
+function lateSlotDockerResult(
+  args: string[],
+  ownLeftMs: number,
+  operationLeftMs: number,
+): RunDockerResult {
+  const leftMs = Math.min(ownLeftMs, operationLeftMs);
+  return {
+    exitCode: 124,
+    stdout: '',
+    stderr: `docker ${args[0] ?? ''}: a docker CLI slot came free with ${Math.max(0, Math.floor(leftMs))} ms left to run it, under the ${DOCKER_CLI_MIN_RUN_MS} ms a call needs (the call's budget: ${budgetLeft(ownLeftMs)}; its operation's: ${budgetLeft(operationLeftMs)})`,
+    stdoutTruncated: false,
+    stderrTruncated: false,
+    noSlot: true,
+  };
+}
+
 export async function runDocker(
   args: string[],
   opts: RunDockerOptions = {},
 ): Promise<RunDockerResult> {
   opts = { ...opts, signal: operationSignal(opts.signal) };
   const budgetMs = resolveDockerTimeoutMs(opts.timeoutMs);
-  const queuedAtMs = Date.now();
-  const release = await dockerCliSlot(
+  // The monotonic clock: a wall-clock step while the call queues neither
+  // stretches nor cuts its budget.
+  const queuedAtMs = performance.now();
+  const slot = await dockerCliSlot(
     budgetMs,
     opts.priority === true,
     opts.signal,
   );
-  if (release === 'aborted') return abortedDockerResult(args);
-  if (release === null) {
-    return {
-      exitCode: 124,
-      stdout: '',
-      stderr: `docker ${args[0] ?? ''}: no docker CLI slot came free within ${budgetMs} ms`,
-      stdoutTruncated: false,
-      stderrTruncated: false,
-      noSlot: true,
-    };
-  }
+  if (slot === 'aborted') return abortedDockerResult(args);
+  if (slot === null) return noSlotDockerResult(args, budgetMs);
   try {
     // A slot can be granted just before the caller aborts. Bun.spawn's
     // already-aborted behavior differs across versions; never invoke it.
     if (opts.signal?.aborted) return abortedDockerResult(args);
-    const leftMs =
+    const ownLeftMs =
       budgetMs === null
-        ? opts.timeoutMs
-        : Math.max(1, budgetMs - (Date.now() - queuedAtMs));
-    return await runDockerNow(args, { ...opts, timeoutMs: leftMs });
+        ? Infinity
+        : budgetMs - (performance.now() - queuedAtMs);
+    // Its slot came too late to run it, by its own budget or the operation's
+    // it runs under: answered as if none came, and the slot passes on at once.
+    const operationLeftMs = operationTimeLeftMs();
+    if (
+      slot.queued &&
+      Math.min(ownLeftMs, operationLeftMs) < DOCKER_CLI_MIN_RUN_MS
+    ) {
+      return lateSlotDockerResult(args, ownLeftMs, operationLeftMs);
+    }
+    if (budgetMs === null) return await runDockerNow(args, opts);
+    return await runDockerNow(args, {
+      ...opts,
+      timeoutMs: Math.max(1, ownLeftMs),
+    });
   } finally {
-    release();
+    slot.release();
   }
 }
 

@@ -309,6 +309,40 @@ describe('Docker data filesystem admission', () => {
       });
     });
 
+    test('a verification the daemon did not answer is tried again once the clock has stepped back past it, not after the step', async () => {
+      let answering = false;
+      const { state, data } = explicit({ RW: false }, () =>
+        answering
+          ? result([
+              {
+                Type: 'bind',
+                Source: '/srv/docker',
+                Destination: '/docker-data',
+                RW: false,
+              },
+            ])
+          : { ...result(null), exitCode: 1, stdout: '' },
+      );
+      expect(await quietly(() => data.read(true))).toBeNull();
+      expect(state.calls).toHaveLength(2);
+      answering = true;
+      // The clock steps back an hour (NTP, a resumed VM): the configured
+      // disk is not left unavailable, closing admission, for the step.
+      state.now -= 60 * 60_000;
+      expect((await data.read(true))?.availableBytes).toBe(50 * GIB);
+      expect(state.calls).toHaveLength(4);
+    });
+
+    test('a verified mount is compared with mountinfo again once the clock has stepped back past the check, not after the step', async () => {
+      const { state, data } = explicit();
+      expect((await data.read(true))?.availableBytes).toBe(50 * GIB);
+      expect(state.calls).toHaveLength(2);
+      state.mountinfo = state.mountinfo.replace(bindLine(40), bindLine(41));
+      state.now -= 60 * 60_000;
+      expect((await data.read(true))?.availableBytes).toBe(50 * GIB);
+      expect(state.calls).toHaveLength(4);
+    });
+
     test('a refuted mount stays unavailable and is asked again after 30 s, then 60 s', async () => {
       const { state, data } = explicit({ RW: true });
       await quietly(async () => {
