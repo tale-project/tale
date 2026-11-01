@@ -210,6 +210,17 @@ so is a disabled seat. The sign-in page still discovers the connections with nob
 
 - **Example**: Mia is a Member. She asks for her organization's SSO settings → refused.
 
+### SSO-R24 · Saving the settings records what changed, never a secret
+
+Every save of the connection or of its provisioning writes one audit row with the settings
+before (when a connection existed) and after, and names each field the save changed. The
+client ID, the client secret and the SP private key are named when a save replaces them and
+never recorded. A certificate is recorded as its SHA-256 fingerprint.
+
+- **Example**: Ada adds a rule that maps the group `it-admins` to Admin and turns team sync
+  off → the audit row shows both settings before and after and names `roleMappingRules` and
+  `autoProvisionTeam` as changed.
+
 ## Discovering connections
 
 ### SSO-R18 · One organization's unreadable connection does not hide healthy connections
