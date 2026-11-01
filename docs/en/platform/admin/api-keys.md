@@ -3,7 +3,7 @@ title: API keys
 description: Create, verify, rotate, and revoke credentials for software that calls Tale.
 ---
 
-Create an API key when a script or service needs to call Tale's REST API. A key you create for yourself belongs to you, not to the organization whose settings page created it: it acts as you, follows your current permissions, and works in every organization you are a member of. A REST call names the organization it addresses with the `X-Organization-Slug` header; a key whose holder belongs to one organization may omit it. Owners, Admins, and Developers manage their keys under **Settings > API > REST**, and so does a member an Admin granted a right that is used with a key: **Call models over the API**, **Export notifications**, or **Act for another member**. Tale refuses anyone else a new key with `403 API_KEY_CREATE_FORBIDDEN`.
+Create an API key when a script or service needs to call Tale's REST API. A key you create for yourself belongs to you, not to the organization whose settings page created it: it acts as you, follows your current permissions, and works in every organization you are a member of, unless an Owner or Admin there has [turned off members' own keys](#members-personal-keys). A REST call names the organization it addresses with the `X-Organization-Slug` header; a key whose holder belongs to one organization may omit it. Owners, Admins, and Developers manage their keys under **Settings > API > REST**, and so does a member an Admin granted a right that is used with a key: **Call models over the API**, **Export notifications**, or **Act for another member**. Tale refuses anyone else a new key with `403 API_KEY_CREATE_FORBIDDEN`.
 
 Owners and Admins can also create a key for another member, a team, a project, or the organization itself. Such a key works in that one organization only; [Create a key for someone else](#create-a-key-for-someone-else) explains what each one acts as and reaches. A member an Admin made a key for finds it under **Settings > API > REST** as well.
 
@@ -69,9 +69,17 @@ Tale does not automatically rotate keys. Key creation and revocation happen in t
 
 Open its row menu, select **Revoke key**, and confirm. Future requests with the key can no longer authenticate, calls to the model endpoints included; an answer that is already streaming finishes. Revocation cannot be undone; create a new key if you revoke the wrong one. Creating and revoking a key each leave a row in the audit log under **Settings > Governance > Logs**, in every organization you belong to.
 
-An Owner or Admin can revoke any key made here for a member, a team, a project, or the organization, and a member can revoke the keys made for them. A member's own keys are theirs to revoke; to cut them off in this organization, disable or remove the member. Such a key is managed in its organization only: its creation and revocation are logged there, naming who made or revoked it.
+An Owner or Admin can revoke any key made here for a member, a team, a project, or the organization, and a member can revoke the keys made for them. A member's own keys are theirs to revoke; to cut them off in this organization, disable or remove the member, or [turn off members' own keys](#members-personal-keys) for everyone here. Such a key is managed in its organization only: its creation and revocation are logged there, naming who made or revoked it.
 
 Do not use an old **Last used** date as the only reason to revoke a key. A monthly job or a recovery process may legitimately be idle. Check the caller identified by the name first.
+
+## Turn off members' personal keys {#members-personal-keys}
+
+A key a member makes for themselves works in every organization they belong to; Owners and Admins decide whether it works in theirs. Under **Settings > API > REST**, the **Members' personal keys** section below the key table holds the switch **Members' personal keys work here**. It is on until someone turns it off, only Owners and Admins see it, and a change applies from the next request.
+
+While it is off, every member's own key, yours included, is refused on every request that addresses this organization, through the REST API, the MCP endpoint, and the model endpoints, with `403 API_KEY_PERSONAL_REFUSED`. On the REST API and the MCP endpoint, the refusal's `data.organizations` lists the holder's organizations that still accept members' own keys, where the same key keeps working. An answer that is already streaming finishes. Keys made here for a member, a team, a project, or the organization keep working, and so do signed-in sessions and [connected agents](/platform/admin/connected-agents). Turn the switch back on, and members' own keys work here again from their next request. Each change leaves a row in the audit log under **Settings > Governance > Logs**, with the setting before and after.
+
+A member whose own keys are refused here sees **Your own keys don't work here** under **Settings > API > REST**; whoever may create a key can still create one, which works in their other organizations. If Tale can't read the setting, it refuses members' own keys with `503 PERSONAL_KEYS_POLICY_UNAVAILABLE` until it can: members see **Your own keys are paused here**, and Owners and Admins see, in place of the section, that the policy could not be read, with **Retry**.
 
 ## Understand permissions and limits
 
