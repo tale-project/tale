@@ -440,8 +440,8 @@ vi.mock('@tanstack/react-router', async () => {
 });
 
 // The canvas is a laid-out chart and jsdom performs no layout; the page only
-// needs it to hand a box to the inspector and to carry the page's own
-// controls in its corners, so the stub offers that.
+// needs it to hand a box to the inspector, to name each box's model and to
+// carry the page's own controls in its corners, so the stub offers that.
 vi.mock('./automation-canvas', () => ({
   AutomationCanvas: ({
     automation,
@@ -456,8 +456,16 @@ vi.mock('./automation-canvas', () => ({
     toolbar,
     allowedWrites,
     pathCoverage,
+    modelLabel,
   }: {
-    automation: { nodes: readonly { id: string; when?: string }[] };
+    automation: {
+      nodes: readonly {
+        id: string;
+        when?: string;
+        model?: string;
+        modelProvider?: string;
+      }[];
+    };
     layoutKey: string;
     onSelect: (id: string | null) => void;
     inspectorId: string;
@@ -469,6 +477,7 @@ vi.mock('./automation-canvas', () => ({
     toolbar?: React.ReactNode;
     allowedWrites?: ReadonlySet<string>;
     pathCoverage?: ReadonlyMap<string, readonly string[]>;
+    modelLabel?: (id: string, providerSlug?: string) => string | undefined;
   }) => (
     <div
       data-testid="canvas"
@@ -491,6 +500,11 @@ vi.mock('./automation-canvas', () => ({
             onSelect(node.id);
           }}
           data-run-status={run?.statusByNode.get(node.id)}
+          data-model-name={
+            node.model === undefined
+              ? undefined
+              : modelLabel?.(node.model, node.modelProvider)
+          }
         >
           {`select ${node.id}`}
         </button>
@@ -1840,6 +1854,35 @@ describe('AutomationEditor', () => {
   it('offers no model swap when no llm step names a model', () => {
     renderPage();
     expect(screen.queryByRole('button', { name: 'Change model' })).toBeNull();
+  });
+
+  it("names a pinned agent's model by its provider where two providers serve it", () => {
+    state.document = {
+      name: 'billing/dunning',
+      nodes: [
+        {
+          id: 'triage',
+          type: 'agent',
+          prompt: 'Triage the ticket.',
+          model: 'claude-sonnet-5',
+          modelProvider: 'eu-gateway',
+        },
+      ],
+    };
+    projectsData.models = ['anthropic', 'eu-gateway'].map((providerSlug) => ({
+      id: 'claude-sonnet-5',
+      label: 'Claude Sonnet 5',
+      providerSlug,
+      providerLabel: providerSlug === 'anthropic' ? 'Anthropic' : 'EU Gateway',
+      credential: { authMethod: 'api-key' },
+      tools: true,
+      contextWindow: 200_000,
+    }));
+    renderPage();
+
+    expect(
+      screen.getByRole('button', { name: 'select triage' }),
+    ).toHaveAttribute('data-model-name', 'EU Gateway · Claude Sonnet 5');
   });
 
   it('uses another model in every llm step that names one, as a draft the save keeps', async () => {

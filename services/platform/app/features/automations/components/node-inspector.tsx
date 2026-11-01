@@ -73,6 +73,7 @@ import {
   coreTypeWord,
   nodeFace,
   nodeTitle,
+  type ModelLabel,
   type NodeCatalogView,
 } from '../lib/node-face';
 import type { NodeRunView } from '../lib/run-view';
@@ -103,7 +104,7 @@ export interface InspectorContext {
   /** The document the check answered for: its ranges index into it. */
   settled: RawDocument | null;
   catalog: NodeCatalogView;
-  modelLabel?: (id: string) => string | undefined;
+  modelLabel?: ModelLabel;
   /** The step types allowed to write without approval. */
   allowedWrites?: ReadonlySet<string>;
   /** Picks a box on the canvas: a node, Start or End. */

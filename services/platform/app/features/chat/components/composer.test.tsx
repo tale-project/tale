@@ -220,6 +220,40 @@ describe('Composer model picker', () => {
     ).toHaveTextContent('Claude Fable 5');
   });
 
+  it('names a pick whose provider no longer lists the model by that provider, never by the copy left', async () => {
+    const { user } = renderComposer({
+      initial: { modelId: MODEL.id, providerSlug: 'eu-gateway' },
+    });
+
+    expect(
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      }),
+    ).toHaveTextContent('eu-gateway · Claude Fable 5');
+    await openSection(user, /^Model/);
+    expect(
+      await screen.findByRole('menuitemradio', {
+        name: 'openrouter · Claude Fable 5',
+      }),
+    ).toHaveAttribute('aria-checked', 'false');
+  });
+
+  it('names a pick saved without its provider by the model alone, guessing no provider', () => {
+    renderComposer({
+      models: [
+        MODEL,
+        { ...MODEL, providerSlug: 'eu-gateway', providerLabel: 'EU Gateway' },
+      ],
+      initial: { modelId: MODEL.id },
+    });
+
+    const trigger = screen.getByRole('button', {
+      name: 'Choose model, reasoning effort and skills',
+    });
+    expect(trigger).toHaveTextContent('Claude Fable 5');
+    expect(trigger).not.toHaveTextContent('·');
+  });
+
   it('shows the effort as a separate word on the trigger, not jammed into the model', () => {
     const reasoningModel: ComposerModelOption = {
       ...MODEL,
@@ -292,7 +326,9 @@ describe('Composer model picker', () => {
     const { user } = renderComposer();
 
     await openSection(user, /^Model/);
-    await screen.findByRole('menuitemradio', { name: /^Claude Fable 5/ });
+    await screen.findByRole('menuitemradio', {
+      name: 'openrouter · Claude Fable 5',
+    });
     expect(screen.queryByText(/run only in tasks/)).toBeNull();
   });
 
@@ -302,7 +338,9 @@ describe('Composer model picker', () => {
       const { user } = renderComposer({ modelsHiddenBy });
 
       await openSection(user, /^Model/);
-      await screen.findByRole('menuitemradio', { name: /^Claude Fable 5/ });
+      await screen.findByRole('menuitemradio', {
+        name: 'openrouter · Claude Fable 5',
+      });
       expect(
         screen.queryByText(
           /Only models whose endpoint processes prompts in the EU\/EEA are offered/,
@@ -318,7 +356,7 @@ describe('Composer model picker', () => {
 
     await openSection(user, /^Model/);
     fireEvent.click(
-      await screen.findByRole('menuitemradio', { name: /^GLM-5/ }),
+      await screen.findByRole('menuitemradio', { name: 'zai · GLM-5' }),
     );
 
     expect(selection()).toMatchObject({
@@ -349,19 +387,21 @@ describe('Composer model picker', () => {
     const search = await screen.findByRole('textbox', { name: 'Search' });
     fireEvent.change(search, { target: { value: 'gpt-5.6' } });
     expect(
-      await screen.findByRole('menuitemradio', { name: /^GPT 5\.6 Luna/ }),
+      await screen.findByRole('menuitemradio', {
+        name: 'gateway · GPT 5.6 Luna',
+      }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('menuitemradio', { name: /^GPT 5\.6 Sol/ }),
+      screen.getByRole('menuitemradio', { name: 'gateway · GPT 5.6 Sol' }),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole('menuitemradio', { name: /^Claude/ }),
+      screen.queryByRole('menuitemradio', { name: /· Claude/ }),
     ).not.toBeInTheDocument();
 
     fireEvent.change(search, { target: { value: 'sonnet 5.5' } });
     expect(
       await screen.findByRole('menuitemradio', {
-        name: /^Claude Sonnet 5\.5/,
+        name: 'gateway · Claude Sonnet 5.5',
       }),
     ).toBeInTheDocument();
   });
@@ -398,7 +438,9 @@ describe('Composer model picker', () => {
     const { user } = renderComposer({ models: [MODEL] });
 
     await openSection(user, /^Model/);
-    await screen.findByRole('menuitemradio', { name: /^Claude Fable 5/ });
+    await screen.findByRole('menuitemradio', {
+      name: 'openrouter · Claude Fable 5',
+    });
     expect(
       screen.queryByRole('menuitemradio', { name: 'Auto' }),
     ).not.toBeInTheDocument();

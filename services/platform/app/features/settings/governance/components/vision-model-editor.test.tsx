@@ -24,6 +24,8 @@ const { state } = vi.hoisted(() => ({
       modelId: 'qwen/qwen3-vl-32b-instruct',
       source: 'preferred',
     } as Record<string, unknown> | null | undefined,
+    // Catalogs a test adds after OpenRouter's.
+    moreCatalogs: [] as unknown[],
   },
 }));
 
@@ -59,6 +61,7 @@ vi.mock('@/app/features/settings/providers/hooks/queries', () => ({
           { id: 'deepseek/deepseek-v4', tags: ['chat'], supportsVision: false },
         ],
       },
+      ...state.moreCatalogs,
     ],
   }),
 }));
@@ -84,9 +87,48 @@ describe('VisionModelEditor', () => {
     setLoaded();
     render(<VisionModelEditor organizationId="org-1" />);
     expect(
-      screen.getByText(/openrouter · qwen\/qwen3-vl-32b-instruct/),
+      screen.getByText(
+        'Currently reading images with qwen/qwen3-vl-32b-instruct, the recommended choice.',
+      ),
     ).toBeInTheDocument();
-    expect(screen.getByText(/recommended choice/i)).toBeInTheDocument();
+  });
+
+  it('names a model two providers offer by its provider, grouping the list by provider', async () => {
+    setLoaded();
+    state.moreCatalogs = [
+      {
+        name: 'eu-gateway',
+        displayName: 'EU Gateway',
+        models: [
+          {
+            id: 'qwen/qwen3-vl-32b-instruct',
+            tags: ['chat', 'vision'],
+            supportsVision: true,
+          },
+        ],
+      },
+    ];
+    try {
+      const { user } = render(<VisionModelEditor organizationId="org-1" />);
+      expect(
+        screen.getByText(
+          'Currently reading images with OpenRouter · qwen/qwen3-vl-32b-instruct, the recommended choice.',
+        ),
+      ).toBeInTheDocument();
+      await user.click(screen.getByRole('button', { name: 'Automatic' }));
+      for (const provider of ['OpenRouter', 'EU Gateway']) {
+        expect(screen.getByText(provider)).toBeVisible();
+      }
+      for (const provider of ['OpenRouter', 'EU Gateway']) {
+        expect(
+          screen.getByRole('option', {
+            name: `${provider} · qwen/qwen3-vl-32b-instruct`,
+          }),
+        ).toBeVisible();
+      }
+    } finally {
+      state.moreCatalogs = [];
+    }
   });
 
   it('says so plainly when nothing reachable can read images', () => {

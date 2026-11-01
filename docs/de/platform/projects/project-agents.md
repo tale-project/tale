@@ -33,7 +33,7 @@ Du kannst auch bei einer Aufgabe beginnen: Solange das Projekt keinen Agenten ha
 
 <Step title="Modell und Provider auswählen">
 
-Suche unter **Modell** nach Name oder API-ID. Dasselbe Modell kann pro Provider einmal erscheinen. Lies den Provider des Eintrags, bevor du ihn wählst. Damit legst du diese Kombination für künftige Läufe fest. Abonnementeinträge erscheinen nur bei kompatibler Laufzeit, und ein Modell, das Tools nur über die Responses-API von OpenAI aufruft, etwa GPT-6.1 Sol, erscheint nur bei Codex.
+Suche unter **Modell** nach Name oder API-ID. Die Liste gruppiert die Modelle nach dem Provider, der sie bereitstellt, daher kann dasselbe Modell pro Provider einmal erscheinen: Wähle es unter dem Provider, den du willst. Bietet ein weiterer Provider das gewählte Modell oder eines mit demselben Namen an, nennt das Feld den Provider mit, etwa **OpenRouter · GPT 5.6 Luna**. Damit legst du diese Kombination für künftige Läufe fest. Abonnementeinträge erscheinen nur bei kompatibler Laufzeit, und ein Modell, das Tools nur über die Responses-API von OpenAI aufruft, etwa GPT-6.1 Sol, erscheint nur bei Codex.
 
 Eine ältere Konfiguration kann ein Modell ohne festgelegten Provider enthalten. Der Dialog zeigt, welcher Provider es derzeit bereitstellen würde oder warum kein Zugang verfügbar ist. Wähle einen Eintrag, wenn du den Provider festlegen möchtest.
 
