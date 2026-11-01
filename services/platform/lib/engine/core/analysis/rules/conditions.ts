@@ -16,7 +16,6 @@ import type { Node } from 'estree';
 import { walk } from 'zimmerframe';
 
 import { warn } from '../../errors';
-import { maxRepeatsOf } from '../../execute/controlflow';
 import { ptr } from '../../syntax/pointer';
 import type { ExprSource } from '../../syntax/sources';
 import {
@@ -25,6 +24,7 @@ import {
   tokenizeTemplate,
 } from '../../syntax/tokens';
 import type { Issue, NodeDef } from '../../types';
+import { maxRepeatsOf } from '../../walk/limits';
 import type { RuleContext } from '../context';
 import { constantCondition } from '../flow';
 
