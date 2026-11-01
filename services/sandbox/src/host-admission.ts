@@ -49,6 +49,7 @@ import {
 } from './host-pressure-assessment.ts';
 import { NO_HOST_PRESSURE, type HostPressureSource } from './host-pressure.ts';
 import type { AdmissionConfig, SpawnerConfig } from './types.ts';
+import { notAhead } from './wall-clock.ts';
 
 const GIB = 1024 ** 3;
 const DEFAULT_HEAVY_LEASES_MAX = 2;
@@ -240,10 +241,16 @@ export class HostAdmission {
 
   /** A session start (a create, or an idle session's activation) was let in. */
   noteStart(atMs: number = this.now()): void {
-    this.lastStart = Math.max(this.lastStart ?? atMs, atMs);
+    this.lastStart = Math.max(this.lastStartAtMs() ?? atMs, atMs);
   }
 
+  /** The last start, never ahead of the clock: one it stepped back past
+   * restarts at now, and is kept there, so it paces until a fresh pair of
+   * readings follows it rather than until the clock has made up the step. */
   lastStartAtMs(): number | null {
+    if (this.lastStart !== null) {
+      this.lastStart = notAhead(this.lastStart, this.now());
+    }
     return this.lastStart;
   }
 
@@ -273,7 +280,7 @@ export class HostAdmission {
       };
     }
     const { preset } = this.effective(requested);
-    const assessment = this.assess(requested, this.lastStart);
+    const assessment = this.assess(requested, this.lastStartAtMs());
     const answer = (
       verdict: 'admit' | 'hold',
       reason: AdmissionReason | null,

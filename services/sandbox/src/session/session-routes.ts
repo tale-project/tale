@@ -42,6 +42,7 @@ import {
 } from '../operation-budget.ts';
 import { sseResponse } from '../sse.ts';
 import type { SpawnerConfig } from '../types.ts';
+import { msSince, notAhead } from '../wall-clock.ts';
 import type {
   SandboxErrorCode,
   SandboxSessionProfile,
@@ -203,6 +204,14 @@ const LINGER_HEALTH_PROBE_MS = 3_000;
 const WORKSPACE_USAGE_LOG_MS = 10 * 60_000;
 const WORKSPACES_LOGGED = 3;
 const GIB = 1024 ** 3;
+
+/** How the log names a disk the sessions write to: Docker's data root when
+ * it is watched apart, else the workspaces' own (both, when it is not). */
+function diskName(filesystem: 'both' | 'workspace' | 'dockerData'): string {
+  return filesystem === 'dockerData'
+    ? "Docker's data disk"
+    : 'the session disk';
+}
 
 /** How long a session that just started keeps part of its planned working
  * set reserved at admission: its turn is still growing toward it while
@@ -700,12 +709,13 @@ export class SessionRoutes {
   }
 
   /** How long the linger reap lets this session's work end: a grace while
-   * it is busy, none for an idle session. Busy is an exec through this
-   * replica or, failing one, what runnerd counts: its live execs and its
-   * operations under way. The platform follows a long turn by attach and
-   * hangs up at every drain window, so an exec it is still draining is
-   * usually registered nowhere here. A daemon that does not answer gets no
-   * grace: it could not act on the stop. Never rejects. */
+   * it is busy, none for an idle session. Busy is an exec or an attach
+   * stream through this replica (an attach once runnerd has answered it) or,
+   * failing one, what runnerd counts: its live execs and its operations
+   * under way. The platform follows a long turn by attach and hangs up at
+   * every drain window, so between two windows the exec it is draining is
+   * registered nowhere here. A daemon that does not answer gets no grace: it
+   * could not act on the stop. Never rejects. */
   private async lingerGraceMs(session: RegistrySession): Promise<number> {
     if (session.liveExecs.size === 0) {
       try {
@@ -896,9 +906,9 @@ export class SessionRoutes {
     return null;
   }
 
-  /** The most memory a session could ever be given here: the host's total
-   * beside its reserve, or null when the host's memory is unknown. */
-  private memoryCeiling(): number | null {
+  /** The host's last memory reading, with the reserve admission leaves free
+   * beside it, or null when the host's memory is unknown. */
+  private latestMemory(): (HostMemory & { reserveBytes: number }) | null {
     let memory: HostMemory | null;
     try {
       memory = this.hostMemory.latest();
@@ -907,10 +917,21 @@ export class SessionRoutes {
       return null;
     }
     if (memory === null) return null;
-    return (
-      memory.totalBytes -
-      memoryReserveBytes(memory.totalBytes, this.cfg.session.minFreeMemoryBytes)
-    );
+    return {
+      totalBytes: memory.totalBytes,
+      availableBytes: memory.availableBytes,
+      reserveBytes: memoryReserveBytes(
+        memory.totalBytes,
+        this.cfg.session.minFreeMemoryBytes,
+      ),
+    };
+  }
+
+  /** The most memory a session could ever be given here: the host's total
+   * beside its reserve, or null when the host's memory is unknown. */
+  private memoryCeiling(): number | null {
+    const memory = this.latestMemory();
+    return memory === null ? null : memory.totalBytes - memory.reserveBytes;
   }
 
   /** Is the Docker host under pressure by the deployment's thresholds (the
@@ -927,12 +948,13 @@ export class SessionRoutes {
   /** Under pressure, let one start in: the front of the pressure line (no
    * waiter ahead that waits for the pressure to ease), once
    * {@link PRESSURED_START_SPACING_MS} has passed since the last start let in
-   * under pressure. */
+   * under pressure. A last start ahead of the clock (it stepped back since)
+   * spaces nothing: the spacing would otherwise last as long as the step. */
   private takePressuredStart(pressureWaitersAhead: number): boolean {
     const now = Date.now();
     if (
       pressureWaitersAhead > 0 ||
-      now - this.pressuredStartAtMs < PRESSURED_START_SPACING_MS
+      msSince(this.pressuredStartAtMs, now) < PRESSURED_START_SPACING_MS
     )
       return false;
     this.pressuredStartAtMs = now;
@@ -951,6 +973,33 @@ export class SessionRoutes {
       console.warn('[sandbox.session] session disk unreadable:', error);
       return false;
     }
+  }
+
+  /** What a host_disk refusal is logged with: the disk that refused it, with
+   * the free space and the floor of its reading, so the operator sees which
+   * disk is short and how far it is from taking sessions again
+   * (SANDBOX_MIN_FREE_DISK). With Docker's data root watched apart, the
+   * reading admission judges by is the one of the two with less headroom,
+   * or the data root's placeholder while that cannot be read: the data
+   * root's whenever it is not the workspaces' own reading. */
+  private diskFloorNote(): string {
+    let disk: HostDisk | null;
+    let filesystem: 'workspace' | 'dockerData' = 'workspace';
+    try {
+      disk = this.hostDisk.latest();
+      const apart = this.hostDisk.byFilesystem?.();
+      if (apart?.dockerData !== undefined && disk !== apart.workspace)
+        filesystem = 'dockerData';
+    } catch (error) {
+      console.warn('[sandbox.session] session disk unreadable:', error);
+      return 'the session disk is unreadable';
+    }
+    const name = diskName(filesystem);
+    if (disk === null) return `${name} has no reading`;
+    if (disk.unavailable === true) return `${name} cannot be read`;
+    const free = `${(disk.availableBytes / GIB).toFixed(1)} GiB`;
+    const floor = `${(diskReserveBytes(disk.totalBytes, this.cfg.session.minFreeDiskBytes) / GIB).toFixed(1)} GiB`;
+    return `${name} has ${free} free, below its ${floor} floor`;
   }
 
   /** Which filesystems are below their critical tier (the probe's last
@@ -995,8 +1044,7 @@ export class SessionRoutes {
     if (disk === null || disk.unavailable === true) return critical;
     if (critical === this.diskWasCritical[filesystem]) return critical;
     this.diskWasCritical[filesystem] = critical;
-    const name =
-      filesystem === 'dockerData' ? "Docker's data disk" : 'the session disk';
+    const name = diskName(filesystem);
     const actions = {
       both: 'released Docker-in-sandbox sessions stop now and the largest workspaces are logged',
       workspace: 'the largest workspaces are logged',
@@ -1018,12 +1066,13 @@ export class SessionRoutes {
 
   /** Log the largest workspaces of a critical session disk: at most every
    * {@link WORKSPACE_USAGE_LOG_MS}, one measurement at a time, beside the
-   * sweep rather than in its way. */
+   * sweep rather than in its way. A measurement stamped ahead of the clock
+   * (it stepped back since) holds the next one back no longer. */
   private logLargestWorkspaces(): void {
     const now = Date.now();
     if (
       this.workspaceUsage !== null ||
-      now - this.workspaceUsageAtMs < WORKSPACE_USAGE_LOG_MS
+      msSince(this.workspaceUsageAtMs, now) < WORKSPACE_USAGE_LOG_MS
     )
       return;
     const measuring = this.backend.largestWorkspaces?.(WORKSPACES_LOGGED);
@@ -1091,28 +1140,39 @@ export class SessionRoutes {
     reacquiringSessionId?: string,
   ): boolean {
     if (this.cfg.session.autoMaxSessions === false) return false;
-    let memory: HostMemory | null;
-    try {
-      memory = this.hostMemory.latest();
-    } catch (error) {
-      console.warn('[sandbox.session] host memory unreadable:', error);
-      return false;
-    }
+    const memory = this.latestMemory();
     if (memory === null) return false;
     let starting = workingSetBytes;
     for (const bytes of this.creatingBytes.values()) starting += bytes;
     const now = Date.now();
     for (const [sessionId, young] of this.youngBytes) {
+      // A start stamped ahead of the clock (it stepped back since) counts
+      // from now: its reservation is its working set at most, and shrinks
+      // away over one window from now, not the step and a window.
+      young.sinceMs = notAhead(young.sinceMs, now);
       const left = 1 - (now - young.sinceMs) / YOUNG_SESSION_RESERVE_MS;
       if (left <= 0) this.youngBytes.delete(sessionId);
       else if (sessionId !== reacquiringSessionId)
         starting += Math.round(young.bytes * left);
     }
-    const reserve = memoryReserveBytes(
-      memory.totalBytes,
-      this.cfg.session.minFreeMemoryBytes,
+    return memory.availableBytes - starting < memory.reserveBytes;
+  }
+
+  /** Is the host short of memory by its last reading alone: would this
+   * working set leave it less than its reserve? Only such a deficit stops an
+   * idle session to make room. Memory held for creates in flight, for
+   * sessions that just started and for waiters ahead is not a stop's to give
+   * back: a deficit made of it alone would stop a warm session for every
+   * refused create, and again for every retry, each one's next turn a cold
+   * start. Such a create waits in line instead. Unknown memory, or an
+   * explicit SANDBOX_MAX_SESSIONS, is never short. */
+  private measuredShort(workingSetBytes: number): boolean {
+    if (this.cfg.session.autoMaxSessions === false) return false;
+    const memory = this.latestMemory();
+    return (
+      memory !== null &&
+      memory.availableBytes - workingSetBytes < memory.reserveBytes
     );
-    return memory.availableBytes - starting < reserve;
   }
 
   /** Run the admission of one create as an ask that its waiter's place
@@ -1162,14 +1222,19 @@ export class SessionRoutes {
     let decision = await this.withAdmission(() =>
       this.admit(sessionId, organizationId, workingSet, occupancy),
     );
-    if (decision === 'full' || decision === 'short') {
-      // At capacity, or short of memory: try to reclaim ONE released idle
-      // session, outside the admission lock (a probe per candidate and a
-      // backend stop take seconds — creates that still have room must not
-      // queue behind them), then decide again. Concurrent creates at capacity
-      // share the one stop in flight and only the first to re-enter admission
-      // gets its slot. Short of memory, the decision waits for a reading
-      // taken after the reclaim.
+    if (
+      decision === 'full' ||
+      (decision === 'short' && this.measuredShort(workingSet))
+    ) {
+      // At capacity, or short of memory by the host's own reading: try to
+      // reclaim ONE released idle session, outside the admission lock (a
+      // probe per candidate and a backend stop take seconds — creates that
+      // still have room must not queue behind them), then decide again.
+      // Concurrent creates at capacity share the one stop in flight and only
+      // the first to re-enter admission gets its slot. Short of memory, the
+      // decision waits for a reading taken after the reclaim. Short only of
+      // memory held for others, the create stops nothing and waits in line
+      // (measuredShort).
       const short = decision === 'short';
       await this.reclaimOneIdle();
       if (short) await this.readHostMemory();
@@ -1227,6 +1292,9 @@ export class SessionRoutes {
       if (decision === 'disk') {
         // Stopping an idle session frees no disk (its workspace stays for
         // its resume): the build-cache upkeep gives back what it can.
+        console.warn(
+          `[sandbox.session] refusing ${sessionId}: host_disk (${this.diskFloorNote()}; queue position ${place.position})`,
+        );
         return jsonResponse(
           {
             error: 'host_disk',
@@ -1276,6 +1344,10 @@ export class SessionRoutes {
     const ahead: RoomWaiter[] = [];
     let reachedOwn = false;
     for (const [id, waiter] of this.waiters) {
+      // A place stamped ahead of the clock (it stepped back since) counts
+      // from now: a waiter that stopped asking leaves within its usual
+      // window, not that window and the step.
+      waiter.lastAtMs = notAhead(waiter.lastAtMs, now);
       if (
         !this.roomAsks.has(id) &&
         (now > waiter.leaseUntilMs ||
@@ -1331,11 +1403,15 @@ export class SessionRoutes {
     return { position, waiting: this.waiters.size, hintMs };
   }
 
+  /** Make room in a full line: the waiter that asked longest ago leaves, the
+   * one furthest back of those that asked at the same moment. A step back
+   * puts every place stamped ahead of the clock at the same now, and the
+   * front of the line keeps its place. */
   private dropStalestWaiter(): void {
     let stalest: string | undefined;
     let stalestAtMs = Infinity;
     for (const [id, waiter] of this.waiters) {
-      if (waiter.lastAtMs < stalestAtMs) {
+      if (waiter.lastAtMs <= stalestAtMs) {
         stalest = id;
         stalestAtMs = waiter.lastAtMs;
       }
@@ -1385,7 +1461,11 @@ export class SessionRoutes {
    * claim is already acknowledged needs no probe. A candidate a concurrent
    * create is already stopping frees that create's slot, so each create at
    * capacity claims a session of its own and shares a sibling's stop only
-   * when nothing else is left. */
+   * when nothing else is left. Each back-off is judged by the clock as its
+   * candidate comes up, not as the walk began: the sweep or a concurrent
+   * walk may stamp one while this walk awaits a probe. A back-off still
+   * counted from ahead of the clock, and a wait that ends further ahead than
+   * its span, were set before the clock stepped back: they are over. */
   private async reclaimOneIdle(): Promise<boolean> {
     const now = Date.now();
     const idleSince = (session: RegistrySession) =>
@@ -1407,24 +1487,29 @@ export class SessionRoutes {
           seenReclaimable(a) - seenReclaimable(b) ||
           idleSince(a) - idleSince(b),
       );
-    const walk = now >= this.nothingToReclaimUntilMs;
+    const walk =
+      now >= this.nothingToReclaimUntilMs ||
+      this.nothingToReclaimUntilMs - now > RECLAIM_NOTHING_FOR_MS;
     if (walk) {
       let probes = 0;
       for (const session of candidates) {
         const sessionId = session.sessionId;
         if (this.stopping.has(sessionId)) continue;
         if (!this.reclaimClaims.has(sessionId)) {
+          // Read after the probes before it: a stamp written meanwhile is
+          // recent, and only one a step back left ahead of the clock is over.
+          const checkedAtMs = Date.now();
           const failedAt = this.probeFailedAtMs.get(sessionId);
           if (
             failedAt !== undefined &&
-            now - failedAt < RECLAIM_PROBE_BACKOFF_MS
+            msSince(failedAt, checkedAtMs) < RECLAIM_PROBE_BACKOFF_MS
           )
             continue;
           const seen = this.reclaimSeen.get(sessionId);
           if (
             seen !== undefined &&
             !seen.reclaimable &&
-            now - seen.atMs < RECLAIM_BUSY_FOR_MS
+            msSince(seen.atMs, checkedAtMs) < RECLAIM_BUSY_FOR_MS
           )
             continue;
           if (probes >= RECLAIM_PROBES_PER_WALK) continue;
@@ -1770,9 +1855,10 @@ export class SessionRoutes {
    * adopted, and nothing but a resume or a destroy used to remove them: the
    * container record stayed, and on Docker its inner image volume with it.
    * Remove their compute as an idle stop does, fenced to that incarnation and
-   * keeping the workspace for the resume. */
+   * keeping the workspace for the resume. A failed removal waits
+   * {@link ENDED_REAP_BACKOFF_MS} to be tried again; one stamped ahead of the
+   * clock (it stepped back since) waits no longer. */
   private async reapEnded(ended: readonly BackendSession[]): Promise<void> {
-    const now = Date.now();
     await forEachLimited(ended, SWEEP_CONCURRENCY, async (s) => {
       const id = s.sessionId;
       const failedAt = this.endedReapFailedAtMs.get(id);
@@ -1782,7 +1868,9 @@ export class SessionRoutes {
         this.stopping.has(id) ||
         this.endedReaping.has(id) ||
         this.destroySettled.has(id) ||
-        (failedAt !== undefined && now - failedAt < ENDED_REAP_BACKOFF_MS)
+        // The clock as this one comes up, after the removals before it.
+        (failedAt !== undefined &&
+          msSince(failedAt, Date.now()) < ENDED_REAP_BACKOFF_MS)
       ) {
         return;
       }
@@ -2162,10 +2250,12 @@ export class SessionRoutes {
     // A session with a live exec is NEVER reaped — a long, QUIET tool (no
     // stdout for >idleTimeout) would otherwise be idle-killed mid-task, and a
     // running task shouldn't be cut at the hard TTL either. The registry
-    // tracks in-flight execs on this replica; after a spawner restart its
-    // cache is cold, so the runnerd health.liveExecs check below is the
-    // backstop for a re-adopted busy session. An exec running through this
-    // replica shows its runnerd answers: any streak of failed probes ends.
+    // tracks in-flight execs and attach streams on this replica; after a
+    // spawner restart its cache is cold, so the runnerd health.liveExecs
+    // check below is the backstop for a re-adopted busy session. An exec or
+    // an attach stream running through this replica shows its runnerd
+    // answers (an attach counts from runnerd's answer on: one still waiting
+    // for it shows nothing): any streak of failed probes ends.
     if (s.liveExecs.size > 0) {
       this.noteEgressDrift(s, drift, BUSY_DRIFT);
       this.probeFailures.delete(s.sessionId);
@@ -3314,6 +3404,9 @@ export class SessionRoutes {
   ): Promise<Response | null> {
     // Disk admission applies even when host memory is unavailable (Kubernetes).
     if (this.diskShort()) {
+      console.warn(
+        `[sandbox.session] refusing work in ${session.sessionId}: host_disk (${this.diskFloorNote()})`,
+      );
       return jsonResponse(
         {
           error: 'host_disk',
@@ -3340,18 +3433,25 @@ export class SessionRoutes {
     if (!observesMemory) return null;
     const previous = this.activeGenerations.get(sessionId);
     const young = this.youngBytes.get(sessionId);
+    // An admission stamped ahead of the clock (it stepped back since) counts
+    // from now, so it spares the acquires after it one window at most.
+    // runnerd's last activity ahead of the clock counts as long past: it is
+    // read anew for every acquire, and counted from now it would spare every
+    // one until the clock caught up with it.
+    const askedAtMs = Date.now();
+    if (previous !== undefined)
+      previous.admittedAtMs = notAhead(previous.admittedAtMs, askedAtMs);
+    if (young !== undefined) young.sinceMs = notAhead(young.sinceMs, askedAtMs);
     if (
       health.liveExecs > 0 ||
       (health.activity?.activeOperations ?? 0) > 0 ||
       (health.activity?.released === false &&
         (previous?.generation === health.activity.generation ||
           (previous === undefined && young !== undefined)) &&
-        Date.now() -
-          Math.max(
-            previous?.admittedAtMs ?? young?.sinceMs ?? 0,
-            health.lastActivityAtMs,
-          ) <
-          YOUNG_SESSION_RESERVE_MS)
+        Math.min(
+          msSince(previous?.admittedAtMs ?? young?.sinceMs ?? 0, askedAtMs),
+          msSince(health.lastActivityAtMs, askedAtMs),
+        ) < YOUNG_SESSION_RESERVE_MS)
     ) {
       this.invalidateWaiter(sessionId);
       return null;
@@ -3387,7 +3487,10 @@ export class SessionRoutes {
       return true;
     };
     let admitted = await this.withAdmission(admit);
-    if (admitted === false) {
+    // As for a create: only a deficit the host's own reading shows stops an
+    // idle session; short only of memory held for others, the activation
+    // waits in line (measuredShort).
+    if (admitted === false && this.measuredShort(workingSet)) {
       await this.reclaimOneIdle();
       await this.readHostMemory();
       admitted = await this.withAdmission(admit);
@@ -3715,11 +3818,17 @@ export class SessionRoutes {
       }
     }
     const active = this.activeGenerations.get(sessionId);
+    // An admission stamped ahead of the clock (it stepped back since) counts
+    // from now: it spares this exec's acquire one window at most, not the
+    // window and the step.
+    const now = Date.now();
+    if (active !== undefined)
+      active.admittedAtMs = notAhead(active.admittedAtMs, now);
     if (
       !replayOnly &&
       session.liveExecs.size === 0 &&
       (active === undefined ||
-        Date.now() - active.admittedAtMs >= YOUNG_SESSION_RESERVE_MS)
+        now - active.admittedAtMs >= YOUNG_SESSION_RESERVE_MS)
     ) {
       const refused =
         this.memoryCeiling() === null
@@ -3803,8 +3912,7 @@ export class SessionRoutes {
     } catch (error) {
       // Any other failure surfaces where the stream awaits the exec below.
       if (error instanceof RunnerdMemoryBusyError) {
-        if (this.registry.get(sessionId) === session)
-          this.registry.unregisterExec(sessionId, execReq.execId);
+        this.registry.unregisterExec(session, execReq.execId, ac);
         req.signal.removeEventListener('abort', abortHandler);
         return jsonResponse(
           {
@@ -3989,8 +4097,7 @@ export class SessionRoutes {
       } finally {
         signal.removeEventListener('abort', detach);
         consumer.abort();
-        if (this.registry.get(sessionId) === session)
-          this.registry.unregisterExec(sessionId, execReq.execId);
+        this.registry.unregisterExec(session, execReq.execId, ac);
         req.signal.removeEventListener('abort', abortHandler);
       }
     });
@@ -4146,7 +4253,10 @@ export class SessionRoutes {
 
   /** GET /v1/sessions/:id/exec/:execId/attach — reconnect to a running or
    * just-finished exec; replays runnerd's journal then follows to exit. The
-   * resilience path for a platform action that dropped its original SSE. */
+   * resilience path for a platform action that dropped its original SSE.
+   * Once runnerd has answered it, the stream is work in flight on the
+   * session as an exec stream is: the platform follows a long turn by attach
+   * alone after its first drain window. */
   async handleExecAttach(
     req: Request,
     sessionId: string,
@@ -4164,6 +4274,9 @@ export class SessionRoutes {
     const ac = new AbortController();
     const onAbort = () => ac.abort();
     req.signal.addEventListener('abort', onAbort, { once: true });
+    // The stream's own key among the session's live execs: no exec id holds
+    // a '/', so a cancel, which finds an exec by its id, never finds it.
+    const liveKey = `${execId}/attach/${crypto.randomUUID()}`;
     const token = this.tokenFor(sessionId);
     return sseResponse(async ({ send, signal }) => {
       // Whether the exec's end came through: a stream that stops short of it
@@ -4201,6 +4314,15 @@ export class SessionRoutes {
           },
           AbortSignal.any([ac.signal, signal]),
           sinceSeq,
+          // Busy from runnerd's answer on, as an exec stream is: no idle
+          // stop, no reclaim, no wedged count while it streams. Not before:
+          // the attach has no connect timeout, and one to a daemon that never
+          // answers says nothing of it, so it must not keep the sweep from
+          // stopping that daemon as wedged.
+          () => {
+            if (this.registry.get(sessionId) === session)
+              this.registry.registerExec(sessionId, liveKey, ac);
+          },
         );
         if (!found)
           await send('error', { message: `exec ${execId} not found` });
@@ -4226,6 +4348,8 @@ export class SessionRoutes {
           ...(code !== undefined ? { code } : {}),
         });
       } finally {
+        // Whether or not runnerd answered and the key went in.
+        this.registry.unregisterExec(session, liveKey, ac);
         req.signal.removeEventListener('abort', onAbort);
       }
     });
