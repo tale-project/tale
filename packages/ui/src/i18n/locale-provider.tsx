@@ -13,8 +13,7 @@ import {
 
 import { detectPreferredLocale, LOCALE_STORAGE_KEY } from './detect-locale';
 import { isValidLocale } from './is-valid-locale';
-import { isLocaleLoaded } from './load-locale';
-import type { LocaleSyncState } from './sync';
+import { isLocaleShownAtOnce, type LocaleSyncState } from './sync';
 
 interface LocaleContextValue {
   /**
@@ -128,10 +127,11 @@ export function LocaleProvider({
 
   // A report on an earlier pick or retry says nothing about this one, so a
   // retry that fails at once still reads as a new failure. Until the bridge
-  // reports, the store says: a language already in it shows at once, and
-  // any other is on its way while the page shows the language it showed.
+  // reports, the instance says: a language already in its store, or the one
+  // it shows, shows at once, and any other is on its way while the page
+  // shows the language it showed.
   const reported = synced?.attempt === attempt ? synced : undefined;
-  const waiting = i18n !== undefined && !isLocaleLoaded(i18n, locale);
+  const waiting = i18n !== undefined && !isLocaleShownAtOnce(i18n, locale);
   const status = reported?.status ?? (waiting ? 'loading' : 'shown');
   const shownLocale =
     reported?.shownLocale ?? (waiting ? i18n.language : locale);

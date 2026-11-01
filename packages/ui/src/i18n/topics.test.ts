@@ -234,6 +234,150 @@ describe('loadLocale on a per-topic instance', () => {
     expect(homeFr).toHaveBeenCalledTimes(2);
     expect(i18n.getFixedT('fr', 'home')('title')).toBe('Accueil');
   });
+
+  it('switches with the topics that landed when one fails, and fetches that one again', async () => {
+    vi.useFakeTimers();
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const i18n = await instance();
+    const chatDe = vi
+      .fn<() => Promise<Messages>>()
+      .mockRejectedValueOnce(new Error('connection reset'))
+      .mockResolvedValueOnce({ send: 'Senden' });
+    topics.attachTopics(i18n, {
+      lazy: {
+        de: { home: async () => ({ title: 'Startseite' }), chat: chatDe },
+      },
+    });
+    topics.registerTopic('home', { title: 'Home' });
+    topics.registerTopic('chat', { send: 'Send' });
+
+    await expect(locales.loadLocale(i18n, 'de')).resolves.toBeUndefined();
+    await i18n.changeLanguage('de');
+    expect(i18n.t('home:title')).toBe('Startseite');
+    expect(i18n.t('chat:send')).toBe('Send');
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.waitFor(() => expect(i18n.t('chat:send')).toBe('Senden'));
+    expect(chatDe).toHaveBeenCalledTimes(2);
+    expect(warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('fetches a topic that keeps failing less and less often, and not once the session left its language', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const i18n = await instance();
+    const chatDe = vi
+      .fn<() => Promise<Messages>>()
+      .mockRejectedValue(new Error('not found'));
+    topics.attachTopics(i18n, {
+      lazy: {
+        de: { home: async () => ({ title: 'Startseite' }), chat: chatDe },
+      },
+    });
+    topics.registerTopic('home', { title: 'Home' });
+    topics.registerTopic('chat', { send: 'Send' });
+    await locales.loadLocale(i18n, 'de');
+    await i18n.changeLanguage('de');
+    expect(chatDe).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(chatDe).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(19_999);
+    expect(chatDe).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(chatDe).toHaveBeenCalledTimes(3);
+
+    await i18n.changeLanguage('en');
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(chatDe).toHaveBeenCalledTimes(3);
+  });
+
+  it('leaves a topic that failed to its retry, however often a reader asks for it', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const i18n = await instance();
+    const chatDe = vi
+      .fn<() => Promise<Messages>>()
+      .mockRejectedValue(new Error('not found'));
+    topics.attachTopics(i18n, {
+      lazy: {
+        de: { home: async () => ({ title: 'Startseite' }), chat: chatDe },
+      },
+    });
+    topics.registerTopic('home', { title: 'Home' });
+    topics.registerTopic('chat', { send: 'Send' });
+    await locales.loadLocale(i18n, 'de');
+    await i18n.changeLanguage('de');
+
+    await vi.advanceTimersByTimeAsync(25_000);
+    expect(chatDe).toHaveBeenCalledTimes(2);
+    topics.ensureTopic(i18n, 'de', 'chat');
+    topics.ensureTopic(i18n, 'de', 'chat');
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(chatDe).toHaveBeenCalledTimes(3);
+    await vi.advanceTimersByTimeAsync(40_000);
+    expect(chatDe).toHaveBeenCalledTimes(4);
+  });
+
+  it('gives a switch up when not one of its topics loads', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const i18n = await instance();
+    topics.attachTopics(i18n, {
+      lazy: {
+        fr: {
+          home: () => Promise.reject(new Error('offline')),
+          chat: () => Promise.reject(new Error('offline')),
+        },
+      },
+    });
+    topics.registerTopic('home', { title: 'Home' });
+    topics.registerTopic('chat', { send: 'Send' });
+
+    await expect(locales.loadLocale(i18n, 'fr')).rejects.toThrow('offline');
+    expect(locales.isLocaleLoaded(i18n, 'fr')).toBe(false);
+  });
+
+  it('shows the language the session went ahead in while one of its topics is on its way', async () => {
+    const i18n = await instance();
+    const chatDe = deferred({ send: 'Senden' });
+    topics.attachTopics(i18n, {
+      lazy: {
+        de: { home: async () => ({ title: 'Startseite' }), chat: chatDe.load },
+      },
+    });
+    topics.registerTopic('home', { title: 'Home' });
+    topics.registerTopic('chat', { send: 'Send' });
+    // The session's switch stopped waiting for `chat` and went ahead.
+    const switched = locales.loadLocale(i18n, 'de');
+    await vi.waitFor(() =>
+      expect(i18n.getFixedT('de', 'home')('title')).toBe('Startseite'),
+    );
+    await i18n.changeLanguage('de');
+    document.documentElement.lang = 'en';
+    const onStateChange = vi.fn();
+
+    const { LocaleSync } = await import('./sync');
+    render(
+      createElement(
+        I18nextProvider,
+        { i18n },
+        createElement(LocaleSync, { locale: 'de', onStateChange }),
+      ),
+    );
+
+    expect(document.documentElement.lang).toBe('de');
+    expect(onStateChange.mock.calls).toEqual([
+      [{ locale: 'de', status: 'shown', shownLocale: 'de' }],
+    ]);
+    expect(i18n.t('chat:send')).toBe('Send');
+
+    chatDe.deliver();
+    await switched;
+    expect(i18n.t('chat:send')).toBe('Senden');
+    expect(chatDe.load).toHaveBeenCalledTimes(1);
+    expect(onStateChange).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('useLocalesLoad on a per-topic instance', () => {
@@ -337,6 +481,25 @@ describe('the chunks’ wait (__taleMessageTopics.ready)', () => {
     await vi.advanceTimersByTimeAsync(50);
 
     await expect(wait).resolves.toBeUndefined();
+  });
+
+  it('waits 4 s when the service names no `waitMs`', async () => {
+    vi.useFakeTimers();
+    const i18n = await instance();
+    const tasksDe = deferred({ title: 'Aufgaben' });
+    topics.attachTopics(i18n, { lazy: { de: { tasks: tasksDe.load } } });
+    void locales.loadLocale(i18n, 'de');
+
+    let settled = false;
+    void globalThis.__taleMessageTopics?.ready(['tasks']).then(() => {
+      settled = true;
+    });
+    await vi.advanceTimersByTimeAsync(3_999);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+
+    expect(settled).toBe(true);
+    expect(tasksDe.load).toHaveBeenCalledTimes(1);
   });
 });
 

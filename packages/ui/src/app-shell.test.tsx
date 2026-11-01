@@ -150,6 +150,8 @@ describe('AppShell with a language fetched on first use', () => {
           home: { title: 'Startseite' },
         }),
       },
+      // As `initI18n`: a French read before French landed is not kept.
+      i18nFormat: { bindI18nStore: 'added' },
     });
     registerLocaleLoader(i18n, 'fr', fetch);
     return i18n;
@@ -259,6 +261,40 @@ describe('AppShell with a language fetched on first use', () => {
     expect(screen.getByRole('heading')).toHaveTextContent('Startseite');
     // No render shows it as on its way.
     expect(seen.filter((read) => read.endsWith(' loading'))).toEqual([]);
+  });
+
+  // As the platform's first frame, when a topic of the session's language
+  // stalls: the instance switched without waiting for it.
+  it('marks the language the instance already shows as shown while its words are on their way', async () => {
+    localStorage.setItem('user-locale', 'fr');
+    let deliver = (_bundle: Bundle) => {};
+    const fetch = vi.fn(
+      () =>
+        new Promise<Bundle>((resolve) => {
+          deliver = resolve;
+        }),
+    );
+    const i18n = await lazyFrench(fetch);
+    await i18n.changeLanguage('fr');
+    const seen: string[] = [];
+
+    renderPage(i18n, seen);
+
+    // English until its words land; no render marks French as on its way.
+    expect(screen.getByRole('heading')).toHaveTextContent('Home');
+    expect(seen).not.toEqual([]);
+    expect(seen.filter((read) => read !== 'fr fr shown')).toEqual([]);
+
+    await act(async () => {
+      deliver(french);
+      await Promise.resolve();
+    });
+
+    await waitFor(() =>
+      expect(screen.getByRole('heading')).toHaveTextContent('Accueil'),
+    );
+    expect(languageSwitch()).toHaveTextContent('fr fr shown');
+    expect(fetch).toHaveBeenCalledTimes(1);
   });
 
   it('says in the language the page shows that the picked one did not load, and fetches it again on Try again', async () => {

@@ -44,7 +44,10 @@ export interface TopicSources {
 }
 
 const ENGLISH = 'en';
+/** The pause before a topic file that failed is fetched again. */
 const RETRY_AFTER_MS = 10_000;
+/** The longest pause between two fetches of a file that keeps failing. */
+const RETRY_AT_MOST_MS = 5 * 60_000;
 
 interface Load {
   readonly promise: Promise<void>;
@@ -86,6 +89,10 @@ class TopicRegistry {
   private readonly unnamed = new Set<string>();
   /** When a topic file last failed to load, so readers do not refetch it per render. */
   private readonly failedAt = new Map<string, number>();
+  /** How often in a row a topic file failed to load, which spaces out its retries. */
+  private readonly failures = new Map<string, number>();
+  /** The retry a topic file that failed waits for: one at a time. */
+  private readonly retries = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(
     readonly i18n: I18nInstance,
@@ -130,6 +137,7 @@ class TopicRegistry {
     }
     const existing = byTopic.get(topic);
     if (existing !== undefined) return existing.promise;
+    const key = `${locale}\u0000${topic}`;
     const entry: Load = {
       landed: false,
       promise: load().then(
@@ -142,16 +150,40 @@ class TopicRegistry {
             true,
           );
           entry.landed = true;
+          this.failures.delete(key);
         },
         (error: unknown) => {
           byTopic.delete(topic);
-          this.failedAt.set(`${locale}\u0000${topic}`, Date.now());
+          this.failedAt.set(key, Date.now());
+          this.retryLater(locale, topic);
           throw error;
         },
       ),
     };
     byTopic.set(topic, entry);
     return entry.promise;
+  }
+
+  /**
+   * Fetch a topic file that failed again after a pause, doubled with each
+   * failure in a row, while the session shows or switches to a language
+   * that reads it: its readers show English until it lands, then re-render.
+   */
+  private retryLater(locale: string, topic: string): void {
+    const key = `${locale}\u0000${topic}`;
+    if (this.retries.has(key)) return;
+    const failures = (this.failures.get(key) ?? 0) + 1;
+    this.failures.set(key, failures);
+    const pause = Math.min(
+      RETRY_AFTER_MS * 2 ** (failures - 1),
+      RETRY_AT_MOST_MS,
+    );
+    const retry = setTimeout(() => {
+      this.retries.delete(key);
+      if (!this.following().has(locale)) return;
+      this.fetch(locale, topic).catch(warn);
+    }, pause);
+    this.retries.set(key, retry);
   }
 
   private landed(locale: string, topic: string): boolean {
@@ -179,15 +211,32 @@ class TopicRegistry {
   /**
    * The session switches to `locale`: fetch the topics it needs, and keep
    * fetching each topic that registers later in it, which chunks then wait
-   * for, while the switch lasts (`switching`).
+   * for, while the switch lasts (`switching`). Settles once each has landed
+   * or failed: the switch goes ahead with the ones that landed, a failed one
+   * reading English until a retry brings it (`retryLater`), and is given up
+   * when not one landed.
    */
   load(locale: string): Promise<void> {
     const switching = { locale };
     this.switching = switching;
-    return this.fetchAll(locale).catch((error: unknown) => {
+    const fetches = filesRead(locale).flatMap((file) =>
+      this.topicsOf(file)
+        .filter((topic) => this.sources.lazy[file]?.[topic] !== undefined)
+        .map((topic) => this.fetch(file, topic)),
+    );
+    return Promise.allSettled(fetches).then((outcomes) => {
+      const failed = outcomes.filter(
+        (outcome): outcome is PromiseRejectedResult =>
+          outcome.status === 'rejected',
+      );
+      if (failed.length < outcomes.length) {
+        for (const { reason } of failed) warn(reason);
+        return;
+      }
+      if (failed.length === 0) return;
       // The session stays in the language it shows.
       if (this.switching === switching) this.switching = undefined;
-      throw error;
+      throw failed[0]?.reason;
     });
   }
 
@@ -228,7 +277,10 @@ class TopicRegistry {
     }
     for (const file of filesRead(language)) {
       if (this.loads.get(file)?.has(topic) === true) continue;
-      const failed = this.failedAt.get(`${file}\u0000${topic}`);
+      const key = `${file}\u0000${topic}`;
+      // A file that failed is fetched again by its retry, else after a pause.
+      if (this.retries.has(key)) continue;
+      const failed = this.failedAt.get(key);
       if (failed !== undefined && Date.now() - failed < RETRY_AFTER_MS)
         continue;
       if (this.sources.lazy[file]?.[topic] === undefined) continue;

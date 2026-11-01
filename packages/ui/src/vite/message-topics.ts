@@ -37,6 +37,8 @@ const SCRIPT = /\.[cm]?[jt]sx?$/;
 const NAMESPACED_KEY = /^([A-Za-z0-9_]+):[A-Za-z]/;
 /** Properties whose value names a namespace: `ns`, `namespace`, `entityNamespace`, `additionalNamespaces`. */
 const NAMESPACE_PROPERTY = /^ns$|[Nn]amespaces?$/;
+/** Calls that translate a key: `t`, a `useT` result renamed (`tCommon`), `i18n.t`. */
+const TRANSLATE = /^t(?:[A-Z]\w*)?$/;
 
 interface Node {
   readonly type: string;
@@ -185,19 +187,64 @@ export function topicsNamedIn(
   return named;
 }
 
+/** A key's parts in order: its literal text, `undefined` for an expression. */
+function keyParts(key: unknown): Array<string | undefined> {
+  if (!isNode(key)) return [undefined];
+  switch (key.type) {
+    case 'Literal':
+      return [stringOf(key.value)];
+    case 'TemplateLiteral':
+      return listOf(key.quasis).flatMap((quasi, index) =>
+        index === 0 ? [cookedOf(quasi)] : [undefined, cookedOf(quasi)],
+      );
+    case 'BinaryExpression':
+      return key.operator === '+'
+        ? [...keyParts(key.left), ...keyParts(key.right)]
+        : [undefined];
+    default:
+      return [undefined];
+  }
+}
+
 /**
- * Where a module reads a namespace the plugin cannot see — `useT(namespace)`,
- * `{ ns: namespace }` — as offsets into its code. The topic must then be named
+ * Whether a key names its namespace through an expression (`${ns}:key`,
+ * `ns + ':key'`): one comes before its first `:`.
+ */
+function namespaceComputed(key: unknown): boolean {
+  const parts = keyParts(key);
+  const colon = parts.findIndex((part) => part?.includes(':') === true);
+  return colon > 0 && parts.slice(0, colon).includes(undefined);
+}
+
+/** What a JSX attribute sets (`ns="tasks"`, `ns={area}`); nothing for a bare `ns`. */
+function attributeValue(value: unknown): unknown {
+  if (!isNode(value)) return undefined;
+  return value.type === 'JSXExpressionContainer' ? value.expression : value;
+}
+
+function attributeName(name: unknown): string | undefined {
+  return isNode(name) && name.type === 'JSXIdentifier'
+    ? stringOf(name.name)
+    : undefined;
+}
+
+/**
+ * Where a module reads a namespace the plugin cannot see, as offsets into its
+ * code: wherever the plugin looks for a topic's name and finds a value it
+ * cannot read — `useT(namespace)`, `{ ns: area }`, `entityNamespace: kind`,
+ * `<Trans ns={area}>` (read before JSX compiles to the props object the
+ * plugin sees), `` t(`${ns}:key`) ``. The topic must then be named
  * where the value comes from (`entityNamespace: 'tasks'`), or its English
  * never ships.
  */
 export function unnamedNamespaceReads(program: unknown): number[] {
   const offsets: number[] = [];
   const stack: unknown[] = [program];
+  const at = (node: Node) => {
+    offsets.push(typeof node.start === 'number' ? node.start : -1);
+  };
   const check = (node: Node, value: unknown) => {
-    if (value !== undefined && !isNamed(value)) {
-      offsets.push(typeof node.start === 'number' ? node.start : -1);
-    }
+    if (value !== undefined && !isNamed(value)) at(node);
   };
   while (stack.length > 0) {
     const node = stack.pop();
@@ -206,14 +253,46 @@ export function unnamedNamespaceReads(program: unknown): number[] {
       continue;
     }
     if (!isNode(node)) continue;
-    if (node.type === 'CallExpression') {
-      const callee = calleeName(node.callee);
-      const args = listOf(node.arguments);
-      if (callee === 'useT' || callee === 'useTranslation')
-        check(node, args[0]);
-      else if (callee === 'getFixedT') check(node, args[1]);
-    } else if (node.type === 'Property' && nameOf(node.key) === 'ns') {
-      check(node, node.value);
+    switch (node.type) {
+      case 'CallExpression': {
+        const callee = calleeName(node.callee);
+        const args = listOf(node.arguments);
+        if (callee === 'useT' || callee === 'useTranslation') {
+          check(node, args[0]);
+        } else if (callee === 'getFixedT') {
+          check(node, args[1]);
+        } else if (callee !== undefined && TRANSLATE.test(callee)) {
+          if (namespaceComputed(args[0])) at(node);
+        }
+        break;
+      }
+      case 'Property': {
+        const key = node.computed === true ? undefined : nameOf(node.key);
+        if (key !== undefined && NAMESPACE_PROPERTY.test(key)) {
+          check(node, node.value);
+        }
+        break;
+      }
+      case 'JSXAttribute': {
+        const name = attributeName(node.name);
+        if (name !== undefined && NAMESPACE_PROPERTY.test(name)) {
+          check(node, attributeValue(node.value));
+        }
+        break;
+      }
+      case 'ObjectPattern':
+        // Destructuring (`const { namespace } = parsed`) names a binding, not
+        // a namespace: look into its defaults alone.
+        for (const property of listOf(node.properties)) {
+          stack.push(
+            isNode(property) && property.type === 'Property'
+              ? property.value
+              : property,
+          );
+        }
+        continue;
+      default:
+        break;
     }
     for (const [field, child] of Object.entries(node)) {
       if (field !== 'type' && typeof child === 'object' && child !== null) {

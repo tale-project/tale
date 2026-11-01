@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { initServiceI18n, mergeBundles } from './init-service';
 import { isLocaleLoaded, loadLocale } from './load-locale';
@@ -68,5 +68,43 @@ describe('initServiceI18n with lazyBundles', () => {
     expect(t('app:title')).toBe('Startseite');
     expect(t('common:save')).toBe('Speichern');
     expect(t('app:brand')).toBe('Tale');
+  });
+});
+
+describe('initServiceI18n with topics', () => {
+  afterEach(() => {
+    globalThis.__taleMessageTopics = undefined;
+  });
+
+  it('serves English as modules register it and fetches the other locales per topic', async () => {
+    // A fresh registry: the instance `initServiceI18n` sets up is one per page.
+    vi.resetModules();
+    const service = await import('./init-service');
+    const topics = await import('./topics');
+    const locales = await import('./load-locale');
+    const homeDe = vi.fn(async () => ({ title: 'Startseite' }));
+    const i18n = service.initServiceI18n({
+      bundles: { en: {} },
+      topics: { lazy: { de: { home: homeDe } } },
+      regional: {},
+      packages: [
+        {
+          bundles: {
+            en: { common: { save: 'Save' } },
+            de: { common: { save: 'Speichern' } },
+          },
+        },
+      ],
+    });
+
+    topics.registerTopic('home', { title: 'Home' });
+    expect(i18n.t('home:title')).toBe('Home');
+    expect(locales.isLocaleLoaded(i18n, 'de')).toBe(false);
+
+    await locales.loadLocale(i18n, 'de');
+    const t = i18n.getFixedT('de');
+    expect(t('home:title')).toBe('Startseite');
+    expect(t('common:save')).toBe('Speichern');
+    expect(homeDe).toHaveBeenCalledTimes(1);
   });
 });
