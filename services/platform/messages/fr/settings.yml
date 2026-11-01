@@ -252,6 +252,16 @@ usage:
     unlimited: Aucune limite de stockage ne s'applique à toi.
     loadFailed: Impossible de charger ton utilisation du stockage.
     refreshFailed: Impossible d'actualiser ton utilisation du stockage. L'affichage n'est peut-être plus à jour.
+    breakdown:
+      label: Répartition
+      documents: Documents
+      chatAttachments: Pièces jointes des chats
+      agentFiles: Fichiers créés par des agents
+      other: Autres fichiers
+    viewDocuments: Voir mes documents dans Connaissances
+    chats:
+      label: Chats contenant tes fichiers
+      more: '{count, plural, one {et # autre chat} other {et # autres chats}}'
 organization:
   title: Nom de l'organisation
   loadFailed: Les informations de l'organisation n'ont pas pu être chargées.
