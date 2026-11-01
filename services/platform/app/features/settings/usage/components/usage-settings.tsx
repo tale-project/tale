@@ -10,7 +10,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { Link } from '@tanstack/react-router';
 import { Gauge } from 'lucide-react';
-import { type ReactNode, useCallback, useRef } from 'react';
+import { type ReactNode, useCallback, useId, useRef } from 'react';
 
 import { useUploadUsage } from '@/app/features/documents/hooks/queries';
 import {
@@ -283,6 +283,111 @@ function PlaceholderMeter({ seed }: { seed: number }) {
   );
 }
 
+type UploadUsage = NonNullable<ReturnType<typeof useUploadUsage>['data']>;
+
+/**
+ * What fills the meter, from the rows it counts (the parts add up to it), and
+ * where those files live: the viewer's own documents in Knowledge, and the
+ * chats that hold the rest, largest first.
+ */
+function StorageBreakdown({
+  organizationId,
+  storage,
+  locale,
+}: {
+  organizationId: string;
+  storage: UploadUsage;
+  locale: string;
+}) {
+  const { t } = useT('settings');
+  const { t: tChat } = useT('chat');
+  const { breakdown, chats, chatCount } = storage;
+  const chatsLabelId = useId();
+  const parts = [
+    {
+      key: 'documents',
+      label: t('usage.storage.breakdown.documents'),
+      bytes: breakdown.documents,
+    },
+    {
+      key: 'chatAttachments',
+      label: t('usage.storage.breakdown.chatAttachments'),
+      bytes: breakdown.chatAttachments,
+    },
+    {
+      key: 'agentFiles',
+      label: t('usage.storage.breakdown.agentFiles'),
+      bytes: breakdown.agentFiles,
+    },
+    // Files that are none of the above (an upload no document took over and
+    // no chat holds) are named only when there are some.
+    ...(breakdown.other > 0
+      ? [
+          {
+            key: 'other',
+            label: t('usage.storage.breakdown.other'),
+            bytes: breakdown.other,
+          },
+        ]
+      : []),
+  ];
+  const linkClass =
+    'text-foreground underline underline-offset-4 hover:text-primary';
+
+  return (
+    <div className="flex flex-col gap-4 text-sm">
+      <dl className="grid grid-cols-[1fr_auto] gap-x-4 gap-y-1">
+        {parts.map((part) => (
+          <div key={part.key} className="contents">
+            <dt className="text-muted-foreground">{part.label}</dt>
+            <dd className="text-right tabular-nums">
+              {formatBytes(part.bytes, locale)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <Link
+        to="/dashboard/$id/documents"
+        params={{ id: organizationId }}
+        search={{ uploadedBy: 'me' }}
+        className={cn('self-start', linkClass)}
+      >
+        {t('usage.storage.viewDocuments')}
+      </Link>
+      {chats.length > 0 && (
+        <div className="flex flex-col gap-1">
+          <p id={chatsLabelId} className="font-medium">
+            {t('usage.storage.chats.label')}
+          </p>
+          <ul aria-labelledby={chatsLabelId} className="flex flex-col gap-1">
+            {chats.map((chat) => (
+              <li key={chat.threadId} className="flex items-baseline gap-4">
+                <Link
+                  to="/dashboard/$id/chat/$threadId"
+                  params={{ id: organizationId, threadId: chat.threadId }}
+                  className={cn('min-w-0 flex-1 truncate', linkClass)}
+                >
+                  {chat.title ?? tChat('history.untitled')}
+                </Link>
+                <span className="text-muted-foreground tabular-nums">
+                  {formatBytes(chat.bytes, locale)}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {chatCount > chats.length && (
+            <p className="text-muted-foreground">
+              {t('usage.storage.chats.more', {
+                count: chatCount - chats.length,
+              })}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /**
  * The member's upload quota. A failed read says so, with **Try again**, and
  * never reads as "no storage limit" (#4832): that sentence is a read that
@@ -321,6 +426,13 @@ function StorageSection({ organizationId }: { organizationId: string }) {
             usedText={formatBytes(storage.usedBytes, locale)}
             capText={formatBytes(storage.limitBytes, locale)}
             warningThresholdPercent={null}
+          />
+        </SettingsFieldRow>
+        <SettingsFieldRow label={t('usage.storage.breakdown.label')}>
+          <StorageBreakdown
+            organizationId={organizationId}
+            storage={storage}
+            locale={locale}
           />
         </SettingsFieldRow>
       </SettingsFieldList>
