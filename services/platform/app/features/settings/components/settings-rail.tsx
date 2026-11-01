@@ -13,7 +13,7 @@ import {
   SubPanelDisclosureBody,
   SubPanelSectionHeader,
 } from '@tale/ui/sub-panel-list';
-import { useRouterState } from '@tanstack/react-router';
+import { useShownPathname } from '@tale/ui/use-shown-pathname';
 import {
   Bell,
   Box,
@@ -355,7 +355,9 @@ export function SettingsRail({
 }: SettingsRailProps) {
   const { t: tNav } = useT('navigation');
   const { t: tSettings } = useT('settings');
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  // The page beside the panel, as the frame and its header follow it: while
+  // the next page loads, the open one keeps its row.
+  const pathname = useShownPathname();
   const sections = useSettingsSections(organizationId, showAccountTab);
   const base = `/dashboard/${organizationId}/settings`;
 

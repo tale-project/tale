@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { QueryClient } from '@tanstack/react-query';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { NOTIFICATION_HINT_ENTITY } from '@/lib/shared/hint-entities';
@@ -9,6 +10,7 @@ import {
   engagementWriteAdapters,
   withConvexId,
 } from './engagement';
+import { backendEntityPrefix } from './query-keys';
 
 const ctx = { organizationId: 'org1' };
 
@@ -327,6 +329,50 @@ describe('website creation dates', () => {
       ...wirePage,
       page: [expectedRow],
     });
+  });
+});
+
+describe('the website status sweep', () => {
+  it('leaves the website reads to the hints of the rows it changed', async () => {
+    const fetchSpy = vi
+      .spyOn(window, 'fetch')
+      .mockResolvedValue(new Response(JSON.stringify({ ok: true })));
+    const client = new QueryClient();
+    const reads = [
+      engagementReadAdapters['websites/queries:approxCountWebsites']?.({}, ctx),
+      engagementReadAdapters['websites/queries:searchReadiness']?.({}, ctx),
+      engagementPaginatedAdapters['websites/queries:listWebsitesPaginated']?.(
+        {},
+        ctx,
+      ),
+    ].map((read) => {
+      if (read === undefined || read === null) {
+        throw new Error('a website read has no row');
+      }
+      client.setQueryData(read.queryKey, {});
+      return read.queryKey;
+    });
+    const sweep = engagementWriteAdapters['websites/actions:syncStatuses'];
+    const args = { organizationId: 'org1' };
+
+    // What the write lane does with a sweep that succeeded.
+    await sweep?.run(args, ctx);
+    sweep?.invalidate?.(client, args, ctx);
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    for (const queryKey of reads) {
+      expect(client.getQueryState(queryKey)?.isInvalidated).toBe(false);
+    }
+
+    // A hint for a row the sweep changed still reaches all three
+    // (`use-backend-hints.ts`).
+    await client.invalidateQueries({
+      queryKey: backendEntityPrefix('org1', 'website'),
+    });
+    for (const queryKey of reads) {
+      expect(client.getQueryState(queryKey)?.isInvalidated).toBe(true);
+    }
+    client.clear();
   });
 });
 

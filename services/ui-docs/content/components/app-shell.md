@@ -84,7 +84,7 @@ import { SectionNavPanel, SectionNavRow } from '@tale/ui/section-nav';
 </SectionNavPanel>
 ```
 
-`activeKey` names the `href` of the row the highlight rests on; each `SectionNavRow` marks itself with that key. Pass `layoutVersion` when something moves rows without changing the open page, such as a disclosure opening above it. The highlight comes from `useSlidingIndicator` (`@tale/ui/use-sliding-indicator`), which you can use directly for any control whose selection should glide: the item carries `data-indicator-key`, the hook measures it against its positioned container, and the indicator moves with a CSS transform that respects reduced motion.
+`activeKey` names the `href` of the row the highlight rests on; each `SectionNavRow` marks itself with that key, and `active` makes a row the current page (`aria-current="page"`). Derive both from `useShownPathname` (`@tale/ui/use-shown-pathname`) rather than the location, so the page still on screen keeps its row while the router loads the next one. Pass `layoutVersion` when something moves rows without changing the open page, such as a disclosure opening above it. The highlight comes from `useSlidingIndicator` (`@tale/ui/use-sliding-indicator`), which you can use directly for any control whose selection should glide: the item carries `data-indicator-key`, the hook measures it against its positioned container, and the indicator moves with a CSS transform that respects reduced motion.
 
 For a panel list of your own, draw that highlight with `SlidingHighlight` (from `@tale/ui/section-nav`) inside the list's positioned scroller, and let the rows keep only their text treatment above it (`relative z-10`, no fill of their own):
 

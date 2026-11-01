@@ -19,17 +19,24 @@ vi.mock('@tale/ui/i18n/client', () => ({
   }),
 }));
 
-vi.mock('@tanstack/react-router', () => ({
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
   useNavigate: () => vi.fn(),
-  Link: ({
-    children,
-    to,
+  createLink:
+    () =>
+    ({
+      children,
+      to,
+    }: {
+      children: React.ReactNode;
+      to: string;
+      [key: string]: unknown;
+    }) => <a href={to}>{children}</a>,
+  useRouterState: ({
+    select,
   }: {
-    children: React.ReactNode;
-    to: string;
-    [key: string]: unknown;
-  }) => <a href={to}>{children}</a>,
-  useLocation: () => ({ pathname: '/dashboard/test-org/documents' }),
+    select: (state: { location: { pathname: string } }) => unknown;
+  }) => select({ location: { pathname: '/dashboard/test-org/documents' } }),
 }));
 
 vi.mock('@/app/hooks/use-ability', () => ({

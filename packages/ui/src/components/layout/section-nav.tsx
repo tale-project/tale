@@ -11,13 +11,13 @@
 
 import { useAccentColor } from '@tale/ui/accent-color';
 import { cn } from '@tale/ui/cn';
+import { CurrentPageLink } from '@tale/ui/current-page-link';
 import { SubPanel, SubPanelHeader } from '@tale/ui/sub-panel';
 import { SUB_PANEL_ROW_CLASS } from '@tale/ui/sub-panel-list';
 import {
   useSlidingIndicator,
   type SlidingIndicator,
 } from '@tale/ui/use-sliding-indicator';
-import { Link } from '@tanstack/react-router';
 import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 
@@ -51,10 +51,10 @@ export function SectionNavRow({
   const accentColor = useAccentColor();
   return (
     <li>
-      <Link
+      <CurrentPageLink
         to={href}
         data-indicator-key={href}
-        aria-current={active ? 'page' : undefined}
+        current={active}
         className={cn(
           SECTION_NAV_ROW_CLASS,
           indent && 'pl-9',
@@ -64,7 +64,7 @@ export function SectionNavRow({
       >
         {Icon && <Icon aria-hidden className="size-4 shrink-0" />}
         <span className="truncate">{label}</span>
-      </Link>
+      </CurrentPageLink>
     </li>
   );
 }

@@ -695,13 +695,17 @@ export const engagementWriteAdapters: Record<string, WriteAdapter> = {
       ).then((body) => ({ queued: body.queued })),
     invalidate: invalidateWebsites,
   },
+  // No invalidation: the sweep hints each row whose listed state it changed
+  // (`patchWebsite`), and the hint refreshes the website reads. A sweep that
+  // found nothing new, the usual one, refreshes nothing; invalidating here
+  // fetched the count, the list and the search readiness again on every visit
+  // to Websites that ran it.
   'websites/actions:syncStatuses': {
     run: (args, ctx) =>
       backendFetch<{ ok: boolean }>('/websites/sync-statuses', {
         orgId: requireOrg(args, ctx),
         body: {},
       }).then(() => null),
-    invalidate: invalidateWebsites,
   },
   // The pages/chunks/search dialogs call these AS actions (the 0.4 shape),
   // so they ride the write lane even though they only read.

@@ -382,15 +382,20 @@ loaded, and reads **No teams** for an account in none.
   (`/dashboard/{org}/conversations/open`) the panel shows even while folded,
   and no toggle is offered. Phones never show the toggle.
 - [ ] `NAV-F32` · **Knowledge tabs** — At a desktop width and at phone width
-  open `/dashboard/{org}/documents`, then click each tab of the Knowledge tab
-  strip (the `navigation` landmark **Knowledge navigation**,
-  `common.aria.knowledgeNavigation`) → The header reads **Knowledge**
-  (`knowledge.title`) and draws no divider of its own; under it the strip's
-  tabs **Documents**, **Knowledge entries**, **Websites**, **Products** and
-  **Contacts** (`knowledge.documents` … `knowledge.contacts`) carry the
-  header's one line; the open page's tab is underlined and
-  `aria-current="page"`, and each page appears under the strip at once, with
-  no fade. No panel stands beside the page at any width.
+  open `/dashboard/{org}/documents`, wait a moment, then click each tab of the
+  Knowledge tab strip (the `navigation` landmark **Knowledge navigation**,
+  `common.aria.knowledgeNavigation`); then reload Documents with the network
+  throttled (DevTools **Slow 4G**) and at once click **Contacts** → The header
+  reads **Knowledge** (`knowledge.title`) and draws no divider of its own;
+  under it the strip's tabs **Documents**, **Knowledge entries**,
+  **Websites**, **Products** and **Contacts** (`knowledge.documents` …
+  `knowledge.contacts`) carry the header's one line; the open page's tab is
+  underlined and `aria-current="page"`, and each page appears under the strip
+  at once, with no fade, its first visit showing its rows rather than
+  skeleton rows. Throttled, Documents and its underline stay as they are
+  until Contacts shows, and the underline moves with the page: no page ever
+  stands under another page's tab. No panel stands beside the page at any
+  width.
 - [ ] `NAV-F33` · **One highlight glides through Home's lists** — At ≥ 768 px
   open a chat from the Home panel, then another chat, a task and a
   conversation from the stream; open a project from **Projects**; go back to

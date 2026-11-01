@@ -2,12 +2,14 @@
 
 import { useAccentColor } from '@tale/ui/accent-color';
 import { cn } from '@tale/ui/cn';
+import { CurrentPageLink } from '@tale/ui/current-page-link';
 import { DropdownMenu, type DropdownMenuGroup } from '@tale/ui/dropdown-menu';
 import { useT } from '@tale/ui/i18n/client';
 import { MobileFloatingActions } from '@tale/ui/mobile-floating-actions';
 import { useIsMobile } from '@tale/ui/use-is-mobile';
 import { useResizeObserver } from '@tale/ui/use-resize-observer';
-import { Link, useLocation, useNavigate } from '@tanstack/react-router';
+import { useShownPathname } from '@tale/ui/use-shown-pathname';
+import { useNavigate } from '@tanstack/react-router';
 import { ChevronDown } from 'lucide-react';
 import {
   useCallback,
@@ -106,8 +108,9 @@ export function TabNavigation({
   dirtyKeys,
   overflow = 'scroll',
 }: TabNavigationProps) {
-  const location = useLocation();
-  const pathname = location.pathname;
+  // The page below the strip, not the location: while the next tab loads,
+  // the last page still shows, and its tab stays the current one.
+  const pathname = useShownPathname();
   const navigate = useNavigate();
   const accentColor = useAccentColor();
   const { t: tCommon } = useT('common');
@@ -545,7 +548,7 @@ export function TabNavigation({
             }
 
             return (
-              <Link
+              <CurrentPageLink
                 // Search-param tab strips share one pathname across items, so
                 // the href alone is not unique — the label disambiguates.
                 key={`${item.href}|${item.label}`}
@@ -555,11 +558,11 @@ export function TabNavigation({
                 to={path}
                 search={item.search ?? hrefSearch}
                 preload={prefetch ? 'render' : false}
-                aria-current={isActive ? 'page' : undefined}
+                current={isActive}
                 className={tabClassName}
               >
                 {tabBody}
-              </Link>
+              </CurrentPageLink>
             );
           })}
           {overflowItems.length > 0 && (

@@ -17,8 +17,9 @@ lean animation bundle); with nothing open it fades out where it stood and lands 
 a fade, never sliding in from a corner. A row that joins an open list drops into place; new badges
 and unread dots pop in once; a list swapped for another fades in; another item opening in the same
 place fades its view in (`useSwapFade`, opacity only, so nothing the view measures moves), while a
-move to another page — a tab, a Settings page, another project — shows it at once, with no fade;
-every motion honours `prefers-reduced-motion`.
+move to another page — a tab, a Settings page, another project — shows it at once, with no fade,
+and the mark of the open page (a tab's underline, a row's highlight) moves when the page does, not
+when the address changes (`useShownPathname`); every motion honours `prefers-reduced-motion`.
 
 ## Shell & layout
 

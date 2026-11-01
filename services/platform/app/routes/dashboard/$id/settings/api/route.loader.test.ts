@@ -24,6 +24,7 @@ vi.mock('@/app/lib/backend/api-client', async (importOriginal) => ({
 vi.mock('@tanstack/react-router', () => ({
   createFileRoute: () => (config: Record<string, unknown>) => config,
   Outlet: () => null,
+  createLink: () => () => null,
   useRouterState: () => '',
 }));
 

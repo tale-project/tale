@@ -13,12 +13,8 @@ import {
 import { MobileFloatingActions } from '@tale/ui/mobile-floating-actions';
 import { PageLayout } from '@tale/ui/page-layout';
 import { useIsMobile } from '@tale/ui/use-is-mobile';
-import {
-  Outlet,
-  createFileRoute,
-  trimPathRight,
-  useChildMatches,
-} from '@tanstack/react-router';
+import { useShownPathname } from '@tale/ui/use-shown-pathname';
+import { Outlet, createFileRoute } from '@tanstack/react-router';
 import { useState } from 'react';
 
 import { SettingsMobileBackButton } from '@/app/features/settings/components/settings-mobile-back-button';
@@ -46,12 +42,11 @@ export const Route = createFileRoute('/dashboard/$id/settings')({
 function SettingsLayout() {
   const { id: organizationId } = Route.useParams();
   const { t: tNav } = useT('navigation');
-  // The page the outlet shows, which the frame, its key and the header follow.
-  // Not the location: that names the next page as soon as a navigation
-  // starts, while the outlet keeps the current one until the next has loaded.
-  const shownPathname = useChildMatches({
-    select: (matches) => trimPathRight(matches.at(-1)?.pathname ?? ''),
-  });
+  // The page the outlet shows, which the frame, its key, the header and the
+  // rail follow. Not the location: that names the next page as soon as a
+  // navigation starts, while the outlet keeps the current one until the next
+  // has loaded.
+  const shownPathname = useShownPathname();
 
   // The panel's header already names the section; the page header names the
   // open page (the index, which has none, keeps the section's name).
