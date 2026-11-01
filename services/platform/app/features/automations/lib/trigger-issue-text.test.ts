@@ -143,11 +143,23 @@ describe('triggerRefusalText', () => {
     ).toBe("Tale doesn't raise this event. is too short");
   });
 
-  it('falls back to the store’s sentence for a refusal without problems', () => {
+  it('falls back to the refusal’s own words for a refusal without problems', () => {
     expect(
       triggerRefusalText(
         refusal({
           code: 'AUTOMATION_NOT_FOUND',
+          message: 'No such automation.',
+        }),
+        context('en'),
+      ),
+    ).toBe("This automation doesn't exist any more.");
+  });
+
+  it('falls back to the store’s sentence for a code this build does not know', () => {
+    expect(
+      triggerRefusalText(
+        refusal({
+          code: 'AUTOMATION_FROM_A_LATER_BUILD',
           message: 'No such automation.',
         }),
         context('en'),
