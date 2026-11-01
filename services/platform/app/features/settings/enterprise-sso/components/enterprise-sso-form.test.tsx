@@ -4,7 +4,7 @@ import {
   useActiveEditor,
 } from '@tale/ui/editor';
 import { Skeletonize } from '@tale/ui/skeleton-context';
-import { screen, waitFor } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -984,6 +984,86 @@ describe('EnterpriseSsoForm per-protocol display name (#2652)', () => {
     expect(screen.getByRole('textbox', { name: /display name/i })).toHaveValue(
       'Acme SSO',
     );
+  });
+});
+
+describe('EnterpriseSsoForm Save follows a value the form fills (#5260)', () => {
+  it('clears the stale error and enables Save when a protocol switch fills an emptied name', async () => {
+    revealClientIdMock.mockResolvedValueOnce('client-123');
+    const { user } = renderForm(connectedOidc);
+    await waitFor(() =>
+      expect(screen.getByRole('textbox', { name: /^client id$/i })).toHaveValue(
+        'client-123',
+      ),
+    );
+
+    const displayName = screen.getByRole('textbox', { name: /display name/i });
+    const saveButton = await screen.findByRole('button', { name: /^save$/i });
+    await user.clear(displayName);
+    await user.tab();
+    await waitFor(() => expect(saveButton).toBeDisabled());
+    expect(screen.getByText(/this field is required/i)).toBeInTheDocument();
+
+    await user.click(screen.getByRole('combobox', { name: /protocol/i }));
+    await user.click(
+      await screen.findByRole('option', { name: /generic oidc/i }),
+    );
+
+    expect(displayName).toHaveValue('OIDC SSO');
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    expect(
+      screen.queryByText(/this field is required/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it('enables Save when the client id reveal returns after an edit', async () => {
+    const reveal = Promise.withResolvers<string>();
+    revealClientIdMock.mockReturnValueOnce(reveal.promise);
+    const { user } = renderForm(connectedOidc);
+
+    // The edit lands first: RHF judges it with the client id still empty.
+    const displayName = screen.getByRole('textbox', { name: /display name/i });
+    await user.clear(displayName);
+    await user.type(displayName, 'Renamed SSO');
+    const saveButton = await screen.findByRole('button', { name: /^save$/i });
+    await waitFor(() => expect(saveButton).toBeDisabled());
+
+    await act(async () => reveal.resolve('client-123'));
+
+    expect(screen.getByRole('textbox', { name: /^client id$/i })).toHaveValue(
+      'client-123',
+    );
+    await waitFor(() => expect(saveButton).toBeEnabled());
+    expect(
+      screen.queryByText(/this field is required/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it('clears the error the empty client id showed when the reveal lands after an edit', async () => {
+    const reveal = Promise.withResolvers<string>();
+    revealClientIdMock.mockReturnValueOnce(reveal.promise);
+    const { user } = renderForm(connectedOidc);
+
+    const displayName = screen.getByRole('textbox', { name: /display name/i });
+    await user.type(displayName, ' (EU)');
+    const clientId = screen.getByRole('textbox', { name: /^client id$/i });
+    await user.click(clientId);
+    await user.tab();
+    expect(
+      await screen.findByText(/this field is required/i),
+    ).toBeInTheDocument();
+
+    await act(async () => reveal.resolve('client-123'));
+
+    expect(clientId).toHaveValue('client-123');
+    await waitFor(() =>
+      expect(
+        screen.queryByText(/this field is required/i),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      await screen.findByRole('button', { name: /^save$/i }),
+    ).toBeEnabled();
   });
 });
 

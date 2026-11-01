@@ -312,6 +312,70 @@ describe('useFormEditor', () => {
     await waitFor(() => expect(result.current.isValid).toBe(false));
   });
 
+  // Regression (#5260): RHF judges what an input event writes, not what code
+  // writes with `setValue` alone. Its stored `isValid` kept describing the
+  // values before, so Save stayed off over values that had become valid (an
+  // SSO protocol switch filling an emptied name) and on over blank required
+  // fields (a storage toggle as the first edit).
+  it('judges a value code sets after the form was judged, both ways', async () => {
+    const { result } = mount({ name: '', color: '#FF0000' });
+    await waitFor(() => expect(result.current.isValid).toBe(false));
+
+    act(() => result.current.form.setValue('name', 'B', { shouldDirty: true }));
+    await waitFor(() => expect(result.current.isValid).toBe(true));
+
+    act(() => result.current.form.setValue('name', '', { shouldDirty: true }));
+    await waitFor(() => expect(result.current.isValid).toBe(false));
+  });
+
+  it('writes no error while it judges a value code sets', async () => {
+    const { result } = mount({ name: 'A', color: '#FF0000' });
+    await waitFor(() => expect(result.current.isValid).toBe(true));
+
+    act(() =>
+      result.current.form.setValue('color', '#00FF00', { shouldDirty: true }),
+    );
+    act(() => result.current.form.setValue('name', '', { shouldDirty: true }));
+    await waitFor(() => expect(result.current.isValid).toBe(false));
+    // The admin has not reached the name: Save turns off, and no error shows
+    // on a field they have not touched yet.
+    expect(result.current.form.formState.errors).toEqual({});
+    expect(result.current.form.getFieldState('name').error).toBeUndefined();
+  });
+
+  it('judges the values again after a refused save', async () => {
+    const strict = z.object({
+      name: z.string().min(1),
+      color: z.string().regex(/^#[0-9A-F]{6}$/),
+    });
+    const save = vi.fn().mockResolvedValue(undefined);
+    const { result, rerender } = renderHook(
+      ({ schema: current }: { schema: typeof schema | typeof strict }) =>
+        useFormEditor<Form>({
+          data: { name: 'A', color: 'red' },
+          schema: current,
+          save,
+        }),
+      { initialProps: { schema: schema as typeof schema | typeof strict } },
+    );
+    await waitFor(() => expect(result.current.isValid).toBe(true));
+    act(() => result.current.form.setValue('name', 'B', { shouldDirty: true }));
+    await waitFor(() => expect(result.current.isDirty).toBe(true));
+
+    // A schema that tightens without a value changing leaves the stored
+    // `isValid` describing the old rules. The save refuses; Save follows.
+    rerender({ schema: strict });
+    expect(result.current.isValid).toBe(true);
+    let outcome: unknown;
+    await act(async () => {
+      outcome = await result.current.save().catch((err: unknown) => err);
+    });
+
+    expect(outcome).toEqual(new Error('VALIDATION_FAILED'));
+    expect(save).not.toHaveBeenCalled();
+    await waitFor(() => expect(result.current.isValid).toBe(false));
+  });
+
   // Regression: a native `<form onSubmit={editor.submit}>` must run the save AND
   // reset the dirty baseline. The earlier wiring used the raw
   // `handleSubmit(save)`, which saved but never reset — so the Save button (a

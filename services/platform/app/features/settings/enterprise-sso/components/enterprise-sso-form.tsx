@@ -656,7 +656,12 @@ export function EnterpriseSsoForm({
           // Guard the seed as well as the field: changing the seed can reset
           // the whole form when it is clean, including a just-saved name.
           setRevealedClientId(value);
-          setValue('clientId', value, { shouldDirty: false });
+          // Judged as it lands, like the name a protocol switch fills: a
+          // "required" error the empty field showed must not outlive it.
+          setValue('clientId', value, {
+            shouldDirty: false,
+            shouldValidate: true,
+          });
         }
       })
       .catch((err) => {
@@ -918,8 +923,12 @@ export function EnterpriseSsoForm({
                               currentName,
                             )
                           ) {
+                            // Judged as it lands: the "required" error an
+                            // emptied name showed must not stay under the
+                            // name that now fills it.
                             setValue('displayName', defaultDisplayNames[next], {
                               shouldDirty: true,
+                              shouldValidate: true,
                             });
                           }
                         }
