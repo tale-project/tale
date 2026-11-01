@@ -74,11 +74,11 @@ export type WorkflowAgentFailureCode =
    * guard, for at most {@link SANDBOX_ROOM_MAX_WAIT_MS} in a row
    * ({@link planWorkflowAgentRetry}). */
   | 'sandbox_capacity'
-  /** The start found the run's workspace being deleted: an administrator's
-   * Destroy of its session was queued, retrying or running. No wait for
-   * room and no retry: once the Destroy settles, a re-kick would continue
-   * the run in a fresh, empty workspace, without what its earlier steps
-   * left there. */
+  /** The start found the run's workspace being deleted — an administrator's
+   * Destroy of its session was queued, retrying or running — or already
+   * deleted after the run worked in it. No wait for room and no retry: the
+   * files the run's earlier steps left went with the workspace, so a
+   * re-kick meets the same refusal (SBX-R9). */
   | 'sandbox_destroying'
   /** The organization's EU/EEA rule refused the endpoint the node's model
    * would be called at, or its policy could not be read (GOV-R17): nothing
@@ -161,12 +161,12 @@ export function sandboxRoomRetryAtMs(args: {
 /** Failures where a retry is pure waste: the turn burned its 12h window, its
  * harness hung until the sandbox ended it, the operator ignored the
  * agent's question for the whole ask TTL — a fresh turn would only ask
- * again — or the organization's EU/EEA rule refused the model's endpoint;
- * or worse than waste: the run's workspace is
- * being destroyed, and a retry after the Destroy would start over an empty
- * one. Everything else — provider errors, crashes, vanished sessions,
- * harvest hiccups — retries by DEFAULT, including an absent code, so a
- * future failure producer inherits the retry posture without opting in. */
+ * again — or the organization's EU/EEA rule refused the model's endpoint,
+ * or the run's workspace is deleted or being deleted, and with it what the
+ * run's earlier steps left there. Everything else — provider errors,
+ * crashes, vanished sessions, harvest hiccups — retries by DEFAULT,
+ * including an absent code, so a future failure producer inherits the
+ * retry posture without opting in. */
 const NO_RETRY_FAILURE_CODES: ReadonlySet<string> = new Set([
   'deadline',
   'turn_stalled',
