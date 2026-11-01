@@ -14,7 +14,8 @@ import { isDatabaseUnavailable } from './unavailable.ts';
  *    sequential scan per sign-in and turns a morning sign-in wave into a
  *    queue.
  *  - `session_expiresAt_idx`, which the expired-session reaper
- *    (`auth/expired-sessions.ts`) takes its batches by.
+ *    (`auth/expired-sessions.ts`) and the idle-window clamp
+ *    (`domains/governance/session-idle.ts`) take their batches by.
  *  - `session_updatedAt_expiresAt_idx`, which the idle-session sweep
  *    (`domains/governance/session-idle.ts`) walks, least recently used
  *    first: ordered by its first column and filtered by its second inside
@@ -24,7 +25,9 @@ import { isDatabaseUnavailable } from './unavailable.ts';
  * Without the two session indexes every batch of either sweep reads the
  * whole `session` table. Their price: Better Auth's refresh slides
  * `"expiresAt"` and `"updatedAt"`, so it is no longer a HOT update and
- * writes every index of the table.
+ * writes every index of the table — every five minutes for an active
+ * session, every minute for one under an idle window
+ * (`auth/session-refresh.ts`).
  *
  * The names are the ones Better Auth gives its own (`<table>_<columns>_idx`):
  * its migrator matches the indexes it declares by name and leaves one alone
