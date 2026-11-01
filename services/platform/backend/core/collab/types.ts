@@ -77,6 +77,11 @@ export type NotificationType =
   // organization (`api_keys/service.ts`): the member hears of a credential
   // in their name, and can revoke it. Bell only — nothing waits on them.
   | 'api_key_created'
+  // An Owner or Admin blocked the member's own API key in this organization,
+  // or lifted the block (`api_keys/blocks.ts`): the holder hears that the
+  // key stopped, or works again, here. Bell only — nothing waits on them.
+  | 'api_key_blocked'
+  | 'api_key_unblocked'
   // A coding agent the member connected was disconnected by something other
   // than their own hand (`agent_connections/end.ts`): a refresh token used
   // twice, a password or sign-in method that changed, an admin's disconnect.

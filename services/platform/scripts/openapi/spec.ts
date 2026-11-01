@@ -8622,6 +8622,11 @@ endpoints, \`GET /me\`, \`GET /projects\` and the routes under
 \`API_KEY_SCOPE_FORBIDDEN\`. \`GET /api/v1/me\` names whose key it is, as
 \`key.owner\`.
 
+A person's own key works in every organization they belong to, unless an
+Owner or Admin of one has blocked it there: every request that resolves to
+that organization then answers 403 \`API_KEY_BLOCKED\`, listing under
+\`data.organizations\` the organizations where the key still works.
+
 An organization's Owners and Admins can turn members' own keys off there
 (Settings › API › REST). A person's own key — \`key.owner\` \`user\` — is
 then refused in that organization with 403 \`API_KEY_PERSONAL_REFUSED\`,
@@ -8720,7 +8725,8 @@ UTF-16 code units\`, \`must be one of "a", "b"\` — and a refused \`limit\` or
 \`cursor\` (\`INVALID_LIMIT\`, \`INVALID_CURSOR\`) names its parameter there
 too, so branch on \`path\` and the \`code\`, never on the sentence. The door's own refusals are
 \`UNAUTHORIZED\`, \`ORG_SLUG_REQUIRED\`, \`ORG_SLUG_INVALID\`,
-\`ORG_FORBIDDEN\`, \`API_KEY_SCOPE_FORBIDDEN\` (a project's key outside its
+\`ORG_FORBIDDEN\`, \`API_KEY_BLOCKED\` (a person's own key the organization
+blocked), \`API_KEY_SCOPE_FORBIDDEN\` (a project's key outside its
 project), \`API_KEY_PERSONAL_REFUSED\` (a person's own key where the
 organization turned them off), \`PERSONAL_KEYS_POLICY_UNAVAILABLE\` (503
 with \`Retry-After\`, while that setting cannot be read), \`INVALID_URL\`

@@ -52,6 +52,12 @@ export interface ApiKey {
   /** Who made a key bound to this organization; null for the viewer's own. */
   createdBy: { userId: string; name: string | null } | null;
   canRevoke: boolean;
+  /**
+   * Whether this organization has blocked the viewer's own key here: its
+   * requests here are refused, while it works in their other organizations.
+   * Absent from a server that predates blocks.
+   */
+  blockedHere?: boolean;
 }
 
 /** Whose key a new one is, as the create dialog chooses it. */
@@ -61,3 +67,31 @@ export type ApiKeyOwnerInput =
   | { kind: 'team'; teamId: string; role: ApiKeyRole }
   | { kind: 'project'; projectId: string; role: ApiKeyRole }
   | { kind: 'organization'; role: ApiKeyRole };
+
+/** A member's own key, as an Owner or Admin sees it on the member's row. */
+export interface MemberPersonalApiKey {
+  id: string;
+  name: string | null;
+  start: string | null;
+  prefix: string | null;
+  suffix: string | null;
+  enabled: boolean | null;
+  expiresAt: number | null;
+  createdAt: number;
+  /** When and by whom this organization blocked it; null while it works. */
+  blocked: { at: number; by: { userId: string; name: string | null } } | null;
+}
+
+/** `GET /api/app/api-keys/members/:userId/personal`. */
+export interface MemberPersonalApiKeys {
+  keys: MemberPersonalApiKey[];
+  /** Whether the viewer may block and free these keys. */
+  canBlock: boolean;
+  /**
+   * Whether this organization lets members' own keys in at all
+   * (APIKEY-R12): while `refused` none of these keys works here, blocked or
+   * not; while `unavailable` the setting cannot be read and the keys are
+   * kept out until it can.
+   */
+  personalKeys: 'admitted' | 'refused' | 'unavailable';
+}
