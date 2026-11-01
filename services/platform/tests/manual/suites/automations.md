@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 307 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 308 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -666,6 +666,21 @@ output:
       both sections and the dot clears; **Discard** puts both back. A member
       without the capability sees the same settings read-only, with no
       cluster and no **Remove trigger**.
+- [ ] `AUTO-F248` · **Automation settings read like Settings** → At one
+      window width, in light and in dark, open **Settings** › **Organization**,
+      then an automation's **General** tab (`automations.navigation.general`)
+      as a developer, on `/dashboard/{org}/automations/{slug}/general` and on
+      `/dashboard/{org}/projects/{projectId}/automations/{slug}/general`: its
+      sections stand in Organization's column — the same left edge, the same
+      width; one hairline and the same gap separate **Trigger**
+      (`automations.trigger.title`), **Projects**
+      (`automations.bindings.title`) and **Runs without approval**
+      (`automations.allowances.title`), none above the first or under the
+      last; **Enabled** and the trigger's fields read label left, control
+      right, as Organization's rows do; the **Projects** picker spans its
+      section under the heading, with no second **Projects** label. Scrolled
+      to the end, the last section keeps the clearance Organization's last
+      one keeps. At phone width both pages keep the same side margins.
 - [ ] `AUTO-F52` · **A failing schedule pauses itself** — Deploy an
       automation whose only `transform` node throws, bind it to a `* * * * *`
       schedule with **Enabled** on, and watch its General tab across five
