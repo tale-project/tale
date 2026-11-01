@@ -365,8 +365,9 @@ The run waits and says why: every agent worker is in use, the sandbox host is fu
 workspace it would use is being deleted, or its sandbox is still ending an earlier process.
 A worker that frees goes to a waiting run, which starts by itself; a run the sandbox host
 refused moves to another worker that can start (`TASK-R85`), or asks that host again until it
-has room. The wait uses no attempt, and the run gets its full working time from the moment it
-starts. It waits at most 12 hours from the start request, then fails as having waited too long.
+has room. A run the host put in its line keeps its place there until it asks again, also while
+the platform is too busy to ask at once, so starts that asked after it do not overtake it. The
+wait uses no attempt, and the run gets its full working time from the moment it starts. It waits at most 12 hours from the start request, then fails as having waited too long.
 When several runs wait, a freed worker goes to the run of the agent with the fewest runs
 working, and among those to the one that has waited longest. A start that has not waited never
 takes the room freed for a waiting run: it waits behind that run.
@@ -378,6 +379,10 @@ takes the room freed for a waiting run: it waits behind that run.
 - **Example**: Lector's run waits. "Changelog" finishes and frees a worker, which goes to
   Lector's run. A manager agent starts Scribe on "Press kit" before Lector's run has started →
   "Press kit" waits, and Lector's run starts.
+- **Example**: The sandbox host is full and puts Lector's run first in its line. The platform is
+  busy starting other runs for three minutes before Lector's run can ask again, and Scribe's run
+  on "Press kit" asks the host meanwhile → "Press kit" gets in line behind Lector's run, which
+  starts first once the host has room.
 
 A run that restarts to take a new comment (`TASK-R3`) and finds no room in its sandbox for the
 restart ends, and its automatic retry, which uses no attempt, waits like any start: it starts by

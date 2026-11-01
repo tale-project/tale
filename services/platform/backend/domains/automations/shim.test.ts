@@ -10,7 +10,7 @@ import {
   reachableHandlerNames,
   unansweredHandlerNames,
 } from '../../lib/ctx-shim-reachability.ts';
-import { automationShimHandlers } from './shim.ts';
+import { automationShimHandlers, automationShimScheduler } from './shim.ts';
 
 /**
  * The EXHAUSTIVENESS gate for the automation run surface.
@@ -45,6 +45,7 @@ const RUN_DISPATCH = {
 const SCHEDULED_REFS = new Set([
   'automations/agent_host:startWorkflowAgentTurn',
   'automations/agent_host:driveWorkflowAgentTurn',
+  'automations/agent_host:keepWorkflowAgentPlace',
   // The settle's gateway-key settlement retry — mapped to the
   // `sandbox.gateway_key_reconcile` job by `scheduleGatewayKeyReconcile`.
   'sandbox/gateway_reconcile:reconcileSessionOpKey',
@@ -132,5 +133,37 @@ describe('recordAgentTurnSettled', () => {
       organizationId: 'org_1',
       runId: 'run_1',
     });
+  });
+});
+
+describe('automationShimScheduler', () => {
+  it("queues a place renewal's next hop, one queued hop per session and node", async () => {
+    const at = Date.parse('2026-11-01T09:00:00Z');
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(at);
+    vi.mocked(addJobInTx).mockClear();
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the mapping only hands the sql on
+    const sql = {} as Sql;
+    const place = {
+      organizationId: 'org_1',
+      runId: 'run_1',
+      nodeId: 'agent',
+      sessionId: 'ses_1',
+    };
+    try {
+      await automationShimScheduler(sql)(
+        'automations/agent_host:keepWorkflowAgentPlace',
+        5_000,
+        place,
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+    expect(addJobInTx).toHaveBeenCalledWith(
+      sql,
+      'automation.agent_keep_place',
+      place,
+      { startAfter: new Date(at + 5_000), singletonKey: 'ses_1:agent' },
+    );
   });
 });

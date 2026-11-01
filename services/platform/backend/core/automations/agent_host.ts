@@ -82,6 +82,8 @@ import {
 } from '../node_only/sandbox/gateway_key_settlement';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
+  renewSessionPlace,
+  ROOM_PLACE_RENEW_MS,
   sessionCancelExec,
   sessionDeleteFiles,
   SessionMemoryBusyError,
@@ -1848,6 +1850,7 @@ export async function startWorkflowAgentTurnImpl(
           ? { agentResultStatus: AWAITING_ROOM_RESULT_STATUS }
           : {},
       );
+      if (refusal.roomQueued === true) await keepPlaceInLine(ctx, args);
     }
     return null;
   }
@@ -2024,6 +2027,106 @@ async function readCursorState(
   );
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the shim's readAgentCursor answers exactly this shape
   return state as AgentCursorState | null;
+}
+
+/** The place a node's start holds in its sandbox host's first-come line:
+ * the run's one session, and the node that waits for it. */
+interface PlaceInLine {
+  organizationId: string;
+  runId: string;
+  nodeId: string;
+  sessionId: string;
+}
+
+/**
+ * Whether a run still waits to ask its sandbox host for room for a node's
+ * start: the run is live, its cursor is on the node, and the node's agent
+ * either has a start that has not settled (the re-kick the stepper made, or
+ * a turn that launched, which the host no longer keeps in line) or settled
+ * its last start refused by a host that named its place in line, for the
+ * stepper to re-kick.
+ */
+export function workflowPlaceWanted(
+  state: AgentCursorState | null,
+  nodeId: string,
+): boolean {
+  if (state === null || !LIVE_RUN_STATUSES.has(state.status)) return false;
+  const agent = state.cursor?.agent;
+  if (state.cursor?.node !== nodeId || agent === undefined) return false;
+  const result = agent.result;
+  return (
+    result === undefined ||
+    (result.failureCode === 'sandbox_capacity' && result.roomQueued === true)
+  );
+}
+
+/**
+ * Keep the place a node's start holds in its sandbox host's first-come line
+ * until the node's next start asks again (`automation.agent_keep_place`,
+ * every {@link ROOM_PLACE_RENEW_MS} from the refusal that named the place).
+ * The spawner drops a waiter that has not asked again within twice its hint
+ * and 15 s, and the next start asks only when a start slot takes its job,
+ * which under load comes later: the run would lose its place to every
+ * create that asked meanwhile.
+ *
+ * Renewed only while the run waits on that node's start
+ * ({@link workflowPlaceWanted}) and the spawner still keeps the place: a
+ * start that was admitted, a run that moved on or ended, and a place the
+ * spawner gave up renew nothing, and the place lapses as it always did. A
+ * renewal never puts a waiter back.
+ */
+export async function keepWorkflowAgentPlaceImpl(
+  ctx: ActionCtx,
+  args: PlaceInLine,
+): Promise<void> {
+  if (!workflowPlaceWanted(await readCursorState(ctx, args), args.nodeId)) {
+    return;
+  }
+  try {
+    if (!(await renewSessionPlace(args.sessionId))) return;
+  } catch (error) {
+    // The next renewal is still in time: the place outlasts one that failed.
+    console.warn(
+      `[agent-host] renewing the place of run ${args.runId} in its sandbox host's line failed:`,
+      error,
+    );
+  }
+  await ctx.scheduler.runAfter(
+    ROOM_PLACE_RENEW_MS,
+    internal.automations.agent_host.keepWorkflowAgentPlace,
+    placeInLine(args),
+  );
+}
+
+/** Start keeping the place a refused start holds in its host's line
+ * ({@link keepWorkflowAgentPlaceImpl}). Best effort, like the renewal the
+ * refusal made: without it the place lapses as it did before. */
+async function keepPlaceInLine(
+  ctx: ActionCtx,
+  args: PlaceInLine,
+): Promise<void> {
+  await ctx.scheduler
+    .runAfter(
+      ROOM_PLACE_RENEW_MS,
+      internal.automations.agent_host.keepWorkflowAgentPlace,
+      placeInLine(args),
+    )
+    .catch((error: unknown) => {
+      console.warn(
+        `[agent-host] keeping the place of run ${args.runId} in its sandbox host's line failed:`,
+        error,
+      );
+    });
+}
+
+/** Only the keys a renewal carries, not the start's whole arguments. */
+function placeInLine(args: PlaceInLine): PlaceInLine {
+  return {
+    organizationId: args.organizationId,
+    runId: args.runId,
+    nodeId: args.nodeId,
+    sessionId: args.sessionId,
+  };
 }
 
 /** The self-chaining drainer as a PLAIN exported function: one attach window
@@ -2542,6 +2645,7 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
         },
         noRoom ? { agentResultStatus: AWAITING_ROOM_RESULT_STATUS } : {},
       );
+      if (roomWait?.roomQueued === true) await keepPlaceInLine(ctx, keys);
     }
     return null;
   }

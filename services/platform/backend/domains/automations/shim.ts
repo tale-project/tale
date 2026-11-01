@@ -1016,6 +1016,21 @@ export function automationShimScheduler(sql: Sql): ShimScheduler {
       );
       return;
     }
+    if (functionName === 'automations/agent_host:keepWorkflowAgentPlace') {
+      // The renewal's self-chain, one queued hop per session and node: the
+      // refusal that names the place again joins the chain that runs.
+      const place = {
+        organizationId: str(payload.organizationId),
+        runId: str(payload.runId),
+        nodeId: str(payload.nodeId),
+        sessionId: str(payload.sessionId),
+      };
+      await addJobInTx(sql, 'automation.agent_keep_place', place, {
+        ...startAfter,
+        singletonKey: `${place.sessionId}:${place.nodeId}`,
+      });
+      return;
+    }
     if (
       functionName ===
       'automations/agent_host:resumeWorkflowAgentTurnWithAnswer'

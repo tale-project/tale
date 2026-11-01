@@ -11,6 +11,8 @@ import {
   ExecStreamProtocolError,
   ExecOutputGapError,
   isSpawnerTransportFailure,
+  renewSessionPlace,
+  ROOM_PLACE_RENEW_MS,
   SandboxDeviceOfflineError,
   sandboxDeploymentLimits,
   sandboxDeviceDisconnect,
@@ -1852,6 +1854,59 @@ describe('sessionCreate at host capacity', () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe('renewSessionPlace', () => {
+  function answer(response: () => Response): string[] {
+    const calls: string[] = [];
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async (url: string, init?: RequestInit) => {
+      calls.push(`${init?.method ?? 'GET'} ${new URL(url).pathname}`);
+      return response();
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+    return calls;
+  }
+
+  test("renews the place a session holds in the spawner's line", async () => {
+    const calls = answer(
+      () =>
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+    expect(await renewSessionPlace('ses/waiting')).toBe(true);
+    expect(calls).toEqual(['POST /v1/sessions/ses%2Fwaiting/wait']);
+  });
+
+  test('says there is nothing to renew when nothing waits under the id', async () => {
+    answer(
+      () =>
+        new Response(JSON.stringify({ error: 'not_waiting' }), {
+          status: 404,
+        }),
+    );
+    expect(await renewSessionPlace('ses-gone')).toBe(false);
+  });
+
+  test('reports a renewal the spawner could not answer', async () => {
+    answer(() => new Response('unavailable', { status: 503 }));
+    await expect(renewSessionPlace('ses-waiting')).rejects.toThrow(
+      'Sandbox waiter liveness failed (503)',
+    );
+  });
+
+  test('renews often enough that the front of the line outlasts one renewal that failed', () => {
+    // The spawner drops a waiter silent for twice its hint and 15 s: 25 s at
+    // the front of its line. Each renewal job is queued once the call before
+    // it answered (at most its 2 s timeout) and starts up to a poll (2 s)
+    // and a batch-mate's call (2 s) late; when one call fails, the place
+    // must last until the next one lands, up to 2 s after it started.
+    const frontSilentWindowMs = 2 * 5_000 + 15_000;
+    const hopMs = 2_000 + ROOM_PLACE_RENEW_MS + 2_000 + 2_000;
+    expect(2 * hopMs + 2_000).toBeLessThan(frontSilentWindowMs);
   });
 });
 

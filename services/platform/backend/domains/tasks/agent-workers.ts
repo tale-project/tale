@@ -6,7 +6,11 @@ import {
   isAgentRunWaitingReason,
   type AgentRunWaitingReason,
 } from '../../../lib/shared/agent-run-waiting.ts';
-import { sandboxDevices } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import {
+  renewSessionPlace,
+  ROOM_PLACE_RENEW_MS,
+  sandboxDevices,
+} from '../../core/node_only/sandbox/helpers/session_client.ts';
 import {
   SANDBOX_SESSION_LIVE_STATUSES,
   TASK_AGENT_OP_KIND,
@@ -685,8 +689,11 @@ export interface ParkedAgentRun {
  *
  * A run its sandbox host refused (`host`, not an exec refusal) also adds
  * the worker it was refused in to `host_refused_session_ids`, once, for as
- * long as the run lives: its next claims take a worker that needs no such
- * host first ({@link chooseWorker}, `TASK-R85`).
+ * long as the run lives, and moves it last, so the list ends with the
+ * latest refusal: its next claims take a worker that needs no such host
+ * first ({@link chooseWorker}, `TASK-R85`). When that host also named the
+ * run's place in its line (`wakeAfterMs`), the run keeps the place while it
+ * waits ({@link keepAgentRunPlace}).
  */
 export async function parkAgentRunInTx(
   tx: TransactionSql,
@@ -717,10 +724,10 @@ export async function parkAgentRunInTx(
       waiting_for_capacity_at_ms = ${now},
       waiting_reason = ${args.reason ?? null},
       session_claimed_at_ms = NULL,
-      host_refused_session_ids = CASE
-        WHEN NOT ${hostRefused} OR session_id = ANY (host_refused_session_ids)
-          THEN host_refused_session_ids
-        ELSE array_append(host_refused_session_ids, session_id) END,
+      host_refused_session_ids = CASE WHEN ${hostRefused}
+        THEN array_append(
+          array_remove(host_refused_session_ids, session_id), session_id)
+        ELSE host_refused_session_ids END,
       updated_at_ms = ${now}
     WHERE id = ${args.runId} AND exec_id = ${args.execId}
       AND status = ${execRefused ? 'running' : 'queued'}
@@ -749,6 +756,23 @@ export async function parkAgentRunInTx(
       },
       { startAfter: new Date(now + args.wakeAfterMs) },
     );
+    // The place is the host's for as long as the run asks again in time,
+    // and the start that asks may wait for a start slot well past that.
+    if (hostRefused) {
+      await addJobInTx(
+        tx,
+        'task.agent_keep_place',
+        {
+          organizationId: row.organizationId,
+          runId: args.runId,
+          sessionId: row.sessionId,
+        },
+        {
+          startAfter: new Date(now + ROOM_PLACE_RENEW_MS),
+          singletonKey: `${args.runId}:${row.sessionId}`,
+        },
+      );
+    }
   }
   return {
     organizationId: row.organizationId,
@@ -756,6 +780,51 @@ export async function parkAgentRunInTx(
     agentId: row.agentId,
     execId: row.execId,
   };
+}
+
+/**
+ * Keep the place a run holds in its sandbox host's first-come line while
+ * the run waits for that host (`task.agent_keep_place`, every
+ * {@link ROOM_PLACE_RENEW_MS} from its park). The spawner drops a waiter
+ * that has not asked again within twice its hint and 15 s, and the run asks
+ * again only when a start slot takes its turn job, which under load comes
+ * later: the run would lose its place to every create that asked meanwhile.
+ *
+ * Renewed only while the run still waits for the worker it was last refused
+ * in: parked or woken for that refusal, or claimed that worker again and not
+ * launched yet. A run that launched, ended, took another worker or waits for
+ * something else (its model, its organization's limit) renews nothing, and
+ * its place lapses as it always did. Neither does one the spawner no longer
+ * keeps in line (a 404): a renewal never puts a waiter back.
+ */
+export async function keepAgentRunPlace(
+  sql: Sql,
+  args: { organizationId: string; runId: string; sessionId: string },
+): Promise<void> {
+  const waiting = await sql<{ id: string }[]>`
+    SELECT id FROM app.project_agent_runs
+    WHERE id = ${args.runId} AND org_id = ${args.organizationId}
+      AND status = 'queued' AND deadline_at_ms > ${Date.now()}
+      AND host_refused_session_ids[cardinality(host_refused_session_ids)]
+        = ${args.sessionId}
+      AND CASE WHEN session_claimed_at_ms IS NULL
+        THEN waiting_reason = 'host'
+        ELSE session_id = ${args.sessionId} END
+  `;
+  if (waiting.length === 0) return;
+  try {
+    if (!(await renewSessionPlace(args.sessionId))) return;
+  } catch (error) {
+    // The next renewal is still in time: the place outlasts one that failed.
+    console.warn(
+      `[task-agent] renewing the place of run ${args.runId} in its sandbox host's line failed:`,
+      error,
+    );
+  }
+  await addJobInTx(sql, 'task.agent_keep_place', args, {
+    startAfter: new Date(Date.now() + ROOM_PLACE_RENEW_MS),
+    singletonKey: `${args.runId}:${args.sessionId}`,
+  });
 }
 
 /**

@@ -6510,6 +6510,31 @@ describe('the first-come line for host room', () => {
     }
   });
 
+  test('a waiter whose place is renewed keeps it while its re-ask is held up', async () => {
+    // The platform renews a refused start's place every 5 s while the
+    // start's re-ask waits for one of its start slots (#5224).
+    const routes = new SessionRoutes(capped, fakeBackend);
+    await create(routes, 'busy-a');
+    await create(routes, 'busy-b');
+    expect((await create(routes, 'held-up')).status).toBe(429);
+    await routes.handleDestroy('busy-a');
+    const refusedAt = Date.now();
+    try {
+      for (let at = 5_000; at <= 60_000; at += 5_000) {
+        setSystemTime(new Date(refusedAt + at));
+        expect((await routes.handleActivity('held-up', 'wait')).status).toBe(
+          200,
+        );
+      }
+      // A minute on, far past twice its hint and the slack, the room is
+      // still its own.
+      expect((await create(routes, 'newcomer')).status).toBe(429);
+      expect((await create(routes, 'held-up')).status).toBe(201);
+    } finally {
+      setSystemTime();
+    }
+  });
+
   test('a destroyed session leaves the line', async () => {
     const routes = new SessionRoutes(capped, fakeBackend);
     await create(routes, 'held-a');

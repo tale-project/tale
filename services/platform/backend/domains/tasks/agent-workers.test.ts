@@ -1,16 +1,22 @@
 import type { Sql, TransactionSql } from 'postgres';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { sandboxDevices } from '../../core/node_only/sandbox/helpers/session_client.ts';
+import {
+  renewSessionPlace,
+  ROOM_PLACE_RENEW_MS,
+  sandboxDevices,
+} from '../../core/node_only/sandbox/helpers/session_client.ts';
 import {
   memberWorkerSessionId,
   standingWorkerSessionId,
 } from '../../core/sandbox/session_naming.test-helpers.ts';
+import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
   agentRunWorkDeadline,
   chooseWorker,
   claimAgentWorker,
+  keepAgentRunPlace,
   parkAgentRunInTx,
   predictWorkerWait,
   type FamilyWorker,
@@ -23,9 +29,16 @@ vi.mock('../../lib/org-config.ts', () => ({
 }));
 vi.mock('../../jobs/enqueue.ts', () => ({ addJobInTx: vi.fn() }));
 vi.mock('./run-authority.ts', () => ({ sessionIdForAgentRun: vi.fn() }));
-vi.mock('../../core/node_only/sandbox/helpers/session_client.ts', () => ({
-  sandboxDevices: vi.fn(),
-}));
+vi.mock(
+  '../../core/node_only/sandbox/helpers/session_client.ts',
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import('../../core/node_only/sandbox/helpers/session_client.ts')
+    >()),
+    sandboxDevices: vi.fn(),
+    renewSessionPlace: vi.fn(),
+  }),
+);
 
 const AGENT = '0b7e7a4c-1f7e-4a39-9c55-6f1d3c1f2a10';
 const w = (n: number) => standingWorkerSessionId(AGENT, n);
@@ -401,6 +414,18 @@ const IN_FLIGHT = 'SELECT owner_type AS "ownerType"';
 const CLAIM = 'SET session_id = ?, session_claimed_at_ms = ?';
 const ROOM = 'AS pending';
 const PARK = "SET status = 'queued'";
+const PARKED_AT = Date.parse('2026-11-01T09:00:00Z');
+
+/** The row a park returns for a run that had claimed `sessionId`. */
+function parkedIn(sessionId: string) {
+  return {
+    organizationId: 'org-1',
+    taskId: 'task-1',
+    agentId: AGENT,
+    execId: 'exec-1',
+    sessionId,
+  };
+}
 const ASKS_HUB = 'AS ask';
 const PREVIOUS = 'ORDER BY seq DESC';
 
@@ -782,6 +807,10 @@ describe('a start that has not waited and a run woken for room [TASK-R25]', () =
 });
 
 describe('parking a run that found no room [TASK-R25]', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('keeps why it waits and gives its worker back', async () => {
     const { sql, statements } = fakeSql([
       [
@@ -823,33 +852,201 @@ describe('parking a run that found no room [TASK-R25]', () => {
       false,
     ],
   ])(
-    'remembers the worker it was refused in, once, only when %s [TASK-R85]',
+    'remembers the worker it was refused in, once and last, only when %s [TASK-R85]',
     async (_label, refusal, remembered) => {
-      const { sql, statements } = fakeSql([
-        [
-          PARK,
-          [
-            {
-              organizationId: 'org-1',
-              taskId: 'task-1',
-              agentId: AGENT,
-              execId: 'exec-1',
-              sessionId: w(3),
-            },
-          ],
-        ],
-      ]);
+      const { sql, statements } = fakeSql([[PARK, [parkedIn(w(3))]]]);
       await sql.begin((tx) =>
         parkAgentRunInTx(tx, { runId: 'run-1', execId: 'exec-1', ...refusal }),
       );
       const park = statements.find((s) => s.text.includes(PARK));
-      const remember = 'host_refused_session_ids = CASE WHEN NOT ?';
+      // Last: the list ends with the worker of the latest refusal, the one
+      // whose line the run keeps its place in.
+      const remember = 'host_refused_session_ids = CASE WHEN ?';
       expect(park?.text).toContain(
-        `${remember} OR session_id = ANY (host_refused_session_ids) THEN host_refused_session_ids ELSE array_append(host_refused_session_ids, session_id) END`,
+        `${remember} THEN array_append( array_remove(host_refused_session_ids, session_id), session_id) ELSE host_refused_session_ids END`,
       );
       expect(valueAt(park, remember)).toBe(remembered);
     },
   );
+
+  it.each([
+    [
+      'its host refused it and named its place',
+      { reason: 'host' as const, wakeAfterMs: 5_000 },
+      true,
+    ],
+    ['its host named no place', { reason: 'host' as const }, false],
+    [
+      'every slot is held',
+      { reason: 'org_limit' as const, wakeAfterMs: 5_000 },
+      false,
+    ],
+    [
+      'its runtime refused the exec',
+      { reason: 'host' as const, execRefused: true, wakeAfterMs: 5_000 },
+      false,
+    ],
+  ])(
+    'keeps its place in its host line while it waits only when %s',
+    async (_label, refusal, kept) => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(PARKED_AT);
+      vi.mocked(addJobInTx).mockClear();
+      const { sql } = fakeSql([[PARK, [parkedIn(w(3))]]]);
+      await sql.begin((tx) =>
+        parkAgentRunInTx(tx, { runId: 'run-1', execId: 'exec-1', ...refusal }),
+      );
+      const keeps = vi
+        .mocked(addJobInTx)
+        .mock.calls.filter(([, queue]) => queue === 'task.agent_keep_place');
+      expect(keeps.map(([, ...job]) => job)).toEqual(
+        kept
+          ? [
+              [
+                'task.agent_keep_place',
+                { organizationId: 'org-1', runId: 'run-1', sessionId: w(3) },
+                {
+                  startAfter: new Date(PARKED_AT + ROOM_PLACE_RENEW_MS),
+                  singletonKey: `run-1:${w(3)}`,
+                },
+              ],
+            ]
+          : [],
+      );
+    },
+  );
+});
+
+describe("keeping a waiting run's place in its sandbox host's line [TASK-R25]", () => {
+  const PLACE = { organizationId: 'org-1', runId: 'run-1', sessionId: w(3) };
+  const WAITING = 'SELECT id FROM app.project_agent_runs';
+  /** The spawner drops the front of its line once it has not asked again
+   * for twice its 5 s hint and 15 s (`session-routes.ts`). */
+  const FRONT_SILENT_WINDOW_MS = 2 * 5_000 + 15_000;
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(PARKED_AT);
+    vi.mocked(addJobInTx).mockReset();
+    vi.mocked(renewSessionPlace).mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('asks the host to keep the place, and asks again before the place lapses', async () => {
+    vi.mocked(renewSessionPlace).mockResolvedValue(true);
+    const { sql, statements } = fakeSql([[WAITING, [{ id: 'run-1' }]]]);
+    await keepAgentRunPlace(sql, PLACE);
+    expect(renewSessionPlace).toHaveBeenCalledWith(w(3));
+    expect(addJobInTx).toHaveBeenCalledWith(
+      sql,
+      'task.agent_keep_place',
+      PLACE,
+      {
+        startAfter: new Date(PARKED_AT + ROOM_PLACE_RENEW_MS),
+        singletonKey: `run-1:${w(3)}`,
+      },
+    );
+    // Only while the run still waits for the worker it was last refused in:
+    // parked or woken for that refusal, or that worker claimed again and not
+    // launched yet, inside its deadline.
+    const waiting = statements.find((s) => s.text.includes(WAITING));
+    const last =
+      'host_refused_session_ids[cardinality(host_refused_session_ids)] = ?';
+    expect(waiting?.text).toContain(
+      `AND status = 'queued' AND deadline_at_ms > ? AND ${last} AND CASE WHEN session_claimed_at_ms IS NULL THEN waiting_reason = 'host' ELSE session_id = ? END`,
+    );
+    expect(valueAt(waiting, 'deadline_at_ms > ?')).toBe(PARKED_AT);
+    expect(valueAt(waiting, last)).toBe(w(3));
+    expect(valueAt(waiting, 'ELSE session_id = ?')).toBe(w(3));
+  });
+
+  it('renews nothing once the run no longer waits for that host', async () => {
+    const { sql } = fakeSql([[WAITING, []]]);
+    await keepAgentRunPlace(sql, PLACE);
+    expect(renewSessionPlace).not.toHaveBeenCalled();
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('stops once the host keeps the run in its line no more', async () => {
+    vi.mocked(renewSessionPlace).mockResolvedValue(false);
+    const { sql } = fakeSql([[WAITING, [{ id: 'run-1' }]]]);
+    await keepAgentRunPlace(sql, PLACE);
+    expect(addJobInTx).not.toHaveBeenCalled();
+  });
+
+  it('asks again after a renewal that failed, which the place outlasts', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    vi.mocked(renewSessionPlace).mockRejectedValue(new Error('refused'));
+    const { sql } = fakeSql([[WAITING, [{ id: 'run-1' }]]]);
+    try {
+      await keepAgentRunPlace(sql, PLACE);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining('renewing the place of run run-1'),
+        expect.any(Error),
+      );
+    } finally {
+      warn.mockRestore();
+    }
+    expect(addJobInTx).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the place of a run whose start waits minutes for a start slot, until it launches', async () => {
+    // The renewals queued: pg-boss runs each once its start has come, at
+    // the worker's next poll, 2 s later at most.
+    const queued: Array<{ at: number; place: typeof PLACE }> = [];
+    vi.mocked(addJobInTx).mockImplementation(
+      async (_tx, queue, payload, options) => {
+        if (queue === 'task.agent_keep_place') {
+          queued.push({
+            at: options?.startAfter?.getTime() ?? Date.now(),
+            // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the queue's own payload
+            place: payload as typeof PLACE,
+          });
+        }
+        return 'job';
+      },
+    );
+    const asked: number[] = [];
+    vi.mocked(renewSessionPlace).mockImplementation(async () => {
+      asked.push(Date.now());
+      return true;
+    });
+    // First in line: the host asks the run back in 5 s, and the platform
+    // renewed its place with the refusal itself.
+    const { sql: parking } = fakeSql([[PARK, [parkedIn(w(3))]]]);
+    await parking.begin((tx) =>
+      parkAgentRunInTx(tx, {
+        runId: 'run-1',
+        execId: 'exec-1',
+        reason: 'host',
+        wakeAfterMs: 5_000,
+      }),
+    );
+    // The turn that would ask again waits three minutes for a start slot,
+    // then launches: from then on the run waits for nothing.
+    const launchedAt = PARKED_AT + 3 * 60_000;
+    const waiting = fakeSql([[WAITING, [{ id: 'run-1' }]]]).sql;
+    const launched = fakeSql([[WAITING, []]]).sql;
+    for (let hop = 0; hop < 100 && queued.length > 0; hop++) {
+      const job = queued.shift();
+      if (job === undefined) break;
+      vi.setSystemTime(job.at + 2_000);
+      await keepAgentRunPlace(
+        Date.now() < launchedAt ? waiting : launched,
+        job.place,
+      );
+    }
+    expect(queued).toEqual([]);
+    expect(asked.every((at) => at < launchedAt)).toBe(true);
+    // The refusal, each renewal, and the start that asks again at last:
+    // never silent for as long as the spawner keeps a silent waiter.
+    const asks = [PARKED_AT, ...asked, launchedAt];
+    const silences = asks.slice(1).map((at, i) => at - (asks[i] ?? at));
+    expect(Math.max(...silences)).toBeLessThan(FRONT_SILENT_WINDOW_MS);
+  });
 });
 
 describe('telling a start whether its run waits [TASK-R26]', () => {

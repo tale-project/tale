@@ -183,6 +183,14 @@ export interface TaskPayloads {
     runId: string;
     execId: string;
   };
+  /** Renew the place a run holds in its sandbox host's first-come line
+   * while the run waits for that host, then queue the next renewal: a no-op
+   * once the run no longer waits for the worker it was refused in. */
+  'task.agent_keep_place': {
+    organizationId: string;
+    runId: string;
+    sessionId: string;
+  };
   /** One workflow-agent turn for an automation run's agent node. The payload
    * is the reused host's full start-args shape (validated by the handler). */
   'automation.agent_turn': Record<string, unknown>;
@@ -200,6 +208,15 @@ export interface TaskPayloads {
     deadlineAt: number;
     /** Since when the turn's spawner has been out of reach. */
     spawnerOutageSince?: number;
+  };
+  /** Renew the place a workflow agent's start holds in its sandbox host's
+   * first-come line while the start waits to ask again, then queue the next
+   * renewal: a no-op once the run no longer waits on that node's start. */
+  'automation.agent_keep_place': {
+    organizationId: string;
+    runId: string;
+    nodeId: string;
+    sessionId: string;
   };
   /** Fire-and-forget AI naming of a thread from its first user message —
    * best-effort with a hard budget; the fallback title wins on any miss. */
@@ -649,6 +666,20 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // A wake claims its run or finds it gone: delivered twice, the second
   // finds nothing parked. A lost one leaves the watchdog's wake.
   'task.agent_park_wake': { retryLimit: 1, expireInSeconds: 300 },
+  // A renewal re-queues itself under its key (run and worker, or session and
+  // node): 'short' keeps one queued hop per key, so a refusal that names the
+  // place again joins the chain that runs instead of starting a second. A
+  // renewal delivered twice renews twice, which is harmless.
+  'task.agent_keep_place': {
+    policy: 'short',
+    retryLimit: 1,
+    expireInSeconds: 60,
+  },
+  'automation.agent_keep_place': {
+    policy: 'short',
+    retryLimit: 1,
+    expireInSeconds: 60,
+  },
   'automation.agent_turn': { retryLimit: 0, expireInSeconds: 43_200 },
   // Same posture as task.agent_drive: the window is long and a second drive
   // of the same exec would replay the ring buffer twice, so no pg-boss retry;
