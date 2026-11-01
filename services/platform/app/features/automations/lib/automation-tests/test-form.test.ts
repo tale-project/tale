@@ -9,6 +9,7 @@ import {
   withInput,
   withMock,
   withMustFail,
+  withName,
   withNodeState,
   withOutput,
 } from './test-form';
@@ -125,6 +126,25 @@ describe('a test written by the form', () => {
     expect(removed.expect).not.toHaveProperty('effects');
   });
 
+  it('keeps the scenarios a test picks through every edit, as written', () => {
+    // The form has no control for them: they are written as YAML.
+    const picked = { ...TEST, scenarios: { post: 'channel_not_found' } };
+    const edits = [
+      withName(picked, 'renamed'),
+      withDescription(picked, 'Orders over 100 get 10 % off'),
+      withInput(picked, { quantity: 1 }),
+      withMock(picked, 'rates', undefined),
+      withFailure(picked, 'notify', 'quota exceeded'),
+      withOutput(picked, 'equals', { total: 2160 }),
+      withNodeState(picked, 'discount', 'skipped'),
+      withEffect(picked, 0, undefined),
+      withMustFail(picked, { node: 'notify' }),
+    ];
+    for (const next of edits) {
+      expect(next.scenarios).toEqual({ post: 'channel_not_found' });
+    }
+  });
+
   it('turns a run that must fail on and off, dropping the output it cannot have', () => {
     const failing = withMustFail(TEST, { node: 'notify', message: '' });
     expect(failing.expect).toMatchObject({ failure: { node: 'notify' } });
@@ -140,6 +160,8 @@ describe('which places the form has a control for', () => {
     ['/tests/0/mocks/rates', true],
     ['/tests/0/mocks', false],
     ['/tests/0/failures/notify', true],
+    ['/tests/0/scenarios/post', false],
+    ['/tests/0/scenarios', false],
     ['/tests/0/expect/output/total', true],
     ['/tests/0/expect/outputIncludes', true],
     ['/tests/0/expect/nodes/discount', true],
