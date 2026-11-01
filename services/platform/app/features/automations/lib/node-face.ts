@@ -25,8 +25,15 @@ import {
 } from 'lucide-react';
 import { createElement } from 'react';
 
+import { pickedModelName } from '@/app/features/shared/models/model-name';
 import type { NodeDef } from '@/lib/engine/core/types';
 import { isUnknown, toTs, type Shape } from '@/lib/engine/core/typing/shape';
+import {
+  DEFAULT_HARNESS,
+  offeredToHarness,
+  toModelOptions,
+  type AgentRoster,
+} from '@/lib/shared/harness-offer';
 import type { NodeTypeCatalog } from '@/lib/shared/schemas/node-type-catalog';
 
 import type { NodeTypeSummary } from '../hooks/backend';
@@ -63,12 +70,51 @@ export interface ReturnsSource {
   outputs: Readonly<Record<string, Shape>> | null;
 }
 
+/** What a node calls the model it names: `providerSlug` is the provider an
+ * agent is pinned to, absent where the run picks one, and `harness` the
+ * agent's runtime, absent for the default. Undefined when the model is
+ * unknown; the id as written stands in. */
+export type ModelLabel = (
+  id: string,
+  providerSlug?: string,
+  harness?: string,
+) => string | undefined;
+
+/**
+ * How nodes name the models of `roster` (what the agent pickers list): a
+ * pinned agent's model as its picker names the pick, among the models its
+ * runtime is offered (`offeredToHarness`), leading with the provider when
+ * another provider there offers the same id or a model of the same name; a
+ * model whose provider the run picks (an `llm` step, an agent pinned to
+ * none) by its own name.
+ */
+export function servedModelLabel(roster: AgentRoster | undefined): ModelLabel {
+  const served = toModelOptions(roster?.models ?? []);
+  return (id, providerSlug, harness) => {
+    if (providerSlug === undefined) {
+      return served.find((model) => model.id === id)?.label;
+    }
+    const runtime = harness ?? DEFAULT_HARNESS;
+    const wire = roster?.harnesses.find(
+      (entry) => entry.harness === runtime,
+    )?.toolCallingWire;
+    // The pinned row names the model and its provider even where the
+    // runtime is not offered it.
+    const pinned = served.find(
+      (model) => model.id === id && model.providerSlug === providerSlug,
+    );
+    return pickedModelName(
+      pinned ?? { id, providerSlug },
+      served.filter((model) => offeredToHarness(model, runtime, wire)),
+    );
+  };
+}
+
 export interface NodeFaceContext {
   t: ConditionTranslate;
   locale: string;
   catalog: NodeCatalogView;
-  /** A served model's display name; the id as written when unknown. */
-  modelLabel?: (id: string) => string | undefined;
+  modelLabel?: ModelLabel;
   returns: ReturnsSource;
   /** The step types an owner or admin allowed this automation to write
    * without a person approving each run. */
@@ -182,7 +228,8 @@ export function coreTypeWord(type: string, t: ConditionTranslate): string {
   }
 }
 
-/** "GitHub · List issues", "Transform", "Language model · claude-haiku-4-5". */
+/** "GitHub · List issues", "Transform", "Language model · claude-haiku-4-5",
+ * "Agent · EU Gateway · Claude Sonnet 5" (two providers serve that model). */
 export function catalogLabel(node: NodeDef, ctx: NodeFaceContext): string {
   const { t, catalog, locale } = ctx;
   if (CORE_TYPES.has(node.type)) {
@@ -201,9 +248,22 @@ export function catalogLabel(node: NodeDef, ctx: NodeFaceContext): string {
       typeof node.model === 'string' &&
       node.model !== ''
     ) {
+      // Only an agent saves the provider with its model, and its runtime
+      // with it; an `llm` step's run picks one itself.
+      const agent = node.type === 'agent';
+      const provider =
+        agent &&
+        typeof node.modelProvider === 'string' &&
+        node.modelProvider !== ''
+          ? node.modelProvider
+          : undefined;
+      const harness =
+        agent && typeof node.harness === 'string' && node.harness !== ''
+          ? node.harness
+          : undefined;
       return t('canvas.node.catalog.withModel', {
         type,
-        model: ctx.modelLabel?.(node.model) ?? node.model,
+        model: ctx.modelLabel?.(node.model, provider, harness) ?? node.model,
       });
     }
     return type;

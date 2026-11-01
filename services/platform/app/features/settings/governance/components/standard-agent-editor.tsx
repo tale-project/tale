@@ -30,8 +30,19 @@ import {
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
+import {
+  modelOptionsByProvider,
+  pickedModelName,
+  qualifiedModelName,
+} from '@/app/features/shared/models/model-name';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
+import {
+  offeredToHarness,
+  toModelOptions,
+  type AgentRoster,
+  type ModelOption,
+} from '@/lib/shared/harness-offer';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import { useUpsertGovernancePolicy } from '../hooks/mutations';
@@ -63,6 +74,22 @@ const formSchema = z.object({
   instructions: z.string().max(INSTRUCTIONS_MAX),
 });
 type StandardAgentForm = z.infer<typeof formSchema>;
+
+/** The models a run on `harness` can use, as the agent pickers offer them:
+ * a subscription's only on the runtime it is bound to, a Responses-only
+ * model only on a runtime that speaks that API. Automatic picks the
+ * runtime, so it is offered every model. */
+function runnableOn(
+  roster: AgentRoster | undefined,
+  harness: string,
+): ModelOption[] {
+  const models = toModelOptions(roster?.models ?? []);
+  if (harness === AUTOMATIC) return models;
+  const wire = roster?.harnesses.find(
+    (entry) => entry.harness === harness,
+  )?.toolCallingWire;
+  return models.filter((model) => offeredToHarness(model, harness, wire));
+}
 
 /** Everything but the switch — kept when only the switch flips. */
 function settingsOf(
@@ -206,53 +233,47 @@ export function StandardAgentEditor({
     return rows;
   }, [harness, roster.data?.harnesses, t]);
 
-  // A subscription's model runs only on the runtime it is bound to, and a
-  // Responses-only model only on a runtime that speaks that API: with a
-  // runtime chosen, offer what it can run. Automatic picks the runtime.
+  // With a runtime chosen, offer what it can run.
   const modelOptions = useMemo<SearchableSelectOption[]>(() => {
-    const harnessWire = roster.data?.harnesses.find(
-      (entry) => entry.harness === harness,
-    )?.toolCallingWire;
-    const runnable = (roster.data?.models ?? []).filter((model) => {
-      if (harness === AUTOMATIC) return true;
-      const credential = model.credential;
-      const bound =
-        credential.authMethod === 'api-key' ||
-        credential.authMethod === 'env' ||
-        credential.constraints.harness === harness;
-      return (
-        bound &&
-        (model.toolCallingApi !== 'responses' ||
-          harnessWire === 'openai-responses')
-      );
-    });
+    const models = modelOptionsByProvider(
+      runnableOn(roster.data, harness),
+      (model) => ({
+        value: modelSelectionValue(model.providerSlug, model.id),
+      }),
+    );
     const rows: SearchableSelectOption[] = [
       {
         value: AUTOMATIC,
         label: t('standardAgent.automaticLabel'),
         description: t('standardAgent.automaticModelHint'),
       },
-      ...runnable.map((model) => ({
-        value: modelSelectionValue(model.providerSlug, model.id),
-        label: `${model.providerLabel} · ${model.label}`,
-      })),
     ];
-    if (!rows.some((row) => row.value === selection)) {
+    // A saved pick nothing offers leads with Automatic, outside the
+    // providers' sections.
+    if (
+      selection !== AUTOMATIC &&
+      !models.some((row) => row.value === selection)
+    ) {
       const pin = parseModelSelection(selection);
       rows.push({
         value: selection,
         label: pin
-          ? `${pin.providerSlug} · ${pin.modelId}`
+          ? qualifiedModelName({
+              id: pin.modelId,
+              providerSlug: pin.providerSlug,
+            })
           : t('standardAgent.invalidSelection'),
         description: t('standardAgent.savedUnavailable'),
         disabled: true,
       });
     }
+    rows.push(...models);
     return rows;
-  }, [harness, roster.data?.harnesses, roster.data?.models, selection, t]);
+  }, [harness, roster.data, selection, t]);
 
   // What a run would get, for the person looking — only once saved: a draft
-  // is not what runs.
+  // is not what runs. Its model is named as the saved runtime's picker
+  // names it.
   const status =
     readFailed || !enabled || availability === undefined
       ? null
@@ -265,7 +286,20 @@ export function StandardAgentEditor({
               : 'standardAgent.current',
             {
               harness: availability.harnessLabel ?? availability.harness ?? '',
-              model: availability.modelLabel ?? availability.model ?? '',
+              model:
+                availability.model !== undefined &&
+                availability.modelProvider !== undefined
+                  ? pickedModelName(
+                      {
+                        id: availability.model,
+                        providerSlug: availability.modelProvider,
+                        ...(availability.modelLabel !== undefined
+                          ? { label: availability.modelLabel }
+                          : {}),
+                      },
+                      runnableOn(roster.data, saved?.harness ?? AUTOMATIC),
+                    )
+                  : (availability.modelLabel ?? availability.model ?? ''),
             },
           )
         : null;

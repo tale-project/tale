@@ -263,6 +263,21 @@ describe('DefaultModelEditor', () => {
     ).not.toBeInTheDocument();
   });
 
+  it('names the provider in the details of a model it offers', async () => {
+    setLoaded();
+    const { user } = render(<DefaultModelEditor organizationId="org-1" />);
+    await user.click(screen.getByRole('button', { name: /edit rule 1/i }));
+    await user.click(
+      within(screen.getByRole('dialog')).getByRole('button', {
+        name: 'Model',
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Model details' }));
+    // The details open last, over the rule dialog and the model list.
+    const details = (await screen.findAllByRole('dialog')).at(-1);
+    expect(details).toHaveTextContent(/^Provider\s*OpenAI/);
+  });
+
   it.each([
     [undefined, true],
     ['eu' as const, false],

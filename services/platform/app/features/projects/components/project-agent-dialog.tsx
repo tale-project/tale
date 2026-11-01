@@ -28,6 +28,7 @@ import {
   type SkillsSelection,
 } from '@/app/components/skills/skills-menu';
 import { HiddenModelsNote } from '@/app/features/shared/models/hidden-models-note';
+import { modelOptionsByProvider } from '@/app/features/shared/models/model-name';
 import { useAbility } from '@/app/hooks/use-ability';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import type { HiddenModelsRule } from '@/app/lib/backend/contract/lib';
@@ -300,17 +301,17 @@ export function ProjectAgentDialog({
           });
   const modelOptions = useMemo(
     () =>
-      offeredModels.map((option, index) => ({
+      modelOptionsByProvider(offeredModels, (option, index) => ({
         // Index-keyed: model ids carry `/` and `:`, so no composed string
         // value can safely encode the (provider, id) pair.
         value: String(index),
-        label: option.label,
-        description:
-          option.subscription === undefined
-            ? option.providerLabel
-            : t('agents.modelProviderSubscription', {
+        ...(option.subscription === undefined
+          ? {}
+          : {
+              description: t('agents.modelProviderSubscription', {
                 provider: option.providerLabel,
               }),
+            }),
       })),
     [offeredModels, t],
   );
@@ -489,14 +490,6 @@ export function ProjectAgentDialog({
         emptyText={t('agents.modelSearchEmpty')}
         options={modelOptions}
         disabled={isSubmitting}
-        filterFn={(option, query) => {
-          const search = query.toLowerCase();
-          return [
-            option.label,
-            option.description,
-            offeredModels[Number(option.value)]?.id,
-          ].some((value) => value?.toLowerCase().includes(search));
-        }}
         required
         value={
           displayedModel !== undefined
