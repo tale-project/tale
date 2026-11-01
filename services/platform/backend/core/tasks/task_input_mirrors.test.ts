@@ -24,6 +24,10 @@ const io = vi.hoisted(() => ({
   deletes: [] as string[][],
   listFailure: undefined as Error | undefined,
   deleteSkips: [] as Array<{ path: string; reason: string }>,
+  /** Holds every removal of a task directory until it settles. */
+  taskDirGate: undefined as Promise<void> | undefined,
+  /** The task directory whose removal fails. */
+  taskDirFailure: undefined as string | undefined,
 }));
 
 vi.mock('../node_only/sandbox/helpers/session_client', () => ({
@@ -34,6 +38,12 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
   },
   sessionDeleteFiles: async (_sessionId: string, paths: string[]) => {
     io.deletes.push(paths);
+    if (paths.some((path) => path.startsWith('/agent/workspace/tasks/'))) {
+      await io.taskDirGate;
+      if (paths.includes(io.taskDirFailure ?? '')) {
+        throw new Error('sandbox session files delete timed out');
+      }
+    }
     const skipped = io.deleteSkips;
     return {
       deleted: paths.filter((path) => !skipped.some((s) => s.path === path)),
@@ -44,9 +54,13 @@ vi.mock('../node_only/sandbox/helpers/session_client', () => ({
 
 const {
   MAX_INPUT_MIRRORS_PER_PASS,
+  MAX_TASK_DIRS_PER_PASS,
   pruneStaleTaskInputMirrors,
   reviewInputsDir,
+  TASK_DIR_RETENTION_DAYS,
 } = await import('./task_input_mirrors');
+const { TASK_DIRECTORY_RETENTION_MS } =
+  await import('../../domains/tasks/input-mirrors');
 
 const hash = (taskId: string) =>
   createHash('sha256').update(taskId).digest('hex');
@@ -64,25 +78,27 @@ const ARGS = {
   sessionId: 'pa-agent-scribe-w2',
 };
 
+/** A task id as the platform makes them. */
+const uuid = (n: number) =>
+  `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+
+interface Asked {
+  taskIds: string[];
+  reviewHashes: string[];
+  taskDirIds: string[];
+}
+
 /** A ctx whose stale-copy query answers with `stale`, recording each ask. */
-function makeCtx(
-  stale: (args: { taskIds: string[]; reviewHashes: string[] }) => {
-    taskIds: string[];
-    reviewHashes: string[];
-  },
-) {
+function makeCtx(stale: (args: Asked) => Partial<Asked>) {
   const asked: Array<Record<string, unknown>> = [];
   const ctx = {
-    runQuery: async (
-      ref: unknown,
-      args: { taskIds: string[]; reviewHashes: string[] },
-    ) => {
+    runQuery: async (ref: unknown, args: Asked) => {
       const name = functionRefName(ref);
       if (name !== 'tasks/agent_runs:listStaleTaskInputMirrors') {
         throw new Error(`unexpected query ${name}`);
       }
-      asked.push(args);
-      return stale(args);
+      asked.push({ ...args });
+      return { taskIds: [], reviewHashes: [], taskDirIds: [], ...stale(args) };
     },
   };
   return { ctx: ctx as never, asked };
@@ -94,6 +110,10 @@ beforeEach(() => {
   io.deletes = [];
   io.listFailure = undefined;
   io.deleteSkips = [];
+  io.taskDirGate = undefined;
+  io.taskDirFailure = undefined;
+  // A removal a test left running reports into its own test's calls only.
+  vi.clearAllMocks();
   vi.spyOn(console, 'warn').mockImplementation(() => {});
   vi.spyOn(console, 'info').mockImplementation(() => {});
 });
@@ -127,6 +147,7 @@ describe('the start’s pass over the worker’s copies of task inputs', () => {
         agentId: 'agent-scribe',
         taskIds: ['task-done', 'task-open'],
         reviewHashes: [hash('task-reviewed-done'), hash('task-reviewed-open')],
+        taskDirIds: [],
       },
     ]);
     expect(io.deletes).toEqual([
@@ -169,7 +190,7 @@ describe('the start’s pass over the worker’s copies of task inputs', () => {
     );
     expect(io.deletes[0]).not.toContain('/agent/inputs/task-0');
     // No reviews directory, so none is listed.
-    expect(io.listings).toEqual(['/agent/inputs']);
+    expect(io.listings).toEqual(['/agent/inputs', '/agent/workspace/tasks']);
   });
 
   it('old copies that are still needed never hide the stale ones behind them', async () => {
@@ -243,5 +264,109 @@ describe('the start’s pass over the worker’s copies of task inputs', () => {
       pruneStaleTaskInputMirrors(failing as never, ARGS),
     ).resolves.toBe(undefined);
     expect(console.warn).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe('the start’s pass over the worker’s task directories', () => {
+  it('removes the directories of tasks named stale, never the run’s own or one not named like a task [TASK-R86]', async () => {
+    io.dirs['/agent/workspace/tasks'] = [
+      dir(uuid(1), 1_000),
+      dir(uuid(2), 2_000),
+      dir(uuid(3), 3_000),
+      dir('scratch'),
+      { name: 'notes.md', type: 'file', size: 3, mtimeMs: 1 },
+    ];
+    const { ctx, asked } = makeCtx(() => ({ taskDirIds: [uuid(2)] }));
+
+    await pruneStaleTaskInputMirrors(ctx, { ...ARGS, taskId: uuid(1) });
+
+    // The run's own task is never asked about, nor a name no task has.
+    expect(asked).toEqual([
+      {
+        organizationId: 'org-1',
+        agentId: 'agent-scribe',
+        taskIds: [],
+        reviewHashes: [],
+        taskDirIds: [uuid(2), uuid(3)],
+      },
+    ]);
+    await vi.waitFor(() =>
+      expect(console.info).toHaveBeenCalledWith(
+        expect.stringContaining(
+          `removed 1 task directory from pa-agent-scribe-w2: /agent/workspace/tasks/${uuid(2)}`,
+        ),
+      ),
+    );
+    expect(io.deletes).toEqual([[`/agent/workspace/tasks/${uuid(2)}`]]);
+  });
+
+  it('never holds up the start while a directory is removed [TASK-R86]', async () => {
+    io.dirs['/agent/inputs'] = [dir('task-done')];
+    io.dirs['/agent/workspace/tasks'] = [dir(uuid(2))];
+    let release = () => {};
+    io.taskDirGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const { ctx } = makeCtx(() => ({
+      taskIds: ['task-done'],
+      taskDirIds: [uuid(2)],
+    }));
+
+    // Resolves while the checkout is still being removed.
+    await pruneStaleTaskInputMirrors(ctx, ARGS);
+
+    expect(io.deletes).toContainEqual(['/agent/inputs/task-done']);
+    expect(io.deletes).toContainEqual([`/agent/workspace/tasks/${uuid(2)}`]);
+    expect(console.info).not.toHaveBeenCalledWith(
+      expect.stringContaining('task director'),
+    );
+    release();
+    await vi.waitFor(() =>
+      expect(console.info).toHaveBeenCalledWith(
+        expect.stringContaining('removed 1 task directory'),
+      ),
+    );
+  });
+
+  it('removes a bounded number, the oldest first, one at a time; a failure ends the pass [TASK-R86]', async () => {
+    io.dirs['/agent/workspace/tasks'] = Array.from(
+      { length: MAX_TASK_DIRS_PER_PASS + 3 },
+      (_, n) => dir(uuid(n), 10_000 - n),
+    );
+    const { ctx } = makeCtx(({ taskDirIds }) => ({ taskDirIds }));
+
+    await pruneStaleTaskInputMirrors(ctx, ARGS);
+
+    await vi.waitFor(() =>
+      expect(io.deletes).toHaveLength(MAX_TASK_DIRS_PER_PASS),
+    );
+    const oldest = MAX_TASK_DIRS_PER_PASS + 2;
+    expect(io.deletes[0]).toEqual([`/agent/workspace/tasks/${uuid(oldest)}`]);
+    expect(io.deletes.flat()).not.toContain(
+      `/agent/workspace/tasks/${uuid(0)}`,
+    );
+
+    // The next pass: the second removal fails, and the pass stops there.
+    io.deletes = [];
+    io.taskDirFailure = `/agent/workspace/tasks/${uuid(oldest - 1)}`;
+    await pruneStaleTaskInputMirrors(ctx, ARGS);
+    await vi.waitFor(() =>
+      expect(console.warn).toHaveBeenCalledWith(
+        expect.stringContaining('removing closed tasks’ directories'),
+        expect.any(Error),
+      ),
+    );
+    expect(io.deletes).toHaveLength(2);
+    expect(console.info).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `removed 1 task directory from pa-agent-scribe-w2: /agent/workspace/tasks/${uuid(oldest)}`,
+      ),
+    );
+  });
+
+  it('tells the agent the age the tasks domain removes an open task’s directory at [TASK-R86]', () => {
+    expect(TASK_DIR_RETENTION_DAYS * 24 * 60 * 60 * 1000).toBe(
+      TASK_DIRECTORY_RETENTION_MS,
+    );
   });
 });

@@ -457,7 +457,8 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
       return null;
     },
 
-    // Which copies of task inputs a run's worker may drop at its start.
+    // Which copies of task inputs, and which task directories, a run's worker
+    // may drop at its start.
     'tasks/agent_runs:listStaleTaskInputMirrors': async (raw) => {
       // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the host passes exactly this shape
       const args = raw as {
@@ -465,6 +466,7 @@ export function agentTurnShimHandlers(sql: Sql): ShimHandlers {
         agentId: string;
         taskIds: string[];
         reviewHashes: string[];
+        taskDirIds?: string[];
       };
       return staleTaskInputMirrors(sql, args);
     },

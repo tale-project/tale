@@ -9,6 +9,12 @@ import type { Sql } from 'postgres';
  * every task it ever worked. A run's start asks which of the copies its
  * worker holds are no longer needed (`core/tasks/task_input_mirrors.ts`);
  * the next run of such a task stages its inputs again, as every run does.
+ *
+ * The same pass drops a task's own directory in the worker's workspace
+ * (`/agent/workspace/tasks/<taskId>`), where a run keeps the task's clones,
+ * checkouts and scratch: a worker busy on task after task is never idle long
+ * enough for the workspace cleanup, so without this it keeps every checkout
+ * its runs ever made.
  */
 
 /** How long a copy of an open task's inputs stays in a worker after the task
@@ -35,14 +41,40 @@ export function isTaskInputMirrorStale(
   task: TaskInputMirrorFacts | undefined,
   now: number,
 ): boolean {
+  return isStaleAfter(task, now, TASK_INPUT_MIRROR_RETENTION_MS);
+}
+
+function isStaleAfter(
+  task: TaskInputMirrorFacts | undefined,
+  now: number,
+  retentionMs: number,
+): boolean {
   if (task === undefined) return true;
   if (task.live) return false;
   return (
     task.status === 'done' ||
     task.status === 'cancelled' ||
     task.archived ||
-    now - task.touchedAt >= TASK_INPUT_MIRROR_RETENTION_MS
+    now - task.touchedAt >= retentionMs
   );
+}
+
+/** How long an open task's directory stays in a worker after the task or a
+ * run of it last changed: shorter than an input copy's, since a checkout
+ * holds gigabytes. */
+export const TASK_DIRECTORY_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+
+/**
+ * Whether a worker may drop a task's directory: never while a run of the
+ * task is live; otherwise once the task is done, cancelled or archived, or
+ * has not changed for {@link TASK_DIRECTORY_RETENTION_MS}. A task that no
+ * longer exists (`undefined`) needs none.
+ */
+export function isTaskDirectoryStale(
+  task: TaskInputMirrorFacts | undefined,
+  now: number,
+): boolean {
+  return isStaleAfter(task, now, TASK_DIRECTORY_RETENTION_MS);
 }
 
 interface MirrorRow extends TaskInputMirrorFacts {
@@ -63,7 +95,7 @@ const MIRROR_FACT_COLUMNS = `t.status,
 /**
  * Of the copies a worker of `agentId` holds, the ones it may drop: task
  * copies by task id, review copies by the sha256 (hex) of the reviewed
- * task's id. A name that matches no task of the organization (a deleted
+ * task's id, task directories by task id. A name that matches no task of the organization (a deleted
  * task) is dropped; a review of a task outside the agent's project cannot
  * be told from one, and is dropped too, since its next review stages its
  * files again. Read-only, scoped to the organization.
@@ -75,18 +107,25 @@ export async function staleTaskInputMirrors(
     agentId: string;
     taskIds: readonly string[];
     reviewHashes: readonly string[];
+    taskDirIds?: readonly string[];
     now?: number;
   },
-): Promise<{ taskIds: string[]; reviewHashes: string[] }> {
+): Promise<{
+  taskIds: string[];
+  reviewHashes: string[];
+  taskDirIds: string[];
+}> {
   const now = args.now ?? Date.now();
+  const taskDirIds = args.taskDirIds ?? [];
+  const ids = [...new Set([...args.taskIds, ...taskDirIds])];
   const taskRows =
-    args.taskIds.length === 0
+    ids.length === 0
       ? []
       : await sql<MirrorRow[]>`
           SELECT t.id AS key, ${sql.unsafe(MIRROR_FACT_COLUMNS)}
           FROM app.tasks t
           WHERE t.org_id = ${args.organizationId}
-            AND t.id = ANY(${[...args.taskIds]})
+            AND t.id = ANY(${ids})
         `;
   // A review copy is named by its task's hash, computed here as the staging
   // computes it (`reviewInputsDir`): over the agent's own project, the only
@@ -106,12 +145,17 @@ export async function staleTaskInputMirrors(
             AND encode(sha256(convert_to(t.id, 'UTF8')), 'hex')
               = ANY(${[...args.reviewHashes]})
         `;
-  const stale = (keys: readonly string[], rows: readonly MirrorRow[]) => {
+  const stale = (
+    keys: readonly string[],
+    rows: readonly MirrorRow[],
+    isStale: (task: TaskInputMirrorFacts | undefined, now: number) => boolean,
+  ) => {
     const byKey = new Map(rows.map((row) => [row.key, row]));
-    return keys.filter((key) => isTaskInputMirrorStale(byKey.get(key), now));
+    return keys.filter((key) => isStale(byKey.get(key), now));
   };
   return {
-    taskIds: stale(args.taskIds, taskRows),
-    reviewHashes: stale(args.reviewHashes, reviewRows),
+    taskIds: stale(args.taskIds, taskRows, isTaskInputMirrorStale),
+    reviewHashes: stale(args.reviewHashes, reviewRows, isTaskInputMirrorStale),
+    taskDirIds: stale(taskDirIds, taskRows, isTaskDirectoryStale),
   };
 }

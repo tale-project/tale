@@ -2,8 +2,10 @@ import type { Sql } from 'postgres';
 import { describe, expect, it } from 'vitest';
 
 import {
+  isTaskDirectoryStale,
   isTaskInputMirrorStale,
   staleTaskInputMirrors,
+  TASK_DIRECTORY_RETENTION_MS,
   TASK_INPUT_MIRROR_RETENTION_MS,
   type TaskInputMirrorFacts,
 } from './input-mirrors.ts';
@@ -86,6 +88,47 @@ function fakeSql(answers: Array<[string, unknown[]]>): {
 
 const HASH_OF = (n: number) => String(n).repeat(64).slice(0, 64);
 
+describe('which task directory a worker may drop', () => {
+  it('keeps the directory of an open task touched within 7 days [TASK-R86]', () => {
+    for (const status of ['backlog', 'todo', 'in_progress', 'in_review']) {
+      expect(isTaskDirectoryStale(task({ status }), NOW)).toBe(false);
+    }
+    expect(
+      isTaskDirectoryStale(
+        task({ touchedAt: NOW - TASK_DIRECTORY_RETENTION_MS + 1 }),
+        NOW,
+      ),
+    ).toBe(false);
+  });
+
+  it('drops the directory of a closed, archived, gone or week-old task [TASK-R86]', () => {
+    expect(isTaskDirectoryStale(task({ status: 'done' }), NOW)).toBe(true);
+    expect(isTaskDirectoryStale(task({ status: 'cancelled' }), NOW)).toBe(true);
+    expect(isTaskDirectoryStale(task({ archived: true }), NOW)).toBe(true);
+    expect(isTaskDirectoryStale(undefined, NOW)).toBe(true);
+    expect(
+      isTaskDirectoryStale(
+        task({ touchedAt: NOW - TASK_DIRECTORY_RETENTION_MS }),
+        NOW,
+      ),
+    ).toBe(true);
+    // A checkout holds gigabytes: a week, not the input copies' month.
+    expect(TASK_DIRECTORY_RETENTION_MS).toBe(7 * DAY);
+    expect(TASK_DIRECTORY_RETENTION_MS).toBeLessThan(
+      TASK_INPUT_MIRROR_RETENTION_MS,
+    );
+  });
+
+  it('never drops the directory of a task with a live run [TASK-R86]', () => {
+    expect(
+      isTaskDirectoryStale(
+        task({ status: 'done', archived: true, live: true, touchedAt: 0 }),
+        NOW,
+      ),
+    ).toBe(false);
+  });
+});
+
 describe('staleTaskInputMirrors', () => {
   it('names the stale task copies and review copies, organization-scoped', async () => {
     const { sql, statements } = fakeSql([
@@ -119,6 +162,7 @@ describe('staleTaskInputMirrors', () => {
       taskIds: ['task-done', 'task-old', 'gone'],
       // The third matches no task of the agent's project.
       reviewHashes: [HASH_OF(2), HASH_OF(3)],
+      taskDirIds: [],
     });
     expect(statements).toHaveLength(2);
     for (const statement of statements) {
@@ -133,6 +177,52 @@ describe('staleTaskInputMirrors', () => {
     expect(statements[1]?.values).toContain('agent-scribe');
   });
 
+  it('judges task directories by the week rule, from the same task rows [TASK-R86]', async () => {
+    const { sql, statements } = fakeSql([
+      [
+        'SELECT t.id AS key',
+        [
+          { key: 'task-open', ...task() },
+          { key: 'task-cancelled', ...task({ status: 'cancelled' }) },
+          { key: 'task-live', ...task({ status: 'done', live: true }) },
+          { key: 'task-idle', ...task({ touchedAt: NOW - 8 * DAY }) },
+        ],
+      ],
+    ]);
+
+    const stale = await staleTaskInputMirrors(sql, {
+      organizationId: 'org-1',
+      agentId: 'agent-scribe',
+      taskIds: ['task-open', 'task-idle'],
+      reviewHashes: [],
+      taskDirIds: [
+        'task-open',
+        'task-cancelled',
+        'task-live',
+        'task-idle',
+        'gone',
+      ],
+      now: NOW,
+    });
+
+    expect(stale).toEqual({
+      // Eight days is within the input copies' month, past the week.
+      taskIds: [],
+      reviewHashes: [],
+      taskDirIds: ['task-cancelled', 'task-idle', 'gone'],
+    });
+    // One lookup answers both kinds, each task asked once.
+    expect(statements).toHaveLength(1);
+    expect(statements[0]?.text).toContain('t.org_id = ?');
+    expect(statements[0]?.values).toContainEqual([
+      'task-open',
+      'task-idle',
+      'task-cancelled',
+      'task-live',
+      'gone',
+    ]);
+  });
+
   it('reads nothing when the worker holds no copy to judge', async () => {
     const { sql, statements } = fakeSql([]);
     expect(
@@ -142,7 +232,7 @@ describe('staleTaskInputMirrors', () => {
         taskIds: [],
         reviewHashes: [],
       }),
-    ).toEqual({ taskIds: [], reviewHashes: [] });
+    ).toEqual({ taskIds: [], reviewHashes: [], taskDirIds: [] });
     expect(statements).toEqual([]);
   });
 });

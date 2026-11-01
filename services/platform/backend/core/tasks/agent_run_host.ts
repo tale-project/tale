@@ -146,7 +146,9 @@ import {
 } from './task_auto_retry';
 import {
   pruneStaleTaskInputMirrors,
+  TASK_DIR_RETENTION_DAYS,
   TASK_INPUTS_ROOT,
+  taskWorkDir,
 } from './task_input_mirrors';
 import {
   isTaskInputMissingError,
@@ -163,6 +165,12 @@ const STANDING_WORKSPACE_GUIDANCE = `Your workspace (/agent/workspace) belongs t
 /** The workspace line of a run a member started: its worker is one of the
  * member's own with this agent, kept apart from the standing ones. */
 const MEMBER_WORKSPACE_GUIDANCE = `Your workspace (/agent/workspace) is kept for the runs this member starts with you; their other runs work in workspaces of their own — files already there may belong to their earlier tasks. Trust the task brief and its staged inputs over anything found lying around.`;
+
+/** Where a run keeps its task's clones, checkouts and scratch, and when the
+ * platform removes them (`pruneStaleTaskInputMirrors`). */
+function taskWorkDirGuidance(taskId: string): string {
+  return `Keep this task's clones, checkouts and scratch files in ${taskWorkDir(taskId)}/ (create it): this task's own directory in your workspace, which the platform deletes from this worker once the task is done, cancelled or deleted, or has not changed for ${TASK_DIR_RETENTION_DAYS} days — push or deliver what must outlive it.`;
+}
 
 /**
  * Whether the turn is confined to its own task — a run a member started
@@ -1640,6 +1648,7 @@ export async function startTaskAgentTurnImpl(
         agentLanguageGuidance(language),
         ...(skillsAddendum !== '' ? [skillsAddendum] : []),
         `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /agent/output/) — files there are collected when your turn ends and attached to the task.`,
+        taskWorkDirGuidance(args.taskId),
         confined ? MEMBER_WORKSPACE_GUIDANCE : STANDING_WORKSPACE_GUIDANCE,
         KNOWLEDGE_TOOLS_GUIDANCE,
         ...(toolsGuidance !== undefined ? [toolsGuidance] : []),
@@ -2960,6 +2969,7 @@ export async function steerTaskAgentTurnImpl(
       agentLanguageGuidance(language),
       ...(skillsAddendum !== '' ? [skillsAddendum] : []),
       `Write every file you produce to ${outputDir}/ (this task's own delivery box — never plain /agent/output/) — files there are collected when your turn ends and attached to the task.`,
+      taskWorkDirGuidance(args.taskId),
       confined ? MEMBER_WORKSPACE_GUIDANCE : STANDING_WORKSPACE_GUIDANCE,
       KNOWLEDGE_TOOLS_GUIDANCE,
       ...(toolsGuidance !== undefined ? [toolsGuidance] : []),

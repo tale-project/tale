@@ -472,6 +472,22 @@ waited too long.
   starts first; at 10:03 it is still working → "Press kit" starts. Had 256 runs been waiting,
   the last of them would have started at 10:07:45.
 
+### TASK-R86 · A worker deletes a task's directory once the task is closed or a week old
+
+A run keeps its task's clones, checkouts and scratch in a directory of its own in the worker's
+workspace, `/agent/workspace/tasks/<task id>`, which its instructions name. Each run's start
+deletes the directories its worker holds for tasks that are done, cancelled, archived or
+deleted, or that have not changed for 7 days: five at most, the oldest first, while the run
+goes on. It never deletes the directory of the run's own task, of a task with a queued or
+running run, or anything in the workspace not named like a task.
+
+- **Example**: Scribe's worker 1 holds checkouts for "Release notes", done yesterday, and
+  "Changelog", still in progress. Ada starts Scribe on "Press kit" in worker 1 → the "Release
+  notes" directory is deleted, "Changelog" keeps its own.
+- **Example**: "Changelog" waits in Backlog and has not changed for 8 days → the next start in
+  that worker deletes its directory; its branch and its deliverables stay where they were
+  pushed and delivered.
+
 ## Dispatch
 
 A project's dispatch starts its ready work on its idle agents without anyone starting each run.
