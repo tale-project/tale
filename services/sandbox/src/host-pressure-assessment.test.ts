@@ -134,6 +134,16 @@ describe('assessHostPressure', () => {
     expect(result.evidence.last?.atMs).toBe(NOW - 31_000);
   });
 
+  test('a newest reading stamped ahead of now, the clock having stepped back since, is stale', () => {
+    const result = assess([reading(-5_000), reading(-15_000)]);
+    expect(result).toMatchObject({
+      verdict: 'hold',
+      reason: 'stale',
+      retryAfterMs: 5_000,
+    });
+    expect(result.evidence.last?.atMs).toBe(NOW + 15_000);
+  });
+
   test('no pair at least 10 s apart is stale', () => {
     expect(assess([reading(9_000), reading(0)]).reason).toBe('stale');
     expect(assess([reading(0)]).reason).toBe('stale');

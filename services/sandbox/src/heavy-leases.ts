@@ -12,6 +12,7 @@
 // the host is pressed the next phase is held all the same — and no session's
 // running work depends on its lease, only the start of the next phase.
 
+import { notAhead } from './wall-clock.ts';
 import { ORG_ID_ALPHABET_RE } from './wire.ts';
 
 const GIB = 1024 ** 3;
@@ -213,12 +214,19 @@ export class HeavyLeases {
     );
   }
 
-  /** Drop the expired leases; how many went. */
+  /** Drop the expired leases; how many went. A lease lasts its term from
+   * when it was granted. One granted ahead of the clock (it stepped back
+   * since) counts from now instead: its phase is still running, so it keeps
+   * its slot and the room it announced, for one more term at most rather
+   * than until the clock has made up the step. */
   sweep(): number {
     const now = this.now();
     let dropped = 0;
     for (const [id, lease] of this.leases) {
-      if (lease.expiresAtMs > now) continue;
+      const termMs = lease.expiresAtMs - lease.acquiredAtMs;
+      lease.acquiredAtMs = notAhead(lease.acquiredAtMs, now);
+      lease.expiresAtMs = lease.acquiredAtMs + termMs;
+      if (now - lease.acquiredAtMs < termMs) continue;
       this.leases.delete(id);
       dropped += 1;
     }
