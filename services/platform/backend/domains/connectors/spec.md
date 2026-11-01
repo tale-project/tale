@@ -158,6 +158,31 @@ file store.
   fifth is refused as busy; a listing still paging after its minute is cut off at its next
   request, and a Gmail attachment the agent reads is not saved to the organization's files.
 
+### CONN-R33 · The platform serves an agent the connector tools exactly as its relay does
+
+An agent's harness reaches the connector and workspace tools either through the relay in its
+sandbox or from the platform's own MCP server. Both offer the same four tools and pass each
+call to the same place on the platform, so a call gets the same result, the same refusal and
+the same time limit through either. The server keeps nothing between requests and opens no
+stream of its own. A harness that would have to put the session's token where the agent can
+read it, and cannot today, keeps the relay.
+
+- **Example**: Mia's Claude Code turn and Noah's OpenClaw turn each list their tools → both
+  get the same four; Mia's reach the platform without a relay process in her sandbox, and a
+  Tavily search returns the same result to both.
+
+### CONN-R34 · The MCP server acts only for the live session token each request presents
+
+Every request to the platform's MCP server presents the session token the relay would
+present. A request with no token, with one that is not a bearer token, with one Tale never
+issued, or with one whose session was destroyed or whose time ran out is refused before
+anything runs, the handshake included. A request acts only as the token it presents: nothing
+ties it to an earlier one, so one turn's token never acts for another turn.
+
+- **Example**: Mia's turn ends and its sandbox is torn down → a request that still presents
+  that turn's token is refused, while Noah's turn, running at the same time, keeps calling
+  its tools with its own.
+
 ## Calling any HTTPS API
 
 The HTTP connector lets an automation step call an outside API it has no connector for:

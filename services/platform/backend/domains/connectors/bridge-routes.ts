@@ -135,7 +135,7 @@ interface BridgeAuth {
   pins: Record<string, string>;
 }
 
-async function authSessionToken(
+export async function authSessionToken(
   sql: Sql,
   request: Request,
 ): Promise<BridgeAuth | null> {
