@@ -1,6 +1,7 @@
 'use client';
 
 import { ActionRow } from '@tale/ui/action-row';
+import { Badge } from '@tale/ui/badge';
 import {
   ACTIONS_COLUMN_SIZE,
   createSelectColumn,
@@ -42,12 +43,20 @@ export function useApiKeysTableConfig(
         accessorKey: 'name',
         header: tSettings('apiKeys.columns.name'),
         // The masked key sits under its name: one column, so the owner and
-        // the dates fit the settings page's measure beside it.
+        // the dates fit the settings page's measure beside it. Another
+        // member's own key carries its mark beside the name, on every width.
         cell: ({ row }) => (
           <div className="flex min-w-0 flex-col">
-            <Text as="span" variant="label" truncate>
-              {row.original.name || '-'}
-            </Text>
+            <div className="flex min-w-0 items-center gap-2">
+              <Text as="span" variant="label" truncate>
+                {row.original.name || '-'}
+              </Text>
+              {row.original.owner.kind === 'personal' && (
+                <Badge variant="slate" className="shrink-0">
+                  {tSettings('apiKeys.owner.personal')}
+                </Badge>
+              )}
+            </div>
             <Text
               as="span"
               variant="muted"
@@ -97,28 +106,39 @@ export function useApiKeysTableConfig(
         header: tSettings('apiKeys.columns.lastUsed'),
         size: 120,
         meta: { className: 'hidden md:table-cell' },
+        // A member's own key may have been used in another organization,
+        // and nothing records its use here alone: none is shown.
         cell: ({ row }) => (
           <TableDateCell
             date={row.original.lastRequest}
             preset="short"
-            emptyText={tSettings('apiKeys.neverUsed')}
+            emptyText={
+              row.original.owner.kind === 'personal'
+                ? tSettings('apiKeys.lastUsedUnavailable')
+                : tSettings('apiKeys.neverUsed')
+            }
           />
         ),
       },
       {
         id: 'actions',
+        // Empty, so the table names the header "Row actions" for assistive
+        // tech (axe `empty-table-header`).
+        header: '',
         // Locked to `ACTIONS_COLUMN_SIZE` so the 3-dot column aligns with
         // every other table's actions column.
         size: ACTIONS_COLUMN_SIZE,
         meta: { isAction: true },
-        cell: ({ row }) => (
-          <ActionRow justify="end">
-            <ApiKeyRowActions
-              apiKey={row.original}
-              organizationId={organizationId}
-            />
-          </ActionRow>
-        ),
+        // Another member's own key is theirs to end: no menu.
+        cell: ({ row }) =>
+          row.original.canRevoke ? (
+            <ActionRow justify="end">
+              <ApiKeyRowActions
+                apiKey={row.original}
+                organizationId={organizationId}
+              />
+            </ActionRow>
+          ) : null,
       },
     ],
     [tSettings, organizationId, viewerUserId],
