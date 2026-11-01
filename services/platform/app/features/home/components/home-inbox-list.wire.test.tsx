@@ -50,6 +50,7 @@ vi.mock('@tanstack/react-router', () => ({
       {children}
     </a>
   ),
+  createLink: () => () => null,
   useNavigate: () => vi.fn(),
 }));
 vi.mock('@/app/hooks/use-current-user', () => ({

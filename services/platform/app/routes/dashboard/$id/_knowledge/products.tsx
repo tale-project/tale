@@ -2,7 +2,11 @@ import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 
 import { ProductsTable } from '@/app/features/products/components/products-table';
-import { prefetchAdaptedQuery } from '@/app/lib/backend/prefetch';
+import { DEFAULT_TABLE_PAGE_SIZE } from '@/app/hooks/use-table-config-factory';
+import {
+  prefetchAdaptedPaginatedQuery,
+  prefetchAdaptedQuery,
+} from '@/app/lib/backend/prefetch';
 import { seo } from '@/lib/utils/seo';
 
 const searchSchema = z.object({
@@ -24,9 +28,17 @@ export const Route = createFileRoute('/dashboard/$id/_knowledge/products')({
         organizationId: params.id,
       },
     );
-    // Prime the paginated list cache so the first page paints without a
-    // skeleton flash on first nav. Args mirror useListProductsPaginated's base
-    // args (no in-page filters — those resolve via the live subscription).
+    // Prime the first page of the list, under the key the table reads, so a
+    // first visit paints its rows without skeleton rows. The tab strip preloads
+    // this route as it renders, so the page is usually in the cache before the
+    // tab is clicked. The args are useListProductsPaginated's on a visit with
+    // no filter in the URL, which is how a tab opens.
+    prefetchAdaptedPaginatedQuery(
+      context.queryClient,
+      'products/queries:listProductsPaginated',
+      { organizationId: params.id },
+      DEFAULT_TABLE_PAGE_SIZE,
+    );
   },
   component: ProductsPage,
 });

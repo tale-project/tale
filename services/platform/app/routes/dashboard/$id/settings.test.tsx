@@ -10,7 +10,7 @@ import {
 import { describe, expect, it, vi } from 'vitest';
 
 import { enMessages } from '@/tests/utils/messages';
-import { act, render, screen, waitFor } from '@/tests/utils/render';
+import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { Route } from './settings';
 
@@ -29,18 +29,6 @@ vi.mock(
       agents: true,
       undecided: { apiKeys: false, modelApi: false, agents: false },
     }),
-  }),
-);
-
-// The page header and the frame are what this suite reads, not the panel's
-// rows; the page they name is still resolved by the real `useSettingsPage`.
-vi.mock(
-  '@/app/features/settings/components/settings-rail',
-  async (importOriginal) => ({
-    ...(await importOriginal<
-      typeof import('@/app/features/settings/components/settings-rail')
-    >()),
-    SettingsRail: () => <nav aria-label="Settings" />,
   }),
 );
 
@@ -120,14 +108,22 @@ function renderSettings(initialPath: string) {
 }
 
 const pageHeading = () => screen.getByRole('heading', { level: 1 });
+const panelRow = (name: string) =>
+  within(screen.getByRole('navigation', { name: nav.userSettings })).getByRole(
+    'link',
+    { name },
+  );
 
 describe('Settings page switch', () => {
-  it('leaves the open page and its header as they are until the next page has loaded', async () => {
+  it('leaves the open page, its header and its row in the panel as they are until the next page has loaded', async () => {
     const { router, loadNotifications } = renderSettings(
       '/dashboard/org-1/settings/account',
     );
     const account = await screen.findByText('Account page');
     expect(pageHeading()).toHaveTextContent(nav.account);
+    const accountRow = panelRow(nav.account);
+    const notificationsRow = panelRow(nav.notifications);
+    expect(accountRow).toHaveAttribute('aria-current', 'page');
 
     act(() => {
       void router.navigate({
@@ -141,14 +137,32 @@ describe('Settings page switch', () => {
       ),
     );
 
-    // The same element under the same header: nothing was built again.
+    // The same element under the same header: nothing was built again. The
+    // panel still marks the page that shows, not the one the location names.
     expect(screen.getByText('Account page')).toBe(account);
     expect(pageHeading()).toHaveTextContent(nav.account);
+    expect(accountRow).toHaveAttribute('aria-current', 'page');
+    expect(notificationsRow).not.toHaveAttribute('aria-current');
+    expect(notificationsRow).not.toHaveAttribute('data-status');
 
     await act(async () => loadNotifications());
     expect(await screen.findByText('Notifications page')).toBeInTheDocument();
     expect(account).not.toBeInTheDocument();
     expect(pageHeading()).toHaveTextContent(nav.notifications);
+    expect(notificationsRow).toHaveAttribute('aria-current', 'page');
+    expect(accountRow).not.toHaveAttribute('aria-current');
+  });
+
+  it('names the page and marks its row at an address that ends in a slash', async () => {
+    // The router keeps a slash typed at the end of an address; the header
+    // and the panel still find the page that shows.
+    renderSettings('/dashboard/org-1/settings/account/');
+    await screen.findByText('Account page');
+
+    expect(pageHeading()).toHaveTextContent(nav.account);
+    const accountRow = panelRow(nav.account);
+    expect(accountRow).toHaveAttribute('aria-current', 'page');
+    expect(accountRow).toHaveClass('text-foreground');
   });
 
   it('opens the next page at its top, with no fade', async () => {

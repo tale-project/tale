@@ -17,19 +17,25 @@ import { Button } from './primitives/button';
 
 import '../globals.css';
 
-vi.mock('@tanstack/react-router', () => ({
-  Link: React.forwardRef(
-    (
-      props: { to: string; children: React.ReactNode; className?: string },
-      ref: React.Ref<HTMLAnchorElement>,
-    ) => (
-      <a ref={ref} href={props.to} className={props.className}>
-        {props.children}
-      </a>
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
+  createLink: () =>
+    React.forwardRef(
+      (
+        props: { to: string; children: React.ReactNode; className?: string },
+        ref: React.Ref<HTMLAnchorElement>,
+      ) => (
+        <a ref={ref} href={props.to} className={props.className}>
+          {props.children}
+        </a>
+      ),
     ),
-  ),
   useNavigate: () => vi.fn(),
-  useLocation: () => ({ pathname: '/automations/review/versions' }),
+  useRouterState: ({
+    select,
+  }: {
+    select: (state: { location: { pathname: string } }) => unknown;
+  }) => select({ location: { pathname: '/automations/review/versions' } }),
   useSearch: () => ({}),
 }));
 

@@ -9,28 +9,15 @@ import { SettingsRail } from './settings-rail';
 const ability = vi.hoisted(() => ({ canEverything: true }));
 
 vi.mock('@tanstack/react-router', () => ({
-  Link: React.forwardRef(
-    (
-      props: {
-        to: string;
-        children: React.ReactNode;
-        className?: string;
-        'aria-current'?: string;
-        'aria-expanded'?: boolean;
-      },
-      ref: React.Ref<HTMLAnchorElement>,
-    ) => (
-      <a
-        ref={ref}
-        href={props.to}
-        className={props.className}
-        aria-current={props['aria-current'] as never}
-        aria-expanded={props['aria-expanded']}
-      >
-        {props.children}
-      </a>
-    ),
-  ),
+  // A row is a link over the rail's own anchor: the anchor gets the href and
+  // every prop the router does not consume, so it says which page is current.
+  createLink: (Anchor: React.ComponentType<Record<string, unknown>>) =>
+    function CreatedLink({
+      to,
+      ...rest
+    }: { to: string } & Record<string, unknown>) {
+      return <Anchor href={to} {...rest} />;
+    },
   useRouterState: () => '/dashboard/org-1/settings/governance/policies-limits',
 }));
 

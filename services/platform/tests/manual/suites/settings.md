@@ -686,7 +686,8 @@ Restore any toggled setting after the run.
   **Settings**, which the panel's own header already says; Branding's **Save**
   / **Discard** cluster sits in that same page header; each switch shows the
   new page at once, at its top and with no fade, while the panel stays put,
-  its scroll untouched.
+  its scroll untouched, and its highlight reaches the new page's row as the
+  page shows, never while the page being left still stands.
 - [ ] `SET-F47` · **A page never prints its own name twice** — Desktop, as
   owner: open **Teams**, **Members** and **Notifications** in the Settings
   panel → Under the header **Teams** (`navigation.teams`) the page opens on

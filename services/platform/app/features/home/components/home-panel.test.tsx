@@ -56,6 +56,7 @@ vi.mock('@tanstack/react-router', () => ({
       </a>
     );
   },
+  createLink: () => () => null,
   useNavigate: () => vi.fn(),
   useLocation: () => location.current,
 }));

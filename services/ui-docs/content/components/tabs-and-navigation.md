@@ -68,7 +68,7 @@ Give each editor an accessible name that includes its language; a panel's associ
 
 ## Navigate between routes
 
-`TabNavigation` requires TanStack Router context. Its items carry `label` and `href`, and the component reads the current location. Supply resolved URLs: unlike `LinkButton`, an item has no separate `params` prop to fill a `$id` placeholder.
+`TabNavigation` requires TanStack Router context. Its items carry `label` and `href`, and the component marks the tab of the page on screen, which it reads from the router: while the next page loads, the page still shown keeps its tab. Supply resolved URLs: unlike `LinkButton`, an item has no separate `params` prop to fill a `$id` placeholder.
 
 This composition excerpt assumes your application defines the listed routes and supplies `projectId`:
 

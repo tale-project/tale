@@ -5,17 +5,25 @@ import { render, screen } from '@/tests/utils/render';
 
 import { ConversationsNavigation } from './conversations-navigation';
 
-vi.mock('@tanstack/react-router', () => ({
+vi.mock('@tanstack/react-router', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-router')>()),
   useNavigate: () => vi.fn(),
-  Link: ({
-    children,
-    ...props
+  createLink:
+    () =>
+    ({
+      children,
+      ...props
+    }: {
+      children: React.ReactNode;
+      to?: string;
+      href?: string;
+    }) => <a href={props.to ?? props.href}>{children}</a>,
+  useRouterState: ({
+    select,
   }: {
-    children: React.ReactNode;
-    to?: string;
-    href?: string;
-  }) => <a href={props.to ?? props.href}>{children}</a>,
-  useLocation: () => ({ pathname: '/dashboard/org-1/conversations/open' }),
+    select: (state: { location: { pathname: string } }) => unknown;
+  }) =>
+    select({ location: { pathname: '/dashboard/org-1/conversations/open' } }),
 }));
 
 vi.mock('@/app/components/branding/branding-provider', () => ({
