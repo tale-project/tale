@@ -182,6 +182,17 @@ of replacing it.
 - **Example**: The stored connection is damaged. Ada saves a change → refused, and the stored
   connection is left for an operator to repair.
 
+### SSO-R21 · Saving the settings records what changed, never a secret
+
+Every save of the connection or of its provisioning writes one audit row with the settings
+before (when a connection existed) and after, and names each field the save changed. The
+client ID, the client secret and the SP private key are named when a save replaces them and
+never recorded. A certificate is recorded as its SHA-256 fingerprint.
+
+- **Example**: Ada adds a rule that maps the group `it-admins` to Admin and turns team sync
+  off → the audit row shows both settings before and after and names `roleMappingRules` and
+  `autoProvisionTeam` as changed.
+
 ## Discovering connections
 
 ### SSO-R18 · One organization's unreadable connection does not hide healthy connections

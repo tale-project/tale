@@ -10,8 +10,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readExisting } from '../../core/enterprise_sso/config/file_store.ts';
 import type { SsoProviderAdapter } from '../../core/enterprise_sso/types.ts';
 import { clearOrgConfigCaches } from '../../lib/org-config.ts';
+import { createAuditLog } from '../audit_logs/service.ts';
+import type { CreateAuditLogArgs } from '../audit_logs/types.ts';
 import {
   getSsoConnectionView,
+  setSsoProvisioning,
   SsoAdminError,
   testSsoConnection,
   upsertOidcConnection,
@@ -583,5 +586,221 @@ describe('upsertOidcConnection — the operator vouches for the mapped email [SS
     });
 
     expect((await stored())?.trustEmail).toBeUndefined();
+  });
+});
+
+/**
+ * The audit row of a save is how an admin learns who changed the settings
+ * that decide every SSO sign-in's role and teams, and what they were before.
+ * It names a secret the save replaced and never holds its value.
+ */
+describe('saving the settings records what changed, never a secret [SSO-R21]', () => {
+  let configRoot: string;
+  let savedConfigDir: string | undefined;
+
+  beforeEach(async () => {
+    savedConfigDir = process.env.TALE_CONFIG_DIR;
+    configRoot = await mkdtemp(path.join(tmpdir(), 'tale-sso-admin-'));
+    process.env.TALE_CONFIG_DIR = configRoot;
+    clearOrgConfigCaches();
+    vi.mocked(createAuditLog).mockClear();
+  });
+
+  afterEach(async () => {
+    if (savedConfigDir === undefined) delete process.env.TALE_CONFIG_DIR;
+    else process.env.TALE_CONFIG_DIR = savedConfigDir;
+    await rm(configRoot, { recursive: true, force: true });
+    clearOrgConfigCaches();
+  });
+
+  const actor = { userId: 'user-1', email: 'admin@acme.test', role: 'admin' };
+  const provisioning = {
+    autoProvisionRole: false,
+    defaultRole: 'member' as const,
+    roleMappingRules: [],
+    autoProvisionTeam: true,
+    excludeGroups: [],
+  };
+  const oidc = {
+    displayName: 'Acme OIDC',
+    providerId: 'generic-oidc' as const,
+    issuer: 'https://idp.acme.test',
+    clientId: 'acme-client-id-7f3',
+    clientSecret: 'acme-client-secret-9q2',
+    scopes: ['openid', 'email'],
+    ...provisioning,
+  };
+  // Certificate bodies are base64 DER: `AAEC` is the bytes 00 01 02.
+  const saml = {
+    displayName: 'Acme SAML',
+    idpEntityId: 'https://idp.acme.test/entity',
+    idpSsoUrl: 'https://idp.acme.test/sso',
+    idpCertificate:
+      '-----BEGIN CERTIFICATE-----\nAAEC\n-----END CERTIFICATE-----',
+    ...provisioning,
+  };
+  /** SHA-256 of the bytes 00 01 02, as an identity provider prints it. */
+  const fingerprintOfAAEC =
+    'AE:4B:32:80:E5:6E:2F:AF:83:F4:14:A6:E3:DA:BE:9D:5F:BE:18:97:65:44:C0:5F:ED:12:1A:CC:B8:5B:53:FC';
+
+  /** The audit rows the saves wrote, in order. */
+  function rows(): CreateAuditLogArgs[] {
+    return vi.mocked(createAuditLog).mock.calls.map(([, args]) => args);
+  }
+
+  it('records every field of a first OIDC save and names the credentials it set', async () => {
+    await upsertOidcConnection(slugSql('acme'), 'org-1', actor, oidc);
+
+    expect(rows()).toHaveLength(1);
+    const [row] = rows();
+    expect(row).toMatchObject({
+      action: 'sso_configure',
+      category: 'security',
+      resourceType: 'sso',
+      resourceId: 'org-1',
+    });
+    expect(row?.previousState).toBeUndefined();
+    expect(row?.newState).toEqual({
+      enabled: true,
+      protocol: 'oidc',
+      displayName: 'Acme OIDC',
+      domain: null,
+      providerId: 'generic-oidc',
+      issuer: 'https://idp.acme.test',
+      authorizationEndpoint: null,
+      tokenEndpoint: null,
+      userinfoEndpoint: null,
+      scopes: ['openid', 'email'],
+      pkce: null,
+      domainHint: null,
+      claimMappings: null,
+      trustEmail: null,
+      autoProvisionRole: false,
+      defaultRole: 'member',
+      roleMappingRules: [],
+      autoProvisionTeam: true,
+      excludeGroups: [],
+    });
+    expect(row?.changedFields).toEqual([
+      ...Object.keys(row?.newState ?? {}),
+      'clientId',
+      'clientSecret',
+    ]);
+  });
+
+  it('records the provisioning before and after when an OIDC save changes it', async () => {
+    await upsertOidcConnection(slugSql('acme'), 'org-1', actor, oidc);
+    const { clientSecret: _kept, ...withoutSecret } = oidc;
+
+    await upsertOidcConnection(slugSql('acme'), 'org-1', actor, {
+      ...withoutSecret,
+      defaultRole: 'editor',
+      roleMappingRules: [
+        { source: 'group', pattern: 'it-admins', targetRole: 'admin' },
+      ],
+      autoProvisionTeam: false,
+    });
+
+    const row = rows()[1];
+    expect(row?.changedFields).toEqual([
+      'defaultRole',
+      'roleMappingRules',
+      'autoProvisionTeam',
+    ]);
+    expect(row?.previousState).toMatchObject({
+      defaultRole: 'member',
+      roleMappingRules: [],
+      autoProvisionTeam: true,
+    });
+    expect(row?.newState).toMatchObject({
+      defaultRole: 'editor',
+      roleMappingRules: [
+        { source: 'group', pattern: 'it-admins', targetRole: 'admin' },
+      ],
+      autoProvisionTeam: false,
+    });
+  });
+
+  it('names a replaced client secret and client id without recording either', async () => {
+    await upsertOidcConnection(slugSql('acme'), 'org-1', actor, oidc);
+
+    await upsertOidcConnection(slugSql('acme'), 'org-1', actor, {
+      ...oidc,
+      clientId: 'acme-client-id-8k1',
+      clientSecret: 'acme-client-secret-4m5',
+    });
+
+    const row = rows()[1];
+    expect(row?.changedFields).toEqual(['clientId', 'clientSecret']);
+    expect(row?.previousState).toEqual(row?.newState);
+    const recorded = JSON.stringify(rows());
+    for (const secret of [
+      'acme-client-id-7f3',
+      'acme-client-secret-9q2',
+      'acme-client-id-8k1',
+      'acme-client-secret-4m5',
+    ]) {
+      expect(recorded).not.toContain(secret);
+    }
+  });
+
+  it('records a SAML connection with certificate fingerprints, and its key only by name', async () => {
+    await upsertSamlConnection(slugSql('acme'), 'org-1', actor, {
+      ...saml,
+      spCertificate: saml.idpCertificate,
+      spPrivateKey: 'acme-sp-private-key-2v8',
+    });
+    await upsertSamlConnection(slugSql('acme'), 'org-1', actor, {
+      ...saml,
+      spCertificate: saml.idpCertificate,
+      wantAssertionsEncrypted: true,
+    });
+
+    const [first, second] = rows();
+    expect(first?.newState).toEqual({
+      enabled: true,
+      protocol: 'saml',
+      displayName: 'Acme SAML',
+      domain: null,
+      idpEntityId: 'https://idp.acme.test/entity',
+      idpSsoUrl: 'https://idp.acme.test/sso',
+      idpCertificate: fingerprintOfAAEC,
+      spCertificate: fingerprintOfAAEC,
+      hasSpKeypair: true,
+      wantAssertionsSigned: null,
+      wantAssertionsEncrypted: null,
+      attributeMappings: null,
+      ...provisioning,
+    });
+    expect(first?.changedFields).toContain('spPrivateKey');
+    // The key was kept (left blank), so only the toggle changed.
+    expect(second?.changedFields).toEqual(['wantAssertionsEncrypted']);
+    expect(JSON.stringify(rows())).not.toContain('acme-sp-private-key-2v8');
+    expect(JSON.stringify(rows())).not.toContain('BEGIN CERTIFICATE');
+  });
+
+  it('records what a provisioning-only save changes against the stored connection', async () => {
+    await upsertOidcConnection(slugSql('acme'), 'org-1', actor, oidc);
+
+    await setSsoProvisioning(slugSql('acme'), 'org-1', actor, {
+      ...provisioning,
+      autoProvisionTeam: false,
+      excludeGroups: ['all-staff'],
+    });
+
+    const row = rows()[1];
+    expect(row?.action).toBe('sso_configure');
+    expect(row?.changedFields).toEqual(['autoProvisionTeam', 'excludeGroups']);
+    expect(row?.previousState).toMatchObject({
+      issuer: 'https://idp.acme.test',
+      autoProvisionTeam: true,
+      excludeGroups: [],
+    });
+    expect(row?.newState).toMatchObject({
+      issuer: 'https://idp.acme.test',
+      autoProvisionTeam: false,
+      excludeGroups: ['all-staff'],
+    });
+    expect(JSON.stringify(row)).not.toContain('acme-client-secret-9q2');
   });
 });
