@@ -434,6 +434,61 @@ connectors:
       Dieses Deployment liefert keine Connector-Dateien. Prüfe, ob das
       Config-Root eingebunden und lesbar ist.
     listFailed: Die Connectors konnten nicht geladen werden.
+  errors:
+    connectorUnknown: >-
+      Dieses Deployment bietet den Connector „{connector}“ nicht mehr an. Lade
+      die Seite neu, um die verfügbaren Connectors zu sehen.
+    authMethodNotSupported: >-
+      {connector} akzeptiert keine Zugangsdaten vom Typ {method}. Möglich
+      sind: {accepted}.
+    endpointRequired: >-
+      {connector} verbindet sich für alle Zugangsdaten mit einer eigenen
+      Instanz. Gib die Instanz-URL ein.
+    endpointFixed: >-
+      {connector} verbindet sich immer mit derselben Adresse, deshalb nehmen
+      Zugangsdaten keine Instanz-URL an.
+    endpointNotUrl: >-
+      Gib die Instanz-URL als Webadresse ein, etwa https://example.com.
+    endpointNotHttps: >-
+      Die Instanz-URL muss mit https:// beginnen.
+    endpointCredentials: >-
+      Entferne Benutzername und Passwort aus der Instanz-URL und gib sie
+      stattdessen in den Feldern der Zugangsdaten ein.
+    endpointNotOrigin: >-
+      Gib die Instanz-URL ohne Pfad, Parameter oder Fragment ein, etwa
+      {origin}.
+    configNone: >-
+      {connector} hat keine Einstellungen.
+    configUnknown: >-
+      {connector} hat keine Einstellung „{field}“.
+    configNumber: >-
+      „{field}“ muss eine Zahl sein.
+    configNumberRange: >-
+      „{field}“ muss eine Zahl von {min} bis {max} sein.
+    configOption: >-
+      „{field}“ muss {options} sein.
+    configEmail: >-
+      „{field}“ muss eine E-Mail-Adresse sein, etwa support@example.com.
+    configFixed: >-
+      „{field}“ wird beim Hinzufügen der Zugangsdaten festgelegt und lässt
+      sich nicht ändern. Für einen anderen Wert fügst du weitere Zugangsdaten
+      hinzu.
+    configRequired: >-
+      Gib einen Wert für „{field}“ ein.
+    configRequiredFor: >-
+      Gib einen Wert für „{field}“ ein. Zugangsdaten vom Typ {method} brauchen
+      ihn.
+    secretLength: >-
+      „{field}“ muss 1 bis {max} Zeichen lang sein.
+    secretLengthAny: >-
+      Ein Secret muss 1 bis {max} Zeichen lang sein.
+    secretShape: >-
+      „{field}“ ist ungültig. Prüfe deine Eingabe.
+    secretShapeAny: >-
+      Das Secret ist ungültig. Prüfe deine Eingabe.
+    tenantRequired: >-
+      Gib einen Wert für „{field}“ ein. {connector} meldet die App in ihrem
+      Verzeichnis an.
   authMethod:
     apiKey: API-Schlüssel
     bearer: Token
@@ -539,6 +594,24 @@ connectors:
     reuseSsoScopesItem: Delegierte Microsoft-Graph-Berechtigungen
     reuseSsoConfirm: Aus SSO kopieren
     reuseSsoDoneToast: Der Microsoft-365-Import nutzt jetzt die Entra-ID-App aus dem SSO
+    errors:
+      ssoReuseUnsupported: >-
+        Nur die App für den Microsoft-365-Import kann die App-Registrierung
+        des SSO wiederverwenden.
+      ssoNotReusable: >-
+        Das Enterprise-SSO hat keine App-Registrierung in Microsoft Entra ID
+        mehr, die sich wiederverwenden lässt. Gib stattdessen Client-ID und
+        Client-Secret ein.
+      notConfigurable: >-
+        Die OAuth-App dieses Connectors richtet der Deployment-Betreiber ein,
+        nicht diese Organisation.
+      notFound: >-
+        Diese OAuth-App ist nicht mehr eingerichtet. Vielleicht wurde sie in
+        einer anderen Sitzung entfernt.
+      clientIdRequired: >-
+        Gib die Client-ID ein.
+      clientSecretRequired: >-
+        Gib das Client-Secret ein.
   dialog:
     apiKey: API-Schlüssel
     token: Token

@@ -15,12 +15,12 @@ import { useToast } from '@tale/ui/use-toast';
 import { useRef, useState } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 import { readStateOf } from '@/app/lib/backend/read-state';
 import { getEnv } from '@/lib/env';
 import { useT } from '@/lib/i18n/client';
 
+import { mapConnectorError } from '../connector-error';
 import type { ConnectorSummary } from '../hooks/backend';
 import {
   useConnectorOauthApps,
@@ -238,7 +238,7 @@ export function OauthAppsCard({
       {appsQuery.isError && (
         <Alert
           variant="destructive"
-          description={mapCredentialError(appsQuery.error)}
+          description={mapConnectorError(appsQuery.error)}
         />
       )}
       {failedReads.length > 0 && (
@@ -434,7 +434,7 @@ function ReuseSsoDialog({
           (err: unknown) => {
             console.error('connectors: reuse sso oauth app failed', err);
             toast({
-              title: mapCredentialError(err),
+              title: mapConnectorError(err),
               variant: 'destructive',
             });
           },
@@ -535,7 +535,7 @@ function OauthAppDialog({
       onClose();
     } catch (err) {
       console.error('connectors: save oauth app failed', err);
-      setError(mapCredentialError(err));
+      setError(mapConnectorError(err));
     }
   };
 
@@ -638,7 +638,7 @@ function RemoveOauthAppDialog({
           (err: unknown) => {
             console.error('connectors: remove oauth app failed', err);
             toast({
-              title: mapCredentialError(err),
+              title: mapConnectorError(err),
               variant: 'destructive',
             });
           },

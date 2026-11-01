@@ -423,6 +423,58 @@ connectors:
       This deployment ships no connector files. Check that the config root
       is mounted and readable.
     listFailed: Couldn't load the connectors.
+  errors:
+    connectorUnknown: >-
+      This deployment no longer offers the connector "{connector}". Reload the
+      page to see the connectors it offers.
+    authMethodNotSupported: >-
+      {connector} doesn't accept {method} credentials. It accepts {accepted}.
+    endpointRequired: >-
+      {connector} connects to one instance per credential. Enter the instance
+      URL.
+    endpointFixed: >-
+      {connector} always connects to the same address, so a credential takes
+      no instance URL.
+    endpointNotUrl: >-
+      Enter the instance URL as a web address, such as https://example.com.
+    endpointNotHttps: >-
+      The instance URL has to start with https://.
+    endpointCredentials: >-
+      Remove the username and password from the instance URL, and enter them
+      in the credential fields instead.
+    endpointNotOrigin: >-
+      Enter the instance URL without a path, query or fragment, such as
+      {origin}.
+    configNone: >-
+      {connector} takes no settings.
+    configUnknown: >-
+      {connector} has no setting "{field}".
+    configNumber: >-
+      "{field}" must be a number.
+    configNumberRange: >-
+      "{field}" must be a number from {min} to {max}.
+    configOption: >-
+      "{field}" must be {options}.
+    configEmail: >-
+      "{field}" must be an email address, such as support@example.com.
+    configFixed: >-
+      "{field}" is set when the credential is added and can't be changed. To
+      use another value, add another credential.
+    configRequired: >-
+      Enter a value for "{field}".
+    configRequiredFor: >-
+      Enter a value for "{field}". {method} credentials need it.
+    secretLength: >-
+      "{field}" must be 1 to {max} characters.
+    secretLengthAny: >-
+      A secret must be 1 to {max} characters.
+    secretShape: >-
+      "{field}" isn't valid. Check what you entered.
+    secretShapeAny: >-
+      The secret isn't valid. Check what you entered.
+    tenantRequired: >-
+      Enter a value for "{field}". {connector} signs the app in within its
+      directory.
   authMethod:
     apiKey: API key
     bearer: Token
@@ -521,6 +573,22 @@ connectors:
     reuseSsoScopesItem: Delegated Microsoft Graph permissions
     reuseSsoConfirm: Copy from SSO
     reuseSsoDoneToast: Microsoft 365 import now uses the Entra ID SSO app
+    errors:
+      ssoReuseUnsupported: >-
+        Only the Microsoft 365 import app can reuse the SSO app registration.
+      ssoNotReusable: >-
+        Enterprise SSO no longer has a Microsoft Entra ID app registration to
+        reuse. Enter the client ID and secret instead.
+      notConfigurable: >-
+        This connector's OAuth app is set up by the deployment operator, not
+        in this organization.
+      notFound: >-
+        This OAuth app is no longer configured. It may have been removed in
+        another session.
+      clientIdRequired: >-
+        Enter the client ID.
+      clientSecretRequired: >-
+        Enter the client secret.
   dialog:
     apiKey: API key
     token: Token

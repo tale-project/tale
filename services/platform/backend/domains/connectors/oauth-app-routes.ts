@@ -56,7 +56,10 @@ export function createConnectorOauthAppRoutes(deps: {
     if (
       defineAbilityFor(c.get('orgMember').role).cannot('write', 'orgSettings')
     ) {
-      return c.json({ error: 'Only admins can configure OAuth apps.' }, 403);
+      return c.json(
+        { error: 'Only admins can configure OAuth apps.', code: 'FORBIDDEN' },
+        403,
+      );
     }
     return null;
   };
@@ -104,6 +107,7 @@ export function createConnectorOauthAppRoutes(deps: {
         {
           error:
             'Only the Microsoft 365 import app can reuse the SSO registration.',
+          code: 'sso_reuse_unsupported',
         },
         400,
       );
@@ -147,7 +151,10 @@ export function createConnectorOauthAppRoutes(deps: {
     const slug = c.req.param('slug');
     if (!isConfigurableOauthAppSlug(slug)) {
       return c.json(
-        { error: 'This connector does not take an org OAuth app.' },
+        {
+          error: 'This connector does not take an org OAuth app.',
+          code: 'oauth_app_not_configurable',
+        },
         400,
       );
     }
@@ -188,7 +195,10 @@ export function createConnectorOauthAppRoutes(deps: {
     });
     if (!removed) {
       return c.json(
-        { error: 'No OAuth app is configured for this slug.' },
+        {
+          error: 'No OAuth app is configured for this slug.',
+          code: 'oauth_app_not_found',
+        },
         404,
       );
     }

@@ -128,9 +128,13 @@ const clientCredentialsPayloadSchema = z
 /** Thrown for a payload that does not match its method — a row written by a
  * bad caller, or one whose method was changed under it. */
 export class SecretPayloadError extends Error {
-  constructor(message: string) {
+  /** The payload key the first issue is about, when it is one. */
+  readonly field?: string;
+
+  constructor(message: string, field?: string) {
     super(message);
     this.name = 'SecretPayloadError';
+    if (field !== undefined) this.field = field;
   }
 }
 
@@ -150,6 +154,7 @@ export function parseSecretPayload(
       if (!parsed.success) {
         throw new SecretPayloadError(
           `A ${authMethod} credential stores { token }: ${issueOf(parsed.error)}`,
+          fieldOf(parsed.error),
         );
       }
       return { authMethod, token: parsed.data.token };
@@ -159,6 +164,7 @@ export function parseSecretPayload(
       if (!parsed.success) {
         throw new SecretPayloadError(
           `A basic credential stores { username, password }: ${issueOf(parsed.error)}`,
+          fieldOf(parsed.error),
         );
       }
       return { authMethod, ...parsed.data };
@@ -168,6 +174,7 @@ export function parseSecretPayload(
       if (!parsed.success) {
         throw new SecretPayloadError(
           `An oauth2 credential stores { accessToken, refreshToken?, expiresAt?, scopes? }: ${issueOf(parsed.error)}`,
+          fieldOf(parsed.error),
         );
       }
       return { authMethod, ...parsed.data };
@@ -177,6 +184,7 @@ export function parseSecretPayload(
       if (!parsed.success) {
         throw new SecretPayloadError(
           `A client-credentials credential stores { tenantId?, clientId, clientSecret, accessToken?, expiresAt? }: ${issueOf(parsed.error)}`,
+          fieldOf(parsed.error),
         );
       }
       return { authMethod, ...parsed.data };
@@ -186,6 +194,13 @@ export function parseSecretPayload(
       return _exhaustive;
     }
   }
+}
+
+/** The payload key the first zod issue is about, or `undefined` at the
+ * root. */
+function fieldOf(error: z.ZodError): string | undefined {
+  const key = error.issues[0]?.path[0];
+  return typeof key === 'string' ? key : undefined;
 }
 
 /** First zod issue as `path: message`, or a bare message at the root. */

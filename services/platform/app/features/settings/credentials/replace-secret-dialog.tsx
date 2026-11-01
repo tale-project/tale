@@ -97,7 +97,7 @@ export function ReplaceSecretDialog<
       onOpenChange(false);
     } catch (err) {
       console.error(`${adapter.logTag}: replace credential secret failed`, err);
-      setError(adapter.mapError(err, t));
+      setError(adapter.mapError(err, t, vendor));
     }
   };
 

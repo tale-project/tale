@@ -199,7 +199,7 @@ export function CredentialAddDialog<
       onOpenChange(false);
     } catch (err) {
       console.error(`${adapter.logTag}: create credential failed`, err);
-      setError(adapter.mapError(err, t));
+      setError(adapter.mapError(err, t, vendor));
     }
   };
 

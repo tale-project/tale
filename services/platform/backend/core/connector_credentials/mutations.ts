@@ -14,6 +14,7 @@ export function normalizeEndpointOrigin(raw: string): string {
   } catch {
     throw new AppError({
       code: 'CREDENTIAL_ENDPOINT_INVALID',
+      reason: 'notUrl',
       message: `Endpoint "${value}" is not a URL — enter the API origin, e.g. https://your-site.atlassian.net.`,
       userMessage: `Endpoint "${value}" is not a valid URL — enter the API origin, e.g. https://your-site.atlassian.net.`,
     });
@@ -21,6 +22,7 @@ export function normalizeEndpointOrigin(raw: string): string {
   if (url.protocol !== 'https:') {
     throw new AppError({
       code: 'CREDENTIAL_ENDPOINT_INVALID',
+      reason: 'notHttps',
       message: `Endpoint "${value}" must use https.`,
       userMessage: `Endpoint "${value}" must use https.`,
     });
@@ -28,6 +30,7 @@ export function normalizeEndpointOrigin(raw: string): string {
   if (url.username !== '' || url.password !== '') {
     throw new AppError({
       code: 'CREDENTIAL_ENDPOINT_INVALID',
+      reason: 'credentials',
       message: `Endpoint "${value}" must not embed credentials — store them on the credential itself.`,
       userMessage: `Endpoint "${value}" must not embed credentials — store them on the credential itself.`,
     });
@@ -36,6 +39,8 @@ export function normalizeEndpointOrigin(raw: string): string {
   if (hasPath || url.search !== '' || url.hash !== '') {
     throw new AppError({
       code: 'CREDENTIAL_ENDPOINT_INVALID',
+      reason: 'notOrigin',
+      origin: `https://${url.host}`,
       message: `Endpoint "${value}" must be an origin only — drop everything after the host (e.g. https://${url.host}).`,
       userMessage: `Endpoint "${value}" must be an origin only — drop everything after the host (e.g. https://${url.host}).`,
     });

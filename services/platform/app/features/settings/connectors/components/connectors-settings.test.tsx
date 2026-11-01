@@ -1,7 +1,10 @@
 import { pickFilterOption } from '@tale/ui/testing/filters';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { runAdapted } from '@/app/lib/backend/adapters';
+import { backendApiErrorFromBody } from '@/app/lib/backend/api-client';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { i18n } from '@/tests/utils/i18n-all-languages';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import type {
@@ -1278,6 +1281,79 @@ describe('ConnectorsSettings', () => {
       abilityState.canRead = false;
       render(<ConnectorsSettings organizationId="org-1" />);
       expect(screen.queryByText('Platform bot')).not.toBeInTheDocument();
+    });
+  });
+
+  // #5222: a refused save showed the door's English sentence in every
+  // locale, naming the connector and the sign-in methods by their slugs.
+  describe('in German', () => {
+    const settings = (key: string, values?: Record<string, unknown>) =>
+      i18n.t(key, { ns: 'settings', ...values });
+
+    afterEach(async () => {
+      localStorage.removeItem('user-locale');
+      await i18n.changeLanguage('en');
+    });
+
+    it('words a refused credential save in German, never the door sentence', async () => {
+      // The shell takes the reader's language from here when it mounts.
+      localStorage.setItem('user-locale', 'de');
+      await i18n.changeLanguage('de');
+      const sentence =
+        'Connector "github" does not accept bearer credentials — it accepts: oauth2.';
+      createCredential.mockRejectedValue(
+        await runAdapted(() =>
+          Promise.reject(
+            backendApiErrorFromBody(400, {
+              error: 'AUTH_METHOD_NOT_SUPPORTED',
+              message: sentence,
+              data: {
+                connector: 'github',
+                authMethod: 'bearer',
+                accepted: ['oauth2'],
+              },
+            }),
+          ),
+        ).catch((error: unknown) => error),
+      );
+      fixtures.credentials = [];
+      const { user } = render(<ConnectorsSettings organizationId="org-1" />);
+
+      await user.click(
+        screen.getByRole('button', {
+          name: settings('credentials.addCredential'),
+        }),
+      );
+      const dialog = within(
+        await screen.findByRole('dialog', {
+          name: settings('credentials.addTitle'),
+        }),
+      );
+      await user.click(dialog.getByRole('button', { name: /GitHub/ }));
+      await user.type(
+        dialog.getByLabelText(
+          new RegExp(`^${settings('connectors.dialog.token')}`),
+          { selector: 'input' },
+        ),
+        'ghp_supersecret',
+      );
+      await user.click(
+        dialog.getByRole('button', { name: settings('credentials.create') }),
+      );
+
+      const alert = await dialog.findByRole('alert');
+      expect(alert).toHaveTextContent(
+        settings('connectors.errors.authMethodNotSupported', {
+          connector: 'GitHub',
+          method: settings('connectors.authMethod.bearer'),
+          accepted: settings('connectors.authMethod.oauth2'),
+        }),
+      );
+      expect(alert).toHaveTextContent(
+        'GitHub akzeptiert keine Zugangsdaten vom Typ Token. Möglich sind: OAuth.',
+      );
+      expect(alert).not.toHaveTextContent(sentence);
+      expect(alert).not.toHaveTextContent(/accepts?\b/);
     });
   });
 });

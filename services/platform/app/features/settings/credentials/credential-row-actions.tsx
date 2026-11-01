@@ -85,7 +85,9 @@ export function CredentialRowActions<
 
   const failToast = (err: unknown) =>
     toast({
-      title: t('credentials.updateFailed', { error: adapter.mapError(err, t) }),
+      title: t('credentials.updateFailed', {
+        error: adapter.mapError(err, t, vendor),
+      }),
       variant: 'destructive',
     });
 
@@ -131,7 +133,7 @@ export function CredentialRowActions<
       console.error(`${adapter.logTag}: delete credential failed`, err);
       toast({
         title: t('credentials.deleteFailed', {
-          error: adapter.mapError(err, t),
+          error: adapter.mapError(err, t, vendor),
         }),
         variant: 'destructive',
       });
