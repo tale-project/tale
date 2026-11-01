@@ -16,7 +16,6 @@ import { Text } from '@tale/ui/text';
 import { RefreshCw, RotateCcw } from 'lucide-react';
 import { useId, useMemo, useRef, useState } from 'react';
 
-import { failureDetail } from '@/app/lib/backend/adapters';
 import type {
   ReplayPlan,
   ReplayStarted,
@@ -25,6 +24,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useReplayRun } from '../hooks/mutations';
 import { useReplayPlan } from '../hooks/queries';
+import { automationFailureDetail } from '../lib/errors';
 import { shortRunId } from '../lib/run-view';
 
 type VersionChoice = 'same' | 'latest' | 'deployed';
@@ -364,7 +364,7 @@ export function RunReplayDialog({
             variant="destructive"
             live="polite"
             description={t('replay.refused', {
-              detail: failureDetail(replay.error) ?? '',
+              detail: automationFailureDetail(replay.error) ?? '',
             })}
           />
         )}

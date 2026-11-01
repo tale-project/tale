@@ -8,7 +8,6 @@ import {
 import { useFormatDate } from '@tale/ui/use-format-date';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { failureDetail } from '@/app/lib/backend/adapters';
 import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
@@ -39,7 +38,11 @@ import {
   type TestTextContext,
 } from '../lib/automation-tests/test-text';
 import type { RawDocument } from '../lib/draft-document';
-import { automationErrorCode, automationErrorIssues } from '../lib/errors';
+import {
+  automationErrorCode,
+  automationErrorIssues,
+  automationFailureDetail,
+} from '../lib/errors';
 import { useRunAutomationTests } from './mutations';
 import { useAutomationTestReport } from './queries';
 import { useKeptTestResults } from './use-test-results';
@@ -460,7 +463,7 @@ function runFailureOf(
       }),
     };
   }
-  const description = failureDetail(error);
+  const description = automationFailureDetail(error);
   return {
     title: t('tests.runFailed'),
     ...(description !== undefined && { description }),
