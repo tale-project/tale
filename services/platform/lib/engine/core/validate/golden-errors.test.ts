@@ -134,6 +134,15 @@ beforeAll(async () => {
       outputSignature: '{ tempC: number }',
       hasEffect: false,
       mock: () => ({ tempC: 21 }),
+      scenarios: [
+        {
+          name: 'city_not_found',
+          kind: 'error',
+          description: 'the service knows no such city',
+          when: { city: 'Atlantis' },
+          error: { message: 'city not found', status: 404 },
+        },
+      ],
     },
   });
   // The HTTP connector's read, as its connector declares it in short.
@@ -909,6 +918,7 @@ const fixtures: Record<string, unknown> = {
         description: 5,
         mocks: 'main',
         failures: { main: 404 },
+        scenarios: { main: 7 },
       },
       {
         name: 'expectations',
@@ -968,6 +978,27 @@ const fixtures: Record<string, unknown> = {
         mocks: { main: 2 },
         failures: { main: 'the service is down' },
       },
+    ],
+  }),
+  'tests-scenario-conflict': flow({
+    nodes: [
+      { id: 'main', type: 'weather.current', input: { city: 'Atlantis' } },
+    ],
+    tests: [
+      {
+        name: 'both',
+        input: {},
+        mocks: { main: { tempC: 3 } },
+        scenarios: { main: 'city_not_found' },
+      },
+    ],
+  }),
+  'tests-scenario-unknown': flow({
+    nodes: [
+      { id: 'main', type: 'weather.current', input: { city: 'Atlantis' } },
+    ],
+    tests: [
+      { name: 'no city', input: {}, scenarios: { main: 'city_not_fund' } },
     ],
   }),
   'tests-mock-not-list': flow({
@@ -1161,6 +1192,8 @@ const VALIDATION_CODES: IssueCode[] = [
   'TESTS_NAME_DUPLICATE',
   'TESTS_MOCK_UNKNOWN_NODE',
   'TESTS_MOCK_CONFLICT',
+  'TESTS_SCENARIO_CONFLICT',
+  'TESTS_SCENARIO_UNKNOWN',
   'TESTS_MOCK_NOT_LIST',
   'TESTS_MOCK_TYPE',
   'TESTS_EXPECT_NODE_UNKNOWN',
