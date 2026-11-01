@@ -58,6 +58,13 @@ function host(initial: Values = {}) {
     advance: (ms: number) => {
       now += ms;
     },
+    /** The clock steps back `ms`: like the sampler (host-pressure.ts), the
+     * host keeps no reading stamped after it. */
+    stepBack: (ms: number) => {
+      now -= ms;
+      const kept = ring.filter((reading) => reading.atMs <= now);
+      ring.splice(0, ring.length, ...kept);
+    },
     tick: (values: Values = {}) => {
       now += 5_000;
       push(values);
@@ -424,6 +431,52 @@ describe('the admission answer', () => {
       verdict: 'admit',
       reason: null,
     });
+  });
+
+  test('a start the clock stepped back past paces as one made now, not until the clock has made up the step', () => {
+    const h = host();
+    const { instance } = admission(config(), { host: h });
+    instance.noteStart(h.now());
+    // The clock steps back an hour (NTP, a resumed VM), and the host is
+    // read on from there.
+    h.stepBack(60 * 60_000);
+    h.tick();
+    h.tick();
+    h.tick();
+    expect(instance.answer('start', undefined, ROOMY)).toMatchObject({
+      verdict: 'hold',
+      reason: 'pacing',
+      retryAfterMs: 10_000,
+    });
+    expect(instance.lastStartAtMs()).toBe(h.now());
+    // A reading after it, and one ten seconds after that.
+    h.tick();
+    h.tick();
+    h.tick();
+    expect(instance.answer('start', undefined, ROOMY)).toMatchObject({
+      verdict: 'admit',
+      reason: null,
+    });
+  });
+
+  test('a start noted after the clock stepped back paces from that start, not from when admission next asks', () => {
+    const h = host();
+    const { instance } = admission(config(), { host: h });
+    instance.noteStart(h.now());
+    // The clock steps back an hour (NTP, a resumed VM), and a start is let
+    // in before admission is asked again.
+    h.stepBack(60 * 60_000);
+    const startedAtMs = h.now();
+    instance.noteStart(startedAtMs);
+    // A reading after it, and one ten seconds after that.
+    h.tick();
+    h.tick();
+    h.tick();
+    expect(instance.answer('start', undefined, ROOMY)).toMatchObject({
+      verdict: 'admit',
+      reason: null,
+    });
+    expect(instance.lastStartAtMs()).toBe(startedAtMs);
   });
 
   test('session admission short of disk or memory holds first', () => {
