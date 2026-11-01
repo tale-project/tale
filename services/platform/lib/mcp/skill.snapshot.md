@@ -5,7 +5,7 @@ license: MIT
 compatibility: "Needs Tale's MCP server connected (https://<your Tale>/api/v1/mcp); works with any MCP client that reads skills."
 metadata:
   publisher: tale
-  contract: "3.55.0"
+  contract: "3.56.0"
 ---
 
 # Tale
@@ -40,7 +40,7 @@ A save refused with AUTOMATION_VERSION_STALE means someone saved meanwhile: read
 
 ## Testing
 
-- run_automation runs a draft on the mocks. mocks and failures stand in for nodes (the outside world’s answers, or a failure); upTo runs a node and what it needs, only runs one node on pinned data. The answer says where the run stood in (focus) and which stand-ins it never used (unusedMocks).
+- run_automation runs a draft on the mocks. mocks and failures stand in for nodes (the outside world’s answers, or a failure); scenarios pick one of the cases a connector action ships (get_catalog lists them: an empty page, a refusal, a rate limit), its failures classified as live ones; upTo runs a node and what it needs, only runs one node on pinned data. The answer says where the run stood in (focus) and which stand-ins it never used (unusedMocks).
 - test_automation runs the tests of a draft, or of a saved version (name, version): all of them, or those named in tests. Without detail you get each verdict and, for a failing test, what differed; detail adds what each run returned (output), did (effects) and went through (trace). The whole suite of a saved version is recorded on it as its verdict; a part of it is not.
 - Both run inside Tale and draw from the organization’s budget for runs that are never stored: on RATE_LIMITED wait data.retryAfterMs, then call again.
 - start_run with mode "mock" runs a saved version on the mocks and records the run, so the person can review it in Tale. Without mode, start_run is live.
