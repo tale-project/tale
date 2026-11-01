@@ -102,9 +102,20 @@ const RESTRICTED: Record<
 };
 
 /** The session columns that bind a session to one organization: single
- * sign-on asserts no role, an authenticating proxy asserts one. */
+ * sign-on asserts no role, an authenticating proxy asserts one and signs the
+ * session in, and a passkey enrolled behind a proxy keeps the proxy's role as
+ * the ceiling of each later sign-in, which its person made themselves. */
 const SSO_SESSION = { trustedOrganizationId: 'org-a', trustedRole: null };
-const PROXY_SESSION = { trustedOrganizationId: 'org-a', trustedRole: 'member' };
+const PROXY_SESSION = {
+  trustedOrganizationId: 'org-a',
+  trustedRole: 'member',
+  signedInByProxy: true,
+};
+const PASSKEY_SESSION = {
+  trustedOrganizationId: 'org-a',
+  trustedRole: 'member',
+  signedInByProxy: false,
+};
 
 const MEMBERS = /^GET \/api\/app\/members\/me\?orgId=org-b$/;
 
@@ -259,12 +270,20 @@ describe('the member door on another organization', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('offers no sign-in on a session an authenticating proxy asserted', async () => {
+  it('offers no sign-in on a session an authenticating proxy signed in', async () => {
     renderDashboard(PROXY_SESSION);
     expect(await screen.findByText(RESTRICTED.en.message)).toBeInTheDocument();
     expect(
       screen.queryByRole('button', { name: RESTRICTED.en.action }),
     ).not.toBeInTheDocument();
+  });
+
+  it("offers sign-in on a passkey's session that keeps a proxy's role (#5259)", async () => {
+    renderDashboard(PASSKEY_SESSION);
+    expect(await screen.findByText(RESTRICTED.en.message)).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: RESTRICTED.en.action }),
+    ).toBeEnabled();
   });
 
   it('ends the session before it takes the tab to sign in, and back here', async () => {

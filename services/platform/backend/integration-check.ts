@@ -23274,9 +23274,10 @@ async function checkTrustedHeaders(
       );
     return parsed.success ? (parsed.data.user?.email ?? null) : null;
   };
-  // Whether the app reads the session it gets back as the proxy's, and so
-  // offers no sign-out of its own for it; an SSO session reads as its
-  // person's (`auth/session-authority.integration.ts`).
+  // Whether the app reads the session it gets back as the proxy's, by the
+  // mark this door alone writes, and so offers no sign-out of its own for
+  // it; an SSO session, and a sign-in with a passkey enrolled behind a
+  // proxy, read as their person's (`auth/session-authority.integration.ts`).
   const sessionProxied = async (sessionCookie: string): Promise<boolean> => {
     const parsed = z.looseObject({ session: z.unknown() }).safeParse(
       await (

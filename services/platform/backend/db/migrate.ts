@@ -232,6 +232,43 @@ async function revokeClientWrittenTrustFields(
   });
 }
 
+/** The `app.boot_repairs` name of {@link markProxySignedInSessions}. */
+const MARK_PROXY_SIGNED_IN_SESSIONS = 'mark-proxy-signed-in-sessions';
+
+/**
+ * Mark, once, every session that carries a trusted role as signed in by the
+ * proxy. The app read the role alone as a proxy's session until the
+ * trusted-headers door marked its sessions itself (`signedInByProxy`, #5259),
+ * so a proxy's session from before then keeps offering no sign-out of its
+ * own. A passkey sign-in from before then keeps that reading too, until it
+ * ends; every later one is its person's.
+ *
+ * Recorded in `app.boot_repairs` (0193) so it runs once per database: the
+ * column is Better Auth's, and exists only after its migrator ran.
+ */
+async function markProxySignedInSessions(
+  sql: postgres.Sql,
+  log: (message: string) => void,
+): Promise<void> {
+  await sql.begin(async (tx) => {
+    const recorded = await tx`
+      INSERT INTO app.boot_repairs (name) VALUES (${MARK_PROXY_SIGNED_IN_SESSIONS})
+      ON CONFLICT (name) DO NOTHING
+      RETURNING name
+    `;
+    if (recorded.length === 0) return;
+    const marked = await tx`
+      UPDATE "session" SET "signedInByProxy" = true
+      WHERE "trustedRole" IS NOT NULL AND "signedInByProxy" IS NOT TRUE
+    `;
+    if (marked.count > 0) {
+      log(
+        `[backend] marked ${marked.count} session(s) carrying a trusted role as signed in by a proxy`,
+      );
+    }
+  });
+}
+
 /**
  * A numbered `.ts` migration: a DATA migration whose decision is a rule the
  * application already owns — a backfill keyed on which files an extractor
@@ -384,6 +421,7 @@ async function migrateOnce(
       await defaultTeamMemberCount(sql);
       await verifyProvisionedAccounts(sql, log);
       await revokeClientWrittenTrustFields(sql, log);
+      await markProxySignedInSessions(sql, log);
       await installAuthInvalidationTriggers(sql, log);
     }
     // The e-mail index builds concurrently, which must not happen under

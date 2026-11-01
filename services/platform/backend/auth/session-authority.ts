@@ -347,6 +347,7 @@ export async function resolveSessionAuthority<T extends SessionBundle>(
       userId: string;
       trustedOrganizationId: string | null;
       trustedRole: string | null;
+      signedInByProxy: boolean | null;
       activeOrganizationId: string | null;
       activeTeamId: string | null;
       activeTeamOrganizationId: string | null;
@@ -356,8 +357,8 @@ export async function resolveSessionAuthority<T extends SessionBundle>(
       refused: boolean;
     }[]
   >`
-    SELECT s."userId", s."trustedOrganizationId", s."trustedRole", s."activeOrganizationId",
-      s."activeTeamId", t."organizationId" AS "activeTeamOrganizationId",
+    SELECT s."userId", s."trustedOrganizationId", s."trustedRole", s."signedInByProxy",
+      s."activeOrganizationId", s."activeTeamId", t."organizationId" AS "activeTeamOrganizationId",
       s."independentIdentityVerifiedAt", s."updatedAt", (s."expiresAt" > now()) AS live,
       (r.session_id IS NOT NULL) AS refused
     FROM "session" s LEFT JOIN app.auth_legacy_session_refusals r
@@ -378,6 +379,7 @@ export async function resolveSessionAuthority<T extends SessionBundle>(
         ...bundle.session,
         trustedOrganizationId: row.trustedOrganizationId,
         trustedRole: row.trustedRole,
+        signedInByProxy: row.signedInByProxy === true,
         independentIdentityVerifiedAt: row.independentIdentityVerifiedAt,
         authenticationDoor: 'session',
         activeOrganizationId:
@@ -416,6 +418,7 @@ export async function resolveSessionAuthority<T extends SessionBundle>(
       ...bundle.session,
       trustedOrganizationId: owner?.organizationId ?? null,
       trustedRole: null,
+      signedInByProxy: false,
       independentIdentityVerifiedAt: null,
       authenticationDoor: 'api-key',
       ...(owner === null ? {} : { activeOrganizationId: owner.organizationId }),

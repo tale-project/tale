@@ -1,13 +1,15 @@
 import { isRecord } from '../utils/type-utils.ts';
 
 /**
- * Whether an authenticating proxy asserted this session. The trusted-headers
- * door writes the role the proxy asserted, and the proxy owns signing in and
- * out for that session, so the app offers no sign-out of its own. A single
- * sign-on session is bound to its organization too, but asserts no role: its
- * person signs out in the app (#5137). Read loosely: the field is one of the
+ * Whether an authenticating proxy signed this session in. The trusted-headers
+ * door marks the sessions it writes (`signedInByProxy`), and the proxy owns
+ * signing in and out for them, so the app offers no sign-out of its own. The
+ * role a session names is its ceiling alone: a single sign-on session names
+ * none (#5137), and a passkey enrolled behind a proxy names the proxy's role
+ * on every later sign-in, though its person signed in on Tale's own form and
+ * signs out in the app (#5259). Read loosely: the field is one of the
  * deployment's own session columns, not part of the client's inferred type.
  */
 export function isProxiedSession(session: unknown): boolean {
-  return isRecord(session) && typeof session.trustedRole === 'string';
+  return isRecord(session) && session.signedInByProxy === true;
 }

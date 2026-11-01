@@ -223,7 +223,7 @@ export async function trustedHeadersAuthenticate(
           await tx`
             UPDATE "session" SET
               "expiresAt" = ${expiresAt}, "updatedAt" = ${now},
-              "trustedRole" = ${args.role},
+              "trustedRole" = ${args.role}, "signedInByProxy" = true,
               "trustedOrganizationId" = ${args.organizationId},
               "activeOrganizationId" = ${args.organizationId}
             WHERE "id" = ${row.id}
@@ -239,12 +239,12 @@ export async function trustedHeadersAuthenticate(
       await tx`
         INSERT INTO "session" (
           "id", "token", "userId", "expiresAt", "createdAt", "updatedAt",
-          "ipAddress", "userAgent", "trustedRole", "trustedOrganizationId",
-          "activeOrganizationId"
+          "ipAddress", "userAgent", "trustedRole", "signedInByProxy",
+          "trustedOrganizationId", "activeOrganizationId"
         ) VALUES (
           gen_random_uuid(), ${sessionToken}, ${userId}, ${expiresAt}, ${now},
           ${now}, ${args.ipAddress ?? null}, ${args.userAgent ?? null},
-          ${args.role}, ${args.organizationId}, ${args.organizationId}
+          ${args.role}, true, ${args.organizationId}, ${args.organizationId}
         )
       `;
     }

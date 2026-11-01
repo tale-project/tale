@@ -74,8 +74,8 @@ removes the mapping drops it.
 ### SSO-R21 · A person signed in through the identity provider can sign out of Tale
 
 The session holds them to the organization of the connection, as a proxy's session does, but
-names no role. Only a role a proxy asserted leaves signing out to the proxy, so the account menu
-offers **Log out**, and it ends the session.
+names no role. Only a session a proxy signed in leaves signing out to the proxy, so the account
+menu offers **Log out**, and it ends the session.
 
 - **Example**: Mia signed in through her organization's identity provider. She chooses **Log
   out** in the account menu → she is on the sign-in page, and her session has ended.

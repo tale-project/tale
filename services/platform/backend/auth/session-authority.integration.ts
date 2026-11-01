@@ -1,9 +1,11 @@
 /** Real factory/app HTTP proof. A dedicated multi-org Owner retains every
  * seat while an actual org-minted session is confined to its source realm,
- * and stays its person's to sign out of.
+ * and stays its person's to sign out of; so does a sign-in with a passkey
+ * enrolled behind a proxy, which keeps the proxy's role as its ceiling.
  * Cutover inventory/WebAuthn are exercised in their isolated PG fixture. */
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
+import { generateId } from 'better-auth';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
@@ -15,6 +17,8 @@ import {
   ITEST_PASSWORD,
 } from '../integration-lane-helpers.ts';
 import type { Auth } from './auth.ts';
+import { createPasskeyAuthority } from './passkey-authority.ts';
+import { orgSessionCutoverAt } from './session-authority.ts';
 
 export async function checkOrganizationSessionAuthority(
   sql: Sql,
@@ -180,5 +184,107 @@ export async function checkOrganizationSessionAuthority(
       left.length === 0 &&
       afterSignOut === null,
     `bound=${bound}, proxied=${proxied} (want false), sign-out=${signOut.status} (want 200), rows left=${left.length} (want 0), after=${JSON.stringify(afterSignOut)} (want null)`,
+  );
+
+  // A passkey enrolled behind a proxy keeps the role the proxy asserted as
+  // its ceiling, and each sign-in with it names that role again
+  // (`passkey-authority.ts`). Its person signed in on Tale's own form, so
+  // the session reads as theirs, and signing out ends it (#5259); the
+  // trusted-headers door's session still reads as the proxy's
+  // (`checkTrustedHeaders`). WebAuthn cannot be driven from a script: the
+  // ceremony's own callback and the production session-create hook write
+  // the row such a sign-in writes, from the passkey's stored authority.
+  const credentialID = `authority-passkey-${suffix}`;
+  const passkeyId = randomUUID();
+  await sql`
+    INSERT INTO "passkey" (id, "userId", name, "publicKey", "credentialID",
+                           counter, "deviceType", "backedUp", "createdAt")
+    VALUES (${passkeyId}, ${userId}, 'Proxy-enrolled device', 'fixture-public-key',
+            ${credentialID}, 0, 'singleDevice', false, ${new Date()})
+  `;
+  await sql`
+    INSERT INTO app.auth_factor_authorities (
+      credential_fingerprint, credential_id, user_id, org_id, trusted_role, authority, state
+    ) VALUES (${createHash('sha256').update(credentialID).digest('hex')}, ${passkeyId},
+      ${userId}, ${orgA}, 'member', 'organization', 'bound')
+  `;
+  const ceremonyPath = '/passkey/verify-authentication';
+  const ceremony = {
+    path: ceremonyPath,
+    request: new Request(`${base}/api/auth${ceremonyPath}`, {
+      method: 'POST',
+    }),
+    context: {},
+  };
+  const verified = createPasskeyAuthority(sql, orgSessionCutoverAt()).options
+    .authentication?.afterVerification;
+  const createSession = auth.options.databaseHooks?.session?.create?.before;
+  if (verified === undefined || createSession === undefined)
+    throw new Error(
+      'The passkey ceremony or the session-create hook was missing',
+    );
+  // Both read only the request and the path of Better Auth's endpoint
+  // context, and the ceremony only the public handle of the client's answer.
+  await verified(
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the ceremony reads only the request and the public handle (`passkey-authority.ts`)
+    {
+      ctx: ceremony,
+      verification: { verified: true },
+      clientData: { id: credentialID },
+    } as Parameters<NonNullable<typeof verified>>[0],
+  );
+  const passkeyToken = generateId(32);
+  const mintedAt = new Date();
+  const hooked: unknown = await createSession(
+    {
+      id: randomUUID(),
+      ipAddress: '',
+      userAgent: '',
+      expiresAt: new Date(mintedAt.getTime() + 60 * 60 * 1000),
+      userId,
+      token: passkeyToken,
+      createdAt: mintedAt,
+      updatedAt: mintedAt,
+    },
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the create hook reads only the request and the path (`auth.ts`)
+    ceremony as Parameters<NonNullable<typeof createSession>>[1],
+  );
+  await (
+    await auth.$context
+  ).adapter.create({
+    model: 'session',
+    data: z.object({ data: z.looseObject({}) }).parse(hooked).data,
+    forceAllowId: true,
+  });
+  const passkeyCookie = await cookieOf(passkeyToken);
+  const passkeyRead = z
+    .object({
+      session: z.looseObject({
+        trustedOrganizationId: z.string().nullish(),
+        trustedRole: z.string().nullish(),
+      }),
+    })
+    .safeParse(await readSession(passkeyCookie));
+  const ceiling =
+    passkeyRead.success &&
+    passkeyRead.data.session.trustedOrganizationId === orgA &&
+    passkeyRead.data.session.trustedRole === 'member';
+  const passkeyProxied =
+    passkeyRead.success && isProxiedSession(passkeyRead.data.session);
+  const passkeyForeign = await readOrg(orgB, passkeyCookie);
+  const passkeySignOut = await post('/api/auth/sign-out', {}, passkeyCookie);
+  const passkeyLeft = await sql`
+    SELECT "id" FROM "session" WHERE "token" = ${passkeyToken}
+  `;
+  const afterPasskey = await readSession(passkeyCookie);
+  record(
+    "auth authority: a passkey enrolled behind a proxy keeps its ceiling, and its sign-in is its person's to sign out of",
+    ceiling &&
+      !passkeyProxied &&
+      passkeyForeign.status === 403 &&
+      passkeySignOut.status === 200 &&
+      passkeyLeft.length === 0 &&
+      afterPasskey === null,
+    `ceiling=${ceiling} (want ${orgA}/member), proxied=${passkeyProxied} (want false), foreign=${passkeyForeign.status} (want 403), sign-out=${passkeySignOut.status} (want 200), rows left=${passkeyLeft.length} (want 0), after=${JSON.stringify(afterPasskey)} (want null)`,
   );
 }

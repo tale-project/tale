@@ -22,12 +22,25 @@ function answerSession(session: Record<string, unknown>) {
 }
 
 describe('useAuth', () => {
-  // The proxy owns signing in and out for a session it asserted. A single
-  // sign-on session is bound to its organization as well, but asserts no
-  // role: its person signs out and back in through the app.
-  it('leaves signing out to the proxy only for a session a proxy asserted', () => {
-    answerSession({ trustedOrganizationId: 'org-1', trustedRole: 'member' });
+  // The proxy owns signing in and out for a session it signed in. A single
+  // sign-on session is bound to its organization as well, and a sign-in with
+  // a passkey enrolled behind a proxy keeps the proxy's role as its ceiling
+  // (#5259), but no proxy stands behind either: its person signs out and back
+  // in through the app.
+  it('leaves signing out to the proxy only for a session a proxy signed in', () => {
+    answerSession({
+      trustedOrganizationId: 'org-1',
+      trustedRole: 'member',
+      signedInByProxy: true,
+    });
     expect(renderHook(() => useAuth()).result.current.proxied).toBe(true);
+
+    answerSession({
+      trustedOrganizationId: 'org-1',
+      trustedRole: 'member',
+      signedInByProxy: false,
+    });
+    expect(renderHook(() => useAuth()).result.current.proxied).toBe(false);
 
     answerSession({ trustedOrganizationId: 'org-1', trustedRole: null });
     expect(renderHook(() => useAuth()).result.current.proxied).toBe(false);

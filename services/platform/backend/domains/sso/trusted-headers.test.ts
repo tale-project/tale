@@ -230,6 +230,10 @@ describe('trustedHeadersAuthenticate — the org-binding contract', () => {
     );
     expect(insert?.text).toContain('"trustedOrganizationId"');
     expect(insert?.text).toContain('"activeOrganizationId"');
+    // The proxy signed this session in, so the app leaves signing out to
+    // it; the role alone is the session's ceiling (#5259).
+    expect(insert?.text).toContain('"trustedRole", "signedInByProxy"');
+    expect(insert?.text).toContain('$?, true, $?, $?');
     expect(insert?.values).toEqual(
       expect.arrayContaining([
         result.sessionToken,
@@ -387,6 +391,7 @@ describe('trustedHeadersAuthenticate — the org-binding contract', () => {
     expect(result.sessionToken).toBe('tok-1');
     const update = queries.find((q) => q.text.startsWith('UPDATE "session"'));
     expect(update?.text).toContain('"trustedOrganizationId" = $?');
+    expect(update?.text).toContain('"signedInByProxy" = true');
     expect(update?.values).toEqual(
       expect.arrayContaining(['admin', 'org-1', 'sess-1']),
     );

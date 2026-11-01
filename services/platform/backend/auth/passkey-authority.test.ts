@@ -218,6 +218,7 @@ describe('mint hints are private and survive library context merging', () => {
       userId: 'user-a',
       organizationId: 'org-a',
       trustedRole: 'member',
+      signedInByProxy: true,
       independentIdentityVerifiedAt: null,
     };
     setSessionMintAuthority(ctx, mint);
@@ -231,6 +232,21 @@ describe('mint hints are private and survive library context merging', () => {
       }),
     ).toBeNull();
     clearSessionMintAuthority(ctx);
+    expect(sessionMintAuthority(ctx)).toBeNull();
+  });
+
+  it('refuses a hint that does not say whether a proxy signed in', () => {
+    const request = new Request(
+      'https://tale.example.invalid/api/auth/passkey/verify-authentication',
+    );
+    const ctx = { request, context: {} };
+    setSessionMintAuthority(ctx, {
+      userId: 'user-a',
+      organizationId: 'org-a',
+      trustedRole: 'member',
+      signedInByProxy: 'true',
+      independentIdentityVerifiedAt: null,
+    } as never);
     expect(sessionMintAuthority(ctx)).toBeNull();
   });
 });
@@ -254,6 +270,7 @@ describe('proxy role ceilings survive a logged-out factor ceremony', () => {
       userId: 'user-a',
       organizationId: 'org-a',
       trustedRole: 'member',
+      signedInByProxy: true,
       independentIdentityVerifiedAt: null,
     });
     const callback = service.options.registration?.afterVerification;
@@ -274,8 +291,9 @@ describe('proxy role ceilings survive a logged-out factor ceremony', () => {
     expect(staged?.text).toContain('trusted_role');
   });
 
-  it('restores the stored ceiling when a logged-out factor authenticates', async () => {
-    const db = database((text) => {
+  // A passkey enrolled behind a proxy, as the case above stores it.
+  const proxyEnrolledFactor = () =>
+    database((text) => {
       if (text.includes('FROM app.boot_repairs')) return [{ name: EPOCH }];
       if (text.includes('FROM "passkey"'))
         return [
@@ -294,12 +312,12 @@ describe('proxy role ceilings survive a logged-out factor ceremony', () => {
         ];
       return [];
     });
-    const service = createPasskeyAuthority(db.sql, FENCE);
-    const request = new Request(
-      'https://tale.example.invalid/api/auth/passkey/verify-authentication',
-    );
-    const ctx = { request, context: {} };
-    const callback = service.options.authentication?.afterVerification;
+  const authenticate = async (
+    db: ReturnType<typeof proxyEnrolledFactor>,
+    ctx: { request: Request; context: object },
+  ) => {
+    const callback = createPasskeyAuthority(db.sql, FENCE).options
+      .authentication?.afterVerification;
     if (callback === undefined)
       throw new Error('authentication callback missing');
     await callback({
@@ -307,10 +325,42 @@ describe('proxy role ceilings survive a logged-out factor ceremony', () => {
       verification: { verified: true },
       clientData: { id: 'proxy-public-handle' },
     } as never);
+  };
+
+  it('restores the stored ceiling when a logged-out factor authenticates', async () => {
+    const request = new Request(
+      'https://tale.example.invalid/api/auth/passkey/verify-authentication',
+    );
+    const ctx = { request, context: {} };
+    await authenticate(proxyEnrolledFactor(), ctx);
+    // The ceiling stays, but its person signed in on Tale's own form, and
+    // signs out in the app: no proxy will (#5259).
     expect(sessionMintAuthority(ctx)).toMatchObject({
       userId: 'user-a',
       organizationId: 'org-a',
       trustedRole: 'member',
+      signedInByProxy: false,
+    });
+  });
+
+  it("keeps a proxy's sign-in when its person authenticates under it", async () => {
+    const request = new Request(
+      'https://tale.example.invalid/api/auth/passkey/verify-authentication',
+    );
+    const ctx = { request, context: {} };
+    setSessionMintAuthority(ctx, {
+      userId: 'user-a',
+      organizationId: 'org-a',
+      trustedRole: 'member',
+      signedInByProxy: true,
+      independentIdentityVerifiedAt: null,
+    });
+    await authenticate(proxyEnrolledFactor(), ctx);
+    expect(sessionMintAuthority(ctx)).toMatchObject({
+      userId: 'user-a',
+      organizationId: 'org-a',
+      trustedRole: 'member',
+      signedInByProxy: true,
     });
   });
 
@@ -330,6 +380,7 @@ describe('proxy role ceilings survive a logged-out factor ceremony', () => {
       userId: 'user-a',
       organizationId: 'org-a',
       trustedRole: 'owner',
+      signedInByProxy: true,
       independentIdentityVerifiedAt: null,
     });
     const callback = service.options.registration?.afterVerification;
