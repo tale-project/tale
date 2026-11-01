@@ -224,6 +224,9 @@ export function useFormEditor<T extends FieldValues>({
             }
           },
           () => {
+            // A refused save writes the errors but leaves the stored
+            // `isValid` as it was: judge again, so Save follows the values.
+            void form.trigger([]);
             reject(new Error('VALIDATION_FAILED'));
           },
         )();
@@ -233,6 +236,34 @@ export function useFormEditor<T extends FieldValues>({
       inFlightRef.current = false;
     }
   }, [form]);
+
+  // RHF judges the values an input event writes, but not a value code writes
+  // (`setValue` without `shouldValidate`, `reset`): its stored `isValid` keeps
+  // describing the values before, and Save follows it — on over blank
+  // required fields, or off over valid ones. Judge again whenever code writes
+  // a value. `trigger([])` names no field, so it runs the schema for `isValid`
+  // alone and writes no error: a field the user has not reached stays quiet.
+  // It waits for the handler's other writes, so it judges their final values
+  // rather than one in between that could land last.
+  const judgesValidity = schema !== undefined;
+  useEffect(() => {
+    if (!judgesValidity) return undefined;
+    let active = true;
+    let queued = false;
+    const { unsubscribe } = form.watch((_values, { type }) => {
+      // An input event carries its type: RHF judges those itself.
+      if (type !== undefined || queued) return;
+      queued = true;
+      queueMicrotask(() => {
+        queued = false;
+        if (active) void form.trigger([]);
+      });
+    });
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, [form, judgesValidity]);
 
   const isValid = schema ? form.formState.isValid : true;
 

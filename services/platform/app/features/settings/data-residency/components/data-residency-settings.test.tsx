@@ -1815,6 +1815,44 @@ describe('DataResidencySettings', () => {
     expect(width).not.toHaveAttribute('placeholder');
   });
 
+  it('keeps Save off over a blank Region and Bucket when Force path-style is the first edit (#5260)', async () => {
+    // The toggle writes its value from code, not through an input: the form
+    // was never judged again and kept the "valid" of the untouched empty
+    // form, so Save stayed on over the blank required fields.
+    const { user, capture } = renderWithController();
+    const section = sectionByHeading('Object storage');
+
+    await user.click(
+      within(section).getByRole('switch', { name: 'External S3' }),
+    );
+    await user.click(
+      within(section).getByRole('switch', {
+        name: 'Force path-style (MinIO/R2)',
+      }),
+    );
+
+    expect(capture.current?.isDirty).toBe(true);
+    await waitFor(() => expect(capture.current?.isValid).toBe(false));
+    // Save follows the values; the errors wait until the admin reaches the
+    // fields.
+    expect(
+      within(section).queryByText("Enter the bucket's region."),
+    ).not.toBeInTheDocument();
+    expect(
+      within(section).queryByText('Enter the bucket name.'),
+    ).not.toBeInTheDocument();
+
+    await user.type(
+      within(section).getByRole('textbox', { name: 'Region' }),
+      'eu-central-1',
+    );
+    await user.type(
+      within(section).getByRole('textbox', { name: 'Bucket' }),
+      'org-blobs',
+    );
+    await waitFor(() => expect(capture.current?.isValid).toBe(true));
+  });
+
   it('renders the org storage section from a loaded config with its stored values', async () => {
     setStorageFixture({
       configured: true,
