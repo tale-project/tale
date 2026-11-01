@@ -1,3 +1,4 @@
+import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { CompetenceRecordWire } from '@/app/lib/backend/contract/governance';
@@ -8,6 +9,8 @@ import { CompetencesPage } from './competences-page';
 
 const NOW = Date.now();
 const DAY = 24 * 60 * 60 * 1000;
+const REFRESH_FAILED =
+  "Couldn't load the latest grants. What's listed may be incomplete or out of date.";
 
 function record(
   overrides: Partial<CompetenceRecordWire> & { id: string },
@@ -26,7 +29,10 @@ function record(
 }
 
 const state = vi.hoisted(() => ({
-  records: [] as CompetenceRecordWire[],
+  /** `undefined` until the register has answered. */
+  records: [] as CompetenceRecordWire[] | undefined,
+  /** The read's settled failure, once its retry policy gave up. */
+  error: null as Error | null,
   canWrite: true,
   revoke: vi.fn(),
   update: vi.fn(),
@@ -38,7 +44,10 @@ vi.mock('../hooks/queries', () => ({
   useCompetences: () => ({
     data: state.records,
     isLoading: false,
-    error: null,
+    error: state.error,
+    isError: state.error !== null,
+    errorUpdateCount: state.error === null ? 0 : 1,
+    isFetching: false,
     refetch: state.refetch,
   }),
   useOrgMembersForPicker: () => ({ data: [], isLoading: false }),
@@ -78,6 +87,7 @@ vi.mock('@/app/hooks/use-organization-id', () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   state.records = [];
+  state.error = null;
   state.canWrite = true;
   state.refetch.mockResolvedValue({});
 });
@@ -412,6 +422,110 @@ describe('CompetencesPage', () => {
     expect(
       within(retired).getByTitle('Revoked when the team was deleted'),
     ).toBeInTheDocument();
+  });
+
+  // #5160: the register pages like every settings list — one window of the
+  // shared size, more as the reader scrolls — and closes on the count footer,
+  // which counts what the status filter leaves.
+  it('shows one window of grants and counts them in the footer', () => {
+    state.records = [
+      ...Array.from({ length: DEFAULT_LIST_PAGE_SIZE + 5 }, (_, index) =>
+        record({ id: `grant-${index}`, competence: `qualification-${index}` }),
+      ),
+      record({ id: 'ended', revokedAt: NOW - 1000, revokedBy: 'user-admin' }),
+    ];
+    render(<CompetencesPage organizationId="org-a" />);
+
+    expect(screen.getAllByRole('row').slice(1)).toHaveLength(
+      DEFAULT_LIST_PAGE_SIZE,
+    );
+    expect(
+      screen.getByText(
+        `Showing ${DEFAULT_LIST_PAGE_SIZE} of ${DEFAULT_LIST_PAGE_SIZE + 5} grants`,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('finds grants by holder, email and the right’s name, within the status filter', async () => {
+    state.records = [
+      record({ id: 'act-as' }),
+      record({
+        id: 'models',
+        userId: 'user-admin',
+        competence: 'tale:models.api',
+      }),
+      record({ id: 'tax', userId: 'user-admin', competence: 'tax-reviewer' }),
+      // Revoked: the default Active filter keeps it out of every search.
+      record({
+        id: 'ended',
+        competence: 'tale:models.api',
+        revokedAt: NOW - 1000,
+        revokedBy: 'user-admin',
+      }),
+    ];
+    const { user } = render(<CompetencesPage organizationId="org-a" />);
+    expect(screen.getByText('Showing all 3 grants')).toBeInTheDocument();
+
+    const search = screen.getByPlaceholderText('Search grants');
+    const listed = () =>
+      screen
+        .getAllByRole('row')
+        .slice(1)
+        .map((row) => row.textContent);
+
+    await user.type(search, 'worker@example');
+    await waitFor(() => expect(listed()).toHaveLength(1));
+    expect(listed()[0]).toContain('Integration Worker');
+    expect(screen.getByText('Showing 1 of 3 grants')).toBeInTheDocument();
+
+    await user.clear(search);
+    await user.type(search, 'office admin');
+    await waitFor(() => expect(listed()).toHaveLength(2));
+
+    // The translated name, not only the id the record stores.
+    await user.clear(search);
+    await user.type(search, 'models over');
+    await waitFor(() => expect(listed()).toHaveLength(1));
+    expect(listed()[0]).toContain('Office Admin');
+
+    // A qualification has only its name.
+    await user.clear(search);
+    await user.type(search, 'tax-rev');
+    await waitFor(() => expect(listed()).toHaveLength(1));
+    expect(listed()[0]).toContain('tax-reviewer');
+  });
+
+  it('shows the error state with Try again when the register cannot be read', async () => {
+    state.records = undefined;
+    state.error = new Error('Service unavailable');
+    const { user } = render(<CompetencesPage organizationId="org-a" />);
+
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.queryByText(REFRESH_FAILED)).not.toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Try again' }));
+
+    expect(state.refetch).toHaveBeenCalledTimes(1);
+    // The retry replaces its own button: focus waits on the list's section.
+    expect(
+      screen.getByRole('region', { name: 'Rights and qualifications' }),
+    ).toHaveFocus();
+  });
+
+  it('keeps the grants a failed refresh left, and names the failure above them', async () => {
+    state.records = [record({ id: 'live' })];
+    state.error = new Error('Service unavailable');
+    const { user } = render(<CompetencesPage organizationId="org-a" />);
+
+    const notice = screen.getByText(REFRESH_FAILED).closest('[role="alert"]');
+    if (!(notice instanceof HTMLElement)) throw new Error('No alert');
+    expect(
+      screen.getByRole('region', { name: 'Rights and qualifications' }),
+    ).toContainElement(notice);
+    expect(screen.getAllByRole('row').slice(1)).toHaveLength(1);
+    expect(screen.getByText('Showing all 1 grant')).toBeInTheDocument();
+
+    await user.click(within(notice).getByRole('button', { name: 'Try again' }));
+    expect(state.refetch).toHaveBeenCalledTimes(1);
   });
 
   it('turns away a member who may not manage organization settings', () => {
