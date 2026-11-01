@@ -465,6 +465,9 @@ activity:
   dependencyAdded: Dépendance ajoutée
   dependencyRemoved: Dépendance supprimée
   agentRunRefused: Exécution refusée
+  mentionHandoffStarted: Tâche transmise par mention
+  mentionHandoffRefused: Transmission par mention refusée
+  mentionHandoffDropped: Transmission par mention abandonnée
   repeatChanged: Répétition modifiée
   repeatNext: Tâche suivante créée
   empty:
@@ -473,6 +476,28 @@ activity:
     description: Aucune description
     labels: Aucune étiquette
     attachments: Aucune pièce jointe
+  handoff:
+    no_start_grant: l'agent qui a écrit le commentaire ne peut pas lancer d'agents
+    second_hop: l'exécution qui a écrit le commentaire a été lancée par un autre agent
+    confined: l'exécution qui a écrit le commentaire ne peut travailler que sur sa propre tâche
+    in_review: la tâche attend une relecture
+    automation_holds_task: une automatisation travaille sur la tâche
+    automation_disabled: l'automatisation des tâches est désactivée
+    task_circuit_breaker: les exécutions d'agents sont en pause sur cette tâche
+    blocked: la tâche attend les tâches dont elle dépend
+    no_review_context: le relecteur n'a aucun contexte de relecture où travailler
+    agent_unavailable: agent introuvable ou sans modèle
+    review_unavailable: un agent ne peut pas lancer cette relecture
+    start_refused: l'agent n'a pas pu être lancé
+    closed: la tâche est fermée
+    archived: la tâche est archivée
+    assigned_to_person: la tâche a été attribuée à une personne
+    comment_deleted: le commentaire a été supprimé
+    already_working: l'agent travaille déjà sur la tâche
+    grant_lost: l'agent qui a écrit le commentaire ne peut plus lancer d'agents
+    starter_lost: la personne ou la planification dont relève l'exécution ne peut plus agir ici
+    review_decided: la relecture a été décidée avant
+    superseded: un commentaire plus récent nomme le même agent
 review:
   decisionApproved: "Approuvé"
   decisionChangesRequested: "Modifications demandées"

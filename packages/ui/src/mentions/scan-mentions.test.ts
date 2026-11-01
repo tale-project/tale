@@ -112,6 +112,16 @@ describe('where a text mentions someone', () => {
       ),
     ).toEqual(['@ada', '@mia', '@noah']);
   });
+
+  it('reads the node types a caller skips as no mention', () => {
+    const markdown = `> ${ADA} asked\n>\n> > @mia too\n\n@noah and ${ADA}`;
+    const read = (skip?: readonly string[]) =>
+      findMentions(markdown, { kinds: KINDS, skip }).map((occurrence) =>
+        describeOccurrence(markdown, occurrence),
+      );
+    expect(read()).toEqual(['user:u-ada', '@mia', '@noah', 'user:u-ada']);
+    expect(read(['blockquote'])).toEqual(['@noah', 'user:u-ada']);
+  });
 });
 
 describe('a text read without markdown', () => {
