@@ -32,6 +32,10 @@ const LEDGER = 'docs/published.json';
 /** The screenshot manifest suite's marketing source-reference registry. */
 const MARKETING_SCREENSHOTS = 'services/web/app/content/product-screenshots.ts';
 
+/** The responsive-image policy (ladder, formats, byte budget) the screenshot
+ *  manifest suite holds every page image's variants to. */
+const UI_IMAGE_POLICY = 'packages/ui/src/images/responsive.ts';
+
 /**
  * The documentation frame's link, redirect and near-miss rules in `@tale/ui`:
  * the link, published and near-miss suites run them, the build scripts
@@ -100,13 +104,14 @@ function rootReadmes(): string[] {
 const READERS: { task: string; why: string; reads: () => string[] }[] = [
   {
     task: 'test',
-    why: 'the structural, link and published suites, i18n, README parity and screenshot source references',
+    why: 'the structural, link and published suites, i18n, README parity, screenshot source references and variants',
     reads: () => [
       ...contentFiles(),
       ...rootReadmes(),
       ...uiI18nFiles(),
       ...UI_DOCS_RULES,
       MARKETING_SCREENSHOTS,
+      UI_IMAGE_POLICY,
     ],
   },
   {
