@@ -4,10 +4,11 @@
 
 The rules a task write is held to before anything is saved: who can create, change and delete
 a task, what an archived task or project refuses, how long its text can be, how often
-automations can start an agent on it, how one agent works several tasks at once, what a
-deleted task leaves behind, and how an issue sync keeps tasks in step with their trackers. The
-rest of agent runs, reviews beyond captured agent handoffs and a reviewer who loses access,
-repeating tasks and the importers beyond the issue sync are not covered; see Not yet.
+automations can start an agent on it, how an agent hands a task on by a mention, how one
+agent works several tasks at once, what a deleted task leaves behind, and how an issue sync
+keeps tasks in step with their trackers. The rest of agent runs, reviews beyond captured agent
+handoffs and a reviewer who loses access, repeating tasks and the importers beyond the issue
+sync are not covered; see Not yet.
 
 ## Who can do what
 
@@ -180,6 +181,109 @@ automation's agent node that keeps running out of memory stops after three re-ki
 - **Example**: Noah starts the agent at 14:00 on a task whose build runs the sandbox out of
   memory after 20 minutes, every time → it is retried at 14:22, 14:52 and 15:42, and when the
   run of 15:42 runs out of memory at 16:02 it fails for good and Noah is told.
+
+## Handoffs by mention
+
+An agent hands a task on to another agent of its project by naming it in a comment, as it could
+have started that agent itself with **Start other agents on tasks** (`task_start_agent`). The
+comment starts nothing at once: no agent's text steers a run that works, and the named agent
+starts once the writing run has ended and no run holds the task. A person's mention keeps its
+own rules, and a review's feedback hands nothing on.
+
+### TASK-R88 · An agent's mention hands the task on once the writing run has ended
+
+A comment an agent's run writes through **Comment on tasks** (`task_comment`) that names another
+agent of the task's project waits until that run has ended, whichever task it works, and until
+no run holds the task. A failed run whose automatic retry is armed is still at work. Then the
+named agent is assigned, the card moves to In progress and the agent starts with the comment as
+its brief, as if the writing run had called `task_start_agent`: the new run answers to whoever
+the writing run answered to, and every refusal of that start holds, the three automatic starts
+an hour of `TASK-R12` among them. The history records the comment, the agent that asked and the
+run it started, or why it started none.
+
+- **Example**: The Coder's run on TALE-7 comments "@Reviewer the branch is ready" and ends at
+  14:05 → the Reviewer is assigned TALE-7 and starts with that comment as its brief, answering
+  to the person the Coder's run answered to.
+- **Example**: The Lead's run works its own task, Decide, and names the Coder on TALE-7 → the
+  Coder starts on TALE-7 once the Lead's run has ended, not before.
+- **Example**: The Coder's run names the Reviewer on TALE-7 while the Tester's run holds it. The
+  Coder's run ends at 14:05 and the Tester's at 14:20 → the Reviewer starts at 14:20.
+- **Example**: TALE-7 has had three automatic starts since 14:00. At 14:30 the Coder's mention
+  of the Reviewer would start a fourth → refused as `task_circuit_breaker`, and the history
+  says so.
+
+### TASK-R89 · Only a run that may start agents itself hands a task on by mention
+
+The writing agent holds **Start other agents on tasks** in the task's project, and its run is
+neither confined to its own task, as a run a Member started is, nor started by another agent:
+one hop, as for `task_start_agent`. Otherwise the comment starts nobody, and the history records
+why: `no_start_grant`, `confined` or `second_hop`. A comment an automation or a workflow writes,
+or one written outside a live run of its agent, hands nothing on. A person's mention starts the
+agent it names as it always did.
+
+- **Example**: The Coder holds no **Start other agents on tasks**, and its run comments
+  "@Reviewer please look" → nobody starts, and the history records the handoff refused as
+  `no_start_grant`.
+- **Example**: The Lead started the Coder's run on TALE-7, and that run names the Reviewer →
+  refused as `second_hop`.
+- **Example**: Mia, a Member, starts the Coder on TALE-7, and its run names the Reviewer →
+  refused as `confined`.
+- **Example**: Mia comments "@Reviewer" on TALE-7, which no run holds → the Reviewer is
+  assigned and starts at once, as for any person's mention.
+
+### TASK-R90 · A mention in a quote or code, of its writer or of a working agent starts nothing
+
+Only a mention as the comment stores it (`mention:agent/<id>`) of an agent of the task's project
+counts, outside block quotes and code, so text an agent quotes from elsewhere starts nobody. The
+first such agent other than the writer is the one handed to. An agent whose run holds the task
+is not handed to, and its run is not steered: no agent's comment reaches a run that works.
+
+- **Example**: The Coder's run quotes an issue that reads "> @Lead please decide" → nobody
+  starts.
+- **Example**: The Coder's run comments "@Coder done" → nobody starts.
+- **Example**: The Reviewer's run holds TALE-7, and the Coder's run comments "@Reviewer one
+  more thing" → nothing starts, and the Reviewer's run goes on without the comment.
+
+### TASK-R91 · A mention on a task In review starts its reviewer on a review context
+
+When the task's pending review is routed to the named agent, the handoff starts that agent in
+place on one of its review contexts, never on the task under review, with a brief that names
+the task. The review stays pending, and the card stays at In review with its assignee. The
+review context is the oldest of the agent's enabled ones in the project that no run holds and
+that is not archived, not at In review, Done or Cancelled, and awaits no review of its own. While
+every such context is held the handoff waits for the first to free up; without one it is
+refused as `no_review_context`. A review routed to someone else is refused as `in_review`, and
+one no agent may start as it stands as `review_unavailable`. A comment written before the card
+moved to In review counts for the review requested after it.
+
+- **Example**: TALE-7 is In review, its review routed to the Reviewer, whose review context is
+  "Review 1". The Coder's run comments "@Reviewer ready" and ends → the Reviewer starts on
+  "Review 1" with a brief that names TALE-7, and TALE-7 stays In review with its review pending.
+- **Example**: The Coder's run names the Reviewer, then moves TALE-7 to In review, which routes
+  its review to the Reviewer, and ends → the Reviewer starts on its review context as above.
+- **Example**: The Reviewer has no review context → refused as `no_review_context`, and nothing
+  starts.
+- **Example**: TALE-7's review is routed to Noor, and the Coder's run names the Reviewer →
+  refused as `in_review`.
+
+### TASK-R92 · A pending handoff is dropped once the task or its review no longer wants it
+
+A task holds at most one pending handoff per named agent: a later comment that names the same
+agent replaces the earlier one, which is recorded as `superseded`. A pending handoff is dropped,
+with its reason on the history, once the task is Done or Cancelled (`closed`), the task or its
+project is archived (`archived`), the task is assigned to a person (`assigned_to_person`), the
+comment is deleted (`comment_deleted`), the named agent works the task already
+(`already_working`), the review it was to start is no longer pending (`review_decided`), the
+writing agent no longer holds **Start other agents on tasks** (`grant_lost`), or whoever its run
+answered to may no longer act in the project (`starter_lost`).
+
+- **Example**: The Coder's run names the Reviewer on TALE-7 In review, and before that run ends
+  Mia moves TALE-7 back to In progress, which closes its review → the handoff is dropped as
+  `review_decided`, and nothing starts.
+- **Example**: The Coder's run names the Reviewer, and before it ends Mia assigns TALE-7 to
+  herself → dropped as `assigned_to_person`.
+- **Example**: The Coder's run names the Reviewer in two comments on TALE-7 → one handoff
+  waits, the later comment's, and the earlier one is recorded as `superseded`.
 
 ## Deleting a task
 
@@ -1267,7 +1371,7 @@ connection to its own instance.
 
 - **Agent runs**: steering, stopping, retrying and re-attaching a run beyond `TASK-R24`–`TASK-R27`, `TASK-R30`–`TASK-R38`, `TASK-R40`, `TASK-R84` and `TASK-R85`, and how a run moves the card between statuses (`agent-runs.ts`,
   `run-start.ts`, `reattach.ts`, `kick-plan.ts`).
-- **Reviews beyond `TASK-R21`–`TASK-R22`, `TASK-R28`–`TASK-R29` and `TASK-R39`**: who a review goes to otherwise, an agent as reviewer, and what a decision does to the task
+- **Reviews beyond `TASK-R21`–`TASK-R22`, `TASK-R28`–`TASK-R29`, `TASK-R39` and `TASK-R91`**: who a review goes to otherwise, an agent as reviewer, and what a decision does to the task
   (`reviews.ts`, `agent-review.ts`, `review-decision.ts`, `review-repair.ts`). `TASK-R39` hands reviews on from the members door
   (removal, role change), the team door and the removal cascade that SCIM and the sign-in handler's hook share; SCIM role updates, SSO role
   reconciliation, a deleted team and an edited project audience do not hand them on yet.

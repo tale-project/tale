@@ -375,6 +375,13 @@ export interface DelegatedAgentStartArgs {
    * to the project's wake target (`wakeGenerationForStart`). Written on the
    * new run only; a reused or replayed start writes nothing. */
   wakeAdmittedSeq?: number;
+  /**
+   * A handoff by mention (`mention-handoffs.ts`): `via` names the run that
+   * wrote the comment, which has ended by now. It hands the task on as it
+   * would have started an agent itself while its agent still holds
+   * `task_start_agent`; its sandbox session need not be live any more.
+   */
+  mentionHandoff?: true;
 }
 
 /** Why a resumption's question is no longer the task's open question. */
@@ -461,6 +468,9 @@ async function assertDelegatingRun(
     organizationId: string;
     via: Extract<StartedVia, { kind: 'agent' }>;
     requireCurrentGrant?: boolean;
+    /** The run wrote a handoff by mention: it may have ended, and its
+     * agent's grant is all that must still hold of it. */
+    ended?: boolean;
   },
 ): Promise<void> {
   const runs = await tx<
@@ -480,15 +490,16 @@ async function assertDelegatingRun(
              EXISTS (SELECT 1 FROM app.project_agents a
                WHERE a.org_id = r.org_id AND a.project_id = r.project_id AND a.id = r.agent_id
                  AND 'task_start_agent' = ANY(a.tools))
-             AND EXISTS (SELECT 1 FROM app.sandbox_sessions s
+             AND (${args.ended === true} OR EXISTS (SELECT 1 FROM app.sandbox_sessions s
                WHERE s.org_id = r.org_id AND s.session_id = r.session_id
                  AND s.owner_type = 'project_agent' AND s.owner_id = r.agent_id
                  AND s.status IN ${tx([...SANDBOX_SESSION_LIVE_STATUSES])}
-                 AND s.expires_at_ms > ${Date.now()})
+                 AND s.expires_at_ms > ${Date.now()}))
            )) AS "repairAllowed"
     FROM app.project_agent_runs r
     WHERE r.id = ${args.via.runId} AND r.org_id = ${args.organizationId}
-      AND r.agent_id = ${args.via.agentId} AND r.status IN ('queued', 'running')
+      AND r.agent_id = ${args.via.agentId}
+      AND (${args.ended === true} OR r.status IN ('queued', 'running'))
     LIMIT 1
   `;
   const run = runs[0];
@@ -502,7 +513,9 @@ async function assertDelegatingRun(
   if (args.requireCurrentGrant === true && !run.repairAllowed) {
     throw new TaskError(
       'AGENT_START_FORBIDDEN',
-      'This live manager no longer has the task delegation permission',
+      args.ended === true
+        ? 'The agent whose mention hands this task on may no longer start agents'
+        : 'This live manager no longer has the task delegation permission',
       403,
     );
   }
@@ -633,6 +646,15 @@ export async function startDelegatedAgentRun(
       'TASK_REVIEW_INVALID',
       'A native review batch requires its exact in-place context admission',
     );
+  if (
+    args.mentionHandoff === true &&
+    (args.via.kind !== 'agent' || args.resumeFrom !== undefined)
+  )
+    throw new TaskError(
+      'AGENT_START_FORBIDDEN',
+      'A handoff by mention starts an agent for the agent run that wrote it, and resumes nothing',
+      403,
+    );
   const repairFrom =
     args.resumeFrom !== undefined && 'kind' in args.resumeFrom
       ? args.resumeFrom
@@ -733,7 +755,10 @@ export async function startDelegatedAgentRun(
       organizationId: args.organizationId,
       via: args.via,
       requireCurrentGrant:
-        repairFrom !== undefined || args.reviewBatch !== undefined,
+        repairFrom !== undefined ||
+        args.reviewBatch !== undefined ||
+        args.mentionHandoff === true,
+      ended: args.mentionHandoff === true,
     });
   }
   await assertTaskAutomationEnabled(tx, args.organizationId);
