@@ -80,6 +80,13 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
       isLoading: false,
     };
   },
+  // The project hooks import the by-id reads too; Chromium links every named
+  // import, so the stub answers them, with nothing.
+  useBackendQueries: (
+    _name: string,
+    _argsList: readonly unknown[],
+    combine: (results: never[]) => unknown,
+  ) => combine([]),
 }));
 vi.mock('@/app/hooks/use-backend-mutation', () => ({
   useBackendMutation: (name: string) => ({
