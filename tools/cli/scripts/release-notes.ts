@@ -8,6 +8,13 @@ const ROOT = resolve(import.meta.dir, '../../..');
 const EXACT_VERSION = /^v\d+\.\d+\.\d+(?:-[A-Za-z0-9.-]+)?$/;
 const MIGRATIONS = 'services/platform/backend/db/migrations';
 const CONTRACT = 'services/platform/lib/shared/constants/api-contract.ts';
+/**
+ * The tale-project repositories anyone can open. The notes are published on
+ * the GitHub release, the website's changelog and every deployment's in-app
+ * changelog, whose readers get a 404 from any other repository of the
+ * organization: v0.5.82's linked a commit of the private ops (#4676).
+ */
+const PUBLIC_REPOSITORIES = new Set(['tale', '.github']);
 
 export function releaseNotesPath(version: string): string {
   if (!EXACT_VERSION.test(version)) {
@@ -45,7 +52,28 @@ export function validateReleaseNotes(raw: string): string {
   if (notes.indexOf('## Highlights') > notes.indexOf('## Upgrade notes')) {
     throw new Error('Highlights must precede Upgrade notes');
   }
+  const refused = privateRepositoryLinks(notes);
+  if (refused.length > 0) throw new Error(refused.join('\n'));
   return `${notes}\n`;
+}
+
+/**
+ * One refusal per address into a tale-project repository that is not public,
+ * in any form: a link, an autolink, a bare URL or a reference definition, and
+ * in a comment too, since the published body keeps comments.
+ */
+function privateRepositoryLinks(notes: string): string[] {
+  const refused = new Set<string>();
+  for (const [address, written = ''] of notes.matchAll(
+    /(?<![\w-])github\.com\/tale-project\/([\w.-]+)[^\s<>()[\]"'`]*/gi,
+  )) {
+    const repository = written.replace(/\.+$/, '').replace(/\.git$/i, '');
+    if (PUBLIC_REPOSITORIES.has(repository.toLowerCase())) continue;
+    refused.add(
+      `Release notes link ${address.replace(/[.,;:!?]+$/, '')}, but tale-project/${repository} is not a public repository: readers outside the organization cannot open it`,
+    );
+  }
+  return [...refused];
 }
 
 /**

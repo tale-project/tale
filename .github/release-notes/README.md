@@ -22,11 +22,13 @@ after checking the changes in this release.
 
 Replace the instructional prose with verified outcomes. Do not copy generated PR titles into
 Highlights or claim that an upgrade needs no action without checking. The validator requires both
-sections and rejects empty sections and TODO/TBD markers. It also reads from Git what the release
-brings since the previous release tag, and rejects Upgrade notes that do not name each migration
-file it adds, such as `0204_usage_ledger_provider.sql`, and its `API_CONTRACT_VERSION` when that
-changed, such as `3.44.0`. Naming more, such as an earlier release's migration, is allowed. A
-reviewer verifies the facts.
+sections and rejects empty sections, TODO/TBD markers and links into a `tale-project` repository
+other than the public `tale` and `.github`, even in a comment: readers outside the organization
+cannot open them. It also reads from Git what the release brings since the previous release tag,
+and rejects Upgrade notes that do not name each migration file it adds, such as
+`0204_usage_ledger_provider.sql`, and its `API_CONTRACT_VERSION` when that changed, such as
+`3.44.0`. Naming more, such as an earlier release's migration, is allowed. A reviewer verifies the
+facts.
 
 Run from the repository root, in a clone with the release tags (`git fetch --tags`), before
 recording the candidate SHA:
