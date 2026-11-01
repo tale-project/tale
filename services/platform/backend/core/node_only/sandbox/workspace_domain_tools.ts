@@ -1670,6 +1670,9 @@ export async function runTaskTool(
       ) {
         return outsideOwnTask();
       }
+      // The live project run the call comes from: its mentions of the
+      // project's other agents hand the task on once it has ended
+      // [TASK-R88]; a call from anything else hands nothing on.
       const posted = await ctx.runMutation(
         internal.tasks.internal_mutations.agentAddComment,
         {
@@ -1679,6 +1682,13 @@ export async function runTaskTool(
           body,
           ...(localized.data !== undefined
             ? { bodyByLocale: localized.data }
+            : {}),
+          ...(authority.scope.kind === 'project' &&
+          args.session?.taskRunExecId !== undefined
+            ? {
+                sessionId: args.session.sessionId,
+                taskRunExecId: args.session.taskRunExecId,
+              }
             : {}),
         },
       );
