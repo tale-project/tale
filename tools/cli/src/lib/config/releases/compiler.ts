@@ -1,5 +1,6 @@
 import { parse, parseDocument } from 'yaml';
 
+import { namePlaces, pathSegment } from '../../../utils/field-paths';
 import { archive, excludedNativePath, type Entry } from './archive';
 import { skillBindings, stableJson, valueHash, sha256 } from './identity';
 import {
@@ -158,14 +159,6 @@ function assertInstallableManifest(manifest: Record<string, unknown>): void {
     'native upload does not install trigger declarations',
   );
 }
-const MAX_DRIFT_PATHS = 5;
-/** A manifest key as a log-safe path segment: plain keys as written, any
- * other key quoted and bounded so it cannot break or flood a log line. */
-function pathSegment(key: string): string {
-  return /^[A-Za-z0-9_-]{1,64}$/.test(key)
-    ? key
-    : JSON.stringify(key.slice(0, 64));
-}
 /** Where the normalized manifest differs from the authored one, as field
  * paths (`subjects.task.review.approve`). Paths only, never values. */
 function normalizationDrift(
@@ -203,13 +196,8 @@ export function assertNativeManifest(
   assertInstallableManifest(raw);
   if (stableJson(raw) === stableJson(parsed)) return;
   const drift = normalizationDrift(raw, parsed, '');
-  const named = drift.slice(0, MAX_DRIFT_PATHS).join(', ');
-  const more =
-    drift.length > MAX_DRIFT_PATHS
-      ? ` and ${drift.length - MAX_DRIFT_PATHS} more`
-      : '';
   throw new ConfigError(
-    `native manifest normalization changes release semantics at ${named}${more}; this Tale CLI does not read those fields as written, so use a Tale CLI at least as new as the Tale the pack targets`,
+    `native manifest normalization changes release semantics at ${namePlaces(drift)}; this Tale CLI does not read those fields as written, so use a Tale CLI at least as new as the Tale the pack targets`,
   );
 }
 export async function compile(

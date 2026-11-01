@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -104,6 +104,43 @@ describePosix('managed deployment failures', () => {
       code: ExitCode.Precondition,
     });
     expect(runtimePrepared).toBe(false);
+  });
+
+  test('a spec that misses a field names the field, never its values', async () => {
+    const { binary, spec, output } = await preparation();
+    const declaration = JSON.parse(await readFile(spec, 'utf8'));
+    delete declaration.name;
+    await writeFile(spec, JSON.stringify(declaration));
+
+    const error = await failure(() =>
+      prepareDeployment(
+        { spec, output },
+        { build: () => ({ binary, revision: 'b'.repeat(40) }) },
+      ),
+    );
+
+    expect(error.info).toEqual({
+      summary:
+        'Deployment input does not match its schema. Mismatched fields: name (expected string).',
+      code: ExitCode.Precondition,
+    });
+  });
+
+  test('a spec path with no file behind it is named', async () => {
+    const { root, binary, output } = await preparation();
+    const spec = join(root, 'spec.jsn');
+
+    const error = await failure(() =>
+      prepareDeployment(
+        { spec, output },
+        { build: () => ({ binary, revision: 'b'.repeat(40) }) },
+      ),
+    );
+
+    expect(error.info).toMatchObject({
+      summary: `Deployment spec ${spec} must be a regular file.`,
+      code: ExitCode.Precondition,
+    });
   });
 
   test('an unexpected failure keeps the fixed line, never its message', async () => {
