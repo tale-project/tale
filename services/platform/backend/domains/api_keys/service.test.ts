@@ -593,6 +593,7 @@ describe('listApiKeysForViewer', () => {
     teamName: null,
     projectName: null,
     createdByName: null,
+    blockedHere: false,
     ...extra,
   });
 
@@ -609,9 +610,11 @@ describe('listApiKeysForViewer', () => {
         userId: 'mia',
         role,
       });
-      expect(statements[0]?.values.slice(0, 3)).toEqual(['mia', ORG, admin]);
+      // This organization's blocks are joined first (APIKEY-R11).
+      expect(statements[0]?.values[0]).toBe(ORG);
+      expect(statements[0]?.values.slice(1, 4)).toEqual(['mia', ORG, admin]);
       // A member's keys are the ones made for them here.
-      expect(statements[0]?.values[3]).toBe('mia');
+      expect(statements[0]?.values[4]).toBe('mia');
     }
   });
 
@@ -678,6 +681,25 @@ describe('listApiKeysForViewer', () => {
       canRevoke: true,
     });
     expect(keys[0]?.createdBy).toBeNull();
+  });
+
+  it('marks a person’s own key this organization blocked [APIKEY-R11]', async () => {
+    const { sql, statements } = fakeSql({
+      listed: [row({ id: 'own', blockedHere: true }), row({ id: 'other' })],
+    });
+    const keys = await listApiKeysForViewer(sql, {
+      organizationId: ORG,
+      userId: 'mia',
+      role: 'member',
+    });
+    expect(keys.map((key) => [key.id, key.blockedHere])).toEqual([
+      ['own', true],
+      ['other', false],
+    ]);
+    // Only a personal key reads as blocked: a bound key is ended instead.
+    expect(statements[0]?.text).toContain(
+      '(o.api_key_id IS NULL AND b.api_key_id IS NOT NULL) AS "blockedHere"',
+    );
   });
 });
 

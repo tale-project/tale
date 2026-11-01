@@ -523,6 +523,9 @@ export interface ListedApiKey {
   /** Who made a key bound to this organization; null for a person's own. */
   createdBy: { userId: string; name: string | null } | null;
   canRevoke: boolean;
+  /** Whether this organization has blocked the viewer's own key here
+   * (APIKEY-R11); always false for a key bound to an organization. */
+  blockedHere: boolean;
 }
 
 interface ListedRow {
@@ -546,6 +549,7 @@ interface ListedRow {
   teamName: string | null;
   projectName: string | null;
   createdByName: string | null;
+  blockedHere: boolean;
 }
 
 /** A generous bound: the keys table pages on the client. */
@@ -572,9 +576,12 @@ export async function listApiKeysForViewer(
            o.created_by AS "createdBy",
            mu."name" AS "memberName", mu."email" AS "memberEmail",
            t."name" AS "teamName", p.name AS "projectName",
-           cu."name" AS "createdByName"
+           cu."name" AS "createdByName",
+           (o.api_key_id IS NULL AND b.api_key_id IS NOT NULL) AS "blockedHere"
     FROM "apikey" k
     LEFT JOIN app.api_key_owners o ON o.api_key_id = k."id"
+    LEFT JOIN app.api_key_org_blocks b
+      ON b.org_id = ${viewer.organizationId} AND b.api_key_id = k."id"
     LEFT JOIN "user" mu
       ON o.owner_kind = 'member' AND mu."id" = o.principal_user_id
     LEFT JOIN "team" t ON t."id" = o.team_id
@@ -614,6 +621,7 @@ export async function listApiKeysForViewer(
       // Every key listed here is one the viewer may end: their own, one made
       // for them, or — as an Owner or Admin — one bound to this organization.
       canRevoke: true,
+      blockedHere: row.blockedHere,
     };
   });
 }
