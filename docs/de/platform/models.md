@@ -11,7 +11,9 @@ Im Chat wählt **Auto** für jede Nachricht ein Modell anhand ihres Textes: Es a
 
 Wähle im Eingabebereich ein bestimmtes Modell, wenn du Ergebnisse vergleichen, die Auswahl kontrollieren oder eine bekannte Aufgabe gezielt bearbeiten möchtest. Diese Auswahl bleibt, bis du sie änderst oder zu Auto zurückkehrst. In der [Arena](/de/platform/chat/arena-mode) vergleichst du zwei verfügbare Modelle mit derselben Nachricht.
 
-Projektagenten und Modellschritte in Workflows verwenden ihr konfiguriertes Modell. Die Auswahl eines Agenten unterscheidet Einträge verschiedener Provider auch bei gleicher Modell-ID. Mit einem Eintrag legst du die Kombination aus Provider und Modell fest. Ein Modellfehler wird angezeigt; die Antwort kommt nicht stillschweigend von einem anderen Modell.
+Projektagenten und Modellschritte in Workflows verwenden ihr konfiguriertes Modell. Mit dem Modell eines Agenten legst du die Kombination aus Provider und Modell fest. Ein Modellfehler wird angezeigt; die Antwort kommt nicht stillschweigend von einem anderen Modell.
+
+Zwei Provider können dasselbe Modell anbieten: OpenRouter und ein OpenAI-kompatibles Gateway etwa können beide `openai/gpt-5.6-luna` führen, und das eigene `gpt-5.6-luna` von OpenAI trägt ebenfalls den Namen **GPT 5.6 Luna**. Die Modellauswahl im Chat, bei Agenten und in den Einstellungen für Standard-Agent, Bildgenerierung, Audiotranskription und das Modell für Bilder listet jedes Modell unter dem Provider, der es bereitstellt, und ein Screenreader nennt zu jedem Modell seinen Provider. Wo der Name eines Modells für sich steht, etwa in einer geschlossenen Auswahl, in der Statuszeile einer Einstellung oder auf dem Kasten eines Agenten mit festgelegtem Provider im Canvas eines Workflows, steht der Provider davor, wenn die Auswahl, aus der der Name stammt, dasselbe Modell oder eines mit demselben Namen auch von einem weiteren Provider anbietet, etwa **OpenRouter · GPT 5.6 Luna**; sonst steht dort nur der Name des Modells. Ein `llm`-Schritt eines Workflows nennt keinen Provider, weil jeder Lauf selbst einen wählt.
 
 ## Die Herkunft der Liste verstehen
 

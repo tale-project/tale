@@ -45,7 +45,39 @@ export interface PickerSearchOption {
   readonly fullLabel?: string;
   readonly selected?: boolean;
   readonly disabled?: boolean;
+  /** The section the row sits in (a model under its provider): headed by
+   * its label, told apart by its key, so two providers named alike stay two
+   * sections. Rows of one group are adjacent; rows without one lead the
+   * list, before the first header. */
+  readonly group?: { readonly key: string; readonly label: string };
   readonly onSelect: () => void;
+}
+
+/** A row of the list: a section's header, or an option with its place
+ * among the options (headers are presentation only, so they take none). */
+type PickerListRow =
+  | { readonly key: string; readonly header: string }
+  | {
+      readonly key: string;
+      readonly option: PickerSearchOption;
+      readonly position: number;
+    };
+
+/** The rows of `options`: each group's header before its first option. An
+ * option key never starts with a NUL, so no header key can equal one. */
+function listRows(options: readonly PickerSearchOption[]): PickerListRow[] {
+  const rows: PickerListRow[] = [];
+  options.forEach((option, position) => {
+    const group = option.group;
+    if (
+      group !== undefined &&
+      group.key !== options[position - 1]?.group?.key
+    ) {
+      rows.push({ key: `\u0000${group.key}`, header: group.label });
+    }
+    rows.push({ key: option.key, option, position });
+  });
+  return rows;
 }
 
 export function PickerSearchList({
@@ -96,24 +128,23 @@ export function PickerSearchList({
       (option.search ?? option.key).toLowerCase().includes(needle),
     );
   }, [options, query]);
+  const rows = useMemo(() => listRows(filtered), [filtered]);
   const getScrollElement = useCallback(() => scrollRef.current, []);
-  const getItemKey = useCallback(
-    (index: number) => filtered[index].key,
-    [filtered],
-  );
+  const getItemKey = useCallback((index: number) => rows[index].key, [rows]);
   const enabledIndices = useMemo(
-    () => filtered.flatMap((option, index) => (option.disabled ? [] : [index])),
-    [filtered],
+    () =>
+      rows.flatMap((row, index) =>
+        'option' in row && row.option.disabled !== true ? [index] : [],
+      ),
+    [rows],
   );
   const focusIndex =
-    focusKey === null
-      ? -1
-      : filtered.findIndex((option) => option.key === focusKey);
+    focusKey === null ? -1 : rows.findIndex((row) => row.key === focusKey);
   const virtual = useVirtualList({
-    count: filtered.length,
+    count: rows.length,
     getScrollElement,
     getItemKey,
-    estimateSize: () => 32,
+    estimateSize: (index) => ('header' in rows[index] ? 28 : 32),
     pinnedIndices: focusIndex === -1 ? [] : [focusIndex],
   });
   useLayoutEffect(() => {
@@ -180,17 +211,16 @@ export function PickerSearchList({
             enabledIndices.length,
           );
           const nextIndex = next === null ? undefined : enabledIndices[next];
-          const option =
-            nextIndex === undefined ? undefined : filtered[nextIndex];
-          if (!option || nextIndex === undefined) return;
+          const nextRow = nextIndex === undefined ? undefined : rows[nextIndex];
+          if (!nextRow || nextIndex === undefined) return;
           event.preventDefault();
           event.stopPropagation();
           const row = scrollRef.current?.querySelector<HTMLButtonElement>(
-            `[data-picker-key="${CSS.escape(option.key)}"]`,
+            `[data-picker-key="${CSS.escape(nextRow.key)}"]`,
           );
           if (row) row.focus();
           else {
-            setFocusKey(option.key);
+            setFocusKey(nextRow.key);
             virtual.scrollToIndex(nextIndex, { align: 'auto' });
           }
         }}
@@ -201,7 +231,25 @@ export function PickerSearchList({
           </p>
         ) : (
           virtual.items.map((row) => {
-            const option = filtered[row.index];
+            const entry = rows[row.index];
+            if (!('option' in entry)) {
+              return (
+                <Fragment key={entry.key}>
+                  {row.paddingBefore > 0 && (
+                    <div aria-hidden style={{ height: row.paddingBefore }} />
+                  )}
+                  <div
+                    ref={virtual.measureElement}
+                    data-index={row.index}
+                    role="presentation"
+                    className="text-muted-foreground truncate px-2 pt-2 pb-1 text-xs font-medium"
+                  >
+                    {entry.header}
+                  </div>
+                </Fragment>
+              );
+            }
+            const option = entry.option;
             return (
               <Fragment key={option.key}>
                 {row.paddingBefore > 0 && (
@@ -210,6 +258,7 @@ export function PickerSearchList({
                 <PickerRow
                   option={option}
                   index={row.index}
+                  position={entry.position}
                   setSize={filtered.length}
                   multiSelect={multiSelect}
                   held={heldKey === option.key}
@@ -255,6 +304,7 @@ function isCut(label: Element): boolean {
 function PickerRow({
   option,
   index,
+  position,
   setSize,
   multiSelect,
   held,
@@ -267,6 +317,9 @@ function PickerRow({
 }: {
   readonly option: PickerSearchOption;
   readonly index: number;
+  /** The option's place among the options; `index` counts the section
+   * headers too. */
+  readonly position: number;
   readonly setSize: number;
   readonly multiSelect: boolean;
   /** Keyboard focus holds this row's tip open. */
@@ -343,7 +396,7 @@ function PickerRow({
         // programmatic (aria-checked), not just the visual check glyph.
         role={multiSelect ? 'menuitemcheckbox' : 'menuitemradio'}
         aria-checked={option.selected === true}
-        aria-posinset={index + 1}
+        aria-posinset={position + 1}
         aria-setsize={setSize}
         {...(option.ariaLabel !== undefined
           ? { 'aria-label': option.ariaLabel }
