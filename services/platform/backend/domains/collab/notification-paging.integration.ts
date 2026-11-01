@@ -29,7 +29,12 @@ import { transactSerializable } from '@tale/shared/db/serializable';
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
-import { explainSentStatement } from '../../integration-lane-helpers.ts';
+import {
+  explainSentStatement,
+  type PlanNode,
+  planLine,
+  planNodes,
+} from '../../integration-lane-helpers.ts';
 import {
   listMyNotifications,
   type UserNotificationRow,
@@ -68,62 +73,6 @@ const repeated = (ids: readonly string[]): string[] =>
 
 const idsOf = (pages: readonly BellPage[]): string[] =>
   pages.flatMap((page) => page.rows.map((row) => row.id));
-
-/** One node of an `EXPLAIN (FORMAT JSON)` plan, as far as the probe reads it. */
-const planNode = z.object({
-  'Node Type': z.string(),
-  'Index Name': z.string().optional(),
-  'Index Cond': z.string().optional(),
-  Filter: z.string().optional(),
-  'Actual Rows': z.number().optional(),
-  Plans: z.array(z.unknown()).optional(),
-});
-type PlanNode = z.infer<typeof planNode>;
-
-/** What `EXPLAIN (FORMAT JSON)` answers: one row holding one plan. */
-const explained = z.tuple([
-  z.object({ 'QUERY PLAN': z.tuple([z.object({ Plan: z.unknown() })]) }),
-]);
-
-/** A plan's nodes, top first, or null for what is not a plan. */
-function nodesOf(raw: unknown): PlanNode[] | null {
-  const node = planNode.safeParse(raw);
-  if (!node.success) return null;
-  const nodes = [node.data];
-  for (const child of node.data.Plans ?? []) {
-    const below = nodesOf(child);
-    if (below === null) return null;
-    nodes.push(...below);
-  }
-  return nodes;
-}
-
-/** The nodes of the plan an EXPLAIN answered, or null for anything else. */
-function planNodes(rows: unknown): PlanNode[] | null {
-  const answer = explained.safeParse(rows);
-  return answer.success ? nodesOf(answer.data[0]['QUERY PLAN'][0].Plan) : null;
-}
-
-/** A plan in one line, top first: each node with its index, its condition,
- * its filter and the rows it returned. */
-const planLine = (nodes: readonly PlanNode[] | null): string =>
-  nodes === null
-    ? 'not a plan'
-    : nodes
-        .map((node) =>
-          [
-            node['Node Type'],
-            node['Index Name'],
-            node['Index Cond'],
-            node.Filter === undefined ? undefined : `Filter ${node.Filter}`,
-            node['Actual Rows'] === undefined
-              ? undefined
-              : `${node['Actual Rows']} rows`,
-          ]
-            .filter((part) => part !== undefined)
-            .join(' '),
-        )
-        .join(' > ');
 
 /**
  * Whether a plan reads one page from `index` alone: a single scan, of that
