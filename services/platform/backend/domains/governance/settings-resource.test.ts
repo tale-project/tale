@@ -572,6 +572,24 @@ describe('what a policy change does', () => {
     ).toEqual([]);
   });
 
+  it('names the access members lose when their own API keys are turned off [APIKEY-R12]', () => {
+    const off = { enabled: false };
+    expect(governanceEffects('personal_keys', null, off)).toEqual([
+      'revokes-access',
+    ]);
+    expect(governanceEffects('personal_keys', { enabled: true }, off)).toEqual([
+      'revokes-access',
+    ]);
+    // Keeping them off, or turning them back on, takes nothing away.
+    expect(governanceEffects('personal_keys', off, off)).toEqual([]);
+    expect(governanceEffects('personal_keys', off, { enabled: true })).toEqual(
+      [],
+    );
+    expect(governanceEffects('personal_keys', null, { enabled: true })).toEqual(
+      [],
+    );
+  });
+
   it('names a lockout, a sign-out or a removed approval only where one happens', () => {
     expect(governanceEffects('login_policy', null, { enabled: true })).toEqual([
       'may-lock-out-members',

@@ -16,6 +16,9 @@ export const REST_ERROR_CODES = [
   'ACTOR_NOT_FOUND',
   'ACTOR_REBOUND',
   'ACTOR_UNVERIFIED',
+  // A member's own key, in an organization that turned members' own keys
+  // off (APIKEY-R12); `data.organizations` lists where it still works.
+  'API_KEY_PERSONAL_REFUSED',
   'API_KEY_SCOPE_FORBIDDEN',
   'ATTACHMENT_NOT_FOUND',
   'ATTACHMENT_NOT_OWNED',
@@ -166,6 +169,9 @@ export const REST_ERROR_CODES = [
   // The MCP door, only where the operator enforces its Origin rule
   // (`TALE_MCP_ORIGIN_ENFORCE`): a browser origin it does not accept.
   'ORIGIN_FORBIDDEN',
+  // A member's own key, while the organization's `personal_keys` policy
+  // cannot be read: kept out until it is restored (503, `Retry-After`).
+  'PERSONAL_KEYS_POLICY_UNAVAILABLE',
   // RFC 9110 §13.1.1: an `If-Match` the current representation does not
   // strongly match (the document PATCH); `data.etag` names the current tag.
   'PRECONDITION_FAILED',

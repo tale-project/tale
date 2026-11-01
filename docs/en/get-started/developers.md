@@ -63,8 +63,10 @@ Use a model’s `id` in chat requests and its `providerSlug` when that ID is ava
 | `400` with `ORG_SLUG_REQUIRED` | Choose a slug from `data.organizations` in this error and send `X-Organization-Slug`. |
 | `404` with `ORG_SLUG_INVALID` | The header names no organization at all — a typo, or the dashboard URL's organization ID pasted as the slug. Send the slug from `data.organizations`. |
 | `403` with `ORG_FORBIDDEN` | The organization exists, but the key holder is not a member of it. Pick a slug from `data.organizations`. |
+| `403` with `API_KEY_PERSONAL_REFUSED` | The organization does not accept the keys members make for themselves. Send a slug from `data.organizations`, where this key still works, or ask an Owner or Admin there for a key made in that organization. |
 | `403` | Check the permission needed for the operation. |
 | `429` | Wait as directed by `Retry-After`; read [Rate limits](/develop/rate-limits). |
+| `503` with `PERSONAL_KEYS_POLICY_UNAVAILABLE` | Tale cannot read whether the organization accepts members' own keys, so it refuses them for now. Wait as directed by `Retry-After`, then retry. |
 
 If curl reports a TLS or network error before receiving JSON, check the host and certificate. Avoid disabling certificate verification in production scripts.
 

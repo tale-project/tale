@@ -157,6 +157,7 @@ export const SETTINGS_KINDS = [
       'governance/security-monitoring',
       'governance/guardrails',
       'sandboxes',
+      'api/rest',
       'api/models',
       'enterprise-sso',
     ],
@@ -167,7 +168,7 @@ export const SETTINGS_KINDS = [
     baseRisk: 'high',
     order: 30,
     description:
-      'One organization policy, named by its key (the id), e.g. password_policy, budgets or default_models: models and model access, budgets and limits, sign-in and session security, guardrails, sandbox quotas. The retention policy and the data subject request policy change only through their own staged workflows in Tale.',
+      "One organization policy, named by its key (the id), e.g. password_policy, budgets or default_models: models and model access, budgets and limits, sign-in and session security, whether members' own API keys work here (personal_keys), guardrails, sandbox quotas. The retention policy and the data subject request policy change only through their own staged workflows in Tale.",
   },
   {
     kind: 'knowledge-embedding',

@@ -13,7 +13,7 @@ Tale lit et écrit chaque type de paramètre avec son propre code et les contrô
 | --- | --- | --- | --- |
 | `provider` | Un fournisseur IA que ton organisation a défini : son point d’accès, son format d’API et son catalogue de modèles. Les fournisseurs livrés avec Tale ne sont pas des paramètres. | Définir, supprimer ; relire son catalogue de modèles (`refresh-catalogs`) | Propriétaires, admins et développeurs |
 | `provider-credential` | Des identifiants qui lisent leur clé dans une variable d’environnement du déploiement. Les identifiants avec une clé ou un abonnement sont listés sans leur secret et peuvent être supprimés. | Définir, supprimer | Propriétaires, admins et développeurs |
-| `governance` | Une politique de l’organisation, désignée par sa clé : modèles et accès aux modèles, budgets et limites, sécurité de connexion et de session, garde-fous, quotas de sandbox. | Définir | Propriétaires et admins |
+| `governance` | Une politique de l’organisation, désignée par sa clé : modèles et accès aux modèles, budgets et limites, sécurité de connexion et de session, si les clés API personnelles des membres fonctionnent ici (`personal_keys`), garde-fous, quotas de sandbox. | Définir | Propriétaires et admins |
 | `knowledge-embedding` | Le modèle d’embedding des connaissances de l’organisation, avec son seuil de similarité et ses limites d’utilisation. | Définir | Propriétaires et admins |
 | `branding` | La couleur d’accentuation et les noms de fichier du logo et des favicons. | Définir | Propriétaires et admins |
 | `project-instructions` | Les instructions permanentes d’un projet. | Définir | Qui peut modifier le projet |
@@ -138,6 +138,7 @@ Le risque d’un plan est le plus élevé entre le risque de base de son type et
 | `requires-empty-corpus` | critical | Le modèle d’embedding change, ce qui exige que les connaissances de l’organisation soient vides |
 | `restart-required` | critical | L’environnement d’exécution des sandboxes du déploiement change |
 | `reaches-vendor` | high | Le catalogue de modèles d’un fournisseur est relu avec la clé de ton organisation |
+| `revokes-access` | high | Les clés API personnelles des membres sont désactivées (`personal_keys`), et l’organisation refuse chacune d’elles |
 
 La référence des paramètres que `get_docs` renvoie pour le sujet `settings` (aussi `tale://docs/settings`) liste tout le vocabulaire, les champs de chaque type et chaque politique.
 

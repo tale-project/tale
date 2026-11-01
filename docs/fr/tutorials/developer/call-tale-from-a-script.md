@@ -120,9 +120,11 @@ Conserve l’ID du thread pour prolonger cette intégration. Envoie les messages
 | `400` avec `ORG_SLUG_REQUIRED` | Fournis le slug de l’organisation visée, pris dans `data.organizations`. |
 | `404` avec `ORG_SLUG_INVALID` | Le slug ne désigne aucune organisation du tout : vérifie l’orthographe, et ne colle jamais l’identifiant d’organisation de l’URL du tableau de bord. Choisis un slug dans `data.organizations`. |
 | `403` avec `ORG_FORBIDDEN` | L’organisation existe, mais le détenteur de la clé n’en est pas membre : choisis un slug dans `data.organizations`. |
+| `403` avec `API_KEY_PERSONAL_REFUSED` | L’organisation n’accepte pas les clés que les membres créent pour eux-mêmes : envoie un slug de `data.organizations`, où cette clé fonctionne encore, ou demande à un propriétaire ou un admin de cette organisation une clé créée chez elle. |
 | `403` | Vérifie les droits du titulaire de la clé pour l’opération. |
 | Aucun modèle correspondant | Relis `/models` et choisis une paire exacte ID/fournisseur. |
 | `429` | Respecte `Retry-After` ; consulte les [limites de débit](/fr/develop/rate-limits). |
+| `503` avec `PERSONAL_KEYS_POLICY_UNAVAILABLE` | Tale ne peut pas lire si l’organisation accepte les clés personnelles des membres, et les refuse donc pour l’instant : respecte `Retry-After`, puis réessaie. |
 | Statut du message `failed` | Lis `errorCode` et corrige le compte ou le modèle avant de réessayer. |
 | Délai réseau dépassé | Vérifie l’instance et le thread existant avant de renvoyer le message. |
 

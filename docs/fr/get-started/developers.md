@@ -63,8 +63,10 @@ Utilise l’`id` du modèle dans les requêtes de chat et son `providerSlug` si 
 | `400` avec `ORG_SLUG_REQUIRED` | Choisis un slug dans `data.organizations` de cette erreur et envoie `X-Organization-Slug`. |
 | `404` avec `ORG_SLUG_INVALID` | L’en-tête ne désigne aucune organisation du tout : une faute de frappe, ou l’identifiant d’organisation de l’URL du tableau de bord collé à la place du slug. Envoie le slug donné dans `data.organizations`. |
 | `403` avec `ORG_FORBIDDEN` | L’organisation existe, mais le détenteur de la clé n’en est pas membre. Choisis un slug dans `data.organizations`. |
+| `403` avec `API_KEY_PERSONAL_REFUSED` | L’organisation n’accepte pas les clés que les membres créent pour eux-mêmes. Envoie un slug de `data.organizations`, où cette clé fonctionne encore, ou demande à un propriétaire ou un admin de cette organisation une clé créée chez elle. |
 | `403` | Vérifie le droit nécessaire à l’opération. |
 | `429` | Attends selon `Retry-After` ; consulte les [limites de débit](/fr/develop/rate-limits). |
+| `503` avec `PERSONAL_KEYS_POLICY_UNAVAILABLE` | Tale ne peut pas lire si l’organisation accepte les clés personnelles des membres, et les refuse donc pour l’instant. Attends selon `Retry-After`, puis réessaie. |
 
 Si curl signale une erreur TLS ou réseau avant de recevoir du JSON, vérifie l’hôte et le certificat. Ne désactive pas la vérification des certificats dans un script de production.
 

@@ -954,6 +954,11 @@ describe('GET /my/model-api', () => {
 });
 
 describe('GET /my/api-keys', () => {
+  beforeEach(() => {
+    caller.role = 'member';
+    readGovernancePolicyForOrg.mockResolvedValue(null);
+  });
+
   it.each([
     [true, true],
     [false, true],
@@ -961,7 +966,6 @@ describe('GET /my/api-keys', () => {
   ])(
     'answers whether the caller may create a personal API key (%s) and holds one (%s)',
     async (mayCreate, holdsKeys) => {
-      caller.role = 'member';
       mayCreateApiKeys.mockReset().mockResolvedValue(mayCreate);
       const keyReads: unknown[][] = [];
       const sql = (async (
@@ -976,11 +980,136 @@ describe('GET /my/api-keys', () => {
         auth: {} as never,
       }).request('/my/api-keys?orgId=o1');
       expect(res.status).toBe(200);
-      expect(await res.json()).toEqual({ mayCreate, holdsKeys });
+      expect(await res.json()).toEqual({
+        mayCreate,
+        holdsKeys,
+        personalKeys: 'admitted',
+      });
       // The person's right, whichever organization's page asks, and the keys
       // that work here: their own, and the ones made for them in this one.
       expect(mayCreateApiKeys).toHaveBeenCalledWith(expect.anything(), 'u1');
       expect(keyReads).toEqual([['u1', 'o1']]);
+    },
+  );
+
+  async function personalKeysAnswer(): Promise<unknown> {
+    mayCreateApiKeys.mockReset().mockResolvedValue(true);
+    const res = await createGovernanceRoutes({
+      sql: (async () => []) as never,
+      auth: {} as never,
+    }).request('/my/api-keys?orgId=o1');
+    expect(res.status).toBe(200);
+    const { personalKeys } = (await res.json()) as { personalKeys: unknown };
+    return personalKeys;
+  }
+
+  it.each([
+    [null, 'admitted'],
+    [{ enabled: true }, 'admitted'],
+    [{ enabled: false }, 'refused'],
+  ])(
+    'answers whether members’ own keys work here: stored %j is %s [APIKEY-R12]',
+    async (stored, standing) => {
+      readGovernancePolicyForOrg.mockResolvedValue(stored);
+      expect(await personalKeysAnswer()).toBe(standing);
+      // Read the way the API door reads it: strictly, in this organization.
+      expect(readGovernancePolicyForOrg).toHaveBeenCalledWith(
+        expect.anything(),
+        'o1',
+        'personal_keys',
+        { strict: true },
+      );
+    },
+  );
+
+  it('answers unavailable, never the default, while the setting cannot be read [APIKEY-R12]', async () => {
+    readGovernancePolicyForOrg.mockRejectedValue(
+      new ConfigurationError(
+        'GOVERNANCE_POLICY_INVALID',
+        'Governance policy is unavailable or invalid; restore valid configuration before retrying.',
+        400,
+      ),
+    );
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      expect(await personalKeysAnswer()).toBe('unavailable');
+      expect(errors).toHaveBeenCalled();
+    } finally {
+      errors.mockRestore();
+    }
+  });
+});
+
+describe('POST /policies/personal_keys — who turns members’ own keys off [APIKEY-R12]', () => {
+  const OFF = { enabled: false };
+
+  it.each(['member', 'developer', 'editor', 'disabled'])(
+    'refuses a %s before any write',
+    async (role) => {
+      caller.role = role;
+      const res = await post('/policies/personal_keys?orgId=o1', {
+        config: OFF,
+      });
+      expect(res.status).toBe(403);
+      expect(await res.json()).toEqual({ error: 'FORBIDDEN' });
+      expect(createAuditLog).not.toHaveBeenCalled();
+      expect(writeGovernancePolicyFile).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each(['owner', 'admin'])(
+    'saves an %s’s change, audited with the setting it replaced',
+    async (role) => {
+      caller.role = role;
+      readGovernancePolicyForOrg.mockResolvedValue({ enabled: true });
+      const res = await post('/policies/personal_keys?orgId=o1', {
+        config: OFF,
+      });
+      expect(res.status).toBe(200);
+      expect(createAuditLog).toHaveBeenCalledWith(
+        TX,
+        expect.objectContaining({
+          organizationId: 'o1',
+          actorId: 'u1',
+          action: 'governance_policy.updated',
+          category: 'security',
+          resourceType: 'governance_policy',
+          resourceId: 'personal_keys',
+          previousState: { config: { enabled: true } },
+          newState: { config: OFF },
+        }),
+      );
+      expect(writeGovernancePolicyFile).toHaveBeenCalledWith(
+        expect.anything(),
+        'acme',
+        'personal_keys',
+        OFF,
+      );
+    },
+  );
+
+  it('audits the first change of a setting never stored as its creation', async () => {
+    readGovernancePolicyForOrg.mockResolvedValue(null);
+    const res = await post('/policies/personal_keys?orgId=o1', {
+      config: OFF,
+    });
+    expect(res.status).toBe(200);
+    const row: unknown = createAuditLog.mock.calls[0]?.[1];
+    expect(row).toMatchObject({
+      action: 'governance_policy.created',
+      newState: { config: OFF },
+    });
+    expect(row).not.toHaveProperty('previousState');
+  });
+
+  it.each([{ enabled: 'no' }, {}, { enabled: null }])(
+    'refuses %j, which is no switch, before any write',
+    async (config) => {
+      const res = await post('/policies/personal_keys?orgId=o1', { config });
+      expect(res.status).toBe(400);
+      expect(await res.json()).toMatchObject({ error: 'validation' });
+      expect(createAuditLog).not.toHaveBeenCalled();
+      expect(writeGovernancePolicyFile).not.toHaveBeenCalled();
     },
   );
 });
@@ -1307,6 +1436,30 @@ describe('GET /policies/:policyType — who may read [GOV-R10]', () => {
     caller.role = 'admin';
 
     expect((await read(policyType)).status).toBe(200);
+  });
+
+  it('reads personal_keys the way the API door does: a file that cannot be read is reported to the page, never shown as the keys working [APIKEY-R12]', async () => {
+    caller.role = 'admin';
+    readGovernancePolicyForOrg.mockRejectedValue(
+      new ConfigurationError(
+        'GOVERNANCE_POLICY_INVALID',
+        'Governance policy is unavailable or invalid; restore valid configuration before retrying.',
+        400,
+      ),
+    );
+
+    const response = await read('personal_keys');
+
+    expect(readGovernancePolicyForOrg).toHaveBeenCalledWith(
+      expect.anything(),
+      'o1',
+      'personal_keys',
+      { strict: true },
+    );
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({
+      error: 'GOVERNANCE_POLICY_INVALID',
+    });
   });
 
   it('reads chat_tools the way the chat does: a file that cannot be read is reported to the page, never shown as every switch on [CHAT-R26]', async () => {
