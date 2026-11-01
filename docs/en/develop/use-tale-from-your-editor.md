@@ -200,6 +200,8 @@ Every refusal comes in the error shape of the interface you called, so your SDK 
 | --- | --- |
 | `401 UNAUTHORIZED` | Send the key as `Authorization: Bearer`, never as `x-api-key`. For Claude Code, set `ANTHROPIC_AUTH_TOKEN` and unset `ANTHROPIC_API_KEY`; for the Anthropic SDKs, pass the key as `auth_token` or `authToken`. A revoked or expired key answers `401` too. |
 | `400 ORG_SLUG_REQUIRED` | You belong to several organizations. Send `X-Organization-Slug`. |
+| `403 API_KEY_PERSONAL_REFUSED` | The organization does not accept the keys members make for themselves. Ask an Owner or Admin there to make a key for you, or name another of your organizations in `X-Organization-Slug`. |
+| `503 PERSONAL_KEYS_POLICY_UNAVAILABLE` | Tale cannot read whether the organization accepts members' own keys, so it refuses them until it can. Wait for `Retry-After` and retry. |
 | `403 MODEL_API_DISABLED` | The organization has not turned the endpoints on. Ask an Admin. |
 | `403 MODEL_API_FORBIDDEN` | Your role cannot call them. Ask an Admin to grant **Call models over the API**. |
 | `404 MODEL_API_MODEL_UNKNOWN` | The id is not on your list. Copy one from `GET /api/v1/openai/models` or the **Models** tab, provider slug included. |

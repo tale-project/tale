@@ -1215,6 +1215,16 @@ apiKeys:
   expired: Expired
   description: Manage API keys for external connectors
   title: API keys
+  personalKeys:
+    title: Members' personal keys
+    description: A key a member makes for themselves works in every organization they belong to. Turn this off to refuse every such key in this organization, yours included. Keys made here for a member, a team, a project, or the organization keep working, and personal keys keep working in their holders' other organizations.
+    enabledLabel: Members' personal keys work here
+    saved: Members' personal keys setting updated
+    saveFailed: Couldn't save the members' personal keys setting
+    refusedTitle: Your own keys don't work here
+    refusedBody: This organization refuses the API keys members make for themselves. They keep working in your other organizations; an Owner or Admin here can make a key for you.
+    unavailableTitle: Your own keys are paused here
+    unavailableBody: Tale can't read whether this organization accepts members' own API keys, so they are refused here until it can. Try again shortly.
 apiDocs:
   openDocs: API docs
   guides: Developer guides

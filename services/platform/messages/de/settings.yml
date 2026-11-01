@@ -1267,6 +1267,16 @@ apiKeys:
   expired: Abgelaufen
   description: API-Schlüssel für externe Connectors verwalten
   title: API-Schlüssel
+  personalKeys:
+    title: Eigene Schlüssel der Mitglieder
+    description: Ein Schlüssel, den ein Mitglied für sich selbst erstellt, gilt in jeder Organisation, der es angehört. Schalte dies aus, um jeden solchen Schlüssel in dieser Organisation abzuweisen, auch deine eigenen. Schlüssel, die hier für ein Mitglied, ein Team, ein Projekt oder die Organisation erstellt wurden, gelten weiter, und eigene Schlüssel gelten weiter in den anderen Organisationen ihrer Inhaber.
+    enabledLabel: Eigene Schlüssel der Mitglieder gelten hier
+    saved: Einstellung für eigene Schlüssel der Mitglieder aktualisiert
+    saveFailed: Einstellung für eigene Schlüssel der Mitglieder konnte nicht gespeichert werden
+    refusedTitle: Deine eigenen Schlüssel gelten hier nicht
+    refusedBody: Diese Organisation weist die API-Schlüssel ab, die Mitglieder für sich selbst erstellen. In deinen anderen Organisationen gelten sie weiter; ein Inhaber oder Admin hier kann einen Schlüssel für dich erstellen.
+    unavailableTitle: Deine eigenen Schlüssel sind hier pausiert
+    unavailableBody: Tale kann gerade nicht lesen, ob diese Organisation eigene API-Schlüssel der Mitglieder annimmt, deshalb werden sie hier abgewiesen, bis es wieder geht. Versuch es gleich noch einmal.
 apiDocs:
   openDocs: API-Dokumentation
   guides: Entwicklerleitfäden

@@ -787,6 +787,10 @@ export interface GovernanceContract {
       /** The reader holds an API key of any state — theirs to see and
        * revoke whether or not they may create another. */
       holdsKeys: boolean;
+      /** Whether the reader's own personal keys work in this organization
+       * now (the `personal_keys` policy): `unavailable` when the policy
+       * cannot be read, so they are refused here until it can. */
+      personalKeys: 'admitted' | 'refused' | 'unavailable';
     };
   };
   'governance/queries:getOrgUsageMetrics': {

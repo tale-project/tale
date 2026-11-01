@@ -18,6 +18,8 @@ import {
   modelApiEnabledOf,
   moderationProviderConfigSchema,
   passwordPolicyConfigSchema,
+  personalKeysConfigSchema,
+  personalKeysWorkOf,
   POLICY_SCHEMAS,
   POLICY_TYPES,
   reviewPolicyConfigSchema,
@@ -760,5 +762,27 @@ describe('skillSharingConfigSchema', () => {
 
   it('is registered as the skill_sharing policy schema', () => {
     expect(POLICY_SCHEMAS.skill_sharing).toBe(skillSharingConfigSchema);
+  });
+});
+
+describe('personalKeysConfigSchema', () => {
+  it('takes the one switch and nothing else', () => {
+    for (const enabled of [true, false]) {
+      expect(personalKeysConfigSchema.parse({ enabled })).toEqual({ enabled });
+    }
+    expect(personalKeysConfigSchema.safeParse({}).success).toBe(false);
+    expect(
+      personalKeysConfigSchema.safeParse({ enabled: 'false' }).success,
+    ).toBe(false);
+  });
+
+  it('reads a missing file as on — the behaviour before the policy', () => {
+    expect(personalKeysWorkOf(null)).toBe(true);
+    expect(personalKeysWorkOf({ enabled: true })).toBe(true);
+    expect(personalKeysWorkOf({ enabled: false })).toBe(false);
+  });
+
+  it('is registered as the personal_keys policy schema', () => {
+    expect(POLICY_SCHEMAS.personal_keys).toBe(personalKeysConfigSchema);
   });
 });
