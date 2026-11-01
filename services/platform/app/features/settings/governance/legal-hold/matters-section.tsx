@@ -1,14 +1,13 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
-import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
-import { isFilterAffordanceDisabled } from '@tale/ui/filters/filter-panel';
 import { IconButton } from '@tale/ui/icon-button';
 import { Row } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
+import { DEFAULT_LIST_PAGE_SIZE, useListPage } from '@tale/ui/use-list-page';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Archive, Pencil, Scale } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -31,6 +30,7 @@ interface MattersSectionProps {
 
 export function MattersSection({ organizationId }: MattersSectionProps) {
   const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
   const [statusFilter, setStatusFilter] = useState<'open' | 'closed' | 'all'>(
     'all',
   );
@@ -40,15 +40,15 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
 
   const {
     data: matters,
-    isLoading,
-    isError,
     error,
     refetch,
+    isFetching,
+    errorUpdateCount,
   } = useLegalMatters(organizationId, {
     status: statusFilter,
   });
 
-  const { regionRef, retryRead, focusRegion } =
+  const { regionRef, retryRead, focusRegion, failedWithRows } =
     useListReadRecovery<HTMLElement>({
       error,
       results: matters ?? [],
@@ -146,6 +146,39 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
     [t],
   );
 
+  const list = useListPage<MatterRow>({
+    dataSource: { type: 'query', data: matters, error, retry: retryRead },
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    // The server filters by status, so another status is another collection.
+    windowKey: statusFilter,
+    search: {
+      fields: ['name', 'caseNumber'],
+      placeholder: t('legalHold.sections.matters.searchPlaceholder'),
+    },
+    filters: {
+      configs: [
+        {
+          key: 'status',
+          title: t('legalHold.columns.status'),
+          options: statusOptions.filter((o) => o.value !== 'all'),
+          selectedValues: statusFilter === 'all' ? [] : [statusFilter],
+          onChange: (values) =>
+            setStatusFilter(
+              values[0] === 'open' || values[0] === 'closed'
+                ? values[0]
+                : 'all',
+            ),
+        },
+      ],
+      onClear: () => setStatusFilter('all'),
+    },
+    getRowId: (row) => row._id,
+    entityLabel: {
+      one: t('legalHold.sections.matters.entityLabelOne'),
+      other: t('legalHold.sections.matters.entityLabel'),
+    },
+  });
+
   return (
     <>
       <SettingsSection
@@ -154,57 +187,30 @@ export function MattersSection({ organizationId }: MattersSectionProps) {
         title={t('legalHold.sections.matters.title')}
         description={t('legalHold.sections.matters.description')}
       >
-        <DataTableFilters
-          filters={[
-            {
-              key: 'status',
-              title: t('legalHold.columns.status'),
-              options: statusOptions.filter((o) => o.value !== 'all'),
-              selectedValues: statusFilter === 'all' ? [] : [statusFilter],
-              onChange: (values) =>
-                setStatusFilter(
-                  values[0] === 'open' || values[0] === 'closed'
-                    ? values[0]
-                    : 'all',
-                ),
-            },
-          ]}
-          // This bar sits ABOVE its `DataTable` rather than inside it, so the
-          // emptiness signal the table computes for itself never reaches it —
-          // the filter has to be disabled from here or it opens over a set that
-          // is guaranteed empty.
-          disabled={isFilterAffordanceDisabled({
-            isLoading,
-            isError,
-            itemCount: matters?.length ?? 0,
-            hasActiveFilters: statusFilter !== 'all',
-          })}
-          actions={
-            <Button
-              type="button"
-              variant="primary"
-              onClick={() => setCreateOpen(true)}
-            >
-              <Scale className="mr-1.5 size-4" aria-hidden />
-              {t('legalHold.actions.createMatter')}
-            </Button>
-          }
-        />
+        {failedWithRows && (
+          <CatalogLoadError
+            message={tCommon('errors.errorLoadingPage')}
+            onRetry={retryRead}
+            isRetrying={isFetching}
+            failureKey={errorUpdateCount}
+            onFocusLost={focusRegion}
+          />
+        )}
         <DataTable<MatterRow>
           columns={columns}
-          data={matters ?? []}
-          isLoading={isLoading}
-          error={error}
-          onRetry={retryRead}
           onErrorFocusLost={focusRegion}
-          approxRowCount={matters?.length}
-          getRowId={(row) => row._id}
+          addAction={{
+            label: t('legalHold.actions.createMatter'),
+            icon: Scale,
+            onClick: () => setCreateOpen(true),
+          }}
           emptyState={{
             icon: Archive,
             title: t('legalHold.sections.matters.empty.title'),
             description: t('legalHold.sections.matters.empty.description'),
           }}
           caption={t('legalHold.sections.matters.title')}
+          {...list.tableProps}
         />
       </SettingsSection>
 

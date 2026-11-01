@@ -1354,6 +1354,9 @@ legalHold:
   sections:
     activeHolds:
       title: Aktive Holds
+      entityLabel: Holds
+      entityLabelOne: Hold
+      searchPlaceholder: Holds suchen
       description: Aktuell vor Bereinigung und Löschung geschützte Entitäten. Holds lassen sich auf einzelne Benutzer oder auf Organisationsebene setzen.
       empty:
         title: Keine aktiven Legal Holds
@@ -1362,6 +1365,10 @@ legalHold:
           organisationsweiten Hold über die Aktion oben.
     releaseRequests:
       title: Freigabeanträge
+      entityLabel: Freigabeanträge
+      entityLabelOne: Freigabeantrag
+      pendingSearchPlaceholder: Ausstehende Anträge suchen
+      approvedSearchPlaceholder: Genehmigte Anträge suchen
       description:
         Ausstehende Anträge müssen von einem anderen Admin genehmigt
         werden. Genehmigte Anträge warten anschließend die Cooldown-Phase ab.
@@ -1372,6 +1379,9 @@ legalHold:
         description: Eingereichte Freigabeanträge erscheinen hier zur Vier-Augen-Prüfung.
     matters:
       title: Fälle
+      entityLabel: Fälle
+      entityLabelOne: Fall
+      searchPlaceholder: Fälle suchen
       description:
         Holds nach Fall gruppieren. Beim Schließen eines Falls werden
         Freigabeanträge für alle verknüpften Holds eingereicht (weiterhin mit

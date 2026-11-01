@@ -1304,6 +1304,9 @@ legalHold:
   sections:
     activeHolds:
       title: Active holds
+      entityLabel: holds
+      entityLabelOne: hold
+      searchPlaceholder: Search holds
       description: Items currently protected from cleanup and deletion. Place holds at the user (custodian) or organization level.
       empty:
         title: No active legal holds
@@ -1312,6 +1315,10 @@ legalHold:
           hold from the action above.
     releaseRequests:
       title: Release requests
+      entityLabel: release requests
+      entityLabelOne: release request
+      pendingSearchPlaceholder: Search pending requests
+      approvedSearchPlaceholder: Search approved requests
       description:
         Pending requests need a different admin to approve. Approved
         requests still wait out the cooldown before they take effect.
@@ -1322,6 +1329,9 @@ legalHold:
         description: Filed release requests appear here for dual-control review.
     matters:
       title: Matters
+      entityLabel: matters
+      entityLabelOne: matter
+      searchPlaceholder: Search matters
       description:
         Group holds by case. Closing a matter files release requests for
         every linked hold (still subject to dual-control approval).
