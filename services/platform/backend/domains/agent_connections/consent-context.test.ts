@@ -87,11 +87,11 @@ beforeEach(() => {
 });
 
 describe('the app and what it asked for', () => {
-  it('names the app, says whether anyone vouched for it, and keeps only the scopes a connection can hold, in the order asked', async () => {
+  it('names the app, says whether anyone vouched for it, and keeps only the scopes a connection is given, in the order asked — none that no tool takes [AGCONN-R25]', async () => {
     const { sql } = world();
     const context = await read(
       sql,
-      'openid tale:settings.read tale:mcp bogus offline_access tale:mcp',
+      'openid tale:settings.read tale:mcp bogus tale:subscriptions.connect offline_access tale:mcp',
     );
     expect(context.client).toEqual({
       id: DOCUMENT,

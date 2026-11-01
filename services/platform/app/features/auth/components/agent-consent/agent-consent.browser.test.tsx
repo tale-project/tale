@@ -74,7 +74,10 @@ function context(provenance: 'metadata_document' | 'registered') {
       provenance,
       host: provenance === 'metadata_document' ? 'claude.ai' : null,
     },
-    requestedScopes: ASKED.split(' '),
+    // The consent context leaves out the scope no tool takes.
+    requestedScopes: ASKED.split(' ').filter(
+      (scope) => scope !== 'tale:subscriptions.connect',
+    ),
     eligible: true,
     activeOrganizationId: 'org-1',
     organizations: [

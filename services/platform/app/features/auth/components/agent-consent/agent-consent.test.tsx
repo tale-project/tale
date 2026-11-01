@@ -51,6 +51,11 @@ const HOUR = 60 * 60 * 1000;
 const CLIENT_ID = 'https://claude.ai/oauth/claude-code-client-metadata';
 const ASKED =
   'tale:mcp tale:automations.write tale:automations.deploy tale:settings.read tale:settings.write tale:subscriptions.connect offline_access';
+/** What the consent context hands the page for that request: what the page
+ * offers, and staying connected, without the scope no tool takes. */
+const OFFERED = ASKED.split(' ').filter(
+  (scope) => scope !== 'tale:subscriptions.connect',
+);
 const SIGNED = `response_type=code&client_id=${encodeURIComponent(CLIENT_ID)}&redirect_uri=${encodeURIComponent('http://127.0.0.1:54545/callback')}&scope=${encodeURIComponent(ASKED)}&state=s&exp=${Math.floor(Date.now() / 1000) + 600}&sig=bytes%2B`;
 
 const DEVELOPER_CEILING = [
@@ -94,7 +99,7 @@ function context(overrides: Record<string, unknown> = {}) {
       provenance: 'metadata_document',
       host: 'claude.ai',
     },
-    requestedScopes: ASKED.split(' '),
+    requestedScopes: OFFERED,
     eligible: true,
     activeOrganizationId: 'org-acme',
     organizations: [organization()],
@@ -268,7 +273,6 @@ describe('what the page offers [AGCONN-R22]', () => {
       'Not allowed: Deploy and run live',
       'Not allowed: Read settings',
       'Not allowed: Change settings',
-      'Not allowed: Connect subscriptions',
     ]);
     expect(
       screen.getByText(
@@ -308,7 +312,6 @@ describe('what the page offers [AGCONN-R22]', () => {
       'Allowed: Deploy and run live',
       'Allowed: Read settings',
       'Allowed: Change settings',
-      'Not allowed: Connect subscriptions',
     ]);
     await user.click(screen.getByRole('checkbox', { name: /Change settings/ }));
     expect(
@@ -319,15 +322,15 @@ describe('what the page offers [AGCONN-R22]', () => {
   it('keeps the extras when the level changes', async () => {
     const { user } = renderPage();
     await user.click(
-      await screen.findByRole('checkbox', { name: /Connect AI subscriptions/ }),
+      await screen.findByRole('checkbox', { name: /Read settings/ }),
     );
     await user.click(screen.getByRole('radio', { name: /Edit and deploy/ }));
     expect(
-      screen.getByRole('checkbox', { name: /Connect AI subscriptions/ }),
+      screen.getByRole('checkbox', { name: /Read settings/ }),
     ).toBeChecked();
     await user.click(screen.getByRole('radio', { name: /Read and test/ }));
     expect(
-      screen.getByRole('checkbox', { name: /Connect AI subscriptions/ }),
+      screen.getByRole('checkbox', { name: /Read settings/ }),
     ).toBeChecked();
   });
 
@@ -361,14 +364,14 @@ describe('what the page offers [AGCONN-R22]', () => {
       screen.getByRole('checkbox', { name: /Read settings/ }),
     ).toBeEnabled();
     // The summary says it is the role, on each line the role takes away:
-    // editing, deploying, changing settings and connecting subscriptions.
+    // editing, deploying and changing settings.
     expect(
       within(
         screen.getByRole('list', { name: 'What Claude Code can do' }),
       ).getAllByText('Your role in Acme does not allow this.', {
         selector: 'span.block',
       }),
-    ).toHaveLength(4);
+    ).toHaveLength(3);
   });
 
   it('takes an app that asks for less at its word', async () => {
@@ -630,7 +633,7 @@ describe('connecting [AGCONN-R22]', () => {
       expect(screen.getByRole('radio', { name })).toBeDisabled();
     }
     expect(
-      screen.getByRole('checkbox', { name: /Connect AI subscriptions/ }),
+      screen.getByRole('checkbox', { name: /Change settings/ }),
     ).toBeDisabled();
     expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
   });

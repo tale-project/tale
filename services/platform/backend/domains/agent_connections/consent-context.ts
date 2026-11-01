@@ -3,7 +3,8 @@ import type { Sql } from 'postgres';
 import {
   type AgentScope,
   isAgentScope,
-  MCP_RESOURCE_SCOPES,
+  isOfferedScope,
+  OFFLINE_ACCESS,
   requestsAgentAccess,
   scopeCeilingForRole,
   scopesOf,
@@ -49,8 +50,9 @@ interface ConsentOrganization {
 
 interface AgentConsentContext {
   client: AgentClientIdentity & { id: string };
-  /** The scopes the app asked for that a connection can hold, in the order
-   * it asked; anything else it asked for is not shown, as it is not given. */
+  /** The scopes the app asked for that a connection is given, in the order
+   * it asked: the ones the page offers, and staying connected; anything else
+   * it asked for is not shown, as it is not given. */
   requestedScopes: string[];
   /** Whether the person's account may sign in to an organization at all:
    * a verified address and no two-factor enrollment due. */
@@ -87,8 +89,6 @@ interface MembershipRow {
   name: string;
   role: string;
 }
-
-const RESOURCE_SCOPES: ReadonlySet<string> = new Set(MCP_RESOURCE_SCOPES);
 
 export async function readAgentConsentContext(
   sql: Sql,
@@ -173,7 +173,9 @@ export async function readAgentConsentContext(
 
   return {
     client: { ...client, id: args.clientId },
-    requestedScopes: asked.filter((scope) => RESOURCE_SCOPES.has(scope)),
+    requestedScopes: asked.filter(
+      (scope) => isOfferedScope(scope) || scope === OFFLINE_ACCESS,
+    ),
     eligible,
     activeOrganizationId: args.activeOrganizationId,
     organizations,

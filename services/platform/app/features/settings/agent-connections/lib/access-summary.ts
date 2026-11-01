@@ -16,7 +16,9 @@ export interface AccessSummary {
  * The access a connection holds in the words a list can show: one level —
  * read and test, edit, or edit and deploy, each adding to the one before —
  * and the extras it holds beside it. Changing settings reads them too, so
- * one extra says both.
+ * one extra says both. A scope the consent page does not offer, which a
+ * connection made before may hold, lets the agent do nothing and is not
+ * shown.
  */
 export function summarizeAccess(scopes: readonly string[]): AccessSummary {
   const held = new Set(scopes);

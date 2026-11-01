@@ -42,7 +42,7 @@ An agent that supports MCP authorization signs itself in. The person who connect
 4. **A person connects it.** The agent opens Tale in the browser. The person signs in, chooses the organization the agent will work in and the access to give, and selects **Connect** on the consent page, which names the app and says whether it proved its domain. A person who may not connect an agent in that organization is told so there.
 5. **The agent calls the endpoint.** It receives an access token that lasts five minutes and a refresh token that stays valid for thirty days without use and is replaced each time it is used, and it renews the access token by itself. Every call carries `Authorization: Bearer <access token>`.
 
-An agent that asks for more than the endpoint grants is not refused for it: Codex asks for `openid`, `profile`, `email` and `tale:organization` beside the agent scopes, and Tale leaves those out, because an agent is never granted an identity scope. An agent that asks for identity scopes alone asks for nothing the endpoint grants and is refused with `invalid_scope`.
+An agent that asks for more than the endpoint grants is not refused for it: Codex asks for `openid`, `profile`, `email` and `tale:organization` beside the agent scopes, and Tale leaves those out, because an agent is never granted an identity scope. An agent that asks for identity scopes alone asks for nothing the endpoint grants and is refused with `invalid_scope`. The endpoint also takes `tale:subscriptions.connect`, which no tool uses yet: an agent may ask for it, but the consent page does not offer it and no connection is given it.
 
 #### Who may connect {#who-may-connect}
 
@@ -50,7 +50,7 @@ An Owner, Admin or Developer may connect an agent to the organization and give i
 
 #### Access levels {#access-levels}
 
-The consent page offers three levels, each adding to the one before, and three further choices. What the person allows becomes the scopes in the agent's token, and the endpoint checks them on every call beside the person's role: a call needs both, and the role is judged first. A scope never widens a role.
+The consent page offers three levels, each adding to the one before, and two further choices. What the person allows becomes the scopes in the agent's token, and the endpoint checks them on every call beside the person's role: a call needs both, and the role is judged first. A scope never widens a role.
 
 Each choice below names its scope and the tools it opens:
 
@@ -59,7 +59,6 @@ Each choice below names its scope and the tools it opens:
 - **Edit and deploy** (`tale:automations.deploy`): `deploy_automation`, `delete_automation`, `set_trigger`, `run_deployed`, `start_run`, `replay_run`, `cancel_run`, `answer_run_ask`, `set_automation_projects`, `delete_trigger`, `invoke_capability`
 - **Read settings** (`tale:settings.read`): `get_settings`, `plan_settings`
 - **Change settings** (`tale:settings.write`): `apply_settings`
-- **Connect AI subscriptions** (`tale:subscriptions.connect`): No tool takes it yet.
 
 A mock run (`start_run` with `mode: "mock"`) and the plan of a replay need only **Read and test**; a live start and a live replay need **Edit and deploy**. `get_settings` and `plan_settings` also accept **Change settings** in place of **Read settings**. What a connection holds is what its person allowed when they connected it: allowing the same app again changes that connection and never adds a second one, and an app that was disconnected and is allowed again makes a new connection.
 

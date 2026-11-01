@@ -36,8 +36,6 @@ consent:
     settingsReadDescription: Die Einstellungen lesen, die deine Rolle sieht. Geheimnisse bleiben verborgen.
     settingsWrite: Einstellungen ändern
     settingsWriteDescription: Die Einstellungen ändern, die deine Rolle ändern darf. Jede Änderung steht im Audit-Log.
-    subscriptions: KI-Abos verbinden
-    subscriptionsDescription: Das Hinzufügen eines KI-Abos anfragen. Nichts wird hinzugefügt, bevor du es in Tale bestätigst.
   summary:
     title: 'Was {client} darf'
   duration: Die Verbindung bleibt, bis du sie unter Einstellungen > API > Verbundene Agenten trennst oder sie 30 Tage lang ungenutzt ist.
@@ -113,4 +111,3 @@ scopes:
   automationsDeploy: Live schalten und live ausführen
   settingsRead: Einstellungen lesen
   settingsWrite: Einstellungen ändern
-  subscriptionsConnect: Abos verbinden

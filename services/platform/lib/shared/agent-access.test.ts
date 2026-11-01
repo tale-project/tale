@@ -10,9 +10,11 @@ import {
   describeAgentScope,
   EXTRA_SCOPES,
   isAgentScope,
+  isOfferedScope,
   levelOf,
   MCP_PATH,
   needsFreshSession,
+  OFFERED_SCOPES,
   OFFLINE_ACCESS,
   requestsAgentAccess,
   scopeCeilingForRole,
@@ -175,12 +177,8 @@ describe('the access that needs a fresh sign-in at consent', () => {
 });
 
 describe('the extras beside an access level', () => {
-  it('are the settings scopes and subscriptions, in the order they are taught', () => {
-    expect(EXTRA_SCOPES).toEqual([
-      'tale:settings.read',
-      'tale:settings.write',
-      'tale:subscriptions.connect',
-    ]);
+  it('are the settings scopes, in the order they are taught', () => {
+    expect(EXTRA_SCOPES).toEqual(['tale:settings.read', 'tale:settings.write']);
   });
 
   it('are scopes of their own: every one is an agent scope and no level holds one', () => {
@@ -192,11 +190,25 @@ describe('the extras beside an access level', () => {
     }
   });
 
-  it('with the levels cover every scope a connection can hold', () => {
+  it('with the levels are what the consent page offers: every agent scope but the one no tool takes yet', () => {
     const covered = new Set<string>([
       ...Object.values(ACCESS_LEVELS).flat(),
       ...EXTRA_SCOPES,
     ]);
-    expect([...covered].sort()).toEqual([...AGENT_SCOPES].sort());
+    expect(OFFERED_SCOPES).toEqual(
+      AGENT_SCOPES.filter((scope) => covered.has(scope)),
+    );
+    expect(OFFERED_SCOPES).toEqual(
+      AGENT_SCOPES.filter((scope) => scope !== 'tale:subscriptions.connect'),
+    );
+  });
+
+  it('tells a scope the page offers from one it does not', () => {
+    for (const scope of OFFERED_SCOPES) {
+      expect(isOfferedScope(scope)).toBe(true);
+    }
+    expect(isOfferedScope('tale:subscriptions.connect')).toBe(false);
+    expect(isOfferedScope(OFFLINE_ACCESS)).toBe(false);
+    expect(isOfferedScope('openid')).toBe(false);
   });
 });

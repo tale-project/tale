@@ -278,7 +278,7 @@ describe('the connected agents fit the screen [AGCONN-R24]', () => {
     // holds everything, an app that registered itself, and never called.
     expect(screen.getByText('Edit automations')).toBeVisible();
     expect(screen.getAllByText('Last used 3 hours ago')[0]).toBeVisible();
-    expect(screen.getByText('Connect AI subscriptions')).toBeVisible();
+    expect(screen.getByText('Change settings')).toBeVisible();
     expect(screen.getByText('Never used')).toBeVisible();
   });
 });

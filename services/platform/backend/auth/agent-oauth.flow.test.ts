@@ -680,6 +680,40 @@ describe('a coding agent at the sign-in server', () => {
     ).toMatchObject({ id: orgId, role: 'owner' });
   });
 
+  it('connects an agent that asks for every scope the endpoint lists, and a consent that names them all, without the one no tool takes [AGCONN-R25]', async () => {
+    vi.mocked(connectAgent).mockClear();
+    const everything = AGENT_SCOPE_SET.join(' ');
+    const { consent, verifier, oauthQuery } = await allow(everything);
+    // Asking for it is no error: the request reached the consent page whole.
+    expect(new URLSearchParams(oauthQuery).get('scope')).toBe(everything);
+    expect(consent.status).toBe(200);
+    const code = await codeOf(consent);
+    expect(code).not.toBe('');
+    expect(connectAgent).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        scopes: [
+          'tale:mcp',
+          'tale:automations.write',
+          'tale:automations.deploy',
+          'tale:settings.read',
+          'tale:settings.write',
+        ],
+      }),
+    );
+    const exchanged = await tokenRequest({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: AGENT_REDIRECT,
+      code_verifier: verifier,
+    });
+    expect(exchanged.status).toBe(200);
+    const tokens = tokensSchema.parse(await exchanged.json());
+    expect((await claimsOf(tokens.access_token)).scope).toBe(
+      'tale:mcp tale:automations.write tale:automations.deploy tale:settings.read tale:settings.write offline_access',
+    );
+  });
+
   it('answers a refresh by a person who left the organization as an invalid grant, and a code exchange with the refusal it always had [AGCONN-R7]', async () => {
     const { consent, verifier } = await allow('tale:mcp offline_access');
     const exchanged = await tokenRequest({

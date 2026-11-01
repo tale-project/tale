@@ -42,7 +42,7 @@ Ein Agent, der MCP-Autorisierung unterstützt, meldet sich selbst an. Die Person
 4. **Eine Person verbindet ihn.** Der Agent öffnet Tale im Browser. Die Person meldet sich an, wählt die Organisation, in der der Agent arbeiten soll, und den Zugriff, den sie ihm gibt, und klickt auf der Zustimmungsseite auf **Verbinden**; die Seite nennt die App und sagt, ob ihre Domain bestätigt ist. Wer in dieser Organisation keinen Agent verbinden darf, erfährt es dort.
 5. **Der Agent ruft den Endpunkt auf.** Er erhält ein Zugriffstoken, das fünf Minuten gilt, und ein Refresh-Token, das dreißig Tage ohne Nutzung gültig bleibt und bei jeder Nutzung ersetzt wird; das Zugriffstoken erneuert er selbst. Jeder Aufruf enthält `Authorization: Bearer <access token>`.
 
-Ein Agent, der mehr verlangt, als der Endpunkt vergibt, wird dafür nicht abgelehnt: Codex verlangt neben den Agent-Scopes `openid`, `profile`, `email` und `tale:organization`, und Tale lässt diese weg, weil ein Agent nie einen Identitäts-Scope erhält. Ein Agent, der nur Identitäts-Scopes verlangt, verlangt nichts, was der Endpunkt vergibt, und wird mit `invalid_scope` abgelehnt.
+Ein Agent, der mehr verlangt, als der Endpunkt vergibt, wird dafür nicht abgelehnt: Codex verlangt neben den Agent-Scopes `openid`, `profile`, `email` und `tale:organization`, und Tale lässt diese weg, weil ein Agent nie einen Identitäts-Scope erhält. Ein Agent, der nur Identitäts-Scopes verlangt, verlangt nichts, was der Endpunkt vergibt, und wird mit `invalid_scope` abgelehnt. Der Endpunkt nimmt auch den Scope `tale:subscriptions.connect` an, den noch kein Tool nutzt: Ein Agent darf ihn verlangen, aber die Zustimmungsseite bietet ihn nicht an, und keine Verbindung erhält ihn.
 
 #### Wer einen Agent verbinden darf {#who-may-connect}
 
@@ -50,7 +50,7 @@ Inhaber, Admins und Entwickler dürfen einen Agent mit der Organisation verbinde
 
 #### Zugriffsstufen {#access-levels}
 
-Die Zustimmungsseite bietet drei Stufen an, von denen jede zur vorigen hinzukommt, und drei weitere Wahlmöglichkeiten. Was die Person erlaubt, wird zu den Scopes im Token des Agents, und der Endpunkt prüft sie bei jedem Aufruf zusätzlich zur Rolle der Person: Ein Aufruf braucht beides, und zuerst wird die Rolle geprüft. Ein Scope erweitert nie eine Rolle.
+Die Zustimmungsseite bietet drei Stufen an, von denen jede zur vorigen hinzukommt, und zwei weitere Wahlmöglichkeiten. Was die Person erlaubt, wird zu den Scopes im Token des Agents, und der Endpunkt prüft sie bei jedem Aufruf zusätzlich zur Rolle der Person: Ein Aufruf braucht beides, und zuerst wird die Rolle geprüft. Ein Scope erweitert nie eine Rolle.
 
 Jede Wahl unten nennt ihren Scope und die Tools, die sie freischaltet:
 
@@ -59,7 +59,6 @@ Jede Wahl unten nennt ihren Scope und die Tools, die sie freischaltet:
 - **Bearbeiten und live schalten** (`tale:automations.deploy`): `deploy_automation`, `delete_automation`, `set_trigger`, `run_deployed`, `start_run`, `replay_run`, `cancel_run`, `answer_run_ask`, `set_automation_projects`, `delete_trigger`, `invoke_capability`
 - **Einstellungen lesen** (`tale:settings.read`): `get_settings`, `plan_settings`
 - **Einstellungen ändern** (`tale:settings.write`): `apply_settings`
-- **KI-Abos verbinden** (`tale:subscriptions.connect`): Noch kein Tool nutzt diese Wahl.
 
 Ein Mock-Lauf (`start_run` mit `mode: "mock"`) und der Plan eines Replays brauchen nur **Lesen und testen**; ein Live-Start und ein Live-Replay brauchen **Bearbeiten und live schalten**. `get_settings` und `plan_settings` akzeptieren statt **Einstellungen lesen** auch **Einstellungen ändern**. Eine Verbindung hat den Zugriff, den die Person beim Verbinden erlaubt hat: Erlaubt die Person dieselbe App erneut, ändert das diese Verbindung und fügt keine zweite hinzu, und eine App, die getrennt war und wieder erlaubt wird, bildet eine neue Verbindung.
 

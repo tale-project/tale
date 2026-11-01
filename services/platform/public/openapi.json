@@ -46054,7 +46054,7 @@
               "tale:automations.deploy": "Deploy and run live: deploy, set triggers, start live runs, answer runs and use capabilities that act on connected services.",
               "tale:settings.read": "Read settings: the settings the person’s role can see. Secrets stay hidden.",
               "tale:settings.write": "Change settings: the settings the person’s role can change. Every change is recorded in the audit log.",
-              "tale:subscriptions.connect": "Connect AI subscriptions: ask to add one. Nothing is added until the person confirms it in Tale.",
+              "tale:subscriptions.connect": "Connect AI subscriptions: no tool takes it yet. A request may name it, but the consent page does not offer it and a connection is not given it.",
               "offline_access": "Stay connected: a refresh token, valid for thirty days without use."
             }
           }

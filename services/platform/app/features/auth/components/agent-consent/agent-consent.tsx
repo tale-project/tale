@@ -17,7 +17,10 @@ import {
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import { authClient } from '@/lib/auth-client';
 import { useT } from '@/lib/i18n/client';
-import { type AgentScope, needsFreshSession } from '@/lib/shared/agent-access';
+import {
+  needsFreshSession,
+  type OfferedScope,
+} from '@/lib/shared/agent-access';
 
 import { AuthFormLayout } from '../auth-form-layout';
 import { AuthPageLayout } from '../auth-page-layout';
@@ -241,16 +244,15 @@ export function AgentConsent({ email }: { email: string }) {
     }
   }
 
-  /** The name of each scope as the page words it; a scope without one does
-   * not compile. */
+  /** The name of each scope the page offers as it words it; a scope without
+   * one does not compile. */
   const scopeLabels = {
     'tale:mcp': t('scopes.mcp'),
     'tale:automations.write': t('scopes.automationsWrite'),
     'tale:automations.deploy': t('scopes.automationsDeploy'),
     'tale:settings.read': t('scopes.settingsRead'),
     'tale:settings.write': t('scopes.settingsWrite'),
-    'tale:subscriptions.connect': t('scopes.subscriptionsConnect'),
-  } satisfies Record<AgentScope, string>;
+  } satisfies Record<OfferedScope, string>;
 
   // What stands in the way before anything is chosen.
   const loadFailure =
