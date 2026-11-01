@@ -4,9 +4,8 @@ import { ShieldAlert } from 'lucide-react';
 import type { ReactNode, Ref } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { SettingsTabPage } from '@/app/features/settings/components/settings-tab-page';
 import { useT } from '@/lib/i18n/client';
-
-import { ProjectSettingsPage } from './project-settings-page';
 
 /**
  * The Environment tab's frame, shared by the tab and its chunk's fallback so
@@ -27,7 +26,7 @@ export function ProjectSecretsLayout({
 }) {
   const { t } = useT('projectSecrets');
   return (
-    <ProjectSettingsPage title={t('title')}>
+    <SettingsTabPage title={t('title')}>
       {banner}
       <SettingsSection
         ref={sectionRef}
@@ -44,7 +43,7 @@ export function ProjectSecretsLayout({
         />
         {children}
       </SettingsSection>
-    </ProjectSettingsPage>
+    </SettingsTabPage>
   );
 }
 
