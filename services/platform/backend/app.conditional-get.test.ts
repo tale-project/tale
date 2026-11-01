@@ -14,6 +14,25 @@ import type { Auth } from './auth/auth.ts';
  * `/api/v1` read back on `no-store` with no 304.
  */
 
+/** The `personal_keys` policy (APIKEY-R12) is stored nowhere, so members'
+ * own keys work, as in an organization that never turned them off; the real
+ * read is strict and keeps them out while `TALE_CONFIG_DIR` is unset. */
+vi.mock('./lib/org-config.ts', async (importOriginal) => {
+  const original = await importOriginal<typeof import('./lib/org-config.ts')>();
+  type Read = typeof original.readGovernancePolicy;
+  const readGovernancePolicy = async (
+    orgSlug: string,
+    policyType: Parameters<Read>[1],
+    options?: Parameters<Read>[2],
+  ): ReturnType<Read> => {
+    if (policyType !== 'personal_keys') {
+      return original.readGovernancePolicy(orgSlug, policyType, options);
+    }
+    return null;
+  };
+  return { ...original, readGovernancePolicy };
+});
+
 const GOOD_KEY = 'tale_good';
 
 /** The door's membership and budget reads, and empty tables for the rest. */
