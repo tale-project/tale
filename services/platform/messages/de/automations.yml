@@ -1312,6 +1312,7 @@ tests:
     failureMessage: '{node} schlägt fehl mit'
     failureDefault: simulierter Fehler
     failuresAdd: Fehler simulieren
+    scenarios: Szenarien
     expect: Erwartungen
     outputModeLabel: Wie die Ausgabe geprüft wird
     outputMode:
@@ -1367,6 +1368,7 @@ tests:
     nothingHappened: Im Lauf ist keine solche Aktion passiert.
     simulated: 'Simuliert: {nodes}'
     unused: 'Nicht verwendet: {nodes}. Der Lauf hat sie übersprungen.'
+    unmatched: '{count, plural, one {Nicht verwendet: das für {nodes} gewählte Szenario. Ein Szenario beantwortet nur Aufrufe, deren Eingabe dazu passt, und keiner passte.} other {Nicht verwendet: die für {nodes} gewählten Szenarien. Ein Szenario beantwortet nur Aufrufe, deren Eingabe dazu passt, und keiner passte.}}'
     showNode: '{node} zeigen'
     technical: Technische Details
   failure:

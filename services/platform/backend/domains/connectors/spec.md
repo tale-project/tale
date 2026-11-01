@@ -6,8 +6,8 @@ A connector lets an agent or an automation act in an outside system: read a mail
 ticket, fetch issues. These rules cover whom such a call acts for, when it is refused, how an
 account is connected by signing in at the outside system, what importing tasks through a
 connector may write, where an agent's call runs, and which mailbox an Outlook credential
-reaches. The catalog of connectors and what each
-one can do are not covered; see Not yet.
+reaches. The catalog of connectors and what each one can do are not covered, beyond the
+scenarios its actions ship for tests; see Not yet.
 
 ## Whom a connector call acts for
 
@@ -114,6 +114,32 @@ goes ahead. The return from the outside system is never refused for coming from 
   link that would connect the `hr@example.com` mailbox. Ada opens it from her mail → Tale
   refuses it and nothing is connected; to connect a mailbox, Ada uses **Connect** in her
   connector settings.
+
+## Scenarios for tests
+
+A connector action can ship scenarios beside its mock: named answers its service gives, such as
+an empty list, a refused write or a rate limit, each an output or an error. A test picks one for a
+step to see what the automation does when the service answers that way (`AUTO-R78`, `AUTO-R79`).
+
+### CONN-R33 · An action's scenarios fit it, and a listed connector ships the minimum kinds
+
+Every scenario of a shipped connector fits its action. It names its kind and answers as the kind
+says: a success or an empty answer with an output, an error or a refusal with an error, a
+duplicate with either. Its name is unique within the action, its `when` names only inputs the
+action takes, and its output fits the output the action declares. A connector on the scenario
+list ships, on every action, at least the kinds its effect needs: a read ships a success, an
+empty answer and an error, and a write a success, a refusal and a duplicate. A connector that
+ships them on every action is put on the list, and none is taken off, since tests pick scenarios
+by name. Slack is the first, and each of its scenarios is held against its live call: given the
+answer Slack sends, the live call returns the scenario's output, or fails with its error, its
+status and the same cause. A scenario is data, never code, and made up: it names no real person,
+workspace or customer.
+
+- **Example**: Lena adds an action that sends a message to a connector on the list, with a
+  success and a refusal but no duplicate → the catalog check fails, naming the action and the
+  missing kind.
+- **Example**: Ben changes what Slack's `send_message` returns → the catalog check fails for
+  `posted` and `posted_again` until their outputs are what the live call now returns.
 
 ## Importing tasks
 
@@ -374,8 +400,9 @@ blanks names none.
 
 ## Not yet
 
-- **The catalog of connectors**, what each can do, and which need an approval before they
-  write: see the approvals spec for the approval itself.
+- **The catalog of connectors**, what each can do beyond the scenarios its actions ship
+  (`CONN-R33`), and which need an approval before they write: see the approvals spec for the
+  approval itself.
 - **A connector's credentials**: see the connector credentials spec.
 - **The app registration a deployment uses** for a sign-in at the outside system
   (`oauth-apps.ts`), and reusing the one for enterprise sign-in (`sso-reuse.ts`).

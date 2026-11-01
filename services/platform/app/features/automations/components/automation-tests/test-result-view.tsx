@@ -8,6 +8,7 @@ import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Eye } from 'lucide-react';
 import { useMemo } from 'react';
 
+import type { NodeTrace } from '@/lib/engine/core/types';
 import { useT } from '@/lib/i18n/client';
 
 import type { TestRow } from '../../hooks/use-automation-tests';
@@ -18,7 +19,10 @@ import {
   type TestFailureView,
   type TestTextContext,
 } from '../../lib/automation-tests/test-text';
-import { testRunOf } from '../../lib/automation-tests/transient-run';
+import {
+  testRunOf,
+  transientTrace,
+} from '../../lib/automation-tests/transient-run';
 import { nodeTitle } from '../../lib/node-face';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -41,11 +45,48 @@ function expectedOutput(
   return null;
 }
 
-/** The node ids a test stands in for: simulated outputs, then failures. */
+/** The node ids a test stands in for: simulated outputs, failures, then
+ * the nodes it picks a scenario for. */
 function standInsOf(test: unknown): string[] {
   if (!isRecord(test)) return [];
   const keys = (value: unknown) => (isRecord(value) ? Object.keys(value) : []);
-  return [...new Set([...keys(test.mocks), ...keys(test.failures)])];
+  return [
+    ...new Set([
+      ...keys(test.mocks),
+      ...keys(test.failures),
+      ...keys(test.scenarios),
+    ]),
+  ];
+}
+
+/**
+ * The stand-ins a run never used, by why. A scenario answers only the
+ * calls whose input matches it: one picked for a node the run did not
+ * skip went unused because no call matched it. Any other stand-in went
+ * unused because the run skipped its node, never got to it, or ran it over
+ * no items. A run that keeps no steps cannot say whether it skipped a
+ * node, and a scenario picked for one reads as unmatched: no call matched
+ * it either way.
+ */
+function unusedByWhy(
+  test: unknown,
+  unused: readonly string[],
+  trace: readonly NodeTrace[],
+): { skipped: string[]; unmatched: string[] } {
+  const scenarios =
+    isRecord(test) && isRecord(test.scenarios) ? test.scenarios : {};
+  const skippedNodes = new Set(
+    trace
+      .filter((step) => step.status === 'skipped' || step.status === 'not_run')
+      .map((step) => step.node),
+  );
+  const unmatched = unused.filter(
+    (id) => Object.hasOwn(scenarios, id) && !skippedNodes.has(id),
+  );
+  return {
+    skipped: unused.filter((id) => !unmatched.includes(id)),
+    unmatched,
+  };
 }
 
 /** The differences a kept report listed, as a diff to read: at most five,
@@ -103,6 +144,8 @@ export function TestResultView({
     [t, locale, text],
   );
   const label = (id: string) => (text.nodeLabel ?? nodeTitle)(id);
+  const list = (ids: readonly string[]) =>
+    new Intl.ListFormat(locale, { type: 'conjunction' }).format(ids.map(label));
   const { outcome } = row;
   if (outcome.kind === 'none') {
     return (
@@ -117,6 +160,12 @@ export function TestResultView({
   const standIns = standInsOf(test);
   const unused =
     outcome.kind === 'run' ? (outcome.result.unusedMocks ?? []) : [];
+  const testRun = testRunOf(outcome);
+  const { skipped, unmatched } = unusedByWhy(
+    test,
+    unused,
+    testRun === null ? [] : transientTrace(testRun),
+  );
   const message = outcome.kind === 'run' ? outcome.result.message : undefined;
 
   const showNode = (node: string | undefined) =>
@@ -246,23 +295,23 @@ export function TestResultView({
       )}
       {standIns.length > 0 && (
         <p className="text-muted-foreground text-xs">
-          {t('tests.result.simulated', {
-            nodes: new Intl.ListFormat(locale, { type: 'conjunction' }).format(
-              standIns.map(label),
-            ),
-          })}
+          {t('tests.result.simulated', { nodes: list(standIns) })}
         </p>
       )}
-      {unused.length > 0 && (
+      {skipped.length > 0 && (
         <p className="text-muted-foreground text-xs">
-          {t('tests.result.unused', {
-            nodes: new Intl.ListFormat(locale, { type: 'conjunction' }).format(
-              unused.map(label),
-            ),
+          {t('tests.result.unused', { nodes: list(skipped) })}
+        </p>
+      )}
+      {unmatched.length > 0 && (
+        <p className="text-muted-foreground text-xs">
+          {t('tests.result.unmatched', {
+            count: unmatched.length,
+            nodes: list(unmatched),
           })}
         </p>
       )}
-      {onShowRun !== undefined && testRunOf(outcome) !== null && (
+      {onShowRun !== undefined && testRun !== null && (
         <Button
           type="button"
           variant="secondary"
