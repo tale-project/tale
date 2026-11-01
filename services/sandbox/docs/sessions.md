@@ -1172,17 +1172,23 @@ Secrets entering a sandbox is a graded decision, documented and enforced:
   True per-operation broker fetch (with immediate per-op revocation) is a
   planned follow-up.
 
-Beside the credential helper, the broker also provisions the git **author
-identity** (`user.name`/`user.email`, injected as `GIT_CONFIG_*` env —
-`session_credentials.ts`'s `buildGitConfigEnv`): the session owner's when
-the session resolves to a real platform user, else the project agent's own
-`gitIdentity` when it has one. A project agent's workers are system-owned,
-so its runs commit as the agent. It is non-secret metadata, not a Tier-2
-grant, so — unlike the helper above — it is never gated on a git credential
-grant, a run confined to its task (which gets no credential) still carries
-it, and a fresh container's `git commit` has an author without any
-in-session `git config`. With neither, nothing is injected rather than a
-placeholder identity.
+Beside the credential helper, the broker also provisions the **commit
+identity** every commit of the turn carries (`session_credentials.ts`'s
+`resolveGitIdentity`): the project agent's own `gitIdentity` when it has
+one, else Tale's, `Tale <noreply@tale.dev>` — never the session owner's or
+the starter's, and never none, so a system-owned session
+(`system:task-agent`, `system:automation`) commits under one too. It is
+injected as `GIT_AUTHOR_NAME`/`GIT_AUTHOR_EMAIL` and
+`GIT_COMMITTER_NAME`/`GIT_COMMITTER_EMAIL`, which git ranks above every
+`user.*`, `author.*` and `committer.*` setting, so a repository's own
+`git config` cannot replace it (an explicit `--author` or env the agent
+changes itself can); `user.name`/`user.email` ride the `GIT_CONFIG_*` env as
+well, for what reads the config rather than commits. It is non-secret
+metadata, not a Tier-2 grant, so — unlike the helper above — it is never
+gated on a git credential grant, it survives a broker failure, a run
+confined to its task (which gets no credential) still carries it, and a
+fresh container's `git commit` has an author without any in-session
+`git config`.
 
 ## Resource profiles
 

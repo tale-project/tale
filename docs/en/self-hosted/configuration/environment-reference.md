@@ -474,7 +474,7 @@ Kubernetes Pods do not receive unsafe sysctls automatically. The egress proxy ne
 
 ## SSH repository access
 
-The native sandbox includes OpenSSH and `netcat-openbsd`. Grant a replaceable key restricted to the repository as a named agent secret, then load it into `ssh-agent` from stdin in the credentialed turn. Keep its private bytes in the environment; never write a key file or print them. A Member-started turn receives no agent secrets. Git commits use the workspace owner's author name and email even without a GitHub connector grant.
+The native sandbox includes OpenSSH and `netcat-openbsd`. Grant a replaceable key restricted to the repository as a named agent secret, then load it into `ssh-agent` from stdin in the credentialed turn. Keep its private bytes in the environment; never write a key file or print them. A Member-started turn receives no agent secrets. Git commits carry the agent's commit identity, else `Tale <noreply@tale.dev>`, even without a GitHub connector grant.
 
 Internal sessions use their existing `HTTP_PROXY` for egress. Direct SSH cannot rely on external DNS from that network. Use the proxy's HTTP CONNECT tunnel and a port it authorizes. GitHub supports SSH at `ssh.github.com:443`; verify the host against [GitHub's published fingerprints](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints), as described in [SSH over port 443](https://docs.github.com/en/authentication/troubleshooting-ssh/using-ssh-over-the-https-port). Keep a public known-hosts file with the independently verified pin and configure the command after the agent has loaded the key:
 

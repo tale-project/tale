@@ -319,7 +319,7 @@ agents:
     missing: '{name} (no longer connected)'
   gitIdentity:
     label: Commit identity
-    hint: The name and email on the commits this agent makes. Leave both empty to set none.
+    hint: The name and email on the commits this agent makes. Leave both empty to commit as Tale.
     nameLabel: Commit name
     namePlaceholder: e.g. Release bot
     emailLabel: Commit email

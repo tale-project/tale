@@ -329,7 +329,7 @@ agents:
     missing: '{name} (nicht mehr verbunden)'
   gitIdentity:
     label: Commit-Identität
-    hint: Name und E-Mail-Adresse auf den Commits dieses Agenten. Lass beide Felder leer, um keine festzulegen.
+    hint: Name und E-Mail-Adresse auf den Commits dieses Agenten. Lass beide Felder leer, um als Tale zu committen.
     nameLabel: Name für Commits
     namePlaceholder: z. B. Release-Bot
     emailLabel: E-Mail-Adresse für Commits

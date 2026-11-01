@@ -42,9 +42,10 @@ The maintained runtime installs OpenSSH (`ssh`, `ssh-agent`, `ssh-add`) and
 `netcat-openbsd`. Repository-scoped keys are explicitly granted project secrets;
 load them from the turn environment into `ssh-agent` through stdin, never a key
 file. Member-started turns keep the existing secret-withholding policy.
-Credentialed turns receive the real workspace owner's Git author name and email
-even when no GitHub connector is equipped; SSH authentication grants no connector
-permission.
+Credentialed turns commit under the agent's commit identity, else
+`Tale <noreply@tale.dev>`, as author and committer (`GIT_AUTHOR_*` and
+`GIT_COMMITTER_*` env), even when no GitHub connector is equipped; SSH
+authentication grants no connector permission.
 
 Internal sandbox sessions already carry `HTTP_PROXY`. Route SSH with
 `nc -X connect -x <proxy-host>:<proxy-port> %h %p` as OpenSSH's `ProxyCommand`,

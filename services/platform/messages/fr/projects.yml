@@ -327,7 +327,7 @@ agents:
     missing: '{name} (plus connecté)'
   gitIdentity:
     label: Identité des commits
-    hint: Le nom et l’adresse e-mail des commits de cet agent. Laisse les deux champs vides pour n’en définir aucune.
+    hint: Le nom et l’adresse e-mail des commits de cet agent. Laisse les deux champs vides pour committer en tant que Tale.
     nameLabel: Nom des commits
     namePlaceholder: p. ex. Bot de release
     emailLabel: E-mail des commits
