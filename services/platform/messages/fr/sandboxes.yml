@@ -157,6 +157,10 @@ empty:
     faute d'utilisation. L'espace d'une exécution de workflow est récupéré à la
     fin de l'exécution. Les chiffres de capacité ci-dessus incluent les sessions
     temporaires d'exploration.
+# The workspaces table: its search, and the count under it.
+searchPlaceholder: Rechercher des espaces de travail
+entityLabel: espaces de travail
+entityLabelOne: espace de travail
 accessDenied: Tu as besoin d'un accès développeur ou admin pour gérer les sandboxes.
 # Quel worker de son agent est un espace de travail : un worker de l'agent
 # lui-même, ou un worker qui exécute l'agent pour un membre.
@@ -197,6 +201,10 @@ devices:
   empty:
     title: Aucun appareil pour l'instant
     description: Ajoute une machine Linux ou macOS avec Docker pour y exécuter les sandboxes de ton organisation.
+  # The devices table: its search, and the count under it.
+  searchPlaceholder: Rechercher des appareils
+  entityLabel: appareils
+  entityLabelOne: appareil
   hub:
     notConfigured: Le service de sandbox de ce déploiement n'accepte pas d'appareils. Demande à ton opérateur d'activer le hub d'appareils.
     unavailable: Impossible de joindre le service de sandbox. L'état des appareils n'est peut-être pas à jour.

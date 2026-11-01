@@ -225,6 +225,8 @@ beforeEach(() => {
             : name === 'sandbox_devices/queries:list'
               ? { devices: [], hub: 'available', serverVersion: '0.5.60' }
               : { status: 'unavailable', reason: 'unreachable' },
+    error: null,
+    errorUpdateCount: 0,
     isLoading: false,
     isFetching: false,
     isError: false,

@@ -932,6 +932,24 @@ Restore any toggled setting after the run.
   (`settings.apiDocs.openDocs`) sits under the table in both states. No page
   scrolls sideways at 390 px, and every button label is readable in both
   themes.
+- [ ] `SET-F106` · **Sandboxes tables keep their controls in their own
+  toolbar** — As owner, with SET-F56's device connected and a project agent's
+  workspace listed, open `/dashboard/{org}/settings/sandboxes` at 1280 px and
+  at 390 px, in the light and in the dark theme → **Workspaces** and
+  **Devices** (`sandboxes.devices.title`) each close on a count footer
+  (**Showing all 1 device**, `common.pagination.showingAll`; past 20 rows
+  **Showing 20 of {n} workspaces**, `common.pagination.showingFiltered`, and
+  the rest arrive as you scroll to the table's end). Each table's search box
+  (**Search workspaces**, `sandboxes.searchPlaceholder`; **Search devices**,
+  `sandboxes.devices.searchPlaceholder`) sits in its own toolbar, and so does
+  **Add device** (`sandboxes.devices.add`): at the toolbar's right end at
+  1280 px, on a full-width row of its own at 390 px. Between the Devices
+  description and that toolbar sits nothing but the sandbox service's notice
+  when it shows one (`sandboxes.devices.hub.unavailable`). A task's key in
+  **Search workspaces** leaves the workspace working on it, and `macOS` in
+  **Search devices** leaves the Macs. As a Developer, Devices keeps its search
+  and shows no **Add device**. No page scrolls sideways at 390 px, and every
+  label is readable in both themes and in German and French.
 - [ ] `SET-F64` · **Models tab while the model endpoints are off** — As an
   owner, with **Model endpoints for API keys** off (governance.md GOV-F40),
   open `/dashboard/{org}/settings/api/models` → The API pages read **REST**,
