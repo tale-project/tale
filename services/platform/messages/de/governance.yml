@@ -712,6 +712,31 @@ chatToolStatus:
       Die Modellzugriffsrichtlinie kann nicht gelesen werden, daher kann Tale
       nicht erkennen, ob Prompts in der EU/im EWR bleiben müssen.
     imageModelCheckFailed: Die Bildmodelle konnten nicht geprüft werden.
+  runCheck:
+    title: Sandbox-Prüfung
+    description:
+      Startet eine leichte Sandbox wie der Chat, sucht die Bibliotheken der
+      Dokument-Skills und erstellt eine kleine Word-Datei. Dauert bis zu einer
+      Minute und belegt so lange eine der leichten Sandboxes der Organisation.
+    run: Prüfung starten
+    running:
+      Eine Sandbox startet und erstellt eine Word-Datei. Das dauert bis zu
+      einer Minute.
+    requestFailed: Die Prüfung konnte nicht laufen. Versuche es erneut.
+    passed: Bestanden
+    failed: Fehlgeschlagen
+    passedDetail:
+      '{count, plural, one {Die # Dokument-Bibliothek ist installiert} other
+      {Alle # Dokument-Bibliotheken sind installiert}}, und die Sandbox hat
+      eine Word-Datei erstellt. Die Prüfung dauerte {seconds} s.'
+    startFailed: '{failure}.'
+    librariesMissing: 'In der Sandbox fehlen Dokument-Bibliotheken: {libraries}.'
+    librariesMissingCount:
+      '{count, plural, one {In der Sandbox fehlt # Dokument-Bibliothek.} other
+      {In der Sandbox fehlen # Dokument-Bibliotheken.}}'
+    moreLibraries: '{count} weitere'
+    fileNotWritten: Die Sandbox konnte die Word-Datei nicht erstellen.
+    timedOut: Die Prüfung ist nicht innerhalb von {seconds} s fertig geworden.
 skillSharing:
   title: Skill-Freigabe
   description: Lege fest, wer einen Skill mit der ganzen Organisation teilen
