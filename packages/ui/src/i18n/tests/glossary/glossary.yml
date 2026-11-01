@@ -419,13 +419,22 @@ terms:
     fr: Nœud
     _lintExclude:
       fr: true
+    _avoid:
+      de:
+        - '*knoten*'
+    _allow:
+      de:
+        - 'Swarm-Knoten*'
     _note: 'One step of an automation, on the canvas and in every message about
       it (`automations.canvas.*`, `automationIssues.*`). EN lowercase in prose
-      (node); DE the loanword `die Node`, plural `die Nodes`, never `Knoten` in
-      the automation pages and catalogs; FR `le nœud`, so French state words
-      that agree with it are masculine (ignoré, réussi). The run timeline still
-      says step / Schritt / étape. Not enforced in FR because `Node` there is
-      also the Node.js runtime.'
+      (node); DE the loanword `die Node`, plural `die Nodes`, with a hyphen in
+      compounds (`Agent-Node`, `Connector-Node`, `Automatisierungs-Node`,
+      `Node-Typ`, `Node-Ergebnis`), never `Knoten`: `_avoid` reports it in any
+      word (`Agentenknoten`, `Knotentypen`, #4537), and `_allow` keeps a Docker
+      `Swarm-Knoten`, which is no automation node; FR `le nœud`, so French
+      state words that agree with it are masculine (ignoré, réussi). The run
+      timeline still says step / Schritt / étape. Not enforced in FR because
+      `Node` there is also the Node.js runtime.'
   - key: feature_automationPath
     category: feature
     en: Path

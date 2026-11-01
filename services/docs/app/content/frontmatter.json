@@ -457,7 +457,7 @@
     "locale": "de",
     "frontmatter": {
       "title": "Agenten mit Skills ausrüsten",
-      "description": "Wähle wiederverwendbare Skill-Bundles für Projekt-Agenten und Automatisierungsknoten, prüfe ihren Zugriff und kontrolliere die Ausführung."
+      "description": "Wähle wiederverwendbare Skill-Bundles für Projekt-Agenten und Automatisierungs-Nodes, prüfe ihren Zugriff und kontrolliere die Ausführung."
     }
   },
   "de:platform/approvals/concepts": {

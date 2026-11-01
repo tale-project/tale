@@ -64,7 +64,7 @@ Lege ein Modell fest, wenn du eine stabile Auswahl brauchst. Die Auswahl bietet 
 
 ## Bildgenerierung erlauben {#let-agents-generate-images}
 
-Mit der **Bildgenerierung** können der Chat-Assistent, [Projektagenten](/de/platform/projects/project-agents) bei ihren Aufgaben und Agent-Knoten in [Automatisierungen](/de/platform/automations/concepts) Bilder erstellen, etwa ein Titelbild für einen Bericht oder ein Motiv für eine Kampagne. Die Funktion bleibt aus, bis du sie einschaltest.
+Mit der **Bildgenerierung** können der Chat-Assistent, [Projektagenten](/de/platform/projects/project-agents) bei ihren Aufgaben und Agent-Nodes in [Automatisierungen](/de/platform/automations/concepts) Bilder erstellen, etwa ein Titelbild für einen Bericht oder ein Motiv für eine Kampagne. Die Funktion bleibt aus, bis du sie einschaltest.
 
 1. Schalte **Bildgenerierung erlauben** ein. Der Schalter speichert sofort.
 2. Lass **Bildmodell** auf **Automatisch** oder wähle ein Modell und speichere die offenen Änderungen der Seite in der Kopfzeile.

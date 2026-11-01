@@ -26,7 +26,7 @@ Die Vorbereitung von Dokumenten legt noch keine Konten an und vergibt keine Zugr
 
 ## Workflows für wiederholbare Schritte nutzen
 
-Bei klaren Abläufen können Tale-Automatisierungen Auslöser, Agentenarbeit und konfigurierte Connector-Aktionen verbinden. Agenten greifen über Tales Connector-Broker nur lesend zu; kontrollierte Schreibaktionen gehören in Workflow-Knoten. Repository-Werkzeuge und ausdrücklich gewährte Secrets haben eigene Berechtigungen.
+Bei klaren Abläufen können Tale-Automatisierungen Auslöser, Agentenarbeit und konfigurierte Connector-Aktionen verbinden. Agenten greifen über Tales Connector-Broker nur lesend zu; kontrollierte Schreibaktionen gehören in Workflow-Nodes. Repository-Werkzeuge und ausdrücklich gewährte Secrets haben eigene Berechtigungen.
 
 So wählt dein Team den passenden Grad an Struktur: eine offene Aufgabe für eine Untersuchung oder einen ausdrücklichen Workflow für einen wiederholbaren Ablauf. Wie Reviews und Freigaben funktionieren, hängt von dieser Konfiguration ab.
 

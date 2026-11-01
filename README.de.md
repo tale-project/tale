@@ -38,7 +38,7 @@ Betreibe Tale auf eigener Infrastruktur oder nutze den verwalteten Cloud-Dienst.
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <a href="services/docs/public/images/platform/automation-editor-canvas.webp"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="Der Automatisierungseditor zeigt verbundene Schritte und die Einstellungen des ausgewählten Knotens." width="100%"></a>
+      <a href="services/docs/public/images/platform/automation-editor-canvas.webp"><img src=".github/assets/readme-gallery-workflow-editor.webp" alt="Der Automatisierungseditor zeigt verbundene Schritte und die Einstellungen der ausgewählten Node." width="100%"></a>
       <br><a href="https://docs.tale.dev/de/platform/automations/editor"><b>Workflow-Editor</b></a><br><sub>Prüfe Schritte, Testeingaben und Laufprotokolle.</sub>
     </td>
     <td width="50%" valign="top">

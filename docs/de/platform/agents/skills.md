@@ -1,6 +1,6 @@
 ---
 title: Agenten mit Skills ausrüsten
-description: Wähle wiederverwendbare Skill-Bundles für Projekt-Agenten und Automatisierungsknoten, prüfe ihren Zugriff und kontrolliere die Ausführung.
+description: Wähle wiederverwendbare Skill-Bundles für Projekt-Agenten und Automatisierungs-Nodes, prüfe ihren Zugriff und kontrolliere die Ausführung.
 ---
 
 Rüste einen Agenten mit einem Skill aus, wenn er ein wiederverwendbares Vorgehen oder Referenzmaterial aus der [Skill-Bibliothek](/de/platform/workspace/skills) der Organisation braucht. Die Bibliothek speichert das Bundle; die Ausrüstung des Agenten bestimmt, welche Bundles seinen Läufen zur Verfügung stehen.
@@ -28,7 +28,7 @@ Jeder Skill in der Liste nennt seinen Ersteller: ein Mitglied, **Mitgeliefert** 
 
 ## Skills in einer Automatisierung verwenden
 
-Die Agent-Knoten einer Automatisierung geben an, welche Skills sie brauchen. Ein an ein Projekt gebundener Lauf nutzt dessen Zugriff. Ein Lauf auf Organisationsebene kann nur organisationsweite Skills verwenden. Deine persönliche Mitgliedschaft in weiteren Teams erweitert diesen Zugriff nicht.
+Die Agent-Nodes einer Automatisierung geben an, welche Skills sie brauchen. Ein an ein Projekt gebundener Lauf nutzt dessen Zugriff. Ein Lauf auf Organisationsebene kann nur organisationsweite Skills verwenden. Deine persönliche Mitgliedschaft in weiteren Teams erweitert diesen Zugriff nicht.
 
 Beim Einrichten der Sandbox stellt Tale die ausgerüsteten Bundles als Dateien bereit. Der Agent erhält zu jedem Skill einen Beschreibungsauszug von bis zu 300 Zeichen und den Pfad zu seinen `SKILL.md`-Anweisungen. Der Auszug hilft bei der Auswahl für eine frei formulierte Aufgabe; er ist ein Auswahlhinweis, keine auszuführende Anweisung. Ergänzende Dateien liegen neben den Anweisungen.
 

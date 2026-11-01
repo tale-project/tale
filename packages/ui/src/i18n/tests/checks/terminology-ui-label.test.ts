@@ -854,4 +854,205 @@ describe('terminology UI labels', () => {
       }),
     ).toEqual([{ locale: 'de', line: 1, column: 30 }]);
   });
+
+  const nonShippedNode = (name: string) =>
+    `"${name}" is not the shipped name of UI-label term "Node"`;
+
+  // #4537: German keeps `Node`, so only its retired `Knoten` is reported, in
+  // any word a `*` lets it go on into.
+  it('reports only the avoided names of a locale that keeps the en form', () => {
+    const findings = terminologyUiLabel.run(
+      context(
+        [
+          {
+            key: 'node',
+            category: 'feature',
+            en: 'Node',
+            fr: 'Nœud',
+            _avoid: { de: ['*knoten*'] },
+          },
+        ],
+        {
+          de: [
+            'Die Node, ein Knoten und ein Agent-Knoten.',
+            'Agentenknoten, Knotentypen, KNOTENS; Node-Typ.',
+          ].join('\n'),
+          'de-CH': 'Der Knoten.',
+          fr: 'Un Node, un knoten.',
+        },
+      ),
+    );
+    expect(
+      findings.map(({ locale, line, column, rule, detail }) => ({
+        locale,
+        line,
+        column,
+        rule,
+        detail,
+      })),
+    ).toEqual([
+      {
+        locale: 'de',
+        line: 1,
+        column: 15,
+        rule: 'ui-label-non-shipped',
+        detail: nonShippedNode('Knoten'),
+      },
+      {
+        locale: 'de',
+        line: 1,
+        column: 36,
+        rule: 'ui-label-non-shipped',
+        detail: nonShippedNode('Knoten'),
+      },
+      {
+        locale: 'de',
+        line: 2,
+        column: 1,
+        rule: 'ui-label-non-shipped',
+        detail: nonShippedNode('Agentenknoten'),
+      },
+      {
+        locale: 'de',
+        line: 2,
+        column: 16,
+        rule: 'ui-label-non-shipped',
+        detail: nonShippedNode('Knotentypen'),
+      },
+      {
+        locale: 'de',
+        line: 2,
+        column: 29,
+        rule: 'ui-label-non-shipped',
+        detail: nonShippedNode('KNOTENS'),
+      },
+      {
+        locale: 'de-CH',
+        line: 1,
+        column: 5,
+        rule: 'ui-label-non-shipped',
+        detail: nonShippedNode('Knoten'),
+      },
+      {
+        locale: 'fr',
+        line: 1,
+        column: 4,
+        rule: 'ui-label-mismatch',
+        detail: 'UI-label term "Node" must match shipped string',
+      },
+    ]);
+  });
+
+  it('keeps the avoided names of such a locale behind its exclusion', () => {
+    expect(
+      terminologyUiLabel.run(
+        context(
+          [
+            {
+              key: 'node',
+              category: 'feature',
+              en: 'Node',
+              _lintExclude: { de: true },
+              _avoid: { de: ['*knoten*'] },
+            },
+          ],
+          { de: 'Ein Agent-Knoten.', 'de-CH': 'Ein Agentenknoten.' },
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it('lets a listed name go on only at an end marked with a star', () => {
+    const findings = terminologyUiLabel.run(
+      context(
+        [
+          {
+            key: 'node',
+            category: 'feature',
+            en: 'Node',
+            // A name that is empty without its stars would match everywhere.
+            _avoid: { de: ['*knoten', 'knoten*', '*', '**', 'Agent [*]'] },
+          },
+        ],
+        { de: 'Startknoten, Knotentyp, Knoten, Startknotentyp, Agent Node.' },
+      ),
+    );
+    expect(findings.map(({ column, detail }) => ({ column, detail }))).toEqual([
+      { column: 1, detail: nonShippedNode('Startknoten') },
+      { column: 25, detail: nonShippedNode('Knoten') },
+      { column: 14, detail: nonShippedNode('Knotentyp') },
+    ]);
+  });
+
+  it('skips an avoided name inside an allowed name that goes on', () => {
+    const findings = terminologyUiLabel.run(
+      context(
+        [
+          {
+            key: 'node',
+            category: 'feature',
+            en: 'Node',
+            _avoid: { de: ['*knoten*'] },
+            _allow: { de: ['Swarm-Knoten*'] },
+          },
+        ],
+        {
+          de: 'Jeder Swarm-Knoten steht in der Swarm-Knotenliste; ein Agent-Knoten nicht.',
+        },
+      ),
+    );
+    expect(findings.map(({ column, detail }) => ({ column, detail }))).toEqual([
+      { column: 62, detail: nonShippedNode('Knoten') },
+    ]);
+  });
+
+  const shippedNode = (texts: Record<string, string>) =>
+    terminologyUiLabel
+      .run(context(null, texts))
+      .filter(({ detail }) => detail.includes('UI-label term "Node"'))
+      .map(({ locale, line, detail }) => ({ locale, line, detail }));
+
+  // #4537: the German app and guides said `Knoten` beside the shipped `Node`.
+  it('rejects the German Knoten names that #4537 replaced', () => {
+    expect(
+      shippedNode({
+        de: [
+          'Wiederverwendbare Anleitungspakete für Projekt-Agenten und Agent-Knoten in Automatisierungen.',
+          'Prüfe den betroffenen Knoten und die Ablaufspur.',
+          'Die Frage eines Agentenknotens beantworten',
+          'Unterstützte Knotentypen auflisten',
+          'Der Automatisierungseditor zeigt die Einstellungen des ausgewählten Knotens.',
+        ].join('\n'),
+        'de-CH':
+          'Genehmigungspflichtige Connector-Schreibaktionen laufen über Automatisierungsknoten.',
+      }),
+    ).toEqual([
+      { locale: 'de', line: 1, detail: nonShippedNode('Knoten') },
+      { locale: 'de', line: 2, detail: nonShippedNode('Knoten') },
+      { locale: 'de', line: 3, detail: nonShippedNode('Agentenknotens') },
+      { locale: 'de', line: 4, detail: nonShippedNode('Knotentypen') },
+      { locale: 'de', line: 5, detail: nonShippedNode('Knotens') },
+      {
+        locale: 'de-CH',
+        line: 1,
+        detail: nonShippedNode('Automatisierungsknoten'),
+      },
+    ]);
+  });
+
+  it('keeps the German Node, its compounds and a Docker Swarm node', () => {
+    expect(
+      shippedNode({
+        de: [
+          'Wiederverwendbare Anleitungspakete für Projekt-Agenten und Agent-Nodes in Automatisierungen.',
+          'Prüfe die betroffene Node und die Ablaufspur.',
+          'Die Frage einer Agent-Node beantworten',
+          'Unbekannter Node-Typ; unterstützte Node-Typen auflisten',
+          'Plane Daemon-Neustarts auf einem Swarm-Knoten stattdessen als Wartung ein.',
+        ].join('\n'),
+        'de-CH':
+          'Genehmigungspflichtige Connector-Schreibaktionen laufen über Automatisierungs-Nodes.',
+      }),
+    ).toEqual([]);
+  });
 });

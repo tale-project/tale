@@ -189,7 +189,7 @@ visionModel:
 imageGeneration:
   title: Bildgenerierung
   description:
-    Der Chat-Assistent, Projekt-Agenten bei ihren Aufgaben und Agent-Knoten
+    Der Chat-Assistent, Projekt-Agenten bei ihren Aufgaben und Agent-Nodes
     in Automatisierungen können Bilder erstellen. Die Kosten trägt deine
     Organisation. Die Funktion bleibt aus, bis du sie einschaltest.
   enabledLabel: Bildgenerierung erlauben

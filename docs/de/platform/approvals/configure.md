@@ -21,7 +21,7 @@ Eine bereits wartende Operation behält ihre offene Freigabe nach der Richtlinie
 
 ## Einen Workflow vor dem Live-Betrieb prüfen
 
-1. Prüfe bei jedem Connector-Knoten, ob er liest oder schreibt.
+1. Prüfe bei jeder Connector-Node, ob sie liest oder schreibt.
 2. Kläre, welche Schreibzugriffe die wirksame Organisationsrichtlinie automatisch freigibt.
 3. Nutze **Testlauf**, um Ein- und Ausgabe mit Mocks zu prüfen.
 4. Prüfe in einem kontrollierten Live-Lauf die Operation und ihre genauen Eingaben auf jeder offenen Karte, bevor du entscheidest.
@@ -35,6 +35,6 @@ Ein Mock-Test beweist nicht, dass im Live-Lauf eine Freigabe erscheint. Mock-Con
 | Ein Agentenergebnis annehmen | [Aufgaben automatisieren](/de/platform/projects/task-automation). Eine Person verschiebt das Ergebnis von In Prüfung nach Erledigt. |
 | Eine gelenkte Dokumentversion freigeben | [Dokumente](/de/platform/knowledge/documents). Der benannte Reviewer entscheidet über die eingefrorene Version. |
 | Eine Löschanfrage genehmigen | [Anfragen betroffener Personen](/de/platform/admin/governance/data-subject-requests). Ein zweiter Admin gibt die nötige Freigabe. |
-| Die Frage eines Agentenknotens beantworten | [Freigaben in Workflows](/de/platform/automations/approvals-in-workflows). Dem Lauf fehlt eine Information zum Fortsetzen. |
+| Die Frage einer Agent-Node beantworten | [Freigaben in Workflows](/de/platform/automations/approvals-in-workflows). Dem Lauf fehlt eine Information zum Fortsetzen. |
 
 Für diese Entscheidungen gelten eigene Regeln. Die Connector-Freigaberichtlinie schaltet sie nicht ab. Der Chat verwendet nur lesende Abrufwerkzeuge und erzeugt keine Operationsfreigaben.

@@ -835,7 +835,7 @@ platformAgents:
       - title: Unterstützte Agent-Laufzeiten
         body:
           Binde Claude Code, Codex, Hermes und OpenClaw als Agent-Laufzeit, auf der ein
-          Projekt-Agent oder ein Automatisierungs-Agent-Knoten läuft.
+          Projekt-Agent oder eine Agent-Node einer Automatisierung läuft.
         docsLabel: Agent-Laufzeiten
       - title: Delegation zwischen Agenten
         body:
@@ -1321,7 +1321,7 @@ platformGovernance:
         a:
           Nein. Der Connector-Broker stellt Agenten Leseaktionen bereit;
           genehmigungspflichtige Connector-Schreibaktionen laufen über
-          Automatisierungsknoten. Direkte GitHub-Werkzeuge und ausdrücklich
+          Automatisierungs-Nodes. Direkte GitHub-Werkzeuge und ausdrücklich
           freigegebene Secrets haben eigene Zugriffswege. Prüfe auch diese
           Freigaben.
       - q: Wie gelten Inhaltsfilter und Datenkontrollen?

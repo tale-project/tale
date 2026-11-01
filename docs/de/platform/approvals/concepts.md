@@ -13,7 +13,7 @@ Lesezugriffe verlangen keine Freigabe. Ein **Testlauf** nutzt simulierte Connect
 
 ## Die geplante Aktion prüfen
 
-Öffne die [Laufliste](/de/platform/automations/execution-logs) der Automatisierung und wähle den Lauf mit dem Status **Wartet**. Die Freigabekarte nennt die Aktion, etwa `imap-smtp.send`, und den anfragenden Knoten. **Der Schritt würde aufrufen mit** zeigt die genauen Eingaben.
+Öffne die [Laufliste](/de/platform/automations/execution-logs) der Automatisierung und wähle den Lauf mit dem Status **Wartet**. Die Freigabekarte nennt die Aktion, etwa `imap-smtp.send`, und die anfragende Node. **Der Schritt würde aufrufen mit** zeigt die genauen Eingaben.
 
 Vergleiche Ziel, Empfänger, Inhalt und Kennungen mit der beabsichtigten Aufgabe. Prüfe auch sensible Angaben in den Eingaben, bevor du entscheidest:
 
@@ -30,10 +30,10 @@ Organisationsmitglieder können über Connector-Aktionen entscheiden. Diese Kart
 
 ## Das Ergebnis prüfen
 
-Eine Freigabe erlaubt die Ausführung, garantiert aber nicht, dass der Connector erfolgreich ist. Prüfe nach der Fortsetzung den Laufstatus, das Knotenergebnis und die Auswirkungen. Ein abgelehnter Lauf nennt die Ablehnung als Fehlergrund. Das [Audit-Protokoll](/de/platform/admin/governance/audit-logs) hält die Entscheidung und die handelnde Person fest.
+Eine Freigabe erlaubt die Ausführung, garantiert aber nicht, dass der Connector erfolgreich ist. Prüfe nach der Fortsetzung den Laufstatus, das Node-Ergebnis und die Auswirkungen. Ein abgelehnter Lauf nennt die Ablehnung als Fehlergrund. Das [Audit-Protokoll](/de/platform/admin/governance/audit-logs) hält die Entscheidung und die handelnde Person fest.
 
 Eine ausstehende Freigabe bleibt offen, wenn die Richtlinie gelockert wird. Dieselbe Aktion im selben Lauf behält ihre gespeicherte Entscheidung; ein neuer Lauf wird erneut bewertet. Ein beendeter oder abgebrochener Lauf kann eine noch offene Freigabe nicht mehr für seinen Schreibzugriff nutzen.
 
 ## Freigabe und Rückfrage unterscheiden
 
-Ein Agent-Knoten kann auch pausieren, weil er Informationen von einer Person braucht. Deine Antwort liefert eine Eingabe; sie gibt keinen Connector-Schreibzugriff frei. [Freigaben in Workflows](/de/platform/automations/approvals-in-workflows) erklärt beide Abläufe. Für Aufgabenprüfungen, kontrollierte Dokumente und Löschanträge gelten eigene [Prüfregeln](/de/platform/approvals/configure).
+Eine Agent-Node kann auch pausieren, weil sie Informationen von einer Person braucht. Deine Antwort liefert eine Eingabe; sie gibt keinen Connector-Schreibzugriff frei. [Freigaben in Workflows](/de/platform/automations/approvals-in-workflows) erklärt beide Abläufe. Für Aufgabenprüfungen, kontrollierte Dokumente und Löschanträge gelten eigene [Prüfregeln](/de/platform/approvals/configure).
