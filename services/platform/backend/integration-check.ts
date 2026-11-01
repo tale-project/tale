@@ -225,9 +225,9 @@ import {
   AUDIT_WRITE_ORDER,
   connectSse,
   cookieHeaderFrom,
+  ensureRetentionGovernance,
   errorText,
   fullCoverageBlockers,
-  installRetentionGovernance,
   isSkippedCheck,
   ITEST_RETENTION_BOUNDS,
   ITEST_RETENTION_POLICY,
@@ -237,6 +237,7 @@ import {
   recordSkip,
   requestedLanes,
   settleTeardown,
+  signUpOrgOwner,
   signUpUser,
   videoLaneFfmpegLocation,
   withBuiltinCatalog,
@@ -46874,19 +46875,19 @@ async function checkSandboxSpawner(
 async function checkTaskAgentRuns(
   sql: Sql,
   base: string,
-  ctx: { cookie: string; orgId: string; userId: string },
+  // An organization of the lane's own (`signUpOrgOwner`): a wake claims
+  // the organization's oldest parked run, and in the suite's organization
+  // the run another lane left parked answered the second wake (#5244).
+  ctx: { cookie: string; orgId: string; userId: string; orgSlug: string },
 ): Promise<void> {
   const { cookie, orgId } = ctx;
   // The agents this lane creates run on `itestagent`, the one provider
   // the equipment check lets an agent be equipped with here.
-  const [orgRow] = await sql<{ slug: string }[]>`
-    SELECT "slug" FROM "organization" WHERE "id" = ${orgId}
-  `;
   const agentProvider = await seedItestAgentProvider({
     base,
     cookie,
     orgId,
-    orgSlug: orgRow?.slug ?? '',
+    orgSlug: ctx.orgSlug,
     displayName: 'Itest Agent',
     credentialName: 'Agent key',
     secret: 'sk-itest-agent-key',
@@ -53520,23 +53521,18 @@ async function checkGovernanceSettingsTail(
   // leaves in the organization's governance directory. Run without that
   // lane, the tail gives the organization the same files and applies their
   // bounds as that lane does; it ended the run on `ENOENT` instead (#4714).
-  if (
-    await installRetentionGovernance(
-      path.join(process.env.TALE_CONFIG_DIR ?? '', orgSlug, 'governance'),
-    )
-  ) {
-    (await import('./lib/org-config.ts')).clearOrgConfigCaches();
-    const applied = await post(
-      `/api/app/retention/bounds/apply?orgId=${orgId}`,
-    );
-    if (!applied.ok) {
-      record(
-        'governance tail: the retention bounds it gives its organization apply',
-        false,
-        `bounds/apply=${applied.status} ${(await applied.text()).slice(0, 200)} (want 200)`,
-      );
-    }
-  }
+  await ensureRetentionGovernance({
+    base,
+    cookie,
+    orgId,
+    governanceDir: path.join(
+      process.env.TALE_CONFIG_DIR ?? '',
+      orgSlug,
+      'governance',
+    ),
+    subject: 'governance tail',
+    record,
+  });
 
   // --- A. Matters + hold item views + close fan-out + reject reason ------
   const matter = z.object({ matterId: z.string() }).safeParse(
@@ -53714,6 +53710,24 @@ async function checkGovernanceSettingsTail(
   const rejectedRow = rejectedList.success
     ? rejectedList.data.requests.find((row) => row._id === fanned?._id)
     : undefined;
+  // The walk below needs two requests. The fan-out filed one; run alone the
+  // organization has no other, and the second page came back empty
+  // (#5244). A second request on the same hold, rejected as well, so the
+  // hold is left with nothing pending.
+  const secondRequest = z
+    .object({ requestId: z.string() })
+    .safeParse(
+      await (
+        await post(
+          `/api/app/legal-holds/${holdId}/release-requests?orgId=${orgId}`,
+          { reason: 'Matter Alpha reopened' },
+        )
+      ).json(),
+    );
+  const secondRejected = await post(
+    `/api/app/legal-holds/release-requests/${secondRequest.success ? secondRequest.data.requestId : ''}/reject?orgId=${orgId}`,
+    { reason: 'Still preserving' },
+  );
   // Keyset walk over ALL requests: page one of 1 hands a cursor whose next
   // page starts strictly after it.
   const pageOne = z
@@ -53781,11 +53795,107 @@ async function checkGovernanceSettingsTail(
       rejectedRow !== undefined &&
       rejectedRow.rejectReason === 'Keep preserving after all' &&
       (rejectedRow.rejectedByName ?? '').length > 0 &&
+      secondRequest.success &&
+      secondRejected.status === 200 &&
       pagesDistinct,
-    `matter=${matter.success}, badRef=${badRef.status} (want 404), hold=${placed.success}, listed=${listedHold !== undefined}/${listedHold?.matterName ?? '?'}, matterRow=${listedMatter?.linkedActiveHolds ?? '?'}, byTarget=${byTarget.success ? byTarget.data.hold.view : 'ERR'}, closed=${closed.success ? closed.data.releaseRequestsFiled : 'ERR'}+${closedAgain.success ? closedAgain.data.releaseRequestsFiled : 'ERR'}, fanned=${fanned?.reason ?? '?'}, reject=${rejected.status}/${rejectedRow?.rejectReason ?? '?'}, pages=${pagesDistinct}`,
+    `matter=${matter.success}, badRef=${badRef.status} (want 404), hold=${placed.success}, listed=${listedHold !== undefined}/${listedHold?.matterName ?? '?'}, matterRow=${listedMatter?.linkedActiveHolds ?? '?'}, byTarget=${byTarget.success ? byTarget.data.hold.view : 'ERR'}, closed=${closed.success ? closed.data.releaseRequestsFiled : 'ERR'}+${closedAgain.success ? closedAgain.data.releaseRequestsFiled : 'ERR'}, fanned=${fanned?.reason ?? '?'}, reject=${rejected.status}/${rejectedRow?.rejectReason ?? '?'}, second=${secondRequest.success}/${secondRejected.status} (want true/200), pages=${pagesDistinct}`,
   );
 
   // --- B. Erasure summaries + detail receipt + extension guards ----------
+  // The summaries and the receipt are judged on requests of its own: a done
+  // erasure of a subject with one thread, and a cancelled one. It read the
+  // erasure lane's `erasure-one` before, and failed run without it (#5244).
+  // The cancel guards below and section C start from what that lane leaves:
+  // an unspent filing limiter and a 1h cooling-off window. The tail clears
+  // the limiter itself, erases its subject with no window, then sets 1h back.
+  const clearDsarLimiter = () => sql`
+    DELETE FROM app.rate_limits
+    WHERE name = 'governance:dsar_request' AND key LIKE ${`org:${orgId}:%`}
+  `;
+  const dsarPolicyFile = path.join(
+    process.env.TALE_CONFIG_DIR ?? '',
+    orgSlug,
+    'governance',
+    'dsar-governance.yml',
+  );
+  const { clearOrgConfigCaches } = await import('./lib/org-config.ts');
+  await clearDsarLimiter();
+  await mkdir(path.dirname(dsarPolicyFile), { recursive: true });
+  await writeFile(dsarPolicyFile, 'coolingOffHours: 0\n');
+  clearOrgConfigCaches();
+  const tailSubject = `tail-erasure-${randomUUID().slice(0, 8)}`;
+  const seededAt = Date.now();
+  await sql`
+    INSERT INTO "user" ("id", "name", "email", "emailVerified", "createdAt",
+                        "updatedAt")
+    VALUES (${tailSubject}, 'Tail subject', ${`${tailSubject}@example.com`},
+            true, ${new Date()}, ${new Date()})
+  `;
+  await sql`
+    INSERT INTO "member" ("id", "organizationId", "userId", "role",
+                          "createdAt")
+    VALUES (${`m-${tailSubject}`}, ${orgId}, ${tailSubject}, 'member',
+            ${new Date()})
+  `;
+  await sql`
+    INSERT INTO app.user_preferences (org_id, user_id, updated_at)
+    VALUES (${orgId}, ${tailSubject}, ${seededAt})
+  `;
+  const [tailThread] = await sql<{ id: string }[]>`
+    INSERT INTO app.threads (org_id, user_id, title, kind, created_at_ms,
+                             updated_at_ms)
+    VALUES (${orgId}, ${tailSubject}, 'Tail subject chat', 'chat',
+            ${seededAt}, ${seededAt})
+    RETURNING id
+  `;
+  await sql`
+    INSERT INTO app.thread_metadata (thread_id, org_id, user_id, chat_type,
+                                     status, created_at_ms)
+    VALUES (${tailThread?.id ?? ''}, ${orgId}, ${tailSubject}, 'chat',
+            'active', ${seededAt})
+  `;
+  await sql`
+    INSERT INTO app.messages (thread_id, org_id, "order", step_order, role,
+                              text, status, created_at_ms)
+    VALUES (${tailThread?.id ?? ''}, ${orgId}, 0, 0, 'user', 'subject words',
+            'complete', ${seededAt})
+  `;
+  await sql`
+    INSERT INTO app.gdpr_erasure_requests (
+      org_id, target_user_id, reason, reason_code, requested_by,
+      requested_at_ms, sla_deadline_at_ms, status, threads_targeted,
+      cancelled_by, cancellation_reason, finished_at_ms
+    ) VALUES (
+      ${orgId}, ${tailSubject}, 'Filed in error', 'consent_withdrawn',
+      ${userId}, ${seededAt - 1_000}, ${seededAt + 30 * 86_400_000},
+      'cancelled', ARRAY[]::text[], ${userId}, 'Filed in error',
+      ${seededAt - 500}
+    )
+  `;
+  const tailFiled = z
+    .object({ requestId: z.string() })
+    .loose()
+    .safeParse(
+      await (
+        await post(`/api/app/erasure?orgId=${orgId}`, {
+          targetUserId: tailSubject,
+          reason: 'Subject asked to be forgotten',
+          reasonCode: 'consent_withdrawn',
+        })
+      ).json(),
+    );
+  const doneId = tailFiled.success ? tailFiled.data.requestId : '';
+  let doneStatus = '';
+  for (let i = 0; i < 50; i++) {
+    const rows = await sql<{ status: string }[]>`
+      SELECT status FROM app.gdpr_erasure_requests WHERE id = ${doneId}
+    `;
+    doneStatus = rows[0]?.status ?? '';
+    if (doneStatus === 'done' || doneStatus === 'partial') break;
+    await sleep(300);
+  }
+  await writeFile(dsarPolicyFile, 'coolingOffHours: 1\n');
+  clearOrgConfigCaches();
   const summaries = z
     .object({
       requests: z.array(
@@ -53814,12 +53924,6 @@ async function checkGovernanceSettingsTail(
         await get(`/api/app/erasure?orgId=${orgId}&statuses=cancelled`)
       ).json(),
     );
-  const doneRows = await sql<{ id: string }[]>`
-    SELECT id FROM app.gdpr_erasure_requests
-    WHERE org_id = ${orgId} AND target_user_id = 'erasure-one' AND status = 'done'
-    LIMIT 1
-  `;
-  const doneId = doneRows[0]?.id ?? '';
   const detail = z
     .object({
       request: z
@@ -53937,7 +54041,8 @@ async function checkGovernanceSettingsTail(
       detail.success &&
       detail.data.request.threadsTargeted.length === 1 &&
       detail.data.request.threadsErased === 1 &&
-      detail.data.request.targetUserName === 'Subject one' &&
+      doneStatus === 'done' &&
+      detail.data.request.targetUserName === 'Tail subject' &&
       auditActions.includes('gdpr_erasure_requested') &&
       auditActions.includes('gdpr_erasure_executed') &&
       filedDup.success &&
@@ -53956,8 +54061,9 @@ async function checkGovernanceSettingsTail(
       cancelTwice.data.error === 'NOT_CANCELLABLE' &&
       retryCancelled.success &&
       retryCancelled.data.error === 'NOT_RETRIABLE',
-    `page=${summaries.success ? summaries.data.requests.length : 'ERR'}+cursor=${summaries.success ? summaries.data.nextCursor !== null : '?'}, cancelledOnly=${cancelledOnly.success ? cancelledOnly.data.requests.length : 'ERR'}, detail=${detail.success ? `${detail.data.request.threadsErased}/${auditActions.join('+')}` : 'ERR'}, dup=${dupRes.status}/${dupBody.success ? dupBody.data.error : '?'}, extend=${extendShort.status}/${extended.success}/${extendTwice.success ? extendTwice.data.error : '?'}, cancel2=${cancelTwice.success ? cancelTwice.data.error : '?'}, retry=${retryCancelled.success ? retryCancelled.data.error : '?'}`,
+    `page=${summaries.success ? summaries.data.requests.length : 'ERR'}+cursor=${summaries.success ? summaries.data.nextCursor !== null : '?'}, cancelledOnly=${cancelledOnly.success ? cancelledOnly.data.requests.length : 'ERR'}, erasure=${doneStatus} (want done), detail=${detail.success ? `${detail.data.request.targetUserName}/${detail.data.request.threadsErased}/${auditActions.join('+')}` : 'ERR'}, dup=${dupRes.status}/${dupBody.success ? dupBody.data.error : '?'}, extend=${extendShort.status}/${extended.success}/${extendTwice.success ? extendTwice.data.error : '?'}, cancel2=${cancelTwice.success ? cancelTwice.data.error : '?'}, retry=${retryCancelled.success ? retryCancelled.data.error : '?'}`,
   );
+  await clearDsarLimiter();
 
   // --- C. DSAR policy: read, tighten-now, loosen-staged, cancel ----------
   const dsarRead = z
@@ -54695,6 +54801,7 @@ async function checkAuditSurface(
   sql: Sql,
   base: string,
   ctx: { cookie: string; orgId: string; userId: string },
+  orgSlug: string,
 ): Promise<void> {
   const { cookie, orgId } = ctx;
   const get = (route: string): Promise<Response> =>
@@ -54736,6 +54843,29 @@ async function checkAuditSurface(
       mIntegrity.status === 403,
     `member reads → list=${mList.status}, summary=${mSummary.status}, errors=${mErrors.status}, by-id=${mById.status}, integrity=${mIntegrity.status} (want all 403)`,
   );
+
+  // The reads below are judged on rows of its own too: a success, a failure
+  // and a denied row. The errors lane read the failures other lanes left,
+  // and found none right after the retention lane's sweep (#5244).
+  const { createAuditLog, sealAuditChainNow } =
+    await import('./domains/audit_logs/service.ts');
+  const writeSurfaceRow = (status: 'success' | 'failure' | 'denied') =>
+    sql.begin((tx) =>
+      createAuditLog(tx, {
+        organizationId: orgId,
+        actorId: 'itest',
+        actorType: 'system',
+        action: `itest.surface_${status}`,
+        category: 'admin',
+        resourceType: 'itest',
+        status,
+      }),
+    );
+  await writeSurfaceRow('success');
+  const ownErrorIds = [
+    await writeSurfaceRow('failure'),
+    await writeSurfaceRow('denied'),
+  ];
 
   const summary = z
     .object({
@@ -54784,7 +54914,9 @@ async function checkAuditSurface(
     pageOne.data.items[0].id !== pageTwo.data.items[0].id;
 
   const errors = z
-    .object({ items: z.array(z.object({ status: z.string() }).loose()) })
+    .object({
+      items: z.array(z.object({ id: z.string(), status: z.string() }).loose()),
+    })
     .safeParse(
       await (
         await get(`/api/app/audit-logs/errors?orgId=${orgId}&limit=50`)
@@ -54792,7 +54924,7 @@ async function checkAuditSurface(
     );
   const errorsOnly =
     errors.success &&
-    errors.data.items.length >= 1 &&
+    ownErrorIds.every((id) => errors.data.items.some((row) => row.id === id)) &&
     errors.data.items.every(
       (row) => row.status === 'failure' || row.status === 'denied',
     );
@@ -54823,8 +54955,6 @@ async function checkAuditSurface(
   );
 
   // --- Chain verify: intact -> tamper -> firstBrokenAt -> restore --------
-  const { createAuditLog, sealAuditChainNow } =
-    await import('./domains/audit_logs/service.ts');
   const writeVerifyProbe = (tx: TransactionSql) =>
     createAuditLog(tx, {
       organizationId: orgId,
@@ -55183,6 +55313,21 @@ async function checkAuditSurface(
   // on the first surviving row and reach head (before: a standing false
   // tamper verdict + critical bell no later run could clear). The same gap
   // INSIDE the window stays a break — nothing legitimately deletes there.
+  // The cutoff needs a retention policy in force, which only the retention
+  // lane gave the organization: run without it, the check found
+  // `cutoff=none` (#5244).
+  await ensureRetentionGovernance({
+    base,
+    cookie,
+    orgId,
+    governanceDir: path.join(
+      process.env.TALE_CONFIG_DIR ?? '',
+      orgSlug,
+      'governance',
+    ),
+    subject: 'audit surface',
+    record,
+  });
   const { auditLogRetentionCutoff } =
     await import('./domains/retention/service.ts');
   const auditCutoff = await auditLogRetentionCutoff(sql, orgId);
@@ -56020,6 +56165,22 @@ async function checkAutomationsSurface(
         await get(`/api/app/automations/catalog/node-types?orgId=${orgId}`)
       ).json(),
     );
+  // The metrics need a run in their window. The lanes before this one left
+  // theirs; run alone the organization had none, and the check found
+  // `metrics=0t/7d/0top` (#5244). One finished mock run of the lane's own,
+  // removed after the check.
+  const metricsRun = await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx<{ id: string }[]>`
+      INSERT INTO app.automation_runs (
+        org_id, name, version, status, mode, started_by, input,
+        started_at_ms, finished_at_ms
+      ) VALUES (
+        ${orgId}, 'itest/metrics-probe', 1, 'success', 'mock', 'itest:metrics',
+        ${sql.json({})}, ${Date.now() - 60_000}, ${Date.now() - 30_000}
+      ) RETURNING id
+    `;
+  });
   const metrics = z
     .object({
       summary: z
@@ -56062,6 +56223,10 @@ async function checkAutomationsSurface(
       metricsHaveRuns,
     `catalog=${catalog.success ? catalog.data.nodeTypes.length : 'ERR'}, metrics=${metrics.success ? `${metrics.data.summary.total}t/${metrics.data.series.length}d/${metrics.data.topAutomations.length}top` : 'ERR'}`,
   );
+  await sql.begin(async (fixtureTx) => {
+    await markAutomationWriterInTx(fixtureTx);
+    return fixtureTx`DELETE FROM app.automation_runs WHERE id = ${metricsRun[0]?.id ?? ''}`;
+  });
 
   // --- Upload lane: text file + staged zip -------------------------------
   const textUpload = z
@@ -66405,11 +66570,17 @@ async function main(): Promise<void> {
       ['checkTtsReserveRace', () => checkTtsReserveRace(sql, authCtx)],
       [
         'checkImapFromAddressHeal',
-        () => checkImapFromAddressHeal(sql, authCtx),
+        () =>
+          withMailbox(sql, authCtx, () =>
+            checkImapFromAddressHeal(sql, authCtx),
+          ),
       ],
       [
         'checkOutboundSendLane',
-        () => checkOutboundSendLane(sql, baseUrl, authCtx),
+        () =>
+          withMailbox(sql, authCtx, () =>
+            checkOutboundSendLane(sql, baseUrl, authCtx),
+          ),
       ],
       ['checkInboxTriageLane', () => checkInboxTriageLane(sql, authCtx)],
       [
@@ -66469,7 +66640,10 @@ async function main(): Promise<void> {
           ),
       ],
       ['checkAuditEventOrder', () => checkAuditEventOrder(sql, record)],
-      ['checkAuditSurface', () => checkAuditSurface(sql, baseUrl, authCtx)],
+      [
+        'checkAuditSurface',
+        () => checkAuditSurface(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
+      ],
       [
         'checkDataResidency',
         () => checkDataResidency(sql, baseUrl, authCtx, `itest-${orgSuffix}`),
@@ -66516,7 +66690,15 @@ async function main(): Promise<void> {
             `itest-${orgSuffix}`,
           ),
       ],
-      ['checkTaskAgentRuns', () => checkTaskAgentRuns(sql, baseUrl, authCtx)],
+      [
+        'checkTaskAgentRuns',
+        async () =>
+          checkTaskAgentRuns(
+            sql,
+            baseUrl,
+            await signUpOrgOwner(baseUrl, 'task-agent-runs'),
+          ),
+      ],
       [
         'checkTaskAgentTurnDrive',
         () =>

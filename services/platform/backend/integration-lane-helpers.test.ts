@@ -17,6 +17,7 @@ import { Hono } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
 import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 import { parseYaml } from '../lib/shared/config/yaml';
 import {
@@ -28,6 +29,7 @@ import { closeServerGracefully } from './http-shutdown';
 import {
   connectSse,
   dropOwnedDatabase,
+  ensureRetentionGovernance,
   everyLaneRequired,
   fullCoverageBlockers,
   installRetentionGovernance,
@@ -41,6 +43,7 @@ import {
   requestedLanes,
   setOwnedDatabaseBudgetInTx,
   settleTeardown,
+  signUpOrgOwner,
   videoLaneFfmpegLocation,
   withBuiltinCatalog,
   withCleanup,
@@ -737,6 +740,214 @@ describe('installRetentionGovernance', () => {
       expect(await readdir(governanceDir)).toEqual(['retention.yml']);
     } finally {
       await rm(configRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+function serveStub(
+  app: Hono,
+): Promise<{ server: ReturnType<typeof serve>; origin: string }> {
+  return new Promise((resolve) => {
+    const server = serve({ fetch: app.fetch, port: 0 }, (info) => {
+      resolve({ server, origin: `http://127.0.0.1:${info.port}` });
+    });
+  });
+}
+
+describe('ensureRetentionGovernance', () => {
+  function boundsStub(status: 200 | 409) {
+    const applied: { orgId?: string; cookie?: string }[] = [];
+    const app = new Hono();
+    app.post('/api/app/retention/bounds/apply', (c) => {
+      applied.push({
+        orgId: c.req.query('orgId'),
+        cookie: c.req.header('cookie'),
+      });
+      return status === 200
+        ? c.json({ ok: true })
+        : c.json({ error: 'BOUNDS_CONFLICT' }, 409);
+    });
+    return { app, applied };
+  }
+
+  it('gives an organization without retention bounds the files and applies them (#5244)', async () => {
+    const configRoot = await mkdtemp(join(tmpdir(), 'itest-config-'));
+    const governanceDir = join(configRoot, 'itest-org', 'governance');
+    const { app, applied } = boundsStub(200);
+    const { server, origin } = await serveStub(app);
+    try {
+      const { checks, record } = recorder();
+      expect(
+        await ensureRetentionGovernance({
+          base: origin,
+          cookie: 'session=s1',
+          orgId: 'org1',
+          governanceDir,
+          subject: 'audit surface',
+          record,
+        }),
+      ).toBe(true);
+      expect(
+        await readFile(join(governanceDir, 'retention-policy.yml'), 'utf8'),
+      ).toBe(ITEST_RETENTION_POLICY);
+      expect(applied).toEqual([{ orgId: 'org1', cookie: 'session=s1' }]);
+      expect(checks).toEqual([]);
+    } finally {
+      await closeServerGracefully(server, { forceAfterMs: 3_000 });
+      await rm(configRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('fails its subject when the bounds are refused', async () => {
+    const configRoot = await mkdtemp(join(tmpdir(), 'itest-config-'));
+    const { app } = boundsStub(409);
+    const { server, origin } = await serveStub(app);
+    try {
+      const { checks, record } = recorder();
+      await ensureRetentionGovernance({
+        base: origin,
+        cookie: 'session=s1',
+        orgId: 'org1',
+        governanceDir: join(configRoot, 'itest-org', 'governance'),
+        subject: 'audit surface',
+        record,
+      });
+      expect(checks).toEqual([
+        {
+          name: 'audit surface: the retention bounds it gives its organization apply',
+          ok: false,
+          detail: 'bounds/apply=409 {"error":"BOUNDS_CONFLICT"} (want 200)',
+        },
+      ]);
+    } finally {
+      await closeServerGracefully(server, { forceAfterMs: 3_000 });
+      await rm(configRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves bounds a lane already gave the organization alone, asking the backend nothing', async () => {
+    const configRoot = await mkdtemp(join(tmpdir(), 'itest-config-'));
+    const governanceDir = join(configRoot, 'itest-org', 'governance');
+    const { app, applied } = boundsStub(200);
+    const { server, origin } = await serveStub(app);
+    try {
+      await mkdir(governanceDir, { recursive: true });
+      await writeFile(
+        join(governanceDir, 'retention.yml'),
+        'documents:\n  min: 3\n',
+      );
+      const { checks, record } = recorder();
+      expect(
+        await ensureRetentionGovernance({
+          base: origin,
+          cookie: 'session=s1',
+          orgId: 'org1',
+          governanceDir,
+          subject: 'audit surface',
+          record,
+        }),
+      ).toBe(false);
+      expect(await readdir(governanceDir)).toEqual(['retention.yml']);
+      expect(applied).toEqual([]);
+      expect(checks).toEqual([]);
+    } finally {
+      await closeServerGracefully(server, { forceAfterMs: 3_000 });
+      await rm(configRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('throws when the backend cannot be reached, so the lane fails', async () => {
+    const configRoot = await mkdtemp(join(tmpdir(), 'itest-config-'));
+    const { server, origin } = await serveStub(new Hono());
+    await closeServerGracefully(server, { forceAfterMs: 3_000 });
+    try {
+      const { checks, record } = recorder();
+      await expect(
+        ensureRetentionGovernance({
+          base: origin,
+          cookie: 'session=s1',
+          orgId: 'org1',
+          governanceDir: join(configRoot, 'itest-org', 'governance'),
+          subject: 'audit surface',
+          record,
+        }),
+      ).rejects.toThrow();
+      expect(checks).toEqual([]);
+    } finally {
+      await rm(configRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('signUpOrgOwner', () => {
+  function authStub(options: { signUp: boolean; createStatus: 200 | 400 }) {
+    const creates: { cookie?: string; body: unknown }[] = [];
+    const app = new Hono();
+    app.post('/api/auth/sign-up/email', (c) => {
+      if (!options.signUp) return c.json({ code: 'SIGN_UP_DISABLED' }, 403);
+      c.header('set-cookie', 'tale.session_token=t1; Path=/; HttpOnly');
+      return c.json({ user: { id: 'user1' } });
+    });
+    app.post('/api/auth/organization/create', async (c) => {
+      const body = z
+        .object({ name: z.string(), slug: z.string() })
+        .parse(await c.req.json());
+      creates.push({ cookie: c.req.header('cookie'), body });
+      return options.createStatus === 200
+        ? c.json({ id: 'org1', slug: body.slug })
+        : c.json({ message: 'Organization slug is already taken.' }, 400);
+    });
+    return { app, creates };
+  }
+
+  it("signs up a user who owns an organization of the lane's own (#5244)", async () => {
+    const { app, creates } = authStub({ signUp: true, createStatus: 200 });
+    const { server, origin } = await serveStub(app);
+    try {
+      const owner = await signUpOrgOwner(origin, 'task-agent-runs');
+      expect(owner).toEqual({
+        cookie: 'tale.session_token=t1',
+        userId: 'user1',
+        email: expect.stringMatching(
+          /^itest-task-agent-runs-\d+@example\.com$/,
+        ),
+        orgId: 'org1',
+        orgSlug: expect.stringMatching(/^task-agent-runs-[0-9a-f]{8}$/),
+      });
+      // The organization is the new user's, made with their session.
+      expect(creates).toEqual([
+        {
+          cookie: 'tale.session_token=t1',
+          body: { name: 'Itest task-agent-runs', slug: owner.orgSlug },
+        },
+      ]);
+    } finally {
+      await closeServerGracefully(server, { forceAfterMs: 3_000 });
+    }
+  });
+
+  it('throws when the organization is refused', async () => {
+    const { app } = authStub({ signUp: true, createStatus: 400 });
+    const { server, origin } = await serveStub(app);
+    try {
+      await expect(signUpOrgOwner(origin, 'task-agent-runs')).rejects.toThrow(
+        'task-agent-runs organization: HTTP 400 {"message":"Organization slug is already taken."}',
+      );
+    } finally {
+      await closeServerGracefully(server, { forceAfterMs: 3_000 });
+    }
+  });
+
+  it('throws without creating an organization when the sign-up is refused', async () => {
+    const { app, creates } = authStub({ signUp: false, createStatus: 200 });
+    const { server, origin } = await serveStub(app);
+    try {
+      await expect(signUpOrgOwner(origin, 'task-agent-runs')).rejects.toThrow(
+        'task-agent-runs owner: the sign-up was refused',
+      );
+      expect(creates).toEqual([]);
+    } finally {
+      await closeServerGracefully(server, { forceAfterMs: 3_000 });
     }
   });
 });

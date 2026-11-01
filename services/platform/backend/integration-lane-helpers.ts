@@ -4,6 +4,7 @@
  * second copy of the suite's cookie handling, its throwaway sign-up or the
  * budget a check builds and drops a database of its own on.
  */
+import { randomUUID } from 'node:crypto';
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -216,6 +217,51 @@ export async function signUpUser(
     userId: parsed.success ? parsed.data.user.id : '',
     email,
   };
+}
+
+/**
+ * A fresh user (see {@link signUpUser}) who owns a fresh organization, made
+ * through the same `organization/create` a person goes through. A lane that
+ * reads organization-wide state (the oldest parked run, say) runs in one, so
+ * what other lanes leave in the suite's organization cannot answer for it
+ * (#5244). Throws when the sign-up or the create is refused: the lane would
+ * have nothing to run on.
+ */
+export async function signUpOrgOwner(
+  base: string,
+  label: string,
+): Promise<{
+  cookie: string;
+  userId: string;
+  email: string;
+  orgId: string;
+  orgSlug: string;
+}> {
+  const user = await signUpUser(base, label);
+  if (user.userId === '') {
+    throw new Error(`${label} owner: the sign-up was refused`);
+  }
+  const res = await fetch(`${base}/api/auth/organization/create`, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      cookie: user.cookie,
+      origin: base,
+    },
+    body: JSON.stringify({
+      name: `Itest ${label}`,
+      slug: `${label}-${randomUUID().slice(0, 8)}`,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(
+      `${label} organization: HTTP ${res.status} ${(await res.text()).slice(0, 300)}`,
+    );
+  }
+  const org = z
+    .object({ id: z.string(), slug: z.string() })
+    .parse(await res.json());
+  return { ...user, orgId: org.id, orgSlug: org.slug };
 }
 
 /** A thrown value as `Name: message`, whatever was thrown. */
@@ -600,6 +646,46 @@ export async function installRetentionGovernance(
     path.join(governanceDir, 'retention-policy.yml'),
     ITEST_RETENTION_POLICY,
   );
+  return true;
+}
+
+/**
+ * {@link installRetentionGovernance} for a lane that reads the retention
+ * policy through the backend (`auditLogRetentionCutoff`, the bounds and
+ * policy routes): when it wrote the files, it drops the cached organization
+ * config and applies their bounds, as the retention lane does, so the
+ * policy is in force and not only on disk. A refused apply is recorded as a
+ * failure of `subject`. Answers whether it wrote the files.
+ */
+export async function ensureRetentionGovernance(args: {
+  base: string;
+  cookie: string;
+  orgId: string;
+  governanceDir: string;
+  subject: string;
+  record: RecordCheck;
+}): Promise<boolean> {
+  if (!(await installRetentionGovernance(args.governanceDir))) return false;
+  (await import('./lib/org-config.ts')).clearOrgConfigCaches();
+  const applied = await fetch(
+    `${args.base}/api/app/retention/bounds/apply?orgId=${args.orgId}`,
+    {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        cookie: args.cookie,
+        origin: args.base,
+      },
+    },
+  );
+  const body = await applied.text();
+  if (!applied.ok) {
+    args.record(
+      `${args.subject}: the retention bounds it gives its organization apply`,
+      false,
+      `bounds/apply=${applied.status} ${body.slice(0, 200)} (want 200)`,
+    );
+  }
   return true;
 }
 
