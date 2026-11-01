@@ -525,8 +525,10 @@ output:
       section on a schedule, pick **Cron (advanced)**
       (`automations.trigger.schedule.formatCron`) and type a four-field cron
       (`*/1 * * *`), then a six-field one and `0 9 * * MON` → Each shows the
-      refusal with the validator's own sentence under the field
-      (`automations.trigger.cronInvalidReason`, e.g. "got 4"); **Next runs**
+      refusal under the field with what the parser refused, in your language
+      (`automations.trigger.cronInvalidReason` around
+      `automations.trigger.cronProblems.*`, e.g. "it has 4 fields instead of
+      5"; in Deutsch "Er hat 4 Felder statt 5", no English); **Next runs**
       lists nothing and reads `automations.trigger.nextRuns.unavailable`;
       **Save** in the tab strip stays disabled; nothing is sent to the
       server. A five-field cron restores the list, and one a repeat rule says

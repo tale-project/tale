@@ -291,7 +291,21 @@ trigger:
   cronLabel: Cron
   cronHint: Use a standard 5-field cron expression (minute hour day month weekday).
   cronInvalid: That cron expression is not valid.
-  cronInvalidReason: 'That cron expression is not valid: {reason}'
+  cronInvalidReason: 'That cron expression is not valid: {reason}.'
+  cronProblems:
+    fieldCount: 'it has {count, plural, one {# field} other {# fields}} instead of 5 (minute hour day month weekday)'
+    emptyEntry: 'in the {field} field, "{token}" has a comma with no value next to it'
+    invalidStep: 'in the {field} field, the step in "{token}" is not a whole number of 1 or more'
+    notARange: 'in the {field} field, "{token}" is not a range — write it as "from-to"'
+    outOfRange: 'in the {field} field, "{token}" is out of range — use whole numbers from {min} to {max}'
+    matchesNothing: 'in the {field} field, "{token}" matches no value'
+    impossibleDate: 'there is no day {days} in {months}'
+  cronFields:
+    minute: minute
+    hour: hour
+    dayOfMonth: day
+    month: month
+    dayOfWeek: weekday
   timezoneLabel: Timezone
   timezoneSearch: Search timezones
   timezoneEmpty: No timezones match

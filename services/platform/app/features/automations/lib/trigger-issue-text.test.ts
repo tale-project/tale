@@ -59,7 +59,13 @@ describe('triggerIssueText', () => {
       for (const issue of ISSUES) {
         const text = triggerIssueText(issue, context(locale), {
           keys: ['trigger', 'event'],
-          cronReason: '"61" is out of range (0..59)',
+          cronProblem: {
+            kind: 'out_of_range',
+            field: 'minute',
+            token: '61',
+            min: 0,
+            max: 59,
+          },
         });
         expect(text, issue).not.toBe('');
         expect(text, issue).not.toMatch(/^(trigger|editor)\./);
@@ -98,12 +104,18 @@ describe('triggerIssueText', () => {
     );
   });
 
-  it('quotes the parser’s reason for a cron it refuses, when it has one', () => {
+  it('says why the parser refuses a cron in the reader’s language', () => {
+    const cronProblem = { kind: 'field_count', count: 4 } as const;
     expect(
-      triggerIssueText('cron_invalid', context('en'), {
-        cronReason: 'expected 5 fields, got 4',
-      }),
-    ).toBe('That cron expression is not valid: expected 5 fields, got 4');
+      triggerIssueText('cron_invalid', context('en'), { cronProblem }),
+    ).toBe(
+      'That cron expression is not valid: it has 4 fields instead of 5 (minute hour day month weekday).',
+    );
+    expect(
+      triggerIssueText('cron_invalid', context('de'), { cronProblem }),
+    ).toBe(
+      'Dieser Cron-Ausdruck ist ungültig: Er hat 4 Felder statt 5 (Minute Stunde Tag Monat Wochentag).',
+    );
     expect(triggerIssueText('cron_invalid', context('en'))).toBe(
       'That cron expression is not valid.',
     );

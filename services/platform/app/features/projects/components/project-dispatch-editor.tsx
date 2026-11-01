@@ -27,6 +27,7 @@ import { Button } from '@tale/ui/button';
 import { FormDialog } from '@tale/ui/dialog/form-dialog';
 import { useFormEditor } from '@tale/ui/editor';
 import { FormSection } from '@tale/ui/form-section';
+import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { Input } from '@tale/ui/input';
 import { Row, Stack } from '@tale/ui/layout';
 import { MultiSelect, type MultiSelectOption } from '@tale/ui/multi-select';
@@ -53,6 +54,7 @@ import {
   useWatch,
 } from 'react-hook-form';
 
+import { cronInvalidText } from '@/app/features/automations/lib/cron-problem-text';
 import { listTimezoneOptions } from '@/app/features/automations/lib/timezones';
 import {
   useTaskLabels,
@@ -151,6 +153,9 @@ function DispatchEditorDialog({
 }: ProjectDispatchEditorProps) {
   const { t } = useT('projects');
   const { t: tCommon } = useT('common');
+  // A refused cron reads as the trigger editor words it.
+  const { t: tAutomations } = useT('automations');
+  const { locale } = useLocale();
   const configuration = useProjectDispatchConfiguration(
     organizationId,
     projectId,
@@ -220,8 +225,8 @@ function DispatchEditorDialog({
         roleAgent: t('dispatch.editor.validation.roleAgent'),
         roleTask: t('dispatch.editor.validation.roleTask'),
         cronRequired: t('dispatch.editor.validation.cronRequired'),
-        cronInvalid: (reason) =>
-          t('dispatch.editor.validation.cronInvalid', { reason }),
+        cronInvalid: (problem) =>
+          cronInvalidText(problem, { t: tAutomations, locale }),
         timezone: t('dispatch.editor.validation.timezone'),
         mode: t('dispatch.editor.validation.tooLong', {
           count: DISPATCH_ROLE_MODE_MAX,
@@ -241,7 +246,7 @@ function DispatchEditorDialog({
           max: 86_400,
         }),
       }),
-    [t],
+    [t, tAutomations, locale],
   );
 
   /** The sentence the save toast says for a refusal, in the reader's

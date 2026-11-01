@@ -5,6 +5,9 @@ import {
 import { SCHEDULE_MAX_TIMES } from '@tale/shared/schemas/schedule-rule';
 import type { TFunction } from 'i18next';
 
+import type { CronProblem } from '@/lib/automations/cron';
+
+import { cronInvalidText } from './cron-problem-text';
 import { automationErrorMessage, automationTriggerIssues } from './errors';
 import type { TriggerDraftIssue } from './trigger-draft';
 
@@ -28,8 +31,8 @@ export interface TriggerIssueTextContext {
 export interface TriggerIssueParams {
   /** The reserved keys a fixed input named (`input.reserved_key`). */
   keys?: readonly string[];
-  /** The cron parser's own sentence (`cron_invalid`). */
-  cronReason?: string | null;
+  /** What the cron parser refused (`cron_invalid`). */
+  cronProblem?: CronProblem | null;
 }
 
 /** The sentence for one trigger problem. */
@@ -87,9 +90,7 @@ export function triggerIssueText(
     case 'event.unknown':
       return t('trigger.issues.event.unknown');
     case 'cron_invalid':
-      return params.cronReason
-        ? t('trigger.cronInvalidReason', { reason: params.cronReason })
-        : t('trigger.cronInvalid');
+      return cronInvalidText(params.cronProblem ?? null, { t, locale });
     case 'input_not_json':
       return t('trigger.fixedInput.notJson');
     default: {

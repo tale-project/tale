@@ -292,7 +292,21 @@ trigger:
   cronLabel: Cron
   cronHint: Expression cron standard à 5 champs (minute heure jour mois jour-semaine).
   cronInvalid: Cette expression cron n’est pas valide.
-  cronInvalidReason: 'Cette expression cron n’est pas valide : {reason}'
+  cronInvalidReason: 'Cette expression cron n’est pas valide : {reason}.'
+  cronProblems:
+    fieldCount: 'elle a {count, plural, one {# champ} other {# champs}} au lieu de 5 (minute heure jour mois jour-semaine)'
+    emptyEntry: 'dans le champ « {field} », « {token} » contient une virgule sans valeur à côté'
+    invalidStep: 'dans le champ « {field} », le pas de « {token} » n’est pas un nombre entier d’au moins 1'
+    notARange: 'dans le champ « {field} », « {token} » n’est pas une plage — écris-la sous la forme « début-fin »'
+    outOfRange: 'dans le champ « {field} », « {token} » est hors limites — utilise des nombres entiers de {min} à {max}'
+    matchesNothing: 'dans le champ « {field} », « {token} » ne correspond à aucune valeur'
+    impossibleDate: 'il n’y a pas de jour {days} en {months}'
+  cronFields:
+    minute: minute
+    hour: heure
+    dayOfMonth: jour
+    month: mois
+    dayOfWeek: jour-semaine
   timezoneLabel: Fuseau horaire
   timezoneSearch: Rechercher un fuseau
   timezoneEmpty: Aucun fuseau ne correspond

@@ -12,6 +12,12 @@ runs:
     noneForNode: Diese Node hat ausserhalb der Plattform nichts verändert.
     noneYetForNode: Diese Node hat ausserhalb der Plattform noch nichts verändert.
 trigger:
+  cronProblems:
+    emptyEntry: 'Im Feld «{field}» steht in «{token}» ein Komma ohne Wert daneben'
+    invalidStep: 'Im Feld «{field}» ist die Schrittweite in «{token}» keine ganze Zahl ab 1'
+    notARange: 'Im Feld «{field}» ist «{token}» kein Bereich — schreib ihn als «von-bis»'
+    outOfRange: 'Im Feld «{field}» liegt «{token}» ausserhalb des Bereichs — erlaubt sind ganze Zahlen von {min} bis {max}'
+    matchesNothing: 'Im Feld «{field}» trifft «{token}» keinen Wert'
   schedule:
     repeatNoCron: '«{sentence}» lässt sich nicht als ein Cron-Ausdruck schreiben. Gib einen ein oder wechsle zurück zu Wiederholung.'
   nextRuns:

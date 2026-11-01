@@ -38,7 +38,7 @@ import {
 import { z } from 'zod';
 
 import { isValidTimezone } from '@/app/features/automations/lib/timezones';
-import { parseCron } from '@/lib/automations/cron';
+import { type CronProblem, cronParseProblem } from '@/lib/automations/cron';
 
 /** The orders ready work can be taken in: one column, or both. */
 export const DISPATCH_STATUS_ORDERS = [
@@ -376,17 +376,6 @@ export function toDispatch(
   };
 }
 
-/** What a cron expression is refused for, or null when it reads. */
-function cronProblem(cron: string): string | null {
-  try {
-    parseCron(cron.trim());
-    return null;
-  } catch (error) {
-    if (!(error instanceof Error)) throw error;
-    return error.message;
-  }
-}
-
 function wholeNumberIn(text: string, min: number, max: number): boolean {
   const trimmed = text.trim();
   if (!/^\d+$/.test(trimmed)) return false;
@@ -428,7 +417,8 @@ export interface DispatchFormText {
   roleAgent: string;
   roleTask: string;
   cronRequired: string;
-  cronInvalid: (reason: string) => string;
+  /** Worded in the reader's language from what the parser refused. */
+  cronInvalid: (problem: CronProblem) => string;
   timezone: string;
   mode: string;
   brief: string;
@@ -502,7 +492,7 @@ export function dispatchFormSchema(text: DispatchFormText) {
                 ctx.addIssue({ code: 'custom', message: text.cronRequired });
                 return;
               }
-              const problem = cronProblem(value);
+              const problem = cronParseProblem(value);
               if (problem !== null) {
                 ctx.addIssue({
                   code: 'custom',

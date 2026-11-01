@@ -37,6 +37,7 @@ import {
 } from '@/app/features/projects/hooks/queries';
 import { useAgentToolOptions } from '@/app/features/projects/hooks/use-agent-tool-options';
 import { blankAutomationDocument } from '@/lib/automations/blank-document';
+import { cronParseProblem } from '@/lib/automations/cron';
 import {
   automationSlugToParam,
   generatedAutomationSlug,
@@ -59,7 +60,6 @@ import { useAutomationCapabilities } from '../hooks/queries';
 import { useTriggerInputCheck } from '../hooks/use-trigger-input-check';
 import { automationErrorCode, automationErrorMessage } from '../lib/errors';
 import {
-  cronParseError,
   defaultTriggerDraft,
   toTriggerBody,
   type TriggerDraft,
@@ -234,7 +234,7 @@ export function BlankAutomationDialog({
       : triggerIssueText(
           triggerIssue,
           { t, tRecurrence, locale },
-          { cronReason: cronParseError(trigger.cron) },
+          { cronProblem: cronParseProblem(trigger.cron) },
         );
 
   const origin = typeof window === 'undefined' ? '' : window.location.origin;

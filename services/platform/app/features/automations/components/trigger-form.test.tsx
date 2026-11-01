@@ -1,9 +1,12 @@
 import type { TriggerView } from '@tale/shared/schemas/automation-trigger';
+import { LOCALE_STORAGE_KEY } from '@tale/ui/i18n/detect-locale';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { render, screen, within } from '@/tests/utils/render';
+import { parseCron } from '@/lib/automations/cron';
+import { i18n } from '@/tests/utils/i18n-all-languages';
+import { cleanup, render, screen, within } from '@/tests/utils/render';
 
 import {
   defaultTriggerDraft,
@@ -262,5 +265,28 @@ describe('panel and wizard', () => {
         "A run more than 10 minutes late doesn't start; it's counted as missed.",
       ),
     ).toBeVisible();
+  });
+});
+
+describe('a refused cron in the reader’s language', () => {
+  afterEach(async () => {
+    // Unmount first: a language change re-renders every mounted reader.
+    cleanup();
+    localStorage.removeItem(LOCALE_STORAGE_KEY);
+    await i18n.changeLanguage('en');
+  });
+
+  it('says in German why the parser refuses the cron, with no English in it', async () => {
+    // The parser's own sentence stays English, for the REST API and the CLI.
+    expect(() => parseCron('*/0 * * * *')).toThrow('invalid step in "*/0"');
+    localStorage.setItem(LOCALE_STORAGE_KEY, 'de');
+    await i18n.changeLanguage('de');
+    render(<Host stored={row({ cron: '*/0 * * * *' })} />);
+
+    const sentence =
+      'Dieser Cron-Ausdruck ist ungültig: Im Feld „Minute“ ist die Schrittweite in „*/0“ keine ganze Zahl ab 1.';
+    expect(screen.getByRole('alert')).toHaveTextContent(sentence);
+    expect(screen.getByLabelText('Cron')).toHaveAccessibleDescription(sentence);
+    expect(document.body).not.toHaveTextContent(/invalid step|not valid/i);
   });
 });

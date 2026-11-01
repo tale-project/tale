@@ -163,7 +163,9 @@ describe(
       await user.clear(cron);
       await user.paste('61 * * * *');
       expect(
-        screen.getAllByText(/not valid: "61" is out of range \(0\.\.59\)/)[0],
+        screen.getAllByText(
+          'That cron expression is not valid: in the minute field, "61" is out of range — use whole numbers from 0 to 59.',
+        )[0],
       ).toBeVisible();
       expect(
         screen.getByText('Fix the schedule above to see the next runs.'),
@@ -177,7 +179,9 @@ describe(
       // A four-field cron — the one the packaged parser used to accept.
       await user.clear(cron);
       await user.paste('*/1 * * *');
-      expect(screen.getAllByText(/got 4/)[0]).toBeVisible();
+      expect(
+        screen.getAllByText(/it has 4 fields instead of 5/)[0],
+      ).toBeVisible();
       expect(create).toHaveAttribute('aria-disabled', 'true');
     });
 

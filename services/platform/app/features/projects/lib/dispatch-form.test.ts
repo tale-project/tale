@@ -30,7 +30,7 @@ const TEXT: DispatchFormText = {
   roleAgent: 'role agent',
   roleTask: 'role task',
   cronRequired: 'cron required',
-  cronInvalid: (reason) => `cron invalid: ${reason}`,
+  cronInvalid: (problem) => `cron invalid: ${problem.kind}`,
   timezone: 'zone',
   mode: 'mode',
   brief: 'brief',
@@ -305,7 +305,7 @@ describe('what the Dispatch editor checks before it saves', () => {
       ]),
     );
     const cron = issues.find((issue) => issue.path === 'standingRoles.0.cron');
-    expect(cron?.message).toMatch(/^cron invalid: /);
+    expect(cron?.message).toBe('cron invalid: out_of_range');
   });
 
   it('refuses two standing roles or two gates under one key', () => {

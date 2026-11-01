@@ -22,14 +22,16 @@ import { useSwapFade } from '@tale/ui/use-swap-fade';
 import { CalendarClock } from 'lucide-react';
 import { useId, useMemo, useState } from 'react';
 
+import { cronParseProblem } from '@/lib/automations/cron';
 import { cronToScheduleRule } from '@/lib/automations/schedule/cron-rule';
 import { useT } from '@/lib/i18n/client';
 import { type CalendarDate, weekdayOf } from '@/lib/shared/calendar';
 import { localDateIn } from '@/lib/shared/zoned-time';
 
 import { useSchedulePreview } from '../hooks/use-schedule-preview';
+import { cronInvalidText } from '../lib/cron-problem-text';
 import { listTimezoneOptions } from '../lib/timezones';
-import { cronParseError, type TriggerDraft } from '../lib/trigger-draft';
+import type { TriggerDraft } from '../lib/trigger-draft';
 
 /** Where the field is shown: the General tab, or the Blank wizard. */
 export type TriggerSurface = 'panel' | 'wizard';
@@ -208,9 +210,9 @@ export function TriggerScheduleField({
 
   // Cron: the parser's refusal, or what the expression reads as.
   const cronText = draft.cron.trim();
-  const cronError =
+  const cronProblem =
     draft.scheduleFormat === 'cron' && cronText !== ''
-      ? cronParseError(cronText)
+      ? cronParseProblem(cronText)
       : null;
   let cronDescription: string = t('trigger.cronHint');
   if (note?.kind === 'repeatNoCron') {
@@ -290,11 +292,11 @@ export function TriggerScheduleField({
           <Field
             label={t('trigger.cronLabel')}
             htmlFor={cronId}
-            description={cronError === null ? cronDescription : undefined}
+            description={cronProblem === null ? cronDescription : undefined}
             error={
-              cronError === null
+              cronProblem === null
                 ? undefined
-                : t('trigger.cronInvalidReason', { reason: cronError })
+                : cronInvalidText(cronProblem, { t, locale: format.locale })
             }
           >
             <Input
