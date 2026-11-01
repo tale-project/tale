@@ -201,7 +201,9 @@ both on anyone's, and nobody blocks their own key, which they can end
 sign-on included (`APIKEY-R13`), is ended, not blocked (`API_KEY_NOT_FOUND`). Each block and each
 lift is one audit row naming who did it and the key by its masked ends; the holder is told in the
 bell, and their own key list marks the key as blocked in that organization. Blocking or lifting
-again changes nothing and records nothing.
+again changes nothing and records nothing. Whether an unblocked key works here also takes this
+organization letting members' own keys in (`APIKEY-R12`): while it does not, the member's row marks
+no key as working here, and while that cannot be read, it marks only the blocked ones.
 
 - **Example**: Ada, an Admin of Acme, blocks Mia's own key "CI deploy" → its next call to Acme
   is refused with `API_KEY_BLOCKED`, it still works in Beta, Mia's other organization, and Mia's

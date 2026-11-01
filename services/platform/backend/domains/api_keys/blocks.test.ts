@@ -8,6 +8,10 @@ import { createAuditLog } from '../audit_logs/service.ts';
 import { notifyUser } from '../collab/service.ts';
 import { isApiKeyBlockedInOrg, listBlockingOrgSlugs } from './block-check.ts';
 import { listMemberPersonalApiKeys, setPersonalApiKeyBlock } from './blocks.ts';
+import {
+  type PersonalKeysStanding,
+  personalKeysStandingOf,
+} from './personal-keys.ts';
 import type { ApiKeyActor } from './service.ts';
 
 /**
@@ -26,6 +30,11 @@ vi.mock('../collab/service.ts', () => ({
 }));
 vi.mock('../../realtime/outbox.ts', () => ({
   emitHintInTx: vi.fn(() => Promise.resolve()),
+}));
+vi.mock('./personal-keys.ts', () => ({
+  personalKeysStandingOf: vi.fn(() =>
+    Promise.resolve<PersonalKeysStanding>('admitted'),
+  ),
 }));
 
 const ORG = 'org-1';
@@ -647,8 +656,28 @@ describe('listMemberPersonalApiKeys — a member’s own keys, as this organizat
         expect.objectContaining({ id: 'key-mia-2', blocked: null }),
       ],
       canBlock: true,
+      personalKeys: 'admitted',
     });
   });
+
+  it.each<PersonalKeysStanding>(['refused', 'unavailable'])(
+    'answers this organization’s standing on members’ own keys, %s, so no unblocked key passes for working here [APIKEY-R11]',
+    async (standing) => {
+      vi.mocked(personalKeysStandingOf).mockResolvedValueOnce(standing);
+      const { sql } = fakeSql(world());
+
+      const listed = await listMemberPersonalApiKeys(sql, {
+        organizationId: ORG,
+        actor: actor('ada'),
+        memberUserId: 'mia',
+      });
+      expect(listed.personalKeys).toBe(standing);
+      expect(personalKeysStandingOf).toHaveBeenCalledWith(sql, ORG);
+      // Blocking stays possible: a block holds when the keys come back.
+      expect(listed.canBlock).toBe(true);
+      expect(listed.keys).not.toHaveLength(0);
+    },
+  );
 
   it('leaves out a key turned off or expired, which works nowhere [APIKEY-R11]', async () => {
     const { sql } = fakeSql({

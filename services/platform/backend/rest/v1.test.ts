@@ -903,6 +903,36 @@ describe('/api/v1 door — a personal key an organization blocked', () => {
       queries.some(({ text }) => text.includes('api_key_org_blocks')),
     ).toBe(false);
   });
+
+  it('lists no organization where the key is refused another way [APIKEY-R11]', async () => {
+    // Blocked in org-1, while org-2 turned members' own keys off: each
+    // refusal lists only org-3, where the key still works.
+    personalKeysPolicies.set('org-2', { enabled: false });
+    const { sql } = fakeSql(new Set(), {
+      organizations: orgs,
+      memberOf: new Set(['org-1', 'org-2', 'org-3']),
+      blocked: new Set(['org-1|key-1']),
+    });
+    const { auth } = fakeAuth();
+    const app = door(sql, auth);
+    const call = (slug: string) =>
+      app.request(
+        'http://localhost/probe',
+        bearer(GOOD_KEY, { 'x-organization-slug': slug }),
+      );
+    const blockedHere = await call('org-1');
+    expect(blockedHere.status).toBe(403);
+    expect(await blockedHere.json()).toMatchObject({
+      code: 'API_KEY_BLOCKED',
+      data: { organizations: [{ slug: 'org-3', name: 'Org org-3' }] },
+    });
+    const refusedThere = await call('org-2');
+    expect(refusedThere.status).toBe(403);
+    expect(await refusedThere.json()).toMatchObject({
+      code: 'API_KEY_PERSONAL_REFUSED',
+      data: { organizations: [{ slug: 'org-3', name: 'Org org-3' }] },
+    });
+  });
 });
 
 /**

@@ -474,15 +474,44 @@ export function createRestV1Routes(deps: {
         403,
       );
     }
-    // Where this key still works, for the refusal below to list: the
-    // holder's organizations that have not blocked this one.
+    // Where this key still works, for either refusal below to list: the
+    // holder's organizations that let members' own keys in and have not
+    // blocked this one.
     const organizationsWhereKeyWorks = async () => {
       const [organizations, blocking] = await Promise.all([
         listSelectableOrganizations(deps.sql, session.user.id),
         listBlockingOrgSlugs(deps.sql, apiKeyId),
       ]);
-      return organizations.filter((org) => !blocking.has(org.slug));
+      return organizationsAdmittingPersonalKeys(
+        organizations.filter((org) => !blocking.has(org.slug)),
+      );
     };
+    // An Owner or Admin may refuse every member's own key in their
+    // organization (APIKEY-R12, the `personal_keys` policy): such a key keeps
+    // working in the holder's other organizations, which the refusal lists,
+    // and a key made here for a member never reaches this branch. A policy
+    // that cannot be read keeps the keys out until it is restored.
+    const personalKeys = await personalKeysStandingIn(resolved.orgSlug);
+    if (personalKeys === 'refused') {
+      return c.json(
+        {
+          error: `Organization "${resolved.orgSlug}" does not accept members' own API keys. This key keeps working in your other organizations that accept them; for this one, an Owner or Admin there can make a key for you.`,
+          code: 'API_KEY_PERSONAL_REFUSED',
+          data: { organizations: await organizationsWhereKeyWorks() },
+        },
+        403,
+      );
+    }
+    if (personalKeys === 'unavailable') {
+      return c.json(
+        {
+          error: `The personal keys policy of organization "${resolved.orgSlug}" cannot be read right now, so members' own API keys stay out; try again shortly.`,
+          code: 'PERSONAL_KEYS_POLICY_UNAVAILABLE',
+        },
+        503,
+        { 'retry-after': '30' },
+      );
+    }
     // An Owner or Admin may block a person's own key in their organization
     // and only there (APIKEY-R11): the key keeps working in the holder's
     // other organizations, which the refusal lists.
@@ -496,36 +525,6 @@ export function createRestV1Routes(deps: {
           data: { organizations: await organizationsWhereKeyWorks() },
         },
         403,
-      );
-    }
-    // An Owner or Admin may refuse every member's own key in their
-    // organization (APIKEY-R12, the `personal_keys` policy): such a key keeps
-    // working in the holder's other organizations, which the refusal lists,
-    // and a key made here for a member never reaches this branch. A policy
-    // that cannot be read keeps the keys out until it is restored.
-    const personalKeys = await personalKeysStandingIn(resolved.orgSlug);
-    if (personalKeys === 'refused') {
-      return c.json(
-        {
-          error: `Organization "${resolved.orgSlug}" does not accept members' own API keys. This key keeps working in your other organizations that accept them; for this one, an Owner or Admin there can make a key for you.`,
-          code: 'API_KEY_PERSONAL_REFUSED',
-          data: {
-            organizations: await organizationsAdmittingPersonalKeys(
-              await listSelectableOrganizations(deps.sql, session.user.id),
-            ),
-          },
-        },
-        403,
-      );
-    }
-    if (personalKeys === 'unavailable') {
-      return c.json(
-        {
-          error: `The personal keys policy of organization "${resolved.orgSlug}" cannot be read right now, so members' own API keys stay out; try again shortly.`,
-          code: 'PERSONAL_KEYS_POLICY_UNAVAILABLE',
-        },
-        503,
-        { 'retry-after': '30' },
       );
     }
 

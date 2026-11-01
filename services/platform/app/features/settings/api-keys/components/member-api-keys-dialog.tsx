@@ -1,5 +1,6 @@
 'use client';
 
+import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
@@ -20,7 +21,7 @@ import {
   useSetApiKeyBlock,
 } from '../hooks/use-api-keys';
 import { maskedKey } from '../masked-key';
-import type { MemberPersonalApiKey } from '../types';
+import type { MemberPersonalApiKey, MemberPersonalApiKeys } from '../types';
 
 interface MemberApiKeysDialogProps {
   open: boolean;
@@ -45,28 +46,51 @@ const LOADING_KEYS: readonly MemberPersonalApiKey[] = [0, 1].map((index) => ({
   blocked: null,
 }));
 
-/** What a key's badge says of it here. A block is this organization's own
- * record; a key it has not blocked works here, as anywhere its holder is a
- * member and no block names it. */
+type Standing = MemberPersonalApiKeys['personalKeys'];
+
+/** What a key's badge may claim of it here. A block is this organization's
+ * own record, so it always shows; whether an unblocked key works here also
+ * takes the organization letting members' own keys in (APIKEY-R12), and
+ * while that cannot be read the badge claims nothing. */
 const STATE = {
   blocked: { variant: 'destructive', label: 'apiKeys.memberKeys.blocked' },
   works: { variant: 'green', label: 'apiKeys.memberKeys.works' },
+  refused: { variant: 'orange', label: 'apiKeys.memberKeys.refused' },
+} as const;
+
+const NOTICE = {
+  refused: 'apiKeys.memberKeys.refusedNotice',
+  unavailable: 'apiKeys.memberKeys.unavailableNotice',
 } as const;
 
 interface KeyRowProps {
   apiKey: MemberPersonalApiKey;
+  standing: Standing;
   canBlock: boolean;
   disabled: boolean;
   onToggle: (apiKey: MemberPersonalApiKey) => void;
 }
 
-function KeyRow({ apiKey, canBlock, disabled, onToggle }: KeyRowProps) {
+function KeyRow({
+  apiKey,
+  standing,
+  canBlock,
+  disabled,
+  onToggle,
+}: KeyRowProps) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
   const { formatDate } = useFormatDate();
   const id = useId();
   const name = apiKey.name || maskedKey(apiKey);
-  const state = apiKey.blocked !== null ? STATE.blocked : STATE.works;
+  const state =
+    apiKey.blocked !== null
+      ? STATE.blocked
+      : standing === 'refused'
+        ? STATE.refused
+        : standing === 'unavailable'
+          ? null
+          : STATE.works;
 
   return (
     <li className="flex items-start justify-between gap-4 px-4 py-3">
@@ -78,9 +102,11 @@ function KeyRow({ apiKey, canBlock, disabled, onToggle }: KeyRowProps) {
           >
             {name}
           </span>
-          <Badge id={`${id}-state`} variant={state.variant} dot>
-            {t(state.label)}
-          </Badge>
+          {state !== null && (
+            <Badge id={`${id}-state`} variant={state.variant} dot>
+              {t(state.label)}
+            </Badge>
+          )}
         </div>
         <Text as="span" variant="muted" className="font-mono text-xs">
           {maskedKey(apiKey)}
@@ -102,7 +128,9 @@ function KeyRow({ apiKey, canBlock, disabled, onToggle }: KeyRowProps) {
           size="sm"
           className="shrink-0"
           disabled={disabled}
-          aria-describedby={`${id}-name ${id}-state`}
+          aria-describedby={
+            state !== null ? `${id}-name ${id}-state` : `${id}-name`
+          }
           onClick={() => onToggle(apiKey)}
         >
           {t(
@@ -118,8 +146,11 @@ function KeyRow({ apiKey, canBlock, disabled, onToggle }: KeyRowProps) {
 
 /**
  * A member's own API keys, for an Owner or Admin: each can be blocked here,
- * and here only, or freed again (APIKEY-R11). An Admin sees an Owner's keys
- * but cannot block them.
+ * and here only, or freed again (APIKEY-R11). Whether an unblocked key works
+ * here also takes this organization letting members' own keys in
+ * (APIKEY-R12): while it does not, or while that cannot be read, the dialog
+ * says so and marks no key as working. An Admin sees an Owner's keys but
+ * cannot block them.
  */
 export function MemberApiKeysDialog({
   open,
@@ -171,6 +202,7 @@ export function MemberApiKeysDialog({
   };
 
   const list = keys.data?.keys ?? LOADING_KEYS;
+  const standing = keys.data?.personalKeys;
 
   return (
     <>
@@ -196,6 +228,16 @@ export function MemberApiKeysDialog({
             )}
           />
         )}
+        {(standing === 'refused' || standing === 'unavailable') && (
+          // Static while it holds: it states a condition of the keys, it
+          // does not announce an event.
+          <Alert
+            variant="warning"
+            live="off"
+            className="mb-3"
+            description={t(NOTICE[standing])}
+          />
+        )}
         {!read.unavailable &&
           (keys.data !== undefined && keys.data.keys.length === 0 ? (
             <Text variant="muted">
@@ -213,6 +255,7 @@ export function MemberApiKeysDialog({
                   <KeyRow
                     key={apiKey.id}
                     apiKey={apiKey}
+                    standing={standing ?? 'admitted'}
                     canBlock={keys.data?.canBlock ?? false}
                     // A button acts on an answer: never on the placeholder
                     // rows, nor while a change is on its way.

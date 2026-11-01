@@ -1347,6 +1347,9 @@ apiKeys:
     description: Ces clés appartiennent à {name}. Une clé bloquée ici est refusée dans cette organisation seulement ; le blocage ne s’étend pas aux autres organisations de {name}.
     works: Fonctionne ici
     blocked: Bloquée ici
+    refused: Refusée ici
+    refusedNotice: Les clés personnelles des membres sont désactivées dans cette organisation, donc aucune de ces clés ne fonctionne ici. Un blocage s’applique toujours une fois qu’elles sont réactivées.
+    unavailableNotice: Le paramètre des clés personnelles des membres ne peut pas être lu pour le moment, on ne sait donc pas si ces clés fonctionnent ici. Réessaie dans un instant.
     created: Ajoutée le {date}
     blockedBy: Bloquée par {name} le {date}
     block: Bloquer

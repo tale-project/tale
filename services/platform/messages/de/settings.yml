@@ -1313,6 +1313,9 @@ apiKeys:
     description: Diese Schlüssel gehören {name}. Ein hier blockierter Schlüssel wird nur in dieser Organisation abgelehnt; in den anderen Organisationen von {name} gilt die Blockierung nicht.
     works: Funktioniert hier
     blocked: Hier blockiert
+    refused: Hier abgewiesen
+    refusedNotice: Eigene Schlüssel der Mitglieder sind in dieser Organisation ausgeschaltet, daher funktioniert hier keiner dieser Schlüssel. Eine Blockierung gilt weiter, sobald sie wieder eingeschaltet sind.
+    unavailableNotice: Die Einstellung für eigene Schlüssel der Mitglieder kann gerade nicht gelesen werden, daher ist unklar, ob diese Schlüssel hier funktionieren. Versuche es gleich noch einmal.
     created: Hinzugefügt am {date}
     blockedBy: Blockiert von {name} am {date}
     block: Blockieren
