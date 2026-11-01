@@ -84,7 +84,7 @@ actions:
           let url = startUrl;
           while (true) {
             const r = await ctx.http.get(url, { headers: { Accept: 'application/json' } });
-            if (!r.status || r.status >= 400) throw new Error(`Confluence list_pages failed (${r.status}): ${r.text()}`);
+            if (!r.status || r.status >= 400) throw Object.assign(new Error(`Confluence list_pages failed (${r.status}): ${r.text()}`), { status: r.status });
             const data = r.json();
             const page = Array.isArray(data.results) ? data.results : [];
             if (base === undefined && data._links) base = data._links.base;
@@ -194,12 +194,12 @@ actions:
         // continue-on-error moves to the next page instead of aborting the
         // batch or creating an empty document.
         if (r.status === 404 || r.status === 410) {
-          throw new Error(`Confluence page ${input.pageId} no longer exists (deleted between listing and fetch) — skipping.`);
+          throw Object.assign(new Error(`Confluence page ${input.pageId} no longer exists (deleted between listing and fetch) — skipping.`), { status: r.status });
         }
         if (r.status === 403) {
-          throw new Error(`Confluence page ${input.pageId} is restricted for this account — skipping.`);
+          throw Object.assign(new Error(`Confluence page ${input.pageId} is restricted for this account — skipping.`), { status: r.status });
         }
-        if (!r.status || r.status >= 400) throw new Error(`Confluence get_page failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Confluence get_page failed (${r.status}): ${r.text()}`), { status: r.status });
 
         const body = r.json().body || {};
         const html = (body.export_view && body.export_view.value) || (body.storage && body.storage.value) || '';

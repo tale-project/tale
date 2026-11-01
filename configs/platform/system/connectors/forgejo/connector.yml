@@ -50,7 +50,7 @@ actions:
         const q = [];
         for (const k of ['page', 'limit']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
         const r = await ctx.http.get(ctx.endpoint + '/api/v1/user/repos' + (q.length ? '?' + q.join('&') : ''), { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Forgejo list_repos failed (${r.status})`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Forgejo list_repos failed (${r.status})`), { status: r.status });
         return { repos: r.json() };
     exampleInput: { limit: 20 }
   - name: list_issues
@@ -84,7 +84,7 @@ actions:
         const q = [];
         for (const k of ['state', 'type', 'labels', 'created_by', 'page', 'limit']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
         const r = await ctx.http.get(ctx.endpoint + '/api/v1/repos/' + encodeURIComponent(input.owner) + '/' + encodeURIComponent(input.repo) + '/issues' + (q.length ? '?' + q.join('&') : ''), { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Forgejo list_issues failed (${r.status})`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Forgejo list_issues failed (${r.status})`), { status: r.status });
         return { issues: r.json() };
     exampleInput: { owner: example, repo: web, state: open }
   - name: get_issue
@@ -111,7 +111,7 @@ actions:
       kind: yaml-js
       live: |
         const r = await ctx.http.get(ctx.endpoint + '/api/v1/repos/' + encodeURIComponent(input.owner) + '/' + encodeURIComponent(input.repo) + '/issues/' + encodeURIComponent(input.issue_number), { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Forgejo get_issue failed (${r.status})`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Forgejo get_issue failed (${r.status})`), { status: r.status });
         return { issue: r.json() };
     exampleInput: { owner: example, repo: web, issue_number: 1 }
   - name: create_issue
@@ -144,7 +144,7 @@ actions:
         if (input.body != null) payload.body = input.body;
         if (input.assignees != null) payload.assignees = input.assignees;
         const r = await ctx.http.post(ctx.endpoint + '/api/v1/repos/' + encodeURIComponent(input.owner) + '/' + encodeURIComponent(input.repo) + '/issues', { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (!r.status || r.status >= 400) throw new Error(`Forgejo create_issue failed (${r.status})`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Forgejo create_issue failed (${r.status})`), { status: r.status });
         const j = r.json();
         return { number: j.number, url: j.html_url };
     exampleInput: { owner: example, repo: web, title: Something is broken }
@@ -178,7 +178,7 @@ actions:
         const payload = {};
         for (const k of ['title', 'body', 'state', 'assignees']) if (input[k] !== undefined) payload[k] = input[k];
         const r = await ctx.http.patch(ctx.endpoint + '/api/v1/repos/' + encodeURIComponent(input.owner) + '/' + encodeURIComponent(input.repo) + '/issues/' + encodeURIComponent(input.issue_number), { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (!r.status || r.status >= 400) throw new Error(`Forgejo update_issue failed (${r.status})`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Forgejo update_issue failed (${r.status})`), { status: r.status });
         const j = r.json();
         return { number: j.number, state: j.state, url: j.html_url };
     exampleInput: { owner: example, repo: web, issue_number: 1, state: closed }
@@ -206,7 +206,7 @@ actions:
       kind: yaml-js
       live: |
         const r = await ctx.http.get(ctx.endpoint + '/api/v1/repos/' + encodeURIComponent(input.owner) + '/' + encodeURIComponent(input.repo) + '/issues/' + encodeURIComponent(input.issue_number) + '/comments', { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Forgejo list_issue_comments failed (${r.status})`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Forgejo list_issue_comments failed (${r.status})`), { status: r.status });
         return { comments: r.json() };
     exampleInput: { owner: example, repo: web, issue_number: 1 }
   - name: create_issue_comment
@@ -235,7 +235,7 @@ actions:
       kind: yaml-js
       live: |
         const r = await ctx.http.post(ctx.endpoint + '/api/v1/repos/' + encodeURIComponent(input.owner) + '/' + encodeURIComponent(input.repo) + '/issues/' + encodeURIComponent(input.issue_number) + '/comments', { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify({ body: input.body }) });
-        if (!r.status || r.status >= 400) throw new Error(`Forgejo create_issue_comment failed (${r.status})`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Forgejo create_issue_comment failed (${r.status})`), { status: r.status });
         const j = r.json();
         return { id: j.id, url: j.html_url };
     exampleInput: { owner: example, repo: web, issue_number: 1, body: Thanks for the report! }
@@ -268,7 +268,7 @@ actions:
         const q = [];
         for (const k of ['state', 'sort', 'page', 'limit']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
         const r = await ctx.http.get(ctx.endpoint + '/api/v1/repos/' + encodeURIComponent(input.owner) + '/' + encodeURIComponent(input.repo) + '/pulls' + (q.length ? '?' + q.join('&') : ''), { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Forgejo list_pull_requests failed (${r.status})`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Forgejo list_pull_requests failed (${r.status})`), { status: r.status });
         return { pull_requests: r.json() };
     exampleInput: { owner: example, repo: web, state: open }
   - name: get_pull_request
@@ -295,7 +295,7 @@ actions:
       kind: yaml-js
       live: |
         const r = await ctx.http.get(ctx.endpoint + '/api/v1/repos/' + encodeURIComponent(input.owner) + '/' + encodeURIComponent(input.repo) + '/pulls/' + encodeURIComponent(input.pull_number), { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Forgejo get_pull_request failed (${r.status})`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Forgejo get_pull_request failed (${r.status})`), { status: r.status });
         return { pull_request: r.json() };
     exampleInput: { owner: example, repo: web, pull_number: 1 }
   - name: list_import_issues

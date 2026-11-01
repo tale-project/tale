@@ -61,7 +61,7 @@ actions:
         const r = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${q.join('&')}`, { headers: { Accept: 'application/json' } });
         // A wait Gmail names rides in the sentence, so a sync can report it.
         const wait = String((r.headers || {})['retry-after'] || '');
-        if (!r.status || r.status >= 400) throw new Error(`Gmail list_messages failed (${r.status}${/^\d+$/.test(wait) ? `, retry after ${wait}s` : ''}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Gmail list_messages failed (${r.status}${/^\d+$/.test(wait) ? `, retry after ${wait}s` : ''}): ${r.text()}`), { status: r.status });
         const j = r.json();
         return { messages: j.messages || [], nextPageToken: j.nextPageToken || '' };
     exampleInput: { q: 'is:unread', maxResults: 25 }
@@ -97,7 +97,7 @@ actions:
         const h = { Accept: 'application/json' };
         const r = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(input.messageId)}?format=${encodeURIComponent(fmt)}`, { headers: h });
         // A wait Gmail names rides in the sentence, so a sync can report it.
-        const failed = (res) => { const wait = String((res.headers || {})['retry-after'] || ''); return new Error(`Gmail get_message failed (${res.status}${/^\d+$/.test(wait) ? `, retry after ${wait}s` : ''}): ${res.text()}`); };
+        const failed = (res) => { const wait = String((res.headers || {})['retry-after'] || ''); return Object.assign(new Error(`Gmail get_message failed (${res.status}${/^\d+$/.test(wait) ? `, retry after ${wait}s` : ''}): ${res.text()}`), { status: res.status }); };
         if (!r.status || r.status >= 400) throw failed(r);
         const message = r.json();
         const attachments = [];
@@ -148,7 +148,7 @@ actions:
         if (!ctx.files) throw new Error('Gmail get_attachments failed: file storage (ctx.files) is required.');
         const h = { Accept: 'application/json' };
         const mr = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(input.messageId)}?format=full`, { headers: h });
-        if (!mr.status || mr.status >= 400) throw new Error(`Gmail get_attachments failed (${mr.status}): ${mr.text()}`);
+        if (!mr.status || mr.status >= 400) throw Object.assign(new Error(`Gmail get_attachments failed (${mr.status}): ${mr.text()}`), { status: mr.status });
         const message = mr.json();
         // Same ceiling as get_message: a part whose base64url JSON cannot fit
         // ctx.http's 5 MiB response is listed as truncated, not fetched.
@@ -161,7 +161,7 @@ actions:
           const entry = { id: p.body.attachmentId, filename: p.filename || 'attachment', contentType: p.mimeType || 'application/octet-stream', size: (p.body && p.body.size) || 0 };
           if (entry.size > MAX_CARRIED_BYTES) { attachments.push({ ...entry, truncated: true }); continue; }
           const ar = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(input.messageId)}/attachments/${encodeURIComponent(p.body.attachmentId)}`, { headers: h });
-          if (!ar.status || ar.status >= 400) throw new Error(`Gmail get_attachments failed (${ar.status}): ${ar.text()}`);
+          if (!ar.status || ar.status >= 400) throw Object.assign(new Error(`Gmail get_attachments failed (${ar.status}): ${ar.text()}`), { status: ar.status });
           let b64 = String(ar.json().data || '').replace(/-/g, '+').replace(/_/g, '/');
           const pad = b64.length % 4;
           if (pad === 2) b64 += '=='; else if (pad === 3) b64 += '=';
@@ -202,7 +202,7 @@ actions:
         const q = ['q=' + encodeURIComponent(input.query), 'maxResults=' + maxResults];
         if (input.pageToken) q.push('pageToken=' + encodeURIComponent(input.pageToken));
         const r = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages?${q.join('&')}`, { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Gmail search_messages failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Gmail search_messages failed (${r.status}): ${r.text()}`), { status: r.status });
         const j = r.json();
         return { messages: j.messages || [], nextPageToken: j.nextPageToken || '' };
     exampleInput: { query: 'subject:invoice has:attachment', maxResults: 25 }
@@ -279,7 +279,7 @@ actions:
           for (const att of attachments) {
             if (!att.url) throw new Error('Gmail send_message failed: attachment "' + (att.name || '') + '" is missing a url.');
             const fr = await ctx.http.get(att.url, { responseType: 'base64' });
-            if (!fr.status || fr.status >= 400) throw new Error(`Gmail send_message failed to fetch attachment (${fr.status}): ${fr.text()}`);
+            if (!fr.status || fr.status >= 400) throw Object.assign(new Error(`Gmail send_message failed to fetch attachment (${fr.status}): ${fr.text()}`), { status: fr.status });
             lines.push('--' + boundary);
             lines.push('Content-Type: ' + (att.contentType || 'application/octet-stream') + '; name="' + (att.name || 'attachment') + '"');
             lines.push('Content-Disposition: attachment; filename="' + (att.name || 'attachment') + '"');
@@ -299,7 +299,7 @@ actions:
         const payload = { raw };
         if (input.threadId) payload.threadId = input.threadId;
         const r = await ctx.http.post('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', { headers: { 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(payload) });
-        if (!r.status || r.status >= 400) throw new Error(`Gmail send_message failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Gmail send_message failed (${r.status}): ${r.text()}`), { status: r.status });
         const j = r.json();
         return { id: j.id, threadId: j.threadId };
     exampleInput:
@@ -327,7 +327,7 @@ actions:
       kind: yaml-js
       live: |
         const r = await ctx.http.get('https://gmail.googleapis.com/gmail/v1/users/me/profile', { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Gmail get_profile failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Gmail get_profile failed (${r.status}): ${r.text()}`), { status: r.status });
         const j = r.json();
         return { emailAddress: String(j.emailAddress || '') };
     exampleInput: {}
@@ -350,7 +350,7 @@ actions:
       kind: yaml-js
       live: |
         const r = await ctx.http.get('https://gmail.googleapis.com/gmail/v1/users/me/labels', { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Gmail list_labels failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Gmail list_labels failed (${r.status}): ${r.text()}`), { status: r.status });
         const j = r.json();
         return { labels: j.labels || [] };
     exampleInput: {}
@@ -381,7 +381,7 @@ actions:
       live: |
         const fmt = input.format || 'full';
         const r = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/threads/${encodeURIComponent(input.threadId)}?format=${encodeURIComponent(fmt)}`, { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Gmail get_thread failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Gmail get_thread failed (${r.status}): ${r.text()}`), { status: r.status });
         return { thread: r.json() };
     exampleInput: { threadId: '18c1a2b3c4d5e6f7' }
   - name: list_drafts
@@ -412,7 +412,7 @@ actions:
         const q = ['maxResults=' + maxResults];
         if (input.pageToken) q.push('pageToken=' + encodeURIComponent(input.pageToken));
         const r = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/drafts?${q.join('&')}`, { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Gmail list_drafts failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Gmail list_drafts failed (${r.status}): ${r.text()}`), { status: r.status });
         const j = r.json();
         return { drafts: j.drafts || [], nextPageToken: j.nextPageToken || '' };
     exampleInput: { maxResults: 25 }
@@ -443,7 +443,7 @@ actions:
       live: |
         if (!ctx.files) throw new Error('Gmail get_attachment failed: file storage (ctx.files) is required.');
         const r = await ctx.http.get(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${encodeURIComponent(input.messageId)}/attachments/${encodeURIComponent(input.attachmentId)}`, { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Gmail get_attachment failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Gmail get_attachment failed (${r.status}): ${r.text()}`), { status: r.status });
         const data = r.json();
         let b64 = String(data.data || '').replace(/-/g, '+').replace(/_/g, '/');
         const pad = b64.length % 4;

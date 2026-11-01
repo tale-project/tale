@@ -79,7 +79,7 @@ actions:
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
-        if (!r.status || r.status >= 400) throw new Error(`Tavily search failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Tavily search failed (${r.status}): ${r.text()}`), { status: r.status });
         const data = r.json();
         const out = { results: (data.results || []).slice(0, 5) };
         if (data.answer != null) out.answer = data.answer;
@@ -128,7 +128,7 @@ actions:
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
         });
-        if (!r.status || r.status >= 400) throw new Error(`Tavily extract failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Tavily extract failed (${r.status}): ${r.text()}`), { status: r.status });
         const data = r.json();
         return { results: data.results || [], failed: data.failed_results || [] };
     exampleInput: { urls: ['https://example.com/article'] }

@@ -68,7 +68,7 @@ actions:
             const qp = ['q=' + encodeURIComponent(q), 'fields=' + encodeURIComponent(fields), 'pageSize=200'];
             if (pageToken) qp.push('pageToken=' + encodeURIComponent(pageToken));
             const r = await ctx.http.get(`${API}/files?${qp.join('&')}`, { headers: { Accept: 'application/json' } });
-            if (!r.status || r.status >= 400) throw new Error(`Google Drive list_files failed (${r.status}): ${r.text()}`);
+            if (!r.status || r.status >= 400) throw Object.assign(new Error(`Google Drive list_files failed (${r.status}): ${r.text()}`), { status: r.status });
             const data = r.json();
             for (const f of (data.files || [])) out.push(f);
             if (!data.nextPageToken) break;
