@@ -8,7 +8,8 @@
  * (Better Auth rejects it on the next request). When unset, every call site
  * keeps its existing default lifetime; only the session-refresh cadence
  * (`updateAge`) tightens so `session.updatedAt` tracks activity — see
- * `sessionIdleWindowSeconds`.
+ * `sessionIdleWindowSeconds` and the two `SESSION_REFRESH_SECONDS_*`
+ * cadences.
  *
  * This is the server-side control (SOC 2 CC6.1 / ISO 27001 A.8.5). The client
  * watchdog (`useSessionIdleWatchdog`) is the matching UX: it warns and signs
@@ -94,24 +95,44 @@ export function parseSessionIdleTimeoutMinutes(): number | null {
 const BETTER_AUTH_DEFAULT_EXPIRES_IN_SECONDS = 60 * 60 * 24 * 7;
 
 /**
+ * How long after its last refresh a session under an idle window is
+ * refreshed again (Better Auth's `updateAge`, in seconds): a minute, so
+ * `session.updatedAt` follows activity to the minute and the idle sweep
+ * reads its window to the minute.
+ */
+export const SESSION_REFRESH_SECONDS_UNDER_IDLE_WINDOW = 60;
+
+/**
+ * The same for a session under no idle window (#5164): five minutes, so an
+ * active session costs a fifth of the writes. When a window comes into force
+ * for such a session, the idle sweep moves its `updatedAt` to the latest
+ * moment it can have been used before it judges it, so a session in use is
+ * never revoked and one already idle goes at most five minutes late, once.
+ */
+export const SESSION_REFRESH_SECONDS_OUTSIDE_IDLE_WINDOW = 5 * 60;
+
+/**
  * Better Auth `session` window config, in **seconds** (Better Auth's unit).
  *
  * Env set: the session becomes a sliding window of that many minutes —
  * Better Auth re-extends `expiresAt` on activity and rejects the session once
- * idle past the window.
+ * idle past the window. Every session is under that window, so `updateAge`
+ * is {@link SESSION_REFRESH_SECONDS_UNDER_IDLE_WINDOW} (or half the window,
+ * whichever is smaller) and the window is accurate to within a minute.
  *
  * Env unset: the lifetime stays at Better Auth's 7-day default, but
- * `updateAge` is tightened from the upstream default (1 day) to 60s so
- * `session.updatedAt` slides on every token refresh (~15 min per active
- * client). That makes `updatedAt` a usable activity proxy for the per-org
- * idle-revocation sweep
+ * `updateAge` is tightened from the upstream default (1 day) to
+ * {@link SESSION_REFRESH_SECONDS_OUTSIDE_IDLE_WINDOW}, so `session.updatedAt`
+ * is a usable activity proxy for the per-org idle-revocation sweep
  * (`services/platform/backend/domains/governance/session-idle.ts`) — with
- * the 1-day cadence the sweep would revoke actively-used sessions.
+ * the 1-day cadence the sweep would revoke actively-used sessions. A session
+ * whose user an organization's idle window covers refreshes every minute
+ * all the same: the platform's session hooks write its `expiresAt` that much
+ * earlier (`services/platform/backend/auth/session-refresh.ts`).
  *
  * `updateAge` is the refresh cadence: the session expiry is only re-extended
  * once per `updateAge`, so an active session slides forward without a write on
- * every single request. Capped at 60s (or half the window, whichever is
- * smaller) so the effective idle window is accurate to within a minute.
+ * every single request.
  */
 export function sessionIdleWindowSeconds(): {
   expiresIn: number;
@@ -121,12 +142,49 @@ export function sessionIdleWindowSeconds(): {
   if (minutes === null) {
     return {
       expiresIn: BETTER_AUTH_DEFAULT_EXPIRES_IN_SECONDS,
-      updateAge: 60,
+      updateAge: SESSION_REFRESH_SECONDS_OUTSIDE_IDLE_WINDOW,
     };
   }
   const expiresIn = minutes * 60;
-  const updateAge = Math.max(1, Math.min(60, Math.floor(expiresIn / 2)));
+  const updateAge = Math.max(
+    1,
+    Math.min(
+      SESSION_REFRESH_SECONDS_UNDER_IDLE_WINDOW,
+      Math.floor(expiresIn / 2),
+    ),
+  );
   return { expiresIn, updateAge };
+}
+
+export interface SessionRefreshShape {
+  /** Better Auth's `expiresIn`, in seconds. */
+  expiresIn: number;
+  /** Better Auth's `updateAge`, in seconds. */
+  updateAge: number;
+  /**
+   * How much earlier, in seconds, a sign-in or refresh writes the expiry of
+   * a session under an idle window, so that it refreshes every
+   * {@link SESSION_REFRESH_SECONDS_UNDER_IDLE_WINDOW}; zero when `updateAge`
+   * is that already.
+   */
+  advance: number;
+}
+
+/**
+ * The refresh cadences {@link sessionIdleWindowSeconds} gives Better Auth,
+ * and the advance that turns its `updateAge` into the one-minute cadence for
+ * a session under an idle window. The idle sweep tells the two kinds of
+ * session apart by it: Better Auth writes `expiresAt - updatedAt` as
+ * `expiresIn` at every refresh, and the platform's session hooks write it
+ * `advance` lower for a session under a window.
+ */
+export function sessionRefreshShape(): SessionRefreshShape {
+  const { expiresIn, updateAge } = sessionIdleWindowSeconds();
+  return {
+    expiresIn,
+    updateAge,
+    advance: Math.max(0, updateAge - SESSION_REFRESH_SECONDS_UNDER_IDLE_WINDOW),
+  };
 }
 
 /**
