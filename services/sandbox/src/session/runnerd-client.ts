@@ -570,13 +570,16 @@ export class RunnerdAttachBusyError extends Error {
 
 /** GET /execs/:id/attach — reconnect to a live/recent exec; same NDJSON event
  * stream as runnerdExec. Returns false with no events if the exec is unknown
- * (404). */
+ * (404). `onOpen` runs once runnerd has answered with the stream, before its
+ * first event is read: the attach has no connect timeout, so only from then
+ * on does it show that the daemon is alive. */
 export async function runnerdAttach(
   opts: RunnerdClientOptions,
   execId: string,
   onEvent: (event: RunnerdExecEvent) => void | Promise<void>,
   signal?: AbortSignal,
   sinceSeq = 0,
+  onOpen?: () => void,
 ): Promise<boolean> {
   const q = sinceSeq !== 0 ? `?sinceSeq=${sinceSeq}` : '';
   const consumer = new AbortController();
@@ -602,6 +605,7 @@ export async function runnerdAttach(
         throw new RunnerdAttachBusyError();
     }
     if (!res.ok || !res.body) throw new Error(`runnerd /attach ${res.status}`);
+    onOpen?.();
     await pumpNdjson(res.body, onEvent, sinceSeq);
     return true;
   } finally {

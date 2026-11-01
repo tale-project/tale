@@ -180,6 +180,22 @@ describe('HostPressureSampler', () => {
     expect(instance.readings().map((reading) => reading.atMs)).toEqual([now]);
   });
 
+  test('a clock that went back hides the readings stamped after it, before the next sample lands', async () => {
+    let now = 1_000_000;
+    const { instance } = sampler({ now: () => now });
+    for (let step = 0; step < 3; step += 1) {
+      await instance.sample();
+      now += PRESSURE_SAMPLE_MS;
+    }
+    // The clock steps back (NTP, a resumed VM) to just after the second
+    // reading: the third would pass for the newest until the next sample.
+    now = 1_000_000 + PRESSURE_SAMPLE_MS + 1;
+    expect(instance.readings().map((reading) => reading.atMs)).toEqual([
+      1_000_000,
+      1_000_000 + PRESSURE_SAMPLE_MS,
+    ]);
+  });
+
   test('tells its listeners after each reading, and survives one that throws', async () => {
     let now = 1_000_000;
     const warn = spyOn(console, 'warn').mockImplementation(() => {});

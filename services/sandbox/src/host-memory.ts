@@ -22,6 +22,7 @@ import { parseMemory } from './proc-stats.ts';
 import { sessionAgentProfile } from './session/session-profile.ts';
 import { runDocker, type RunDockerResult } from './spawn-util.ts';
 import type { SpawnerConfig } from './types.ts';
+import { msSince } from './wall-clock.ts';
 import type { SandboxSessionProfile } from './wire.ts';
 
 const MIB = 1024 * 1024;
@@ -239,8 +240,13 @@ export class HostMemoryProbe {
   private judging: Promise<boolean> | null = null;
   private reading: {
     atMs: number;
+    /** The read that took it, numbered as reads start: a newer reading is
+     * told by this, not by the clock, which can step back. */
+    seq: number;
     memory: HostMemory | null;
   } | null = null;
+  /** How many reads have started: each takes the next number. */
+  private reads = 0;
   private refreshing: Promise<HostMemory | null> | null = null;
   private ticker: ReturnType<typeof setInterval> | null = null;
 
@@ -301,10 +307,12 @@ export class HostMemoryProbe {
    * read, unless `fresh` asks for one taken after the call. */
   read(fresh = false): Promise<HostMemory | null> {
     const reading = this.reading;
+    // A reading stamped ahead of the clock (it stepped back since) is stale,
+    // or admission would judge by it for as long as the step.
     if (
       !fresh &&
       reading !== null &&
-      this.now() - reading.atMs < READING_TTL_MS
+      msSince(reading.atMs, this.now()) < READING_TTL_MS
     ) {
       return Promise.resolve(reading.memory);
     }
@@ -317,6 +325,7 @@ export class HostMemoryProbe {
 
   private async readNow(): Promise<HostMemory | null> {
     const now = this.now();
+    const seq = ++this.reads;
     let memory: HostMemory | null = null;
     if (await this.describesDockerHost()) {
       try {
@@ -332,8 +341,8 @@ export class HostMemoryProbe {
       }
     }
     // A slower read that started earlier never replaces a newer reading.
-    if (this.reading === null || this.reading.atMs <= now) {
-      this.reading = { atMs: now, memory };
+    if (this.reading === null || this.reading.seq < seq) {
+      this.reading = { atMs: now, seq, memory };
     }
     return memory;
   }
@@ -342,7 +351,9 @@ export class HostMemoryProbe {
     const verdict = this.verdict;
     const ttl =
       verdict?.failed === true ? FAILED_VERDICT_TTL_MS : VERDICT_TTL_MS;
-    if (verdict !== null && this.now() - verdict.atMs < ttl) {
+    // A verdict stamped ahead of the clock is judged again: a failed one
+    // would otherwise keep the memory guard off for the whole step back.
+    if (verdict !== null && msSince(verdict.atMs, this.now()) < ttl) {
       return Promise.resolve(verdict.local);
     }
     this.judging ??= this.judge().finally(() => {

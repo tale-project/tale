@@ -11,12 +11,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import {
+  operationTimeLeftMs,
   outsideOperationBudget,
   waitWithinOperation,
   withOperationBudget,
 } from './operation-budget.ts';
 import {
   DOCKER_CLI_CONCURRENCY,
+  DOCKER_CLI_MIN_RUN_MS,
   DOCKER_CLI_PRIORITY_CONCURRENCY,
   IMAGE_PULL_TIMEOUT_MS,
   RUN_DOCKER_DEFAULT_TIMEOUT_MS,
@@ -318,9 +320,11 @@ describe('docker CLI concurrency', () => {
       expect(probe.noSlot).toBe(true);
       expect(Date.now() - startedAtMs).toBeLessThan(1_000);
       expect(dockerCliLoad().waiting).toBe(0);
-      // A call whose wait used part of its budget runs on what is left.
-      const late = runDocker(['inspect', '1'], { timeoutMs: 1_800 });
-      expect((await late).exitCode).toBe(124);
+      // A call whose wait used part of its budget runs on what is left: about
+      // 1.8 s, too short for a command its whole budget would have let end.
+      const late = await runDocker(['inspect', '2.5'], { timeoutMs: 3_000 });
+      expect(late.exitCode).toBe(124);
+      expect(late.noSlot).toBeUndefined();
       const results = await Promise.all(holders);
       expect(results.every((result) => result.exitCode === 0)).toBe(true);
       expect(results.some((result) => result.noSlot === true)).toBe(false);
@@ -328,6 +332,162 @@ describe('docker CLI concurrency', () => {
     } finally {
       if (previous === undefined) delete process.env.DOCKER_BIN;
       else process.env.DOCKER_BIN = previous;
+      await rm(dir, { recursive: true, force: true });
+    }
+  }, 10_000);
+
+  test('a call whose slot comes free with less than DOCKER_CLI_MIN_RUN_MS of its budget left answers noSlot without running, and its slot passes on', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tale-docker-slots-'));
+    const marker = join(dir, 'started');
+    const nextMarker = join(dir, 'next');
+    // Each holder keeps its slot until its own file appears.
+    const releases = Array.from(
+      { length: DOCKER_CLI_CONCURRENCY },
+      (_, index) => join(dir, `release-${index}`),
+    );
+    const holders = releases.map((release) =>
+      runDocker(
+        ['-c', 'while [ ! -e "$1" ]; do sleep 0.01; done', 'holder', release],
+        { timeoutMs: 10_000 },
+      ),
+    );
+    const queuedAtMs = performance.now();
+    const late = runDocker(['-c', 'echo started > "$1"', 'late', marker], {
+      timeoutMs: 1_500,
+    });
+    const next = runDocker(['-c', 'echo next > "$1"', 'next', nextMarker], {
+      timeoutMs: 10_000,
+    });
+    const completed = Promise.allSettled([...holders, late, next]);
+    try {
+      expect(dockerCliLoad()).toEqual({
+        running: DOCKER_CLI_CONCURRENCY,
+        waiting: 2,
+      });
+      // One slot comes free once less than the minimum is left of the first
+      // waiter's budget, well before the budget runs out.
+      await Bun.sleep(1_500 - DOCKER_CLI_MIN_RUN_MS + 50);
+      await writeFile(releases[0]!, '');
+      const refused = await late;
+      expect(refused).toEqual({
+        exitCode: 124,
+        stdout: '',
+        stderr: expect.stringMatching(
+          new RegExp(
+            `^docker -c: a docker CLI slot came free with \\d+ ms left to run it, under the ${DOCKER_CLI_MIN_RUN_MS} ms a call needs \\(the call's budget: \\d+ ms left; its operation's: none\\)$`,
+          ),
+        ),
+        stdoutTruncated: false,
+        stderrTruncated: false,
+        noSlot: true,
+      });
+      expect(Number(/with (\d+) ms/.exec(refused.stderr)?.[1])).toBeLessThan(
+        DOCKER_CLI_MIN_RUN_MS,
+      );
+      // Answered when its slot came, not when its wait would have expired.
+      expect(performance.now() - queuedAtMs).toBeLessThan(1_500);
+      expect(await Bun.file(marker).exists()).toBe(false);
+      // The next waiter got the slot, and ran.
+      const ran = await next;
+      expect(ran.exitCode).toBe(0);
+      expect(ran.noSlot).toBeUndefined();
+      expect(await Bun.file(nextMarker).text()).toBe('next\n');
+      expect(dockerCliLoad()).toEqual({
+        running: DOCKER_CLI_CONCURRENCY - 1,
+        waiting: 0,
+      });
+    } finally {
+      await Promise.all(releases.map((release) => writeFile(release, '')));
+      await completed;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a call whose slot comes free with less than DOCKER_CLI_MIN_RUN_MS left of its operation budget answers noSlot without running, whatever its own budget, and its slot passes on', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tale-docker-slots-'));
+    const marker = join(dir, 'started');
+    const nextMarker = join(dir, 'next');
+    const releases = Array.from(
+      { length: DOCKER_CLI_CONCURRENCY },
+      (_, index) => join(dir, `release-${index}`),
+    );
+    const holders = releases.map((release) =>
+      runDocker(
+        ['-c', 'while [ ! -e "$1" ]; do sleep 0.01; done', 'holder', release],
+        { timeoutMs: 10_000 },
+      ),
+    );
+    // Ten seconds of its own, but an operation with a second and a half.
+    const late = withOperationBudget(1_500, () =>
+      runDocker(['-c', 'echo started > "$1"', 'late', marker], {
+        timeoutMs: 10_000,
+      }),
+    );
+    const next = runDocker(['-c', 'echo next > "$1"', 'next', nextMarker], {
+      timeoutMs: 10_000,
+    });
+    const completed = Promise.allSettled([...holders, late, next]);
+    try {
+      expect(dockerCliLoad()).toEqual({
+        running: DOCKER_CLI_CONCURRENCY,
+        waiting: 2,
+      });
+      // One slot comes free once less than the minimum is left of the
+      // operation, well before its deadline.
+      await Bun.sleep(1_500 - DOCKER_CLI_MIN_RUN_MS + 200);
+      await writeFile(releases[0]!, '');
+      const refused = await late;
+      expect(refused.exitCode).toBe(124);
+      expect(refused.noSlot).toBe(true);
+      // Both budgets are named: the operation's, the shorter, decided.
+      const [, leftMs, ownLeftMs, operationLeftMs] =
+        /^docker -c: a docker CLI slot came free with (\d+) ms left to run it, under the \d+ ms a call needs \(the call's budget: (\d+) ms left; its operation's: (\d+) ms left\)$/
+          .exec(refused.stderr)
+          ?.map(Number) ?? [];
+      expect(leftMs).toBeLessThan(DOCKER_CLI_MIN_RUN_MS);
+      expect(operationLeftMs).toBe(leftMs);
+      expect(ownLeftMs).toBeGreaterThan(DOCKER_CLI_MIN_RUN_MS);
+      expect(await Bun.file(marker).exists()).toBe(false);
+      // The next waiter got the slot, and ran.
+      const ran = await next;
+      expect(ran.exitCode).toBe(0);
+      expect(ran.noSlot).toBeUndefined();
+      expect(await Bun.file(nextMarker).text()).toBe('next\n');
+    } finally {
+      await Promise.all(releases.map((release) => writeFile(release, '')));
+      await completed;
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('a call that queued for its slot still runs with DOCKER_CLI_MIN_RUN_MS or more of its budget left', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'tale-docker-slots-'));
+    const release = join(dir, 'release');
+    const marker = join(dir, 'started');
+    const holders = Array.from({ length: DOCKER_CLI_CONCURRENCY }, () =>
+      runDocker(
+        ['-c', 'while [ ! -e "$1" ]; do sleep 0.01; done', 'holder', release],
+        { timeoutMs: 10_000 },
+      ),
+    );
+    const queued = runDocker(['-c', 'echo started > "$1"', 'queued', marker], {
+      timeoutMs: DOCKER_CLI_MIN_RUN_MS + 1_000,
+    });
+    const completed = Promise.allSettled([...holders, queued]);
+    try {
+      expect(dockerCliLoad()).toEqual({
+        running: DOCKER_CLI_CONCURRENCY,
+        waiting: 1,
+      });
+      await Bun.sleep(100);
+      await writeFile(release, '');
+      const result = await queued;
+      expect(result.exitCode).toBe(0);
+      expect(result.noSlot).toBeUndefined();
+      expect(await Bun.file(marker).text()).toBe('started\n');
+    } finally {
+      await writeFile(release, '');
+      await completed;
       await rm(dir, { recursive: true, force: true });
     }
   });
@@ -568,6 +728,33 @@ describe('Docker operation deadlines', () => {
     expect(first?.exitCode).not.toBe(0);
     expect(second?.exitCode).toBe(-1);
     expect(second?.stdout).toBe('');
+  });
+
+  test('an operation answers the time left until its earliest deadline, and none outside a budget', async () => {
+    expect(operationTimeLeftMs()).toBe(Infinity);
+    await withOperationBudget(5_000, async () => {
+      const outer = operationTimeLeftMs();
+      expect(outer).toBeLessThanOrEqual(5_000);
+      expect(outer).toBeGreaterThan(4_000);
+      // A nested budget never outlasts the one it runs in, and may end
+      // sooner.
+      await withOperationBudget(60_000, async () => {
+        const inner = operationTimeLeftMs();
+        expect(inner).toBeLessThanOrEqual(outer);
+        expect(inner).toBeGreaterThan(4_000);
+      });
+      await withOperationBudget(500, async () => {
+        const inner = operationTimeLeftMs();
+        expect(inner).toBeLessThanOrEqual(500);
+        expect(inner).toBeGreaterThan(0);
+      });
+      await outsideOperationBudget(async () => {
+        expect(operationTimeLeftMs()).toBe(Infinity);
+      });
+      await Bun.sleep(50);
+      expect(operationTimeLeftMs()).toBeLessThan(outer - 40);
+    });
+    expect(operationTimeLeftMs()).toBe(Infinity);
   });
 
   test('nested deadlines inherit cancellation while independent cleanup can run', async () => {
