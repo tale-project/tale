@@ -177,16 +177,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function keysOf(value: unknown): number {
-  return isRecord(value) ? Object.keys(value).length : 0;
+function keysOf(value: unknown): string[] {
+  return isRecord(value) ? Object.keys(value) : [];
 }
 
-/** The chips a test's row carries: how many nodes it simulates the output
- * of, and how many it makes fail. */
+/** The chips a test's row carries: how many nodes it simulates — their
+ * output, or the scenario their connector action answers with — and how
+ * many it makes fail. */
 export function testBadges(test: unknown, ctx: TestTextContext): string[] {
   if (!isRecord(test)) return [];
-  const simulated = keysOf(test.mocks);
-  const failing = keysOf(test.failures);
+  const simulated = new Set([...keysOf(test.mocks), ...keysOf(test.scenarios)])
+    .size;
+  const failing = keysOf(test.failures).length;
   return [
     ...(simulated > 0
       ? [say(ctx, 'tests.badges.simulates', { count: simulated })]

@@ -49,8 +49,32 @@ expect:
 - `effects` listet Aktionen, die der Lauf ausführen muss, etwa eine E-Mail, die gesendet wird, nach Node-Typ; mit `absent: true` eine Aktion, die nicht stattfinden darf.
 - `failure` sagt, dass der Lauf fehlschlagen muss, auf Wunsch bei einem bestimmten Schritt und mit einer Meldung, die den angegebenen Text enthält.
 - `mocks` gibt einem Schritt eine Ausgabe, die er verwendet, statt seinen Dienst oder sein Modell aufzurufen, und `failures` lässt einen Schritt mit der angegebenen Meldung fehlschlagen.
+- `scenarios` gibt einem Schritt, der einen Connector aufruft, einen der Fälle, die seine Aktion mitliefert, wie [Ein Szenario eines Connectors wählen](#scenarios) beschreibt.
 
 Ohne `expect` besteht ein Test, wenn der Lauf erfolgreich ist. Im Menü einer Zeile kopierst du einen Test mit **Duplizieren** oder entfernst ihn mit **Löschen**; **Verwerfen** holt einen gelöschten Test zurück, solange du nicht gespeichert hast.
+
+### Ein Szenario eines Connectors wählen {#scenarios}
+
+Eine Aktion eines Connectors kann Szenarien mitliefern: benannte Fälle dessen, was ihr Dienst antwortet, etwa eine leere Liste, eine abgelehnte Schreibaktion oder ein Ratenlimit. `scenarios` ordnet der ID eines Schritts den Namen eines Szenarios zu, das seine Aktion mitliefert, sodass der Test zeigt, was die Automatisierung in diesem Fall tut. In diesem Test ruft der Schritt `post` `slack.send_message` mit dem Kanal aus der Eingabe auf und erhält die Antwort, die Slack für einen nicht vorhandenen Kanal gibt:
+
+```yaml
+name: Slack rejects an unknown channel
+input:
+  channel: C0000000009
+scenarios:
+  post: channel_not_found
+expect:
+  failure:
+    node: post
+```
+
+Die Eingabe des Schritts wird weiterhin ermittelt und geprüft. Ein Aufruf, dessen Eingabe zum Szenario passt, erhält die Antwort des Szenarios; jeder andere Aufruf erhält die übliche simulierte Antwort des Connectors.
+
+- Antwortet das Szenario mit einer Ausgabe, wird sie zur Ausgabe des Schritts, und der Schritt trägt **Simulierte Ausgabe**, als hätte der Test diese Ausgabe vorgegeben. Eine Schreibaktion hält weiterhin die Aktion fest, die sie ausgeführt hätte.
+- Antwortet das Szenario mit einem Fehler, schlägt der Schritt mit der Meldung des Szenarios fehl, als vom Test simuliert markiert, und trägt **Simulierter Fehler**. Der Lauf behandelt ihn wie denselben Fehler des Dienstes, etwa einen verweigerten Zugriff oder ein Ratenlimit, sodass der Rest der Automatisierung damit umgeht wie in einem Live-Lauf.
+- Passt keiner der Aufrufe des Schritts zum Szenario, steht es unter **Nicht verwendet**, wie eine nicht verwendete simulierte Ausgabe.
+
+Für einen Schritt springt der Test nur auf eine Weise ein: mit einem Szenario, einer simulierten Ausgabe oder einem simulierten Fehler. Das Formular unter **Einrichtung** hat noch kein Feld für `scenarios`: Schreib sie mit **Als YAML bearbeiten**, und das Formular behält sie so, wie sie geschrieben sind. [Connectors](/de/develop/connectors#scenarios) erklärt, wie eine Aktion ihre Szenarien deklariert und wie ihre Fehler eingeordnet werden. Über den [MCP-Endpunkt](/de/develop/mcp-endpoint#authoring) listet `get_catalog` die Szenarien, die jede Aktion mitliefert.
 
 ### Vom Trigger oder einem Pfad ausgehen
 
@@ -101,7 +125,7 @@ Wähle einen Test, um ihn neben dem Canvas zu öffnen. Ein Test mit Ergebnis öf
 - **Schritte**: der Schritt, der entgegen der Erwartung des Tests gelaufen ist, übersprungen wurde oder fehlgeschlagen ist, mit einem Weg, ihn auf dem Canvas zu zeigen.
 - **Ein fehlgeschlagener Lauf**: der Schritt, bei dem der Lauf fehlschlug, und warum, in den Worten der [Ausführungsprotokolle](/de/platform/automations/execution-logs).
 
-**Simuliert** nennt die Schritte, für die der Test einspringt, und **Nicht verwendet** die, die der Lauf übersprungen hat. **Technische Details** zeigt die eigene Meldung der Engine. Ein Ergebnis aus der letzten Prüfung der Version behält keine Schritte; führ den Test aus, um sie zu sehen.
+**Simuliert** nennt die Schritte, für die der Test einspringt, jeweils mit einer simulierten Ausgabe, einem simulierten Fehler oder einem Szenario. **Nicht verwendet** nennt die Schritte, bei denen kein Aufruf verwendet hat, was der Test vorgibt: einen Schritt, den der Lauf übersprungen hat, oder einen, dessen Szenario zu keinem seiner Aufrufe passte und der stattdessen die übliche simulierte Antwort des Connectors erhielt. **Technische Details** zeigt die eigene Meldung der Engine. Ein Ergebnis aus der letzten Prüfung der Version behält keine Schritte; führ den Test aus, um sie zu sehen.
 
 ### Den Lauf eines Tests auf dem Canvas zeigen {#show-on-canvas}
 
@@ -109,4 +133,4 @@ Wähle einen Test, um ihn neben dem Canvas zu öffnen. Ein Test mit Ergebnis öf
 
 ## Ein Problem in einem Test beheben
 
-Tale prüft Tests so wie den Rest des Entwurfs. Ein Test, der nie bestehen kann, etwa weil er einen Schritt simuliert, den die Automatisierung nicht hat, oder ein unbekanntes Feld nennt, steht unter **Probleme** mit dem, was zu beheben ist. Wähle das Problem, um den Test an dieser Stelle in seinem YAML zu öffnen.
+Tale prüft Tests so wie den Rest des Entwurfs. Ein Test, der nie bestehen kann, etwa weil er einen Schritt simuliert, den die Automatisierung nicht hat, oder ein unbekanntes Feld nennt, steht unter **Probleme** mit dem, was zu beheben ist. Dort steht auch ein Test, der ein Szenario für einen Schritt wählt, den die Automatisierung nicht hat, eines wählt, das die Aktion des Schritts nicht mitliefert, oder für einen Schritt auf zwei Weisen einspringt. Bei einem Szenario, das die Aktion nicht mitliefert, nennt das Problem das ähnlichste und listet die Szenarien, die die Aktion mitliefert. Ein solcher Test kann erst laufen, wenn du ihn behebst. Wähle das Problem, um den Test an dieser Stelle in seinem YAML zu öffnen.

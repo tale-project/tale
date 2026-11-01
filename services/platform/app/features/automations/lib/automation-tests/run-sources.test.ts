@@ -85,6 +85,21 @@ describe('where a test run’s input starts from', () => {
     expect(benchOfTest({ mocks: { rates: { chf: 1 } } })).toEqual({
       mocks: { rates: { chf: 1 } },
     });
+    // A scenario pick travels with the rest, by its name; one that is not
+    // a name is left to the test's own checks.
+    expect(
+      benchOfTest({
+        failures: { notify: 'quota exceeded' },
+        scenarios: { post: 'channel_not_found', fetch: 3 },
+      }),
+    ).toEqual({
+      failures: { notify: 'quota exceeded' },
+      scenarios: { post: 'channel_not_found' },
+    });
+    expect(benchOfTest({ scenarios: { post: 'channel_not_found' } })).toEqual({
+      scenarios: { post: 'channel_not_found' },
+    });
+    expect(benchOfTest({ scenarios: { post: 3 } })).toBeUndefined();
   });
 
   it('remembers a test by its name, a run as the newest, and the rest by kind', () => {

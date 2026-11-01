@@ -4,14 +4,93 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 import { nodeVmRunner } from '../../runners/node-vm';
 import { memoryStore } from '../../selftest/memory-store';
+import { reasonFamily } from '../record/failure';
 import { createRecorder } from '../record/recorder';
-import { registerNodeType, setCodeRunner } from '../slots';
-import type { Automation, NodeDef, RunBench } from '../types';
+import type { StepFailure } from '../record/types';
+import {
+  type ConnectorScenario,
+  registerNodeType,
+  setCodeRunner,
+} from '../slots';
+import type { Automation, Json, NodeDef, RunBench, RunResult } from '../types';
 import { execute } from './index';
 
 /** Called by the `ping.send` mock on every call, so a test can act in the
  * middle of a run. */
 let onPing: (() => void) | undefined;
+
+/** What the live body of `sheet.read` throws: the error a live call raises
+ * when the service refuses it. */
+let liveError = new Error('no live failure was set');
+
+const TWO_ROWS: ConnectorScenario = {
+  name: 'two_rows',
+  kind: 'success',
+  description: 'The sheet has two rows.',
+  output: { rows: [{ n: 1 }, { n: 2 }] },
+};
+
+/** The scenarios `sheet.read` ships: answers for every call or for the Q3
+ * sheet only, and the errors a live call raises, with their statuses. */
+const SHEET_SCENARIOS: ConnectorScenario[] = [
+  TWO_ROWS,
+  {
+    name: 'q3_rows',
+    kind: 'success',
+    description: 'The Q3 sheet has one row.',
+    when: { sheet: 'Q3' },
+    output: { rows: [{ n: 3 }] },
+  },
+  {
+    name: 'q3_locked',
+    kind: 'error',
+    description: 'Someone else holds the Q3 sheet.',
+    when: { sheet: 'Q3' },
+    error: { message: 'the sheet is locked' },
+  },
+  {
+    name: 'rate_limited',
+    kind: 'error',
+    description: 'The service refuses: too many requests.',
+    error: { message: 'too many requests', status: 429 },
+  },
+  {
+    name: 'token_revoked',
+    kind: 'error',
+    description: 'The service refuses the credential.',
+    error: { message: 'the token was revoked', status: 401 },
+  },
+  {
+    name: 'no_access',
+    kind: 'error',
+    description: 'The credential may not read this sheet.',
+    error: { message: 'no access to this sheet', status: 403 },
+  },
+  {
+    name: 'no_such_sheet',
+    kind: 'error',
+    description: 'No sheet has this name.',
+    error: { message: 'no such sheet', status: 404 },
+  },
+  {
+    name: 'server_down',
+    kind: 'error',
+    description: 'The service fails on its side.',
+    error: { message: 'the service is down', status: 503 },
+  },
+  {
+    name: 'offline',
+    kind: 'error',
+    description: 'The service cannot be reached.',
+    error: { message: 'fetch failed' },
+  },
+  {
+    name: 'garbled',
+    kind: 'error',
+    description: 'The service answers what the action cannot read.',
+    error: { message: 'the service answered garbage' },
+  },
+];
 
 beforeAll(() => {
   setCodeRunner(nodeVmRunner());
@@ -69,6 +148,60 @@ beforeAll(() => {
         onPing?.();
         return { ok: true };
       },
+    },
+  });
+  registerNodeType({
+    type: 'sheet.read',
+    kind: 'connector',
+    outputKind: 'structured',
+    description: 'test connector: read a sheet (a read that ships scenarios)',
+    allowedFields: ['input'],
+    requiredFields: ['input'],
+    connector: {
+      name: 'sheet.read',
+      description: 'read a sheet',
+      inputSchema: {
+        type: 'object',
+        properties: { sheet: { type: 'string' } },
+        required: ['sheet'],
+        additionalProperties: false,
+      },
+      outputSignature: '{ rows: Array<{ n: number }> }',
+      hasEffect: false,
+      display: { connector: 'sheet' },
+      mock: () => ({ rows: [], answered: 'mock' }),
+      live: () => Promise.reject(liveError),
+      scenarios: SHEET_SCENARIOS,
+    },
+  });
+  registerNodeType({
+    type: 'sheet.append',
+    kind: 'connector',
+    outputKind: 'structured',
+    description: 'test connector: append a row (a write that ships scenarios)',
+    allowedFields: ['input'],
+    requiredFields: ['input'],
+    connector: {
+      name: 'sheet.append',
+      description: 'append a row',
+      inputSchema: { type: 'object' },
+      outputSignature: '{ row: number }',
+      hasEffect: true,
+      mock: () => ({ row: 1 }),
+      scenarios: [
+        {
+          name: 'appended',
+          kind: 'success',
+          description: 'The row is appended as the seventh.',
+          output: { row: 7 },
+        },
+        {
+          name: 'protected',
+          kind: 'refusal',
+          description: 'The sheet is protected.',
+          error: { message: 'the sheet is protected', status: 403 },
+        },
+      ],
     },
   });
 });
@@ -421,7 +554,7 @@ describe('a test replaces only the calls it names; everything else runs as writt
     expect(result.validation?.errors[0]).toMatchObject({
       code: 'BENCH_MOCK_ONLY',
       message:
-        'simulated outputs, simulated failures and narrower scopes apply to mock runs only',
+        'simulated outputs, simulated failures, picked scenarios and narrower scopes apply to mock runs only',
       at: { pointer: '/bench' },
     });
   });
@@ -807,6 +940,520 @@ describe('a run’s failure, as a reason', () => {
     expect(output.error?.failure).toMatchObject({
       reason: 'EXPR_READ_MISSING',
       at: { pointer: '/output' },
+    });
+  });
+});
+
+/** rows reads the sheet the input names; its output is the run's. */
+const ROWS = doc(
+  [{ id: 'rows', type: 'sheet.read', input: { sheet: '{{ input.sheet }}' } }],
+  { output: '{{ nodes.rows.output }}' },
+);
+
+/** What `sheet.read`'s mock answers a call no scenario answers. */
+const MOCK_ROWS = { rows: [], answered: 'mock' };
+
+/** A mock run that keeps its record. */
+const recorded = (d: Automation, bench: RunBench, input: unknown) =>
+  execute(d, {
+    input,
+    mode: 'mock',
+    bench,
+    recorder: createRecorder({ now: () => Date.now() }),
+  });
+
+/** A step's own record, not one of its items' or passes'. */
+const stepRecord = (result: RunResult, path: string) =>
+  result.record?.find(
+    (r) => r.key.path === path && r.key.item < 0 && r.key.pass < 0,
+  );
+
+/** A host for a live run that reaches nothing: the live body of
+ * `sheet.read` throws before it would use it. */
+function testHost() {
+  const notFetched = (): never => {
+    throw new Error('the test host performs no IO');
+  };
+  return {
+    config: {},
+    http: {
+      get: notFetched,
+      post: notFetched,
+      put: notFetched,
+      patch: notFetched,
+      delete: notFetched,
+    },
+    base64Encode: (s: string) => Buffer.from(s).toString('base64'),
+    base64Decode: (s: string) => Buffer.from(s, 'base64').toString('utf8'),
+  };
+}
+
+/** The error a live call raises when the service refuses it: its message,
+ * and the HTTP status the service answered with, when it answered. */
+function raised(message: string, status?: number): Error {
+  return Object.assign(
+    new Error(message),
+    status === undefined ? {} : { status },
+  );
+}
+
+/** The automation run live, with no bench: the live body of `sheet.read`
+ * throws `error`. */
+function runLive(d: Automation, error: Error, input: unknown) {
+  liveError = error;
+  return execute(d, {
+    input,
+    mode: 'live',
+    connectorHost: () => testHost(),
+    recorder: createRecorder({ now: () => Date.now() }),
+  });
+}
+
+/** A failure's cause: its family, its reason with its facts, and where in
+ * the document it happened — what two runs that fail the same way share,
+ * whatever their sentences say. */
+function causeIn(failure: StepFailure | undefined) {
+  return failure === undefined
+    ? undefined
+    : {
+        code: failure.code,
+        reason: failure.reason,
+        params: failure.params,
+        at: failure.at,
+      };
+}
+
+const causeOf = (result: RunResult) => causeIn(result.error?.failure);
+
+describe('a test picks a scenario its connector action ships, and it answers the call [AUTO-R78]', () => {
+  it('the scenario’s output answers in the mock’s place, and the node is marked mocked', async () => {
+    const result = await recorded(
+      ROWS,
+      { scenarios: { rows: 'two_rows' } },
+      { sheet: 'Q2' },
+    );
+    expect(result.status).toBe('success');
+    expect(result.output).toEqual({ rows: [{ n: 1 }, { n: 2 }] });
+    expect(result.trace).toMatchObject([
+      {
+        node: 'rows',
+        status: 'ok',
+        bench: 'mocked',
+        input: { sheet: 'Q2' },
+        output: { rows: [{ n: 1 }, { n: 2 }] },
+      },
+    ]);
+    expect(stepRecord(result, 'rows')?.meta.bench).toBe('mocked');
+    expect(result.unusedMocks).toBeUndefined();
+
+    // Without the pick, the action's mock answers, and nothing stands in.
+    const plain = await recorded(ROWS, {}, { sheet: 'Q2' });
+    expect(plain.output).toEqual(MOCK_ROWS);
+    expect(plain.trace[0]?.bench).toBeUndefined();
+    expect(stepRecord(plain, 'rows')?.meta.bench).toBeUndefined();
+  });
+
+  it('the call still meets its connector’s input schema before a scenario answers it', async () => {
+    const result = await run(
+      ROWS,
+      { scenarios: { rows: 'two_rows' } },
+      { sheet: 3 },
+    );
+    expect(result.status).toBe('error');
+    expect(result.error?.failure?.reason).toBe('CONNECTOR_INPUT_REFUSED');
+    expect(result.trace[0]?.bench).toBeUndefined();
+    expect(result.unusedMocks).toEqual(['rows']);
+  });
+
+  it('a write’s effect is recorded when its scenario answers, and not when the scenario fails it', async () => {
+    const d = doc(
+      [
+        {
+          id: 'save',
+          type: 'sheet.append',
+          input: { sheet: 'Q3', row: { n: '{{ input.n }}' } },
+        },
+      ],
+      { output: '{{ nodes.save.output }}' },
+    );
+    const appended = await run(
+      d,
+      { scenarios: { save: 'appended' } },
+      { n: 7 },
+    );
+    expect(appended.status).toBe('success');
+    expect(appended.output).toEqual({ row: 7 });
+    expect(appended.trace[0]?.bench).toBe('mocked');
+    expect(appended.effects).toEqual([
+      {
+        node: 'save',
+        connector: 'sheet.append',
+        input: { sheet: 'Q3', row: { n: 7 } },
+      },
+    ]);
+
+    const refused = await run(
+      d,
+      { scenarios: { save: 'protected' } },
+      { n: 7 },
+    );
+    expect(refused.status).toBe('error');
+    expect(refused.trace[0]?.bench).toBe('failed');
+    // The call failed: it wrote nothing.
+    expect(refused.effects).toEqual([]);
+  });
+
+  it('a run answers a copy of the shipped scenario: changing it changes neither the scenario nor the next run', async () => {
+    const pick: RunBench = { scenarios: { rows: 'two_rows' } };
+    const first = await run(ROWS, pick, { sheet: 'Q2' });
+    const answered = first.trace[0]?.output as { rows: [{ n: number }] };
+    answered.rows[0].n = 99;
+    answered.rows.push({ n: 3 });
+    expect(TWO_ROWS.output).toEqual({ rows: [{ n: 1 }, { n: 2 }] });
+
+    const second = await run(ROWS, pick, { sheet: 'Q2' });
+    expect(second.output).toEqual({ rows: [{ n: 1 }, { n: 2 }] });
+  });
+
+  it('a call whose input misses the scenario’s when runs the mock, and the pick goes unused', async () => {
+    const elsewhere = await recorded(
+      ROWS,
+      { scenarios: { rows: 'q3_rows' } },
+      { sheet: 'Q2' },
+    );
+    expect(elsewhere.status).toBe('success');
+    expect(elsewhere.output).toEqual(MOCK_ROWS);
+    expect(elsewhere.trace[0]?.bench).toBeUndefined();
+    expect(stepRecord(elsewhere, 'rows')?.meta.bench).toBeUndefined();
+    expect(elsewhere.unusedMocks).toEqual(['rows']);
+
+    const q3 = await run(
+      ROWS,
+      { scenarios: { rows: 'q3_rows' } },
+      { sheet: 'Q3' },
+    );
+    expect(q3.output).toEqual({ rows: [{ n: 3 }] });
+    expect(q3.trace[0]?.bench).toBe('mocked');
+    expect(q3.unusedMocks).toBeUndefined();
+
+    // An error's when holds the same way: another sheet reads as the mock.
+    const unlocked = await run(
+      ROWS,
+      { scenarios: { rows: 'q3_locked' } },
+      { sheet: 'Q2' },
+    );
+    expect(unlocked.status).toBe('success');
+    expect(unlocked.output).toEqual(MOCK_ROWS);
+    expect(unlocked.unusedMocks).toEqual(['rows']);
+  });
+
+  it('per item, only the items whose input matches get the scenario; the others get the mock', async () => {
+    const d = doc(
+      [
+        {
+          id: 'each',
+          type: 'sheet.read',
+          forEach: '{{ input.sheets }}',
+          input: { sheet: '{{ item }}' },
+        },
+      ],
+      { output: '{{ nodes.each.output }}' },
+    );
+    const result = await recorded(
+      d,
+      { scenarios: { each: 'q3_rows' } },
+      { sheets: ['Q2', 'Q3', 'Q4'] },
+    );
+    expect(result.status).toBe('success');
+    expect(result.output).toEqual([MOCK_ROWS, { rows: [{ n: 3 }] }, MOCK_ROWS]);
+    expect(result.trace[0]?.bench).toBe('mocked');
+    expect(stepRecord(result, 'each')?.meta.bench).toBe('mocked');
+    expect(result.unusedMocks).toBeUndefined();
+
+    const none = await run(
+      d,
+      { scenarios: { each: 'q3_rows' } },
+      { sheets: ['Q1', 'Q2'] },
+    );
+    expect(none.output).toEqual([MOCK_ROWS, MOCK_ROWS]);
+    expect(none.trace[0]?.bench).toBeUndefined();
+    expect(none.unusedMocks).toEqual(['each']);
+  });
+
+  it('a pick its node’s action does not ship is refused before anything runs', async () => {
+    const result = await run(
+      ROWS,
+      { scenarios: { rows: 'rate_limit' } },
+      { sheet: 'Q3' },
+    );
+    expect(result).toMatchObject({
+      status: 'invalid',
+      trace: [],
+      effects: [],
+      validation: {
+        errors: [
+          {
+            code: 'BENCH_UNKNOWN_SCENARIO',
+            at: { pointer: '/bench/scenarios/rows' },
+            params: {
+              node: 'rows',
+              type: 'sheet.read',
+              scenario: 'rate_limit',
+              scenarios: SHEET_SCENARIOS.map((s) => s.name),
+              suggestion: 'rate_limited',
+            },
+          },
+        ],
+        warnings: [],
+      },
+    });
+  });
+
+  it('a live run refuses a bench that picks a scenario', async () => {
+    const result = await execute(ROWS, {
+      input: { sheet: 'Q3' },
+      mode: 'live',
+      bench: { scenarios: { rows: 'two_rows' } },
+    });
+    expect(result.status).toBe('invalid');
+    expect(result.trace).toEqual([]);
+    expect(result.validation?.errors[0]).toMatchObject({
+      code: 'BENCH_MOCK_ONLY',
+      at: { pointer: '/bench' },
+    });
+  });
+});
+
+/** A scenario of `sheet.read`, the error a live call raises in its place,
+ * and the cause both name. */
+interface LiveFailureCase {
+  scenario: string;
+  message: string;
+  status?: number;
+  code: string;
+  reason: string;
+  /** The facts beside the connector and the action. */
+  facts: Record<string, Json>;
+}
+
+describe('a scenario’s error fails the step as the same live failure would [AUTO-R79]', () => {
+  it('a 429 is the rate limit a live call’s 429 is: the same reason, facts and family', async () => {
+    const simulated = await run(
+      ROWS,
+      { scenarios: { rows: 'rate_limited' } },
+      { sheet: 'Q3' },
+    );
+    const live = await runLive(ROWS, raised('too many requests', 429), {
+      sheet: 'Q3',
+    });
+    expect(simulated.status).toBe('error');
+    expect(live.status).toBe('error');
+    expect(causeOf(simulated)).toEqual(causeOf(live));
+    expect(causeOf(simulated)).toEqual({
+      code: 'connector_unavailable',
+      reason: 'CONNECTOR_RATE_LIMITED',
+      params: { connector: 'sheet', action: 'sheet.read', status: 429 },
+      at: { pointer: '/nodes/0' },
+    });
+    const failure = simulated.error?.failure;
+    expect(reasonFamily(String(failure?.reason), failure?.params)).toBe(
+      'connector_unavailable',
+    );
+  });
+
+  it.each<LiveFailureCase>([
+    {
+      scenario: 'token_revoked',
+      message: 'the token was revoked',
+      status: 401,
+      code: 'connector_error',
+      reason: 'CONNECTOR_AUTH',
+      facts: { status: 401 },
+    },
+    {
+      scenario: 'no_access',
+      message: 'no access to this sheet',
+      status: 403,
+      code: 'connector_error',
+      reason: 'CONNECTOR_AUTH',
+      facts: { status: 403 },
+    },
+    {
+      scenario: 'no_such_sheet',
+      message: 'no such sheet',
+      status: 404,
+      code: 'connector_error',
+      reason: 'CONNECTOR_NOT_FOUND',
+      facts: { status: 404 },
+    },
+    {
+      scenario: 'server_down',
+      message: 'the service is down',
+      status: 503,
+      code: 'connector_unavailable',
+      reason: 'CONNECTOR_FAILED',
+      facts: { status: 503, errorName: 'Error', detail: 'the service is down' },
+    },
+    {
+      scenario: 'offline',
+      message: 'fetch failed',
+      code: 'connector_unavailable',
+      reason: 'CONNECTOR_UNREACHABLE',
+      facts: {},
+    },
+    {
+      scenario: 'garbled',
+      message: 'the service answered garbage',
+      code: 'connector_error',
+      reason: 'CONNECTOR_FAILED',
+      facts: { errorName: 'Error', detail: 'the service answered garbage' },
+    },
+  ])(
+    '$scenario fails as the live call it simulates does: $reason',
+    async (c) => {
+      const simulated = await run(
+        ROWS,
+        { scenarios: { rows: c.scenario } },
+        { sheet: 'Q3' },
+      );
+      const live = await runLive(ROWS, raised(c.message, c.status), {
+        sheet: 'Q3',
+      });
+      expect(causeOf(simulated)).toEqual(causeOf(live));
+      expect(causeOf(simulated)).toEqual({
+        code: c.code,
+        reason: c.reason,
+        params: { connector: 'sheet', action: 'sheet.read', ...c.facts },
+        at: { pointer: '/nodes/0' },
+      });
+    },
+  );
+
+  it('the failure names the scenario and says the test simulated it', async () => {
+    const simulated = await recorded(
+      ROWS,
+      { scenarios: { rows: 'rate_limited' } },
+      { sheet: 'Q3' },
+    );
+    const message =
+      'too many requests (the "rate_limited" scenario of sheet.read, simulated by the test)';
+    expect(simulated.error).toMatchObject({
+      nodeId: 'rows',
+      message,
+      failure: { message },
+    });
+    expect(simulated.trace).toMatchObject([
+      {
+        node: 'rows',
+        status: 'error',
+        bench: 'failed',
+        input: { sheet: 'Q3' },
+        error: message,
+      },
+    ]);
+    expect(stepRecord(simulated, 'rows')).toMatchObject({
+      status: 'failed',
+      meta: { bench: 'failed' },
+      failure: { reason: 'CONNECTOR_RATE_LIMITED', message },
+    });
+
+    // The live call's failure says what the service said, and no test.
+    const live = await runLive(ROWS, raised('too many requests', 429), {
+      sheet: 'Q3',
+    });
+    expect(live.error?.message).toBe('live call failed: too many requests');
+    expect(live.trace[0]?.bench).toBeUndefined();
+    expect(stepRecord(live, 'rows')?.meta.bench).toBeUndefined();
+  });
+
+  it('onError treats a scenario’s failure as it treats the live one', async () => {
+    const d = doc(
+      [
+        {
+          id: 'rows',
+          type: 'sheet.read',
+          input: { sheet: '{{ input.sheet }}' },
+          onError: 'continue',
+        },
+        {
+          id: 'after',
+          type: 'transform',
+          input: { rows: '{{ nodes.rows.output.rows }}' },
+          code: 'return input.rows.length;',
+        },
+        { id: 'other', type: 'transform', code: 'return "ran";' },
+      ],
+      { output: '{{ nodes.other.output }}' },
+    );
+    const simulated = await recorded(
+      d,
+      { scenarios: { rows: 'rate_limited' } },
+      { sheet: 'Q3' },
+    );
+    const live = await runLive(d, raised('too many requests', 429), {
+      sheet: 'Q3',
+    });
+    for (const result of [simulated, live]) {
+      expect(result.status).toBe('success');
+      expect(result.output).toBe('ran');
+      expect(result.trace.map((e) => [e.node, e.status])).toEqual([
+        ['rows', 'error'],
+        ['after', 'skipped'],
+        ['other', 'ok'],
+      ]);
+      expect(result.trace[0]?.note).toBe(
+        'onError: continue — dependents are skipped',
+      );
+      expect(stepRecord(result, 'rows')).toMatchObject({
+        status: 'skipped',
+        skip: { reason: 'error' },
+        failure: { reason: 'CONNECTOR_RATE_LIMITED' },
+      });
+    }
+    expect(causeIn(stepRecord(simulated, 'rows')?.failure)).toEqual(
+      causeIn(stepRecord(live, 'rows')?.failure),
+    );
+  });
+
+  it('per item, onItemError treats a scenario’s failure as any failed item: it is null, the others run', async () => {
+    const d = doc(
+      [
+        {
+          id: 'each',
+          type: 'sheet.read',
+          forEach: '{{ input.sheets }}',
+          onItemError: 'continue',
+          input: { sheet: '{{ item }}' },
+        },
+      ],
+      { output: '{{ nodes.each.output }}' },
+    );
+    const result = await recorded(
+      d,
+      { scenarios: { each: 'q3_locked' } },
+      { sheets: ['Q2', 'Q3', 'Q4'] },
+    );
+    expect(result.status).toBe('success');
+    expect(result.output).toEqual([MOCK_ROWS, null, MOCK_ROWS]);
+    expect(result.trace[0]).toMatchObject({
+      status: 'ok',
+      bench: 'failed',
+      note: 'onItemError: continue — 1 of 3 items failed (item 1)',
+    });
+    expect(
+      result.record?.find((r) => r.key.path === 'each' && r.key.item === 1),
+    ).toMatchObject({
+      status: 'failed',
+      failure: {
+        code: 'connector_error',
+        reason: 'CONNECTOR_FAILED',
+        params: {
+          connector: 'sheet',
+          action: 'sheet.read',
+          errorName: 'Error',
+          detail: 'the sheet is locked',
+        },
+      },
     });
   });
 });

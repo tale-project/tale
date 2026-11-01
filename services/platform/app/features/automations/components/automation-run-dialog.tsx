@@ -413,8 +413,11 @@ export function AutomationRunDialog({
                       type: 'conjunction',
                     }).format(
                       [
-                        ...Object.keys(standIns.mocks ?? {}),
-                        ...Object.keys(standIns.failures ?? {}),
+                        ...new Set([
+                          ...Object.keys(standIns.mocks ?? {}),
+                          ...Object.keys(standIns.failures ?? {}),
+                          ...Object.keys(standIns.scenarios ?? {}),
+                        ]),
                       ].map(nodeTitle),
                     ),
                   })}

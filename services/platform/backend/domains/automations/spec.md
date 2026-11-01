@@ -343,8 +343,8 @@ saves.
 
 A version carries its own tests. A test runs the automation against the deterministic mocks
 with an input, and can stand in for what some of its nodes answer: an output a node returns
-instead of calling, or an error it fails with. Then it checks what the run did against what the
-test expects.
+instead of calling, an error it fails with, or a scenario its connector action ships. Then it
+checks what the run did against what the test expects.
 
 ### AUTO-R42 · A test replaces only the calls it names; everything else runs as written
 
@@ -361,14 +361,56 @@ mock runs only: a live run with one is refused (`BENCH_MOCK_ONLY`).
 
 ### AUTO-R43 · A test that cannot run fails; it is never skipped
 
-A test that stands in for a node the automation does not have, simulates both an output and a
-failure for one node, or gives an input the inputs schema refuses cannot run: it fails, with
-the reason (`BENCH_UNKNOWN_NODE`, `BENCH_CONFLICT`, `TESTS_INPUT_INVALID`). So does a test that
-runs longer than its 10 seconds; the tests a suite's 60 seconds do not reach are named as not
-run and count as failed.
+A test that stands in for a node the automation does not have, gives one node two stand-ins,
+picks a scenario the node's action does not ship, or gives an input the inputs schema refuses
+cannot run: it fails, with the reason (`BENCH_UNKNOWN_NODE`, `BENCH_CONFLICT`,
+`BENCH_UNKNOWN_SCENARIO`, `TESTS_INPUT_INVALID`). So does a test that runs longer than its 10
+seconds; the tests a suite's 60 seconds do not reach are named as not run and count as failed.
 
 - **Example**: Noah renames the node `fetch` to `list`. His test still simulates `fetch` → the
   test fails, saying it simulates "fetch", which is not a node of the automation.
+
+### AUTO-R78 · A test can pick a scenario its connector action ships for a step
+
+A connector action can ship scenarios: named answers of its service, such as an empty list, a
+refused write or a rate limit (`CONN-R33`). A test can pick one of them for a step that calls the
+action (`scenarios`), and so can an agent's run on stand-ins (`MCP-R34`). A call whose input holds
+every member of the scenario's `when`, with the same value, gets the scenario's answer; a scenario
+without `when` answers every call. An output becomes the step's output, marked as simulated, and a
+write still records what it would have sent; an error fails the step (`AUTO-R79`). Any other call
+gets the action's usual mock, and a step whose scenario no call took is named as not used. A step
+takes one stand-in: a simulated output, a simulated failure or a scenario (`BENCH_CONFLICT`). A
+scenario the step's action does not ship is refused, naming the closest one and those the action
+ships (`BENCH_UNKNOWN_SCENARIO`), and so is a scenario for a step the automation does not have
+(`BENCH_UNKNOWN_NODE`); checking the draft warns of each before a run (`TESTS_SCENARIO_UNKNOWN`,
+`TESTS_SCENARIO_CONFLICT`, `TESTS_MOCK_UNKNOWN_NODE`). Like every stand-in, a scenario applies to
+mock runs only (`BENCH_MOCK_ONLY`).
+
+- **Example**: Mia's automation posts to the Slack channel its input names, in the step *Post*.
+  Her test gives the channel `C0000000009` and picks `channel_not_found` for *Post* → *Post*
+  fails as Slack fails for a channel that does not exist. She gives `C0000000001` instead →
+  *Post* gets the usual mock answer, and the result names *Post* as not used.
+- **Example**: Noah's test picks `channel_not_fund` for *Post* → the test cannot run, and the
+  reason names `channel_not_found` as the closest of the scenarios `slack.send_message` ships.
+
+### AUTO-R79 · A scenario's error fails the step as the same live failure would
+
+A scenario that answers with an error fails the step with the cause a live call gets when its
+service fails that way. The status the error names decides: 401 or 403 is refused access
+(`CONNECTOR_AUTH`), 404 not found (`CONNECTOR_NOT_FOUND`) and 429 rate limited
+(`CONNECTOR_RATE_LIMITED`); without one, a message saying the service could not be reached is
+unreachable (`CONNECTOR_UNREACHABLE`), and any other error is a failed call (`CONNECTOR_FAILED`),
+on the service's own side when its status is 500 or more. So the step's error handling, the
+failure the step records, and whether that failure is a connector error or an unavailable
+service (`AUTO-R13`) are those of a live run. The step's message is the scenario's own, followed
+by the scenario and its action, and says the test simulated it.
+
+- **Example**: Noah's step *Find* looks a contact up in a CRM and has `onError: continue`. His
+  test picks a scenario of its action that fails with status 429 → *Find* fails as rate limited,
+  the run goes on past it as a live run would, and *Find*'s message names the scenario and says
+  the test simulated it.
+- **Example**: Slack's `rate_limited` scenario names no status, as Slack's live call reports none
+  → a step that picks it fails as a failed call, as the live call does, not as rate limited.
 
 ### AUTO-R50 · A version keeps what its latest test check found, and who made it
 

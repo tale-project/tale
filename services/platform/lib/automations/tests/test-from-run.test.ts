@@ -366,34 +366,43 @@ describe('a run that failed', () => {
     expect((await judged(WELCOME, built.test)).pass).toBe(true);
   });
 
-  it('keeps a failure the run went on from, without what a test added to its words', () => {
-    const run: RunForTest = {
-      ...LIVE,
-      checkpoints: {
-        nodes: {
-          ...(LIVE.checkpoints as { nodes: Record<string, unknown> }).nodes,
-          send: {
-            status: 'skipped',
-            reason: 'error',
-            output: null,
-            trace: {
-              node: 'send',
-              type: 'mail.send',
-              status: 'error',
-              error: 'timeout (simulated by the test)',
+  it.each([
+    ['a simulated failure', 'timeout (simulated by the test)'],
+    [
+      'a scenario it picked',
+      'timeout (the "timed_out" scenario of mail.send, simulated by the test)',
+    ],
+  ])(
+    'keeps a failure the run went on from, without what %s added to its words',
+    (_what, error) => {
+      const run: RunForTest = {
+        ...LIVE,
+        checkpoints: {
+          nodes: {
+            ...(LIVE.checkpoints as { nodes: Record<string, unknown> }).nodes,
+            send: {
+              status: 'skipped',
+              reason: 'error',
+              output: null,
+              trace: {
+                node: 'send',
+                type: 'mail.send',
+                status: 'error',
+                error,
+              },
+              effects: [],
             },
-            effects: [],
           },
+          executions: 4,
         },
-        executions: 4,
-      },
-    };
-    const built = testFromRun({ run, document: WELCOME });
-    expect(built.test.failures).toEqual({ send: 'timeout' });
-    expect(
-      simulationCandidates(run, WELCOME).find((c) => c.node === 'send'),
-    ).toMatchObject({ standIn: 'failure', defaultOn: true });
-  });
+      };
+      const built = testFromRun({ run, document: WELCOME });
+      expect(built.test.failures).toEqual({ send: 'timeout' });
+      expect(
+        simulationCandidates(run, WELCOME).find((c) => c.node === 'send'),
+      ).toMatchObject({ standIn: 'failure', defaultOn: true });
+    },
+  );
 
   it('cuts a failure to what a document keeps', () => {
     const long = 'x'.repeat(BENCH_LIMITS.failureChars + 500);

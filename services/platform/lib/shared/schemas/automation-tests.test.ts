@@ -94,6 +94,20 @@ beforeAll(() => {
       outputSignature: '{ ok: boolean }',
       hasEffect: true,
       mock: () => ({ ok: true }),
+      scenarios: [
+        {
+          name: 'sent',
+          kind: 'success',
+          description: 'The probe arrives.',
+          output: { ok: true },
+        },
+        {
+          name: 'refused',
+          kind: 'refusal',
+          description: 'The receiver refuses probes.',
+          error: { message: 'the receiver refuses probes', status: 403 },
+        },
+      ],
     },
   });
 });
@@ -346,6 +360,23 @@ describe('the test grammar', () => {
     );
   });
 
+  it.each<[string, unknown, boolean]>([
+    ['picked for a node', { a: 'found' }, true],
+    ['picked for none', {}, true],
+    ['with the longest name', { a: long(50) }, true],
+    ['with a name too long', { a: long(51) }, false],
+    ['with a name that is no text', { a: 1 }, false],
+    ['in a list', ['found'], false],
+    ['null', null, false],
+  ])(
+    'reads scenarios %s as the engine check does [AUTO-R78]',
+    async (_label, scenarios, accepted) => {
+      const test = { name: 's', input: {}, scenarios };
+      expect(automationTestSchema.safeParse(test).success).toBe(accepted);
+      expect(await engineAccepts(test)).toBe(accepted);
+    },
+  );
+
   it('keeps the members a test does not define, and reads as the engine type', () => {
     const parsed: AutomationTest = automationTestSchema.parse({
       name: 'kept',
@@ -381,6 +412,32 @@ describe('the test grammar', () => {
       { failures: { notify: long(BENCH_LIMITS.failureChars + 1) } },
       { test: { name: 'x', extra: 1 } },
       { only: long(51) },
+    ]) {
+      expect(runBenchSchema.safeParse(refused).success).toBe(false);
+    }
+  });
+
+  it('takes the scenarios a test picks into the bench it runs with, each name as long as a scenario’s may be [AUTO-R78]', () => {
+    const test: AutomationTest = automationTestSchema.parse({
+      name: 'picks',
+      input: { n: 1 },
+      mocks: { double: { n: 2 } },
+      scenarios: { notify: 'refused' },
+    });
+    const bench: RunBench = runBenchSchema.parse(wire(benchFromTest(test, 2)));
+    expect(bench).toEqual({
+      mocks: { double: { n: 2 } },
+      scenarios: { notify: 'refused' },
+      test: { name: 'picks', index: 2 },
+    });
+    expect(
+      runBenchSchema.safeParse({ scenarios: { notify: long(50) } }).success,
+    ).toBe(true);
+    for (const refused of [
+      { scenarios: { notify: long(51) } },
+      { scenarios: { notify: 1 } },
+      { scenarios: ['refused'] },
+      { scenarios: null },
     ]) {
       expect(runBenchSchema.safeParse(refused).success).toBe(false);
     }
@@ -573,6 +630,39 @@ describe('a run made in one call', () => {
     const parsed = transientRunSchema.parse(answer);
     expect(parsed.status).toBe('invalid');
     expect(parsed.validation?.errors[0]?.code).toBe('BENCH_UNKNOWN_NODE');
+  });
+
+  it('parses a run on the scenarios it picks, its mark and its classified failure included [AUTO-R78]', async () => {
+    const sent = await tried({ scenarios: { notify: 'sent' } });
+    const parsed = transientRunSchema.parse(sent);
+    expect(parsed.status).toBe('success');
+    expect(parsed.trace.find((entry) => entry.node === 'notify')?.bench).toBe(
+      'mocked',
+    );
+    expect(parsed).toEqual(sent);
+    const refused = await tried({ scenarios: { notify: 'refused' } });
+    expect(transientRunSchema.parse(refused)).toEqual(refused);
+    expect(transientRunSchema.parse(refused).error?.failure).toMatchObject({
+      reason: 'CONNECTOR_AUTH',
+      params: { connector: 'probe.send', action: 'probe.send', status: 403 },
+    });
+  });
+
+  it('parses a scenario the run refused, with the closest and those the action ships [AUTO-R78]', async () => {
+    const answer = await tried({ scenarios: { notify: 'sendt' } });
+    const parsed = transientRunSchema.parse(answer);
+    expect(parsed.status).toBe('invalid');
+    expect(parsed.validation?.errors[0]).toMatchObject({
+      code: 'BENCH_UNKNOWN_SCENARIO',
+      at: { pointer: '/bench/scenarios/notify' },
+      params: {
+        node: 'notify',
+        scenario: 'sendt',
+        scenarios: ['sent', 'refused'],
+        suggestion: 'sent',
+      },
+    });
+    expect(parsed).toEqual(answer);
   });
 });
 

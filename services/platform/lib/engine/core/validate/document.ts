@@ -159,15 +159,19 @@ const NODE_STATES: ReadonlySet<unknown> = new Set(['ran', 'skipped', 'failed']);
 /** The longest message a simulated failure may carry. */
 const MAX_FAILURE_MESSAGE = 2000;
 
+/** The longest name of a scenario a connector action ships. */
+const MAX_SCENARIO_NAME = 50;
+
 /** The grammar a malformed test is pointed to. */
 const TEST_GRAMMAR =
-  'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}';
+  'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, scenarios?: {<node>: <scenario name>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}';
 
 /** Which part of a test is malformed — what a localized sentence names. */
 type TestPart =
   | 'description'
   | 'mocks'
   | 'failures'
+  | 'scenarios'
   | 'effects'
   | 'effect'
   | 'effectInput'
@@ -253,7 +257,7 @@ function malformed(
 }
 
 /** A test's description and its stand-ins: text, and maps from node ids to
- * outputs and to failure messages. */
+ * outputs, to failure messages and to scenario names. */
 function validateStandIns(
   i: number,
   t: Record<string, unknown>,
@@ -295,6 +299,26 @@ function validateStandIns(
           entry === undefined
             ? ptr('tests', i, 'failures')
             : ptr('tests', i, 'failures', entry[0]),
+        ),
+      );
+    }
+  }
+  if (t.scenarios !== undefined) {
+    const entry = isRecord(t.scenarios)
+      ? Object.entries(t.scenarios).find(
+          ([, name]) =>
+            typeof name !== 'string' || name.length > MAX_SCENARIO_NAME,
+        )
+      : undefined;
+    if (!isRecord(t.scenarios) || entry !== undefined) {
+      issues.push(
+        malformed(
+          i,
+          'scenarios',
+          `tests[${i}].scenarios must map node ids to the name of a scenario each node's connector action ships, as text of at most ${MAX_SCENARIO_NAME} characters`,
+          entry === undefined
+            ? ptr('tests', i, 'scenarios')
+            : ptr('tests', i, 'scenarios', entry[0]),
         ),
       );
     }

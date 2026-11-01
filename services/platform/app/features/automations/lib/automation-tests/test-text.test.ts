@@ -145,6 +145,16 @@ describe('a test row in words', () => {
         en,
       ),
     ).toEqual(['Simulates 2 nodes', 'Simulates 1 failure']);
+    // A node it picks a scenario for is simulated too, and counted once.
+    expect(
+      testBadges(
+        {
+          mocks: { fetch: [] },
+          scenarios: { post: 'channel_not_found', fetch: 'empty' },
+        },
+        en,
+      ),
+    ).toEqual(['Simulates 2 nodes']);
     expect(testBadges({ name: 'plain' }, en)).toEqual([]);
     expect(testBadges(null, en)).toEqual([]);
   });
