@@ -141,6 +141,30 @@ export interface ConversationViewer {
   organizationId: string;
   userId: string;
   role: string;
+  /** Stable source ownership for API-key integrations. App callers and
+   * personal API keys omit this and use the user identity below. */
+  sourceOwner?: ConversationSourceOwner;
+}
+
+export const CONVERSATION_SOURCE_OWNER_KINDS = [
+  'user',
+  'member',
+  'team',
+  'project',
+  'organization',
+] as const;
+export type ConversationSourceOwnerKind =
+  (typeof CONVERSATION_SOURCE_OWNER_KINDS)[number];
+
+export interface ConversationSourceOwner {
+  kind: ConversationSourceOwnerKind;
+  id: string;
+}
+
+export function sourceOwnerOf(
+  viewer: ConversationViewer,
+): ConversationSourceOwner {
+  return viewer.sourceOwner ?? { kind: 'user', id: viewer.userId };
 }
 
 export function viewerIsAdmin(role: string): boolean {
