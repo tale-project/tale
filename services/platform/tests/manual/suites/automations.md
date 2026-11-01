@@ -1019,12 +1019,19 @@ output:
       an agent to sign in — and a prompt that asks the agent to create one
       (`codingAgent.prompt.create`) with **[Describe what it should do.]**
       marked and the hint to replace it. The item is second in the menu, after
-      **From a template**, on the organization's list and on a project's. With
-      agent sign-in switched off (`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` and
+      **From a template**, on the organization's list and on a project's. On a
+      project's list the prompt names that project and has the agent save with
+      `projectId` set to its ID (`codingAgent.prompt.createInProject`; the ID
+      alone, `codingAgent.prompt.createInProjectById`, while the project's name
+      cannot be read). With agent sign-in switched off
+      (`TALE_MCP_DYNAMIC_CLIENT_REGISTRATION` and
       `TALE_MCP_CLIENT_METADATA_DOCUMENTS` both `false`) the dialog shows **Set
-      up MCP** and **How to connect a coding agent** and no name to copy. Give
-      the prompt to a connected agent → it saves a first version of a new
-      automation, which then appears in the list; it asks before it deploys.
+      up MCP** and **How to connect a coding agent** and no name to copy; on a
+      project's list it also shows **ID of this project**
+      (`automations.codingAgent.projectLabel`) to copy. Give the prompt to a
+      connected agent → it saves a first version of a new automation, which
+      then appears in the list (from a project's list, in that project's); it
+      asks before it deploys.
 - [ ] `AUTO-F90` · **Expand a node's Code field, edit, then go back** →
       **Expand editor** (`codeEditor.expand`) opens the larger editor; **Back
       to the field** (`codeEditor.collapse`) returns with the edit in place and
