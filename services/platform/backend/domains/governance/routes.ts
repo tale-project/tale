@@ -26,6 +26,7 @@ import {
   readGovernancePolicyForOrg,
   resolveOrgSlug,
 } from '../../lib/org-config.ts';
+import { personalKeysStandingOf } from '../api_keys/personal-keys.ts';
 import { projectChatAccess } from '../chat/threads.ts';
 import { ContactError } from '../contacts/service.ts';
 import { syncRagDocumentScope } from '../knowledge/service.ts';
@@ -101,6 +102,7 @@ const STRICT_READ_POLICIES: ReadonlySet<string> = new Set([
   'image_generation',
   'standard_agent',
   'chat_tools',
+  'personal_keys',
 ]);
 
 export function createGovernanceRoutes(deps: {
@@ -558,12 +560,14 @@ export function createGovernanceRoutes(deps: {
    * and revoke the ones they hold after the right lapsed. A session bound to
    * this organization alone (single sign-on, an authenticating proxy) makes
    * a key that works here alone, so the rule is read for this organization:
-   * a role or a grant in another one does not count.
+   * a role or a grant in another one does not count. `personalKeys` says
+   * whether this organization lets members' own keys in (APIKEY-R12), so the
+   * tab can tell a member whose keys it refuses.
    */
   app.get('/my/api-keys', async (c) => {
     const { user, session } = c.get('sessionBundle');
     const organizationId = c.get('orgId');
-    const [mayCreate, holdsKeys] = await Promise.all([
+    const [mayCreate, holdsKeys, personalKeys] = await Promise.all([
       sessionOrganizationId(session) === organizationId
         ? mayConnectAgentIn(deps.sql, {
             organizationId,
@@ -572,8 +576,9 @@ export function createGovernanceRoutes(deps: {
           })
         : mayCreateApiKeys(deps.sql, user.id),
       holdsApiKeys(deps.sql, user.id, organizationId),
+      personalKeysStandingOf(deps.sql, organizationId),
     ]);
-    return c.json({ mayCreate, holdsKeys });
+    return c.json({ mayCreate, holdsKeys, personalKeys });
   });
 
   /**
