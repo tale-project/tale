@@ -66750,7 +66750,7 @@ async function main(): Promise<void> {
       ['checkSandboxSessions', () => checkSandboxSessions(sql, authCtx)],
       [
         'checkSandboxLifecycle',
-        () => checkSandboxLifecycle(sql, authCtx, record),
+        () => checkSandboxLifecycle(sql, boss, authCtx, record),
       ],
       [
         'checkSandboxRetiredTablesDropped',

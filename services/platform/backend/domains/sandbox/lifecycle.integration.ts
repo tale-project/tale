@@ -3,10 +3,14 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import { setTimeout as delay } from 'node:timers/promises';
 
+import type { PgBoss } from 'pg-boss';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { createSql } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
+import { startWorker } from '../../jobs/runner.ts';
+import { createTaskList } from '../../jobs/task-list.ts';
+import { physicalTaskQueue } from '../../jobs/tasks.ts';
 import { agentTurnShimHandlers } from '../tasks/agent-turn-shim.ts';
 import { crawlHandlers } from '../websites/service.ts';
 import { lockOrgAdmission } from './admission-lock.ts';
@@ -49,6 +53,7 @@ function barrier() {
 
 export async function checkSandboxLifecycle(
   sql: Sql,
+  boss: PgBoss,
   ctx: { orgId: string; userId: string },
   record: (name: string, ok: boolean, detail: string) => void,
 ): Promise<void> {
@@ -492,7 +497,9 @@ export async function checkSandboxLifecycle(
     );
 
     await checkLifecycleDurability(sql, first, ctx, record);
-    await checkDestroyAdmission(sql, first, second, waitsForLock, ctx, record);
+    await withoutDestroyWorker(sql, boss, () =>
+      checkDestroyAdmission(sql, first, second, waitsForLock, ctx, record),
+    );
   } finally {
     for (const item of gates) item.release();
     await Promise.all([first.end({ timeout: 1 }), second.end({ timeout: 1 })]);
@@ -713,6 +720,38 @@ async function admission(attempt: Promise<unknown>): Promise<string> {
 }
 
 /**
+ * Run `check` with the real `sandbox.destroy_session` worker stopped. A
+ * request queues its job due at once, and the Destroy admission check parks
+ * it a day out only after the request has committed: a notify-driven worker
+ * can take it in between and run the teardown, which fails at once without
+ * SANDBOX_TOKEN and leaves an attempt running or retrying where the check
+ * reads a pending one. Stop only this queue, as the workflow lanes stop
+ * theirs; every other real worker stays available.
+ */
+async function withoutDestroyWorker(
+  sql: Sql,
+  boss: PgBoss,
+  check: () => Promise<void>,
+): Promise<void> {
+  const queue = 'sandbox.destroy_session';
+  const handler = createTaskList({ sql })[queue];
+  if (handler === undefined) throw new Error(`no handler for ${queue}`);
+  let fenced = false;
+  try {
+    await boss.offWork(physicalTaskQueue(queue), { wait: true });
+    fenced = true;
+    await check();
+  } finally {
+    if (fenced)
+      await startWorker({
+        boss,
+        concurrency: 4,
+        taskList: { [queue]: handler },
+      });
+  }
+}
+
+/**
  * A Destroy that is queued, retrying or running closes its row to new work.
  * Its retry can come a quarter to half an hour after the request, and checks
  * only that the row is still the one it was asked for: a resume keeps the
@@ -721,7 +760,8 @@ async function admission(attempt: Promise<unknown>): Promise<string> {
  * admission (`reserveSessionSlot`, `resumeSessionSlot`, under the
  * organization's admission lock) refuses the session until the Destroy has
  * settled, and the request takes the same lock. A pending Destroy here is a
- * real queue row whose next attempt is a day away, so no worker takes it.
+ * real queue row whose next attempt is a day away, and the queue's worker is
+ * stopped meanwhile ({@link withoutDestroyWorker}), so no worker takes it.
  */
 async function checkDestroyAdmission(
   sql: Sql,
