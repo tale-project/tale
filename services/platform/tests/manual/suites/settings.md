@@ -1412,7 +1412,7 @@ Restore any toggled setting after the run.
   blocked inline (`settings.apiKeys.form.nameRequired`), no row appears after
   reload; the revoked key is rejected (401/403) — it no longer authenticates
   the REST or MCP endpoint.
-- [ ] `SET-B47` · **Who turns members' personal keys off, and a setting
+- [ ] `SET-B49` · **Who turns members' personal keys off, and a setting
   that cannot be read** — Signed in as a Member and as a Developer in turn,
   run in the console, with the `orgId` of any `…?orgId=` request in DevTools
   → Network, `fetch('/api/app/governance/policies/personal_keys?orgId={orgId}',
