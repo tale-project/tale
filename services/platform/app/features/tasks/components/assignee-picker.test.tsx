@@ -27,6 +27,48 @@ let mockProjectResolved = true;
 // Whether the organization's standard agent would take work for this viewer.
 let mockStandardAgentAvailable = false;
 
+// The people are searched on the server for what is typed
+// (`useAssignableMembers`): the picker offers what the search found.
+const ALEX: AssignableActor = {
+  type: 'user',
+  id: 'user-1',
+  name: 'Alex',
+  email: 'alex@example.com',
+};
+interface PeopleFound {
+  members: AssignableActor[];
+  more: boolean;
+  searching: boolean;
+  unavailable: boolean;
+}
+const PEOPLE: PeopleFound = {
+  members: [ALEX],
+  more: false,
+  searching: false,
+  unavailable: false,
+};
+let mockPeople: PeopleFound = PEOPLE;
+/** What each render searched the people for. */
+const peopleSearches: Array<{
+  projectId: string | undefined;
+  query: string;
+  access: string;
+  chosenUserId: string | undefined;
+}> = [];
+
+vi.mock('../hooks/use-assignable-members', () => ({
+  useAssignableMembers: (
+    _organizationId: string,
+    projectId: string | undefined,
+    query: string,
+    access: string,
+    chosenUserId?: string,
+  ) => {
+    peopleSearches.push({ projectId, query, access, chosenUserId });
+    return mockPeople;
+  },
+}));
+
 const { mockMutation, mockToast } = vi.hoisted(() => ({
   mockMutation: vi.fn(),
   mockToast: vi.fn(),
@@ -48,9 +90,6 @@ vi.mock('../hooks/use-actor-directory', () => ({
   }),
   useAssignableActors: (_organizationId: string, projectId?: string) => ({
     subjectEntries: [],
-    assignableMembers: [
-      { type: 'user', id: 'user-1', name: 'Alex', email: 'alex@example.com' },
-    ],
     assignableAgents:
       projectId === undefined
         ? []
@@ -149,6 +188,109 @@ describe('AssigneePicker', () => {
     mockCanAddAgents = true;
     mockProjectResolved = true;
     mockStandardAgentAvailable = false;
+    mockPeople = PEOPLE;
+    peopleSearches.length = 0;
+  });
+
+  it('searches the people for what is typed, among those a task here may be assigned to', async () => {
+    const { user, open, onAssign } = renderPicker();
+    await open();
+    expect(peopleSearches.at(-1)).toEqual({
+      projectId: 'project-1',
+      query: '',
+      access: 'read',
+      chosenUserId: undefined,
+    });
+    expect(screen.getByText('tasks.assignee.assignToMe')).toBeInTheDocument();
+
+    await user.type(
+      screen.getByRole('combobox', { name: 'tasks.assignee.search' }),
+      'ale',
+    );
+    expect(peopleSearches.at(-1)).toEqual({
+      projectId: 'project-1',
+      query: 'ale',
+      access: 'read',
+      chosenUserId: undefined,
+    });
+    await user.click(screen.getByText('Alex'));
+    expect(onAssign).toHaveBeenCalledWith('user', 'user-1');
+  });
+
+  it('keeps the assignee offered, and marked, whatever page the search found', async () => {
+    // Sam was found on no page: the search keeps them offered after the
+    // viewer because the picker names them as its choice.
+    const SAM: AssignableActor = {
+      type: 'user',
+      id: 'user-7',
+      name: 'Sam',
+      email: 'sam@example.com',
+    };
+    mockPeople = { ...PEOPLE, members: [ALEX, SAM] };
+    const { open } = renderPicker({
+      assigneeType: 'user',
+      assigneeId: 'user-7',
+    });
+    await open();
+    expect(peopleSearches.at(-1)).toEqual({
+      projectId: 'project-1',
+      query: '',
+      access: 'read',
+      chosenUserId: 'user-7',
+    });
+    expect(screen.getByRole('option', { name: /Sam/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByRole('option', { name: /Alex/ })).toHaveAttribute(
+      'aria-selected',
+      'false',
+    );
+  });
+
+  it('asks the search to keep no one for an agent assignee', async () => {
+    const { open } = renderPicker({
+      assigneeType: 'agent',
+      assigneeId: 'research-bot',
+    });
+    await open();
+    expect(peopleSearches.at(-1)?.chosenUserId).toBeUndefined();
+    expect(
+      screen.getByRole('option', { name: /Research Bot/ }),
+    ).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('says it is searching while what is typed has no answer yet', async () => {
+    mockPeople = { ...PEOPLE, members: [], searching: true };
+    mockDirectoryAgents = [];
+    const { user, open } = renderPicker();
+    await open();
+    await user.type(
+      screen.getByRole('combobox', { name: 'tasks.assignee.search' }),
+      'zed',
+    );
+    expect(screen.getByText('common.actions.loading')).toBeInTheDocument();
+    expect(
+      screen.queryByText('common.search.noResults'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('says when more people match than it shows, and when the search failed', async () => {
+    mockPeople = { ...PEOPLE, more: true };
+    const first = renderPicker();
+    await first.open();
+    expect(screen.getByText('common.peopleSearch.more')).toBeInTheDocument();
+    first.unmount();
+
+    mockPeople = { ...PEOPLE, members: [], unavailable: true };
+    const second = renderPicker();
+    await second.open();
+    expect(
+      screen.getByText('common.peopleSearch.unavailable'),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText('common.peopleSearch.more'),
+    ).not.toBeInTheDocument();
   });
 
   it('offers a reader the organization’s standard agent in a project without agents, and assigns it once added', async () => {

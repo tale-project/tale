@@ -28,31 +28,35 @@ const MEMBERS = [
     role: 'admin',
   },
 ];
+/** A member as the lookup and the search answer it. */
+function found(member: (typeof MEMBERS)[number]) {
+  return {
+    _id: `member-${member.userId}`,
+    userId: member.userId,
+    role: member.role,
+    createdAt: 0,
+    displayName: member.displayName,
+    email: member.email,
+  };
+}
 const READS: Record<string, unknown> = {
-  'members/queries:listByOrganization': MEMBERS,
+  'members/queries:searchMembers': {
+    members: MEMBERS.map(found),
+    isDone: true,
+  },
   'automations/queries:listAutomations': [],
   'projects/queries:listProjectAgents': [],
-  'projects/queries:listAccessibleUserIds': { orgWide: true, userIds: [] },
   'projects/queries:getProject': { canEdit: true },
   'projects/queries:getStandardAgent': { available: false },
 };
 const CANDIDATE_READS = [
-  'projects/queries:listAccessibleUserIds',
+  'members/queries:searchMembers',
   'projects/queries:getProject',
   'projects/queries:getStandardAgent',
 ] as const;
 /** The member lookup's answer for one person: the member with that id. */
 function lookedUp(args: { userId?: string }) {
-  return MEMBERS.filter((member) => member.userId === args.userId).map(
-    (member) => ({
-      _id: `member-${member.userId}`,
-      userId: member.userId,
-      role: member.role,
-      createdAt: 0,
-      displayName: member.displayName,
-      email: member.email,
-    }),
-  );
+  return MEMBERS.filter((member) => member.userId === args.userId).map(found);
 }
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: (name: string, args: unknown) =>
@@ -202,8 +206,8 @@ describe('board cards and the board directory', () => {
     for (const read of CANDIDATE_READS) {
       expect(observerCount(client, read), read).toBe(0);
     }
-    // The board names its people through the member lookup, and reads every
-    // member only for a picker.
+    // The board names its people through the member lookup, and searches
+    // them only for a picker: nothing reads every member.
     await waitFor(() =>
       expect(observerCount(client, 'members/queries:lookupMember')).toBe(1),
     );
@@ -219,9 +223,7 @@ describe('board cards and the board directory', () => {
     for (const read of CANDIDATE_READS) {
       expect(observerCount(client, read), read).toBeGreaterThan(0);
     }
-    expect(
-      observerCount(client, 'members/queries:listByOrganization'),
-    ).toBeGreaterThan(0);
+    expect(observerCount(client, 'members/queries:listByOrganization')).toBe(0);
     expect(
       screen.getByRole('option', { name: /Ava Editor/ }),
     ).toBeInTheDocument();

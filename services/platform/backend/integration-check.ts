@@ -154,6 +154,7 @@ import {
 } from './domains/knowledge_entries/write-races.integration.ts';
 import { checkMemberAccountAuthority } from './domains/members/authority.integration.ts';
 import { checkMemberLookup } from './domains/members/lookup.integration.ts';
+import { checkMemberSearch } from './domains/members/search.integration.ts';
 import {
   markAllRead,
   READ_ALL_SETTLE_MS,
@@ -28192,6 +28193,8 @@ async function checkCollabMentions(
   const directory = await buildMentionDirectory(sql, {
     organizationId: orgId,
     projectId,
+    // A directory reads the members a text names: the ones checked below.
+    named: { userIds: [teammate], handles: ['pr.reviewer'] },
   });
   // The agent answers to its older name form as well as its handle.
   const resolvedReviewer = directory.index.resolve('pr.reviewer');
@@ -68051,6 +68054,7 @@ async function main(): Promise<void> {
         () => checkMemberAccountAuthority(sql, auth, baseUrl, record),
       ],
       ['checkMemberLookup', () => checkMemberLookup(sql, record)],
+      ['checkMemberSearch', () => checkMemberSearch(sql, record)],
     ]);
   } catch (error) {
     // A throw BEFORE the lanes (setup, the pre-session checks) is a

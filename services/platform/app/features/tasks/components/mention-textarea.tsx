@@ -43,6 +43,23 @@ interface MentionTextareaProps extends Omit<
 
 const NO_MENTION_OPTIONS: readonly MentionActorOption[] = [];
 
+/** Whether the people handed over answer what is typed after `@`, and
+ * whether they are all who do. */
+interface CandidatesState {
+  /** They do not answer what is typed yet. */
+  searching: boolean;
+  /** They could not be searched: none offered is no answer. */
+  unavailable: boolean;
+  /** More match than are offered. */
+  more: boolean;
+}
+
+const SEARCHING: CandidatesState = {
+  searching: true,
+  unavailable: false,
+  more: false,
+};
+
 function sameOptions(
   a: readonly MentionActorOption[],
   b: readonly MentionActorOption[],
@@ -59,21 +76,30 @@ function sameOptions(
   );
 }
 
-/** Reads the mention candidates for a field that has been focused, and hands
- *  them to it. */
+/** Reads the mention candidates for a field that has been focused, for what
+ *  is typed after `@` in it, and hands them to it. */
 function MentionOptionsSource({
   organizationId,
   projectId,
+  query,
   onOptions,
 }: {
   organizationId: string;
   projectId: string;
-  onOptions: (options: readonly MentionActorOption[]) => void;
+  query: string;
+  onOptions: (
+    options: readonly MentionActorOption[],
+    state: CandidatesState,
+  ) => void;
 }) {
-  const options = useMentionActorOptions(organizationId, projectId);
+  const { options, searching, unavailable, more } = useMentionActorOptions(
+    organizationId,
+    projectId,
+    query,
+  );
   useEffect(() => {
-    onOptions(options);
-  }, [options, onOptions]);
+    onOptions(options, { searching, unavailable, more });
+  }, [options, searching, unavailable, more, onOptions]);
   return null;
 }
 
@@ -97,20 +123,37 @@ function MentionTextareaContent({
   ...fieldProps
 }: MentionTextareaProps) {
   const { t } = useT('tasks');
+  const { t: tCommon } = useT('common');
   const index = useTaskMentionActors(organizationId, projectId);
   const pending = useTaskMentionsPending(organizationId, projectId);
 
   // The mentionable people, agents and automations are read once the field
   // is first focused: a task's comment composer is on screen with every task
   // opened, and reading its candidates then cost every open their requests.
+  // The people are searched for what is typed after `@`.
   const [optionsWanted, setOptionsWanted] = useState(false);
+  const [query, setQuery] = useState('');
   const [candidates, setCandidates] =
     useState<readonly MentionActorOption[]>(NO_MENTION_OPTIONS);
+  const [candidatesState, setCandidatesState] =
+    useState<CandidatesState>(SEARCHING);
   // The same candidates handed over again change nothing, so a reader that
   // rebuilds its list on every render can never keep this one re-rendering.
   const receiveOptions = useCallback(
-    (next: readonly MentionActorOption[]) =>
-      setCandidates((current) => (sameOptions(current, next) ? current : next)),
+    (next: readonly MentionActorOption[], state: CandidatesState) => {
+      setCandidates((current) => (sameOptions(current, next) ? current : next));
+      setCandidatesState((current) =>
+        current.searching === state.searching &&
+        current.unavailable === state.unavailable &&
+        current.more === state.more
+          ? current
+          : state,
+      );
+    },
+    [],
+  );
+  const receiveQuery = useCallback(
+    (typed: string | null) => setQuery(typed ?? ''),
     [],
   );
   const options = useMemo<MentionOption<MentionKind>[]>(
@@ -193,13 +236,28 @@ function MentionTextareaContent({
         nameOf={nameOf}
         resolvePlain={resolvePlain}
         onOptionsWanted={() => setOptionsWanted(true)}
+        onQueryChange={receiveQuery}
         listboxLabel={t('mentionPicker.title')}
-        emptyLabel={t('mentionPicker.empty')}
+        emptyLabel={
+          candidatesState.searching
+            ? tCommon('actions.loading')
+            : t('mentionPicker.empty')
+        }
+        // Whatever else is offered, a search that failed says so, and so
+        // does a page that holds fewer people than match.
+        note={
+          candidatesState.unavailable
+            ? tCommon('peopleSearch.unavailable')
+            : candidatesState.more
+              ? tCommon('peopleSearch.more')
+              : undefined
+        }
       />
       {optionsWanted && (
         <MentionOptionsSource
           organizationId={organizationId}
           projectId={projectId}
+          query={query}
           onOptions={receiveOptions}
         />
       )}

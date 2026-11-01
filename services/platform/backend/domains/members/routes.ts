@@ -6,6 +6,7 @@ import { z } from 'zod';
 import {
   MEMBER_LOOKUP_LIMIT,
   MEMBER_LOOKUP_VALUE_MAX_LENGTH,
+  MEMBER_SEARCH_QUERY_MAX_LENGTH,
 } from '../../../lib/shared/constants/member-lookup.ts';
 import { isTypeableHandle } from '../../../lib/shared/mention-handles.ts';
 import type { Auth } from '../../auth/auth.ts';
@@ -13,7 +14,17 @@ import { isAdminRole } from '../../auth/membership.ts';
 import { requireOrgMember, type OrgEnv } from '../../auth/org.ts';
 import { requireSession, type AuthEnv } from '../../auth/session.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
+import {
+  formatKeysetCursor,
+  pageLimit,
+  parseKeysetCursor,
+} from '../../rest/shared.ts';
 import { LegalHoldError } from '../legal_holds/service.ts';
+import {
+  getProjectAuthContext,
+  ProjectError,
+  readableProjectTeamIds,
+} from '../projects/service.ts';
 import {
   addMember,
   getCurrentMemberContext,
@@ -21,10 +32,12 @@ import {
   listByOrganization,
   listPasskeysForMember,
   lookupMembers,
+  MEMBER_SEARCH_PAGE_LIMITS,
   MemberServiceError,
   removeMember,
   resetTwoFactorForMember,
   revokePasskeyForMember,
+  searchMembers,
   transferOwnership,
   updateMemberDisplayName,
   updateMemberRole,
@@ -81,6 +94,16 @@ const lookupQuerySchema = z
     `names more than ${MEMBER_LOOKUP_LIMIT} user ids and handles`,
   );
 
+const searchQuerySchema = z.object({
+  q: z
+    .string()
+    .optional()
+    .transform((q) => (q ?? '').trim().replaceAll(/\s+/g, ' '))
+    .pipe(z.string().max(MEMBER_SEARCH_QUERY_MAX_LENGTH)),
+  projectId: z.string().min(1).optional(),
+  access: z.enum(['read', 'edit']).optional(),
+});
+
 function handleError<E extends AuthEnv>(
   c: Context<E>,
   error: unknown,
@@ -121,6 +144,72 @@ export function createMemberRoutes(deps: {
     if (!query.success) return invalidBodyResponse(c, query.error);
     return c.json({
       members: await lookupMembers(deps.sql, c.get('orgId'), query.data),
+    });
+  });
+  // The members whose name or email holds what was typed, a page at a time
+  // in the order they joined, for any member: what a picker offers without
+  // reading every member. A project keeps the people who can read it
+  // [MEMBER-R12].
+  orgScoped.get('/search', async (c) => {
+    const query = searchQuerySchema.safeParse(c.req.query());
+    if (!query.success) return invalidBodyResponse(c, query.error);
+    const rawCursor = c.req.query('cursor') ?? '';
+    const cursor = parseKeysetCursor(rawCursor);
+    if (rawCursor !== '' && cursor === null) {
+      return c.json(
+        {
+          error: 'INVALID_CURSOR',
+          message: 'The "cursor" query parameter is not one this list answered',
+        },
+        400,
+      );
+    }
+    const { q, projectId } = query.data;
+    // Who cannot read a project is no one to offer in it: a project asks
+    // for readers at least.
+    const access =
+      query.data.access ?? (projectId === undefined ? undefined : 'read');
+    let projectTeamIds: string[] | undefined;
+    if (projectId !== undefined) {
+      const session = c.get('sessionBundle');
+      try {
+        const auth = await getProjectAuthContext(
+          deps.sql,
+          {
+            organizationId: c.get('orgId'),
+            userId: session.user.id,
+            role: c.get('orgMember').role,
+          },
+          session.user.email,
+        );
+        projectTeamIds = await readableProjectTeamIds(
+          deps.sql,
+          auth,
+          projectId,
+        );
+      } catch (error) {
+        // A project the caller cannot read answers as the projects do, and
+        // says nothing about who can.
+        if (error instanceof ProjectError) {
+          return c.json({ error: error.code }, error.status);
+        }
+        throw error;
+      }
+    }
+    const page = await searchMembers(deps.sql, c.get('orgId'), {
+      query: q,
+      ...(access === undefined ? {} : { access }),
+      ...(projectTeamIds === undefined ? {} : { projectTeamIds }),
+      limit: pageLimit(c.req.query('limit'), MEMBER_SEARCH_PAGE_LIMITS),
+      cursor,
+    });
+    return c.json({
+      members: page.members,
+      isDone: page.next === null,
+      continueCursor:
+        page.next === null
+          ? ''
+          : formatKeysetCursor(page.next.at, page.next.id),
     });
   });
   orgScoped.get('/me', async (c) => {

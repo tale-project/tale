@@ -108,6 +108,24 @@ one, or a handle no mention could name, is refused (400).
 - **Example**: Mia, a member of Acme, looks up `@noah` → she gets Noah's seat at Acme, with his
   name and email, but not a Noah of another organization, nor whether Noah has a passkey.
 
+### MEMBER-R12 · Members search each other by name or email, a page at a time
+
+Any member can search the members of their organization by what their name or email holds,
+whatever the case. Spaces in a row count as one; a name also matches with its spaces as dots or
+without them, as the handles it makes do, and the spaces of what was typed also match hyphens.
+The answer is a page of 50 members unless the search asks for another size, and never of more
+than 100, oldest seat first, each with their role, name and email and nothing about their
+passkeys or two-factor authentication. A search for readers leaves disabled members out; in a
+project it keeps the owners, the admins and the members of the project's teams, or everyone when
+the project has no team. A search for editors keeps the owners, admins, developers and editors
+among them. A project the caller cannot read is refused as the projects refuse it (404 or 403);
+a text over 200 characters or a cursor the search did not answer is refused (400).
+
+- **Example**: Mia, a member of Acme, searches "noah" in the Launch project, which belongs to
+  the Design team → she gets Noah Berg, who is on that team, with his name and email, but not
+  Noah Stein, who is not, nor whether Noah Berg has a passkey. "noah.berg" and "noahberg" find
+  Noah Berg too.
+
 ## Not yet
 
 - **Transferring ownership**, and disabling a member without removing them (`service.ts`).

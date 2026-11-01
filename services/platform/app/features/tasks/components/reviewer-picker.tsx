@@ -15,7 +15,6 @@ import { Text } from '@tale/ui/text';
 import { Tooltip } from '@tale/ui/tooltip';
 import { memo, useMemo, useState } from 'react';
 
-import { EDITOR_ROLES } from '@/backend/core/projects/access';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -24,6 +23,7 @@ import {
   useSharedAssignableActors,
 } from '../hooks/task-actor-directory';
 import type { ActorDirectory } from '../hooks/use-actor-directory';
+import { useAssignableMembers } from '../hooks/use-assignable-members';
 import { AssigneeAvatar } from './assignee-avatar';
 
 interface ReviewerPickerProps {
@@ -83,9 +83,9 @@ function describeReviewer(
  * review only through its exact captured identity.
  *
  * Until its first use the picker is only its avatar and name: the list, with
- * its candidate reads (project access, the project, the standard agent), mounts
- * when it is first opened and stays mounted from then on — the same rule as
- * the assignee picker. The name comes from the directory an
+ * its candidate reads (the people it searches, the project, the standard
+ * agent), mounts when it is first opened and stays mounted from then on — the
+ * same rule as the assignee picker. The name comes from the directory an
  * `ActorDirectoryProvider` provides (the task's) or, without one, the picker's
  * own. */
 export const ReviewerPicker = memo(function ReviewerPicker(
@@ -217,14 +217,20 @@ function ReviewerPickerList({
 }) {
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
-  const {
-    assignableMembers,
-    assignableAgents,
-    currentUserId,
-    resolveActor,
-    scopeReady,
-    agentsLoading,
-  } = useSharedAssignableActors(organizationId, projectId);
+  const { assignableAgents, currentUserId, resolveActor, agentsLoading } =
+    useSharedAssignableActors(organizationId, projectId);
+  // The people are searched for what is typed, among the project's members
+  // who can edit it: the server takes no one else as a reviewer. The
+  // reviewer set on the task stays offered, and marked, whatever page was
+  // found.
+  const [query, setQuery] = useState('');
+  const people = useAssignableMembers(
+    organizationId,
+    projectId,
+    query,
+    'edit',
+    reviewer.kind === 'user' ? reviewer.userId : undefined,
+  );
   const [open, setOpen] = useState(defaultOpen);
   const { effective, actorId, resolved, inheritLabel, label, triggerName } =
     describeReviewer(
@@ -266,34 +272,24 @@ function ReviewerPickerList({
         description: inheritRefusal,
       },
     ];
-    if (scopeReady) {
-      const eligible = assignableMembers.filter(
-        (member) => member.role !== undefined && EDITOR_ROLES.has(member.role),
-      );
-      const sorted = [...eligible].sort((a, b) =>
-        a.id === currentUserId ? -1 : b.id === currentUserId ? 1 : 0,
-      );
-      for (const member of sorted) {
-        const value = 'user:' + member.id;
-        choiceMap.set(value, { kind: 'user', userId: member.id });
-        selectOptions.push({
-          value,
-          label: member.name,
-          group: 'people',
-          description:
-            member.id === currentUserId
-              ? t('reviewer.assignToMe')
-              : member.email,
-          labelBadge:
-            member.id === currentUserId ? (
-              <Badge variant="outline" className="text-[10px]">
-                {t('assignee.you')}
-              </Badge>
-            ) : undefined,
-        });
-      }
+    for (const member of people.members) {
+      const value = 'user:' + member.id;
+      choiceMap.set(value, { kind: 'user', userId: member.id });
+      selectOptions.push({
+        value,
+        label: member.name,
+        group: 'people',
+        description:
+          member.id === currentUserId ? t('reviewer.assignToMe') : member.email,
+        labelBadge:
+          member.id === currentUserId ? (
+            <Badge variant="outline" className="text-[10px]">
+              {t('assignee.you')}
+            </Badge>
+          ) : undefined,
+      });
     }
-    if (scopeReady && !agentsLoading) {
+    if (!agentsLoading) {
       for (const agent of assignableAgents) {
         const value = 'agent:' + agent.id;
         choiceMap.set(value, { kind: 'agent', agentId: agent.id });
@@ -309,8 +305,7 @@ function ReviewerPickerList({
     }
     return { options: selectOptions, choices: choiceMap };
   }, [
-    scopeReady,
-    assignableMembers,
+    people.members,
     assignableAgents,
     agentsLoading,
     currentUserId,
@@ -393,10 +388,11 @@ function ReviewerPickerList({
         }
         tooltip={label}
         searchPlaceholder={t('reviewer.search')}
+        onSearchChange={setQuery}
         emptyText={
-          scopeReady && !agentsLoading
-            ? tCommon('search.noResults')
-            : tCommon('actions.loading')
+          people.searching || agentsLoading
+            ? tCommon('actions.loading')
+            : tCommon('search.noResults')
         }
         aria-label={t('fields.reviewer')}
         optionAction={(option) => {
@@ -417,8 +413,17 @@ function ReviewerPickerList({
         }}
         footer={
           <div className="px-2 py-1">
-            {(!scopeReady || agentsLoading) && (
+            {(people.searching || agentsLoading) && (
               <Text variant="caption">{tCommon('actions.loading')}</Text>
+            )}
+            {(people.unavailable || people.more) && (
+              <Text variant="caption">
+                {tCommon(
+                  people.unavailable
+                    ? 'peopleSearch.unavailable'
+                    : 'peopleSearch.more',
+                )}
+              </Text>
             )}
             {reviewer.kind === 'inherit' && (
               <Text variant="caption">{inheritLabel}</Text>

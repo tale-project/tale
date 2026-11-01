@@ -7,6 +7,7 @@ import { FilterButton } from '@tale/ui/filters/filter-button';
 import { FilterSection } from '@tale/ui/filters/filter-section';
 import { useT } from '@tale/ui/i18n/client';
 import { Popover } from '@tale/ui/popover';
+import { SearchInput } from '@tale/ui/search-input';
 import { Text } from '@tale/ui/text';
 import { Circle } from 'lucide-react';
 import { Fragment, useId, useRef, useState } from 'react';
@@ -108,6 +109,73 @@ export interface FilterConfig {
    * exist outside the default set, so the set isn't guaranteed empty.
    */
   widensResultSet?: boolean;
+  /**
+   * Heads the facet's options with a search box and reports what is typed,
+   * and `''` again when the panel closes. The panel filters nothing itself:
+   * the caller answers with the options that match — a facet with too many
+   * options to read at once, like the board's assignees, searched on the
+   * server a page at a time.
+   */
+  onSearchChange?: (query: string) => void;
+  /** The search box's placeholder, and its name for assistive technology. */
+  searchPlaceholder?: string;
+  /**
+   * A line under a searched facet's options, announced as it changes: more
+   * matches than are listed, none at all, or a search that failed. It says
+   * what a search found, so it is read out once the search settles (see
+   * `searching`).
+   */
+  note?: string;
+  /**
+   * The search does not answer what is typed yet. The facet shows that it
+   * searches, and keeps for a screen reader the note the last settled search
+   * left, so a note is read out once per answer, never on each pause in
+   * typing.
+   */
+  searching?: boolean;
+}
+
+/**
+ * A searched facet's note, in a live region that is always mounted so a
+ * screen reader hears each new note. While a search runs the facet shows
+ * that it searches, seen but not heard, and the region keeps the note the
+ * last settled search left, marked busy: what is read out is what a search
+ * found, once.
+ */
+function SearchedFacetNote({
+  note,
+  searching,
+}: {
+  note: string | undefined;
+  searching: boolean;
+}) {
+  const { t } = useT('common');
+  const [settled, setSettled] = useState(searching ? undefined : note);
+  if (!searching && settled !== note) setSettled(note);
+  const heard = searching ? settled : note;
+  return (
+    <>
+      {searching && (
+        <Text
+          as="p"
+          variant="muted"
+          aria-hidden="true"
+          className="px-2 py-1 text-xs"
+        >
+          {t('actions.loading')}
+        </Text>
+      )}
+      <Text
+        as="p"
+        variant="muted"
+        role="status"
+        aria-busy={searching || undefined}
+        className={cn('px-2 text-xs', searching ? 'sr-only' : heard && 'py-1')}
+      >
+        {heard}
+      </Text>
+    </>
+  );
 }
 
 /**
@@ -221,6 +289,9 @@ export function FilterPanel({
   const [expandedSections, setExpandedSections] = useState<
     Record<string, boolean>
   >({});
+  // What is typed in each searched facet's box. The panel empties them as it
+  // closes, and tells the facets it emptied.
+  const [queries, setQueries] = useState<Record<string, string>>({});
 
   // No facet, no panel — and a panel that goes is closed, not left set to
   // pop open, unasked, when facets come back.
@@ -243,6 +314,10 @@ export function FilterPanel({
   const close = () => {
     setIsOpen(false);
     setHoldsFocus(true);
+    for (const filter of filters) {
+      if (queries[filter.key]) filter.onSearchChange?.('');
+    }
+    setQueries({});
     onOpenChange?.(false);
   };
 
@@ -365,6 +440,21 @@ export function FilterPanel({
             }
             hasSelection={!filter.multiSelect && isFilterActive(filter)}
           >
+            {filter.onSearchChange && (
+              <SearchInput
+                value={queries[filter.key] ?? ''}
+                onChange={(event) => {
+                  const query = event.target.value;
+                  setQueries((prev) => ({ ...prev, [filter.key]: query }));
+                  filter.onSearchChange?.(query);
+                }}
+                placeholder={
+                  filter.searchPlaceholder ?? t('search.placeholder')
+                }
+                className="max-w-none"
+                wrapperClassName="px-1 pt-1"
+              />
+            )}
             {toSegments(filter.options).map((segment, segmentIndex) => {
               const groupHeadingId = `filter-${filter.key}-group-${segmentIndex}`;
               return (
@@ -521,6 +611,12 @@ export function FilterPanel({
                 </Fragment>
               );
             })}
+            {filter.onSearchChange && (
+              <SearchedFacetNote
+                note={filter.note}
+                searching={filter.searching ?? false}
+              />
+            )}
           </FilterSection>
         ))}
       </div>

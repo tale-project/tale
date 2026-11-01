@@ -56,6 +56,7 @@ import {
   ADMIN_ROLES,
   checkProjectAccess,
   EDITOR_ROLES,
+  getProjectTeamIds,
   isOrgWideProject,
 } from '../../core/projects/access.ts';
 import {
@@ -3474,35 +3475,18 @@ export async function listSidebarProjects(
 }
 
 /**
- * The user ids that CAN access a project (assignee picker / mentions).
- * Org-wide → `orgWide: true` with empty userIds (client uses the member
- * directory); team-restricted → admins + members of the project's teams.
+ * The teams whose members can read a project, for a caller who can read it:
+ * the member search's project narrowing (MEMBER-R12). Empty when the whole
+ * organization reads the project; owners and admins read it either way.
  */
-export async function listAccessibleUserIds(
+export async function readableProjectTeamIds(
   sql: Sql,
   auth: ProjectAuthContext,
   projectId: string,
-): Promise<{ orgWide: boolean; userIds: string[] }> {
+): Promise<string[]> {
   const project = await loadProjectOrThrow(sql, projectId);
   assertReadable(project, auth);
-
-  const teamIds = project.teamIds;
-  if (teamIds.length === 0) {
-    return { orgWide: true, userIds: [] };
-  }
-  const rows = await sql<{ userId: string }[]>`
-    SELECT DISTINCT m."userId" FROM "member" m
-    WHERE m."organizationId" = ${auth.organizationId}
-      AND lower(m."role") <> 'disabled'
-      AND (
-        lower(m."role") IN ('owner', 'admin')
-        OR EXISTS (
-          SELECT 1 FROM "teamMember" tm
-          WHERE tm."userId" = m."userId" AND tm."teamId" = ANY(${teamIds})
-        )
-      )
-  `;
-  return { orgWide: false, userIds: rows.map((row) => row.userId) };
+  return getProjectTeamIds(project);
 }
 
 /** Lookup by the caller-owned natural key — the REST door's find lane. The

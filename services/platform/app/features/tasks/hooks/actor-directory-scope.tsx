@@ -62,7 +62,7 @@ export function ActorDirectoryScopeProvider({
   const inherited = useProvidedActorScope(organizationId, projectId);
   if (
     inherited !== undefined &&
-    (!requireAssignable || 'assignableMembers' in inherited.directory)
+    (!requireAssignable || 'assignableAgents' in inherited.directory)
   ) {
     return children;
   }

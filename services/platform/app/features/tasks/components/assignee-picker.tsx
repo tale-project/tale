@@ -28,6 +28,7 @@ import {
   useSharedActorDirectory,
   useSharedAssignableActors,
 } from '../hooks/task-actor-directory';
+import { useAssignableMembers } from '../hooks/use-assignable-members';
 import {
   taskSubjectEntries,
   useTaskContractAutomations,
@@ -223,10 +224,8 @@ function AssigneePickerList({
   const { t } = useT('tasks');
   const { t: tCommon } = useT('common');
   const {
-    assignableMembers,
     assignableAgents,
     agentsLoading,
-    membersLoading,
     currentUserId,
     resolveActor,
     // Agents are the project editors' to add; everyone else reads them.
@@ -234,6 +233,17 @@ function AssigneePickerList({
     projectResolved,
     standardAgentAvailable,
   } = useSharedAssignableActors(organizationId, projectId);
+  // The people are searched for what is typed, among whom a task here may
+  // be assigned to; the assignee stays offered, and marked, whatever page
+  // was found.
+  const [query, setQuery] = useState('');
+  const people = useAssignableMembers(
+    organizationId,
+    projectId,
+    query,
+    'read',
+    assigneeType === 'user' && assigneeId ? assigneeId : undefined,
+  );
   // Settled on "this project has no agent", so neither the create row nor
   // the reader's note flashes over a list or a role that is still loading.
   // A project the read could not return stays silent: who may add to it is
@@ -307,10 +317,7 @@ function AssigneePickerList({
   );
 
   const options = useMemo<SearchableSelectOption[]>(() => {
-    const sortedMembers = [...assignableMembers].sort((a, b) =>
-      a.id === currentUserId ? -1 : b.id === currentUserId ? 1 : 0,
-    );
-    const memberOptions: SearchableSelectOption[] = sortedMembers.map((m) => ({
+    const memberOptions: SearchableSelectOption[] = people.members.map((m) => ({
       value: `user:${m.id}`,
       label: m.name,
       description: m.id === currentUserId ? t('assignee.assignToMe') : m.email,
@@ -396,7 +403,7 @@ function AssigneePickerList({
 
     return [...memberOptions, ...agentSections, ...automationSections];
   }, [
-    assignableMembers,
+    people.members,
     assignableAgents,
     offerStandardAgent,
     projectHasNoAgents,
@@ -577,9 +584,9 @@ function AssigneePickerList({
       modal
       trigger={trigger}
       searchPlaceholder={t('assignee.search')}
-      // Every member is read once the picker is first opened.
+      onSearchChange={setQuery}
       emptyText={
-        membersLoading
+        people.searching
           ? tCommon('actions.loading')
           : tCommon('search.noResults')
       }
@@ -613,6 +620,15 @@ function AssigneePickerList({
       }}
       footer={
         <Stack gap={0}>
+          {(people.unavailable || people.more) && (
+            <Text variant="muted" className="px-2 py-1 text-[11px] text-wrap">
+              {tCommon(
+                people.unavailable
+                  ? 'peopleSearch.unavailable'
+                  : 'peopleSearch.more',
+              )}
+            </Text>
+          )}
           {/* #2610: only installed + enabled agents ever reach this list
               — a connected connector alone does not make its bundled
               agents assignable, so a familiar name (e.g. an

@@ -3,7 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, within } from '@/tests/utils/render';
 
 import type { TaskDoc, TaskStatus } from '../lib/display';
 import { useTaskBoardContext } from './task-board-context';
@@ -25,7 +25,52 @@ const state = vi.hoisted(() => ({
   blockerResolved: false,
   /** Every backend read the workspace asked for, with its args. */
   reads: [] as { name: string; args: unknown }[],
+  /** The members `GET /members/search` holds, in the order they joined, and
+   * how many a page of it holds. */
+  people: [] as { userId: string; displayName: string; email: string }[],
+  pageSize: 50,
+  searchFails: false,
+  /** The people the workspace looked up by user id. */
+  asked: [] as unknown[],
+  agents: [] as { type: 'agent'; id: string; name: string }[],
 }));
+
+/** What `GET /members/search` answers: the members whose name or email
+ * holds the text, a page at a time. */
+function searchAnswer(query: string) {
+  if (state.searchFails) {
+    return {
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      isFetching: false,
+      errorUpdateCount: 1,
+    };
+  }
+  const typed = query.toLowerCase();
+  const found = state.people.filter(
+    (person) =>
+      person.displayName.toLowerCase().includes(typed) ||
+      person.email.toLowerCase().includes(typed),
+  );
+  return {
+    data: {
+      members: found.slice(0, state.pageSize).map((person, index) => ({
+        _id: `member-${person.userId}`,
+        userId: person.userId,
+        displayName: person.displayName,
+        email: person.email,
+        role: 'member',
+        createdAt: index,
+      })),
+      isDone: found.length <= state.pageSize,
+    },
+    isLoading: false,
+    isError: false,
+    isFetching: false,
+    errorUpdateCount: 0,
+  };
+}
 
 const task = (id: string, overrides: Partial<TaskDoc> = {}): TaskDoc => ({
   _id: id,
@@ -98,11 +143,21 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
   }),
 }));
 vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: (name: string, args: unknown) => {
+  useBackendQuery: (name: string, args: 'skip' | { query: string }) => {
     state.reads.push({ name, args });
+    if (name === 'members/queries:searchMembers' && args !== 'skip') {
+      return searchAnswer(args.query);
+    }
     return { data: undefined, isLoading: false };
   },
 }));
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => state.people,
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the stand-in pushes lookup targets onto it
+    state.asked as never[],
+  ),
+);
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { userId: 'u-member' } }),
 }));
@@ -111,7 +166,7 @@ vi.mock('../hooks/use-actor-directory', () => ({
   ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({
     members: [],
-    agents: [],
+    agents: state.agents,
     currentUserId: 'u-member',
   }),
 }));
@@ -169,6 +224,11 @@ beforeEach(() => {
   state.archived = false;
   state.blockerResolved = false;
   state.reads = [];
+  state.people = [];
+  state.pageSize = 50;
+  state.searchFails = false;
+  state.asked.length = 0;
+  state.agents = [];
   state.tasks = [
     task('own', { createdBy: 'u-member' }),
     task('assigned', { assigneeType: 'user', assigneeId: 'u-member' }),
@@ -240,20 +300,175 @@ afterEach(() => {
 });
 
 describe('TasksWorkspace — the assignee filter', () => {
-  it('reads every member only once the filters are first opened', async () => {
+  const ADA = {
+    userId: 'u-ada',
+    displayName: 'Ada Lovelace',
+    email: 'ada@example.com',
+  };
+  const GRACE = {
+    userId: 'u-grace',
+    displayName: 'Grace Hopper',
+    email: 'grace@example.com',
+  };
+  const searches = () =>
+    state.reads
+      .filter((read) => read.name === 'members/queries:searchMembers')
+      .map((read) => read.args);
+
+  async function openAssignees() {
     const user = userEvent.setup();
     renderWorkspace();
-    const everyMember = () =>
-      state.reads
-        .filter((read) => read.name === 'members/queries:listByOrganization')
-        .map((read) => read.args);
+    await user.click(screen.getByRole('button', { name: 'Filter' }));
+    await user.click(screen.getByRole('button', { name: 'Assignee' }));
+    return user;
+  }
+
+  async function search(
+    user: ReturnType<typeof userEvent.setup>,
+    text: string,
+  ) {
+    const box = screen.getByRole('textbox', { name: 'Search people' });
+    // The box is read-only until it holds the focus (no autofill).
+    await user.click(box);
+    await user.clear(box);
+    if (text !== '') await user.type(box, text);
+    await vi.waitFor(() =>
+      expect(searches().at(-1)).toEqual({
+        organizationId: 'org-1',
+        query: text,
+      }),
+    );
+  }
+
+  it('searches the people only once the filters are first opened, and never reads every member', async () => {
+    const user = userEvent.setup();
+    renderWorkspace();
     // A board that is only looked at names its people through the lookup.
-    expect(everyMember().length).toBeGreaterThan(0);
-    expect(everyMember()).not.toContainEqual({ organizationId: 'org-1' });
+    expect(searches().length).toBeGreaterThan(0);
+    expect(searches()).toEqual(searches().map(() => 'skip'));
 
     await user.click(screen.getByRole('button', { name: 'Filter' }));
 
-    expect(everyMember().at(-1)).toEqual({ organizationId: 'org-1' });
+    // Every member may be filtered by, disabled ones too: no project, no
+    // access.
+    expect(searches().at(-1)).toEqual({ organizationId: 'org-1', query: '' });
+    expect(state.reads.map((read) => read.name)).not.toContain(
+      'members/queries:listByOrganization',
+    );
+  });
+
+  it('offers the people the server found for what is typed, and the agents that hold it', async () => {
+    state.people = [ADA, GRACE];
+    state.agents = [{ type: 'agent', id: 'agent-1', name: 'Release agent' }];
+    const user = await openAssignees();
+    expect(screen.getByRole('radio', { name: 'You' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('radio', { name: 'Ada Lovelace' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('radio', { name: 'Grace Hopper' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole('radio', { name: 'Release agent' }),
+    ).toBeInTheDocument();
+
+    await search(user, 'gr');
+
+    await vi.waitFor(() =>
+      expect(screen.queryByRole('radio', { name: 'Ada Lovelace' })).toBeNull(),
+    );
+    expect(
+      screen.getByRole('radio', { name: 'Grace Hopper' }),
+    ).toBeInTheDocument();
+    // The fixed choices stay; the agent that does not hold it goes.
+    expect(screen.getByRole('radio', { name: 'You' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('radio', { name: 'Unassigned' }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Release agent' })).toBeNull();
+
+    await search(user, 'release');
+    await vi.waitFor(() =>
+      expect(screen.getByText('Release agent')).toBeInTheDocument(),
+    );
+    expect(screen.queryByRole('radio', { name: 'Grace Hopper' })).toBeNull();
+  });
+
+  it('keeps the member it filters by offered when the page found does not hold them', async () => {
+    state.people = [ADA, GRACE];
+    state.pageSize = 1;
+    const user = await openAssignees();
+    await search(user, 'grace');
+    await vi.waitFor(() =>
+      expect(
+        screen.getByRole('radio', { name: 'Grace Hopper' }),
+      ).toBeInTheDocument(),
+    );
+    await user.click(screen.getByRole('radio', { name: 'Grace Hopper' }));
+    expect(state.asked).toContainEqual({ userId: 'u-grace' });
+
+    // The first page holds Ada alone: Grace stays, chosen, and the panel says
+    // more people match.
+    await search(user, '');
+    await vi.waitFor(() =>
+      expect(
+        screen.getByRole('radio', { name: 'Ada Lovelace' }),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.getByRole('radio', { name: 'Grace Hopper' })).toBeChecked();
+    expect(
+      screen.getByText('More people match — keep typing to narrow the list.'),
+    ).toHaveAttribute('role', 'status');
+
+    // A text she does not hold leaves her out.
+    await search(user, 'ada');
+    await vi.waitFor(() =>
+      expect(screen.queryByRole('radio', { name: 'Grace Hopper' })).toBeNull(),
+    );
+    expect(
+      screen.getByRole('radio', { name: 'Ada Lovelace' }),
+    ).toBeInTheDocument();
+  });
+
+  it('says when nobody holds what is typed', async () => {
+    state.people = [ADA];
+    const user = await openAssignees();
+    await search(user, 'zz');
+    await vi.waitFor(() =>
+      expect(screen.getByText('No results found')).toHaveAttribute(
+        'role',
+        'status',
+      ),
+    );
+  });
+
+  it('shows a search still running, and reads out only what it found', async () => {
+    state.people = [ADA];
+    const user = await openAssignees();
+    const status = within(screen.getByRole('dialog')).getByRole('status');
+    const box = screen.getByRole('textbox', { name: 'Search people' });
+    await user.click(box);
+    await user.type(box, 'zz');
+    // Typed, not searched yet: seen, never read out.
+    expect(screen.getByText('Loading...')).toHaveAttribute(
+      'aria-hidden',
+      'true',
+    );
+    expect(status).not.toHaveTextContent('Loading');
+    await vi.waitFor(() =>
+      expect(status).toHaveTextContent('No results found'),
+    );
+    expect(screen.queryByText('Loading...')).toBeNull();
+  });
+
+  it('says when the people could not be searched', async () => {
+    state.searchFails = true;
+    await openAssignees();
+    expect(
+      screen.getByText(
+        "People couldn't be searched — try again, or reload the page if it keeps happening.",
+      ),
+    ).toHaveAttribute('role', 'status');
   });
 });
 

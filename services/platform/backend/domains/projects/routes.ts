@@ -66,7 +66,6 @@ import {
   duplicateProject,
   getProject,
   getProjectAuthContext,
-  listAccessibleUserIds,
   listProjectAgentsForApp,
   listProjects,
   listProjectsOverview,
@@ -572,17 +571,6 @@ export function createProjectRoutes(deps: {
       return c.json({
         project: await getProject(deps.sql, auth, c.req.param('id')),
       });
-    } catch (error) {
-      return handleError(c, error);
-    }
-  });
-
-  app.get('/:id/accessible-users', async (c) => {
-    try {
-      const auth = await authCtx(c);
-      return c.json(
-        await listAccessibleUserIds(deps.sql, auth, c.req.param('id')),
-      );
     } catch (error) {
       return handleError(c, error);
     }

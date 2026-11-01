@@ -173,9 +173,10 @@ describe('workspaceWriteShimHandlers — an outage is not a refusal', () => {
     // An agent comment that mentions someone builds the mention directory. A
     // leg that cannot be listed throws MentionDirectoryError — coded, but a 503: a retryable
     // outage. Translated like a 4xx refusal, it reached the agent as
-    // `invalid_args` ("your arguments were wrong") and was audited so.
+    // `invalid_args` ("your arguments were wrong") and was audited so. The
+    // failing leg is the lookup of the members the body names (MEMBER-R11).
     const { sql, statements } = stubSql((text) =>
-      text.startsWith('SELECT m."userId"'),
+      text.startsWith('SELECT m."id", m."userId"'),
     );
     const comment = writer(sql, 'tasks/internal_mutations:agentAddComment');
     const attempt = comment({

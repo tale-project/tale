@@ -38,10 +38,14 @@ vi.mock('./mention-text', () => ({
   MentionText: ({ body }: { body: string }) => <p>{body}</p>,
 }));
 
-vi.mock('../lib/mention-actor-options', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('../lib/mention-actor-options')>()),
-  useMentionActorOptions: () => [],
-}));
+vi.mock('../lib/mention-actor-options', async (importOriginal) => {
+  // One answer, as the real hook's memo hands out between changes.
+  const none = { options: [], searching: false, unavailable: false };
+  return {
+    ...(await importOriginal<typeof import('../lib/mention-actor-options')>()),
+    useMentionActorOptions: () => none,
+  };
+});
 
 vi.mock('./mention-trigger-chips', () => ({
   MentionTriggerChips: () => null,
