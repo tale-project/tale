@@ -113,9 +113,10 @@ export interface SearchableSelectProps {
   filterFn?: (option: SearchableSelectOption, query: string) => boolean;
   /**
    * Notified whenever the search text changes, including the reset to `''`
-   * once the closed popover has left the page. The component keeps OWNING the
-   * value; this is a read-only mirror for consumers that must react to what
-   * was typed — a server-side search, or an action row appended to `options`.
+   * once the closed popover has left the page, or as it reopens before then.
+   * The component keeps OWNING the value; this is a read-only mirror for
+   * consumers that must react to what was typed — a server-side search, or an
+   * action row appended to `options`.
    */
   onSearchChange?: (query: string) => void;
   /** Show a radio indicator instead of a check icon for the selected state */
@@ -465,8 +466,11 @@ function SearchableSelectBase({
     (nextOpen: boolean) => {
       setIsOpen(nextOpen);
       if (!nextOpen) suppressTooltipOpen();
+      // Reopened before the closed popover left the page, so the close reset
+      // has not run: the reopened panel starts from an empty query too.
+      else if (search !== '') updateSearch('');
     },
-    [setIsOpen, suppressTooltipOpen],
+    [setIsOpen, suppressTooltipOpen, search, updateSearch],
   );
 
   const handleSelect = useCallback(
