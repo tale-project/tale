@@ -16,6 +16,9 @@ export const REST_ERROR_CODES = [
   'ACTOR_NOT_FOUND',
   'ACTOR_REBOUND',
   'ACTOR_UNVERIFIED',
+  // A member's own key that an Owner or Admin blocked in this organization
+  // (APIKEY-R11); `data.organizations` lists where it still works.
+  'API_KEY_BLOCKED',
   // A member's own key, in an organization that turned members' own keys
   // off (APIKEY-R12); `data.organizations` lists where it still works.
   'API_KEY_PERSONAL_REFUSED',
