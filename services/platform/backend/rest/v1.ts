@@ -85,7 +85,10 @@ import { createRestWebsiteRoutes } from './v1-websites.ts';
  * the login and Slack lanes use — right-to-left from the TCP peer, so the
  * spoofable leftmost `X-Forwarded-For` entry never keys anything). A
  * request without a Bearer header costs nothing and charges nothing, so a
- * stranger cannot drain any key holder's budget.
+ * stranger cannot drain any key holder's budget. The `rest:api` charge is
+ * spent from a slice each process leases from the holder's bucket in one
+ * write (`lib/rate-limit.ts`), so a busy key's reads do not each write its
+ * row, and the bucket still holds across processes.
  *
  * The resource families are thin adapters over the SAME domain services
  * the app surface uses; `public/openapi.json` documents their contract.
