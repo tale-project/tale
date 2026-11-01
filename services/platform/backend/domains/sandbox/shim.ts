@@ -3,7 +3,6 @@ import type { TaskAgentResumeFrom } from '@tale/shared/schemas/task-review';
 import type { Sql, TransactionSql } from 'postgres';
 
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
-import { SANDBOX_SESSION_LIVE_STATUSES } from '../../core/sandbox/session_constants.ts';
 import { isStandingProjectAgentSession } from '../../core/sandbox/session_naming.ts';
 import type { ShimHandlers } from '../../lib/ctx-shim.ts';
 import { resolveAgentSecretsEnv } from '../agent_secrets/service.ts';
@@ -38,7 +37,6 @@ import {
   runProjectScope,
   runStarterMayEditProject,
 } from '../tasks/run-authority.ts';
-import { getCurrentUser } from '../users/service.ts';
 import { heavyLeaseShimHandlers } from './heavy-leases.ts';
 import { imageGenerationShimHandlers } from './image-generation.ts';
 import { coded, workspaceWriteShimHandlers } from './workspace-write-shim.ts';
@@ -381,12 +379,12 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
       return resolveAgentSecretsEnv(sql, args);
     },
 
-    // The turn-equipment CONNECTOR BROKER's three seams
+    // The turn-equipment CONNECTOR BROKER's two seams
     // (`node_only/sandbox/session_credentials.ts`): the full credential row
-    // it decrypts, the Tier-2 fetch audit, and the session owner's git
-    // author identity. Un-shimmed, the broker's best-effort catches degrade
-    // every work-lane turn to "no credentials" silently — a granted github
-    // connector must inject GITHUB_TOKEN here, not warn into the job log.
+    // it decrypts and the Tier-2 fetch audit. Un-shimmed, the broker's
+    // best-effort catches degrade every work-lane turn to "no credentials"
+    // silently — a granted github connector must inject GITHUB_TOKEN here,
+    // not warn into the job log.
     'connector_credentials/queries:resolveCredentialRefInternal': async (
       raw,
     ) => {
@@ -421,28 +419,6 @@ export function sandboxToolShimHandlers(sql: Sql): ShimHandlers {
         )
       `;
       return null;
-    },
-
-    'sandbox/session_queries:getSessionOwnerIdentity': async (raw) => {
-      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- shim boundary: the credential broker passes exactly this shape
-      const args = raw as { sessionId: string };
-      const rows = await sql<{ createdBy: string }[]>`
-        SELECT created_by AS "createdBy" FROM app.sandbox_sessions
-        WHERE session_id = ${args.sessionId}
-          AND status IN ${sql([...SANDBOX_SESSION_LIVE_STATUSES])}
-        ORDER BY created_at_ms DESC
-        LIMIT 1
-      `;
-      const createdBy = rows[0]?.createdBy;
-      if (createdBy === undefined) return null;
-      // A synthetic owner (`system:automation`) matches no user row and
-      // resolves to null — the broker then injects no git author identity.
-      const user = await getCurrentUser(sql, createdBy);
-      if (user === null) return null;
-      const email = (user.email ?? '').trim();
-      const name = (user.name ?? '').trim() || email;
-      if (name === '' || email === '') return null;
-      return { name, email };
     },
 
     ...base,

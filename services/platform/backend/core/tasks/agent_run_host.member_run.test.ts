@@ -268,8 +268,8 @@ beforeEach(() => {
     VAT_API_KEY: 'vat-secret',
     GITHUB_TOKEN: 'gh-token',
   });
-  // An agent without a commit identity: a confined run gets no env at all.
-  resolveConfinedTurnEnv.mockResolvedValue({});
+  // Stands in for the confined resolver, which no test here needs real.
+  resolveConfinedTurnEnv.mockReturnValue({});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
@@ -378,8 +378,12 @@ describe('a confined run gets none of the agent’s own repository credentials [
       GIT_CONFIG_VALUE_0: 'Coder',
       GIT_CONFIG_KEY_1: 'user.email',
       GIT_CONFIG_VALUE_1: 'coder@tale.dev',
+      GIT_AUTHOR_NAME: 'Coder',
+      GIT_AUTHOR_EMAIL: 'coder@tale.dev',
+      GIT_COMMITTER_NAME: 'Coder',
+      GIT_COMMITTER_EMAIL: 'coder@tale.dev',
     };
-    resolveConfinedTurnEnv.mockResolvedValue(identityEnv);
+    resolveConfinedTurnEnv.mockReturnValue(identityEnv);
     const ctx = makeCtx();
     await startTaskAgentTurnImpl(ctx, { ...PINNED, sweep: true } as never);
     // The identity, and nothing that is a credential.
@@ -389,10 +393,7 @@ describe('a confined run gets none of the agent’s own repository credentials [
     expect(resolveTurnEquipmentEnv).not.toHaveBeenCalled();
     expect(resolveConfinedTurnEnv).toHaveBeenCalledTimes(2);
     for (const call of resolveConfinedTurnEnv.mock.calls) {
-      expect(call[1]).toEqual({
-        sessionId: KEYS.sessionId,
-        gitIdentity: { name: 'Coder', email: 'coder@tale.dev' },
-      });
+      expect(call).toEqual([{ name: 'Coder', email: 'coder@tale.dev' }]);
     }
   });
 

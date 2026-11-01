@@ -303,7 +303,6 @@ interface HandlerNames {
       getExternalTurnOpForFinalize: FunctionRef;
       getOpSteerState: FunctionRef;
       getSessionOpAttribution: FunctionRef;
-      getSessionOwnerIdentity: FunctionRef;
     };
     workspace_access: FunctionRef & {
       resolveKnowledgeToolAccess: FunctionRef;

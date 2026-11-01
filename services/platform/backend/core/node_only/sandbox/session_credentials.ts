@@ -20,10 +20,10 @@
 // connector resolves to (`connectorCredentials`); a pin the organization no
 // longer holds hands the turn nothing for that connector, never the default.
 //
-// Alongside the credential helper, this also provisions the git author
-// identity (user.name / user.email) so a fresh container can `git commit`
-// without a manual `git config`: the person who owns the session, else the
-// agent's own commit identity — see `resolveGitIdentity` below.
+// Alongside the credential helper, this also provisions the identity every
+// commit of the turn carries, as author and committer, so a fresh container
+// can `git commit` without a manual `git config`: the agent's own commit
+// identity, else Tale's, never a person's — see `resolveGitIdentity` below.
 //
 // Secrets are decrypted in this Node module and returned to the caller (which
 // carries them in the exec body) — they are NEVER baked into the container
@@ -183,7 +183,7 @@ export async function resolveSessionCredentialEnv(
     /** The credential each connector resolves to, by name, where the agent
      * pins one; any other grant takes the connector's default. */
     connectorCredentials?: Readonly<Record<string, string>>;
-    /** The agent's own commit identity, for a session no person owns. */
+    /** The agent's own commit identity; without one, Tale's. */
     gitIdentity?: ProjectAgentGitIdentity | null;
   },
 ): Promise<{
@@ -290,71 +290,81 @@ export async function resolveSessionCredentialEnv(
     });
   }
 
-  // Provision the git AUTHOR IDENTITY beside the credential helper (never
-  // gated on a git grant, unlike the helper above): name/email are
-  // non-secret metadata, not a credential, and Claude Code's `Git user:`
-  // context line reads `git config user.name` at conversation start
-  // regardless of whether the turn was granted git access.
-  gitConfigPairs.push(...(await gitIdentityPairs(ctx, args)));
+  // Provision the COMMIT IDENTITY beside the credential helper (never gated
+  // on a git grant, unlike the helper above): name and email are non-secret
+  // metadata, not a credential, and every turn commits under one [SBX-R42].
+  const identity = resolveGitIdentity(args.gitIdentity);
+  gitConfigPairs.push(...gitIdentityPairs(identity));
 
-  Object.assign(env, buildGitConfigEnv(gitConfigPairs));
+  Object.assign(
+    env,
+    buildGitConfigEnv(gitConfigPairs),
+    gitIdentityEnv(identity),
+  );
 
   return { env, git };
 }
 
-/**
- * The turn's git author identity alone, as exec env, with no credential: what
- * a confined run gets, which goes without every credential of the agent
- * (TASK-R79) but still commits under a name [SBX-R42]. The identity is
- * non-secret, so it is not audited.
- */
-export async function resolveSessionGitIdentityEnv(
-  ctx: ActionCtx,
-  args: {
-    sessionId: string;
-    gitIdentity?: ProjectAgentGitIdentity | null;
-  },
-): Promise<Record<string, string>> {
-  return buildGitConfigEnv(await gitIdentityPairs(ctx, args));
-}
+/** The name and email a sandbox commit carries when its agent has no commit
+ * identity of its own [SBX-R42]. The address is on the project's own domain:
+ * no person reads it, and no account outside the project can claim it. */
+export const TALE_GIT_IDENTITY: Readonly<ProjectAgentGitIdentity> = {
+  name: 'Tale',
+  email: 'noreply@tale.dev',
+};
 
-/** The `user.name` / `user.email` config pairs of {@link resolveGitIdentity},
- * or none. */
-async function gitIdentityPairs(
-  ctx: ActionCtx,
-  args: {
-    sessionId: string;
-    gitIdentity?: ProjectAgentGitIdentity | null;
-  },
-): Promise<Array<{ key: string; value: string }>> {
-  const identity = await resolveGitIdentity(ctx, args);
-  return identity
-    ? [
-        { key: 'user.name', value: identity.name },
-        { key: 'user.email', value: identity.email },
-      ]
-    : [];
+/**
+ * The turn's commit identity alone, as exec env, with no credential: what a
+ * confined run gets, which goes without every credential of the agent
+ * (TASK-R79) but still commits under the agent's name [SBX-R42]. The identity
+ * is non-secret, so it is not audited.
+ */
+export function resolveSessionGitIdentityEnv(
+  gitIdentity?: ProjectAgentGitIdentity | null,
+): Record<string, string> {
+  const identity = resolveGitIdentity(gitIdentity);
+  return {
+    ...buildGitConfigEnv(gitIdentityPairs(identity)),
+    ...gitIdentityEnv(identity),
+  };
 }
 
 /**
- * Whose name and email the turn's commits carry [SBX-R42]: the person who
- * owns the session, when one does; otherwise the agent's own commit
- * identity, when it has one. A project agent's workers are owned by Tale
- * itself, so its runs — whoever or whatever started them: a person, the
- * dispatch, a standing role, a schedule, confined or not — commit as the
- * agent. With neither, no identity is set, rather than a placeholder.
+ * Whose name and email the turn's commits carry [SBX-R42]: the agent's own
+ * commit identity, when it has one, else Tale's ({@link TALE_GIT_IDENTITY}).
+ * Never a person's — not the workspace's owner, not whoever started the run —
+ * and never none: a session no person owns (`system:task-agent`,
+ * `system:automation`) resolves like any other.
  */
-async function resolveGitIdentity(
-  ctx: ActionCtx,
-  args: {
-    sessionId: string;
-    gitIdentity?: ProjectAgentGitIdentity | null;
-  },
-): Promise<{ name: string; email: string } | null> {
-  const owner: { name: string; email: string } | null = await ctx.runQuery(
-    internal.sandbox.session_queries.getSessionOwnerIdentity,
-    { sessionId: args.sessionId },
-  );
-  if (owner) return owner;
-  return args.gitIdentity ?? null;
+export function resolveGitIdentity(
+  gitIdentity?: ProjectAgentGitIdentity | null,
+): ProjectAgentGitIdentity {
+  return gitIdentity ?? TALE_GIT_IDENTITY;
+}
+
+/** The identity as git's author and committer env. Git ranks these above
+ * every config key that names one (`user.*`, `author.*`, `committer.*`, in a
+ * repository's own config or anywhere else), so only an explicit `--author`
+ * or a changed environment replaces them. */
+function gitIdentityEnv(
+  identity: ProjectAgentGitIdentity,
+): Record<string, string> {
+  return {
+    GIT_AUTHOR_NAME: identity.name,
+    GIT_AUTHOR_EMAIL: identity.email,
+    GIT_COMMITTER_NAME: identity.name,
+    GIT_COMMITTER_EMAIL: identity.email,
+  };
+}
+
+/** The same identity as `user.name` / `user.email` config, for what reads the
+ * config rather than commits: Claude Code's `Git user:` context line reads
+ * `git config user.name` at conversation start. */
+function gitIdentityPairs(
+  identity: ProjectAgentGitIdentity,
+): Array<{ key: string; value: string }> {
+  return [
+    { key: 'user.name', value: identity.name },
+    { key: 'user.email', value: identity.email },
+  ];
 }

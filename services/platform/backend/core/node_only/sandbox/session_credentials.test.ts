@@ -2,8 +2,8 @@
 // declares a git host resolves — under the credential the agent pins, else the
 // connector's default — into one `TALE_GIT_CREDENTIALS` line the in-image
 // `tale-git-credential` helper answers that host from (GitHub's token also as
-// GITHUB_TOKEN for its CLI), the git author identity rides along (the session
-// owner's, else the agent's own), and every failure mode downgrades instead of
+// GITHUB_TOKEN for its CLI), the commit identity rides along (the agent's own,
+// else Tale's, never a person's), and every failure mode downgrades instead of
 // throwing. Mocks the credential seam + api refs so the broker is callable
 // directly with a fake ctx — no spawner, no real DB. The connector catalog is
 // the shipped one (`configs/platform/system/connectors`). The runtime image's
@@ -12,7 +12,8 @@
 // the image installs it at are held from both ends.
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -23,9 +24,6 @@ vi.mock('../../lib/handler_names', () => ({
     sandbox: {
       session_mutations: {
         recordCredentialAccess: 'recordCredentialAccess',
-      },
-      session_queries: {
-        getSessionOwnerIdentity: 'getSessionOwnerIdentity',
       },
     },
   },
@@ -45,6 +43,8 @@ const {
   gitCredentialLine,
   isBrokerableGrant,
   resolveSessionCredentialEnv,
+  resolveSessionGitIdentityEnv,
+  TALE_GIT_IDENTITY,
 } = await import('./session_credentials');
 
 const SANDBOX_RUNTIME = path.resolve(
@@ -52,18 +52,15 @@ const SANDBOX_RUNTIME = path.resolve(
   '../../../../../sandbox-runtime',
 );
 
-function makeCtx(opts: { identity?: { name: string; email: string } | null }) {
+/** The broker reads nothing about the session: no owner, no person. */
+function makeCtx() {
   const runQuery = vi.fn((ref: unknown) => {
-    if (ref === 'getSessionOwnerIdentity') {
-      return Promise.resolve(opts.identity ?? null);
-    }
     throw new Error(`unexpected runQuery ref: ${String(ref)}`);
   });
   const runMutation = vi.fn().mockResolvedValue(undefined);
   return { runQuery, runMutation };
 }
 
-const OWNER = { name: 'Ada Lovelace', email: 'ada@example.com' };
 const CODER = { name: 'Coder', email: 'coder@tale.dev' };
 
 const ARGS = {
@@ -100,7 +97,7 @@ describe('the broker hands git the hosts of the equipped connectors alone [SBX-R
     resolveConnectorCredential.mockResolvedValue(
       credential('github', 'gh-token'),
     );
-    const ctx = makeCtx({ identity: OWNER });
+    const ctx = makeCtx();
 
     const out = await resolveSessionCredentialEnv(ctx as never, {
       ...ARGS,
@@ -144,7 +141,7 @@ describe('the broker hands git the hosts of the equipped connectors alone [SBX-R
               }),
         ),
     );
-    const ctx = makeCtx({ identity: null });
+    const ctx = makeCtx();
 
     const out = await resolveSessionCredentialEnv(ctx as never, {
       ...ARGS,
@@ -169,7 +166,7 @@ describe('the broker hands git the hosts of the equipped connectors alone [SBX-R
       }),
     );
     const out = await resolveSessionCredentialEnv(
-      makeCtx({ identity: null }) as never,
+      makeCtx() as never,
       { ...ARGS, grants: ['forgejo'] },
     );
     expect(out.env[GIT_CREDENTIALS_ENV]).toBe(
@@ -184,7 +181,7 @@ describe('the broker hands git the hosts of the equipped connectors alone [SBX-R
       }),
     );
     const out = await resolveSessionCredentialEnv(
-      makeCtx({ identity: null }) as never,
+      makeCtx() as never,
       { ...ARGS, grants: ['forgejo'] },
     );
     expect(out.env[GIT_CREDENTIALS_ENV]).toBe(
@@ -204,7 +201,7 @@ describe('the broker hands git the hosts of the equipped connectors alone [SBX-R
       resolveConnectorCredential.mockResolvedValue(
         credential('forgejo', 'fj-token', { endpoint }),
       );
-      const ctx = makeCtx({ identity: null });
+      const ctx = makeCtx();
       const out = await resolveSessionCredentialEnv(ctx as never, {
         ...ARGS,
         grants: ['forgejo'],
@@ -229,14 +226,14 @@ describe('the broker hands git the hosts of the equipped connectors alone [SBX-R
       }),
     );
     const out = await resolveSessionCredentialEnv(
-      makeCtx({ identity: null }) as never,
+      makeCtx() as never,
       { ...ARGS, grants: ['forgejo'] },
     );
     expect(out.env[GIT_CREDENTIALS_ENV]).toBe('git.tale.dev deploy-bot pw');
   });
 
   it('resolves nothing for a connector that declares no git host', async () => {
-    const ctx = makeCtx({ identity: null });
+    const ctx = makeCtx();
     const out = await resolveSessionCredentialEnv(ctx as never, {
       ...ARGS,
       grants: ['slack', 'no-such-connector'],
@@ -252,7 +249,7 @@ describe('the broker hands git the hosts of the equipped connectors alone [SBX-R
     resolveConnectorCredential.mockResolvedValue(
       credential('github', 'bad token\nwith a line'),
     );
-    const ctx = makeCtx({ identity: null });
+    const ctx = makeCtx();
     const out = await resolveSessionCredentialEnv(ctx as never, {
       ...ARGS,
       grants: ['github'],
@@ -267,7 +264,7 @@ describe('the broker hands git the hosts of the equipped connectors alone [SBX-R
       credential('forgejo', 'fj-token'),
     );
     const out = await resolveSessionCredentialEnv(
-      makeCtx({ identity: null }) as never,
+      makeCtx() as never,
       { ...ARGS, grants: ['forgejo'] },
     );
     expect(out.env[GIT_CREDENTIALS_ENV]).toBeUndefined();
@@ -317,7 +314,7 @@ describe('the runtime image’s helper reads what the broker writes [SBX-R40]', 
         ),
     );
     const out = await resolveSessionCredentialEnv(
-      makeCtx({ identity: null }) as never,
+      makeCtx() as never,
       { ...ARGS, grants: ['github', 'forgejo'] },
     );
 
@@ -385,7 +382,7 @@ describe('a pinned credential is the only one its connector hands the sandbox [S
         ),
     );
     const out = await resolveSessionCredentialEnv(
-      makeCtx({ identity: null }) as never,
+      makeCtx() as never,
       {
         ...ARGS,
         grants: ['github', 'forgejo'],
@@ -419,7 +416,7 @@ describe('a pinned credential is the only one its connector hands the sandbox [S
               }),
             ),
     );
-    const ctx = makeCtx({ identity: OWNER });
+    const ctx = makeCtx();
     const out = await resolveSessionCredentialEnv(ctx as never, {
       ...ARGS,
       grants: ['forgejo'],
@@ -439,7 +436,7 @@ describe('a pinned credential is the only one its connector hands the sandbox [S
         'No default credential is configured for "github" — add one in Settings → Connectors.',
       ),
     );
-    const ctx = makeCtx({ identity: null });
+    const ctx = makeCtx();
     const out = await resolveSessionCredentialEnv(ctx as never, {
       ...ARGS,
       grants: ['github'],
@@ -447,55 +444,149 @@ describe('a pinned credential is the only one its connector hands the sandbox [S
     expect(out.env.GITHUB_TOKEN).toBeUndefined();
     expect(out.git).toEqual([]);
     expect(ctx.runMutation).not.toHaveBeenCalled();
-    expect(Object.keys(out.env)).toHaveLength(0);
+    expect(out.env[GIT_CREDENTIALS_ENV]).toBeUndefined();
+    expect(Object.values(out.env)).not.toContain(GIT_CREDENTIAL_HELPER);
   });
 });
 
-describe('commits carry the workspace owner’s identity, else the agent’s [SBX-R42]', () => {
+/** A git that reads no config of the machine it runs on and inherits no
+ * identity from the environment that runs the tests. */
+function isolatedGit(dir: string) {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined && !key.startsWith('GIT_')) env[key] = value;
+  }
+  Object.assign(env, {
+    HOME: dir,
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_GLOBAL: path.join(dir, 'global.gitconfig'),
+  });
+  return (args: string[], extraEnv: Record<string, string> = {}) =>
+    spawnSync('git', args, {
+      cwd: dir,
+      encoding: 'utf8',
+      env: { ...env, ...extraEnv },
+    });
+}
+
+describe('commits carry the agent’s identity, else Tale’s, never a person’s [SBX-R42]', () => {
   beforeEach(() => {
     resolveConnectorCredential.mockReset();
   });
 
-  it('uses the person who owns the session over the agent’s identity', async () => {
-    const out = await resolveSessionCredentialEnv(
-      makeCtx({ identity: OWNER }) as never,
-      { ...ARGS, grants: [], gitIdentity: CODER },
-    );
-    expect(out.env.GIT_CONFIG_VALUE_0).toBe(OWNER.name);
-    expect(out.env.GIT_CONFIG_VALUE_1).toBe(OWNER.email);
+  it('commits under the agent’s own identity, as author and as committer', async () => {
+    const out = await resolveSessionCredentialEnv(makeCtx() as never, {
+      ...ARGS,
+      grants: [],
+      gitIdentity: CODER,
+    });
+    expect(out.env).toEqual({
+      GIT_CONFIG_COUNT: '2',
+      GIT_CONFIG_KEY_0: 'user.name',
+      GIT_CONFIG_VALUE_0: CODER.name,
+      GIT_CONFIG_KEY_1: 'user.email',
+      GIT_CONFIG_VALUE_1: CODER.email,
+      GIT_AUTHOR_NAME: CODER.name,
+      GIT_AUTHOR_EMAIL: CODER.email,
+      GIT_COMMITTER_NAME: CODER.name,
+      GIT_COMMITTER_EMAIL: CODER.email,
+    });
   });
 
-  it('uses the agent’s own identity in a workspace no person owns (dispatch, standing role, schedule)', async () => {
-    const out = await resolveSessionCredentialEnv(
-      makeCtx({ identity: null }) as never,
-      { ...ARGS, grants: [], gitIdentity: CODER },
-    );
-    expect(out.env.GIT_CONFIG_COUNT).toBe('2');
-    expect(out.env.GIT_CONFIG_KEY_0).toBe('user.name');
-    expect(out.env.GIT_CONFIG_VALUE_0).toBe(CODER.name);
-    expect(out.env.GIT_CONFIG_KEY_1).toBe('user.email');
-    expect(out.env.GIT_CONFIG_VALUE_1).toBe(CODER.email);
+  it('commits as Tale when the agent has no identity of its own, never as nobody', async () => {
+    expect(TALE_GIT_IDENTITY).toEqual({
+      name: 'Tale',
+      email: 'noreply@tale.dev',
+    });
+    for (const args of [
+      { ...ARGS, grants: [] },
+      { ...ARGS, grants: [], gitIdentity: null },
+    ]) {
+      const out = await resolveSessionCredentialEnv(makeCtx() as never, args);
+      expect(out.env.GIT_AUTHOR_NAME).toBe('Tale');
+      expect(out.env.GIT_AUTHOR_EMAIL).toBe('noreply@tale.dev');
+      expect(out.env.GIT_COMMITTER_NAME).toBe('Tale');
+      expect(out.env.GIT_COMMITTER_EMAIL).toBe('noreply@tale.dev');
+      expect(out.env.GIT_CONFIG_VALUE_0).toBe('Tale');
+      expect(out.env.GIT_CONFIG_VALUE_1).toBe('noreply@tale.dev');
+    }
   });
 
-  it('arms the helper without identity pairs when there is neither', async () => {
+  it('never asks whose workspace it is, so a person’s own never reaches a commit', async () => {
+    const ctx = makeCtx();
+    const out = await resolveSessionCredentialEnv(ctx as never, {
+      ...ARGS,
+      sessionId: 'sess-of-ada',
+      grants: [],
+    });
+    expect(ctx.runQuery).not.toHaveBeenCalled();
+    expect(out.env.GIT_AUTHOR_NAME).toBe('Tale');
+  });
+
+  it('numbers the identity pairs after the helper', async () => {
     resolveConnectorCredential.mockResolvedValue(
       credential('github', 'gh-token'),
     );
-    const out = await resolveSessionCredentialEnv(
-      makeCtx({ identity: null }) as never,
-      { ...ARGS, grants: ['github'], gitIdentity: null },
-    );
-    expect(out.env.GIT_CONFIG_COUNT).toBe('1');
+    const out = await resolveSessionCredentialEnv(makeCtx() as never, {
+      ...ARGS,
+      grants: ['github'],
+      gitIdentity: null,
+    });
+    expect(out.env.GIT_CONFIG_COUNT).toBe('3');
     expect(out.env.GIT_CONFIG_KEY_0).toBe('credential.helper');
-    expect(out.env.GIT_CONFIG_KEY_1).toBeUndefined();
+    expect(out.env.GIT_CONFIG_KEY_1).toBe('user.name');
+    expect(out.env.GIT_CONFIG_VALUE_1).toBe('Tale');
+    expect(out.env.GIT_CONFIG_KEY_2).toBe('user.email');
+    expect(out.env.GIT_AUTHOR_NAME).toBe('Tale');
   });
 
-  it('sets no env at all with neither a grant nor an identity', async () => {
-    const out = await resolveSessionCredentialEnv(
-      makeCtx({ identity: null }) as never,
-      { ...ARGS, grants: [] },
-    );
-    expect(Object.keys(out.env)).toHaveLength(0);
+  it('gives a confined run the same identity, and nothing else', () => {
+    expect(resolveSessionGitIdentityEnv(CODER)).toEqual({
+      GIT_CONFIG_COUNT: '2',
+      GIT_CONFIG_KEY_0: 'user.name',
+      GIT_CONFIG_VALUE_0: CODER.name,
+      GIT_CONFIG_KEY_1: 'user.email',
+      GIT_CONFIG_VALUE_1: CODER.email,
+      GIT_AUTHOR_NAME: CODER.name,
+      GIT_AUTHOR_EMAIL: CODER.email,
+      GIT_COMMITTER_NAME: CODER.name,
+      GIT_COMMITTER_EMAIL: CODER.email,
+    });
+    expect(resolveSessionGitIdentityEnv().GIT_AUTHOR_NAME).toBe('Tale');
+  });
+
+  it('holds in a real commit against the identity a repository configures for itself', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'sbx-r42-'));
+    try {
+      const git = isolatedGit(dir);
+      expect(git(['init', '-q', '.']).status).toBe(0);
+      for (const [key, value] of [
+        ['user.name', 'Ada Lovelace'],
+        ['user.email', 'ada@example.com'],
+        ['author.name', 'Ada Lovelace'],
+        ['author.email', 'ada@example.com'],
+        ['committer.name', 'Ada Lovelace'],
+        ['committer.email', 'ada@example.com'],
+      ] as const) {
+        expect(git(['config', key, value]).status).toBe(0);
+      }
+
+      const commit = git(
+        ['commit', '--allow-empty', '-q', '-m', 'probe'],
+        resolveSessionGitIdentityEnv(),
+      );
+      expect(commit.stderr).toBe('');
+      expect(commit.status).toBe(0);
+      expect(git(['log', '-1', '--format=%an <%ae>|%cn <%ce>']).stdout).toBe(
+        'Tale <noreply@tale.dev>|Tale <noreply@tale.dev>\n',
+      );
+      // What reads the config instead of committing sees the same name.
+      expect(
+        git(['config', 'user.name'], resolveSessionGitIdentityEnv()).stdout,
+      ).toBe('Tale\n');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
