@@ -23,6 +23,7 @@ import { orgSlugFromIdOrNull } from '../../lib/helpers/org_slug';
 import { putBlob } from '../../lib/storage/blob_access';
 import {
   drainSessionExecResilient,
+  formatMb,
   SessionFileTooLargeError,
   sessionIsAlive,
   sessionListFiles,
@@ -152,10 +153,6 @@ function inferStepLanguage(path: string): 'python' | 'node' | 'bash' | null {
  * oversize output is reported as skipped instead of surfacing as an opaque
  * read failure. */
 const HARVEST_READ_MAX_BYTES = 20 * 1024 * 1024;
-
-function formatMb(n: number): string {
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
-}
 
 function interpreterCommand(absPath: string): string[] | null {
   const lang = inferStepLanguage(absPath);

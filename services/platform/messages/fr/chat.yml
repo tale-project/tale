@@ -618,6 +618,7 @@ thinking:
     sandboxFailed: La sandbox a cessé de fonctionner
     programFailed: Le programme s'est terminé par une erreur
     timedOut: Délai dépassé
+    filesNotStaged: Un fichier n'a pas pu être copié dans la sandbox
     notFound: Introuvable
     invalidArgs: Impossible à exécuter tel quel
     unavailable: Indisponible ici

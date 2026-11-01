@@ -22,21 +22,29 @@ import {
 import { prewarmLightSandbox, runRunCode } from './run-code.ts';
 import { FULL_LOADOUT, testScope } from './test-helpers.ts';
 
-vi.mock('../../core/node_only/sandbox/helpers/session_client.ts', () => {
-  class SessionFileTooLargeError extends Error {}
-  class MockSessionNotFoundError extends Error {}
-  class MockSpawnerUnreachableError extends Error {}
-  return {
-    SessionFileTooLargeError,
-    SessionNotFoundError: MockSessionNotFoundError,
-    SpawnerUnreachableError: MockSpawnerUnreachableError,
-    drainSessionExecResilient: vi.fn(),
-    sessionCancelExec: vi.fn(() => Promise.resolve(true)),
-    sessionListFiles: vi.fn(),
-    sessionReadFile: vi.fn(),
-    sessionStageFiles: vi.fn(),
-  };
-});
+vi.mock(
+  '../../core/node_only/sandbox/helpers/session_client.ts',
+  async (importOriginal) => {
+    const { describeStageSkips } =
+      await importOriginal<
+        typeof import('../../core/node_only/sandbox/helpers/session_client.ts')
+      >();
+    class SessionFileTooLargeError extends Error {}
+    class MockSessionNotFoundError extends Error {}
+    class MockSpawnerUnreachableError extends Error {}
+    return {
+      describeStageSkips,
+      SessionFileTooLargeError,
+      SessionNotFoundError: MockSessionNotFoundError,
+      SpawnerUnreachableError: MockSpawnerUnreachableError,
+      drainSessionExecResilient: vi.fn(),
+      sessionCancelExec: vi.fn(() => Promise.resolve(true)),
+      sessionListFiles: vi.fn(),
+      sessionReadFile: vi.fn(),
+      sessionStageFiles: vi.fn(),
+    };
+  },
+);
 vi.mock('../../core/node_only/sandbox/helpers/stage_url.ts', () => ({
   stageUrlForBlobRef: vi.fn((ref: string) =>
     Promise.resolve(`http://backend-api/api/sandbox-blob?ref=${ref}`),
@@ -463,6 +471,75 @@ describe('run_code', () => {
     expect(result).toMatchObject({
       inputs: ['/agent/inputs/Q3 numbers.xlsx'],
     });
+  });
+
+  it.each([
+    [
+      1_200_000,
+      'skills/deck/assets/template.pptx (1.1 MB, over the 1.0 MB an outdated sandbox runtime takes; an updated one takes 4.0 MB)',
+    ],
+    [
+      5 * 1024 * 1024,
+      'skills/deck/assets/template.pptx (5.0 MB, over the 4.0 MB a file copied into the sandbox may hold)',
+    ],
+  ])(
+    'says which skill file of %i bytes the sandbox could not take, the limit it broke, and that trying again will not help (#5177) [CHAT-R30]',
+    async (bytes, named) => {
+      vi.mocked(readSkillBundleForViewer).mockResolvedValue({
+        files: [
+          { path: 'SKILL.md', contentBase64: b64('# deck') },
+          {
+            path: 'assets/template.pptx',
+            contentBase64: Buffer.alloc(bytes).toString('base64'),
+          },
+        ],
+      });
+      vi.mocked(sessionStageFiles).mockResolvedValueOnce({
+        staged: [],
+        skipped: [
+          { path: 'skills/deck/assets/template.pptx', reason: 'too_large' },
+        ],
+      });
+      const { scope } = testScope();
+
+      const result = await runRunCode(scope, {
+        language: 'bash',
+        code: 'ls skills/deck/assets',
+        skills: ['deck'],
+      });
+
+      expect(result).toEqual({
+        status: 'error',
+        reason: 'files_not_staged',
+        message: `The sandbox could not take every file: ${named}. Calling run_code again will not help: tell the user which file could not be copied and the limit it broke.`,
+      });
+      expect(drainSessionExecResilient).not.toHaveBeenCalled();
+    },
+  );
+
+  it('lets the model try once more when a file was left behind for a passing cause [CHAT-R30]', async () => {
+    vi.mocked(readSkillBundleForViewer).mockResolvedValue({
+      files: [{ path: 'SKILL.md', contentBase64: b64('# deck') }],
+    });
+    vi.mocked(sessionStageFiles).mockResolvedValueOnce({
+      staged: [],
+      skipped: [{ path: 'skills/deck/SKILL.md', reason: 'busy' }],
+    });
+    const { scope } = testScope();
+
+    const result = await runRunCode(scope, {
+      language: 'bash',
+      code: 'ls skills/deck',
+      skills: ['deck'],
+    });
+
+    expect(result).toEqual({
+      status: 'error',
+      reason: 'files_not_staged',
+      message:
+        'The sandbox could not take every file: skills/deck/SKILL.md (busy). You may call run_code once more; if it fails again, tell the user which file could not be copied.',
+    });
+    expect(drainSessionExecResilient).not.toHaveBeenCalled();
   });
 
   it('refuses a ref of another conversation before any sandbox starts [CHAT-R19]', async () => {

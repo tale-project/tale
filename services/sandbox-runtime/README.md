@@ -138,7 +138,7 @@ are admitted at once, including their JSON intake; excess requests report
 deadline covers the whole batch, including cache verification and final
 reconciliation. Queued items share the same deadline. Cancellation propagates
 through the platform and spawner to the active transfer. URL inputs retain their
-100 MiB limit and inline inputs their 1 MiB limit. Output reads also stream, within their
+100 MiB limit; inline inputs take up to 4 MiB, the most a skill bundle file holds. Output reads also stream, within their
 20 MiB file limit. Immutable source identities can skip a transfer once the
 current destination is verified: by a rehash that checks its pathname still
 names the same unchanged file, or, after one such rehash, by an unchanged stat

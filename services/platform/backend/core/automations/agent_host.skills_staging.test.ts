@@ -1,18 +1,25 @@
 // @vitest-environment node
 
 import { randomBytes } from 'node:crypto';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+import { MAX_SKILL_BUNDLE_FILE_BYTES } from '@tale/shared/schemas/skills';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import {
+  stageFiles,
+  type StageItem,
+} from '../../../../sandbox-runtime/daemon/src/file-ops.ts';
+import { RUNNERD_MAX_REQUEST_BODY_BYTES } from '../../../../sandbox-runtime/daemon/src/protocol.ts';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import type { SkillViewer } from '../../../lib/skills/visibility';
 import type { ActionCtx } from '../lib/ctx';
+import { STAGE_BODY_BUDGET_BYTES } from '../node_only/sandbox/helpers/session_client';
 import { readSkillBundleForViewer } from '../skills/file_actions';
 import { SkillUnavailableError } from '../skills/skill_unavailable_error';
-import { stageWorkflowSkills } from './agent_host';
+import { stageSkillBundle, stageWorkflowSkills } from './agent_host';
 
 // Exercise the real parser, file reader, visibility gate and signed staging
 // client. Only the org lookup and the sandbox's HTTP response are controlled.
@@ -295,6 +302,134 @@ describe('equipped skill staging with real bundles', () => {
     expect(runQuery).not.toHaveBeenCalled();
     expect(runAction).not.toHaveBeenCalled();
     expect(sandboxFetch).not.toHaveBeenCalled();
+  });
+});
+
+// REGRESSION (#5177): the upload takes a skill file of up to 4 MiB, but the
+// staging client threw on one over ~1.1 MiB and the sandbox runtime refused
+// one over 1 MiB, so a skill with a 1.2 MB template could never run.
+describe('a skill file between 1 MiB and the upload’s cap', () => {
+  let workspace: string;
+
+  beforeEach(async () => {
+    workspace = await mkdtemp(path.join(tmpdir(), 'tale-skill-runtime-'));
+    vi.stubEnv('TALE_WORKSPACE_ROOT', workspace);
+  });
+
+  afterEach(async () => {
+    await rm(workspace, { recursive: true, force: true });
+  });
+
+  /** The deck skill: a 1.2 MB template, and a file of the largest size. */
+  async function seedDeck(): Promise<Record<string, Buffer>> {
+    await seed('org-a', 'deck', 'Build decks from the template.');
+    await mkdir(path.join(configRoot, 'org-a/skills/deck/assets'));
+    const assets = {
+      'assets/template.pptx': randomBytes(1_200_000),
+      'assets/largest.bin': randomBytes(MAX_SKILL_BUNDLE_FILE_BYTES),
+    };
+    for (const [name, bytes] of Object.entries(assets))
+      await writeFile(path.join(configRoot, 'org-a/skills/deck', name), bytes);
+    return assets;
+  }
+
+  /** What a staging request carries. */
+  type StageBody = {
+    files: StageItem[];
+    replaceRoots?: string[];
+    keepPaths?: string[];
+  };
+
+  it('copies it into the sandbox runtime for agent nodes, tasks and script nodes', async () => {
+    const assets = await seedDeck();
+    const sizes: number[] = [];
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (init?.method === 'GET') return sandboxFetch(url, init);
+      if (typeof init?.body !== 'string')
+        throw new Error('Expected a serialized staging request');
+      const raw = init.body;
+      sizes.push(Buffer.byteLength(raw));
+      // The spawner's request cap, which it clamps to runnerd's.
+      if (Buffer.byteLength(raw) > RUNNERD_MAX_REQUEST_BODY_BYTES)
+        return Response.json({ error: 'payload_too_large' }, { status: 413 });
+      const body = JSON.parse(raw) as StageBody;
+      return Response.json(
+        await stageFiles(body.files, {
+          replaceRoots: body.replaceRoots,
+          keepPaths: body.keepPaths,
+        }),
+      );
+    });
+
+    const prompt = await stageWorkflowSkills(
+      ctx,
+      ORG_A,
+      SESSION,
+      ['deck'],
+      orgViewer,
+    );
+
+    expect(prompt).toContain('- deck:');
+    for (const [name, bytes] of Object.entries(assets)) {
+      const onDisk = await readFile(
+        path.join(workspace, 'workspace/.tale/skills/deck', name),
+      );
+      expect(onDisk.equals(bytes)).toBe(true);
+    }
+    // Each went in a request of its own, larger than a batch may be.
+    expect(sizes.filter((size) => size > STAGE_BODY_BUDGET_BYTES)).toHaveLength(
+      2,
+    );
+
+    // A script node stages the same bundle where its program reads it.
+    await expect(
+      stageSkillBundle(ctx, ORG_A, SESSION, 'deck', 'skills/deck', orgViewer),
+    ).resolves.toBe(3);
+    const template = await readFile(
+      path.join(workspace, 'skills/deck/assets/template.pptx'),
+    );
+    expect(template.equals(assets['assets/template.pptx'])).toBe(true);
+  });
+
+  it('names each file and the limit when the sandbox runtime is outdated', async () => {
+    await seedDeck();
+    vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => {
+      if (init?.method === 'GET') return sandboxFetch(url, init);
+      if (typeof init?.body !== 'string')
+        throw new Error('Expected a serialized staging request');
+      const body = JSON.parse(init.body) as StageBody;
+      if (body.files.every((file) => file.contentBase64 === undefined))
+        return sandboxFetch(url, init);
+      // A runtime from before inline files could be 4 MiB takes 1 MiB.
+      const tooLarge = (file: StageItem) =>
+        Buffer.byteLength(file.contentBase64 ?? '', 'base64') > 1024 * 1024;
+      return Response.json({
+        staged: body.files
+          .filter((file) => !tooLarge(file))
+          .map((file) => ({ path: file.path, bytes: 1 })),
+        skipped: body.files
+          .filter(tooLarge)
+          .map((file) => ({ path: file.path, reason: 'too_large' })),
+      });
+    });
+
+    const error = await stageWorkflowSkills(
+      ctx,
+      ORG_A,
+      SESSION,
+      ['deck'],
+      orgViewer,
+    ).catch((thrown: unknown) => thrown);
+
+    expect(error).toBeInstanceOf(Error);
+    const message = (error as Error).message;
+    expect(message).toMatch(/^staging skill "deck" failed: /);
+    expect(message).toContain(
+      'workspace/.tale/skills/deck/assets/template.pptx (1.1 MB, over the 1.0 MB an outdated sandbox runtime takes; an updated one takes 4.0 MB)',
+    );
+    expect(message).toContain(
+      'workspace/.tale/skills/deck/assets/largest.bin (4.0 MB, over the 1.0 MB an outdated sandbox runtime takes; an updated one takes 4.0 MB)',
+    );
   });
 });
 

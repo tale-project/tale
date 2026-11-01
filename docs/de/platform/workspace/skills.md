@@ -57,7 +57,7 @@ Ein neuer Skill wird keinem Agenten automatisch zugeordnet. Öffne den Agenten d
 
 </Frame>
 
-## Ein vorhandenes Bundle importieren
+## Ein vorhandenes Bundle importieren {#import-an-existing-bundle}
 
 Nutze **Skill hinzufügen > Zip hochladen** oder **Ordner hochladen**. Im Stammverzeichnis muss `SKILL.md` liegen. Referenzen, Vorlagen und Skripte dürfen mitgeliefert werden:
 
@@ -67,6 +67,8 @@ brief-summary/
 └── references/
     └── example-brief.md
 ```
+
+Ein Bundle fasst bis zu 512 Dateien, höchstens 4 MB pro Datei und 32 MB insgesamt; ein Bundle über diesen Grenzen weist Tale beim Hochladen ab. Chat, Aufgaben und Automatisierungen, die den Skill in einer Sandbox nutzen, kopieren alle seine Dateien dorthin. Lass also weg, was der Ablauf nicht braucht.
 
 Die Vorschau zeigt Metadaten, **Sichtbarkeit**, Lizenz und Dateiliste, bevor **Bundle hochladen** etwas speichert. Prüfe den Inhalt und wähle unter **Sichtbarkeit**, für wen der Skill ist. Sie beginnt mit dem, was die `SKILL.md` angibt; fehlt `visibility`, ist das **Organisation**. Tale schreibt deine Wahl in die gespeicherte `SKILL.md`, du trägst also nie Team-IDs in die Datei ein. Behält deine Organisation das Teilen mit allen vor und darfst du nicht veröffentlichen, beginnt die Vorschau mit **Teams** und all deinen Teams; entferne die, für die der Skill nicht gedacht ist. Wenn du einen Team-Skill anlegst oder seine Teams änderst, darfst du nur Teams deiner Organisation angeben, ohne Administratorrechte nur deine eigenen. Eine bestehende Teamliste darf unverändert bleiben, auch wenn ein Team inzwischen gelöscht wurde. Ein `owner` in der Datei wird ignoriert: Ein neuer Skill gehört dir. Ein ersetzter behält seinen bisherigen Eigentümer; hatte er keinen, gehört er danach dir. Existiert der Name schon, fragt Tale nach dem Ersetzen. Das betrifft auch Agenten, die diesen Skill verwenden.
 

@@ -21,6 +21,7 @@ import {
 } from '../../../lib/agent/work-tools.ts';
 import type { ToolArtifact, ToolCallOptions } from '../../../lib/chat/tools.ts';
 import {
+  describeStageSkips,
   drainSessionExecResilient,
   sessionCancelExec,
   sessionListFiles,
@@ -514,15 +515,21 @@ async function runInSandbox(
     }
     staged.push({ path: `inputs/${paths.get(file.ref) ?? 'file'}`, url });
   }
+  const files = [...staged, ...skillFiles];
   const stage = await sessionStageFiles(
     lease.sessionId,
-    [...staged, ...skillFiles],
+    files,
     skillRoots.length > 0 ? { reuse: true, replaceRoots: skillRoots } : {},
   );
   if (stage.skipped.length > 0) {
+    // A file too large stays too large: the same call would fail again.
+    const advice = stage.skipped.some((entry) => entry.reason === 'too_large')
+      ? 'Calling run_code again will not help: tell the user which file could not be copied and the limit it broke.'
+      : 'You may call run_code once more; if it fails again, tell the user which file could not be copied.';
     return failure(
       'error',
-      `The sandbox could not take every file: ${stage.skipped.map((entry) => `${entry.path} (${entry.reason})`).join(', ')}.`,
+      `The sandbox could not take every file: ${describeStageSkips(stage.skipped, files)}. ${advice}`,
+      'files_not_staged',
     );
   }
   const startedAt = Date.now();

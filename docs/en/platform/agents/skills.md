@@ -30,7 +30,7 @@ Each skill in the list names who created it: a member, **Built-in** for the skil
 
 An automation's agent nodes declare the skills they need. A run bound to a project uses that project's scope. An organization-level run can use organization skills only. Your personal membership in additional teams does not expand either scope.
 
-During sandbox setup, Tale stages the equipped bundles as files and lists each skill with a description excerpt of up to 300 characters and the path to its `SKILL.md` instructions. The excerpt helps the agent choose a skill for a plain-language task; it is a selection hint, not an instruction to execute. Supporting files are available alongside the instructions.
+During sandbox setup, Tale stages the equipped bundles as files and lists each skill with a description excerpt of up to 300 characters and the path to its `SKILL.md` instructions. The excerpt helps the agent choose a skill for a plain-language task; it is a selection hint, not an instruction to execute. Supporting files are available alongside the instructions, each up to the 4 MB a [skill file](/platform/workspace/skills#import-an-existing-bundle) may hold. When a file cannot be copied into the sandbox, staging fails and names the file and the limit.
 
 For a skill marked `disable-model-invocation`, the list tells the agent to wait until the task asks for that skill by name. This is guidance, not an access control. Keep the equipment focused and name the procedure when it matters; availability alone does not prove that the result followed it.
 

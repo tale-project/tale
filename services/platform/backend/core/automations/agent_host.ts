@@ -82,6 +82,7 @@ import {
 } from '../node_only/sandbox/gateway_key_settlement';
 import { provisionSessionGatewayKey } from '../node_only/sandbox/gateway_provisioning';
 import {
+  describeStageSkips,
   renewSessionPlace,
   ROOM_PLACE_RENEW_MS,
   sessionCancelExec,
@@ -907,9 +908,7 @@ async function stageSkill(
   });
   if (result.skipped.length > 0) {
     throw new Error(
-      `staging skill "${slug}" failed: ${result.skipped
-        .map((s) => `${s.path} (${s.reason})`)
-        .join(', ')}`,
+      `staging skill "${slug}" failed: ${describeStageSkips(result.skipped, files)}`,
     );
   }
   const skillMd = bundle.files.find(
@@ -1071,9 +1070,10 @@ const WORKFLOW_FILES_PREFIX = 'workspace/';
 /** The file an agent node's resolved `input` is staged as. */
 const WORKFLOW_INPUT_FILE = 'input.json';
 
-/** The most bytes the staged input may hold. The sandbox takes an inline
- * file up to 1 MiB and refuses a larger one as `too_large`, so a larger
- * input is refused before anything is spent, in the same words. */
+/** The most bytes the staged input may hold: 1 MiB, an inline file every
+ * sandbox runtime takes (an outdated one refuses a larger one as
+ * `too_large`), so a larger input is refused before anything is spent, in the
+ * same words. */
 export const WORKFLOW_INPUT_MAX_BYTES = 1024 * 1024;
 
 /** The instructions line that tells the agent where its input is. */

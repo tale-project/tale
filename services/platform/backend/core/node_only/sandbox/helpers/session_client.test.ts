@@ -2,10 +2,14 @@
 // fetch is mocked to return SSE streams, including a mid-turn drop, and we
 // assert the drain re-attaches via sinceSeq and feeds each delta exactly once.
 
+import { MAX_SKILL_BUNDLE_FILE_BYTES } from '@tale/shared/schemas/skills';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
+import { INLINE_MAX_BYTES } from '../../../../../../sandbox-runtime/daemon/src/file-ops.ts';
+import { RUNNERD_MAX_REQUEST_BODY_BYTES } from '../../../../../../sandbox-runtime/daemon/src/protocol.ts';
 import {
   chunkStageFiles,
+  describeStageSkips,
   drainSessionExecResilient,
   ExecDiskFullError,
   ExecStreamProtocolError,
@@ -20,6 +24,8 @@ import {
   sandboxWorkspaceInventory,
   sandboxWorkspaceUsage,
   STAGE_BODY_BUDGET_BYTES,
+  STAGE_INLINE_MAX_BYTES,
+  STAGE_SINGLE_FILE_BODY_BYTES,
   SpawnerUnreachableError,
   sessionAcquire,
   sessionCancelExec,
@@ -1500,9 +1506,38 @@ describe('chunkStageFiles', () => {
     expect(batches.flat()).toEqual(files);
   });
 
-  test('a single entry over the budget throws instead of 413ing downstream', () => {
-    expect(() => chunkStageFiles([stageFile('big.bin', 2_000)], 1_000)).toThrow(
-      /big\.bin/,
+  test('an entry over the budget travels alone, between the batches around it', () => {
+    const before = stageFile('a.txt', 100);
+    const big = stageFile('big.bin', 2_000);
+    const after = [stageFile('b.txt', 100), stageFile('c.txt', 100)];
+    expect(chunkStageFiles([before, big, ...after], 1_000, 5_000)).toEqual([
+      [before],
+      [big],
+      after,
+    ]);
+  });
+
+  test('an entry over the single-file ceiling throws instead of 413ing downstream', () => {
+    expect(() =>
+      chunkStageFiles([stageFile('big.bin', 6_000)], 1_000, 5_000),
+    ).toThrow(/big\.bin.*5000-byte request ceiling/);
+  });
+
+  test('a skill file of the largest size travels alone under the spawner and runnerd request caps', () => {
+    const largest = {
+      path: 'skills/deck/assets/largest.bin',
+      contentBase64: Buffer.alloc(STAGE_INLINE_MAX_BYTES).toString('base64'),
+      sha256: 'f'.repeat(64),
+      sourceId: `sha256:${'f'.repeat(64)}`,
+    };
+    const batches = chunkStageFiles([largest]);
+    expect(batches).toEqual([[largest]]);
+    expect(
+      Buffer.byteLength(JSON.stringify({ files: batches[0] }), 'utf8'),
+    ).toBeLessThanOrEqual(STAGE_SINGLE_FILE_BODY_BYTES);
+    // The spawner clamps its own request cap to runnerd's.
+    expect(STAGE_SINGLE_FILE_BODY_BYTES).toBeLessThan(
+      RUNNERD_MAX_REQUEST_BODY_BYTES,
     );
   });
 
@@ -1552,6 +1587,126 @@ describe('sessionStageFiles chunking', () => {
     expect(result.skipped).toEqual([
       { path: 'skills/b/extra', reason: 'denied' },
     ]);
+  });
+
+  /** A fetch that answers every stage POST as staged and keeps its body. */
+  function recordingStage(): Array<{ raw: string; files: SessionStageFile[] }> {
+    const bodies: Array<{ raw: string; files: SessionStageFile[] }> = [];
+    // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    globalThis.fetch = (async (_url: any, init: any) => {
+      const raw = String(init.body);
+      // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
+      const body = JSON.parse(raw) as { files: SessionStageFile[] };
+      bodies.push({ raw, files: body.files });
+      return Response.json({
+        staged: body.files.map((f) => ({ path: f.path, bytes: 1 })),
+        skipped: [],
+      });
+      // oxlint-disable-next-line typescript-eslint/no-explicit-any
+    }) as any;
+    return bodies;
+  }
+
+  // REGRESSION (#5177): a skill's 1.2 MB template serialized past the batch
+  // budget, and the client threw before sending anything.
+  test('stages a skill file over the batch budget in a request of its own', async () => {
+    const bodies = recordingStage();
+    const files: SessionStageFile[] = [
+      { path: 'skills/deck/SKILL.md', contentBase64: 'c2tpbGw=' },
+      {
+        path: 'skills/deck/assets/template.pptx',
+        contentBase64: Buffer.alloc(1_200_000, 7).toString('base64'),
+      },
+      { path: 'skills/deck/scripts/build.py', contentBase64: 'cHJpbnQ=' },
+    ];
+    const result = await sessionStageFiles('ses-stage', files);
+    expect(bodies.map((body) => body.files.map((f) => f.path))).toEqual([
+      ['skills/deck/SKILL.md'],
+      ['skills/deck/assets/template.pptx'],
+      ['skills/deck/scripts/build.py'],
+    ]);
+    const alone = Buffer.byteLength(bodies[1]?.raw ?? '', 'utf8');
+    expect(alone).toBeGreaterThan(STAGE_BODY_BUDGET_BYTES);
+    expect(alone).toBeLessThanOrEqual(STAGE_SINGLE_FILE_BODY_BYTES);
+    expect(result).toEqual({
+      staged: files.map((f) => ({ path: f.path, bytes: 1 })),
+      skipped: [],
+    });
+  });
+
+  test('refuses an inline file larger than a skill file may be without sending it', async () => {
+    const bodies = recordingStage();
+    const result = await sessionStageFiles('ses-stage', [
+      {
+        path: 'skills/deck/assets/huge.bin',
+        contentBase64: Buffer.alloc(STAGE_INLINE_MAX_BYTES + 1).toString(
+          'base64',
+        ),
+      },
+      { path: 'skills/deck/SKILL.md', contentBase64: 'c2tpbGw=' },
+    ]);
+    expect(bodies.map((body) => body.files.map((f) => f.path))).toEqual([
+      ['skills/deck/SKILL.md'],
+    ]);
+    expect(result).toEqual({
+      staged: [{ path: 'skills/deck/SKILL.md', bytes: 1 }],
+      skipped: [{ path: 'skills/deck/assets/huge.bin', reason: 'too_large' }],
+    });
+  });
+
+  test('names the file a request carried alone when the sandbox service refuses its size', async () => {
+    globalThis.fetch = (async () =>
+      Response.json(
+        { error: 'payload_too_large' },
+        { status: 413 },
+      )) as unknown as typeof fetch;
+    await expect(
+      sessionStageFiles('ses-stage', [
+        {
+          path: 'skills/deck/assets/template.pptx',
+          contentBase64: Buffer.alloc(1_200_000).toString('base64'),
+        },
+      ]),
+    ).rejects.toThrow(
+      'sandbox session files stage failed (413): skills/deck/assets/template.pptx is larger than the sandbox service takes in one request',
+    );
+  });
+});
+
+describe('describeStageSkips', () => {
+  const inline = (path: string, bytes: number): SessionStageFile => ({
+    path,
+    contentBase64: Buffer.alloc(bytes).toString('base64'),
+  });
+
+  test('names each file left behind, with the size and limit of one too large', () => {
+    const files = [
+      inline('skills/deck/assets/huge.bin', 5 * 1024 * 1024),
+      inline('skills/deck/assets/template.pptx', 1_200_000),
+      { path: 'inputs/report.csv', url: 'https://files.invalid/report.csv' },
+      { path: 'inputs/archive.zip', url: 'https://files.invalid/archive.zip' },
+    ];
+    expect(
+      describeStageSkips(
+        [
+          { path: 'skills/deck/assets/huge.bin', reason: 'too_large' },
+          { path: 'skills/deck/assets/template.pptx', reason: 'too_large' },
+          { path: 'inputs/report.csv', reason: 'http_404' },
+          { path: 'inputs/archive.zip', reason: 'too_large' },
+        ],
+        files,
+      ),
+    ).toBe(
+      'skills/deck/assets/huge.bin (5.0 MB, over the 4.0 MB a file copied into the sandbox may hold), ' +
+        'skills/deck/assets/template.pptx (1.1 MB, over the 1.0 MB an outdated sandbox runtime takes; an updated one takes 4.0 MB), ' +
+        'inputs/report.csv (http_404), ' +
+        'inputs/archive.zip (too_large)',
+    );
+  });
+
+  test('a skill file may be as large as the upload takes it, and the runtime takes as much inline', () => {
+    expect(STAGE_INLINE_MAX_BYTES).toBe(MAX_SKILL_BUNDLE_FILE_BYTES);
+    expect(INLINE_MAX_BYTES).toBe(STAGE_INLINE_MAX_BYTES);
   });
 });
 

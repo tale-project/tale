@@ -160,6 +160,7 @@ const FAILURE_REASON_KEYS: Record<string, string> = {
   sandbox_failed: 'thinking.outcome.sandboxFailed',
   program_failed: 'thinking.outcome.programFailed',
   timed_out: 'thinking.outcome.timedOut',
+  files_not_staged: 'thinking.outcome.filesNotStaged',
 };
 
 /** …and, for a result that names no cause, by its status. */

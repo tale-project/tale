@@ -224,6 +224,9 @@ describe('stepOutcomeLabel — what became of a step [CHAT-R30]', () => {
         reason: 'sandbox_not_ready',
       }),
     ).toBe('thinking.outcome.sandboxNotReady');
+    expect(
+      stepOutcomeLabel(t, { status: 'error', reason: 'files_not_staged' }),
+    ).toBe('thinking.outcome.filesNotStaged');
   });
 
   it('falls back to the status, then to a plain failure', () => {

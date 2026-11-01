@@ -68,6 +68,9 @@ export const WORK_TOOL_FAILURE_REASONS = [
   'program_failed',
   /** The program, or the step it ran in, ran out of time (`error`). */
   'timed_out',
+  /** A file the program needs — a skill's, an attached one — could not be
+   * copied into the sandbox (`error`). */
+  'files_not_staged',
 ] as const;
 
 export type WorkToolFailureReason = (typeof WORK_TOOL_FAILURE_REASONS)[number];
