@@ -76,10 +76,10 @@ actions:
         const q = ['limit=' + Math.min(Number(input.limit) || 50, 250)];
         for (const k of ['page_info', 'since_id', 'created_at_min', 'updated_at_min', 'status', 'fields']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
         const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/products.json?${q.join('&')}`, { headers: h });
-        if (r.status === 401) throw new Error('Shopify list_products failed: authentication failed — verify the access token (it starts with "shpat_").');
-        if (r.status === 403) throw new Error('Shopify list_products failed: access denied — verify the app has the required API scopes.');
-        if (r.status === 404) throw new Error('Shopify list_products failed: store not found — verify the store domain on this credential.');
-        if (!r.status || r.status >= 400) throw new Error(`Shopify list_products failed (${r.status}): ${r.text()}`);
+        if (r.status === 401) throw Object.assign(new Error('Shopify list_products failed: authentication failed — verify the access token (it starts with "shpat_").'), { status: r.status });
+        if (r.status === 403) throw Object.assign(new Error('Shopify list_products failed: access denied — verify the app has the required API scopes.'), { status: r.status });
+        if (r.status === 404) throw Object.assign(new Error('Shopify list_products failed: store not found — verify the store domain on this credential.'), { status: r.status });
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Shopify list_products failed (${r.status}): ${r.text()}`), { status: r.status });
         const link = (r.headers && (r.headers.link || r.headers.Link)) || '';
         const next = link.split(',').filter((p) => p.indexOf('rel="next"') !== -1)[0] || '';
         const m = next.match(/page_info=([^>&]+)/);
@@ -119,10 +119,10 @@ actions:
       live: |
         const h = { 'X-Shopify-Access-Token': ctx.secrets.get('accessToken'), 'Content-Type': 'application/json' };
         const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/products/${encodeURIComponent(input.resourceId)}.json`, { headers: h });
-        if (r.status === 401) throw new Error('Shopify get_product failed: authentication failed — verify the access token (it starts with "shpat_").');
-        if (r.status === 403) throw new Error('Shopify get_product failed: access denied — verify the app has the required API scopes.');
-        if (r.status === 404) throw new Error(`Shopify get_product failed: product ${input.resourceId} not found.`);
-        if (!r.status || r.status >= 400) throw new Error(`Shopify get_product failed (${r.status}): ${r.text()}`);
+        if (r.status === 401) throw Object.assign(new Error('Shopify get_product failed: authentication failed — verify the access token (it starts with "shpat_").'), { status: r.status });
+        if (r.status === 403) throw Object.assign(new Error('Shopify get_product failed: access denied — verify the app has the required API scopes.'), { status: r.status });
+        if (r.status === 404) throw Object.assign(new Error(`Shopify get_product failed: product ${input.resourceId} not found.`), { status: r.status });
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Shopify get_product failed (${r.status}): ${r.text()}`), { status: r.status });
         return { product: r.json().product };
     exampleInput: { resourceId: '8123456789012' }
   - name: list_customers
@@ -180,10 +180,10 @@ actions:
         const q = ['limit=' + Math.min(Number(input.limit) || 50, 250)];
         for (const k of ['page_info', 'since_id', 'created_at_min', 'updated_at_min', 'fields']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
         const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/customers.json?${q.join('&')}`, { headers: h });
-        if (r.status === 401) throw new Error('Shopify list_customers failed: authentication failed — verify the access token (it starts with "shpat_").');
-        if (r.status === 403) throw new Error('Shopify list_customers failed: access denied — verify the app has the required API scopes.');
-        if (r.status === 404) throw new Error('Shopify list_customers failed: store not found — verify the store domain on this credential.');
-        if (!r.status || r.status >= 400) throw new Error(`Shopify list_customers failed (${r.status}): ${r.text()}`);
+        if (r.status === 401) throw Object.assign(new Error('Shopify list_customers failed: authentication failed — verify the access token (it starts with "shpat_").'), { status: r.status });
+        if (r.status === 403) throw Object.assign(new Error('Shopify list_customers failed: access denied — verify the app has the required API scopes.'), { status: r.status });
+        if (r.status === 404) throw Object.assign(new Error('Shopify list_customers failed: store not found — verify the store domain on this credential.'), { status: r.status });
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Shopify list_customers failed (${r.status}): ${r.text()}`), { status: r.status });
         const link = (r.headers && (r.headers.link || r.headers.Link)) || '';
         const next = link.split(',').filter((p) => p.indexOf('rel="next"') !== -1)[0] || '';
         const m = next.match(/page_info=([^>&]+)/);
@@ -224,10 +224,10 @@ actions:
       live: |
         const h = { 'X-Shopify-Access-Token': ctx.secrets.get('accessToken'), 'Content-Type': 'application/json' };
         const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/customers/${encodeURIComponent(input.resourceId)}.json`, { headers: h });
-        if (r.status === 401) throw new Error('Shopify get_customer failed: authentication failed — verify the access token (it starts with "shpat_").');
-        if (r.status === 403) throw new Error('Shopify get_customer failed: access denied — verify the app has the required API scopes.');
-        if (r.status === 404) throw new Error(`Shopify get_customer failed: customer ${input.resourceId} not found.`);
-        if (!r.status || r.status >= 400) throw new Error(`Shopify get_customer failed (${r.status}): ${r.text()}`);
+        if (r.status === 401) throw Object.assign(new Error('Shopify get_customer failed: authentication failed — verify the access token (it starts with "shpat_").'), { status: r.status });
+        if (r.status === 403) throw Object.assign(new Error('Shopify get_customer failed: access denied — verify the app has the required API scopes.'), { status: r.status });
+        if (r.status === 404) throw Object.assign(new Error(`Shopify get_customer failed: customer ${input.resourceId} not found.`), { status: r.status });
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Shopify get_customer failed (${r.status}): ${r.text()}`), { status: r.status });
         return { customer: r.json().customer };
     exampleInput: { resourceId: '7123456789012' }
   - name: list_orders
@@ -290,10 +290,10 @@ actions:
         const q = ['limit=' + Math.min(Number(input.limit) || 50, 250)];
         for (const k of ['page_info', 'since_id', 'created_at_min', 'updated_at_min', 'status', 'fields']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
         const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/orders.json?${q.join('&')}`, { headers: h });
-        if (r.status === 401) throw new Error('Shopify list_orders failed: authentication failed — verify the access token (it starts with "shpat_").');
-        if (r.status === 403) throw new Error('Shopify list_orders failed: access denied — verify the app has the required API scopes.');
-        if (r.status === 404) throw new Error('Shopify list_orders failed: store not found — verify the store domain on this credential.');
-        if (!r.status || r.status >= 400) throw new Error(`Shopify list_orders failed (${r.status}): ${r.text()}`);
+        if (r.status === 401) throw Object.assign(new Error('Shopify list_orders failed: authentication failed — verify the access token (it starts with "shpat_").'), { status: r.status });
+        if (r.status === 403) throw Object.assign(new Error('Shopify list_orders failed: access denied — verify the app has the required API scopes.'), { status: r.status });
+        if (r.status === 404) throw Object.assign(new Error('Shopify list_orders failed: store not found — verify the store domain on this credential.'), { status: r.status });
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Shopify list_orders failed (${r.status}): ${r.text()}`), { status: r.status });
         const link = (r.headers && (r.headers.link || r.headers.Link)) || '';
         const next = link.split(',').filter((p) => p.indexOf('rel="next"') !== -1)[0] || '';
         const m = next.match(/page_info=([^>&]+)/);
@@ -334,10 +334,10 @@ actions:
       live: |
         const h = { 'X-Shopify-Access-Token': ctx.secrets.get('accessToken'), 'Content-Type': 'application/json' };
         const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/orders/${encodeURIComponent(input.resourceId)}.json`, { headers: h });
-        if (r.status === 401) throw new Error('Shopify get_order failed: authentication failed — verify the access token (it starts with "shpat_").');
-        if (r.status === 403) throw new Error('Shopify get_order failed: access denied — verify the app has the required API scopes.');
-        if (r.status === 404) throw new Error(`Shopify get_order failed: order ${input.resourceId} not found.`);
-        if (!r.status || r.status >= 400) throw new Error(`Shopify get_order failed (${r.status}): ${r.text()}`);
+        if (r.status === 401) throw Object.assign(new Error('Shopify get_order failed: authentication failed — verify the access token (it starts with "shpat_").'), { status: r.status });
+        if (r.status === 403) throw Object.assign(new Error('Shopify get_order failed: access denied — verify the app has the required API scopes.'), { status: r.status });
+        if (r.status === 404) throw Object.assign(new Error(`Shopify get_order failed: order ${input.resourceId} not found.`), { status: r.status });
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Shopify get_order failed (${r.status}): ${r.text()}`), { status: r.status });
         return { order: r.json().order };
     exampleInput: { resourceId: '5123456789012' }
   - name: count_products
@@ -360,10 +360,10 @@ actions:
       live: |
         const h = { 'X-Shopify-Access-Token': ctx.secrets.get('accessToken'), 'Content-Type': 'application/json' };
         const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/products/count.json`, { headers: h });
-        if (r.status === 401) throw new Error('Shopify count_products failed: authentication failed — verify the access token (it starts with "shpat_").');
-        if (r.status === 403) throw new Error('Shopify count_products failed: access denied — verify the app has the required API scopes.');
-        if (r.status === 404) throw new Error('Shopify count_products failed: store not found — verify the store domain on this credential.');
-        if (!r.status || r.status >= 400) throw new Error(`Shopify count_products failed (${r.status}): ${r.text()}`);
+        if (r.status === 401) throw Object.assign(new Error('Shopify count_products failed: authentication failed — verify the access token (it starts with "shpat_").'), { status: r.status });
+        if (r.status === 403) throw Object.assign(new Error('Shopify count_products failed: access denied — verify the app has the required API scopes.'), { status: r.status });
+        if (r.status === 404) throw Object.assign(new Error('Shopify count_products failed: store not found — verify the store domain on this credential.'), { status: r.status });
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Shopify count_products failed (${r.status}): ${r.text()}`), { status: r.status });
         return { count: r.json().count || 0 };
   - name: count_customers
     title: Count customers
@@ -385,10 +385,10 @@ actions:
       live: |
         const h = { 'X-Shopify-Access-Token': ctx.secrets.get('accessToken'), 'Content-Type': 'application/json' };
         const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/customers/count.json`, { headers: h });
-        if (r.status === 401) throw new Error('Shopify count_customers failed: authentication failed — verify the access token (it starts with "shpat_").');
-        if (r.status === 403) throw new Error('Shopify count_customers failed: access denied — verify the app has the required API scopes.');
-        if (r.status === 404) throw new Error('Shopify count_customers failed: store not found — verify the store domain on this credential.');
-        if (!r.status || r.status >= 400) throw new Error(`Shopify count_customers failed (${r.status}): ${r.text()}`);
+        if (r.status === 401) throw Object.assign(new Error('Shopify count_customers failed: authentication failed — verify the access token (it starts with "shpat_").'), { status: r.status });
+        if (r.status === 403) throw Object.assign(new Error('Shopify count_customers failed: access denied — verify the app has the required API scopes.'), { status: r.status });
+        if (r.status === 404) throw Object.assign(new Error('Shopify count_customers failed: store not found — verify the store domain on this credential.'), { status: r.status });
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Shopify count_customers failed (${r.status}): ${r.text()}`), { status: r.status });
         return { count: r.json().count || 0 };
   - name: count_orders
     title: Count orders
@@ -410,8 +410,8 @@ actions:
       live: |
         const h = { 'X-Shopify-Access-Token': ctx.secrets.get('accessToken'), 'Content-Type': 'application/json' };
         const r = await ctx.http.get(`${ctx.endpoint}/admin/api/2026-01/orders/count.json`, { headers: h });
-        if (r.status === 401) throw new Error('Shopify count_orders failed: authentication failed — verify the access token (it starts with "shpat_").');
-        if (r.status === 403) throw new Error('Shopify count_orders failed: access denied — verify the app has the required API scopes.');
-        if (r.status === 404) throw new Error('Shopify count_orders failed: store not found — verify the store domain on this credential.');
-        if (!r.status || r.status >= 400) throw new Error(`Shopify count_orders failed (${r.status}): ${r.text()}`);
+        if (r.status === 401) throw Object.assign(new Error('Shopify count_orders failed: authentication failed — verify the access token (it starts with "shpat_").'), { status: r.status });
+        if (r.status === 403) throw Object.assign(new Error('Shopify count_orders failed: access denied — verify the app has the required API scopes.'), { status: r.status });
+        if (r.status === 404) throw Object.assign(new Error('Shopify count_orders failed: store not found — verify the store domain on this credential.'), { status: r.status });
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Shopify count_orders failed (${r.status}): ${r.text()}`), { status: r.status });
         return { count: r.json().count || 0 };

@@ -54,7 +54,7 @@ actions:
         for (const k of ['per_page', 'page', 'sort', 'visibility']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
         const qs = q.length ? '?' + q.join('&') : '';
         const r = await ctx.http.get(`https://api.github.com/user/repos${qs}`, { headers: h });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub list_repos failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub list_repos failed (${r.status}): ${r.text()}`), { status: r.status });
         return { repos: r.json() };
     exampleInput: { visibility: 'all', per_page: 20 }
   - name: get_repo
@@ -84,7 +84,7 @@ actions:
       live: |
         const h = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'Tale' };
         const r = await ctx.http.get(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}`, { headers: h });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub get_repo failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub get_repo failed (${r.status}): ${r.text()}`), { status: r.status });
         return { repo: r.json() };
     exampleInput: { owner: 'octocat', repo: 'hello-world' }
   - name: list_issues
@@ -140,7 +140,7 @@ actions:
         for (const k of ['state', 'per_page', 'page', 'labels', 'sort', 'direction', 'since']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
         const qs = q.length ? '?' + q.join('&') : '';
         const r = await ctx.http.get(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/issues${qs}`, { headers: h });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub list_issues failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub list_issues failed (${r.status}): ${r.text()}`), { status: r.status });
         return { issues: r.json() };
     exampleInput: { owner: 'octocat', repo: 'hello-world', state: 'open' }
   - name: get_issue
@@ -171,7 +171,7 @@ actions:
       live: |
         const h = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'Tale' };
         const r = await ctx.http.get(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/issues/${encodeURIComponent(input.issue_number)}`, { headers: h });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub get_issue failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub get_issue failed (${r.status}): ${r.text()}`), { status: r.status });
         return { issue: r.json() };
     exampleInput: { owner: 'octocat', repo: 'hello-world', issue_number: 1 }
   - name: create_issue
@@ -214,7 +214,7 @@ actions:
         if (input.labels != null) payload.labels = input.labels;
         if (input.assignees != null) payload.assignees = input.assignees;
         const r = await ctx.http.post(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/issues`, { headers: h, body: JSON.stringify(payload) });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub create_issue failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub create_issue failed (${r.status}): ${r.text()}`), { status: r.status });
         const j = r.json();
         return { number: j.number, url: j.html_url };
     exampleInput:
@@ -272,7 +272,7 @@ actions:
         for (const k of ['head', 'base', 'state', 'per_page', 'page', 'sort', 'direction']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
         const qs = q.length ? '?' + q.join('&') : '';
         const r = await ctx.http.get(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/pulls${qs}`, { headers: h });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub list_pull_requests failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub list_pull_requests failed (${r.status}): ${r.text()}`), { status: r.status });
         return { pull_requests: r.json() };
     exampleInput: { owner: 'octocat', repo: 'hello-world', state: 'open' }
   - name: get_pull_request
@@ -303,7 +303,7 @@ actions:
       live: |
         const h = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'Tale' };
         const r = await ctx.http.get(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/pulls/${encodeURIComponent(input.pull_number)}`, { headers: h });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub get_pull_request failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub get_pull_request failed (${r.status}): ${r.text()}`), { status: r.status });
         return { pull_request: r.json() };
     exampleInput: { owner: 'octocat', repo: 'hello-world', pull_number: 1 }
   - name: create_pull_request
@@ -348,7 +348,7 @@ actions:
         const payload = { title: input.title, head: input.head, base: input.base };
         if (input.body != null) payload.body = input.body;
         const r = await ctx.http.post(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/pulls`, { headers: h, body: JSON.stringify(payload) });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub create_pull_request failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub create_pull_request failed (${r.status}): ${r.text()}`), { status: r.status });
         const j = r.json();
         return { number: j.number, url: j.html_url };
     exampleInput:
@@ -403,7 +403,7 @@ actions:
         if (input.commit_title != null) payload.commit_title = input.commit_title;
         if (input.commit_message != null) payload.commit_message = input.commit_message;
         const r = await ctx.http.put(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/pulls/${encodeURIComponent(input.pull_number)}/merge`, { headers: h, body: JSON.stringify(payload) });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub merge_pull_request failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub merge_pull_request failed (${r.status}): ${r.text()}`), { status: r.status });
         return r.json();
     exampleInput:
       {
@@ -441,7 +441,7 @@ actions:
         for (const k of ['per_page', 'page']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
         const qs = q.length ? '?' + q.join('&') : '';
         const r = await ctx.http.get(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/pulls/${encodeURIComponent(input.pull_number)}/files${qs}`, { headers: h });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub get_pull_request_files failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub get_pull_request_files failed (${r.status}): ${r.text()}`), { status: r.status });
         return { files: r.json() };
     exampleInput: { owner: 'octocat', repo: 'hello-world', pull_number: 1 }
   - name: get_pull_request_diff
@@ -482,7 +482,7 @@ actions:
         const r = await ctx.http.get(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/pulls/${encodeURIComponent(input.pull_number)}`, { headers: h });
         // GitHub answers 406 for a diff too large to render (too many files or lines).
         if (r.status === 406) return { diff: '', size: null, truncated: true, tooLarge: true };
-        if (!r.status || r.status >= 400) throw new Error(`GitHub get_pull_request_diff failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub get_pull_request_diff failed (${r.status}): ${r.text()}`), { status: r.status });
         const text = r.text();
         const max = typeof input.maxChars === 'number' && input.maxChars > 0 ? Math.floor(input.maxChars) : null;
         const cut = max !== null && text.length > max;
@@ -547,7 +547,7 @@ actions:
         const h = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json', 'User-Agent': 'Tale' };
         const graphql = async (query, variables) => {
           const r = await ctx.http.post('https://api.github.com/graphql', { headers: h, body: JSON.stringify({ query, variables }) });
-          if (!r.status || r.status >= 400) throw new Error(`GitHub list_pull_requests_to_review failed (${r.status}): ${r.text()}`);
+          if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub list_pull_requests_to_review failed (${r.status}): ${r.text()}`), { status: r.status });
           const body = r.json();
           if (Array.isArray(body.errors) && body.errors.length > 0) throw new Error(`GitHub list_pull_requests_to_review failed: ${body.errors.map((e) => e.message).join('; ')}`);
           return body.data;
@@ -635,7 +635,7 @@ actions:
         if (input.comments != null) payload.comments = input.comments;
         if (input.commit_id != null) payload.commit_id = input.commit_id;
         const r = await ctx.http.post(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/pulls/${encodeURIComponent(input.pull_number)}/reviews`, { headers: h, body: JSON.stringify(payload) });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub create_pull_request_review failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub create_pull_request_review failed (${r.status}): ${r.text()}`), { status: r.status });
         const j = r.json();
         return { id: j.id, state: j.state, html_url: j.html_url };
     exampleInput:
@@ -680,7 +680,7 @@ actions:
         if (input.side != null) payload.side = input.side;
         if (input.start_line != null) payload.start_line = input.start_line;
         const r = await ctx.http.post(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/pulls/${encodeURIComponent(input.pull_number)}/comments`, { headers: h, body: JSON.stringify(payload) });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub create_pull_request_review_comment failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub create_pull_request_review_comment failed (${r.status}): ${r.text()}`), { status: r.status });
         const j = r.json();
         return { id: j.id, html_url: j.html_url };
     exampleInput:
@@ -722,7 +722,7 @@ actions:
         for (const k of ['per_page', 'page']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
         const qs = q.length ? '?' + q.join('&') : '';
         const r = await ctx.http.get(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/issues/${encodeURIComponent(input.issue_number)}/comments${qs}`, { headers: h });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub list_issue_comments failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub list_issue_comments failed (${r.status}): ${r.text()}`), { status: r.status });
         return { comments: r.json() };
     exampleInput: { owner: 'octocat', repo: 'hello-world', issue_number: 1 }
   - name: create_issue_comment
@@ -752,7 +752,7 @@ actions:
       live: |
         const h = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json', 'User-Agent': 'Tale' };
         const r = await ctx.http.post(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/issues/${encodeURIComponent(input.issue_number)}/comments`, { headers: h, body: JSON.stringify({ body: input.body }) });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub create_issue_comment failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub create_issue_comment failed (${r.status}): ${r.text()}`), { status: r.status });
         const j = r.json();
         return { id: j.id, url: j.html_url };
     exampleInput:
@@ -799,7 +799,7 @@ actions:
         const payload = {};
         for (const k of ['title', 'body', 'state', 'labels', 'assignees', 'milestone']) if (input[k] !== undefined) payload[k] = input[k];
         const r = await ctx.http.patch(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/issues/${encodeURIComponent(input.issue_number)}`, { headers: h, body: JSON.stringify(payload) });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub update_issue failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub update_issue failed (${r.status}): ${r.text()}`), { status: r.status });
         const j = r.json();
         return { number: j.number, state: j.state, url: j.html_url };
     exampleInput:
@@ -836,7 +836,7 @@ actions:
       live: |
         const h = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'Content-Type': 'application/json', 'User-Agent': 'Tale' };
         const r = await ctx.http.post(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/issues/${encodeURIComponent(input.issue_number)}/labels`, { headers: h, body: JSON.stringify({ labels: input.labels }) });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub add_labels_to_issue failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub add_labels_to_issue failed (${r.status}): ${r.text()}`), { status: r.status });
         return { labels: r.json() };
     exampleInput:
       {
@@ -882,7 +882,7 @@ actions:
         for (const k of ['per_page', 'page', 'sha']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
         const qs = q.length ? '?' + q.join('&') : '';
         const r = await ctx.http.get(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/commits${qs}`, { headers: h });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub list_commits failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub list_commits failed (${r.status}): ${r.text()}`), { status: r.status });
         return { commits: r.json() };
     exampleInput: { owner: 'octocat', repo: 'hello-world' }
   - name: search_code
@@ -915,7 +915,7 @@ actions:
         const q = ['q=' + encodeURIComponent(String(input.q))];
         for (const k of ['per_page', 'page']) if (input[k] != null && input[k] !== '') q.push(k + '=' + encodeURIComponent(String(input[k])));
         const r = await ctx.http.get(`https://api.github.com/search/code?${q.join('&')}`, { headers: h });
-        if (!r.status || r.status >= 400) throw new Error(`GitHub search_code failed (${r.status}): ${r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub search_code failed (${r.status}): ${r.text()}`), { status: r.status });
         const j = r.json();
         return { total_count: j.total_count, items: j.items };
     exampleInput: { q: 'addEventListener repo:octocat/hello-world' }

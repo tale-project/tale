@@ -96,7 +96,9 @@ auth:
 # named mailbox says how the mailbox is granted, a 429 names Graph's wait,
 # and a 404 names the mailbox only for a call on the mailbox itself
 # (`mailboxRoot`) — a message, attachment or folder Graph no longer finds
-# keeps Graph's own `(404)`, which the mail sync reads as gone.
+# keeps Graph's own `(404)`, which the mail sync reads as gone. The error
+# carries Graph's status as `status`, so a run tells a busy Graph (429, 5xx)
+# from one that refused the call.
 livePrelude: |
   const outlookMailbox = String((ctx.config && ctx.config.mailbox) || '').trim();
   const graphRoot = 'https://graph.microsoft.com/v1.0/' + (outlookMailbox ? 'users/' + encodeURIComponent(outlookMailbox).replace(/%40/g, '@') : 'me');
@@ -116,7 +118,7 @@ livePrelude: |
     if (!r.status || r.status >= 400) return new Error(`${head} (${r.status}): ${r.text()}`);
     return null;
   };
-  const graphCheck = (action, r, opts) => { const refusal = graphRefusal(action, r, opts); if (refusal) throw refusal; };
+  const graphCheck = (action, r, opts) => { const refusal = graphRefusal(action, r, opts); if (refusal) throw Object.assign(refusal, { status: r.status }); };
 actions:
   - name: list_messages
     title: List messages
@@ -490,7 +492,7 @@ actions:
           if (bytes == null) {
             if (!att.url) throw new Error(`Outlook send_message failed: attachment "${att.name || ''}" carries neither contentBytes nor a url.`);
             const fr = await ctx.http.get(att.url, { responseType: 'base64' });
-            if (!fr.status || fr.status >= 400) throw new Error(`Outlook send_message failed to fetch attachment "${att.name || ''}" (${fr.status}): ${fr.text()}`);
+            if (!fr.status || fr.status >= 400) throw Object.assign(new Error(`Outlook send_message failed to fetch attachment "${att.name || ''}" (${fr.status}): ${fr.text()}`), { status: fr.status });
             bytes = fr.text();
           }
           const payload = { '@odata.type': '#microsoft.graph.fileAttachment', name: att.name || 'attachment', contentType: att.contentType || 'application/octet-stream', contentBytes: bytes };

@@ -48,7 +48,7 @@ actions:
         const form = { To: input.to, From: input.from, Body: input.body };
         const encoded = Object.keys(form).map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(String(form[k]))).join('&');
         const r = await ctx.http.post(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Messages.json`, { headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }, body: encoded });
-        if (!r.status || r.status >= 400) throw new Error(`Twilio send_sms failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 403 ? 'permission denied' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Twilio send_sms failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 403 ? 'permission denied' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         return { sid: j.sid, status: j.status, to: j.to, from: j.from };
     exampleInput:
@@ -103,7 +103,7 @@ actions:
         q.push('PageSize=' + Math.min(Number(input.pageSize) || 50, 1000));
         if (input.page != null) q.push('Page=' + encodeURIComponent(String(input.page)));
         const r = await ctx.http.get(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Messages.json?${q.join('&')}`, { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Twilio list_messages failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 403 ? 'permission denied' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Twilio list_messages failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 403 ? 'permission denied' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         return { messages: j.messages || [], next_page_uri: j.next_page_uri || null };
     exampleInput: { to: '+15551234567', pageSize: 20 }
@@ -132,7 +132,7 @@ actions:
         const accountSid = ctx.secrets.get('username');
         if (!accountSid) throw new Error('Twilio get_message failed: the credential is missing the Account SID (the basic-auth username).');
         const r = await ctx.http.get(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Messages/${encodeURIComponent(input.messageSid)}.json`, { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Twilio get_message failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 404 ? 'message not found' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Twilio get_message failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 404 ? 'message not found' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`), { status: r.status });
         return { message: r.json() };
     exampleInput: { messageSid: 'SM1234567890abcdef1234567890abcdef' }
   - name: list_calls
@@ -180,7 +180,7 @@ actions:
         q.push('PageSize=' + Math.min(Number(input.pageSize) || 50, 1000));
         if (input.page != null) q.push('Page=' + encodeURIComponent(String(input.page)));
         const r = await ctx.http.get(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Calls.json?${q.join('&')}`, { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Twilio list_calls failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 403 ? 'permission denied' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Twilio list_calls failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 403 ? 'permission denied' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         return { calls: j.calls || [], next_page_uri: j.next_page_uri || null };
     exampleInput: { status: 'completed', pageSize: 20 }
@@ -221,7 +221,7 @@ actions:
         if (input.method != null && input.method !== '') form.Method = input.method;
         const encoded = Object.keys(form).map((k) => encodeURIComponent(k) + '=' + encodeURIComponent(String(form[k]))).join('&');
         const r = await ctx.http.post(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/Calls.json`, { headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' }, body: encoded });
-        if (!r.status || r.status >= 400) throw new Error(`Twilio make_call failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 403 ? 'permission denied' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Twilio make_call failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 403 ? 'permission denied' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         return { sid: j.sid, status: j.status, to: j.to, from: j.from };
     exampleInput:
@@ -251,7 +251,7 @@ actions:
         const accountSid = ctx.secrets.get('username');
         if (!accountSid) throw new Error('Twilio get_account failed: the credential is missing the Account SID (the basic-auth username).');
         const r = await ctx.http.get(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}.json`, { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Twilio get_account failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 404 ? 'account not found' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Twilio get_account failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 404 ? 'account not found' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`), { status: r.status });
         return { account: r.json() };
     exampleInput: {}
   - name: list_phone_numbers
@@ -286,7 +286,7 @@ actions:
         const q = ['PageSize=' + Math.min(Number(input.pageSize) || 50, 1000)];
         if (input.page != null) q.push('Page=' + encodeURIComponent(String(input.page)));
         const r = await ctx.http.get(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}/IncomingPhoneNumbers.json?${q.join('&')}`, { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Twilio list_phone_numbers failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 403 ? 'permission denied' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Twilio list_phone_numbers failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 403 ? 'permission denied' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         return { phone_numbers: j.incoming_phone_numbers || [], next_page_uri: j.next_page_uri || null };
     exampleInput: { pageSize: 20 }

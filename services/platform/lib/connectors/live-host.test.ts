@@ -430,6 +430,22 @@ describe('files', () => {
     ).rejects.toThrow(/failed \(403\)/);
     expect(blobs.calls).toHaveLength(0);
   });
+
+  it("carries the vendor's status on a failed download", async () => {
+    // A run reads it: a busy vendor (429, 5xx) is unavailable, never a
+    // failure that counts toward pausing a schedule.
+    const host = createLiveHost({ connector: GITHUB, blobs: sink() });
+    fetchStub.mockResolvedValueOnce(new Response('busy', { status: 503 }));
+    const failed: unknown = await host.files
+      ?.download('https://api.github.com/assets/1', { fileName: 'report.pdf' })
+      .catch((error: unknown) => error);
+    expect(failed).toMatchObject({
+      name: 'ConnectorError',
+      code: 'REQUEST_FAILED',
+      vendorStatus: 503,
+    });
+    expect(failed).not.toHaveProperty('status');
+  });
 });
 
 describe('base64 helpers', () => {

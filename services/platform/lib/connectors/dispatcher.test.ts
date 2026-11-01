@@ -18,6 +18,10 @@ import {
 } from 'vitest';
 
 import { importedTaskTitleRefusal } from '../../backend/core/tasks/helpers';
+import {
+  connectorFailureOf,
+  reasonFamily,
+} from '../engine/core/record/failure';
 import { setCodeRunner } from '../engine/core/runner';
 import { nodeVmRunner } from '../engine/runners/node-vm';
 import {
@@ -774,6 +778,151 @@ describe('live yaml-js backend', () => {
     // vendor's 429 is no rate limit of the caller.
     expect(failed).not.toHaveProperty('status');
   });
+
+  // Every shipped body that fails on the vendor's answer throws with its
+  // status: one live call each, answered 429 and then 503 [AUTO-R13].
+  const LIVE_CALLS = loadConnectorCatalog(SYSTEM_ROOT).flatMap((connector) =>
+    connector.actions
+      .filter((action) => action.backend?.kind === 'yaml-js')
+      .map((action) => ({
+        connector: connector.name,
+        action: action.name,
+        authMethod: connector.auth[0]?.method ?? 'bearer',
+        input: action.exampleInput ?? {},
+      })),
+  );
+  /** The origin of each per-credential connector, inside its allowed hosts. */
+  const LIVE_ENDPOINTS: Record<string, string> = {
+    confluence: 'https://acme.atlassian.net',
+    forgejo: 'https://codeberg.org',
+    shopify: 'https://acme.myshopify.com',
+  };
+  /** What the bodies read through `ctx.secrets`. */
+  const LIVE_SECRETS = {
+    token: 'sekrit',
+    apiKey: 'sk-test',
+    accessToken: 'shpat_test',
+    username: 'AC0123',
+  };
+  /** Bodies whose first vendor call is the host's download, which refuses a
+   * failed answer itself. */
+  const HOST_DOWNLOADS = new Set(['google-drive.download_file']);
+
+  function callShipped(
+    connector: string,
+    action: string,
+    status: number,
+    body: unknown,
+  ): Promise<unknown> {
+    const call = LIVE_CALLS.find(
+      (each) => each.connector === connector && each.action === action,
+    );
+    if (call === undefined) {
+      throw new Error(`no shipped live action ${connector}.${action}`);
+    }
+    fetchStub.mockImplementation(
+      async () =>
+        new Response(JSON.stringify(body), {
+          status,
+          headers: { 'content-type': 'application/json' },
+        }),
+    );
+    const endpoint = LIVE_ENDPOINTS[connector];
+    return executeConnectorAction({
+      connector,
+      action,
+      input: call.input,
+      caller: { kind: 'workflow', runId: 'run_1', nodeId: 'node_1' },
+      ctx: {
+        organizationId: ORG,
+        mode: 'live',
+        credentials: resolver({
+          authMethod: call.authMethod,
+          secrets: LIVE_SECRETS,
+          // An api-key body places its secret itself.
+          ...(call.authMethod === 'api-key' && { authHeader: undefined }),
+          ...(endpoint !== undefined && { endpoint }),
+        }),
+        blobs: {
+          store: async (blob) => ({
+            id: 'blob_1',
+            fileName: blob.fileName,
+            contentType: blob.contentType,
+            size: blob.data.length,
+          }),
+        },
+      },
+    }).catch((error: unknown) => error);
+  }
+
+  it('reaches the live bodies of every shipped yaml-js connector', () => {
+    expect(new Set(LIVE_CALLS.map((call) => call.connector))).toEqual(
+      new Set([
+        'confluence',
+        'discord',
+        'forgejo',
+        'github',
+        'gmail',
+        'google-drive',
+        'jev',
+        'outlook',
+        'shopify',
+        'slack',
+        'tavily',
+        'teams',
+        'twilio',
+      ]),
+    );
+  });
+
+  it.each(
+    LIVE_CALLS.flatMap(({ connector, action }) =>
+      [429, 503].map((status) => [connector, action, status] as const),
+    ),
+  )("%s.%s keeps the vendor's %i", async (connector, action, status) => {
+    const failed = await callShipped(connector, action, status, {
+      error: 'busy',
+    });
+    expect(fetchStub).toHaveBeenCalled();
+    expect(failed).toBeInstanceOf(ConnectorError);
+    expect(failed).toMatchObject({
+      code: HOST_DOWNLOADS.has(`${connector}.${action}`)
+        ? 'REQUEST_FAILED'
+        : 'LIVE_BODY_FAILED',
+      vendorStatus: status,
+    });
+    expect(failed).not.toHaveProperty('status');
+    // A run reads the busy vendor as unavailable, which never counts toward
+    // pausing a schedule.
+    const cause = connectorFailureOf(failed, connector, action);
+    expect(cause.reason).toBe(
+      status === 429 ? 'CONNECTOR_RATE_LIMITED' : 'CONNECTOR_FAILED',
+    );
+    expect(reasonFamily(cause.reason, cause.params)).toBe(
+      'connector_unavailable',
+    );
+  });
+
+  // The vendor answered as a success and the body refused what it said: the
+  // connector refused the call, so its error names no status.
+  it.each([
+    ['jev', 'decide', { usage: {} }],
+    [
+      'github',
+      'list_pull_requests_to_review',
+      { errors: [{ message: 'Field is missing' }] },
+    ],
+  ])(
+    "gives %s.%s's refusal of a 2xx answer no status",
+    async (connector, action, body) => {
+      const failed = await callShipped(connector, action, 200, body);
+      expect(failed).toBeInstanceOf(ConnectorError);
+      expect(failed).toMatchObject({ code: 'LIVE_BODY_FAILED' });
+      expect((failed as ConnectorError).vendorStatus).toBeUndefined();
+      const cause = connectorFailureOf(failed, connector, action);
+      expect(reasonFamily(cause.reason, cause.params)).toBe('connector_error');
+    },
+  );
 
   it.each([
     ['no status', 'throw new Error("vendor said no");'],

@@ -44,7 +44,7 @@ actions:
       kind: yaml-js
       live: |
         const r = await ctx.http.get('https://graph.microsoft.com/v1.0/me/joinedTeams', { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Teams list_teams failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Teams list_teams failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         return { teams: j.value || [], nextLink: j['@odata.nextLink'] || null };
     exampleInput: {}
@@ -71,7 +71,7 @@ actions:
       kind: yaml-js
       live: |
         const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(input.teamId)}`, { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Teams get_team failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 404 ? 'team not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Teams get_team failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 404 ? 'team not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`), { status: r.status });
         return { team: r.json() };
     exampleInput: { teamId: '19:team-demo@thread.tacv2' }
   - name: list_channels
@@ -97,7 +97,7 @@ actions:
       kind: yaml-js
       live: |
         const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(input.teamId)}/channels`, { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Teams list_channels failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 404 ? 'team not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Teams list_channels failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 404 ? 'team not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         return { channels: j.value || [], nextLink: j['@odata.nextLink'] || null };
     exampleInput: { teamId: '19:team-demo@thread.tacv2' }
@@ -127,7 +127,7 @@ actions:
       kind: yaml-js
       live: |
         const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(input.teamId)}/channels/${encodeURIComponent(input.channelId)}`, { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Teams get_channel failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 404 ? 'channel not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Teams get_channel failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 404 ? 'channel not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`), { status: r.status });
         return { channel: r.json() };
     exampleInput:
       {
@@ -167,7 +167,7 @@ actions:
       live: |
         const top = Math.min(Number(input.top) || 20, 50);
         const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(input.teamId)}/channels/${encodeURIComponent(input.channelId)}/messages?$top=${top}`, { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Teams list_messages failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 404 ? 'channel not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Teams list_messages failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 404 ? 'channel not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         return { messages: j.value || [], nextLink: j['@odata.nextLink'] || null };
     exampleInput:
@@ -209,7 +209,7 @@ actions:
       live: |
         const payload = { body: { content: input.content, contentType: input.contentType || 'text' } };
         const r = await ctx.http.post(`https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(input.teamId)}/channels/${encodeURIComponent(input.channelId)}/messages`, { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (!r.status || r.status >= 400) throw new Error(`Teams send_message failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — the app needs the ChannelMessage.Send scope' : r.status === 404 ? 'channel not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Teams send_message failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — the app needs the ChannelMessage.Send scope' : r.status === 404 ? 'channel not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         return { id: j.id, webUrl: j.webUrl };
     exampleInput:
@@ -249,7 +249,7 @@ actions:
         const q = ['$top=' + (Number(input.top) || 100)];
         if (input.skip != null) q.push('$skip=' + encodeURIComponent(String(input.skip)));
         const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/teams/${encodeURIComponent(input.teamId)}/members?${q.join('&')}`, { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Teams list_members failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 404 ? 'team not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Teams list_members failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app Microsoft Graph scopes' : r.status === 404 ? 'team not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         return { members: j.value || [], nextLink: j['@odata.nextLink'] || null };
     exampleInput: { teamId: '19:team-demo@thread.tacv2', top: 100 }
@@ -276,7 +276,7 @@ actions:
       live: |
         const top = Math.min(Number(input.top) || 20, 50);
         const r = await ctx.http.get(`https://graph.microsoft.com/v1.0/me/chats?$top=${top}`, { headers: { Accept: 'application/json' } });
-        if (!r.status || r.status >= 400) throw new Error(`Teams list_chats failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — the app needs the Chat.Read scope' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Teams list_chats failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — the app needs the Chat.Read scope' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         return { chats: j.value || [], nextLink: j['@odata.nextLink'] || null };
     exampleInput: { top: 20 }
@@ -310,7 +310,7 @@ actions:
       live: |
         const payload = { body: { content: input.content, contentType: input.contentType || 'text' } };
         const r = await ctx.http.post(`https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(input.chatId)}/messages`, { headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (!r.status || r.status >= 400) throw new Error(`Teams send_chat_message failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — the app needs the Chat.ReadWrite scope' : r.status === 404 ? 'chat not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Teams send_chat_message failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the access token may be expired, re-authorize' : r.status === 403 ? 'permission denied — the app needs the Chat.ReadWrite scope' : r.status === 404 ? 'chat not found' : r.status === 429 ? 'rate limited by Microsoft Graph — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         return { id: j.id, chatId: j.chatId || input.chatId };
     exampleInput:

@@ -439,7 +439,11 @@ export function createLiveHost(
             throw new ConnectorError(
               'REQUEST_FAILED',
               `download of ${opts.fileName} failed (${response.status}) from ${target.host}`,
-              { connector: connector.name, action },
+              {
+                connector: connector.name,
+                action,
+                vendorStatus: response.status,
+              },
             );
           }
           const bytes = Buffer.from(await response.body.arrayBuffer());

@@ -100,7 +100,7 @@ actions:
           body: JSON.stringify(body),
         });
         if (!r.status || r.status >= 400) {
-          throw new Error('Jev decide failed (' + r.status + '): ' + (r.status === 401 ? 'authentication rejected — verify the OpenRouter API key' : r.status === 402 ? 'the OpenRouter account has no credit' : r.status === 429 ? 'rate limited by OpenRouter — retry later' : r.text()));
+          throw Object.assign(new Error('Jev decide failed (' + r.status + '): ' + (r.status === 401 ? 'authentication rejected — verify the OpenRouter API key' : r.status === 402 ? 'the OpenRouter account has no credit' : r.status === 429 ? 'rate limited by OpenRouter — retry later' : r.text())), { status: r.status });
         }
         const j = r.json();
         if (!j || typeof j !== 'object' || !j.answers) throw new Error('Jev decide failed: the response carried no answers.');
