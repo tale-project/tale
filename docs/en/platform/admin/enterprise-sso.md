@@ -70,6 +70,8 @@ A **Claim** rule reads the value at its **Claim path**, where dots lead into nes
 
 Team sync removes memberships it previously granted when groups disappear and deletes teams it created once empty. It preserves memberships created manually or through SCIM, and leaves excluded groups alone. See [teams](/platform/admin/teams) for manual membership management.
 
+Each save of these settings or of the connection writes one event to the [audit log](/platform/admin/governance/audit-logs). Its previous and new state show the settings before and after the save, role rules, team sync and excluded groups included, and its changed fields name what the save changed. The client ID, the client secret and the SP private key appear among the changed fields by name only, never with their values, and a certificate appears as its SHA-256 fingerprint. The token endpoint shows as `[REDACTED]`, because the audit log withholds every field whose name contains `token`.
+
 ## Provision members through SCIM
 
 1. In **SCIM provisioning**, select **Generate token** and copy it immediately; it is shown once.
