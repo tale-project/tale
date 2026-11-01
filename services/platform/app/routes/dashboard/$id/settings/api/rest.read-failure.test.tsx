@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { ApiKey } from '@/app/features/settings/api-keys/types';
 import { onSessionLapsed } from '@/app/lib/auth/session-lapse';
+import type { MemberContextView } from '@/app/lib/backend/org';
 import { i18n } from '@/lib/i18n/i18n';
 import { LAPSED_SESSION_ANSWER } from '@/tests/utils/lapsed-session';
 import { configure, render, screen, waitFor } from '@/tests/utils/render';
@@ -40,13 +41,37 @@ vi.mock(
   '@/app/features/settings/model-endpoints/hooks/use-api-settings-access',
   () => ({ useApiSettingsAccess: () => ({ createApiKeys: true }) }),
 );
+// Who reads the page: not yet known, unless a test says.
+const view = vi.hoisted(() => ({
+  memberContext: undefined as MemberContextView | undefined,
+}));
 vi.mock('@/app/hooks/use-current-member-context', () => ({
-  useCurrentMemberContext: () => ({ data: undefined }),
+  useCurrentMemberContext: () => ({ data: view.memberContext }),
 }));
 // The create dialog has its own suites, and stays closed here.
 vi.mock(
   '@/app/features/settings/api-keys/components/api-key-create-dialog',
   () => ({ ApiKeyCreateDialog: () => null }),
+);
+// The personal keys notice and setting have their own suites, and read
+// nothing here: the page only places them, for the reader they are for.
+vi.mock(
+  '@/app/features/settings/api-keys/components/personal-keys-notice',
+  () => ({
+    PersonalKeysNotice: ({ organizationId }: { organizationId: string }) => (
+      <p>{`Personal keys notice for ${organizationId}`}</p>
+    ),
+  }),
+);
+vi.mock(
+  '@/app/features/settings/api-keys/components/personal-keys-policy-editor',
+  () => ({
+    PersonalKeysPolicyEditor: ({
+      organizationId,
+    }: {
+      organizationId: string;
+    }) => <p>{`Personal keys setting for ${organizationId}`}</p>,
+  }),
 );
 
 const { Route } = await import('./rest');
@@ -78,6 +103,7 @@ let client: QueryClient;
 let stopListening: (() => void) | undefined;
 
 beforeEach(() => {
+  view.memberContext = undefined;
   backend = syntheticBackend();
   // No backoff between the attempts; their number is unchanged.
   client = new QueryClient({
@@ -199,3 +225,61 @@ describe(
     });
   },
 );
+
+const MEMBER = {
+  status: 'ok',
+  memberId: 'member-1',
+  organizationId: 'org-1',
+  userId: 'user-1',
+  role: 'member',
+  createdAt: Date.UTC(2026, 0, 5),
+  displayName: undefined,
+  isAdmin: false,
+} satisfies MemberContextView;
+const NOTICE = 'Personal keys notice for org-1';
+const SETTING = 'Personal keys setting for org-1';
+/** The keys section's own heading, which the page orders the rest around. */
+const keysHeading = () =>
+  screen.getByRole('heading', {
+    name: i18n.t('apiKeys', { ns: 'navigation' }),
+  });
+
+describe("the API keys page and members' personal keys", () => {
+  it('shows an Owner or Admin the setting below the keys, and no notice', async () => {
+    view.memberContext = { ...MEMBER, role: 'admin', isAdmin: true };
+    backend.on(KEYS, () => Response.json({ keys: [] }));
+    renderPage();
+
+    expect(await screen.findByText(emptyTitle())).toBeInTheDocument();
+    const setting = screen.getByText(SETTING);
+    expect(
+      keysHeading().compareDocumentPosition(setting) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
+  });
+
+  it('shows a member the notice above the keys, and no setting', async () => {
+    view.memberContext = MEMBER;
+    backend.on(KEYS, () => Response.json({ keys: [] }));
+    renderPage();
+
+    expect(await screen.findByText(emptyTitle())).toBeInTheDocument();
+    const notice = screen.getByText(NOTICE);
+    expect(
+      keysHeading().compareDocumentPosition(notice) &
+        Node.DOCUMENT_POSITION_PRECEDING,
+    ).toBeTruthy();
+    expect(screen.queryByText(SETTING)).not.toBeInTheDocument();
+  });
+
+  it('shows neither before it knows who reads the page', async () => {
+    backend.on(KEYS, () => Response.json({ keys: [] }));
+    renderPage();
+
+    expect(await screen.findByText(emptyTitle())).toBeInTheDocument();
+    expect(screen.queryByText(SETTING)).not.toBeInTheDocument();
+    // An Owner or Admin never sees the member's notice flash first.
+    expect(screen.queryByText(NOTICE)).not.toBeInTheDocument();
+  });
+});

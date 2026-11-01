@@ -8395,6 +8395,9 @@ export function buildSpec(): Json {
   // hand: the tenant header (a multi-organization key MUST send it on
   // every call; a single-organization key may omit it), the two refusals
   // that header can draw (403 `ORG_FORBIDDEN`, 404 `ORG_SLUG_INVALID`),
+  // the two a person's own key draws where the organization turned such
+  // keys off (403 `API_KEY_PERSONAL_REFUSED`; 503
+  // `PERSONAL_KEYS_POLICY_UNAVAILABLE` while that setting cannot be read),
   // the 405 a served path answers for a method it does not take, the 500
   // every operation can end in, the 503 every operation answers while the
   // database restarts, and the 413 every operation with a body answers
@@ -8453,6 +8456,10 @@ export function buildSpec(): Json {
         responses['403'],
         '`X-Organization-Slug` names an organization the key holder is no member of (`ORG_FORBIDDEN`, with the slugs the key holder may send under `data.organizations`)',
       );
+      responses['403'] = withDoorRefusal(
+        responses['403'],
+        'the key is a person’s own and the organization turned such keys off (`API_KEY_PERSONAL_REFUSED`, with the organizations where it still works under `data.organizations`)',
+      );
       responses['404'] = withDoorRefusal(
         responses['404'],
         '`X-Organization-Slug` names no organization (`ORG_SLUG_INVALID`, with the slugs the key holder may send under `data.organizations`)',
@@ -8471,6 +8478,10 @@ export function buildSpec(): Json {
       responses['503'] = withDoorRefusal(
         responses['503'],
         DATABASE_UNAVAILABLE_REFUSAL,
+      );
+      responses['503'] = withDoorRefusal(
+        responses['503'],
+        'the key is a person’s own and the organization’s setting for such keys cannot be read (`PERSONAL_KEYS_POLICY_UNAVAILABLE`): `Retry-After` names the wait in whole seconds',
       );
       // Every JSON read is a validated read (lib/conditional-get.ts): the
       // 200 carries an `ETag` over its bytes, and the same request with
@@ -8611,6 +8622,14 @@ endpoints, \`GET /me\`, \`GET /projects\` and the routes under
 \`API_KEY_SCOPE_FORBIDDEN\`. \`GET /api/v1/me\` names whose key it is, as
 \`key.owner\`.
 
+An organization's Owners and Admins can turn members' own keys off there
+(Settings › API › REST). A person's own key — \`key.owner\` \`user\` — is
+then refused in that organization with 403 \`API_KEY_PERSONAL_REFUSED\`,
+whose \`data.organizations\` lists the organizations where it still works;
+every key made in that organization keeps working. While that setting cannot
+be read, a person's own key is kept out with 503
+\`PERSONAL_KEYS_POLICY_UNAVAILABLE\` and \`Retry-After\`.
+
 ## Requests
 
 Bodies are JSON, read strictly: UTF-8 only, no NUL character, and a whole
@@ -8702,7 +8721,10 @@ UTF-16 code units\`, \`must be one of "a", "b"\` — and a refused \`limit\` or
 too, so branch on \`path\` and the \`code\`, never on the sentence. The door's own refusals are
 \`UNAUTHORIZED\`, \`ORG_SLUG_REQUIRED\`, \`ORG_SLUG_INVALID\`,
 \`ORG_FORBIDDEN\`, \`API_KEY_SCOPE_FORBIDDEN\` (a project's key outside its
-project), \`INVALID_URL\` (a NUL in the URL), \`URI_TOO_LONG\`,
+project), \`API_KEY_PERSONAL_REFUSED\` (a person's own key where the
+organization turned them off), \`PERSONAL_KEYS_POLICY_UNAVAILABLE\` (503
+with \`Retry-After\`, while that setting cannot be read), \`INVALID_URL\`
+(a NUL in the URL), \`URI_TOO_LONG\`,
 \`INVALID_QUERY\`, \`INVALID_LIMIT\`, \`INVALID_CURSOR\`, \`INVALID_BODY\`,
 \`BODY_TOO_LARGE\`, \`METHOD_NOT_ALLOWED\`, \`NOT_FOUND\`, \`RATE_LIMITED\`,
 \`REQUEST_TIMEOUT\` (408 — the request did not finish arriving within 15
@@ -9075,7 +9097,7 @@ curl -H "Authorization: Bearer <api-key>" \\
                 organizations: {
                   type: 'array',
                   description:
-                    'For ORG_SLUG_REQUIRED, ORG_SLUG_INVALID and ORG_FORBIDDEN, the organizations the key holder belongs to (a disabled membership is left out; the list is empty when none remains) — send one of the slugs as `X-Organization-Slug`',
+                    'For ORG_SLUG_REQUIRED, ORG_SLUG_INVALID and ORG_FORBIDDEN, the organizations the key holder belongs to (a disabled membership is left out; the list is empty when none remains) — send one of the slugs as `X-Organization-Slug`; for API_KEY_PERSONAL_REFUSED, only those of them where the key still works',
                   items: {
                     type: 'object',
                     required: ['slug', 'name'],

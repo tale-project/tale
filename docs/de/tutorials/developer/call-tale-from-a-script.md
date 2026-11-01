@@ -120,9 +120,11 @@ Bewahre für eine weiterführende Integration die Thread-ID auf. Sende spätere 
 | `400` mit `ORG_SLUG_REQUIRED` | Gib den Slug der gewünschten Organisation aus `data.organizations` an. |
 | `404` mit `ORG_SLUG_INVALID` | Der Slug benennt gar keine Organisation — prüfe auf einen Tippfehler, und setze nie die Organisations-ID aus der Dashboard-URL ein. Wähle einen Slug aus `data.organizations`. |
 | `403` mit `ORG_FORBIDDEN` | Die Organisation existiert, aber der Schlüsselbesitzer ist dort kein Mitglied — wähle einen Slug aus `data.organizations`. |
+| `403` mit `API_KEY_PERSONAL_REFUSED` | Die Organisation nimmt keine Schlüssel an, die Mitglieder für sich selbst erstellen — sende einen Slug aus `data.organizations`, wo dieser Schlüssel weiter gilt, oder bitte einen Inhaber oder Admin dort um einen Schlüssel, der in dieser Organisation erstellt wird. |
 | `403` | Prüfe die Rechte des Schlüsselinhabers für die Aktion. |
 | Kein passendes Modell | Lies `/models` erneut und wähle das genaue Paar aus Modell-ID und Anbieter. |
 | `429` | Beachte `Retry-After`; siehe [Ratenlimits](/de/develop/rate-limits). |
+| `503` mit `PERSONAL_KEYS_POLICY_UNAVAILABLE` | Tale kann nicht lesen, ob die Organisation eigene Schlüssel der Mitglieder annimmt, und weist sie deshalb vorerst ab — beachte `Retry-After` und wiederhole die Anfrage. |
 | Nachrichtenstatus `failed` | Prüfe `errorCode` und behebe Konto- oder Modellprobleme vor einem erneuten Versuch. |
 | Netzwerkzeitüberschreitung | Prüfe Instanz und vorhandenen Thread, bevor du erneut sendest. |
 
