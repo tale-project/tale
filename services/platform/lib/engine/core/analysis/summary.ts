@@ -6,10 +6,10 @@
  * successful run can go.
  */
 
-import { maxRepeatsOf } from '../execute/controlflow';
 import { nodeTypes } from '../slots';
 import type { Issue, NodeDef } from '../types';
 import type { Shape } from '../typing/shape';
+import { maxRepeatsOf } from '../walk/limits';
 import type { RuleContext } from './context';
 import type { FlowAtom, FlowFacts, PathOutcome, SkipReason } from './flow';
 
