@@ -44,7 +44,8 @@ import {
 } from '../syntax/sources';
 import { exprSegments, isSingleTemplate } from '../syntax/tokens';
 import type { NodeDef } from '../types';
-import { MAX_SUBAUTOMATION_DEPTH, type ChildDocuments } from './children';
+import { MAX_SUBAUTOMATION_DEPTH } from '../walk/limits';
+import type { ChildDocuments } from './children';
 import { typeOfExpression, type TypeEnv } from './expr';
 import { normalizeSchema } from './normalize';
 import {

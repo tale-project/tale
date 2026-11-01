@@ -51,10 +51,7 @@ import { ptr } from '../../syntax/pointer';
 import { renderPath } from '../../syntax/walk';
 import { MAX_TESTS } from '../../test-limits';
 import type { ExpectedNodeState, Issue, NodeDef } from '../../types';
-import {
-  MAX_SUBAUTOMATION_DEPTH,
-  type ChildDocuments,
-} from '../../typing/children';
+import type { ChildDocuments } from '../../typing/children';
 import {
   elementOf,
   isUnknown,
@@ -66,6 +63,7 @@ import {
   type Shape,
 } from '../../typing/shape';
 import { closestName } from '../../validate/similar';
+import { MAX_SUBAUTOMATION_DEPTH } from '../../walk/limits';
 import { testsOf, type RuleContext } from '../context';
 import type { FlowFacts, PathOutcome } from '../flow';
 
