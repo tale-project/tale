@@ -7,11 +7,13 @@ import type { HTMLAttributes, ReactNode } from 'react';
 /**
  * The section-divider rule for configuration surfaces: every
  * `SettingsSection` after the first is separated from its predecessor by one
- * hairline. `SettingsPage` applies it for the whole settings area; other
- * configuration surfaces built from `SettingsSection` — an automation's
- * General tab, for one — apply it to their own section container instead of
- * hand-rolling `border-t pt-8` on individual sections, so all of them share
- * one rhythm and none can forget a line on a single sibling.
+ * hairline. `SettingsPage` applies it, and the configuration surfaces stand
+ * in one — the settings area's pages, and through `SettingsTabPage` the tabs
+ * that are settings forms (a project's General and Environment, an
+ * automation's General) — instead of hand-rolling `border-t pt-8` on
+ * individual sections, so all of them share one rhythm and none can forget a
+ * line on a single sibling. A configuration container that cannot be a
+ * settings page applies the rule itself.
  *
  * Dividers key on `SettingsSection`'s `data-settings-section` marker, never on
  * "every child". Two shapes have to work, and one must NOT:
