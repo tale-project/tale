@@ -67,6 +67,13 @@ vi.mock('@/app/features/conversations/hooks/queries', () => ({
 }));
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: () => backendQuery,
+  // The project hooks import the by-id reads too; Chromium links every named
+  // import, so the stub answers them, with nothing.
+  useBackendQueries: (
+    _name: string,
+    _argsList: readonly unknown[],
+    combine: (results: never[]) => unknown,
+  ) => combine([]),
 }));
 
 afterEach(cleanup);
