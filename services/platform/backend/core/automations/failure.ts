@@ -89,8 +89,8 @@ const AGENT_RETRY_ONLY_CODES: Record<
   // Waited for sandbox room past the node's execution guard: it never
   // launched, as every refused start before it.
   sandbox_capacity: 'start_failed',
-  // Refused while the run's workspace was being destroyed: a refused start,
-  // as it read before the code was named.
+  // Refused while the run's workspace was being destroyed, or once it was
+  // gone: a refused start, as it read before the code was named.
   sandbox_destroying: 'start_failed',
   // The EU/EEA rule refused the model's endpoint before anything launched:
   // a refused start; the run's detail says why.

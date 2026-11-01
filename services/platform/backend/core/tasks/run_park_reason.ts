@@ -36,8 +36,7 @@ export function runParkReason(
 }
 
 /** The `reason` a quota refusal names, in each shape one arrives in: an
- * AppError whose data names it, the sessions domain's own error, or either
- * wrapped into a plain Error whose message carries the payload. */
+ * AppError whose data names it, or the sessions domain's own error. */
 function refusalReason(err: unknown): string | undefined {
   if (err instanceof AppError) {
     const data: unknown = err.data;
@@ -49,6 +48,7 @@ function refusalReason(err: unknown): string | undefined {
       : undefined;
   }
   if (!(err instanceof Error)) return undefined;
-  if ('reason' in err && typeof err.reason === 'string') return err.reason;
-  return /"reason":"([a-z_]+)"/.exec(err.message)?.[1];
+  return 'reason' in err && typeof err.reason === 'string'
+    ? err.reason
+    : undefined;
 }
