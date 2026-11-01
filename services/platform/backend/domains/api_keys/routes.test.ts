@@ -160,7 +160,9 @@ describe('DELETE /api/app/api-keys/:keyId', () => {
 
 describe('GET /api/app/api-keys', () => {
   it('lists the keys the signed-in member may see here', async () => {
-    service.listApiKeysForViewer.mockResolvedValueOnce([{ id: 'key-1' }]);
+    service.listApiKeysForViewer.mockResolvedValueOnce({
+      keys: [{ id: 'key-1' }],
+    });
     const res = await app().request('/');
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ keys: [{ id: 'key-1' }] });
@@ -169,5 +171,23 @@ describe('GET /api/app/api-keys', () => {
       userId: 'ada',
       role: 'admin',
     });
+    expect(service.listApiKeysForViewer.mock.calls[0]?.[2]).toBe('managed');
+  });
+
+  it('passes on a request for every key here, and refuses any other scope [APIKEY-R12]', async () => {
+    service.listApiKeysForViewer.mockResolvedValueOnce({
+      keys: [],
+      personalKeys: 'refused',
+    });
+    const all = await app().request('/?scope=all');
+    expect(all.status).toBe(200);
+    // Whether the members' own keys work here comes with the list.
+    expect(await all.json()).toEqual({ keys: [], personalKeys: 'refused' });
+    expect(service.listApiKeysForViewer.mock.calls[0]?.[2]).toBe('all');
+
+    const bogus = await app().request('/?scope=everyone');
+    expect(bogus.status).toBe(400);
+    expect(await bogus.json()).toMatchObject({ code: 'INVALID_QUERY' });
+    expect(service.listApiKeysForViewer).toHaveBeenCalledTimes(1);
   });
 });

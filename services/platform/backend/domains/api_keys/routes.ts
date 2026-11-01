@@ -13,6 +13,7 @@ import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
 import { listMemberPersonalApiKeys, setPersonalApiKeyBlock } from './blocks.ts';
 import { SERVICE_KEY_ROLES } from './owners.ts';
 import {
+  API_KEY_LIST_SCOPES,
   type ApiKeyActor,
   ApiKeyError,
   createOwnedApiKey,
@@ -26,7 +27,10 @@ import {
  *
  *  - `GET /` lists the caller's own keys (which work in every organization
  *    they belong to), the keys made for them here and, for an Owner or
- *    Admin, every key bound to this organization.
+ *    Admin, every key bound to this organization. An Owner or Admin may ask
+ *    for every key that works here (`scope=all`), which adds the members'
+ *    own keys, read-only, and says whether the organization lets them in
+ *    (`personalKeys`, APIKEY-R12): while it does not, none of them is listed.
  *  - `POST /` makes a key for another member, a team, a project or the
  *    organization (Owners and Admins). A person's own key is still made at
  *    the api-key plugin's `/api/auth/api-key/create`, behind its create gate.
@@ -65,6 +69,10 @@ const createBodySchema = z
   })
   .strict();
 
+const listQuerySchema = z.object({
+  scope: z.enum(API_KEY_LIST_SCOPES).default('managed'),
+});
+
 export function createApiKeyRoutes(deps: {
   sql: Sql;
   auth: Auth;
@@ -100,13 +108,24 @@ export function createApiKeyRoutes(deps: {
   };
 
   app.get('/', async (c) => {
-    return c.json({
-      keys: await listApiKeysForViewer(deps.sql, {
-        organizationId: c.get('orgId'),
-        userId: c.get('sessionBundle').user.id,
-        role: c.get('orgMember').role,
-      }),
-    });
+    const query = listQuerySchema.safeParse(c.req.query());
+    if (!query.success) {
+      return c.json(
+        { error: 'scope is managed or all', code: 'INVALID_QUERY' },
+        400,
+      );
+    }
+    return c.json(
+      await listApiKeysForViewer(
+        deps.sql,
+        {
+          organizationId: c.get('orgId'),
+          userId: c.get('sessionBundle').user.id,
+          role: c.get('orgMember').role,
+        },
+        query.data.scope,
+      ),
+    );
   });
 
   app.post('/', async (c) => {
