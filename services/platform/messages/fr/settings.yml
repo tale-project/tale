@@ -1325,6 +1325,7 @@ apiKeys:
     actsAs: Agit en tant que {role}
     madeBy: Créée par {name}
     blockedHere: Bloquée dans cette organisation
+    personal: Clé personnelle
   memberKeys:
     action: Clés API personnelles
     title: Clés API personnelles de {name}
@@ -1410,6 +1411,14 @@ apiKeys:
     roleHint: Le rôle de la clé dans cette organisation. Il ne peut pas dépasser le tien.
     targetRequired: Choisis à qui appartient la clé.
   neverUsed: Jamais utilisée
+  lastUsedUnavailable: Non disponible
+  scope:
+    label: Clés à afficher
+    managed: Clés que tu gères
+    all: Toutes les clés de cette organisation
+    personalKeysRefused: Cette organisation refuse les clés API que les membres créent pour eux-mêmes, cette liste les laisse donc toutes de côté, les tiennes comprises. Réactive le paramètre « Clés personnelles des membres » ci-dessous pour les accepter de nouveau.
+    personalKeysUnavailable: Tale ne peut pas lire pour l'instant si cette organisation accepte les clés API personnelles des membres, elles sont donc refusées ici jusqu'à ce que ce soit possible, et cette liste les laisse toutes de côté. Réessaie dans un instant.
+  allKeysDescription: Toutes les clés API qui fonctionnent dans cette organisation, y compris les clés personnelles des membres. Seul le membre à qui appartient une clé personnelle peut la révoquer.
   neverExpires: Jamais
   expired: Expirée
   description: Gérer les clés API pour les connectors externes
