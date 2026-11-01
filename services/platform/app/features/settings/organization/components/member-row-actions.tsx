@@ -4,9 +4,16 @@ import {
   EntityRowActions,
   useEntityRowDialogs,
 } from '@tale/ui/entity/entity-row-actions';
-import { ArrowRightLeft, Pencil, ShieldCheck, Trash2 } from 'lucide-react';
+import {
+  ArrowRightLeft,
+  KeyRound,
+  Pencil,
+  ShieldCheck,
+  Trash2,
+} from 'lucide-react';
 import { useMemo } from 'react';
 
+import { MemberApiKeysDialog } from '@/app/features/settings/api-keys/components/member-api-keys-dialog';
 import { useT } from '@/lib/i18n/client';
 
 import { DeleteMemberDialog } from './member-delete-dialog';
@@ -45,6 +52,7 @@ export function MemberRowActions({
   const dialogs = useEntityRowDialogs([
     'edit',
     'rights',
+    'apiKeys',
     'delete',
     'transferOwnership',
   ]);
@@ -72,6 +80,15 @@ export function MemberRowActions({
         icon: ShieldCheck,
         onClick: dialogs.open.rights,
         visible: callerIsAdmin,
+      },
+      {
+        // A member's own keys, each of which an Owner or Admin can block
+        // here (APIKEY-R11); one's own keys are ended in one's own settings.
+        key: 'apiKeys',
+        label: tSettings('apiKeys.memberKeys.action'),
+        icon: KeyRound,
+        onClick: dialogs.open.apiKeys,
+        visible: callerIsAdmin && !isViewingSelf,
       },
       {
         key: 'transferOwnership',
@@ -110,7 +127,7 @@ export function MemberRowActions({
       <EntityRowActions actions={actions} contentWidth="w-[11.5rem]" />
 
       {/* Each dialog mounts from its first open: every row of the list
-          carries all four. */}
+          carries all five. */}
       {dialogs.mounted.edit && (
         <EditMemberDialog
           open={dialogs.isOpen.edit}
@@ -124,6 +141,15 @@ export function MemberRowActions({
         <MemberRightsDialog
           open={dialogs.isOpen.rights}
           onOpenChange={dialogs.setOpen.rights}
+          organizationId={member.organizationId}
+          member={member}
+        />
+      )}
+
+      {dialogs.mounted.apiKeys && (
+        <MemberApiKeysDialog
+          open={dialogs.isOpen.apiKeys}
+          onOpenChange={dialogs.setOpen.apiKeys}
           organizationId={member.organizationId}
           member={member}
         />

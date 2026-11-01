@@ -924,5 +924,12 @@
  * working. While the setting cannot be read, a person's own key is kept out
  * with 503 `PERSONAL_KEYS_POLICY_UNAVAILABLE` and `Retry-After`: wait and
  * call again.
+ *
+ * 3.55.0 — 2026-11-01: an Owner or Admin can block a person's own API key
+ * in their organization. Every request of a blocked key that resolves to
+ * that organization, on the REST routes, the MCP server and the model
+ * endpoints alike, answers 403 `API_KEY_BLOCKED`, listing under
+ * `data.organizations` the organizations where the key still works; the key
+ * keeps working there, and works here again once the block is lifted.
  */
-export const API_CONTRACT_VERSION = '3.54.0';
+export const API_CONTRACT_VERSION = '3.55.0';

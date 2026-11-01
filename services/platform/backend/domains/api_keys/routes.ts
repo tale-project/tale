@@ -10,6 +10,7 @@ import {
   nodePeerAddress,
 } from '../../core/lib/utils/client_ip.ts';
 import { invalidBodyResponse } from '../../lib/invalid-body-response.ts';
+import { listMemberPersonalApiKeys, setPersonalApiKeyBlock } from './blocks.ts';
 import { SERVICE_KEY_ROLES } from './owners.ts';
 import {
   type ApiKeyActor,
@@ -31,6 +32,9 @@ import {
  *    the api-key plugin's `/api/auth/api-key/create`, behind its create gate.
  *  - `DELETE /:keyId` ends a key bound to this organization. A person's own
  *    key is ended at the plugin's `/api/auth/api-key/delete`.
+ *  - `GET /members/:userId/personal` lists a member's own keys with this
+ *    organization's block on each, and `PUT` / `DELETE /:keyId/block`
+ *    block one here or lift the block (Owners and Admins, APIKEY-R11).
  */
 
 const ownerSchema = z.discriminatedUnion('kind', [
@@ -145,6 +149,39 @@ export function createApiKeyRoutes(deps: {
       return refusal(c, error);
     }
   });
+
+  app.get('/members/:userId/personal', async (c) => {
+    try {
+      return c.json(
+        await listMemberPersonalApiKeys(deps.sql, {
+          organizationId: c.get('orgId'),
+          actor: {
+            userId: c.get('sessionBundle').user.id,
+            role: c.get('orgMember').role,
+          },
+          memberUserId: c.req.param('userId'),
+        }),
+      );
+    } catch (error) {
+      return refusal(c, error);
+    }
+  });
+
+  const setBlock = async (c: Context<OrgEnv>, blocked: boolean) => {
+    try {
+      const { changed } = await setPersonalApiKeyBlock(deps, {
+        organizationId: c.get('orgId'),
+        actor: await actorOf(c),
+        keyId: c.req.param('keyId') ?? '',
+        blocked,
+      });
+      return c.json({ ok: true, blocked, changed });
+    } catch (error) {
+      return refusal(c, error);
+    }
+  };
+  app.put('/:keyId/block', (c) => setBlock(c, true));
+  app.delete('/:keyId/block', (c) => setBlock(c, false));
 
   return app;
 }

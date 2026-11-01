@@ -16,6 +16,7 @@ import { useT } from '@/lib/i18n/client';
 import { ApiKeyExpiresCell } from '../components/api-key-expires-cell';
 import { ApiKeyOwnerCell } from '../components/api-key-owner-cell';
 import { ApiKeyRowActions } from '../components/api-key-row-actions';
+import { maskedKey } from '../masked-key';
 import type { ApiKey } from '../types';
 
 interface ApiKeysTableConfig {
@@ -23,13 +24,6 @@ interface ApiKeysTableConfig {
   stickyLayout: boolean;
   pageSize: number;
   infiniteScroll: boolean;
-}
-
-/** The masked key as its holder saw it: `start … suffix`. */
-function maskedKey(apiKey: ApiKey): string {
-  const head = apiKey.start || apiKey.prefix;
-  const tail = apiKey.suffix;
-  return head ? (tail ? `${head} … ${tail}` : head) : tail ? `… ${tail}` : '-';
 }
 
 export function useApiKeysTableConfig(

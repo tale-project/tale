@@ -69,9 +69,17 @@ Tale does not automatically rotate keys. Key creation and revocation happen in t
 
 Open its row menu, select **Revoke key**, and confirm. Future requests with the key can no longer authenticate, calls to the model endpoints included; an answer that is already streaming finishes. Revocation cannot be undone; create a new key if you revoke the wrong one. Creating and revoking a key each leave a row in the audit log under **Settings > Governance > Logs**, in every organization you belong to.
 
-An Owner or Admin can revoke any key made here for a member, a team, a project, or the organization, and a member can revoke the keys made for them. A member's own keys are theirs to revoke; to cut them off in this organization, disable or remove the member, or [turn off members' own keys](#members-personal-keys) for everyone here. Such a key is managed in its organization only: its creation and revocation are logged there, naming who made or revoked it.
+An Owner or Admin can revoke any key made here for a member, a team, a project, or the organization, and a member can revoke the keys made for them. A member's own keys are theirs to revoke; to stop one in this organization alone, [block it](#block-a-members-own-key), and to cut them all off here, disable or remove the member, or [turn off members' own keys](#members-personal-keys) for everyone here. Such a key is managed in its organization only: its creation and revocation are logged there, naming who made or revoked it.
 
 Do not use an old **Last used** date as the only reason to revoke a key. A monthly job or a recovery process may legitimately be idle. Check the caller identified by the name first.
+
+## Block a member's own key {#block-a-members-own-key}
+
+A member's own key works in every organization they belong to, unless that organization has [turned off members' own keys](#members-personal-keys). An Owner or Admin can stop one in this organization alone: under **Settings > Members**, open the member's row menu and select **Personal API keys**. The dialog lists the member's own keys that are still valid, each marked **Works here** or **Blocked here**, or **Refused here** while this organization has turned off members' own keys; while that setting cannot be read, the dialog says so and marks only the blocked keys. Select **Block** and confirm with **Block key**. The key's next request to this organization is refused with `403 API_KEY_BLOCKED`, whose answer lists the organizations it still works in; the block does not reach the member's other organizations, and the member keeps it. **Lift block** ends the block.
+
+An Admin sees an Owner's keys but can neither block them nor lift their block; an Owner can do both on anyone's key. Nobody blocks their own key: revoke it instead. A key made here for a member, a team, a project, or the organization is revoked, not blocked. Each block and each lift leaves a row in the audit log naming who did it and the key by its masked ends. The member is told in their notifications, and their own list under **Settings > API > REST** marks the key **Blocked in this organization**.
+
+A block holds for the key it names: it does not cover a new key the member creates for themselves, which has to be blocked too.
 
 ## Turn off members' personal keys {#members-personal-keys}
 

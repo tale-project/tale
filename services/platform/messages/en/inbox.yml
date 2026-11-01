@@ -60,6 +60,10 @@ usageCreditsRequested: Usage credits requested
 usageCreditsRequestedBody: '{name} reached a usage limit and asked for more credits.'
 apiKeyCreatedForYou: API key created for you
 apiKeyCreatedForYouBody: '{name} created the API key "{keyName}" for you. It acts as you in this organization; revoke it under Settings > API > REST if you do not need it.'
+apiKeyBlockedForYou: Your API key was blocked in this organization
+apiKeyBlockedForYouBody: '{name} blocked your API key "{keyName}" in this organization. Its requests here are refused; the block does not reach your other organizations.'
+apiKeyUnblockedForYou: The block on your API key was lifted in this organization
+apiKeyUnblockedForYouBody: '{name} lifted the block on your API key "{keyName}" in this organization.'
 agentConnectionEnded: Coding agent disconnected
 agentConnectionEndedReuseBody: '{client} was disconnected because an old sign-in was reused. Connect it again if this was you.'
 agentConnectionEndedAccountBody: '{client} was disconnected because your password or another sign-in method changed. Connect it again when you want it to work.'
