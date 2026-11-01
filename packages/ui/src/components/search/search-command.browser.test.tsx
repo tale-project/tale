@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { page, userEvent } from 'vitest/browser';
 
+import { alphaOf } from '@/tests/utils/contrast';
 import { render, screen, waitFor } from '@/tests/utils/render';
 
 import { SearchCommand } from './search-command';
@@ -140,5 +141,40 @@ describe('search ownership in a real modal', () => {
     );
     await page.getByRole('button', { name: 'Open search' }).click();
     expect(screen.getByRole('combobox')).toHaveValue('');
+  });
+});
+
+describe('the palette over the page', () => {
+  // Every keystroke re-renders the results and often resizes the panel, and
+  // a backdrop blur behind the overlay or the panel is re-rendered for that
+  // frame: without GPU compositing that was 200–450 ms per keystroke
+  // (#4348). The page is dimmed instead, and the panel is opaque, which is
+  // also the surface reduced-transparency and contrast themes need.
+  it('dims the page and paints an opaque panel, with no backdrop blur', async () => {
+    const source: SearchSource = (query) => ({
+      status: 'ready',
+      results: query ? [{ id: 'result', title: 'Synthetic result' }] : [],
+    });
+    render(<Palette owner="same" source={source} />);
+    await page.getByRole('button', { name: 'Open search' }).click();
+    await page.getByRole('combobox').fill('synthetic');
+    await screen.findByRole('option', { name: /Synthetic result/ });
+
+    const panel = screen.getByRole('dialog');
+    // What covers the page's corner while the palette is open: the overlay.
+    const overlay = document.elementFromPoint(1, 1);
+    if (overlay === null) throw new Error('Nothing covers the page');
+    expect(panel.contains(overlay)).toBe(false);
+
+    const blurred = [...document.body.querySelectorAll('*')]
+      .filter((element) => getComputedStyle(element).backdropFilter !== 'none')
+      .map((element) => element.getAttribute('class') ?? element.tagName);
+    expect(blurred).toEqual([]);
+    const panelAlpha = alphaOf(getComputedStyle(panel).backgroundColor);
+    const dimAlpha = alphaOf(getComputedStyle(overlay).backgroundColor);
+    expect(panelAlpha).toBe(1);
+    // Dimmed: the page still shows through the overlay, darker.
+    expect(dimAlpha).toBeGreaterThan(0);
+    expect(dimAlpha).toBeLessThan(1);
   });
 });
