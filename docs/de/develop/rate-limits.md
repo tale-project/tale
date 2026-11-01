@@ -23,6 +23,8 @@ Ein Token-Bucket füllt sich kontinuierlich bis zu seiner Burst-Kapazität auf. 
 | Webhook-Zustellungen vor der Tokenprüfung | 120/Minute | 240 | Absenderadresse |
 | Zustellungen an einen geprüften Webhook-Auslöser | 20/Minute | 40 | Auslöser |
 
+Jeder Server bezieht allgemeine `/api/v1`-Aufrufe einige Anfragen im Voraus aus ihrem Bucket. Eine Serie kann deshalb bis zu 10 Anfragen vor 200 enden; planen Sie Serien von höchstens 190 Anfragen.
+
 Ein Coding-Agent, den eine Person angemeldet hat, verbraucht die Budgets dieser Person, dieselben, die sich ihre API-Schlüssel teilen; einen eigenen Schlüssel hat er nicht. Ein Token, das nie gültig war, zählt wie ein falscher Schlüssel als fehlgeschlagene Prüfung, ein bloß abgelaufenes nicht: Als Nächstes erneuert der Agent es ohnehin. Registrierung und abgelehnte Token-Anfragen werden der Quelladresse zugerechnet; eine Token-Anfrage, die gelingt, kostet nichts, weil gehostete Agents sich Adressen teilen.
 
 HTTP-Schritte von Automatisierungen haben ein eigenes Budget pro Organisation: 120 Aufrufe pro Minute im ganzen Deployment und 10 gleichzeitig auf einem Server. Siehe [Eine API aus einer Automatisierung aufrufen](/de/platform/automations/http).
