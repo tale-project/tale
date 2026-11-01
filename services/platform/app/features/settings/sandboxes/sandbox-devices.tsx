@@ -3,13 +3,14 @@ import {
   MIN_DOCKER_ENGINE_MAJOR,
 } from '@tale/shared/docker-engine';
 import { Badge } from '@tale/ui/badge';
-import { Button } from '@tale/ui/button';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { EntityRowActions } from '@tale/ui/entity/entity-row-actions';
 import { Stack } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
+import { DEFAULT_LIST_PAGE_SIZE, useListPage } from '@tale/ui/use-list-page';
 import { useToast } from '@tale/ui/use-toast';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Monitor, Plus, Trash2 } from 'lucide-react';
@@ -31,9 +32,13 @@ import { AddDeviceDialog } from './add-device-dialog';
 
 interface SandboxDevicesSectionProps {
   organizationId: string;
+  /** The last read that worked: a failed refresh leaves its rows listed. */
   view: SandboxDevicesView | undefined;
-  isLoading: boolean;
   error: Error | null;
+  /** A re-read runs, after a failure, with rows on screen. */
+  isRetrying: boolean;
+  /** Changes with each failed read, so a repeated failure is announced. */
+  failureCount: number;
   /** Admins add and remove devices; developers see them. */
   canManage: boolean;
   onRefresh: () => void;
@@ -64,12 +69,14 @@ const OS_LABEL: Record<string, string> = {
 export function SandboxDevicesSection({
   organizationId,
   view,
-  isLoading,
   error,
+  isRetrying,
+  failureCount,
   canManage,
   onRefresh,
 }: SandboxDevicesSectionProps) {
   const { t } = useT('sandboxes');
+  const { t: tCommon } = useT('common');
   const { toast } = useToast();
   const { formatNumber } = useFormatNumber();
   const remove = useBackendMutation('sandbox_devices/mutations:remove', {
@@ -78,8 +85,9 @@ export function SandboxDevicesSection({
   const [adding, setAdding] = useState(false);
   const [removing, setRemoving] = useState<SandboxDeviceView | null>(null);
   const devices = view?.devices ?? [];
-  // Try again in the table's error state re-reads the devices; the section
-  // takes the focus the button held while the table loads again.
+  // Try again re-reads the devices: in the table's error state, the section
+  // takes the focus the button held while the table loads again; with rows
+  // on screen, the alert above them names the failed refresh.
   const recovery = useListReadRecovery<HTMLElement>({
     error,
     results: devices,
@@ -261,6 +269,34 @@ export function SandboxDevicesSection({
     [t, canManage, formatNumber, view?.serverVersion],
   );
 
+  const list = useListPage<SandboxDeviceView>({
+    dataSource: {
+      type: 'query',
+      data: view?.devices,
+      error,
+      retry: recovery.retryRead,
+    },
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    // What a reader looks a device up by: its name, its system as the
+    // Device column names it, and the Tale release it runs.
+    search: {
+      fields: [
+        'name',
+        (d) =>
+          d.platform === null
+            ? undefined
+            : (OS_LABEL[d.platform.os] ?? d.platform.os),
+        'version',
+      ],
+      placeholder: t('devices.searchPlaceholder'),
+    },
+    getRowId: (row) => row.id,
+    entityLabel: {
+      one: t('devices.entityLabelOne'),
+      other: t('devices.entityLabel'),
+    },
+  });
+
   const hubNotice =
     view?.hub === 'not_configured'
       ? t('devices.hub.notConfigured')
@@ -274,39 +310,43 @@ export function SandboxDevicesSection({
       tabIndex={-1}
       title={t('devices.title')}
       description={t('devices.description')}
-      action={
-        canManage ? (
-          <Button
-            size="sm"
-            icon={Plus}
-            onClick={() => setAdding(true)}
-            disabled={view?.hub === 'not_configured'}
-          >
-            {t('devices.add')}
-          </Button>
-        ) : undefined
-      }
     >
       {hubNotice !== null && (
         <Text as="p" role="status" variant="muted" className="text-sm">
           {hubNotice}
         </Text>
       )}
+      {recovery.failedWithRows && (
+        <CatalogLoadError
+          message={tCommon('errors.errorLoadingPage')}
+          onRetry={recovery.retryRead}
+          isRetrying={isRetrying}
+          failureKey={failureCount}
+          onFocusLost={recovery.focusRegion}
+        />
+      )}
       <DataTable<SandboxDeviceView>
         columns={columns}
-        data={devices}
-        isLoading={isLoading}
-        error={error}
-        onRetry={recovery.retryRead}
         onErrorFocusLost={recovery.focusRegion}
-        approxRowCount={devices.length}
-        getRowId={(row) => row.id}
+        addAction={
+          canManage
+            ? {
+                label: t('devices.add'),
+                icon: Plus,
+                onClick: () => setAdding(true),
+                // A sandbox service that takes no devices has nothing to
+                // connect one to.
+                disabled: view?.hub === 'not_configured',
+              }
+            : undefined
+        }
         emptyState={{
           icon: Monitor,
           title: t('devices.empty.title'),
           description: t('devices.empty.description'),
         }}
         caption={t('devices.title')}
+        {...list.tableProps}
       />
       {canManage && (
         <>

@@ -1,10 +1,12 @@
 import { Badge } from '@tale/ui/badge';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { ConfirmDialog } from '@tale/ui/dialog/confirm-dialog';
 import { EntityRowActions } from '@tale/ui/entity/entity-row-actions';
 import { Row, Stack } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { useFormatDate } from '@tale/ui/use-format-date';
+import { DEFAULT_LIST_PAGE_SIZE, useListPage } from '@tale/ui/use-list-page';
 import { useToast } from '@tale/ui/use-toast';
 import { Link } from '@tanstack/react-router';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -34,12 +36,24 @@ type SandboxView = NonNullable<
 >;
 type SandboxRow = SandboxView['sessions'][number];
 
+/** Whose workspace a row is, as its first column names it. A deleted
+ * agent's workspace stays listed until the cleanup has deleted it (work
+ * still running in it, or a legal hold, keeps it longer): once the owner
+ * join answers nothing, say whose it was rather than print the id nobody
+ * can look up any more. */
+function workspaceOwner(s: SandboxRow, deletedAgent: string): string {
+  return s.ownerType === 'project_agent' && s.ownerLabel == null
+    ? deletedAgent
+    : (s.ownerLabel ?? s.ownerName ?? s.ownerEmail ?? s.ownerId);
+}
+
 interface SandboxesSettingsProps {
   organizationId: string;
 }
 
 export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
   const { t } = useT('sandboxes');
+  const { t: tCommon } = useT('common');
   const { toast } = useToast();
   const { formatCostCents } = useFormatNumber();
   const ability = useAbility();
@@ -47,12 +61,14 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
   const canRead = ability.can('read', 'developerSettings');
   const canManage = ability.can('write', 'orgSettings');
 
-  const { data, isLoading, error, refetch } = useBackendQuery(
-    'sandbox/session_queries_public:listSandboxesForOrg',
-    canManage ? { organizationId } : 'skip',
-  );
-  // Try again in the table's error state re-reads the workspaces; the
-  // section takes the focus the button held while the table loads again.
+  const { data, error, refetch, isFetching, errorUpdateCount } =
+    useBackendQuery(
+      'sandbox/session_queries_public:listSandboxesForOrg',
+      canManage ? { organizationId } : 'skip',
+    );
+  // Try again re-reads the workspaces: in the table's error state, the
+  // section takes the focus the button held while the table loads again;
+  // with rows on screen, the alert above them names the failed refresh.
   const sessionsRecovery = useListReadRecovery<HTMLElement>({
     error,
     results: data?.sessions ?? [],
@@ -167,14 +183,7 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
         meta: { skeleton: { type: 'two-line' } },
         cell: ({ row }) => {
           const s = row.original;
-          // A deleted agent's workspace stays listed until the cleanup has
-          // deleted it (work still running in it, or a legal hold, keeps it
-          // longer): once the owner join answers nothing, say whose it was
-          // rather than print the id nobody can look up any more.
-          const ownerLabel =
-            s.ownerType === 'project_agent' && s.ownerLabel == null
-              ? t('deletedAgent')
-              : (s.ownerLabel ?? s.ownerName ?? s.ownerEmail ?? s.ownerId);
+          const ownerLabel = workspaceOwner(s, t('deletedAgent'));
           // A long owner name or fallback identifier stays within this column.
           // An agent's workspace also says which of its workers it is: one
           // agent working three tasks at once has three rows.
@@ -442,6 +451,36 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
     ],
   );
 
+  const sessionsList = useListPage<SandboxRow>({
+    dataSource: {
+      type: 'query',
+      data: data?.sessions,
+      error,
+      retry: sessionsRecovery.retryRead,
+    },
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    // What a reader looks a workspace up by: whose it is, the harness it
+    // runs, and the tasks working in it.
+    search: {
+      fields: [
+        (s) => workspaceOwner(s, t('deletedAgent')),
+        'ownerEmail',
+        'agentKind',
+        (s) =>
+          s.runningOps
+            .map((op) =>
+              op.task === undefined
+                ? ''
+                : `${op.task.key ?? ''} ${op.task.title}`,
+            )
+            .join(' '),
+      ],
+      placeholder: t('searchPlaceholder'),
+    },
+    getRowId: (row) => row.sessionId,
+    entityLabel: { one: t('entityLabelOne'), other: t('entityLabel') },
+  });
+
   if ((canManage && data === null) || (!abilityLoading && !canRead)) {
     return <AccessDenied message={t('accessDenied')} />;
   }
@@ -471,9 +510,12 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
       {canRead && (
         <SandboxDevicesSection
           organizationId={organizationId}
-          view={devicesView}
-          isLoading={abilityLoading || devicesQuery.isLoading}
+          // The devices the last read that worked listed: a failed refresh
+          // leaves them on screen, under its alert.
+          view={devicesQuery.data}
           error={devicesQuery.error ?? null}
+          isRetrying={devicesQuery.isFetching}
+          failureCount={devicesQuery.errorUpdateCount}
           canManage={canManage}
           onRefresh={refreshDevices}
         />
@@ -486,21 +528,25 @@ export function SandboxesSettings({ organizationId }: SandboxesSettingsProps) {
           title={t('sessionsTitle')}
           description={t('description')}
         >
+          {sessionsRecovery.failedWithRows && (
+            <CatalogLoadError
+              message={tCommon('errors.errorLoadingPage')}
+              onRetry={sessionsRecovery.retryRead}
+              isRetrying={isFetching}
+              failureKey={errorUpdateCount}
+              onFocusLost={sessionsRecovery.focusRegion}
+            />
+          )}
           <DataTable<SandboxRow>
             columns={columns}
-            data={data?.sessions ?? []}
-            isLoading={isLoading}
-            error={error}
-            onRetry={sessionsRecovery.retryRead}
             onErrorFocusLost={sessionsRecovery.focusRegion}
-            approxRowCount={data?.sessions.length}
-            getRowId={(row) => row.sessionId}
             emptyState={{
               icon: Box,
               title: t('empty.title'),
               description: t('empty.description'),
             }}
             caption={t('title')}
+            {...sessionsList.tableProps}
           />
           <ConfirmDialog
             open={canManage && confirmDestroy !== null}

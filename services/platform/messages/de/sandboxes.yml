@@ -159,6 +159,10 @@ empty:
     Projekt oder das zugehörige Mitglied entfernt wird. Der Arbeitsbereich eines Workflow-Laufs
     wird nach dem Ende des Laufs zurückgefordert. Die Kapazitätszahlen oben
     enthalten auch temporäre Crawler-Sitzungen.
+# The workspaces table: its search, and the count under it.
+searchPlaceholder: Arbeitsbereiche suchen
+entityLabel: Arbeitsbereiche
+entityLabelOne: Arbeitsbereich
 accessDenied: Du brauchst Entwickler- oder Admin-Zugriff, um Sandboxes zu verwalten.
 # Welcher Worker seines Agenten ein Arbeitsbereich ist: einer des Agenten
 # selbst oder einer, der den Agenten für ein Mitglied ausführt.
@@ -199,6 +203,10 @@ devices:
   empty:
     title: Noch keine Geräte
     description: Füge einen Linux- oder macOS-Rechner mit Docker hinzu, um die Sandboxes deiner Organisation darauf auszuführen.
+  # The devices table: its search, and the count under it.
+  searchPlaceholder: Geräte suchen
+  entityLabel: Geräte
+  entityLabelOne: Gerät
   hub:
     notConfigured: Der Sandbox-Dienst dieser Bereitstellung nimmt keine Geräte an. Bitte deinen Betreiber, den Geräte-Hub einzuschalten.
     unavailable: Der Sandbox-Dienst war nicht erreichbar. Der Gerätestatus ist möglicherweise nicht aktuell.
