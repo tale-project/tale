@@ -795,6 +795,93 @@ describe('upsertTaskByExternalRef — the mirror-owned reopen', () => {
     });
     expect(statements.some((text) => text.includes('repeat_rule'))).toBe(false);
   });
+
+  /** The reconcile of a `todo` task wearing `labelIds`, over a catalog that
+   * answers a name (whatever its case) with its id and ids with their names,
+   * and takes a name it lacks as the database does, in the same transaction:
+   * the `labels.changed` lines it wrote and the audit row it filed. */
+  const relabelled = async (
+    labelIds: string[],
+    call: { labels?: string[]; creatorType?: 'user' },
+  ): Promise<{ lines: unknown[][]; audit: unknown }> => {
+    const catalog = new Map([
+      ['lbl-bug', 'Bug'],
+      ['lbl-hold', 'hold'],
+    ]);
+    const lines: unknown[][] = [];
+    const { tx } = fakeDb((text, values) => {
+      if (
+        text.startsWith('INSERT INTO app.task_activity') &&
+        values[5] === 'labels.changed'
+      ) {
+        // (actor_type, actor_id, from_value, to_value)
+        lines.push([values[3], values[4], values[6], values[7]]);
+      }
+      if (text.startsWith('SELECT id FROM app.task_labels')) {
+        const [, name] = values;
+        return [...catalog]
+          .filter(
+            ([, known]) =>
+              typeof name === 'string' &&
+              known.toLowerCase() === name.toLowerCase(),
+          )
+          .map(([id]) => ({ id }));
+      }
+      if (text.startsWith('INSERT INTO app.task_labels')) {
+        const [, , name] = values;
+        const id = `lbl-${catalog.size + 1}`;
+        catalog.set(id, typeof name === 'string' ? name : '');
+        return [{ id }];
+      }
+      if (text.startsWith('SELECT id, name FROM app.task_labels')) {
+        const [, ids] = values;
+        return [...catalog]
+          .filter(([id]) => Array.isArray(ids) && ids.includes(id))
+          .map(([id, name]) => ({ id, name }));
+      }
+      return text.includes('FROM app.tasks WHERE org_id = ?')
+        ? [parked({ status: 'todo', labelIds })]
+        : [];
+    });
+    vi.mocked(createAuditLog).mockClear();
+    await upsertTaskByExternalRef(tx, { ...intake, ...call });
+    return { lines, audit: vi.mocked(createAuditLog).mock.calls.at(-1)?.[1] };
+  };
+
+  it('puts the labels a reconcile replaces on the timeline by name, and in its audit row', async () => {
+    // A person's `hold` gives way to `Bug` and a label the call mints.
+    const { lines, audit } = await relabelled(['lbl-hold'], {
+      labels: ['Bug', 'source:crm'],
+    });
+    expect(lines).toEqual([['agent', 'u-2', 'hold', 'Bug, source:crm']]);
+    expect(audit).toMatchObject({
+      previousState: { labelIds: ['lbl-hold'] },
+      newState: { labelIds: ['lbl-bug', 'lbl-3'] },
+      metadata: { externalSystem: 'crm', externalId: 'case-1' },
+    });
+  });
+
+  it('names the person whose reconcile replaced the labels', async () => {
+    const { lines } = await relabelled([], {
+      labels: ['Bug'],
+      creatorType: 'user',
+    });
+    expect(lines).toEqual([['user', 'u-2', '', 'Bug']]);
+  });
+
+  it.each([
+    ['names no labels', undefined],
+    ['names the same labels in another order', ['hold', 'Bug']],
+    ['names the same labels in another case', ['BUG', 'Hold']],
+  ])('records no label change for a reconcile that %s', async (_, labels) => {
+    const { lines, audit } = await relabelled(
+      ['lbl-bug', 'lbl-hold'],
+      labels === undefined ? {} : { labels },
+    );
+    expect(lines).toEqual([]);
+    expect(audit).not.toHaveProperty('previousState');
+    expect(audit).not.toHaveProperty('newState');
+  });
 });
 
 /**
