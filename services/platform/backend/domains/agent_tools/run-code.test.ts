@@ -45,7 +45,9 @@ vi.mock('../../core/node_only/sandbox/helpers/stage_url.ts', () => ({
 vi.mock('../../core/skills/file_actions.ts', () => ({
   readSkillBundleForViewer: vi.fn(),
 }));
-vi.mock('../sandbox/light-sessions.ts', () => {
+vi.mock('../sandbox/light-sessions.ts', async (importOriginal) => {
+  const { LIGHT_SANDBOX_FAILURES } =
+    await importOriginal<typeof import('../sandbox/light-sessions.ts')>();
   class MockLightSandboxBusyError extends Error {
     readonly kind: 'budget' | 'host';
     constructor(message: string, _retryAfterMs?: number, kind?: 'host') {
@@ -67,6 +69,7 @@ vi.mock('../sandbox/light-sessions.ts', () => {
     }
   }
   return {
+    LIGHT_SANDBOX_FAILURES,
     LightSandboxBusyError: MockLightSandboxBusyError,
     LightSandboxUnavailableError: MockLightSandboxUnavailableError,
     acquireLightSession: vi.fn(() =>

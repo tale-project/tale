@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 
 import type { Sql } from 'postgres';
 
+import type { SandboxStartFailure } from '../../../lib/chat/work-tools-status.ts';
 import {
   sessionCreate,
   sessionDestroy,
@@ -118,6 +119,21 @@ export class LightSandboxUnavailableError extends Error {
     this.retryAfterMs = options?.retryAfterMs;
   }
 }
+
+/** The reason a reply's `run_code` step and the Run check of the Chat tool
+ * status panel record when no light sandbox could be had: by the kind of
+ * {@link LightSandboxBusyError} when there is no room, and by the kind of
+ * {@link LightSandboxUnavailableError} when none could start. */
+export const LIGHT_SANDBOX_FAILURES = {
+  budget: 'sandboxes_busy',
+  host: 'sandbox_host_busy',
+  not_ready: 'sandbox_not_ready',
+  unreachable: 'sandbox_unreachable',
+  failed: 'sandbox_failed',
+} as const satisfies Record<
+  LightSandboxBusyError['kind'] | LightSandboxUnavailableError['kind'],
+  SandboxStartFailure
+>;
 
 /** The reader-facing words for each way a light sandbox failed to start. */
 const UNAVAILABLE_MESSAGES: Record<
@@ -436,6 +452,34 @@ export async function releaseLightSession(
     return outcome.destroyed;
   } catch (error) {
     console.warn(`[light-session] releasing ${sessionId} failed:`, error);
+    return false;
+  }
+}
+
+/**
+ * Destroy an owner's light sandbox now, even while it runs code, and settle
+ * its row — for an owner that alone uses its sandbox and is done with it,
+ * like the Run check of the Chat tool status panel, so the sandbox holds no
+ * slot of the organization's light budget after it. Best-effort, like
+ * {@link releaseLightSession}: a spawner that cannot be asked leaves the row
+ * for the watchdog, so it never settles ahead of its container. Returns
+ * whether a sandbox was destroyed.
+ */
+export async function destroyLightSession(
+  sql: Sql,
+  owner: Pick<LightSessionOwner, 'organizationId' | 'ownerKey'>,
+  spawner: Pick<LightSessionSpawner, 'destroy'> = DEFAULT_SPAWNER,
+): Promise<boolean> {
+  const sessionId = lightSessionId(owner.organizationId, owner.ownerKey);
+  try {
+    const destroyed = await spawner.destroy(sessionId);
+    await markSessionDestroyed(sql, {
+      organizationId: owner.organizationId,
+      sessionId,
+    });
+    return destroyed;
+  } catch (error) {
+    console.warn(`[light-session] destroying ${sessionId} failed:`, error);
     return false;
   }
 }
