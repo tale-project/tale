@@ -352,17 +352,20 @@ function priorityClassEnv(): string | undefined {
 }
 
 /** A Docker-style size of memory or disk from the environment ('2g',
- * '1536m', bytes), undefined when unset, refused at boot when unreadable. */
+ * '1536m', '1t', bytes), undefined when unset, refused at boot when
+ * unreadable. Every step is 1024, so the Kubernetes spelling of the same
+ * size ('10Gi', '512Mi') reads the same instead of crash-looping the
+ * service; a trailing 'B' and the case do not matter. */
 function sizeEnv(name: string): number | undefined {
   const value = process.env[name]?.trim();
   if (value === undefined || value === '') return undefined;
-  const m = /^(\d+)([kmg]?)b?$/i.exec(value);
+  const m = /^(\d+)(?:([kmgt])i?)?b?$/i.exec(value);
   if (!m) {
     throw new Error(
-      `Env var ${name} is not a size such as 2g or 1536m: ${JSON.stringify(value)}`,
+      `Env var ${name} is not a size such as 2g, 1536m or 10Gi (a whole number with k, m, g, t, Ki, Mi, Gi or Ti, or none for bytes): ${JSON.stringify(value)}`,
     );
   }
-  const unit = { '': 1, k: 1024, m: 1024 ** 2, g: 1024 ** 3 }[
+  const unit = { '': 1, k: 1024, m: 1024 ** 2, g: 1024 ** 3, t: 1024 ** 4 }[
     (m[2] ?? '').toLowerCase()
   ];
   return Number(m[1]) * (unit ?? 1);

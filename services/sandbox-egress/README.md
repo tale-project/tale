@@ -56,8 +56,10 @@ egress, each outbound connection of a session, its builds and its package
 installs is one of them. The entrypoint refuses to start on a value that is no
 whole number above 0, raises the soft open-file limit to two descriptors per
 connection as far as the hard limit allows (a Kubernetes Pod spec sets none,
-and a runtime's default soft limit can be 1024), and warns when even that
-cannot hold them. Both compose pipelines pass the same default and size the
+and a runtime's default soft limit can be 1024), and when even that cannot
+hold them, lowers `MaxClients` to the connections the limit holds (two
+descriptors each above 64 for the rest, at least 1) and warns with the value
+it serves. Both compose pipelines pass the same default and size the
 container's pids (4096) and open files (8192/16384) for it; a higher value
 needs those raised with it. On Kubernetes the threads count against the
 node's `podPidsLimit`. The idle tunnel `Timeout` stays at 600 s.
