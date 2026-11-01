@@ -387,6 +387,40 @@ describe('ProjectAgentDialog model pin', () => {
     );
   });
 
+  it('names a model two providers offer by its provider, in its list and its control', async () => {
+    const { user } = renderDialog(
+      { ...LEGACY_AGENT, modelProvider: 'anthropic' },
+      [
+        ...MODELS,
+        {
+          id: 'claude-fable-5',
+          label: 'claude-fable-5',
+          providerSlug: 'eu-gateway',
+          providerLabel: 'EU Gateway',
+        },
+      ],
+    );
+
+    const trigger = screen.getByRole('button', { name: 'Model' });
+    expect(trigger).toHaveTextContent('Anthropic · claude-fable-5');
+    await user.click(trigger);
+    for (const provider of ['OpenRouter', 'Anthropic', 'EU Gateway']) {
+      expect(screen.getByText(provider)).toBeVisible();
+    }
+    await user.click(
+      screen.getByRole('option', { name: 'EU Gateway · claude-fable-5' }),
+    );
+    expect(trigger).toHaveTextContent('EU Gateway · claude-fable-5');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+
+    expect(updateAgent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        model: 'claude-fable-5',
+        modelProvider: 'eu-gateway',
+      }),
+    );
+  });
+
   it('shows the provider a run would ACTUALLY use for a pinless row', async () => {
     previewState.data = {
       ok: true,

@@ -147,14 +147,14 @@ describe('a cut row', () => {
     await new Promise((resolve) => setTimeout(resolve, 600));
     expect(tip()).toBeUndefined();
     await userEvent.hover(row('openrouter:vendor/model-2') as HTMLElement);
-    await expect.poll(tip).toBe(`${LONG_MODEL_LABEL} 3 · OpenRouter`);
+    await expect.poll(tip).toBe(`OpenRouter · ${LONG_MODEL_LABEL} 3`);
 
     row('openrouter:vendor/model-2')?.focus();
     await userEvent.keyboard('{ArrowDown}');
     await expect
       .poll(() => document.activeElement)
       .toBe(row('openrouter:vendor/model-4'));
-    await expect.poll(tip).toBe(`${LONG_MODEL_LABEL} 5 · OpenRouter`);
+    await expect.poll(tip).toBe(`OpenRouter · ${LONG_MODEL_LABEL} 5`);
   });
 
   it('shows a clamped skill description whole', async () => {
@@ -193,7 +193,8 @@ describe.each(['light', 'dark'] as const)('in %s mode', (theme) => {
     const first = row('openrouter:vendor/model-0') as HTMLButtonElement;
     assertTheme(first.closest('[role="menu"]') as Element);
 
-    const provider = within(first).getByText('OpenRouter');
+    // The provider heads its models' section rather than riding each row.
+    const provider = screen.getByText('OpenRouter');
     const auto = screen.getByText(
       'Let Tale pick the best model for each message — balances quality, speed, and cost.',
     );

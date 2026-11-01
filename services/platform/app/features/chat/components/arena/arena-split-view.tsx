@@ -32,12 +32,16 @@ interface ArenaSplitViewProps {
   /** Column A's model — the composer's current pick, changeable from the
    * column header as well as from the composer. */
   modelAId?: string;
+  /** The provider column A runs `modelAId` on. */
+  modelAProviderSlug?: string;
   onModelAChange: (modelId: string, providerSlug: string) => void;
   /** Direct-served options for column B's picker. */
   models: readonly ComposerModelOption[];
   /** Why the EU/EEA processing rule left models out of `models`, if it did. */
   modelsHiddenBy?: HiddenModelsRule;
   modelBId?: string;
+  /** The provider column B runs `modelBId` on. */
+  modelBProviderSlug?: string;
   onModelBChange: (modelId: string, providerSlug: string) => void;
   /** Either column is still answering. */
   generating: boolean;
@@ -59,10 +63,12 @@ export function ArenaSplitView({
   threadIdA,
   threadIdB,
   modelAId,
+  modelAProviderSlug,
   onModelAChange,
   models,
   modelsHiddenBy,
   modelBId,
+  modelBProviderSlug,
   onModelBChange,
   generating,
   round,
@@ -113,6 +119,7 @@ export function ArenaSplitView({
               models={models}
               modelsHiddenBy={modelsHiddenBy}
               modelId={modelAId}
+              providerSlug={modelAProviderSlug}
               onChange={onModelAChange}
             />
           }
@@ -132,6 +139,7 @@ export function ArenaSplitView({
               models={models}
               modelsHiddenBy={modelsHiddenBy}
               modelId={modelBId}
+              providerSlug={modelBProviderSlug}
               onChange={onModelBChange}
             />
           }

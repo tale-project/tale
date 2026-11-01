@@ -112,10 +112,12 @@ const fixtures = vi.hoisted(() => ({
     name: string;
   }>,
   // The org's catalog listing, as the embedding section's model row reads
-  // it: only the fields it narrows (name, origin, catalog source, models'
-  // id/tags/embedding facts, the per-provider catalog error).
+  // it: only the fields it narrows (name, display name, origin, catalog
+  // source, models' id/tags/embedding facts, the per-provider catalog
+  // error). A provider without a display name goes by its slug.
   catalogs: [] as Array<{
     name: string;
+    displayName?: string;
     origin: 'shipped' | 'organization';
     catalogSource: 'none' | 'static' | 'openrouter-api' | 'models-endpoint';
     models: Array<{
@@ -1108,6 +1110,82 @@ describe('DataResidencySettings', () => {
     expect(
       within(section).getByRole('combobox', { name: 'Provider' }),
     ).not.toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('names each provider by its display name in the pick, the recommendation and the hint', async () => {
+    fixtures.credentials = [
+      { id: 'cred-1', providerSlug: 'openrouter', name: 'Org key' },
+      { id: 'cred-2', providerSlug: 'anthropic', name: 'API key' },
+      { id: 'cred-3', providerSlug: 'acme-gateway', name: 'Gateway key' },
+    ];
+    fixtures.embeddingSupport = [
+      { providerSlug: 'anthropic', support: 'unsupported' },
+    ];
+    fixtures.embeddingRecommendations = [
+      {
+        providerSlug: 'openrouter',
+        model: 'qwen/qwen3-embedding-8b',
+        dimensions: 1536,
+        recommended: true,
+      },
+    ];
+    fixtures.catalogs = [
+      {
+        name: 'openrouter',
+        displayName: 'OpenRouter',
+        origin: 'shipped',
+        catalogSource: 'openrouter-api',
+        models: [
+          {
+            id: 'qwen/qwen3-embedding-8b',
+            tags: ['embedding'],
+            embedding: { dimensions: 1536 },
+          },
+        ],
+      },
+      {
+        name: 'anthropic',
+        displayName: 'Anthropic',
+        origin: 'shipped',
+        catalogSource: 'static',
+        models: [{ id: 'claude-sonnet-5', tags: ['chat'] }],
+      },
+      // An organization's own provider, whose display name sorts apart
+      // from its slug.
+      {
+        name: 'acme-gateway',
+        displayName: 'Zephyr Gateway',
+        origin: 'organization',
+        catalogSource: 'none',
+        models: [],
+      },
+    ];
+
+    const { user } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    expect(
+      within(section).getByText(
+        'Your OpenRouter credential can serve qwen/qwen3-embedding-8b (1536-dimensional vectors).',
+      ),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(section).getByRole('switch', { name: 'Embedding model' }),
+    );
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    expect(
+      screen.getAllByRole('option').map((option) => option.textContent),
+    ).toEqual(['Anthropic', 'OpenRouter', 'Zephyr Gateway']);
+    await user.click(screen.getByRole('option', { name: 'Anthropic' }));
+
+    expect(
+      within(section).getByText(
+        'Anthropic offers no embedding model. Choose a provider that serves one.',
+      ),
+    ).toBeInTheDocument();
   });
 
   // The declarations come from a second read. Until it answers, the form
