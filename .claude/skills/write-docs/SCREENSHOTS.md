@@ -24,6 +24,10 @@ When the UI changes, search the manifest for the affected route or surface. Rege
 relevant assets and inspect them. A successful capture command proves the file exists, not that
 the image communicates the intended state.
 
+The pipeline also derives the smaller variants a page serves to each screen from the capture.
+Commit them with it, regenerate them with the repository's command when a page starts showing an
+image, and never resize, re-encode or crop a shipped image by hand.
+
 ## Frame and crop
 
 Use the smallest region that explains the point while keeping enough orientation to recognize
