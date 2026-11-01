@@ -957,6 +957,128 @@ describe('harnessDefinitionSchema', () => {
     ).toBe(false);
   });
 
+  describe('the bridge mount', () => {
+    // The bridge mounts one way per channel: the stdio relay (bridgeEnv) or
+    // the platform's MCP server (bridgeHeaders; codex's bridgeBearerEnv).
+    const withArgvMcp = (mcp: Record<string, unknown>) => ({
+      ...VALID_HARNESS,
+      exec: {
+        ...VALID_HARNESS.exec,
+        argv: [
+          ...VALID_HARNESS.exec.argv.filter((slot) => !('mcp' in slot)),
+          { mcp },
+        ],
+      },
+    });
+    const withDocMcp = (mcpServers: Record<string, unknown>) => ({
+      ...VALID_HARNESS,
+      exec: {
+        ...VALID_HARNESS.exec,
+        argv: VALID_HARNESS.exec.argv.filter((slot) => !('mcp' in slot)),
+        envDocs: {
+          TALE_CONFIG_CONTENT: {
+            fragments: [
+              {
+                mcpServers: {
+                  path: 'mcp',
+                  serverShape: 'command-args',
+                  ...mcpServers,
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    const issues = (doc: unknown) => {
+      const parsed = harnessDefinitionSchema.safeParse(doc);
+      return parsed.success ? [] : parsed.error.issues.map((i) => i.message);
+    };
+    const RELAY_ENV = { TALE_CONNECTORS_URL: '${bridgeUrl}' };
+    const HEADERS = { Authorization: 'Bearer ${gateway.token}' };
+    const ONE_WAY =
+      'an MCP mounting channel mounts the bridge one way: bridgeEnv (the relay) or its remote form';
+
+    it('accepts the relay or the remote form on each channel', () => {
+      expect(
+        issues(
+          withArgvMcp({
+            delivery: 'config-json-flag',
+            flag: '--mcp-config',
+            bridgeHeaders: HEADERS,
+          }),
+        ),
+      ).toEqual([]);
+      expect(
+        issues(
+          withArgvMcp({
+            delivery: 'codex-config-flags',
+            bridgeBearerEnv: { TALE_CONNECTORS_TOKEN: '${gateway.token}' },
+          }),
+        ),
+      ).toEqual([]);
+      expect(
+        issues(
+          withArgvMcp({ delivery: 'codex-config-flags', bridgeEnv: RELAY_ENV }),
+        ),
+      ).toEqual([]);
+      expect(issues(withDocMcp({ bridgeHeaders: HEADERS }))).toEqual([]);
+      expect(
+        issues(withDocMcp({ bridgeEnvField: 'env', bridgeEnv: RELAY_ENV })),
+      ).toEqual([]);
+    });
+
+    it('rejects a channel that mounts the bridge both ways or neither', () => {
+      expect(
+        issues(
+          withArgvMcp({
+            delivery: 'config-json-flag',
+            flag: '--mcp-config',
+            bridgeEnv: RELAY_ENV,
+            bridgeHeaders: HEADERS,
+          }),
+        ),
+      ).toEqual([ONE_WAY]);
+      expect(
+        issues(
+          withArgvMcp({ delivery: 'config-json-flag', flag: '--mcp-config' }),
+        ),
+      ).toEqual([ONE_WAY]);
+      expect(issues(withDocMcp({}))).toEqual([ONE_WAY]);
+    });
+
+    it('rejects a relay env field without its env, or an env without it', () => {
+      const PAIR = 'bridgeEnvField and bridgeEnv come together';
+      expect(
+        issues(withDocMcp({ bridgeEnvField: 'env', bridgeHeaders: HEADERS })),
+      ).toEqual([PAIR]);
+      expect(issues(withDocMcp({ bridgeEnv: RELAY_ENV }))).toEqual([PAIR]);
+    });
+
+    it('rejects a bearer env that names no single variable', () => {
+      expect(
+        issues(
+          withArgvMcp({
+            delivery: 'codex-config-flags',
+            bridgeBearerEnv: { A_TOKEN: 'a', B_TOKEN: 'b' },
+          }),
+        ),
+      ).toEqual(['bridgeBearerEnv names exactly one variable']);
+    });
+
+    it('rejects a header name that is no HTTP token', () => {
+      expect(
+        issues(
+          withArgvMcp({
+            delivery: 'config-json-flag',
+            flag: '--mcp-config',
+            bridgeHeaders: { 'Bad Header': 'x' },
+          }),
+        ),
+      ).not.toEqual([]);
+    });
+  });
+
   it('rejects a missing or unknown parser family', () => {
     const { parser: _parser, ...withoutParser } = VALID_HARNESS;
     expect(harnessDefinitionSchema.safeParse(withoutParser).success).toBe(

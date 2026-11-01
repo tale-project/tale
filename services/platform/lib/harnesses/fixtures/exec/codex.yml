@@ -349,16 +349,15 @@ managed-mcp-headless-bridge:
     - -c
     - mcp_servers.playwright.args=["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]
     - -c
-    - mcp_servers.connectors.command="tale-connectors-mcp"
+    - mcp_servers.connectors.url="http://platform.internal/bridge/mcp"
     - -c
-    - mcp_servers.connectors.env_vars=["TALE_CONNECTORS_URL","TALE_CONNECTORS_TOKEN"]
+    - mcp_servers.connectors.bearer_token_env_var="TALE_CONNECTORS_TOKEN"
     - -c
     - mcp_servers.connectors.tool_timeout_sec=330
     - '-'
   env:
     CODEX_HOME: /agent/.runtime/home/.codex
     TALE_CONNECTORS_TOKEN: golden-session-virtual-key
-    TALE_CONNECTORS_URL: http://platform.internal/bridge
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
@@ -388,16 +387,15 @@ managed-mcp-bridge-only:
     - -c
     - model_providers.tale.stream_idle_timeout_ms=900000
     - -c
-    - mcp_servers.connectors.command="tale-connectors-mcp"
+    - mcp_servers.connectors.url="http://platform.internal/bridge/mcp"
     - -c
-    - mcp_servers.connectors.env_vars=["TALE_CONNECTORS_URL","TALE_CONNECTORS_TOKEN"]
+    - mcp_servers.connectors.bearer_token_env_var="TALE_CONNECTORS_TOKEN"
     - -c
     - mcp_servers.connectors.tool_timeout_sec=330
     - '-'
   env:
     CODEX_HOME: /agent/.runtime/home/.codex
     TALE_CONNECTORS_TOKEN: golden-session-virtual-key
-    TALE_CONNECTORS_URL: http://platform.internal/bridge
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'
@@ -536,9 +534,9 @@ managed-kitchen-sink:
     - -c
     - mcp_servers.playwright.args=["--headless","--browser","chromium","--isolated","--no-sandbox","--ignore-https-errors"]
     - -c
-    - mcp_servers.connectors.command="tale-connectors-mcp"
+    - mcp_servers.connectors.url="http://platform.internal/bridge/mcp"
     - -c
-    - mcp_servers.connectors.env_vars=["TALE_CONNECTORS_URL","TALE_CONNECTORS_TOKEN"]
+    - mcp_servers.connectors.bearer_token_env_var="TALE_CONNECTORS_TOKEN"
     - -c
     - mcp_servers.connectors.tool_timeout_sec=330
     - -m
@@ -547,7 +545,6 @@ managed-kitchen-sink:
   env:
     CODEX_HOME: /agent/.runtime/home/.codex
     TALE_CONNECTORS_TOKEN: golden-session-virtual-key
-    TALE_CONNECTORS_URL: http://platform.internal/bridge
     TALE_GATEWAY_TOKEN: golden-session-virtual-key
   cwd: /agent/workspace
   stdin: 'Golden battery prompt: fix the flaky login test'

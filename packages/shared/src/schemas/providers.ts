@@ -958,6 +958,13 @@ const flagSchema = z.string().min(1).max(64);
  * the bearer token). */
 const envTemplateMapSchema = z.record(envKeyNameSchema, z.string().max(4096));
 
+/** HTTP headers whose values are placeholder templates, or a reference the
+ * CLI itself resolves from its env at load (`${VAR}`, `{env:VAR}`). */
+const headerTemplateMapSchema = z.record(
+  z.string().regex(/^[A-Za-z][A-Za-z0-9-]{0,63}$/),
+  z.string().min(1).max(4096),
+);
+
 /**
  * Condition atoms gating a conditional doc fragment or envelope doc; a
  * `when` list is an AND over its atoms. `managed`/`byo` follow the spec's
@@ -1010,10 +1017,16 @@ const docValueSchema: z.ZodType<DocValue> = z.lazy(() =>
  *  - `mcpServers`: mount the requested MCP servers at `path` — the
  *    in-container Playwright browser server (headless or CDP-attach; shapes
  *    are interpreter constants shared by every harness) plus, on managed
- *    runs with a bridge URL, the capability-dispatch bridge whose child env
- *    is `bridgeEnv` under the CLI's field name (`env`/`environment`).
- *    `serverShape`: `command-args` = `{command, args}` objects;
- *    `opencode-local` = `{type: "local", command: [bin, …args], enabled}`.
+ *    runs with a bridge URL, the capability-dispatch bridge. The bridge
+ *    mounts one of two ways: `bridgeEnv` starts the in-sandbox stdio relay
+ *    with that child env under the CLI's field name (`bridgeEnvField`:
+ *    `env`/`environment`); `bridgeHeaders` points the CLI at the platform's
+ *    own MCP server (`<bridge URL>/mcp`) with those request headers, and no
+ *    relay process starts.
+ *    `serverShape`: `command-args` = `{command, args}` objects, and a remote
+ *    bridge as `{httpUrl, headers}`; `opencode-local` = `{type: "local",
+ *    command: [bin, …args], enabled}`, and a remote bridge as `{type:
+ *    "remote", url, headers, oauth: false, enabled}`.
  *    `bridgeCallTimeout`: the field (and its unit) under which the CLI takes
  *    one MCP call's timeout, for a CLI whose default gives up before the
  *    bridge's longest tool can answer and whose calls are not kept alive by
@@ -1037,8 +1050,9 @@ const docFragmentSchema = z.union([
         .object({
           path: docPathSchema,
           serverShape: z.enum(['command-args', 'opencode-local']),
-          bridgeEnvField: z.enum(['env', 'environment']),
-          bridgeEnv: envTemplateMapSchema,
+          bridgeEnvField: z.enum(['env', 'environment']).optional(),
+          bridgeEnv: envTemplateMapSchema.optional(),
+          bridgeHeaders: headerTemplateMapSchema.optional(),
           bridgeCallTimeout: z
             .object({
               field: z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/),
@@ -1104,8 +1118,13 @@ const docFragmentsSchema = z.array(docFragmentSchema).min(1);
  *    the merged `{mcpServers}` JSON plus `trailingArgs` (claude's
  *    `--strict-mcp-config`); `omitImagesOnVision` appends the browser
  *    server's save-to-disk image flags when the vision polyfill is armed.
- *    `codex-config-flags` = `-c mcp_servers.*` TOML pairs; the bridge child
- *    env rides codex's `env_vars` whitelist and `bridgeEnv` lands in the
+ *    The bridge is the stdio relay with `bridgeEnv` as its child env, or
+ *    the platform's MCP server as `{type: "http", url, headers}` with
+ *    `bridgeHeaders`.
+ *    `codex-config-flags` = `-c mcp_servers.*` TOML pairs. The relay's
+ *    child env (`bridgeEnv`) rides codex's `env_vars` whitelist; the
+ *    platform's MCP server takes its bearer token from the one variable of
+ *    `bridgeBearerEnv` (`bearer_token_env_var`). Either map lands in the
  *    EXEC env instead of argv.
  *  - `toolDeny`: one flag + comma-joined tool names — `always` denies in
  *    both modes (interaction dead-ends like AskUserQuestion), `managed`
@@ -1174,13 +1193,15 @@ const argvSlotSchema = z.union([
             flag: flagSchema,
             trailingArgs: argvChunkSchema.optional(),
             omitImagesOnVision: z.boolean().optional(),
-            bridgeEnv: envTemplateMapSchema,
+            bridgeEnv: envTemplateMapSchema.optional(),
+            bridgeHeaders: headerTemplateMapSchema.optional(),
           })
           .strict(),
         z
           .object({
             delivery: z.literal('codex-config-flags'),
-            bridgeEnv: envTemplateMapSchema,
+            bridgeEnv: envTemplateMapSchema.optional(),
+            bridgeBearerEnv: envTemplateMapSchema.optional(),
           })
           .strict(),
       ]),
@@ -1380,6 +1401,14 @@ export const harnessGatewayWireSchema = z.enum([
   'openai-responses',
 ]);
 export type HarnessGatewayWire = z.infer<typeof harnessGatewayWireSchema>;
+
+/** The bridge fields every MCP mounting channel may carry. */
+interface BridgeChannel {
+  readonly bridgeEnvField?: string;
+  readonly bridgeEnv?: Readonly<Record<string, string>>;
+  readonly bridgeHeaders?: Readonly<Record<string, string>>;
+  readonly bridgeBearerEnv?: Readonly<Record<string, string>>;
+}
 
 /** The shape of one `configs/platform/system/harnesses/<slug>/harness.yml`. */
 export const harnessDefinitionSchema = z
@@ -1595,7 +1624,8 @@ export const harnessDefinitionSchema = z
     }
 
     // Collect doc fragments across every document sink.
-    const fragmentLists: ReadonlyArray<Record<string, unknown>>[] = [];
+    const fragmentLists: ReadonlyArray<z.infer<typeof docFragmentSchema>>[] =
+      [];
     for (const entry of envelope) {
       if ('doc' in entry) fragmentLists.push(entry.doc.fragments);
     }
@@ -1631,6 +1661,37 @@ export const harnessDefinitionSchema = z
       issue(
         'capabilities.mcp must match the presence of an MCP mounting channel',
       );
+    }
+    // The bridge mounts one way: the stdio relay (its child env) or the
+    // platform's MCP server (its request headers, or for codex the one
+    // variable that carries its bearer token).
+    const bridgeMounts: { mount: BridgeChannel; namesEnvField: boolean }[] = [
+      ...fragments.flatMap((f) =>
+        'mcpServers' in f ? [{ mount: f.mcpServers, namesEnvField: true }] : [],
+      ),
+      ...provider.exec.argv.flatMap((slot) =>
+        'mcp' in slot ? [{ mount: slot.mcp, namesEnvField: false }] : [],
+      ),
+    ];
+    for (const { mount, namesEnvField } of bridgeMounts) {
+      const remote = mount.bridgeHeaders ?? mount.bridgeBearerEnv;
+      if ((mount.bridgeEnv === undefined) === (remote === undefined)) {
+        issue(
+          'an MCP mounting channel mounts the bridge one way: bridgeEnv (the relay) or its remote form',
+        );
+      }
+      if (
+        namesEnvField &&
+        (mount.bridgeEnv === undefined) !== (mount.bridgeEnvField === undefined)
+      ) {
+        issue('bridgeEnvField and bridgeEnv come together');
+      }
+      if (
+        mount.bridgeBearerEnv !== undefined &&
+        Object.keys(mount.bridgeBearerEnv).length !== 1
+      ) {
+        issue('bridgeBearerEnv names exactly one variable');
+      }
     }
   });
 export type HarnessDefinition = z.infer<typeof harnessDefinitionSchema>;

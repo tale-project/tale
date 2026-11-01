@@ -131,14 +131,14 @@ exec:
     - instructions:
         flag: '-c'
         configKey: developer_instructions
-    # MCP servers as `mcp_servers.<id>` config pairs. Secrets reach the
-    # bridge via the `env_vars` whitelist — Codex forwards ONLY whitelisted
-    # vars from its own process env to MCP stdio servers — so the session
-    # key stays out of argv (bridgeEnv lands in the exec env).
+    # MCP servers as `mcp_servers.<id>` config pairs. The bridge is the
+    # platform's MCP server, reached over HTTP: Codex reads its bearer token
+    # from the one variable `bearer_token_env_var` names, so the session key
+    # stays out of argv (bridgeBearerEnv lands in the exec env) and no relay
+    # process starts.
     - mcp:
         delivery: codex-config-flags
-        bridgeEnv:
-          TALE_CONNECTORS_URL: '${bridgeUrl}'
+        bridgeBearerEnv:
           TALE_CONNECTORS_TOKEN: '${gateway.token}'
     # Model: managed = the gateway model id (matches the virtual-key
     # allowlist); byo = the caller-resolved vendor-native id.

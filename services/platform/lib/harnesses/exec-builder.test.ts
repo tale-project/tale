@@ -378,6 +378,62 @@ describe("a CLI waits for the bridge's longest tool", () => {
   });
 });
 
+describe("a CLI reaches the bridge as the platform's MCP server", () => {
+  const BRIDGE = { bridgeUrl: 'http://platform.internal/bridge' };
+  const SERVER = 'http://platform.internal/bridge/mcp';
+  const exec = (slug: string) =>
+    buildHarnessExec(fact(slug), managedSpec({ mcp: BRIDGE }));
+
+  // A CLI that mounts the platform's MCP server ([CONN-R33]) starts no relay
+  // process; its bearer token stays where the relay's env put it before:
+  // claude's argv JSON, codex's exec env, an env reference in OpenCode's
+  // config.
+  it('claude-code posts to it with the session key in its --mcp-config', () => {
+    const { argv } = exec('claude-code');
+    const config = JSON.parse(argv[argv.indexOf('--mcp-config') + 1]);
+    expect(config.mcpServers.connectors).toEqual({
+      type: 'http',
+      url: SERVER,
+      headers: { Authorization: `Bearer ${GOLDEN_GATEWAY.token}` },
+    });
+  });
+
+  it('codex reads its bearer token from the one exec env variable it names', () => {
+    const codex = exec('codex');
+    expect(codex.argv).toContain(`mcp_servers.connectors.url="${SERVER}"`);
+    expect(codex.argv).toContain(
+      'mcp_servers.connectors.bearer_token_env_var="TALE_CONNECTORS_TOKEN"',
+    );
+    expect(codex.env.TALE_CONNECTORS_TOKEN).toBe(GOLDEN_GATEWAY.token);
+    expect(codex.env).not.toHaveProperty('TALE_CONNECTORS_URL');
+    expect(execCarries(codex, 'mcp_servers.connectors.env_vars')).toBe(false);
+  });
+
+  it('opencode mounts a remote server whose header resolves the env key', () => {
+    const config = JSON.parse(exec('opencode').env.OPENCODE_CONFIG_CONTENT);
+    expect(config.mcp.connectors).toEqual({
+      type: 'remote',
+      url: SERVER,
+      headers: { Authorization: 'Bearer {env:TALE_GATEWAY_TOKEN}' },
+      oauth: false,
+      enabled: true,
+      timeout: 330_000,
+    });
+  });
+
+  it.each(['claude-code', 'codex', 'opencode'])(
+    '%s starts no relay process',
+    (slug) => {
+      expect(execCarries(exec(slug), 'tale-connectors-mcp')).toBe(false);
+    },
+  );
+
+  it.each(['gemini', 'qwen-code', 'openclaw'])('%s keeps the relay', (slug) => {
+    expect(execCarries(exec(slug), 'tale-connectors-mcp')).toBe(true);
+    expect(execCarries(exec(slug), SERVER)).toBe(false);
+  });
+});
+
 describe('subscription delivery', () => {
   const subscription = {
     secret: 'subscription-plan-secret',
