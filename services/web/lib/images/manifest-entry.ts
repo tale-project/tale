@@ -1,12 +1,8 @@
-export interface ImageManifestEntry {
+import type { ResponsiveImage } from '@tale/ui/images/responsive';
+
+export interface ImageManifestEntry extends ResponsiveImage {
   id: string;
-  width: number;
-  height: number;
   blurDataURL: string;
-  variants: {
-    avif: Record<number, string>;
-    webp: Record<number, string>;
-  };
 }
 
 /** Generated assets share their directory and naming convention. Keep that

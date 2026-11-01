@@ -10,7 +10,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "386c662da2ac1f3ce05d6086f476f809c2b4c46fcfd37a3e3f4a6b2afcdf7086"
     },
     {
       "file": "images/get-started/documents-list.webp",
@@ -22,7 +23,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1080
+      "height": 1080,
+      "sha256": "5216e94c2a8ad508a5fedafb65036162db9b491baad8efbcbaf5d9b169d98ea7"
     },
     {
       "file": "images/get-started/org-create-wizard.webp",
@@ -34,7 +36,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "d94a71c8bd42bf28fad68caf1f6da45d7aab5274f8b17cce0e9ceb13e80d7d64"
     },
     {
       "file": "images/get-started/settings-api-keys.webp",
@@ -46,7 +49,8 @@
       },
       "dpr": 2,
       "width": 768,
-      "height": 860
+      "height": 860,
+      "sha256": "e7a1374f1068bd2a09115d149173a0347ca4ecd5e2a172e2c8af2956b6c71bcb"
     },
     {
       "file": "images/get-started/settings-organization-members.webp",
@@ -58,7 +62,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "3361c799eda621dd5d897e8ffa6239b27195ea454ba0f479d563b70bca8fe840"
     },
     {
       "file": "images/get-started/settings-providers.webp",
@@ -70,7 +75,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "10465d0c8961edd60c1d61d1cdccdb1fbf26b2289d8cecbea0f61e6daa42d65c"
     },
     {
       "file": "images/platform/agent-consent.webp",
@@ -83,7 +89,8 @@
       "dpr": 2,
       "width": 1440,
       "height": 2588,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "4638f28e3b94c37435df0abdbc2c8f06891d462b04c10b34f46f83b7065ab65a"
     },
     {
       "file": "images/platform/automation-approval-allowances.webp",
@@ -96,7 +103,8 @@
       "dpr": 2,
       "width": 1474,
       "height": 236,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "5a6b5c0a978f756556a5ca8829170e0f2c04e7f0f103bf075342876a2de3ea39"
     },
     {
       "file": "images/platform/automation-editor-canvas-mobile.webp",
@@ -109,7 +117,8 @@
       "dpr": 2,
       "width": 780,
       "height": 1688,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "73488314afe0365162249a56eb5c9f4cd51cdd0c6c1a34e0700fe597754bd365"
     },
     {
       "file": "images/platform/automation-editor-canvas.webp",
@@ -122,7 +131,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "5c4f68607d4fddc8469fa3efd11a9c6e16cd0f0806a6c6f01ce15d04337f8a88"
     },
     {
       "file": "images/platform/automation-editor-code.webp",
@@ -135,7 +145,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "90a579d3604d8dacae190eb39804a1d6393a6f7ab5dbdc17992ecff5c8583ca4"
     },
     {
       "file": "images/platform/automation-editor-node-shape.webp",
@@ -148,7 +159,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "5e4595a4b01abe38b8d863c62593d1b9ed607a98d7e787bc1e609b043508426a"
     },
     {
       "file": "images/platform/automation-editor-paths.webp",
@@ -161,7 +173,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "b8b6d387611a2eabf7ace7f0c5927a1d1d1a2abd4e5f3b70959eacc2ab3aa282"
     },
     {
       "file": "images/platform/automation-editor-problems.webp",
@@ -174,7 +187,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "39d662c6fd17b2d2915e326a1d9142fc3057823c62362427eb90fb5aa980cfad"
     },
     {
       "file": "images/platform/automation-editor-source.webp",
@@ -187,7 +201,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "bc50f40ec2bf8cd6338dfc48ab80ed6b9577af36f3046bd3f0666053876b7f8e"
     },
     {
       "file": "images/platform/automation-editor-start.webp",
@@ -200,7 +215,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "8032824ca036278bd0af1d14b148ca9b0dd3433ab527c68164ffba37037c50cc"
     },
     {
       "file": "images/platform/automation-general-trigger.webp",
@@ -213,7 +229,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "9c7b43e78f3334fbaa018235f082477742ba016ca3ad85702334870ff33000b1"
     },
     {
       "file": "images/platform/automation-http-credential.webp",
@@ -226,7 +243,8 @@
       "dpr": 2,
       "width": 768,
       "height": 1368,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "be5ba3ac4f9ce752b121d6ba04a72f3edbf149d3e940f0df7dcdd80ecd2d302e"
     },
     {
       "file": "images/platform/automation-http-step.webp",
@@ -239,7 +257,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "33970cdee52d01d8c8a7b66b155bf8e7944f9e5260a2757bfbb8648600cb7b24"
     },
     {
       "file": "images/platform/automation-knowledge-search-run.webp",
@@ -252,7 +271,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "47063e482169904f0a011e6ed17abadf3aced38fc978b9b5328ef518684db9dd"
     },
     {
       "file": "images/platform/automation-knowledge-search-step.webp",
@@ -265,7 +285,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "ced32b75950d2657134086d943456ed6007618ec00d7ad3e0614d6772854c638"
     },
     {
       "file": "images/platform/automation-model-swap.webp",
@@ -278,7 +299,8 @@
       "dpr": 2,
       "width": 1024,
       "height": 828,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "9be3f2817d781cbc68da99168e857cebcc528c8cd19f9a61afe0d92f488b55c5"
     },
     {
       "file": "images/platform/automation-notify-bell.webp",
@@ -291,7 +313,8 @@
       "dpr": 2,
       "width": 768,
       "height": 896,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "209969a2ff381615bf6ca7c782827ee978bf90e8c1406476985b2e5eb0cf7e0b"
     },
     {
       "file": "images/platform/automation-notify-run.webp",
@@ -304,7 +327,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "f8e5f6c4b01a663b3f7ecfe41e64d17d1fe76b611f3d621aef25abf7ade1fb08"
     },
     {
       "file": "images/platform/automation-run-compare-versions.webp",
@@ -317,7 +341,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 2800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "214bb330b9106b3a0773e2a4364e5a2148493ccbcc142c64a279d14ef6bc5773"
     },
     {
       "file": "images/platform/automation-run-detail.webp",
@@ -330,7 +355,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "0e202e82a20320e899ed5bf00b9239ed8c911a9320b4ec01bd4b15b657534416"
     },
     {
       "file": "images/platform/automation-run-failed.webp",
@@ -343,7 +369,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "c5ba54b55c90f533a2a13ece543eec08cfdd5538a9df22145391181b535716fe"
     },
     {
       "file": "images/platform/automation-run-input.webp",
@@ -356,7 +383,8 @@
       "dpr": 2,
       "width": 768,
       "height": 1516,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "207d9ab2188b06e16a48d0d8034adb58fb3346669b6b95242bc8aeb127083207"
     },
     {
       "file": "images/platform/automation-run-start-from.webp",
@@ -369,7 +397,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "be4242a43c807b15d0a43ef4634188dfc655798e454bc63abcbc2a02db9da082"
     },
     {
       "file": "images/platform/automation-save-as-test.webp",
@@ -382,7 +411,8 @@
       "dpr": 2,
       "width": 768,
       "height": 1440,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "f2390602799f0033f90305adff5c64cdc8575c93a5f6c551b49d79a1d0be045e"
     },
     {
       "file": "images/platform/automation-step-test.webp",
@@ -395,7 +425,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "d1526d429798dc26a3c959555191cbee8b8663c5d98151e68fff324a98833696"
     },
     {
       "file": "images/platform/automation-task-create-run.webp",
@@ -408,7 +439,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "2817e9dbd260f27cbbdce5b47ef516c22bf697ca690082828956e68d80e226fb"
     },
     {
       "file": "images/platform/automation-task-list-run.webp",
@@ -421,7 +453,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "42b749fe9353b089101baddeaebde20053726ca9512f2adcecc9c7144fd598b1"
     },
     {
       "file": "images/platform/automation-template-catalog.webp",
@@ -434,7 +467,8 @@
       "dpr": 2,
       "width": 2200,
       "height": 1872,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "a63fea5dcf3b109f5b2b27998c718b687b635e2ab0669df6ba7aa38f9c82b807"
     },
     {
       "file": "images/platform/automation-template-preview.webp",
@@ -447,7 +481,8 @@
       "dpr": 2,
       "width": 2200,
       "height": 2552,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "b302c259adad1e9e5c8c89e730a0dcc23542ed6c3d6122ad52b22f1ac87d29d5"
     },
     {
       "file": "images/platform/automation-template-setup.webp",
@@ -460,7 +495,8 @@
       "dpr": 2,
       "width": 2200,
       "height": 1872,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "a6babbc1a3be5c20c5944886699ecf42b9c33956caf36796c963193279d7ace0"
     },
     {
       "file": "images/platform/automation-test-coverage.webp",
@@ -473,7 +509,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "ce66a4eeeb38891050a8d5d91b6c300f0761d3e9510960f9bc92a31cf45b2cc9"
     },
     {
       "file": "images/platform/automation-test-setup.webp",
@@ -486,7 +523,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 2200,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "455daa2527fa8bf7b01aeee0087f1f8c984fada90177a3126d1910c34aed8c34"
     },
     {
       "file": "images/platform/automation-tests.webp",
@@ -499,7 +537,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "ee2670aa13ffa89c054c043918f19462350a6dc86ef9435da1da71ecba62f41d"
     },
     {
       "file": "images/platform/automation-trigger-event.webp",
@@ -512,7 +551,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "9b804ac8d59cb83fd0df540299b34c3b66cd77b1bbd92d7213d69a61ee719aab"
     },
     {
       "file": "images/platform/automation-trigger-schedule-custom-times.webp",
@@ -525,7 +565,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1920,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "76c6a18a0d4c5735c668fd77cd9f930129cc46833fe5f5845f7a1140328a90be"
     },
     {
       "file": "images/platform/automation-trigger-schedule-interval.webp",
@@ -538,7 +579,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "2650846d6b6f6aa719defc683b4800c5043e5d5f27728a5e6b3efd1e4cd5bbf5"
     },
     {
       "file": "images/platform/automation-trigger-schedule-presets.webp",
@@ -551,7 +593,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "4be5c02879b0fb7556de51e0e5816f97224ac0dc12c8edd7b1d852295ab6e1b7"
     },
     {
       "file": "images/platform/automation-trigger-skip-reason.webp",
@@ -564,7 +607,8 @@
       "dpr": 2,
       "width": 1474,
       "height": 2814,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "0f671136cb0379adbebfd52c7a4f2316337dc8c8e6e3eee38c6349e49f136ba0"
     },
     {
       "file": "images/platform/automation-trigger-webhook.webp",
@@ -577,7 +621,8 @@
       "dpr": 2,
       "width": 1474,
       "height": 2036,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "6e40db03c782b4001040898dc7bba3ec6897ff75888ff475d9ccee11376fbfa5"
     },
     {
       "file": "images/platform/automation-try-draft.webp",
@@ -590,7 +635,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "1dce73bf2b662e05b7fb70dd921ec4d5bf89a37fe05fcfdc51d234058e22ad32"
     },
     {
       "file": "images/platform/automation-version-compare.webp",
@@ -603,7 +649,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "36b8196d64ff5857f2b795a76a99651d87ea0cc119b2ba14970b25c26007d8d9"
     },
     {
       "file": "images/platform/automation-version-save-review.webp",
@@ -616,7 +663,8 @@
       "dpr": 2,
       "width": 768,
       "height": 1360,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "0536cd3c218f66a2bdcd4bba96b9ee31764b47bead2acd901bd448e9ed54bff4"
     },
     {
       "file": "images/platform/automation-versions.webp",
@@ -629,7 +677,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "15d45c562d6064d93c0df9f568390c09506be107e13317acfb723d8e9e5fd802"
     },
     {
       "file": "images/platform/automations-catalog.webp",
@@ -642,7 +691,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "a8b67a66fee0c27f2251602879a21989af9ec0c28c1c51e181874c6f49984418"
     },
     {
       "file": "images/platform/automations-upload-dialog.webp",
@@ -655,7 +705,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "222f51fe4054c0525485a77c201ce3da5b09fbf364cfd178c513839bf355293b"
     },
     {
       "file": "images/platform/chat-arena-split.webp",
@@ -667,7 +718,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "a44e964d2c2d1733fdfb475541e0653cceca1769e719251dc01781d6adf374f2"
     },
     {
       "file": "images/platform/chat-composer.webp",
@@ -679,7 +731,8 @@
       },
       "dpr": 2,
       "width": 1538,
-      "height": 348
+      "height": 348,
+      "sha256": "b425d2701453cd3aff38fe00ce074cedcbc1a63ccb76fa5d8f2e0a40364944c7"
     },
     {
       "file": "images/platform/chat-create-task.webp",
@@ -692,7 +745,8 @@
       "dpr": 2,
       "width": 1536,
       "height": 1012,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "daf09a70d4d93f2a3c2cc11ba84e9df99c0e7437432cef1f7fb2631fcf9366b4"
     },
     {
       "file": "images/platform/chat-document-attachment.webp",
@@ -704,7 +758,8 @@
       },
       "dpr": 2,
       "width": 1538,
-      "height": 436
+      "height": 436,
+      "sha256": "80e7d0cbe111b9c6b714b105d9bf9961206a3b358457c6ab66447d888c5030d0"
     },
     {
       "file": "images/platform/chat-reply-files.webp",
@@ -717,7 +772,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "11e208b0702ef4bd3519019cd4beb25532c2b36061024151f8364fe5c38b8162"
     },
     {
       "file": "images/platform/chat-shared-view.webp",
@@ -730,7 +786,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "2b2b316c673df10b9ed78368ad5cf6d34b9ecc2fab1ad7cee74cbc7212965304"
     },
     {
       "file": "images/platform/chat-skill-picker.webp",
@@ -743,7 +800,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "284d231859fa1e7d6c5785efaff8b8731117e6ee9eb8aed71b877a624db24b10"
     },
     {
       "file": "images/platform/chat-starters-empty.webp",
@@ -755,7 +813,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "621a9ec61438bfb7f9665f411d281aaf7cc4631bc391d074e91ebb22661f587b"
     },
     {
       "file": "images/platform/chat-task-tray.webp",
@@ -767,7 +826,8 @@
       },
       "dpr": 2,
       "width": 1614,
-      "height": 488
+      "height": 488,
+      "sha256": "c1e5a7b882368377505499d66b2e6244de46dbb33ae767e20911b558681fa534"
     },
     {
       "file": "images/platform/chat-thread-reply.webp",
@@ -780,7 +840,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "adf4369d52d79c5ffba55dab508555617b6b2758d793c54d7d5c834b8e98bbbd"
     },
     {
       "file": "images/platform/connectors-add-credential.webp",
@@ -792,7 +853,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "cc7ba3f12a28104b3285180ec12c33859cb6a10eddc8defd9c6adc579b516208"
     },
     {
       "file": "images/platform/controlled-document-replace-file.webp",
@@ -804,7 +866,8 @@
       },
       "dpr": 2,
       "width": 896,
-      "height": 968
+      "height": 968,
+      "sha256": "d044023ce8153b3dddcce90698cdb29aa2c1569f2d309a339927831986478e78"
     },
     {
       "file": "images/platform/de/automation-run-detail.webp",
@@ -920,7 +983,8 @@
       },
       "dpr": 2,
       "width": 768,
-      "height": 440
+      "height": 440,
+      "sha256": "fcb81bb402cd427ecf568dafc421744dad62eb765865127a391dede7e745cd99"
     },
     {
       "file": "images/platform/fr/automation-run-detail.webp",
@@ -1037,7 +1101,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "aa35dd13efda6dff6cd36ceef4544b447dbbe4945d608c3937b0dfeb7103bd15"
     },
     {
       "file": "images/platform/governance-budget-project-rule.webp",
@@ -1049,7 +1114,8 @@
       },
       "dpr": 2,
       "width": 768,
-      "height": 1400
+      "height": 1400,
+      "sha256": "c9431932c74beb4d1f82674838f668598920b6410f1f3bb80c55fa600365287d"
     },
     {
       "file": "images/platform/governance-chat-tools.webp",
@@ -1062,7 +1128,8 @@
       "dpr": 2,
       "width": 1538,
       "height": 670,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "dfeb07b48e805626ca70c57a09e974661a631a66f1bbb6894261a7ebbb71444c"
     },
     {
       "file": "images/platform/governance-confidentiality-notice.webp",
@@ -1074,7 +1141,8 @@
       },
       "dpr": 2,
       "width": 1538,
-      "height": 660
+      "height": 660,
+      "sha256": "54712681e7a01d1cf3b6fd5da344c0702c4a356b017e92964f062de11e9afb60"
     },
     {
       "file": "images/platform/governance-content-models.webp",
@@ -1086,7 +1154,8 @@
       },
       "dpr": 2,
       "width": 1538,
-      "height": 384
+      "height": 384,
+      "sha256": "17426a4fce6007213ca076029d41c0271fc2e3e3a3a25b672717f2a57cdc6c89"
     },
     {
       "file": "images/platform/governance-data-subject-requests.webp",
@@ -1098,7 +1167,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "9c6356a311cb8de59b4ff10f850bb722c089fa92289ef916146b7ca4ad7f44b6"
     },
     {
       "file": "images/platform/governance-guardrails.webp",
@@ -1110,7 +1180,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "4fcd22f4c160da518c99615ec325cd1cc59aff2b85cf638b0eda7669be53eb53"
     },
     {
       "file": "images/platform/governance-image-generation.webp",
@@ -1123,7 +1194,8 @@
       "dpr": 2,
       "width": 1538,
       "height": 394,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "5e91e216056f40fc390ea33275b656b32414979407d02c1452572bc1b96404ff"
     },
     {
       "file": "images/platform/governance-legal-hold.webp",
@@ -1135,7 +1207,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1920
+      "height": 1920,
+      "sha256": "e6a747f67367f232090cd3bfa4c39297cbd2c23c9a8a85af624cab36506ee4e6"
     },
     {
       "file": "images/platform/governance-model-endpoints.webp",
@@ -1147,7 +1220,8 @@
       },
       "dpr": 2,
       "width": 1538,
-      "height": 274
+      "height": 274,
+      "sha256": "eb2a472765fcec4c2cec76c791cf110b4c88ae1d4e462a41619c97b79d71f1d2"
     },
     {
       "file": "images/platform/governance-policies-limits.webp",
@@ -1160,7 +1234,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 3256,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "a067c20e27bcd43e0964366133997e9eec63aa5aba560db3bfe0de431aeca291"
     },
     {
       "file": "images/platform/governance-security-monitoring.webp",
@@ -1172,7 +1247,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 2520
+      "height": 2520,
+      "sha256": "09b89eb178ffdd5ee1eabe7a9ce89e5d34c50fdff0aa2bdef1c9f98c0ac718e2"
     },
     {
       "file": "images/platform/governance-skill-sharing.webp",
@@ -1184,7 +1260,8 @@
       },
       "dpr": 2,
       "width": 1538,
-      "height": 356
+      "height": 356,
+      "sha256": "09d622b8f3704aa58949f5b2ee591918ae6b9de02f88e50f4ddb893ddc99198a"
     },
     {
       "file": "images/platform/governance-standard-agent.webp",
@@ -1197,7 +1274,8 @@
       "dpr": 2,
       "width": 1538,
       "height": 1032,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "60f7126cfaf7beb95e2dd0d57ef4672974547e4390971f31c55434e3541d85c9"
     },
     {
       "file": "images/platform/home-inbox.webp",
@@ -1210,7 +1288,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "7c82e3fccd9169b38e481be8d9ce3f2993175798d396e52f06e5e179d9d9b1c8"
     },
     {
       "file": "images/platform/knowledge-entries-list.webp",
@@ -1223,7 +1302,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "e2763f3e26bbc7473200ea4b67597148af8f13eb62db2102f7df12c130f99ad0"
     },
     {
       "file": "images/platform/knowledge-products-list.webp",
@@ -1235,7 +1315,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1080
+      "height": 1080,
+      "sha256": "ad3b58e841375eb5f18f6798fc46a4f9a0ebfbafcf6590af709a39f9b4ebfcb8"
     },
     {
       "file": "images/platform/metrics-chat-health.webp",
@@ -1247,7 +1328,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "d10c7a90a96c0bf0a3e617f647bb0f54aeb214fbfa95f85f3a397d3487710d6d"
     },
     {
       "file": "images/platform/metrics-usage.webp",
@@ -1259,7 +1341,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "7910e755f7cbfe484d123b654895360a8663421148f9bf87d55f430ab6679339"
     },
     {
       "file": "images/platform/project-agent-document-skills.webp",
@@ -1271,7 +1354,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "9d27af17256cd63f4ea21d1d6b808d0709bd27043348566887bfaa1a94ef1ccf"
     },
     {
       "file": "images/platform/project-agents-models.webp",
@@ -1284,7 +1368,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "4245fddb1301e9641738843fc1dab58bb0e50a0098fc84305e92d9223f9ee748"
     },
     {
       "file": "images/platform/project-agents-standard.webp",
@@ -1297,7 +1382,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "3edae322194217c9355c91cb94dee81147fe53aa5602770ebae1bd242a7a256d"
     },
     {
       "file": "images/platform/project-dispatch.webp",
@@ -1310,7 +1396,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "8845f6cf2d9fdb10e850823536f7b699403c4ec8b8817d2fea3ea31794679f4c"
     },
     {
       "file": "images/platform/project-general-tab.webp",
@@ -1322,7 +1409,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 2220
+      "height": 2220,
+      "sha256": "993e56099ec23a4198dfe0ff4abd5dc685d2bfdf54c97c59b5f0660bc2223ba9"
     },
     {
       "file": "images/platform/project-knowledge-files.webp",
@@ -1334,7 +1422,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "21555ec32828cc941e35cfba86ca381d3bdd0c1fcb7cf7b40ddde0ba9487098f"
     },
     {
       "file": "images/platform/project-task-detail.webp",
@@ -1347,7 +1436,8 @@
       "dpr": 2,
       "width": 2048,
       "height": 1700,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "730ca3ba655805019186ea639b7384a9d043766bb56561fe1bac0fae30a13d62"
     },
     {
       "file": "images/platform/project-task-repeat.webp",
@@ -1360,7 +1450,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "1e259eb627783efe82c40823d3aa199759f3f9d90c43224574a6c3cccebee1be"
     },
     {
       "file": "images/platform/project-task-standard-agent.webp",
@@ -1373,7 +1464,8 @@
       "dpr": 2,
       "width": 1056,
       "height": 798,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "58d396a9bab41f32ff3fe37f900371689adf6f1d5ce5d86737d514fa8d5e4491"
     },
     {
       "file": "images/platform/projects-task-board.webp",
@@ -1386,7 +1478,8 @@
       "dpr": 2,
       "width": 4480,
       "height": 2800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "ed5b28fdd3ab546b962210561905140a6a4b00dd39e03680496c27a901a0e6ec"
     },
     {
       "file": "images/platform/sandbox-add-device.webp",
@@ -1398,7 +1491,8 @@
       },
       "dpr": 2,
       "width": 1024,
-      "height": 1132
+      "height": 1132,
+      "sha256": "d1ca2c1222c1b834cbb4ad9bdbeb4475ebf36fa295da20c512b15818501e8763"
     },
     {
       "file": "images/platform/sandbox-infrastructure-capacity.webp",
@@ -1410,7 +1504,8 @@
       },
       "dpr": 2,
       "width": 1538,
-      "height": 928
+      "height": 928,
+      "sha256": "3169f82d35280dee3f15d4f9e4594a43fc9a527684fb50d4bf100574592322ec"
     },
     {
       "file": "images/platform/sandbox-workspace-cleanup.webp",
@@ -1423,7 +1518,8 @@
       "dpr": 2,
       "width": 1538,
       "height": 1374,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "47d03ca50bd8be331e0f692a9fba455813cb599c878257f62ef0b55d90d81f3f"
     },
     {
       "file": "images/platform/settings-account-security.webp",
@@ -1435,7 +1531,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 2520
+      "height": 2520,
+      "sha256": "2c9e4faf3295edf540914122bf525b1b74daecd1320a58bbdf274a6e44ec72b8"
     },
     {
       "file": "images/platform/settings-api-keys-organization.webp",
@@ -1447,7 +1544,8 @@
       },
       "dpr": 2,
       "width": 768,
-      "height": 1048
+      "height": 1048,
+      "sha256": "9d3555fc9514792faca49fd50072bc79150c34e79fc3ac17dcd9074519889ee5"
     },
     {
       "file": "images/platform/settings-branding.webp",
@@ -1459,7 +1557,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "30db0ae4cac55bc37e0529f62a9b0fbac522a9d741ac39e200c3d10e540d544d"
     },
     {
       "file": "images/platform/settings-connect-agent.webp",
@@ -1472,7 +1571,8 @@
       "dpr": 2,
       "width": 1152,
       "height": 1328,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "35b729d0c98d6ebf3f2360ecf49eb6f71832e636614fc53cedf256c1dd21afda"
     },
     {
       "file": "images/platform/settings-connected-agents.webp",
@@ -1485,7 +1585,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "12498566dc93e5162abffee80bffb6d090ba24a586336b7a0edbd9e8a3e4246d"
     },
     {
       "file": "images/platform/settings-enterprise-sso.webp",
@@ -1497,7 +1598,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "f062daa1845d99b5cdd17fdf2518e61a3836a4132a430d1a823dcde24830d3b2"
     },
     {
       "file": "images/platform/settings-mcp-endpoint.webp",
@@ -1510,7 +1612,8 @@
       "dpr": 2,
       "width": 2880,
       "height": 1800,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "1783a62a4124c541ea417a430180abc2a6807ae68dbb0223f1d4710d4b942b2b"
     },
     {
       "file": "images/platform/settings-preferences.webp",
@@ -1522,7 +1625,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "b6355127394fb3e637fcbc19da94f9339dccb76ca34abe362c1c3e11f836fa6b"
     },
     {
       "file": "images/platform/settings-sandboxes.webp",
@@ -1535,7 +1639,8 @@
       "dpr": 2,
       "width": 1538,
       "height": 1266,
-      "locale": "en"
+      "locale": "en",
+      "sha256": "f0e08f3c0bdb02cb788e9b734efb1faf8d4cc3d1feacdbff3b136d59bdc899a5"
     },
     {
       "file": "images/platform/settings-teams.webp",
@@ -1547,7 +1652,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "de5c7f86a70c169bcfa8929e6682653cd630800439458d0e117f59f15877e806"
     },
     {
       "file": "images/platform/settings-usage.webp",
@@ -1559,7 +1665,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 2048
+      "height": 2048,
+      "sha256": "640e5780c3ac1ba0e3fe6b02fde6923172c11e3d2741d3cff5ea71c8bbf8f4c7"
     },
     {
       "file": "images/platform/settings-webdav.webp",
@@ -1571,7 +1678,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "799c588333389aac868858c0f3d2d1b3b508fdd7fe7e6a6c5217a71b412f0e2d"
     },
     {
       "file": "images/platform/skill-library-detail.webp",
@@ -1583,7 +1691,8 @@
       },
       "dpr": 2,
       "width": 1536,
-      "height": 1872
+      "height": 1872,
+      "sha256": "e5ef03e1f82ac6bccb94796ec46235325cd7fbd09f6e36201ad429604d934ea9"
     },
     {
       "file": "images/platform/skill-library-list.webp",
@@ -1595,7 +1704,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "d5aee2c42c7b91d117afe34c216a876d7b2be6522b201fcce3edce9a4e2ec4b0"
     },
     {
       "file": "images/platform/websites-add-dialog.webp",
@@ -1607,7 +1717,8 @@
       },
       "dpr": 2,
       "width": 2880,
-      "height": 1800
+      "height": 1800,
+      "sha256": "ae0d49317fa5bd0aabdac28bc1847201af1351e12fcfd450e01c4f386a9e3bc0"
     }
   ]
 }

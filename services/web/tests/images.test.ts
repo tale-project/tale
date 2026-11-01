@@ -2,11 +2,11 @@ import { readdirSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { IMAGE_MAX_BYTES } from '@tale/ui/images/responsive';
 import { describe, expect, it } from 'vitest';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const PUBLIC_ROOT = join(HERE, '..', 'public');
-const MAX_BYTES = 200 * 1024;
 const OG_MAX_BYTES = 300 * 1024;
 const RASTER_EXT = ['.png', '.jpg', '.jpeg', '.webp', '.avif', '.gif'] as const;
 const EXEMPT_NAMES = new Set([
@@ -40,9 +40,9 @@ describe('marketing public images', () => {
     const name = rel.split(/[/\\]/).pop() ?? rel;
     const isOg = name === 'og.png';
     const exempt = EXEMPT_NAMES.has(name);
-    const budget = isOg ? OG_MAX_BYTES : MAX_BYTES;
+    const budget = isOg ? OG_MAX_BYTES : IMAGE_MAX_BYTES;
 
-    it(`${rel} stays under ${isOg ? '300KB' : '200KB'}`, () => {
+    it(`${rel} stays under ${budget / 1024}KB`, () => {
       if (exempt) return;
       const size = statSync(file).size;
       expect(size).toBeLessThanOrEqual(budget);
