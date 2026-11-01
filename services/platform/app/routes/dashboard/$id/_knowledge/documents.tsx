@@ -25,6 +25,11 @@ const searchSchema = z.object({
    * the URL so a filtered view survives a reload and can be shared.
    */
   teams: z.string().optional(),
+  /**
+   * `me`: the viewer's own uploads from every folder, as one flat list —
+   * the files behind their storage meter in Settings › Usage.
+   */
+  uploadedBy: z.literal('me').optional().catch(undefined),
   cloudImport: z.string().optional(),
   cloudImportStatus: z.string().optional(),
 });
@@ -59,6 +64,7 @@ function DocumentsPage() {
     folderId,
     doc,
     teams,
+    uploadedBy,
     cloudImport,
     cloudImportStatus,
   } = Route.useSearch();
@@ -70,6 +76,20 @@ function DocumentsPage() {
         search: (prev) => ({
           ...prev,
           teams: serializeAudienceFilter(teamIds),
+        }),
+        replace: true,
+      });
+    },
+    [navigate],
+  );
+  // The flat list spans every folder, so turning it on leaves the folder.
+  const handleUploadedByChange = useCallback(
+    (next: 'me' | undefined) => {
+      void navigate({
+        search: (prev) => ({
+          ...prev,
+          uploadedBy: next,
+          folderId: next ? undefined : prev.folderId,
         }),
         replace: true,
       });
@@ -112,6 +132,8 @@ function DocumentsPage() {
       docId={doc}
       teamFilter={teamFilter}
       onTeamFilterChange={handleTeamFilterChange}
+      uploadedBy={uploadedBy}
+      onUploadedByChange={handleUploadedByChange}
       oneDriveOpen={oneDriveOpen}
       onOneDriveOpenChange={setOneDriveOpen}
       googleDriveOpen={googleDriveOpen}

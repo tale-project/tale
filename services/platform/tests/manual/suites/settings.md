@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 167 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 168 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -686,6 +686,19 @@ Restore any toggled setting after the run.
   page's first section offers **Manage limits** (`settings.usage.manageLimits`)
   to `/dashboard/{org}/settings/governance/policies-limits`, and the member
   sees no such link.
+- [ ] `SET-F105` · **What fills the storage meter** — As a member with the
+  upload policy's per-user volume set, upload a document into a folder of
+  **Knowledge** and attach a file in a chat, then open
+  `/dashboard/{org}/settings/usage` → Under the **Storage** meter, **Breakdown**
+  (`settings.usage.storage.breakdown.label`) lists **Documents**, **Chat
+  attachments** and **Files made by agents** with sizes that add up to the
+  meter's used amount, and **Other files** only when some count; **View my
+  documents in Knowledge** (`settings.usage.storage.viewDocuments`) opens
+  Knowledge › Documents with **Uploaded by** (`tables.headers.uploadedBy`) ›
+  **Me** (`documents.filter.uploadedBy.me`) selected, listing the document
+  without folder rows or breadcrumb, and clearing the filter returns to the
+  root; the chat is listed under **Chats that hold your files**
+  (`settings.usage.storage.chats.label`) and its name opens it.
 - [ ] `SET-F41` · **Team writes reach a second session** — Two signed-in
   sessions of the SAME organization (two browsers/profiles), both parked on
   `/dashboard/{org}/settings/teams`, neither reloaded for the whole box → In

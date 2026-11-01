@@ -222,6 +222,8 @@ filter:
   teams:
     orgWide: Organisationsweit
     mine: Meine Teams
+  uploadedBy:
+    me: Mir
 preview:
   loading: Lädt...
   failedToLoad: Dokument konnte nicht geladen werden

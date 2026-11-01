@@ -222,6 +222,8 @@ filter:
   teams:
     orgWide: Toute l'organisation
     mine: Mes équipes
+  uploadedBy:
+    me: Moi
 preview:
   loading: Chargement…
   failedToLoad: Échec du chargement du document

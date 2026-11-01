@@ -176,7 +176,22 @@ export interface DocumentsContract {
   'documents/queries:getUploadUsage': {
     kind: 'query';
     args: { organizationId: string };
-    returns: { limited: boolean; usedBytes: number; limitBytes: null | number };
+    returns: {
+      limited: boolean;
+      usedBytes: number;
+      limitBytes: null | number;
+      /** What holds the used bytes; the parts add up to `usedBytes`. */
+      breakdown: {
+        documents: number;
+        agentFiles: number;
+        chatAttachments: number;
+        other: number;
+      };
+      /** The largest of the viewer's chats holding their files, by bytes. */
+      chats: Array<{ threadId: string; title: null | string; bytes: number }>;
+      /** How many of the viewer's chats hold their files in all. */
+      chatCount: number;
+    };
   };
   'documents/queries:listDocumentVersions': {
     kind: 'query';
@@ -252,6 +267,8 @@ export interface DocumentsContract {
       extension?: string;
       sourceProvider?: string;
       folderId?: string;
+      /** The viewer's own uploads from every folder; `folderId` is unused. */
+      uploadedBy?: 'me';
       organizationId: string;
       paginationOpts: {
         id?: number;

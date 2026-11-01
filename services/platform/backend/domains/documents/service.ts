@@ -1265,6 +1265,21 @@ function hubAccessClause(sql: Sql, auth: ProjectAuthContext) {
   `;
 }
 
+/**
+ * The rows the per-user upload quota counts: every file the person uploaded
+ * to the organization, whatever holds it now — a document, a chat, an agent's
+ * output. The gate, the meter and the meter's breakdown all read exactly
+ * these rows, so the parts can never add up to something the gate does not
+ * count. Over `app.file_metadata fm`.
+ */
+function countedUploadsClause(
+  sql: Sql | TransactionSql,
+  organizationId: string,
+  userId: string,
+) {
+  return sql`fm.org_id = ${organizationId} AND fm.uploaded_by = ${userId}`;
+}
+
 /** Keyset cursor for the hub page walk (creation DESC, id DESC). */
 function decodePageCursor(
   cursor: string | null,
@@ -1303,7 +1318,11 @@ function encodePageCursor(row: { createdAt: number; id: string }): string {
  * no folder — never the whole hub. The 0.4 index read matched a `folderId`
  * of `undefined`, i.e. unfiled rows; the first Postgres port read a missing
  * folder as "no filter", so the root listed every document beside its own
- * folder and a synced OneDrive folder's files stood in two places (2026-09). */
+ * folder and a synced OneDrive folder's files stood in two places (2026-09).
+ * `uploadedByViewer` lists the viewer's own uploads instead — every folder at
+ * once, only the documents a file they uploaded backs (`countedUploadsClause`,
+ * the rows their storage quota counts): where Settings › Usage › Storage
+ * sends them to see what fills it. */
 export async function listHubDocumentsPaginated(
   sql: Sql,
   auth: ProjectAuthContext,
@@ -1314,18 +1333,26 @@ export async function listHubDocumentsPaginated(
     folderId: string | null;
     sourceProvider?: string;
     extension?: string;
+    /** The viewer's own uploads from every folder; `folderId` is unused. */
+    uploadedByViewer?: boolean;
   },
 ): Promise<{ page: DocumentRow[]; isDone: boolean; continueCursor: string }> {
   const numItems = Math.min(Math.max(args.numItems, 1), HUB_PAGE_MAX);
   const after = decodePageCursor(args.cursor);
   const sourceProvider = args.sourceProvider ?? null;
   const extension = args.extension ?? null;
+  const uploadedByViewer = args.uploadedByViewer === true;
   const rows = await sql<DocumentRow[]>`
     SELECT ${sql.unsafe(DOCUMENT_COLUMNS)} FROM app.documents
     WHERE org_id = ${auth.organizationId}
       AND ${hubAccessClause(sql, auth)}
       AND (lifecycle_status IS NULL OR lifecycle_status = 'active')
-      AND folder_id IS NOT DISTINCT FROM ${args.folderId}
+      AND (${uploadedByViewer}
+        OR folder_id IS NOT DISTINCT FROM ${args.folderId})
+      AND (NOT ${uploadedByViewer} OR EXISTS (
+        SELECT 1 FROM app.file_metadata fm
+        WHERE ${countedUploadsClause(sql, auth.organizationId, auth.userId)}
+          AND fm.document_id = documents.id))
       AND (${sourceProvider}::text IS NULL
         OR source_provider = ${sourceProvider})
       AND (${extension}::text IS NULL OR extension = ${extension})
@@ -1359,13 +1386,57 @@ export async function approxCountDocumentsForOrg(
   return Number(rows[0]?.count ?? '0');
 }
 
+/** What holds the bytes of a counted file, as the Storage meter breaks
+ * them down. */
+export interface UploadUsageBreakdown {
+  /** Files behind a document — in Knowledge or in a project, every version. */
+  documents: number;
+  /** Files an agent made in a chat. */
+  agentFiles: number;
+  /** Files sent in a chat: composer uploads and video-link transcripts. */
+  chatAttachments: number;
+  /** Counted files nothing else holds, e.g. an upload never bound. */
+  other: number;
+}
+
+/** A chat of the viewer's that holds counted files, under its lineage root —
+ * the id the chat page opens. */
+export interface UploadUsageChat {
+  threadId: string;
+  title: string | null;
+  bytes: number;
+}
+
+export interface UploadUsage {
+  limited: boolean;
+  usedBytes: number;
+  limitBytes: number | null;
+  breakdown: UploadUsageBreakdown;
+  /** The largest of the viewer's chats holding counted files. */
+  chats: UploadUsageChat[];
+  /** How many of the viewer's chats hold counted files in all. */
+  chatCount: number;
+}
+
+/** How many chats the meter names; the rest are counted, not listed. */
+export const UPLOAD_USAGE_CHAT_MAX = 5;
+
+const EMPTY_BREAKDOWN: UploadUsageBreakdown = {
+  documents: 0,
+  agentFiles: 0,
+  chatAttachments: 0,
+  other: 0,
+};
+
 /** The caller's upload-quota usage (0.4 `getUploadUsage`): the
- * `upload_policy` per-user volume ceiling against their uploaded bytes. */
+ * `upload_policy` per-user volume ceiling against their uploaded bytes,
+ * broken down by what holds them. `usedBytes` is the sum of the parts, read
+ * in one statement over the rows the gate counts. */
 export async function computeUploadUsageForUser(
   sql: Sql,
   organizationId: string,
   userId: string,
-): Promise<{ limited: boolean; usedBytes: number; limitBytes: number | null }> {
+): Promise<UploadUsage> {
   const policy = await readGovernancePolicyForOrg(
     sql,
     organizationId,
@@ -1376,16 +1447,76 @@ export async function computeUploadUsageForUser(
       ? policy.maxTotalVolumeBytesPerUser
       : null;
   if (limitBytes === null) {
-    return { limited: false, usedBytes: 0, limitBytes: null };
+    return {
+      limited: false,
+      usedBytes: 0,
+      limitBytes: null,
+      breakdown: { ...EMPTY_BREAKDOWN },
+      chats: [],
+      chatCount: 0,
+    };
   }
-  const rows = await sql<{ total: string | null }[]>`
-    SELECT sum(size)::text AS total FROM app.file_metadata
-    WHERE org_id = ${organizationId} AND uploaded_by = ${userId}
+  // A file takes the first kind it matches: a document wins over the chat it
+  // came from, so each byte is in exactly one part.
+  const parts = await sql<
+    { kind: keyof UploadUsageBreakdown; bytes: string }[]
+  >`
+    SELECT
+      CASE
+        WHEN fm.document_id IS NOT NULL THEN 'documents'
+        WHEN fm.source = 'agent' THEN 'agentFiles'
+        WHEN fm.thread_id IS NOT NULL THEN 'chatAttachments'
+        ELSE 'other'
+      END AS kind,
+      coalesce(sum(fm.size), 0)::text AS bytes
+    FROM app.file_metadata fm
+    WHERE ${countedUploadsClause(sql, organizationId, userId)}
+    GROUP BY 1
+  `;
+  const breakdown = { ...EMPTY_BREAKDOWN };
+  for (const part of parts) {
+    if (part.kind in breakdown) breakdown[part.kind] += Number(part.bytes);
+  }
+  // The chats the viewer can open (`loadOwnedThread`: their own, live), each
+  // under its lineage root: an edit or regenerate sibling is hidden and opens
+  // inside its root. A trashed chat's files still count; it is not offered.
+  const chats = await sql<
+    { threadId: string; title: string | null; bytes: string; total: number }[]
+  >`
+    WITH held AS (
+      SELECT coalesce(tm.branch_root_id, fm.thread_id) AS root_id,
+        sum(fm.size) AS bytes
+      FROM app.file_metadata fm
+      JOIN app.thread_metadata tm ON tm.thread_id = fm.thread_id
+      WHERE ${countedUploadsClause(sql, organizationId, userId)}
+        AND fm.document_id IS NULL AND fm.thread_id IS NOT NULL
+      GROUP BY 1
+    )
+    SELECT h.root_id AS "threadId", t.title, h.bytes::text AS bytes,
+      count(*) OVER ()::int AS total
+    FROM held h
+    JOIN app.threads t ON t.id = h.root_id
+    JOIN app.thread_metadata rtm ON rtm.thread_id = t.id
+    WHERE t.org_id = ${organizationId} AND t.user_id = ${userId}
+      AND rtm.status = 'active'
+    ORDER BY h.bytes DESC, h.root_id
+    LIMIT ${UPLOAD_USAGE_CHAT_MAX}
   `;
   return {
     limited: true,
-    usedBytes: Number(rows[0]?.total ?? '0'),
+    usedBytes:
+      breakdown.documents +
+      breakdown.agentFiles +
+      breakdown.chatAttachments +
+      breakdown.other,
     limitBytes,
+    breakdown,
+    chats: chats.map((chat) => ({
+      threadId: chat.threadId,
+      title: chat.title,
+      bytes: Number(chat.bytes),
+    })),
+    chatCount: chats[0]?.total ?? 0,
   };
 }
 
@@ -1955,9 +2086,8 @@ export async function assertUploadSizeAllowedForOrg(
   }
   if (policy.maxTotalVolumeBytesPerUser != null) {
     const rows = await sql<{ total: string | null }[]>`
-      SELECT sum(size)::text AS total FROM app.file_metadata
-      WHERE org_id = ${auth.organizationId}
-        AND uploaded_by = ${auth.userId}
+      SELECT sum(fm.size)::text AS total FROM app.file_metadata fm
+      WHERE ${countedUploadsClause(sql, auth.organizationId, auth.userId)}
     `;
     const usedBytes = Number(rows[0]?.total ?? '0');
     if (usedBytes + args.size > policy.maxTotalVolumeBytesPerUser) {

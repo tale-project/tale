@@ -64,23 +64,27 @@ const paginatedMock = vi.hoisted(() => ({
   retry: vi.fn(),
   errorCount: 0,
   unavailable: false,
+  lastArgs: undefined as unknown,
 }));
 
 vi.mock('../hooks/queries', () => ({
   useApproxDocumentCount: () => ({ data: 0 }),
   useFolder: () => ({ data: null }),
   useFolders: () => ({ data: [] }),
-  useListDocumentsPaginated: () => ({
-    results: paginatedMock.results,
-    status: paginatedMock.status,
-    loadMore: paginatedMock.loadMore,
-    isLoading: false,
-    error: paginatedMock.error,
-    retry: paginatedMock.retry,
-    isRetrying: false,
-    unavailable: paginatedMock.unavailable,
-    errorCount: paginatedMock.errorCount,
-  }),
+  useListDocumentsPaginated: (args: unknown) => {
+    paginatedMock.lastArgs = args;
+    return {
+      results: paginatedMock.results,
+      status: paginatedMock.status,
+      loadMore: paginatedMock.loadMore,
+      isLoading: false,
+      error: paginatedMock.error,
+      retry: paginatedMock.retry,
+      isRetrying: false,
+      unavailable: paginatedMock.unavailable,
+      errorCount: paginatedMock.errorCount,
+    };
+  },
 }));
 
 vi.mock('../hooks/use-documents-table-config', () => ({
@@ -114,6 +118,43 @@ describe('DocumentsTable', () => {
     paginatedMock.error = null;
     paginatedMock.errorCount = 0;
     paginatedMock.unavailable = false;
+    paginatedMock.lastArgs = undefined;
+  });
+
+  // #5042: Settings › Usage › Storage links here to show the files behind
+  // the viewer's meter — their own uploads, from every folder.
+  describe('uploaded by me', () => {
+    it("asks the server for the viewer's uploads instead of one folder", () => {
+      render(
+        <DocumentsTable
+          organizationId="org-1"
+          currentFolderId="folder-1"
+          uploadedBy="me"
+          onUploadedByChange={vi.fn()}
+        />,
+      );
+      expect(paginatedMock.lastArgs).toMatchObject({
+        organizationId: 'org-1',
+        uploadedBy: 'me',
+      });
+      // The server narrows the list, so no page is pulled ahead of a scroll…
+      expect(paginatedMock.loadMore).not.toHaveBeenCalled();
+      // …and the flat list stands in no folder.
+      expect(screen.queryByTestId('breadcrumb')).toBeNull();
+    });
+
+    it('lists the folder when the filter is off', () => {
+      render(
+        <DocumentsTable
+          organizationId="org-1"
+          currentFolderId="folder-1"
+          onUploadedByChange={vi.fn()}
+        />,
+      );
+      expect(paginatedMock.lastArgs).toMatchObject({ folderId: 'folder-1' });
+      expect(paginatedMock.lastArgs).not.toHaveProperty('uploadedBy');
+      expect(screen.getByTestId('breadcrumb')).toBeInTheDocument();
+    });
   });
 
   // Search/filters run client-side over loaded pages only; without this the
