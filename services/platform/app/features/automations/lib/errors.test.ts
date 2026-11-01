@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import { i18n } from '@/lib/i18n/i18n';
 import { AppError } from '@/lib/shared/errors/app-error';
@@ -14,6 +15,7 @@ import {
   automationErrorFailedTests,
   automationErrorIssues,
   automationErrorMessage,
+  automationFailureDetail,
   automationVersionStale,
   isMissingAutomationRead,
 } from './errors';
@@ -64,9 +66,9 @@ describe('isMissingAutomationRead', () => {
   });
 });
 
-// The builder shows the store's own sentence verbatim; a lapsed session's
-// sentence is the app's, in the author's language — never the session door's
-// guidance for API clients.
+// The builder words a refusal by its code in the author's language; a lapsed
+// session's sentence is the app's too — never the session door's guidance
+// for API clients.
 describe('automationErrorMessage', () => {
   it.each(SHIPPED_LOCALES)(
     "reads a lapsed session's refusal as the session-ended sentence (%s)",
@@ -82,14 +84,33 @@ describe('automationErrorMessage', () => {
 });
 
 describe('automationErrorMessage words', () => {
-  it("reads the server's own sentence first", () => {
+  it('words a refusal by its code, never by the server sentence', () => {
     const refusal = new AppError({
-      code: 'AUTOMATION_TESTS_FAILING',
-      message: 'deploy gate: the automation has failing tests',
+      code: 'AUTOMATION_DEPLOY_REJECTED',
+      message:
+        'deploy gate: ops/greet@3 was saved with failing tests — fix them and save a new version',
+      name: 'ops/greet',
+      version: 3,
     });
     expect(automationErrorMessage(refusal)).toBe(
-      'deploy gate: the automation has failing tests',
+      'v3 of "ops/greet" was saved with failing tests, so it can\'t go live. Fix them and save a new version.',
     );
+    expect(automationFailureDetail(refusal)).toBe(
+      automationErrorMessage(refusal),
+    );
+  });
+
+  it("reads the server's sentence for a code this build does not know", () => {
+    const refusal = new AppError({
+      code: 'AUTOMATION_SOMETHING_NEWER',
+      message: 'a newer server refused this',
+    });
+    expect(automationErrorMessage(refusal)).toBe('a newer server refused this');
+  });
+
+  it('leaves a failure that is no refusal to the shared failure words', () => {
+    const fault = new BackendApiError(500, 'stack: at db.query (pool.ts:12)');
+    expect(automationFailureDetail(fault)).toBe(failureDetail(fault));
   });
 
   it('never shows a structured error by its serialized payload', () => {

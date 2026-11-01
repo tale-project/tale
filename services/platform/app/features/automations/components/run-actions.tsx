@@ -19,11 +19,11 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
-import { failureDetail } from '@/app/lib/backend/adapters';
 import type { ReplayStarted } from '@/app/lib/backend/contract/automations';
 import { useT } from '@/lib/i18n/client';
 
 import { useReplayRun } from '../hooks/mutations';
+import { automationFailureDetail } from '../lib/errors';
 import { shortRunId } from '../lib/run-view';
 import { AutomationRunDialog } from './automation-run-dialog';
 
@@ -126,7 +126,9 @@ export function RunActions({
     } catch (error) {
       setRequestId(crypto.randomUUID());
       toast({
-        title: t('again.refused', { detail: failureDetail(error) ?? '' }),
+        title: t('again.refused', {
+          detail: automationFailureDetail(error) ?? '',
+        }),
         variant: 'destructive',
       });
       return;
@@ -160,7 +162,7 @@ export function RunActions({
     } catch (error) {
       setRequestId(crypto.randomUUID());
       setEditRefusal(
-        t('again.refused', { detail: failureDetail(error) ?? '' }),
+        t('again.refused', { detail: automationFailureDetail(error) ?? '' }),
       );
       return;
     }

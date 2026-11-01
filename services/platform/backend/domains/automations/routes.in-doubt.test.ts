@@ -245,7 +245,7 @@ describe('POST /runs/:runId/in-doubt/:attemptId', () => {
       'IN_DOUBT_ALREADY_RESOLVED',
       'This step was already decided, or it no longer waits for a decision.',
     ],
-  ])(
+  ] as const)(
     'keeps the store refusal %s as a 409 in its own words',
     async (code, message) => {
       resolveInDoubtInTx.mockRejectedValue(
