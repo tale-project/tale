@@ -7,6 +7,7 @@ import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
+import { DEFAULT_LIST_PAGE_SIZE, useListPage } from '@tale/ui/use-list-page';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Check, Inbox, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -204,6 +205,53 @@ export function ReleaseRequestsSection({
     [t],
   );
 
+  const releaseRequestLabel = {
+    one: t('legalHold.sections.releaseRequests.entityLabelOne'),
+    other: t('legalHold.sections.releaseRequests.entityLabel'),
+  };
+  const pendingList = useListPage<ReleaseRow>({
+    dataSource: {
+      type: 'query',
+      data: pending.data,
+      error: pending.error,
+      retry: pendingRecovery.retryRead,
+    },
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    search: {
+      fields: [
+        (row) => row.targetId ?? row.holdId,
+        'reason',
+        'requestedByName',
+      ],
+      placeholder: t(
+        'legalHold.sections.releaseRequests.pendingSearchPlaceholder',
+      ),
+    },
+    getRowId: (row) => row._id,
+    entityLabel: releaseRequestLabel,
+  });
+  const approvedList = useListPage<ReleaseRow>({
+    dataSource: {
+      type: 'query',
+      data: approved.data,
+      error: approved.error,
+      retry: approvedRecovery.retryRead,
+    },
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    search: {
+      fields: [
+        (row) => row.targetId ?? row.holdId,
+        'requestedByName',
+        'approvedByName',
+      ],
+      placeholder: t(
+        'legalHold.sections.releaseRequests.approvedSearchPlaceholder',
+      ),
+    },
+    getRowId: (row) => row._id,
+    entityLabel: releaseRequestLabel,
+  });
+
   return (
     <>
       <SettingsSection
@@ -231,13 +279,7 @@ export function ReleaseRequestsSection({
             )}
             <DataTable<ReleaseRow>
               columns={pendingColumns}
-              data={pending.data ?? []}
-              isLoading={pending.isLoading}
-              error={pending.data?.length ? null : pending.error}
-              onRetry={pendingRecovery.retryRead}
               onErrorFocusLost={pendingRecovery.focusRegion}
-              approxRowCount={pending.data?.length}
-              getRowId={(row) => row._id}
               emptyState={{
                 icon: Inbox,
                 title: t('legalHold.sections.releaseRequests.empty.title'),
@@ -246,6 +288,7 @@ export function ReleaseRequestsSection({
                 ),
               }}
               caption={t('legalHold.sections.releaseRequests.pendingHeader')}
+              {...pendingList.tableProps}
             />
           </div>
           {/* Hairline between the two request buckets — without it the
@@ -271,13 +314,7 @@ export function ReleaseRequestsSection({
             )}
             <DataTable<ReleaseRow>
               columns={approvedColumns}
-              data={approved.data ?? []}
-              isLoading={approved.isLoading}
-              error={approved.data?.length ? null : approved.error}
-              onRetry={approvedRecovery.retryRead}
               onErrorFocusLost={approvedRecovery.focusRegion}
-              approxRowCount={approved.data?.length}
-              getRowId={(row) => row._id}
               emptyState={{
                 icon: Inbox,
                 title: t('legalHold.sections.releaseRequests.empty.title'),
@@ -286,6 +323,7 @@ export function ReleaseRequestsSection({
                 ),
               }}
               caption={t('legalHold.sections.releaseRequests.approvedHeader')}
+              {...approvedList.tableProps}
             />
           </div>
         </Stack>
