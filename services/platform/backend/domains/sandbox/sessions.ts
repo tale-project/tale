@@ -16,6 +16,10 @@ import {
   type SessionBudget,
 } from '../../core/sandbox/quota_policy.ts';
 import {
+  SANDBOX_WORKSPACE_DESTROYED_CODE,
+  SANDBOX_WORKSPACE_DESTROYED_MESSAGE,
+} from '../../core/sandbox/run_workspace_destroy.ts';
+import {
   SANDBOX_DESTROY_PENDING_MESSAGE,
   SANDBOX_DESTROY_PENDING_REASON,
   SANDBOX_MAX_SESSIONS_PER_OWNER,
@@ -103,14 +107,33 @@ export class SandboxQuotaError extends Error {
  * (`markSessionDestroyed` is a release edge) or by the watchdog's next
  * tick, then starts in a fresh workspace, or in this one once every attempt
  * has failed; an automation step fails with this reason instead, at once
- * and without a retry, since a later start of it would continue its run in
- * a fresh, empty workspace without what its earlier steps left
- * (`classifyWorkflowStartFailure`).
+ * and without a retry, since the files its earlier steps left go with the
+ * workspace (`classifyWorkflowStartFailure`), and once the Destroy has
+ * settled the run's starts meet {@link SandboxWorkspaceDestroyedError}.
  */
 class SandboxDestroyPendingError extends SandboxQuotaError {
   constructor() {
     super(SANDBOX_DESTROY_PENDING_MESSAGE, SANDBOX_DESTROY_PENDING_REASON);
     this.name = 'SandboxDestroyPendingError';
+  }
+}
+
+/**
+ * An automation run's workspace was deleted after the run worked in it: an
+ * administrator's Destroy has settled, or the workspace was lost with its
+ * environment. A start let in now would open a fresh, empty workspace under
+ * the run's id and go on without what its earlier steps left there, so the
+ * reserve refuses it, and the step fails with this reason, never retried
+ * (`classifyWorkflowStartFailure`). No quota refusal: no room frees for it,
+ * so no lane may read it as a full budget. A project agent's next turn
+ * still opens a fresh workspace (SBX-R11).
+ */
+export class SandboxWorkspaceDestroyedError extends Error {
+  readonly code = SANDBOX_WORKSPACE_DESTROYED_CODE;
+
+  constructor() {
+    super(SANDBOX_WORKSPACE_DESTROYED_MESSAGE);
+    this.name = 'SandboxWorkspaceDestroyedError';
   }
 }
 
@@ -205,7 +228,10 @@ export interface ReserveSessionArgs {
  * host parks its run on that code — and {@link SandboxDestroyPendingError}
  * while a live row under the id is being destroyed: a fresh incarnation
  * beside it would be the newest row, which the Destroy's retry leaves alone
- * and whose files the spawner still holds.
+ * and whose files the spawner still holds. An automation run whose newest
+ * row under the id is `destroyed` is refused with
+ * {@link SandboxWorkspaceDestroyedError}: its workspace went after the run
+ * worked in it, and a fresh incarnation would be empty.
  */
 export async function reserveSessionSlot(
   sql: Sql,
@@ -215,6 +241,12 @@ export async function reserveSessionSlot(
     await lockOrgAdmission(tx, args.organizationId);
     if (await sessionDestroyPending(tx, args)) {
       throw new SandboxDestroyPendingError();
+    }
+    if (
+      args.ownerType === 'workflow_run' &&
+      (await runWorkspaceDestroyed(tx, args))
+    ) {
+      throw new SandboxWorkspaceDestroyedError();
     }
     const now = Date.now();
 
@@ -272,6 +304,24 @@ export async function reserveSessionSlot(
     if (!id) throw new Error('session insert failed');
     return id;
   });
+}
+
+/** Does the newest row under an automation run's session id read
+ * `destroyed`? Only the run's own start inserts a row under its id, so such
+ * a row is a workspace the run worked in and that is gone: a Destroy, or a
+ * reconcile that found the workspace missing. A `stopped`, `expired` or
+ * `failed` row keeps its files for the next start. */
+async function runWorkspaceDestroyed(
+  tx: Sql | TransactionSql,
+  args: { organizationId: string; sessionId: string },
+): Promise<boolean> {
+  const rows = await tx<{ status: string }[]>`
+    SELECT status FROM app.sandbox_sessions
+    WHERE org_id = ${args.organizationId} AND session_id = ${args.sessionId}
+    ORDER BY created_at_ms DESC, id DESC
+    LIMIT 1
+  `;
+  return rows[0]?.status === 'destroyed';
 }
 
 export async function getSessionBySessionId(

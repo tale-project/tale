@@ -67,7 +67,9 @@ import { readTaskBrief } from './task-brief-read.ts';
  * the host's park branch matches on — that mapping is what makes
  * capacity parking work at all. A refusal for a pending Destroy keeps its
  * `reason` in the payload: no want of room, it fails an automation step
- * where a full budget only holds it (`classifyWorkflowStartFailure`).
+ * where a full budget only holds it (`classifyWorkflowStartFailure`). An
+ * automation run whose workspace was deleted is refused with no quota throw
+ * (`SandboxWorkspaceDestroyedError`): it passes as it is, its `code` intact.
  *
  * The STEER lane is answered here too (`getOpSteerState`,
  * `rotateTaskAgentRunExec`, `kickMentionRunAfterSteerMiss`) — see the

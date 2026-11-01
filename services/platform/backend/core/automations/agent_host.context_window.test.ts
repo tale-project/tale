@@ -26,6 +26,11 @@ import {
   SpawnerBusyError,
 } from '../node_only/sandbox/helpers/session_client';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
+import {
+  SANDBOX_WORKSPACE_DESTROYED_CODE,
+  SANDBOX_WORKSPACE_DESTROYED_MESSAGE,
+  WORKFLOW_DESTROY_PENDING_MESSAGE,
+} from '../sandbox/run_workspace_destroy';
 import { SANDBOX_DESTROY_PENDING_MESSAGE } from '../sandbox/session_constants';
 import { workflowAgentRetryResume } from './agent_retry';
 
@@ -854,7 +859,7 @@ describe('an automation agent turn', () => {
     expect(settled).toMatchObject({
       errored: true,
       failureCode: 'sandbox_destroying',
-      reason: `the agent turn could not start: ${SANDBOX_DESTROY_PENDING_MESSAGE}`,
+      reason: `the agent turn could not start: ${WORKFLOW_DESTROY_PENDING_MESSAGE}`,
     });
     expect(settled).not.toHaveProperty('retryAtMs');
     expect(settled).not.toHaveProperty('retryAfterMs');
@@ -886,7 +891,79 @@ describe('an automation agent turn', () => {
       result: {
         errored: true,
         failureCode: 'sandbox_destroying',
-        reason: `the agent turn could not resume after the answer: ${SANDBOX_DESTROY_PENDING_MESSAGE}`,
+        reason: `the agent turn could not resume after the answer: ${WORKFLOW_DESTROY_PENDING_MESSAGE}`,
+      },
+    });
+    expect(settled?.result).not.toHaveProperty('undeliveredAskId');
+    expect(settled?.result).not.toHaveProperty('retryAfterMs');
+  });
+
+  it('fails a start whose workspace was deleted after the run worked in it with the reason, in no fresh, empty workspace', async () => {
+    // What the reserve throws once the run's Destroy has settled (#4159).
+    io.sessionRefusal = Object.assign(
+      new Error(SANDBOX_WORKSPACE_DESTROYED_MESSAGE),
+      { code: SANDBOX_WORKSPACE_DESTROYED_CODE },
+    );
+    const { ctx, mutations } = makeCtx({
+      status: 'running',
+      cursor: {
+        node: 'book',
+        agent: { ...WAITING_CURSOR.cursor.agent, execId: 'exec-1' },
+      },
+    });
+
+    await startWorkflowAgentTurnImpl(ctx, {
+      organizationId: 'org-1',
+      runId: 'run-1',
+      nodeId: 'book',
+      execId: 'exec-1',
+      sessionId: 'wf-run-1',
+      harness: 'claude-code',
+      lane: 'gateway',
+      providerSlug: 'local-inference',
+      modelId: 'qwen3-32b',
+      gatewayModel: 'local-inference-org-1/qwen3-32b',
+      deadlineAt: Date.now() + 60_000,
+      request: { model: 'qwen3-32b', prompt: 'Book the synthetic invoice.' },
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    const settled = mutations.find(
+      (m) => m.name === 'automations/mutations:recordAgentTurnSettled',
+    )?.args.result;
+    expect(settled).toMatchObject({
+      errored: true,
+      failureCode: 'sandbox_destroying',
+      reason: `the agent turn could not start: ${SANDBOX_WORKSPACE_DESTROYED_MESSAGE}`,
+    });
+    expect(settled).not.toHaveProperty('retryAtMs');
+    expect(
+      mutations.some((m) => m.args.agentResultStatus === 'awaiting_room'),
+    ).toBe(false);
+  });
+
+  it('fails an answered-ask resume whose workspace was deleted while the run waited for the answer', async () => {
+    io.sessionRefusal = Object.assign(
+      new Error(SANDBOX_WORKSPACE_DESTROYED_MESSAGE),
+      { code: SANDBOX_WORKSPACE_DESTROYED_CODE },
+    );
+    const { ctx, mutations } = makeCtx(WAITING_CURSOR);
+
+    await resumeWorkflowAgentTurnWithAnswerImpl(ctx, {
+      organizationId: 'org-1',
+      askId: 'ask-1',
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    const settled = mutations.find(
+      (m) => m.name === 'automations/mutations:recordAgentTurnSettled',
+    )?.args;
+    expect(settled).toMatchObject({
+      execId: 'exec-asking',
+      result: {
+        errored: true,
+        failureCode: 'sandbox_destroying',
+        reason: `the agent turn could not resume after the answer: ${SANDBOX_WORKSPACE_DESTROYED_MESSAGE}`,
       },
     });
     expect(settled?.result).not.toHaveProperty('undeliveredAskId');
