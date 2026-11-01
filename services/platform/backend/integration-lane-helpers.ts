@@ -4,6 +4,9 @@
  * second copy of the suite's cookie handling, its throwaway sign-up or the
  * budget a check builds and drops a database of its own on.
  */
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 import postgres, { type Sql, type TransactionSql } from 'postgres';
@@ -464,6 +467,140 @@ function warnCleanupFailures(failures: readonly Error[]): void {
       `[itest] ${failure.message} (logged only: the lane fails with the error before it)`,
     );
   }
+}
+
+/**
+ * Runs `body` against a builtin catalog of its own: a fresh directory under
+ * the system's temp directory holding `files` (the path each takes in the
+ * catalog, mapped to the file it copies), named by `TALE_CONFIG_BUILTIN_DIR`
+ * until `body` settles. Then the variable is back to what it was and the
+ * directory is gone, on every path. A lane that planted a pack into the
+ * run's own catalog wrote into whatever directory the run was given — the
+ * repository's `configs/platform`, when a person pointed the variable there —
+ * and left the pack behind for every later lane (#4714).
+ */
+export async function withBuiltinCatalog<T>(
+  files: Readonly<Record<string, string>>,
+  body: () => Promise<T>,
+): Promise<T> {
+  const root = await mkdtemp(path.join(tmpdir(), 'itest-lane-catalog-'));
+  const before = process.env.TALE_CONFIG_BUILTIN_DIR;
+  return withCleanup(
+    [
+      [
+        'gives the run its builtin catalog back',
+        async () => {
+          if (before === undefined) delete process.env.TALE_CONFIG_BUILTIN_DIR;
+          else process.env.TALE_CONFIG_BUILTIN_DIR = before;
+        },
+      ],
+      [
+        "removes the lane's own builtin catalog",
+        () => rm(root, { recursive: true, force: true }),
+      ],
+    ],
+    async () => {
+      for (const [catalogPath, source] of Object.entries(files)) {
+        const target = path.join(root, catalogPath);
+        await mkdir(path.dirname(target), { recursive: true });
+        await copyFile(source, target);
+      }
+      process.env.TALE_CONFIG_BUILTIN_DIR = root;
+      return body();
+    },
+  );
+}
+
+/** One category of {@link ITEST_RETENTION_BOUNDS}: its floor, a ten-year
+ * ceiling and a default of at least 30. */
+function retentionBound(category: string, min: number, unit = 'days'): string {
+  return [
+    `${category}:`,
+    `  min: ${min}`,
+    '  max: 3650',
+    `  default: ${Math.max(min, 30)}`,
+    `  unit: ${unit}`,
+  ].join('\n');
+}
+
+/**
+ * The retention bounds (`retention.yml`) the retention lanes give their
+ * organization. Every category must be declared (the env-tightening walk
+ * throws on a gap), and the compliance floors bind (auditLog ≥ 180,
+ * loginAttempt ≥ 90).
+ */
+export const ITEST_RETENTION_BOUNDS = [
+  retentionBound('documents', 1),
+  retentionBound('userTempHours', 1, 'hours'),
+  retentionBound('agentTempHours', 1, 'hours'),
+  retentionBound('chatHistory', 1),
+  retentionBound('auditLog', 365),
+  retentionBound('workflowLog', 1),
+  retentionBound('usageLedger', 30),
+  retentionBound('loginAttempt', 90),
+  retentionBound('chatFilterEvents', 1),
+  retentionBound('messageFeedback', 1),
+  retentionBound('contacts', 1),
+  retentionBound('externalConversations', 1),
+  retentionBound('notifications', 1),
+  retentionBound('agentRuns', 1),
+  retentionBound('automationVersions', 1),
+].join('\n');
+
+/** The retention policy (`retention-policy.yml`) the retention lanes give
+ * their organization. */
+export const ITEST_RETENTION_POLICY = [
+  'documentsEnabled: true',
+  'documentsRetentionDays: 7',
+  'chatHistoryEnabled: true',
+  'chatHistoryRetentionDays: 7',
+  'agentRunsEnabled: true',
+  'agentRunsRetentionDays: 7',
+  'workflowLogEnabled: true',
+  'workflowLogRetentionDays: 7',
+  'auditLogEnabled: true',
+  'auditLogRetentionDays: 365',
+  'userTempEnabled: true',
+  'userTempRetentionHours: 1',
+  'usageLedgerEnabled: true',
+  // Below the 30-day floor — the clamp must raise it.
+  'usageLedgerRetentionDays: 1',
+  'messageFeedbackEnabled: true',
+  'messageFeedbackRetentionDays: 7',
+  'notificationsEnabled: true',
+  'notificationsRetentionDays: 7',
+  'externalConversationsEnabled: true',
+  'externalConversationsRetentionDays: 7',
+  'deletionGraceDays: 0',
+].join('\n');
+
+/**
+ * Gives an organization's governance directory {@link ITEST_RETENTION_BOUNDS}
+ * and {@link ITEST_RETENTION_POLICY}, the files the retention lane leaves
+ * there, unless it already holds retention bounds. Answers whether it wrote
+ * them. A lane that reads those files used to find them only after the
+ * retention lane, and truncated a run without it on `ENOENT` (#4714).
+ */
+export async function installRetentionGovernance(
+  governanceDir: string,
+): Promise<boolean> {
+  await mkdir(governanceDir, { recursive: true });
+  try {
+    await writeFile(
+      path.join(governanceDir, 'retention.yml'),
+      ITEST_RETENTION_BOUNDS,
+      { flag: 'wx' },
+    );
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'EEXIST')
+      return false;
+    throw error;
+  }
+  await writeFile(
+    path.join(governanceDir, 'retention-policy.yml'),
+    ITEST_RETENTION_POLICY,
+  );
+  return true;
 }
 
 /** How long the streams a lane closed get to leave the backend: a close

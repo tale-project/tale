@@ -254,7 +254,10 @@ create their own throwaway account instead of invalidating the shared one. A lan
 must also leave the shared user's organization memberships as it found them, or
 it fails: every later `/api/v1` call on that user's keys would answer
 `ORG_SLUG_REQUIRED`. A probe that needs another organization gives it an owner of
-its own.
+its own. No lane writes into the run's builtin catalog (`TALE_CONFIG_BUILTIN_DIR`),
+which may be the repository's own `configs/platform`: a lane that needs a pack there
+plants it with `withBuiltinCatalog`, in a throwaway catalog of its own
+(`integration-lane-helpers.test.ts` holds the harness to it).
 
 The harness starts pg-boss with its cron clock off (`startBoss` with
 `schedule: false`): every schedule production registers is registered and reads
