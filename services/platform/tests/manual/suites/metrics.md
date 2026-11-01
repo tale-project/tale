@@ -1,6 +1,6 @@
 # Metrics
 
-> **Prefix** `MET-` · **Reset** none · **Cost** 21 boxes
+> **Prefix** `MET-` · **Reset** none · **Cost** 22 boxes
 
 Exercise the org metrics section under Settings — six tabs (Usage, Feedback,
 Chat health, Harness turns, Automations, Projects), each with the shared
@@ -189,6 +189,20 @@ rollups**, so figures may legitimately lag same-day activity.
   **Turns**, the summary **Success rate** / **Timeout rate** equal what the
   rows imply, and a turn that ended on the harness's own error or its turn
   limit counts as failed in both.
+- [ ] `MET-F14` · **Per-user usage is a settings list** — After a chat turn
+  as the owner and one as a second member ("A second user account in the
+  org" in [setup.md](../setup.md)), open usage at 1280 px and at 390 px, in
+  the light and in the dark theme → **Per-user usage**
+  (`analytics.usage.tables.users.title`) keeps its search box (**Search users
+  and API keys**, `analytics.usage.tables.users.searchPlaceholder`) in the
+  table's own toolbar, above the bordered frame, and the frame closes on
+  **Showing all {n} users and API keys** (`common.pagination.showingAll`).
+  Typing the second member's name narrows the table to their row over
+  **Showing 1 of {n} users and API keys**
+  (`common.pagination.showingFiltered`); clearing the search brings every row
+  back in its order, cost first. The note stays below the frame. No page
+  scrolls sideways at 390 px (the table scrolls inside its frame), and every
+  label is readable in both themes and in German and French.
 
 ## Boundary & error tests
 
