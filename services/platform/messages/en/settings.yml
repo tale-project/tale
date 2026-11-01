@@ -1257,6 +1257,9 @@ apiKeys:
     description: These keys belong to {name}. A key blocked here is refused in this organization only; the block does not reach their other organizations.
     works: Works here
     blocked: Blocked here
+    refused: Refused here
+    refusedNotice: Members' personal keys are turned off in this organization, so none of these keys works here. A block still applies once they are turned on again.
+    unavailableNotice: The members' personal keys setting can't be read right now, so it isn't known whether these keys work here. Try again shortly.
     created: Added {date}
     blockedBy: Blocked by {name} on {date}
     block: Block

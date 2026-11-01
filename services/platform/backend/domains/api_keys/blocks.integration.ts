@@ -31,6 +31,7 @@ const memberKeysSchema = z.looseObject({
     }),
   ),
   canBlock: z.boolean(),
+  personalKeys: z.enum(['admitted', 'refused', 'unavailable']),
 });
 const refusalSchema = z.looseObject({ error: z.string() });
 const wireRefusalSchema = z.looseObject({
@@ -265,10 +266,13 @@ export async function checkApiKeyOrgBlocks(
         ownList.data.keys.some((k) => k.id === keyId && k.blockedHere) &&
         adminView.success &&
         adminView.data.canBlock &&
+        // The suite's organization keeps the default: members' own keys
+        // are let in (APIKEY-R12).
+        adminView.data.personalKeys === 'admitted' &&
         adminView.data.keys.some(
           (k) => k.id === keyId && k.blocked?.by.userId === ctx.userId,
         ),
-      `again=${again.status}/${againBody.success ? String(againBody.data.changed) : '?'} trail=${JSON.stringify(trail.map((row) => row.action))} notices=${notices[0]?.count ?? 0} ownList=${ownList.success ? JSON.stringify(ownList.data.keys.map((k) => k.blockedHere)) : 'unreadable'} adminView=${adminView.success ? String(adminView.data.canBlock) : 'unreadable'}`,
+      `again=${again.status}/${againBody.success ? String(againBody.data.changed) : '?'} trail=${JSON.stringify(trail.map((row) => row.action))} notices=${notices[0]?.count ?? 0} ownList=${ownList.success ? JSON.stringify(ownList.data.keys.map((k) => k.blockedHere)) : 'unreadable'} adminView=${adminView.success ? `${String(adminView.data.canBlock)}/${adminView.data.personalKeys}` : 'unreadable'}`,
     );
 
     const lifted = await appDoor('DELETE', `/api-keys/${keyId}/block`);

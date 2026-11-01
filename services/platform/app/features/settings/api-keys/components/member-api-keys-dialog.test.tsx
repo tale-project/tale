@@ -83,6 +83,7 @@ beforeEach(() => {
       personalKey({ id: 'key-2', name: 'Old laptop', blocked: BLOCK }),
     ],
     canBlock: true,
+    personalKeys: 'admitted',
   };
   backend.on(KEYS_DOOR, () => Response.json(answer));
 });
@@ -263,6 +264,56 @@ describe('MemberApiKeysDialog', () => {
     ).toHaveAccessibleDescription('Old laptop Blocked here');
   });
 
+  it('marks no key as working here while this organization refuses members’ own keys, and still lets it block [APIKEY-R11]', async () => {
+    answer = { ...answer, personalKeys: 'refused' };
+    await renderDialog();
+    const [refused, blocked] = await keyRows();
+
+    expect(
+      screen.getByText(
+        "Members' personal keys are turned off in this organization, so none of these keys works here. A block still applies once they are turned on again.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Works here')).not.toBeInTheDocument();
+    expect(within(refused!).getByText('Refused here')).toBeInTheDocument();
+    expect(within(blocked!).getByText('Blocked here')).toBeInTheDocument();
+    expect(
+      within(refused!).getByRole('button', { name: 'Block' }),
+    ).toBeEnabled();
+    expect(
+      within(blocked!).getByRole('button', { name: 'Lift block' }),
+    ).toBeEnabled();
+  });
+
+  it('claims no key works or is refused while this organization’s setting cannot be read, and still lets it block [APIKEY-R11]', async () => {
+    answer = { ...answer, personalKeys: 'unavailable' };
+    await renderDialog();
+    const [unknown, blocked] = await keyRows();
+
+    expect(
+      screen.getByText(
+        "The members' personal keys setting can't be read right now, so it isn't known whether these keys work here. Try again shortly.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText('Works here')).not.toBeInTheDocument();
+    expect(screen.queryByText('Refused here')).not.toBeInTheDocument();
+    // The block is this organization's own record: it still shows.
+    expect(within(blocked!).getByText('Blocked here')).toBeInTheDocument();
+    expect(
+      within(unknown!).getByRole('button', { name: 'Block' }),
+    ).toBeEnabled();
+  });
+
+  it('shows no notice while members’ own keys are let in here [APIKEY-R11]', async () => {
+    await renderDialog();
+    await keyRows();
+
+    expect(
+      screen.queryByText(/^Members' personal keys are turned off/),
+    ).toBeNull();
+    expect(screen.queryByText(/setting can't be read right now/)).toBeNull();
+  });
+
   it('shows an Admin an Owner’s keys without a Block, and says why [APIKEY-R11]', async () => {
     answer = { ...answer, canBlock: false };
     await renderDialog();
@@ -276,7 +327,7 @@ describe('MemberApiKeysDialog', () => {
   });
 
   it('says so when the member has no keys of their own', async () => {
-    answer = { keys: [], canBlock: true };
+    answer = { keys: [], canBlock: true, personalKeys: 'admitted' };
     await renderDialog();
 
     expect(

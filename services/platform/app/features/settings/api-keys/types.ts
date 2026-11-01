@@ -102,4 +102,11 @@ export interface MemberPersonalApiKeys {
   keys: MemberPersonalApiKey[];
   /** Whether the viewer may block and free these keys. */
   canBlock: boolean;
+  /**
+   * Whether this organization lets members' own keys in at all
+   * (APIKEY-R12): while `refused` none of these keys works here, blocked or
+   * not; while `unavailable` the setting cannot be read and the keys are
+   * kept out until it can.
+   */
+  personalKeys: 'admitted' | 'refused' | 'unavailable';
 }

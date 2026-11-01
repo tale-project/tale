@@ -14,6 +14,10 @@ import {
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { notifyUser } from '../collab/service.ts';
+import {
+  type PersonalKeysStanding,
+  personalKeysStandingOf,
+} from './personal-keys.ts';
 import { type ApiKeyActor, ApiKeyError } from './service.ts';
 
 /**
@@ -53,6 +57,13 @@ export interface MemberPersonalApiKeys {
   keys: MemberPersonalApiKey[];
   /** Whether the viewer may block and free these keys. */
   canBlock: boolean;
+  /**
+   * Whether this organization lets members' own keys in at all
+   * (APIKEY-R12): while `refused` none of these keys works here, blocked or
+   * not; while `unavailable` the setting cannot be read and the door keeps
+   * them out until it can, so nobody can say whether one would work.
+   */
+  personalKeys: PersonalKeysStanding;
 }
 
 interface PersonalKeyRow {
@@ -100,10 +111,11 @@ function blockDenial(
 /**
  * A member's own keys, for an Owner or Admin of this organization: the
  * keys still valid (turned on and not expired), each with this
- * organization's block on it. A key bound to an organization is not
- * listed: it is ended, not blocked. Nor is a key's last use: it counts
- * every organization the key works in, and would tell the admins about the
- * holder's work in the others.
+ * organization's block on it, and whether this organization lets members'
+ * own keys in at all, without which no unblocked key works here either.
+ * A key bound to an organization is not listed: it is ended, not blocked.
+ * Nor is a key's last use: it counts every organization the key works in,
+ * and would tell the admins about the holder's work in the others.
  */
 export async function listMemberPersonalApiKeys(
   db: Db,
@@ -167,6 +179,7 @@ export async function listMemberPersonalApiKeys(
         userId: args.memberUserId,
         role: holder.role,
       }) === null,
+    personalKeys: await personalKeysStandingOf(db, args.organizationId),
   };
 }
 

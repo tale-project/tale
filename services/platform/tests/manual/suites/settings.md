@@ -552,9 +552,14 @@ Restore any toggled setting after the run.
   (`settings.apiKeys.memberKeys.unblock`) → the key answers 200 here again,
   the bell says **The block on your API key was lifted in this organization**
   (`inbox.apiKeyUnblockedForYou`), and the log adds **API key block lifted**
-  (`settings.logs.audit.actionLabels.api_key.unblocked`). Repeat with Deutsch
-  and Français → the dialog, its confirmations, the toasts, the bell and the
-  mark are localized.
+  (`settings.logs.audit.actionLabels.api_key.unblocked`). Turn off **Members'
+  personal keys work here** (`settings.apiKeys.personalKeys.enabledLabel`,
+  SET-F104) and reopen the dialog → it says so
+  (`settings.apiKeys.memberKeys.refusedNotice`) and marks the unblocked key
+  **Refused here** (`settings.apiKeys.memberKeys.refused`), never **Works
+  here**, while **Block** stays offered. Turn the setting back on → the key is
+  marked **Works here** again. Repeat with Deutsch and Français → the dialog,
+  its confirmations, the toasts, the bell and the mark are localized.
 - [ ] `SET-F111` · **Your own key after single sign-on** — as a Developer of
   organization A who also belongs to B, sign in through A's single sign-on
   (`AUTH-F12`) → `/dashboard/{A}/settings/api/rest` → **Create API key**
