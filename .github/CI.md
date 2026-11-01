@@ -707,7 +707,8 @@ bun test --timeout 30000 tools/cli/scripts/ci-*.test.ts \
   tools/cli/scripts/deployment-ci.test.ts \
   tools/cli/scripts/release-candidate-workflows.test.ts \
   tools/cli/scripts/release-candidate-gate.test.ts \
-  tools/cli/scripts/release-tag-workflow.test.ts
+  tools/cli/scripts/release-tag-workflow.test.ts \
+  tools/cli/scripts/release-source.test.ts
 ```
 
 Also run `actionlint`, the cache-input guards, and `bun run check`. When a matrix or

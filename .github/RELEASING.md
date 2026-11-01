@@ -336,6 +336,19 @@ history fails the job before a tag moves. A re-run uses the `release.yml` of its
 so a tag cut before this decision still moves `:latest` on every run that is not sites-only, and
 GitHub's Latest on the run that creates its release.
 
+A published release's tag never moves. v0.5.82 was published from `81ef78dcd`; its tag then
+moved twice, and two more Release runs rebuilt its images, the last one its CLI too, from newer
+commits under the notes of the first ([#4741](https://github.com/tale-project/tale/issues/4741)).
+`tools/cli/scripts/release-source.ts` refuses a run when either spelling of its version's tag
+names a commit other than the run's own, or when a published release of the version came from
+another commit: its `target_commitish`, the full SHA `Create release` passes as `--target`. A
+release published against a branch, as v0.5.84 and older were, names no commit, so no run
+matches it. `Prepare` decides before anything is built, and `Manifest <service>`,
+`Create release` and `Trigger CLI build` decide again just before they write; a `sites_only`
+run, which rebuilds a version's sites from a newer commit, is not checked. Release a refused
+commit as the next version (steps 1–5). The check runs from the `release.yml` of the tag's
+commit, so it guards the tags cut after it, not the re-runs of older ones.
+
 A version dispatch of `release.yml` builds the head of the ref it runs on. Run one only with
 `--ref vX.Y.Z` on the pushed tag, never on `main`.
 

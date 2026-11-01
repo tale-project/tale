@@ -432,16 +432,17 @@ describe('the Release workflow decides when it writes', () => {
       expect(steps[write]!.env?.SITES_ONLY, job).toBeUndefined();
       expect(steps[write]!.if, job).toBeUndefined();
     }
-    // A manifest leg checks out the script alone, and may read the releases.
+    // A manifest leg checks out the decision scripts alone (release-source.ts
+    // refuses a moved tag), and may read the releases.
     expect(
       String(
-        step(file, 'manifest', 'Checkout the latest decision').with?.[
+        step(file, 'manifest', 'Checkout the release decisions').with?.[
           'sparse-checkout'
         ],
       )
         .trim()
         .split('\n'),
-    ).toEqual([SCRIPT]);
+    ).toEqual([SCRIPT, 'tools/cli/scripts/release-source.ts']);
     expect(file.jobs.manifest!.permissions).toEqual({
       contents: 'read',
       packages: 'write',
