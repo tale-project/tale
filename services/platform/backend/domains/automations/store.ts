@@ -58,6 +58,7 @@ import {
   isEmittedEventType,
 } from '../../../lib/shared/event-types.ts';
 import { parseRunStarter } from '../../../lib/shared/run-starter.ts';
+import type { AutomationRefusalCode } from '../../../lib/shared/schemas/automation-refusals.ts';
 import { storedTestReport } from '../../../lib/shared/schemas/automation-tests.ts';
 import { localDateIn } from '../../../lib/shared/zoned-time.ts';
 import { isRecord } from '../../../lib/utils/type-utils.ts';
@@ -152,7 +153,7 @@ export class AutomationError extends Error {
   readonly data: Record<string, unknown> | undefined;
 
   constructor(
-    code: string,
+    code: AutomationRefusalCode,
     message: string,
     status: 400 | 403 | 404 | 409 = 400,
     data?: Record<string, unknown>,
@@ -248,6 +249,8 @@ export function assertAutomationNameCreatable(name: string): string {
     throw new AutomationError(
       'AUTOMATION_NAME_RESERVED',
       `"${valid}" cannot be an automation name — "${first}" is a word the platform keeps for its own pages. Start the name with a different segment, for example "ops/${valid}".`,
+      400,
+      { name: valid, segment: first, position: 'first' },
     );
   }
   const trailing = RESERVED_TRAILING_PATHS.find((path) =>
@@ -257,6 +260,8 @@ export function assertAutomationNameCreatable(name: string): string {
     throw new AutomationError(
       'AUTOMATION_NAME_RESERVED',
       `"${valid}" cannot be an automation name — "${trailing}" at its end is a word the platform keeps for its own pages. End the name with a different segment, for example "${valid}-flow".`,
+      400,
+      { name: valid, segment: trailing, position: 'last' },
     );
   }
   return valid;
@@ -520,6 +525,7 @@ export async function saveVersionInTx(
       'AUTOMATION_NAME_TAKEN',
       `An automation named "${name}" already exists — pick a different name.`,
       409,
+      { name },
     );
   }
   // The latest version, read once under the lock: what a stale save is
@@ -537,6 +543,7 @@ export async function saveVersionInTx(
         : `v${latest} of "${name}" was saved after your draft started from v${args.baseVersion}. Reload to see it, or save anyway to append your version on top of it.`,
       409,
       {
+        name,
         latestVersion: latest,
         baseVersion: args.baseVersion,
         // Who saved the newer version, when and through which door, so
@@ -995,6 +1002,7 @@ export async function deployInTx(
       'AUTOMATION_DEPLOY_REJECTED',
       `deploy gate: ${args.name}@${args.version} was saved with failing tests — fix them and save a new version`,
       409,
+      { name: args.name, version: args.version },
     );
   }
   let previousVersion: number | null = null;
@@ -2601,6 +2609,7 @@ async function claimingWake<T>(write: () => Promise<T>): Promise<T> {
         'AUTOMATION_TRIGGER_INVALID',
         'Another schedule already wakes this project when an agent frees its slot — turn its wakeOnSlotFreed off first.',
         409,
+        { reason: 'slot_freed_taken' },
       );
     }
     throw error;
@@ -2669,6 +2678,7 @@ async function assertSingleWakeTarget(
       'AUTOMATION_TRIGGER_INVALID',
       `"${other.name}" already wakes this project when an agent frees its slot — turn its wakeOnSlotFreed off first.`,
       409,
+      { reason: 'slot_freed_taken', name: other.name },
     );
   }
 }
@@ -5171,6 +5181,7 @@ export async function deleteAutomationCascade(
             : `v${latest} of "${args.name}" was saved after the version the delete expected (v${args.expectedLatestVersion}).`,
           409,
           {
+            name: args.name,
             latestVersion: latest,
             expectedLatestVersion: args.expectedLatestVersion,
           },

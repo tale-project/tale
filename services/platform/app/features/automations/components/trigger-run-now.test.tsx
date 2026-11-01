@@ -155,12 +155,14 @@ describe('TriggerRunNow', () => {
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
-  it('says why a refused start started nothing, in the store’s words', async () => {
+  it('says why a refused start started nothing, in the reader’s words', async () => {
     mockStartRun.mockRejectedValue(
       Object.assign(new Error('refused'), {
         data: {
           code: 'AUTOMATION_INPUT_INVALID',
-          message: 'The run input is missing owner.',
+          message:
+            'Run input does not match the automation inputs schema: "owner" is required',
+          issues: [{ path: 'owner', message: 'is required' }],
         },
       }),
     );
@@ -169,7 +171,7 @@ describe('TriggerRunNow', () => {
     await user.click(screen.getByRole('button', { name: 'Start run' }));
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(
-      "Couldn't start the run: The run input is missing owner.",
+      'Couldn\'t start the run: The input doesn\'t match what this automation expects. Check "owner".',
     );
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
   });
@@ -217,7 +219,11 @@ describe('TriggerRunNow', () => {
     await user.click(runNowButton());
     const dialog = screen.getByRole('dialog');
     await user.click(within(dialog).getByRole('button', { name: 'Run live' }));
-    expect(await within(dialog).findByText('No payload.')).toBeVisible();
+    expect(
+      await within(dialog).findByText(
+        "The input doesn't match what this automation expects.",
+      ),
+    ).toBeVisible();
     expect(screen.queryByText(/^Couldn't start the run/)).toBeNull();
   });
 });

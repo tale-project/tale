@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BackendApiError } from '@/app/lib/backend/api-client';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import { forgetSavedLocale, saveLocale } from '@/tests/utils/lapsed-session';
 import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { AutomationVersionPicker } from './automation-version-picker';
@@ -2000,7 +2001,7 @@ describe('AutomationEditor', () => {
     state.taskContract = undefined;
   });
 
-  it("surfaces the store's own refusal in one toast", async () => {
+  it("words the store's refusal by its code in one toast", async () => {
     saveMutation.mutateAsync = vi.fn().mockRejectedValue({
       data: {
         code: 'AUTOMATION_NAME_INVALID',
@@ -2020,7 +2021,7 @@ describe('AutomationEditor', () => {
       expect.objectContaining({
         variant: 'destructive',
         description:
-          'billing/Dunning is not a valid name — use lower-case segments',
+          'That isn\'t a valid automation name: a name is lowercase segments separated by "/", such as "sales/daily-digest".',
       }),
     );
     // The refusal leaves the draft in place so it can be corrected and re-saved.
@@ -2321,6 +2322,66 @@ describe('AutomationEditor', () => {
     expect(onSelectVersion).toHaveBeenCalledWith(undefined);
     expect(saveMutation.mutateAsync).toHaveBeenCalledTimes(1);
   });
+
+  it.each([
+    [
+      'no version any more',
+      { latestVersion: null, baseVersion: 3 },
+      '"billing/dunning" hat keine Version mehr. Dein Entwurf ging von v3 aus. Speichere ihn unter einem neuen Namen oder speichere trotzdem, um die Automatisierung daraus neu anzulegen.',
+    ],
+    [
+      'a newer version',
+      { latestVersion: 4, baseVersion: 3 },
+      'v4 wurde gespeichert, während du bearbeitet hast. Deine Änderungen basieren auf v3.',
+    ],
+  ])(
+    'words a stale refusal in German when the automation has %s',
+    async (_case, versions, sentence) => {
+      saveMutation.mutateAsync = vi.fn().mockRejectedValueOnce({
+        data: {
+          code: 'AUTOMATION_VERSION_STALE',
+          message:
+            'v4 of "billing/dunning" was saved after your draft started from v3. Reload to see it, or save anyway to append your version on top of it.',
+          name: 'billing/dunning',
+          ...versions,
+        },
+      });
+      saveLocale('de');
+      try {
+        const { user } = renderPage();
+        await user.click(
+          screen.getByRole('button', { name: 'select summary' }),
+        );
+        await user.type(screen.getByRole('textbox', { name: 'Wenn' }), 'x');
+        await user.click(screen.getByRole('button', { name: 'Speichern' }));
+        await user.click(
+          screen.getByRole('button', { name: 'Version speichern' }),
+        );
+        const dialog = await screen.findByRole('dialog', {
+          name: 'Diese Automatisierung hat sich während deiner Bearbeitung geändert',
+        });
+        expect(
+          within(dialog).getByText(sentence, { exact: false }),
+        ).toBeVisible();
+        // Neither the store's sentence nor the dialog's English words.
+        for (const english of [
+          'was saved after your draft started',
+          'has no version any more',
+          'while you were editing',
+          'This automation changed',
+          'See what changed',
+          'Discard my changes and reload',
+          'Save anyway',
+          'Cancel',
+        ]) {
+          expect(dialog).not.toHaveTextContent(english);
+        }
+        expect(toastSpy).not.toHaveBeenCalled();
+      } finally {
+        await forgetSavedLocale();
+      }
+    },
+  );
 
   it('confirms before a version switch drops the draft', async () => {
     const { user } = renderPage();
