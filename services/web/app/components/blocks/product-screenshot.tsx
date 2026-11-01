@@ -1,5 +1,6 @@
 import { useReducedMotion } from '@tale/marketing-ui/entrance';
 import { Card } from '@tale/ui/card';
+import { Picture } from '@tale/ui/picture';
 import { useMediaQuery } from '@tale/ui/use-media-query';
 import { useInView } from 'framer-motion';
 import {
@@ -18,22 +19,13 @@ import {
   productScreenshotId,
   productScreenshotLocale,
 } from '@/app/content/product-screenshots';
-import {
-  IMAGE_MANIFEST,
-  type ImageManifestEntry,
-} from '@/app/generated/image-manifest';
+import { IMAGE_MANIFEST } from '@/app/generated/image-manifest';
 import {
   PRODUCT_MOTION,
   type ProductMotionVariant,
 } from '@/app/generated/product-motion';
 import { useT } from '@/lib/i18n/client';
 import { useCurrentLocale } from '@/lib/i18n/use-current-locale';
-
-function sourceSet(variants: ImageManifestEntry['variants']['webp']): string {
-  return Object.entries(variants)
-    .map(([width, path]) => `${path} ${width}w`)
-    .join(', ');
-}
 
 /** Media sources are absent until the first visible, motion-permitted client
  * render. Visibility pauses playback while the localized poster remains. */
@@ -184,7 +176,6 @@ export function ProductScreenshot({ page }: { page: ProductScreenshotPage }) {
   const playback = useProductMotion(variant, figureRef);
   if (!original || !desktop || !mobile)
     throw new Error(`Missing optimized product capture: ${id}`);
-  const display = Object.values(desktop.variants.webp).at(-1);
   const sizes =
     page === 'home'
       ? '(min-width: 1360px) 700px, (min-width: 1024px) calc(58.33vw - 84px), (min-width: 640px) calc(100vw - 64px), calc(100vw - 40px)'
@@ -203,41 +194,16 @@ export function ProductScreenshot({ page }: { page: ProductScreenshotPage }) {
         radius="xl"
         className="shadow-demo bg-surface-site-raised relative block overflow-hidden"
       >
-        <picture>
-          <source
-            media="(max-width: 639px)"
-            type="image/avif"
-            srcSet={sourceSet(mobile.variants.avif)}
-            sizes={sizes}
-            width={mobile.width}
-            height={mobile.height}
-          />
-          <source
-            media="(max-width: 639px)"
-            type="image/webp"
-            srcSet={sourceSet(mobile.variants.webp)}
-            sizes={sizes}
-            width={mobile.width}
-            height={mobile.height}
-          />
-          <source
-            type="image/avif"
-            srcSet={sourceSet(desktop.variants.avif)}
-            sizes={sizes}
-          />
-          <img
-            src={display}
-            srcSet={sourceSet(desktop.variants.webp)}
-            sizes={sizes}
-            width={desktop.width}
-            height={desktop.height}
-            alt={t(`pages.${page}.label`)}
-            loading="eager"
-            fetchPriority="high"
-            decoding="async"
-            className="block h-auto w-full"
-          />
-        </picture>
+        <Picture
+          image={desktop}
+          sources={[{ media: '(max-width: 639px)', image: mobile }]}
+          sizes={sizes}
+          alt={t(`pages.${page}.label`)}
+          loading="eager"
+          fetchPriority="high"
+          decoding="async"
+          className="block h-auto w-full"
+        />
         {playback.activated && variant ? (
           // This silent visual enhancement has the same localized image
           // alternative and figcaption; it introduces no narrated audio.
