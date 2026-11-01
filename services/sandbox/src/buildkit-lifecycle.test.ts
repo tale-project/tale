@@ -1190,12 +1190,12 @@ describe('organization build-cache lifecycle', () => {
       const { org, builder, initial } = await retagged(['COMPLETE build-1\n']);
       // Each read of the history takes 2 s.
       await save({ ...initial, historyReadMs: 2_000 });
-      const historyClockMs = (): number =>
-        (
-          JSON.parse(
-            readFileSync(join(root, 'state.json'), 'utf8'),
-          ) as FakeState
-        ).historyClockMs ?? 0;
+      const historyClockMs = (): number => {
+        const current: FakeState = JSON.parse(
+          readFileSync(join(root, 'state.json'), 'utf8'),
+        );
+        return current.historyClockMs ?? 0;
+      };
       setBuilderIdleClock(() => idleClockMs + historyClockMs());
       try {
         expect(await provision(org)).toEqual([]);
