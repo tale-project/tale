@@ -28,12 +28,27 @@ const mentions = vi.hoisted(() => ({
     },
   ],
   reads: 0,
+  // What the field searched the people for, read by read.
+  queries: [] as string[],
+  searching: false,
+  unavailable: false,
+  more: false,
 }));
 vi.mock('../lib/mention-actor-options', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../lib/mention-actor-options')>()),
-  useMentionActorOptions: () => {
+  useMentionActorOptions: (
+    _organizationId: string,
+    _projectId: string,
+    query: string,
+  ) => {
     mentions.reads += 1;
-    return mentions.options;
+    mentions.queries.push(query);
+    return {
+      options: mentions.options,
+      searching: mentions.searching,
+      unavailable: mentions.unavailable,
+      more: mentions.more,
+    };
   },
 }));
 
@@ -95,7 +110,15 @@ function Composer({
 beforeEach(() => {
   Element.prototype.scrollIntoView = vi.fn();
   mentions.reads = 0;
+  mentions.queries = [];
+  mentions.searching = false;
+  mentions.unavailable = false;
+  mentions.more = false;
 });
+
+// What the picker shows, not what the field read out.
+const shown = (text: string | RegExp) =>
+  screen.queryByText(text, { ignore: '[role="status"]' });
 
 // Every task opens with its comment composer on screen: the people, agents
 // and automations it can mention are read once someone starts writing.
@@ -109,6 +132,61 @@ describe('mention textarea candidates', () => {
     expect(mentions.reads).toBeGreaterThan(0);
     await user.type(field, '@bo');
     expect(screen.getByRole('option', { name: /Bob/ })).toBeInTheDocument();
+  });
+
+  it('searches the people for what is typed after the @', async () => {
+    const { user } = render(<Composer />);
+    const field = screen.getByRole('textbox', { name: 'Comment' });
+    await user.type(field, 'Ask @ad');
+    expect(mentions.queries.at(-1)).toBe('ad');
+    expect(
+      screen.getByRole('option', { name: /Ada Lovelace/ }),
+    ).toBeInTheDocument();
+    // With no mention typed, nobody is searched for.
+    await user.clear(field);
+    expect(mentions.queries.at(-1)).toBe('');
+  });
+
+  it('says the people are still searched rather than no matches', async () => {
+    mentions.searching = true;
+    const { user } = render(<Composer />);
+    await user.type(screen.getByRole('textbox', { name: 'Comment' }), '@zed');
+    expect(screen.getByText('Loading...')).toBeInTheDocument();
+    expect(screen.queryByText('No matches')).not.toBeInTheDocument();
+    // Searching is no news: nothing is read out for it.
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+  });
+
+  it('says the people could not be searched, whatever else it offers', async () => {
+    mentions.unavailable = true;
+    const { user } = render(<Composer />);
+    const field = screen.getByRole('textbox', { name: 'Comment' });
+    await user.type(field, '@bo');
+    // The agent Bob is offered: only the people could not be searched.
+    expect(screen.getByRole('option', { name: /Bob/ })).toBeInTheDocument();
+    expect(shown(/People couldn't be searched/)).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      /People couldn't be searched/,
+    );
+
+    await user.type(field, 'zz');
+    expect(screen.queryByRole('option')).not.toBeInTheDocument();
+    expect(shown(/People couldn't be searched/)).toBeInTheDocument();
+  });
+
+  it('says more people match than it offers', async () => {
+    mentions.more = true;
+    const { user } = render(<Composer />);
+    await user.type(screen.getByRole('textbox', { name: 'Comment' }), '@ad');
+    expect(
+      screen.getByRole('option', { name: /Ada Lovelace/ }),
+    ).toBeInTheDocument();
+    expect(
+      shown('More people match — keep typing to narrow the list.'),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'More people match — keep typing to narrow the list.',
+    );
   });
 
   it('finds an agent by its handle and its name, and shows the handle', async () => {

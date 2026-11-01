@@ -63,7 +63,7 @@ import {
 } from '../../core/tasks/mentions.ts';
 import { TASK_PRIORITIES } from '../../core/tasks/metadata.ts';
 import { initialRank, rankBetween } from '../../core/tasks/rank.ts';
-import { toJson } from '../../db/sql.ts';
+import { likeContains, toJson } from '../../db/sql.ts';
 import { addJobInTx } from '../../jobs/enqueue.ts';
 import { readGovernancePolicyForOrg } from '../../lib/org-config.ts';
 import {
@@ -4304,7 +4304,7 @@ export function taskSearchPatterns(query: string): string[] {
     .toLowerCase()
     .split(/\s+/)
     .filter((token) => token.length > 0)
-    .map((token) => `%${token.replaceAll(/([%_\\])/g, String.raw`\$1`)}%`);
+    .map(likeContains);
 }
 
 /**

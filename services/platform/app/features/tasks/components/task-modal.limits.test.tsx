@@ -79,6 +79,16 @@ vi.mock('../hooks/mutations', async (importOriginal) => ({
   useCreateTask: () => ({ mutateAsync: mutations.createTask }),
   useUpdateTask: () => ({ mutateAsync: mutations.updateTask }),
 }));
+// The people the pickers and the mention field search: nobody here.
+vi.mock('../hooks/use-assignable-members', () => {
+  const nobody = {
+    members: [],
+    more: false,
+    searching: false,
+    unavailable: false,
+  };
+  return { useAssignableMembers: () => nobody };
+});
 vi.mock('../hooks/use-actor-directory', () => ({
   useProvidedActorDirectory: () => undefined,
   ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
@@ -89,7 +99,6 @@ vi.mock('../hooks/use-actor-directory', () => ({
   }),
   useAssignableActors: () => ({
     subjectEntries: [],
-    assignableMembers: [],
     assignableAgents: [],
     agents: [],
     members: [],

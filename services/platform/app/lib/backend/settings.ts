@@ -8,6 +8,7 @@
 
 import type { ItemOf, ReturnsOf } from '@/app/lib/backend/contract';
 import { i18n } from '@/lib/i18n/i18n';
+import { MEMBER_SEARCH_QUERY_MAX_LENGTH } from '@/lib/shared/constants/member-lookup';
 import {
   API_KEY_HINT_ENTITY,
   CONNECTOR_CREDENTIAL_HINT_ENTITY,
@@ -30,12 +31,14 @@ import {
   lookupMember,
   memberLookupAsk,
   type MemberLookupTarget,
+  type MemberLookupWire,
 } from './member-lookup-batch';
 import { memberContextQuery } from './org';
 import { inPolicyWriteOrder, settleUntilRead } from './policy-write-order';
 import {
   backendEntityPrefix,
   backendKey,
+  type BackendQueryKey,
   orgApiKeyListKey,
   projectCapabilityCatalogKey,
 } from './query-keys';
@@ -48,6 +51,7 @@ type TeamDeletionImpact = NonNullable<
 type TeamRetirementSummary = ReturnsOf<'teams/mutations:deleteTeam'>;
 type MemberPasskeyItem = ItemOf<'two_factor/queries:listPasskeysForMember'>;
 type MemberLookupItem = ItemOf<'members/queries:lookupMember'>;
+type MemberSearchResult = ReturnsOf<'members/queries:searchMembers'>;
 type CreateMemberResult = ReturnsOf<'users/mutations:createMember'>;
 type MyPreferencesResult =
   ReturnsOf<'user_preferences/queries:getMyPreferences'>;
@@ -245,6 +249,46 @@ interface TeamMemberWire {
   email?: string;
 }
 
+/** A member as the lookup and the search answer (MEMBER-R11, R12): no
+ * sign-in factor. */
+function memberItem(row: MemberLookupWire): MemberLookupItem {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the server answers with a member role
+  return {
+    _id: row.id,
+    userId: row.userId,
+    role: row.role,
+    createdAt: Date.parse(row.createdAt) || 0,
+    ...(row.displayName !== null ? { displayName: row.displayName } : {}),
+    ...(row.email !== null ? { email: row.email } : {}),
+  } as MemberLookupItem;
+}
+
+/** Whom a member search keeps besides what was typed (MEMBER-R12): those
+ * who may read or edit, in a project or in the organization. */
+export interface MemberSearchScope {
+  projectId?: string;
+  access?: 'read' | 'edit';
+}
+
+/**
+ * The key every member search of one scope starts with, whatever was typed:
+ * the people a picker may offer in a project, or in the organization. A
+ * picker that keeps its rows while the next text's search loads matches on
+ * this, so it never shows rows another scope found.
+ */
+export function memberSearchScope(
+  orgId: string,
+  scope: MemberSearchScope,
+): BackendQueryKey {
+  return backendKey(
+    orgId,
+    MEMBER_HINT_ENTITY,
+    'search',
+    scope.projectId ?? null,
+    scope.access ?? null,
+  );
+}
+
 export const settingsReadAdapters: Record<string, ReadAdapter> = {
   'members/queries:listOrgTeams': (args, ctx) => {
     const orgId = orgOf(args, ctx);
@@ -299,22 +343,40 @@ export const settingsReadAdapters: Record<string, ReadAdapter> = {
               ask.handle,
             ),
       queryFn: () =>
-        lookupMember(orgId, ask).then((rows) =>
-          rows.map(
-            (row): MemberLookupItem =>
-              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the server answers with a member role
-              ({
-                _id: row.id,
-                userId: row.userId,
-                role: row.role,
-                createdAt: Date.parse(row.createdAt) || 0,
-                ...(row.displayName !== null
-                  ? { displayName: row.displayName }
-                  : {}),
-                ...(row.email !== null ? { email: row.email } : {}),
-              }) as MemberLookupItem,
-          ),
-        ),
+        lookupMember(orgId, ask).then((rows) => rows.map(memberItem)),
+    };
+  },
+  'members/queries:searchMembers': (args, ctx) => {
+    const orgId = orgOf(args, ctx);
+    if (orgId === undefined || typeof args.query !== 'string') return null;
+    const scope: MemberSearchScope = {
+      ...(typeof args.projectId === 'string'
+        ? { projectId: args.projectId }
+        : {}),
+      ...(args.access === 'read' || args.access === 'edit'
+        ? { access: args.access }
+        : {}),
+    };
+    // What the server matches: the text trimmed, each run of whitespace
+    // one space. A text longer than it takes names nobody, and is not sent.
+    const query = args.query.trim().replaceAll(/\s+/g, ' ');
+    return {
+      queryKey: [...memberSearchScope(orgId, scope), query],
+      queryFn: async (): Promise<MemberSearchResult> => {
+        if (query.length > MEMBER_SEARCH_QUERY_MAX_LENGTH) {
+          return { members: [], isDone: true };
+        }
+        const params = new URLSearchParams({ q: query });
+        if (scope.projectId !== undefined) {
+          params.set('projectId', scope.projectId);
+        }
+        if (scope.access !== undefined) params.set('access', scope.access);
+        const body = await backendFetch<{
+          members: MemberLookupWire[];
+          isDone: boolean;
+        }>(`/members/search?${params.toString()}`, { orgId });
+        return { members: body.members.map(memberItem), isDone: body.isDone };
+      },
     };
   },
   'teams/queries:deletionImpact': (args, ctx) => {
