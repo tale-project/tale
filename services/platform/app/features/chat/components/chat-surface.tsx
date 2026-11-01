@@ -2200,6 +2200,9 @@ function ChatSurfaceInner({
               {...(selection.modelId !== undefined
                 ? { modelAId: selection.modelId }
                 : {})}
+              {...(selection.providerSlug !== undefined
+                ? { modelAProviderSlug: selection.providerSlug }
+                : {})}
               onModelAChange={(modelId, providerSlug) =>
                 // Column A IS the composer's pick — changing it here changes
                 // the one selection, so the two controls never disagree.
@@ -2211,6 +2214,9 @@ function ChatSurfaceInner({
                 ? { modelsHiddenBy: composerOptions.data.modelsHiddenBy }
                 : {})}
               modelBId={arenaModelBId}
+              {...(arenaModelBChoice?.providerSlug !== undefined
+                ? { modelBProviderSlug: arenaModelBChoice.providerSlug }
+                : {})}
               onModelBChange={(id, providerSlug) =>
                 setArenaModelB({ id, providerSlug })
               }
