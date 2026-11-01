@@ -1627,7 +1627,7 @@ describe('DataResidencySettings', () => {
     ).not.toBeInTheDocument();
   });
 
-  it('clears the model pick when the provider changes and keeps the width', async () => {
+  it('clears the model pick and the width when the provider changes', async () => {
     fixtures.credentials = [
       { id: 'cred-1', providerSlug: 'openai', name: 'Team key' },
       { id: 'cred-2', providerSlug: 'zai', name: 'GLM key' },
@@ -1659,7 +1659,7 @@ describe('DataResidencySettings', () => {
       },
     ];
 
-    const { user } = renderWithController();
+    const { user, capture } = renderWithController();
 
     const section = sectionByHeading('Embedding model');
     await user.click(
@@ -1673,6 +1673,7 @@ describe('DataResidencySettings', () => {
     await user.click(
       screen.getByRole('option', { name: 'text-embedding-3-small' }),
     );
+    await waitFor(() => expect(capture.current?.isValid).toBe(true));
 
     await user.click(
       within(section).getByRole('combobox', { name: 'Provider' }),
@@ -1680,13 +1681,97 @@ describe('DataResidencySettings', () => {
     await user.click(screen.getByRole('option', { name: 'zai' }));
 
     // A tag names one provider's model, so the pick starts over — and the
-    // width with it: it is that model's, not the next one's.
+    // width with it: it is that model's, not the next one's. Save follows
+    // the emptied fields, not the pick they held before.
     expect(
       within(section).getByRole('combobox', { name: 'Model' }),
     ).toHaveTextContent('Choose a model');
     expect(
       within(section).getByRole('spinbutton', { name: 'Vector width' }),
     ).toHaveValue(null);
+    await waitFor(() => expect(capture.current?.isValid).toBe(false));
+
+    // A pick that states its width fills it, and Save turns on.
+    await user.click(within(section).getByRole('combobox', { name: 'Model' }));
+    await user.click(screen.getByRole('option', { name: 'embedding-3' }));
+    expect(
+      within(section).getByRole('spinbutton', { name: 'Vector width' }),
+    ).toHaveValue(1536);
+    await waitFor(() => expect(capture.current?.isValid).toBe(true));
+  });
+
+  it('keeps Save in step when a saved configuration moves to a provider whose models state no width', async () => {
+    // Two gateways of the org's own whose listings state no width — the
+    // usual case: most gateway catalogs carry none.
+    fixtures.credentials = [
+      { id: 'cred-a', providerSlug: 'embed-a', name: 'Gateway A' },
+      { id: 'cred-b', providerSlug: 'embed-b', name: 'Gateway B' },
+    ];
+    fixtures.catalogs = ['embed-a', 'embed-b'].map((name) => ({
+      name,
+      origin: 'organization' as const,
+      catalogSource: 'models-endpoint' as const,
+      models: [
+        { id: 'emb-alpha', tags: ['embedding'] },
+        { id: 'emb-beta', tags: ['embedding'] },
+      ],
+    }));
+    setEmbeddingFixture({
+      configured: true,
+      providerSlug: 'embed-a',
+      model: 'emb-alpha',
+      dimensions: 1536,
+    });
+
+    const { user, capture } = renderWithController();
+
+    const section = sectionByHeading('Embedding model');
+    const widthError = /Enter a supported vector width/;
+    const widthField = () =>
+      within(section).getByRole('spinbutton', { name: 'Vector width' });
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'embed-b' }));
+
+    // The model and the width went with the old provider: Save is off
+    // until they are chosen again, and fields the admin has not reached
+    // yet carry no error.
+    await waitFor(() => expect(capture.current?.isValid).toBe(false));
+    expect(capture.current?.isDirty).toBe(true);
+    expect(
+      within(section).queryByText('Enter the model tag.'),
+    ).not.toBeInTheDocument();
+    expect(within(section).queryByText(widthError)).not.toBeInTheDocument();
+
+    // A pick that states no width leaves the width to the admin and says
+    // so beside it, rather than turning Save off with no word why.
+    await user.click(within(section).getByRole('combobox', { name: 'Model' }));
+    await user.click(screen.getByRole('option', { name: 'emb-beta' }));
+    expect(await within(section).findByText(widthError)).toBeInTheDocument();
+    expect(widthField()).toHaveValue(null);
+    expect(capture.current?.isValid).toBe(false);
+
+    // Another provider reopens the emptied fields unjudged.
+    await user.click(
+      within(section).getByRole('combobox', { name: 'Provider' }),
+    );
+    await user.click(screen.getByRole('option', { name: 'embed-a' }));
+    await waitFor(() =>
+      expect(within(section).queryByText(widthError)).not.toBeInTheDocument(),
+    );
+    expect(capture.current?.isValid).toBe(false);
+
+    // Stating the width clears its error as it is typed, and Save turns on.
+    await user.click(within(section).getByRole('combobox', { name: 'Model' }));
+    await user.click(screen.getByRole('option', { name: 'emb-alpha' }));
+    expect(await within(section).findByText(widthError)).toBeInTheDocument();
+    await user.type(widthField(), '1536');
+    expect(widthField()).toHaveFocus();
+    await waitFor(() =>
+      expect(within(section).queryByText(widthError)).not.toBeInTheDocument(),
+    );
+    await waitFor(() => expect(capture.current?.isValid).toBe(true));
   });
 
   it('leaves the width to the admin when the catalog states none for the pick', async () => {
@@ -1702,7 +1787,7 @@ describe('DataResidencySettings', () => {
       },
     ];
 
-    const { user } = renderWithController();
+    const { user, capture } = renderWithController();
 
     const section = sectionByHeading('Embedding model');
     await user.click(
@@ -1718,10 +1803,16 @@ describe('DataResidencySettings', () => {
     );
 
     // No width is guessed: the field stays empty for the admin to state it,
-    // as its own row says.
+    // and says so — no figure stands in it that reads like a value.
+    const width = within(section).getByRole('spinbutton', {
+      name: 'Vector width',
+    });
+    expect(width).toHaveValue(null);
     expect(
-      within(section).getByRole('spinbutton', { name: 'Vector width' }),
-    ).toHaveValue(null);
+      await within(section).findByText(/Enter a supported vector width/),
+    ).toBeInTheDocument();
+    expect(capture.current?.isValid).toBe(false);
+    expect(width).not.toHaveAttribute('placeholder');
   });
 
   it('renders the org storage section from a loaded config with its stored values', async () => {

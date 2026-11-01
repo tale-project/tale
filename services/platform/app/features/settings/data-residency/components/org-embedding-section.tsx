@@ -570,6 +570,8 @@ export function OrgEmbeddingSection({
     control,
     register,
     setValue,
+    getValues,
+    trigger,
     watch,
     clearErrors,
     formState: { errors },
@@ -624,21 +626,25 @@ export function OrgEmbeddingSection({
         return;
       }
       setValue('modelSource', 'catalog', { shouldDirty: true });
-      setValue('model', value, { shouldDirty: true, shouldValidate: true });
+      setValue('model', value, { shouldDirty: true });
       // The width is the one fact nobody should look up by hand; a pick
       // that carries it fills the field, a pick without one leaves the
-      // admin's own figure alone.
+      // admin's own figure alone. Either way the width counts as touched
+      // from here: its check speaks at once and follows the admin's typing.
       const width = catalogModels.find(
         (entry) => entry.id === value,
       )?.dimensions;
-      if (width !== undefined) {
-        setValue('dimensions', String(width), {
-          shouldDirty: true,
-          shouldValidate: true,
-        });
-      }
+      setValue(
+        'dimensions',
+        width === undefined ? getValues('dimensions') : String(width),
+        { shouldDirty: true, shouldTouch: true },
+      );
+      // One check over the pick's final values: it sets whether Save can
+      // run, and a pick that left the width empty says so beside it rather
+      // than turning Save off with no word why.
+      void trigger(['model', 'dimensions']);
     },
-    [catalogModels, clearErrors, setValue],
+    [catalogModels, clearErrors, getValues, setValue, trigger],
   );
 
   // What the row's hint may claim follows the shape: only a declaration says
@@ -931,7 +937,6 @@ export function OrgEmbeddingSection({
                         disabled={editor.isLoading}
                         value={field.value}
                         onValueChange={(v) => {
-                          field.onChange(v);
                           // A credential belongs to one provider; switching
                           // providers resets the pick to the new provider's
                           // default rather than carrying a mismatched id.
@@ -942,12 +947,19 @@ export function OrgEmbeddingSection({
                           // model, so the pick starts over from the new
                           // provider's catalog. And the width with it: it
                           // is that model's, and a pick from the catalog
-                          // states it again.
+                          // states it again. Both reopen unjudged, like the
+                          // tag field behind "Other model…".
                           setValue('model', '', { shouldDirty: true });
                           setValue('modelSource', 'catalog', {
                             shouldDirty: true,
                           });
                           setValue('dimensions', '', { shouldDirty: true });
+                          clearErrors(['model', 'dimensions']);
+                          // The provider's own change comes last: the form
+                          // judges whether Save can run as the values stand
+                          // when it lands, and before the resets it would
+                          // still see the old model and width.
+                          field.onChange(v);
                         }}
                         options={providerOptions}
                         placeholder={t(
@@ -1050,7 +1062,6 @@ export function OrgEmbeddingSection({
                     min={KNOWLEDGE_VECTOR_WIDTHS[0]}
                     max={KNOWLEDGE_VECTOR_WIDTHS.at(-1)}
                     step={1}
-                    placeholder="1536"
                     wrapperClassName="w-full"
                     errorMessage={errors.dimensions?.message}
                     {...register('dimensions')}

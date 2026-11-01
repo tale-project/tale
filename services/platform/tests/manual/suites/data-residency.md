@@ -117,7 +117,11 @@ testsecret123 && mc ls --recursive t/org-blobs'`
   `…orgEmbedding.errors.modelRequired` there); when its listing carries none
   the plain **Model** field shows with `…orgEmbedding.modelUncuratedHint`,
   and a typed tag saves as entered. Switching the provider empties the model
-  (placeholder `…orgEmbedding.modelPlaceholder`) while the width stays.
+  (placeholder `…orgEmbedding.modelPlaceholder`) and the width without
+  flagging either, and **Save** stays off until both are set again: a pick
+  whose entry states a width turns it on, and a pick whose entry states none
+  shows `…orgEmbedding.errors.dimensionsInvalid` under the empty **Vector
+  width** at once, until a supported width is typed.
 - [ ] `DATA-F3` · **BYO object storage: save + test** — Enable **Object
   storage** → region `us-east-1`, endpoint `http://127.0.0.1:9100`, path-style
   on, bucket `org-blobs`, both keys → **Save** in the settings header → **Test
