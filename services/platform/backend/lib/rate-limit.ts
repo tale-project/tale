@@ -12,6 +12,13 @@ import type { Sql, TransactionSql } from 'postgres';
  * fails on a rule nothing charges, so the catalog reads as the list of what
  * IS limited, never as what 0.4 once limited. Add the rule and its charge in
  * the same change.
+ *
+ * A rule charged on every request of a busy caller declares `slices`: each
+ * process leases a slice of the bucket in one write and spends it in memory
+ * (`chargeFromSlice`), so a key holder's reads stop queuing on its row while
+ * the bucket stays a hard ceiling across processes. Its doors charge it on
+ * the pool, never inside a transaction: a slice outlives the request that
+ * leased it.
  */
 
 const MINUTE = 60_000;
@@ -24,6 +31,15 @@ export interface TokenBucketRule {
   rate: number;
   period: number;
   capacity: number;
+  /** Charge from leased slices, one write per slice (`chargeFromSlice`). */
+  slices?: SliceRule;
+}
+
+export interface SliceRule {
+  /** How long a process may spend a leased slice, in ms. */
+  lifetime: number;
+  /** The most tokens one lease takes. */
+  largest: number;
 }
 
 export interface FixedWindowRule {
@@ -174,11 +190,17 @@ export const RATE_LIMITS = {
     period: MINUTE,
     capacity: 240,
   },
+  // Every request through the /api/v1 doors, charged to its key holder. Its
+  // slices live 5 s, the time the bucket refills 10 tokens, so a holder at its
+  // sustained rate spends the largest slice within its lifetime. Leases leave
+  // that refill unclaimed: a burst from a full bucket gets about 190 requests
+  // through instead of 200.
   'rest:api': {
     kind: 'token bucket',
     rate: 120,
     period: MINUTE,
     capacity: 200,
+    slices: { lifetime: 5_000, largest: 10 },
   },
   // The inbound automation webhook door, which no key authenticates: every
   // delivery is charged to its sender's IP (trusted-proxy-derived, like
@@ -300,7 +322,8 @@ export class RateLimitExceededError extends Error {
 /**
  * Charge `count` against a rule. One atomic UPSERT; over-limit charges leave
  * the stored state untouched and report `retryAfter` (ms). Pass a
- * transaction to tie the charge to the caller's commit/rollback.
+ * transaction to tie the charge to the caller's commit/rollback. A single
+ * token of a rule with `slices` is spent from this process's slice.
  */
 export async function limitRate(
   sql: Sql | TransactionSql,
@@ -315,28 +338,18 @@ export async function limitRate(
     if (count > rule.capacity) {
       return { ok: false, retryAfter: rule.period };
     }
-    const ratePerMs = rule.rate / rule.period;
-    const rows = await sql<{ value: string }[]>`
-      INSERT INTO app.rate_limits AS rl (name, key, value, ts)
-      VALUES (${name}, ${opts.key}, ${rule.capacity - count}, ${now})
-      ON CONFLICT (name, key) DO UPDATE SET
-        value = LEAST(
-          ${rule.capacity}::double precision,
-          rl.value + (${now} - rl.ts) * ${ratePerMs}::float8
-        ) - ${count},
-        ts = ${now}
-      WHERE LEAST(
-          ${rule.capacity}::double precision,
-          rl.value + (${now} - rl.ts) * ${ratePerMs}::float8
-        ) >= ${count}
-      RETURNING value::text
-    `;
-    if (rows.length > 0) {
+    if (rule.slices !== undefined && count === 1) {
+      return chargeFromSlice(sql, name, opts.key, rule, rule.slices);
+    }
+    const left = await takeTokens(sql, name, opts.key, rule, {
+      count,
+      ceiling: rule.capacity,
+      now,
+    });
+    if (left !== null) {
       return { ok: true };
     }
-    const available = await readTokens(sql, name, opts.key, rule, now);
-    const deficit = count - available;
-    return { ok: false, retryAfter: Math.ceil(deficit / ratePerMs) };
+    return refuseTokens(sql, name, opts.key, rule, count, now);
   }
 
   const windowStart = Math.floor(now / rule.period) * rule.period;
@@ -358,6 +371,238 @@ export async function limitRate(
     return { ok: true };
   }
   return { ok: false, retryAfter: windowStart + rule.period - now };
+}
+
+/**
+ * Take `count` tokens from a bucket's row in one atomic UPSERT, refilled to
+ * at most `ceiling` first: the rule's capacity for tokens spent at once, less
+ * a lifetime's refill for a leased slice. Answers the tokens the row keeps,
+ * or null when it cannot pay (and is left untouched).
+ */
+async function takeTokens(
+  sql: Sql | TransactionSql,
+  name: RateLimitName,
+  key: string,
+  rule: TokenBucketRule,
+  charge: { count: number; ceiling: number; now: number },
+): Promise<number | null> {
+  const { count, ceiling, now } = charge;
+  const ratePerMs = rule.rate / rule.period;
+  const rows = await sql<{ value: string }[]>`
+    INSERT INTO app.rate_limits AS rl (name, key, value, ts)
+    VALUES (${name}, ${key}, ${ceiling - count}, ${now})
+    ON CONFLICT (name, key) DO UPDATE SET
+      value = LEAST(
+        ${ceiling}::double precision,
+        rl.value + (${now} - rl.ts) * ${ratePerMs}::float8
+      ) - ${count},
+      ts = ${now}
+    WHERE LEAST(
+        ${ceiling}::double precision,
+        rl.value + (${now} - rl.ts) * ${ratePerMs}::float8
+      ) >= ${count}
+    RETURNING value::text
+  `;
+  const row = rows[0];
+  return row === undefined ? null : Number(row.value);
+}
+
+async function refuseTokens(
+  sql: Sql | TransactionSql,
+  name: RateLimitName,
+  key: string,
+  rule: TokenBucketRule,
+  count: number,
+  now: number,
+): Promise<RateLimitResult> {
+  const available = await readTokens(sql, name, key, rule, now);
+  const deficit = count - available;
+  return {
+    ok: false,
+    retryAfter: Math.ceil(deficit / (rule.rate / rule.period)),
+  };
+}
+
+/**
+ * What one process holds of one key's bucket. Tokens are spendable only
+ * within a lifetime of `leasedAt`, which only the lease that granted them
+ * sets.
+ */
+interface Slice {
+  tokens: number;
+  /** Tokens the last lease (or single charge) took, and how many it served. */
+  size: number;
+  served: number;
+  /** On `performance.now()`, read before the lease's statement was sent. */
+  leasedAt: number;
+  /** The row's tokens after this process's last statement, and its stamp. */
+  rowTokens: number;
+  rowAt: number;
+  /** Settles with the lease in flight; charges arriving meanwhile wait. */
+  leasing: Promise<unknown> | null;
+}
+
+/**
+ * A process forgets a slice this long after its lease: it has long lapsed,
+ * and the pace it was spent at no longer sizes a lease.
+ */
+const FORGET_SLICE_AFTER = MINUTE;
+
+/** Per database client: a process's pool holds one set. */
+const heldSlices = new WeakMap<
+  Sql | TransactionSql,
+  { slices: Map<string, Slice>; sweptAt: number }
+>();
+
+/**
+ * Spend one token of a sliced rule from this process's slice, leasing the
+ * next slice when it is spent or lapsed. The limit stays exact across
+ * processes:
+ *
+ * - A lease refills the row to at most `capacity − lifetime × rate` before
+ *   it takes its tokens, and they are spent within `lifetime` of its stamp or
+ *   dropped, never returned. Over any window W, the leases stamped from one
+ *   lifetime before it plus the tokens charged at once inside it add up to at
+ *   most `capacity − lifetime × rate + (W + lifetime) × rate`: the
+ *   `capacity + rate × W` a charge per request allows, also while processes
+ *   that still charge per request share the row. Without the lower ceiling a
+ *   slice spent late would add up to `lifetime × rate` to a full bucket.
+ * - A slice follows demand: a key's first charge in a process takes one
+ *   token directly, and each next slice takes what the last one was spent at
+ *   over a lifetime, at most twice the last and `largest`, so a steady caller
+ *   drops no tokens and a burst doubles its slices. No lease takes more than
+ *   half of what the row kept at this process's last statement plus its
+ *   refill since, so a bucket running low is charged one token at a time and
+ *   refuses with the `retryAfter` of a direct charge.
+ */
+async function chargeFromSlice(
+  sql: Sql | TransactionSql,
+  name: RateLimitName,
+  key: string,
+  rule: TokenBucketRule,
+  slicing: SliceRule,
+): Promise<RateLimitResult> {
+  const ratePerMs = rule.rate / rule.period;
+  const ceiling = rule.capacity - slicing.lifetime * ratePerMs;
+  const slices = holdSlices(sql);
+  const id = `${name}|${key}`;
+  for (;;) {
+    const at = performance.now();
+    const slice = slices.get(id);
+    if (
+      slice !== undefined &&
+      slice.tokens >= 1 &&
+      at - slice.leasedAt < slicing.lifetime
+    ) {
+      slice.tokens -= 1;
+      slice.served += 1;
+      return { ok: true };
+    }
+    if (slice?.leasing) {
+      await slice.leasing;
+      continue;
+    }
+    const now = Date.now();
+    const size =
+      slice === undefined
+        ? 1
+        : Math.min(
+            slicing.largest,
+            slice.size * 2,
+            Math.floor(
+              (slice.served * slicing.lifetime) / (at - slice.leasedAt),
+            ),
+            Math.floor(
+              Math.min(
+                ceiling,
+                slice.rowTokens + (now - slice.rowAt) * ratePerMs,
+              ) / 2,
+            ),
+          );
+    if (slice !== undefined && size >= 2) {
+      const lease = takeTokens(sql, name, key, rule, {
+        count: size,
+        ceiling,
+        now,
+      });
+      slice.leasing = Promise.allSettled([lease]);
+      let left: number | null;
+      try {
+        left = await lease;
+      } finally {
+        slice.leasing = null;
+      }
+      if (left !== null) {
+        slice.tokens = size - 1;
+        slice.size = size;
+        slice.served = 1;
+        slice.leasedAt = at;
+        slice.rowTokens = left;
+        slice.rowAt = now;
+        return { ok: true };
+      }
+      // The row holds less than this slice: one token at a time from here.
+      slice.rowTokens = 0;
+      slice.rowAt = now;
+    }
+    const left = await takeTokens(sql, name, key, rule, {
+      count: 1,
+      ceiling: rule.capacity,
+      now,
+    });
+    const current = slices.get(id) ?? newSlice(slices, id);
+    current.rowTokens = left ?? 0;
+    current.rowAt = now;
+    if (left === null) {
+      return refuseTokens(sql, name, key, rule, 1, now);
+    }
+    // A lease that landed meanwhile keeps its tokens and its lapse.
+    if (
+      !(
+        current.tokens >= 1 &&
+        performance.now() - current.leasedAt < slicing.lifetime
+      )
+    ) {
+      current.tokens = 0;
+      current.size = 1;
+      current.served = 1;
+      current.leasedAt = at;
+    }
+    return { ok: true };
+  }
+}
+
+function holdSlices(sql: Sql | TransactionSql): Map<string, Slice> {
+  const at = performance.now();
+  const held = heldSlices.get(sql);
+  if (held === undefined) {
+    const slices = new Map<string, Slice>();
+    heldSlices.set(sql, { slices, sweptAt: at });
+    return slices;
+  }
+  if (at - held.sweptAt >= FORGET_SLICE_AFTER) {
+    held.sweptAt = at;
+    for (const [id, slice] of held.slices) {
+      if (slice.leasing === null && at - slice.leasedAt >= FORGET_SLICE_AFTER) {
+        held.slices.delete(id);
+      }
+    }
+  }
+  return held.slices;
+}
+
+function newSlice(slices: Map<string, Slice>, id: string): Slice {
+  const slice: Slice = {
+    tokens: 0,
+    size: 1,
+    served: 0,
+    leasedAt: Number.NEGATIVE_INFINITY,
+    rowTokens: 0,
+    rowAt: 0,
+    leasing: null,
+  };
+  slices.set(id, slice);
+  return slice;
 }
 
 async function readTokens(

@@ -8797,7 +8797,9 @@ per source IP instead (20/min, burst 40), so strangers never draw from a key
 holder's budget; the inbound webhook door, which carries no key, is budgeted
 per sender address (120/min, burst 240) and per trigger (20/min, burst 40).
 A call to a compatible model endpoint draws from the reads bucket like any
-other request. A 429 carries \`Retry-After\` in whole seconds.
+other request. Each server draws the reads bucket a few requests ahead, so a
+burst can stop up to 10 requests short of its 200. A 429 carries
+\`Retry-After\` in whole seconds.
 
 ## Compatible model endpoints
 
