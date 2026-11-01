@@ -86,7 +86,7 @@ codes:
   TESTS_INVALID:
     title: Test ist fehlerhaft aufgebaut
     explanation: Jeder Test hat einen Namen, eine Eingabe und optional seine Erwartung. Ein Test in einer anderen Form kann nicht laufen.
-    cause: '{test, select, none {Das Feld tests ist keine Liste von Tests.} other {{part, select, description {Die Beschreibung von Test {testNumber} ist kein Text.} mocks {In Test {testNumber} gibt mocks nicht unter der ID jeder Node ihre simulierte Ausgabe an.} failures {In Test {testNumber} gibt failures nicht unter der ID jeder Node ihre Fehlermeldung an, als Text mit höchstens 2000 Zeichen.} effects {In Test {testNumber} sind die erwarteten Aktionen keine Liste.} effect {In Test {testNumber} nennt eine erwartete Aktion ihren Connector nicht.} effectInput {In Test {testNumber} gibt eine erwartete Aktion sowohl input als auch inputIncludes an.} effectAbsent {In Test {testNumber} setzt eine erwartete Aktion absent auf etwas anderes als true.} nodes {In Test {testNumber} wird von einer Node etwas anderes als ran, skipped oder failed erwartet.} failure {In Test {testNumber} ist der erwartete Fehler nicht als node und message geschrieben.} failureWithOutput {Test {testNumber} erwartet, dass der Lauf fehlschlägt, und zugleich eine Ausgabe.} other {{keysCount, plural, =0 {Test {testNumber} ist nicht als name, input und expect geschrieben.} other {Der Teil expect von Test {testNumber} hat unbekannte Schlüssel: {keysList}.}}}}}}'
+    cause: '{test, select, none {Das Feld tests ist keine Liste von Tests.} other {{part, select, description {Die Beschreibung von Test {testNumber} ist kein Text.} mocks {In Test {testNumber} gibt mocks nicht unter der ID jeder Node ihre simulierte Ausgabe an.} failures {In Test {testNumber} gibt failures nicht unter der ID jeder Node ihre Fehlermeldung an, als Text mit höchstens 2000 Zeichen.} effects {In Test {testNumber} sind die erwarteten Aktionen keine Liste.} effect {In Test {testNumber} nennt eine erwartete Aktion ihren Connector nicht.} effectInput {In Test {testNumber} gibt eine erwartete Aktion sowohl input als auch inputIncludes an.} effectAbsent {In Test {testNumber} setzt eine erwartete Aktion absent auf etwas anderes als true.} nodes {In Test {testNumber} wird von einer Node etwas anderes als ran, skipped oder failed erwartet.} failure {In Test {testNumber} ist der erwartete Fehler nicht als node und message geschrieben.} failureWithOutput {Test {testNumber} erwartet, dass der Lauf fehlschlägt, und zugleich eine Ausgabe.} other {{keysCount, plural, =0 {Test {testNumber} ist nicht als name, input und expect geschrieben.} one {Der Teil expect von Test {testNumber} hat einen unbekannten Schlüssel: {keysList}.} other {Der Teil expect von Test {testNumber} hat unbekannte Schlüssel: {keysList}.}}}}}}'
     fix: Schreibe jeden Test als name und input, bei Bedarf mit description, mocks, failures und expect.
   NODE_NOT_OBJECT:
     title: Node ist kein Objekt
@@ -192,7 +192,7 @@ codes:
     title: Referenz auf eine unbekannte Node
     explanation: nodes.<id> liest die Ausgabe der Node mit dieser ID. Keine Node hat diese ID, deshalb schlägt das Lesen fehl, sobald die Automatisierung läuft.
     cause: '{place} nennt nodes.{ref} eine Node, die es nicht gibt.'
-    fix: '{suggestion, select, none {{knownCount, plural, =0 {Füge die Node hinzu oder entferne die Referenz.} other {Verwende die ID einer bestehenden Node: {knownList}.}}} other {Meintest du „{suggestion}“?}}'
+    fix: '{suggestion, select, none {{knownCount, plural, =0 {Füge die Node hinzu oder entferne die Referenz.} one {Verwende die ID einer bestehenden Node: {knownList}.} other {Verwende die ID einer bestehenden Node: {knownList}.}}} other {Meintest du „{suggestion}“?}}'
   REF_SELF:
     title: Node liest sich selbst
     explanation: Eine Node kann ihre eigene Ausgabe nicht lesen, denn die Ausgabe gibt es erst, wenn die Node gelaufen ist.
@@ -227,7 +227,7 @@ codes:
     title: Eingabe ist nicht deklariert
     explanation: input.<key> liest einen Wert aus der Eingabe des Laufs. Das Eingabeschema deklariert diesen Schlüssel nicht, deshalb fehlt er einem Lauf womöglich.
     cause: '{place} liest input.{key} den Wert „{key}“, den das Eingabeschema nicht deklariert.'
-    fix: '{suggestion, select, none {Deklariere „{key}“ im Eingabeschema{declaredCount, plural, =0 {} other { oder verwende eine dieser Eingaben: {declaredList}}}.} other {Meintest du „{suggestion}“?}}'
+    fix: '{suggestion, select, none {Deklariere „{key}“ im Eingabeschema{declaredCount, plural, =0 {} one { oder verwende diese Eingabe: {declaredList}} other { oder verwende eine dieser Eingaben: {declaredList}}}.} other {Meintest du „{suggestion}“?}}'
   TEMPLATE_UNTERMINATED:
     title: Template ist nicht geschlossen
     explanation: Ein '{{' ohne sein '}}' bleibt reiner Text, statt ausgefüllt zu werden.
@@ -246,7 +246,7 @@ codes:
   REF_UNKNOWN_FIELD:
     title: Feld gibt es nicht
     explanation: Eine Referenz liest ein Feld, das ihre Daten nicht haben, und findet deshalb nichts, sobald die Automatisierung läuft.
-    cause: '{place} liest {ref} das Feld „{key}“ aus {sourceLabel}, aber dieses Feld gibt es dort nicht.{listWrapped, select, true { Dieser Wert ist eine Liste.} other {{knownCount, plural, =0 {} other { Vorhandene Felder: {knownList}.}}}}'
+    cause: '{place} liest {ref} das Feld „{key}“ aus {sourceLabel}, aber dieses Feld gibt es dort nicht.{listWrapped, select, true { Dieser Wert ist eine Liste.} other {{knownCount, plural, =0 {} one { Vorhandenes Feld: {knownList}.} other { Vorhandene Felder: {knownList}.}}}}'
     fix: '{suggestion, select, none {{listWrapped, select, true {Lies ein einzelnes Element der Liste oder gehe sie mit map durch.} other {{root, select, input {{field, select, code {Füge „{key}“ der Eingabe dieser Node hinzu, um den Wert weiterzureichen.} other {Deklariere „{key}“ im Eingabeschema oder lies ein Feld, das es deklariert.}}} other {Verwende ein vorhandenes Feld oder ändere, was diese Daten erzeugt.}}}}} other {Meintest du „{suggestion}“?}}'
   TYPE_MISMATCH:
     title: Wert hat den falschen Typ

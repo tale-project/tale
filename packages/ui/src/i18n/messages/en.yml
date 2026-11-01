@@ -341,9 +341,9 @@ recurrence:
       minutely: '{count, plural, one {Every minute} other {Every # minutes}}'
       hourly: '{count, plural, one {Every hour} other {Every # hours}}'
       hourlyAt: '{count, plural, one {Every hour} other {Every # hours}} at {minute, plural, one {# minute} other {# minutes}} past the hour'
-      withTimes: '{rule} at {times}'
+      withTimes: '{hourCycle, select, other {{rule} at {times}}}'
       withWindow: '{rule}, {window}'
-    hoursRange: '{from}–{to}'
+    hoursRange: '{hourCycle, select, other {{from}–{to}}}'
     dayRange: '{first}–{last}'
     compact:
       at: '{days} at {times}'

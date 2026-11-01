@@ -1,128 +1,198 @@
 /**
- * Tiny ICU lexer used by `icu-placeholder-parity` and `icu-plural-rules`.
+ * Small ICU lexer used by `icu-placeholder-parity`, `icu-plural-rules` and
+ * `placeholder-density`.
  *
  * Extracts:
- *   - The flat set of placeholder names appearing in a value.
+ *   - The set of argument names in a value, including the ones inside
+ *     plural/select branches.
  *   - Whether the value uses `plural` / `selectordinal` / `select`.
- *   - For plural forms: the set of categories present (`one`, `other`,
- *     `=0`, `=1`, etc.).
+ *   - Every `plural` and `selectordinal`, nested ones included, with the
+ *     selectors its branches use (`one`, `other`, `=0`, `=1`, …).
+ *
+ * Follows the quoting of the formatter the apps run (`intl-messageformat`
+ * behind `i18next-icu`): `''` is an apostrophe, and `'` before `{`, `}`,
+ * `<`, `>` — or `#` inside a plural branch — quotes text up to the next
+ * single `'`, so quoted braces are text, not arguments.
  *
  * Tolerates malformed input: returns whatever it can parse, never throws.
+ * `icu-brace-balance` is the check that reports values the formatter
+ * cannot parse.
  */
 
+/** One `plural` or `selectordinal` argument of a value. */
+export interface IcuPlural {
+  /** The argument it selects on (`count` in `{count, plural, …}`). */
+  readonly name: string;
+  readonly kind: 'plural' | 'selectordinal';
+  /** The selectors of its branches: CLDR forms and `=<n>` matches. */
+  readonly categories: ReadonlySet<string>;
+}
+
 interface IcuShape {
-  /** All placeholder names that appear in the value (deduplicated). */
+  /** All argument names in the value (deduplicated), at any depth. */
   readonly placeholders: ReadonlySet<string>;
-  /** True if at least one placeholder uses ICU `plural` form. */
+  /** True if at least one argument uses ICU `plural` form. */
   readonly hasPlural: boolean;
-  /** True if at least one placeholder uses ICU `selectordinal` form. */
+  /** True if at least one argument uses ICU `selectordinal` form. */
   readonly hasSelectOrdinal: boolean;
-  /** True if at least one placeholder uses ICU `select` form. */
+  /** True if at least one argument uses ICU `select` form. */
   readonly hasSelect: boolean;
-  /**
-   * Plural categories used per placeholder, keyed by placeholder name.
-   * Categories include CLDR forms (`one`, `other`, …) and exact-match
-   * (`=0`, `=1`, …).
-   */
-  readonly pluralCategories: ReadonlyMap<string, ReadonlySet<string>>;
+  /** Every plural and selectordinal, in the order they close. */
+  readonly plurals: ReadonlyArray<IcuPlural>;
+}
+
+const PLURAL_KINDS: ReadonlySet<string> = new Set(['plural', 'selectordinal']);
+const BRANCHING_KINDS: ReadonlySet<string> = new Set([
+  ...PLURAL_KINDS,
+  'select',
+]);
+
+/**
+ * Index after the ICU quote that starts with the `'` at `i`: past `''`, past
+ * a quoted run, or just past the `'` when it quotes nothing. `#` opens a
+ * quoted run only inside a plural or selectordinal branch.
+ */
+export function skipIcuQuote(
+  value: string,
+  i: number,
+  inPlural: boolean,
+): number {
+  const next = value[i + 1];
+  if (next === "'") return i + 2;
+  const opensRun =
+    next === '{' ||
+    next === '}' ||
+    next === '<' ||
+    next === '>' ||
+    (next === '#' && inPlural);
+  if (!opensRun) return i + 1;
+  let j = i + 2;
+  while (j < value.length) {
+    if (value[j] !== "'") {
+      j++;
+    } else if (value[j + 1] === "'") {
+      j += 2;
+    } else {
+      return j + 1;
+    }
+  }
+  return j;
 }
 
 /** Lex an ICU value. Returns a structured shape descriptor. */
 export function lexIcu(value: string): IcuShape {
   const placeholders = new Set<string>();
-  const pluralCategoriesMut = new Map<string, Set<string>>();
-  let hasPlural = false;
-  let hasSelectOrdinal = false;
-  let hasSelect = false;
+  const plurals: IcuPlural[] = [];
+  const kinds = new Set<string>();
 
-  // Walk `{` regions; for each region, parse header.
-  let i = 0;
-  while (i < value.length) {
-    if (value[i] !== '{') {
+  const skipSpaces = (i: number): number => {
+    let j = i;
+    while (j < value.length && /\s/.test(value.charAt(j))) j++;
+    return j;
+  };
+  const skipWord = (i: number): number => {
+    let j = i;
+    while (j < value.length && !/[\s,{}]/.test(value.charAt(j))) j++;
+    return j;
+  };
+
+  // Skips a `{…}` the lexer cannot read, by depth; returns the index after
+  // its closing brace.
+  const skipBalanced = (open: number): number => {
+    let depth = 0;
+    let i = open;
+    while (i < value.length) {
+      const ch = value[i];
+      if (ch === "'") {
+        i = skipIcuQuote(value, i, false);
+        continue;
+      }
+      if (ch === '{') depth++;
+      else if (ch === '}') {
+        depth--;
+        if (depth === 0) return i + 1;
+      }
       i++;
-      continue;
     }
-    const start = i;
-    let depth = 1;
+    return i;
+  };
+
+  // Reads message text from `i`. In a branch (`nested`) it stops at the
+  // `}` that closes the branch and returns its index; at the top level a
+  // `}` is text.
+  const readMessage = (
+    i: number,
+    inPlural: boolean,
+    nested: boolean,
+  ): number => {
+    let j = i;
+    while (j < value.length) {
+      const ch = value[j];
+      if (ch === "'") j = skipIcuQuote(value, j, inPlural);
+      else if (ch === '{') j = readArgument(j);
+      else if (ch === '}' && nested) return j;
+      else j++;
+    }
+    return j;
+  };
+
+  // Reads the argument whose `{` is at `open` — `{name}`,
+  // `{name, number, …}` or a plural/select with its branches — and returns
+  // the index after its closing brace.
+  const readArgument = (open: number): number => {
+    let i = skipSpaces(open + 1);
+    const nameEnd = skipWord(i);
+    const name = value.slice(i, nameEnd);
+    if (name === '') return skipBalanced(open);
+    placeholders.add(name);
+    i = skipSpaces(nameEnd);
+    if (value[i] === '}') return i + 1;
+    if (value[i] !== ',') return skipBalanced(open);
+    i = skipSpaces(i + 1);
+    const typeEnd = skipWord(i);
+    const type = value.slice(i, typeEnd);
+    i = skipSpaces(typeEnd);
+    if (value[i] === '}') return i + 1;
+    if (value[i] !== ',' || !BRANCHING_KINDS.has(type)) {
+      // A number/date/time style, or something malformed.
+      return skipBalanced(open);
+    }
+    kinds.add(type);
+    const inPlural = PLURAL_KINDS.has(type);
+    const categories = new Set<string>();
     i++;
-    while (i < value.length && depth > 0) {
-      if (value[i] === '{') depth++;
-      else if (value[i] === '}') depth--;
-      i++;
+    while (i < value.length) {
+      i = skipSpaces(i);
+      if (value[i] === '}') {
+        i++;
+        break;
+      }
+      const selectorEnd = skipWord(i);
+      if (selectorEnd === i) {
+        // A stray `,` or `{`: malformed, read on.
+        i++;
+        continue;
+      }
+      const selector = value.slice(i, selectorEnd);
+      i = skipSpaces(selectorEnd);
+      // `offset:1` is not followed by a branch.
+      if (value[i] !== '{') continue;
+      categories.add(selector);
+      i = readMessage(i + 1, inPlural, true);
+      if (value[i] === '}') i++;
     }
-    const region = value.slice(start + 1, i - 1);
-    parseIcuRegion(region, placeholders, pluralCategoriesMut, (flags) => {
-      if (flags.plural) hasPlural = true;
-      if (flags.selectordinal) hasSelectOrdinal = true;
-      if (flags.select) hasSelect = true;
-    });
-  }
+    if (type === 'plural' || type === 'selectordinal') {
+      plurals.push({ name, kind: type, categories });
+    }
+    return i;
+  };
 
-  // Convert mutable maps to readonly.
-  const pluralCategories = new Map<string, ReadonlySet<string>>();
-  for (const [k, v] of pluralCategoriesMut) pluralCategories.set(k, v);
-
+  readMessage(0, false, false);
   return {
     placeholders,
-    hasPlural,
-    hasSelectOrdinal,
-    hasSelect,
-    pluralCategories,
+    hasPlural: kinds.has('plural'),
+    hasSelectOrdinal: kinds.has('selectordinal'),
+    hasSelect: kinds.has('select'),
+    plurals,
   };
-}
-
-function parseIcuRegion(
-  region: string,
-  placeholders: Set<string>,
-  pluralCategories: Map<string, Set<string>>,
-  flag: (f: {
-    plural: boolean;
-    selectordinal: boolean;
-    select: boolean;
-  }) => void,
-): void {
-  const m = /^\s*([\w-]+)\s*(?:,\s*(\w+))?(?:\s*,\s*([\s\S]*))?\s*$/.exec(
-    region,
-  );
-  if (!m) return;
-  const name = m[1];
-  const form = m[2];
-  const body = m[3];
-  placeholders.add(name);
-  if (form === 'plural') {
-    flag({ plural: true, selectordinal: false, select: false });
-    extractCategories(name, body ?? '', pluralCategories);
-  } else if (form === 'selectordinal') {
-    flag({ plural: false, selectordinal: true, select: false });
-    extractCategories(name, body ?? '', pluralCategories);
-  } else if (form === 'select') {
-    flag({ plural: false, selectordinal: false, select: true });
-  }
-}
-
-function extractCategories(
-  name: string,
-  body: string,
-  out: Map<string, Set<string>>,
-): void {
-  let set = out.get(name);
-  if (!set) {
-    set = new Set();
-    out.set(name, set);
-  }
-  // Each category is "<word> { ... }" or "=<n> { ... }".
-  let i = 0;
-  while (i < body.length) {
-    const m = /(=?[\w-]+)\s*\{/.exec(body.slice(i));
-    if (!m) break;
-    set.add(m[1]);
-    i += (m.index ?? 0) + m[0].length;
-    // Skip the inner braces.
-    let depth = 1;
-    while (i < body.length && depth > 0) {
-      if (body[i] === '{') depth++;
-      else if (body[i] === '}') depth--;
-      i++;
-    }
-  }
 }

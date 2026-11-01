@@ -81,26 +81,26 @@ bulk:
   close: Close
   reopen: Reopen
   messagesSent: Messages sent
-  messagesSentDescription: Sent {successCount} messages{failedCount, plural, =0 {} other {, {failedCount} failed}}
+  messagesSentDescription: 'Sent {successCount, plural, one {# message} other {# messages}}{failedCount, plural, =0 {} other {, # failed}}'
   sendFailed: Couldn't send messages
   resolved: Conversations resolved
-  resolvedDescription: Resolved {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
+  resolvedDescription: 'Resolved {successCount, plural, one {# conversation} other {# conversations}}{failedCount, plural, =0 {} other {, # failed}}'
   resolveFailed: Couldn't resolve conversations
   reopened: Conversations reopened
-  reopenedDescription: Reopened {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
+  reopenedDescription: 'Reopened {successCount, plural, one {# conversation} other {# conversations}}{failedCount, plural, =0 {} other {, # failed}}'
   reopenFailed: Couldn't reopen conversations
   selectedCount: '{count, plural, one {# selected} other {# selected}}'
   archive: Archive
   unarchive: Unarchive
   archived: Conversations archived
-  archivedDescription: Archived {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
+  archivedDescription: 'Archived {successCount, plural, one {# conversation} other {# conversations}}{failedCount, plural, =0 {} other {, # failed}}'
   archiveFailed: Couldn't archive conversations
   unarchived: Conversations unarchived
-  unarchivedDescription: Unarchived {successCount} conversations{failedCount, plural, =0 {} other {, {failedCount} failed}}
+  unarchivedDescription: 'Unarchived {successCount, plural, one {# conversation} other {# conversations}}{failedCount, plural, =0 {} other {, # failed}}'
   unarchiveFailed: Couldn't unarchive conversations
   markSpam: Mark as spam
   markedAsSpam: Conversations marked as spam
-  markedAsSpamDescription: Marked {successCount} conversations as spam{failedCount, plural, =0 {} other {, {failedCount} failed}}
+  markedAsSpamDescription: 'Marked {successCount, plural, one {# conversation} other {# conversations}} as spam{failedCount, plural, =0 {} other {, # failed}}'
   spamFailed: Couldn't mark conversations as spam
 header:
   moreActions: More actions

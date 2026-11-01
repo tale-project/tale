@@ -30,8 +30,11 @@ defineI18nTests({
     'voice-drift': 'report',
     'grammar-articles': 'report',
     'style-ss': 'report',
-    'icu-placeholder-parity': 'report',
-    'icu-plural-rules': 'report',
+    // An ICU argument a translation renames, drops or adds, and a count
+    // worded without its language's plural forms, de-CH overrides
+    // included (#4435).
+    'icu-placeholder-parity': 'enforce',
+    'icu-plural-rules': 'enforce',
     'status-chatter': 'report',
     'prose-exclamation': 'report',
   },

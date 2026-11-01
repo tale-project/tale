@@ -42,7 +42,7 @@ codes:
     cause: '{version, select, none {Keine gespeicherte Automatisierung heisst {automationLabel}.} other {{automationLabel} hat keine Version {version}{latest, select, none {} other {. Die neueste ist Version {latest}}}.}}'
     fix: '{suggestion, select, none {{version, select, none {Speichere diese Automatisierung zuerst oder rufe eine bestehende auf.} other {Rufe eine bestehende Version auf oder lass die Version weg, um die live geschaltete aufzurufen.}}} other {Meintest du «{suggestion}»?}}'
   REF_UNKNOWN_NODE:
-    fix: '{suggestion, select, none {{knownCount, plural, =0 {Füge die Node hinzu oder entferne die Referenz.} other {Verwende die ID einer bestehenden Node: {knownList}.}}} other {Meintest du «{suggestion}»?}}'
+    fix: '{suggestion, select, none {{knownCount, plural, =0 {Füge die Node hinzu oder entferne die Referenz.} one {Verwende die ID einer bestehenden Node: {knownList}.} other {Verwende die ID einer bestehenden Node: {knownList}.}}} other {Meintest du «{suggestion}»?}}'
   ITEM_WITHOUT_FOREACH:
     title: «item» ausserhalb einer Schleife verwendet
     explanation: item und index gibt es nur in einer Node mit «Für jedes». Anderswo schlägt ein Template oder eine Bedingung damit fehl, und Code liest sie als undefined.
@@ -50,7 +50,7 @@ codes:
     fix: Füge {nodeLabel} ein «Für jedes» hinzu oder lies den Wert aus der Eingabe des Laufs oder aus einer anderen Node.
   INPUT_KEY_UNKNOWN:
     cause: '{place} liest input.{key} den Wert «{key}», den das Eingabeschema nicht deklariert.'
-    fix: '{suggestion, select, none {Deklariere «{key}» im Eingabeschema{declaredCount, plural, =0 {} other { oder verwende eine dieser Eingaben: {declaredList}}}.} other {Meintest du «{suggestion}»?}}'
+    fix: '{suggestion, select, none {Deklariere «{key}» im Eingabeschema{declaredCount, plural, =0 {} one { oder verwende diese Eingabe: {declaredList}} other { oder verwende eine dieser Eingaben: {declaredList}}}.} other {Meintest du «{suggestion}»?}}'
   TEMPLATE_UNTERMINATED:
     cause: '{place} hat ein ''{{'' kein schliessendes ''}}''.'
     fix: Schliesse das Template mit '}}' oder entferne das überzählige '{{'.
@@ -63,7 +63,7 @@ codes:
     cause: '{place} wird «{name}» verwendet.'
     fix: '{field, select, when {Um einzelne Elemente auszulassen, filtere stattdessen die Liste in «Für jedes».} other {«Für jedes» nennt die Liste selbst. Lies sie aus der Eingabe des Laufs oder aus einer anderen Node.}}'
   REF_UNKNOWN_FIELD:
-    cause: '{place} liest {ref} das Feld «{key}» aus {sourceLabel}, aber dieses Feld gibt es dort nicht.{listWrapped, select, true { Dieser Wert ist eine Liste.} other {{knownCount, plural, =0 {} other { Vorhandene Felder: {knownList}.}}}}'
+    cause: '{place} liest {ref} das Feld «{key}» aus {sourceLabel}, aber dieses Feld gibt es dort nicht.{listWrapped, select, true { Dieser Wert ist eine Liste.} other {{knownCount, plural, =0 {} one { Vorhandenes Feld: {knownList}.} other { Vorhandene Felder: {knownList}.}}}}'
     fix: '{suggestion, select, none {{listWrapped, select, true {Lies ein einzelnes Element der Liste oder gehe sie mit map durch.} other {{root, select, input {{field, select, code {Füge «{key}» der Eingabe dieser Node hinzu, um den Wert weiterzureichen.} other {Deklariere «{key}» im Eingabeschema oder lies ein Feld, das es deklariert.}}} other {Verwende ein vorhandenes Feld oder ändere, was diese Daten erzeugt.}}}}} other {Meintest du «{suggestion}»?}}'
   TYPE_MISMATCH:
     cause: '{consumer, select, forEach {«Für jedes» von {nodeLabel} braucht eine Liste, aber {expr} ist {actualText}.} subautomationInput {Die Eingabe «{property}» von {automationLabel} braucht {expectedText}, aber {expr} ist {actualText}.} other {Die Eingabe «{property}» von {nodeLabel} braucht {expectedText}, aber {expr} ist {actualText}.}}'

@@ -1600,9 +1600,7 @@ dataSubjectRequests:
       title: Annulée
       attribution: Annulée par {name}
     fullBreakdownTitle: Détail complet par catégorie de données
-    fullBreakdownEntry: '{rows, plural, =0 {0 effacé} one {# effacé} other {#
-      effacés}}{skippedByHold, plural, =0 {} other { · # ignoré(s)
-      (rétention)}}'
+    fullBreakdownEntry: '{rows, plural, =0 {0 effacé} one {# effacé} other {# effacés}}{skippedByHold, plural, =0 {} one { · # ignoré (rétention)} other { · # ignorés (rétention)}}'
     fullBreakdownNoData:
       Aucune donnée dans {count, plural, one {# autre catégorie}
       other {# autres catégories}}.
@@ -1730,9 +1728,7 @@ dataSubjectRequests:
     filedTitle: Demande d'effacement déposée
     filedDescription: La cascade est en cours. Ouvre le reçu pour suivre la progression.
     extendedTitle: Délai prolongé
-    extendedDescription:
-      '{days, plural, =1 {# jour} other {# jours}} ajoutés à la
-      fenêtre de réponse.'
+    extendedDescription: '{days, plural, one {# jour ajouté} other {# jours ajoutés}} à la fenêtre de réponse.'
     retryTitle: Nouvelle tentative d'effacement lancée
     retryDescription: La cascade a été reprogrammée.
     cancelledTitle: Demande d'effacement annulée

@@ -192,7 +192,13 @@ describe('the fields of a changed test', () => {
       'Simulierte Ausgaben',
       'Ausgabe',
     ],
-    ['fr', 'Sorties simulées et Sortie modifiés', 'Sorties simulées', 'Sortie'],
+    [
+      'fr',
+      // The text's U+00A0 before the colon reads as a space to getByText.
+      'Modifications : Sorties simulées et Sortie',
+      'Sorties simulées',
+      'Sortie',
+    ],
   ])(
     'are named in %s the way the test form names them, never by key',
     async (locale, summary, mocks, output) => {

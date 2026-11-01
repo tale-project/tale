@@ -1,7 +1,10 @@
 /**
- * `icu-placeholder-parity` — every ICU placeholder in a primary-locale
- * value must match the placeholders in the base-locale value for the same
- * key. Catches `{name}` renamed to `{nom}` in fr, missing placeholders, etc.
+ * `icu-placeholder-parity` — the ICU arguments of a locale value, at any
+ * depth, must match the base-locale value's for the same key. Catches
+ * `{name}` renamed to `{nom}` in fr, missing placeholders, and an argument
+ * the base value does not name (the code may not pass it, and a missing
+ * argument makes the formatter render the raw ICU source). Runs for every
+ * locale but the base, a regional locale's overrides (de-CH) included.
  */
 
 import path from 'node:path';
@@ -15,7 +18,7 @@ export const icuPlaceholderParity = createCheck({
   id: 'icu-placeholder-parity',
   scope: 'json',
   defaultMode: 'enforce',
-  localeFilter: (locale) => !locale.regional && locale.id !== 'en',
+  localeFilter: (locale) => locale.id !== 'en',
   run(ctx) {
     if (!ctx.messagesDir) return [];
     const baseCatalog = readCatalog(ctx.messagesDir, 'en');
@@ -24,16 +27,14 @@ export const icuPlaceholderParity = createCheck({
 
     const findings: Finding[] = [];
     for (const locale of ctx.locales) {
-      if (locale.regional || locale.id === 'en') continue;
+      if (locale.id === 'en') continue;
       const localeCatalog = readCatalog(ctx.messagesDir, locale.id);
       if (localeCatalog === undefined) continue;
       const localeFile = catalogPath(ctx.messagesDir, locale.id);
-      const localeMap = flatten(localeCatalog);
-      for (const [key, enValue] of base) {
+      for (const [key, locValue] of flatten(localeCatalog)) {
+        const enValue = base.get(key);
+        if (enValue === undefined || !locValue) continue;
         const enShape = lexIcu(enValue);
-        if (enShape.placeholders.size === 0) continue;
-        const locValue = localeMap.get(key);
-        if (!locValue) continue;
         const locShape = lexIcu(locValue);
         const missing = [...enShape.placeholders].filter(
           (p) => !locShape.placeholders.has(p),

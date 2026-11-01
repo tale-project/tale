@@ -86,7 +86,7 @@ codes:
   TESTS_INVALID:
     title: Test mal formé
     explanation: Chaque test a un nom, une entrée et, si besoin, ce qu’il attend. Un test sous une autre forme ne peut pas s’exécuter.
-    cause: '{test, select, none {Le champ tests n’est pas une liste de tests.} other {{part, select, description {La description du test {testNumber} n’est pas du texte.} mocks {Dans le test {testNumber}, mocks n’indique pas la sortie simulée de chaque nœud sous son identifiant.} failures {Dans le test {testNumber}, failures n’indique pas le message d’erreur de chaque nœud sous son identifiant, sous forme de texte d’au plus 2 000 caractères.} effects {Dans le test {testNumber}, les actions attendues ne forment pas une liste.} effect {Dans le test {testNumber}, une action attendue ne nomme pas son connector.} effectInput {Dans le test {testNumber}, une action attendue donne à la fois input et inputIncludes.} effectAbsent {Dans le test {testNumber}, une action attendue donne à absent une autre valeur que true.} nodes {Dans le test {testNumber}, un nœud est attendu dans un autre état que ran, skipped ou failed.} failure {Dans le test {testNumber}, l’échec attendu n’est pas écrit sous la forme node et message.} failureWithOutput {Le test {testNumber} attend que l’exécution échoue, et aussi une sortie.} other {{keysCount, plural, =0 {Le test {testNumber} n’est pas écrit sous la forme name, input et expect.} other {La partie expect du test {testNumber} contient des clés inconnues : {keysList}.}}}}}}'
+    cause: '{test, select, none {Le champ tests n’est pas une liste de tests.} other {{part, select, description {La description du test {testNumber} n’est pas du texte.} mocks {Dans le test {testNumber}, mocks n’indique pas la sortie simulée de chaque nœud sous son identifiant.} failures {Dans le test {testNumber}, failures n’indique pas le message d’erreur de chaque nœud sous son identifiant, sous forme de texte d’au plus 2 000 caractères.} effects {Dans le test {testNumber}, les actions attendues ne forment pas une liste.} effect {Dans le test {testNumber}, une action attendue ne nomme pas son connector.} effectInput {Dans le test {testNumber}, une action attendue donne à la fois input et inputIncludes.} effectAbsent {Dans le test {testNumber}, une action attendue donne à absent une autre valeur que true.} nodes {Dans le test {testNumber}, un nœud est attendu dans un autre état que ran, skipped ou failed.} failure {Dans le test {testNumber}, l’échec attendu n’est pas écrit sous la forme node et message.} failureWithOutput {Le test {testNumber} attend que l’exécution échoue, et aussi une sortie.} other {{keysCount, plural, =0 {Le test {testNumber} n’est pas écrit sous la forme name, input et expect.} one {La partie expect du test {testNumber} contient une clé inconnue : {keysList}.} other {La partie expect du test {testNumber} contient des clés inconnues : {keysList}.}}}}}}'
     fix: Écris chaque test sous la forme name et input, avec description, mocks, failures et expect si besoin.
   NODE_NOT_OBJECT:
     title: Le nœud n’est pas un objet
@@ -192,7 +192,7 @@ codes:
     title: Référence à un nœud inconnu
     explanation: nodes.<id> lit la sortie du nœud qui porte cet identifiant. Aucun nœud ne le porte, donc la lecture échoue dès que l’automatisation s’exécute.
     cause: '{place}, nodes.{ref} désigne un nœud qui n’existe pas.'
-    fix: '{suggestion, select, none {{knownCount, plural, =0 {Ajoute le nœud, ou retire la référence.} other {Utilise l’identifiant d’un nœud existant : {knownList}.}}} other {Voulais-tu dire « {suggestion} » ?}}'
+    fix: '{suggestion, select, none {{knownCount, plural, =0 {Ajoute le nœud, ou retire la référence.} one {Utilise l’identifiant d’un nœud existant : {knownList}.} other {Utilise l’identifiant d’un nœud existant : {knownList}.}}} other {Voulais-tu dire « {suggestion} » ?}}'
   REF_SELF:
     title: Le nœud se lit lui-même
     explanation: Un nœud ne peut pas lire sa propre sortie, car elle n’existe qu’une fois le nœud exécuté.
@@ -227,7 +227,7 @@ codes:
     title: Entrée non déclarée
     explanation: input.<key> lit une valeur de l’entrée de l’exécution. Le schéma des entrées ne déclare pas cette clé, donc une exécution risque de ne pas l’avoir.
     cause: '{place}, input.{key} lit « {key} », que le schéma des entrées ne déclare pas.'
-    fix: '{suggestion, select, none {Déclare « {key} » dans le schéma des entrées{declaredCount, plural, =0 {} other {, ou utilise l’une de ces entrées : {declaredList}}}.} other {Voulais-tu dire « {suggestion} » ?}}'
+    fix: '{suggestion, select, none {Déclare « {key} » dans le schéma des entrées{declaredCount, plural, =0 {} one {, ou utilise cette entrée : {declaredList}} other {, ou utilise l’une de ces entrées : {declaredList}}}.} other {Voulais-tu dire « {suggestion} » ?}}'
   TEMPLATE_UNTERMINATED:
     title: Template non fermé
     explanation: Un '{{' sans son '}}' reste du texte brut au lieu d’être rempli.
@@ -246,7 +246,7 @@ codes:
   REF_UNKNOWN_FIELD:
     title: Ce champ n’existe pas
     explanation: Une référence lit un champ que ses données n’ont pas, et ne trouve donc rien dès que l’automatisation s’exécute.
-    cause: '{place}, {ref} lit « {key} » dans {sourceLabel}, qui n’a pas ce champ.{listWrapped, select, true { Cette valeur est une liste.} other {{knownCount, plural, =0 {} other { Ses champs : {knownList}.}}}}'
+    cause: '{place}, {ref} lit « {key} » dans {sourceLabel}, qui n’a pas ce champ.{listWrapped, select, true { Cette valeur est une liste.} other {{knownCount, plural, =0 {} one { Son seul champ : {knownList}.} other { Ses champs : {knownList}.}}}}'
     fix: '{suggestion, select, none {{listWrapped, select, true {Lis un seul élément de la liste, ou parcours-la avec map.} other {{root, select, input {{field, select, code {Ajoute « {key} » à l’entrée de ce nœud pour transmettre la valeur.} other {Déclare « {key} » dans le schéma des entrées, ou lis un champ qu’il déclare.}}} other {Utilise un champ qui existe, ou change ce qui produit ces données.}}}}} other {Voulais-tu dire « {suggestion} » ?}}'
   TYPE_MISMATCH:
     title: La valeur a le mauvais type

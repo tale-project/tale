@@ -909,7 +909,7 @@ compare:
     basedOn: 'v{version} · version de base'
   summary:
     label: Ce qui a changé
-    node: '{count, plural, one {{fields} modifié} other {{fields} modifiés}}'
+    node: 'Modifications : {fields}'
     references: Lit un nœud renommé sous son nouveau nom
   views:
     label: Vue
