@@ -310,13 +310,16 @@ function RuleDialog({
       : options;
   }, [offeredProviders, providerList, offered, draft.providerName, t]);
 
+  const draftProvider = useMemo(
+    () => offeredProviders.find((p) => p.name === draft.providerName),
+    [offeredProviders, draft.providerName],
+  );
+
   // The models a chat turn can be sent to — the chat picker's own set.
-  const chatModels = useMemo(() => {
-    const provider = offeredProviders.find(
-      (p) => p.name === draft.providerName,
-    );
-    return provider?.models.filter(answersChatTurns) ?? [];
-  }, [offeredProviders, draft.providerName]);
+  const chatModels = useMemo(
+    () => draftProvider?.models.filter(answersChatTurns) ?? [],
+    [draftProvider],
+  );
 
   const modelOptions = useMemo(() => {
     const options = chatModels.map((m) => ({
@@ -348,16 +351,17 @@ function RuleDialog({
   const renderModelInfo = useCallback(
     (option: SearchableSelectOption) => {
       const model = chatModels.find((m) => m.id === option.value);
-      if (!model) return null;
+      if (!model || !draftProvider) return null;
       return (
         <ModelInfoPopover
+          providerName={draftProvider.displayName || draftProvider.name}
           tags={model.tags}
           capabilities={capabilities.get(model.id)}
           organizationId={organizationId}
         />
       );
     },
-    [chatModels, capabilities, organizationId],
+    [chatModels, capabilities, draftProvider, organizationId],
   );
 
   const conflict = useMemo(
