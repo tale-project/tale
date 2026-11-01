@@ -394,12 +394,11 @@ back afterwards.
 
 The sandbox service refuses to create a session, or to let a released one
 resume work, with a busy answer and the seconds to wait; inside a session,
-runnerd refuses a new process the same way. None of them fails the run: it
+runnerd refuses a new process the same way. None of them fails a start: the run
 waits, reading **Waiting for room** (`tasks.agentRun.waiting.host`) with
 `tasks.agentRun.waitingWhy.host` in the Run row and the timeline, offers
-**Cancel run** (`tasks.agentRun.cancel`), spends no automatic retry, moves to
-another worker of the agent that can start, and starts by itself once there is
-room. Twelve hours after its start it fails as
+**Cancel run** (`tasks.agentRun.cancel`), spends no automatic retry, and
+starts by itself once there is room. Twelve hours after its start it fails as
 `tasks.agentRun.failure.capacity`. Each setting below belongs to the sandbox
 service, as the self-hosted environment reference describes it; put it back
 after the box.
@@ -411,7 +410,7 @@ after the box.
 | `host_cpu` | Under the `default` admission preset, set `SANDBOX_CPU_PRESSURE_PERCENT=1`, keep every CPU of the host busy (one `yes > /dev/null` per CPU) and start two agents at once: new sessions start one at a time, so the second waits for room until the first has started, about ten seconds. |
 | `host_pressure` | Set `SANDBOX_ADMISSION_PRESET=conservative` and keep the host's load average at or above one per CPU (the same load), then **Start agent**: a start held back for load, memory or I/O pressure answers `host_pressure`. The project's dispatch holds its own starts on the same reading and says **The sandbox host is busy**. |
 | `host_disk` | Set `SANDBOX_MIN_FREE_DISK` above the free space of the disk that holds the session workspaces, and `SANDBOX_CRITICAL_FREE_DISK=0` so that released sessions are not stopped, then **Start agent**. The service reclaims stopped unused build caches first, then answers busy; the run starts once the disk has room. |
-| `session_memory_busy` (runnerd) | A session that already uses 90 percent of its memory limit refuses a new process. With `SANDBOX_AGENT_MEMORY` low, have the agent leave a process holding most of it running in its workspace, then start the agent on another task in the same worker → **Waiting for room**, until the process ends. A comment's restart of a working run so refused ends the run as `sandbox_capacity` instead (`tasks.agentRun.failure.interrupted` once final), retried after 15 seconds without spending an attempt. |
+| `session_memory_busy` (runnerd) | A session that still runs a process and uses 90 percent of its memory limit refuses the next one; an idle session never does, since what a turn leaves running ends with it. With `SANDBOX_AGENT_MEMORY` low, have the agent run a process that holds most of it and, while that turn works, comment on the task: the comment's restart is refused, and the run ends as `sandbox_capacity` (class `tasks.agentRun.failure.interrupted`) with a retry that spends no attempt, starts after the refusal's wait and then waits for room like any start. A start refused so reads **Waiting for room**, never **Waiting for its sandbox**. |
 
 ## Server transcription model routing
 

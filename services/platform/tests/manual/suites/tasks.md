@@ -1,6 +1,6 @@
 # Tasks
 
-> **Prefix** `TASK-` · **Reset** none · **Cost** 174 boxes
+> **Prefix** `TASK-` · **Reset** none · **Cost** 176 boxes
 
 Exercise a project's task workspace — the board and list views with
 drag-and-drop across status lanes, the task sheet (description, comments with
@@ -1412,6 +1412,34 @@ otherwise. Mark them **ENVIRONMENT** without a runnable harness.
   the first, only for an Owner or Admin, and opens
   `/dashboard/{org}/settings/sandboxes`; an Editor reads the same sentence
   without the link.
+- [ ] `TASK-B58` · **A run that waits for its own sandbox reads its own words** —
+  On a local stack, make a run wait for a worker (`TASK-F82`), then give its
+  wait the sandbox's reason: `docker exec tale-db psql -U tale -d tale_app -c
+  "UPDATE app.project_agent_runs SET waiting_reason = 'exec_limit' WHERE
+  task_id = '<task id>' AND status = 'queued'"` (the refusal itself, four
+  turns already live in the agent's workspace, is the integration lane's:
+  `exec-limit-park.integration.ts`) → the Run row and the timeline row read
+  **Waiting for its sandbox** (`tasks.agentRun.waiting.exec_limit`) with its
+  own sentence (`tasks.agentRun.waitingWhy.exec_limit`), in EN, DE and FR,
+  with no **Manage agent workers** link, also for an Owner. Within about two
+  minutes the platform asks for room again and the row reads **Waiting for a
+  worker** once more; free the worker → the run starts by itself, without
+  **Retry**.
+- [ ] `TASK-B59` · **A run that waits for its model starts by itself** — On a
+  local stack, hold the model of an agent that already ran on a task at
+  capacity for three minutes: `docker exec tale-db psql -U tale -d tale_app
+  -c "INSERT INTO app.model_capacity_holds (org_id, model_provider, model,
+  held_until_ms, first_refused_at_ms, last_refused_at_ms, updated_at_ms)
+  SELECT org_id, coalesce(model_provider, ''), model, n + 180000, n, n, n
+  FROM app.project_agent_runs, (SELECT (extract(epoch FROM now()) *
+  1000)::bigint AS n) t WHERE task_id = '<task id>' ORDER BY started_at_ms
+  DESC LIMIT 1"`, then start the agent on that task again → the Run row and
+  the timeline row read **Waiting for model capacity**
+  (`tasks.agentRun.waiting.model_capacity`) with its own sentence
+  (`tasks.agentRun.waitingWhy.model_capacity`), in EN, DE and FR, with no
+  **Manage agent workers** link; **Cancel run** would withdraw it. Once the
+  hold runs out the run starts by itself and works, with no **Auto-retry**
+  caption: the wait spent no attempt.
 - [ ] `TASK-B51` · **A task's next run goes back to its worker** — On a
   task the agent finished in **Worker 2**, ask for changes while Worker 2 is
   free → the run works in Worker 2 again (its row on
