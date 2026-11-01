@@ -62,6 +62,7 @@ import { checkStaleSessionReauthentication } from './auth/reauthenticate.integra
 import { checkAuthRequestCache } from './auth/request-cache.integration.ts';
 import { checkOrganizationSessionAuthority } from './auth/session-authority.integration.ts';
 import { checkSessionTrustFieldsAreServerOnly } from './auth/session-trust-fields.integration.ts';
+import { checkSessionUseUnderIdleWindow } from './auth/session-use.integration.ts';
 import { checkLapsedTeamWrites } from './auth/team-lapse.integration.ts';
 import { ASK_DEADLINE_MARGIN_MS } from './core/automations/agent_host.ts';
 import { buildPeriodKeyFromTimestamp } from './core/governance/helpers.ts';
@@ -65928,6 +65929,10 @@ async function main(): Promise<void> {
         'checkOrganizationSessionAuthority',
         async () =>
           checkOrganizationSessionAuthority(sql, baseUrl, auth, record),
+      ],
+      [
+        'checkSessionUseUnderIdleWindow',
+        async () => checkSessionUseUnderIdleWindow(sql, baseUrl, auth, record),
       ],
       [
         'checkSessionTrustFieldsAreServerOnly',

@@ -80,6 +80,18 @@ offers **Log out**, and it ends the session.
 - **Example**: Mia signed in through her organization's identity provider. She chooses **Log
   out** in the account menu → she is on the sign-in page, and her session has ended.
 
+### SSO-R23 · A person signed in through SSO stays signed in while they use Tale
+
+Under an organization's session idle timeout, every request of a session from the identity
+provider counts as a use, as it does for a session from a password, though the session lasts
+longer: it is signed out only once nobody has used it for the timeout.
+
+- **Example**: Mia's organization signs out sessions idle for 15 minutes. She signed in through
+  its identity provider at nine and has worked in Tale ever since → at noon she is still signed
+  in.
+- **Example**: Mia, signed in through the identity provider, leaves Tale untouched for an hour →
+  she has to sign in again.
+
 ## Teams from the provider's groups
 
 ### SSO-R6 · Team sync gives a person the teams named by their groups
