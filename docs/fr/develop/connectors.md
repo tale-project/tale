@@ -62,6 +62,8 @@ Ajouter un connector demande une contribution au code source. L'exécution lit l
 
 Sans backend réel, le connector fonctionne en simulation mais refuse l'exécution réelle. Une écriture n'a pas lieu si la plateforme ne peut pas obtenir une décision d'approbation. La [référence de politique](/fr/self-hosted/configuration/approvals) explique la priorité des règles et les décisions en attente.
 
+Un corps `yaml-js` réel qui échoue sur la réponse du fournisseur lance son erreur avec le statut HTTP de cette réponse dans `status` : `throw Object.assign(new Error(message), { status: r.status })`. Une exécution lit ce statut : une limite de débit (429) ou une panne côté fournisseur (5xx) signifie que le service est indisponible, ce qui ne compte jamais pour [la mise en pause d'une planification](/fr/platform/automations/triggers#quand-une-planification-se-met-en-pause), et 401 ou 403 désigne des identifiants refusés. Une erreur du corps sans statut signifie que le connector a refusé l'appel.
+
 Pour comprendre un résultat, lis aussi l'implémentation réelle. Par exemple, la recherche Tavily décrit l'entrée `max_results`, mais l'action fournie limite les résultats renvoyés à cinq. La signature de sortie seule ne précise pas cette limite.
 
 ### Sélectionner le bon compte

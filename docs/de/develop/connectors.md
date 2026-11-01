@@ -62,6 +62,8 @@ Ein neuer Connector ist ein Quellcodebeitrag. Die Laufzeit liest den Plattformka
 
 Ohne Live-Backend läuft ein Connector nur mit Mocks und lehnt echte Aufrufe ab. Schreibaktionen werden nicht ausgeführt, wenn keine Genehmigungsentscheidung ermittelt werden kann. Die [Genehmigungsreferenz](/de/self-hosted/configuration/approvals) erklärt Vorrangregeln und ausstehende Entscheidungen.
 
+Scheitert ein `yaml-js`-Live-Body an der Antwort des Anbieters, wirft er seinen Fehler mit deren HTTP-Status als `status`: `throw Object.assign(new Error(message), { status: r.status })`. Ein Lauf liest den Status: Ein Ratenlimit (429) oder ein Fehler auf der Seite des Anbieters (5xx) heißt, dass der Dienst nicht verfügbar ist, was nie dazu zählt, dass sich ein [Zeitplan selbst pausiert](/de/platform/automations/triggers#wenn-sich-ein-zeitplan-selbst-pausiert), und 401 oder 403 nennt abgelehnte Zugangsdaten. Ein Fehler des Bodys ohne Status heißt, dass der Connector den Aufruf abgelehnt hat.
+
 Lies bei Ergebnisverträgen auch die Live-Implementierung. Tavily beschreibt beispielsweise `max_results` als Eingabe, begrenzt die zurückgegebenen Suchergebnisse aber auf fünf. Die Ausgabesignatur allein erklärt diese Grenze nicht.
 
 ### Das richtige Konto auswählen

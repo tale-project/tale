@@ -97,6 +97,15 @@ function connectorValidator(connector: ConnectorLike): ValidateFunction {
   return check;
 }
 
+/** The connector a connector node calls, by its slug (`slack` for
+ * `slack.list_channels`): what the durable runtime names in a step's record
+ * and its failure, and what the run view looks up in the catalog. */
+function connectorSlugOf(type: string, connector: ConnectorLike): string {
+  if (connector.display !== undefined) return connector.display.connector;
+  const dot = type.indexOf('.');
+  return dot > 0 ? type.slice(0, dot) : type;
+}
+
 /** A resolved template destined for prompt text: strings pass through,
  * structured values render as JSON (never "[object Object]"), and absent
  * values become empty text. */
@@ -842,8 +851,9 @@ export async function execute(
           noteRendered();
           if (record) entry.input = resolved;
           noteInput(unit, resolved);
+          const slug = connectorSlugOf(n.type, def.connector);
           rec.meta(unit, {
-            connector: def.connector.name,
+            connector: slug,
             action: n.type,
             effect: def.connector.hasEffect ? 'write' : 'read',
           });
@@ -862,7 +872,7 @@ export async function execute(
               {
                 reason: 'CONNECTOR_INPUT_REFUSED',
                 params: {
-                  connector: def.connector.name,
+                  connector: slug,
                   action: n.type,
                   ...(first !== undefined && {
                     keyword: first.keyword,
@@ -905,7 +915,7 @@ export async function execute(
                 n.type,
                 `live call failed: ${(e instanceof Error ? e.message : String(e)).slice(0, 300)}`,
                 {
-                  ...connectorFailureOf(e, def.connector.name, n.type),
+                  ...connectorFailureOf(e, slug, n.type),
                   at: { pointer },
                 },
               );

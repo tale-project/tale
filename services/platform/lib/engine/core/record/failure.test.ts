@@ -11,6 +11,7 @@ import {
   fieldOf,
   reasonFamily,
   STEP_FAILURE_REASONS,
+  vendorStatusOf,
 } from './failure';
 
 const at = { pointer: '/nodes/2/when', range: [0, 20] as [number, number] };
@@ -413,6 +414,31 @@ describe('connectorFailureOf', () => {
       reason: 'CONNECTOR_AUTH',
       params: { connector: 'x', action: 'x.y', status: 403 },
     });
+  });
+});
+
+describe('vendorStatusOf', () => {
+  it.each([
+    [{ status: 429 }, 429],
+    [{ status: 503 }, 503],
+    [{ status: 0 }, undefined],
+    [{ status: 600 }, undefined],
+    [{ status: 429.5 }, undefined],
+    [{ status: '503' }, undefined],
+    [{ vendorStatus: 429 }, 429],
+    [{ vendorStatus: undefined }, undefined],
+    [{}, undefined],
+    ['busy', undefined],
+    [null, undefined],
+  ])('reads %j as %s', (error, status) => {
+    expect(vendorStatusOf(error)).toBe(status);
+  });
+
+  it('reads a status no answer gave as a network that never answered', () => {
+    const never = Object.assign(new Error('fetch failed'), { status: 0 });
+    expect(connectorFailureOf(never, 'x', 'x.y').reason).toBe(
+      'CONNECTOR_UNREACHABLE',
+    );
   });
 });
 

@@ -246,6 +246,25 @@ export function reasonFamily(reason: string, params?: FailureParams): string {
 }
 
 /**
+ * The HTTP status a connector's vendor answered: an integer from 100 to 599,
+ * which an error a connector's code throws carries as `status` and the
+ * dispatcher's refusal that hands it on as `vendorStatus`. Any other value
+ * there (a body's `0` for an answer it never got) names no answer.
+ */
+export function vendorStatusOf(error: unknown): number | undefined {
+  if (typeof error !== 'object' || error === null) return undefined;
+  const status =
+    ('vendorStatus' in error ? error.vendorStatus : undefined) ??
+    ('status' in error ? error.status : undefined);
+  return typeof status === 'number' &&
+    Number.isInteger(status) &&
+    status >= 100 &&
+    status <= 599
+    ? status
+    : undefined;
+}
+
+/**
  * The cause of a connector call that failed: refused credentials, a missing
  * resource or a rate limit by the status the connector answered, a network
  * that never answered, or any other failure, which keeps the class of what
@@ -258,13 +277,7 @@ export function connectorFailureOf(
   action: string,
   thrown: unknown = error,
 ): FailureCause {
-  const status =
-    typeof error === 'object' &&
-    error !== null &&
-    'status' in error &&
-    typeof error.status === 'number'
-      ? error.status
-      : undefined;
+  const status = vendorStatusOf(error);
   const message = error instanceof Error ? error.message : String(error);
   const params = { connector, action };
   if (status === 401 || status === 403) {

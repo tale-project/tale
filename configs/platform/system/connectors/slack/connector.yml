@@ -62,7 +62,7 @@ actions:
         const body = { limit: Math.min(Number(input.limit) || 100, 200) };
         for (const k of ['cursor', 'types']) if (input[k] != null && input[k] !== '') body[k] = input[k];
         const r = await ctx.http.post('https://slack.com/api/conversations.list', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (!r.status || r.status >= 400) throw new Error(`Slack list_channels failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the bot token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app OAuth scopes' : r.status === 429 ? 'rate limited by Slack — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Slack list_channels failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the bot token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app OAuth scopes' : r.status === 429 ? 'rate limited by Slack — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         if (!j.ok) throw new Error(`Slack list_channels failed: ${j.error || 'unknown error'}`);
         return { channels: j.channels || [], next_cursor: (j.response_metadata && j.response_metadata.next_cursor) || null };
@@ -90,7 +90,7 @@ actions:
       kind: yaml-js
       live: |
         const r = await ctx.http.post('https://slack.com/api/conversations.info', { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'channel=' + encodeURIComponent(String(input.channel)) });
-        if (!r.status || r.status >= 400) throw new Error(`Slack get_channel failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the bot token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app OAuth scopes' : r.status === 429 ? 'rate limited by Slack — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Slack get_channel failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the bot token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app OAuth scopes' : r.status === 429 ? 'rate limited by Slack — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         if (!j.ok) throw new Error(`Slack get_channel failed: ${j.error || 'unknown error'}`);
         return { channel: j.channel };
@@ -134,7 +134,7 @@ actions:
         if (input.oldest != null && input.oldest !== '') body.oldest = String(input.oldest);
         if (input.latest != null && input.latest !== '') body.latest = String(input.latest);
         const r = await ctx.http.post('https://slack.com/api/conversations.history', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (!r.status || r.status >= 400) throw new Error(`Slack list_messages failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the bot token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app OAuth scopes' : r.status === 429 ? 'rate limited by Slack — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Slack list_messages failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the bot token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app OAuth scopes' : r.status === 429 ? 'rate limited by Slack — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         if (!j.ok) throw new Error(`Slack list_messages failed: ${j.error || 'unknown error'}`);
         return { messages: j.messages || [], has_more: !!j.has_more, next_cursor: (j.response_metadata && j.response_metadata.next_cursor) || null };
@@ -178,7 +178,7 @@ actions:
         }
         if (input.thread_ts != null && input.thread_ts !== '') payload.thread_ts = input.thread_ts;
         const r = await ctx.http.post('https://slack.com/api/chat.postMessage', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-        if (!r.status || r.status >= 400) throw new Error(`Slack send_message failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the bot token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app OAuth scopes' : r.status === 429 ? 'rate limited by Slack — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Slack send_message failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the bot token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app OAuth scopes' : r.status === 429 ? 'rate limited by Slack — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         if (!j.ok) throw new Error(`Slack send_message failed: ${j.error || 'unknown error'}`);
         return { channel: j.channel, ts: j.ts };
@@ -210,7 +210,7 @@ actions:
         const body = { limit: Math.min(Number(input.limit) || 100, 200) };
         if (input.cursor != null && input.cursor !== '') body.cursor = input.cursor;
         const r = await ctx.http.post('https://slack.com/api/users.list', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-        if (!r.status || r.status >= 400) throw new Error(`Slack list_users failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the bot token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app OAuth scopes' : r.status === 429 ? 'rate limited by Slack — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Slack list_users failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the bot token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app OAuth scopes' : r.status === 429 ? 'rate limited by Slack — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         if (!j.ok) throw new Error(`Slack list_users failed: ${j.error || 'unknown error'}`);
         return { users: j.members || [], next_cursor: (j.response_metadata && j.response_metadata.next_cursor) || null };
@@ -238,7 +238,7 @@ actions:
       kind: yaml-js
       live: |
         const r = await ctx.http.post('https://slack.com/api/users.info', { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'user=' + encodeURIComponent(String(input.user)) });
-        if (!r.status || r.status >= 400) throw new Error(`Slack get_user failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the bot token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app OAuth scopes' : r.status === 429 ? 'rate limited by Slack — retry later' : r.text()}`);
+        if (!r.status || r.status >= 400) throw Object.assign(new Error(`Slack get_user failed (${r.status}): ${r.status === 401 ? 'authentication rejected — the bot token may be expired, re-authorize' : r.status === 403 ? 'permission denied — check the app OAuth scopes' : r.status === 429 ? 'rate limited by Slack — retry later' : r.text()}`), { status: r.status });
         const j = r.json();
         if (!j.ok) throw new Error(`Slack get_user failed: ${j.error || 'unknown error'}`);
         return { user: j.user };
@@ -280,17 +280,17 @@ actions:
       live: |
         const filename = input.filename || 'file.txt';
         const reserve = await ctx.http.post('https://slack.com/api/files.getUploadURLExternal', { headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'filename=' + encodeURIComponent(filename) + '&length=' + String(input.content).length });
-        if (!reserve.status || reserve.status >= 400) throw new Error(`Slack upload_file failed to reserve an upload URL (${reserve.status}): ${reserve.status === 401 ? 'authentication rejected — the bot token may be expired, re-authorize' : reserve.status === 403 ? 'permission denied — the app needs the files:write scope' : reserve.status === 429 ? 'rate limited by Slack — retry later' : reserve.text()}`);
+        if (!reserve.status || reserve.status >= 400) throw Object.assign(new Error(`Slack upload_file failed to reserve an upload URL (${reserve.status}): ${reserve.status === 401 ? 'authentication rejected — the bot token may be expired, re-authorize' : reserve.status === 403 ? 'permission denied — the app needs the files:write scope' : reserve.status === 429 ? 'rate limited by Slack — retry later' : reserve.text()}`), { status: reserve.status });
         const reserved = reserve.json();
         if (!reserved.ok) throw new Error(`Slack upload_file failed to reserve an upload URL: ${reserved.error || 'unknown error'}`);
         const upload = await ctx.http.post(reserved.upload_url, { headers: { 'Content-Type': 'text/plain' }, body: String(input.content) });
-        if (!upload.status || upload.status >= 400) throw new Error(`Slack upload_file failed to upload the file content (${upload.status}): ${upload.text()}`);
+        if (!upload.status || upload.status >= 400) throw Object.assign(new Error(`Slack upload_file failed to upload the file content (${upload.status}): ${upload.text()}`), { status: upload.status });
         const files = [{ id: reserved.file_id }];
         if (input.title != null && input.title !== '') files[0].title = input.title;
         const completeBody = { files, channel_id: String(input.channels).split(',')[0].trim() };
         if (input.initial_comment != null && input.initial_comment !== '') completeBody.initial_comment = input.initial_comment;
         const complete = await ctx.http.post('https://slack.com/api/files.completeUploadExternal', { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(completeBody) });
-        if (!complete.status || complete.status >= 400) throw new Error(`Slack upload_file failed to complete the upload (${complete.status}): ${complete.text()}`);
+        if (!complete.status || complete.status >= 400) throw Object.assign(new Error(`Slack upload_file failed to complete the upload (${complete.status}): ${complete.text()}`), { status: complete.status });
         const completed = complete.json();
         if (!completed.ok) throw new Error(`Slack upload_file failed to complete the upload: ${completed.error || 'unknown error'}`);
         const file = (completed.files && completed.files[0]) || {};
