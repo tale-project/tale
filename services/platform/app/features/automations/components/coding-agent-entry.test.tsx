@@ -31,6 +31,11 @@ vi.mock('@tanstack/react-router', async () => {
 
 const h = vi.hoisted(() => ({
   access: { signInOn: true } as { signInOn: boolean } | undefined,
+  /** The projects whose names are read, by id, and the ids the dialog asked
+   * to name: the one project a new automation goes into, never every
+   * project (#5204). */
+  projects: new Map<string, { _id: string; name: string }>(),
+  projectIds: [] as string[],
 }));
 
 vi.mock('@/lib/site-url-context', () => ({
@@ -38,6 +43,12 @@ vi.mock('@/lib/site-url-context', () => ({
 }));
 vi.mock('@/app/features/coding-agent/hooks/use-new-connection', () => ({
   useNewConnection: () => ({ state: 'waiting' }),
+}));
+vi.mock('@/app/features/projects/hooks/queries', () => ({
+  useNamedProjects: (_organizationId: string, ids: readonly string[]) => {
+    h.projectIds = [...ids];
+    return { projects: h.projects, isPending: false };
+  },
 }));
 vi.mock(
   '@/app/features/settings/agent-connections/hooks/queries',
@@ -57,6 +68,8 @@ import {
 
 beforeEach(() => {
   h.access = { signInOn: true };
+  h.projects = new Map();
+  h.projectIds = [];
 });
 
 /**
@@ -274,6 +287,9 @@ describe('CodingAgentDialog for a new automation', () => {
     expect(
       within(dialog).getByText(/Replace the part in brackets/),
     ).toBeVisible();
+    // From the organization's list it names no project and reads none.
+    expect(within(dialog).queryByText(/projectId/)).not.toBeInTheDocument();
+    expect(h.projectIds).toEqual([]);
     await checkAccessibility(dialog);
   });
 
@@ -287,6 +303,9 @@ describe('CodingAgentDialog for a new automation', () => {
       within(dialog).queryByRole('button', { name: /Name of this automation/ }),
     ).not.toBeInTheDocument();
     expect(
+      within(dialog).queryByRole('button', { name: /ID of this project/ }),
+    ).not.toBeInTheDocument();
+    expect(
       within(dialog).getByRole('link', { name: 'Set up MCP' }),
     ).toHaveAttribute('href', '/dashboard/org-1/settings/api/mcp');
     expect(
@@ -294,6 +313,93 @@ describe('CodingAgentDialog for a new automation', () => {
         name: 'How to connect a coding agent',
       }),
     ).toBeVisible();
+    expect(
+      within(dialog).queryByText('claude mcp login tale'),
+    ).not.toBeInTheDocument();
+    await checkAccessibility(dialog);
+  });
+});
+
+/**
+ * From a project's own list, a new automation goes into that project, as it
+ * does from a template, blank or an upload there: the prompt names the
+ * project for the person who reads it and hands the agent its ID, which
+ * save_automation installs the automation in.
+ */
+describe('CodingAgentDialog for a new automation in a project', () => {
+  function renderCreateInProject() {
+    return render(
+      <CodingAgentDialog
+        open
+        onOpenChange={() => {}}
+        organizationId="org-1"
+        context={{ kind: 'create', projectId: 'k57project' }}
+      />,
+    );
+  }
+
+  it('asks the agent to install it in the project, named and by its ID', async () => {
+    h.projects = new Map([
+      ['k57project', { _id: 'k57project', name: 'Website relaunch' }],
+    ]);
+    renderCreateInProject();
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Create with your coding agent',
+    });
+    expect(
+      within(dialog).getByText(
+        /Create a new automation in the project "Website relaunch"\./,
+      ),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByText(
+        /save it with save_automation, create set to true and projectId set to k57project, which installs it in that project\./,
+      ),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByText('[Describe what it should do.]'),
+    ).toBeVisible();
+    // That project alone is read, never every project (#5204).
+    expect(h.projectIds).toEqual(['k57project']);
+    await checkAccessibility(dialog);
+  });
+
+  it('names the project by its ID alone while its name is not read', async () => {
+    renderCreateInProject();
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Create with your coding agent',
+    });
+    expect(
+      within(dialog).getByText(
+        /Create a new automation in the project with the ID k57project\./,
+      ),
+    ).toBeVisible();
+    expect(
+      within(dialog).getByText(/projectId set to k57project/),
+    ).toBeVisible();
+  });
+
+  it("offers the project's ID to copy while agents may not sign in", async () => {
+    h.access = { signInOn: false };
+    h.projects = new Map([
+      ['k57project', { _id: 'k57project', name: 'Website relaunch' }],
+    ]);
+    renderCreateInProject();
+    const dialog = await screen.findByRole('dialog', {
+      name: 'Create with your coding agent',
+    });
+    // The ID to hand an agent that holds a key, copied with one press.
+    expect(
+      within(dialog).getByRole('button', {
+        name: 'ID of this project k57project',
+      }),
+    ).toBeVisible();
+    expect(
+      within(dialog).queryByRole('button', { name: /Name of this automation/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByRole('link', { name: 'Set up MCP' }),
+    ).toHaveAttribute('href', '/dashboard/org-1/settings/api/mcp');
     expect(
       within(dialog).queryByText('claude mcp login tale'),
     ).not.toBeInTheDocument();
