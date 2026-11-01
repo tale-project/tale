@@ -45,10 +45,7 @@ import { authRequestCache } from './request-cache.ts';
  * same policy reads the sweep makes, so the two agree on who is covered.
  * The member rows come through the process's cache where one runs.
  */
-export async function userUnderIdleWindow(
-  sql: Sql,
-  userId: string,
-): Promise<boolean> {
+async function userUnderIdleWindow(sql: Sql, userId: string): Promise<boolean> {
   const cache = authRequestCache();
   const read = async () => readUserMemberRows(sql, userId);
   const rows =

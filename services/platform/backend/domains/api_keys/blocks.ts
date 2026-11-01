@@ -36,8 +36,8 @@ import { type ApiKeyActor, ApiKeyError } from './service.ts';
 type Db = Sql | TransactionSql;
 
 /** The bell rows a holder gets when one of their keys is blocked or freed. */
-export const API_KEY_BLOCKED_NOTIFICATION_TYPE = 'api_key_blocked';
-export const API_KEY_UNBLOCKED_NOTIFICATION_TYPE = 'api_key_unblocked';
+const API_KEY_BLOCKED_NOTIFICATION_TYPE = 'api_key_blocked';
+const API_KEY_UNBLOCKED_NOTIFICATION_TYPE = 'api_key_unblocked';
 
 /** A member's own key, as an Owner or Admin sees it on the member's row. */
 export interface MemberPersonalApiKey {
