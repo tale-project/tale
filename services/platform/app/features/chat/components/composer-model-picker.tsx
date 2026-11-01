@@ -57,6 +57,25 @@ export function autoAvailable(models: readonly ComposerModelOption[]): boolean {
 }
 
 /**
+ * Whether the listing still serves a pick: a row with its id under its own
+ * provider — the row the picker shows checked — or, for a pick made before
+ * providers were part of it, any row with its id. Another provider listing
+ * the same id does not count: it is another wire with another key, and a
+ * turn sent on the pick's own provider is refused.
+ */
+export function listsPick(
+  models: readonly ComposerModelOption[],
+  modelId: string,
+  providerSlug: string | undefined,
+): boolean {
+  return models.some(
+    (model) =>
+      model.id === modelId &&
+      (providerSlug === undefined || model.providerSlug === providerSlug),
+  );
+}
+
+/**
  * Seed the platform agent's model once the listing arrives: the user's saved
  * pick when it is still listed, else Auto (the default — the server picks
  * per message) when the catalog offers a real choice, else the single
