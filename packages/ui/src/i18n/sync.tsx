@@ -1,5 +1,6 @@
 'use client';
 
+import type { i18n as I18nInstance } from 'i18next';
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 
@@ -19,6 +20,19 @@ export interface LocaleSyncState {
    * when its messages did not load, the one it showed before.
    */
   readonly shownLocale: string;
+}
+
+/**
+ * Whether switching `i18n` to `locale` shows it at once: its messages are
+ * in, or the instance shows it already, as when a session went ahead before
+ * every topic had landed (a first frame waits for them only so long): those
+ * still on their way read English until they land.
+ */
+export function isLocaleShownAtOnce(
+  i18n: I18nInstance,
+  locale: string,
+): boolean {
+  return i18n.language === locale || isLocaleLoaded(i18n, locale);
 }
 
 interface LocaleSyncProps {
@@ -57,10 +71,13 @@ interface LocaleSyncProps {
  *
  * A locale whose messages the service fetches on first use (`lazyBundles`,
  * or per topic with `topics`) is switched to once they have landed, so every
- * reader re-renders with its words present; until then the page stays in the
- * language it shows, and so does `<html lang>`. `onStateChange` hears where
- * the switch stands, so a language picker can mark the language the page
- * shows rather than the one it waits for.
+ * reader re-renders with its words present (per topic, once each has landed
+ * or failed: one that failed reads English until a retry brings it); until
+ * then the page stays in the language it shows, and so does `<html lang>`.
+ * A locale the instance shows already is shown at once, `<html lang>`
+ * included, whatever is still on its way (`isLocaleShownAtOnce`).
+ * `onStateChange` hears where the switch stands, so a language picker can
+ * mark the language the page shows rather than the one it waits for.
  */
 export function LocaleSync({
   locale,
@@ -80,21 +97,21 @@ export function LocaleSync({
       }
       report.current?.({ locale, status: 'shown', shownLocale: locale });
     };
-    const loaded = isLocaleLoaded(i18n, locale);
+    const atOnce = isLocaleShownAtOnce(i18n, locale);
     let current = true;
     // Asked for even when its messages are in: a switch still fetching
     // another language is then given up, and the pages loaded next no
     // longer fetch or wait for it.
     loadLocale(i18n, locale).then(
       () => {
-        if (current && !loaded) show();
+        if (current && !atOnce) show();
       },
       (error: unknown) => {
         console.warn(
           `[i18n] the ${locale} messages did not load; the page stays in ${i18n.language}`,
           error,
         );
-        if (current && !loaded) {
+        if (current && !atOnce) {
           report.current?.({
             locale,
             status: 'failed',
@@ -103,7 +120,7 @@ export function LocaleSync({
         }
       },
     );
-    if (loaded) {
+    if (atOnce) {
       show();
     } else {
       report.current?.({

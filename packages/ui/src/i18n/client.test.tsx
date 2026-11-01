@@ -2,11 +2,12 @@ import { act, render, screen } from '@testing-library/react';
 import { createInstance, type i18n as I18nInstance } from 'i18next';
 import { type ReactNode, useMemo } from 'react';
 import { I18nextProvider } from 'react-i18next';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { useT } from './client';
 import { isLocaleLoaded, registerLocaleLoader } from './load-locale';
 import { LocaleSync } from './sync';
+import { attachTopics, registerTopic } from './topics';
 
 async function instance(): Promise<I18nInstance> {
   const i18n = createInstance();
@@ -296,5 +297,34 @@ describe('useT with a language fetched on first use', () => {
     expect(await screen.findByText('Startseite')).toBeInTheDocument();
     expect(i18n.language).toBe('de');
     expect(document.documentElement.lang).toBe('de');
+  });
+});
+
+describe('useT with messages loaded per topic', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    globalThis.__taleMessageTopics = undefined;
+  });
+
+  it('fetches a topic its reader shows before it was fetched, and re-renders the reader once it lands', async () => {
+    const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const i18n = createInstance();
+    await i18n.init({ lng: 'en', fallbackLng: 'en', resources: {} });
+    const homeDe = vi.fn(async () => ({ title: 'Startseite' }));
+    attachTopics(i18n, { lazy: { de: { home: homeDe } } });
+    registerTopic('home', { title: 'Home' });
+    // Switched without `loadLocale`: nothing fetched German before its reader showed.
+    await i18n.changeLanguage('de');
+    expect(homeDe).not.toHaveBeenCalled();
+
+    render(
+      <Provider i18n={i18n}>
+        <Title />
+      </Provider>,
+    );
+
+    expect(await screen.findByText('Startseite')).toBeInTheDocument();
+    expect(homeDe).toHaveBeenCalledTimes(1);
+    expect(debug).toHaveBeenCalledTimes(1);
   });
 });

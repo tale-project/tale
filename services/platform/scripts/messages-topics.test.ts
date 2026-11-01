@@ -6,6 +6,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -19,6 +20,7 @@ import {
   describe,
   expect,
   it,
+  onTestFinished,
   vi,
 } from 'vitest';
 
@@ -244,6 +246,24 @@ describe('resolve', () => {
     gitStops('rebase', 'main');
 
     expect(resolve(messages)).toEqual(['messages/en/chat.yml']);
+
+    expect(read('messages/en/chat.yml')).toMatch(
+      /<<<<<<< main\nretry: Try again\n.*=======\nretry: Resend\n>>>>>>> branch/s,
+    );
+  });
+
+  it('names what it merged from the repository root when reached through a symlink', () => {
+    divergedAcrossTheSplit('Resend');
+    gitStops('rebase', 'main');
+    // As macOS reaches /tmp: git names the real path, the caller the link.
+    const elsewhere = mkdtempSync(join(tmpdir(), 'messages-topics-link-'));
+    onTestFinished(() => {
+      rmSync(elsewhere, { recursive: true, force: true });
+    });
+    const link = join(elsewhere, 'checkout');
+    symlinkSync(root, link);
+
+    expect(resolve(join(link, 'messages'))).toEqual(['messages/en/chat.yml']);
 
     expect(read('messages/en/chat.yml')).toMatch(
       /<<<<<<< main\nretry: Try again\n.*=======\nretry: Resend\n>>>>>>> branch/s,

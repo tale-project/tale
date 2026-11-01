@@ -17,11 +17,16 @@
  * loads beyond the cold load (`LAZY_BUDGETS`) — the editor's packages and
  * nothing more, no other language's grammar, no code built from strings.
  *
+ * What a chunk carries is read from its source map. A chunk whose code no
+ * map shows fails the build, and so do maps that do not name the English
+ * every page reads (`COLD_LOAD_SOURCES`): either way the checks could not
+ * see what they look for.
+ *
  * Usage (from `services/platform`): `bun scripts/check-entry-budget.ts [dist]`
  */
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { gzipSync } from 'node:zlib';
 
 /** Vendor chunks that must never be in the cold-load preload set. */
@@ -108,6 +113,25 @@ export const FORBIDDEN_SOURCES = [
 ];
 
 /**
+ * What the cold load's source maps must name, from the service root, for the
+ * source checks to prove anything: English rides with the modules that read
+ * it, so the topic every page reads is in the cold load. Maps that do not
+ * name it as a file have lost the files the chunks were built from, and a
+ * forbidden source would pass unseen.
+ */
+export const COLD_LOAD_SOURCES = ['messages/en/common.yml'];
+
+/** The bundler's runtime chunk: its own helpers, which no source holds. */
+const BUNDLER_RUNTIME = 'rolldown-runtime-';
+
+/**
+ * What a facade chunk holds: imports and exports of other chunks, and the
+ * topic wait the `messageTopics` plugin appends to a chunk loaded on demand.
+ */
+const FACADE_STATEMENT =
+  /(?:import|export)\s*(?:[\w$*{}\s,]*?\bfrom\s*)?["'][^"']+["'];?|export\s*\{[\w$\s,]*\};?|await globalThis\.__taleMessageTopics\?\.ready\(\[[^\]]*\]\);?/g;
+
+/**
  * The module scripts and modulepreloads of a built index.html, in document
  * order, each once (the entry may be listed as both).
  */
@@ -147,44 +171,114 @@ export function forbiddenPackagesIn(sources: readonly string[]): string[] {
 }
 
 /**
- * The forbidden sources a source map names: its `sources` resolve from the
- * map's folder, the forbidden paths from the service root.
+ * Which of `paths` (from the service root; one ending in `/` names every
+ * file under it) a source map names: its `sources` resolve from the map's
+ * folder.
  */
+function sourcesNamed(
+  sources: readonly string[],
+  mapDir: string,
+  serviceRoot: string,
+  paths: readonly string[],
+): string[] {
+  const named = sources.map((source) => resolve(mapDir, source));
+  return paths.filter((path) => {
+    const wanted = resolve(serviceRoot, path);
+    return path.endsWith('/')
+      ? named.some((source) => source.startsWith(`${wanted}/`))
+      : named.includes(wanted);
+  });
+}
+
+/** The forbidden sources a source map names. */
 export function forbiddenSourcesIn(
   sources: readonly string[],
   mapDir: string,
   serviceRoot: string,
 ): string[] {
-  const named = sources.map((source) => resolve(mapDir, source));
-  return FORBIDDEN_SOURCES.filter((path) => {
-    const forbidden = resolve(serviceRoot, path);
-    return path.endsWith('/')
-      ? named.some((source) => source.startsWith(`${forbidden}/`))
-      : named.includes(forbidden);
-  });
+  return sourcesNamed(sources, mapDir, serviceRoot, FORBIDDEN_SOURCES);
+}
+
+/** The `sources` of a built chunk's source map; none when it has no map. */
+function mapSourcesOf(dist: string, url: string): string[] | undefined {
+  const mapPath = resolve(dist, `${url}.map`);
+  if (!existsSync(mapPath)) return undefined;
+  const map = JSON.parse(readFileSync(mapPath, 'utf8')) as {
+    sources?: string[];
+  };
+  return map.sources ?? [];
+}
+
+/**
+ * Whether a chunk that has no source map holds code of its own, which the
+ * package and source checks then cannot see. The bundler's runtime holds its
+ * own helpers alone, and a facade re-exports other chunks, which are checked
+ * as themselves.
+ */
+function holdsUnmappedCode(url: string, code: string): boolean {
+  if (basename(url).startsWith(BUNDLER_RUNTIME)) return false;
+  return code.replaceAll(FACADE_STATEMENT, '').trim() !== '';
 }
 
 /**
  * Every preloaded chunk that carries a forbidden package or source, with
- * what it carries.
+ * what it carries, as far as the source maps show (`uncheckedContent` says
+ * where they cannot).
  */
 export function findForbiddenContent(dist: string, urls: string[]): string[] {
   const found: string[] = [];
   for (const url of urls) {
-    const mapPath = resolve(dist, `${url}.map`);
-    if (!existsSync(mapPath)) continue;
-    const map = JSON.parse(readFileSync(mapPath, 'utf8')) as {
-      sources?: string[];
-    };
-    const sources = map.sources ?? [];
+    const sources = mapSourcesOf(dist, url);
+    if (sources === undefined) continue;
     for (const name of [
       ...forbiddenPackagesIn(sources),
-      ...forbiddenSourcesIn(sources, dirname(mapPath), resolve(dist, '..')),
+      ...forbiddenSourcesIn(
+        sources,
+        dirname(resolve(dist, url)),
+        resolve(dist, '..'),
+      ),
     ]) {
       found.push(`${url} (${name})`);
     }
   }
   return found;
+}
+
+/**
+ * Why `findForbiddenContent` would prove nothing: a preloaded chunk that
+ * holds code no source map shows, or maps that name none of
+ * `COLD_LOAD_SOURCES`.
+ */
+export function uncheckedContent(
+  dist: string,
+  urls: readonly string[],
+): string[] {
+  const unchecked: string[] = [];
+  const named = new Set<string>();
+  for (const url of urls) {
+    const sources = mapSourcesOf(dist, url);
+    if (sources === undefined) {
+      const code = readFileSync(resolve(dist, url), 'utf8');
+      if (holdsUnmappedCode(url, code)) {
+        unchecked.push(`${url} holds code no source map shows`);
+      }
+      continue;
+    }
+    for (const path of sourcesNamed(
+      sources,
+      dirname(resolve(dist, url)),
+      resolve(dist, '..'),
+      COLD_LOAD_SOURCES,
+    )) {
+      named.add(path);
+    }
+  }
+  for (const path of COLD_LOAD_SOURCES) {
+    if (!named.has(path)) {
+      unchecked.push(`no preloaded chunk's source map names ${path}`);
+    }
+  }
+  return unchecked;
 }
 
 export function gzipTotal(dist: string, urls: string[]): number {
@@ -291,7 +385,8 @@ export interface LazyReport {
  * Hold one lazy chunk to its budget: the chunks its static closure adds to
  * what is loaded by the time it is asked for — the cold load (`preloaded`)
  * and whatever every chunk that imports it brings — their gzip size, the
- * packages their source maps name and the text they hold.
+ * packages their source maps name and the text they hold; a chunk whose
+ * code no map shows is a problem too.
  */
 export function checkLazyChunk(
   dist: string,
@@ -344,12 +439,14 @@ export function checkLazyChunk(
     for (const needle of budget.text) {
       if (text.includes(needle)) problems.push(`${url} holds ${needle}`);
     }
-    const mapPath = resolve(dist, `${url}.map`);
-    if (!existsSync(mapPath)) continue;
-    const map = JSON.parse(readFileSync(mapPath, 'utf8')) as {
-      sources?: string[];
-    };
-    for (const name of packagesIn(map.sources ?? [], budget.packages)) {
+    const sources = mapSourcesOf(dist, url);
+    if (sources === undefined) {
+      if (holdsUnmappedCode(url, text)) {
+        problems.push(`${url} holds code no source map shows`);
+      }
+      continue;
+    }
+    for (const name of packagesIn(sources, budget.packages)) {
       problems.push(`${url} carries ${name}`);
     }
   }
@@ -369,6 +466,7 @@ if (import.meta.main) {
     ...findForbiddenPreloads(urls),
     ...findForbiddenContent(dist, urls),
   ];
+  const unchecked = uncheckedContent(dist, urls);
   const total = gzipTotal(dist, urls);
   console.log(
     `Cold-load JS: ${urls.length} preloaded modules, ${(total / 1024).toFixed(0)} KB gzip`,
@@ -379,6 +477,11 @@ if (import.meta.main) {
       'Chunks that must stay behind a dynamic import are preloaded:',
     );
     for (const url of forbidden) console.error(`  - ${url}`);
+    failed = true;
+  }
+  if (unchecked.length > 0) {
+    console.error('What the cold load carries cannot be checked:');
+    for (const reason of unchecked) console.error(`  - ${reason}`);
     failed = true;
   }
   for (const budget of LAZY_BUDGETS) {

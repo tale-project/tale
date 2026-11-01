@@ -95,8 +95,11 @@ export function isLocaleLoaded(
  * It is the session's switch to `locale`: an instance that loads per topic
  * (`attachTopics`) also fetches the topics that register until the session
  * shows a language, and the chunks loaded meanwhile wait for them, unless
- * the fetch fails or a later call asks for another language. A screen that
- * reads a language beside the session's uses `useLocalesLoad` instead.
+ * not one of its topics loads or a later call asks for another language.
+ * Such an instance resolves once each topic has landed or failed, and
+ * rejects only when not one landed: a topic that failed reads English until
+ * a retry brings it. A screen that reads a language beside the session's
+ * uses `useLocalesLoad` instead.
  */
 export function loadLocale(
   instance: I18nInstance,

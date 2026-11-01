@@ -7,14 +7,44 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   checkLazyChunk,
   dynamicImportersOf,
+  findForbiddenContent,
   findForbiddenPreloads,
   forbiddenPackagesIn,
   forbiddenSourcesIn,
   parsePreloadedScripts,
   staticClosure,
   staticImportsOf,
+  uncheckedContent,
   type LazyBudget,
 } from './check-entry-budget.ts';
+
+const dists: string[] = [];
+afterEach(() => {
+  for (const dist of dists.splice(0)) rmSync(dist, { recursive: true });
+});
+
+/**
+ * A built dist with these chunks and source maps. Its parent stands for the
+ * service root: a map's `../../messages/en/common.yml` names that file.
+ */
+function distWith(files: Record<string, string>): string {
+  const dist = mkdtempSync(join(tmpdir(), 'entry-budget-'));
+  dists.push(dist);
+  mkdirSync(join(dist, 'assets'));
+  for (const [path, text] of Object.entries(files)) {
+    writeFileSync(join(dist, path), text);
+  }
+  return dist;
+}
+
+/** A source map that names these files. */
+function mapOf(...sources: string[]): string {
+  return JSON.stringify({ version: 3, sources, mappings: '' });
+}
+
+/** A facade chunk as the build emits it, with the topic wait of the plugin. */
+const FACADE =
+  'import{t as e}from"./dialog-b2.js";export{e as Dialog};await globalThis.__taleMessageTopics?.ready([`documents`]);';
 
 const HTML = `<!doctype html><html><head>
     <script type="module" crossorigin src="./assets/index-Cahlw_g9.js"></script>
@@ -154,11 +184,21 @@ describe('forbiddenSourcesIn', () => {
   it('names the large English topics the first pages do not read', () => {
     expect(
       forbiddenSourcesIn(
-        ['../../messages/en/settings.yml', '../../messages/en/governance.yml'],
+        [
+          '../../messages/en/settings.yml',
+          '../../messages/en/governance.yml',
+          '../../messages/en/documents.yml',
+          '../../messages/en/projects.yml',
+        ],
         mapDir,
         root,
       ),
-    ).toEqual(['messages/en/settings.yml', 'messages/en/governance.yml']);
+    ).toEqual([
+      'messages/en/settings.yml',
+      'messages/en/governance.yml',
+      'messages/en/documents.yml',
+      'messages/en/projects.yml',
+    ]);
   });
 
   it("names the automation editor's own screens, topics and engine a chunk carries", () => {
@@ -294,23 +334,83 @@ describe('dynamicImportersOf', () => {
   });
 });
 
-describe('checkLazyChunk', () => {
-  const dists: string[] = [];
-  afterEach(() => {
-    for (const dist of dists.splice(0)) rmSync(dist, { recursive: true });
+describe('findForbiddenContent', () => {
+  it('names the forbidden packages and sources the maps of the preloaded chunks show', () => {
+    const dist = distWith({
+      'assets/index-a1.js': 'import"./vendor-core-c3.js";const app=1;',
+      'assets/index-a1.js.map': mapOf(
+        '../../app/main.tsx',
+        '../../messages/en/common.yml',
+        '../../messages/de/common.yml',
+      ),
+      'assets/vendor-core-c3.js': 'const katex=1;',
+      'assets/vendor-core-c3.js.map': mapOf(
+        '../../../../node_modules/katex/dist/katex.mjs',
+      ),
+    });
+    expect(
+      findForbiddenContent(dist, [
+        'assets/index-a1.js',
+        'assets/vendor-core-c3.js',
+      ]),
+    ).toEqual([
+      'assets/index-a1.js (messages/de/)',
+      'assets/vendor-core-c3.js (katex)',
+    ]);
+  });
+});
+
+describe('uncheckedContent', () => {
+  it('passes a cold load whose maps show its code and name the English every page reads, beside the runtime and facades', () => {
+    const dist = distWith({
+      'assets/index-a1.js': 'import"./rolldown-runtime-r0.js";const app=1;',
+      'assets/index-a1.js.map': mapOf(
+        '../../app/main.tsx',
+        '../../messages/en/common.yml',
+      ),
+      'assets/rolldown-runtime-r0.js': 'var e=Object.defineProperty;',
+      'assets/dialog-a2.js': FACADE,
+    });
+    expect(
+      uncheckedContent(dist, [
+        'assets/index-a1.js',
+        'assets/rolldown-runtime-r0.js',
+        'assets/dialog-a2.js',
+      ]),
+    ).toEqual([]);
   });
 
-  /** A built dist with these chunks and source maps. */
-  function distWith(files: Record<string, string>): string {
-    const dist = mkdtempSync(join(tmpdir(), 'entry-budget-'));
-    dists.push(dist);
-    mkdirSync(join(dist, 'assets'));
-    for (const [path, text] of Object.entries(files)) {
-      writeFileSync(join(dist, path), text);
-    }
-    return dist;
-  }
+  it('names a preloaded chunk whose code no source map shows', () => {
+    const dist = distWith({
+      'assets/index-a1.js': 'const app=1;',
+      'assets/index-a1.js.map': mapOf('../../messages/en/common.yml'),
+      'assets/vendor-core-c3.js': 'const katex=1;',
+    });
+    expect(
+      uncheckedContent(dist, [
+        'assets/index-a1.js',
+        'assets/vendor-core-c3.js',
+      ]),
+    ).toEqual(['assets/vendor-core-c3.js holds code no source map shows']);
+  });
 
+  it('says so when no map names the English every page reads', () => {
+    // As when the topics are built to code first: the maps name what was
+    // built from them, and a forbidden topic would pass unseen.
+    const dist = distWith({
+      'assets/index-a1.js': 'const app=1;',
+      'assets/index-a1.js.map': mapOf(
+        '../../app/main.tsx',
+        '../../messages/en/common.js',
+      ),
+    });
+    expect(uncheckedContent(dist, ['assets/index-a1.js'])).toEqual([
+      "no preloaded chunk's source map names messages/en/common.yml",
+    ]);
+  });
+});
+
+describe('checkLazyChunk', () => {
   const budget: LazyBudget = {
     name: 'code-editor-view',
     maxGzip: 2048,
@@ -328,6 +428,9 @@ describe('checkLazyChunk', () => {
       'assets/code-editor-view-a1.js':
         'import"./vendor-codemirror-b2.js";import"./vendor-core-c3.js";import"./helpers-e5.js";',
       'assets/vendor-codemirror-b2.js': 'export const view=1;',
+      'assets/vendor-codemirror-b2.js.map': mapOf(
+        '../../../../node_modules/@codemirror/view/dist/index.js',
+      ),
       'assets/vendor-core-c3.js': 'export const react=1;',
     });
     const report = checkLazyChunk(dist, ['assets/vendor-core-c3.js'], budget);
@@ -343,12 +446,13 @@ describe('checkLazyChunk', () => {
     const big = Array.from({ length: 4000 }, (_, index) => `v${index * 7919}`);
     const dist = distWith({
       'assets/code-editor-view-a1.js': `import"./vendor-codemirror-b2.js";const x=${JSON.stringify(big)};`,
+      'assets/code-editor-view-a1.js.map': mapOf(
+        '../../../../packages/ui/src/components/forms/code-editor/code-editor-view.tsx',
+      ),
       'assets/vendor-codemirror-b2.js': 'const f=new Function("return 1");',
-      'assets/vendor-codemirror-b2.js.map': JSON.stringify({
-        sources: [
-          '../../../../node_modules/@codemirror/language-data/dist/index.js',
-        ],
-      }),
+      'assets/vendor-codemirror-b2.js.map': mapOf(
+        '../../../../node_modules/@codemirror/language-data/dist/index.js',
+      ),
     });
     const { problems } = checkLazyChunk(dist, [], budget);
     expect(problems).toHaveLength(3);
@@ -359,6 +463,19 @@ describe('checkLazyChunk', () => {
     expect(problems).toContain(
       'assets/vendor-codemirror-b2.js carries @codemirror/language-data',
     );
+  });
+
+  it('names a chunk whose code no source map shows, and passes the runtime and facades', () => {
+    const dist = distWith({
+      'assets/code-editor-view-a1.js': `import"./rolldown-runtime-r0.js";import"./dialog-a2.js";${FACADE}`,
+      'assets/rolldown-runtime-r0.js': 'var e=Object.defineProperty;',
+      'assets/dialog-a2.js': FACADE,
+      'assets/dialog-b2.js': 'export const t=()=>eval("1");',
+    });
+    expect(checkLazyChunk(dist, [], budget).problems).toEqual([
+      'assets/dialog-b2.js holds eval(',
+      'assets/dialog-b2.js holds code no source map shows',
+    ]);
   });
 
   it('says so when the chunk was not built', () => {

@@ -62,22 +62,56 @@ describe('topicsNamedIn', () => {
   });
 });
 
+/** The lines of a module's source whose namespace no literal names. */
+function unnamedLines(lines: readonly string[]): number[] {
+  const code = lines.join('\n');
+  return unnamedNamespaceReads(parseAst(code, { lang: 'tsx' })).map(
+    (offset) => code.slice(0, offset).split('\n').length,
+  );
+}
+
 describe('unnamedNamespaceReads', () => {
   it('finds the reads whose namespace no literal names', () => {
-    const code = [
-      `useT('tasks');`,
-      `useT(namespace);`,
-      `useT(admin ? 'settings' : 'chat');`,
-      `i18n.getFixedT(locale, ns)('x');`,
-      `i18n.t('x', { ns: 'chat' });`,
-      `i18n.t('x', { ns: area });`,
-      `useT(extra[0] ?? 'common');`,
-    ].join('\n');
-    const lines = unnamedNamespaceReads(parseAst(code)).map(
-      (offset) => code.slice(0, offset).split('\n').length,
-    );
+    expect(
+      unnamedLines([
+        `useT('tasks');`,
+        `useT(namespace);`,
+        `useT(admin ? 'settings' : 'chat');`,
+        `i18n.getFixedT(locale, ns)('x');`,
+        `i18n.t('x', { ns: 'chat' });`,
+        `i18n.t('x', { ns: area });`,
+        `useT(extra[0] ?? 'common');`,
+      ]),
+    ).toEqual([2, 4, 6, 7]);
+  });
 
-    expect(lines).toEqual([2, 4, 6, 7]);
+  it('looks wherever the plugin reads a namespace', () => {
+    expect(
+      unnamedLines([
+        `useTableConfig({ entityNamespace: 'tasks' });`,
+        `useTableConfig({ entityNamespace: kind });`,
+        `useTableConfig({ additionalNamespaces: ['common', extra] });`,
+        `const named = <Trans ns="tasks" i18nKey="title" />;`,
+        `const handed = <Trans ns={area} i18nKey="title" />;`,
+        `const panel = <Panel namespace={admin ? 'settings' : 'chat'} />;`,
+        't(`tasks:status.${id}`);',
+        'tCommon(`${ns}:actions.save`);',
+        `i18n.t(area + ':title');`,
+        'tSettings(`${section}.title`);',
+      ]),
+    ).toEqual([2, 3, 5, 8, 9]);
+  });
+
+  it('leaves alone what reads no namespace', () => {
+    expect(
+      unnamedLines([
+        `const { namespace, ns = 'chat' } = parsed;`,
+        `function open({ entityNamespace }) {}`,
+        'const lockKey = `${slug}:${path}`;',
+        `const map = { [ns]: 'x' };`,
+        `interface Props { namespace: string }`,
+      ]),
+    ).toEqual([]);
   });
 });
 
