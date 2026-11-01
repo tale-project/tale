@@ -147,14 +147,34 @@ for (const [label, executable] of modes)
         join(tmpdir(), 'tale-provision-confirm-'),
       );
       try {
+        const unconfirmed = envelope(
+          await run(executable, ['--json'], JSON.stringify(input), directory),
+          4,
+        );
+        expect(unconfirmed.ok).toBe(false);
+        expect(unconfirmed.error.code).toBe(4);
+        expect(unconfirmed.error.summary).toContain('--yes');
+      } finally {
+        await rm(directory, { recursive: true, force: true });
+      }
+    });
+
+    test('names --yes when it refuses without one, since stdin carries its input', async () => {
+      const directory = await mkdtemp(
+        join(tmpdir(), 'tale-provision-confirm-'),
+      );
+      try {
         const unconfirmed = await run(
           executable,
-          ['--json'],
+          [],
           JSON.stringify(input),
           directory,
         );
         expect(unconfirmed.code).toBe(4);
-        expect(unconfirmed.stdout + unconfirmed.stderr).toBe('');
+        expect(unconfirmed.stdout + unconfirmed.stderr).toContain('--yes');
+        expect(unconfirmed.stdout + unconfirmed.stderr).not.toContain(
+          'Aborted.',
+        );
       } finally {
         await rm(directory, { recursive: true, force: true });
       }
