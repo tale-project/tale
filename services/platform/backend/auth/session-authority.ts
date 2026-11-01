@@ -10,6 +10,7 @@ import {
 import { SESSION_FRESH_AGE_SECONDS } from '../../lib/shared/constants/session-freshness.ts';
 import { isRecord } from '../../lib/utils/type-utils.ts';
 import { readApiKeyOwner } from '../domains/api_keys/owners.ts';
+import { stampSessionUse } from './session-use.ts';
 import type { AuthEnv, SessionBundle } from './session.ts';
 
 /** An operator fence, never a request value. The empty value keeps legacy
@@ -334,7 +335,8 @@ export function requireGlobalSession<
 
 /** A cached profile is useful; a cached authority marker is not sufficient.
  * Resolve the current persisted browser row (or the real key owner), on
- * every authorization. Never write or erase the row on a refusal. */
+ * every authorization. Never write or erase the row on a refusal; on an
+ * acceptance, record the use on it (`session-use.ts`). */
 export async function resolveSessionAuthority<T extends SessionBundle>(
   sql: Sql | TransactionSql,
   bundle: T,
@@ -349,13 +351,14 @@ export async function resolveSessionAuthority<T extends SessionBundle>(
       activeTeamId: string | null;
       activeTeamOrganizationId: string | null;
       independentIdentityVerifiedAt: Date | null;
+      updatedAt: Date;
       live: boolean;
       refused: boolean;
     }[]
   >`
     SELECT s."userId", s."trustedOrganizationId", s."trustedRole", s."activeOrganizationId",
       s."activeTeamId", t."organizationId" AS "activeTeamOrganizationId",
-      s."independentIdentityVerifiedAt", (s."expiresAt" > now()) AS live,
+      s."independentIdentityVerifiedAt", s."updatedAt", (s."expiresAt" > now()) AS live,
       (r.session_id IS NOT NULL) AS refused
     FROM "session" s LEFT JOIN app.auth_legacy_session_refusals r
       ON r.session_id = s."id" AND r.user_id = s."userId"
@@ -387,6 +390,9 @@ export async function resolveSessionAuthority<T extends SessionBundle>(
       },
     };
     if (sessionOrganizationId(current.session) === undefined) return null;
+    // The idle sweep reads the row's `updatedAt` as its last use, and Better
+    // Auth's refresh alone never writes it for a long-lived row (#5249).
+    await stampSessionUse(sql, bundle.session.id, row.updatedAt);
     return current;
   }
 

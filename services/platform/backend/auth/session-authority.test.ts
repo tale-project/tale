@@ -2,7 +2,7 @@
 
 import { Hono } from 'hono';
 import type { Sql } from 'postgres';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   authorizeScopedAuthEndpoint,
@@ -114,6 +114,7 @@ describe('the production persisted authority adapter', () => {
           activeTeamOrganizationId: teamRealm,
           trustedRole: null,
           independentIdentityVerifiedAt: null,
+          updatedAt: new Date(),
           live: true,
           refused: false,
         },
@@ -136,6 +137,7 @@ describe('the production persisted authority adapter', () => {
         trustedRole: 'member',
         activeOrganizationId: 'org-b',
         independentIdentityVerifiedAt: null,
+        updatedAt: new Date(),
         live: true,
       },
     ]);
@@ -175,6 +177,7 @@ describe('the production persisted authority adapter', () => {
               trustedRole: null,
               independentIdentityVerifiedAt: null,
               activeOrganizationId: 'org-a',
+              updatedAt: new Date(),
               live: true,
               refused: true,
             },
@@ -195,6 +198,7 @@ describe('the production persisted authority adapter', () => {
         trustedRole: null,
         independentIdentityVerifiedAt: new Date(0),
         activeOrganizationId: 'org-a',
+        updatedAt: new Date(),
         live: true,
       },
     ]);
@@ -252,6 +256,123 @@ describe('the production persisted authority adapter', () => {
       independentIdentityVerifiedAt: null,
     });
     expect(current?.user.id).toBe('user-a');
+  });
+});
+
+describe('every authorization records the use the idle sweep reads', () => {
+  const NOW = Date.parse('2026-11-01T12:00:00Z');
+  const MINUTE = 60_000;
+  const row = (fields: object = {}) => ({
+    userId: 'user-a',
+    trustedOrganizationId: 'org-a',
+    trustedRole: null,
+    activeOrganizationId: 'org-a',
+    activeTeamId: null,
+    activeTeamOrganizationId: null,
+    independentIdentityVerifiedAt: null,
+    updatedAt: new Date(NOW - 10 * MINUTE),
+    live: true,
+    refused: false,
+    ...fields,
+  });
+  const writes = (queries: { text: string; values: unknown[] }[]) =>
+    queries.filter((query) => !query.text.trimStart().startsWith('SELECT'));
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(NOW);
+    vi.stubEnv('SESSION_IDLE_TIMEOUT_MINUTES', '');
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
+  });
+
+  // The row an organization's single sign-on mints lives 30 days against
+  // Better Auth's 7, so Better Auth first slides it some 23 days on; until
+  // then the sweep read its sign-in as its last use (#5249).
+  it('records the use of a single sign-on session, and never its expiry [SSO-R23]', async () => {
+    const { sql, queries } = database((text) =>
+      text.includes('FROM "session" s') ? [row()] : [],
+    );
+
+    const current = await resolveSessionAuthority(sql, bundle(), null);
+
+    expect(current?.session).toMatchObject({ trustedOrganizationId: 'org-a' });
+    expect(writes(queries)).toHaveLength(1);
+    const [write] = writes(queries);
+    expect(write?.text).toContain('UPDATE "session" SET "updatedAt" = ?');
+    expect(write?.text).not.toContain('expiresAt');
+    // Conditional: of two requests in the same minute, one writes.
+    expect(write?.text).toContain('"updatedAt" <= ?');
+    expect(write?.values).toEqual([
+      new Date(NOW),
+      'session-a',
+      new Date(NOW - MINUTE),
+    ]);
+  });
+
+  it('records a "don\'t remember me" session\'s use as well, which Better Auth never slides', async () => {
+    const { sql, queries } = database((text) =>
+      text.includes('FROM "session" s')
+        ? [row({ trustedOrganizationId: null, activeOrganizationId: null })]
+        : [],
+    );
+
+    expect(await resolveSessionAuthority(sql, bundle(), null)).not.toBeNull();
+    expect(writes(queries)).toHaveLength(1);
+  });
+
+  it('writes nothing for a use recorded within the minute', async () => {
+    const { sql, queries } = database(() => [
+      row({ updatedAt: new Date(NOW - MINUTE + 1_000) }),
+    ]);
+
+    expect(await resolveSessionAuthority(sql, bundle(), null)).not.toBeNull();
+    expect(queries).toHaveLength(1);
+  });
+
+  it.each([
+    ["another person's row", { userId: 'someone-else' }, null],
+    ['an expired row', { live: false }, null],
+    ['a legacy row refused after the cutover', { refused: true }, 0],
+    [
+      'a malformed organization binding',
+      { trustedOrganizationId: ' org-a' },
+      null,
+    ],
+  ])('records no use on a refusal: %s', async (_name, fields, cutoverAt) => {
+    const { sql, queries } = database(() => [row(fields)]);
+
+    expect(await resolveSessionAuthority(sql, bundle(), cutoverAt)).toBeNull();
+    expect(writes(queries)).toEqual([]);
+  });
+
+  it('records no use for an API key, which has no browser row', async () => {
+    const { sql, queries } = database((text) =>
+      text.includes('FROM "apikey"') ? [{ userId: 'user-a' }] : [],
+    );
+
+    expect(await resolveSessionAuthority(sql, bundle(), null)).toMatchObject({
+      session: { authenticationDoor: 'api-key' },
+    });
+    expect(writes(queries)).toEqual([]);
+  });
+
+  it('keeps the request authorized when the write fails, and says so', async () => {
+    const failure = new Error('the write was refused');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { sql } = database((text) => {
+      if (text.trimStart().startsWith('UPDATE')) throw failure;
+      return [row()];
+    });
+
+    expect(await resolveSessionAuthority(sql, bundle(), null)).not.toBeNull();
+    expect(warn).toHaveBeenCalledWith(
+      '[session-use] could not record a session use:',
+      failure,
+    );
   });
 });
 
