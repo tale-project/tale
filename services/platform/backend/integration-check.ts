@@ -18283,7 +18283,7 @@ async function checkMcpEras(
   const { MCP_TOOLS } = await import('../lib/mcp/tools.ts');
   const MODERN = '2026-07-28';
   const CLIENT = 'itest-modern-agent';
-  const minted = z.looseObject({ key: z.string() }).safeParse(
+  const minted = z.looseObject({ id: z.string(), key: z.string() }).safeParse(
     await (
       await fetch(`${base}/api/auth/api-key/create`, {
         method: 'POST',
@@ -18293,6 +18293,9 @@ async function checkMcpEras(
     ).json(),
   );
   const apiKey = minted.success ? minted.data.key : '';
+  // The person's other lanes count their MCP calls under keys of their own:
+  // the activity reads below take this key's rows alone.
+  const keyId = minted.success ? minted.data.id : '';
   const door = {
     authorization: `Bearer ${apiKey}`,
     'x-organization-slug': orgSlug,
@@ -18461,7 +18464,7 @@ async function checkMcpEras(
     const legacyInitRow = await sql<{ clientName: string | null }[]>`
       SELECT client_name AS "clientName" FROM app.mcp_client_activity
       WHERE org_id = ${orgId} AND user_id = ${userId}
-        AND method = 'initialize'
+        AND credential_id = ${keyId} AND method = 'initialize'
     `;
     const saved = await modern('tools/call', {
       name: 'save_automation',
@@ -18610,6 +18613,7 @@ async function checkMcpEras(
     const counted = await sql<{ method: string; clientName: string | null }[]>`
       SELECT method, client_name AS "clientName" FROM app.mcp_client_activity
       WHERE org_id = ${orgId} AND user_id = ${userId}
+        AND credential_id = ${keyId}
         AND method IN ('server/discover', 'initialize')
     `;
     record(
