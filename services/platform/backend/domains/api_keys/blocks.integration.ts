@@ -41,7 +41,8 @@ const memberKeysSchema = z.looseObject({
  * refuses it there with `API_KEY_BLOCKED` while it still opens the
  * developer's second organization; the block is one audit row, the holder
  * is told and sees it marked in their own list, and the lift lets the key
- * in again.
+ * in again. The Owner's list of every key leaves the blocked key out while
+ * it lists the holder's other one, and lists it again after the lift.
  *
  * `ctx` is the suite's owner. The lane makes its own holder and second
  * organization, and deletes the second organization's rows at the end.
@@ -66,23 +67,29 @@ export async function checkApiKeyOrgBlocks(
     INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
     VALUES (${randomUUID()}, ${orgId}, ${holder.userId}, 'developer', ${new Date()})
   `;
-  const minted = createdSchema.safeParse(
-    await (
-      await fetch(`${base}/api/auth/api-key/create`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          cookie: holder.cookie,
-          origin: base,
-        },
-        body: JSON.stringify({ name: `itest-key-block-${suffix}` }),
-      })
-    )
-      .json()
-      .catch(() => null),
-  );
+  const mint = async (name: string) =>
+    createdSchema.safeParse(
+      await (
+        await fetch(`${base}/api/auth/api-key/create`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            cookie: holder.cookie,
+            origin: base,
+          },
+          body: JSON.stringify({ name }),
+        })
+      )
+        .json()
+        .catch(() => null),
+    );
+  const minted = await mint(`itest-key-block-${suffix}`);
   const key = minted.success ? minted.data.key : '';
   const keyId = minted.success ? minted.data.id : '';
+  // A second key of the holder's own that is never blocked: the Owner's
+  // list of every key keeps it while the first one is blocked (APIKEY-R8).
+  const spare = await mint(`itest-key-spare-${suffix}`);
+  const spareId = spare.success ? spare.data.id : '';
   const otherOrgId = `itest-key-block-${suffix}`;
   await sql`
     INSERT INTO "organization" ("id", "name", "slug", "createdAt")
@@ -118,6 +125,20 @@ export async function checkApiKeyOrgBlocks(
         body: parsed.success ? parsed.data : null,
       };
     };
+    // The ids the Owner's list of every key that works here shows
+    // (APIKEY-R8), or null when it cannot be read.
+    const allKeys = async () => {
+      const parsed = listedSchema.safeParse(
+        await (
+          await fetch(`${base}/api/app/api-keys?orgId=${orgId}&scope=all`, {
+            headers: { cookie: ctx.cookie, origin: base },
+          })
+        )
+          .json()
+          .catch(() => null),
+      );
+      return parsed.success ? parsed.data.keys.map((k) => k.id) : null;
+    };
     const audits = () =>
       sql<{ action: string; actorId: string | null; state: unknown }[]>`
       SELECT action, actor_id AS "actorId",
@@ -130,6 +151,7 @@ export async function checkApiKeyOrgBlocks(
     `;
 
     const before = await me(orgSlug);
+    const allBefore = await allKeys();
     const blocked = await appDoor('PUT', `/api-keys/${keyId}/block`);
     const here = await me(orgSlug);
     const elsewhere = await me(otherOrgId);
@@ -178,6 +200,7 @@ export async function checkApiKeyOrgBlocks(
         .json()
         .catch(() => null),
     );
+    const allBlocked = await allKeys();
     const trail = await audits();
     record(
       'api key blocks: a block is one audit row by the masked key, the holder is told once and sees it marked',
@@ -204,6 +227,7 @@ export async function checkApiKeyOrgBlocks(
 
     const lifted = await appDoor('DELETE', `/api-keys/${keyId}/block`);
     const after = await me(orgSlug);
+    const allLifted = await allKeys();
     const liftTrail = await audits();
     const liftNotices = await sql<{ count: number }[]>`
       SELECT count(*)::int AS count FROM app.user_notifications
@@ -218,6 +242,23 @@ export async function checkApiKeyOrgBlocks(
           'api_key.blocked,api_key.unblocked' &&
         liftNotices[0]?.count === 1,
       `lift=${lifted.status} after=${after.status} trail=${JSON.stringify(liftTrail.map((row) => row.action))} notices=${liftNotices[0]?.count ?? 0}`,
+    );
+
+    // Whether a list shows the blocked key and the spare one.
+    const seen = (ids: string[] | null) =>
+      ids
+        ? `${String(ids.includes(keyId))}/${String(ids.includes(spareId))}`
+        : 'unreadable';
+    record(
+      'api key blocks: every key leaves out a member’s own key while it is blocked here, keeps their other one, and lists it again once lifted',
+      (allBefore?.includes(keyId) ?? false) &&
+        (allBefore?.includes(spareId) ?? false) &&
+        !(allBlocked?.includes(keyId) ?? true) &&
+        (allBlocked?.includes(spareId) ?? false) &&
+        ownList.success &&
+        ownList.data.keys.some((k) => k.id === keyId && k.blockedHere) &&
+        (allLifted?.includes(keyId) ?? false),
+      `before=${seen(allBefore)} blocked=${seen(allBlocked)} lifted=${seen(allLifted)} ownList=${ownList.success ? String(ownList.data.keys.some((k) => k.id === keyId && k.blockedHere)) : 'unreadable'}`,
     );
   } finally {
     await sql`DELETE FROM app.api_key_org_blocks WHERE api_key_id = ${keyId}`;

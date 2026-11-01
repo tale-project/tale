@@ -1291,6 +1291,7 @@ apiKeys:
     actsAs: Handelt als {role}
     madeBy: Erstellt von {name}
     blockedHere: In dieser Organisation blockiert
+    personal: Persönlicher Schlüssel
   memberKeys:
     action: Persönliche API-Schlüssel
     title: Persönliche API-Schlüssel von {name}
@@ -1376,6 +1377,14 @@ apiKeys:
     roleHint: Die Rolle des Schlüssels in dieser Organisation. Sie kann nicht höher sein als deine eigene.
     targetRequired: Wähle aus, wem der Schlüssel gehört.
   neverUsed: Nie verwendet
+  lastUsedUnavailable: Nicht verfügbar
+  scope:
+    label: Anzuzeigende Schlüssel
+    managed: Von dir verwaltete Schlüssel
+    all: Alle Schlüssel dieser Organisation
+    personalKeysRefused: Diese Organisation weist die API-Schlüssel ab, die Mitglieder für sich selbst erstellen, deshalb fehlen sie alle in dieser Liste, auch deine eigenen. Schalte die Einstellung „Eigene Schlüssel der Mitglieder“ unten wieder ein, um sie zuzulassen.
+    personalKeysUnavailable: Tale kann gerade nicht lesen, ob diese Organisation eigene API-Schlüssel der Mitglieder annimmt, deshalb werden sie hier abgewiesen, bis es wieder geht, und fehlen alle in dieser Liste. Versuch es gleich noch einmal.
+  allKeysDescription: Alle API-Schlüssel, die in dieser Organisation funktionieren, auch die persönlichen Schlüssel der Mitglieder. Einen persönlichen Schlüssel kann nur das Mitglied widerrufen, dem er gehört.
   neverExpires: Nie
   expired: Abgelaufen
   description: API-Schlüssel für externe Connectors verwalten
