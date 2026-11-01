@@ -80,6 +80,7 @@ import { createSql } from './db/sql.ts';
 import { checkAgentConnections } from './domains/agent_connections/agent-connections.integration.ts';
 import { checkAgentLifecycle } from './domains/agent_connections/agent-lifecycle.integration.ts';
 import { checkImageHoldIdentity } from './domains/agent_tools/image-billing.integration.ts';
+import { checkApiKeyOrgBlocks } from './domains/api_keys/blocks.integration.ts';
 import { checkApiKeyOwners } from './domains/api_keys/owners.integration.ts';
 import { checkPersonalKeysPolicy } from './domains/api_keys/personal-keys.integration.ts';
 import { checkApprovalDecisionResume } from './domains/approvals/decide-resume.integration.ts';
@@ -67816,6 +67817,10 @@ async function main(): Promise<void> {
       [
         'checkPersonalKeysPolicy',
         () => checkPersonalKeysPolicy(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkApiKeyOrgBlocks',
+        () => checkApiKeyOrgBlocks(sql, baseUrl, authCtx, record),
       ],
       [
         'checkProjectBudgets',
