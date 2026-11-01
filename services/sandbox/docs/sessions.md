@@ -614,7 +614,9 @@ its planned working set (agent 512 MiB, with Docker inside 1.5 GiB, crawler
 render 512 MiB), and each session started in the last 90 seconds at the part
 of it a linear decay leaves (its turn is still growing into it while
 MemAvailable shows only the idle footprint), the host must keep
-`SANDBOX_MIN_FREE_MEMORY` free (a tenth of it, at least 1 GiB). Short of it
+`SANDBOX_MIN_FREE_MEMORY` free (a tenth of it, at least 1 GiB and at least the
+`SANDBOX_RESERVED_MEMORY` the database and the application tier reserve).
+Short of it
 by the host's own reading — its available memory, less this create's working
 set, under the reserve — the create reclaims a released idle session like
 one at capacity and decides again on a reading taken after the reclaim. Short
