@@ -2,7 +2,11 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { dispatch, METHODS, type DispatchStore } from '../api/dispatch';
 import { DOC_EXAMPLE } from '../api/docs';
-import { registerNodeType, setCodeRunner } from '../core/slots';
+import {
+  type ConnectorScenario,
+  registerNodeType,
+  setCodeRunner,
+} from '../core/slots';
 import type { Automation, Issue, RunResult } from '../core/types';
 import { nodeVmRunner } from '../runners/node-vm';
 import { memoryStore } from './memory-store';
@@ -1100,5 +1104,85 @@ describe('dispatch — validation results carry the analysis', () => {
     expect(
       compact.node_types.find((t) => t.type === 'probe.lookup'),
     ).not.toHaveProperty('outputSchema');
+  });
+
+  it('get_catalog lists the scenarios an action ships, and nothing of them where it ships none, in the compact form or in a search', async () => {
+    const scenarios: ConnectorScenario[] = [
+      {
+        name: 'found',
+        kind: 'success',
+        description: 'A row has the id asked for.',
+        output: { rows: [{ id: 'r_1' }] },
+      },
+      {
+        name: 'none',
+        kind: 'empty',
+        description: 'No row has the id asked for.',
+        when: { id: 'r_0' },
+        output: { rows: [] },
+      },
+      {
+        name: 'forbidden',
+        kind: 'error',
+        description: 'The credential may not read rows.',
+        error: { message: 'missing scope rows.read', status: 403 },
+      },
+    ];
+    const register = (
+      type: string,
+      shipped?: readonly ConnectorScenario[],
+    ): void => {
+      registerNodeType({
+        type,
+        kind: 'connector',
+        outputKind: 'structured',
+        description: `test connector: ${type} looks quokka rows up`,
+        allowedFields: ['input'],
+        requiredFields: ['input'],
+        connector: {
+          name: type,
+          description: 'look quokka rows up',
+          inputSchema: { type: 'object', properties: {} },
+          outputSignature: '{ rows: Array<{ id: string }> }',
+          hasEffect: false,
+          mock: () => ({ rows: [] }),
+          ...(shipped !== undefined && { scenarios: shipped }),
+        },
+      });
+    };
+    register('probe.cased', scenarios);
+    register('probe.plain');
+    register('probe.no_cases', []);
+
+    const full = (await dispatch(
+      'get_catalog',
+      { kind: 'connector' },
+      { store: bareStore() },
+    )) as { node_types: Array<Record<string, unknown>> };
+    const entry = (type: string) =>
+      full.node_types.find((t) => t.type === type);
+    expect(entry('probe.cased')?.scenarios).toEqual(scenarios);
+    expect(entry('probe.plain')).toBeDefined();
+    expect(entry('probe.plain')).not.toHaveProperty('scenarios');
+    expect(entry('probe.no_cases')).toBeDefined();
+    expect(entry('probe.no_cases')).not.toHaveProperty('scenarios');
+
+    const compact = (await dispatch(
+      'get_catalog',
+      { kind: 'connector', compact: true },
+      { store: bareStore() },
+    )) as { node_types: Array<Record<string, unknown>> };
+    const cased = compact.node_types.find((t) => t.type === 'probe.cased');
+    expect(cased).toBeDefined();
+    expect(cased).not.toHaveProperty('scenarios');
+
+    const found = (await dispatch(
+      'search_catalog',
+      { query: 'quokka rows' },
+      { store: bareStore() },
+    )) as { matches: Array<Record<string, unknown>> };
+    const match = found.matches.find((t) => t.type === 'probe.cased');
+    expect(match).toBeDefined();
+    expect(match).not.toHaveProperty('scenarios');
   });
 });

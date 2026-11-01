@@ -56,6 +56,7 @@ Ajouter un connector demande une contribution au code source. L'exécution lit l
 | `output` | Signature du résultat au style TypeScript ; documentation, pas validation des sorties à l'exécution |
 | `effects` | `read` ou `write` ; les écritures passent par la politique d'approbation |
 | `mock` | JavaScript déterministe obligatoire : même entrée, même sortie, sans accès réseau |
+| `scenarios` | Cas nommés facultatifs de ce que répond le service, parmi lesquels un test peut en choisir un pour une étape d’une exécution en simulation ; des données, jamais du code. Voir [Déclarer des scénarios pour les tests](#scenarios) |
 | `backend` | Implémentation réelle facultative : `yaml-js` avec `live`, ou `native` avec un identifiant `impl` |
 | `exampleInput` | Petit exemple facultatif utile à la découverte et aux tests |
 | `idempotent` | Facultatif ; `true` seulement pour une écriture dont un second appel avec la même `ctx.idempotencyKey` ne change plus rien. Une exécution d’automatisation interrompue la relance alors d’elle-même au lieu d’attendre une décision |
@@ -63,6 +64,60 @@ Ajouter un connector demande une contribution au code source. L'exécution lit l
 Sans backend réel, le connector fonctionne en simulation mais refuse l'exécution réelle. Une écriture n'a pas lieu si la plateforme ne peut pas obtenir une décision d'approbation. La [référence de politique](/fr/self-hosted/configuration/approvals) explique la priorité des règles et les décisions en attente.
 
 Pour comprendre un résultat, lis aussi l'implémentation réelle. Par exemple, la recherche Tavily décrit l'entrée `max_results`, mais l'action fournie limite les résultats renvoyés à cinq. La signature de sortie seule ne précise pas cette limite.
+
+### Déclarer des scénarios pour les tests {#scenarios}
+
+Une action peut fournir des scénarios à côté de son `mock` : des cas nommés de ce que répond le service, comme un canal qui n’existe pas ou une limite de débit. Un test en choisit un pour une étape, et l’exécution en simulation répond avec lui à la place du mock, si bien que le test montre ce que fait l’automatisation dans ce cas. Liste-les sous `scenarios`, après `mock`. Cet extrait montre deux des scénarios que Slack fournit sur `get_channel`, l’action qui lit un canal ; les autres champs de l’action sont omis :
+
+```yaml
+scenarios:
+  - name: one_channel
+    kind: success
+    description: 'Slack returns the channel.'
+    output:
+      channel:
+        id: C0000000001
+        name: general
+        is_private: false
+        topic: { value: 'Company-wide announcements.' }
+  - name: channel_not_found
+    kind: error
+    description: 'Slack answers that no channel has this id.'
+    when: { channel: C0000000009 }
+    error:
+      message: 'Slack get_channel failed: channel_not_found'
+```
+
+- `name` est en snake_case, unique dans l’action et long de 50 caractères au plus.
+- `description` dit en anglais ce que fait le service dans ce cas.
+- `when` est facultatif. Le scénario répond à un appel dont l’entrée contient chaque champ qu’il liste, avec une valeur égale. Sans `when`, il répond à chaque appel.
+- Un scénario répond soit par un `output`, soit par une `error`. Un `output` est exactement ce que renvoie le corps réel, dans la forme de sortie que déclare l’action. Une `error` porte le `message` que lève le corps réel, et un `status` seulement quand cette erreur porte un statut HTTP.
+
+`kind` dit quel cas le scénario représente et décide de ce par quoi il répond :
+
+| Type | Le cas | Répond par |
+| --- | --- | --- |
+| `success` | L’appel fait ce qui était demandé | Une sortie |
+| `empty` | L’appel réussit sans rien contenir, comme une liste vide ou l’enregistrement avec ses champs facultatifs vides | Une sortie |
+| `error` | Une lecture échoue : introuvable, identifiants refusés, limite de débit, service qui ne répond pas | Une erreur |
+| `refusal` | Le service refuse une écriture | Une erreur |
+| `duplicate` | La même écriture revient, et le service répond par un deuxième enregistrement, le premier ou un refus | Une sortie ou une erreur |
+
+Les scénarios sont des données, jamais du code. Garde-les synthétiques, sans vraies données de clients : le dépôt est public. `mock` reste obligatoire et fonctionne comme avant : il répond à chaque appel auquel aucun scénario ne répond.
+
+L’erreur d’un scénario fait échouer l’étape comme le ferait le même échec d’un appel réel. L’exécution classe cet échec selon le statut que porte l’erreur :
+
+| Statut | Comment l’exécution classe l’échec |
+| --- | --- |
+| `401` ou `403` | Le service a refusé l’accès |
+| `404` | Introuvable |
+| `429` | Limite de débit atteinte ; ne compte pas parmi les échecs après lesquels une [planification se met en pause](/fr/platform/automations/triggers#quand-une-planification-se-met-en-pause) |
+| Aucun, avec un message d’échec réseau | Le service était injoignable |
+| Tout autre | Le service a échoué. Un statut `5xx` compte comme une indisponibilité ; tout autre échec compte parmi ceux après lesquels une planification se met en pause s’ils se répètent |
+
+Un scénario prouve ainsi ce que fait l’automatisation de cet échec.
+
+Le test du catalogue `services/platform/lib/shared/schemas/shipped-connectors.test.ts` vérifie chaque scénario de chaque connector fourni : un `when` ne nomme que des champs d’entrée de l’action, et un `output` respecte la sortie déclarée de l’action. Il tient aussi une liste des connectors dont les scénarios sont complets. Sur un connector de cette liste, chaque action fournit au moins ces types : une lecture fournit `success`, `empty` et `error`, une écriture `success`, `refusal` et `duplicate`. Un connector qui les fournit sur chaque action doit figurer sur la liste. Slack est le premier connector de la liste et le modèle à suivre : le test vérifie aussi ses scénarios avec son corps réel. Avec la réponse de Slack que représente un scénario, le corps réel renvoie la sortie du scénario ou lève son erreur.
 
 ### Sélectionner le bon compte
 
@@ -132,4 +187,4 @@ L'enregistrement de serveurs MCP externes n'est pas disponible. Le [point d'acc�
 
 ## Où cela s’inscrit
 
-Pour une contribution, teste séparément la validation du schéma, le comportement déterministe du mock et les appels réels au fournisseur. Vérifie aussi les échecs : identifiant absent, permission insuffisante, destination refusée, entrée invalide, refus fournisseur et approbation en attente pour une écriture. Le [guide de contribution](/fr/develop/contributor-setup) décrit l'environnement local ; le [guide des identifiants](/fr/platform/admin/connectors) décrit la configuration par l'administrateur.
+Pour une contribution, teste séparément la validation du schéma, le comportement déterministe du mock et les appels réels au fournisseur. Vérifie aussi les échecs : identifiant absent, permission insuffisante, destination refusée, entrée invalide, refus fournisseur et approbation en attente pour une écriture. Donne à chaque action des [scénarios](#scenarios) pour les réponses du fournisseur, sur le modèle de ceux de Slack. Dès que chaque action fournit les types que demande son effet, lecture ou écriture, ajoute ton connector à la liste du test du catalogue ; la liste ne fait que s’allonger. Le [guide de contribution](/fr/develop/contributor-setup) décrit l’environnement local ; le [guide des identifiants](/fr/platform/admin/connectors) décrit la configuration par l’administrateur.

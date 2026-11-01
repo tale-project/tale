@@ -56,6 +56,7 @@ Adding a connector is a source contribution. The runtime reads the platform cata
 | `output` | TypeScript-style signature describing the result; this is documentation, not a runtime output validator |
 | `effects` | `read` or `write`; writes pass through approval policy |
 | `mock` | Required deterministic JavaScript implementation; same input, same output, no network I/O |
+| `scenarios` | Optional named cases of what the service answers, which a test can pick for a step in a mock run; data, never code. See [Declare scenarios for tests](#scenarios) |
 | `backend` | Optional live implementation: `yaml-js` with `live`, or `native` with an `impl` identifier |
 | `exampleInput` | Optional small, meaningful example for discovery and testing |
 | `idempotent` | Optional; set `true` on a write only when a second call with the same `ctx.idempotencyKey` changes nothing the first did not. An interrupted automation run then repeats the write by itself instead of waiting for a person to decide |
@@ -63,6 +64,60 @@ Adding a connector is a source contribution. The runtime reads the platform cata
 A connector with no live backend can run in mock mode but refuses live execution. Write actions do not run if the platform cannot obtain an approval decision. See the [approval-policy reference](/self-hosted/configuration/approvals) for rule precedence and pending decisions.
 
 When inspecting a result contract, read the live implementation too. For example, Tavily's search input describes `max_results`, but the shipped action caps the returned results at five. The output signature alone does not explain that bound.
+
+### Declare scenarios for tests {#scenarios}
+
+An action can ship scenarios beside its `mock`: named cases of what the service answers, such as a channel that doesn't exist or a rate limit. A test picks one for a step, and the mock run answers with it in place of the mock, so the test shows what the automation does in that case. List them under `scenarios`, after `mock`. This excerpt shows two of the scenarios Slack ships on `get_channel`, the action that reads a channel; the action's other fields are left out:
+
+```yaml
+scenarios:
+  - name: one_channel
+    kind: success
+    description: 'Slack returns the channel.'
+    output:
+      channel:
+        id: C0000000001
+        name: general
+        is_private: false
+        topic: { value: 'Company-wide announcements.' }
+  - name: channel_not_found
+    kind: error
+    description: 'Slack answers that no channel has this id.'
+    when: { channel: C0000000009 }
+    error:
+      message: 'Slack get_channel failed: channel_not_found'
+```
+
+- `name` is snake_case, unique within the action, and at most 50 characters long.
+- `description` says in English what the service does in that case.
+- `when` is optional. The scenario answers a call whose input carries each member it lists, with an equal value. Without `when`, it answers every call.
+- A scenario answers with either an `output` or an `error`. An `output` is exactly what the live body returns, in the action's declared output shape. An `error` has the `message` the live body throws, and a `status` only when that error carries an HTTP status.
+
+`kind` says which case the scenario stands for, and decides what it answers with:
+
+| Kind | The case | Answers with |
+| --- | --- | --- |
+| `success` | The call does what was asked | An output |
+| `empty` | The call succeeds with nothing in it, such as an empty list, or the record with its optional members empty | An output |
+| `error` | A read fails: not found, refused credentials, a rate limit, a service that does not answer | An error |
+| `refusal` | The service refuses a write | An error |
+| `duplicate` | The same write comes again, and the service answers with a second record, the first one, or a refusal | An output or an error |
+
+Scenarios are data, never code. Keep them synthetic, with no real customer data: the repository is public. `mock` stays required and works as before: it answers every call that no scenario answers.
+
+A scenario's error fails the step the way the same failure of a live call does. The run classifies it by the status the error carries:
+
+| Status | How the run classifies the failure |
+| --- | --- |
+| `401` or `403` | The service refused access |
+| `404` | Not found |
+| `429` | Rate limited; this doesn't count toward [pausing a schedule](/platform/automations/triggers#when-a-schedule-pauses-itself) |
+| None, with a message about a network failure | The service couldn't be reached |
+| Any other | The service failed. A `5xx` status counts as unavailable; any other failure counts toward pausing a schedule after repeated failures |
+
+So a scenario proves what the automation does with that failure.
+
+The catalog test `services/platform/lib/shared/schemas/shipped-connectors.test.ts` checks every scenario of every shipped connector: a `when` names only the action's input properties, and an `output` fits the action's declared output. It also keeps a list of connectors whose scenarios are complete. On a connector on that list, every action ships at least these kinds: a read ships `success`, `empty` and `error`, and a write ships `success`, `refusal` and `duplicate`. A connector that ships them on every action must be on the list. Slack is the first connector on it, and the reference to follow: the test also proves its scenarios against its live body, so the Slack answer each scenario stands for makes the live body return its output or throw its error.
 
 ### Resolve the right account
 
@@ -132,4 +187,4 @@ External MCP-server registration is not available. Tale's [MCP endpoint](/develo
 
 ## Where this fits
 
-Test three things separately when contributing: schema validation, deterministic mock behavior, and the live vendor path. Check failure handling as well as success: missing credential, wrong scope, denied destination, invalid input, vendor refusal, and an approval wait for writes. The [contributor guide](/develop/contributor-setup) explains the local source environment; the [credential guide](/platform/admin/connectors) explains the administrator's setup.
+Test three things separately when contributing: schema validation, deterministic mock behavior, and the live vendor path. Check failure handling as well as success: missing credential, wrong scope, denied destination, invalid input, vendor refusal, and an approval wait for writes. Give each action [scenarios](#scenarios) for the vendor's answers, with Slack's as the reference. Once every action ships the kinds its effect needs, add your connector to the catalog test's list; the list only grows. The [contributor guide](/develop/contributor-setup) explains the local source environment; the [credential guide](/platform/admin/connectors) explains the administrator's setup.

@@ -66,6 +66,7 @@ import {
   planBench,
   refusalIssue,
   refusalPath,
+  scenarioMatches,
 } from './bench';
 import { topoSort } from './controlflow';
 import { decideNode, repeatSettled, resolveForEach } from './decide';
@@ -154,8 +155,8 @@ export interface ExecuteOptions {
   recorder?: RunRecorder;
   /**
    * What stands in for some nodes' calls, and the narrower scope of a step
-   * test (`./bench`): a test's simulated outputs and failures, `upTo`,
-   * `only` with its pinned data, `item`. Mock runs only — a live run with a
+   * test (`./bench`): a test's simulated outputs and failures, the
+   * scenarios it picks, `upTo`, `only` with its pinned data, `item`. Mock runs only — a live run with a
    * bench is refused — and the automation's own nodes only: a called
    * automation runs as written.
    */
@@ -221,7 +222,7 @@ export async function execute(
         level: 'error',
         code: 'BENCH_MOCK_ONLY',
         message:
-          'simulated outputs, simulated failures and narrower scopes apply to mock runs only',
+          'simulated outputs, simulated failures, picked scenarios and narrower scopes apply to mock runs only',
         hint: 'run in mock mode — a live run calls every node as written',
         at: { pointer: '/bench' },
         params: {},
@@ -478,10 +479,12 @@ export async function execute(
       // only once the skip rules let the node run, and it is marked where
       // it takes a call's place — a node that runs per item over no items
       // makes no call, and its stand-in goes unused.
-      const markStandIn = (): void => {
+      const markStandIn = (
+        mark: 'mocked' | 'failed' = call.kind === 'mock' ? 'mocked' : 'failed',
+      ): void => {
         if (used.has(n.id)) return;
         used.add(n.id);
-        entry.bench = call.kind === 'mock' ? 'mocked' : 'failed';
+        entry.bench = mark;
         rec.meta(nodeKey, { bench: entry.bench });
       };
 
@@ -903,15 +906,52 @@ export async function execute(
                 base64Decode: host.base64Decode,
               });
             } catch (e) {
+              // A failure names the connector by its slug, as the durable
+              // runtime does; a test's own node type has none.
               throw new ExprError(
                 n.type,
                 `live call failed: ${(e instanceof Error ? e.message : String(e)).slice(0, 300)}`,
                 {
-                  ...connectorFailureOf(e, def.connector.name, n.type),
+                  ...connectorFailureOf(
+                    e,
+                    def.connector.display?.connector ?? def.connector.name,
+                    n.type,
+                  ),
                   at: { pointer },
                 },
               );
             }
+          } else if (
+            call.kind === 'scenario' &&
+            scenarioMatches(call.scenario, resolved)
+          ) {
+            // The scenario the test picked answers in the mock's place: its
+            // output as the call's, or its error, classified as the live
+            // call's failure above is (by the status it names), so a test
+            // proves what the run does with that failure.
+            const { scenario } = call;
+            if (scenario.error !== undefined) {
+              markStandIn('failed');
+              const { message, status } = scenario.error;
+              const raised = Object.assign(
+                new Error(message),
+                status !== undefined ? { status } : {},
+              );
+              throw new ExprError(
+                n.type,
+                `${message} (the "${scenario.name}" scenario of ${n.type}, simulated by the test)`,
+                {
+                  ...connectorFailureOf(
+                    raised,
+                    def.connector.display?.connector ?? def.connector.name,
+                    n.type,
+                  ),
+                  at: { pointer },
+                },
+              );
+            }
+            markStandIn('mocked');
+            out = cloneData(scenario.output);
           } else {
             if (opts.mode === 'live' && record) {
               entry.note = def.connector.live

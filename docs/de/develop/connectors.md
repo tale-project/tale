@@ -56,6 +56,7 @@ Ein neuer Connector ist ein Quellcodebeitrag. Die Laufzeit liest den Plattformka
 | `output` | Ergebnissignatur im TypeScript-Stil; Dokumentation, keine Laufzeitvalidierung der Ausgabe |
 | `effects` | `read` oder `write`; Schreibaktionen durchlaufen die Genehmigungsrichtlinie |
 | `mock` | Erforderliches deterministisches JavaScript: gleiche Eingabe, gleiche Ausgabe, kein Netzwerkzugriff |
+| `scenarios` | Optionale benannte Fälle dessen, was der Dienst antwortet, aus denen ein Test einen für einen Schritt in einem Lauf mit Mocks wählen kann; Daten, nie Code. Siehe [Szenarien für Tests deklarieren](#scenarios) |
 | `backend` | Optionale Live-Implementierung: `yaml-js` mit `live` oder `native` mit `impl`-Kennung |
 | `exampleInput` | Optionales kleines, aussagekräftiges Beispiel für Erkennung und Tests |
 | `idempotent` | Optional; nur bei einer Schreibaktion auf `true` setzen, bei der ein zweiter Aufruf mit demselben `ctx.idempotencyKey` nichts mehr ändert. Ein unterbrochener Automatisierungslauf wiederholt sie dann selbst, statt auf eine Entscheidung zu warten |
@@ -63,6 +64,60 @@ Ein neuer Connector ist ein Quellcodebeitrag. Die Laufzeit liest den Plattformka
 Ohne Live-Backend läuft ein Connector nur mit Mocks und lehnt echte Aufrufe ab. Schreibaktionen werden nicht ausgeführt, wenn keine Genehmigungsentscheidung ermittelt werden kann. Die [Genehmigungsreferenz](/de/self-hosted/configuration/approvals) erklärt Vorrangregeln und ausstehende Entscheidungen.
 
 Lies bei Ergebnisverträgen auch die Live-Implementierung. Tavily beschreibt beispielsweise `max_results` als Eingabe, begrenzt die zurückgegebenen Suchergebnisse aber auf fünf. Die Ausgabesignatur allein erklärt diese Grenze nicht.
+
+### Szenarien für Tests deklarieren {#scenarios}
+
+Eine Aktion kann neben ihrem `mock` Szenarien mitliefern: benannte Fälle dessen, was der Dienst antwortet, etwa ein Kanal, den es nicht gibt, oder ein Ratenlimit. Ein Test wählt eines für einen Schritt, und der Lauf mit Mocks antwortet damit statt mit dem Mock. So zeigt der Test, was die Automatisierung in diesem Fall tut. Liste sie unter `scenarios` auf, nach `mock`. Dieser Ausschnitt zeigt zwei der Szenarien, die Slack bei `get_channel` mitliefert, der Aktion, die einen Kanal liest; die übrigen Felder der Aktion fehlen hier:
+
+```yaml
+scenarios:
+  - name: one_channel
+    kind: success
+    description: 'Slack returns the channel.'
+    output:
+      channel:
+        id: C0000000001
+        name: general
+        is_private: false
+        topic: { value: 'Company-wide announcements.' }
+  - name: channel_not_found
+    kind: error
+    description: 'Slack answers that no channel has this id.'
+    when: { channel: C0000000009 }
+    error:
+      message: 'Slack get_channel failed: channel_not_found'
+```
+
+- `name` ist in snake_case geschrieben, innerhalb der Aktion eindeutig und höchstens 50 Zeichen lang.
+- `description` sagt auf Englisch, was der Dienst in diesem Fall tut.
+- `when` ist optional. Das Szenario antwortet auf einen Aufruf, dessen Eingabe jedes dort aufgeführte Feld mit gleichem Wert enthält. Ohne `when` antwortet es auf jeden Aufruf.
+- Ein Szenario antwortet entweder mit einem `output` oder mit einem `error`. Ein `output` ist genau das, was der Live-Body zurückgibt, in der Form, die die Aktion für ihre Ausgabe deklariert. Ein `error` hat die `message`, die der Live-Body wirft, und einen `status` nur, wenn dieser Fehler einen HTTP-Status trägt.
+
+`kind` sagt, für welchen Fall das Szenario steht, und bestimmt, womit es antwortet:
+
+| Art | Der Fall | Antwortet mit |
+| --- | --- | --- |
+| `success` | Der Aufruf tut, was verlangt wurde | Einer Ausgabe |
+| `empty` | Der Aufruf ist erfolgreich, enthält aber nichts, etwa eine leere Liste oder den Datensatz mit leeren optionalen Feldern | Einer Ausgabe |
+| `error` | Eine Leseaktion schlägt fehl: nicht gefunden, abgelehnte Zugangsdaten, ein Ratenlimit, ein Dienst, der nicht antwortet | Einem Fehler |
+| `refusal` | Der Dienst lehnt eine Schreibaktion ab | Einem Fehler |
+| `duplicate` | Dieselbe Schreibaktion kommt noch einmal, und der Dienst antwortet mit einem zweiten Datensatz, dem ersten oder einer Ablehnung | Einer Ausgabe oder einem Fehler |
+
+Szenarien sind Daten, nie Code. Halte sie synthetisch, ohne echte Kundendaten: Das Repository ist öffentlich. `mock` bleibt erforderlich und funktioniert wie bisher: Es beantwortet jeden Aufruf, den kein Szenario beantwortet.
+
+Der Fehler eines Szenarios lässt den Schritt so fehlschlagen wie derselbe Fehler bei einem Live-Aufruf. Der Lauf ordnet ihn nach dem Status ein, den der Fehler trägt:
+
+| Status | Wie der Lauf den Fehler einordnet |
+| --- | --- |
+| `401` oder `403` | Der Dienst hat den Zugriff verweigert |
+| `404` | Nicht gefunden |
+| `429` | Ratenlimit; zählt nicht zu den Fehlern, nach denen sich ein [Zeitplan selbst pausiert](/de/platform/automations/triggers#wenn-sich-ein-zeitplan-selbst-pausiert) |
+| Keiner, mit einer Meldung über einen Netzwerkfehler | Der Dienst war nicht erreichbar |
+| Jeder andere | Der Dienst ist fehlgeschlagen. Ein Status `5xx` gilt als nicht verfügbar; jeder andere Fehler zählt zu denen, nach denen sich ein Zeitplan bei Wiederholung selbst pausiert |
+
+So belegt ein Szenario, was die Automatisierung mit diesem Fehler tut.
+
+Der Katalogtest `services/platform/lib/shared/schemas/shipped-connectors.test.ts` prüft jedes Szenario jedes mitgelieferten Connectors: Ein `when` nennt nur Eingabefelder der Aktion, und ein `output` passt zur deklarierten Ausgabe der Aktion. Außerdem führt er eine Liste der Connectors, deren Szenarien vollständig sind. Bei einem Connector auf dieser Liste liefert jede Aktion mindestens diese Arten mit: eine Leseaktion `success`, `empty` und `error`, eine Schreibaktion `success`, `refusal` und `duplicate`. Ein Connector, der sie bei jeder Aktion mitliefert, muss auf der Liste stehen. Slack ist der erste Connector darauf und das Vorbild: Der Test prüft seine Szenarien zusätzlich gegen seinen Live-Body. Mit der Slack-Antwort, für die ein Szenario steht, gibt der Live-Body die Ausgabe des Szenarios zurück oder wirft dessen Fehler.
 
 ### Das richtige Konto auswählen
 
@@ -132,4 +187,4 @@ Externe MCP-Server lassen sich nicht registrieren. Über Tales [MCP-Endpunkt](/d
 
 ## Wo das hingehört
 
-Prüfe bei einem Beitrag drei Bereiche getrennt: Schemavalidierung, deterministisches Mock-Verhalten und echte Anbieteraufrufe. Prüfe auch Fehlerfälle: fehlender Zugang, falsche Berechtigungen, gesperrtes Ziel, ungültige Eingabe, Anbieterfehler und ausstehende Genehmigung bei Schreibaktionen. Die [Entwicklungsanleitung](/de/develop/contributor-setup) beschreibt die lokale Umgebung, die [Zugangsdaten-Anleitung](/de/platform/admin/connectors) die Einrichtung durch Administratoren.
+Prüfe bei einem Beitrag drei Bereiche getrennt: Schemavalidierung, deterministisches Mock-Verhalten und echte Anbieteraufrufe. Prüfe auch Fehlerfälle: fehlender Zugang, falsche Berechtigungen, gesperrtes Ziel, ungültige Eingabe, Anbieterfehler und ausstehende Genehmigung bei Schreibaktionen. Gib jeder Aktion [Szenarien](#scenarios) für die Antworten des Anbieters, mit denen von Slack als Vorbild. Sobald jede Aktion die Arten mitliefert, die sie als Lese- oder Schreibaktion braucht, nimm deinen Connector in die Liste des Katalogtests auf; die Liste wächst nur. Die [Entwicklungsanleitung](/de/develop/contributor-setup) beschreibt die lokale Umgebung, die [Zugangsdaten-Anleitung](/de/platform/admin/connectors) die Einrichtung durch Administratoren.

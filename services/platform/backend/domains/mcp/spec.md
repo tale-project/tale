@@ -228,14 +228,19 @@ anything runs.
 
 `run_automation` takes, beside the document and its input, the stand-ins and the scope a test and
 the app's step test give a run: `mocks` (the node does not make its call, and the value given is
-its output), `failures` (the node fails with the message given), `upTo` (a node and what it needs),
-`only` (one node, on the data pinned in `mocks` for what it reads) and `item` (with `only`, one
-item of a forEach). A stand-in replaces a node's call, never the node: its input is still resolved
-and its effect recorded. The answer says where the run stood in (`focus`) and which stand-ins it
-never used (`unusedMocks`). A bench the document cannot take — a node it does not have, with the
-nearest it does, or scopes that cannot combine — is refused as the request's fault
-(`BENCH_INVALID`, `data.issue` the engine's own), and stand-ins past 64 KB each or 512 KB together
-are refused as invalid arguments. A run on the mocks stops at its next step after 20 seconds
+its output), `failures` (the node fails with the message given), `scenarios` (the name of a
+scenario the node's connector action ships, as `get_catalog` lists them), `upTo` (a node and what
+it needs), `only` (one node, on the data pinned in `mocks` for what it reads) and `item` (with
+`only`, one item of a forEach). A stand-in replaces a node's call, never the node: its input is
+still resolved and its effect recorded. A call whose input matches the scenario's `when` answers
+with the scenario's output, or fails with its error, classified as the same live failure would be
+(`AUTO-R78`, `AUTO-R79`); any other call gets the action's mock. The answer says where the run
+stood in (`focus`) and which stand-ins it never used (`unusedMocks`), a scenario no call matched
+among them. A bench the document cannot take — a node it does not have, with the nearest it does,
+a scenario the node's action does not ship, with the nearest and those it ships, a node given two
+stand-ins, or scopes that cannot combine — is refused as the request's fault (`BENCH_INVALID`,
+`data.issue` the engine's own), and stand-ins past 64 KB each or 512 KB together are refused as
+invalid arguments. A run on the mocks stops at its next step after 20 seconds
 (`stoppedBy: "time_limit"`), and draws one execution from the budget MCP-R33 names.
 
 - **Example**: Ada's agent wants to know what `billing/dunning` does when the mail server is down.

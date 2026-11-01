@@ -127,6 +127,9 @@ const benchFields = {
   failures: BENCH.failures.describe(
     'Node id → a message: that node fails with it once its input is resolved, to see what the rest does (onError, the failure path).',
   ),
+  scenarios: BENCH.scenarios.describe(
+    'Node id → the name of a scenario its connector action ships (get_catalog lists each action’s scenarios): a call whose input matches the scenario gets its output, or fails with its error, classified as a live failure; any other call gets the action’s mock.',
+  ),
   upTo: BENCH.upTo.describe(
     'Run this node and everything it needs, and leave the rest out: the run’s output is this node’s output.',
   ),

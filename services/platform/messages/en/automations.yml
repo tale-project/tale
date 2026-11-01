@@ -1303,6 +1303,7 @@ tests:
     failureMessage: '{node} fails with'
     failureDefault: simulated failure
     failuresAdd: Simulate a failure
+    scenarios: Scenarios
     expect: Expectations
     outputModeLabel: How the output is checked
     outputMode:
@@ -1358,6 +1359,7 @@ tests:
     nothingHappened: No such action happened in the run.
     simulated: 'Simulated: {nodes}'
     unused: 'Not used: {nodes}. The run skipped them.'
+    unmatched: '{count, plural, one {Not used: the scenario picked for {nodes}. A scenario answers only the calls whose input matches it, and none did.} other {Not used: the scenarios picked for {nodes}. A scenario answers only the calls whose input matches it, and none did.}}'
     showNode: 'Show {node}'
     technical: Technical details
   failure:

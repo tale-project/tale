@@ -47,6 +47,8 @@ const TEST_FIELD_KEYS: Readonly<Record<TestField, string>> = {
   input: 'tests.fields.input',
   mocks: 'tests.fields.mocks',
   failures: 'tests.fields.failures',
+  // No form control labels it yet: the cast marks the key used.
+  scenarios: 'tests.fields.scenarios' as const,
   'expect.output': 'tests.fields.expectOutput',
   'expect.outputIncludes': 'tests.fields.expectOutput',
   'expect.effects': 'tests.fields.expectActions',

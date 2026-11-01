@@ -225,6 +225,13 @@ export function TestSetupForm({
 
   const mocked = new Set(values.mocks.map(([node]) => node));
   const failing = new Set(values.failures.map(([node]) => node));
+  // A node takes one stand-in: none for a node the test picks a scenario
+  // for, which the form leaves as written.
+  const standingIn = new Set([
+    ...mocked,
+    ...failing,
+    ...(isRecord(raw.scenarios) ? Object.keys(raw.scenarios) : []),
+  ]);
   const expectedNodes = new Set(values.nodes.map(([node]) => node));
   const effectTypes = [
     ...new Set(
@@ -336,7 +343,7 @@ export function TestSetupForm({
         {!readOnly && (
           <AddPicker
             label={t('tests.fields.mocksAdd')}
-            options={nodeOptions(new Set([...mocked, ...failing]))}
+            options={nodeOptions(standingIn)}
             onPick={(node) =>
               onChange(withMock(raw, node, forEachNodes.has(node) ? [] : {}))
             }
@@ -373,7 +380,7 @@ export function TestSetupForm({
         {!readOnly && (
           <AddPicker
             label={t('tests.fields.failuresAdd')}
-            options={nodeOptions(new Set([...mocked, ...failing]))}
+            options={nodeOptions(standingIn)}
             onPick={(node) =>
               onChange(withFailure(raw, node, t('tests.fields.failureDefault')))
             }

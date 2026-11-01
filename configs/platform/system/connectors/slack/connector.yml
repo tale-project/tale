@@ -56,6 +56,26 @@ actions:
     output: '{ channels: Array<{ id: string, name: string, is_private: boolean }>, next_cursor: string | null }'
     mock: |
       return { channels: [{ id: 'C01234ABCDE', name: 'general', is_private: false }], next_cursor: null };
+    scenarios:
+      - name: two_channels
+        kind: success
+        description: 'Slack returns two public channels on a single page.'
+        output:
+          channels:
+            - { id: C0000000001, name: general, is_private: false }
+            - { id: C0000000002, name: deploys, is_private: false }
+          next_cursor: null
+      - name: no_channels
+        kind: empty
+        description: 'Slack returns no channels and no further page.'
+        output:
+          channels: []
+          next_cursor: null
+      - name: invalid_auth
+        kind: error
+        description: 'Slack cannot validate the bot token and answers invalid_auth.'
+        error:
+          message: 'Slack list_channels failed: invalid_auth'
     backend:
       kind: yaml-js
       live: |
@@ -86,6 +106,36 @@ actions:
     output: '{ channel: { id: string, name: string, is_private: boolean, topic: { value: string } } }'
     mock: |
       return { channel: { id: input.channel, name: 'general', is_private: false, topic: { value: 'Company-wide announcements.' } } };
+    scenarios:
+      - name: one_channel
+        kind: success
+        description: 'Slack returns the channel.'
+        output:
+          channel:
+            id: C0000000001
+            name: general
+            is_private: false
+            topic: { value: 'Company-wide announcements.' }
+      - name: no_topic
+        kind: empty
+        description: 'Slack returns a channel that has no topic, its topic value empty.'
+        output:
+          channel:
+            id: C0000000002
+            name: random
+            is_private: false
+            topic: { value: '' }
+      - name: channel_not_found
+        kind: error
+        description: 'Slack answers that no channel has this id.'
+        when: { channel: C0000000009 }
+        error:
+          message: 'Slack get_channel failed: channel_not_found'
+      - name: invalid_auth
+        kind: error
+        description: 'Slack cannot validate the bot token and answers invalid_auth.'
+        error:
+          message: 'Slack get_channel failed: invalid_auth'
     backend:
       kind: yaml-js
       live: |
@@ -126,6 +176,28 @@ actions:
     output: '{ messages: Array<{ ts: string, text: string, user: string }>, has_more: boolean, next_cursor: string | null }'
     mock: |
       return { messages: [{ ts: '1700000000.000100', text: 'Hello from the mock channel.', user: 'U01234ABCDE' }], has_more: false, next_cursor: null };
+    scenarios:
+      - name: two_messages
+        kind: success
+        description: 'Slack returns the two messages of the channel, newest first, with no further page.'
+        output:
+          messages:
+            - { ts: '1700000000.000200', text: 'Deploy finished.', user: U0000000002 }
+            - { ts: '1700000000.000100', text: 'Starting the deploy.', user: U0000000001 }
+          has_more: false
+          next_cursor: null
+      - name: no_messages
+        kind: empty
+        description: 'Slack returns no messages, as for a channel with nothing posted in the asked time range.'
+        output:
+          messages: []
+          has_more: false
+          next_cursor: null
+      - name: not_in_channel
+        kind: error
+        description: 'Slack refuses to read the history because the bot is not a member of the channel.'
+        error:
+          message: 'Slack list_messages failed: not_in_channel'
     backend:
       kind: yaml-js
       live: |
@@ -167,6 +239,31 @@ actions:
     output: '{ channel: string, ts: string }'
     mock: |
       return { channel: input.channel, ts: `1700000000.${String(input.text.length).padStart(6, '0')}` };
+    scenarios:
+      - name: posted
+        kind: success
+        description: 'Slack posts the message and returns its channel and timestamp.'
+        output: { channel: C0000000001, ts: '1700000000.000100' }
+      - name: posted_again
+        kind: duplicate
+        description: 'Slack does not de-duplicate a repeated post, so the same message is posted a second time under a new timestamp.'
+        output: { channel: C0000000001, ts: '1700000000.000200' }
+      - name: not_in_channel
+        kind: refusal
+        description: 'Slack refuses the post because the bot is not a member of the channel.'
+        error:
+          message: 'Slack send_message failed: not_in_channel'
+      - name: channel_not_found
+        kind: refusal
+        description: 'Slack answers that no channel has this id, so nothing is posted.'
+        when: { channel: C0000000009 }
+        error:
+          message: 'Slack send_message failed: channel_not_found'
+      - name: rate_limited
+        kind: refusal
+        description: 'Slack rate-limits the post with HTTP 429 and a Retry-After header, so nothing is posted.'
+        error:
+          message: 'Slack send_message failed (429): rate limited by Slack — retry later'
     backend:
       kind: yaml-js
       live: |
@@ -204,6 +301,26 @@ actions:
     output: '{ users: Array<{ id: string, name: string, real_name: string, is_bot: boolean }>, next_cursor: string | null }'
     mock: |
       return { users: [{ id: 'U01234ABCDE', name: 'demo.user', real_name: 'Demo User', is_bot: false }], next_cursor: null };
+    scenarios:
+      - name: two_members
+        kind: success
+        description: 'Slack returns two members, a person and a bot, on a single page.'
+        output:
+          users:
+            - { id: U0000000001, name: alex.example, real_name: 'Alex Example', is_bot: false }
+            - { id: U0000000002, name: deploy-bot, real_name: 'Deploy Bot', is_bot: true }
+          next_cursor: null
+      - name: no_members
+        kind: empty
+        description: 'Slack returns no members and no further page.'
+        output:
+          users: []
+          next_cursor: null
+      - name: rate_limited
+        kind: error
+        description: 'Slack rate-limits the call with HTTP 429 and a Retry-After header.'
+        error:
+          message: 'Slack list_users failed (429): rate limited by Slack — retry later'
     backend:
       kind: yaml-js
       live: |
@@ -234,6 +351,28 @@ actions:
     output: '{ user: { id: string, name: string, real_name: string, is_bot: boolean } }'
     mock: |
       return { user: { id: input.user, name: 'demo.user', real_name: 'Demo User', is_bot: false } };
+    scenarios:
+      - name: one_user
+        kind: success
+        description: 'Slack returns the user.'
+        output:
+          user: { id: U0000000001, name: alex.example, real_name: 'Alex Example', is_bot: false }
+      - name: no_real_name
+        kind: empty
+        description: 'Slack returns a user who has not set a real name, its real_name empty.'
+        output:
+          user: { id: U0000000003, name: sam.example, real_name: '', is_bot: false }
+      - name: user_not_found
+        kind: error
+        description: 'Slack answers that no user has this id.'
+        when: { user: U0000000009 }
+        error:
+          message: 'Slack get_user failed: user_not_found'
+      - name: invalid_auth
+        kind: error
+        description: 'Slack cannot validate the bot token and answers invalid_auth.'
+        error:
+          message: 'Slack get_user failed: invalid_auth'
     backend:
       kind: yaml-js
       live: |
@@ -275,6 +414,20 @@ actions:
     mock: |
       const filename = input.filename || 'file.txt';
       return { id: `F${String(input.content.length).padStart(10, '0')}`, name: filename, title: input.title || filename };
+    scenarios:
+      - name: uploaded
+        kind: success
+        description: 'Slack stores the file, shares it to the channel and answers with its new file id.'
+        output: { id: F0000000001, name: report.txt, title: report.txt }
+      - name: uploaded_again
+        kind: duplicate
+        description: 'Slack does not de-duplicate a repeated upload, so the same file is uploaded a second time under a new file id.'
+        output: { id: F0000000002, name: report.txt, title: report.txt }
+      - name: not_in_channel
+        kind: refusal
+        description: 'Slack refuses to complete the upload because the bot is not a member of the channel.'
+        error:
+          message: 'Slack upload_file failed to complete the upload: not_in_channel'
     backend:
       kind: yaml-js
       live: |

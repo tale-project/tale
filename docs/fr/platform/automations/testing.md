@@ -49,8 +49,32 @@ expect:
 - `effects` liste des actions que l’exécution doit déclencher, comme un e-mail à envoyer, par type de nœud ; avec `absent: true`, une action qui ne doit pas avoir lieu.
 - `failure` indique que l’exécution doit échouer, si tu veux à une étape donnée et avec un message qui contient le texte indiqué.
 - `mocks` donne à une étape une sortie à utiliser au lieu d’appeler son service ou son modèle, et `failures` fait échouer une étape avec le message indiqué.
+- `scenarios` donne à une étape qui appelle un connector l’un des cas que fournit son action, comme le décrit [Choisir un scénario d’un connector](#scenarios).
 
 Sans `expect`, un test réussit quand l’exécution réussit. Le menu d’une ligne copie aussi un test avec **Dupliquer** ou le retire avec **Supprimer** ; **Abandonner** fait revenir un test supprimé tant que tu n’as pas enregistré.
+
+### Choisir un scénario d’un connector {#scenarios}
+
+Une action de connector peut fournir des scénarios : des cas nommés de ce que répond son service, comme une liste vide, une écriture refusée ou une limite de débit. `scenarios` associe à l’identifiant d’une étape le nom d’un scénario que fournit son action, pour que le test montre ce que fait l’automatisation dans ce cas. Dans ce test, l’étape `post` appelle `slack.send_message` avec le canal de l’entrée, et reçoit la réponse que donne Slack pour un canal qui n’existe pas :
+
+```yaml
+name: Slack rejects an unknown channel
+input:
+  channel: C0000000009
+scenarios:
+  post: channel_not_found
+expect:
+  failure:
+    node: post
+```
+
+L’entrée de l’étape est toujours calculée et vérifiée. Un appel dont l’entrée correspond au scénario reçoit la réponse du scénario ; tout autre appel reçoit la réponse simulée habituelle du connector.
+
+- Quand le scénario répond par une sortie, elle devient la sortie de l’étape, et l’étape porte **Sortie simulée** comme si le test avait donné cette sortie. Une écriture consigne toujours l’action qu’elle aurait effectuée.
+- Quand le scénario répond par une erreur, l’étape échoue avec le message du scénario, marqué comme simulé par le test, et porte **Échec simulé**. L’exécution traite cette erreur comme le même échec venu du service, par exemple un accès refusé ou une limite de débit, si bien que le reste de l’automatisation la gère comme dans une exécution réelle.
+- Quand aucun appel de l’étape ne correspond au scénario, il figure sous **Non utilisés**, comme une sortie simulée inutilisée.
+
+Une étape n’accepte qu’un seul remplacement : un scénario, une sortie simulée ou un échec simulé. Le formulaire **Configuration** n’a pas encore de champ pour `scenarios` : écris-les avec **Modifier en YAML**, et le formulaire les garde tels quels. [Connectors](/fr/develop/connectors#scenarios) explique comment une action déclare ses scénarios et comment leurs échecs sont classés. Par le [point d’accès MCP](/fr/develop/mcp-endpoint#authoring), `get_catalog` liste les scénarios que fournit chaque action.
 
 ### Partir du déclencheur ou d’un chemin
 
@@ -101,7 +125,7 @@ Sélectionne un test pour l’ouvrir à côté du canevas. Un test qui a un rés
 - **Étapes** : l’étape qui s’est exécutée, a été ignorée ou a échoué contre l’attente du test, avec un moyen de l’afficher sur le canevas.
 - **Une exécution en échec** : l’étape où l’exécution a échoué, et pourquoi, dans les mots des [journaux d’exécution](/fr/platform/automations/execution-logs).
 
-**Simulés** nomme les étapes que le test remplace, et **Non utilisés** celles que l’exécution a ignorées. **Détails techniques** affiche le message du moteur lui-même. Un résultat issu de la dernière vérification de la version ne conserve pas les étapes ; exécute le test pour les voir.
+**Simulés** nomme les étapes que le test remplace, chacune par une sortie simulée, un échec simulé ou un scénario. **Non utilisés** nomme les étapes dont aucun appel n’a utilisé le remplacement : une étape que l’exécution a ignorée, ou une étape dont aucun appel ne correspondait au scénario, et qui a donc reçu la réponse simulée habituelle du connector. **Détails techniques** affiche le message du moteur lui-même. Un résultat issu de la dernière vérification de la version ne conserve pas les étapes ; exécute le test pour les voir.
 
 ### Afficher l’exécution d’un test sur le canevas {#show-on-canvas}
 
@@ -109,4 +133,4 @@ Sélectionne un test pour l’ouvrir à côté du canevas. Un test qui a un rés
 
 ## Corriger un problème dans un test
 
-Tale vérifie les tests comme le reste du brouillon. Un test qui ne peut jamais réussir, par exemple parce qu’il simule une étape que l’automatisation n’a pas ou qu’il nomme un champ inconnu, figure dans **Problèmes** avec ce qu’il faut corriger. Sélectionne le problème pour ouvrir le test à cet endroit de son YAML.
+Tale vérifie les tests comme le reste du brouillon. Un test qui ne peut jamais réussir, par exemple parce qu’il simule une étape que l’automatisation n’a pas ou qu’il nomme un champ inconnu, figure dans **Problèmes** avec ce qu’il faut corriger. C’est aussi le cas d’un test qui choisit un scénario pour une étape que l’automatisation n’a pas, en choisit un que l’action de l’étape ne fournit pas, ou donne deux remplacements à une étape. Pour un scénario que l’action ne fournit pas, le problème nomme le plus proche et liste les scénarios que fournit l’action. Un tel test ne peut pas s’exécuter tant que tu ne l’as pas corrigé. Sélectionne le problème pour ouvrir le test à cet endroit de son YAML.

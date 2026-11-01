@@ -323,8 +323,105 @@ describe('issueText — what a person reads', () => {
       ),
     ).toMatchObject({
       cause: 'Der Test „typos“ hat „owner“.',
-      fix: 'Entferne es. Ein Test hat name, description, input, mocks, failures und expect.',
+      fix: 'Entferne es. Ein Test hat name, description, input, mocks, failures, scenarios und expect.',
     });
+  });
+
+  it('says which scenario a test picks that the node does not ship, and what to pick instead', () => {
+    const unknownScenario = (params: Record<string, unknown>): WireIssue => ({
+      level: 'warning',
+      code: 'TESTS_SCENARIO_UNKNOWN',
+      message: '',
+      params: {
+        test: 0,
+        name: 'posts',
+        node: 'post',
+        type: 'slack.post_message',
+        scenario: 'chanel_not_found',
+        ...params,
+      },
+      at: { pointer: '/tests/0/scenarios/post' },
+    });
+    expect(
+      issueText(
+        unknownScenario({
+          scenarios: ['channel_not_found', 'rate_limited'],
+          suggestion: 'channel_not_found',
+        }),
+        context('en'),
+      ),
+    ).toMatchObject({
+      cause:
+        'The test "posts" picks "chanel_not_found" for "post" (slack.post_message). Its scenarios are "channel_not_found" and "rate_limited".',
+      fix: 'Did you mean "channel_not_found"?',
+    });
+    expect(
+      issueText(unknownScenario({ scenarios: ['empty'] }), context('en')),
+    ).toMatchObject({
+      cause:
+        'The test "posts" picks "chanel_not_found" for "post" (slack.post_message). Its only scenario is "empty".',
+      fix: 'Pick its only scenario.',
+    });
+    // A node whose type ships none: simulate it the other ways.
+    expect(
+      issueText(unknownScenario({ scenarios: [] }), context('en')),
+    ).toMatchObject({
+      cause:
+        'The test "posts" picks "chanel_not_found" for "post" (slack.post_message). It has no scenarios to pick from.',
+      fix: 'Simulate its output with mocks or its failure with failures instead.',
+    });
+    expect(
+      issueText(
+        unknownScenario({
+          scenarios: ['channel_not_found'],
+          suggestion: 'channel_not_found',
+        }),
+        context('de-CH'),
+      ),
+    ).toMatchObject({
+      cause:
+        'Der Test «posts» wählt «chanel_not_found» für «post» (slack.post_message). Das einzige Szenario dieser Node ist «channel_not_found».',
+      fix: 'Meintest du «channel_not_found»?',
+    });
+  });
+
+  it('says a test picks a scenario for a node it also simulates, by what it simulates', () => {
+    const conflict = (field: 'mocks' | 'failures'): WireIssue => ({
+      level: 'warning',
+      code: 'TESTS_SCENARIO_CONFLICT',
+      message: '',
+      params: { test: 0, name: 'posts', node: 'post', field },
+      at: { pointer: '/tests/0/scenarios/post' },
+    });
+    expect(issueText(conflict('mocks'), context('en'))).toMatchObject({
+      cause:
+        'The test "posts" picks a scenario for "post" and also simulates its output.',
+      fix: 'Keep the scenario or the simulated output.',
+    });
+    expect(issueText(conflict('failures'), context('fr'))).toMatchObject({
+      cause:
+        'Le test « posts » choisit un scénario pour « post » et simule aussi son échec.',
+      fix: 'Garde le scénario ou l’échec simulé.',
+    });
+    // A scenario picked for a node the automation lacks reads as a pick.
+    expect(
+      issueText(
+        {
+          level: 'warning',
+          code: 'TESTS_MOCK_UNKNOWN_NODE',
+          message: '',
+          params: {
+            test: 0,
+            name: 'posts',
+            node: 'gone',
+            field: 'scenarios',
+            nodes: ['post'],
+          },
+          at: { pointer: '/tests/0/scenarios/gone' },
+        },
+        context('en'),
+      ).cause,
+    ).toBe('The test "posts" picks a scenario for "gone".');
   });
 
   it('names the simulated failure that rules out what a test expects', () => {

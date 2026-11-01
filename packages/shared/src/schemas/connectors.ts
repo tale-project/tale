@@ -326,6 +326,103 @@ const jsonSchemaObjectSchema = z
   .object({ type: z.literal('object') })
   .passthrough();
 
+/**
+ * What a scenario stands for, which decides what it answers:
+ *
+ *  - `success`   — the call does what was asked (an output);
+ *  - `empty`     — it succeeds with nothing in it: an empty list, or the
+ *                  record with its optional members empty (an output);
+ *  - `error`     — a read fails: not found, refused credentials, a rate
+ *                  limit, a service that does not answer (an error);
+ *  - `refusal`   — the service refuses a write (an error);
+ *  - `duplicate` — what the service answers when the same write comes
+ *                  again: a second record, the first one, or a refusal.
+ */
+export const CONNECTOR_SCENARIO_KINDS = [
+  'success',
+  'empty',
+  'error',
+  'refusal',
+  'duplicate',
+] as const;
+export type ConnectorScenarioKind = (typeof CONNECTOR_SCENARIO_KINDS)[number];
+
+/** The kinds each action ships at least, by its effect, on a connector
+ * whose scenarios the catalog gate holds. */
+export const MINIMUM_SCENARIO_KINDS: Readonly<
+  Record<ConnectorEffect, readonly ConnectorScenarioKind[]>
+> = {
+  read: ['success', 'empty', 'error'],
+  write: ['success', 'refusal', 'duplicate'],
+};
+
+/** The kinds that answer with an error, and those that answer with an
+ * output; `duplicate` answers with either. */
+const ERROR_KINDS: ReadonlySet<ConnectorScenarioKind> = new Set([
+  'error',
+  'refusal',
+]);
+const OUTPUT_KINDS: ReadonlySet<ConnectorScenarioKind> = new Set([
+  'success',
+  'empty',
+]);
+
+/**
+ * One case of an action a test can pick for a node in a mock run: what the
+ * action answers to a call whose input carries every member of `when`
+ * (each equal as JSON; every call when there is none) — an `output`, or the
+ * `error` the action itself raises, which the run classifies exactly as a
+ * live call's failure. Data, never code, and synthetic: the output a
+ * service answers in that case, the message the action's live body throws,
+ * and the HTTP status that error carries, if it carries one.
+ */
+export const connectorScenarioSchema = z
+  .object({
+    name: z
+      .string()
+      .regex(
+        /^[a-z][a-z0-9_]{0,49}$/,
+        'must be snake_case (lower-case, digits, underscores), at most 50 characters',
+      ),
+    kind: z.enum(CONNECTOR_SCENARIO_KINDS),
+    /** The case in words, in English: what the service does. */
+    description: z.string().min(1).max(500),
+    when: z.record(z.string(), z.json()).optional(),
+    output: z.json().optional(),
+    error: z
+      .object({
+        message: z.string().min(1).max(2000),
+        status: z.number().int().min(400).max(599).optional(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .superRefine((scenario, context) => {
+    const hasOutput = scenario.output !== undefined;
+    const hasError = scenario.error !== undefined;
+    if (hasOutput === hasError) {
+      context.addIssue({
+        code: 'custom',
+        message: 'a scenario answers with either an output or an error',
+        path: hasOutput ? ['error'] : [],
+      });
+    } else if (ERROR_KINDS.has(scenario.kind) && !hasError) {
+      context.addIssue({
+        code: 'custom',
+        message: `a${scenario.kind === 'error' ? 'n' : ''} ${scenario.kind} scenario answers with an error`,
+        path: ['output'],
+      });
+    } else if (OUTPUT_KINDS.has(scenario.kind) && !hasOutput) {
+      context.addIssue({
+        code: 'custom',
+        message: `a${scenario.kind === 'empty' ? 'n' : ''} ${scenario.kind} scenario answers with an output`,
+        path: ['error'],
+      });
+    }
+  });
+export type ConnectorScenario = z.infer<typeof connectorScenarioSchema>;
+
 export const connectorActionSchema = z
   .object({
     name: actionNameSchema,
@@ -357,6 +454,15 @@ export const connectorActionSchema = z
     /** Deterministic mock body (JS): `input` in scope, returns the mock
      * output. Required — the authoring/test loop runs on it. */
     mock: z.string().min(1),
+    /** The cases a test can pick instead of the mock's answer; see
+     * {@link connectorScenarioSchema}. */
+    scenarios: z
+      .array(connectorScenarioSchema)
+      .max(50)
+      .refine((s) => new Set(s.map((e) => e.name)).size === s.length, {
+        message: 'scenario names must be unique per action',
+      })
+      .optional(),
     /** Live backend; omitted for a mock-only action. */
     backend: backendSchema.optional(),
     /** Canonical example input for docs/example rendering. */

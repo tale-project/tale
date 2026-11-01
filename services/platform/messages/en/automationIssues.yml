@@ -91,8 +91,8 @@ codes:
   TESTS_INVALID:
     title: Test is malformed
     explanation: Each test has a name, an input and, optionally, what it expects. A test in any other shape can't run.
-    cause: '{test, select, none {The tests field isn''t a list of tests.} other {{part, select, description {The description of test {testNumber} isn''t text.} mocks {In test {testNumber}, mocks doesn''t give each node''s simulated output under its id.} failures {In test {testNumber}, failures doesn''t give each node''s error message under its id, as text of at most 2,000 characters.} effects {In test {testNumber}, the expected actions aren''t a list.} effect {In test {testNumber}, an expected action doesn''t name its connector.} effectInput {In test {testNumber}, an expected action gives both input and inputIncludes.} effectAbsent {In test {testNumber}, an expected action sets absent to something other than true.} nodes {In test {testNumber}, a node is expected to be something other than ran, skipped or failed.} failure {In test {testNumber}, the expected failure isn''t written as node and message.} failureWithOutput {Test {testNumber} expects the run to fail, and an output as well.} other {{keysCount, plural, =0 {Test {testNumber} isn''t written as name, input and expect.} one {The expect part of test {testNumber} has an unknown key: {keysList}.} other {The expect part of test {testNumber} has unknown keys: {keysList}.}}}}}}'
-    fix: Write each test as name and input, with description, mocks, failures and expect where you need them.
+    cause: '{test, select, none {The tests field isn''t a list of tests.} other {{part, select, description {The description of test {testNumber} isn''t text.} mocks {In test {testNumber}, mocks doesn''t give each node''s simulated output under its id.} failures {In test {testNumber}, failures doesn''t give each node''s error message under its id, as text of at most 2,000 characters.} scenarios {In test {testNumber}, scenarios doesn''t give each node''s scenario name under its id, as text of at most 50 characters.} effects {In test {testNumber}, the expected actions aren''t a list.} effect {In test {testNumber}, an expected action doesn''t name its connector.} effectInput {In test {testNumber}, an expected action gives both input and inputIncludes.} effectAbsent {In test {testNumber}, an expected action sets absent to something other than true.} nodes {In test {testNumber}, a node is expected to be something other than ran, skipped or failed.} failure {In test {testNumber}, the expected failure isn''t written as node and message.} failureWithOutput {Test {testNumber} expects the run to fail, and an output as well.} other {{keysCount, plural, =0 {Test {testNumber} isn''t written as name, input and expect.} one {The expect part of test {testNumber} has an unknown key: {keysList}.} other {The expect part of test {testNumber} has unknown keys: {keysList}.}}}}}}'
+    fix: Write each test as name and input, with description, mocks, failures, scenarios and expect where you need them.
   NODE_NOT_OBJECT:
     title: Node isn't an object
     explanation: Each entry in nodes is an object with at least an id and a type.
@@ -367,7 +367,7 @@ codes:
     title: Unknown test field
     explanation: A test has a field Tale doesn't know, so it is ignored.
     cause: 'The test "{name}" has "{field}"{effect, select, none {} other { in an expected action}}.'
-    fix: '{suggestion, select, none {{effect, select, none {Remove it. A test has name, description, input, mocks, failures and expect.} other {Remove it. An expected action has connector, node, input, inputIncludes and absent.}}} other {Did you mean "{suggestion}"?}}'
+    fix: '{suggestion, select, none {{effect, select, none {Remove it. A test has name, description, input, mocks, failures, scenarios and expect.} other {Remove it. An expected action has connector, node, input, inputIncludes and absent.}}} other {Did you mean "{suggestion}"?}}'
   TESTS_NAME_DUPLICATE:
     title: Two tests share a name
     explanation: Results are listed by name, so two tests with one name are hard to tell apart.
@@ -375,14 +375,24 @@ codes:
     fix: Give every test its own name.
   TESTS_MOCK_UNKNOWN_NODE:
     title: Simulates a node that doesn't exist
-    explanation: A test simulates the output or failure of a node this automation doesn't have, so the test can't run.
-    cause: The test "{name}" simulates "{node}".
+    explanation: A test simulates the output or failure of a node this automation doesn't have, or picks a scenario for one, so the test can't run.
+    cause: '{field, select, scenarios {The test "{name}" picks a scenario for "{node}".} other {The test "{name}" simulates "{node}".}}'
     fix: '{suggestion, select, none {Use the id of one of the nodes.} other {Did you mean "{suggestion}"?}}'
   TESTS_MOCK_CONFLICT:
     title: Output and failure for one node
     explanation: A node can either return a simulated output or fail, not both.
     cause: The test "{name}" does both for {nodeLabel}.
     fix: Keep the simulated output or the simulated failure.
+  TESTS_SCENARIO_CONFLICT:
+    title: Scenario and simulation for one node
+    explanation: A test can either pick a scenario for a node or simulate its output or failure, not both.
+    cause: '{field, select, mocks {The test "{name}" picks a scenario for {nodeLabel} and also simulates its output.} other {The test "{name}" picks a scenario for {nodeLabel} and also simulates its failure.}}'
+    fix: '{field, select, mocks {Keep the scenario or the simulated output.} other {Keep the scenario or the simulated failure.}}'
+  TESTS_SCENARIO_UNKNOWN:
+    title: Picks a scenario that doesn't exist
+    explanation: A test picks a scenario that the node's connector action doesn't ship, so the test can't run.
+    cause: 'The test "{name}" picks "{scenario}" for {nodeLabel} ({type}).{scenariosCount, plural, =0 { It has no scenarios to pick from.} one { Its only scenario is {scenariosList}.} other { Its scenarios are {scenariosList}.}}'
+    fix: '{suggestion, select, none {{scenariosCount, plural, =0 {Simulate its output with mocks or its failure with failures instead.} one {Pick its only scenario.} other {Pick one of its scenarios.}}} other {Did you mean "{suggestion}"?}}'
   TESTS_MOCK_NOT_LIST:
     title: Simulated output needs a list
     explanation: This node runs once per item, so its simulated output is a list with one entry per item.

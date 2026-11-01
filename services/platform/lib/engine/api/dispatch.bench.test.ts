@@ -1,6 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { execute } from '../core/execute';
+import {
+  type ConnectorScenario,
+  registerNodeType,
+  setCodeRunner,
+} from '../core/slots';
+import type { RunResult } from '../core/types';
+import { nodeVmRunner } from '../runners/node-vm';
 import {
   DISPATCH_REFUSAL_CODES,
   dispatch,
@@ -12,13 +19,18 @@ import { runAutomationTests, type TestReport } from './tests';
 vi.mock('./tests', () => ({ runAutomationTests: vi.fn() }));
 vi.mock('../core/execute', () => ({ execute: vi.fn() }));
 
+const { execute: executeForReal } =
+  await vi.importActual<typeof import('../core/execute')>('../core/execute');
+
 /**
  * What an agent runs through the engine without saving anything: some of an
  * automation's tests, or all, and the automation itself on stand-ins it
  * names or one step on data it pins. The runs happen in the API process, so
  * a host that charges them (`admitBench`) is asked first and told when each
  * run is over. The runner and the executor are doubles; what they do with a
- * bench is the engine's own tests'.
+ * bench is the engine's own tests' — but for a scenario a connector action
+ * ships, which the last block runs through the real executor, so the answer
+ * an agent gets for a pick and for each refusal of one is held whole.
  */
 
 const NAME = 'billing/dunning';
@@ -193,6 +205,9 @@ describe('test_automation picks tests by name', () => {
     expect(result).toMatchObject({
       code: 'INVALID_PARAMS',
       error: 'the automation has no tests',
+      hint: expect.stringContaining(
+        'tests: [{name, input, mocks?, failures?, scenarios?, expect?}]',
+      ),
     });
     expect(runAutomationTests).not.toHaveBeenCalled();
   });
@@ -400,6 +415,52 @@ describe('run_automation on stand-ins', () => {
     );
   });
 
+  it('hands the scenarios it picks to the run, beside the other stand-ins [AUTO-R78]', async () => {
+    await dispatch(
+      'run_automation',
+      {
+        automation: DOC,
+        mocks: { calc: { count: 1, sum: 120 } },
+        scenarios: { summary: 'quiet' },
+      },
+      { store: store() },
+    );
+    expect(execute).toHaveBeenCalledWith(
+      DOC,
+      expect.objectContaining({
+        mode: 'mock',
+        bench: {
+          mocks: { calc: { count: 1, sum: 120 } },
+          scenarios: { summary: 'quiet' },
+        },
+      }),
+    );
+  });
+
+  it.each([
+    ['a name alone', 'found'],
+    ['a list', ['found']],
+    ['null', null],
+    ['a name that is no text', { summary: 1 }],
+  ])(
+    'refuses scenarios given as %s, naming the param, running nothing [AUTO-R78]',
+    async (_case, scenarios) => {
+      const result = await dispatch(
+        'run_automation',
+        { automation: DOC, scenarios },
+        { store: store() },
+      );
+      expect(result).toEqual({
+        error: `params.scenarios must be an object of node ids and a scenario name each — got ${JSON.stringify(scenarios)}`,
+        code: 'INVALID_PARAMS',
+        hint: expect.stringContaining(
+          'scenarios {node: a scenario its action ships}',
+        ),
+      });
+      expect(execute).not.toHaveBeenCalled();
+    },
+  );
+
   it.each([
     ['mocks', 5],
     ['failures', { summary: 1 }],
@@ -529,5 +590,361 @@ describe('run_automation on stand-ins', () => {
     );
     expect(result).toMatchObject({ status: 'invalid' });
     expect(admitBench).not.toHaveBeenCalled();
+  });
+});
+
+describe('run_automation picks a scenario an action ships', () => {
+  const FIND = 'crm.find_contact';
+  const findMock = vi.fn(() => ({ id: 'c_mock', name: 'Mock Contact' }));
+  const findLive = vi.fn(async () => ({ id: 'c_live', name: 'Live Contact' }));
+  /** A read action's cases: a contact found, none with the email asked
+   * for, and the ways its service fails — each status the classification
+   * reads, a network that never answered, and a failure of no status. */
+  const SCENARIOS: ConnectorScenario[] = [
+    {
+      name: 'found',
+      kind: 'success',
+      description: 'A contact has this email.',
+      output: { id: 'c_42', name: 'Ada Lovelace' },
+    },
+    {
+      name: 'not_found',
+      kind: 'error',
+      description: 'No contact has this email.',
+      when: { email: 'nobody@example.com' },
+      error: { message: 'contact not found', status: 404 },
+    },
+    {
+      name: 'forbidden',
+      kind: 'error',
+      description: 'The credential may not read contacts.',
+      error: { message: 'missing scope contacts.read', status: 403 },
+    },
+    {
+      name: 'rate_limited',
+      kind: 'error',
+      description: 'The CRM limits the calls of the account.',
+      error: { message: 'too many requests', status: 429 },
+    },
+    {
+      name: 'unavailable',
+      kind: 'error',
+      description: 'The CRM is down for maintenance.',
+      error: { message: 'the CRM is down for maintenance', status: 503 },
+    },
+    {
+      name: 'unreachable',
+      kind: 'error',
+      description: 'The CRM never answers.',
+      error: { message: 'fetch failed' },
+    },
+    {
+      name: 'broken',
+      kind: 'error',
+      description: 'The CRM answers something no one can read.',
+      error: { message: 'the CRM answered garbage' },
+    },
+  ];
+  const NAMES = SCENARIOS.map((scenario) => scenario.name);
+
+  /** Looks a contact up by the email it is given, and greets it. */
+  const GREET = {
+    version: 1,
+    name: 'crm/greet',
+    inputs: {
+      type: 'object',
+      properties: { email: { type: 'string' } },
+      required: ['email'],
+    },
+    nodes: [
+      { id: 'find', type: FIND, input: { email: '{{ input.email }}' } },
+      {
+        id: 'greeting',
+        type: 'transform',
+        input: { name: '{{ nodes.find.output.name }}' },
+        code: 'return { text: "Hello, " + input.name };',
+      },
+    ],
+    output: '{{ nodes.greeting.output.text }}',
+  };
+
+  const run = (params: Record<string, unknown>, email = 'ada@example.com') =>
+    dispatch(
+      'run_automation',
+      { automation: GREET, input: { email }, ...params },
+      { store: store() },
+    );
+
+  /** The answer an agent gets for a bench the run refuses. */
+  const refusal = (issue: {
+    code: string;
+    message: string;
+    hint: string;
+    at: { pointer: string; subject?: 'key' };
+    params: Record<string, unknown>;
+  }) => ({
+    error: issue.message,
+    code: 'BENCH_INVALID',
+    hint: issue.hint,
+    data: { issue: { level: 'error', ...issue } },
+  });
+
+  beforeAll(() => {
+    setCodeRunner(nodeVmRunner());
+    registerNodeType({
+      type: FIND,
+      kind: 'connector',
+      outputKind: 'structured',
+      description: 'test connector: find a contact by email',
+      allowedFields: ['input'],
+      requiredFields: ['input'],
+      connector: {
+        name: FIND,
+        description: 'find a contact by email',
+        inputSchema: {
+          type: 'object',
+          properties: { email: { type: 'string' } },
+          required: ['email'],
+        },
+        outputSignature: '{ id: string, name: string }',
+        hasEffect: false,
+        mock: findMock,
+        live: findLive,
+        scenarios: SCENARIOS,
+      },
+    });
+  });
+
+  beforeEach(() => {
+    vi.mocked(execute).mockImplementation(executeForReal);
+    findMock.mockClear();
+    findLive.mockClear();
+  });
+
+  it('answers the step with the output of the scenario it picks, marked as simulated [AUTO-R78]', async () => {
+    const result = await run({ scenarios: { find: 'found' } });
+    expect(result).toMatchObject({
+      status: 'success',
+      output: 'Hello, Ada Lovelace',
+      trace: [
+        {
+          node: 'find',
+          status: 'ok',
+          bench: 'mocked',
+          output: { id: 'c_42', name: 'Ada Lovelace' },
+        },
+        { node: 'greeting', status: 'ok' },
+      ],
+    });
+    expect(result).not.toHaveProperty('unusedMocks');
+    expect(findMock).not.toHaveBeenCalled();
+    expect(findLive).not.toHaveBeenCalled();
+  });
+
+  it('gives a call its scenario’s when does not match the action’s mock, and names the pick as not used [AUTO-R78]', async () => {
+    const result = (await run({
+      scenarios: { find: 'not_found' },
+    })) as RunResult;
+    expect(result).toMatchObject({
+      status: 'success',
+      output: 'Hello, Mock Contact',
+      unusedMocks: ['find'],
+    });
+    expect(
+      result.trace.find((entry) => entry.node === 'find'),
+    ).not.toHaveProperty('bench');
+    expect(findMock).toHaveBeenCalledWith({ email: 'ada@example.com' });
+  });
+
+  it.each([
+    ['not_found', 'CONNECTOR_NOT_FOUND', 'connector_error', { status: 404 }],
+    ['forbidden', 'CONNECTOR_AUTH', 'connector_error', { status: 403 }],
+    [
+      'rate_limited',
+      'CONNECTOR_RATE_LIMITED',
+      'connector_unavailable',
+      { status: 429 },
+    ],
+    [
+      'unavailable',
+      'CONNECTOR_FAILED',
+      'connector_unavailable',
+      { status: 503, detail: 'the CRM is down for maintenance' },
+    ],
+    ['unreachable', 'CONNECTOR_UNREACHABLE', 'connector_unavailable', {}],
+    [
+      'broken',
+      'CONNECTOR_FAILED',
+      'connector_error',
+      { detail: 'the CRM answered garbage' },
+    ],
+  ])(
+    'fails the step with the error of %s, classified as %s as a live call’s failure is [AUTO-R79]',
+    async (name, reason, family, params) => {
+      const message = SCENARIOS.find((scenario) => scenario.name === name)
+        ?.error?.message;
+      const result = await run(
+        { scenarios: { find: name } },
+        'nobody@example.com',
+      );
+      expect(result).toMatchObject({
+        status: 'error',
+        error: {
+          nodeId: 'find',
+          message: `${message} (the "${name}" scenario of ${FIND}, simulated by the test)`,
+          failure: {
+            code: family,
+            reason,
+            params: { connector: FIND, action: FIND, ...params },
+            at: { pointer: '/nodes/0' },
+          },
+        },
+        trace: [
+          { node: 'find', status: 'error', bench: 'failed' },
+          { node: 'greeting', status: 'not_run' },
+        ],
+      });
+      expect(result).not.toHaveProperty('unusedMocks');
+      expect(findMock).not.toHaveBeenCalled();
+      expect(findLive).not.toHaveBeenCalled();
+    },
+  );
+
+  it('fails a 404 as not found, with the action and the status alone as its facts [AUTO-R79]', async () => {
+    const result = (await run(
+      { scenarios: { find: 'not_found' } },
+      'nobody@example.com',
+    )) as RunResult;
+    expect(result.error?.failure?.params).toEqual({
+      connector: FIND,
+      action: FIND,
+      status: 404,
+    });
+  });
+
+  it('refuses a scenario the step’s action does not ship, naming the closest and those it ships, running nothing [AUTO-R78]', async () => {
+    const result = await run({ scenarios: { find: 'not_fund' } });
+    expect(result).toEqual(
+      refusal({
+        code: 'BENCH_UNKNOWN_SCENARIO',
+        message: `the test picks the scenario "not_fund" for "find", which ${FIND} does not ship`,
+        hint: `did you mean "not_found"? scenarios of ${FIND}: ${NAMES.join(', ')}`,
+        at: { pointer: '/bench/scenarios/find' },
+        params: {
+          node: 'find',
+          type: FIND,
+          scenario: 'not_fund',
+          scenarios: NAMES,
+          suggestion: 'not_found',
+        },
+      }),
+    );
+    expect(findMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses a scenario for a step that is no connector action, which ships none [AUTO-R78]', async () => {
+    const result = await run({ scenarios: { greeting: 'found' } });
+    expect(result).toEqual(
+      refusal({
+        code: 'BENCH_UNKNOWN_SCENARIO',
+        message:
+          'the test picks the scenario "found" for "greeting", which transform does not ship',
+        hint: 'transform ships no scenarios — simulate its output (mocks) or its failure (failures) instead',
+        at: { pointer: '/bench/scenarios/greeting' },
+        params: {
+          node: 'greeting',
+          type: 'transform',
+          scenario: 'found',
+          scenarios: [],
+        },
+      }),
+    );
+    expect(findMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses a name longer than any scenario’s as one the action does not ship, suggesting none [AUTO-R78]', async () => {
+    const long = 'n'.repeat(51);
+    const result = await run({ scenarios: { find: long } });
+    expect(result).toMatchObject({
+      code: 'BENCH_INVALID',
+      data: {
+        issue: {
+          code: 'BENCH_UNKNOWN_SCENARIO',
+          params: { node: 'find', scenario: long, scenarios: NAMES },
+        },
+      },
+    });
+    expect(result).not.toHaveProperty('data.issue.params.suggestion');
+    expect(findMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses a scenario for a step the automation does not have, naming the closest as a key that should not be there [AUTO-R78]', async () => {
+    const result = await run({ scenarios: { fnd: 'found' } });
+    expect(result).toEqual(
+      refusal({
+        code: 'BENCH_UNKNOWN_NODE',
+        message:
+          'the test picks a scenario for "fnd", which is not a node of this automation',
+        hint: 'did you mean "find"? nodes: find, greeting',
+        at: { pointer: '/bench/scenarios/fnd', subject: 'key' },
+        params: { field: 'scenarios', node: 'fnd', suggestion: 'find' },
+      }),
+    );
+  });
+
+  it.each([
+    [
+      'mocks',
+      { find: { id: 'c_7', name: 'Grace Hopper' } },
+      'simulates an output',
+    ],
+    ['failures', { find: 'the CRM is down' }, 'simulates a failure'],
+  ])(
+    'refuses a step given both %s and a scenario [AUTO-R78]',
+    async (field, standIn, what) => {
+      const result = await run({
+        [field]: standIn,
+        scenarios: { find: 'found' },
+      });
+      expect(result).toEqual(
+        refusal({
+          code: 'BENCH_CONFLICT',
+          message: `the test both ${what} and picks a scenario for "find"`,
+          hint: `keep one of ${field}.find and scenarios.find`,
+          at: { pointer: '/bench/scenarios/find' },
+          params: { node: 'find', fields: [field, 'scenarios'] },
+        }),
+      );
+      expect(findMock).not.toHaveBeenCalled();
+    },
+  );
+
+  it('refuses a live run that picks a scenario, though it names no other stand-in [AUTO-R78]', async () => {
+    const connectorHost = vi.fn(() => {
+      throw new Error('must not execute');
+    });
+    const result = await dispatch(
+      'run_automation',
+      {
+        automation: GREET,
+        input: { email: 'ada@example.com' },
+        mode: 'live',
+        scenarios: { find: 'found' },
+      },
+      { store: store(), allowLive: true, connectorHost },
+    );
+    expect(result).toEqual(
+      refusal({
+        code: 'BENCH_MOCK_ONLY',
+        message:
+          'simulated outputs, simulated failures, picked scenarios and narrower scopes apply to mock runs only',
+        hint: 'run in mock mode — a live run calls every node as written',
+        at: { pointer: '/bench' },
+        params: {},
+      }),
+    );
+    expect(connectorHost).not.toHaveBeenCalled();
+    expect(findLive).not.toHaveBeenCalled();
+    expect(findMock).not.toHaveBeenCalled();
   });
 });
