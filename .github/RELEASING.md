@@ -40,11 +40,16 @@ cannot open it. It also compares **Upgrade notes** with what the checkout brings
 release tag, which it finds with `git describe` from the checkout's parent (`--previous-tag vA.B.C`
 names it instead). It rejects them unless they name each migration file added to
 `services/platform/backend/db/migrations`, by its file name, and the new `API_CONTRACT_VERSION`
-when it changed, and its error names what is missing. Naming more, such as an earlier release's
-migration, is allowed. It cannot recognise leftover template prose or a wrong claim; the review
-must. Release Prepare runs the same validator before any image builds, with `--shape-only`: it
-checks the sections but does not compare, because it runs after the tag, where a refusal costs
-the version, and its checkout has no history. Content-only `sites_only` builds are exempt.
+when it changed, and its error names what is missing. It also rejects notes that present the
+previous release's work as this one's: a migration file that release already has, by its name or
+as a number after "migration", one that neither release adds, and a pull request or issue of
+`tale-project/tale` (`#N` or its address) that it already merged or closed and no commit since
+refers to again. A paragraph or list item that names the earlier release may name its work, as in
+"Upgrading from v0.5.87 also applies …". It cannot recognise leftover template prose or a wrong
+claim; the review must. Release Prepare runs the same validator before any image builds, with
+`--shape-only`: it checks the sections but does not compare, because it runs after the tag, where
+a refusal costs the version, and its checkout has no history. Content-only `sites_only` builds are
+exempt.
 
 ## 1. Choose the candidate
 

@@ -527,7 +527,10 @@ exit 99
   );
 });
 
-/** v0.5.89 against v0.5.88, as Git records them (#4970). */
+/**
+ * v0.5.89 against v0.5.88, as Git records them (#4970). Of what v0.5.88
+ * already ships, its last migrations and the pull requests its notes cite.
+ */
 const v0589: ReleaseChanges = {
   candidate: '0cf2c45fda99080249f420b800f79c67a79fac9f',
   previous: {
@@ -535,7 +538,50 @@ const v0589: ReleaseChanges = {
     commit: '18edad5c22b56f0133b1c0bbc6e65d8e483c05a4',
   },
   migrations: ['0204_usage_ledger_provider.sql'],
+  earlierMigrations: [
+    '0200_automation_test_reports.sql',
+    '0201_provider_subscription_account_id.sql',
+    '0202_agent_run_engine.sql',
+    '0203_agent_connections.sql',
+    '0203_auth_factor_authorities.sql',
+  ],
+  shipped: [4912, 4913, 4915, 4918, 4920],
   contract: { previous: '3.43.0', current: '3.44.0' },
+};
+/**
+ * v0.5.83 against v0.5.82, as Git records them (#4785). Of what v0.5.82
+ * already ships, its last migrations and pull requests the v0.5.81 and
+ * v0.5.82 notes cite.
+ */
+const v0583: ReleaseChanges = {
+  candidate: '4e3c8e40fe05706a5e8796bb30b024b58c1038f9',
+  previous: {
+    tag: 'v0.5.82',
+    commit: '0381bc439d9de85079bcdd4e001ad7e989f76bb9',
+  },
+  migrations: [
+    '0170_automation_schedule_rules.sql',
+    '0171_automation_trigger_skip_detail.sql',
+    '0172_automation_trigger_static_input.sql',
+    '0173_seeded_github_schedules_off.sql',
+    '0190_automation_node_runs.sql',
+    '0191_automation_run_replays.sql',
+    '0192_automation_run_replay_lineage.sql',
+    '0193_boot_repairs.sql',
+    '0194_audit_async_sealing.sql',
+    '0195_auth_invalidations.sql',
+    '0196_automation_messages.sql',
+    '0197_automation_approval_allowances.sql',
+  ],
+  earlierMigrations: [
+    '0167_project_agent_workers.sql',
+    '0168_project_wakes.sql',
+    '0169_attested_review_batches.sql',
+    '0180_mcp_client_activity.sql',
+    '0181_automation_version_attribution.sql',
+  ],
+  shipped: [4603, 4608, 4616, 4632, 4648],
+  contract: { previous: '3.27.0', current: '3.35.0' },
 };
 /** A release that adds no migration and keeps its API contract. */
 const quiet: ReleaseChanges = {
@@ -549,6 +595,15 @@ const migrationMissing =
   'Upgrade notes do not name migration 0204_usage_ledger_provider.sql, added since v0.5.88';
 const contractMissing =
   'Upgrade notes do not name API contract 3.44.0, changed from 3.43.0 since v0.5.88';
+/** Upgrade notes that name what v0.5.89 brings. */
+const upgradeV0589 =
+  'The backend applies 0204_usage_ledger_provider.sql at boot; the API contract moves to 3.44.0.';
+const attribute =
+  'name the earlier release beside it, in the same paragraph or list item, or leave it out';
+const alreadyHas = (written: string, tag = 'v0.5.88') =>
+  `Release notes name migration ${written}, which ${tag} already has: ${attribute}`;
+const alreadyShips = (n: number, tag = 'v0.5.88') =>
+  `Release notes cite #${n}, which ${tag} already ships and no commit since refers to: ${attribute}`;
 
 /** The refusal's message, or '' when the Upgrade notes are accepted. */
 function refusal(raw: string, changes: ReleaseChanges) {
@@ -695,19 +750,111 @@ describe('Upgrade notes against the release contents', () => {
     ).toBe(migrationMissing);
   });
 
-  test("naming an earlier release's migration is not an error", () => {
-    // As the v0.5.88 notes name a v0.5.87 migration to correct its notes.
-    const earlier =
-      'The v0.5.87 notes left out 0203_earlier_release.sql, which v0.5.87 applied.';
-    expect(refusal(upgrading(earlier), quiet)).toBe('');
+  test("refuses an earlier release's migration as this release's, by its file name or its number", () => {
+    for (const [named, refused] of [
+      [
+        'The backend also applies 0203_agent_connections.sql.',
+        alreadyHas('0203_agent_connections.sql'),
+      ],
+      [
+        'Tale CLI applies migrations 0202 and 0204 during the rollout.',
+        alreadyHas('0202 (0202_agent_run_engine.sql)'),
+      ],
+      [
+        'It applies migrations `0201`–`0204`.',
+        alreadyHas('0201 (0201_provider_subscription_account_id.sql)'),
+      ],
+      [
+        'Migration 0203 links agents to their connections.',
+        alreadyHas(
+          '0203 (0203_agent_connections.sql, 0203_auth_factor_authorities.sql)',
+        ),
+      ],
+    ])
+      expect(
+        refusal(upgrading(`${upgradeV0589}\n\n${named}`), v0589),
+        named,
+      ).toBe(refused);
+    // In the Highlights too: they present the release's own work.
+    expect(
+      refusal(
+        `## Highlights\n\nThe new 0203_agent_connections.sql links agents.\n\n## Upgrade notes\n\n${upgradeV0589}\n`,
+        v0589,
+      ),
+    ).toBe(alreadyHas('0203_agent_connections.sql'));
+  });
+
+  test('refuses a migration that neither release adds', () => {
     expect(
       refusal(
         upgrading(
-          `${earlier} This release applies 0204_usage_ledger_provider.sql; the API contract moves to 3.44.0.`,
+          `${upgradeV0589} Then 0205_next.sql and migration 0299 apply.`,
         ),
         v0589,
       ),
-    ).toBe('');
+    ).toBe(
+      [
+        'Release notes name migration 0205_next.sql, which neither v0.5.88 nor this release adds',
+        'Release notes name migration 0299, which neither v0.5.88 nor this release adds',
+      ].join('\n'),
+    );
+  });
+
+  test('refuses a pull request or issue the previous release already ships, in any form', () => {
+    for (const cited of [
+      '[#4912](https://github.com/tale-project/tale/pull/4912)',
+      'See #4912.',
+      'See tale-project/tale#4912.',
+      'See https://github.com/tale-project/tale/issues/4912.',
+      'See <https://github.com/tale-project/tale/pull/4912#discussion_r1>.',
+    ]) {
+      const highlights = `## Highlights\n\nUsage is booked per provider. ${cited}\n\n## Upgrade notes\n\n${upgradeV0589}\n`;
+      expect(refusal(highlights, v0589), cited).toBe(alreadyShips(4912));
+      expect(refusal(upgrading(`${upgradeV0589} ${cited}`), v0589), cited).toBe(
+        alreadyShips(4912),
+      );
+    }
+    expect(
+      refusal(upgrading(`${upgradeV0589} See #4920, #4913 and #4920.`), v0589),
+    ).toBe([alreadyShips(4920), alreadyShips(4913)].join('\n'));
+  });
+
+  test('a number that refers to no earlier work is no citation or migration', () => {
+    for (const text of [
+      'See [#4970](https://github.com/tale-project/tale/issues/4970).',
+      'See [Triggers](https://docs.tale.dev/platform/automations/triggers#4912).',
+      'Port 4912 and image `ghcr.io/tale-project/tale/tale-db:4912` are unchanged.',
+      'The entity &#4912; renders as before.',
+      'See https://github.com/other/project/pull/4912 and tale-project/tale-cli#4912.',
+      'Keep 0203 rows in the batch; 2026 migrations ran.',
+      '<!-- #4912 and 0203_agent_connections.sql, migration 0202 -->',
+    ])
+      expect(refusal(upgrading(`${upgradeV0589} ${text}`), v0589), text).toBe(
+        '',
+      );
+  });
+
+  test('a paragraph or list item that names the earlier release may name its work', () => {
+    // As the v0.5.88 notes name v0.5.87's migrations to correct its notes.
+    for (const attributed of [
+      'Upgrading from v0.5.87 or earlier also applies 0203_agent_connections.sql and 0203_auth_factor_authorities.sql, which the v0.5.87 notes leave out.',
+      'The v0.5.88 notes said sign-in stays off ([#4912](https://github.com/tale-project/tale/pull/4912)); it is on.',
+      '- Known issues carried over from v0.5.88:\n  - Usage of [#4912](https://github.com/tale-project/tale/pull/4912) is booked late.\n  - Migration 0203 keeps its index.',
+    ])
+      expect(
+        refusal(upgrading(`${upgradeV0589}\n\n${attributed}`), v0589),
+        attributed,
+      ).toBe('');
+    // Another paragraph or list item names nothing, nor does a later release.
+    for (const unattributed of [
+      'Since v0.5.88:\n\n- [#4912](https://github.com/tale-project/tale/pull/4912) books usage.',
+      '- Since v0.5.88, usage is booked.\n- [#4912](https://github.com/tale-project/tale/pull/4912) books it.',
+      'As of v0.5.89, #4912 books usage.',
+    ])
+      expect(
+        refusal(upgrading(`${upgradeV0589}\n\n${unattributed}`), v0589),
+        unattributed,
+      ).toBe(alreadyShips(4912));
   });
 
   test('an unchanged API contract needs no version named', () => {
@@ -758,6 +905,33 @@ describe('Upgrade notes against the release contents', () => {
     );
     expect(refusal(published, v0589)).toBe(
       `${migrationMissing}\n${contractMissing}`,
+    );
+  });
+
+  test('accepts the corrected v0.5.83 notes and refuses them as first published', async () => {
+    const corrected = await readFile(
+      join(root, '.github/release-notes/v0.5.83.md'),
+      'utf8',
+    );
+    expect(refusal(corrected, v0583)).toBe('');
+    // What v0.5.83 was first published with (#4785): v0.5.82's highlight and
+    // migration, and none of its own.
+    const published = [
+      '## Highlights',
+      '- Standing roles now wake when a project worker finishes, so a released slot can be refilled by the fleet manager without waiting for the next scheduled occurrence. Wake claims are scoped to the project and preserve the native task and review guards. [#4608](https://github.com/tale-project/tale/pull/4608)',
+      '## Upgrade notes',
+      '- Deploy the Tale platform and the managed-deployment CLI together. Tale CLI applies migrations 0168 and 0194 during the normal forward-only rollout; keep the existing backup, retained-release and configuration readback procedure until the new image is serving.',
+    ].join('\n\n');
+    expect(refusal(published, v0583)).toBe(
+      [
+        ...v0583.migrations.map(
+          (file) =>
+            `Upgrade notes do not name migration ${file}, added since v0.5.82`,
+        ),
+        'Upgrade notes do not name API contract 3.35.0, changed from 3.27.0 since v0.5.82',
+        alreadyShips(4608, 'v0.5.82'),
+        alreadyHas('0168 (0168_project_wakes.sql)', 'v0.5.82'),
+      ].join('\n'),
     );
   });
 
@@ -831,21 +1005,25 @@ async function history() {
  * Tag v1.0.0, then a commit with a sites tag, then the candidate. Since
  * v1.0.0 the candidate renames one migration and adds two, with a test, a
  * note and a nested file beside them, and moves the API contract from the
- * version in this repository's own api-contract.ts to 9.0.0.
+ * version in this repository's own api-contract.ts to 9.0.0. v1.0.0 merges
+ * pull request #11, closes #12 and #13 and refers to #15; a commit since
+ * refers to #13 again.
  */
 async function release() {
   const repo = await history();
   const contract = await readFile(join(root, contractPath), 'utf8');
   await repo.write(contractPath, contract);
   await repo.write(`${migrations}/0001_init.sql`, 'SELECT 1;\n');
-  const previous = repo.commit('first release');
+  const previous = repo.commit(
+    'feat: first release (#11)\n\nCloses #12\nFixes tale-project/tale#13\nRefs #15',
+  );
   repo.git('tag', 'v1.0.0');
   await repo.write(`${migrations}/0002_more.sql`, 'SELECT 2;\n');
   await repo.write(`${migrations}/0003_data.ts`, 'export default {};\n');
   await repo.write(`${migrations}/0003_data.test.ts`, '\n');
   await repo.write(`${migrations}/README.md`, 'Migrations.\n');
   await repo.write(`${migrations}/nested/0004_nested.sql`, 'SELECT 4;\n');
-  repo.commit('migrations');
+  repo.commit('fix: more migrations (#14)\n\nRefs #13');
   repo.git('tag', 'sites-discovery-1');
   repo.git(
     'mv',
@@ -872,6 +1050,9 @@ describe.skipIf(process.platform === 'win32')(
         // The migrator applies a renamed file again, and reads no test, note
         // or subdirectory.
         migrations: ['0001_initial.sql', '0002_more.sql', '0003_data.ts'],
+        earlierMigrations: ['0001_init.sql'],
+        // Merged and closed; #13 has new work since and #15 stays open.
+        shipped: [11, 12],
         contract: { previous: changes.contract.previous, current: '9.0.0' },
       });
       // The version is read from the repository's own api-contract.ts.
@@ -979,6 +1160,24 @@ describe.skipIf(process.platform === 'win32')(
       ).not.toBe(0);
       const named = await run(complete, ['--previous-tag', 'v1.0.0']);
       expect(named.exitCode, named.stderr).toBe(0);
+      // What v1.0.0 already ships is not this release's, unless credited to it.
+      const highlight = 'Schedules run on time.';
+      const cited = await run(
+        complete.replace(highlight, 'Schedules run on time (#11).'),
+        [],
+      );
+      expect(cited.exitCode).not.toBe(0);
+      expect(cited.stderr).toContain(
+        'Release notes cite #11, which v1.0.0 already ships and no commit since refers to',
+      );
+      const credited = await run(
+        complete.replace(
+          highlight,
+          'Schedules run on time, as in v1.0.0 (#11).',
+        ),
+        [],
+      );
+      expect(credited.exitCode, credited.stderr).toBe(0);
       // As Release and Publish packages run it, after the tag: the shape alone.
       const shaped = await run(partial, ['--shape-only']);
       expect(shaped.exitCode, shaped.stderr).toBe(0);
