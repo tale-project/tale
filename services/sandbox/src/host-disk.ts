@@ -17,6 +17,7 @@ import {
   runDocker,
   type RunDockerResult,
 } from './spawn-util.ts';
+import { msSince } from './wall-clock.ts';
 
 const GIB = 1024 ** 3;
 
@@ -126,7 +127,12 @@ export interface HostDiskSource {
 export class HostDiskProbe implements HostDiskSource {
   private readonly statfs: NonNullable<HostDiskDeps['statfs']>;
   private readonly now: () => number;
-  private reading: { atMs: number; disk: HostDisk | null } | null = null;
+  /** `seq` numbers the read that took it, as reads start: a newer reading
+   * is told by it, not by the clock, which can step back. */
+  private reading: { atMs: number; seq: number; disk: HostDisk | null } | null =
+    null;
+  /** How many reads have started: each takes the next number. */
+  private reads = 0;
   private refreshing: Promise<HostDisk | null> | null = null;
   private ticker: ReturnType<typeof setInterval> | null = null;
   /** The last verdict logged, so each change is said once. */
@@ -171,10 +177,12 @@ export class HostDiskProbe implements HostDiskSource {
    * after the call. Never rejects: an unreadable disk is null. */
   read(fresh = false): Promise<HostDisk | null> {
     const reading = this.reading;
+    // A reading stamped ahead of the clock (it stepped back since) is stale,
+    // or admission would judge by it for as long as the step.
     if (
       !fresh &&
       reading !== null &&
-      this.now() - reading.atMs < READING_TTL_MS
+      msSince(reading.atMs, this.now()) < READING_TTL_MS
     ) {
       return Promise.resolve(reading.disk);
     }
@@ -187,6 +195,7 @@ export class HostDiskProbe implements HostDiskSource {
 
   private async readNow(): Promise<HostDisk | null> {
     const atMs = this.now();
+    const seq = ++this.reads;
     let disk: HostDisk | null = null;
     try {
       const fs = await this.statfs(this.path);
@@ -206,8 +215,8 @@ export class HostDiskProbe implements HostDiskSource {
       }
     }
     // A slower read that started earlier never replaces a newer reading.
-    if (this.reading === null || this.reading.atMs <= atMs) {
-      this.reading = { atMs, disk };
+    if (this.reading === null || this.reading.seq < seq) {
+      this.reading = { atMs, seq, disk };
       this.sayChange(disk);
     }
     return disk;
@@ -287,7 +296,11 @@ export class DockerDataRootMount {
   private readonly docker: NonNullable<DockerDataRootMountDeps['docker']>;
   private readonly readFile: NonNullable<DockerDataRootMountDeps['readFile']>;
   private readonly now: () => number;
-  private cached: { path: string | null; retryAtMs: number } | null = null;
+  /** The last answer, kept `ttlMs` from when it was found: measured from
+   * then, so a clock that stepped back since ends the wait instead of
+   * stretching it by the step. */
+  private cached: { path: string | null; atMs: number; ttlMs: number } | null =
+    null;
   private discovering: Promise<string | null> | null = null;
   private verifiedMount: string | null = null;
   private failures = 0;
@@ -302,7 +315,10 @@ export class DockerDataRootMount {
   }
 
   read(): Promise<string | null> {
-    if (this.cached !== null && this.now() < this.cached.retryAtMs)
+    if (
+      this.cached !== null &&
+      msSince(this.cached.atMs, this.now()) < this.cached.ttlMs
+    )
       return Promise.resolve(this.cached.path);
     this.discovering ??= this.discover().finally(() => {
       this.discovering = null;
@@ -319,7 +335,8 @@ export class DockerDataRootMount {
     this.failures += 1;
     this.cached = {
       path: null,
-      retryAtMs: this.now() + verificationRetryMs(this.failures),
+      atMs: this.now(),
+      ttlMs: verificationRetryMs(this.failures),
     };
   }
 
@@ -337,7 +354,7 @@ export class DockerDataRootMount {
         // The bind verified earlier is still the one mounted, and has been
         // readable since the last check.
         this.failures = 0;
-        this.cached = { path: '/etc/hostname', retryAtMs: this.now() + ttl };
+        this.cached = { path: '/etc/hostname', atMs: this.now(), ttlMs: ttl };
         return '/etc/hostname';
       }
       this.verifiedMount = null;
@@ -389,7 +406,7 @@ export class DockerDataRootMount {
         );
       }
     }
-    this.cached = { path, retryAtMs: this.now() + ttl };
+    this.cached = { path, atMs: this.now(), ttlMs: ttl };
     return path;
   }
 

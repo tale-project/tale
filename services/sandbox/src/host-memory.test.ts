@@ -293,6 +293,9 @@ describe('HostMemoryProbe', () => {
     dockerFails?: () => boolean;
     now?: () => number;
     cpus?: unknown;
+    /** Holds a /proc/meminfo read, taken as it starts, until the promise
+     * it returns settles; undefined lets it through at once. */
+    hold?: () => Promise<void> | undefined;
   }) {
     const totalKb = 16 * 1024 * 1024;
     let dockerCalls = 0;
@@ -310,9 +313,11 @@ describe('HostMemoryProbe', () => {
           );
         }
         reads += 1;
-        return Promise.resolve(
-          meminfo(totalKb, scenario.available?.() ?? 4194304),
-        );
+        const text = meminfo(totalKb, scenario.available?.() ?? 4194304);
+        const held = scenario.hold?.();
+        return held === undefined
+          ? Promise.resolve(text)
+          : held.then(() => text);
       },
       docker: (args) => {
         dockerCalls += 1;
@@ -462,6 +467,61 @@ describe('HostMemoryProbe', () => {
       expect(instance.cpus()).toBeNull();
     },
   );
+
+  test('a short reading taken before the clock stepped back is read again, not kept for the step', async () => {
+    let now = 1_000_000;
+    let available = 512 * 1024;
+    const { instance } = probe({ now: () => now, available: () => available });
+    expect((await instance.read())?.availableBytes).toBe(GIB / 2);
+    // The clock steps back an hour (NTP, a resumed VM) as memory frees up.
+    now -= 60 * 60_000;
+    available = 4 * 1024 * 1024;
+    expect((await instance.read())?.availableBytes).toBe(4 * GIB);
+    expect(instance.latest()?.availableBytes).toBe(4 * GIB);
+  });
+
+  test('a slower read that started before the clock stepped back never replaces the newer reading', async () => {
+    let now = 1_000_000;
+    let available = 1024 * 1024;
+    let holdNext = false;
+    const slowFile = Promise.withResolvers<void>();
+    const { instance } = probe({
+      now: () => now,
+      available: () => available,
+      hold: () => {
+        if (!holdNext) return undefined;
+        holdNext = false;
+        return slowFile.promise;
+      },
+    });
+    expect((await instance.read())?.availableBytes).toBe(GIB);
+    // A read finds 512 MiB available, and is slow to land...
+    now += 5_000;
+    available = 512 * 1024;
+    holdNext = true;
+    const slow = instance.read(true);
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    expect(holdNext).toBe(false);
+    // ...while the clock steps back an hour, and a newer read finds 4 GiB.
+    now -= 60 * 60_000;
+    available = 4 * 1024 * 1024;
+    expect((await instance.read(true))?.availableBytes).toBe(4 * GIB);
+    expect(instance.latest()?.availableBytes).toBe(4 * GIB);
+    slowFile.resolve();
+    expect((await slow)?.availableBytes).toBe(GIB / 2);
+    expect(instance.latest()?.availableBytes).toBe(4 * GIB);
+    expect((await instance.read())?.availableBytes).toBe(4 * GIB);
+  });
+
+  test('a Docker CLI that could not answer before the clock stepped back is asked again, not after the step', async () => {
+    let now = 1_000_000;
+    let fails = true;
+    const { instance } = probe({ now: () => now, dockerFails: () => fails });
+    expect(await instance.read()).toBeNull();
+    fails = false;
+    now -= 60 * 60_000;
+    expect((await instance.read(true))?.availableBytes).toBe(4 * GIB);
+  });
 
   test('started, it keeps the reading admission decides with fresh', async () => {
     let available = 4 * 1024 * 1024;

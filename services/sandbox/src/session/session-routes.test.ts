@@ -25,6 +25,7 @@ import {
   type SessionBackend,
   type SessionSpec,
 } from '../backend/types.ts';
+import { SandboxDiskProbe } from '../docker-data-disk.ts';
 import { HostAdmission } from '../host-admission.ts';
 import {
   CONSERVATIVE_THRESHOLDS,
@@ -5365,6 +5366,120 @@ describe('capacity pressure reclamation', () => {
         setSystemTime();
       }
     });
+
+    test('a walk does not probe again what the sweep found busy while it waited on its first probe', async () => {
+      const routes = new SessionRoutes(full, fakeBackend);
+      await fill(routes);
+      // The walk's first probe goes unanswered until the sweep has run.
+      const asked = Promise.withResolvers<void>();
+      const answer = Promise.withResolvers<void>();
+      let held = false;
+      const realFetch = globalThis.fetch;
+      const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(
+        Object.assign(
+          async (...args: Parameters<typeof fetch>) => {
+            const [input, init] = args;
+            if (
+              !held &&
+              typeof input === 'string' &&
+              input.endsWith('/healthz')
+            ) {
+              held = true;
+              asked.resolve();
+              await answer.promise;
+            }
+            return realFetch(input, init);
+          },
+          { preconnect: realFetch.preconnect },
+        ),
+      );
+      const startMs = Date.now();
+      setSystemTime(new Date(startMs));
+      try {
+        const refused = create(routes, 'refused-1');
+        await asked.promise;
+        // A second on, the sweep finds every session held by its turn.
+        setSystemTime(new Date(startMs + 1_000));
+        fakeHealth.lastActivityAtMs = startMs + 1_000;
+        expect(await routes.sweepExpired()).toBe(0);
+        const swept = probes();
+        answer.resolve();
+        expect((await refused).status).toBe(429);
+        // The probe it was waiting on, and no other.
+        expect(probes()).toBe(swept + 1);
+      } finally {
+        answer.resolve();
+        fetchSpy.mockRestore();
+        setSystemTime();
+      }
+    });
+
+    test('two walks at once probe each dead or busy daemon once', async () => {
+      const ids = ['slow', 'wedged', 'busy', 'last'];
+      const routes = new SessionRoutes(
+        { ...cfg, session: { ...cfg.session, maxSessions: ids.length } },
+        fakeBackend,
+      );
+      for (const id of ids) {
+        expect((await create(routes, id)).status).toBe(201);
+      }
+      // Two daemons answer nothing usable; the other two are held by a turn.
+      const tokenOf = (id: string) => deriveRunnerdToken(cfg.sandboxToken, id);
+      deadDaemons.add(tokenOf('slow'));
+      deadDaemons.add(tokenOf('wedged'));
+      const idOf = new Map(ids.map((id) => [tokenOf(id), id]));
+      const asked = new Map<string, number>();
+      // The first walk's probe of 'slow' lasts until the second walk has
+      // asked every other daemon.
+      const slowAsked = Promise.withResolvers<void>();
+      const slowAnswered = Promise.withResolvers<void>();
+      const realFetch = globalThis.fetch;
+      const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(
+        Object.assign(
+          async (...args: Parameters<typeof fetch>) => {
+            const [input, init] = args;
+            const id =
+              typeof input === 'string' && input.endsWith('/healthz')
+                ? idOf.get(
+                    new Headers(init?.headers).get('x-tale-runnerd-token') ??
+                      '',
+                  )
+                : undefined;
+            if (id !== undefined) {
+              asked.set(id, (asked.get(id) ?? 0) + 1);
+              if (id === 'last') slowAnswered.resolve();
+              if (id === 'slow' && asked.get(id) === 1) {
+                slowAsked.resolve();
+                await slowAnswered.promise;
+              }
+            }
+            return realFetch(input, init);
+          },
+          { preconnect: realFetch.preconnect },
+        ),
+      );
+      const startMs = Date.now();
+      setSystemTime(new Date(startMs));
+      try {
+        const first = create(routes, 'first');
+        await slowAsked.promise;
+        setSystemTime(new Date(startMs + 1_000));
+        const second = create(routes, 'second');
+        expect((await first).status).toBe(429);
+        expect((await second).status).toBe(429);
+        // What one walk found failing or busy, the other walk skips.
+        expect(Object.fromEntries(asked)).toEqual({
+          slow: 1,
+          wedged: 1,
+          busy: 1,
+          last: 1,
+        });
+      } finally {
+        slowAnswered.resolve();
+        fetchSpy.mockRestore();
+        setSystemTime();
+      }
+    });
   });
 
   test('a replacement spawner safely finishes a frozen stop from before restart', async () => {
@@ -6207,6 +6322,241 @@ describe('sweep and adoption hygiene', () => {
     expect(stopped.has('paused-1')).toBe(false);
   });
 
+  test('an attach stream runnerd answered keeps its session from the wedged stop while it streams', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await create(routes, 'attached-1');
+    // The platform follows a long turn by attach alone after its first drain
+    // window: runnerd answered the attach, and the turn streams on.
+    const response = await routes.handleExecAttach(
+      new Request(
+        'http://spawner/v1/sessions/attached-1/exec/hang-attached/attach',
+      ),
+      'attached-1',
+      'hang-attached',
+    );
+    const reader = response.body?.getReader();
+    try {
+      await reader?.read();
+      deadDaemons.add(tokenOf('attached-1'));
+      fakeHealth.lastActivityAtMs = Date.now();
+      for (let sweep = 0; sweep < 6; sweep += 1) {
+        expect(await routes.sweepExpired()).toBe(0);
+      }
+      expect(stopped.has('attached-1')).toBe(false);
+    } finally {
+      await reader?.cancel();
+    }
+  });
+
+  test('an attach runnerd has not answered keeps nothing from the wedged stop', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    await create(routes, 'unanswered-1');
+    // The daemon takes the attach and never answers it: the attach has no
+    // connect timeout, so it waits for as long as the caller does.
+    const asked = Promise.withResolvers<void>();
+    const realFetch = globalThis.fetch;
+    const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(
+      Object.assign(
+        (...args: Parameters<typeof fetch>) => {
+          const [input, init] = args;
+          if (
+            typeof input === 'string' &&
+            input.endsWith('/execs/hang-unanswered/attach')
+          ) {
+            asked.resolve();
+            return new Promise<Response>((_resolve, reject) => {
+              const signal = init?.signal;
+              if (!signal) throw new Error('missing attach signal');
+              signal.addEventListener('abort', () => reject(signal.reason), {
+                once: true,
+              });
+            });
+          }
+          return realFetch(input, init);
+        },
+        { preconnect: realFetch.preconnect },
+      ),
+    );
+    let response: Response | undefined;
+    try {
+      response = await routes.handleExecAttach(
+        new Request(
+          'http://spawner/v1/sessions/unanswered-1/exec/hang-unanswered/attach',
+        ),
+        'unanswered-1',
+        'hang-unanswered',
+      );
+      await asked.promise;
+      deadDaemons.add(tokenOf('unanswered-1'));
+      fakeHealth.lastActivityAtMs = Date.now();
+      for (let sweep = 1; sweep < 5; sweep += 1) {
+        expect(await routes.sweepExpired()).toBe(0);
+      }
+      expect(await routes.sweepExpired()).toBe(1);
+      expect(stopped.has('unanswered-1')).toBe(true);
+      expect(destroyed.size).toBe(0);
+    } finally {
+      await response?.body?.cancel();
+      fetchSpy.mockRestore();
+    }
+  });
+
+  test.each(['runs to its end', 'is hung up on'])(
+    'once an answered attach stream %s, five failed sweeps stop the session as before',
+    async (ending) => {
+      const routes = new SessionRoutes(cfg, fakeBackend);
+      await create(routes, 'attach-ended');
+      const execId = ending === 'runs to its end' ? 'done-ended' : 'hang-ended';
+      const request = new Request(
+        `http://spawner/v1/sessions/attach-ended/exec/${execId}/attach`,
+      );
+      const response = await routes.handleExecAttach(
+        request,
+        'attach-ended',
+        execId,
+      );
+      if (ending === 'runs to its end') {
+        const { events } = await readSse(response);
+        expect(events.some((event) => event.event === 'result')).toBe(true);
+      } else {
+        const reader = response.body?.getReader();
+        await reader?.read();
+        await reader?.cancel();
+      }
+      // The stream has ended once it lets go of the request.
+      const deadline = Date.now() + 1000;
+      while (
+        getEventListeners(request.signal, 'abort').length > 0 &&
+        Date.now() < deadline
+      ) {
+        await Bun.sleep(10);
+      }
+      expect(getEventListeners(request.signal, 'abort')).toHaveLength(0);
+      deadDaemons.add(tokenOf('attach-ended'));
+      fakeHealth.lastActivityAtMs = Date.now();
+      for (let sweep = 1; sweep < 5; sweep += 1) {
+        expect(await routes.sweepExpired()).toBe(0);
+      }
+      expect(await routes.sweepExpired()).toBe(1);
+      expect(stopped.has('attach-ended')).toBe(true);
+      expect(destroyed.size).toBe(0);
+    },
+  );
+
+  test('an attach runnerd answers only after its session was replaced under the same id registers nothing in the replacement, which then destroys if_idle', async () => {
+    const routes = new SessionRoutes(cfg, fakeBackend);
+    expect((await create(routes, 'swapped-1')).status).toBe(201);
+    // The daemon holds the attach while the session is destroyed and
+    // created again under its id.
+    const asked = Promise.withResolvers<void>();
+    const answer = Promise.withResolvers<void>();
+    const realFetch = globalThis.fetch;
+    const fetchSpy = spyOn(globalThis, 'fetch').mockImplementation(
+      Object.assign(
+        async (...args: Parameters<typeof fetch>) => {
+          const [input, init] = args;
+          if (
+            typeof input === 'string' &&
+            input.endsWith('/execs/hang-swapped/attach')
+          ) {
+            asked.resolve();
+            await answer.promise;
+          }
+          return realFetch(input, init);
+        },
+        { preconnect: realFetch.preconnect },
+      ),
+    );
+    try {
+      const response = await routes.handleExecAttach(
+        new Request(
+          'http://spawner/v1/sessions/swapped-1/exec/hang-swapped/attach',
+        ),
+        'swapped-1',
+        'hang-swapped',
+      );
+      const reader = response.body?.getReader();
+      try {
+        const streamed = reader?.read();
+        await asked.promise;
+        expect((await routes.handleDestroy('swapped-1')).status).toBe(200);
+        expect((await create(routes, 'swapped-1')).status).toBe(201);
+        // runnerd answers now: the old stream streams on, and counts for
+        // nobody.
+        answer.resolve();
+        await streamed;
+        expect(
+          await (
+            await routes.handleDestroy('swapped-1', { ifIdle: true })
+          ).json(),
+        ).toEqual({ destroyed: true, busy: false, deletion: 'done' });
+      } finally {
+        answer.resolve();
+        await reader?.cancel();
+      }
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  test.each(['exec', 'attach'])(
+    'an %s stream that ends while a failed destroy holds its session out leaves no key behind, and if_idle then destroys',
+    async (lane) => {
+      // The backend destroy answers once the streams the destroy aborted
+      // have ended.
+      const destroying = Promise.withResolvers<void>();
+      const failDestroy = Promise.withResolvers<void>();
+      const routes = new SessionRoutes(cfg, {
+        ...fakeBackend,
+        async destroySession(sessionId: string) {
+          destroying.resolve();
+          await failDestroy.promise;
+          return fakeBackend.destroySession(sessionId);
+        },
+      });
+      const id = `held-out-${lane}`;
+      expect((await create(routes, id)).status).toBe(201);
+      backendDestroyThrows.add(id);
+      const request = new Request('http://spawner/exec', { method: 'POST' });
+      const response =
+        lane === 'exec'
+          ? await routes.handleExec(
+              request,
+              id,
+              JSON.stringify({
+                execId: 'hang-held-out',
+                command: ['echo', 'live'],
+              }),
+            )
+          : await routes.handleExecAttach(request, id, 'hang-held-out');
+      const reader = response.body?.getReader();
+      try {
+        await reader?.read();
+        const destroy = routes.handleDestroy(id);
+        await destroying.promise;
+        // The stream has ended once it lets go of the request.
+        const deadline = Date.now() + 1000;
+        while (
+          getEventListeners(request.signal, 'abort').length > 0 &&
+          Date.now() < deadline
+        ) {
+          await Bun.sleep(10);
+        }
+        expect(getEventListeners(request.signal, 'abort')).toHaveLength(0);
+        failDestroy.resolve();
+        expect((await destroy).status).toBe(502);
+        // The entry is back, without the stream that ended.
+        backendDestroyThrows.delete(id);
+        expect(
+          await (await routes.handleDestroy(id, { ifIdle: true })).json(),
+        ).toEqual({ destroyed: true, busy: false, deletion: 'done' });
+      } finally {
+        failDestroy.resolve();
+        await reader?.cancel();
+      }
+    },
+  );
+
   test('concurrent creates at capacity each reclaim a released session of their own', async () => {
     const capped = { ...cfg, session: { ...cfg.session, maxSessions: 3 } };
     const routes = new SessionRoutes(capped, fakeBackend);
@@ -6238,6 +6588,29 @@ describe('sweep and adoption hygiene', () => {
     expect(await routes.sweepExpired(now)).toBe(0);
     expect((await create(routes, 'incoming')).status).toBe(201);
     expect([...stopped]).toEqual(['long-idle']);
+  });
+
+  test('a reclaim held back before the clock stepped back an hour is tried again at once', async () => {
+    const capped = { ...cfg, session: { ...cfg.session, maxSessions: 1 } };
+    const routes = new SessionRoutes(capped, fakeBackend);
+    const startMs = Date.now();
+    try {
+      setSystemTime(new Date(startMs));
+      await create(routes, 'held-then-free');
+      // At capacity, and the one session is held: the walk finds it busy,
+      // so it is not probed again for a while, and no walk runs for a moment.
+      expect((await create(routes, 'wants-room')).status).toBe(429);
+      expect(stopped.size).toBe(0);
+      // Its platform lets it go through another replica.
+      const gate = fakeActivities.get(tokenOf('held-then-free'));
+      if (gate === undefined) throw new Error('held-then-free has no gate');
+      expect(gate.release(gate.snapshot().generation)).toBe(true);
+      setSystemTime(new Date(startMs - 3_600_000));
+      expect((await create(routes, 'wants-room')).status).toBe(201);
+      expect([...stopped]).toEqual(['held-then-free']);
+    } finally {
+      setSystemTime();
+    }
   });
 
   test('a caller that hangs up on an attach does not make the backend suspect', async () => {
@@ -6475,6 +6848,43 @@ describe('the first-come line for host room', () => {
     }
   }, 30_000);
 
+  test('at the cap after the clock stepped back, the front of the line keeps its place', async () => {
+    const reading = () => ({ totalBytes: 16 * GIB, availableBytes: 0 });
+    const routes = new SessionRoutes(
+      { ...cfg, session: { ...cfg.session, maxSessions: 1 } },
+      fakeBackend,
+      undefined,
+      { latest: reading, read: () => Promise.resolve(reading()) },
+    );
+    const warning = spyOn(console, 'warn').mockImplementation(() => {});
+    const refusedAtMs = Date.now();
+    try {
+      setSystemTime(new Date(refusedAtMs));
+      expect(await place(await create(routes, 'front'))).toMatchObject({
+        status: 429,
+        queue: { position: 0, waiting: 1 },
+      });
+      // The rest of the line comes after it, a millisecond apart.
+      for (let index = 1; index < 10_000; index += 1) {
+        setSystemTime(new Date(refusedAtMs + index));
+        await create(routes, `filler-${index}`);
+      }
+      expect(routes.roomQueueLength()).toBe(10_000);
+      // An hour back, every place counts from the same now: the newcomer
+      // that finds the line full takes the place of the back of it.
+      setSystemTime(new Date(refusedAtMs - 3_600_000));
+      expect((await create(routes, 'newest')).status).toBe(429);
+      expect(routes.roomQueueLength()).toBe(10_000);
+      expect(await place(await create(routes, 'front'))).toMatchObject({
+        status: 429,
+        queue: { position: 0, waiting: 10_000 },
+      });
+    } finally {
+      warning.mockRestore();
+      setSystemTime();
+    }
+  }, 30_000);
+
   test('a waiter liveness ping renews its bounded lease', async () => {
     const routes = new SessionRoutes(capped, fakeBackend);
     await create(routes, 'held-a');
@@ -6530,6 +6940,27 @@ describe('the first-come line for host room', () => {
       // still its own.
       expect((await create(routes, 'newcomer')).status).toBe(429);
       expect((await create(routes, 'held-up')).status).toBe(201);
+    } finally {
+      setSystemTime();
+    }
+  });
+
+  test('a waiter that stops asking leaves within its usual window after the clock steps back an hour', async () => {
+    const routes = new SessionRoutes(capped, fakeBackend);
+    const refusedAtMs = Date.now();
+    try {
+      setSystemTime(new Date(refusedAtMs));
+      await create(routes, 'step-a');
+      await create(routes, 'step-b');
+      expect((await create(routes, 'stepped-over')).status).toBe(429);
+      await routes.handleDestroy('step-a');
+      const stepMs = refusedAtMs - 3_600_000;
+      setSystemTime(new Date(stepMs));
+      // Right after the step, the room is still the waiter's...
+      expect((await create(routes, 'step-next')).status).toBe(429);
+      // ...and no longer twice its 5 s hint and the slack after the step.
+      setSystemTime(new Date(stepMs + 26_000));
+      expect((await create(routes, 'step-next')).status).toBe(201);
     } finally {
       setSystemTime();
     }
@@ -7275,6 +7706,113 @@ describe('memory-aware admission', () => {
     expect(stopped.has('warm-mem')).toBe(true);
   });
 
+  test('short only of memory held for others, a create stops no idle session and waits in line', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    expect((await create(routes, 'warm-spare')).status).toBe(201);
+    await release(routes, 'warm-spare');
+    expect((await create(routes, 'just-started')).status).toBe(201);
+    // 2.5 GiB takes this create's 512 MiB beside the 1.6 GiB reserve, not
+    // that and the 512 MiB the session that just started is growing into:
+    // the host itself is not short, so no warm session pays for it.
+    available = 2.5;
+    const refused = await create(routes, 'held-back');
+    expect(refused.status).toBe(429);
+    expect(await refused.json()).toMatchObject({
+      error: 'host_memory',
+      queue: { position: 0, waiting: 1 },
+    });
+    expect(stopped.size).toBe(0);
+    expect(reclaimRequests).toHaveLength(0);
+  });
+
+  test('short only of memory held for others, a warm acquisition stops no idle session and waits in line', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    for (const id of ['warm-spare', 'warm-turn']) {
+      expect((await create(routes, id)).status).toBe(201);
+      await release(routes, id);
+    }
+    expect((await create(routes, 'just-started')).status).toBe(201);
+    // As for a create: the turn's 512 MiB fits beside the reserve; only the
+    // session that just started, growing into its own, leaves it short.
+    available = 2.5;
+    const refused = await routes.handleActivity('warm-turn', 'acquire');
+    expect(refused.status).toBe(429);
+    expect(await refused.json()).toMatchObject({
+      error: 'host_memory',
+      queue: { position: 0, waiting: 1 },
+    });
+    expect(stopped.size).toBe(0);
+    expect(reclaimRequests).toHaveLength(0);
+  });
+
+  test('short of memory by its own reading, a warm acquisition reclaims a released idle session', async () => {
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      {
+        ...fakeBackend,
+        async stopSession(sessionId: string) {
+          available = 8;
+          return fakeBackend.stopSession(sessionId);
+        },
+      },
+      undefined,
+      host(() => available),
+    );
+    for (const id of ['warm-spare', 'warm-turn']) {
+      expect((await create(routes, id)).status).toBe(201);
+      await release(routes, id);
+    }
+    // 2 GiB less the turn's 512 MiB is under the 1.6 GiB reserve.
+    available = 2;
+    expect((await routes.handleActivity('warm-turn', 'acquire')).status).toBe(
+      200,
+    );
+    expect([...stopped]).toEqual(['warm-spare']);
+  });
+
+  test('after the clock steps back an hour, a young session holds at most its working set, for one window from the step', async () => {
+    const startedAtMs = Date.now();
+    let available = 8;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      host(() => available),
+    );
+    try {
+      setSystemTime(new Date(startedAtMs));
+      expect((await create(routes, 'young-before')).status).toBe(201);
+      const stepMs = startedAtMs - 3_600_000;
+      setSystemTime(new Date(stepMs));
+      // Its start is an hour ahead now, and it still holds its 512 MiB:
+      // 2.2 GiB takes one create beside the 1.6 GiB reserve, not that too...
+      available = 2.2;
+      expect((await create(routes, 'young-after')).status).toBe(429);
+      // ...but no more than its 512 MiB: 3 GiB takes both.
+      available = 3;
+      expect((await create(routes, 'young-after')).status).toBe(201);
+      // One window after the step, both have grown into their working sets.
+      setSystemTime(new Date(stepMs + 90_000));
+      available = 2.2;
+      expect((await create(routes, 'young-later')).status).toBe(201);
+    } finally {
+      setSystemTime();
+    }
+  });
+
   test('unknown host memory never refuses a create', async () => {
     const routes = new SessionRoutes(cfg, fakeBackend, undefined, {
       latest: () => {
@@ -7389,6 +7927,22 @@ describe('memory-aware admission', () => {
         expect((await create(routes, 'cpu-3')).status).toBe(429);
         setSystemTime(new Date(startMs + 22_000));
         expect((await create(routes, 'cpu-3')).status).toBe(201);
+      } finally {
+        setSystemTime();
+      }
+    });
+
+    test('a start let in under pressure before the clock stepped back an hour holds the next one back no longer than usual', async () => {
+      const startMs = Date.now();
+      try {
+        setSystemTime(new Date(startMs));
+        const { routes } = pressured(cfg, () => 80);
+        expect((await create(routes, 'stepped-1')).status).toBe(201);
+        expect((await create(routes, 'stepped-2')).status).toBe(429);
+        setSystemTime(new Date(startMs - 3_600_000));
+        expect((await create(routes, 'stepped-2')).status).toBe(201);
+        // The start just let in spaces the next one as usual.
+        expect((await create(routes, 'stepped-3')).status).toBe(429);
       } finally {
         setSystemTime();
       }
@@ -7778,6 +8332,84 @@ describe('disk-aware admission', () => {
     available = 6;
     expect((await create(routes, 'disk-wait')).status).toBe(201);
     expect(routes.roomQueueLength()).toBe(0);
+  });
+
+  test('each host_disk refusal is logged with the free space and the floor', async () => {
+    let available = 50;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      undefined,
+      disk(() => available),
+    );
+    expect((await create(routes, 'disk-logged-warm')).status).toBe(201);
+    const ticket: unknown = await (
+      await routes.handleActivity('disk-logged-warm', 'ticket')
+    ).json();
+    await routes.handleActivity(
+      'disk-logged-warm',
+      'release',
+      JSON.stringify(ticket),
+    );
+    available = 4;
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(
+        (await routes.handleActivity('disk-logged-warm', 'acquire')).status,
+      ).toBe(429);
+      expect((await create(routes, 'disk-logged')).status).toBe(429);
+      expect(
+        warn.mock.calls
+          .map((call) => call.map(String).join(' '))
+          .filter((line) => line.includes('host_disk')),
+      ).toEqual([
+        '[sandbox.session] refusing work in disk-logged-warm: host_disk (the session disk has 4.0 GiB free, below its 5.0 GiB floor)',
+        '[sandbox.session] refusing disk-logged: host_disk (the session disk has 4.0 GiB free, below its 5.0 GiB floor; queue position 0)',
+      ]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test("with Docker's data root watched apart, each host_disk refusal names the disk that refused it", async () => {
+    // Each probe keeps its last reading until the next read.
+    const roomy = { totalBytes: 100 * GIB, availableBytes: 50 * GIB };
+    const short = { totalBytes: 100 * GIB, availableBytes: 4 * GIB };
+    let workspace = roomy;
+    let dockerData: typeof roomy | null = short;
+    const routes = new SessionRoutes(
+      cfg,
+      fakeBackend,
+      undefined,
+      undefined,
+      new SandboxDiskProbe(
+        { latest: () => workspace, read: async () => workspace },
+        { latest: () => dockerData, read: async () => dockerData },
+      ),
+    );
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect((await create(routes, 'docker-data-short')).status).toBe(429);
+      workspace = short;
+      dockerData = roomy;
+      expect((await create(routes, 'workspace-short')).status).toBe(429);
+      // Required and unreadable: admission holds sessions back on it.
+      workspace = roomy;
+      dockerData = null;
+      expect((await create(routes, 'docker-data-unread')).status).toBe(429);
+      expect(
+        warn.mock.calls
+          .map((call) => call.map(String).join(' '))
+          .filter((line) => line.includes('host_disk')),
+      ).toEqual([
+        "[sandbox.session] refusing docker-data-short: host_disk (Docker's data disk has 4.0 GiB free, below its 5.0 GiB floor; queue position 0)",
+        '[sandbox.session] refusing workspace-short: host_disk (the session disk has 4.0 GiB free, below its 5.0 GiB floor; queue position 1)',
+        "[sandbox.session] refusing docker-data-unread: host_disk (Docker's data disk cannot be read; queue position 2)",
+      ]);
+    } finally {
+      warn.mockRestore();
+    }
   });
 
   test('an operator floor of 0 turns the disk check off', async () => {

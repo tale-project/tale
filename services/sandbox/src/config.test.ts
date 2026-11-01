@@ -368,6 +368,34 @@ test('the free space kept on the session disk is optional and validated', () => 
   expect(() => loadConfig()).toThrow(/SANDBOX_MIN_FREE_DISK/);
 });
 
+test('a size also reads t and the binary suffixes Ki to Ti, in the same steps of 1024', () => {
+  // Every step is 1024 already, so the Kubernetes spelling 10Gi is the same
+  // 10g rather than a value the service refuses to start with.
+  const sizes: [string, number][] = [
+    ['2g', 2 * 1024 ** 3],
+    ['1536m', 1536 * 1024 ** 2],
+    ['1073741824', 1024 ** 3],
+    ['10Gi', 10 * 1024 ** 3],
+    ['512Mi', 512 * 1024 ** 2],
+    ['1Ti', 1024 ** 4],
+    ['1536KiB', 1536 * 1024],
+    ['2t', 2 * 1024 ** 4],
+  ];
+  for (const [value, bytes] of sizes) {
+    process.env.SANDBOX_MIN_FREE_DISK = value;
+    expect(loadConfig().session.minFreeDiskBytes, value).toBe(bytes);
+  }
+});
+
+test('a size that is no whole number with a known suffix is refused, naming the forms it takes', () => {
+  for (const value of ['10GB2', '1.5g', '10 Gi', '10Pi']) {
+    process.env.SANDBOX_MIN_FREE_DISK = value;
+    expect(() => loadConfig(), value).toThrow(
+      `Env var SANDBOX_MIN_FREE_DISK is not a size such as 2g, 1536m or 10Gi (a whole number with k, m, g, t, Ki, Mi, Gi or Ti, or none for bytes): ${JSON.stringify(value)}`,
+    );
+  }
+});
+
 test('the CPU pressure admission waits from is 60 % unless set, and 0 turns it off', () => {
   expect(loadConfig().session.cpuPressurePercent).toBe(60);
   process.env.SANDBOX_CPU_PRESSURE_PERCENT = '35.5';
@@ -457,7 +485,7 @@ describe('host admission', () => {
     ['SANDBOX_ADMISSION_IO_PSI', ['-3', '200', 'io']],
     ['SANDBOX_ADMISSION_RECOVER', ['0', '1', '-0.2', '1.5', 'half']],
     ['SANDBOX_HEAVY_LEASES_MAX', ['0', '33', '1.5', 'two']],
-    ['SANDBOX_HEAVY_MIN_FREE_DISK', ['plenty', '-1g', '2t']],
+    ['SANDBOX_HEAVY_MIN_FREE_DISK', ['plenty', '-1g', '2p']],
   ])('%s refuses a value outside its range at start', (name, refused) => {
     for (const value of refused) {
       process.env[name] = value;
