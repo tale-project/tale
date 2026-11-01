@@ -302,3 +302,36 @@ it('keeps the filtered rows and the query while the closing popover fades out', 
   await expect.poll(() => panel.isConnected).toBe(false);
   expect(onSearchChange).toHaveBeenLastCalledWith('');
 });
+
+it('starts from an empty query when it reopens before the closed popover left the page', async () => {
+  const onSearchChange = vi.fn();
+  render(
+    <SearchableSelect
+      value={null}
+      onValueChange={vi.fn()}
+      onSearchChange={onSearchChange}
+      options={options}
+      placeholder="Pick project"
+      aria-label="Project"
+      searchPlaceholder="Search projects"
+    />,
+  );
+  await page.getByRole('button', { name: 'Pick project' }).click();
+  const panel = await screen.findByRole('dialog', { name: 'Project' });
+  await page.getByRole('combobox').fill('Project 001');
+  await expect.poll(() => screen.getAllByRole('option').length).toBe(10);
+
+  // Slows the exit fade down, so the trigger reopens the closing panel.
+  panel.style.setProperty('--duration-short', '60s');
+  await userEvent.keyboard('{Escape}');
+  await expect.poll(() => panel.dataset.state).toBe('closed');
+  expect(panel.isConnected).toBe(true);
+  await page.getByRole('button', { name: 'Pick project' }).click();
+  await expect.poll(() => panel.dataset.state).toBe('open');
+  expect(screen.getByRole('combobox')).toHaveValue('');
+  expect(onSearchChange).toHaveBeenLastCalledWith('');
+  // The unfiltered list again, which the old query had cut to Project 0010–0019.
+  await expect
+    .poll(() => screen.getAllByRole('option')[0]?.textContent)
+    .toContain('Project 0001');
+});
