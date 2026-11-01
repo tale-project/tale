@@ -70,6 +70,11 @@ status:
 stepProgress: 'Étape {current} sur {total} : {label}'
 # Someone no longer in the organization, named where a member would be.
 formerMember: Ancien membre
+# Under a picker's people, searched on the server a page at a time.
+peopleSearch:
+  more: D'autres personnes correspondent — continue à taper pour affiner la liste.
+  unavailable: Impossible de rechercher des personnes — réessaie, ou recharge la
+    page si le problème persiste.
 validation:
   required: '{field} est requis'
   maxLength: '{field} ne doit pas dépasser {max} caractères'

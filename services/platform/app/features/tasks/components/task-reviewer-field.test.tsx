@@ -57,13 +57,9 @@ vi.mock('../hooks/use-actor-directory', () => ({
   ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
   useActorDirectory: () => ({ resolveActor }),
   useAssignableActors: () => ({
-    scopeReady: true,
     agentsLoading: false,
     currentUserId: 'alice',
     resolveActor,
-    assignableMembers: [
-      { type: 'user', id: 'alice', name: 'Alice', role: 'editor' },
-    ],
     assignableAgents: [
       {
         type: 'agent',
@@ -73,6 +69,15 @@ vi.mock('../hooks/use-actor-directory', () => ({
       },
       { type: 'agent', id: 'worker', name: 'Worker', tools: ['task_review'] },
     ],
+  }),
+}));
+// The editors the server's search finds for the picker.
+vi.mock('../hooks/use-assignable-members', () => ({
+  useAssignableMembers: () => ({
+    members: [{ type: 'user', id: 'alice', name: 'Alice', role: 'editor' }],
+    more: false,
+    searching: false,
+    unavailable: false,
   }),
 }));
 const task = {

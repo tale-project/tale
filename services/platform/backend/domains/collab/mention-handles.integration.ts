@@ -201,14 +201,6 @@ export async function checkMentionHandles(
       handle: 'prreviewer',
       legacyHandles: [],
     });
-    const directory = await buildMentionDirectory(sql, {
-      organizationId: orgId,
-      projectId,
-    });
-    const resolves = (handle: string) => {
-      const entry = directory.index.resolve(handle);
-      return entry === null ? 'nobody' : `${entry.kind}:${entry.id}`;
-    };
     const wantOwners: [string, string][] = [
       ['pr.reviewer', `agent:${reviewer}`],
       ['prreviewer', `agent:${reviewer}`],
@@ -221,6 +213,17 @@ export async function checkMentionHandles(
       [desk, `automation:${desk}`],
       [`${desk}-02`, `agent:${deskTwin}`],
     ];
+    const directory = await buildMentionDirectory(sql, {
+      organizationId: orgId,
+      projectId,
+      // A directory reads the members a text names: here, every handle
+      // checked below.
+      named: { userIds: [], handles: wantOwners.map(([handle]) => handle) },
+    });
+    const resolves = (handle: string) => {
+      const entry = directory.index.resolve(handle);
+      return entry === null ? 'nobody' : `${entry.kind}:${entry.id}`;
+    };
     record(
       'mention handles: older text keeps naming the renamed agent, over a newer agent and a person or automation of the same name [COLLAB-R11]',
       wantOwners.every(([handle, want]) => resolves(handle) === want),

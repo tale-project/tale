@@ -6,12 +6,19 @@ import {
   SearchableSelect,
   type SearchableSelectOption,
 } from '@tale/ui/searchable-select';
+import { Text } from '@tale/ui/text';
 import { Link } from '@tanstack/react-router';
 import { Settings, UserPlus, Users } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 
-import { useMemberLookup } from '@/app/features/settings/organization/hooks/member-lookup';
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import {
+  type LookedUpMember,
+  useMemberLookup,
+} from '@/app/features/settings/organization/hooks/member-lookup';
+import {
+  type FoundMember,
+  useMemberSearch,
+} from '@/app/features/settings/organization/hooks/member-search';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { AssigneeAvatar } from '@/app/features/tasks/components/assignee-avatar';
 import { useCurrentMemberContext } from '@/app/hooks/use-current-member-context';
@@ -61,14 +68,17 @@ export function ConversationAssigneePicker({
     'role' in memberContext &&
     (memberContext.role === 'admin' || memberContext.role === 'owner');
   const [open, setOpen] = useState(false);
-  // The options offer every member: they are read once the picker is first
-  // opened, never for a thread that is only read. The trigger names the
-  // assignee alone, looked up by id.
+  // The options offer the members whose name or email holds what is typed,
+  // searched on the server a page at a time (MEMBER-R12) once the picker is
+  // first opened — never for a thread that is only read — and only those a
+  // conversation may be assigned to: disabled members are left out. The
+  // trigger names the assignee alone, looked up by id.
   const [membersWanted, setMembersWanted] = useState(false);
-  const { members = [], isLoading: membersLoading } = useMembers(
-    organizationId,
-    { enabled: membersWanted },
-  );
+  const [query, setQuery] = useState('');
+  const people = useMemberSearch(organizationId, query, {
+    access: 'read',
+    enabled: membersWanted,
+  });
   const { teams = [] } = useOrgTeams();
   const { mutate: assignConversation } = useAssignConversation();
   const { mutate: assignConversationTeam } = useAssignConversationTeam();
@@ -208,6 +218,21 @@ export function ConversationAssigneePicker({
     );
   }
 
+  // The assignee stays offered, and marked, whatever page was found, so
+  // picking them again still clears them; a disabled one is not offered (the
+  // footer clears them).
+  const members: readonly (FoundMember | LookedUpMember)[] =
+    assignee === undefined ||
+    assignee.role === 'disabled' ||
+    people.members.some((member) => member.userId === assignee.userId)
+      ? people.members
+      : [assignee, ...people.members];
+  // A person is found by their name or email, as the server matched them;
+  // a team by its name.
+  const emails = new Map(
+    members.map((member) => [`${USER_PREFIX}${member.userId}`, member.email]),
+  );
+
   // Only render a section when it has rows, so an empty org has no dangling
   // header. When both are empty the picker falls through to `emptyText`.
   const options: SearchableSelectOption[] = [];
@@ -291,8 +316,16 @@ export function ConversationAssigneePicker({
       align="end"
       modal
       searchPlaceholder={t('header.assignSearchAll')}
+      onSearchChange={setQuery}
+      filterFn={(option, typed) => {
+        const lower = typed.toLowerCase();
+        return (
+          option.label.toLowerCase().includes(lower) ||
+          (emails.get(option.value)?.toLowerCase().includes(lower) ?? false)
+        );
+      }}
       emptyText={
-        membersLoading ? tCommon('actions.loading') : t('header.noAssignees')
+        people.searching ? tCommon('actions.loading') : t('header.noAssignees')
       }
       aria-label={t('header.assignee')}
       trigger={
@@ -341,6 +374,15 @@ export function ConversationAssigneePicker({
       }}
       footer={
         <div className="flex flex-col">
+          {(people.unavailable || people.more) && (
+            <Text variant="muted" className="px-2 py-1 text-[11px] text-wrap">
+              {tCommon(
+                people.unavailable
+                  ? 'peopleSearch.unavailable'
+                  : 'peopleSearch.more',
+              )}
+            </Text>
+          )}
           {assigneeUserId && (
             <Button
               variant="ghost"

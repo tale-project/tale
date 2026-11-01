@@ -121,7 +121,6 @@ vi.mock('../hooks/use-actor-directory', () => ({
     state.candidateReads += 1;
     return {
       subjectEntries: [],
-      assignableMembers: [],
       assignableAgents: [],
       agents: [],
       resolveActor: () => ({ name: 'Teammate' }),

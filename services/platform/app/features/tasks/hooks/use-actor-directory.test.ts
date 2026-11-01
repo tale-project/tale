@@ -10,8 +10,9 @@ import { useActorDirectory, useAssignableActors } from './use-actor-directory';
 // it names, and agents from the PROJECT's user-created instances
 // (`projectAgents` rows): with a project the instances are assignable and
 // resolve to their names; without one no agent is assignable, and an
-// unknown/foreign agent actor reads as a deleted agent. The pickers' lists
-// (`useAssignableActors`) read every member.
+// unknown/foreign agent actor reads as a deleted agent. The pickers search
+// the people they offer (`useAssignableMembers`): no hook here reads every
+// member.
 
 interface AgentRow {
   _id: string;
@@ -112,8 +113,6 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
     organizationId === undefined ? undefined : standardAgent,
 }));
 
-/** What `listAccessibleUserIds` answers — undefined while it loads. */
-let accessScope: { orgWide: boolean; userIds: string[] } | undefined;
 /** What `getProject` answers — undefined while it loads, null when the
  * project is gone or out of reach. */
 let projectRead: { canEdit: boolean } | null | undefined;
@@ -143,15 +142,13 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
     data:
       args === 'skip'
         ? undefined
-        : name === 'projects/queries:listAccessibleUserIds'
-          ? accessScope
-          : name === 'projects/queries:getProject'
-            ? projectRead
-            : name === 'projects/queries:listServingAgents'
-              ? servingAgents
-              : name === 'automations/queries:listAutomations'
-                ? automationListing
-                : undefined,
+        : name === 'projects/queries:getProject'
+          ? projectRead
+          : name === 'projects/queries:listServingAgents'
+            ? servingAgents
+            : name === 'automations/queries:listAutomations'
+              ? automationListing
+              : undefined,
   }),
 }));
 
@@ -453,80 +450,25 @@ describe('useActorDirectory — whom a mention names', () => {
 });
 
 /**
- * The candidate lists are narrowed to the project's audience, and say when
- * that narrowing has happened: until it has, the members are org-wide, so a
- * picker that must offer only who the server takes (the reviewer's) waits.
+ * The people the pickers offer are searched for what is typed, narrowed to
+ * the project's audience on the server (`useAssignableMembers`): the agents'
+ * list reads no member.
  */
-describe('useAssignableActors — the project audience', () => {
+describe('useAssignableActors — the people', () => {
   beforeEach(() => {
-    accessScope = undefined;
+    memberReads.asked.length = 0;
     memberReads.everyMember = 0;
   });
 
-  afterEach(() => {
-    memberRows = MEMBERS;
-  });
-
-  it('reads every member, and is not ready until they have arrived', () => {
-    accessScope = { orgWide: true, userIds: [] };
-    memberRows = undefined;
-    const loading = renderHook(() => useAssignableActors('org-1', 'proj-1'));
-    expect(memberReads.everyMember).toBeGreaterThan(0);
-    expect(loading.result.current.membersLoading).toBe(true);
-    expect(loading.result.current.scopeReady).toBe(false);
-    expect(loading.result.current.assignableMembers).toEqual([]);
-
-    memberRows = [...MEMBERS, { userId: 'user-erased', role: 'member' }];
+  it('reads no member list, leaving the people to the pickers’ search', () => {
     const { result } = renderHook(() => useAssignableActors('org-1', 'proj-1'));
-    expect(result.current.membersLoading).toBe(false);
-    expect(result.current.scopeReady).toBe(true);
-    expect(result.current.assignableMembers).toEqual([
-      {
-        type: 'user',
-        id: 'user-1',
-        name: 'Alex Doe',
-        email: 'alex@example.com',
-        role: 'member',
-      },
-      {
-        type: 'user',
-        id: 'user-2',
-        name: 'kim@example.com',
-        email: 'kim@example.com',
-        role: 'admin',
-      },
-      // Never offered by their id either.
-      {
-        type: 'user',
-        id: 'user-erased',
-        name: 'formerMember',
-        email: undefined,
-        role: 'member',
-      },
+    expect(result.current.assignableAgents.map((agent) => agent.id)).toEqual([
+      'pa_1',
+      'pa_2',
     ]);
-  });
-
-  it('drops members outside a team-restricted project', () => {
-    accessScope = { orgWide: false, userIds: ['user-1'] };
-    const { result } = renderHook(() => useAssignableActors('org-1', 'proj-1'));
-    expect(result.current.scopeReady).toBe(true);
-    expect(result.current.assignableMembers.map((m) => m.id)).toEqual([
-      'user-1',
-    ]);
-  });
-
-  it('is not ready while the audience loads, and falls back to the whole org', () => {
-    const { result } = renderHook(() => useAssignableActors('org-1', 'proj-1'));
-    expect(result.current.scopeReady).toBe(false);
-    expect(result.current.assignableMembers.map((m) => m.id)).toEqual([
-      'user-1',
-      'user-2',
-    ]);
-  });
-
-  it('is ready at once without a project — the org is the audience', () => {
-    const { result } = renderHook(() => useAssignableActors('org-1'));
-    expect(result.current.scopeReady).toBe(true);
+    expect(result.current).not.toHaveProperty('assignableMembers');
+    expect(memberReads.everyMember).toBe(0);
+    expect(memberReads.asked).toEqual([]);
   });
 });
 
@@ -595,7 +537,6 @@ describe('useAssignableActors — the standard agent set up in the project', () 
     agents.map((agent) => agent.id);
 
   beforeEach(() => {
-    accessScope = undefined;
     projectRead = undefined;
     standardAgent = undefined;
     projectAgentRows = [MANAGED_AGENT];
