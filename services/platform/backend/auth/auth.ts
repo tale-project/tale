@@ -985,11 +985,21 @@ export function createAuth(config: AuthConfig) {
         // the SSO door the organization alone (`domains/sso/service.ts`),
         // both in SQL; the create hook below carries them onto a session
         // minted under a bound one, or by a passkey bound to an organization
-        // (`passkey-authority.ts`). Never a request body. The app reads the
-        // role alone as a proxy's session, and offers no sign-out of its own
-        // for one (`lib/shared/proxied-session.ts`).
+        // (`passkey-authority.ts`). Never a request body.
         trustedRole: {
           type: 'string' as const,
+          required: false,
+          input: false,
+        },
+        // Whether a proxy signed the session in: the trusted-headers door
+        // sets it, and the create hook carries it onto a session minted
+        // under one. The app reads it, not the role, as a proxy's session,
+        // and offers no sign-out of its own for one
+        // (`lib/shared/proxied-session.ts`): a passkey enrolled behind a
+        // proxy keeps the proxy's role as its ceiling, but a sign-in with it
+        // is its person's own (#5259).
+        signedInByProxy: {
+          type: 'boolean' as const,
           required: false,
           input: false,
         },
@@ -1049,6 +1059,7 @@ export function createAuth(config: AuthConfig) {
                   : {
                       trustedOrganizationId: mint.organizationId,
                       trustedRole: mint.trustedRole,
+                      signedInByProxy: mint.signedInByProxy,
                       ...(mint.organizationId === null
                         ? {}
                         : { activeOrganizationId: mint.organizationId }),

@@ -33,6 +33,9 @@ export interface SessionMintAuthority {
   userId: string;
   organizationId: string | null;
   trustedRole: string | null;
+  /** Whether a proxy signed in the session this one is minted under; the
+   * role above is a ceiling, and says nothing about who signed in. */
+  signedInByProxy: boolean;
   independentIdentityVerifiedAt: Date | null;
 }
 
@@ -73,6 +76,7 @@ export function sessionMintAuthority(
     (value.organizationId !== null &&
       typeof value.organizationId !== 'string') ||
     (value.trustedRole !== null && typeof value.trustedRole !== 'string') ||
+    typeof value.signedInByProxy !== 'boolean' ||
     (value.independentIdentityVerifiedAt !== null &&
       !(value.independentIdentityVerifiedAt instanceof Date))
   )
@@ -81,6 +85,7 @@ export function sessionMintAuthority(
     userId: value.userId,
     organizationId: value.organizationId,
     trustedRole: value.trustedRole,
+    signedInByProxy: value.signedInByProxy,
     independentIdentityVerifiedAt: value.independentIdentityVerifiedAt,
   };
 }
@@ -103,6 +108,7 @@ export function mintAuthorityOf(bundle: SessionBundle): SessionMintAuthority {
     userId: bundle.user.id,
     organizationId: scope,
     trustedRole: typeof role === 'string' ? role : null,
+    signedInByProxy: Reflect.get(bundle.session, 'signedInByProxy') === true,
     independentIdentityVerifiedAt:
       proofAt !== null && Number.isFinite(proofAt.getTime()) ? proofAt : null,
   };
@@ -370,6 +376,11 @@ export function createPasskeyAuthority(sql: Sql, cutoverAt: number | null) {
           userId: credential.userId,
           organizationId: bound ?? factor.organizationId,
           trustedRole,
+          // The stored role is the passkey's ceiling, not a proxy's sign-in:
+          // only a ceremony under the same person's proxied session stays
+          // the proxy's to sign out of (#5259).
+          signedInByProxy:
+            current?.userId === credential.userId && current.signedInByProxy,
           independentIdentityVerifiedAt:
             factor.authority === 'organization'
               ? (current?.independentIdentityVerifiedAt ?? null)

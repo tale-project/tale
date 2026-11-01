@@ -369,11 +369,12 @@ describe('createSsoUserSession', () => {
     expect(queries[0]?.values).toContain('user-1');
   });
 
-  // The app leaves signing out to a proxy only for a session that carries a
-  // proxy's role (`lib/shared/proxied-session.ts`). Bound to its organization
-  // like a proxy's, an SSO session names none, so its person gets Log out
-  // (#5137); `session-authority.integration.ts` signs one out over HTTP.
-  it('names no proxy role, so its person can sign out of Tale [SSO-R21]', async () => {
+  // The app leaves signing out to a proxy only for a session the proxy's
+  // door marked as signed in by it (`lib/shared/proxied-session.ts`, #5259).
+  // Bound to its organization like a proxy's, an SSO session names no role
+  // and carries no mark, so its person gets Log out (#5137);
+  // `session-authority.integration.ts` signs one out over HTTP.
+  it('names no proxy role nor proxy sign-in, so its person can sign out of Tale [SSO-R21]', async () => {
     const { sql, queries } = fakeSql(() => []);
 
     await createSsoUserSession(sql, {
@@ -386,6 +387,7 @@ describe('createSsoUserSession', () => {
     );
     expect(insert?.text).toContain('"trustedOrganizationId"');
     expect(insert?.text).not.toContain('"trustedRole"');
+    expect(insert?.text).not.toContain('"signedInByProxy"');
   });
 });
 

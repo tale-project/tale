@@ -139,6 +139,7 @@ describe('the production scoped-session plugin after every identity injector', (
     userId: session.userId,
     trustedOrganizationId: session.trustedOrganizationId ?? null,
     trustedRole: session.trustedRole ?? null,
+    signedInByProxy: session.signedInByProxy === true,
     activeOrganizationId: session.activeOrganizationId ?? null,
     activeTeamId: session.activeTeamId ?? null,
   });
@@ -375,6 +376,7 @@ describe('the production scoped-session plugin after every identity injector', (
             ? {
                 trustedOrganizationId: 'org-a',
                 activeOrganizationId: 'org-a',
+                signedInByProxy: true,
                 independentIdentityVerifiedAt: new Date(),
               }
             : {}),
@@ -399,7 +401,10 @@ describe('the production scoped-session plugin after every identity injector', (
   );
 
   it("still carries the presented session's authority into the same person's sign-in", async () => {
-    Object.assign(db.session?.[0] ?? {}, { trustedRole: 'member' });
+    Object.assign(db.session?.[0] ?? {}, {
+      trustedRole: 'member',
+      signedInByProxy: true,
+    });
     const signedIn = await call('/sign-in/email', {
       email: 'ada@example.invalid',
       password: PASSWORD,
@@ -409,6 +414,7 @@ describe('the production scoped-session plugin after every identity injector', (
       userId: db.user?.[0]?.id,
       trustedOrganizationId: null,
       trustedRole: 'member',
+      signedInByProxy: true,
     });
   });
 
@@ -454,6 +460,7 @@ describe('the production scoped-session plugin after every identity injector', (
         userId: 'user-ada',
         organizationId: 'org-a',
         trustedRole: 'member',
+        signedInByProxy: true,
         independentIdentityVerifiedAt: null,
       });
       const sessionOf = (userId: string) => ({
@@ -479,9 +486,51 @@ describe('the production scoped-session plugin after every identity injector', (
           userId: 'user-ada',
           trustedOrganizationId: 'org-a',
           trustedRole: 'member',
+          signedInByProxy: true,
           activeOrganizationId: 'org-a',
         },
       });
     },
   );
+
+  it("writes a proxy-enrolled passkey's ceiling onto its sign-in, not the proxy's sign-out (#5259)", async () => {
+    const before = factory.options.databaseHooks?.session?.create?.before;
+    if (typeof before !== 'function')
+      throw new Error('The session-create hook was missing');
+    const path = '/passkey/verify-authentication';
+    const ctx = {
+      path,
+      request: new Request(`${BASE}/api/auth${path}`, { method: 'POST' }),
+      context: {},
+    };
+    // What a logged-out ceremony with a passkey enrolled behind a proxy
+    // hands the session it mints (`passkey-authority.ts`).
+    setSessionMintAuthority(ctx, {
+      userId: 'user-ada',
+      organizationId: 'org-a',
+      trustedRole: 'member',
+      signedInByProxy: false,
+      independentIdentityVerifiedAt: null,
+    });
+    await expect(
+      before(
+        {
+          id: 'session-ada',
+          token: 'token-ada',
+          userId: 'user-ada',
+          expiresAt: new Date(Date.now() + 60_000),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+        ctx as never,
+      ),
+    ).resolves.toMatchObject({
+      data: {
+        trustedOrganizationId: 'org-a',
+        trustedRole: 'member',
+        signedInByProxy: false,
+        activeOrganizationId: 'org-a',
+      },
+    });
+  });
 });

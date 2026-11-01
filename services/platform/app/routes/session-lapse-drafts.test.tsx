@@ -666,14 +666,18 @@ describe('a live session the backend has no user for, once the reload is spent',
     expect(signInAgain).toBeEnabled();
   });
 
-  // A session an authenticating proxy asserted is the proxy's to end: the
+  // A session an authenticating proxy signed in is the proxy's to end: the
   // account menu offers no sign-out for it, and a sign-out would be signed
   // straight back in.
   it('offers a proxied session Try again alone', async () => {
     const proxied = {
       data: {
         user: { id: member.userId },
-        session: { trustedOrganizationId: 'org-1', trustedRole: 'member' },
+        session: {
+          trustedOrganizationId: 'org-1',
+          trustedRole: 'member',
+          signedInByProxy: true,
+        },
       },
       error: null,
     };
@@ -690,18 +694,26 @@ describe('a live session the backend has no user for, once the reload is spent',
     ).not.toBeInTheDocument();
   });
 
-  // Single sign-on binds its session to one organization as well, but no
-  // proxy stands behind it: its person can end it and sign in again.
-  it('offers a single sign-on session Sign in again', async () => {
-    const singleSignOn = {
+  // Single sign-on binds its session to one organization as well, and a
+  // passkey enrolled behind a proxy keeps the proxy's role as the ceiling of
+  // each later sign-in (#5259), but no proxy stands behind either: its
+  // person can end it and sign in again.
+  it.each([
+    ['a single sign-on session', { trustedRole: null }],
+    [
+      "a passkey's session that keeps a proxy's role",
+      { trustedRole: 'member', signedInByProxy: false },
+    ],
+  ])('offers %s Sign in again', async (_session, columns) => {
+    const signedIn = {
       data: {
         user: { id: member.userId },
-        session: { trustedOrganizationId: 'org-1', trustedRole: null },
+        session: { trustedOrganizationId: 'org-1', ...columns },
       },
       error: null,
     };
-    queryClient.setQueryData(sessionQueryOptions.queryKey, singleSignOn);
-    h.getSession.mockResolvedValue(singleSignOn);
+    queryClient.setQueryData(sessionQueryOptions.queryKey, signedIn);
+    h.getSession.mockResolvedValue(signedIn);
     render(<Dashboard />, { wrapper: QueryWrapper });
     expect(
       await screen.findByRole('button', {
