@@ -56,7 +56,7 @@ const REVIEW_DIR_NAME_RE = /^[0-9a-f]{64}$/;
 /** Where runs keep their tasks' clones, checkouts and scratch files, one
  * directory per task: inside the workspace, the harnesses' working directory,
  * which every harness's file tools reach. */
-export const TASK_DIRS_ROOT = '/agent/workspace/tasks';
+const TASK_DIRS_ROOT = '/agent/workspace/tasks';
 
 /** How long an open task's directory stays after the task last changed, as
  * the tasks domain decides it (`TASK_DIRECTORY_RETENTION_MS`); the guidance
