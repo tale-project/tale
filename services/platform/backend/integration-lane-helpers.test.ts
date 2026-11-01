@@ -39,6 +39,9 @@ import {
   ITEST_RETENTION_POLICY,
   itestObjectStore,
   ownedDatabaseAdmin,
+  planExecutionMs,
+  planLine,
+  planNodes,
   recordOpenStreams,
   recordSkip,
   requestedLanes,
@@ -1264,5 +1267,102 @@ describe('explainSentStatement', () => {
       'SELECT * FROM app.things',
     ]);
     expect(unsafe).toEqual([]);
+  });
+});
+
+describe('planNodes', () => {
+  /** What `EXPLAIN (ANALYZE, FORMAT JSON)` answers for a sum over a parent
+   * table and the child that inherits it: an aggregate over an append of a
+   * bitmap scan of one and an index scan of the other. */
+  const sumPlan = [
+    {
+      'QUERY PLAN': [
+        {
+          Plan: {
+            'Node Type': 'Aggregate',
+            'Actual Rows': 1,
+            'Actual Loops': 1,
+            Plans: [
+              {
+                'Node Type': 'Append',
+                'Actual Rows': 12,
+                Plans: [
+                  {
+                    'Node Type': 'Bitmap Heap Scan',
+                    'Relation Name': 'usage_ledger',
+                    'Actual Rows': 3,
+                    'Rows Removed by Index Recheck': 0,
+                    Plans: [
+                      {
+                        'Node Type': 'Bitmap Index Scan',
+                        'Index Name': 'usage_ledger_bucket',
+                        'Index Cond': "(org_id = 'org-1'::text)",
+                        'Actual Rows': 3,
+                      },
+                    ],
+                  },
+                  {
+                    'Node Type': 'Index Scan',
+                    'Parallel Aware': false,
+                    'Relation Name': 'usage_ledger_provider',
+                    'Index Name': 'usage_ledger_provider_bucket',
+                    'Index Cond': "(org_id = 'org-1'::text)",
+                    Filter: '(connector_name IS NULL)',
+                    'Actual Rows': 9,
+                    'Rows Removed by Filter': 2,
+                  },
+                ],
+              },
+            ],
+          },
+          'Planning Time': 0.2,
+          'Execution Time': 0.75,
+        },
+      ],
+    },
+  ];
+
+  it('reads a plan’s nodes, top first, and how long it ran', () => {
+    const nodes = planNodes(sumPlan);
+    expect(nodes?.map((node) => node['Node Type'])).toEqual([
+      'Aggregate',
+      'Append',
+      'Bitmap Heap Scan',
+      'Bitmap Index Scan',
+      'Index Scan',
+    ]);
+    expect(nodes?.[2]).toMatchObject({
+      'Relation Name': 'usage_ledger',
+      'Rows Removed by Index Recheck': 0,
+    });
+    expect(nodes?.[4]).toMatchObject({
+      'Relation Name': 'usage_ledger_provider',
+      'Rows Removed by Filter': 2,
+    });
+    expect(planExecutionMs(sumPlan)).toBe(0.75);
+    expect(planLine(nodes)).toBe(
+      [
+        'Aggregate 1 rows',
+        'Append 12 rows',
+        'Bitmap Heap Scan 3 rows',
+        "Bitmap Index Scan usage_ledger_bucket (org_id = 'org-1'::text) 3 rows",
+        "Index Scan usage_ledger_provider_bucket (org_id = 'org-1'::text) Filter (connector_name IS NULL) 9 rows",
+      ].join(' > '),
+    );
+  });
+
+  it('times only a plan that ran, and reads nothing from what is not a plan', () => {
+    const generic = [{ 'QUERY PLAN': [{ Plan: { 'Node Type': 'Seq Scan' } }] }];
+    expect(planNodes(generic)).toEqual([{ 'Node Type': 'Seq Scan' }]);
+    expect(planExecutionMs(generic)).toBeNull();
+    for (const rows of [
+      [],
+      [{ 'QUERY PLAN': 'Seq Scan on things' }],
+      [{ 'QUERY PLAN': [{ Plan: { 'Node Type': 'Append', Plans: [{}] } }] }],
+    ]) {
+      expect(planNodes(rows)).toBeNull();
+      expect(planExecutionMs(rows)).toBeNull();
+    }
+    expect(planLine(null)).toBe('not a plan');
   });
 });

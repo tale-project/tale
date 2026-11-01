@@ -6,7 +6,10 @@ import {
 } from '@tale/shared/schemas/governance';
 import type { Sql, TransactionSql } from 'postgres';
 
-import { usageLedgerSubjectForms } from '../../../lib/shared/constants/usage.ts';
+import {
+  USAGE_LEDGER_SUBJECT_PREFIXES,
+  usageLedgerSubjectForms,
+} from '../../../lib/shared/constants/usage.ts';
 import {
   findOrganizationMember,
   getUserTeamIds,
@@ -78,6 +81,12 @@ export type UsageScope =
  * the workflow lane wrote before it derived the person from the run's
  * starter — so a cap sees the member's whole spend, whichever door it came
  * through (`governance/README.md`).
+ *
+ * Those forms are matched as values of `user_id` (`= ANY`), never by
+ * rewriting the column: the ledger's bucket index (`org_id, user_id,
+ * period_key`) then serves a person's sum and a team's, and
+ * `usage_ledger_api_key_period` a key's, so each reads its own scope's rows.
+ * Only the organization's sum reads the whole period.
  */
 /**
  * What a bucket used this period. Its requests are model requests: a
@@ -108,6 +117,8 @@ async function periodUsage(
     case 'team':
       // The team's current members, and every key the team owns — a
       // revoked one's spend this period still counts: it was the team's.
+      // Their ids are expanded into the forms a person's sum matches, once,
+      // before the ledger is read.
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
@@ -115,17 +126,21 @@ async function periodUsage(
                  AS "requestCount"
         FROM app.usage_ledger
         WHERE org_id = ${organizationId} AND period_key = ${periodKey}
-          AND regexp_replace(user_id, '^(user|api-key):', '') IN (
-            SELECT tm."userId" FROM "teamMember" tm
-            JOIN "team" t ON t."id" = tm."teamId"
-            WHERE tm."teamId" = ${scope.teamId}
-              AND t."organizationId" = ${organizationId}
-            UNION ALL
-            SELECT o.principal_user_id FROM app.api_key_owners o
-            WHERE o.team_id = ${scope.teamId}
-              AND o.org_id = ${organizationId}
-              AND o.owner_kind = 'team'
-          )
+          AND user_id = ANY(ARRAY(
+            SELECT form.prefix || member.id
+            FROM (
+              SELECT tm."userId" AS id FROM "teamMember" tm
+              JOIN "team" t ON t."id" = tm."teamId"
+              WHERE tm."teamId" = ${scope.teamId}
+                AND t."organizationId" = ${organizationId}
+              UNION ALL
+              SELECT o.principal_user_id FROM app.api_key_owners o
+              WHERE o.team_id = ${scope.teamId}
+                AND o.org_id = ${organizationId}
+                AND o.owner_kind = 'team'
+            ) member
+            CROSS JOIN unnest(${USAGE_LEDGER_SUBJECT_PREFIXES}::text[]) AS form(prefix)
+          ))
       `;
       break;
     case 'apiKey':
