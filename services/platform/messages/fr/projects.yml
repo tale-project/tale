@@ -731,7 +731,6 @@ dispatch:
       roleAgent: Choisis un agent.
       roleTask: Choisis une tâche.
       cronRequired: Saisis une expression cron.
-      cronInvalid: 'Cette expression cron n’est pas valide : {reason}'
       timezone: Choisis un fuseau horaire.
       tooLong: 'Utilise au plus {count, number} caractères.'
       number: Saisis un nombre.

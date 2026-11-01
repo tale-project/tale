@@ -494,14 +494,17 @@ describe('TriggerEditor', () => {
   });
 
   // A four-field cron used to preview a "next run" and then fail to save:
-  // the section now judges with the bind's own parser and shows its sentence.
-  it('refuses a four-field cron with the validator’s sentence and no next run', async () => {
+  // the section now judges with the bind's own parser and says what it
+  // refused.
+  it('refuses a four-field cron with the parser’s reason and no next run', async () => {
     renderTrigger();
     const cron = screen.getByLabelText('Cron');
     await userEvent.clear(cron);
     await userEvent.type(cron, '*/1 * * *');
     expect(
-      screen.getByText(/That cron expression is not valid: .*got 4/),
+      screen.getByText(
+        'That cron expression is not valid: it has 4 fields instead of 5 (minute hour day month weekday).',
+      ),
     ).toBeVisible();
     expect(
       screen.getByText('Fix the schedule above to see the next runs.'),

@@ -713,7 +713,6 @@ dispatch:
       roleAgent: Choose an agent.
       roleTask: Choose a task.
       cronRequired: Enter a cron expression.
-      cronInvalid: 'This cron expression is not valid: {reason}'
       timezone: Choose a time zone.
       tooLong: 'Use up to {count, number} characters.'
       number: Enter a number.

@@ -15,7 +15,7 @@ import {
 } from '@tale/shared/schemas/schedule-rule';
 import { z } from 'zod';
 
-import { parseCron } from '@/lib/automations/cron';
+import { cronParseProblem } from '@/lib/automations/cron';
 import {
   cronRuleStartDate,
   cronToScheduleRule,
@@ -322,12 +322,7 @@ export function reservedInputKeys(text: string): string[] {
 function scheduleIssue(draft: TriggerDraft): TriggerDraftIssue | null {
   if (draft.scheduleFormat === 'cron') {
     if (draft.cron.trim() === '') return 'schedule.cron_or_repeat';
-    try {
-      parseCron(draft.cron.trim());
-    } catch (error) {
-      if (!(error instanceof Error)) throw error;
-      return 'cron_invalid';
-    }
+    if (cronParseProblem(draft.cron) !== null) return 'cron_invalid';
   } else {
     const checked = scheduleRuleSchema.safeParse(draft.repeat);
     if (!checked.success) {
@@ -354,15 +349,4 @@ export function triggerDraftIssue(
         ? 'event.required'
         : null;
   return kindIssue ?? fixedInputIssue(draft.input);
-}
-
-/** The reason a cron expression does not parse, in the parser's words. */
-export function cronParseError(cron: string): string | null {
-  try {
-    parseCron(cron.trim());
-    return null;
-  } catch (error) {
-    if (!(error instanceof Error)) throw error;
-    return error.message === '' ? null : error.message;
-  }
 }

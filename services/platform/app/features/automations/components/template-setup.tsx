@@ -20,6 +20,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 
 import { useProjects } from '@/app/features/projects/hooks/queries';
 import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import { cronParseProblem } from '@/lib/automations/cron';
 import { generatedAutomationSlug, slugFromName } from '@/lib/automations/slug';
 import { useT } from '@/lib/i18n/client';
 import { localTimeZone } from '@/lib/shared/zoned-time';
@@ -46,7 +47,6 @@ import {
   wireAnswers,
 } from '../lib/templates';
 import {
-  cronParseError,
   defaultTriggerDraft,
   type TriggerDraft,
   triggerDraftIssue,
@@ -278,7 +278,7 @@ export function useTemplateSetup({
             ? triggerIssueText(
                 scheduleIssue,
                 { t, tRecurrence, locale },
-                { cronReason: cronParseError(schedule.cron) },
+                { cronProblem: cronParseProblem(schedule.cron) },
               )
             : undefined;
   const scheduleField = template.fields.find(

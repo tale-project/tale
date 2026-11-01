@@ -292,7 +292,21 @@ trigger:
   cronLabel: Cron
   cronHint: Standard-Cron mit 5 Feldern (Minute Stunde Tag Monat Wochentag).
   cronInvalid: Dieser Cron-Ausdruck ist ungültig.
-  cronInvalidReason: 'Dieser Cron-Ausdruck ist ungültig: {reason}'
+  cronInvalidReason: 'Dieser Cron-Ausdruck ist ungültig: {reason}.'
+  cronProblems:
+    fieldCount: 'Er hat {count, plural, one {# Feld} other {# Felder}} statt 5 (Minute Stunde Tag Monat Wochentag)'
+    emptyEntry: 'Im Feld „{field}“ steht in „{token}“ ein Komma ohne Wert daneben'
+    invalidStep: 'Im Feld „{field}“ ist die Schrittweite in „{token}“ keine ganze Zahl ab 1'
+    notARange: 'Im Feld „{field}“ ist „{token}“ kein Bereich — schreib ihn als „von-bis“'
+    outOfRange: 'Im Feld „{field}“ liegt „{token}“ außerhalb des Bereichs — erlaubt sind ganze Zahlen von {min} bis {max}'
+    matchesNothing: 'Im Feld „{field}“ trifft „{token}“ keinen Wert'
+    impossibleDate: 'Tag {days} kommt im {months} nie vor'
+  cronFields:
+    minute: Minute
+    hour: Stunde
+    dayOfMonth: Tag
+    month: Monat
+    dayOfWeek: Wochentag
   timezoneLabel: Zeitzone
   timezoneSearch: Zeitzonen suchen
   timezoneEmpty: Keine passende Zeitzone

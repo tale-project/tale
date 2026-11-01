@@ -98,6 +98,8 @@ const WITH_ROLE_AND_GATE: ProjectDispatch = {
 const t = (key: string, values?: Record<string, unknown>) =>
   i18n.t(key, { ns: 'projects', ...values });
 const tCommon = (key: string) => i18n.t(key, { ns: 'common' });
+const tAutomations = (key: string, values?: Record<string, unknown>) =>
+  i18n.t(key, { ns: 'automations', ...values });
 
 let backend: SyntheticBackend;
 let client: QueryClient;
@@ -392,9 +394,14 @@ describe('editing a project’s dispatch', () => {
     ).toBeInTheDocument();
     expect(
       dialog.getByText(
-        new RegExp(
-          `^${t('dispatch.editor.validation.cronInvalid', { reason: '' })}`,
-        ),
+        tAutomations('trigger.cronInvalidReason', {
+          reason: tAutomations('trigger.cronProblems.outOfRange', {
+            field: tAutomations('trigger.cronFields.minute'),
+            token: '61',
+            min: 0,
+            max: 59,
+          }),
+        }),
       ),
     ).toBeInTheDocument();
     expect(backend.count(SAVE)).toBe(0);
