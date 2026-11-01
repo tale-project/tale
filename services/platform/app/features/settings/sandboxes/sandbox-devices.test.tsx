@@ -83,7 +83,8 @@ function renderSection(props: {
       organizationId="org-1"
       // A failed read has no view to show.
       view={props.error === undefined ? (props.view ?? view([])) : undefined}
-      isLoading={false}
+      isRetrying={false}
+      failureCount={0}
       error={props.error ?? null}
       canManage={props.canManage ?? true}
       onRefresh={props.onRefresh ?? vi.fn()}
@@ -341,7 +342,8 @@ describe('Add device', () => {
             createdBy: 'admin-2',
           }),
         ])}
-        isLoading={false}
+        isRetrying={false}
+        failureCount={0}
         error={null}
         canManage
         onRefresh={vi.fn()}
@@ -427,7 +429,8 @@ describe('Add device', () => {
       <SandboxDevicesSection
         organizationId="org-1"
         view={view([...devices, device({ id: 'dev-new', name: 'new-box' })])}
-        isLoading={false}
+        isRetrying={false}
+        failureCount={0}
         error={null}
         canManage
         onRefresh={vi.fn()}
@@ -449,7 +452,8 @@ describe('Add device', () => {
           device(),
           device({ id: 'another-grant-device', name: 'another-command' }),
         ])}
-        isLoading={false}
+        isRetrying={false}
+        failureCount={0}
         error={null}
         canManage
         onRefresh={vi.fn()}
@@ -471,7 +475,8 @@ describe('Add device', () => {
         <SandboxDevicesSection
           organizationId="org-1"
           view={view([device({ id: 'dev-new', name: 'new-box', status })])}
-          isLoading={false}
+          isRetrying={false}
+          failureCount={0}
           error={null}
           canManage
           onRefresh={vi.fn()}
