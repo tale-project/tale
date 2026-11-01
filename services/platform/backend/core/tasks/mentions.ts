@@ -60,6 +60,22 @@ export function findTaskMentions(body: string): Occurrence[] {
   return findMentions(body, { kinds: MENTION_KINDS });
 }
 
+/** The agents a stored text hands its task to, in order of first mention:
+ * its agent tokens outside code and block quotes (a quote repeats what
+ * someone else wrote, so it hands nothing on). */
+export function handoffMentionAgentIds(text: string): string[] {
+  const ids: string[] = [];
+  for (const occurrence of findMentions(text, {
+    kinds: ['agent'] as const,
+    skip: ['blockquote'],
+  })) {
+    if (occurrence.type === 'token' && !ids.includes(occurrence.ref.id)) {
+      ids.push(occurrence.ref.id);
+    }
+  }
+  return ids;
+}
+
 /** How many times each plain handle occurs in a text. */
 function plainHandleCounts(occurrences: readonly Occurrence[]) {
   const counts = new Map<string, number>();
