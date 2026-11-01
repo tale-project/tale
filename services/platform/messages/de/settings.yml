@@ -247,6 +247,16 @@ usage:
     unlimited: Für dich gilt kein Speicherlimit.
     loadFailed: Deine Speichernutzung konnte nicht geladen werden.
     refreshFailed: Deine Speichernutzung konnte nicht aktualisiert werden. Die Anzeige ist womöglich veraltet.
+    breakdown:
+      label: Aufteilung
+      documents: Dokumente
+      chatAttachments: Chat-Anhänge
+      agentFiles: Von Agenten erstellte Dateien
+      other: Sonstige Dateien
+    viewDocuments: Meine Dokumente in Wissen anzeigen
+    chats:
+      label: Chats mit deinen Dateien
+      more: '{count, plural, one {und # weiterer Chat} other {und # weitere Chats}}'
 organization:
   title: Organisationsname
   loadFailed: Die Organisationsdetails konnten nicht geladen werden.
