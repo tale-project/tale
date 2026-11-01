@@ -51,10 +51,12 @@ function sessionCapacity(): number {
 
 /**
  * The gateway's memory limit, in whole MiB: SANDBOX_LLM_GATEWAY_MEMORY when
- * set, a size read the way the spawner reads its own (sizeEnv in
- * services/sandbox/src/config.ts) and at least 512 MiB; else the base and a
+ * set, a size such as 4g or 4096m and at least 512 MiB; else the base and a
  * share for each session of the capacity, at least 512 MiB. It is a cap, not
- * a reservation, so headroom costs an idle gateway nothing.
+ * a reservation, so headroom costs an idle gateway nothing. The shipped
+ * compose.yml hands the same variable to mem_limit as it is, so this takes
+ * only spellings compose takes too: not the Kubernetes 4Gi that the spawner's
+ * own sizes (sizeEnv in services/sandbox/src/config.ts) also read.
  */
 function gatewayMemoryLimit(): string {
   const name = 'SANDBOX_LLM_GATEWAY_MEMORY';

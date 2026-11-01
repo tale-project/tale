@@ -324,7 +324,16 @@ the session: an agent session's CPUs and twice its memory unless
 `SANDBOX_BUILDKITD_CPUS` / `SANDBOX_BUILDKITD_MEMORY` say otherwise. A helper
 launched by an earlier release or with other bounds gets its CPU and process
 bounds in place at once and is recreated on the current image and memory
-bound once no build runs. See
+bound once no build runs. No session create waits for that check: the
+provisioning that first finds no build under way in the builder's build
+history keeps the helper, and a follow-up provisioning reads the history again
+three seconds later, in the background. It recreates the helper if the
+history still shows none under way and none started since; if one ran in
+between, it schedules the next follow-up, and if one is under way or the
+history cannot be read, it schedules none and the next create reads again.
+Once a helper has been held for a minute, the first read that finds no build
+under way recreates it whatever ran before, so an organization that never
+pauses between builds does not keep a helper that may fail them. See
 [the BuildKit reference](../../sandbox-buildkitd/README.md) for the resource
 boundary and upgrade requirements.
 

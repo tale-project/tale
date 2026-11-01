@@ -15,6 +15,7 @@ import {
   RunnerdActivityError,
   runnerdActivity,
   runnerdAttach,
+  RunnerdAttachBusyError,
   runnerdExec,
   runnerdReadFile,
   runnerdStageFiles,
@@ -569,6 +570,60 @@ describe('runnerd response reader ownership', () => {
       }
     },
   );
+});
+
+describe('runnerd attach opening', () => {
+  test('onOpen runs once runnerd answers with the stream, before its first event', async () => {
+    const seen: string[] = [];
+    respond(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            encoder.encode('{"t":"stdout","b64":"b2s=","seq":1}\n'),
+          );
+          controller.close();
+        },
+      }),
+    );
+    expect(
+      await runnerdAttach(
+        opts,
+        'exec-test',
+        (event) => {
+          seen.push(event.t);
+        },
+        undefined,
+        0,
+        () => {
+          seen.push('open');
+        },
+      ),
+    ).toBe(true);
+    expect(seen).toEqual(['open', 'stdout']);
+  });
+
+  test('onOpen does not run when runnerd answers without the stream', async () => {
+    let opened = 0;
+    const attach = () =>
+      runnerdAttach(
+        opts,
+        'exec-test',
+        () => {},
+        undefined,
+        0,
+        () => {
+          opened += 1;
+        },
+      );
+    spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(new Response('unknown exec', { status: 404 }))
+      .mockResolvedValueOnce(Response.json({ error: 'busy' }, { status: 503 }))
+      .mockResolvedValueOnce(new Response('runnerd is gone', { status: 503 }));
+    expect(await attach()).toBe(false);
+    expect(await rejection(attach())).toBeInstanceOf(RunnerdAttachBusyError);
+    expect((await rejection(attach())).message).toBe('runnerd /attach 503');
+    expect(opened).toBe(0);
+  });
 });
 
 test('file reads expose the first bytes before the upstream file finishes', async () => {

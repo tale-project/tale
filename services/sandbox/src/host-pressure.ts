@@ -20,6 +20,7 @@ import {
   parseOnlineCpus,
   parsePressureSomeAvg10,
 } from './proc-stats.ts';
+import { msSince } from './wall-clock.ts';
 
 /** How often the host is read. The kernel's averages span ten seconds, so a
  * verdict always has two readings that far apart within a sample of it. */
@@ -91,10 +92,13 @@ export class HostPressureSampler implements HostPressureSource {
     this.ticker = null;
   }
 
+  /** Never a reading stamped ahead of the clock (it stepped back since):
+   * taken for the newest, it would decide admission until the next sample
+   * drops it. */
   readings(): readonly HostPressureReading[] {
     const now = this.now();
     return this.ring.filter(
-      (reading) => now - reading.atMs <= PRESSURE_RING_MS,
+      (reading) => msSince(reading.atMs, now) <= PRESSURE_RING_MS,
     );
   }
 
