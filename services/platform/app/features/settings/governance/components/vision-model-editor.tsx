@@ -20,6 +20,11 @@ import {
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useProviderCatalogs } from '@/app/features/settings/providers/hooks/queries';
+import {
+  modelOptionsByProvider,
+  pickedModelName,
+  type ProvidedModel,
+} from '@/app/features/shared/models/model-name';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
@@ -94,42 +99,46 @@ function VisionModelEditorContent({ organizationId }: VisionModelEditorProps) {
   const schema = useMemo(() => z.object({ selection: z.string().min(1) }), []);
 
   /**
-   * Automatic plus every model that could actually serve the lane, grouped by
-   * provider. The eligibility filter mirrors the resolver's: a model that
-   * cannot transcribe must not be offerable, or the picker becomes a way to
-   * reproduce the exact outage the pin is meant to prevent.
+   * Every model that could actually serve the lane. The eligibility filter
+   * mirrors the resolver's: a model that cannot transcribe must not be
+   * offerable, or the picker becomes a way to reproduce the exact outage the
+   * pin is meant to prevent.
    */
-  const options = useMemo<SearchableSelectOption[]>(() => {
-    const rows: SearchableSelectOption[] = [
+  const eligibleModels = useMemo(() => {
+    const eligible: ProvidedModel[] = [];
+    for (const provider of catalogs ?? []) {
+      for (const model of provider.models) {
+        if (
+          model.supportsVision &&
+          model.tags.includes('chat') &&
+          model.outputsMedia !== true &&
+          !model.id.endsWith(':free')
+        ) {
+          eligible.push({
+            id: model.id,
+            providerSlug: provider.name,
+            providerLabel: provider.displayName,
+          });
+        }
+      }
+    }
+    return eligible;
+  }, [catalogs]);
+
+  /** Automatic plus the eligible models, grouped by provider. */
+  const options = useMemo<SearchableSelectOption[]>(
+    () => [
       {
         value: AUTOMATIC,
         label: t('visionModel.automaticLabel'),
         description: t('visionModel.automaticHint'),
       },
-    ];
-    for (const provider of catalogs ?? []) {
-      const eligible = provider.models.filter(
-        (model) =>
-          model.supportsVision &&
-          model.tags.includes('chat') &&
-          model.outputsMedia !== true &&
-          !model.id.endsWith(':free'),
-      );
-      if (eligible.length === 0) continue;
-      rows.push({
-        value: `header:${provider.name}`,
-        label: provider.displayName,
-        isSectionHeader: true,
-      });
-      for (const model of eligible) {
-        rows.push({
-          value: modelSelectionValue(provider.name, model.id),
-          label: model.id,
-        });
-      }
-    }
-    return rows;
-  }, [catalogs, t]);
+      ...modelOptionsByProvider(eligibleModels, (model) => ({
+        value: modelSelectionValue(model.providerSlug, model.id),
+      })),
+    ],
+    [eligibleModels, t],
+  );
 
   const save = useCallback(
     async (values: VisionModelForm) => {
@@ -168,9 +177,12 @@ function VisionModelEditorContent({ organizationId }: VisionModelEditorProps) {
     if (resolved === undefined) return null;
     if (resolved === null) return t('visionModel.resolvedNone');
     return t(`visionModel.resolved.${resolved.source}`, {
-      model: `${resolved.providerSlug} · ${resolved.modelId}`,
+      model: pickedModelName(
+        { id: resolved.modelId, providerSlug: resolved.providerSlug },
+        eligibleModels,
+      ),
     });
-  }, [resolved, selection, t]);
+  }, [eligibleModels, resolved, selection, t]);
 
   return (
     <Skeletonize loading={isLoading} label={t('visionModel.title')}>
