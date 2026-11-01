@@ -979,10 +979,15 @@ export function createAuth(config: AuthConfig) {
       freshAge: SESSION_FRESH_AGE_SECONDS,
       additionalFields: {
         // The role a trusted-headers proxy asserted at sign-in, and the ONE
-        // organization it holds for; the org middleware applies the override
-        // to that organization only (`backend/auth/org.ts`). Only the
-        // trusted-headers door writes them (`domains/sso/trusted-headers.ts`,
-        // in SQL), never a request body.
+        // organization a session holds for; the org middleware applies the
+        // override to that organization only (`backend/auth/org.ts`). The
+        // trusted-headers door writes both (`domains/sso/trusted-headers.ts`),
+        // the SSO door the organization alone (`domains/sso/service.ts`),
+        // both in SQL; the create hook below carries them onto a session
+        // minted under a bound one, or by a passkey bound to an organization
+        // (`passkey-authority.ts`). Never a request body. The app reads the
+        // role alone as a proxy's session, and offers no sign-out of its own
+        // for one (`lib/shared/proxied-session.ts`).
         trustedRole: {
           type: 'string' as const,
           required: false,

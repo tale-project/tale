@@ -44,6 +44,7 @@ import { z } from 'zod';
 import { robotsPolicyFromStored } from '../lib/knowledge/crawl-parse.ts';
 import { htmlToText } from '../lib/knowledge/html-to-text.ts';
 import { setSafeFetchResolverForTests } from '../lib/net/safe-fetch.ts';
+import { isProxiedSession } from '../lib/shared/proxied-session.ts';
 import { objectStorageConnectionFileSchema } from '../lib/shared/schemas/object_storage.ts';
 import { createApp } from './app.ts';
 import { checkAuditEventOrder } from './audit-order.integration.ts';
@@ -23272,6 +23273,19 @@ async function checkTrustedHeaders(
       );
     return parsed.success ? (parsed.data.user?.email ?? null) : null;
   };
+  // Whether the app reads the session it gets back as the proxy's, and so
+  // offers no sign-out of its own for it; an SSO session reads as its
+  // person's (`auth/session-authority.integration.ts`).
+  const sessionProxied = async (sessionCookie: string): Promise<boolean> => {
+    const parsed = z.looseObject({ session: z.unknown() }).safeParse(
+      await (
+        await fetch(`${base}/api/auth/get-session`, {
+          headers: { cookie: sessionCookie, origin: base },
+        })
+      ).json(),
+    );
+    return parsed.success && isProxiedSession(parsed.data.session);
+  };
   const proxyEmail = 'proxy.user@door.test';
 
   const noKey = await door(identity(proxyEmail, 'member'));
@@ -23286,6 +23300,7 @@ async function checkTrustedHeaders(
     'Remote-Internal-Secret': key,
   });
   const firstEmail = await sessionEmail(first.cookie);
+  const firstProxied = await sessionProxied(first.cookie);
   const landed = await sql<
     {
       role: string;
@@ -23435,6 +23450,7 @@ async function checkTrustedHeaders(
       first.location === '/dashboard' &&
       first.cookie.includes('better-auth.session_token=') &&
       firstEmail === proxyEmail &&
+      firstProxied &&
       landed.length === 1 &&
       landed[0]?.organizationId === orgId &&
       landed[0]?.role === 'editor' &&
@@ -23466,7 +23482,7 @@ async function checkTrustedHeaders(
       framedAfter.headers.get('x-frame-options') === null &&
       framedAfter.headers.get('content-security-policy') ===
         "frame-ancestors 'self' https://embed.example",
-    `noKey=${noKey.status} badKey=${badKey.status} first=${first.status} session=${firstEmail} landed=${landed.length}:${landed[0]?.organizationId === orgId}/${landed[0]?.role}/${landed[0]?.trustedRole}/${landed[0]?.trustedOrganizationId === orgId} teams=${teamNames.join(',')} editorOnAdminSurface=${refusedAsEditor.status} (want 403) viaHeader=${viaHeader.status}/${viaHeader.cookie === first.cookie} alias=${alias.status}/${alias.cookie === first.cookie} seatAfterAlias=${reboundRole} (want member) roleAudits=${reboundAudits[0]?.count} (want ≥1) mint=${transparent.status}/${transparentUser === mintEmail} (want 200/true) held=${held.status} (want 401) fromApp=${fromApp.status}→${fromApp.location ?? ''} sessions=${proxySessions[0]?.count} (want 1) framing=${framedBefore.headers.get('x-frame-options')}/${framedBefore.headers.get('content-security-policy')} → ${embeddingSaved.status}/${framedAfter.headers.get('x-frame-options')}/${framedAfter.headers.get('content-security-policy')}`,
+    `noKey=${noKey.status} badKey=${badKey.status} first=${first.status} session=${firstEmail} proxied=${firstProxied} (want true) landed=${landed.length}:${landed[0]?.organizationId === orgId}/${landed[0]?.role}/${landed[0]?.trustedRole}/${landed[0]?.trustedOrganizationId === orgId} teams=${teamNames.join(',')} editorOnAdminSurface=${refusedAsEditor.status} (want 403) viaHeader=${viaHeader.status}/${viaHeader.cookie === first.cookie} alias=${alias.status}/${alias.cookie === first.cookie} seatAfterAlias=${reboundRole} (want member) roleAudits=${reboundAudits[0]?.count} (want ≥1) mint=${transparent.status}/${transparentUser === mintEmail} (want 200/true) held=${held.status} (want 401) fromApp=${fromApp.status}→${fromApp.location ?? ''} sessions=${proxySessions[0]?.count} (want 1) framing=${framedBefore.headers.get('x-frame-options')}/${framedBefore.headers.get('content-security-policy')} → ${embeddingSaved.status}/${framedAfter.headers.get('x-frame-options')}/${framedAfter.headers.get('content-security-policy')}`,
   );
 
   // ---- refusals, pause, revoke ----------------------------------------------

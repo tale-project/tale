@@ -1,11 +1,13 @@
 /** Real factory/app HTTP proof. A dedicated multi-org Owner retains every
- * seat while an actual org-minted session is confined to its source realm.
+ * seat while an actual org-minted session is confined to its source realm,
+ * and stays its person's to sign out of.
  * Cutover inventory/WebAuthn are exercised in their isolated PG fixture. */
 import { randomUUID } from 'node:crypto';
 
 import type { Sql } from 'postgres';
 import { z } from 'zod';
 
+import { isProxiedSession } from '../../lib/shared/proxied-session.ts';
 import { buildSessionCookie } from '../core/enterprise_sso/login/finish_login.ts';
 import { createSsoUserSession } from '../domains/sso/service.ts';
 import {
@@ -66,14 +68,11 @@ export async function checkOrganizationSessionAuthority(
     userId,
     organizationId: orgA,
   });
-  const scopedCookie =
+  const cookieOf = async (sessionToken: string) =>
     (
-      await buildSessionCookie(
-        minted.sessionToken,
-        base,
-        auth.options.secret ?? '',
-      )
+      await buildSessionCookie(sessionToken, base, auth.options.secret ?? '')
     ).split(';')[0] ?? '';
+  const scopedCookie = await cookieOf(minted.sessionToken);
   const readOrg = (orgId: string, cookie: string) =>
     fetch(`${base}/api/app/organizations/${encodeURIComponent(orgId)}`, {
       headers: { cookie },
@@ -143,5 +142,43 @@ export async function checkOrganizationSessionAuthority(
       rows[0].proved &&
       JSON.stringify(await seats()) === JSON.stringify(before),
     `confirmation=${confirmation.status}, account=${account.status}, foreign=${confirmedForeign.status}, key=${key.status}; scope and seats preserved`,
+  );
+
+  // A single sign-on session is bound to its organization like the one
+  // above, but names no role: the app reads it back as its person's, so it
+  // offers Log out, and signing out ends it (#5137). The trusted-headers
+  // door's session reads as the proxy's (`checkTrustedHeaders`).
+  const signedIn = await createSsoUserSession(sql, {
+    userId,
+    organizationId: orgA,
+  });
+  const signedInCookie = await cookieOf(signedIn.sessionToken);
+  const readSession = async (cookie: string): Promise<unknown> =>
+    (
+      await fetch(`${base}/api/auth/get-session`, {
+        headers: { cookie, origin: base },
+      })
+    ).json();
+  const read = z
+    .object({
+      session: z.looseObject({ trustedOrganizationId: z.string().nullish() }),
+    })
+    .safeParse(await readSession(signedInCookie));
+  const bound =
+    read.success && read.data.session.trustedOrganizationId === orgA;
+  const proxied = read.success && isProxiedSession(read.data.session);
+  const signOut = await post('/api/auth/sign-out', {}, signedInCookie);
+  const left = await sql`
+    SELECT "id" FROM "session" WHERE "token" = ${signedIn.sessionToken}
+  `;
+  const afterSignOut = await readSession(signedInCookie);
+  record(
+    "auth authority: a single sign-on session is its person's to sign out of",
+    bound &&
+      !proxied &&
+      signOut.status === 200 &&
+      left.length === 0 &&
+      afterSignOut === null,
+    `bound=${bound}, proxied=${proxied} (want false), sign-out=${signOut.status} (want 200), rows left=${left.length} (want 0), after=${JSON.stringify(afterSignOut)} (want null)`,
   );
 }

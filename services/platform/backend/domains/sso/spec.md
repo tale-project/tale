@@ -71,6 +71,15 @@ removes the mapping drops it.
   the first time → her address is verified. On a connection without the setting it stays
   unverified.
 
+### SSO-R21 · A person signed in through the identity provider can sign out of Tale
+
+The session holds them to the organization of the connection, as a proxy's session does, but
+names no role. Only a role a proxy asserted leaves signing out to the proxy, so the account menu
+offers **Log out**, and it ends the session.
+
+- **Example**: Mia signed in through her organization's identity provider. She chooses **Log
+  out** in the account menu → she is on the sign-in page, and her session has ended.
+
 ## Teams from the provider's groups
 
 ### SSO-R6 · Team sync gives a person the teams named by their groups
@@ -204,3 +213,7 @@ connection instead of using another organization's provider.
 - **Which organization a sign-in page offers** when several have SSO turned on (`routes.ts`).
 - **Sessions a proxy already started** when its key is revoked: they stay signed in, as the
   user docs say. No test holds it.
+- **Signing out at the identity provider**: **Log out** ends the session in Tale alone. Tale
+  sends the provider no logout (OIDC RP-initiated logout, SAML single logout), so the next
+  **Continue with SSO** may sign the person straight back in through the provider's own session
+  (#5137).
