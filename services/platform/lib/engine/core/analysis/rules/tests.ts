@@ -13,6 +13,9 @@
  *  - TESTS_MOCK_UNKNOWN_NODE, TESTS_MOCK_CONFLICT — a stand-in for a node
  *    the automation does not have, or both an output and a failure for one
  *    node: the test cannot run (its bench is refused).
+ *  - TESTS_SCENARIO_CONFLICT, TESTS_SCENARIO_UNKNOWN — a scenario picked
+ *    for a node the test also gives an output or a failure, or one the
+ *    node's connector action does not ship: the test cannot run either.
  *  - TESTS_MOCK_NOT_LIST — the stand-in of a node that runs once per item
  *    (forEach) is no list.
  *  - TESTS_MOCK_TYPE — a stand-in has a kind the node never returns there,
@@ -74,6 +77,7 @@ const TEST_FIELDS = [
   'input',
   'mocks',
   'failures',
+  'scenarios',
   'expect',
 ] as const;
 
@@ -228,7 +232,7 @@ function unknownFields(at: TestAt, out: Issue[]): void {
         'TESTS_UNKNOWN_FIELD',
         `tests[${index}] "${name}" has an unknown field "${field}"`,
         {
-          hint: `${suggestion === undefined ? '' : `did you mean "${suggestion}"? `}a test has name, description, input, mocks, failures and expect`,
+          hint: `${suggestion === undefined ? '' : `did you mean "${suggestion}"? `}a test has name, description, input, mocks, failures, scenarios and expect`,
           at: { pointer: ptr('tests', index, field), subject: 'key' },
           params: {
             test: index,
@@ -276,9 +280,11 @@ function standIns(cx: RuleContext, at: TestAt, out: Issue[]): void {
   const ids = [...cx.byId.keys()];
   const mocks = isRecord(test.mocks) ? test.mocks : {};
   const failures = isRecord(test.failures) ? test.failures : {};
+  const scenarios = isRecord(test.scenarios) ? test.scenarios : {};
   for (const [field, entries] of [
     ['mocks', mocks],
     ['failures', failures],
+    ['scenarios', scenarios],
   ] as const) {
     for (const node of Object.keys(entries)) {
       if (cx.byId.has(node)) continue;
@@ -286,7 +292,7 @@ function standIns(cx: RuleContext, at: TestAt, out: Issue[]): void {
       out.push(
         warn(
           'TESTS_MOCK_UNKNOWN_NODE',
-          `tests[${index}] "${name}" simulates "${node}" in ${field}, which is not a node of this automation`,
+          `tests[${index}] "${name}" ${field === 'scenarios' ? 'picks a scenario for' : 'simulates'} "${node}" in ${field}, which is not a node of this automation`,
           {
             hint: `${suggestion === undefined ? '' : `did you mean "${suggestion}"? `}nodes: ${ids.join(', ')}`,
             at: { pointer: ptr('tests', index, field, node), subject: 'key' },
@@ -320,6 +326,7 @@ function standIns(cx: RuleContext, at: TestAt, out: Issue[]): void {
       ),
     );
   }
+  scenarioPicks(cx, at, { mocks, failures, scenarios }, out);
   for (const [node, mock] of Object.entries(mocks)) {
     const def = cx.byId.get(node);
     if (def === undefined) continue;
@@ -360,6 +367,76 @@ function standIns(cx: RuleContext, at: TestAt, out: Issue[]): void {
             property,
             expected: m.actual,
             actual: m.expected,
+          },
+        },
+      ),
+    );
+  }
+}
+
+/** The scenarios a test picks that its bench would refuse: one for a node
+ * the test also gives an output or a failure, or one the node's connector
+ * action does not ship (a node of another kind ships none). */
+function scenarioPicks(
+  cx: RuleContext,
+  at: TestAt,
+  given: {
+    mocks: Record<string, unknown>;
+    failures: Record<string, unknown>;
+    scenarios: Record<string, unknown>;
+  },
+  out: Issue[],
+): void {
+  const { index, name } = at;
+  for (const [node, scenario] of Object.entries(given.scenarios)) {
+    const def = cx.byId.get(node);
+    if (def === undefined) continue;
+    const field = Object.hasOwn(given.mocks, node)
+      ? 'mocks'
+      : Object.hasOwn(given.failures, node)
+        ? 'failures'
+        : undefined;
+    if (field !== undefined) {
+      out.push(
+        warn(
+          'TESTS_SCENARIO_CONFLICT',
+          `tests[${index}] "${name}" both picks a scenario and simulates ${field === 'mocks' ? 'an output' : 'a failure'} for "${node}"`,
+          {
+            hint: `keep one of ${field}.${node} and scenarios.${node}`,
+            at: {
+              pointer: ptr('tests', index, 'scenarios', node),
+              subject: 'key',
+            },
+            params: { test: index, name, node, field },
+          },
+        ),
+      );
+      continue;
+    }
+    // A name that is no text is malformed, which the grammar reports.
+    if (typeof scenario !== 'string') continue;
+    const shipped = nodeTypes().get(def.type)?.connector?.scenarios ?? [];
+    if (shipped.some((s) => s.name === scenario)) continue;
+    const scenarios = shipped.map((s) => s.name);
+    const suggestion = closestName(scenario, scenarios);
+    out.push(
+      warn(
+        'TESTS_SCENARIO_UNKNOWN',
+        `tests[${index}] "${name}" picks the scenario "${scenario}" for "${node}", which ${def.type} does not ship`,
+        {
+          hint:
+            scenarios.length === 0
+              ? `${def.type} ships no scenarios — simulate its output (mocks) or its failure (failures) instead`
+              : `${suggestion === undefined ? '' : `did you mean "${suggestion}"? `}scenarios of ${def.type}: ${scenarios.join(', ')}`,
+          at: { pointer: ptr('tests', index, 'scenarios', node) },
+          params: {
+            test: index,
+            name,
+            node,
+            type: def.type,
+            scenario,
+            scenarios,
+            ...(suggestion !== undefined && { suggestion }),
           },
         },
       ),
