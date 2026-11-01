@@ -29,7 +29,7 @@ export const CODES = {
   SECRET_IN_DOCUMENT:
     'credentials never live in documents; secrets are injected at runtime',
   TESTS_INVALID:
-    'tests must be [{name, description?, input, mocks?, failures?, expect?}]',
+    'tests must be [{name, description?, input, mocks?, failures?, scenarios?, expect?}]',
 
   // Node level.
   NODE_NOT_OBJECT: 'each node is an object',
@@ -117,12 +117,16 @@ export const CODES = {
     'a test expects output values of the types the automation returns',
   TESTS_TOO_MANY: 'an automation carries at most 50 tests',
   TESTS_UNKNOWN_FIELD:
-    'a test has only name, description, input, mocks, failures and expect, and an effect it expects only connector, node, input, inputIncludes and absent',
+    'a test has only name, description, input, mocks, failures, scenarios and expect, and an effect it expects only connector, node, input, inputIncludes and absent',
   TESTS_NAME_DUPLICATE: 'every test has its own name',
   TESTS_MOCK_UNKNOWN_NODE:
-    "a test simulates only the outputs and failures of the automation's nodes",
+    "a test simulates outputs and failures, and picks scenarios, for the automation's own nodes only",
   TESTS_MOCK_CONFLICT:
     'a test simulates either an output or a failure for a node, not both',
+  TESTS_SCENARIO_CONFLICT:
+    'a test picks a scenario for a node, or simulates its output or failure, not both',
+  TESTS_SCENARIO_UNKNOWN:
+    'a test picks for a node only a scenario its connector action ships',
   TESTS_MOCK_NOT_LIST:
     'a simulated output of a node that runs once per item is a list, one entry per item',
   TESTS_MOCK_TYPE: 'a simulated output has the shape the node really returns',
@@ -535,7 +539,8 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     family: 'test',
     params: ['test', 'name', 'firstIndex'],
   },
-  // `field` is `mocks` or `failures`; `nodes` lists the automation's own.
+  // `field` is `mocks`, `failures` or `scenarios`; `nodes` lists the
+  // automation's own.
   TESTS_MOCK_UNKNOWN_NODE: {
     level: 'warning',
     family: 'test',
@@ -545,6 +550,28 @@ export const CODE_META: { readonly [K in IssueCode]: CodeMeta } = {
     level: 'warning',
     family: 'test',
     params: ['test', 'name', 'node'],
+  },
+  // `field` is the other stand-in the test gives the node: `mocks` or
+  // `failures`.
+  TESTS_SCENARIO_CONFLICT: {
+    level: 'warning',
+    family: 'test',
+    params: ['test', 'name', 'node', 'field'],
+  },
+  // `type` is the node's type, `scenarios` the names its action ships (none
+  // for a node of another kind), `suggestion` the closest of them.
+  TESTS_SCENARIO_UNKNOWN: {
+    level: 'warning',
+    family: 'test',
+    params: [
+      'test',
+      'name',
+      'node',
+      'type',
+      'scenario',
+      'scenarios',
+      'suggestion?',
+    ],
   },
   // `kind` is the kind of value the stand-in is (`object`, `string`, …).
   TESTS_MOCK_NOT_LIST: {

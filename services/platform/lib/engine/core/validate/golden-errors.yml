@@ -1354,7 +1354,7 @@ tests-invalid-parts:
     - code: TESTS_INVALID
       path: tests[0]
       message: tests[0].description must be text
-      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, scenarios?: {<node>: <scenario name>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
       at:
         pointer: /tests/0/description
       params:
@@ -1363,7 +1363,7 @@ tests-invalid-parts:
     - code: TESTS_INVALID
       path: tests[0]
       message: tests[0].mocks must map node ids to the output each returns in this test
-      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, scenarios?: {<node>: <scenario name>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
       at:
         pointer: /tests/0/mocks
       params:
@@ -1372,16 +1372,25 @@ tests-invalid-parts:
     - code: TESTS_INVALID
       path: tests[0]
       message: tests[0].failures must map node ids to error messages, each text of at most 2000 characters
-      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, scenarios?: {<node>: <scenario name>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
       at:
         pointer: /tests/0/failures/main
       params:
         test: 0
         part: failures
     - code: TESTS_INVALID
+      path: tests[0]
+      message: tests[0].scenarios must map node ids to the name of a scenario each node's connector action ships, as text of at most 50 characters
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, scenarios?: {<node>: <scenario name>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      at:
+        pointer: /tests/0/scenarios/main
+      params:
+        test: 0
+        part: scenarios
+    - code: TESTS_INVALID
       path: tests[1]
       message: 'tests[1].expect.effects[0] must name its connector: {connector: string, node?: string, …}'
-      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, scenarios?: {<node>: <scenario name>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
       at:
         pointer: /tests/1/expect/effects/0
       params:
@@ -1390,7 +1399,7 @@ tests-invalid-parts:
     - code: TESTS_INVALID
       path: tests[1]
       message: tests[1].expect.effects[1] gives both input and inputIncludes — compare its input exactly or by inclusion, not both
-      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, scenarios?: {<node>: <scenario name>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
       at:
         pointer: /tests/1/expect/effects/1
       params:
@@ -1399,7 +1408,7 @@ tests-invalid-parts:
     - code: TESTS_INVALID
       path: tests[1]
       message: tests[1].expect.effects[2].absent must be true when it is given
-      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, scenarios?: {<node>: <scenario name>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
       at:
         pointer: /tests/1/expect/effects/2/absent
       params:
@@ -1408,7 +1417,7 @@ tests-invalid-parts:
     - code: TESTS_INVALID
       path: tests[1]
       message: tests[1].expect.nodes must map node ids to ran, skipped or failed
-      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, scenarios?: {<node>: <scenario name>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
       at:
         pointer: /tests/1/expect/nodes/main
       params:
@@ -1417,7 +1426,7 @@ tests-invalid-parts:
     - code: TESTS_INVALID
       path: tests[2]
       message: 'tests[2].expect.failure must be {node?: string, message?: string}'
-      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, scenarios?: {<node>: <scenario name>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
       at:
         pointer: /tests/2/expect/failure
       params:
@@ -1426,13 +1435,24 @@ tests-invalid-parts:
     - code: TESTS_INVALID
       path: tests[2]
       message: tests[2].expect has failure and output — a run that must fail has no output to compare
-      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
+      hint: 'a test is {name, description?, input, mocks?: {<node>: <its output>}, failures?: {<node>: <error message>}, scenarios?: {<node>: <scenario name>}, expect?: {output?, outputIncludes?, effects?: [{connector, node?, input?, inputIncludes?, absent?: true}], nodes?: {<node>: ran | skipped | failed}, failure?: {node?, message?}}}'
       at:
         pointer: /tests/2/expect/failure
       params:
         test: 2
         part: failureWithOutput
-  warnings: []
+  warnings:
+    - code: TESTS_SCENARIO_CONFLICT
+      message: tests[0] "stand-ins" both picks a scenario and simulates a failure for "main"
+      hint: keep one of failures.main and scenarios.main
+      at:
+        pointer: /tests/0/scenarios/main
+        subject: key
+      params:
+        test: 0
+        name: stand-ins
+        node: main
+        field: failures
 tests-too-many:
   errors:
     - code: TESTS_TOO_MANY
@@ -1449,7 +1469,7 @@ tests-unknown-field:
   warnings:
     - code: TESTS_UNKNOWN_FIELD
       message: tests[0] "stands in" has an unknown field "mock"
-      hint: did you mean "mocks"? a test has name, description, input, mocks, failures and expect
+      hint: did you mean "mocks"? a test has name, description, input, mocks, failures, scenarios and expect
       at:
         pointer: /tests/0/mock
         subject: key
@@ -1515,6 +1535,37 @@ tests-mock-conflict:
         test: 0
         name: both
         node: main
+tests-scenario-conflict:
+  errors: []
+  warnings:
+    - code: TESTS_SCENARIO_CONFLICT
+      message: tests[0] "both" both picks a scenario and simulates an output for "main"
+      hint: keep one of mocks.main and scenarios.main
+      at:
+        pointer: /tests/0/scenarios/main
+        subject: key
+      params:
+        test: 0
+        name: both
+        node: main
+        field: mocks
+tests-scenario-unknown:
+  errors: []
+  warnings:
+    - code: TESTS_SCENARIO_UNKNOWN
+      message: tests[0] "no city" picks the scenario "city_not_fund" for "main", which weather.current does not ship
+      hint: 'did you mean "city_not_found"? scenarios of weather.current: city_not_found'
+      at:
+        pointer: /tests/0/scenarios/main
+      params:
+        test: 0
+        name: no city
+        node: main
+        type: weather.current
+        scenario: city_not_fund
+        scenarios:
+          - city_not_found
+        suggestion: city_not_found
 tests-mock-not-list:
   errors: []
   warnings:
