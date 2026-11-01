@@ -13,6 +13,7 @@ import {
 } from '@/lib/shared/mention-handles';
 
 import { useAssignableActors } from '../hooks/use-actor-directory';
+import { useAssignableMembers } from '../hooks/use-assignable-members';
 import {
   useTaskContractAutomations,
   taskSubjectEntries,
@@ -31,6 +32,16 @@ export interface MentionActorOption {
   keywords?: readonly string[];
 }
 
+export interface MentionActorOptions {
+  options: MentionActorOption[];
+  /** The people offered do not answer what is typed after `@` yet. */
+  searching: boolean;
+  /** The people could not be searched: none offered is no answer. */
+  unavailable: boolean;
+  /** More people match than are offered: typing more narrows them. */
+  more: boolean;
+}
+
 /** The handles of an entry a person may type to find it: every one but its
  * id, which nobody types. */
 function typedHandles(entry: MentionActorEntry): string[] {
@@ -43,9 +54,12 @@ function typedHandles(entry: MentionActorEntry): string[] {
  * Mentionable actors for a project, in picker order: org members first, then
  * agents, then the automations operating this board — the same population the
  * server resolves mentions against (`backend/domains/collab/mention-directory.ts`).
- * Agents are the project's own agent instances. Automations are the deployed
- * subject-contract ones the assignee picker offers — @-ing a task's OWNING
- * automation puts it to work, exactly like @-ing an agent instance.
+ * The members are those who can read the project and whose name or email
+ * holds what is typed after `@` (`query`), searched on the server
+ * (`useAssignableMembers`); the field finds among them by handle as among
+ * the rest. Agents are the project's own agent instances. Automations are the
+ * deployed subject-contract ones the assignee picker offers — @-ing a task's
+ * OWNING automation puts it to work, exactly like @-ing an agent instance.
  *
  * A picked mention is stored as whom it names, so anyone can be offered,
  * whatever their name: the handle is how the picker finds and shows them.
@@ -53,15 +67,19 @@ function typedHandles(entry: MentionActorEntry): string[] {
 export function useMentionActorOptions(
   organizationId: string,
   projectId: string,
-): MentionActorOption[] {
-  const { assignableMembers, assignableAgents, currentUserId } =
-    useAssignableActors(organizationId, projectId);
+  query: string,
+): MentionActorOptions {
+  const { assignableAgents, currentUserId } = useAssignableActors(
+    organizationId,
+    projectId,
+  );
+  const people = useAssignableMembers(organizationId, projectId, query, 'read');
   const automations = useTaskContractAutomations(organizationId, projectId);
   const { locale } = useLocale();
 
-  return useMemo(() => {
-    const options: MentionActorOption[] = [];
-    for (const member of assignableMembers) {
+  const options = useMemo(() => {
+    const found: MentionActorOption[] = [];
+    for (const member of people.members) {
       // You never need to @mention yourself — leave the current user out.
       if (member.id === currentUserId) continue;
       const entry = memberMentionEntry({
@@ -70,7 +88,7 @@ export function useMentionActorOptions(
         email: member.email,
       });
       const handle = emailHandle(member.email);
-      options.push({
+      found.push({
         type: 'user',
         id: member.id,
         name: member.name,
@@ -90,7 +108,7 @@ export function useMentionActorOptions(
         legacyHandles:
           agent.legacyHandles ?? agentLegacyHandleVariants(agent.name),
       });
-      options.push({
+      found.push({
         type: 'agent',
         id: agent.id,
         name: agent.name,
@@ -103,7 +121,7 @@ export function useMentionActorOptions(
         slug: automation.automationSlug,
         name: automation.displayName,
       });
-      options.push({
+      found.push({
         type: 'automation',
         id: automation.automationSlug,
         name: automation.displayName,
@@ -111,6 +129,13 @@ export function useMentionActorOptions(
         keywords: typedHandles(entry),
       });
     }
-    return options;
-  }, [assignableMembers, assignableAgents, automations, currentUserId, locale]);
+    return found;
+  }, [people.members, assignableAgents, automations, currentUserId, locale]);
+
+  return {
+    options,
+    searching: people.searching,
+    unavailable: people.unavailable,
+    more: people.more,
+  };
 }

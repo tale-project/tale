@@ -77,7 +77,7 @@ vi.mock('../hooks/mutations', () => ({
 }));
 
 vi.mock('../hooks/use-actor-directory', () => ({
-  useAssignableActors: () => ({ assignableMembers: [], assignableAgents: [] }),
+  useAssignableActors: () => ({ assignableAgents: [] }),
   useActorDirectory: () => {
     reads.directory();
     return {
@@ -92,10 +92,14 @@ vi.mock('../hooks/use-actor-directory', () => ({
     };
   },
 }));
-vi.mock('../lib/mention-actor-options', async (original) => ({
-  ...(await original<typeof import('../lib/mention-actor-options')>()),
-  useMentionActorOptions: () => [],
-}));
+vi.mock('../lib/mention-actor-options', async (original) => {
+  // One answer, as the real hook's memo hands out between changes.
+  const none = { options: [], searching: false, unavailable: false };
+  return {
+    ...(await original<typeof import('../lib/mention-actor-options')>()),
+    useMentionActorOptions: () => none,
+  };
+});
 vi.mock('./mention-trigger-chips', () => ({ MentionTriggerChips: () => null }));
 vi.mock(
   '@/app/features/shared/markdown/markdown-renderer',

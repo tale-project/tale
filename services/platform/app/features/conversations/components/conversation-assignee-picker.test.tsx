@@ -3,6 +3,7 @@ import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { MemberLookupTarget } from '@/app/features/settings/organization/hooks/member-lookup';
+import type { StandInMember } from '@/tests/utils/member-lookup-stand-in';
 import { render, screen, within } from '@/tests/utils/render';
 
 vi.mock('@/app/hooks/use-current-member-context', () => ({
@@ -23,19 +24,32 @@ const memberReads = vi.hoisted(() => ({
       displayName: 'Grace Hopper',
       email: 'grace@example.com',
     },
-  ],
+  ] as StandInMember[],
   /** Whom the member lookup was asked for. */
   asked: new Array<MemberLookupTarget>(),
-  /** Whether each render read every member. */
-  everyMember: new Array<boolean>(),
+  /** What each render searched the people for. */
+  searches: new Array<{ query: string; access?: string; enabled?: boolean }>(),
+  /** The people the search found, unless a test says otherwise. */
+  found: undefined as StandInMember[] | undefined,
+  more: false,
+  unavailable: false,
 }));
 
-// The options are every member, here as if the picker were open; the
+// The options are the people found, here as if the picker were open; the
 // trigger's assignee comes from the member lookup.
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: (_organizationId: string, options?: { enabled?: boolean }) => {
-    memberReads.everyMember.push(options?.enabled ?? true);
-    return { members: memberReads.members, isLoading: false };
+vi.mock('@/app/features/settings/organization/hooks/member-search', () => ({
+  useMemberSearch: (
+    _organizationId: string,
+    query: string,
+    options: { access?: string; enabled?: boolean },
+  ) => {
+    memberReads.searches.push({ query, ...options });
+    return {
+      members: memberReads.found ?? memberReads.members,
+      more: memberReads.more,
+      searching: false,
+      unavailable: memberReads.unavailable,
+    };
   },
 }));
 vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
@@ -116,49 +130,69 @@ interface StubOption {
   isSectionHeader?: boolean;
 }
 
-vi.mock('@tale/ui/searchable-select', () => ({
-  SearchableSelect: ({
-    trigger,
-    footer,
-    options = [],
-    optionAction,
-    onValueChange,
-    onOpenChange,
-  }: {
-    trigger: React.ReactNode;
-    footer?: React.ReactNode;
-    options?: StubOption[];
-    optionAction?: (option: StubOption) => React.ReactNode;
-    onValueChange?: (value: string) => void;
-    onOpenChange?: (open: boolean) => void;
-  }) => (
-    <div data-testid="assign-select">
-      <div data-testid="assign-trigger">{trigger}</div>
-      <button type="button" onClick={() => onOpenChange?.(true)}>
-        Open the picker
-      </button>
-      {options
-        .filter((option) => option.isSectionHeader !== true)
-        .map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            // `role="option"` mirrors the real component, and keeps the
-            // footer's `getByRole('button')` queries unambiguous.
-            role="option"
-            aria-selected={option.selected === true}
-            data-testid={`option-${option.value}`}
-            data-selected={String(option.selected)}
-            onClick={() => onValueChange?.(option.value)}
-          >
-            {option.label}
-            {optionAction?.(option)}
+vi.mock('@tale/ui/searchable-select', async () => {
+  const { useState } = await import('react');
+  return {
+    SearchableSelect: function StubSelect({
+      trigger,
+      footer,
+      options = [],
+      optionAction,
+      onValueChange,
+      onOpenChange,
+      onSearchChange,
+      filterFn,
+    }: {
+      trigger: React.ReactNode;
+      footer?: React.ReactNode;
+      options?: StubOption[];
+      optionAction?: (option: StubOption) => React.ReactNode;
+      onValueChange?: (value: string) => void;
+      onOpenChange?: (open: boolean) => void;
+      onSearchChange?: (query: string) => void;
+      filterFn?: (option: StubOption, query: string) => boolean;
+    }) {
+      // The real component owns the text and filters the rows with it.
+      const [typed, setTyped] = useState('');
+      return (
+        <div data-testid="assign-select">
+          <div data-testid="assign-trigger">{trigger}</div>
+          <button type="button" onClick={() => onOpenChange?.(true)}>
+            Open the picker
           </button>
-        ))}
-      {footer ? <div data-testid="assign-footer">{footer}</div> : null}
-    </div>
-  ),
-}));
+          <input
+            aria-label="Search people and teams"
+            value={typed}
+            onChange={(event) => {
+              setTyped(event.target.value);
+              onSearchChange?.(event.target.value);
+            }}
+          />
+          {options
+            .filter((option) => option.isSectionHeader !== true)
+            .filter((option) => filterFn?.(option, typed) ?? true)
+            .map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                // `role="option"` mirrors the real component, and keeps the
+                // footer's `getByRole('button')` queries unambiguous.
+                role="option"
+                aria-selected={option.selected === true}
+                data-testid={`option-${option.value}`}
+                data-selected={String(option.selected)}
+                onClick={() => onValueChange?.(option.value)}
+              >
+                {option.label}
+                {optionAction?.(option)}
+              </button>
+            ))}
+          {footer ? <div data-testid="assign-footer">{footer}</div> : null}
+        </div>
+      );
+    },
+  };
+});
 
 import { ConversationAssigneePicker } from './conversation-assignee-picker';
 
@@ -183,10 +217,13 @@ describe('ConversationAssigneePicker', () => {
     mutations.assignUser.mockClear();
     mutations.assignTeam.mockClear();
     memberReads.asked.length = 0;
-    memberReads.everyMember.length = 0;
+    memberReads.searches.length = 0;
+    memberReads.found = undefined;
+    memberReads.more = false;
+    memberReads.unavailable = false;
   });
 
-  it('looks up the assignee alone, and reads every member once opened', async () => {
+  it('looks up the assignee alone, and searches the people once opened', async () => {
     const { user } = render(
       <ConversationAssigneePicker
         conversation={makeConversation({ assigneeUserId: 'user-2' })}
@@ -201,12 +238,119 @@ describe('ConversationAssigneePicker', () => {
     expect(
       new Set(memberReads.asked.map((ask) => JSON.stringify(ask))),
     ).toEqual(new Set([JSON.stringify({ userId: 'user-2' })]));
-    // A thread that is only read never reads every member.
-    expect(memberReads.everyMember).not.toContain(true);
+    // A thread that is only read searches nobody.
+    expect(memberReads.searches.map((search) => search.enabled)).not.toContain(
+      true,
+    );
 
     await user.click(screen.getByRole('button', { name: 'Open the picker' }));
 
-    expect(memberReads.everyMember.at(-1)).toBe(true);
+    // Only who may take a conversation: no disabled member.
+    expect(memberReads.searches.at(-1)).toEqual({
+      query: '',
+      access: 'read',
+      enabled: true,
+    });
+
+    await user.type(
+      screen.getByRole('textbox', { name: 'Search people and teams' }),
+      'gr',
+    );
+
+    expect(memberReads.searches.at(-1)).toEqual({
+      query: 'gr',
+      access: 'read',
+      enabled: true,
+    });
+  });
+
+  it('finds a person by name or email, and a team by its name', async () => {
+    const { user } = render(
+      <ConversationAssigneePicker
+        conversation={makeConversation()}
+        organizationId="org-1"
+      />,
+    );
+    const box = screen.getByRole('textbox', {
+      name: 'Search people and teams',
+    });
+
+    await user.type(box, 'grace@');
+    expect(screen.getByTestId('option-user:user-2')).toBeInTheDocument();
+    expect(screen.queryByTestId('option-user:user-1')).toBeNull();
+    expect(screen.queryByTestId('option-team:team-1')).toBeNull();
+
+    await user.clear(box);
+    await user.type(box, 'supp');
+    expect(screen.getByTestId('option-team:team-1')).toBeInTheDocument();
+    expect(screen.queryByTestId('option-user:user-2')).toBeNull();
+  });
+
+  it('keeps the assignee offered and marked when the page found does not hold them', () => {
+    memberReads.found = [memberReads.members[0]!];
+    render(
+      <ConversationAssigneePicker
+        conversation={makeConversation({ assigneeUserId: 'user-2' })}
+        organizationId="org-1"
+      />,
+    );
+
+    expect(screen.getByTestId('option-user:user-2')).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByTestId('option-user:user-1')).toBeInTheDocument();
+  });
+
+  it('offers no disabled assignee, and still clears them', async () => {
+    const before = memberReads.members;
+    memberReads.members = [
+      ...before,
+      {
+        userId: 'user-3',
+        displayName: 'Former Colleague',
+        email: 'former@example.com',
+        role: 'disabled' as const,
+      },
+    ];
+    memberReads.found = before;
+    try {
+      const { user } = render(
+        <ConversationAssigneePicker
+          conversation={makeConversation({ assigneeUserId: 'user-3' })}
+          organizationId="org-1"
+        />,
+      );
+
+      expect(screen.queryByTestId('option-user:user-3')).toBeNull();
+      await user.click(screen.getByRole('button', { name: 'Unassign' }));
+      expect(mutations.assignUser).toHaveBeenCalledWith({
+        conversationId: 'conv-1',
+        assigneeUserId: null,
+      });
+    } finally {
+      memberReads.members = before;
+    }
+  });
+
+  it.each([
+    ['more', 'More people match — keep typing to narrow the list.'],
+    [
+      'unavailable',
+      "People couldn't be searched — try again, or reload the page if it keeps happening.",
+    ],
+  ] as const)('says when the search found %s', (state, note) => {
+    memberReads[state] = true;
+    render(
+      <ConversationAssigneePicker
+        conversation={makeConversation()}
+        organizationId="org-1"
+      />,
+    );
+
+    expect(
+      within(screen.getByTestId('assign-footer')).getByText(note),
+    ).toBeInTheDocument();
   });
 
   it('shows a dual stack when both team and person are assigned (a narrow header keeps both)', () => {

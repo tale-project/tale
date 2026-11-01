@@ -244,4 +244,74 @@ describe('MentionTextarea', () => {
     await user.click(field);
     expect(onOptionsWanted).toHaveBeenCalledTimes(1);
   });
+
+  it('says what is typed after @, for options searched on a server', async () => {
+    const onQueryChange = vi.fn();
+    function Searched() {
+      const [value, setValue] = useState('');
+      return (
+        <MentionTextarea
+          label="Comment"
+          kinds={KINDS}
+          options={OPTIONS}
+          value={value}
+          onValueChange={setValue}
+          onQueryChange={onQueryChange}
+        />
+      );
+    }
+    const { user } = render(<Searched />);
+    const field = screen.getByRole('textbox', { name: 'Comment' });
+    await user.type(field, 'Hi @ad');
+    expect(onQueryChange.mock.calls.map(([query]) => query)).toEqual([
+      null,
+      '',
+      'a',
+      'ad',
+    ]);
+
+    await user.keyboard('{Escape}');
+    expect(onQueryChange).toHaveBeenLastCalledWith(null);
+  });
+
+  it('shows its note under the options and reads it out once while open', async () => {
+    function Noted({ note }: { note?: string }) {
+      const [value, setValue] = useState('');
+      return (
+        <MentionTextarea
+          label="Comment"
+          kinds={KINDS}
+          options={OPTIONS}
+          value={value}
+          onValueChange={setValue}
+          note={note}
+        />
+      );
+    }
+    // What the picker shows, not what the field read out.
+    const shown = (text: string) =>
+      screen.queryByText(text, { ignore: '[role="status"]' });
+    const { user, rerender } = render(<Noted note="Not everyone is listed" />);
+    const field = screen.getByRole('textbox', { name: 'Comment' });
+    const status = screen.getByRole('status');
+    expect(shown('Not everyone is listed')).not.toBeInTheDocument();
+
+    await user.type(field, '@');
+    const note = shown('Not everyone is listed');
+    expect(note).toBeInTheDocument();
+    expect(screen.getByRole('listbox')).not.toContainElement(note);
+    expect(status.textContent).toBe('Not everyone is listed');
+    // The same words again, as the search answers what is typed, are not
+    // read out again; new words are.
+    rerender(<Noted />);
+    expect(shown('Not everyone is listed')).not.toBeInTheDocument();
+    rerender(<Noted note="Not everyone is listed" />);
+    await user.type(field, 'zz');
+    expect(status.textContent).toBe('Not everyone is listed');
+    // Under the empty label too.
+    expect(screen.getByText('No matches')).toBeInTheDocument();
+    expect(shown('Not everyone is listed')).toBeInTheDocument();
+    rerender(<Noted note="People could not be searched" />);
+    expect(status).toHaveTextContent('People could not be searched');
+  });
 });

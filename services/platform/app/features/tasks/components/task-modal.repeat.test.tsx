@@ -99,6 +99,16 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await import('@/tests/utils/router-link-stub')).routerLinkStub,
   useNavigate: () => vi.fn(),
 }));
+// The people the pickers and the mention field search: nobody here.
+vi.mock('../hooks/use-assignable-members', () => {
+  const nobody = {
+    members: [],
+    more: false,
+    searching: false,
+    unavailable: false,
+  };
+  return { useAssignableMembers: () => nobody };
+});
 vi.mock('../hooks/use-actor-directory', () => ({
   useProvidedActorDirectory: () => undefined,
   ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
@@ -109,7 +119,6 @@ vi.mock('../hooks/use-actor-directory', () => ({
   }),
   useAssignableActors: () => ({
     subjectEntries: taskSubjectEntries(state.automations, 'en'),
-    assignableMembers: [],
     assignableAgents: [],
     agents: [],
     resolveActor: () => ({ name: 'Invoice intake' }),
