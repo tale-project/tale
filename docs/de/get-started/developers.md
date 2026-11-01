@@ -63,8 +63,10 @@ Verwende die `id` eines Modells in Chatanfragen und zusätzlich `providerSlug`, 
 | `400` mit `ORG_SLUG_REQUIRED` | Wähle einen Slug aus `data.organizations` in dieser Fehlermeldung und sende `X-Organization-Slug`. |
 | `404` mit `ORG_SLUG_INVALID` | Der Header benennt gar keine Organisation — ein Tippfehler, oder die Organisations-ID aus der Dashboard-URL wurde als Slug eingesetzt. Sende den Slug aus `data.organizations`. |
 | `403` mit `ORG_FORBIDDEN` | Die Organisation existiert, aber der Schlüsselbesitzer ist dort kein Mitglied. Wähle einen Slug aus `data.organizations`. |
+| `403` mit `API_KEY_PERSONAL_REFUSED` | Die Organisation nimmt keine Schlüssel an, die Mitglieder für sich selbst erstellen. Sende einen Slug aus `data.organizations`, wo dieser Schlüssel weiter gilt, oder bitte einen Inhaber oder Admin dort um einen Schlüssel, der in dieser Organisation erstellt wird. |
 | `403` | Prüfe die für die Aktion nötige Berechtigung. |
 | `429` | Warte gemäß `Retry-After`; lies [Ratenlimits](/de/develop/rate-limits). |
+| `503` mit `PERSONAL_KEYS_POLICY_UNAVAILABLE` | Tale kann nicht lesen, ob die Organisation eigene Schlüssel der Mitglieder annimmt, und weist sie deshalb vorerst ab. Warte gemäß `Retry-After` und wiederhole die Anfrage. |
 
 Meldet curl vor einer JSON-Antwort einen TLS- oder Netzwerkfehler, prüfe Host und Zertifikat. Schalte die Zertifikatsprüfung in Produktivskripten nicht ab.
 

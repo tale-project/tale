@@ -20,6 +20,10 @@ import {
 import { findOrganizationMember } from '../auth/membership.ts';
 import { getClientIp, nodePeerAddress } from '../core/lib/utils/client_ip.ts';
 import { readApiKeyOwner } from '../domains/api_keys/owners.ts';
+import {
+  organizationsAdmittingPersonalKeys,
+  personalKeysStandingIn,
+} from '../domains/api_keys/personal-keys.ts';
 import { withApiKeyAuditActor } from '../domains/audit_logs/request-actor.ts';
 import { isModelApiDoorPath } from '../domains/model_api/wire.ts';
 import {
@@ -456,6 +460,36 @@ export function createRestV1Routes(deps: {
           },
         },
         403,
+      );
+    }
+    // An Owner or Admin may refuse every member's own key in their
+    // organization (APIKEY-R12, the `personal_keys` policy): such a key keeps
+    // working in the holder's other organizations, which the refusal lists,
+    // and a key made here for a member never reaches this branch. A policy
+    // that cannot be read keeps the keys out until it is restored.
+    const personalKeys = await personalKeysStandingIn(resolved.orgSlug);
+    if (personalKeys === 'refused') {
+      return c.json(
+        {
+          error: `Organization "${resolved.orgSlug}" does not accept members' own API keys. This key keeps working in your other organizations that accept them; for this one, an Owner or Admin there can make a key for you.`,
+          code: 'API_KEY_PERSONAL_REFUSED',
+          data: {
+            organizations: await organizationsAdmittingPersonalKeys(
+              await listSelectableOrganizations(deps.sql, session.user.id),
+            ),
+          },
+        },
+        403,
+      );
+    }
+    if (personalKeys === 'unavailable') {
+      return c.json(
+        {
+          error: `The personal keys policy of organization "${resolved.orgSlug}" cannot be read right now, so members' own API keys stay out; try again shortly.`,
+          code: 'PERSONAL_KEYS_POLICY_UNAVAILABLE',
+        },
+        503,
+        { 'retry-after': '30' },
       );
     }
 

@@ -234,6 +234,12 @@ export function governanceEffects(
       return reviewLoosened(was, now) ? ['removes-human-approval'] : [];
     case 'sandbox_workspaces':
       return workspaceCapTightened(was, now) ? ['irreversible'] : [];
+    case 'personal_keys':
+      // Turned off (on is the default), it refuses every member's own API
+      // key here at once.
+      return now.enabled === false && was?.enabled !== false
+        ? ['revokes-access']
+        : [];
     default:
       return [];
   }
