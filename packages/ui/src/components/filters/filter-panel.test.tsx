@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import '@testing-library/jest-dom/vitest';
 import { pickFilterOption } from '@tale/ui/testing/filters';
+import type { UserEvent } from '@testing-library/user-event';
 import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { checkAccessibility } from '@/tests/utils/a11y';
-import { act, render, screen, waitFor } from '@/tests/utils/render';
+import { act, render, screen, waitFor, within } from '@/tests/utils/render';
 
 import {
   FilterPanel,
@@ -347,6 +348,162 @@ describe('FilterPanel', () => {
 
   // #3746: a single-choice facet is one radio group — one Tab stop, the arrow
   // keys move the choice — and the panel opens with the keyboard inside it.
+  describe('a searched facet', () => {
+    const PEOPLE = ['Ada Lovelace', 'Alan Turing', 'Grace Hopper'];
+
+    /** Answers each search with the people whose name holds it, as a
+     * server would. */
+    function SearchedFacet({
+      onSearchChange,
+      note,
+      searching,
+    }: {
+      onSearchChange: (query: string) => void;
+      note?: string;
+      searching?: boolean;
+    }) {
+      const [query, setQuery] = useState('');
+      return (
+        <FilterPanel
+          filters={[
+            {
+              key: 'assignee',
+              title: 'Assignee',
+              options: PEOPLE.filter((name) =>
+                name.toLowerCase().includes(query.toLowerCase()),
+              ).map((name) => ({ value: name, label: name })),
+              selectedValues: [],
+              onChange: vi.fn(),
+              onSearchChange: (next) => {
+                setQuery(next);
+                onSearchChange(next);
+              },
+              searchPlaceholder: 'Search people',
+              ...(note === undefined ? {} : { note }),
+              ...(searching === undefined ? {} : { searching }),
+            },
+          ]}
+          onClearAll={vi.fn()}
+        />
+      );
+    }
+
+    async function openFacet(user: UserEvent) {
+      await user.click(screen.getByRole('button', { name: 'Filter' }));
+      await user.click(await screen.findByRole('button', { name: 'Assignee' }));
+    }
+
+    it('reports what is typed and lists what its owner answers', async () => {
+      const onSearchChange = vi.fn();
+      const { user } = render(
+        <SearchedFacet onSearchChange={onSearchChange} />,
+      );
+      await openFacet(user);
+      await user.type(
+        screen.getByRole('textbox', { name: 'Search people' }),
+        'al',
+      );
+      expect(onSearchChange.mock.calls.map(([query]) => query)).toEqual([
+        'a',
+        'al',
+      ]);
+      expect(
+        screen.getByRole('radio', { name: 'Alan Turing' }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole('radio', { name: 'Grace Hopper' }),
+      ).not.toBeInTheDocument();
+    });
+
+    it('empties the search as it closes, and tells its owner', async () => {
+      const onSearchChange = vi.fn();
+      const { user } = render(
+        <SearchedFacet onSearchChange={onSearchChange} />,
+      );
+      await openFacet(user);
+      await user.type(
+        screen.getByRole('textbox', { name: 'Search people' }),
+        'gr',
+      );
+      await user.keyboard('{Escape}');
+      await waitFor(() =>
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument(),
+      );
+      expect(onSearchChange).toHaveBeenLastCalledWith('');
+
+      // Opened again, the facet lists everyone its owner offers.
+      await user.click(screen.getByRole('button', { name: 'Filter' }));
+      expect(
+        await screen.findByRole('textbox', { name: 'Search people' }),
+      ).toHaveValue('');
+      expect(screen.getAllByRole('radio')).toHaveLength(PEOPLE.length);
+    });
+
+    it('announces its note under the options', async () => {
+      const { user } = render(
+        <SearchedFacet
+          onSearchChange={vi.fn()}
+          note="More people match — keep typing to narrow the list."
+        />,
+      );
+      await openFacet(user);
+      expect(
+        within(screen.getByRole('dialog')).getByRole('status'),
+      ).toHaveTextContent('More people match');
+    });
+
+    it('reads out a note once its search settles, never while it runs', async () => {
+      const more = 'More people match — keep typing to narrow the list.';
+      const { user, rerender } = render(
+        <SearchedFacet onSearchChange={vi.fn()} note={more} />,
+      );
+      await openFacet(user);
+      const status = within(screen.getByRole('dialog')).getByRole('status');
+      expect(status).toHaveTextContent(more);
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+
+      // A search runs: it shows, and the note heard stays as it was, even
+      // when the owner already says something else.
+      rerender(
+        <SearchedFacet onSearchChange={vi.fn()} note="No results" searching />,
+      );
+      expect(screen.getByText('Loading...')).toHaveAttribute(
+        'aria-hidden',
+        'true',
+      );
+      expect(status).toHaveTextContent(more);
+      expect(status).toHaveAttribute('aria-busy', 'true');
+
+      // It settles: what it found is read out.
+      rerender(<SearchedFacet onSearchChange={vi.fn()} note="No results" />);
+      expect(screen.queryByText('Loading...')).not.toBeInTheDocument();
+      expect(status).toHaveTextContent('No results');
+      expect(status).not.toHaveAttribute('aria-busy');
+    });
+
+    it('gives a facet nobody searches no search box', async () => {
+      const { user } = render(
+        <FilterPanel filters={[tagFilter()]} onClearAll={vi.fn()} />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Filter' }));
+      await user.click(await screen.findByRole('button', { name: 'Tags' }));
+      expect(screen.queryByRole('textbox')).not.toBeInTheDocument();
+      expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+
+    it('passes axe audit with the search box and its note', async () => {
+      const { container, user } = render(
+        <SearchedFacet
+          onSearchChange={vi.fn()}
+          note="More people match — keep typing to narrow the list."
+          searching
+        />,
+      );
+      await openFacet(user);
+      await checkAccessibility(container);
+    });
+  });
+
   describe('a single-choice facet from the keyboard', () => {
     const PRIORITIES = [
       { value: 'p0', label: 'Urgent' },

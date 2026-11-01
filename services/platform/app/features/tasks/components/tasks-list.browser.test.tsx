@@ -47,18 +47,27 @@ vi.mock('../hooks/use-actor-directory', () => ({
     resolveActor: () => null,
   }),
   useAssignableActors: () => ({
-    assignableMembers: [
+    assignableAgents: [],
+    agents: [],
+    currentUserId: null,
+    resolveActor: () => null,
+  }),
+}));
+// The people the assignee picker's server search finds.
+vi.mock('../hooks/use-assignable-members', () => ({
+  useAssignableMembers: () => ({
+    members: [
       {
+        type: 'user',
         id: 'user-2',
         name: 'Alice Reviewer',
         email: 'alice@example.com',
         role: 'editor',
       },
     ],
-    assignableAgents: [],
-    agents: [],
-    currentUserId: null,
-    resolveActor: () => null,
+    more: false,
+    searching: false,
+    unavailable: false,
   }),
 }));
 vi.mock('../hooks/use-task-status-choreography', () => ({

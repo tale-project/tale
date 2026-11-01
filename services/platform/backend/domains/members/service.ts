@@ -13,6 +13,8 @@ import {
   removeMembershipCascade,
   runMembershipAccessLossHook,
 } from '../../auth/membership.ts';
+import { ADMIN_ROLES, EDITOR_ROLES } from '../../core/lib/audience.ts';
+import { likeContains } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import type { AgentConnectionAuditActor } from '../agent_connections/end.ts';
 import { logSuccess } from '../audit_logs/service.ts';
@@ -189,15 +191,17 @@ function nameKey(handle: string): string {
 }
 
 /**
- * The members of one organization a screen names, by user id or by a plain
- * `@handle` (`lib/shared/mention-handles.ts`), in the order they joined: the
- * people a screen shows, without reading every member [MEMBER-R11]. The
- * statement narrows to the members whose id, email name or name could make
- * the handle; the shared handle rules then keep exactly those who answer to
- * one asked for, so the server and the app agree on whom a handle names.
+ * The members of one organization a screen or a saved text names, by user id
+ * or by a plain `@handle` (`lib/shared/mention-handles.ts`), in the order
+ * they joined: the people a screen shows and a text mentions
+ * (`collab/mention-directory.ts`), without reading every member
+ * [MEMBER-R11]. The statement narrows to the members whose id, email name or
+ * name could make the handle; the shared handle rules then keep exactly
+ * those who answer to one asked for, so the server and the app agree on
+ * whom a handle names.
  */
 export async function lookupMembers(
-  sql: Sql,
+  sql: Sql | TransactionSql,
   organizationId: string,
   query: { userIds: readonly string[]; handles: readonly string[] },
 ): Promise<MemberDirectoryEntry[]> {
@@ -253,6 +257,132 @@ export async function lookupMembers(
       displayName: row.displayName,
       email: row.email,
     }));
+}
+
+/** The page of a member search: 50 people unless asked, never more than 100
+ * [MEMBER-R12]. */
+export const MEMBER_SEARCH_PAGE_LIMITS = { fallback: 50, max: 100 } as const;
+
+/** Whom a member search keeps besides what was typed [MEMBER-R12]. */
+export interface MemberSearchScope {
+  /** `read` leaves disabled members out and, with `projectTeamIds`, keeps
+   * the people who can read the project; `edit` keeps, of those, the roles
+   * from Editor up. Absent: every member, disabled ones too. */
+  access?: 'read' | 'edit';
+  /** The project's teams, when the people must be able to read it: empty
+   * for a project the whole organization reads. Only the organization's own
+   * teams keep anyone, as only they give a member access
+   * (`readActingAudience`). */
+  projectTeamIds?: readonly string[];
+}
+
+/** Where a member search's page ends: when that member joined, in
+ * milliseconds, and their member id. */
+export interface MemberSearchPosition {
+  at: number;
+  id: string;
+}
+
+/**
+ * One page of the members whose name or email holds what was typed, in the
+ * order they joined: what a picker offers, without reading every member
+ * [MEMBER-R12]. A name also matches with its spaces as dots and without
+ * them (the handles it makes, `nameHandleForms`), and the text also with its
+ * spaces as hyphens, so the server finds everyone the pickers' own filters
+ * keep. The page is keyed on the millisecond the member joined and the
+ * member id, the same expression it is ordered by, so members who joined in
+ * the same millisecond are neither skipped nor repeated.
+ */
+export async function searchMembers(
+  sql: Sql,
+  organizationId: string,
+  search: MemberSearchScope & {
+    query: string;
+    limit: number;
+    cursor: MemberSearchPosition | null;
+  },
+): Promise<{
+  members: MemberDirectoryEntry[];
+  next: MemberSearchPosition | null;
+}> {
+  const typed = search.query.trim().replaceAll(/\s+/g, ' ');
+  const patterns = [...new Set([typed, typed.replaceAll(' ', '-')])].map(
+    likeContains,
+  );
+  const access = search.access;
+  const teamIds = search.projectTeamIds ?? [];
+  const joinedMs = sql`floor(extract(epoch FROM m."createdAt") * 1000)::bigint`;
+  const rows = await sql<
+    {
+      id: string;
+      userId: string;
+      role: string;
+      createdAt: string;
+      joinedMs: number;
+      displayName: string | null;
+      email: string | null;
+    }[]
+  >`
+    SELECT m."id", m."userId", m."role",
+           m."createdAt"::text AS "createdAt",
+           ${joinedMs}::float8 AS "joinedMs",
+           u."name" AS "displayName", u."email"
+    FROM "member" m
+    LEFT JOIN "user" u ON u."id" = m."userId"
+    WHERE m."organizationId" = ${organizationId}
+      AND (
+        ${typed === ''}
+        OR regexp_replace(coalesce(u."name", ''), '[[:space:]]+', ' ', 'g')
+          ILIKE ANY(${patterns}::text[])
+        OR regexp_replace(coalesce(u."name", ''), '[[:space:]]+', '.', 'g')
+          ILIKE ANY(${patterns}::text[])
+        OR regexp_replace(coalesce(u."name", ''), '[[:space:]]+', '', 'g')
+          ILIKE ANY(${patterns}::text[])
+        OR coalesce(u."email", '') ILIKE ANY(${patterns}::text[])
+      )
+      AND (${access === undefined} OR lower(m."role") <> 'disabled')
+      AND (
+        ${access !== 'edit'}
+        OR lower(m."role") = ANY(${[...EDITOR_ROLES]}::text[])
+      )
+      AND (
+        ${access === undefined || teamIds.length === 0}
+        OR lower(m."role") = ANY(${[...ADMIN_ROLES]}::text[])
+        OR EXISTS (
+          SELECT 1 FROM "teamMember" tm
+          JOIN "team" t
+            ON t."id" = tm."teamId" AND t."organizationId" = m."organizationId"
+          WHERE tm."userId" = m."userId"
+            AND tm."teamId" = ANY(${[...teamIds]}::text[])
+        )
+      )
+      AND (
+        ${search.cursor?.at ?? null}::bigint IS NULL
+        OR ${joinedMs} > ${search.cursor?.at ?? null}
+        OR (
+          ${joinedMs} = ${search.cursor?.at ?? null}
+          AND m."id" > ${search.cursor?.id ?? null}
+        )
+      )
+    ORDER BY ${joinedMs} ASC, m."id" ASC
+    LIMIT ${search.limit + 1}
+  `;
+  const page = rows.slice(0, search.limit);
+  const last = page.at(-1);
+  return {
+    members: page.map((row) => ({
+      id: row.id,
+      userId: row.userId,
+      role: memberRole(row.role),
+      createdAt: row.createdAt,
+      displayName: row.displayName,
+      email: row.email,
+    })),
+    next:
+      rows.length > search.limit && last !== undefined
+        ? { at: last.joinedMs, id: last.id }
+        : null,
+  };
 }
 
 interface MemberRow {
