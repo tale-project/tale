@@ -25,7 +25,8 @@ LogLevel Notice
 # installs, clones and page loads share this proxy (with transparent egress,
 # every outbound TCP connection of a session), and 100 was saturated by a
 # handful of parallel installs. Rendered from SANDBOX_EGRESS_MAX_CLIENTS
-# (default 2000). tinyproxy runs one thread (~50 KB) and two descriptors per
+# (default 2000), lowered to what the open-file limit holds when it cannot
+# hold that many. tinyproxy runs one thread (~50 KB) and two descriptors per
 # connection, so the container's pids and open-file limits are sized above
 # the default.
 MaxClients ${MAX_CLIENTS}

@@ -119,19 +119,29 @@ describe('HostDiskProbe', () => {
     console.warn = warn;
   });
 
-  /** A disk of 100 GiB whose free space the test sets, counting reads. */
+  /** A disk of 100 GiB whose free space the test sets, counting reads. A
+   * `hold` set holds the next read, taken as it starts, until it settles. */
   function disk(freeGiB: number) {
-    const state = { freeGiB, reads: 0, fails: false, now: 1_000 };
+    const state = {
+      freeGiB,
+      reads: 0,
+      fails: false,
+      now: 1_000,
+      hold: null as Promise<void> | null,
+    };
     const probe = new HostDiskProbe('/sessions', undefined, {
       statfs: (path) => {
         expect(path).toBe('/sessions');
         state.reads += 1;
         if (state.fails) return Promise.reject(new Error('EIO'));
-        return Promise.resolve({
+        const fs = {
           bsize: 4096,
           blocks: (100 * GIB) / 4096,
           bavail: (state.freeGiB * GIB) / 4096,
-        });
+        };
+        const held = state.hold;
+        state.hold = null;
+        return held === null ? Promise.resolve(fs) : held.then(() => fs);
       },
       now: () => state.now,
     });
@@ -179,6 +189,40 @@ describe('HostDiskProbe', () => {
     expect(logs).toHaveLength(2);
     expect(logs[0]).toContain('has 4.0 GiB free, below its 5.0 GiB floor');
     expect(logs[1]).toContain('has 6.0 GiB free again');
+  });
+
+  test('a below-floor reading taken before the clock stepped back is read again, not kept for the step', async () => {
+    const { state, probe } = disk(4);
+    expect((await probe.read())?.availableBytes).toBe(4 * GIB);
+    // The clock steps back an hour (NTP, a resumed VM) as space is freed.
+    state.now -= 60 * 60_000;
+    state.freeGiB = 30;
+    expect((await probe.read())?.availableBytes).toBe(30 * GIB);
+    expect(probe.latest()?.availableBytes).toBe(30 * GIB);
+    expect(state.reads).toBe(2);
+  });
+
+  test('a slower read that started before the clock stepped back never replaces the newer reading', async () => {
+    const { state, probe } = disk(30);
+    expect((await probe.read())?.availableBytes).toBe(30 * GIB);
+    // A read finds the disk below its floor, and is slow to land...
+    state.now += 5_000;
+    state.freeGiB = 4;
+    const slowStatfs = Promise.withResolvers<void>();
+    state.hold = slowStatfs.promise;
+    const slow = probe.read(true);
+    expect(state.hold).toBeNull();
+    // ...while the clock steps back an hour, and a newer read finds room.
+    state.now -= 60 * 60_000;
+    state.freeGiB = 29;
+    expect((await probe.read(true))?.availableBytes).toBe(29 * GIB);
+    expect(probe.latest()?.availableBytes).toBe(29 * GIB);
+    slowStatfs.resolve();
+    expect((await slow)?.availableBytes).toBe(4 * GIB);
+    expect(probe.latest()?.availableBytes).toBe(29 * GIB);
+    expect((await probe.read())?.availableBytes).toBe(29 * GIB);
+    // The reading it never took is not said either.
+    expect(logs).toEqual([]);
   });
 });
 
@@ -281,6 +325,31 @@ describe('DockerDataRootMount', () => {
     state.now += 30_000;
     expect(await probe.read()).toBe('/etc/hostname');
     expect(state.calls).toHaveLength(4);
+  });
+
+  test('a failed or unreadable verification is tried again once the clock has stepped back past it, not after the step', async () => {
+    const { state, probe } = fixture();
+    state.fail = true;
+    expect(await probe.read()).toBeNull();
+    state.fail = false;
+    // The clock steps back an hour (NTP, a resumed VM).
+    state.now -= 60 * 60_000;
+    expect(await probe.read()).toBe('/etc/hostname');
+    expect(state.calls).toHaveLength(4);
+    probe.invalidate();
+    expect(await probe.read()).toBeNull();
+    state.now -= 60 * 60_000;
+    expect(await probe.read()).toBe('/etc/hostname');
+    expect(state.calls).toHaveLength(6);
+  });
+
+  test('a verified bind is compared with mountinfo again once the clock has stepped back past the check, not after the step', async () => {
+    const options = { mounts: mountinfo() };
+    const { state, probe } = fixture(options);
+    expect(await probe.read()).toBe('/etc/hostname');
+    options.mounts = mountinfo('/custom/hostname');
+    state.now -= 60 * 60_000;
+    expect(await probe.read()).toBeNull();
   });
 
   test('keeps an unchanged verified mount during a daemon outage, but verifies a replacement', async () => {
