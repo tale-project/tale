@@ -241,6 +241,16 @@ usage:
     unlimited: No storage limit applies to you.
     loadFailed: Couldn't load your storage usage.
     refreshFailed: Couldn't refresh your storage usage. What's shown may be out of date.
+    breakdown:
+      label: Breakdown
+      documents: Documents
+      chatAttachments: Chat attachments
+      agentFiles: Files made by agents
+      other: Other files
+    viewDocuments: View my documents in Knowledge
+    chats:
+      label: Chats that hold your files
+      more: '{count, plural, one {and # more chat} other {and # more chats}}'
 organization:
   title: Organization name
   detailsTitle: Organization details
