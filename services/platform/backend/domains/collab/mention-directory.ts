@@ -1,7 +1,10 @@
 import { isSerializationFailure } from '@tale/shared/db/serializable';
 import type { Sql, TransactionSql } from 'postgres';
 
-import { deriveAgentHandles } from '../../../lib/shared/agent-handle.ts';
+import {
+  type AgentHandleRow,
+  deriveAgentHandles,
+} from '../../../lib/shared/agent-handle.ts';
 import {
   agentLegacyHandleVariants,
   agentMentionEntry,
@@ -26,6 +29,10 @@ import {
   type ResolvedMention,
 } from '../../core/tasks/mentions.ts';
 import { listAutomations } from '../automations/store.ts';
+import {
+  lookupMembers,
+  type MemberDirectoryEntry,
+} from '../members/service.ts';
 
 /**
  * The mention DIRECTORY on Postgres — who `@handle` can name on a task
@@ -37,6 +44,9 @@ import { listAutomations } from '../automations/store.ts';
  *  - only members who can ACCESS the project are mentionable (the assignee
  *    picker's scoping — mentioning someone who cannot open the task is a
  *    notification they can do nothing with);
+ *  - only the members a text names are read: by the ids its tokens carry
+ *    and the handles it types (`lookupMembers`, MEMBER-R11), never the whole
+ *    organization;
  *  - entries are listed members, then deployed automations, then the
  *    project's own agents, and a handle two of them answer to goes by the
  *    tiers of `lib/shared/mention-handles.ts`;
@@ -85,42 +95,69 @@ function directoryUnavailable(leg: MentionDirectoryLeg, cause: unknown): Error {
   return new MentionDirectoryError(leg, cause);
 }
 
-/** The members who can be mentioned on a surface, and every member of the
- * organization (by id and email), whose handles an agent handle may not be. */
-interface ListedMembers {
-  mentionable: MentionActorEntry[];
-  organization: { id: string; email: string | null }[];
+/** Whom the texts of a surface name: the people its tokens name, and every
+ * plain `@handle` it types. A directory reads these members and no others. */
+export interface MentionedNames {
+  userIds: readonly string[];
+  handles: readonly string[];
 }
 
-async function accessibleMembers(
+/** Whom `texts` name by a person's token or by a typed handle. */
+function mentionedNames(texts: readonly string[]): MentionedNames {
+  const userIds = new Set<string>();
+  const handles = new Set<string>();
+  for (const text of texts) {
+    for (const occurrence of findTaskMentions(text)) {
+      if (occurrence.type === 'plain') {
+        handles.add(occurrence.handle.toLowerCase());
+      } else if (occurrence.ref.kind === 'user') {
+        userIds.add(occurrence.ref.id);
+      }
+    }
+  }
+  return { userIds: [...userIds], handles: [...handles] };
+}
+
+/** A member read, as the handles no agent handle may take see them. */
+interface ReadMember {
+  id: string;
+  email: string | null;
+}
+
+/** The members a text names who can be mentioned on a surface, and every
+ * member read (a disabled one left out), whose ids and email names no agent
+ * handle may take [PROJ-R19]. */
+interface ListedMembers {
+  mentionable: MentionActorEntry[];
+  read: ReadMember[];
+}
+
+function notDisabled(members: readonly MemberDirectoryEntry[]): ReadMember[] {
+  return members
+    .filter((member) => member.role !== 'disabled')
+    .map((member) => ({ id: member.userId, email: member.email }));
+}
+
+async function namedMembers(
   sql: Sql | TransactionSql,
-  args: { organizationId: string; projectId: string | null },
+  args: {
+    organizationId: string;
+    projectId: string | null;
+    named: MentionedNames;
+  },
 ): Promise<ListedMembers> {
-  const rows = await sql<
-    {
-      userId: string;
-      role: string;
-      email: string | null;
-      displayName: string | null;
-    }[]
-  >`
-    SELECT m."userId", m."role", u."email", u."name" AS "displayName"
-    FROM "member" m JOIN "user" u ON u."id" = m."userId"
-    WHERE m."organizationId" = ${args.organizationId}
-      AND lower(m."role") <> 'disabled'
-  `;
-  const toEntry = (row: (typeof rows)[number]): MentionActorEntry =>
+  const rows = (
+    await lookupMembers(sql, args.organizationId, args.named)
+  ).filter((row) => row.role !== 'disabled');
+  const toEntry = (row: MemberDirectoryEntry): MentionActorEntry =>
     memberMentionEntry({
       id: row.userId,
       name: row.displayName,
       email: row.email,
     });
-  const organization = rows.map((row) => ({
-    id: row.userId,
-    email: row.email,
-  }));
-  if (args.projectId === null) {
-    return { mentionable: rows.map(toEntry), organization };
+  const read = notDisabled(rows);
+  if (args.projectId === null || rows.length === 0) {
+    return { mentionable: rows.map(toEntry), read };
   }
 
   // Project scoping through the SHARED access rule: an org-wide project
@@ -135,7 +172,7 @@ async function accessibleMembers(
     LIMIT 1
   `;
   const project = projects[0];
-  if (project === undefined) return { mentionable: [], organization };
+  if (project === undefined) return { mentionable: [], read };
   const accessInput = { teamIds: project.teamIds ?? [] };
   // Memberships IN THIS ORGANIZATION only — a team another tenant granted
   // must never make a member mentionable on a project here.
@@ -162,18 +199,73 @@ async function accessibleMembers(
         ),
       )
       .map(toEntry),
-    organization,
+    read,
   };
+}
+
+/**
+ * The handles `deriveAgentHandles` gives a project's agents, against every
+ * member of the organization as the agent reads and saves derive them
+ * [PROJ-R19], while reading only the members who could hold one: each
+ * handle an agent holds or is given is looked up once, and a handle a
+ * member turns out to answer to is derived again past, until no handle is
+ * left unasked. `asked` are the handles whose members were already read.
+ */
+async function agentHandlesClearOfMembers(
+  sql: Sql | TransactionSql,
+  args: {
+    organizationId: string;
+    agents: readonly AgentHandleRow[];
+    members: readonly ReadMember[];
+    asked: readonly string[];
+    automationSlugs: readonly string[];
+  },
+): Promise<Map<string, string>> {
+  const members = [...args.members];
+  const asked = new Set(args.asked.map((handle) => handle.toLowerCase()));
+  const derive = () =>
+    deriveAgentHandles(
+      args.agents,
+      organizationReservedHandles(members, args.automationSlugs),
+    );
+  let derived = derive();
+  for (;;) {
+    const held = args.agents.flatMap((agent) =>
+      agent.handle === null ? [] : [agent.handle],
+    );
+    const unasked = [...new Set([...held, ...derived.values()])].filter(
+      (handle) => !asked.has(handle),
+    );
+    if (unasked.length === 0) return derived;
+    for (const handle of unasked) asked.add(handle);
+    let found: MemberDirectoryEntry[];
+    try {
+      found = await lookupMembers(sql, args.organizationId, {
+        userIds: [],
+        handles: unasked,
+      });
+    } catch (error) {
+      // A member read that fails is the members leg's outage, though the
+      // agents leg asked for it.
+      throw directoryUnavailable('members', error);
+    }
+    members.push(...notDisabled(found));
+    derived = derive();
+  }
 }
 
 export async function buildMentionDirectory(
   sql: Sql | TransactionSql,
-  args: { organizationId: string; projectId: string | null },
+  args: {
+    organizationId: string;
+    projectId: string | null;
+    named: MentionedNames;
+  },
 ): Promise<MentionDirectory> {
   const entries: MentionActorEntry[] = [];
   let members: ListedMembers;
   try {
-    members = await accessibleMembers(sql, args);
+    members = await namedMembers(sql, args);
   } catch (error) {
     throw directoryUnavailable('members', error);
   }
@@ -231,10 +323,13 @@ export async function buildMentionDirectory(
     // answer to since has lost it: each answers to the one its project's
     // next save will store [PROJ-R19] (the agent reads derive it alike),
     // and to its name's older forms.
-    const derived = deriveAgentHandles(
+    const derived = await agentHandlesClearOfMembers(sql, {
+      organizationId: args.organizationId,
       agents,
-      organizationReservedHandles(members.organization, automationSlugs),
-    );
+      members: members.read,
+      asked: args.named.handles,
+      automationSlugs,
+    });
     for (const agent of agents) {
       entries.push(
         agentMentionEntry({
@@ -247,6 +342,8 @@ export async function buildMentionDirectory(
       );
     }
   } catch (error) {
+    // Already logged and named for the leg that failed.
+    if (error instanceof MentionDirectoryError) throw error;
     throw directoryUnavailable('agents', error);
   }
 
@@ -319,6 +416,10 @@ export async function prepareSurfaceText(
   const directory = await buildMentionDirectory(sql, {
     organizationId: args.organizationId,
     projectId: args.projectId ?? null,
+    // The text an edit replaces is read against the same directory.
+    named: mentionedNames(
+      args.previousBody === undefined ? texts : [...texts, args.previousBody],
+    ),
   });
   const edit =
     args.previousBody === undefined
