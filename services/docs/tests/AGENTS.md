@@ -70,7 +70,7 @@ and asserts the list is empty — the failure prints each file once with offendi
 | `published` | A slug in `docs/published.json` that no longer answers as a page or through `docs/redirects.json` in some locale (`published-address-lost`), or in the retired `de-CH`/`de-AT`/`fr-CH` trees (`regional-address-lost`) → add the old slug to `redirects.json`; a page missing from the ledger → run `bun run --filter @tale/docs build:search-index`. Never remove a line from the ledger: `bun run lint:links` compares the change with its base commit and refuses a removed line (`published-line-removed`) or a retired page that answers 404 (`retired-page-404`). The procedure is in [`docs/AGENTS.md`](../../../docs/AGENTS.md#retire-rename-or-merge-a-page). |
 | `near-miss` | The server's answer to guessed addresses (`lib/near-miss.ts`), locked to the guesses Tale's chat agent made (German titles turned into slugs, translated folders, a sidebar group's label such as `/de/verwaltung`, paths translated whole such as `/de/plattform/wissen/webseiten`) and to the section a guess lands on when no page wins → adjust the scorer in `@tale/ui/docs/near-miss`, never an address by hand. |
 | `images`             | An `/images/...` reference with no file under `public/`, empty alt text, over ~200 KB, or a raw `<img>` tag (bypasses these checks) → fix the path, write a descriptive alt, export WebP, use markdown image syntax inside `<Frame>`.                                                                                                                                   |
-| `image-manifest`     | A `.webp` on disk that no page references, one missing from `public/images/manifest.json` (hand-captured — regenerate via `bun run docs:screenshots`), a manifest entry with no file, or a width over 2880/odd (the DPR-2 contract, parsed by `lib/webp-size.ts`).                                                                                                      |
+| `image-manifest`     | A `.webp` on disk that no page references, one missing from `public/images/manifest.json` (hand-captured — regenerate via `bun run docs:screenshots`), a manifest entry with no file, or a width over 2880/odd (the DPR-2 contract, parsed by `lib/webp-size.ts`). A page image whose responsive variants under `public/images/optimized/` are missing, stale against the manifest's `sha256`, over the byte budget or not the format and size their name promises, or whose size `app/content/image-dimensions.ts` does not record → `bun run docs:images`; a variant or recorded size no page image needs (`variant-orphan`, `variant-size-orphan`) → the same command removes it. |
 | `videos`             | A video asset outside `public/videos/manifest.json` (hand-recorded — produce via `bun run docs:videos`), a stale entry, a name off `<episode>.<locale>.(mp4\|vtt\|webp)`, an episode missing a base locale, a `<Video>` whose src/poster/captions is absent or crosses locales, an orphaned asset, an mp4 over 40 MB / poster over 250 KB, or a malformed WebVTT track. |
 | `redirects`          | A `docs/redirects.json` target that resolves to no page, a source that still exists as a page, a chain (target is itself a source), a malformed slug, or an off-site target anywhere but `https://tale.dev` → fix the entry. A section folder with no page that resolves to nothing or to a missing page in some locale (`section-folder-unresolved`, `section-folder-target-missing`) → add the first page under it to `nav.json` in every locale, or a `redirects.json` entry for the folder. A page on disk that the derived folder redirect would shadow (`derived-redirect-shadows-page`) → add the page to `nav.json`. |
 
@@ -104,7 +104,10 @@ Failures cascade top-down — fix in this order:
   run it after moving or renaming a page.
 - **The built site.** `bun run --filter @tale/docs test:prerender` (after `build`) serves `dist/`
   with the real server and crawls every address the pages, `llms.txt`, the sitemap and the Markdown
-  exports carry — the addresses the docs frame builds, which no source check sees.
+  exports carry — the addresses the docs frame builds, which no source check sees. It also checks
+  that every screenshot a built page shows is served responsively (a `<picture>` with AVIF and WebP
+  candidates, `sizes` and its intrinsic size, never a plain `<img>`), and that the server bundle
+  (`dist-ssr/`) holds no copy of `public/`, which would double the build's cached output.
 
 The Playwright smoke spec ([`e2e/`](e2e/), run via `bun run --filter @tale/docs test:e2e`) and the
 SEO deploy-sim ([`../lib/seo/deploy-sim.test.ts`](../lib/seo/deploy-sim.test.ts)) are separate
@@ -121,7 +124,8 @@ Add a new check as one `*.test.ts` in this directory using the shared helpers in
 `walk.ts` (`walkDocs`, `discoverLocales`, `filesInLocale`, `BASE_LOCALES`),
 `markdown.ts` (`parseFrontmatter`, `extractHeadings`, `extractCodeFences`, `extractOpeningProse`,
 `extractClosingSection`, `iterProseLines`, `COMPONENT_TAGS` + component-tag helpers, masking
-helpers), `webp-size.ts` (WebP header dimensions, no deps), `paths.ts` (`CONTENT_ROOT`,
+helpers), `webp-size.ts` (WebP header dimensions, no deps), `image-refs.ts`
+(`pageImageTargets`, shared with the variant generator), `paths.ts` (`CONTENT_ROOT`,
 `REPO_ROOT`, `README_PATTERN`), and `findings.ts` (`Finding`, `assertNoFindings`). Follow the
 existing pattern: collect `Finding[]`, then `assertNoFindings`. Term-shaped rules (UI labels,
 loanwords) do **not** belong here — add them to the i18n framework instead.

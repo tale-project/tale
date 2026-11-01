@@ -5,19 +5,30 @@ import { X } from 'lucide-react';
 import { useState } from 'react';
 
 import { PagePointerPin } from '../../components/overlays/page-pointer-pin';
+import { Picture } from '../../components/primitives/picture';
 import { useT } from '../../i18n/client';
+import { type ResponsiveImage, widestVariant } from '../../images/responsive';
 import { cn } from '../../lib/cn';
 
 interface ImageZoomProps {
+  /** The full-size file: the lightbox always opens it. */
   src?: string;
   alt?: string;
   className?: string;
+  /** Variants along the shared ladder (`@tale/ui/images/responsive`). With
+   * them the trigger renders a `<Picture>`, so the browser fetches the
+   * variant its slot needs and reserves the box from the intrinsic size. */
+  image?: ResponsiveImage;
+  /** The trigger's slot width for `image`, as in `<img sizes>`; defaults to
+   * `100vw`, the browser's own default. */
+  sizes?: string;
 }
 
 /**
  * Click-to-zoom lightbox for markdown content images. The collapsed state
- * renders the regular lazy `<img>` inside a button trigger; activating it
- * opens a modal showing the image near full-viewport over a dimmed overlay.
+ * renders the regular lazy `<img>` (or, given `image`, a responsive
+ * `<Picture>`) inside a button trigger; activating it opens a modal showing
+ * the full-size image near full-viewport over a dimmed overlay.
  * Radix supplies the focus trap, ESC close, and focus restore; the portal
  * content only mounts on interaction, so the component is safe to render
  * during SSG/SSR prerender.
@@ -25,10 +36,17 @@ interface ImageZoomProps {
  * Translatable labels live under the `markdownImage` namespace:
  *   { zoom, close }.
  */
-export function ImageZoom({ src, alt, className }: ImageZoomProps) {
+export function ImageZoom({
+  src,
+  alt,
+  className,
+  image,
+  sizes = '100vw',
+}: ImageZoomProps) {
   const { t } = useT('markdownImage');
   const [open, setOpen] = useState(false);
   const trimmedAlt = alt?.trim() ?? '';
+  const fullSize = src ?? (image && widestVariant(image.variants.webp));
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <DialogPrimitive.Trigger
@@ -40,13 +58,25 @@ export function ImageZoom({ src, alt, className }: ImageZoomProps) {
           className,
         )}
       >
-        <img
-          src={src}
-          alt={trimmedAlt}
-          loading="lazy"
-          decoding="async"
-          className="border-border-base h-auto max-w-full rounded-lg border"
-        />
+        {image ? (
+          <Picture
+            image={image}
+            sizes={sizes}
+            src={src}
+            alt={trimmedAlt}
+            loading="lazy"
+            decoding="async"
+            className="border-border-base h-auto max-w-full rounded-lg border"
+          />
+        ) : (
+          <img
+            src={src}
+            alt={trimmedAlt}
+            loading="lazy"
+            decoding="async"
+            className="border-border-base h-auto max-w-full rounded-lg border"
+          />
+        )}
       </DialogPrimitive.Trigger>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm" />
@@ -66,7 +96,7 @@ export function ImageZoom({ src, alt, className }: ImageZoomProps) {
             {trimmedAlt === '' ? t('zoom') : trimmedAlt}
           </DialogPrimitive.Title>
           <img
-            src={src}
+            src={fullSize}
             alt={trimmedAlt}
             className="max-h-[90vh] max-w-[95vw] cursor-default rounded-lg object-contain"
           />

@@ -9,6 +9,10 @@
  *   bun run docs:screenshots -- --grep '^chat-'
  *   bun run docs:screenshots -- --skip-seed  # reuse the persisted org as-is
  *
+ * After the capture it runs `bun run docs:images`, which encodes the
+ * responsive variants of every changed image (services/docs/scripts/
+ * optimize-images.ts).
+ *
  * The runner never boots the stack — it preflights the mock gateway (:4141)
  * and the app (:3000) and exits with the bring-up commands when either is
  * down (see README.md, the runbook). Bootstrap state (auth cookies, org id,
@@ -61,6 +65,9 @@ interface ManifestEntry {
   width: number;
   height: number;
   locale: CaptureLocale;
+  /** The capture's SHA-256 once `bun run docs:images` encoded its responsive
+   *  variants; a new capture replaces the entry and drops it. */
+  sha256?: string;
 }
 function selectShots(args: CaptureArgs): readonly Shot[] {
   let shots: readonly Shot[] = SHOTS;
@@ -223,10 +230,22 @@ async function captureShots(
     });
   }
   upsertManifest(captured);
+  // Each new capture's responsive variants follow it; the generator skips
+  // every image whose capture did not change.
+  const variants = Bun.spawnSync([process.execPath, 'run', 'docs:images'], {
+    cwd: REPO_ROOT,
+    stdio: ['inherit', 'inherit', 'inherit'],
+  });
   if (failures.length > 0) {
     console.error(
       `\n${failures.length}/${shots.length * locales.length} shots failed:\n` +
         failures.map((f) => `  ✗ ${f.name} — ${f.reason}`).join('\n'),
+    );
+    process.exit(1);
+  }
+  if (variants.exitCode !== 0) {
+    console.error(
+      `\nbun run docs:images exited ${variants.exitCode}: the responsive variants do not match the captures yet.`,
     );
     process.exit(1);
   }

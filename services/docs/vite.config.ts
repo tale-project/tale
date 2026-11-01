@@ -140,6 +140,18 @@ export default defineConfig({
       'remark-math',
     ],
   },
+  environments: {
+    ssr: {
+      build: {
+        // The SSR bundle only renders the pages `scripts/prerender.ts` writes
+        // into `dist/`, which the client build already filled from `public/`.
+        // A second copy in `dist-ssr/` (the tutorial videos, every screenshot
+        // and its variants) is read by nothing and doubled the build's cached
+        // output, past the 512 MiB a worker may write to one file.
+        copyPublicDir: false,
+      },
+    },
+  },
   plugins: [
     reloadDocsContent(),
     yamlImports(),

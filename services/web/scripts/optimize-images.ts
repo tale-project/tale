@@ -6,7 +6,9 @@
  * `app/generated/image-manifest.ts`. Product captures retain a native-size
  * derivative and separately registered phone/desktop display crops.
  * Encoding preserves those dimensions and lowers quality only as needed to
- * meet the existing 200KiB public-image budget, failing at the quality floor.
+ * meet the 200KiB per-variant budget, failing at the quality floor. Ladder,
+ * qualities, budget and encoder are the policy the docs share
+ * (`@tale/ui/images/responsive`, `@tale/ui/images/encode`).
  *
  * Outputs are committed — no build-step dependency.
  *
@@ -18,6 +20,12 @@ import { access, mkdir, readdir } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { encodeImage } from '@tale/ui/images/encode';
+import {
+  IMAGE_FORMATS,
+  IMAGE_QUALITY,
+  ladderWidths,
+} from '@tale/ui/images/responsive';
 import sharp, { type Sharp } from 'sharp';
 
 import {
@@ -29,14 +37,12 @@ import {
   IMAGE_MANIFEST,
   type ImageManifestEntry,
 } from '../app/generated/image-manifest';
-import { encodeMarketingImage } from './image-encoder';
 import { imageManifestExpression, mergeImageManifest } from './image-manifest';
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const SOURCES = join(ROOT, 'public', 'marketing', 'sources');
 const OUT_DIR = join(ROOT, 'public', 'marketing', 'optimized');
 const MANIFEST = join(ROOT, 'app', 'generated', 'image-manifest.ts');
-const WIDTHS = [480, 828, 1200, 1600, 2400, 2880] as const;
 
 export async function optimizeImage(
   image: Sharp,
@@ -47,23 +53,19 @@ export async function optimizeImage(
   blurPreview = true,
   outputDir = OUT_DIR,
 ): Promise<ImageManifestEntry> {
-  const widths = WIDTHS.filter((size) => size <= width);
   // The inspection link keeps the actual capture resolution, including a
   // source larger than the ordinary responsive-width budget.
-  const outputWidths = productScreen
-    ? [...new Set([...widths, width])]
-    : widths;
+  const outputWidths = ladderWidths(width, { native: productScreen });
   const avif: Record<number, string> = {};
   const webp: Record<number, string> = {};
   for (const size of outputWidths) {
-    for (const format of ['avif', 'webp'] as const) {
+    for (const format of IMAGE_FORMATS) {
       const filename = `${id}-${size}.${format}`;
       const resized = image
         .clone()
         .resize({ width: size, withoutEnlargement: true });
-      const quality =
-        format === 'avif' ? (productScreen ? 80 : 64) : productScreen ? 90 : 78;
-      const encoded = await encodeMarketingImage(resized, {
+      const quality = IMAGE_QUALITY[productScreen ? 'screen' : 'photo'][format];
+      const encoded = await encodeImage(resized, {
         format,
         quality,
         label: filename,
