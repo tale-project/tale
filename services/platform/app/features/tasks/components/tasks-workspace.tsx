@@ -19,7 +19,8 @@ import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { useProject } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import { useMemberLookup } from '@/app/features/settings/organization/hooks/member-lookup';
+import { useMemberSearch } from '@/app/features/settings/organization/hooks/member-search';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -31,7 +32,6 @@ import {
 } from '../hooks/queries';
 import {
   ActorDirectoryProvider,
-  memberActor,
   useActorDirectory,
 } from '../hooks/use-actor-directory';
 import { useCollapsedLanes } from '../hooks/use-collapsed-lanes';
@@ -50,6 +50,7 @@ import {
   resolveAssigneeQueryFilter,
   type TaskPriorityFilter,
 } from '../lib/filter-tasks';
+import { memberActor } from '../lib/member-actor';
 import { readFailed, readRetrying } from '../lib/read-state';
 import { isTaskView, type TaskView } from '../lib/view';
 import { AgentActivitySummary } from './agent-activity-summary';
@@ -66,6 +67,20 @@ import { TasksSkeleton } from './tasks-skeleton';
 function asTaskId(value: string): string {
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- URL deep-link param; invalid ids resolve to null server-side
   return value;
+}
+
+/** Whether an assignee the filter offers holds what is typed in its search
+ * box: in its name or email, in any case, as the server matches a member. */
+function holdsQuery(
+  actor: { name: string; email?: string },
+  query: string,
+): boolean {
+  const typed = query.trim().replaceAll(/\s+/g, ' ').toLowerCase();
+  return (
+    typed === '' ||
+    actor.name.toLowerCase().includes(typed) ||
+    (actor.email?.toLowerCase().includes(typed) ?? false)
+  );
 }
 
 export function TasksWorkspace({
@@ -112,21 +127,66 @@ export function TasksWorkspace({
       // project agent catalog.
       allProjects ? undefined : projectId,
     );
-  // The assignee filter offers every member: they are read once the reader
-  // first opens the filters, never for a board that is only looked at.
+  // The assignee filter offers the members whose name or email holds what
+  // is typed in its search box, searched on the server a page at a time
+  // (MEMBER-R12) once the reader first opens the filters — never for a
+  // board that is only looked at. Every member may be filtered by, disabled
+  // ones too, so a former colleague's tasks stay findable.
   const [membersWanted, setMembersWanted] = useState(false);
   const handleFiltersOpenChange = useCallback((open: boolean) => {
     if (open) setMembersWanted(true);
   }, []);
-  const allMembers = useMembers(organizationId, { enabled: membersWanted });
-  const formerMember = tCommon('formerMember');
-  const members = useMemo(
-    () =>
-      (allMembers.members ?? []).map((member) =>
-        memberActor(member, formerMember),
-      ),
-    [allMembers.members, formerMember],
+  const [assigneeQuery, setAssigneeQuery] = useState('');
+  const people = useMemberSearch(organizationId, assigneeQuery, {
+    enabled: membersWanted,
+  });
+  // The member the filter is on stays offered whatever page was found, so
+  // it shows as chosen and can be turned off.
+  const chosenMemberId =
+    assigneeFilter === ALL_ASSIGNEE_FILTER ||
+    assigneeFilter === ASSIGNEE_FILTER_ME ||
+    assigneeFilter === ASSIGNEE_FILTER_UNASSIGNED ||
+    agents.some((agent) => agent.id === assigneeFilter)
+      ? undefined
+      : assigneeFilter;
+  const chosen = useMemberLookup(
+    organizationId,
+    chosenMemberId === undefined ? [] : [{ userId: chosenMemberId }],
   );
+  const chosenMember = chosen.members.find(
+    (member) => member.userId === chosenMemberId,
+  );
+  const formerMember = tCommon('formerMember');
+  const members = useMemo(() => {
+    const found = people.members.map((member) =>
+      memberActor(member, formerMember),
+    );
+    if (
+      chosenMember === undefined ||
+      found.some((member) => member.id === chosenMember.userId)
+    ) {
+      return found;
+    }
+    const pinned = memberActor(chosenMember, formerMember);
+    return holdsQuery(pinned, assigneeQuery) ? [pinned, ...found] : found;
+  }, [people.members, chosenMember, assigneeQuery, formerMember]);
+  // The project's agents are few and already read: they are matched here.
+  const assigneeAgents = useMemo(
+    () => agents.filter((agent) => holdsQuery(agent, assigneeQuery)),
+    [agents, assigneeQuery],
+  );
+  // What the search found; the filter shows a search still running itself,
+  // and reads this out once it settles.
+  const assigneeNote = people.unavailable
+    ? tCommon('peopleSearch.unavailable')
+    : people.more
+      ? tCommon('peopleSearch.more')
+      : assigneeQuery.trim() !== '' &&
+          members.length === 0 &&
+          assigneeAgents.length === 0
+        ? tCommon('search.noResults')
+        : undefined;
+  const assigneeSearching = people.searching;
   const assigneeQueryFilter = resolveAssigneeQueryFilter(
     assigneeFilter,
     currentUserId,
@@ -398,7 +458,7 @@ export function TasksWorkspace({
             value: member.id,
             label: member.name,
           })),
-          ...agents.map((agent) => ({
+          ...assigneeAgents.map((agent) => ({
             value: agent.id,
             label: agent.name,
           })),
@@ -406,6 +466,10 @@ export function TasksWorkspace({
         selectedValues:
           assigneeFilter === ALL_ASSIGNEE_FILTER ? [] : [assigneeFilter],
         onChange: handleAssigneeFilterChange,
+        onSearchChange: setAssigneeQuery,
+        searchPlaceholder: t('assignee.search'),
+        note: assigneeNote,
+        searching: assigneeSearching,
       },
       {
         key: 'priority',
@@ -455,8 +519,10 @@ export function TasksWorkspace({
         : []),
     ],
     [
-      agents,
+      assigneeAgents,
       assigneeFilter,
+      assigneeNote,
+      assigneeSearching,
       controlsCanCreate,
       currentUserId,
       handleArchivedFilterChange,
@@ -542,7 +608,6 @@ export function TasksWorkspace({
             }}
             filters={taskFilterConfigs}
             onFiltersOpenChange={handleFiltersOpenChange}
-            isLoading={allMembers.isLoading}
             onClearAll={handleClearFilters}
             // Whoever may create gets the widening archived filter, so the
             // button stays reachable over an empty default view (an

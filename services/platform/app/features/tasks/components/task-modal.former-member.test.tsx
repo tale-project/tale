@@ -113,7 +113,6 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
       'automations/queries:listAutomations': [],
       'projects/queries:listProjectAgents': [],
       'projects/queries:listServingAgents': [],
-      'projects/queries:listAccessibleUserIds': { orgWide: true, userIds: [] },
     };
     return { data: answers[name], isLoading: false };
   },
