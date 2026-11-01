@@ -39,8 +39,8 @@ describe('SettingsPage', () => {
       expect(container.firstChild).not.toHaveClass('mx-auto', 'max-w-3xl');
     });
 
-    // The divider rule is exported so other configuration surfaces (an
-    // automation's General tab) reuse the exact same marker-driven selectors
+    // The divider rule is exported so a configuration container that cannot
+    // be a settings page reuses the exact same marker-driven selectors
     // instead of hand-rolling `border-t pt-8`. Assert the page still applies
     // what it exports, so the two can never drift apart.
     it('applies the exported section-divider rule', () => {

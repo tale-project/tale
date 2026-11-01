@@ -23,6 +23,7 @@ import { ShieldAlert } from 'lucide-react';
 import { useCallback, useRef } from 'react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { SettingsTabPage } from '@/app/features/settings/components/settings-tab-page';
 import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 import { backendErrorCode } from '@/lib/utils/backend-error';
@@ -35,7 +36,6 @@ import {
 } from '../hooks/secrets';
 import { ProjectReadOnlyBanner } from './project-read-only-banner';
 import { ProjectSecretsLayout } from './project-secrets-layout';
-import { ProjectSettingsPage } from './project-settings-page';
 
 export function ProjectSecretsTab({
   organizationId,
@@ -83,7 +83,7 @@ export function ProjectSecretsTab({
 
   if (isAccessDenied) {
     return (
-      <ProjectSettingsPage title={t('title')}>
+      <SettingsTabPage title={t('title')}>
         <SettingsSection title={t('title')} description={t('description')}>
           <Alert
             variant="destructive"
@@ -96,7 +96,7 @@ export function ProjectSecretsTab({
             }
           />
         </SettingsSection>
-      </ProjectSettingsPage>
+      </SettingsTabPage>
     );
   }
 

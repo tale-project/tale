@@ -143,13 +143,17 @@ beforeEach(() => {
   ];
 });
 
-/** The tab under the detail shell, which mounts the editor registry. */
-function renderGeneralTab() {
+/**
+ * The tab under the detail shell, which mounts the editor registry; with a
+ * `projectId`, as the project's automation route renders it.
+ */
+function renderGeneralTab(projectId?: string) {
   return render(
     <ActiveEditorProvider>
       <AutomationGeneralTab
         organizationId="org-1"
         automationSlug="gmail-triage-inbox"
+        projectId={projectId}
       />
     </ActiveEditorProvider>,
   );
@@ -169,6 +173,36 @@ describe('AutomationGeneralTab', () => {
       screen.getByRole('button', { name: /^Schedule: Every 6 hours/ }),
     ).toBeVisible();
   });
+
+  // #5166: General is a settings form, so on both of its routes its sections
+  // stand in the general settings page — Settings' column, 32px section
+  // rhythm, hairlines, row layout and end clearance — not in a narrow frame of
+  // their own with a 24px gap and a hand-applied divider rule.
+  it.each([
+    ['its own route', undefined],
+    ["a project's route", 'proj_1'],
+  ])(
+    'lays its sections out as a general settings page on %s',
+    (_, projectId) => {
+      const { container } = renderGeneralTab(projectId);
+
+      const sections = container.querySelectorAll<HTMLElement>(
+        '[data-settings-section]',
+      );
+      expect(sections).toHaveLength(3);
+      const page = sections[0]?.closest('[data-field-layout="row"]');
+      expect(page).toHaveClass(
+        'mobile-nav-clearance',
+        'mx-auto',
+        'max-w-3xl',
+        'gap-8',
+      );
+      expect(page).not.toHaveClass('px-4');
+      for (const section of sections) expect(page).toContainElement(section);
+      // The page is the only row-layout container: no frame of its own wraps it.
+      expect(container.querySelectorAll('[data-field-layout]')).toHaveLength(1);
+    },
+  );
 
   it('saves every edited section from one Save', async () => {
     const { user } = renderGeneralTab();

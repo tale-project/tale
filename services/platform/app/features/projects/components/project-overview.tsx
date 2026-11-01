@@ -23,6 +23,7 @@ import {
   SettingsFieldRow,
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
+import { SettingsTabPage } from '@/app/features/settings/components/settings-tab-page';
 import { useT } from '@/lib/i18n/client';
 import { backendErrorCode } from '@/lib/utils/backend-error';
 
@@ -34,7 +35,6 @@ import { ProjectIdentityPicker } from './project-identity-picker';
 import { ProjectInstructionsEditor } from './project-instructions-editor';
 import { ProjectReadError } from './project-read-error';
 import { ProjectReadOnlyBanner } from './project-read-only-banner';
-import { ProjectSettingsPage } from './project-settings-page';
 import { ProjectSharingSection } from './project-sharing-section';
 import { ProjectTaskReviewerSection } from './project-task-reviewer-section';
 
@@ -228,7 +228,7 @@ function ProjectOverviewContent({
     // individual sections — the rule keys on each section's marker, which is
     // what draws exactly one hairline between each pair of neighbours —
     // Project details, Instructions, Sharing — and nothing after the last one.
-    <ProjectSettingsPage title={t('navigation.overview')}>
+    <SettingsTabPage title={t('navigation.overview')}>
       {isArchived ? (
         <ProjectReadOnlyBanner reason="archived" />
       ) : isViewerOnly ? (
@@ -369,6 +369,6 @@ function ProjectOverviewContent({
           projectName={project.name}
         />
       ) : null}
-    </ProjectSettingsPage>
+    </SettingsTabPage>
   );
 }
