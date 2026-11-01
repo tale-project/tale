@@ -293,6 +293,50 @@ describe('PATCH hands the write the externalId, as PUT does', () => {
 });
 
 /**
+ * A Group PATCH's member operations reach the write in the order the request
+ * sent them, never merged into sets: each applies to the members the one
+ * before left (RFC 7644 §3.5.2, #4774).
+ */
+describe('a Group PATCH hands the write its member operations in order [SCIM-R10]', () => {
+  it('keeps an add before a clear-all and a remove before an add back', async () => {
+    const group = { teamId: 't_1', displayName: 'Finance', memberUserIds: [] };
+    const runMutation = vi.fn(async (_ref: unknown, _args: unknown) => null);
+    const ctx = {
+      runQuery: vi.fn(async () => group),
+      runMutation,
+      runAction: vi.fn(),
+    };
+    const res = await scimGroupResourceImpl(
+      // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- test stub
+      { ctx: ctx as never, organizationId: 'org_1', defaultRole: 'member' },
+      new Request('https://tale.example/scim/v2/Groups/t_1', {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/scim+json' },
+        body: JSON.stringify({
+          schemas: ['urn:ietf:params:scim:api:messages:2.0:PatchOp'],
+          Operations: [
+            { op: 'add', path: 'members', value: [{ value: 'u_3' }] },
+            { op: 'remove', path: 'members' },
+            { op: 'remove', path: 'members[value eq "u_1"]' },
+            { op: 'add', path: 'members', value: [{ value: 'u_1' }] },
+          ],
+        }),
+      }),
+    );
+
+    expect(res.status).toBe(200);
+    expect(runMutation.mock.calls[0]?.[1]).toMatchObject({
+      memberOperations: [
+        { op: 'add', memberIds: ['u_3'] },
+        { op: 'replace', memberIds: [] },
+        { op: 'remove', memberIds: ['u_1'] },
+        { op: 'add', memberIds: ['u_1'] },
+      ],
+    });
+  });
+});
+
+/**
  * A list filter the dispatcher does not evaluate — another attribute, another
  * operator, or one it cannot read — is declined with 400 `invalidFilter`
  * (RFC 7644 §3.4.2.2, §3.12), before any lookup. An empty list would tell the

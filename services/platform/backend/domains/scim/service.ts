@@ -13,6 +13,7 @@ import {
   composeDesiredMembers,
   planActivation,
 } from '../../core/scim/internal_mutations.ts';
+import type { GroupMemberOperation } from '../../core/scim/types.ts';
 import { isUniqueViolation } from '../../db/sql.ts';
 import { emitHintInTx } from '../../realtime/outbox.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
@@ -796,6 +797,17 @@ async function setTeamMembers(
 ): Promise<boolean> {
   await assertOrgMembers(tx, organizationId, desiredUserIds);
   const current = await listTeamMemberUserIds(tx, teamId);
+  return writeTeamRoster(tx, teamId, current, desiredUserIds);
+}
+
+/** Moves the team from its `current` rows to exactly the desired members:
+ * inserts the missing ones, deletes the rest; answers whether anything moved. */
+async function writeTeamRoster(
+  tx: TransactionSql,
+  teamId: string,
+  current: readonly { id: string; userId: string }[],
+  desiredUserIds: readonly string[],
+): Promise<boolean> {
   const currentIds = new Set(current.map((m) => m.userId));
   const desired = new Set(desiredUserIds);
   let changed = false;
@@ -1045,9 +1057,8 @@ export async function patchGroup(
     organizationId: string;
     teamId: string;
     displayName?: string;
-    addMembers: string[];
-    removeMembers: string[];
-    replaceMembers?: string[];
+    /** In the order the request sent them. */
+    memberOperations: GroupMemberOperation[];
     externalId?: string;
   },
 ): Promise<ScimGroupRecord | null> {
@@ -1080,39 +1091,30 @@ export async function patchGroup(
       changed = true;
     }
 
-    if (args.replaceMembers !== undefined) {
-      const rosterMoved = await setTeamMembers(
+    if (args.memberOperations.length > 0) {
+      // Every member an operation puts in must be of the org, even one a
+      // later operation takes out again: the request fails as a whole.
+      await assertOrgMembers(
         tx,
         args.organizationId,
+        args.memberOperations.flatMap((o) =>
+          o.op === 'remove' ? [] : o.memberIds,
+        ),
+      );
+      // The operations apply one at a time over the members the team has
+      // now, so a remove also sees an add earlier in the same request; only
+      // where they end is written.
+      const current = await listTeamMemberUserIds(tx, args.teamId);
+      const rosterMoved = await writeTeamRoster(
+        tx,
         args.teamId,
+        current,
         composeDesiredMembers(
-          args.replaceMembers,
-          args.addMembers,
-          args.removeMembers,
+          current.map((m) => m.userId),
+          args.memberOperations,
         ),
       );
       changed = changed || rosterMoved;
-    } else {
-      await assertOrgMembers(tx, args.organizationId, args.addMembers);
-      const current = await listTeamMemberUserIds(tx, args.teamId);
-      const currentIds = new Set(current.map((m) => m.userId));
-      for (const userId of args.addMembers) {
-        if (!currentIds.has(userId)) {
-          await tx`
-            INSERT INTO "teamMember" ("id", "teamId", "userId", "createdAt")
-            VALUES (gen_random_uuid(), ${args.teamId}, ${userId},
-                    ${new Date()})
-          `;
-          changed = true;
-        }
-      }
-      const removeSet = new Set(args.removeMembers);
-      for (const m of current) {
-        if (removeSet.has(m.userId)) {
-          await tx`DELETE FROM "teamMember" WHERE "id" = ${m.id}`;
-          changed = true;
-        }
-      }
     }
 
     const link = await getLink(tx, args.organizationId, args.teamId);

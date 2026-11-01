@@ -309,7 +309,10 @@ function parseMemberPathFilter(path: string): string | null {
 }
 
 export function parseGroupPatch(body: unknown): GroupPatch {
-  const patch: GroupPatch = { addMembers: [], removeMembers: [] };
+  // The membership changes keep the request's order, never merged into sets:
+  // each applies to the members the one before left (RFC 7644 §3.5.2).
+  const patch: GroupPatch = { memberOperations: [] };
+  const members = patch.memberOperations;
   for (const { op, path, value } of patchOperations(body)) {
     const verb = op.toLowerCase();
     if (path) {
@@ -322,18 +325,22 @@ export function parseGroupPatch(body: unknown): GroupPatch {
         if (externalId) patch.externalId = externalId;
       } else if (lower === 'members') {
         const ids = extractMemberIds(value);
-        if (verb === 'add') patch.addMembers.push(...ids);
-        else if (verb === 'replace') patch.replaceMembers = ids;
-        else if (verb === 'remove') {
+        if (verb === 'add' || verb === 'replace') {
+          members.push({ op: verb, memberIds: ids });
+        } else if (verb === 'remove') {
           // `remove` on `members` with no value clears the whole set.
-          if (ids.length) patch.removeMembers.push(...ids);
-          else patch.replaceMembers = [];
+          members.push({
+            op: ids.length ? 'remove' : 'replace',
+            memberIds: ids,
+          });
         }
       } else if (lower.startsWith('members[')) {
         const id = parseMemberPathFilter(path);
         if (id) {
-          if (verb === 'remove') patch.removeMembers.push(id);
-          else patch.addMembers.push(id);
+          members.push({
+            op: verb === 'remove' ? 'remove' : 'add',
+            memberIds: [id],
+          });
         }
       }
       continue;
@@ -345,10 +352,11 @@ export function parseGroupPatch(body: unknown): GroupPatch {
     const externalId = asString(value.externalId);
     if (externalId) patch.externalId = externalId;
     const ids = extractMemberIds(value.members);
-    if (ids.length) {
-      if (verb === 'add') patch.addMembers.push(...ids);
-      else if (verb === 'replace') patch.replaceMembers = ids;
-      else if (verb === 'remove') patch.removeMembers.push(...ids);
+    if (
+      ids.length &&
+      (verb === 'add' || verb === 'replace' || verb === 'remove')
+    ) {
+      members.push({ op: verb, memberIds: ids });
     }
   }
   return patch;

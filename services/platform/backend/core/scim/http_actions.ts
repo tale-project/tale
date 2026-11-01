@@ -369,9 +369,7 @@ async function patchGroupResource(
     organizationId: rc.organizationId,
     teamId,
     displayName: patch.displayName,
-    addMembers: patch.addMembers,
-    removeMembers: patch.removeMembers,
-    replaceMembers: patch.replaceMembers,
+    memberOperations: patch.memberOperations,
     externalId: patch.externalId,
   });
   const full = await rc.ctx.runQuery(

@@ -234,13 +234,15 @@ describe('parseGroupPatch', () => {
     const patch = parseGroupPatch({
       Operations: [{ op: 'add', path: 'members', value: [{ value: 'u3' }] }],
     });
-    expect(patch.addMembers).toEqual(['u3']);
+    expect(patch.memberOperations).toEqual([{ op: 'add', memberIds: ['u3'] }]);
   });
   it('removes a member via members[value eq "id"] path (Okta)', () => {
     const patch = parseGroupPatch({
       Operations: [{ op: 'remove', path: 'members[value eq "u1"]' }],
     });
-    expect(patch.removeMembers).toEqual(['u1']);
+    expect(patch.memberOperations).toEqual([
+      { op: 'remove', memberIds: ['u1'] },
+    ]);
   });
   it('replaces the whole membership set', () => {
     const patch = parseGroupPatch({
@@ -248,7 +250,31 @@ describe('parseGroupPatch', () => {
         { op: 'replace', path: 'members', value: [{ value: 'u1' }] },
       ],
     });
-    expect(patch.replaceMembers).toEqual(['u1']);
+    expect(patch.memberOperations).toEqual([
+      { op: 'replace', memberIds: ['u1'] },
+    ]);
+  });
+  it('keeps the member operations in the order they were sent [SCIM-R10]', () => {
+    const patch = parseGroupPatch({
+      Operations: [
+        { op: 'Add', path: 'members', value: [{ value: 'u3' }] },
+        { op: 'Remove', path: 'members' },
+        { op: 'replace', path: 'displayName', value: 'Platform' },
+        { op: 'add', value: { members: [{ value: 'u1' }, { value: 'u2' }] } },
+        { op: 'remove', path: 'members[value eq "u1"]' },
+        { op: 'Remove', path: 'members', value: [{ value: 'u2' }] },
+        { op: 'add', path: 'members[value eq "u4"]' },
+      ],
+    });
+    expect(patch.memberOperations).toEqual([
+      { op: 'add', memberIds: ['u3'] },
+      { op: 'replace', memberIds: [] },
+      { op: 'add', memberIds: ['u1', 'u2'] },
+      { op: 'remove', memberIds: ['u1'] },
+      { op: 'remove', memberIds: ['u2'] },
+      { op: 'add', memberIds: ['u4'] },
+    ]);
+    expect(patch.displayName).toBe('Platform');
   });
   it('renames via displayName replace', () => {
     const patch = parseGroupPatch({
@@ -260,7 +286,13 @@ describe('parseGroupPatch', () => {
     const patch = parseGroupPatch({
       Operations: [{ op: 'remove', path: 'members' }],
     });
-    expect(patch.replaceMembers).toEqual([]);
+    expect(patch.memberOperations).toEqual([{ op: 'replace', memberIds: [] }]);
+  });
+  it('carries no member operation for a rename alone', () => {
+    const patch = parseGroupPatch({
+      Operations: [{ op: 'replace', value: { displayName: 'Platform' } }],
+    });
+    expect(patch.memberOperations).toEqual([]);
   });
   it('reads externalId by path and from a path-less value', () => {
     expect(
