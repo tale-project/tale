@@ -1026,7 +1026,7 @@ providers:
       versionConflict: Der Anbieter hat sich seit dem Laden geändert. Öffne den Dialog erneut.
       invalid: Die Anbieterdefinition wurde abgelehnt. Prüfe Basis-URL und API-Format.
       notFound: Diesen Anbieter gibt es nicht mehr.
-      catalogUnavailable: Die Modell-Liste des Endpunkts ist nicht erreichbar.
+      catalogUnavailable: Die Modell-Liste des Endpunkts ist nicht verfügbar.
       catalogNotJson: >-
         Die Basis-URL hat mit einer Webseite geantwortet, nicht mit einer
         Modell-Liste. Prüfe, ob sie die API-Wurzel ist — bei den meisten
@@ -1035,6 +1035,14 @@ providers:
         Unter der Basis-URL gibt es keine Modell-Liste. Prüfe, ob sie die
         API-Wurzel ist — bei den meisten Gateways endet sie auf /v1. Kann der
         Endpunkt seine Modelle nicht auflisten, gib stattdessen ihre IDs ein.
+      catalogUnreachable: >-
+        Der Endpunkt ist nicht erreichbar oder hat nicht rechtzeitig
+        geantwortet. Prüfe, ob er läuft und ob diese Bereitstellung ihn
+        erreicht.
+      catalogKeyRefused: >-
+        Der Endpunkt hat den API-Schlüssel abgelehnt oder braucht einen. Prüfe
+        die Standard-Zugangsdaten des Anbieters und ihren Schlüssel.
+      catalogUpstreamError: Der Endpunkt hat mit einem Serverfehler geantwortet. Versuche es später erneut.
   catalogs:
     emptyBody: >-
       Dieses Deployment liefert keine Anbieter-Dateien. Prüfe, ob das
@@ -1044,6 +1052,7 @@ providers:
     refreshing: Aktualisierung läuft…
     resultOk: '{name}: {count, plural, one {# Modell} other {# Modelle}}'
     resultError: '{name}: {error}'
+    failureDetail: '{sentence} ({detail})'
     nothingToRefresh:
       Alle Kataloge werden mit der Plattform ausgeliefert — hier
       gibt es nichts zu aktualisieren.

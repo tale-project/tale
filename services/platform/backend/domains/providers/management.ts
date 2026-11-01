@@ -24,8 +24,8 @@ export function mayManageProviders(role: string): boolean {
 }
 
 /** One provider's refreshed catalog: how many models it lists now, or why
- * it could not be read — with the failure's code when the listing answered
- * with something other than a model list. */
+ * it could not be read — with the failure's code when the failure has one
+ * ({@link CatalogListingFailureCode}). */
 export interface CatalogRefreshResult {
   readonly name: string;
   readonly modelCount: number;

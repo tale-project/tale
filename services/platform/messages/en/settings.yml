@@ -986,6 +986,13 @@ providers:
         The base URL has no model list. Check that it is the API root; for most
         gateways it ends in /v1. If the endpoint cannot list its models, enter
         their IDs instead.
+      catalogUnreachable: >-
+        Couldn't reach the endpoint, or it didn't answer in time. Check that it
+        is running and that this deployment can reach it.
+      catalogKeyRefused: >-
+        The endpoint refused the API key, or needs one. Check the provider's
+        default credential and its key.
+      catalogUpstreamError: The endpoint answered with a server error. Try again later.
   catalogs:
     emptyBody: >-
       This deployment ships no provider files. Check that the config root
@@ -995,6 +1002,9 @@ providers:
     refreshing: Refreshing…
     resultOk: '{name}: {count, plural, one {# model} other {# models}}'
     resultError: '{name}: {error}'
+    # A coded listing failure's sentence, then the server's own words for a
+    # diagnosis: the status, or what failed of the connection.
+    failureDetail: '{sentence} ({detail})'
     nothingToRefresh: Every catalog ships with the platform — there is nothing to refresh.
     refreshFailed: Couldn't refresh the catalogs.
     listFailed: Couldn't load the providers.

@@ -750,16 +750,126 @@ describe('getProviderCatalog — live sources', () => {
     warn.mockRestore();
   });
 
-  it('rejects a non-2xx listing response (no defaults to fall back on)', async () => {
+  it('names a listing that answers with a server error, asks again, and never quotes the answer', async () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     mockedFetch.mockResolvedValue({
-      ...listingResponse({}),
+      ...listingResponse({ error: 'worker 10.0.0.7 crashed' }),
       status: 503,
       statusText: 'Service Unavailable',
     });
-    await expect(
-      getProviderCatalog(VERCEL, { maxAttempts: 1 }),
-    ).rejects.toThrow('HTTP 503');
+    const pending = getProviderCatalog(VERCEL, { maxAttempts: 3 }).catch(
+      (error: unknown) => error,
+    );
+    await vi.runAllTimersAsync();
+    const failure = await pending;
+    expect(failure).toBeInstanceOf(CatalogListingError);
+    expect(catalogFailureCode(failure)).toBe('PROVIDER_CATALOG_UPSTREAM_ERROR');
+    // The status alone: no listing URL, nothing the endpoint answered.
+    expect((failure as Error).message).toBe('catalog fetch returned HTTP 503');
+    // The endpoint's own failure may pass, so the ladder runs to its end.
+    expect(mockedFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it.each([401, 403])(
+    'names a listing whose key the endpoint refuses (HTTP %i), asking once and keeping the code while the refusal is remembered',
+    async (status) => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      mockedFetch.mockResolvedValue({
+        ...listingResponse({ error: 'Invalid key sk-listing-1234' }),
+        status,
+        statusText: status === 401 ? 'Unauthorized' : 'Forbidden',
+      });
+      const failure: unknown = await getProviderCatalog(VERCEL, {
+        maxAttempts: 3,
+        bearerToken: 'sk-listing-1234',
+      }).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(CatalogListingError);
+      expect(catalogFailureCode(failure)).toBe('PROVIDER_CATALOG_KEY_REFUSED');
+      expect((failure as Error).message).toBe(
+        `catalog fetch returned HTTP ${status}`,
+      );
+      // The same key gets the same answer: no second attempt.
+      expect(mockedFetch).toHaveBeenCalledTimes(1);
+
+      // A read inside the back-off answers from memory with the same code.
+      const remembered: unknown = await getProviderCatalog(VERCEL, {
+        maxAttempts: 3,
+        bearerToken: 'sk-listing-1234',
+      }).catch((error: unknown) => error);
+      expect(catalogFailureCode(remembered)).toBe(
+        'PROVIDER_CATALOG_KEY_REFUSED',
+      );
+      expect(mockedFetch).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([
+    ['dns_failed', 'Host does not resolve: ai-gateway.vercel.sh'],
+    [
+      'network_error',
+      'Connection failed: connect ECONNREFUSED 10.0.0.7:443 (ECONNREFUSED)',
+    ],
+    [
+      'tls_error',
+      'TLS handshake failed: certificate has expired (CERT_HAS_EXPIRED)',
+    ],
+    ['timeout', 'Request timed out after 20000ms'],
+  ] as const)(
+    'names a listing that got no answer (%s), asking again and keeping the code while the failure is remembered',
+    async (kind, message) => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {});
+      mockedFetch.mockRejectedValue(new SafeFetchError(kind, message));
+      const pending = getProviderCatalog(VERCEL, { maxAttempts: 2 }).catch(
+        (error: unknown) => error,
+      );
+      await vi.runAllTimersAsync();
+      const failure = await pending;
+      expect(catalogFailureCode(failure)).toBe('PROVIDER_CATALOG_UNREACHABLE');
+      expect((failure as Error).message).toBe(message);
+      expect(mockedFetch).toHaveBeenCalledTimes(2);
+
+      const remembered: unknown = await getProviderCatalog(VERCEL, {
+        maxAttempts: 1,
+      }).catch((error: unknown) => error);
+      expect(catalogFailureCode(remembered)).toBe(
+        'PROVIDER_CATALOG_UNREACHABLE',
+      );
+      expect(mockedFetch).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it('keeps no code for a failure the reader can only learn from the log', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    // safeFetch refusing the URL itself — a policy, a redirect, a size…
+    for (const kind of [
+      'private_ip',
+      'host_not_allowed',
+      'redirect_limit_exceeded',
+      'response_too_large',
+    ] as const) {
+      invalidateCatalogFetchCache();
+      mockedFetch.mockRejectedValue(
+        new SafeFetchError(kind, `${kind} refusal`),
+      );
+      const failure: unknown = await getProviderCatalog(VERCEL, {
+        maxAttempts: 1,
+      }).catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(SafeFetchError);
+      expect(catalogFailureCode(failure)).toBeUndefined();
+    }
+    // …and any other status that is no model list, such as a rate limit.
+    invalidateCatalogFetchCache();
+    mockedFetch.mockResolvedValue({
+      ...listingResponse({}),
+      status: 429,
+      statusText: 'Too Many Requests',
+    });
+    const limited: unknown = await getProviderCatalog(VERCEL, {
+      maxAttempts: 1,
+    }).catch((error: unknown) => error);
+    expect(limited).toBeInstanceOf(Error);
+    expect((limited as Error).message).toBe('catalog fetch returned HTTP 429');
+    expect(catalogFailureCode(limited)).toBeUndefined();
   });
 
   it('names a listing that answers with a web page, asks once and never quotes the page', async () => {
@@ -798,18 +908,6 @@ describe('getProviderCatalog — live sources', () => {
       }).catch((error: unknown) => error);
       expect(catalogFailureCode(failure)).toBe('PROVIDER_CATALOG_NOT_FOUND');
       expect(mockedFetch).toHaveBeenCalledTimes(1);
-      // Any other refusal keeps no code: it says nothing about the URL.
-      invalidateCatalogFetchCache();
-      mockedFetch.mockResolvedValue({
-        ...listingResponse({}),
-        status: 401,
-        statusText: 'Unauthorized',
-      });
-      const refused: unknown = await getProviderCatalog(VERCEL, {
-        maxAttempts: 1,
-      }).catch((error: unknown) => error);
-      expect(refused).toBeInstanceOf(Error);
-      expect(catalogFailureCode(refused)).toBeUndefined();
     } finally {
       warn.mockRestore();
     }

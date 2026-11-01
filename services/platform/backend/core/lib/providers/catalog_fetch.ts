@@ -43,7 +43,11 @@ import {
   checkProviderHostPolicy,
   privateProviderHostsAllowed,
 } from '../../../../lib/net/host-policy';
-import { safeFetch, SafeFetchError } from '../../../../lib/net/safe-fetch';
+import {
+  safeFetch,
+  SafeFetchError,
+  type SafeFetchErrorKind,
+} from '../../../../lib/net/safe-fetch';
 import { ALLOWLIST_CATALOG_CONTEXT_WINDOW } from '../../../../lib/shared/providers/allowlist_catalog';
 import {
   normalizeCatalogPayload,
@@ -164,41 +168,83 @@ const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Why a listing URL reached a server that answered, but not with a model
- * list: a body that is not JSON (most often a web page — a gateway's
- * dashboard answers its root path) or HTTP 404. Both usually mean the base
- * URL is not the API root, so each code names that fix to whoever reads it
- * (settings shows a localized sentence per code). The server answers the
- * same way every time, so neither is retried.
+ * Why a listing failed, for the failures settings names in the reader's
+ * language (a localized sentence per code):
+ *
+ * - `PROVIDER_CATALOG_NOT_JSON`, `PROVIDER_CATALOG_NOT_FOUND`: the listing
+ *   URL reached a server that answered, but not with a model list — a body
+ *   that is not JSON (most often a web page — a gateway's dashboard answers
+ *   its root path) or HTTP 404. Both usually mean the base URL is not the
+ *   API root, so each code names that fix to whoever reads it. The server
+ *   answers the same way every time, so neither is retried.
+ * - `PROVIDER_CATALOG_KEY_REFUSED`: HTTP 401 or 403 — the endpoint refused
+ *   the key the listing carried, or wants one. Not retried either: the same
+ *   key gets the same answer.
+ * - `PROVIDER_CATALOG_UPSTREAM_ERROR`: HTTP 5xx — the endpoint failed on
+ *   its side, which the next attempt may not; retried.
+ * - `PROVIDER_CATALOG_UNREACHABLE`: no answer at all — the host does not
+ *   resolve, the connection or its TLS handshake failed, or the deadline
+ *   passed ({@link UNREACHABLE_KINDS}); retried.
+ *
+ * The message of a failure with one of the last three codes names neither
+ * the listing URL nor anything the endpoint answered — the status, or what
+ * safeFetch says of the connection — so settings shows it beside the
+ * sentence as the detail.
  */
 export type CatalogListingFailureCode =
   | 'PROVIDER_CATALOG_NOT_JSON'
-  | 'PROVIDER_CATALOG_NOT_FOUND';
+  | 'PROVIDER_CATALOG_NOT_FOUND'
+  | 'PROVIDER_CATALOG_KEY_REFUSED'
+  | 'PROVIDER_CATALOG_UPSTREAM_ERROR'
+  | 'PROVIDER_CATALOG_UNREACHABLE';
 
 export class CatalogListingError extends Error {
   readonly code: CatalogListingFailureCode;
-  constructor(code: CatalogListingFailureCode, message: string) {
+  /** Whether another attempt may get another answer: an endpoint's own
+   * failure may pass, an answer about the URL or the key does not. */
+  readonly transient: boolean;
+  constructor(
+    code: CatalogListingFailureCode,
+    message: string,
+    options: { readonly transient?: boolean } = {},
+  ) {
     super(message);
     this.name = 'CatalogListingError';
     this.code = code;
+    this.transient = options.transient ?? false;
   }
 }
 
+/** The safeFetch refusals that mean the listing got no answer at all. The
+ * others refuse the URL itself (a policy, a redirect, a size) and keep no
+ * code. */
+const UNREACHABLE_KINDS: ReadonlySet<SafeFetchErrorKind> = new Set([
+  'dns_failed',
+  'network_error',
+  'tls_error',
+  'timeout',
+]);
+
 /** The code of a listing failure that has one, for the readers that pass a
- * failure on to settings beside its message. */
+ * failure on to settings beside its message. Read off the error itself, so
+ * a remembered failure keeps its code. */
 export function catalogFailureCode(
   error: unknown,
 ): CatalogListingFailureCode | undefined {
-  return error instanceof CatalogListingError ? error.code : undefined;
+  if (error instanceof CatalogListingError) return error.code;
+  if (error instanceof SafeFetchError && UNREACHABLE_KINDS.has(error.kind)) {
+    return 'PROVIDER_CATALOG_UNREACHABLE';
+  }
+  return undefined;
 }
 
 /**
  * Fetch + parse one live listing with bounded linear-backoff retries.
  * Self-hosted instances can sit behind flaky egress, so a transient failure
  * gets a couple of retries with each attempt logged (including an explicit
- * offline hint) before the last error propagates. An answer that is not a
- * model list ({@link CatalogListingError}) is not transient and propagates
- * at once.
+ * offline hint) before the last error propagates. An answer the next
+ * attempt would get again (a {@link CatalogListingError} that is not
+ * transient: no model list, a refused key) propagates at once.
  */
 async function fetchListingPayload(
   url: string,
@@ -231,6 +277,19 @@ async function fetchListingPayload(
           `catalog fetch returned HTTP 404: ${url} lists no models`,
         );
       }
+      if (response.status === 401 || response.status === 403) {
+        throw new CatalogListingError(
+          'PROVIDER_CATALOG_KEY_REFUSED',
+          `catalog fetch returned HTTP ${response.status}`,
+        );
+      }
+      if (response.status >= 500) {
+        throw new CatalogListingError(
+          'PROVIDER_CATALOG_UPSTREAM_ERROR',
+          `catalog fetch returned HTTP ${response.status}`,
+          { transient: true },
+        );
+      }
       if (response.status < 200 || response.status >= 300) {
         throw new Error(`catalog fetch returned HTTP ${response.status}`);
       }
@@ -245,7 +304,7 @@ async function fetchListingPayload(
       console.warn(
         `[catalog] ${provider} fetch attempt ${attempt}/${maxAttempts} failed: ${message}${offlineHint}`,
       );
-      if (err instanceof CatalogListingError) break;
+      if (err instanceof CatalogListingError && !err.transient) break;
       if (attempt < maxAttempts) await sleep(RETRY_BASE_DELAY_MS * attempt);
     }
   }

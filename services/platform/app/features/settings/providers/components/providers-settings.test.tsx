@@ -368,7 +368,16 @@ describe('ProvidersSettings', () => {
     renderPage();
     // Keys are useless if we cannot tell which models the provider serves, so
     // the failure rides the row rather than a badge on a card that is gone.
-    expect(screen.getByText(/OpenRouter API unreachable/)).toBeInTheDocument();
+    // A failure without a code reads the page's sentence; its own words stay
+    // in the server's log (#5223).
+    expect(
+      screen.getByText(
+        /Model catalog unavailable: The endpoint's model listing is unavailable\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/OpenRouter API unreachable/),
+    ).not.toBeInTheDocument();
   });
 
   it('says on a subscription row that it serves tasks and automations, never chat', () => {
@@ -1047,10 +1056,14 @@ describe('ProvidersSettings', () => {
         }),
       );
       expect(await screen.findByText(/342 models/)).toBeInTheDocument();
-      // A provider absent from the catalog listing still gets named.
+      // A provider absent from the catalog listing still gets named, and a
+      // failure without a code reads the page's sentence, not its own words.
       expect(
-        screen.getByText(/vercel-ai-gateway.*gateway down/),
+        screen.getByText(
+          /vercel-ai-gateway: The endpoint's model listing is unavailable\./,
+        ),
       ).toBeInTheDocument();
+      expect(screen.queryByText(/gateway down/)).not.toBeInTheDocument();
     });
   });
 

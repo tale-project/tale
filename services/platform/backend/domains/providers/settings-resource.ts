@@ -3,6 +3,7 @@ import type { SettingsEffect } from '@tale/shared/schemas/settings-kinds';
 import { configurationHash } from '@tale/shared/utils/configuration-hash';
 
 import { isRecord } from '../../../lib/utils/type-utils.ts';
+import type { CatalogListingFailureCode } from '../../core/lib/providers/catalog_fetch.ts';
 import { loadProviderDefinitions } from '../../core/lib/providers/load_system_config.ts';
 import { loadOrgCustomProviders } from '../../core/lib/providers/org_providers.ts';
 import {
@@ -52,6 +53,27 @@ function assertProviderManager(role: string): void {
         hint: 'the role of the person whose key this is cannot make this change; an owner, admin or developer can',
       },
     );
+  }
+}
+
+/** What to do about a catalog refresh that failed, by why it failed: the
+ * one fix each coded failure points at, and both suspects when the failure
+ * has no code. */
+function catalogRefreshHint(
+  code: CatalogListingFailureCode | undefined,
+): string {
+  switch (code) {
+    case 'PROVIDER_CATALOG_NOT_JSON':
+    case 'PROVIDER_CATALOG_NOT_FOUND':
+      return "the provider's base URL answered without a model list: set it to the API root (for most gateways it ends in /v1), then refresh again";
+    case 'PROVIDER_CATALOG_KEY_REFUSED':
+      return "the provider's endpoint refused the listing or wants a key for it: check the key of the provider's default credential (kind provider-credential, ids beginning with the provider name), then refresh again";
+    case 'PROVIDER_CATALOG_UNREACHABLE':
+      return "the provider's endpoint did not answer: check that its host is right and reachable from the server, then refresh again";
+    case 'PROVIDER_CATALOG_UPSTREAM_ERROR':
+      return "the provider's endpoint answered with a server error: refresh again later";
+    case undefined:
+      return "check the provider's endpoint and its credential, then refresh again";
   }
 }
 
@@ -218,15 +240,7 @@ export const providerSettings: SettingsKindHandler = {
           throw new SettingsRefusalError(
             'CATALOG_REFRESH_FAILED',
             `the model catalog of ${name} could not be read`,
-            {
-              status: 409,
-              // A listing that answered with something other than a model
-              // list points at the base URL, not at the key.
-              hint:
-                result.errorCode === undefined
-                  ? "check the provider's endpoint and its credential, then refresh again"
-                  : "the provider's base URL answered without a model list: set it to the API root (for most gateways it ends in /v1), then refresh again",
-            },
+            { status: 409, hint: catalogRefreshHint(result.errorCode) },
           );
         }
       }

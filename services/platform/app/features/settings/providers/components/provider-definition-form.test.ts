@@ -189,21 +189,70 @@ describe('mapProviderDefinitionError', () => {
       mapProviderDefinitionError(t, failed('PROVIDER_CATALOG_NOT_FOUND')),
     ).toBe('providers.custom.errors.catalogNotFound');
     expect(
+      mapProviderDefinitionError(t, failed('PROVIDER_CATALOG_KEY_REFUSED')),
+    ).toBe('providers.custom.errors.catalogKeyRefused');
+    expect(
+      mapProviderDefinitionError(t, failed('PROVIDER_CATALOG_UPSTREAM_ERROR')),
+    ).toBe('providers.custom.errors.catalogUpstreamError');
+    expect(
+      mapProviderDefinitionError(t, failed('PROVIDER_CATALOG_UNREACHABLE')),
+    ).toBe('providers.custom.errors.catalogUnreachable');
+    expect(
       mapProviderDefinitionError(t, failed('PROVIDER_CATALOG_UNAVAILABLE')),
     ).toBe('providers.custom.errors.catalogUnavailable');
   });
 });
 
 describe('catalogFailureText', () => {
-  it('names the fix for a listing that answered without a model list, and keeps any other reason', () => {
+  it('names the fix for a listing that answered without a model list, never its words, which name the URL', () => {
     expect(
-      catalogFailureText(t, 'got text/html', 'PROVIDER_CATALOG_NOT_JSON'),
+      catalogFailureText(
+        t,
+        'catalog fetch got text/html instead of JSON from https://gw.example/models',
+        'PROVIDER_CATALOG_NOT_JSON',
+      ),
     ).toBe('providers.custom.errors.catalogNotJson');
     expect(
-      catalogFailureText(t, 'HTTP 404', 'PROVIDER_CATALOG_NOT_FOUND'),
+      catalogFailureText(
+        t,
+        'catalog fetch returned HTTP 404: https://gw.example/models lists no models',
+        'PROVIDER_CATALOG_NOT_FOUND',
+      ),
     ).toBe('providers.custom.errors.catalogNotFound');
+  });
+
+  it.each([
+    [
+      'PROVIDER_CATALOG_KEY_REFUSED',
+      'catalog fetch returned HTTP 401',
+      'providers.custom.errors.catalogKeyRefused',
+    ],
+    [
+      'PROVIDER_CATALOG_UPSTREAM_ERROR',
+      'catalog fetch returned HTTP 503',
+      'providers.custom.errors.catalogUpstreamError',
+    ],
+    [
+      'PROVIDER_CATALOG_UNREACHABLE',
+      'Request timed out after 20000ms',
+      'providers.custom.errors.catalogUnreachable',
+    ],
+  ] as const)(
+    'reads %s as its sentence, the server words after it',
+    (code, error, sentence) => {
+      expect(catalogFailureText(t, error, code)).toBe(
+        `providers.catalogs.failureDetail:${JSON.stringify({ sentence, detail: error })}`,
+      );
+    },
+  );
+
+  it('reads a failure without a code as the general sentence, never its words', () => {
     expect(
-      catalogFailureText(t, 'catalog fetch returned HTTP 401', undefined),
-    ).toBe('catalog fetch returned HTTP 401');
+      catalogFailureText(
+        t,
+        'Unexpected token \'<\', "<!doctype "... is not valid JSON',
+        undefined,
+      ),
+    ).toBe('providers.custom.errors.catalogUnavailable');
   });
 });

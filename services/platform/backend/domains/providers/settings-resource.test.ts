@@ -34,6 +34,7 @@ vi.mock('../../core/lib/providers/catalog_fetch.ts', async (original) => ({
   getProviderCatalog: catalog,
 }));
 
+import { SafeFetchError } from '../../../lib/net/safe-fetch.ts';
 import { CatalogListingError } from '../../core/lib/providers/catalog_fetch.ts';
 import type { McpCaller } from '../mcp/caller.ts';
 import { applySettings } from '../mcp/settings/apply.ts';
@@ -292,6 +293,38 @@ describe('refreshing a provider’s catalog', () => {
       code: 'CATALOG_REFRESH_FAILED',
       hint: expect.stringContaining('API root'),
     });
+
+    // Every other coded failure points at its own fix.
+    for (const [failure, fix] of [
+      [
+        new CatalogListingError(
+          'PROVIDER_CATALOG_KEY_REFUSED',
+          'catalog fetch returned HTTP 401',
+        ),
+        'default credential (kind provider-credential',
+      ],
+      [
+        new SafeFetchError('timeout', 'Request timed out after 20000ms'),
+        'reachable from the server',
+      ],
+      [
+        new CatalogListingError(
+          'PROVIDER_CATALOG_UPSTREAM_ERROR',
+          'catalog fetch returned HTTP 503',
+          { transient: true },
+        ),
+        'refresh again later',
+      ],
+    ] as const) {
+      catalog.mockRejectedValue(failure);
+      const refused = await applySettings(contextOf('admin'), registry, [act], {
+        'provider/local-chat': hash,
+      });
+      expect(refused).toMatchObject({
+        code: 'CATALOG_REFRESH_FAILED',
+        hint: expect.stringContaining(fix),
+      });
+    }
     warn.mockRestore();
   });
 });
