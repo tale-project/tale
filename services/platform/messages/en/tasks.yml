@@ -463,6 +463,9 @@ activity:
   dependencyAdded: Dependency added
   dependencyRemoved: Dependency removed
   agentRunRefused: Run refused
+  mentionHandoffStarted: Handed on by mention
+  mentionHandoffRefused: Handoff by mention refused
+  mentionHandoffDropped: Handoff by mention dropped
   repeatChanged: Repeat changed
   repeatNext: Next task created
   empty:
@@ -471,6 +474,28 @@ activity:
     description: No description
     labels: No labels
     attachments: No attachments
+  handoff:
+    no_start_grant: the agent that wrote the comment may not start agents
+    second_hop: the run that wrote the comment was started by another agent
+    confined: the run that wrote the comment may work only its own task
+    in_review: the task waits for a review
+    automation_holds_task: an automation is working the task
+    automation_disabled: task automation is off
+    task_circuit_breaker: agent runs are paused on this task
+    blocked: the task waits for the tasks it depends on
+    no_review_context: the reviewer has no review context to work in
+    agent_unavailable: agent not found or without a model
+    review_unavailable: an agent cannot start this review
+    start_refused: the agent could not be started
+    closed: the task is closed
+    archived: the task is archived
+    assigned_to_person: the task was assigned to a person
+    comment_deleted: the comment was deleted
+    already_working: the agent is already working the task
+    grant_lost: the agent that wrote the comment may no longer start agents
+    starter_lost: whoever the run answers to may no longer act here
+    review_decided: the review was decided first
+    superseded: a later comment names the same agent
 review:
   decisionApproved: "Approved"
   decisionChangesRequested: "Changes requested"

@@ -468,6 +468,9 @@ activity:
   dependencyAdded: Abhängigkeit hinzugefügt
   dependencyRemoved: Abhängigkeit entfernt
   agentRunRefused: Ausführung abgelehnt
+  mentionHandoffStarted: Per Erwähnung übergeben
+  mentionHandoffRefused: Übergabe per Erwähnung abgelehnt
+  mentionHandoffDropped: Übergabe per Erwähnung verworfen
   repeatChanged: Wiederholung geändert
   repeatNext: Nächste Aufgabe erstellt
   empty:
@@ -476,6 +479,28 @@ activity:
     description: Keine Beschreibung
     labels: Keine Labels
     attachments: Keine Anhänge
+  handoff:
+    no_start_grant: Der Agent, der den Kommentar schrieb, darf keine Agenten starten
+    second_hop: Die Ausführung, die den Kommentar schrieb, wurde von einem anderen Agenten gestartet
+    confined: Die Ausführung, die den Kommentar schrieb, darf nur ihre eigene Aufgabe bearbeiten
+    in_review: Die Aufgabe wartet auf ein Review
+    automation_holds_task: Eine Automatisierung bearbeitet die Aufgabe
+    automation_disabled: Aufgaben-Automatisierung ist aus
+    task_circuit_breaker: Agenten-Läufe sind auf dieser Aufgabe pausiert
+    blocked: Die Aufgabe wartet auf die Aufgaben, von denen sie abhängt
+    no_review_context: Der Reviewer hat keinen Review-Kontext, in dem er arbeiten kann
+    agent_unavailable: Agent nicht gefunden oder ohne Modell
+    review_unavailable: Ein Agent kann dieses Review nicht starten
+    start_refused: Der Agent konnte nicht gestartet werden
+    closed: Die Aufgabe ist geschlossen
+    archived: Die Aufgabe ist archiviert
+    assigned_to_person: Die Aufgabe wurde einer Person zugewiesen
+    comment_deleted: Der Kommentar wurde gelöscht
+    already_working: Der Agent bearbeitet die Aufgabe bereits
+    grant_lost: Der Agent, der den Kommentar schrieb, darf keine Agenten mehr starten
+    starter_lost: Wem die Ausführung untersteht, darf hier nicht mehr handeln
+    review_decided: Das Review wurde vorher entschieden
+    superseded: Ein späterer Kommentar nennt denselben Agenten
 review:
   decisionApproved: "Freigegeben"
   decisionChangesRequested: "Änderungen angefordert"

@@ -214,6 +214,8 @@ export function workspaceWriteShimHandlers(sql: Sql): ShimHandlers {
         taskId: string;
         body: string;
         bodyByLocale?: Record<string, string>;
+        sessionId?: string;
+        taskRunExecId?: string;
       };
       // The bridge already resolved WRITE authority (a project-bound
       // session); this writer is the trusted lower half, so it runs with an
@@ -238,6 +240,15 @@ export function workspaceWriteShimHandlers(sql: Sql): ShimHandlers {
                 ? { bodyByLocale: args.bodyByLocale }
                 : {}),
               author: { actorType: 'agent', actorId: args.actorId },
+              ...(args.sessionId !== undefined &&
+              args.taskRunExecId !== undefined
+                ? {
+                    handoffFrom: {
+                      sessionId: args.sessionId,
+                      execId: args.taskRunExecId,
+                    },
+                  }
+                : {}),
             },
           );
           return { messageId, threadId, mentionCount: 0 };

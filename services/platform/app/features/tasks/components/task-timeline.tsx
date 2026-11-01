@@ -52,6 +52,7 @@ import {
 import {
   TASK_ACTIVITY_FIELD,
   TASK_ACTIVITY_LABEL_KEY,
+  TASK_HANDOFF_REASON_LABEL_KEY,
   TASK_PRIORITY_LABEL_KEY,
   TASK_RUN_REFUSAL_LABEL_KEY,
   isTaskStatus,
@@ -298,6 +299,7 @@ function activityIcon(action: string, kind: string | undefined): LucideIcon {
     case 'repeat':
       return Repeat;
     case 'refusal':
+    case 'handoff':
       return Ban;
     case 'text':
       return action === 'repeat.next' ? Repeat : PenLine;
@@ -580,6 +582,10 @@ function TaskTimelineEntryContent({
       }
       case 'refusal': {
         const key = TASK_RUN_REFUSAL_LABEL_KEY[value];
+        return key ? t(key) : value;
+      }
+      case 'handoff': {
+        const key = TASK_HANDOFF_REASON_LABEL_KEY[value];
         return key ? t(key) : value;
       }
       default:
