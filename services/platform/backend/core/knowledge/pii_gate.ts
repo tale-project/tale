@@ -41,6 +41,16 @@
  *   are numbered per scanned window, not per document — one address can be
  *   `[EMAIL_1]` in one window and `[EMAIL_2]` in the next — so they are
  *   placeholders, never a document-wide identity.
+ *
+ * ## A text the policy cannot scan is not indexed
+ *
+ * In every mode, under an enabled policy: when the policy's scrubber cannot
+ * be built, and when a part of the text could not be scanned whole. Indexed
+ * as it is, that text would carry what the policy exists to keep out —
+ * the value `mask` should have masked, the document `block` should have
+ * refused — to the embedding provider and into the index. The caller fails
+ * the document with a cause of its own, apart from a detection, and saving
+ * the policy queues it again.
  */
 
 import { piiConfigSchema, type PiiConfig } from '@tale/shared/schemas/pii';
@@ -51,9 +61,17 @@ import {
   type Scrubber,
 } from '../../../lib/pii';
 
+/**
+ * Why the policy could not scan a text: `unavailable` — its scrubber cannot
+ * be built; `incomplete` — a part of the text could not be scanned whole.
+ */
+export type PiiScanFailure = 'unavailable' | 'incomplete';
+
 export type PiiIngestDecision =
   | { readonly kind: 'index'; readonly text: string }
-  | { readonly kind: 'refuse'; readonly categoryIds: readonly string[] };
+  | { readonly kind: 'refuse'; readonly categoryIds: readonly string[] }
+  /** Not scanned, so not indexed — in every mode. */
+  | { readonly kind: 'unscanned'; readonly cause: PiiScanFailure };
 
 /**
  * Parse a stored policy record. A malformed or absent policy reads as "no
@@ -111,13 +129,16 @@ function policyKey(config: PiiConfig): string {
 }
 
 /**
- * The scrubber for a policy — cached per distinct policy — or null when the
- * policy is disabled or its scrubber cannot be built. A failure is not
- * cached: it is reported once per policy at error level (a missing data
- * tree is a packaging defect, not a per-document event) and construction is
- * retried on the next document, so a repaired tree heals without a restart.
+ * The scrubber for a policy — cached per distinct policy — null when the
+ * policy is disabled, or `'unavailable'` when its scrubber cannot be built.
+ * A failure is not cached: it is reported once per policy at error level (a
+ * missing data tree is a packaging defect, not a per-document event) and
+ * construction is retried on the next document, so a repaired tree heals
+ * without a restart.
  */
-export function scrubberForPolicy(config: PiiConfig): Scrubber | null {
+export function scrubberForPolicy(
+  config: PiiConfig,
+): Scrubber | null | 'unavailable' {
   const key = policyKey(config);
   const cached = scrubberCache.get(key);
   if (cached !== undefined) return cached;
@@ -128,19 +149,21 @@ export function scrubberForPolicy(config: PiiConfig): Scrubber | null {
   } catch (error) {
     // `createScrubber` throws only on a programmer error or a missing data
     // tree, and the governance resolver filters the usual trigger (an
-    // unknown locale code) before it gets here. Failing the index would take
-    // an organization's whole corpus offline over a governance typo, so it
-    // degrades to today's behaviour and says so — once.
+    // unknown locale code) before it gets here. Indexing unscrubbed would
+    // hand what the policy keeps out to the embedding provider and the
+    // index, so every document under this policy is refused until the
+    // scrubber builds — and the fault is said once per policy, not once per
+    // document.
     if (!reportedFailures.has(key)) {
       evictToLimit(reportedFailures);
       reportedFailures.add(key);
       console.error(
-        `[pii-gate] scrubber construction failed, indexing unscrubbed until it succeeds: ${
+        `[pii-gate] scrubber construction failed, refusing to index under this policy until it succeeds: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );
     }
-    return null;
+    return 'unavailable';
   }
   reportedFailures.delete(key);
 
@@ -152,8 +175,9 @@ export function scrubberForPolicy(config: PiiConfig): Scrubber | null {
 /**
  * Apply a policy to text bound for the index.
  *
- * Returns the text to index, masked where the policy says so, or a refusal
- * carrying the categories that matched. No policy, a disabled policy, or a
+ * Returns the text to index, masked where the policy says so; a refusal
+ * carrying the categories that matched; or `unscanned` when the policy could
+ * not scan the text, whatever its mode. No policy, a disabled policy, or a
  * clean scan all return the text unchanged.
  */
 export function applyPiiPolicyForIndexing(
@@ -164,6 +188,9 @@ export function applyPiiPolicyForIndexing(
 
   const scrubber = scrubberForPolicy(config);
   if (scrubber === null) return { kind: 'index', text };
+  if (scrubber === 'unavailable') {
+    return { kind: 'unscanned', cause: 'unavailable' };
+  }
 
   // The scrubber is built WITH the policy's mode, so it answers `blocked` under
   // `block` and `modified` under `mask`/`tokenize`. Re-reading `config.mode`
@@ -187,12 +214,12 @@ export function applyPiiPolicyForIndexing(
     case 'blocked':
       return { kind: 'refuse', categoryIds: outcome.categoryIds };
     default:
-      // A step error. The scan is fail-open by design, so this indexes as it
-      // would have before the policy existed — and says so, because a
-      // document indexed unscanned is a governance fact, not a quiet default.
-      console.warn(
-        `[pii-gate] scan failed (${outcome.reason}); indexing unscrubbed`,
-      );
-      return { kind: 'index', text };
+      // A step error: a part of the text was not scanned whole, and what it
+      // holds is unknown — even when every other part was masked, the
+      // masked text would present that part as scanned. Not indexed in any
+      // mode, and said per text with the engine's log-safe reason, never
+      // the text.
+      console.warn(`[pii-gate] scan failed (${outcome.reason}); not indexed`);
+      return { kind: 'unscanned', cause: 'incomplete' };
   }
 }

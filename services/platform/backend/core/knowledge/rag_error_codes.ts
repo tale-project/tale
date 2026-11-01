@@ -68,6 +68,13 @@ export const RAG_ERROR_SECRET_DETECTED = 'secret_detected';
  * lifted by an admin changing the policy. */
 export const RAG_ERROR_PII_BLOCKED = 'pii_blocked';
 
+/** The organization's PII policy could not scan the document — its
+ * protection could not be started, or a part of the text could not be
+ * scanned whole — so it is not indexed, in any mode. Fails closed rather
+ * than indexing text the policy never saw; queued again when an admin saves
+ * the PII policy, or by Retry indexing. */
+export const RAG_ERROR_PII_SCAN_FAILED = 'pii_scan_failed';
+
 /** A usage limit that binds whoever the indexing is for — the uploader, a
  * synced drive's owner, nobody for an emailed attachment — has too little
  * room for its embedding requests. Parked, not failed for good: indexing
@@ -89,6 +96,7 @@ export const RAG_ERROR_CODES = [
   RAG_ERROR_MALFORMED,
   RAG_ERROR_SECRET_DETECTED,
   RAG_ERROR_PII_BLOCKED,
+  RAG_ERROR_PII_SCAN_FAILED,
   RAG_ERROR_EMBEDDING_NOT_CONFIGURED,
   RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
   RAG_ERROR_EMBEDDING_UPSTREAM,

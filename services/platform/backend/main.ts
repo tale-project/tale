@@ -162,10 +162,11 @@ async function main(): Promise<void> {
   await bootDefaultKnowledge(sql, { bootstrapSchema: env.ROLE !== 'api' });
   // The PII data tree is a packaging fact, not a tenant one: every role
   // that can enforce a `pii_config` policy (indexing on workers, chat turns
-  // on the api) needs it, and a missing tree would otherwise surface only as
-  // a per-document warning at the first policy hit. Probe it once here so
-  // an image built without it says so at boot. Never fails boot — the
-  // gate itself degrades to today's behaviour.
+  // on the api) needs it, and a missing tree would otherwise surface only
+  // at the first policy hit. Probe it once here so an image built without
+  // it says so at boot. Never fails boot — until the tree is back, the
+  // indexing gate refuses every document under an enabled policy
+  // (`pii_scan_failed`), and a save of the policy queues them again.
   try {
     PatternRegistry.fromDefaults();
   } catch (error: unknown) {

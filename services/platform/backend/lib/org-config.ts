@@ -58,7 +58,10 @@ export function orgAdapterShimHandlers(sql: Sql): ShimHandlers {
  * replica mounts the same config volume (RWX in K8s).
  */
 
-const CACHE_TTL_MS = 15_000;
+/** How long a process keeps what it read of an organization's config files.
+ * Replicas cache apart: a save in one reaches the readers of another at
+ * most this late. */
+export const ORG_CONFIG_CACHE_TTL_MS = 15_000;
 const MAX_POLICY_FILE_BYTES = 256 * 1024;
 
 interface CacheEntry<T> {
@@ -86,7 +89,7 @@ export async function resolveOrgSlug(
   options: { fresh?: boolean } = {},
 ): Promise<string | null> {
   const cached = options.fresh ? undefined : slugCache.get(organizationId);
-  if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
+  if (cached && Date.now() - cached.at < ORG_CONFIG_CACHE_TTL_MS) {
     return cached.value;
   }
   const rows = await sql<{ slug: string | null }[]>`
@@ -151,7 +154,7 @@ export async function readGovernancePolicy<T extends FilePolicyType>(
   const cacheKey = `${orgSlug}\0${policyType}`;
   const cached =
     options.fresh || options.strict ? undefined : policyCache.get(cacheKey);
-  if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
+  if (cached && Date.now() - cached.at < ORG_CONFIG_CACHE_TTL_MS) {
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- cache stores exactly what this function computed for this key
     return cached.value as ReturnType<
       (typeof POLICY_SCHEMAS)[T]['parse']

@@ -1,13 +1,17 @@
 // @vitest-environment node
 
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { PII_SCAN_FAILED_REASONS } from '../../core/knowledge/indexing.ts';
 import {
   RAG_ERROR_EMBEDDING_NOT_CONFIGURED,
   RAG_ERROR_EMBEDDING_PROVIDER_REFUSED,
   RAG_ERROR_EMBEDDING_UPSTREAM,
+  RAG_ERROR_PII_BLOCKED,
+  RAG_ERROR_PII_SCAN_FAILED,
   RAG_ERROR_SECRET_DETECTED,
 } from '../../core/knowledge/rag_error_codes.ts';
+import { ORG_CONFIG_CACHE_TTL_MS } from '../../lib/org-config.ts';
 
 /**
  * Configuring an embedding model has to fix the documents that failed for
@@ -53,8 +57,11 @@ vi.mock('../../realtime/outbox.ts', async (importOriginal) => ({
   emitHintInTx,
 }));
 
-const { requeueDocumentsWithoutVectors, requeueEmbeddingBlockedDocuments } =
-  await import('./service.ts');
+const {
+  requeueDocumentsWithoutVectors,
+  requeueEmbeddingBlockedDocuments,
+  requeuePiiScanFailedDocuments,
+} = await import('./service.ts');
 const { HELD_BY_DOCUMENT_SQL } = await import('./status-hints.ts');
 
 interface ReturnedRow {
@@ -349,5 +356,108 @@ describe('requeueDocumentsWithoutVectors', () => {
       args.find((arg): arg is string[] => Array.isArray(arg)),
     );
     expect(batches.map((batch) => batch?.length)).toEqual([200, 200, 50]);
+  });
+});
+
+describe('requeuePiiScanFailedDocuments', () => {
+  const ORG = { organizationId: 'org-1', orgSlug: 'acme' };
+  const BODY = '9e8d7c6b-5a49-4382-9170-6f5e4d3c2b1a';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    addJobInTx.mockResolvedValue(undefined);
+    emitHintInTx.mockResolvedValue(undefined);
+    corpus.unsafe.mockResolvedValue([]);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('re-queues the files the policy could not scan, and only those [KNOW-R9]', async () => {
+    const { sql, statements, values } = fakeSql([doc('f1'), attachment('f2')]);
+
+    const out = await requeuePiiScanFailedDocuments(sql, ORG);
+
+    expect(out).toEqual({ requeued: 2 });
+    // A detection (`pii_blocked`) is the policy doing its work: a save never
+    // retries it, nor a file that failed for another reason or opted out.
+    expect(statements[0]).toContain("fm.rag_status = 'failed'");
+    expect(statements[0]).toContain('fm.rag_error_code = ?');
+    expect(statements[0]).toContain('skip_rag_indexing IS DISTINCT FROM true');
+    expect(values[0]).toContain('org-1');
+    expect(values[0]).toContain(RAG_ERROR_PII_SCAN_FAILED);
+    expect(values[0]).not.toContain(RAG_ERROR_PII_BLOCKED);
+    expect(
+      addJobInTx.mock.calls.map(([, name, payload]) => [name, payload]),
+    ).toEqual([
+      ['rag.index_file', { fileId: 'f1' }],
+      ['rag.index_file', { fileId: 'f2' }],
+    ]);
+    expect(emitHintInTx).toHaveBeenCalledTimes(1);
+  });
+
+  // An email body has no file row to carry a code: its corpus row is found
+  // by the sentence its refusal stored, and its own job is queued.
+  it('re-queues an email body it could not scan through the message job [KNOW-R9]', async () => {
+    corpus.unsafe.mockResolvedValue([{ ref: `msg:${BODY}` }]);
+    const { sql } = fakeSql([]);
+
+    const out = await requeuePiiScanFailedDocuments(sql, ORG);
+
+    expect(out).toEqual({ requeued: 1 });
+    const [text, params] = corpus.unsafe.mock.calls[0] ?? [];
+    expect(text).toContain("status = 'failed'");
+    expect(params).toEqual([
+      'acme',
+      'msg:%',
+      Object.values(PII_SCAN_FAILED_REASONS),
+    ]);
+    expect(
+      addJobInTx.mock.calls.map(([, name, payload]) => [name, payload]),
+    ).toEqual([['rag.index_message', { messageId: BODY }]]);
+  });
+
+  it('waits out the policy cache before any job runs [KNOW-R9]', async () => {
+    // A replica still holding the policy from before the save would scan
+    // with it, and could refuse the document again.
+    vi.useFakeTimers({
+      now: new Date('2026-10-31T12:00:00Z'),
+      toFake: ['Date'],
+    });
+    corpus.unsafe.mockResolvedValue([{ ref: `msg:${BODY}` }]);
+    const { sql } = fakeSql([doc('f1')]);
+
+    await requeuePiiScanFailedDocuments(sql, ORG);
+
+    const startAfter = new Date(
+      Date.parse('2026-10-31T12:00:00Z') + ORG_CONFIG_CACHE_TTL_MS,
+    );
+    expect(addJobInTx.mock.calls.map(([, , , options]) => options)).toEqual([
+      { startAfter },
+      { startAfter },
+    ]);
+  });
+
+  it('queues many email bodies in bounded transactions', async () => {
+    corpus.unsafe.mockResolvedValue(
+      Array.from({ length: 450 }, (_value, index) => ({
+        ref: `msg:${BODY.slice(0, -3)}${String(index).padStart(3, '0')}`,
+      })),
+    );
+    const fake = fakeSql([]);
+    const begin = vi.spyOn(
+      fake.sql as unknown as {
+        begin: (fn: (tx: unknown) => Promise<unknown>) => Promise<unknown>;
+      },
+      'begin',
+    );
+
+    const out = await requeuePiiScanFailedDocuments(fake.sql, ORG);
+
+    expect(out).toEqual({ requeued: 450 });
+    // The files' transaction, then 200 + 200 + 50 bodies.
+    expect(begin).toHaveBeenCalledTimes(4);
+    expect(addJobInTx).toHaveBeenCalledTimes(450);
   });
 });

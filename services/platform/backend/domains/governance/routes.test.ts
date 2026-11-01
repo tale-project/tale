@@ -32,6 +32,7 @@ const {
   mayCreateApiKeys,
   restoreSoftDeletedRow,
   syncRagDocumentScope,
+  requeuePiiScanFailedDocuments,
   recordUnusedWorkspaceRule,
   projectChatAccess,
   readInFlightReservations,
@@ -50,6 +51,7 @@ const {
   mayCreateApiKeys: vi.fn(),
   restoreSoftDeletedRow: vi.fn(),
   syncRagDocumentScope: vi.fn(),
+  requeuePiiScanFailedDocuments: vi.fn(),
   recordUnusedWorkspaceRule: vi.fn(),
   projectChatAccess: vi.fn(),
   readInFlightReservations: vi.fn(async () => ({})),
@@ -81,6 +83,7 @@ vi.mock('./trash.ts', async (importOriginal) => ({
 vi.mock('../knowledge/service.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../knowledge/service.ts')>()),
   syncRagDocumentScope,
+  requeuePiiScanFailedDocuments,
 }));
 vi.mock('../chat/threads.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../chat/threads.ts')>()),
@@ -227,6 +230,7 @@ beforeEach(() => {
   createAuditLog.mockResolvedValue(undefined);
   emitHintInTx.mockResolvedValue(undefined);
   writeGovernancePolicyFile.mockResolvedValue(undefined);
+  requeuePiiScanFailedDocuments.mockResolvedValue({ requeued: 0 });
 });
 
 describe('POST /policies/:policyType — write order', () => {
@@ -376,6 +380,66 @@ describe('POST /policies/sandbox_workspaces — the rule takes effect with the s
       maxRenderSessionsPerOrg: 2,
     });
     expect(recordUnusedWorkspaceRule).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /policies/pii_config — the documents it could not scan', () => {
+  const PII_POLICY = {
+    enabled: true,
+    mode: 'block',
+    enabledPatterns: ['email'],
+  };
+
+  it('queues them again after the save commits, also when nothing changed [KNOW-R9]', async () => {
+    const order: string[] = [];
+    writeGovernancePolicyFile.mockImplementation(async () => {
+      order.push('file');
+    });
+    requeuePiiScanFailedDocuments.mockImplementation(async () => {
+      order.push('requeue');
+      return { requeued: 2 };
+    });
+    readGovernancePolicyForOrg.mockResolvedValue(PII_POLICY);
+
+    // The same policy as on disk: an admin's way to say "try again".
+    const response = await post('/policies/pii_config?orgId=o1', PII_POLICY);
+
+    expect(response.status).toBe(200);
+    expect(requeuePiiScanFailedDocuments).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: 'o1', orgSlug: 'acme' },
+    );
+    expect(order).toEqual(['file', 'requeue']);
+  });
+
+  it('keeps the save when the re-queue fails [KNOW-R9]', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    requeuePiiScanFailedDocuments.mockRejectedValue(new Error('pool down'));
+
+    const response = await post('/policies/pii_config?orgId=o1', PII_POLICY);
+
+    expect(response.status).toBe(200);
+    expect(writeGovernancePolicyFile).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('pool down'), {
+      organizationId: 'o1',
+    });
+    warn.mockRestore();
+  });
+
+  it('queues nothing for another policy, nor for a refused save', async () => {
+    expect(
+      (
+        await post('/policies/pii_config?orgId=o1', {
+          ...PII_POLICY,
+          mode: 'shred',
+        })
+      ).status,
+    ).toBe(400);
+    await post('/policies/sandbox_workspaces?orgId=o1', {
+      deleteUnused: true,
+      unusedDays: 7,
+    });
+    expect(requeuePiiScanFailedDocuments).not.toHaveBeenCalled();
   });
 });
 

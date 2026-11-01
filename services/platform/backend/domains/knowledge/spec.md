@@ -148,6 +148,7 @@ its indexing status says what happened, with a code (`indexing.errorCode` on the
 | The file's reader reports it as damaged | Not supported | `malformed` |
 | A credential was recognised in the file | Failed | `secret_detected` |
 | PII protection blocks the file | Failed | `pii_blocked` |
+| PII protection could not scan the file | Failed | `pii_scan_failed` |
 
 ### KNOW-R7 · A file whose text cannot be read is marked Not supported and is not retried
 
@@ -180,15 +181,27 @@ stored name pass through it first. In **Mask** mode, and in **Tokenize** mode, e
 value is replaced by a placeholder, so it reaches neither the embedding provider nor the
 index. In **Block** mode a document with a detected value is refused: its status is Failed
 with the code `pii_blocked`, and the reason names the kind of data, not the value. With PII
-protection off, text is indexed as it is. There is one exception: when the protection cannot
-be started for a policy, documents are indexed unmasked and the fault is reported once in the
-platform log.
+protection off, text is indexed as it is.
+
+A document the protection cannot scan is not indexed, in any mode: when the protection cannot
+be started for the policy, or when a part of the document (its text, its title or its stored
+name) cannot be scanned whole. Its status is Failed with the code `pii_scan_failed`, and the
+reason says that the document could not be scanned, never what it holds. A detected value
+comes first: in **Block** mode a document that holds one is `pii_blocked`, even when another
+part of it could not be scanned. The platform log reports a protection that cannot be started
+once per policy, and a part that cannot be scanned once per document. Such a document is not
+tried again on its own. Every save of the PII policy, also one that changes nothing, queues
+each `pii_scan_failed` document again, and **Retry indexing** queues one.
 
 - **Example**: The organization masks email addresses. Noah uploads a letter that contains
   `ada@example.com` → the letter is indexed with the address replaced by a placeholder. A
   search finds the letter by its other words, and no passage shows the address.
 - **Example**: The mode is changed to **Block** and Noah uploads the letter again → it shows
   **Failed** (`pii_blocked`), and nothing of it is indexed.
+- **Example**: The platform runs without the data its PII protection loads, so the protection
+  cannot be started. Mia uploads a CV under the **Mask** policy → it shows **Failed**
+  (`pii_scan_failed`), and nothing of it is indexed. Once the data is back, an admin saves the
+  PII policy → the CV is indexed with its addresses masked.
 
 ## When the embedding model is missing or fails
 

@@ -42,6 +42,7 @@ import { KnowledgeIndexUnavailable } from '../../core/knowledge/index_health.ts'
 import {
   indexWholeDocument,
   markCorpusIndexingFailed,
+  PII_SCAN_FAILED_REASONS,
 } from '../../core/knowledge/indexing.ts';
 import { parsePiiConfig } from '../../core/knowledge/pii_gate.ts';
 import {
@@ -58,6 +59,7 @@ import {
   RAG_ERROR_MALFORMED,
   RAG_ERROR_NOT_TEXT,
   RAG_ERROR_PII_BLOCKED,
+  RAG_ERROR_PII_SCAN_FAILED,
   RAG_ERROR_SECRET_DETECTED,
   RAG_ERROR_UNSUPPORTED_TYPE,
   RAG_ERROR_USAGE_LIMIT,
@@ -91,6 +93,7 @@ import { addJobInTx } from '../../jobs/enqueue.ts';
 import { createCtxShim, type ShimHandlers } from '../../lib/ctx-shim.ts';
 import { locateOrgObjectStore } from '../../lib/object-store.ts';
 import {
+  ORG_CONFIG_CACHE_TTL_MS,
   orgAdapterShimHandlers,
   readGovernancePolicy,
   resolveOrgSlug,
@@ -1346,17 +1349,22 @@ export async function indexUploadedFile(
     }
     if (
       result.skipped === 'secret-detected' ||
-      result.skipped === 'pii-blocked'
+      result.skipped === 'pii-blocked' ||
+      result.skipped === 'pii-scan-failed'
     ) {
       // A policy refusal, not a fault: `failed` with its code, so a retry
-      // after the policy or the file changes is meaningful.
+      // after the policy or the file changes is meaningful. A scan the PII
+      // policy could not run is refused the same way — never indexed
+      // unscanned — and saving the policy queues it again.
       await writeRagStatus(sql, fileId, {
         ragStatus: 'failed',
         ragError: result.refusal ?? `Indexing refused (${result.skipped}).`,
         ragErrorCode:
           result.skipped === 'secret-detected'
             ? RAG_ERROR_SECRET_DETECTED
-            : RAG_ERROR_PII_BLOCKED,
+            : result.skipped === 'pii-blocked'
+              ? RAG_ERROR_PII_BLOCKED
+              : RAG_ERROR_PII_SCAN_FAILED,
       });
       return;
     }
@@ -1573,9 +1581,10 @@ export async function requeueEmbeddingBlockedDocuments(
   });
 }
 
-/** Refs per transaction of {@link requeueDocumentsWithoutVectors} — bounded
- * work per lock hold. */
-const VECTORLESS_REQUEUE_BATCH = 200;
+/** Refs per transaction of the corpus re-queues
+ * ({@link requeueDocumentsWithoutVectors},
+ * {@link requeuePiiScanFailedDocuments}) — bounded work per lock hold. */
+const REQUEUE_BATCH = 200;
 
 /**
  * Re-queue everything the organization has indexed that has no vector of the
@@ -1624,13 +1633,9 @@ export async function requeueDocumentsWithoutVectors(
   );
 
   let requeued = 0;
-  for (
-    let start = 0;
-    start < lacking.length;
-    start += VECTORLESS_REQUEUE_BATCH
-  ) {
+  for (let start = 0; start < lacking.length; start += REQUEUE_BATCH) {
     const refs = lacking
-      .slice(start, start + VECTORLESS_REQUEUE_BATCH)
+      .slice(start, start + REQUEUE_BATCH)
       .map((row) => row.ref);
     // An email body is a message, not a file row: its job is its own.
     const messageIds = refs.flatMap((ref) => parseMessageRef(ref) ?? []);
@@ -1665,6 +1670,90 @@ export async function requeueDocumentsWithoutVectors(
     });
   }
   return { requeued };
+}
+
+/**
+ * Re-queue every document the organization's PII policy could not scan — its
+ * scrubber could not be built, or a part of the text could not be scanned
+ * whole (`pii_scan_failed`). Run by every save of the PII policy, an
+ * unchanged one included: the save is how an admin says "try again" once
+ * the platform can scan, and a changed policy may scan what the old one
+ * could not.
+ *
+ * Files are found by their code, as in
+ * {@link requeueEmbeddingBlockedDocuments}. An email body has no file row to
+ * carry one: its corpus row is found by the fixed sentence its refusal
+ * stored (`PII_SCAN_FAILED_REASONS`), and its own job is queued, as in
+ * {@link requeueDocumentsWithoutVectors}. A document the policy refused for
+ * what it detected (`pii_blocked`), or one that failed for any other reason,
+ * is left alone.
+ *
+ * The jobs wait out the org-config cache (`ORG_CONFIG_CACHE_TTL_MS`): the
+ * indexer reads the policy through it, and a replica that ran one at once
+ * could still scan with the policy from before the save and refuse the
+ * document again. Each batch's flips and enqueues share ONE transaction, and
+ * the jobs run at DEFAULT priority, as in the embedding re-queue.
+ */
+export async function requeuePiiScanFailedDocuments(
+  sql: Sql,
+  args: { organizationId: string; orgSlug: string },
+): Promise<{ requeued: number }> {
+  const startAfter = new Date(Date.now() + ORG_CONFIG_CACHE_TTL_MS);
+  const files = await sql.begin(async (tx) => {
+    const rows = await tx<({ id: string } & MovedStatusRow)[]>`
+      UPDATE app.file_metadata fm SET
+        rag_status = 'queued',
+        rag_queued_at_ms = ${Date.now()},
+        rag_error = NULL,
+        rag_error_code = NULL
+      WHERE fm.org_id = ${args.organizationId}
+        AND fm.rag_status = 'failed'
+        AND fm.rag_error_code = ${RAG_ERROR_PII_SCAN_FAILED}
+        AND fm.skip_rag_indexing IS DISTINCT FROM true
+      RETURNING fm.id, fm.org_id AS "orgId",
+                ${tx.unsafe(HELD_BY_DOCUMENT_SQL)} AS "listed"
+    `;
+    for (const row of rows) {
+      await addJobInTx(
+        tx,
+        'rag.index_file',
+        { fileId: row.id },
+        { startAfter },
+      );
+    }
+    await hintDocumentLists(tx, rows);
+    return rows.length;
+  });
+
+  const pool = await getKnowledgePoolForOrg(args.orgSlug);
+  const bodies = await pool.unsafe<{ ref: string }[]>(
+    `SELECT file_id AS ref
+       FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.documents
+      WHERE org_slug = $1 AND status = 'failed'
+        AND file_id LIKE $2
+        AND error = ANY($3::text[])
+      ORDER BY file_id`,
+    [
+      args.orgSlug,
+      MESSAGE_REF_LIKE_PATTERN,
+      Object.values(PII_SCAN_FAILED_REASONS),
+    ],
+  );
+  const messageIds = bodies.flatMap(({ ref }) => parseMessageRef(ref) ?? []);
+  for (let start = 0; start < messageIds.length; start += REQUEUE_BATCH) {
+    const batch = messageIds.slice(start, start + REQUEUE_BATCH);
+    await sql.begin(async (tx) => {
+      for (const messageId of batch) {
+        await addJobInTx(
+          tx,
+          'rag.index_message',
+          { messageId },
+          { startAfter },
+        );
+      }
+    });
+  }
+  return { requeued: files + messageIds.length };
 }
 
 /**
