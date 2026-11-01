@@ -1198,6 +1198,10 @@ competences:
   revokedWithTeam: Révoquée à la suppression de l'équipe
   teamBadge: Équipe
   deletedTeam: Équipe supprimée
+  searchPlaceholder: Rechercher des attributions
+  entityLabelOne: attribution
+  entityLabel: attributions
+  refreshFailed: Impossible de charger les dernières attributions. La liste est peut-être incomplète ou obsolète.
   columns:
     member: Membre ou équipe
     competence: Droit ou qualification
