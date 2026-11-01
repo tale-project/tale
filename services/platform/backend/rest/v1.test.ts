@@ -88,6 +88,9 @@ function fakeSql(
     keyOwners?: Record<string, object>;
     /** Member roles by user id; anyone else a member is a `member`. */
     roles?: Record<string, string>;
+    /** The personal keys organizations blocked, as `<org id>|<key id>`
+     * (`app.api_key_org_blocks`); a listed org's slug is its id. */
+    blocked?: Set<string>;
   } = {},
 ): {
   sql: Sql;
@@ -118,6 +121,22 @@ function fakeSql(
     if (text.includes('FROM app.api_key_owners WHERE api_key_id')) {
       const owner = world.keyOwners?.[String(values[0])];
       return Promise.resolve(owner === undefined ? [] : [owner]);
+    }
+    if (text.startsWith('SELECT 1 AS one FROM app.api_key_org_blocks')) {
+      const [organizationId, keyId] = values;
+      return Promise.resolve(
+        world.blocked?.has(`${String(organizationId)}|${String(keyId)}`)
+          ? [{ one: 1 }]
+          : [],
+      );
+    }
+    if (text.startsWith('SELECT o."slug" FROM app.api_key_org_blocks')) {
+      const [keyId] = values;
+      return Promise.resolve(
+        [...(world.blocked ?? [])]
+          .filter((block) => block.endsWith(`|${String(keyId)}`))
+          .map((block) => ({ slug: block.split('|')[0] })),
+      );
     }
     if (text.includes('FROM "member" WHERE "userId"')) {
       return Promise.resolve(
@@ -817,6 +836,107 @@ describe('/api/v1 door — an organization that turned members’ own keys off',
     );
     expect(res.status).toBe(403);
     expect(await res.json()).toMatchObject({ code: 'ORG_FORBIDDEN' });
+  });
+});
+
+/**
+ * APIKEY-R11: an Owner or Admin can block a member's own key in their
+ * organization. The door refuses it there, and there only: the same key
+ * still opens the holder's other organizations, and opens this one again
+ * once the block is lifted.
+ */
+describe('/api/v1 door — a personal key an organization blocked', () => {
+  const orgs = {
+    'org-1': { id: 'org-1', slug: 'org-1' },
+    'org-2': { id: 'org-2', slug: 'org-2' },
+    'org-3': { id: 'org-3', slug: 'org-3' },
+  };
+
+  it('refuses it in the organization that blocked it, listing where it still works [APIKEY-R11]', async () => {
+    const { sql } = fakeSql(new Set(), {
+      organizations: orgs,
+      memberOf: new Set(['org-1', 'org-2', 'org-3']),
+      blocked: new Set(['org-1|key-1', 'org-3|key-1', 'org-2|key-9']),
+    });
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': 'org-1' }),
+    );
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error:
+        'Organization "org-1" has blocked this API key; it works only in the organizations listed.',
+      code: 'API_KEY_BLOCKED',
+      data: { organizations: [{ slug: 'org-2', name: 'Org org-2' }] },
+    });
+  });
+
+  it('lets the same key into the holder’s other organization [APIKEY-R11]', async () => {
+    const { sql } = fakeSql(new Set(), {
+      organizations: orgs,
+      memberOf: new Set(['org-1', 'org-2']),
+      blocked: new Set(['org-1|key-1']),
+    });
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': 'org-2' }),
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      userId: 'user-1',
+      apiKeyId: 'key-1',
+    });
+  });
+
+  it('lets it in again once the block is lifted [APIKEY-R11]', async () => {
+    const blocked = new Set(['org-1|key-1']);
+    const { sql } = fakeSql(new Set(), {
+      organizations: orgs,
+      memberOf: new Set(['org-1', 'org-2']),
+      blocked,
+    });
+    const { auth } = fakeAuth();
+    const app = door(sql, auth);
+    const call = () =>
+      app.request(
+        'http://localhost/probe',
+        bearer(GOOD_KEY, { 'x-organization-slug': 'org-1' }),
+      );
+    expect((await call()).status).toBe(403);
+    blocked.delete('org-1|key-1');
+    expect((await call()).status).toBe(200);
+  });
+
+  it('lists no organization where the key is refused another way [APIKEY-R11]', async () => {
+    // Blocked in org-1, while org-2 turned members' own keys off: each
+    // refusal lists only org-3, where the key still works.
+    personalKeysPolicies.set('org-2', { enabled: false });
+    const { sql } = fakeSql(new Set(), {
+      organizations: orgs,
+      memberOf: new Set(['org-1', 'org-2', 'org-3']),
+      blocked: new Set(['org-1|key-1']),
+    });
+    const { auth } = fakeAuth();
+    const app = door(sql, auth);
+    const call = (slug: string) =>
+      app.request(
+        'http://localhost/probe',
+        bearer(GOOD_KEY, { 'x-organization-slug': slug }),
+      );
+    const blockedHere = await call('org-1');
+    expect(blockedHere.status).toBe(403);
+    expect(await blockedHere.json()).toMatchObject({
+      code: 'API_KEY_BLOCKED',
+      data: { organizations: [{ slug: 'org-3', name: 'Org org-3' }] },
+    });
+    const refusedThere = await call('org-2');
+    expect(refusedThere.status).toBe(403);
+    expect(await refusedThere.json()).toMatchObject({
+      code: 'API_KEY_PERSONAL_REFUSED',
+      data: { organizations: [{ slug: 'org-3', name: 'Org org-3' }] },
+    });
   });
 });
 
