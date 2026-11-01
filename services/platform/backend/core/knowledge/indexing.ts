@@ -970,7 +970,14 @@ async function dropClaim(
  * is set to NULL, so a vector of another width never outlives the text it
  * was embedded for. The migrations' trigger mirrors the column into the
  * width's table, which is why the second statement updates nothing when the
- * vector is already there — a changed vector it replaces. */
+ * vector is already there — a changed vector it replaces.
+ *
+ * Each chunk stores where it starts in the document's text (`core_offset`,
+ * what a search hit reports), from the chunk before it: that one's offset
+ * plus the length of its `core_content`, as the database counts it. Chunks
+ * are written in order and a resume keeps the stored prefix, so the previous
+ * chunk is always there; one stored without an offset (by an earlier
+ * release) passes NULL on, and the search computes those. */
 async function writeChunks(args: {
   sql: Sql;
   orgSlug: string;
@@ -991,8 +998,14 @@ async function writeChunks(args: {
         `INSERT INTO ${SCHEMA}.chunks
             (document_id, org_slug, chunk_index, chunk_content, content_hash,
              context_header, core_content, prefix_overlap, suffix_overlap,
-             passage_repeat, embedding)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector)
+             passage_repeat, embedding, core_offset)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::vector,
+                 CASE WHEN $3 = 0 THEN 0
+                      ELSE (SELECT p.core_offset + length(p.core_content)
+                              FROM ${SCHEMA}.chunks p
+                             WHERE p.document_id = $1 AND p.org_slug = $2
+                               AND p.chunk_index = $3 - 1)
+                 END)
          ON CONFLICT (document_id, chunk_index) DO UPDATE SET
              chunk_content = EXCLUDED.chunk_content,
              content_hash = EXCLUDED.content_hash,
@@ -1001,7 +1014,8 @@ async function writeChunks(args: {
              prefix_overlap = EXCLUDED.prefix_overlap,
              suffix_overlap = EXCLUDED.suffix_overlap,
              passage_repeat = EXCLUDED.passage_repeat,
-             embedding = EXCLUDED.embedding
+             embedding = EXCLUDED.embedding,
+             core_offset = EXCLUDED.core_offset
          RETURNING id::text AS id`,
         [
           args.documentId,
@@ -1044,7 +1058,8 @@ async function writeChunks(args: {
 /** Copy an identical document's chunks, and their vectors of this width —
  * what indexing the document itself would have stored. The previous
  * release's column travels with its chunk: it holds either nothing or the
- * vector of the text beside it. `null` when the target row is no longer
+ * vector of the text beside it; so does the stored offset, which the same
+ * text puts in the same place. `null` when the target row is no longer
  * there to receive them. */
 async function cloneChunks(
   sql: Sql,
@@ -1060,10 +1075,10 @@ async function cloneChunks(
          INSERT INTO ${SCHEMA}.chunks
              (document_id, org_slug, chunk_index, chunk_content, content_hash,
               context_header, core_content, prefix_overlap, suffix_overlap,
-              passage_repeat, embedding)
+              passage_repeat, embedding, core_offset)
          SELECT $1, $2, chunk_index, chunk_content, content_hash,
                 context_header, core_content, prefix_overlap, suffix_overlap,
-                passage_repeat, embedding
+                passage_repeat, embedding, core_offset
          FROM ${SCHEMA}.chunks
          WHERE document_id = $3 AND org_slug = $2
          ON CONFLICT (document_id, chunk_index) DO NOTHING

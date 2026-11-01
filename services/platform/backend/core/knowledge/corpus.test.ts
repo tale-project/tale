@@ -22,7 +22,12 @@ interface Recorded {
   readonly params: readonly unknown[];
 }
 
-function recorder(rows: unknown[] = []): {
+function recorder(
+  rows: unknown[] = [],
+  /** What the dense leg's scope count answers; by default the rows, and
+   * no rows read as an empty scope. */
+  inScope?: number,
+): {
   sql: Sql;
   sent: Recorded[];
 } {
@@ -34,6 +39,10 @@ function recorder(rows: unknown[] = []): {
   }) as unknown as Sql & { unsafe: unknown };
   sql.unsafe = ((text: string, params: unknown[] = []) => {
     sent.push({ text, params });
+    if (inScope !== undefined && text.includes('count(*)')) {
+      // `count(*)::text`, as postgres.js hands it back.
+      return Promise.resolve([{ n: String(inScope) }]);
+    }
     return Promise.resolve(rows);
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- postgres.js types `unsafe` as returning a rich PendingQuery; the readers only await it, so a promise of rows is all the double has to be
   }) as unknown as Sql['unsafe'];
@@ -162,6 +171,106 @@ describe('the dense leg runs exactly for a small scope', () => {
     for (const statement of corpusStatements(sent)) {
       expect(statement.text).toContain('NOT c.passage_repeat');
     }
+  });
+});
+
+/**
+ * The plan needs only the side of `EXACT_DENSE_SCAN_MAX_CHUNKS` a scope is on,
+ * so its count stops one row past it (#4711): a large organization's search
+ * no longer counts every chunk it holds before it ranks one. The choice
+ * itself is the same on both sides of the bound.
+ */
+describe('the dense leg counts its scope only as far as the plan needs', () => {
+  const BOUNDED = /LIMIT \$(\d+)\) scoped$/;
+
+  function scopeCount(sent: readonly Recorded[]): Recorded {
+    const counts = sent.filter((entry) => entry.text.includes('count(*)'));
+    expect(counts).toHaveLength(1);
+    return counts[0] as Recorded;
+  }
+
+  it('counts at most one row past the bound in the documents corpus', async () => {
+    const { sql, sent } = recorder();
+    await new DocumentCorpusReader(sql, 'acme').dense({
+      ...LEG,
+      embedding: EMBEDDING,
+    });
+    const count = scopeCount(sent);
+    // The scope's own rows — the statement's joins and filters — cut short.
+    expect(count.text).toContain('SELECT 1');
+    expect(count.text).toContain('c.org_slug = $1');
+    expect(count.text).toContain('NOT c.passage_repeat');
+    const limit = BOUNDED.exec(count.text.trim());
+    expect(Number(limit?.[1])).toBe(count.params.length);
+    expect(count.params.at(-1)).toBe(5_001);
+    expect(count.params[0]).toBe('acme');
+  });
+
+  it('keeps the narrowing parameters ahead of the bound', async () => {
+    const { sql, sent } = recorder();
+    await new DocumentCorpusReader(sql, 'acme').dense({
+      ...LEG,
+      embedding: EMBEDDING,
+      refs: ['handbook.pdf'],
+      folder: '/hr',
+    });
+    const count = scopeCount(sent);
+    expect(count.text).toContain('d.file_id = ANY');
+    expect(count.params).toContain('/hr');
+    expect(Number(BOUNDED.exec(count.text.trim())?.[1])).toBe(
+      count.params.length,
+    );
+    expect(count.params.at(-1)).toBe(5_001);
+  });
+
+  it('counts at most one row past the bound in the web corpus', async () => {
+    const { sql, sent } = recorder();
+    await new WebCorpusReader(sql, 'acme').dense({
+      ...LEG,
+      embedding: EMBEDDING,
+    });
+    const count = scopeCount(sent);
+    expect(count.text).toContain('SELECT 1');
+    expect(count.text).toContain('m.org_slug = $1');
+    expect(Number(BOUNDED.exec(count.text.trim())?.[1])).toBe(2);
+    expect(count.params).toEqual(['acme', 5_001]);
+  });
+
+  it('scans exactly when the count reaches the bound and no further', async () => {
+    const { sql, sent } = recorder([], 5_000);
+    await new DocumentCorpusReader(sql, 'acme').dense({
+      ...LEG,
+      embedding: EMBEDDING,
+    });
+    const texts = sent.map((entry) => entry.text.trim());
+    const setLocal = texts.indexOf('SET LOCAL enable_indexscan = off');
+    expect(setLocal).toBeGreaterThan(
+      texts.indexOf(scopeCount(sent).text.trim()),
+    );
+    expect(texts.findIndex((text) => text.includes('<=> $1::vector'))).toBe(
+      setLocal + 1,
+    );
+    expect(texts.some((text) => text.startsWith('SET LOCAL hnsw.'))).toBe(
+      false,
+    );
+  });
+
+  it('takes the iterative index scan when the count runs past the bound', async () => {
+    const { sql, sent } = recorder([], 5_001);
+    await new DocumentCorpusReader(sql, 'acme').dense({
+      ...LEG,
+      embedding: EMBEDDING,
+    });
+    const texts = sent.map((entry) => entry.text.trim());
+    expect(texts).not.toContain('SET LOCAL enable_indexscan = off');
+    const iterative = texts.indexOf(
+      "SET LOCAL hnsw.iterative_scan = 'relaxed_order'",
+    );
+    expect(iterative).toBeGreaterThan(
+      texts.indexOf(scopeCount(sent).text.trim()),
+    );
+    expect(texts[iterative + 1]).toBe('SET LOCAL hnsw.ef_search = 40');
+    expect(texts[iterative + 2]).toContain('<=> $1::vector');
   });
 });
 
@@ -880,6 +989,33 @@ describe('rows become hits', () => {
       embedding: EMBEDDING,
     });
     expect(hits?.[0]?.offset).toBe(12480);
+  });
+
+  // The offset is where the hit starts in its document's text. Summing every
+  // earlier chunk for it read the whole document ahead of each hit, on every
+  // search (#4711); the indexer now stores it with the chunk, and a chunk
+  // stored before it did still gets the sum.
+  it('reads a document hit’s offset from its chunk, summing only for a chunk stored without one', async () => {
+    const { sql, sent } = recorder();
+    const reader = new DocumentCorpusReader(sql, 'acme');
+    await reader.keyword(LEG);
+    await reader.dense({ ...LEG, embedding: EMBEDDING });
+    await reader.dense({
+      ...LEG,
+      embedding: EMBEDDING,
+      access: BODIES_ACCESS,
+    });
+    const ranked = corpusStatements(sent);
+    expect(ranked).toHaveLength(4);
+    for (const statement of ranked) {
+      expect(statement.text).toMatch(
+        /COALESCE\(c\.core_offset,\s+\(SELECT COALESCE\(SUM\(length\(c2\.core_content\)\), 0\)/,
+      );
+      expect(statement.text).toContain('c2.org_slug = c.org_slug');
+      expect(statement.text).toContain('c2.document_id = c.document_id');
+      expect(statement.text).toContain('c2.chunk_index < c.chunk_index');
+      expect(statement.text).toContain('::text AS hit_offset');
+    }
   });
 });
 

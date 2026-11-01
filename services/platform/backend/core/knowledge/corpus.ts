@@ -58,6 +58,16 @@ import {
 /** Values postgres.js accepts as positional parameters. */
 type SqlParam = string | number | boolean | null | Date | string[] | number[];
 
+/**
+ * The rows a dense statement ranks, as `SELECT 1 FROM … WHERE …` with its
+ * parameters: the same joins and predicates, no vector, no ORDER BY, no
+ * LIMIT. `runDenseLeg` counts them to choose the plan.
+ */
+interface ScopeRows {
+  statement: string;
+  params: SqlParam[];
+}
+
 /** Row shape both corpus queries project into. */
 interface CorpusRow {
   id: string;
@@ -91,6 +101,21 @@ interface CorpusRow {
  *    asked for mail (`KnowledgeAccessScope.includeConversationMessages`).
  */
 type DocumentRows = 'files' | 'mail';
+
+/**
+ * Where a document hit `c` starts in its document's text, as text: the
+ * offset the indexer stored with the chunk (`core_offset`), and only for a
+ * chunk written before it stored one, the sum it stands for — the length of
+ * every earlier chunk's `core_content`. That sum read the whole document
+ * ahead of the hit, for every hit of every search (#4711); the stored offset
+ * is one column of the row already read. Rows heal on their next re-index.
+ */
+const DOCUMENT_HIT_OFFSET = `COALESCE(c.core_offset,
+               (SELECT COALESCE(SUM(length(c2.core_content)), 0)
+                  FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c2
+                 WHERE c2.org_slug = c.org_slug
+                   AND c2.document_id = c.document_id
+                   AND c2.chunk_index < c.chunk_index))::text`;
 
 /**
  * Uploaded documents.
@@ -169,10 +194,7 @@ export class DocumentCorpusReader implements CorpusReader {
              d.file_id AS ref, d.filename AS title, NULL::text AS url,
              d.project_id, d.conversation_id,
              COALESCE(d.source_modified_at, d.updated_at) AS modified_at,
-             (SELECT COALESCE(SUM(length(c2.core_content)), 0)
-                FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c2
-               WHERE c2.org_slug = c.org_slug AND c2.document_id = c.document_id
-                 AND c2.chunk_index < c.chunk_index)::text AS hit_offset,
+             ${DOCUMENT_HIT_OFFSET} AS hit_offset,
              paradedb.score(c.id) AS score
       FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c
       JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
@@ -210,10 +232,7 @@ export class DocumentCorpusReader implements CorpusReader {
              d.file_id AS ref, d.filename AS title, NULL::text AS url,
              d.project_id, d.conversation_id,
              COALESCE(d.source_modified_at, d.updated_at) AS modified_at,
-             (SELECT COALESCE(SUM(length(c2.core_content)), 0)
-                FROM ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c2
-               WHERE c2.org_slug = c.org_slug AND c2.document_id = c.document_id
-                 AND c2.chunk_index < c.chunk_index)::text AS hit_offset,
+             ${DOCUMENT_HIT_OFFSET} AS hit_offset,
              1 - (v.embedding <=> $1::vector) AS score
       FROM ${vectors} v
       JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c ON c.id = v.chunk_id
@@ -226,11 +245,11 @@ export class DocumentCorpusReader implements CorpusReader {
       ORDER BY v.embedding <=> $1::vector
       LIMIT $${3 + scope.params.length}
     `;
-    // The scope's size decides the plan (see `runDenseLeg`): the same
-    // predicates, no ORDER BY, no vector.
-    const scopeCount = this.scope(query, 1, rows);
-    const countStatement = `
-      SELECT count(*)::text AS n
+    // The scope's size decides the plan (see `runDenseLeg`): the rows the
+    // statement ranks — the same predicates, no ORDER BY, no vector.
+    const inScope = this.scope(query, 1, rows);
+    const scopeStatement = `
+      SELECT 1
       FROM ${vectors} v
       JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.chunks c ON c.id = v.chunk_id
       JOIN ${PRIVATE_KNOWLEDGE_SCHEMA}.documents d
@@ -238,7 +257,7 @@ export class DocumentCorpusReader implements CorpusReader {
       WHERE c.org_slug = $1
         AND d.status = 'completed'
         AND NOT c.passage_repeat
-        ${scopeCount.clause}
+        ${inScope.clause}
     `;
     return this.runDense(
       statement,
@@ -249,8 +268,8 @@ export class DocumentCorpusReader implements CorpusReader {
         query.limit,
       ],
       {
-        statement: countStatement,
-        params: [this.orgSlug, ...scopeCount.params],
+        statement: scopeStatement,
+        params: [this.orgSlug, ...inScope.params],
       },
       query.limit,
     );
@@ -376,11 +395,11 @@ export class DocumentCorpusReader implements CorpusReader {
   private runDense(
     statement: string,
     params: SqlParam[],
-    scopeCount: { statement: string; params: SqlParam[] },
+    scope: ScopeRows,
     pool: number,
   ): Promise<readonly KnowledgeHit[] | null> {
     return runDenseLeg(this.sql, this.corpus, statement, params, {
-      scopeCount,
+      scope,
       pool,
     });
   }
@@ -432,9 +451,9 @@ export class WebCorpusReader implements CorpusReader {
       webCorpusStatement(vectorRanking(vectors)),
       [JSON.stringify(query.embedding), this.orgSlug, query.limit],
       {
-        scopeCount: {
+        scope: {
           statement: `
-            SELECT count(*)::text AS n
+            SELECT 1
             FROM ${vectors} v
             JOIN ${PUBLIC_WEB_SCHEMA}.chunks c ON c.id = v.chunk_id
             JOIN ${PUBLIC_WEB_SCHEMA}.website_org_memberships m
@@ -624,18 +643,25 @@ const HNSW_EF_SEARCH_MAX = 1_000;
  * this release selects, answers `null` — "could not run", which the
  * diagnostics name as `dense: false` — never a failure: an organization that
  * has never indexed anything should get "nothing found", not an error.
+ *
+ * The choice needs only which side of `EXACT_DENSE_SCAN_MAX_CHUNKS` the scope
+ * is on, so the count stops one row past it: a large organization's search
+ * no longer counts every chunk it holds before it ranks a single one
+ * (#4711).
  */
 async function runDenseLeg(
   sql: Sql,
   corpus: Exclude<KnowledgeCorpus, 'all'>,
   statement: string,
   params: SqlParam[],
-  plan: { scopeCount: { statement: string; params: SqlParam[] }; pool: number },
+  plan: { scope: ScopeRows; pool: number },
 ): Promise<readonly KnowledgeHit[] | null> {
   try {
     const counted = await sql.unsafe<{ n: string }[]>(
-      plan.scopeCount.statement,
-      plan.scopeCount.params,
+      `SELECT count(*)::text AS n
+       FROM (${plan.scope.statement}
+             LIMIT $${plan.scope.params.length + 1}) scoped`,
+      [...plan.scope.params, EXACT_DENSE_SCAN_MAX_CHUNKS + 1],
     );
     const inScope = Number(counted[0]?.n ?? 0);
     if (inScope <= EXACT_DENSE_SCAN_MAX_CHUNKS) {

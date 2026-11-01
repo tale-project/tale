@@ -131,6 +131,23 @@ describe('the real migrations are what gets applied', () => {
     }
   });
 
+  it('adds the stored chunk offset outside the private_knowledge baseline', () => {
+    // The indexer writes `core_offset` and every documents search reads it
+    // (#4711): declared only in the baseline, a ledgered database would never
+    // get it, and every chunk write would fail.
+    delete process.env.KNOWLEDGE_MIGRATIONS_DIR;
+    const later = corpusMigrations()
+      .filter((m) => m.schema === 'private_knowledge')
+      .slice(1);
+    const adding = later.filter((m) =>
+      m.sql.includes('ADD COLUMN IF NOT EXISTS core_offset'),
+    );
+    expect(adding).toHaveLength(1);
+    // Nullable and without a default: a metadata-only change, and the NULL a
+    // chunk stored before it keeps is what sends the search to the sum.
+    expect(adding[0]?.sql).toMatch(/core_offset BIGINT;/);
+  });
+
   it('carries the url-list source columns outside the public_web baseline', () => {
     // Same regression class as the chunk-context convergence: these columns
     // postdate the applied baseline, so they must arrive in their own

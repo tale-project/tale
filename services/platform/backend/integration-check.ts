@@ -141,6 +141,7 @@ import { checkUsageMetricsBuckets } from './domains/governance/usage-metrics.int
 import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
 import { checkScopeRefHolder } from './domains/knowledge/scope-holder.integration.ts';
+import { checkSearchWork } from './domains/knowledge/search-work.integration.ts';
 import { checkRagStatusHintScope } from './domains/knowledge/status-hints.integration.ts';
 import { checkVectorWidths } from './domains/knowledge/vector-width.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
@@ -67304,6 +67305,14 @@ async function main(): Promise<void> {
         'checkVectorWidths',
         () =>
           checkVectorWidths(sql, {
+            record,
+            embeddingsPayload: fakeEmbeddingsPayload,
+          }),
+      ],
+      [
+        'checkSearchWork',
+        () =>
+          checkSearchWork(sql, {
             record,
             embeddingsPayload: fakeEmbeddingsPayload,
           }),

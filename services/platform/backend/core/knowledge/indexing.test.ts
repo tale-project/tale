@@ -431,7 +431,9 @@ describe('vectors are stored and counted per width [KNOW-R11]', () => {
     );
     expect(chunkWrites.length).toBeGreaterThan(0);
     for (const index of chunkWrites) {
-      expect(db.statements[index]).toContain('passage_repeat, embedding)');
+      expect(db.statements[index]).toContain(
+        'passage_repeat, embedding, core_offset)',
+      );
       expect(db.statements[index]).toContain('embedding = EXCLUDED.embedding');
       expect(db.params[index]?.[10]).toBe(JSON.stringify(vector()));
       // The migrations' trigger mirrors the column into the width's table;
@@ -511,12 +513,13 @@ describe('vectors are stored and counted per width [KNOW-R11]', () => {
     expect(copy).toContain('target.chunk_index = source.chunk_index');
     expect(copy).toContain('source.org_slug = $2');
     expect(copy).toContain('target.org_slug = $2');
-    // The previous release's column travels with the chunk it belongs to.
+    // The previous release's column travels with the chunk it belongs to,
+    // and so does the chunk's stored offset: the same text, the same place.
     const chunkCopy = db.statements.find((statement) =>
       statement.startsWith('WITH copied AS'),
     );
-    expect(chunkCopy).toContain('passage_repeat, embedding)');
-    expect(chunkCopy).toMatch(/passage_repeat, embedding\s+FROM/);
+    expect(chunkCopy).toContain('passage_repeat, embedding, core_offset)');
+    expect(chunkCopy).toMatch(/passage_repeat, embedding, core_offset\s+FROM/);
   });
 
   // A settings file written before the widths were a list. Refused before
@@ -1159,6 +1162,47 @@ describe('a document is prepared once, not once per slice', () => {
     expect(scanForSecrets).toHaveBeenCalledTimes(1);
     expect(applyPiiPolicyForIndexing).toHaveBeenCalledTimes(1);
     expect(chunkDocument).toHaveBeenCalledTimes(1);
+  });
+
+  // A search hit reports where its chunk starts in the document's text
+  // (#4711). Each chunk stores that from the chunk before it, which holds
+  // only while the chunks reach the database in order, slice after slice.
+  it('stores each chunk’s offset from the chunk written before it, slice after slice', async () => {
+    const db = fakeDb({ resumable: true });
+    const result = await indexWholeDocument({
+      ...ARGS,
+      text: LONG,
+      sql: db.sql,
+      embedder: stubEmbedder(),
+      maxChunks: 3,
+    });
+
+    const writes = db.statements.flatMap((statement, index) =>
+      statement.startsWith('INSERT INTO private_knowledge.chunks')
+        ? [index]
+        : [],
+    );
+    // Every chunk once, in the document's order, across the slices.
+    expect(result.chunksTotal).toBeGreaterThan(3);
+    expect(writes.map((index) => db.params[index]?.[2])).toEqual(
+      Array.from({ length: result.chunksTotal }, (_v, i) => i),
+    );
+    for (const index of writes) {
+      const statement = db.statements[index];
+      // The first chunk starts the text; any other starts where the one
+      // before it ends, read from that chunk's stored row — the database's
+      // own count of its characters, the one the search used to sum.
+      expect(statement).toContain('CASE WHEN $3 = 0 THEN 0');
+      expect(statement).toContain(
+        'SELECT p.core_offset + length(p.core_content)',
+      );
+      expect(statement).toContain(
+        'WHERE p.document_id = $1 AND p.org_slug = $2',
+      );
+      expect(statement).toContain('AND p.chunk_index = $3 - 1');
+      // A chunk written again takes its new offset.
+      expect(statement).toContain('core_offset = EXCLUDED.core_offset');
+    }
   });
 
   it('stops before the next slice once the job gives up, keeping what it stored', async () => {
