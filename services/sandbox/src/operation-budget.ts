@@ -3,8 +3,10 @@ import { AsyncLocalStorage } from 'node:async_hooks';
 // A lifecycle operation crosses several resource helpers. Each hop inherits
 // one cancellation budget; a sequence of bounded calls is not an unbounded
 // operation. Cleanup deliberately runs outside the expired create budget.
+// The store holds the budget's signal and its deadline on the monotonic
+// clock; a nested budget ends no later than the one it runs in.
 const current = new AsyncLocalStorage<
-  { signal: AbortSignal; deadline: number } | undefined
+  { signal: AbortSignal; deadlineMs: number } | undefined
 >();
 
 /** The reason a budget aborts with when its time is up. A caller's own
@@ -31,7 +33,7 @@ export function operationSignal(signal?: AbortSignal): AbortSignal | undefined {
 export function operationRemainingMs(): number | undefined {
   const store = current.getStore();
   if (store === undefined) return undefined;
-  return Math.max(0, Math.floor(store.deadline - performance.now()));
+  return Math.max(0, Math.floor(store.deadlineMs - performance.now()));
 }
 
 export async function withOperationBudget<T>(
@@ -45,19 +47,18 @@ export async function withOperationBudget<T>(
     timeoutMs,
   );
   timer.unref();
-  // A nested budget ends no later than the one it runs in.
-  const deadline = Math.min(
-    performance.now() + timeoutMs,
-    current.getStore()?.deadline ?? Infinity,
-  );
   const parent = operationSignal(signal);
   const combined =
     parent === undefined
       ? controller.signal
       : AbortSignal.any([parent, controller.signal]);
+  const deadlineMs = Math.min(
+    current.getStore()?.deadlineMs ?? Infinity,
+    performance.now() + timeoutMs,
+  );
   try {
     combined.throwIfAborted();
-    return await current.run({ signal: combined, deadline }, async () => {
+    return await current.run({ signal: combined, deadlineMs }, async () => {
       const result = await action(combined);
       combined.throwIfAborted();
       return result;
@@ -71,6 +72,16 @@ export function outsideOperationBudget<T>(
   action: () => Promise<T>,
 ): Promise<T> {
   return current.run(undefined, action);
+}
+
+/** The milliseconds left of the operation budget this runs under, by its
+ * earliest deadline: Infinity outside any, as under
+ * {@link outsideOperationBudget}. */
+export function operationTimeLeftMs(): number {
+  const budget = current.getStore();
+  return budget === undefined
+    ? Infinity
+    : budget.deadlineMs - performance.now();
 }
 
 /** A shared producer has another caller's lifetime. Stop waiting on it

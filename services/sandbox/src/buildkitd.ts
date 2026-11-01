@@ -481,21 +481,255 @@ async function helperDrifted(
   return id !== null && id !== helper.image;
 }
 
-/** Is no build running in this builder? A record still `STARTED` is a build
- * under way; an answer that cannot be read counts as busy. */
-async function builderIdle(name: string): Promise<boolean> {
-  const result = await runDocker(
-    ['exec', name, 'buildctl', 'debug', 'histories', '--format', '{{.Type}}'],
-    { timeoutMs: 10_000 },
-  );
-  if (result.exitCode !== 0) return false;
-  return !result.stdout.split('\n').some((line) => line.trim() === 'STARTED');
+/** How long a builder's build history must stay without a build under way or
+ * a new record before {@link builderIdle} calls the builder idle. One read can
+ * fall between two builds that belong together — an agent's next `docker
+ * build` a moment after its last, the next image of a compose build — and a
+ * recreate there fails the build that starts. No create waits this long: the
+ * provisioning whose read holds a drifted builder keeps it, and a follow-up
+ * provisioning reads again this long after, in the background
+ * ({@link followUpHeldBuilder}). */
+const BUILDER_IDLE_CONFIRM_MS = 3_000;
+
+/** How long {@link builderIdle} holds a drifted builder at most: once it has
+ * been held this long, a read with no build under way calls it idle whatever
+ * records it lists, as the single read did before the confirmation. A drifted
+ * builder may be broken — launched without a mirror that is up now, so every
+ * `FROM` from that registry fails, or with bounds that need a recreate — so
+ * the hold must end even in an organization that never pauses for
+ * {@link BUILDER_IDLE_CONFIRM_MS}. */
+const BUILDER_IDLE_CONFIRM_LIMIT_MS = 60_000;
+
+/** One line per build record: its type (`STARTED` while the build runs) and
+ * its ref, which tells a record already listed from a new one. A record that
+ * comes without its details prints its type alone instead of failing the
+ * read. */
+const BUILD_HISTORY_FORMAT = '{{.Type}} {{with .Record}}{{.Ref}}{{end}}';
+
+/** Per Docker target and builder: the history read with no build under way
+ * that a later one is held against — the records it listed, and when it ended
+ * on {@link builderIdleClock}. It outlives the provisioning that took it, so
+ * the confirmation spans provisionings. */
+const builderIdleAnchors = new Map<
+  string,
+  { atMs: number; refs: Set<string> }
+>();
+
+/** Per Docker target and builder: when {@link builderIdle} first held it
+ * since it last answered idle or its hold was forgotten
+ * ({@link forgetBuilderIdle}), on {@link builderIdleClock}. */
+const builderHeldSince = new Map<string, number>();
+
+/** Per Docker target and builder: the follow-up provisioning a hold
+ * scheduled, until it runs or is cancelled. */
+const builderIdleFollowUps = new Map<string, { cancel?: () => void }>();
+
+function builderIdleKey(name: string): string {
+  return `${dockerTarget()}\t${name}`;
 }
 
-/** {@link builderIdle}, asked at most once. */
-function idleOnce(name: string): () => Promise<boolean> {
+const monotonicNow = (): number => performance.now();
+
+/** The clock builder history reads are timed by: monotonic, since the
+ * confirmation spans provisionings and a step of the wall clock must not
+ * shorten it. */
+let builderIdleClock: () => number = monotonicNow;
+
+/** Replace the clock builder history reads are timed by, or restore the
+ * monotonic one (tests). */
+export function setBuilderIdleClock(clock: () => number = monotonicNow): void {
+  builderIdleClock = clock;
+}
+
+/** Runs `run` once, `delayMs` from now, unless the answer is called first. */
+type FollowUpScheduler = (
+  run: () => Promise<void>,
+  delayMs: number,
+) => () => void;
+
+/** A timer that keeps no process alive. */
+const followUpTimer: FollowUpScheduler = (run, delayMs) => {
+  const timer = setTimeout(() => void run(), delayMs);
+  timer.unref();
+  return () => clearTimeout(timer);
+};
+
+let scheduleFollowUp: FollowUpScheduler = followUpTimer;
+
+/** Replace how follow-up provisionings are scheduled, or restore the timer
+ * (tests). */
+export function setBuilderIdleFollowUpScheduler(
+  scheduler: FollowUpScheduler = followUpTimer,
+): void {
+  scheduleFollowUp = scheduler;
+}
+
+/** Forget every builder's anchoring history read and hold time, and cancel
+ * every pending follow-up (tests). */
+export function forgetBuilderIdleAnchors(): void {
+  for (const followUp of builderIdleFollowUps.values()) followUp.cancel?.();
+  builderIdleFollowUps.clear();
+  builderIdleAnchors.clear();
+  builderHeldSince.clear();
+}
+
+/** Forget an organization's builder hold: nothing waits for its builder to go
+ * idle any more. Its helpers are being stopped or removed, a provisioning
+ * found none of those running drifted, or the builder is being started or
+ * launched anew. Its pending follow-up is cancelled, and its anchor and hold
+ * time go. */
+function forgetBuilderIdle(organizationId: string): void {
+  const key = builderIdleKey(buildkitdContainerName(organizationId));
+  builderIdleFollowUps.get(key)?.cancel?.();
+  builderIdleFollowUps.delete(key);
+  builderIdleAnchors.delete(key);
+  builderHeldSince.delete(key);
+}
+
+/** A builder's build records: whether one is still `STARTED` (a build under
+ * way), and the ref of each. Null when they cannot be read. */
+async function builderHistory(
+  name: string,
+): Promise<{ started: boolean; refs: Set<string> } | null> {
+  const result = await runDocker(
+    [
+      'exec',
+      name,
+      'buildctl',
+      'debug',
+      'histories',
+      '--format',
+      BUILD_HISTORY_FORMAT,
+    ],
+    { timeoutMs: 10_000 },
+  );
+  if (result.exitCode !== 0) return null;
+  let started = false;
+  const refs = new Set<string>();
+  for (const line of result.stdout.split('\n')) {
+    const [type = '', ref = ''] = line.trim().split(/\s+/);
+    if (type === 'STARTED') started = true;
+    if (ref !== '') refs.add(ref);
+  }
+  return { started, refs };
+}
+
+/** What {@link builderIdle} makes of a builder: idle, so a drifted one may be
+ * recreated; held, kept until a later read confirms; or busy, with a build
+ * under way or a history that cannot be read. */
+type BuilderIdleVerdict = 'idle' | 'held' | 'busy';
+
+/** Has this builder run no build, nor started one, for at least
+ * {@link BUILDER_IDLE_CONFIRM_MS}? Each call reads its build history once and
+ * holds the read against the anchor an earlier call left, so no provisioning
+ * waits for the confirmation: the first to find a drifted builder with no
+ * build under way keeps it, with its warm cache, for that create, and its
+ * follow-up reads again that long after, in the background
+ * ({@link followUpHeldBuilder}). So the adoption reconcile anchors, and its
+ * follow-up confirms. Idle if this read shows no build under way and either
+ * no record an anchor at least that old lacks, or a hold of
+ * {@link BUILDER_IDLE_CONFIRM_LIMIT_MS} or more; the anchor and the hold time
+ * then go. Busy if a build is under way, which drops the anchor and keeps the
+ * hold time, or if the history cannot be read, which leaves both. Held
+ * otherwise: the read becomes the anchor unless it matches one too young to
+ * confirm, which stays so that provisionings that come often still confirm,
+ * and the hold time starts unless it has. Both last as long as the drift
+ * they wait out: a provisioning that finds none of the organization's
+ * running helpers drifted, or starts or launches the builder outside this
+ * check, forgets them, as an idle stop and a teardown do, so a later drift
+ * is held anew. Still a sample, not a lease: a build can start right after
+ * the confirming read. */
+async function builderIdle(name: string): Promise<BuilderIdleVerdict> {
+  const key = builderIdleKey(name);
+  // Counted from before this read starts to after the anchor's, or the first
+  // hold's, ended, so a slow read never shortens the confirmation or the hold.
+  const readStartMs = builderIdleClock();
+  const history = await builderHistory(name);
+  if (history === null) return 'busy';
+  if (history.started) {
+    builderIdleAnchors.delete(key);
+    return 'busy';
+  }
+  const anchor = builderIdleAnchors.get(key);
+  const unchanged =
+    anchor !== undefined &&
+    [...history.refs].every((ref) => anchor.refs.has(ref));
+  const heldSinceMs = builderHeldSince.get(key);
+  if (
+    (unchanged && readStartMs - anchor.atMs >= BUILDER_IDLE_CONFIRM_MS) ||
+    (heldSinceMs !== undefined &&
+      readStartMs - heldSinceMs >= BUILDER_IDLE_CONFIRM_LIMIT_MS)
+  ) {
+    builderIdleAnchors.delete(key);
+    builderHeldSince.delete(key);
+    return 'idle';
+  }
+  const readEndMs = builderIdleClock();
+  if (!unchanged) {
+    builderIdleAnchors.set(key, { atMs: readEndMs, refs: history.refs });
+  }
+  if (heldSinceMs === undefined) builderHeldSince.set(key, readEndMs);
+  return 'held';
+}
+
+/** {@link builderIdle}, asked at most once: whether the builder is idle, and
+ * whether anything asked. `onHeld` runs once if it is held. */
+function idleOnce(
+  name: string,
+  onHeld: () => void,
+): { idle: () => Promise<boolean>; asked: () => boolean } {
   let answer: Promise<boolean> | null = null;
-  return () => (answer ??= builderIdle(name));
+  return {
+    idle: () =>
+      (answer ??= builderIdle(name).then((verdict) => {
+        if (verdict === 'held') onHeld();
+        return verdict === 'idle';
+      })),
+    asked: () => answer !== null,
+  };
+}
+
+/** Have a provisioning of the organization read its held builder's history
+ * again {@link BUILDER_IDLE_CONFIRM_MS} from now, unless one is pending, so
+ * that it recreates the builder once its read confirms; one held again
+ * schedules the next, and a busy read schedules none: the next create asks
+ * again. It queues for the organization's lock and waits there for whatever
+ * holds it to end, however it ends: a provisioning that may have read the
+ * history meanwhile, and so scheduled none, an idle stop or a teardown. Only
+ * under the lock does it look at the hold, and it provisions, with a budget of
+ * its own, only while the hold stands and no later follow-up is pending: an
+ * idle stop and a teardown forget the hold, so nothing is provisioned after
+ * one. It takes no create lease, so it keeps no idle builder from stopping
+ * and refuses no teardown. A failure is logged. */
+function followUpHeldBuilder(cfg: SpawnerConfig, organizationId: string): void {
+  const name = buildkitdContainerName(organizationId);
+  const key = builderIdleKey(name);
+  if (builderIdleFollowUps.has(key)) return;
+  const followUp: { cancel?: () => void } = {};
+  builderIdleFollowUps.set(key, followUp);
+  followUp.cancel = scheduleFollowUp(async () => {
+    if (builderIdleFollowUps.get(key) !== followUp) return;
+    builderIdleFollowUps.delete(key);
+    try {
+      // Not part of the operation that scheduled it, which may be over. The
+      // wait for the lock is no part of its budget.
+      await outsideOperationBudget(() =>
+        withBuildkitdOperation(organizationId, async () => {
+          if (!builderHeldSince.has(key) || builderIdleFollowUps.has(key))
+            return;
+          await withOperationBudget(
+            cfg.buildkitdProvisionTimeoutMs ?? 5_000,
+            () => ensureBuildkitdUnlocked(cfg, organizationId, name),
+          );
+        }),
+      );
+    } catch (error) {
+      console.warn(
+        `[sandbox.buildkitd] follow-up provisioning of ${organizationId}'s helpers failed (the next create asks again):`,
+        error,
+      );
+    }
+  }, BUILDER_IDLE_CONFIRM_MS);
 }
 
 /** No builder runs, so nothing builds. */
@@ -938,6 +1172,7 @@ async function sweepIdleBuildkitdUnlocked(
       }
       let stoppedCount = 0;
       forgetVerified(org);
+      forgetBuilderIdle(org);
       for (const id of runningIds) {
         if (await wanted()) return stoppedCount;
         if (id === builderId) {
@@ -1167,6 +1402,7 @@ async function removeOrganizationBuildkitUnlocked(
   organizationId: string,
 ): Promise<{ containers: number; volumes: number; networks: number }> {
   forgetVerified(organizationId);
+  forgetBuilderIdle(organizationId);
   const result = { containers: 0, volumes: 0, networks: 0 };
   const listed = await readDockerMetadata([
     'ps',
@@ -1762,6 +1998,8 @@ async function ensureBuildkitdUnlocked(
     },
     organizationId,
     name,
+    // The follow-up provisions with the configuration this one was given.
+    () => followUpHeldBuilder(cfg, organizationId),
   );
   const dockerHubMirror = dockerHubMirrorIn(mapping);
   const egressEndpoint = privateNetwork.egress.networks[privateNetwork.network];
@@ -1968,6 +2206,8 @@ async function ensureBuildkitdOnNetwork(
   cfg: SpawnerConfig,
   organizationId: string,
   name: string,
+  /** Runs once when the builder idle check holds a drifted helper. */
+  onHeld: () => void,
 ): Promise<{ reused: ReusedHelper[] | null; mapping: string }> {
   // Already running? Reuse it ONLY if its egress fence is still installed AND
   // still pinned to the current egress IP. A daemon that restarted (--restart
@@ -1996,17 +2236,21 @@ async function ensureBuildkitdOnNetwork(
       if (fence !== 'broken') {
         // A builder launched by an earlier release or with other bounds runs
         // its old image (and with it the old cache policy): it is recreated
-        // once no build is under way, and meanwhile gets the bounds that
-        // apply in place.
-        const idle = idleOnce(name);
+        // once a read of its build history confirms that no build ran since
+        // an earlier one, or finds none under way once it has been held a
+        // minute (see builderIdle), and meanwhile gets the bounds that apply
+        // in place. A provisioning that holds it leaves the confirming read
+        // to a follow-up in the background.
+        const builderCheck = idleOnce(name, onHeld);
         // A partial idle-stop/crash may have stopped mirrors while the
         // builder stayed healthy. Reusing the builder must revive those
         // caches too. They come first: a builder launched without a registry
         // their mapping covers now, or through another proxy, is drifted.
+        // A drifted mirror asks the same check.
         const ensured = await ensureBuildkitdMirrors(
           cfg,
           organizationId,
-          idle,
+          builderCheck.idle,
           readings,
         );
         const drifted =
@@ -2015,7 +2259,11 @@ async function ensureBuildkitdOnNetwork(
             ensured.mapping,
             cfg.egressProxy,
           ) || (await helperDrifted(helper, stamp, cfg.buildkitdImage));
-        if (!drifted || !(await idle())) {
+        // Nothing waits for the builder to go idle: a hold of an earlier
+        // drift ended with it.
+        if (!drifted && !builderCheck.asked())
+          forgetBuilderIdle(organizationId);
+        if (!drifted || !(await builderCheck.idle())) {
           if (helper.stamp !== stamp) {
             await updateHelperLimits(name, stamp, limits);
           }
@@ -2057,6 +2305,7 @@ async function ensureBuildkitdOnNetwork(
         !builderLaunchDrifted(helper.launch, mirrors, cfg.egressProxy) &&
         (await startStoppedHelper(name, helper))
       ) {
+        forgetBuilderIdle(organizationId);
         return { reused: null, mapping: mirrors };
       }
     }
@@ -2070,6 +2319,8 @@ async function ensureBuildkitdOnNetwork(
       );
     }
   }
+  // Launched anew, as it would be now: whatever held the builder is over.
+  forgetBuilderIdle(organizationId);
 
   // Persistent cache volume. Owned solely by the root buildkitd daemon, so —
   // unlike the per-org dep caches (shared by two uids, hence 1777) — it needs no
