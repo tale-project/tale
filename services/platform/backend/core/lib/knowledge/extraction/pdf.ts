@@ -26,7 +26,9 @@ export type ProgressCallback = (pagesDone: number, totalPages: number) => void;
 
 const LARGE_IMAGE_RATIO = 0.5;
 const SCANNED_PAGE_TEXT_THRESHOLD = 50;
-const MAX_PAGES = 2000;
+/** The most pages of one PDF that are read; a longer PDF's later pages are
+ * never read. */
+export const PDF_MAX_PAGES = 2000;
 const MIN_IMAGE_AREA = 10_000; // ~100x100 device pixels
 
 export interface PdfExtractionResult {
@@ -35,7 +37,7 @@ export interface PdfExtractionResult {
   scannedPagesDetected: number;
   ocrApplied: boolean;
   /** Pages the document HAS — not the number processed, which {@link
-   * MAX_PAGES} can cap. What the operator sees on the document row. */
+   * PDF_MAX_PAGES} can cap. What the operator sees on the document row. */
   pageCount: number;
 }
 
@@ -150,7 +152,7 @@ export async function extractTextFromPdfBytes(
 ): Promise<PdfExtractionResult> {
   const visionClient = options.visionClient ?? null;
   const processImages = options.processImages ?? true;
-  const maxPages = options.maxPages ?? MAX_PAGES;
+  const maxPages = options.maxPages ?? PDF_MAX_PAGES;
   const onProgress = options.onProgress;
 
   const { getDocument } = await loadPdfjs();

@@ -362,6 +362,12 @@ const DOCUMENT_MIME_EXTENSIONS: ReadonlyMap<string, string> = new Map([
   ['application/vnd.oasis.opendocument.text', '.odt'],
 ]);
 
+/** The declared types of the documents the extraction router reads, for an
+ * `Accept` header that asks for them. */
+export const DOCUMENT_MIME_TYPES: readonly string[] = [
+  ...DOCUMENT_MIME_EXTENSIONS.keys(),
+];
+
 /** The extensions the extraction router reads. */
 const DOCUMENT_EXTENSIONS: ReadonlySet<string> = new Set(
   DOCUMENT_MIME_EXTENSIONS.values(),

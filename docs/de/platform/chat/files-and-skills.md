@@ -43,6 +43,8 @@ Die Dateien gehören zum Gespräch: Wer das Gespräch öffnen kann, kann auch se
 
 [Hänge die Datei an](/de/platform/chat/attachments) und sag, was sich ändern soll: „Füge der angehängten Tabelle ein Diagramm der Summen hinzu“ oder „Wandle das angehängte Word-Dokument in ein PDF um.“ Der Assistent kopiert die Datei in die leichte Sandbox und liefert das Ergebnis als neue Datei. Die angehängte Datei bleibt unverändert.
 
+Ein Dokument, auf das du nur verlinkst, liest der Assistent als Text. Er kopiert es nicht in die Sandbox und kann es über den Link nicht ändern: Lade die Datei herunter und hänge sie an.
+
 Ein angehängtes Bild kann auch der Ausgangspunkt für ein neues Bild sein, wenn deine Organisation die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) erlaubt. Schreib zum Beispiel: „Mach aus dem angehängten Foto ein Aquarell.“ Der Assistent gibt das Foto an das Bildmodell weiter, und das neue Bild erscheint unter der Antwort.
 
 ## Einen Skill nutzen
