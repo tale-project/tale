@@ -13,10 +13,16 @@ import { preconditionError } from '../../utils/fail';
  * YAML is read strictly. A key written twice, an alias, a second document and
  * anything the parser reports are refused in fixed words, because a parser's
  * own message quotes the input and a spec carries environment references.
+ * JSON that does not parse is refused the same way.
  */
 export function parseDeclarationText(text: string, path: string): unknown {
-  if (!['.yaml', '.yml'].includes(extname(path).toLowerCase()))
-    return JSON.parse(text);
+  if (!['.yaml', '.yml'].includes(extname(path).toLowerCase())) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw preconditionError('Deployment declaration JSON is invalid.');
+    }
+  }
   const invalid = () =>
     preconditionError('Deployment declaration YAML is invalid.');
   const document = parseDocument(text, { uniqueKeys: true });

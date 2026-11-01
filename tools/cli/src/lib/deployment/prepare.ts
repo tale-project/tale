@@ -21,6 +21,21 @@ export interface PrepareDeploymentOptions {
   sourcesFile?: string;
 }
 
+/** The spec's text. A path with no file behind it is refused by name, so a
+ * mistyped `--spec` does not end in the fixed summary. */
+async function readSpec(path: string): Promise<string> {
+  try {
+    return await readFile(path, 'utf8');
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || code === 'ENOTDIR' || code === 'EISDIR')
+      throw preconditionError(
+        `Deployment spec ${resolve(path)} must be a regular file.`,
+      );
+    throw error;
+  }
+}
+
 export async function prepareDeployment(
   options: PrepareDeploymentOptions,
   dependencies: {
@@ -33,7 +48,7 @@ export async function prepareDeployment(
   const build = (dependencies.build ?? deploymentBuild)();
   const spec = resolveDeploymentSpec(
     await resolveConfigurationSource(
-      parseDeclarationText(await readFile(options.spec, 'utf8'), options.spec),
+      parseDeclarationText(await readSpec(options.spec), options.spec),
       options.spec,
     ),
   );

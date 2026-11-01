@@ -49,6 +49,17 @@ test.each(['tale.yml', 'tale.yaml', 'TALE.YML', '/opt/spec/tale.yaml'])(
   },
 );
 
+test('JSON that does not parse is refused in fixed words that quote nothing', () => {
+  let message = '';
+  try {
+    parseDeclarationText('{"name": secret-value}', 'tale.json');
+  } catch (error) {
+    message = (error as Error).message;
+  }
+  expect(message).toBe('Deployment declaration JSON is invalid.');
+  expect(message).not.toContain('secret-value');
+});
+
 test('YAML is YAML 1.2: a word that was a boolean in 1.1 stays a string', () => {
   expect(
     parseDeclarationText('mode: on\nanswer: yes\nflag: true\n', 'tale.yml'),

@@ -11,6 +11,7 @@ import { mkdir, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import { ExitCode } from '../../utils/fail';
 import {
   copyDeploymentCli,
   verifyDeploymentBundle,
@@ -374,6 +375,30 @@ testPosix(
       'services: {changed: true}\n',
     );
     await expect(verifyDeploymentBundle(root)).rejects.toThrow('bytes');
+  },
+);
+
+// A mistyped --bundle once got the fixed deployment summary, because the
+// missing path failed before the checks that name what is wrong.
+testPosix(
+  'a bundle or manifest path with nothing behind it is named',
+  async () => {
+    const root = await bundleFixture();
+    const manifest = join(root, 'deployment.json');
+    for (const directory of [join(root, 'bundel'), join(manifest, 'bundle')])
+      await expect(verifyDeploymentBundle(directory)).rejects.toMatchObject({
+        info: {
+          summary: `Deployment bundle ${directory} must be a regular directory.`,
+          code: ExitCode.Precondition,
+        },
+      });
+    rmSync(manifest);
+    await expect(verifyDeploymentBundle(root)).rejects.toMatchObject({
+      info: {
+        summary: `Deployment manifest ${manifest} is not a bounded regular file.`,
+        code: ExitCode.Precondition,
+      },
+    });
   },
 );
 

@@ -107,6 +107,18 @@ export async function writeDeploymentBundle(
   return bundle;
 }
 
+/** The entry at a path, or none when nothing is there: a missing name or a
+ * parent that is no directory. Any other failure stays an error. */
+async function entryAt(path: string) {
+  try {
+    return await lstat(path);
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === 'ENOENT' || code === 'ENOTDIR') return undefined;
+    throw error;
+  }
+}
+
 export async function verifyDeploymentBundle(
   directory: string,
   expected: { cliRef?: string; deploymentRef?: string } = {},
@@ -117,16 +129,19 @@ export async function verifyDeploymentBundle(
         'Expected deployment source pins must be full commit SHAs.',
       );
   const root = resolve(directory);
-  const rootInfo = await lstat(root);
-  if (!rootInfo.isDirectory() || rootInfo.isSymbolicLink())
-    throw preconditionError('Deployment bundle must be a regular directory.');
-  const info = await lstat(join(root, 'deployment.json'));
-  if (!info.isFile() || info.isSymbolicLink() || info.size > 4_194_304)
+  const rootInfo = await entryAt(root);
+  if (!rootInfo?.isDirectory() || rootInfo.isSymbolicLink())
     throw preconditionError(
-      'Deployment manifest is not a bounded regular file.',
+      `Deployment bundle ${root} must be a regular directory.`,
+    );
+  const manifest = join(root, 'deployment.json');
+  const info = await entryAt(manifest);
+  if (!info?.isFile() || info.isSymbolicLink() || info.size > 4_194_304)
+    throw preconditionError(
+      `Deployment manifest ${manifest} is not a bounded regular file.`,
     );
   const bundle = deploymentBundleSchema.parse(
-    JSON.parse(await readFile(join(root, 'deployment.json'), 'utf8')),
+    JSON.parse(await readFile(manifest, 'utf8')),
   );
   if (
     (expected.cliRef !== undefined &&
