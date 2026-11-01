@@ -165,10 +165,10 @@ describe('the broker hands git the hosts of the equipped connectors alone [SBX-R
         endpoint: 'https://git.tale.dev:3000',
       }),
     );
-    const out = await resolveSessionCredentialEnv(
-      makeCtx() as never,
-      { ...ARGS, grants: ['forgejo'] },
-    );
+    const out = await resolveSessionCredentialEnv(makeCtx() as never, {
+      ...ARGS,
+      grants: ['forgejo'],
+    });
     expect(out.env[GIT_CREDENTIALS_ENV]).toBe(
       'git.tale.dev:3000 x-access-token fj-token',
     );
@@ -180,10 +180,10 @@ describe('the broker hands git the hosts of the equipped connectors alone [SBX-R
         endpoint: 'https://client-a.git.tale.dev',
       }),
     );
-    const out = await resolveSessionCredentialEnv(
-      makeCtx() as never,
-      { ...ARGS, grants: ['forgejo'] },
-    );
+    const out = await resolveSessionCredentialEnv(makeCtx() as never, {
+      ...ARGS,
+      grants: ['forgejo'],
+    });
     expect(out.env[GIT_CREDENTIALS_ENV]).toBe(
       'client-a.git.tale.dev x-access-token fj-token',
     );
@@ -225,10 +225,10 @@ describe('the broker hands git the hosts of the equipped connectors alone [SBX-R
         username: 'deploy-bot',
       }),
     );
-    const out = await resolveSessionCredentialEnv(
-      makeCtx() as never,
-      { ...ARGS, grants: ['forgejo'] },
-    );
+    const out = await resolveSessionCredentialEnv(makeCtx() as never, {
+      ...ARGS,
+      grants: ['forgejo'],
+    });
     expect(out.env[GIT_CREDENTIALS_ENV]).toBe('git.tale.dev deploy-bot pw');
   });
 
@@ -239,7 +239,10 @@ describe('the broker hands git the hosts of the equipped connectors alone [SBX-R
       grants: ['slack', 'no-such-connector'],
     });
     expect(resolveConnectorCredential).not.toHaveBeenCalled();
-    expect(Object.keys(out.env)).toHaveLength(0);
+    // No credential at all: the commit identity alone [SBX-R42].
+    expect(Object.keys(out.env).sort()).toEqual(
+      Object.keys(resolveSessionGitIdentityEnv()).sort(),
+    );
     expect(isBrokerableGrant('github')).toBe(true);
     expect(isBrokerableGrant('forgejo')).toBe(true);
     expect(isBrokerableGrant('slack')).toBe(false);
@@ -263,10 +266,10 @@ describe('the broker hands git the hosts of the equipped connectors alone [SBX-R
     resolveConnectorCredential.mockResolvedValue(
       credential('forgejo', 'fj-token'),
     );
-    const out = await resolveSessionCredentialEnv(
-      makeCtx() as never,
-      { ...ARGS, grants: ['forgejo'] },
-    );
+    const out = await resolveSessionCredentialEnv(makeCtx() as never, {
+      ...ARGS,
+      grants: ['forgejo'],
+    });
     expect(out.env[GIT_CREDENTIALS_ENV]).toBeUndefined();
   });
 
@@ -313,10 +316,10 @@ describe('the runtime image’s helper reads what the broker writes [SBX-R40]', 
               }),
         ),
     );
-    const out = await resolveSessionCredentialEnv(
-      makeCtx() as never,
-      { ...ARGS, grants: ['github', 'forgejo'] },
-    );
+    const out = await resolveSessionCredentialEnv(makeCtx() as never, {
+      ...ARGS,
+      grants: ['github', 'forgejo'],
+    });
 
     expect(
       helperAnswers(out.env, { protocol: 'https', host: 'github.com' }),
@@ -381,14 +384,11 @@ describe('a pinned credential is the only one its connector hands the sandbox [S
               }),
         ),
     );
-    const out = await resolveSessionCredentialEnv(
-      makeCtx() as never,
-      {
-        ...ARGS,
-        grants: ['github', 'forgejo'],
-        connectorCredentials: { forgejo: 'Client A' },
-      },
-    );
+    const out = await resolveSessionCredentialEnv(makeCtx() as never, {
+      ...ARGS,
+      grants: ['github', 'forgejo'],
+      connectorCredentials: { forgejo: 'Client A' },
+    });
     expect(resolveConnectorCredential).toHaveBeenCalledWith(expect.anything(), {
       organizationId: 'org-1',
       connectorSlug: 'forgejo',

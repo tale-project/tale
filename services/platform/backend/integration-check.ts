@@ -51968,8 +51968,14 @@ async function checkTurnEquipmentBroker(
       env.GH_TOKEN === token &&
       env.GIT_CONFIG_COUNT === '3' &&
       helperPair?.[1] === '/usr/local/bin/tale-git-credential' &&
-      gitConfigPairs.some(([key]) => key === 'user.name') &&
-      gitConfigPairs.some(([key]) => key === 'user.email') &&
+      gitConfigPairs.some(
+        ([key, value]) => key === 'user.name' && value === 'Tale',
+      ) &&
+      gitConfigPairs.some(
+        ([key, value]) => key === 'user.email' && value === 'noreply@tale.dev',
+      ) &&
+      env.GIT_AUTHOR_NAME === 'Tale' &&
+      env.GIT_COMMITTER_EMAIL === 'noreply@tale.dev' &&
       audit.length === 1 &&
       audit[0]?.slug === 'github' &&
       audit[0]?.kind === 'git' &&
@@ -51977,25 +51983,66 @@ async function checkTurnEquipmentBroker(
     `created=${created.success}, GITHUB_TOKEN=${env.GITHUB_TOKEN === token}, GH_TOKEN=${env.GH_TOKEN === token}, gitConfig=${env.GIT_CONFIG_COUNT ?? 'unset'} (want 3), helper=${helperPair?.[1] ?? 'missing'}, audit=${audit.map((row) => `${row.slug}:${row.kind}:${row.credentialId ?? 'null'}`).join(',') || 'none'} (want github:git:${created.success ? created.data.credentialId : '?'})`,
   );
 
-  // An ungranted turn resolves the same owner's non-secret author identity,
-  // without fetching a connector token or recording credential access.
+  // An ungranted turn resolves the same non-secret commit identity, without
+  // fetching a connector token or recording credential access. A person
+  // created this session, and the commits still carry Tale's identity, not
+  // theirs [SBX-R42].
   const emptyEnv = await resolveTurnEquipmentEnv(
     // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the work-lane jobs run the resolver on exactly this shim
     shim as unknown as Parameters<typeof resolveTurnEquipmentEnv>[0],
     { organizationId: orgId, sessionId, connectors: [], secrets: [] },
   );
   record(
-    'turn-equipment broker: no grants → owner identity only, no new credential access',
+    'turn-equipment broker: no grants → Tale identity only, never the session creator’s, no new credential access',
     emptyEnv.GIT_CONFIG_COUNT === '2' &&
       emptyEnv.GIT_CONFIG_KEY_0 === 'user.name' &&
-      emptyEnv.GIT_CONFIG_VALUE_0 === env.GIT_CONFIG_VALUE_1 &&
+      emptyEnv.GIT_CONFIG_VALUE_0 === 'Tale' &&
       emptyEnv.GIT_CONFIG_KEY_1 === 'user.email' &&
-      emptyEnv.GIT_CONFIG_VALUE_1 === env.GIT_CONFIG_VALUE_2 &&
+      emptyEnv.GIT_CONFIG_VALUE_1 === 'noreply@tale.dev' &&
+      emptyEnv.GIT_AUTHOR_NAME === 'Tale' &&
+      emptyEnv.GIT_AUTHOR_EMAIL === 'noreply@tale.dev' &&
+      emptyEnv.GIT_COMMITTER_NAME === 'Tale' &&
+      emptyEnv.GIT_COMMITTER_EMAIL === 'noreply@tale.dev' &&
       emptyEnv.GITHUB_TOKEN === undefined &&
       (
         await sql`SELECT 1 FROM app.sandbox_credential_access WHERE session_id = ${sessionId}`
       ).length === audit.length,
-    `identity pairs=${emptyEnv.GIT_CONFIG_COUNT ?? 'unset'}, token present=${emptyEnv.GITHUB_TOKEN !== undefined}`,
+    `identity pairs=${emptyEnv.GIT_CONFIG_COUNT ?? 'unset'}, author=${emptyEnv.GIT_AUTHOR_NAME ?? 'unset'} <${emptyEnv.GIT_AUTHOR_EMAIL ?? 'unset'}> (want Tale <noreply@tale.dev>), token present=${emptyEnv.GITHUB_TOKEN !== undefined}`,
+  );
+
+  // A project agent's standing session belongs to no person
+  // (`system:task-agent`): its runs commit under the agent's own identity,
+  // never under none [SBX-R42].
+  const agentSessionId = 'itest-broker-agent-session';
+  await sql`
+    INSERT INTO app.sandbox_sessions (
+      org_id, session_id, status, owner_type, owner_id, created_by,
+      created_at_ms, expires_at_ms
+    ) VALUES (
+      ${orgId}, ${agentSessionId}, 'active', 'workflow_run',
+      'itest-broker-agent-run', 'system:task-agent', ${now},
+      ${now + 3_600_000}
+    )
+  `;
+  const agentEnv = await resolveTurnEquipmentEnv(
+    // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the work-lane jobs run the resolver on exactly this shim
+    shim as unknown as Parameters<typeof resolveTurnEquipmentEnv>[0],
+    {
+      organizationId: orgId,
+      sessionId: agentSessionId,
+      connectors: [],
+      secrets: [],
+      gitIdentity: { name: 'Coder', email: 'coder@tale.dev' },
+    },
+  );
+  record(
+    'turn-equipment broker: a system:task-agent session commits as its agent',
+    agentEnv.GIT_AUTHOR_NAME === 'Coder' &&
+      agentEnv.GIT_AUTHOR_EMAIL === 'coder@tale.dev' &&
+      agentEnv.GIT_COMMITTER_NAME === 'Coder' &&
+      agentEnv.GIT_COMMITTER_EMAIL === 'coder@tale.dev' &&
+      agentEnv.GIT_CONFIG_VALUE_0 === 'Coder',
+    `author=${agentEnv.GIT_AUTHOR_NAME ?? 'unset'} <${agentEnv.GIT_AUTHOR_EMAIL ?? 'unset'}>, committer=${agentEnv.GIT_COMMITTER_NAME ?? 'unset'} <${agentEnv.GIT_COMMITTER_EMAIL ?? 'unset'}> (want Coder <coder@tale.dev>)`,
   );
 
   // Leave no connected github credential behind — later checks read the
@@ -52007,6 +52054,7 @@ async function checkTurnEquipmentBroker(
     );
   }
   await sql`DELETE FROM app.sandbox_sessions WHERE session_id = ${sessionId}`;
+  await sql`DELETE FROM app.sandbox_sessions WHERE session_id = ${agentSessionId}`;
   await sql`
     DELETE FROM app.sandbox_credential_access
     WHERE session_id = ${sessionId}
