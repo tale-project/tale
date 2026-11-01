@@ -117,33 +117,76 @@ export function buildCustomProviderDefinition(
     : { ok: false, message: formatZodError(outcome.error) };
 }
 
+/** What the page says of each listing failure the server codes: the
+ * sentence of what went wrong, with the fix where the reader has one, and
+ * whether the server's words follow it. They do where they help a diagnosis
+ * and quote nothing the endpoint answered: the status, or what failed of the
+ * connection. The words of a listing that answered without a model list name
+ * the listing URL instead, which may carry a key. */
+const LISTING_FAILURES = {
+  PROVIDER_CATALOG_NOT_JSON: {
+    sentenceKey: 'providers.custom.errors.catalogNotJson',
+    showsDetail: false,
+  },
+  PROVIDER_CATALOG_NOT_FOUND: {
+    sentenceKey: 'providers.custom.errors.catalogNotFound',
+    showsDetail: false,
+  },
+  PROVIDER_CATALOG_KEY_REFUSED: {
+    sentenceKey: 'providers.custom.errors.catalogKeyRefused',
+    showsDetail: true,
+  },
+  PROVIDER_CATALOG_UPSTREAM_ERROR: {
+    sentenceKey: 'providers.custom.errors.catalogUpstreamError',
+    showsDetail: true,
+  },
+  PROVIDER_CATALOG_UNREACHABLE: {
+    sentenceKey: 'providers.custom.errors.catalogUnreachable',
+    showsDetail: true,
+  },
+} as const satisfies Record<
+  ProviderCatalogFailureCode,
+  { sentenceKey: `providers.custom.errors.${string}`; showsDetail: boolean }
+>;
+
+function isListingFailureCode(
+  code: string | undefined,
+): code is ProviderCatalogFailureCode {
+  return code !== undefined && Object.hasOwn(LISTING_FAILURES, code);
+}
+
 /**
- * Why a provider's model listing could not be read, for the row, the refresh
- * report and the listing check: a listing that answered without a model list
- * names the fix in the reader's language; anything else keeps its message.
+ * Why a provider's model listing could not be read, for the row and the
+ * refresh report, in the reader's language: the sentence of its code, with
+ * the server's words after it where they help a diagnosis
+ * ({@link LISTING_FAILURES}). A failure without a code reads the general
+ * sentence alone: its words may quote the listing URL or what the endpoint
+ * answered, so they stay in the server's log.
  */
 export function catalogFailureText(
   t: Translator,
   error: string,
   code: ProviderCatalogFailureCode | undefined,
 ): string {
-  return listingFailureSentence(t, code) ?? error;
+  if (!isListingFailureCode(code)) {
+    return t('providers.custom.errors.catalogUnavailable');
+  }
+  const { sentenceKey, showsDetail } = LISTING_FAILURES[code];
+  const sentence = t(sentenceKey);
+  return showsDetail
+    ? t('providers.catalogs.failureDetail', { sentence, detail: error })
+    : sentence;
 }
 
-/** The localized fix for a listing that answered without a model list —
- * `undefined` for any other code. */
+/** The localized sentence of a coded listing failure — `undefined` for any
+ * other code. */
 function listingFailureSentence(
   t: Translator,
   code: string | undefined,
 ): string | undefined {
-  switch (code) {
-    case 'PROVIDER_CATALOG_NOT_JSON':
-      return t('providers.custom.errors.catalogNotJson');
-    case 'PROVIDER_CATALOG_NOT_FOUND':
-      return t('providers.custom.errors.catalogNotFound');
-    default:
-      return undefined;
-  }
+  return isListingFailureCode(code)
+    ? t(LISTING_FAILURES[code].sentenceKey)
+    : undefined;
 }
 
 /**

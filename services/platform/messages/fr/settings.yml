@@ -1061,6 +1061,13 @@ providers:
         bien de la racine de l'API ; pour la plupart des passerelles, elle se
         termine par /v1. Si l'endpoint ne sait pas lister ses modèles, saisis
         plutôt leurs identifiants.
+      catalogUnreachable: >-
+        L'endpoint est injoignable ou n'a pas répondu à temps. Vérifie qu'il
+        fonctionne et que ce déploiement peut le joindre.
+      catalogKeyRefused: >-
+        L'endpoint a refusé la clé API, ou en exige une. Vérifie les
+        identifiants par défaut du fournisseur et leur clé.
+      catalogUpstreamError: L'endpoint a répondu par une erreur serveur. Réessaie plus tard.
   catalogs:
     emptyBody: >-
       Ce déploiement ne fournit aucun fichier de fournisseur. Vérifie que la
@@ -1070,6 +1077,7 @@ providers:
     refreshing: Actualisation…
     resultOk: '{name} : {count, plural, one {# modèle} other {# modèles}}'
     resultError: '{name} : {error}'
+    failureDetail: '{sentence} ({detail})'
     nothingToRefresh:
       Tous les catalogues sont livrés avec la plateforme — il n'y a
       rien à actualiser.

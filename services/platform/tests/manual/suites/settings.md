@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 148 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 149 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -1462,6 +1462,22 @@ Restore any toggled setting after the run.
   rows stay under `settings.credentials.refreshFailed`. Rename a credential
   to the name of another credential of its provider → the dialog says
   `settings.credentials.errors.nameTaken` in German.
+- [ ] `SET-B47` · **A failed model listing names why, in German** — With the
+  language set to Deutsch, **Add credential** → **Custom provider** with
+  **Base URL** `https://api.openai.com/v1`, **Discover from the endpoint** and
+  the **API key** `sk-wrong` → submit → the row reads
+  `settings.providers.card.catalogUnavailable` with
+  `settings.providers.custom.errors.catalogKeyRefused` in German and the
+  server's words after it in parentheses (`catalog fetch returned HTTP 401`),
+  never an English sentence; **Refresh catalogs** reports the provider with
+  the same sentence and words; **Check models** toasts
+  `settings.providers.custom.checkFailed` with the sentence alone.
+  **Edit credential** → **Base URL** `https://example.com:81/v1` (nothing
+  answers on that port) → **Save** → once the listing's attempts run out
+  (about a minute) the row reads
+  `settings.providers.custom.errors.catalogUnreachable` in German with the
+  connection's words after it, never a URL; the backend log names each
+  attempt on a line that starts with `[catalog]`.
 
 ## Accessibility (WCAG 2.1 AA)
 

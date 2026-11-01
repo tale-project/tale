@@ -9,11 +9,16 @@
 
 import type { ProviderDefinition } from '@tale/shared/schemas/providers';
 
-/** Why a provider's model listing reached a server that answered without a
- * model list: a body that is not JSON, or HTTP 404. */
+/** Why a provider's model listing failed, when the server knows: a server
+ * that answered without a model list (a body that is not JSON, or HTTP
+ * 404), refused the key (HTTP 401 or 403), failed on its side (HTTP 5xx),
+ * or gave no answer at all. */
 export type ProviderCatalogFailureCode =
   | 'PROVIDER_CATALOG_NOT_JSON'
-  | 'PROVIDER_CATALOG_NOT_FOUND';
+  | 'PROVIDER_CATALOG_NOT_FOUND'
+  | 'PROVIDER_CATALOG_KEY_REFUSED'
+  | 'PROVIDER_CATALOG_UPSTREAM_ERROR'
+  | 'PROVIDER_CATALOG_UNREACHABLE';
 
 /** One normalized model entry of a provider catalog. */
 export interface ProviderCatalogModel {
@@ -61,7 +66,7 @@ export interface LibContract {
     args: { organizationId: string };
     returns: Array<{
       catalogError?: string;
-      /** Present when the listing answered without a model list. */
+      /** Present when the server knows why the listing failed. */
       catalogErrorCode?: ProviderCatalogFailureCode;
       catalogSource: 'none' | 'static' | 'openrouter-api' | 'models-endpoint';
       authMethods: Array<

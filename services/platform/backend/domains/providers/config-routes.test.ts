@@ -7,6 +7,7 @@ import type { Context } from 'hono';
 import type { Sql } from 'postgres';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { SafeFetchError } from '../../../lib/net/safe-fetch';
 import type { OrgEnv } from '../../auth/org';
 import { CatalogListingError } from '../../core/lib/providers/catalog_fetch';
 import { resolveProvidersForOrg } from '../../core/lib/providers/org_providers';
@@ -415,7 +416,7 @@ describe('native custom provider definition HTTP door', () => {
     expect(catalog).not.toHaveBeenCalled();
   });
 
-  it('passes on the code of a listing that answered without a model list, on the row, the refresh and the check', async () => {
+  it('passes on the code of a failed listing, on the row, the refresh and the check', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     try {
       expect(
@@ -462,7 +463,32 @@ describe('native custom provider definition HTTP door', () => {
         error: 'PROVIDER_CATALOG_NOT_JSON',
       });
 
-      // A failure that says nothing about the URL stays the catalog being
+      // A listing that got no answer has its code too, and the check names
+      // it without the connection's words.
+      catalog.mockRejectedValue(
+        new SafeFetchError('timeout', 'Request timed out after 20000ms'),
+      );
+      const silent = await app().request(
+        '/definitions/local-chat/catalog?orgId=org-a',
+      );
+      expect(silent.status).toBe(502);
+      const silentBody: unknown = await silent.json();
+      expect(silentBody).toMatchObject({
+        error: 'PROVIDER_CATALOG_UNREACHABLE',
+      });
+      expect(JSON.stringify(silentBody)).not.toContain('timed out');
+      expect(
+        (
+          (await (await app().request('/catalogs?orgId=org-a')).json()) as {
+            catalogs: Array<{ name: string; catalogErrorCode?: string }>;
+          }
+        ).catalogs.find((entry) => entry.name === 'local-chat'),
+      ).toMatchObject({
+        catalogError: 'Request timed out after 20000ms',
+        catalogErrorCode: 'PROVIDER_CATALOG_UNREACHABLE',
+      });
+
+      // A failure the server has no code for stays the catalog being
       // unavailable, with no code on the row.
       catalog.mockRejectedValue(new Error('connect ECONNREFUSED'));
       const down = await app().request(
