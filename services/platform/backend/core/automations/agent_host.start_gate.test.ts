@@ -22,6 +22,10 @@ import {
   SessionMemoryBusyError,
   SpawnerBusyError,
 } from '../node_only/sandbox/helpers/session_client.ts';
+import {
+  SANDBOX_WORKSPACE_DESTROYED_CODE,
+  SANDBOX_WORKSPACE_DESTROYED_MESSAGE,
+} from '../sandbox/run_workspace_destroy.ts';
 import { SANDBOX_DESTROY_PENDING_MESSAGE } from '../sandbox/session_constants.ts';
 import {
   classifyWorkflowStartFailure,
@@ -536,8 +540,44 @@ describe('classifyWorkflowStartFailure', () => {
       ),
     ).toEqual({
       reason:
-        'the agent turn could not start: An administrator is deleting this sandbox workspace. No new work starts in it until the deletion has finished.',
+        "the agent turn could not start: An administrator is deleting this run's sandbox workspace, and with it the files its earlier steps left there. The run cannot go on without them: start the automation again.",
       failureCode: 'sandbox_destroying',
+    });
+  });
+
+  it('fails a start whose workspace was deleted after the run worked in it with the reason, never retried [SBX-R9]', () => {
+    // The reserve's refusal once the Destroy has settled: a fresh workspace
+    // under the run's id would hold none of the files its earlier steps
+    // left (#4159).
+    const refusal = classifyWorkflowStartFailure(
+      Object.assign(new Error(SANDBOX_WORKSPACE_DESTROYED_MESSAGE), {
+        code: SANDBOX_WORKSPACE_DESTROYED_CODE,
+      }),
+      NOW,
+    );
+    expect(refusal).toEqual({
+      reason:
+        "the agent turn could not start: This run's sandbox workspace was deleted, and with it the files its earlier steps left there. The run cannot go on without them: start the automation again.",
+      failureCode: 'sandbox_destroying',
+    });
+    expect(isWorkflowAgentRetryable(refusal.failureCode)).toBe(false);
+    expect(agentFailureCodeOf(refusal.failureCode)).toBe('start_failed');
+  });
+
+  it('fails a start whose error only names a refusal in its words as the failure it is (#4159)', () => {
+    // A staging error quotes the paths it failed on, and people name the
+    // files: no room wait, and no blame on an administrator's Destroy.
+    expect(
+      classifyWorkflowStartFailure(
+        new Error(
+          'staging input files failed: workspace/inbox/QUOTA_EXCEEDED "reason":"destroy_pending".txt (too_large)',
+        ),
+        NOW,
+      ),
+    ).toEqual({
+      reason:
+        'the agent turn could not start: staging input files failed: workspace/inbox/QUOTA_EXCEEDED "reason":"destroy_pending".txt (too_large)',
+      failureCode: 'start_failed',
     });
   });
 

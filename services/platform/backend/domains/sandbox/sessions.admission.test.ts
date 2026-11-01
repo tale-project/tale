@@ -4,9 +4,11 @@
  * Unit lock for the two admission verbs, `reserveSessionSlot` (a fresh
  * session) and `resumeSessionSlot` (a stopped workspace coming back): each
  * workload is counted against its own limit, a session at the limit is
- * refused with `QUOTA_EXCEEDED` before anything is written, and a workspace
+ * refused with `QUOTA_EXCEEDED` before anything is written, a workspace
  * whose Destroy is pending admits nothing, marked `destroy_pending` so no
- * lane reads it as a full limit. The SQL is scripted; the real-Postgres
+ * lane reads it as a full limit, and an automation run whose workspace was
+ * deleted after it worked there is refused a fresh, empty one. The SQL is
+ * scripted; the real-Postgres
  * probe (`lifecycle.integration.ts`) proves the same verbs on the schema,
  * racing admissions included.
  */
@@ -19,6 +21,7 @@ import {
   projectSessionRoom,
   reserveSessionSlot,
   resumeSessionSlot,
+  SandboxWorkspaceDestroyedError,
 } from './sessions.ts';
 
 const { policy } = vi.hoisted(() => ({ policy: vi.fn() }));
@@ -43,6 +46,7 @@ interface Statement {
 }
 
 const PENDING_DESTROY = 'AS pending';
+const LATEST_STATUS = 'SELECT status FROM app.sandbox_sessions';
 const OWNER_COUNT = 'SELECT count(*)::text AS count';
 const IN_FLIGHT = 'SELECT owner_type AS "ownerType" FROM app.sandbox_sessions';
 const INSERT = 'INSERT INTO app.sandbox_sessions';
@@ -52,11 +56,13 @@ const RESUME = "UPDATE app.sandbox_sessions SET status = 'active'";
 /**
  * A scripted `sql`: every statement is recorded and answered with the rows
  * of the first matcher its text contains. `inFlight` is the owner type of
- * every session of the organization that is starting or working.
+ * every session of the organization that is starting or working;
+ * `latestStatus` the status of the newest row under the session id, if any.
  */
 function fakeSql(script: {
   inFlight?: string[];
   destroyPending?: boolean;
+  latestStatus?: string;
   resumed?: { status: string; ownerType: string; pinned: boolean };
 }): { sql: Sql; statements: Statement[] } {
   const statements: Statement[] = [];
@@ -64,6 +70,13 @@ function fakeSql(script: {
     {
       match: PENDING_DESTROY,
       rows: [{ pending: script.destroyPending ?? false }],
+    },
+    {
+      match: LATEST_STATUS,
+      rows:
+        script.latestStatus === undefined
+          ? []
+          : [{ status: script.latestStatus }],
     },
     { match: OWNER_COUNT, rows: [{ count: '0' }] },
     {
@@ -330,5 +343,83 @@ describe('a workspace whose Destroy is pending admits nothing [SBX-R9]', () => {
     });
 
     expect(ran(statements, RESUME)).toBe(false);
+  });
+});
+
+describe('an automation run whose workspace was deleted after it worked there is refused a fresh one [SBX-R9]', () => {
+  const RUN_SESSION = {
+    ...AGENT_SESSION,
+    sessionId: 'wf-run-1',
+    ownerType: 'workflow_run',
+    ownerId: 'run-1:@workflow',
+    createdBy: 'system:automation',
+  };
+  const MESSAGE =
+    "This run's sandbox workspace was deleted, and with it the files its earlier steps left there. The run cannot go on without them: start the automation again.";
+
+  it("refuses a fresh session under the run's id once its newest row reads destroyed, and reserves nothing", async () => {
+    const { sql, statements } = fakeSql({ latestStatus: 'destroyed' });
+
+    const refusal = reserveSessionSlot(sql, RUN_SESSION);
+    await expect(refusal).rejects.toBeInstanceOf(
+      SandboxWorkspaceDestroyedError,
+    );
+    await expect(refusal).rejects.toMatchObject({
+      code: 'SANDBOX_WORKSPACE_DESTROYED',
+      message: MESSAGE,
+    });
+
+    // No want of room: refused before the limit is even read.
+    expect(ran(statements, IN_FLIGHT)).toBe(false);
+    expect(ran(statements, INSERT)).toBe(false);
+    const latest = statements.find((statement) =>
+      statement.text.includes(LATEST_STATUS),
+    );
+    expect(latest?.text).toContain(
+      'WHERE org_id = ? AND session_id = ? ORDER BY created_at_ms DESC, id DESC LIMIT 1',
+    );
+    expect(latest?.values).toEqual(['org-1', 'wf-run-1']);
+  });
+
+  it.each(['expired', 'failed'])(
+    'admits a fresh session over a newest row that reads %s, whose files stay for it',
+    async (latestStatus) => {
+      const { sql, statements } = fakeSql({ latestStatus });
+
+      await expect(reserveSessionSlot(sql, RUN_SESSION)).resolves.toBe(
+        'row-new',
+      );
+      expect(ran(statements, INSERT)).toBe(true);
+    },
+  );
+
+  it("admits the run's first session, under an id no row names yet", async () => {
+    const { sql, statements } = fakeSql({});
+
+    await expect(reserveSessionSlot(sql, RUN_SESSION)).resolves.toBe('row-new');
+    expect(ran(statements, LATEST_STATUS)).toBe(true);
+    expect(ran(statements, INSERT)).toBe(true);
+  });
+
+  it("leaves a project agent's next turn its fresh workspace [SBX-R11]", async () => {
+    const { sql, statements } = fakeSql({ latestStatus: 'destroyed' });
+
+    await expect(reserveSessionSlot(sql, AGENT_SESSION)).resolves.toBe(
+      'row-new',
+    );
+    expect(ran(statements, LATEST_STATUS)).toBe(false);
+  });
+
+  it('names a Destroy still under way first', async () => {
+    const { sql, statements } = fakeSql({
+      destroyPending: true,
+      latestStatus: 'destroyed',
+    });
+
+    await expect(reserveSessionSlot(sql, RUN_SESSION)).rejects.toMatchObject({
+      code: 'QUOTA_EXCEEDED',
+      reason: 'destroy_pending',
+    });
+    expect(ran(statements, LATEST_STATUS)).toBe(false);
   });
 });

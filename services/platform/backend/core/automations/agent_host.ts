@@ -77,10 +77,6 @@ import {
 import type { Id } from '../lib/rows';
 import { ensureAgentSession } from '../node_only/sandbox/agent_session';
 import {
-  isDestroyPendingRefusal,
-  sandboxCapacityRefusal,
-} from '../node_only/sandbox/capacity_refusal';
-import {
   settleGatewayKey,
   settlementPending,
 } from '../node_only/sandbox/gateway_key_settlement';
@@ -105,6 +101,11 @@ import {
 import { stageBlobCacheKey } from '../node_only/sandbox/managed_stage';
 import { harvestSessionOutput } from '../node_only/sandbox/session_exec';
 import {
+  isDestroyPendingRefusal,
+  isWorkspaceDestroyedRefusal,
+  sandboxCapacityRefusal,
+} from '../node_only/sandbox/start_refusal';
+import {
   isTurnBudgetExceededError,
   readReserveTurnBudgetResult,
   TurnBudgetExceededError,
@@ -121,9 +122,10 @@ import {
   workflowAgentBudgetCents,
 } from '../sandbox/agent_deadline';
 import {
-  AWAITING_ROOM_RESULT_STATUS,
-  SANDBOX_DESTROY_PENDING_MESSAGE,
-} from '../sandbox/session_constants';
+  SANDBOX_WORKSPACE_DESTROYED_MESSAGE,
+  WORKFLOW_DESTROY_PENDING_MESSAGE,
+} from '../sandbox/run_workspace_destroy';
+import { AWAITING_ROOM_RESULT_STATUS } from '../sandbox/session_constants';
 import { sessionIdForWorkflowExecution } from '../sandbox/session_naming';
 import {
   ASK_HUMAN_TOOL,
@@ -1466,14 +1468,15 @@ export interface StartWorkflowAgentTurnArgs {
  * (the organization's session budget, or the host's capacity or memory)
  * frees as other work settles: the re-kick waits out the refusal's retry
  * hint and spends no attempt, instead of failing the run after three
- * instant retries. A workspace an administrator is destroying is no want of
- * room: the step fails with the reason at once, never retried, since a
- * start after the Destroy would continue the run in a fresh, empty
- * workspace. A model the organization's EU/EEA rule refuses (GOV-R17) is
- * no fault either: the step fails with the refusal's own sentence, never
- * retried, until an admin acts. A broker pool whose every account is
- * cooling down says when the first is back: the stepper holds the re-kick's
- * start until then instead of meeting the same refusal at once.
+ * instant retries. A workspace an administrator is destroying, or one
+ * deleted after the run worked in it, is no want of room: the step fails
+ * with the reason at once, never retried, since the files the run's earlier
+ * steps left went with it (SBX-R9). A model the organization's EU/EEA rule
+ * refuses (GOV-R17) is no fault either: the step fails with the refusal's
+ * own sentence, never retried, until an admin acts. A broker pool whose
+ * every account is cooling down says when the first is back: the stepper
+ * holds the re-kick's start until then instead of meeting the same refusal
+ * at once.
  */
 export function classifyWorkflowStartFailure(
   err: unknown,
@@ -1493,7 +1496,13 @@ export function classifyWorkflowStartFailure(
   }
   if (isDestroyPendingRefusal(err)) {
     return {
-      reason: `the agent turn could not start: ${SANDBOX_DESTROY_PENDING_MESSAGE}`,
+      reason: `the agent turn could not start: ${WORKFLOW_DESTROY_PENDING_MESSAGE}`,
+      failureCode: 'sandbox_destroying',
+    };
+  }
+  if (isWorkspaceDestroyedRefusal(err)) {
+    return {
+      reason: `the agent turn could not start: ${SANDBOX_WORKSPACE_DESTROYED_MESSAGE}`,
       failureCode: 'sandbox_destroying',
     };
   }
@@ -2621,10 +2630,15 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
       await continueOrSettle(ctx, keys, window);
     } catch (err) {
       console.error('[agent-host] answered-ask resume failed:', err);
-      // A workspace being destroyed fails the step, as at a start: the
-      // conversation the answer was for is going with it. So does a model
-      // the EU/EEA rule refuses (GOV-R17): a re-kick meets it again.
-      const destroying = isDestroyPendingRefusal(err);
+      // A workspace being destroyed, or already deleted, fails the step, as
+      // at a start: the conversation the answer was for goes with it. So
+      // does a model the EU/EEA rule refuses (GOV-R17): a re-kick meets it
+      // again.
+      const workspaceGone = isDestroyPendingRefusal(err)
+        ? WORKFLOW_DESTROY_PENDING_MESSAGE
+        : isWorkspaceDestroyedRefusal(err)
+          ? SANDBOX_WORKSPACE_DESTROYED_MESSAGE
+          : undefined;
       const endpointRefused = err instanceof ModelEndpointRefusal;
       // No sandbox room is a wait here too: the re-kick resumes once the
       // refusal's retry hint has passed, spending no attempt.
@@ -2650,14 +2664,15 @@ export async function resumeWorkflowAgentTurnWithAnswerImpl(
           reason:
             roomWait !== undefined
               ? roomWait.reason
-              : `the agent turn could not resume after the answer: ${destroying ? SANDBOX_DESTROY_PENDING_MESSAGE : err instanceof ModelEndpointRefusal ? err.data.message : runFailureMessage(err)}`,
-          failureCode: destroying
-            ? 'sandbox_destroying'
-            : endpointRefused
-              ? 'endpoint_refused'
-              : noRoom
-                ? 'sandbox_capacity'
-                : 'resume_failed',
+              : `the agent turn could not resume after the answer: ${workspaceGone ?? (err instanceof ModelEndpointRefusal ? err.data.message : runFailureMessage(err))}`,
+          failureCode:
+            workspaceGone !== undefined
+              ? 'sandbox_destroying'
+              : endpointRefused
+                ? 'endpoint_refused'
+                : noRoom
+                  ? 'sandbox_capacity'
+                  : 'resume_failed',
           ...(retryAtMs !== undefined ? { retryAtMs } : {}),
           ...(roomWait?.retryAfterMs !== undefined
             ? { retryAfterMs: roomWait.retryAfterMs }
