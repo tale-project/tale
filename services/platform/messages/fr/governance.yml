@@ -1796,6 +1796,10 @@ dsarPolicy:
     Les modifications d'assouplissement prennent effet
     après un délai de grâce de 24 heures. Tout admin peut les annuler avant.
   loosenCancelledTitle: Modification en attente annulée.
+  cancelFailedTitle: Impossible d'annuler la modification en attente.
+  cancelNothingPending:
+    Il n'y a plus rien à annuler. Un autre admin a déjà annulé la
+    modification, ou elle a pris effet.
   pendingFieldLocked: Verrouillé pendant la fenêtre de revue
   pendingBanner:
     title: Assouplissement de politique en attente
@@ -1803,6 +1807,9 @@ dsarPolicy:
       Proposé par {name}. Tout admin peut l'annuler avant qu'il ne prenne
       effet.
     cancel: Annuler la modification en attente
+    on: Activé
+    off: Désactivé
+    hours: '{count, plural, one {# heure} many {# heures} other {# heures}}'
 errors:
   saveForbidden: Tu n'as pas l'autorisation de modifier ce paramètre.
 conversationRouting:

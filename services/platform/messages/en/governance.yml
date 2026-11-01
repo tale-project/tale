@@ -1706,11 +1706,18 @@ dsarPolicy:
     Weakening changes apply after a 24-hour grace window.
     Any admin can cancel before then.
   loosenCancelledTitle: Pending change cancelled.
+  cancelFailedTitle: Couldn't cancel the pending change.
+  cancelNothingPending:
+    There's nothing left to cancel. Another admin already cancelled the
+    change, or it has taken effect.
   pendingFieldLocked: Locked while review window is open
   pendingBanner:
     title: Pending policy weakening
     description: Proposed by {name}. Any admin can cancel before this takes effect.
     cancel: Cancel pending change
+    on: 'On'
+    off: 'Off'
+    hours: '{count, plural, one {# hour} other {# hours}}'
 errors:
   saveForbidden: You don't have permission to change this setting.
 conversationRouting:

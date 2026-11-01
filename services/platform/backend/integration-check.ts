@@ -54062,6 +54062,15 @@ async function checkGovernanceSettingsTail(
     SET effective_at_ms = ${Date.now() - 1000}
     WHERE org_id = ${orgId}
   `;
+  // Past its grace the change is in force, applied yet or not: a cancel from
+  // a banner left open finds nothing to cancel and cannot undo it.
+  const dsarLateCancel = await post(
+    `/api/app/governance/dsar/policy/cancel-pending?orgId=${orgId}`,
+  );
+  const dsarLateCancelCode = z
+    .object({ error: z.string() })
+    .loose()
+    .safeParse(await dsarLateCancel.json());
   // The matured change applies SERVER-SIDE — here through the scheduled
   // sweep, further down through the erasure lane's enforcement read — not
   // only when someone opens the policy page. Before, only the page read
@@ -54110,10 +54119,13 @@ async function checkGovernanceSettingsTail(
       dsarCancelled.success &&
       dsarCancelled.data.ok &&
       dsarAfterCancel.success &&
+      dsarLateCancel.status === 404 &&
+      dsarLateCancelCode.success &&
+      dsarLateCancelCode.data.error === 'NO_PENDING_CHANGE' &&
       dsarApplied.success &&
       dsarApplied.data.config.coolingOffHours === 1 &&
       dsarPendingGone[0]?.count === '0',
-    `read=${dsarRead.success ? dsarRead.data.config.coolingOffHours : 'ERR'} (want 1), tighten=${tightened.success ? tightened.data.staged : 'ERR'} (want false), loosen=${loosened.success ? loosened.data.staged : 'ERR'} (want true), dupPending=${pendingBlocks.status} (want 400), pendingRead=${dsarPendingRead.success ? `${dsarPendingRead.data.config.coolingOffHours}/${dsarPendingRead.data.pending.config.coolingOffHours}` : 'ERR'}, cancel=${dsarCancelled.success}, after=${dsarAfterCancel.success}, applied=${dsarApplied.success ? dsarApplied.data.config.coolingOffHours : 'ERR'} (want 1), leftover=${dsarPendingGone[0]?.count} (want 0)`,
+    `read=${dsarRead.success ? dsarRead.data.config.coolingOffHours : 'ERR'} (want 1), tighten=${tightened.success ? tightened.data.staged : 'ERR'} (want false), loosen=${loosened.success ? loosened.data.staged : 'ERR'} (want true), dupPending=${pendingBlocks.status} (want 400), pendingRead=${dsarPendingRead.success ? `${dsarPendingRead.data.config.coolingOffHours}/${dsarPendingRead.data.pending.config.coolingOffHours}` : 'ERR'}, cancel=${dsarCancelled.success}, after=${dsarAfterCancel.success}, lateCancel=${dsarLateCancel.status}/${dsarLateCancelCode.success ? dsarLateCancelCode.data.error : 'ERR'} (want 404/NO_PENDING_CHANGE), applied=${dsarApplied.success ? dsarApplied.data.config.coolingOffHours : 'ERR'} (want 1), leftover=${dsarPendingGone[0]?.count} (want 0)`,
   );
 
   // The enforcement read applies a matured change on its own as well: stage

@@ -635,7 +635,7 @@ export function createGovernanceRoutes(deps: {
     }
   });
 
-  // --- DSAR governance (owner-only writes; lazy-applied 24h grace) --------
+  // --- DSAR governance (owner proposes, any admin cancels; 24h grace) -----
   app.get('/dsar/policy', async (c) => {
     const role = c.get('orgMember').role;
     if (!isAdmin(role)) return c.json({ error: 'FORBIDDEN' }, 403);
@@ -684,13 +684,11 @@ export function createGovernanceRoutes(deps: {
     }
   });
 
+  // Proposing stays the owner's; the veto is every admin's: the 24h grace
+  // exists so that someone other than the proposer can stop a weakening.
   app.post('/dsar/policy/cancel-pending', async (c) => {
-    if (c.get('orgMember').role.toLowerCase() !== 'owner') {
-      return c.json(
-        { error: 'FORBIDDEN', message: 'Owner role required' },
-        403,
-      );
-    }
+    const denied = requireAdmin(c);
+    if (denied) return denied;
     const session = c.get('sessionBundle');
     try {
       await cancelPendingDsarPolicyChange(deps.sql, {

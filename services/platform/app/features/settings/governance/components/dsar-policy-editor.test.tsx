@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { AppError } from '@/lib/shared/errors/app-error';
 import { render, screen } from '@/tests/utils/render';
 
 import { DsarPolicyEditor } from './dsar-policy-editor';
 
-const { toast, propose } = vi.hoisted(() => ({
+const { toast, propose, cancel } = vi.hoisted(() => ({
   toast: vi.fn(),
   propose: vi.fn(),
+  cancel: vi.fn(),
 }));
 
 vi.mock('@tale/ui/use-toast', () => ({
@@ -16,7 +18,7 @@ vi.mock('@tale/ui/use-toast', () => ({
 vi.mock('../hooks/mutations', () => ({
   useProposeDsarPolicy: () => ({ mutateAsync: propose, isPending: false }),
   useCancelPendingDsarPolicyChange: () => ({
-    mutateAsync: vi.fn(),
+    mutateAsync: cancel,
     isPending: false,
   }),
 }));
@@ -161,6 +163,128 @@ describe('DsarPolicyEditor', () => {
       setLoaded();
       render(<DsarPolicyEditor organizationId="org-1" />);
       expect(screen.queryByRole('status')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('a staged weakening, as an admin sees it [GOV-R24]', () => {
+    const CURRENT = {
+      coolingOffHours: 24,
+      requireDualApproval: true,
+      dailyLimitPerAdmin: 5,
+    };
+    const STAGED = {
+      config: {
+        coolingOffHours: 1,
+        requireDualApproval: false,
+        dailyLimitPerAdmin: 5,
+      },
+      effectiveAt: Date.now() + 23 * 60 * 60 * 1000,
+      proposedBy: 'usr_ada',
+      proposedByEmail: 'ada@example.test',
+      proposedByName: 'Ada Lovelace',
+      proposedAt: Date.now() - 60 * 60 * 1000,
+    };
+
+    function stage(pending: Record<string, unknown>) {
+      state.data = { callerIsOwner: false, pending, config: CURRENT };
+    }
+
+    it('offers the admin Cancel, which cancels the change', async () => {
+      stage(STAGED);
+      cancel.mockResolvedValue({ ok: true });
+      const { user } = render(<DsarPolicyEditor organizationId="org-1" />);
+
+      await user.click(
+        screen.getByRole('button', { name: 'Cancel pending change' }),
+      );
+
+      expect(cancel).toHaveBeenCalledExactlyOnceWith({
+        organizationId: 'org-1',
+      });
+      expect(toast).toHaveBeenCalledExactlyOnceWith({
+        title: 'Pending change cancelled.',
+        variant: 'success',
+      });
+    });
+
+    it('reads the change in words: the proposer by name, On/Off and hours', () => {
+      stage(STAGED);
+      render(<DsarPolicyEditor organizationId="org-1" />);
+
+      expect(
+        screen.getByText(
+          'Proposed by Ada Lovelace. Any admin can cancel before this takes effect.',
+        ),
+      ).toBeInTheDocument();
+      expect(screen.getByText('24 hours → 1 hour')).toBeInTheDocument();
+      expect(screen.getByText('On → Off')).toBeInTheDocument();
+      expect(screen.queryByText(/usr_ada|true|false/)).not.toBeInTheDocument();
+    });
+
+    it.each([
+      [
+        'by email when the account has no name',
+        { proposedByName: undefined },
+        'ada@example.test',
+      ],
+      [
+        'as a former member when neither a name nor an email is known',
+        { proposedByName: undefined, proposedByEmail: undefined },
+        'Former member',
+      ],
+    ])('names the proposer %s, never by id', (_case, missing, shown) => {
+      stage({ ...STAGED, ...missing });
+      render(<DsarPolicyEditor organizationId="org-1" />);
+
+      expect(
+        screen.getByText(
+          `Proposed by ${shown}. Any admin can cancel before this takes effect.`,
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(/usr_ada/)).not.toBeInTheDocument();
+    });
+
+    it('says that nothing is left to cancel when another admin was first', async () => {
+      stage(STAGED);
+      cancel.mockRejectedValue(
+        new AppError({
+          code: 'NO_PENDING_CHANGE',
+          message:
+            'Nothing pending: another admin cancelled the change, or it has taken effect',
+        }),
+      );
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const { user } = render(<DsarPolicyEditor organizationId="org-1" />);
+
+      await user.click(
+        screen.getByRole('button', { name: 'Cancel pending change' }),
+      );
+
+      expect(toast).toHaveBeenCalledExactlyOnceWith({
+        title: "Couldn't cancel the pending change.",
+        description:
+          "There's nothing left to cancel. Another admin already cancelled the change, or it has taken effect.",
+        variant: 'destructive',
+      });
+    });
+
+    it('reads any other refusal as the server words it', async () => {
+      stage(STAGED);
+      cancel.mockRejectedValue(
+        new AppError({ code: 'FORBIDDEN', message: 'FORBIDDEN' }),
+      );
+      vi.spyOn(console, 'error').mockImplementation(() => undefined);
+      const { user } = render(<DsarPolicyEditor organizationId="org-1" />);
+
+      await user.click(
+        screen.getByRole('button', { name: 'Cancel pending change' }),
+      );
+
+      expect(toast).toHaveBeenCalledExactlyOnceWith({
+        title: "Couldn't cancel the pending change.",
+        description: 'FORBIDDEN',
+        variant: 'destructive',
+      });
     });
   });
 

@@ -1173,3 +1173,82 @@ describe('POST /trash/restore — the corpus row of a restored document', () => 
     expect(syncRagDocumentScope).not.toHaveBeenCalled();
   });
 });
+
+describe('POST /dsar/policy/cancel-pending — any admin can cancel a staged weakening [GOV-R24]', () => {
+  /** A database whose transaction finds `pending` staged rows to delete. */
+  function database(pending: number) {
+    const statements: string[] = [];
+    const tx = async (strings: TemplateStringsArray) => {
+      const text = strings.join('?');
+      statements.push(text);
+      return text.includes('DELETE FROM app.dsar_policy_pending_changes')
+        ? Array.from({ length: pending }, () => ({ id: 'pending-1' }))
+        : [];
+    };
+    const sql = {
+      begin: async (callback: (tx: unknown) => Promise<unknown>) =>
+        await callback(tx),
+    };
+    return { sql: sql as never, tx, statements };
+  }
+
+  async function cancel(sql: never): Promise<Response> {
+    return await createGovernanceRoutes({ sql, auth: {} as never }).request(
+      '/dsar/policy/cancel-pending?orgId=o1',
+      { method: 'POST' },
+    );
+  }
+
+  it.each(['admin', 'owner', 'Admin'])(
+    'lets an %s cancel it, and the audit row in the same transaction names them',
+    async (role) => {
+      caller.role = role;
+      const { sql, tx, statements } = database(1);
+
+      const response = await cancel(sql);
+
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ ok: true });
+      expect(statements).toEqual([
+        expect.stringContaining('DELETE FROM app.dsar_policy_pending_changes'),
+      ]);
+      expect(createAuditLog).toHaveBeenCalledExactlyOnceWith(
+        tx,
+        expect.objectContaining({
+          organizationId: 'o1',
+          actorId: 'u1',
+          actorEmail: 'u@example.test',
+          action: 'policy.dsar_governance_loosening_cancelled',
+          status: 'success',
+        }),
+      );
+    },
+  );
+
+  it.each(['member', 'developer'])(
+    'refuses a %s and cancels nothing',
+    async (role) => {
+      caller.role = role;
+      const { sql, statements } = database(1);
+
+      const response = await cancel(sql);
+
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({ error: 'FORBIDDEN' });
+      expect(statements).toEqual([]);
+      expect(createAuditLog).not.toHaveBeenCalled();
+    },
+  );
+
+  it('answers NO_PENDING_CHANGE, and audits nothing, when nothing is left to cancel', async () => {
+    const { sql } = database(0);
+
+    const response = await cancel(sql);
+
+    expect(response.status).toBe(404);
+    expect(await response.json()).toMatchObject({
+      error: 'NO_PENDING_CHANGE',
+    });
+    expect(createAuditLog).not.toHaveBeenCalled();
+  });
+});

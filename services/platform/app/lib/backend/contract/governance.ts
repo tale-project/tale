@@ -120,6 +120,7 @@ export interface GovernanceContract {
         effectiveAt: number;
         proposedBy: string;
         proposedByEmail?: string;
+        proposedByName?: string;
         proposedAt: number;
       };
       callerIsOwner: boolean;

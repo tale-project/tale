@@ -307,6 +307,20 @@ agent.
   one; open it (`…/{requestId}`); fulfill / deny / extend → The request
   appears in the list with a Status; opening `…/{requestId}` renders the
   detail; status transitions persist on reload.
+- [ ] `GOV-F80` · **Any admin cancels a staged weakening** — needs the owner
+  and a second account with the **Admin** role, each in its own browser
+  session. As the owner, `data-subject-requests` → turn **Require dual
+  approval** (`governance.dsarPolicy.requireDualApproval.label`) off → both
+  sessions show **Pending policy weakening**
+  (`governance.dsarPolicy.pendingBanner.title`), naming the owner by display
+  name (else email, never an ID) and listing **Require dual approval: On →
+  Off** (`…pendingBanner.on`, `…pendingBanner.off`). As the admin, **Cancel
+  pending change** (`governance.dsarPolicy.pendingBanner.cancel`) → toast
+  **Pending change cancelled.** (`governance.dsarPolicy.loosenCancelledTitle`);
+  the banner leaves both sessions without a reload, dual approval is still on
+  after a reload, and `logs` → **Audit logs** lists the cancel with the admin
+  as its actor. A shorter cooling-off reads in hours (**24 hours → 1 hour**,
+  `…pendingBanner.hours`).
 - [ ] `GOV-F9` · **Security & monitoring** — `security-monitoring` → flip
   **Enable login attempt limits** (`governance.loginPolicy.enabled`); set
   **Failures before lockout** (`governance.loginPolicy.maxAttempts`) and
