@@ -931,5 +931,18 @@
  * endpoints alike, answers 403 `API_KEY_BLOCKED`, listing under
  * `data.organizations` the organizations where the key still works; the key
  * keeps working there, and works here again once the block is lifted.
+ *
+ * 3.56.0 — 2026-11-01: a connector action can ship named scenarios, the
+ * cases of its vendor a test can pick: over MCP, `run_automation` takes
+ * `scenarios` (node id → the name of a scenario that node's action ships),
+ * and so does each test of an automation document, wherever its tests run
+ * (`test_automation`, a save, a deploy and the REST API's version tests). A
+ * call whose input matches the scenario gets its output, or fails with its
+ * error, which is classified as a live failure of that connector would be;
+ * any other call gets the action's mock. `get_catalog` lists each action's
+ * scenarios beside its schemas. A name the action does not ship is refused
+ * as `BENCH_INVALID` (`data.issue.code` `BENCH_UNKNOWN_SCENARIO`), and
+ * `validate_automation` warns about such a test (`TESTS_SCENARIO_UNKNOWN`,
+ * `TESTS_SCENARIO_CONFLICT`). Additive.
  */
-export const API_CONTRACT_VERSION = '3.55.0';
+export const API_CONTRACT_VERSION = '3.56.0';

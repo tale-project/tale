@@ -151,7 +151,8 @@ export interface TestResult {
    * all be listed. */
   path?: { id: string; assignment: Record<string, boolean> };
   /** Nodes the test stands in for whose stand-in the run never used:
-   * skipped, never got to, or run over no items. */
+   * skipped, never got to, or run over no items — or, for a scenario, no
+   * call whose input matched it. */
   unusedMocks?: string[];
   /** With `detail`: what the run produced. */
   run?: TestRunDetail;
@@ -459,7 +460,7 @@ export async function runAutomationTests(
   if (tests.length === 0) {
     return {
       error: 'the automation has no tests',
-      hint: 'add a top-level tests: [{name, input, mocks?, failures?, expect?: {output?, outputIncludes?, effects?, nodes?, failure?}}] block',
+      hint: 'add a top-level tests: [{name, input, mocks?, failures?, scenarios?, expect?: {output?, outputIncludes?, effects?, nodes?, failure?}}] block',
     };
   }
   const chosen =
