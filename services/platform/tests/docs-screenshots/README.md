@@ -1,8 +1,10 @@
 # Capture documentation screenshots
 
 The screenshot runner drives the real platform with synthetic demo content and a mock model gateway.
-It produces the WebP files under `services/docs/public/images/` and their generated manifest. Add or
-change a shot in [`manifest.ts`](manifest.ts); never hand-edit a screenshot to imply product behavior.
+It produces the WebP files under `services/docs/public/images/` and their generated manifest, then
+the responsive variants the docs pages serve (see [Responsive variants](#responsive-variants)). Add
+or change a shot in [`manifest.ts`](manifest.ts); never hand-edit a screenshot to imply product
+behavior.
 
 Read the [screenshot guide](../../../../.agents/skills/write-docs/SCREENSHOTS.md) for framing and
 [docs contract](../../../../docs/AGENTS.md) for embedding images and translating captions.
@@ -177,13 +179,32 @@ For each changed image:
    sharp may still be unreadable inside a page.
 3. Check the surrounding steps against the image. Docs pages normally use English captures with
    native captions and alt text; the prose names the actual localized UI controls.
-4. Commit the shot definition, generated WebP, `images/manifest.json`, and all affected locale pages
+4. Commit the shot definition, generated WebP, its variants under `images/optimized/`,
+   `images/manifest.json`, `app/content/image-dimensions.ts`, and all affected locale pages
    together.
 
 ```bash
 bun run --filter @tale/docs test
 bun run --filter @tale/docs dev
 ```
+
+## Responsive variants
+
+After every capture the runner runs `bun run docs:images`
+([`services/docs/scripts/optimize-images.ts`](../../../docs/scripts/optimize-images.ts)). It
+encodes each image a docs page shows along the responsive ladder, formats, qualities and byte
+budget the marketing site shares (`@tale/ui/images/responsive`): an AVIF and a WebP at every
+ladder width up to 1600 px, which covers the 48rem article column at DPR 2, plus the image's own
+width when it is narrower. The variants mirror the original's path under
+`services/docs/public/images/optimized/`, the image's size goes to
+`services/docs/app/content/image-dimensions.ts`, and the capture's SHA-256 to the manifest entry,
+so an image whose capture did not change is skipped. Pages serve the variants through `srcset`
+with the size reserved; the original keeps its `/images/…` URL as the full-size file the
+lightbox opens.
+
+Run the command yourself when a page starts or stops showing an image, and add `--force` to encode
+every image again after a change to the encoder or its policy. The docs tests reject a page image
+whose variants are missing, stale, over budget or off the ladder, and a variant no page needs.
 
 ## Refresh the README gallery
 
@@ -222,7 +243,8 @@ irrelevant state; capture success alone is not visual approval.
   data gate. A matching HTML language alone cannot admit a temporarily English table or dialog.
 - Images are encoded as WebP below the pipeline's 190 KB budget. The generated manifest records
   provenance, locale, and dimensions. The docs tests check that every published screenshot is
-  registered and referenced by docs or the marketing screenshot registry.
+  registered and referenced by docs or the marketing screenshot registry, and that every image a
+  page shows ships fresh responsive variants.
 
 The mock gateway supplies deterministic answers for visual examples. A successful mock conversation
 proves the interaction and rendering, not a real model's answer quality or a provider's production

@@ -21,7 +21,7 @@ and stories live together under `src/components/<family>/`.
 | Problems a check found | `issue-list`, `issue-summary`, `issue-severity`, `field-issue-messages`, `issue-focus`, `flow/node-issue-marker` |
 | Editing and diagrams | `editor`, `wizard/*`, `catalog/*`, `filters/*`, `flow/workflow-canvas`, `flow/flow-step-list`, `flow/flow-path-list`, `flow/paths`, `flow/playback`, `flow/playback-bar`, `flow/layout`, `flow/*` |
 | Documentation sites | `docs/docs-layout`, `docs/docs-header`, `docs/docs-article`, `docs/docs-not-found`, `docs/page-actions`, `search/static-index/*` |
-| Shared infrastructure | `i18n/*`, `markdown/*`, `seo/*`, `server`, `monitoring/*`, `stale-bundle`, `theme`, `testing/*` |
+| Shared infrastructure | `i18n/*`, `images/*`, `markdown/*`, `seo/*`, `server`, `monitoring/*`, `stale-bundle`, `theme`, `testing/*` |
 | Large custom collections | `use-virtual-list`; [windowing and focus guidance](https://ui.tale.dev/docs/patterns/list-page#bound-a-custom-collections-rendering) |
 
 `startReactServer` accepts an optional fixed `servingService` name. On its health
@@ -135,8 +135,9 @@ export default defineConfig({ plugins: [yamlImports(), react()] });
 ```
 
 Run that build with `bun --bun vite build` and import `@tale/ui/globals.css` in the application
-stylesheet. Optional PWA and Storybook imports need the corresponding optional peers listed in
-`package.json`; a component consumer does not need to install the entire Storybook stack.
+stylesheet. Optional PWA, Storybook and image-encoding (`images/encode`) imports need the
+corresponding optional peers listed in `package.json`; a component consumer does not need to
+install the entire Storybook stack or `sharp`.
 
 ## Keep labels and documentation with their component
 

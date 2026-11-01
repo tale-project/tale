@@ -229,6 +229,8 @@
     "./icons/slack-icon": "./src/icons/slack-icon.tsx",
     "./icons/website-icon": "./src/icons/website-icon.tsx",
     "./image": "./src/components/primitives/image.tsx",
+    "./images/encode": "./src/images/encode.ts",
+    "./images/responsive": "./src/images/responsive.ts",
     "./inline-code": "./src/components/data-display/inline-code.tsx",
     "./input": "./src/components/forms/input.tsx",
     "./issue-focus": "./src/components/forms/issue-focus.tsx",
@@ -306,6 +308,7 @@
     "./panel-header": "./src/components/layout/panel-header.tsx",
     "./parse-frontmatter": "./src/utils/parse-frontmatter.ts",
     "./permission-summary": "./src/components/data-display/permission-summary.tsx",
+    "./picture": "./src/components/primitives/picture.tsx",
     "./popover": "./src/components/overlays/popover.tsx",
     "./progress-bar": "./src/components/feedback/progress-bar.tsx",
     "./property-chip": "./src/components/forms/property-chip.tsx",
@@ -586,6 +589,7 @@
     "@vitejs/plugin-react": "6.0.1",
     "@vitest/browser-playwright": "4.1.10",
     "axe-core": "4.13.0",
+    "sharp": "0.35.5",
     "storybook": "10.6.2",
     "vite-plugin-pwa": "1.3.0",
     "vitest": "4.1.11",
@@ -600,6 +604,7 @@
     "@storybook/react-vite": "*",
     "react": "*",
     "react-dom": "*",
+    "sharp": "*",
     "storybook": "*",
     "tailwindcss": "*",
     "vite": "*",
@@ -622,6 +627,9 @@
       "optional": true
     },
     "@storybook/react-vite": {
+      "optional": true
+    },
+    "sharp": {
       "optional": true
     },
     "storybook": {

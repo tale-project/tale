@@ -101,6 +101,15 @@ sparingly, with a comment.
   `bun run docs:screenshots [-- --only <shot>]` against the seeded local
   stack (the runbook is `services/platform/tests/docs-screenshots/README.md`). No hand-captured
   image ships. When a PR changes a route, grep the manifest for it and regenerate in the same PR.
+- Responsive variants: the capture then runs `bun run docs:images`, which encodes every image a
+  page shows along the ladder and budget the marketing site shares (`@tale/ui/images/responsive`)
+  as AVIF and WebP under `services/docs/public/images/optimized/`, and records its size in
+  `services/docs/app/content/image-dimensions.ts`. Pages serve the variant each screen needs
+  through `srcset` with the size reserved; the original stays the full-size file at its
+  `/images/…` URL, which the lightbox opens. A page that starts showing an image needs its
+  variants too: run `bun run docs:images` and commit its output with the page. Enforced by
+  `services/docs/tests/image-manifest.test.ts`, and on the built site by
+  `services/docs/tests/prerender/images.test.ts`.
 - CLI output: `tools/cli/scripts/cli-sample-outputs.sh` (sanitized) — but prefer fenced code.
 - Docs share EN captures by default; alt text and captions translate per locale. The same
   pipeline supports `--locales en,de,fr` for native UI captures used by marketing or a
