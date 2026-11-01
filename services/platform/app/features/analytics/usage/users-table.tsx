@@ -3,6 +3,7 @@
 import { DataTable } from '@tale/ui/data-table/data-table';
 import { MetricsSection } from '@tale/ui/metrics/metrics-section';
 import { Text } from '@tale/ui/text';
+import { DEFAULT_LIST_PAGE_SIZE, useListPage } from '@tale/ui/use-list-page';
 import type { ColumnDef } from '@tanstack/react-table';
 import { BarChart3 } from 'lucide-react';
 import { useMemo } from 'react';
@@ -28,6 +29,14 @@ export interface UserRow {
   };
 }
 
+/** The row's name, as its first line says it: runs a trigger started book
+ * under one id the table names rather than shows. */
+function userLabel(row: UserRow, t: ReturnType<typeof useT>['t']): string {
+  return isAutomationSubject(row.userId)
+    ? t('usage.tables.users.automations')
+    : row.displayName;
+}
+
 /** What an API key that is not a person belongs to, as the row's second
  * line says it. */
 function apiKeyLabel(
@@ -49,9 +58,12 @@ function apiKeyLabel(
 interface UsersTableProps {
   rows: UserRow[];
   isLoading: boolean;
+  /** The read the rows answer, by its period and facets: a new one starts
+   *  the display window over. */
+  windowKey?: string;
 }
 
-export function UsersTable({ rows, isLoading }: UsersTableProps) {
+export function UsersTable({ rows, isLoading, windowKey }: UsersTableProps) {
   const { t } = useT('analytics');
   const { formatNumber, formatCostCents } = useFormatNumber();
 
@@ -66,9 +78,7 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
         cell: ({ row }) => (
           <div className="flex max-w-[220px] min-w-0 flex-col">
             <Text as="span" variant="label" className="block truncate text-sm">
-              {isAutomationSubject(row.original.userId)
-                ? t('usage.tables.users.automations')
-                : row.original.displayName}
+              {userLabel(row.original, t)}
             </Text>
             {row.original.apiKey !== undefined && (
               <Text as="span" variant="muted" className="truncate text-xs">
@@ -139,19 +149,40 @@ export function UsersTable({ rows, isLoading }: UsersTableProps) {
     [t, formatNumber, formatCostCents],
   );
 
+  // The server sends every user and API key of the period, cost first. Like
+  // the other settings lists, the table shows a window of them that grows as
+  // the reader scrolls, and its search matches what the User cell shows.
+  const list = useListPage<UserRow>({
+    dataSource: { type: 'query', data: rows },
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    windowKey,
+    search: {
+      fields: [
+        (row) => userLabel(row, t),
+        (row) => (row.apiKey ? apiKeyLabel(row.apiKey, t) : undefined),
+      ],
+      placeholder: t('usage.tables.users.searchPlaceholder'),
+    },
+    getRowId: (row) => `${row.userId}-${row.teamId ?? ''}`,
+    approxRowCount: isLoading ? 5 : rows.length,
+    entityLabel: {
+      one: t('usage.tables.users.entityLabelOne'),
+      other: t('usage.tables.users.entityLabel'),
+    },
+  });
+
   return (
     <MetricsSection title={t('usage.tables.users.title')}>
+      {/* No `stickyLayout`: the table sits in the scrolling metrics page. */}
       <DataTable
         columns={columns}
-        data={rows}
-        getRowId={(row) => `${row.userId}-${row.teamId ?? ''}`}
         isLoading={isLoading}
-        approxRowCount={isLoading ? 5 : rows.length}
         emptyState={{
           icon: BarChart3,
           title: t('usage.empty.title'),
           description: t('usage.empty.description'),
         }}
+        {...list.tableProps}
       />
       <Text as="p" variant="muted">
         {t('usage.tables.users.note')}

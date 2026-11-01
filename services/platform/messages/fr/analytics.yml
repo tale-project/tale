@@ -125,6 +125,9 @@ usage:
       outputTokens: Tokens de sortie
       requests: Requêtes
       cost: Coût
+      searchPlaceholder: Rechercher des utilisateurs et des clés API
+      entityLabelOne: utilisateur ou clé API
+      entityLabel: utilisateurs et clés API
   filterChips:
     agent: 'Assistant : {value}'
     model: 'Modèle : {value}'

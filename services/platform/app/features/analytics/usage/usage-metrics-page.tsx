@@ -233,7 +233,13 @@ function UsageMetricsPageView({
             onSelectModel={onSelectModel}
           />
 
-          <UsersTable rows={users} isLoading={isLoading} />
+          <UsersTable
+            rows={users}
+            isLoading={isLoading}
+            // Another period or facet reads other users: their window starts
+            // over. Granularity and metric reshape only the chart.
+            windowKey={JSON.stringify([periodDays, agentSlug, model, provider])}
+          />
         </>
       )}
     </MetricsLayout>
