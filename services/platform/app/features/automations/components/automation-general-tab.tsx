@@ -1,11 +1,11 @@
 'use client';
 
-import { ContentArea } from '@tale/ui/content-area';
 import { EditorGroup } from '@tale/ui/editor';
 import { PageActionHeader } from '@tale/ui/page-action-header';
 
-import { SECTION_DIVIDER_CLASS } from '@/app/features/settings/components/settings-page';
+import { SettingsTabPage } from '@/app/features/settings/components/settings-tab-page';
 import { useAbility } from '@/app/hooks/use-ability';
+import { useT } from '@/lib/i18n/client';
 
 import { useAutomation } from '../hooks/queries';
 import { ApprovalAllowancesSection } from './approval-allowances-section';
@@ -23,8 +23,11 @@ interface AutomationGeneralTabProps {
 /**
  * The General tab: the automation's own settings — what starts it (Trigger),
  * which projects' boards see it (Projects) and which writes it may make
- * without a person approving each run — on the settings measure,
- * the way a project's General tab carries the project's.
+ * without a person approving each run — on the general settings page, the
+ * way a project's General tab carries the project's (#2794): Settings'
+ * column, its section rhythm and hairlines, its row layout and its end
+ * clearance. The automation's other pages are not forms and keep frames of
+ * their own (see `SettingsTabPage`).
  *
  * The sections are independent stores, but the page has ONE Save/Discard
  * cluster, in the tab strip where every tabbed page keeps it: `EditorGroup`
@@ -48,6 +51,7 @@ function AutomationGeneralScope({
   automationSlug,
   projectId,
 }: AutomationGeneralTabProps) {
+  const { t } = useT('automations');
   const ability = useAbility();
   // Mirrors the backend: triggers and bindings are developer-gated writes.
   const canEdit = ability.can('read', 'developerSettings');
@@ -57,9 +61,10 @@ function AutomationGeneralScope({
   return (
     <>
       {canEdit && <PageActionHeader actions={<AutomationEditorActions />} />}
-      {/* The section divider keys on each section's marker, drawing one
-          hairline between Trigger and Projects and none after the last. */}
-      <ContentArea variant="narrow" gap={6} className={SECTION_DIVIDER_CLASS}>
+      {/* Named like the open tab, as a settings page is named by its header;
+          the page draws one hairline between each pair of sections and none
+          after the last. */}
+      <SettingsTabPage title={t('navigation.general')}>
         <EditorGroup>
           <TriggerEditor
             organizationId={organizationId}
@@ -80,7 +85,7 @@ function AutomationGeneralScope({
             />
           )}
         </EditorGroup>
-      </ContentArea>
+      </SettingsTabPage>
     </>
   );
 }
