@@ -13,7 +13,6 @@ import { useRetryFocus } from '@tale/ui/use-retry-focus';
 import { RefreshCw, TriangleAlert } from 'lucide-react';
 import { type ReactNode, useEffect, useId, useRef, useState } from 'react';
 
-import { failureDetail } from '@/app/lib/backend/adapters';
 import type {
   InDoubtResolution,
   RunInDoubt,
@@ -22,6 +21,7 @@ import { useT } from '@/lib/i18n/client';
 
 import { useResolveRunInDoubt } from '../hooks/mutations';
 import { useRunInDoubt } from '../hooks/queries';
+import { automationFailureDetail } from '../lib/errors';
 
 /** The step a run waiting on a write that may already have happened names
  * in its `in_doubt:<node>` detail, or nothing for any other detail. */
@@ -195,7 +195,7 @@ export function RunInDoubtCard({
           setRefusal({
             attemptId: about.attemptId,
             attempt: about.attempt,
-            detail: failureDetail(error),
+            detail: automationFailureDetail(error),
           });
           // The attempt's own record decides what the card shows next:
           // someone else may have decided it first.
@@ -266,7 +266,7 @@ export function RunInDoubtCard({
                 <Alert
                   variant="destructive"
                   title={t('runs.inDoubt.loadFailed')}
-                  description={failureDetail(inDoubtQuery.error)}
+                  description={automationFailureDetail(inDoubtQuery.error)}
                 >
                   <Button
                     variant="secondary"

@@ -120,6 +120,7 @@ describe('reserved trailing paths [AUTO-R49]', () => {
       expect(caught.code).toBe('AUTOMATION_NAME_RESERVED');
       expect(caught.status).toBe(400);
       expect(caught.message).toContain(`"${word}" at its end`);
+      expect(caught.data).toEqual({ name, segment: word, position: 'last' });
     }
   });
 
@@ -147,6 +148,11 @@ describe('assertAutomationNameCreatable', () => {
         expect(caught.status).toBe(400);
         expect(caught.message).toContain(`"${name.split('/')[0]}"`);
         expect(caught.message).toContain('ops/');
+        expect(caught.data).toEqual({
+          name,
+          segment: name.split('/')[0],
+          position: 'first',
+        });
       }
     },
   );

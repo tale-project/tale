@@ -10,10 +10,10 @@ import { Text } from '@tale/ui/text';
 import { toast } from '@tale/ui/use-toast';
 import { useEffect, useState } from 'react';
 
-import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useSettingsEditor } from '../hooks/use-settings-editor';
+import { automationFailureDetail } from '../lib/errors';
 import { SettingsFieldControl, useLocalized } from './settings-field-control';
 import { SettingsFormDescription } from './settings-form-description';
 import { SettingsUploadsPanel } from './settings-uploads-panel';
@@ -101,7 +101,7 @@ export function AutomationSettingsForm({
       console.error('[automations] settings save failed', error);
       toast({
         title: t('settings.saveFailed'),
-        description: failureDetail(error),
+        description: automationFailureDetail(error),
         variant: 'destructive',
       });
     }

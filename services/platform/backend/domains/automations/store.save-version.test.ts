@@ -109,6 +109,8 @@ describe('saveVersion', () => {
     if (caught instanceof AutomationError) {
       expect(caught.code).toBe('AUTOMATION_NAME_TAKEN');
       expect(caught.status).toBe(409);
+      // The name the app words the refusal with, in the reader's language.
+      expect(caught.data).toEqual({ name: 'ops/greet' });
     }
     expect(
       fake.statements.some((statement) =>
@@ -131,7 +133,11 @@ describe('saveVersion', () => {
     if (caught instanceof AutomationError) {
       expect(caught.code).toBe('AUTOMATION_VERSION_STALE');
       expect(caught.status).toBe(409);
-      expect(caught.data).toEqual({ latestVersion: 6, baseVersion: 5 });
+      expect(caught.data).toEqual({
+        name: 'ops/greet',
+        latestVersion: 6,
+        baseVersion: 5,
+      });
       expect(caught.message).toContain('v6');
     }
     expect(

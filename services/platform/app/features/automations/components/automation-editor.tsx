@@ -78,7 +78,6 @@ import {
 
 import { useProjectHarnesses } from '@/app/features/projects/hooks/queries';
 import { useAbility } from '@/app/hooks/use-ability';
-import { failureDetail } from '@/app/lib/backend/adapters';
 import { readStateOf } from '@/app/lib/backend/read-state';
 import { llmModelSteps } from '@/lib/automations/model-defaults';
 import { testForPath } from '@/lib/automations/tests/path-test';
@@ -171,6 +170,7 @@ import {
   automationErrorIssues,
   automationErrorLatestVersion,
   automationErrorMessage,
+  automationFailureDetail,
   automationVersionStale,
   isMissingAutomationRead,
   type AutomationErrorIssues,
@@ -573,7 +573,7 @@ function AutomationEditorScope({
   const deployedReadError =
     automationQuery.data?.deployedVersion !== undefined &&
     (deployedRead.unavailable || deployedRead.stale);
-  const deployedFailureDetail = failureDetail(deployedQuery.error);
+  const deployedFailureDetail = automationFailureDetail(deployedQuery.error);
   // The newest run is what the canvas overlays, and the five newest are
   // where a test run's input can start from; the Runs tab reads the log.
   const runsQuery = useAutomationRuns(organizationId, automationSlug, 5);
@@ -2419,8 +2419,8 @@ function AutomationEditorScope({
       setSaveDialogOpen(false);
       if (automationErrorCode(error) === 'AUTOMATION_VERSION_STALE') {
         // Another version landed after the draft started. Not a failure the
-        // Save cluster reports: the dialog below carries the store's
-        // sentence and the author decides — reload, or save on top.
+        // Save cluster reports: the dialog below words the refusal and the
+        // author decides — reload, or save on top.
         setStaleSave({
           latestVersion: automationErrorLatestVersion(error) ?? null,
           stale: automationVersionStale(error) ?? null,
@@ -2429,7 +2429,7 @@ function AutomationEditorScope({
         pending?.reject(new EditorSaveCancelledError());
         return;
       }
-      // The store's refusal names the problem AND the fix; hand that sentence
+      // The refusal's words name the problem AND the fix; hand that sentence
       // to the Save cluster, which owns the single failure toast.
       pending?.reject(new Error(automationErrorMessage(error)));
     }
@@ -2809,8 +2809,8 @@ function AutomationEditorScope({
   );
 
   // Who saved the version that overtook the draft, when, and what the draft
-  // is based on — in words; the store's own sentence only for an
-  // automation that has no version any more.
+  // is based on — in words; the refusal's own sentence, in the reader's
+  // language, only for an automation that has no version any more.
   const staleDescription = (() => {
     if (staleSave === null) return null;
     const latest = staleSave.latestVersion;
