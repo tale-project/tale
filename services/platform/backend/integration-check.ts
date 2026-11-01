@@ -142,6 +142,7 @@ import { checkEmailedAttachments } from './domains/knowledge/attachment-mail.int
 import { checkEmbeddingModelChange } from './domains/knowledge/embedding-model.integration.ts';
 import { checkInboundEmailBodies } from './domains/knowledge/message-index.integration.ts';
 import { checkScopeRefHolder } from './domains/knowledge/scope-holder.integration.ts';
+import { checkSearchWork } from './domains/knowledge/search-work.integration.ts';
 import { checkRagStatusHintScope } from './domains/knowledge/status-hints.integration.ts';
 import { checkVectorWidths } from './domains/knowledge/vector-width.integration.ts';
 import { checkKnowledgeEntryIndexing } from './domains/knowledge_entries/indexing.integration.ts';
@@ -67317,6 +67318,14 @@ async function main(): Promise<void> {
       [
         'checkEmbeddingModelChange',
         () => checkEmbeddingModelChange(sql, record),
+      ],
+      [
+        'checkSearchWork',
+        () =>
+          checkSearchWork(sql, {
+            record,
+            embeddingsPayload: fakeEmbeddingsPayload,
+          }),
       ],
       ['checkRagWatchdogBatch', () => checkRagWatchdogBatch(sql, record)],
       [
