@@ -3,15 +3,20 @@
 import { Badge, type BadgeProps } from '@tale/ui/badge';
 import { Button } from '@tale/ui/button';
 import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
-import { Stack } from '@tale/ui/layout';
+import { Row, Stack } from '@tale/ui/layout';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { useFormatDate } from '@tale/ui/use-format-date';
-import { Loader2, RefreshCw } from 'lucide-react';
+import { Loader2, Play, RefreshCw } from 'lucide-react';
 
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { useAbility } from '@/app/hooks/use-ability';
 import { readStateOf } from '@/app/lib/backend/read-state';
+import {
+  CHAT_SANDBOX_CHECK_DEADLINE_MS,
+  type ChatSandboxCheck,
+  type ChatSandboxCheckFailure,
+} from '@/lib/chat/work-tools-check';
 import {
   CHAT_WORK_TOOLS,
   type ChatWorkTool,
@@ -24,6 +29,7 @@ import {
 } from '@/lib/chat/work-tools-status';
 import { useT } from '@/lib/i18n/client';
 
+import { useRunChatSandboxCheck } from '../hooks/mutations';
 import { useChatWorkToolsStatus } from '../hooks/queries';
 
 interface ChatToolStatusProps {
@@ -76,6 +82,19 @@ const START_FAILURES = {
   sandboxes_busy: 'thinking.outcome.sandboxesBusy',
   sandbox_host_busy: 'thinking.outcome.sandboxHostBusy',
 } as const satisfies Record<SandboxStartFailure, string>;
+
+/** The pieces of a Run check that are not a failed start, each one
+ * sentence. */
+const CHECK_PIECES = {
+  sandbox_not_configured: 'chatToolStatus.reasons.sandboxNotConfigured',
+  file_not_written: 'chatToolStatus.runCheck.fileNotWritten',
+} as const satisfies Record<
+  Exclude<
+    ChatSandboxCheckFailure['piece'],
+    SandboxStartFailure | 'libraries_missing' | 'timed_out'
+  >,
+  string
+>;
 
 const LOADING_TOOLS: readonly ChatWorkToolStatus[] = CHAT_WORK_TOOLS.map(
   (tool) => ({ tool, state: 'available', reasons: [] }),
@@ -146,13 +165,141 @@ function ToolRow({
   );
 }
 
+function CheckOutcome({ result }: { result: ChatSandboxCheck }) {
+  const { t } = useT('governance');
+  const { t: tChat } = useT('chat');
+  const { formatDate, locale } = useFormatDate();
+
+  const say = (failure: ChatSandboxCheckFailure): string => {
+    switch (failure.piece) {
+      case 'libraries_missing': {
+        // None of the names was fit to show: the count alone.
+        if (failure.missing.length === 0) {
+          return t('chatToolStatus.runCheck.librariesMissingCount', {
+            count: failure.count,
+          });
+        }
+        const more = failure.count - failure.missing.length;
+        return t('chatToolStatus.runCheck.librariesMissing', {
+          libraries: new Intl.ListFormat(locale, {
+            style: 'long',
+            type: 'conjunction',
+          }).format(
+            more > 0
+              ? [
+                  ...failure.missing,
+                  t('chatToolStatus.runCheck.moreLibraries', { count: more }),
+                ]
+              : failure.missing,
+          ),
+        });
+      }
+      case 'sandbox_not_configured':
+      case 'file_not_written':
+        return t(CHECK_PIECES[failure.piece]);
+      case 'timed_out':
+        return t('chatToolStatus.runCheck.timedOut', {
+          seconds: CHAT_SANDBOX_CHECK_DEADLINE_MS / 1000,
+        });
+      default:
+        return t('chatToolStatus.runCheck.startFailed', {
+          failure: tChat(START_FAILURES[failure.piece]),
+        });
+    }
+  };
+
+  return (
+    <>
+      <Row gap={2} wrap>
+        <Badge
+          variant={result.outcome === 'passed' ? 'green' : 'destructive'}
+          dot
+        >
+          {t(
+            result.outcome === 'passed'
+              ? 'chatToolStatus.runCheck.passed'
+              : 'chatToolStatus.runCheck.failed',
+          )}
+        </Badge>
+        <Text variant="caption">
+          {t('chatToolStatus.checkedAt', {
+            time: formatDate(new Date(result.checkedAt), 'time'),
+          })}
+        </Text>
+      </Row>
+      <Text variant="muted">
+        {result.outcome === 'passed'
+          ? t('chatToolStatus.runCheck.passedDetail', {
+              count: result.libraries,
+              seconds: Math.max(1, Math.round(result.durationMs / 1000)),
+            })
+          : say(result.failure)}
+      </Text>
+    </>
+  );
+}
+
+// =============================================================================
+// Run check: what the read above cannot tell — whether a light sandbox starts
+// the way a reply's `run_code` starts one, holds the document libraries and
+// makes a Word file. It answers within a minute, a failed start in the words
+// the reply's step uses, and takes one of the organization's light sandboxes
+// while it runs. The button keeps its focus while it runs, like Check again.
+// =============================================================================
+function SandboxRunCheck({ organizationId }: ChatToolStatusProps) {
+  const { t } = useT('governance');
+  const check = useRunChatSandboxCheck();
+  const running = check.isPending;
+
+  return (
+    <div className="border-border rounded-lg border px-4 py-3">
+      <Row gap={3} justify="between" wrap>
+        <Stack gap={1} className="min-w-0 flex-1">
+          <span className="text-foreground text-sm font-medium">
+            {t('chatToolStatus.runCheck.title')}
+          </span>
+          <Text variant="muted">
+            {t('chatToolStatus.runCheck.description')}
+          </Text>
+        </Stack>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          icon={running ? Loader2 : Play}
+          iconClassName={
+            running ? 'animate-spin motion-reduce:animate-none' : undefined
+          }
+          aria-busy={running || undefined}
+          aria-disabled={running || undefined}
+          onClick={running ? undefined : () => check.mutate({ organizationId })}
+        >
+          {t('chatToolStatus.runCheck.run')}
+        </Button>
+      </Row>
+      {/* Kept while empty, so a reader hears what fills it. */}
+      <Stack role="status" gap={1} className="not-empty:mt-2">
+        {running && (
+          <Text variant="muted">{t('chatToolStatus.runCheck.running')}</Text>
+        )}
+        {check.isError && (
+          <Text variant="error">
+            {t('chatToolStatus.runCheck.requestFailed')}
+          </Text>
+        )}
+        {check.data !== undefined && <CheckOutcome result={check.data} />}
+      </Stack>
+    </div>
+  );
+}
+
 // =============================================================================
 // Whether chat in the organization can make files, run code, use skills and
 // make images right now, and what stands in the way where it cannot: the
 // switches above, the sandbox service, the skill library, the image model.
 // Owners and admins only, like the read behind it. Check again is the one
 // way to ask anew — also after a failed read, so the focus never has to
-// move off a retry that disappears.
+// move off a retry that disappears. Run check below asks a sandbox itself.
 // =============================================================================
 export function ChatToolStatus({ organizationId }: ChatToolStatusProps) {
   const { t } = useT('governance');
@@ -224,6 +371,7 @@ export function ChatToolStatus({ organizationId }: ChatToolStatusProps) {
             )}
           </Stack>
         )}
+        <SandboxRunCheck organizationId={organizationId} />
       </SettingsSection>
     </Skeletonize>
   );

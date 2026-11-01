@@ -17,6 +17,7 @@ import {
 } from '../../core/node_only/sandbox/helpers/session_client.ts';
 import {
   acquireLightSession,
+  destroyLightSession,
   LIGHT_SESSION_IDLE_MS,
   LightSandboxBusyError,
   LightSandboxUnavailableError,
@@ -543,6 +544,58 @@ describe('releaseLightSession', () => {
         poolWith(true),
         { organizationId: ORG, ownerKey: 'run-1' },
         { destroyIfIdle },
+      ),
+    ).resolves.toBe(false);
+
+    expect(warn).toHaveBeenCalled();
+    expect(markSessionDestroyed).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+});
+
+describe('destroyLightSession', () => {
+  const { sql } = fakeSql();
+
+  it('destroys the owner’s sandbox even while it runs code, and settles its row', async () => {
+    const destroy = vi.fn(() => Promise.resolve(true));
+
+    await expect(
+      destroyLightSession(
+        sql,
+        { organizationId: ORG, ownerKey: 'check-1' },
+        { destroy },
+      ),
+    ).resolves.toBe(true);
+
+    expect(destroy).toHaveBeenCalledExactlyOnceWith(
+      lightSessionId(ORG, 'check-1'),
+    );
+    expect(markSessionDestroyed).toHaveBeenCalledExactlyOnceWith(sql, {
+      organizationId: ORG,
+      sessionId: lightSessionId(ORG, 'check-1'),
+    });
+  });
+
+  it('settles the row of a sandbox that is already gone', async () => {
+    await expect(
+      destroyLightSession(
+        sql,
+        { organizationId: ORG, ownerKey: 'check-1' },
+        { destroy: vi.fn(() => Promise.resolve(false)) },
+      ),
+    ).resolves.toBe(false);
+
+    expect(markSessionDestroyed).toHaveBeenCalledOnce();
+  });
+
+  it('never fails its caller, and leaves the row to the watchdog, when the spawner cannot be asked', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(
+      destroyLightSession(
+        sql,
+        { organizationId: ORG, ownerKey: 'check-1' },
+        { destroy: vi.fn(() => Promise.reject(new Error('down'))) },
       ),
     ).resolves.toBe(false);
 

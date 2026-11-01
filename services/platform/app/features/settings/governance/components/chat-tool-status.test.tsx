@@ -7,6 +7,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
+  ChatSandboxCheck,
+  ChatSandboxCheckFailure,
+} from '@/lib/chat/work-tools-check';
+import type {
   ChatWorkToolReason,
   ChatWorkToolsStatus,
 } from '@/lib/chat/work-tools-status';
@@ -15,7 +19,13 @@ import { render, screen, within } from '@/tests/utils/render';
 
 import { ChatToolStatus } from './chat-tool-status';
 
-const { query, ability, useChatWorkToolsStatus } = vi.hoisted(() => {
+const {
+  query,
+  ability,
+  useChatWorkToolsStatus,
+  sandboxCheck,
+  useRunChatSandboxCheck,
+} = vi.hoisted(() => {
   const result = {
     data: undefined as ChatWorkToolsStatus | undefined,
     isError: false,
@@ -23,10 +33,18 @@ const { query, ability, useChatWorkToolsStatus } = vi.hoisted(() => {
     errorUpdateCount: 0,
     refetch: vi.fn(),
   };
+  const check = {
+    data: undefined as ChatSandboxCheck | undefined,
+    isPending: false,
+    isError: false,
+    mutate: vi.fn(),
+  };
   return {
     query: result,
     ability: { admin: true },
     useChatWorkToolsStatus: vi.fn(() => result),
+    sandboxCheck: check,
+    useRunChatSandboxCheck: vi.fn(() => check),
   };
 });
 
@@ -37,6 +55,7 @@ vi.mock('@/app/hooks/use-ability', () => ({
   }),
 }));
 vi.mock('../hooks/queries', () => ({ useChatWorkToolsStatus }));
+vi.mock('../hooks/mutations', () => ({ useRunChatSandboxCheck }));
 
 const CHECKED_AT = Date.UTC(2026, 9, 30, 9, 15);
 
@@ -83,6 +102,11 @@ beforeEach(() => {
   query.refetch.mockReset();
   ability.admin = true;
   useChatWorkToolsStatus.mockClear();
+  sandboxCheck.data = undefined;
+  sandboxCheck.isPending = false;
+  sandboxCheck.isError = false;
+  sandboxCheck.mutate.mockReset();
+  useRunChatSandboxCheck.mockClear();
 });
 
 describe('ChatToolStatus [CHAT-R36]', () => {
@@ -269,6 +293,141 @@ describe('ChatToolStatus [CHAT-R36]', () => {
     expect(container).toBeEmptyDOMElement();
     expect(useChatWorkToolsStatus).toHaveBeenCalledWith('org-1', {
       enabled: false,
+    });
+  });
+});
+
+describe('Run check [CHAT-R38]', () => {
+  const failedWith = (failure: ChatSandboxCheckFailure): ChatSandboxCheck => ({
+    outcome: 'failed',
+    checkedAt: CHECKED_AT,
+    failure,
+  });
+
+  it('offers the check with what it does, and has said nothing yet', async () => {
+    query.data = status();
+    const { container } = render(<ChatToolStatus organizationId="org-1" />);
+
+    expect(screen.getByText('Sandbox check')).toBeInTheDocument();
+    expect(
+      screen.getByText(/^Starts a light sandbox the way chat does/),
+    ).toBeInTheDocument();
+    const button = screen.getByRole('button', { name: 'Run check' });
+    expect(button).not.toHaveAttribute('aria-busy');
+    expect(screen.getByRole('status')).toBeEmptyDOMElement();
+    await checkAccessibility(container);
+  });
+
+  it('runs the check for the organization, and not twice while it runs', async () => {
+    query.data = status();
+    const { user, rerender } = render(
+      <ChatToolStatus organizationId="org-1" />,
+    );
+
+    await user.click(screen.getByRole('button', { name: 'Run check' }));
+    expect(sandboxCheck.mutate).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org-1',
+    });
+
+    sandboxCheck.isPending = true;
+    rerender(<ChatToolStatus organizationId="org-1" />);
+    const button = screen.getByRole('button', { name: 'Run check' });
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(button).toHaveAttribute('aria-disabled', 'true');
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Starting a sandbox and making a Word file. This takes up to a minute.',
+    );
+    await user.click(button);
+    expect(sandboxCheck.mutate).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    [57, 'All 57 document libraries are installed'],
+    [1, 'The 1 document library is installed'],
+  ])('says the check passed with %i libraries', async (libraries, says) => {
+    query.data = status();
+    sandboxCheck.data = {
+      outcome: 'passed',
+      checkedAt: CHECKED_AT,
+      libraries,
+      durationMs: 12_400,
+    };
+    const { container } = render(<ChatToolStatus organizationId="org-1" />);
+
+    const region = screen.getByRole('status');
+    expect(within(region).getByText('Passed')).toBeInTheDocument();
+    expect(
+      within(region).getByText(
+        `${says}, and the sandbox made a Word file. The check took 12 s.`,
+      ),
+    ).toBeInTheDocument();
+    expect(within(region).getByText(/^Checked at /)).toBeInTheDocument();
+    await checkAccessibility(container);
+  });
+
+  it.each<[ChatSandboxCheckFailure, string]>([
+    [
+      { piece: 'sandbox_not_configured' },
+      'No sandbox service is set up for this deployment, so no code can run.',
+    ],
+    [{ piece: 'sandboxes_busy' }, 'All light sandboxes are in use.'],
+    [{ piece: 'sandbox_host_busy' }, 'The sandbox host is busy.'],
+    [{ piece: 'sandbox_not_ready' }, "The sandbox isn't ready yet."],
+    [{ piece: 'sandbox_unreachable' }, "The sandbox service can't be reached."],
+    [{ piece: 'sandbox_failed' }, 'The sandbox stopped working.'],
+    [
+      {
+        piece: 'libraries_missing',
+        missing: ['python-docx', 'openpyxl'],
+        count: 2,
+      },
+      'Document libraries missing from the sandbox: python-docx and openpyxl.',
+    ],
+    [
+      { piece: 'libraries_missing', missing: ['python-docx'], count: 4 },
+      'Document libraries missing from the sandbox: python-docx and 3 more.',
+    ],
+    [
+      { piece: 'libraries_missing', missing: [], count: 3 },
+      '3 document libraries are missing from the sandbox.',
+    ],
+    [
+      { piece: 'libraries_missing', missing: [], count: 1 },
+      '1 document library is missing from the sandbox.',
+    ],
+    [{ piece: 'file_not_written' }, "The sandbox couldn't make the Word file."],
+    [{ piece: 'timed_out' }, "The check didn't finish within 50 s."],
+  ])('names the failed piece %j', async (failure, says) => {
+    query.data = status();
+    sandboxCheck.data = failedWith(failure);
+    const { container } = render(<ChatToolStatus organizationId="org-1" />);
+
+    const region = screen.getByRole('status');
+    expect(within(region).getByText('Failed')).toBeInTheDocument();
+    expect(within(region).getByText(says)).toBeInTheDocument();
+    await checkAccessibility(container);
+  });
+
+  it('says so when the check could not be asked for, and runs it again from there', async () => {
+    query.data = status();
+    sandboxCheck.isError = true;
+    const { user } = render(<ChatToolStatus organizationId="org-1" />);
+
+    expect(screen.getByRole('status')).toHaveTextContent(
+      "Couldn't run the check. Try again.",
+    );
+    await user.click(screen.getByRole('button', { name: 'Run check' }));
+    expect(sandboxCheck.mutate).toHaveBeenCalledOnce();
+  });
+
+  it('runs even when the tools could not be read', async () => {
+    query.isError = true;
+    query.errorUpdateCount = 1;
+    const { user } = render(<ChatToolStatus organizationId="org-1" />);
+
+    await user.click(screen.getByRole('button', { name: 'Run check' }));
+    expect(sandboxCheck.mutate).toHaveBeenCalledExactlyOnceWith({
+      organizationId: 'org-1',
     });
   });
 });

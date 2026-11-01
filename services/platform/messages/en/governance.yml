@@ -686,6 +686,30 @@ chatToolStatus:
       The Model access policy can't be read, so Tale can't tell whether
       prompts must stay in the EU/EEA.
     imageModelCheckFailed: The image models couldn't be checked.
+  runCheck:
+    title: Sandbox check
+    description:
+      Starts a light sandbox the way chat does, looks for the libraries the
+      document skills use and makes a small Word file. Takes up to a minute
+      and uses one of the organization's light sandboxes while it runs.
+    run: Run check
+    running:
+      Starting a sandbox and making a Word file. This takes up to a minute.
+    requestFailed: Couldn't run the check. Try again.
+    passed: Passed
+    failed: Failed
+    passedDetail:
+      '{count, plural, one {The # document library is installed} other {All
+      # document libraries are installed}}, and the sandbox made a Word file.
+      The check took {seconds} s.'
+    startFailed: '{failure}.'
+    librariesMissing: 'Document libraries missing from the sandbox: {libraries}.'
+    librariesMissingCount:
+      '{count, plural, one {# document library is missing from the sandbox.}
+      other {# document libraries are missing from the sandbox.}}'
+    moreLibraries: '{count} more'
+    fileNotWritten: The sandbox couldn't make the Word file.
+    timedOut: The check didn't finish within {seconds} s.
 skillSharing:
   title: Skill sharing
   description: Choose who may share a skill with the whole organization.

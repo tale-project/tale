@@ -465,6 +465,27 @@ changes nothing. Anyone else is refused.
   endpoint is not known to process there → Images is unavailable, and says that this is why.
 - **Example**: Mia, a Member, asks for the status → the request is refused with 403.
 
+### CHAT-R38 · Admins check that a light sandbox starts and makes a Word file
+
+An Owner or Admin can run a check that starts a light sandbox the way a reply's code does,
+within the organization's light sandbox limit, looks in it for every document library its
+runtime image lists, and has it make a small Word file. Within a minute it answers that all
+of this worked, or names the one piece that did not: no sandbox service is set up, a sandbox
+could not be had, did not start or stopped working during the check (in the words of
+`CHAT-R30`), libraries are missing (it names them), the file could not be made, or the check
+ran past its 50 seconds. The sandbox service's own words never reach the answer. The check
+removes its sandbox when it ends, and does not hold its answer back past the 50 seconds for
+that; a sandbox it cannot remove is left to the sandbox watchdog, like a reply's. Anyone else
+is refused.
+
+- **Example**: Jonas runs the check on a healthy deployment → it passes and says how many
+  document libraries are installed.
+- **Example**: The sandbox host's runtime image lacks `openpyxl` → the check fails and names
+  `openpyxl` as missing.
+- **Example**: Every light sandbox of Jonas's organization is running code → the check says
+  that all light sandboxes are in use, as a reply's step would.
+- **Example**: Mia, a Member, asks for the check → the request is refused with 403.
+
 ## The chat list
 
 The list beside a chat and on Home holds the person's own chats that are neither archived nor in

@@ -239,10 +239,15 @@ async function readLastSandboxFailure(
   return lastSandboxFailure(rows);
 }
 
+/** Whether the deployment has a sandbox service: `SANDBOX_TOKEN` is set. */
+export function sandboxConfigured(): boolean {
+  return Boolean(process.env.SANDBOX_TOKEN?.trim());
+}
+
 /** Whether the sandbox service answers now — the check the Sandboxes
  * settings make. Its own words stay in the server log. */
 async function probeSandbox(organizationId: string): Promise<SandboxProbe> {
-  if (!process.env.SANDBOX_TOKEN?.trim()) return 'not_configured';
+  if (!sandboxConfigured()) return 'not_configured';
   try {
     await sandboxCapacity(organizationId);
     return 'reachable';

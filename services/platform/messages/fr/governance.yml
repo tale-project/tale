@@ -742,6 +742,34 @@ chatToolStatus:
       La politique d'accès aux modèles est illisible, donc Tale ne peut pas
       savoir si les prompts doivent rester dans l'UE/EEE.
     imageModelCheckFailed: Impossible de vérifier les modèles d'images.
+  runCheck:
+    title: Vérification de la sandbox
+    description:
+      Démarre une sandbox légère comme le fait le chat, cherche les
+      bibliothèques qu'utilisent les skills de documents et crée un petit
+      fichier Word. Prend jusqu'à une minute et occupe pendant ce temps l'une
+      des sandboxes légères de l'organisation.
+    run: Lancer la vérification
+    running:
+      Démarrage d'une sandbox et création d'un fichier Word. Cela prend
+      jusqu'à une minute.
+    requestFailed: Impossible de lancer la vérification. Réessaie.
+    passed: Réussie
+    failed: Échouée
+    passedDetail:
+      '{count, plural, one {La # bibliothèque de documents est installée}
+      other {Les # bibliothèques de documents sont toutes installées}}, et la
+      sandbox a créé un fichier Word. La vérification a duré {seconds} s.'
+    startFailed: '{failure}.'
+    librariesMissing:
+      'Bibliothèques de documents absentes de la sandbox : {libraries}.'
+    librariesMissingCount:
+      '{count, plural, one {# bibliothèque de documents est absente de la
+      sandbox.} other {# bibliothèques de documents sont absentes de la
+      sandbox.}}'
+    moreLibraries: '{count, plural, one {# autre} other {# autres}}'
+    fileNotWritten: La sandbox n'a pas pu créer le fichier Word.
+    timedOut: La vérification ne s'est pas terminée en {seconds} s.
 skillSharing:
   title: Partage des skills
   description: Choisis qui peut partager un skill avec toute l'organisation.
