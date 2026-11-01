@@ -305,15 +305,19 @@ BACKEND_BLOCK=$(cat <<EOF
 		log_skip
 		reverse_proxy ${BACKEND_UPSTREAM}
 	}
-	# The in-sandbox connectors bridge + the live-body host-call door. A
-	# container normally reaches these over the sandbox network, but the
-	# public path must follow the tools lane so a deployment that routes
-	# sandbox traffic through the proxy keeps working.
+	# The in-sandbox connectors bridge, its MCP server + the live-body
+	# host-call door. A container normally reaches these over the sandbox
+	# network, but the public path must follow the tools lane so a
+	# deployment that routes sandbox traffic through the proxy keeps working.
 	handle /api/connectors/execute {
 		log_skip
 		reverse_proxy ${BACKEND_UPSTREAM}
 	}
 	handle /api/connectors/status {
+		log_skip
+		reverse_proxy ${BACKEND_UPSTREAM}
+	}
+	handle /api/connectors/mcp {
 		log_skip
 		reverse_proxy ${BACKEND_UPSTREAM}
 	}
