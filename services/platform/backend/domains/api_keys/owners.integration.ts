@@ -23,7 +23,13 @@ const listedSchema = z.object({
   keys: z.array(
     z.looseObject({
       id: z.string(),
-      owner: z.looseObject({ kind: z.string() }),
+      owner: z.looseObject({
+        kind: z.string(),
+        userId: z.string().optional(),
+        name: z.string().nullable().optional(),
+        email: z.string().nullable().optional(),
+      }),
+      lastRequest: z.number().nullable(),
       canRevoke: z.boolean(),
     }),
   ),
@@ -35,7 +41,8 @@ const listedSchema = z.object({
  * wrong target, a key made at the organization's door works at the REST
  * door in that organization alone, a project's key reaches its project
  * alone, and a key ends with the team, project or member it belongs to —
- * each ending audited as the system's.
+ * each ending audited as the system's. An Owner who asks for every key also
+ * sees the members' own keys that work here, read-only (APIKEY-R8).
  *
  * `ctx` is the suite's owner. The lane makes its own projects, team and
  * member, so the suite's shared rows are untouched.
@@ -430,6 +437,115 @@ export async function checkApiKeyOwners(
       orgEnd.audits[0]?.actorId === ctx.userId,
     `end=${ended.status} after=${orgKeyAfter.status} revoked=${orgEnd.revoked} audits=${JSON.stringify(orgEnd.audits)}`,
   );
+
+  // ---- every key that works here: an Owner who asks sees the members' own
+  // keys, read-only and without their last use; nobody else does
+  const seat = async (label: string) => {
+    const user = await signUpUser(base, `${label}-${suffix}`);
+    const memberId = randomUUID();
+    await sql`
+      INSERT INTO "member" ("id", "organizationId", "userId", "role", "createdAt")
+      VALUES (${memberId}, ${orgId}, ${user.userId}, 'developer', ${new Date()})
+    `;
+    return { ...user, memberId };
+  };
+  const mintOwn = async (cookie: string, name: string) => {
+    const response = await fetch(`${base}/api/auth/api-key/create`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', cookie, origin: base },
+      body: JSON.stringify({ name }),
+    });
+    const parsed = createdSchema.safeParse(
+      await response.json().catch(() => null),
+    );
+    return parsed.success ? parsed.data.id : '';
+  };
+  const keysOf = async (cookie: string, scope?: string) => {
+    const response = await fetch(
+      `${base}/api/app/api-keys?orgId=${orgId}${scope === undefined ? '' : `&scope=${scope}`}`,
+      { headers: { cookie, origin: base } },
+    );
+    const parsed = listedSchema.safeParse(
+      await response.json().catch(() => null),
+    );
+    return {
+      status: response.status,
+      keys: parsed.success ? parsed.data.keys : [],
+    };
+  };
+  const holder = await seat('apikey-holder');
+  const quiet = await seat('apikey-quiet');
+  const leaver = await seat('apikey-leaver');
+  const laptop = await mintOwn(holder.cookie, `Laptop ${suffix}`);
+  const switchedOff = await mintOwn(holder.cookie, `Switched off ${suffix}`);
+  const lapsed = await mintOwn(holder.cookie, `Lapsed ${suffix}`);
+  const quietKey = await mintOwn(quiet.cookie, `Quiet ${suffix}`);
+  const leaverKey = await mintOwn(leaver.cookie, `Leaver ${suffix}`);
+  const ownKeys = [laptop, switchedOff, lapsed, quietKey, leaverKey];
+  // A use the key records across every organization its holder is in.
+  await sql`UPDATE "apikey" SET "lastRequest" = now() WHERE "id" = ${laptop}`;
+  const holderSees = await keysOf(holder.cookie, 'all');
+  const everyBefore = await keysOf(ctx.cookie, 'all');
+  await sql`
+    UPDATE "apikey" SET "enabled" = false WHERE "id" = ${switchedOff}
+  `;
+  await sql`
+    UPDATE "apikey" SET "expiresAt" = ${new Date(Date.now() - 60_000)}
+    WHERE "id" = ${lapsed}
+  `;
+  await sql`
+    UPDATE "member" SET "role" = 'disabled' WHERE "id" = ${quiet.memberId}
+  `;
+  await sql`DELETE FROM "member" WHERE "id" = ${leaver.memberId}`;
+  const every = await keysOf(ctx.cookie, 'all');
+  const managed = await keysOf(ctx.cookie);
+  const unknownScope = await fetch(
+    `${base}/api/app/api-keys?orgId=${orgId}&scope=everything`,
+    { headers: { cookie: ctx.cookie, origin: base } },
+  );
+  const unknownScopeCode = await codeOf(unknownScope);
+  const listedIds = (keys: { id: string }[]) => keys.map((key) => key.id);
+  const holderRow = every.keys.find((key) => key.id === laptop);
+  const holderOwnRow = holderSees.keys.find((key) => key.id === laptop);
+  record(
+    'api key owners: an owner asking for every key also sees a member’s own key, with its holder, read-only and without its last use',
+    ownKeys.every((id) => id !== '') &&
+      everyBefore.status === 200 &&
+      ownKeys.every((id) => listedIds(everyBefore.keys).includes(id)) &&
+      every.status === 200 &&
+      holderRow?.owner.kind === 'personal' &&
+      holderRow.owner.userId === holder.userId &&
+      holderRow.owner.name === `Itest apikey-holder-${suffix}` &&
+      holderRow.owner.email === holder.email &&
+      holderRow.lastRequest === null &&
+      !holderRow.canRevoke,
+    `minted=${ownKeys.filter((id) => id !== '').length}/5 before=${everyBefore.status} listedBefore=${ownKeys.filter((id) => listedIds(everyBefore.keys).includes(id)).length}/5 after=${every.status} row=${JSON.stringify(holderRow ?? null)}`,
+  );
+  record(
+    'api key owners: a member’s own key leaves every key once the member is disabled or gone, or the key is switched off or has expired',
+    [switchedOff, lapsed, quietKey, leaverKey].every(
+      (id) => id !== '' && !listedIds(every.keys).includes(id),
+    ),
+    `still listed=${JSON.stringify([switchedOff, lapsed, quietKey, leaverKey].filter((id) => listedIds(every.keys).includes(id)))}`,
+  );
+  record(
+    'api key owners: an owner’s managed keys and a developer’s every key hold no other member’s own key, and an unknown list is refused',
+    managed.status === 200 &&
+      !listedIds(managed.keys).includes(laptop) &&
+      holderSees.status === 200 &&
+      holderOwnRow?.owner.kind === 'user' &&
+      holderOwnRow.lastRequest !== null &&
+      holderOwnRow.canRevoke &&
+      !listedIds(holderSees.keys).includes(quietKey) &&
+      !listedIds(holderSees.keys).includes(leaverKey) &&
+      unknownScope.status === 400 &&
+      unknownScopeCode === 'INVALID_QUERY',
+    `managed=${managed.status} managedHasLaptop=${listedIds(managed.keys).includes(laptop)} holder=${holderSees.status} holderRow=${JSON.stringify(holderOwnRow ?? null)} holderSeesOthers=${listedIds(holderSees.keys).filter((id) => id === quietKey || id === leaverKey).length} unknown=${unknownScope.status}/${unknownScopeCode}`,
+  );
+  await sql`DELETE FROM "apikey" WHERE "id" = ANY(${ownKeys})`;
+  await sql`
+    DELETE FROM "member" WHERE "id" IN (${holder.memberId}, ${quiet.memberId})
+  `;
 
   await sql`
     DELETE FROM app.projects

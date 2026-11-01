@@ -9,7 +9,13 @@ import { backendKey } from '@/app/lib/backend/query-keys';
 import { authClient } from '@/lib/auth-client';
 import { API_KEY_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
-import type { ApiKey, ApiKeyOwnerInput, MemberPersonalApiKeys } from '../types';
+import type {
+  ApiKey,
+  ApiKeyListing,
+  ApiKeyListScope,
+  ApiKeyOwnerInput,
+  MemberPersonalApiKeys,
+} from '../types';
 
 interface CreateApiKeyParams {
   name: string;
@@ -26,22 +32,45 @@ interface CreateApiKeyResult {
  * The API keys read, shared by the page's hook and its route loader so the
  * loader warms the very entry the table reads: the viewer's own keys, the
  * keys made for them here and — for an Owner or Admin — every key bound to
- * the organization. Keyed under the `api_key` hint entity, so a key another
- * admin makes or ends here refreshes the open list.
+ * the organization. An Owner or Admin may also ask for every key that works
+ * here (`all`), which adds the members' own keys while they work here and
+ * says whether they do (`personalKeys`). Keyed under the `api_key` hint
+ * entity, so a key another admin makes or ends here, or the switch for the
+ * members' own keys, refreshes the open list.
  */
-export function apiKeysQuery(organizationId: string) {
+export function apiKeysQuery(
+  organizationId: string,
+  scope: ApiKeyListScope = 'managed',
+) {
   return queryOptions({
-    queryKey: backendKey(organizationId, API_KEY_HINT_ENTITY, 'settings-list'),
+    queryKey:
+      scope === 'managed'
+        ? backendKey(organizationId, API_KEY_HINT_ENTITY, 'settings-list')
+        : backendKey(
+            organizationId,
+            API_KEY_HINT_ENTITY,
+            'settings-list',
+            scope,
+          ),
     queryFn: ({ signal }) =>
-      backendFetch<{ keys: ApiKey[] }>('/api-keys', {
-        orgId: organizationId,
-        signal,
-      }).then((body) => body.keys),
+      backendFetch<ApiKeyListing>(
+        scope === 'managed'
+          ? '/api-keys'
+          : `/api-keys?${new URLSearchParams({ scope })}`,
+        { orgId: organizationId, signal },
+      ),
+    // Every key that works here also changes when a member is disabled or
+    // leaves, which sends no `api_key` hint: read afresh each time the view
+    // opens, never from the router's stale window.
+    ...(scope === 'all' ? { staleTime: 0 } : {}),
   });
 }
 
-export function useApiKeys(organizationId: string) {
-  return useReactQuery(apiKeysQuery(organizationId));
+export function useApiKeys(
+  organizationId: string,
+  scope: ApiKeyListScope = 'managed',
+) {
+  return useReactQuery(apiKeysQuery(organizationId, scope));
 }
 
 /**

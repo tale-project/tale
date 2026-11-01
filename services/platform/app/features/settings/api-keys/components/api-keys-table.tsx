@@ -7,14 +7,14 @@ import { Stack } from '@tale/ui/layout';
 import { useListPage } from '@tale/ui/use-list-page';
 import type { RowSelectionState } from '@tanstack/react-table';
 import { BookOpen, Key, Plus } from 'lucide-react';
-import { useCallback, useRef, useState } from 'react';
+import { type ReactNode, useCallback, useRef, useState } from 'react';
 
 import { firstFailureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useRevokeApiKey } from '../hooks/use-api-keys';
 import { useApiKeysTableConfig } from '../hooks/use-api-keys-table-config';
-import type { ApiKey } from '../types';
+import type { ApiKey, ApiKeyListScope } from '../types';
 import { ApiKeyCreateDialog } from './api-key-create-dialog';
 
 interface ApiKeysTableProps {
@@ -30,6 +30,11 @@ interface ApiKeysTableProps {
   viewerUserId?: string;
   /** The signed-in member's role here: a key never acts above it. */
   viewerRole?: string;
+  /** Which keys the list shows; another view starts the window over. */
+  scope?: ApiKeyListScope;
+  /** What an Owner or Admin chooses the list by, beside the table's own
+   * controls. */
+  filters?: ReactNode;
   error?: Error | null;
   onRetry?: () => void;
 }
@@ -59,6 +64,8 @@ export function ApiKeysTable({
   canCreateForOthers = false,
   viewerUserId,
   viewerRole,
+  scope = 'managed',
+  filters,
   error,
   onRetry,
 }: ApiKeysTableProps) {
@@ -106,6 +113,7 @@ export function ApiKeysTable({
       retry: onRetry,
     },
     pageSize,
+    windowKey: scope,
     getRowId: (row) => row.id,
     entityLabel: {
       one: tSettings('apiKeys.entityLabelOne'),
@@ -118,13 +126,15 @@ export function ApiKeysTable({
       <DataTable
         columns={columns}
         stickyLayout={stickyLayout}
-        enableRowSelection
+        // Another member's own key is theirs to end: no checkbox to select it.
+        enableRowSelection={(row) => row.original.canRevoke}
         rowSelection={rowSelection}
         onRowSelectionChange={setRowSelection}
-        // The standard create affordance. With no search box on this table,
-        // DataTable puts it in the empty state while there are no keys and in
-        // the toolbar once there are. Wait for the initial read so a focused
-        // toolbar opener cannot be removed when that read comes back empty.
+        // The standard create affordance. With no search box on this table
+        // and no view to choose, DataTable puts it in the empty state while
+        // there are no keys and in the toolbar once there are. Wait for the
+        // initial read so a focused toolbar opener cannot be removed when
+        // that read comes back empty.
         addAction={
           apiKeys === undefined || !canCreate
             ? undefined
@@ -155,6 +165,7 @@ export function ApiKeysTable({
             describeFailure={firstFailureDetail}
           />
         }
+        filtersContent={filters}
         {...list.tableProps}
       />
       {/* Below the table in every state, so the docs never move between the

@@ -1235,6 +1235,7 @@ apiKeys:
     actsAs: Acts as {role}
     madeBy: Made by {name}
     blockedHere: Blocked in this organization
+    personal: Personal key
   memberKeys:
     action: Personal API keys
     title: Personal API keys of {name}
@@ -1320,6 +1321,14 @@ apiKeys:
     roleHint: The role the key has in this organization. It cannot be above your own.
     targetRequired: Choose whom the key belongs to.
   neverUsed: Never used
+  lastUsedUnavailable: Not available
+  scope:
+    label: Keys to show
+    managed: Keys you manage
+    all: All keys in this organization
+    personalKeysRefused: This organization refuses the API keys members make for themselves, so this list leaves them all out, yours included. Turn the Members' personal keys setting below back on to let them in again.
+    personalKeysUnavailable: Tale can't read whether this organization accepts members' own API keys, so they are refused here until it can, and this list leaves them all out. Try again shortly.
+  allKeysDescription: Every API key that works in this organization, members' personal keys included. Only the member a personal key belongs to can revoke it.
   neverExpires: Never
   expired: Expired
   description: Manage API keys for external connectors

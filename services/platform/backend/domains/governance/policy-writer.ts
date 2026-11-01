@@ -19,7 +19,10 @@ import {
   isAttestableEndpointHost,
   vendorEuEndpoint,
 } from '../../../lib/chat/serving.ts';
-import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '../../../lib/shared/hint-entities';
+import {
+  API_KEY_HINT_ENTITY,
+  PROVIDER_CREDENTIAL_HINT_ENTITY,
+} from '../../../lib/shared/hint-entities';
 import { moderationEndpointRefusal } from '../../core/governance/model_endpoint_gate.ts';
 import { isAdmin } from '../../core/lib/rls/helpers/role_helpers.ts';
 import {
@@ -407,6 +410,16 @@ export async function saveGovernancePolicy(
       await emitHintInTx(tx, {
         orgId: organizationId,
         entity: PROVIDER_CREDENTIAL_HINT_ENTITY,
+        entityId: checked.policyType,
+      });
+    }
+    if (checked.policyType === 'personal_keys') {
+      // Which keys work here follows this switch (APIKEY-R12): every open
+      // API keys view refreshes, the list of every key and a member's
+      // notice that their own keys are refused.
+      await emitHintInTx(tx, {
+        orgId: organizationId,
+        entity: API_KEY_HINT_ENTITY,
         entityId: checked.policyType,
       });
     }

@@ -1085,6 +1085,13 @@ describe('POST /policies/personal_keys — who turns members’ own keys off [AP
         'personal_keys',
         OFF,
       );
+      // Which keys work here changed: every open API keys view refreshes,
+      // the list of every key and a member's notice alike.
+      expect(emitHintInTx).toHaveBeenCalledWith(TX, {
+        orgId: 'o1',
+        entity: 'api_key',
+        entityId: 'personal_keys',
+      });
     },
   );
 
