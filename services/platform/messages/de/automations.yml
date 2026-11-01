@@ -1469,6 +1469,7 @@ codingAgent:
   createBody: Coding-Agenten wie Claude Code, Codex und Cursor bauen Automatisierungen über den MCP-Server von Tale. Sie lesen die Referenz, schreiben die Automatisierung, prüfen und testen sie und speichern sie als erste Version, die dann in dieser Liste erscheint.
   nameLabel: Name dieser Automatisierung
   runLabel: ID dieses Laufs
+  projectLabel: ID dieses Projekts
   setUp: MCP einrichten
   learnMore: So verbindest du einen Coding-Agent
 try:
