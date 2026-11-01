@@ -83,6 +83,7 @@ import { checkAgentConnections } from './domains/agent_connections/agent-connect
 import { checkAgentLifecycle } from './domains/agent_connections/agent-lifecycle.integration.ts';
 import { checkImageHoldIdentity } from './domains/agent_tools/image-billing.integration.ts';
 import { checkApiKeyOwners } from './domains/api_keys/owners.integration.ts';
+import { checkPersonalKeysPolicy } from './domains/api_keys/personal-keys.integration.ts';
 import { checkApprovalDecisionResume } from './domains/approvals/decide-resume.integration.ts';
 import { rowToHashInput } from './domains/audit_logs/hash-input.ts';
 import type { AuditLogRow } from './domains/audit_logs/types.ts';
@@ -67833,6 +67834,10 @@ async function main(): Promise<void> {
       [
         'checkApiKeyOwners',
         () => checkApiKeyOwners(sql, baseUrl, authCtx, record),
+      ],
+      [
+        'checkPersonalKeysPolicy',
+        () => checkPersonalKeysPolicy(sql, baseUrl, authCtx, record),
       ],
       [
         'checkProjectBudgets',

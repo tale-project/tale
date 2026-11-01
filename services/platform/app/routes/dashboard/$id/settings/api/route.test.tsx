@@ -109,7 +109,11 @@ function answer(backend: SyntheticBackend, grants: Answers) {
     Response.json({ enabled: true, allowed: grants.allowed, models: [] }),
   );
   backend.on(KEY_ACCESS, () =>
-    Response.json({ mayCreate: grants.mayCreate, holdsKeys: grants.holdsKeys }),
+    Response.json({
+      mayCreate: grants.mayCreate,
+      holdsKeys: grants.holdsKeys,
+      personalKeys: 'admitted',
+    }),
   );
   backend.on(AGENT_ACCESS, () =>
     Response.json({

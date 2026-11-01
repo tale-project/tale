@@ -912,5 +912,17 @@
  * projects, where a project's agents came together; a cursor these listings
  * answered before is refused as `INVALID_CURSOR`: read the kind again from
  * its first page. No REST operation changes.
+ *
+ * 3.54.0 — 2026-11-01: an organization's Owners and Admins can turn members'
+ * own API keys off there (the governance policy `personal_keys`, on until it
+ * is stored off; the MCP settings tools read and change it under that id). A
+ * person's own key is then refused in that organization with 403
+ * `API_KEY_PERSONAL_REFUSED`, whose `data.organizations` lists the
+ * organizations where it still works, on every `/api/v1` operation, the MCP
+ * endpoint and the model endpoints included; a key made in that
+ * organization — for a member, a team, a project or the organization — keeps
+ * working. While the setting cannot be read, a person's own key is kept out
+ * with 503 `PERSONAL_KEYS_POLICY_UNAVAILABLE` and `Retry-After`: wait and
+ * call again.
  */
-export const API_CONTRACT_VERSION = '3.53.0';
+export const API_CONTRACT_VERSION = '3.54.0';

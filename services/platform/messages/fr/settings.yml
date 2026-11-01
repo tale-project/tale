@@ -1383,6 +1383,16 @@ apiKeys:
   expired: Expirée
   description: Gérer les clés API pour les connectors externes
   title: Clés API
+  personalKeys:
+    title: Clés personnelles des membres
+    description: Une clé qu'un membre crée pour lui-même fonctionne dans chaque organisation dont il est membre. Désactive cette option pour refuser toutes ces clés dans cette organisation, les tiennes comprises. Les clés créées ici pour un membre, une équipe, un projet ou l'organisation continuent de fonctionner, et les clés personnelles continuent de fonctionner dans les autres organisations de leurs détenteurs.
+    enabledLabel: Les clés personnelles des membres fonctionnent ici
+    saved: Paramètre des clés personnelles des membres mis à jour
+    saveFailed: Échec de l'enregistrement du paramètre des clés personnelles des membres
+    refusedTitle: Tes clés personnelles ne fonctionnent pas ici
+    refusedBody: Cette organisation refuse les clés API que les membres créent pour eux-mêmes. Elles continuent de fonctionner dans tes autres organisations ; un propriétaire ou un admin d'ici peut créer une clé pour toi.
+    unavailableTitle: Tes clés personnelles sont suspendues ici
+    unavailableBody: Tale ne peut pas lire pour l'instant si cette organisation accepte les clés API personnelles des membres, elles sont donc refusées ici jusqu'à ce que ce soit possible. Réessaie dans un instant.
 apiDocs:
   openDocs: Documentation API
   guides: Guides développeur
