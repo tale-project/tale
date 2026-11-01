@@ -28,6 +28,36 @@ vi.mock('../auth/auth.ts', () => ({
   loadTrustedProxies: () => Promise.resolve(['loopback', 'uniquelocal']),
 }));
 
+/** The `personal_keys` policy each organization stored, by slug (none: the
+ * default, members' own keys work); `'unreadable'` fails the read. */
+const personalKeysPolicies = vi.hoisted(
+  () => new Map<string, { enabled: boolean } | 'unreadable'>(),
+);
+
+vi.mock('../lib/org-config.ts', async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import('../lib/org-config.ts')>();
+  type Read = typeof original.readGovernancePolicy;
+  const readGovernancePolicy = async (
+    orgSlug: string,
+    policyType: Parameters<Read>[1],
+    options?: Parameters<Read>[2],
+  ): ReturnType<Read> => {
+    if (policyType !== 'personal_keys') {
+      return original.readGovernancePolicy(orgSlug, policyType, options);
+    }
+    const stored = personalKeysPolicies.get(orgSlug);
+    if (stored === 'unreadable')
+      throw new Error('governance policy unreadable');
+    return stored ?? null;
+  };
+  return { ...original, readGovernancePolicy };
+});
+
+beforeEach(() => {
+  personalKeysPolicies.clear();
+});
+
 interface Charge {
   name: unknown;
   key: unknown;
@@ -685,6 +715,112 @@ describe('/api/v1 door — a slug refusal lists the slugs the key holder may sen
 });
 
 /**
+ * An Owner or Admin may turn members' own keys off in their organization
+ * (APIKEY-R12, the `personal_keys` policy; on unless stored off). A
+ * person's own key is then refused there with a code of its own, listing
+ * where it still works, and keeps working in the holder's other
+ * organizations; a policy that cannot be read keeps it out rather than
+ * letting it in on the default.
+ */
+describe('/api/v1 door — an organization that turned members’ own keys off', () => {
+  const world = {
+    organizations: {
+      'org-1': { id: 'org-1', slug: 'org-1' },
+      'org-2': { id: 'org-2', slug: 'org-2' },
+    },
+    memberOf: new Set(['org-1', 'org-2']),
+  };
+
+  async function call(slug: string) {
+    const { sql } = fakeSql(new Set(), world);
+    const { auth } = fakeAuth();
+    return door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': slug }),
+    );
+  }
+
+  it('refuses a member’s own key there, listing where it still works [APIKEY-R12]', async () => {
+    personalKeysPolicies.set('org-1', { enabled: false });
+    const res = await call('org-1');
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error:
+        'Organization "org-1" does not accept members\' own API keys. This key keeps working in your other organizations that accept them; for this one, an Owner or Admin there can make a key for you.',
+      code: 'API_KEY_PERSONAL_REFUSED',
+      data: { organizations: [{ slug: 'org-2', name: 'Org org-2' }] },
+    });
+  });
+
+  it('lets the same key work in the holder’s other organization [APIKEY-R12]', async () => {
+    personalKeysPolicies.set('org-1', { enabled: false });
+    const res = await call('org-2');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({
+      userId: 'user-1',
+      apiKeyId: 'key-1',
+    });
+  });
+
+  it('lets members’ own keys in where the setting is on or was never stored [APIKEY-R12]', async () => {
+    personalKeysPolicies.set('org-2', { enabled: true });
+    expect((await call('org-1')).status).toBe(200);
+    expect((await call('org-2')).status).toBe(200);
+  });
+
+  it('refuses the key of a sole membership that sends no slug', async () => {
+    // One membership resolves without the header, to the organization the
+    // double names `acme`.
+    personalKeysPolicies.set('acme', { enabled: false });
+    const { sql } = fakeSql(new Set(), { memberOf: new Set(['org-1']) });
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY),
+    );
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({
+      code: 'API_KEY_PERSONAL_REFUSED',
+    });
+  });
+
+  it('keeps members’ own keys out while the setting cannot be read [APIKEY-R12]', async () => {
+    personalKeysPolicies.set('org-1', 'unreadable');
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const res = await call('org-1');
+      expect(res.status).toBe(503);
+      expect(res.headers.get('retry-after')).toBe('30');
+      expect(await res.json()).toEqual({
+        error:
+          'The personal keys policy of organization "org-1" cannot be read right now, so members\' own API keys stay out; try again shortly.',
+        code: 'PERSONAL_KEYS_POLICY_UNAVAILABLE',
+      });
+      expect(errors).toHaveBeenCalled();
+    } finally {
+      errors.mockRestore();
+    }
+  });
+
+  it('still answers a stranger to the organization as no member of it', async () => {
+    // Membership is decided first: the policy of an organization the key
+    // holder is no member of is none of their business.
+    personalKeysPolicies.set('other', { enabled: false });
+    const { sql } = fakeSql(new Set(), {
+      organizations: { other: { id: 'org-3', slug: 'other' } },
+      memberOf: new Set(['org-1', 'org-2']),
+    });
+    const { auth } = fakeAuth();
+    const res = await door(sql, auth).request(
+      'http://localhost/probe',
+      bearer(GOOD_KEY, { 'x-organization-slug': 'other' }),
+    );
+    expect(res.status).toBe(403);
+    expect(await res.json()).toMatchObject({ code: 'ORG_FORBIDDEN' });
+  });
+});
+
+/**
  * Every non-2xx on this door is the documented flat JSON envelope — the
  * 500 an escaped error answers included. The app-level handler's text/plain
  * `Internal Server Error` broke every client that read the body as JSON,
@@ -1330,6 +1466,27 @@ describe('/api/v1 door — a key bound to one organization', () => {
     );
     expect(refused.status).toBe(403);
     expect(await refused.json()).toMatchObject({ code: 'ORG_FORBIDDEN' });
+  });
+
+  it('keeps working where members’ own keys are turned off [APIKEY-R12]', async () => {
+    // The policy turns off a person's own keys; a key made here — for a
+    // member (APIKEY-R2), a team, a project or the organization — is the
+    // organization's own.
+    personalKeysPolicies.set('acme', { enabled: false });
+    const { auth } = fakeAuth();
+    for (const kind of ['member', 'organization'] as const) {
+      const { sql } = fakeSql(new Set(), {
+        keyOwners: { 'key-1': binding(kind) },
+        // A member's key works while the Owner or Admin who made it is one.
+        roles: { 'admin-1': 'admin' },
+      });
+      const res = await boundDoor(sql, auth).request(
+        'http://localhost/probe',
+        bearer(GOOD_KEY),
+      );
+      expect(res.status).toBe(200);
+      expect(await res.json()).toMatchObject({ orgSlug: 'acme', owner: kind });
+    }
   });
 
   it('answers 401 for a binding that was revoked [APIKEY-R7]', async () => {
