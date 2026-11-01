@@ -201,4 +201,34 @@ describe('HeavyLeases', () => {
     expect(leases.sweep()).toBe(0);
     expect(leases.active().map((lease) => lease.sessionId)).toEqual(['ses-2']);
   });
+
+  test('a lease granted before the clock stepped back counts from the step: it keeps its slot and its room, its holder still releases it, and one never released ends a term later', () => {
+    let now = 10_000_000;
+    const termMs = 30 * 60_000;
+    const leases = new HeavyLeases(2, () => now);
+    const released = leases.grant('ses-1', request({ ttlMs: termMs }));
+    now += 5 * 60_000;
+    const kept = leases.grant(
+      'ses-2',
+      request({ memoryBytes: 3 * GIB, ttlMs: termMs }),
+    );
+    // The clock steps back an hour (NTP, a resumed VM) while both phases run.
+    now -= 60 * 60_000;
+    const steppedAtMs = now;
+    expect(leases.outstanding()).toEqual({
+      count: 2,
+      growthBytes: 4 * GIB,
+      memoryBytes: 4 * GIB,
+    });
+    expect(leases.release('ses-1', released.id, 'org_a')).toBe(true);
+    // The other's holder never releases it: it lasts one term from the step.
+    expect(kept).toMatchObject({
+      acquiredAtMs: steppedAtMs,
+      expiresAtMs: steppedAtMs + termMs,
+    });
+    now = steppedAtMs + termMs - 1;
+    expect(leases.active()).toEqual([kept]);
+    now += 1;
+    expect(leases.active()).toEqual([]);
+  });
 });

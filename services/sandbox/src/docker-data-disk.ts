@@ -16,6 +16,7 @@ import {
   runDocker,
   type RunDockerResult,
 } from './spawn-util.ts';
+import { msSince } from './wall-clock.ts';
 
 interface DockerDataDiskConfig {
   path: string;
@@ -77,7 +78,10 @@ export class DockerDataDiskProbe implements HostDiskSource {
   private verified: { mountLine: string | null; checkedAtMs: number } | null =
     null;
   private failures = 0;
-  private retryAtMs = 0;
+  /** When the last verification failed, and how long until it is tried
+   * again: measured from the failure, so a clock that stepped back since
+   * ends the wait instead of stretching it by the step. */
+  private retry: { atMs: number; ms: number } | null = null;
   private lastFailure: unknown = null;
   private refreshing: Promise<HostDisk | null> | null = null;
   private warned = false;
@@ -204,7 +208,9 @@ export class DockerDataDiskProbe implements HostDiskSource {
     const now = this.now();
     const verified = this.verified;
     if (verified !== null) {
-      if (now - verified.checkedAtMs < MOUNT_RECHECK_MS) return;
+      // A comparison stamped ahead of the clock (it stepped back since) is
+      // due now, not once the clock has made up the step.
+      if (msSince(verified.checkedAtMs, now) < MOUNT_RECHECK_MS) return;
       const line = await this.mountLine(path);
       if (line === verified.mountLine) {
         verified.checkedAtMs = now;
@@ -214,7 +220,8 @@ export class DockerDataDiskProbe implements HostDiskSource {
       }
       this.verified = null;
     }
-    if (now < this.retryAtMs) throw this.lastFailure;
+    if (this.retry !== null && msSince(this.retry.atMs, now) < this.retry.ms)
+      throw this.lastFailure;
     try {
       const mountLine = await this.mountLine(path);
       await this.verify();
@@ -230,7 +237,7 @@ export class DockerDataDiskProbe implements HostDiskSource {
   private fail(error: unknown): void {
     this.failures =
       error instanceof DockerUnansweredError ? 1 : this.failures + 1;
-    this.retryAtMs = this.now() + verificationRetryMs(this.failures);
+    this.retry = { atMs: this.now(), ms: verificationRetryMs(this.failures) };
     this.lastFailure = error;
   }
 

@@ -106,8 +106,13 @@ can read it), and 8 applies elsewhere. On
 such a host admission also keeps `SANDBOX_MIN_FREE_MEMORY` free (a tenth of
 the host, at least 1 GiB), counting creates still starting at their planned
 working set and sessions started in the last 90 seconds at what they are
-still growing into: a create that would cut into it reclaims a released idle
-session or answers 429 `host_memory`, logging the refusal. An explicit
+still growing into. A create that would cut into it reclaims a released idle
+session only when the host's latest reading itself, less the create's working
+set, is under the reserve, and decides again on a new reading; short only of
+memory held for those creates, those sessions or the work waiting ahead, it
+stops nothing. Whenever memory stays short it answers 429 `host_memory`,
+logging the refusal, and a released warm session resuming work follows the
+same rule. An explicit
 `SANDBOX_MAX_SESSIONS` fixes the cap and disables this adaptive memory
 admission, which leaves the count, pressure and disk guards in force; the
 operator must size it from measured peaks. Set or sized, once the spawner reads
@@ -556,37 +561,90 @@ slow they are, and the platform renews a place with
 `POST /v1/sessions/:id/wait` (a lease of at most ten minutes). A destroy, an
 admission or a queue-cap eviction ends the place and marks every ask of that id
 still running, so a late answer cannot put the waiter back.
+A re-ask that the platform holds behind its own start slots for longer than
+that window still loses its place; #5224 tracks it.
 
-The host-room fix deliberately leaves these LOW findings open rather than
-combining unrelated lifecycle, runtime-image and cancellation changes:
+The LOW findings of the same review are settled as follows:
 
-- A stop wedged against a re-attached exec needs incarnation-safe stop/reattach
-  arbitration and a runnerd integration regression; this change does not alter it.
-- Reclaiming a warm session for a deficit consisting only of reservations remains
-  conservative admission. Avoiding that cold start needs a separate actual-pressure
-  versus planned-pressure decision and regression; no safety guarantee is relaxed here.
-- Wall-clock-based memory reservations and disk-probe freshness remain unchanged;
-  monotonic time should be introduced consistently across lifecycle windows, not
-  just in one probe.
-- A build-helper idle check sees one instant, and an aborted idle prune may leave
-  `buildctl` running. Both need a helper-side idle lease/cancellation protocol;
-  this patch preserves the existing org lock and does not claim atomic helper idleness.
-- Queued Docker calls can outlive an abort. Cancellation ownership needs a separate
-  command-queue regression; changing the global scheduler is outside this relief fix.
-- The egress proxy may retain `MaxClients 2000` after a failed file-limit raise.
-  Changing its sizing belongs to a proxy-entrypoint regression and is deferred.
-- Disk locality is not checked for a remote `DOCKER_HOST`. Do not treat a remote
-  daemon's workspace disk as protected by the spawner's local filesystem reading;
-  explicitly disable the local guard (`SANDBOX_MIN_FREE_DISK=0`) in that topology
-  until a daemon-local disk source exists.
+- An attach stream counts as an exec running through this spawner once runnerd
+  has answered it, so a turn the platform follows by attach keeps its session
+  busy: a sweep skips its health probe and starts the wedged count over, and no
+  sweep or reclaim stops the session. An attach runnerd never answers proves nothing,
+  so a daemon that answers neither is still stopped after five failed probes.
+  An exec or attach stream stops counting when it ends, even while a destroy
+  that then fails holds its session out of the registry, and one answered only
+  after its session was replaced under the same id never counts for the
+  replacement.
+- A create or a reactivation refused for memory stops a released warm session
+  only when the latest reading itself is short: its available memory, less the
+  new session's working set, is under the reserve. A refusal that only
+  reservations cause (creates in flight, the young-session reserve, waiters
+  ahead) answers 429 `host_memory` and stops nothing, because those resolve on
+  their own.
+- Readings, reservations, places in line, leases and back-offs keep wall-clock
+  timestamps, which are reported to the platform, and every span measured from
+  one survives the clock stepping back. A reading, verdict or cached answer
+  stamped in the future is stale, and a newer read replaces an older one by the
+  order the reads began. A reservation, a place in line, a heavy-phase lease or
+  the last start that host pressure paces by counts from the present when it
+  was stamped in the future, and a back-off counted from the future is over. A
+  step back therefore holds nothing longer than its normal span.
+  Session lifetimes (idle and TTL expiry) are unchanged.
+- An organization's build helper counts as idle only when two reads of its
+  build history, at least 3 s apart, show no build running and no new build
+  between them, so a pause of less than 3 s between two solves of one build
+  no longer reads as idle. No create waits for the second read: the first
+  provisioning to find a drifted helper with no build running keeps it, with
+  its warm cache, and a follow-up provisioning reads again 3 s later in the
+  background, so the adoption reconcile's read is confirmed by its follow-up.
+  That read recreates the helper if nothing has run since; one that finds a
+  new build schedules the next follow-up, and one that finds a build running
+  or cannot read the history schedules none, so the next create reads again.
+  Once a helper has been held for a minute, the first read with no build
+  running recreates it whatever ran before: a drifted builder may fail builds
+  (launched without a mirror that is up now, or with bounds that need a
+  recreate), so the hold ends even in an organization that never pauses for
+  3 s. This is still a sample, not a lease: a build can start right after the
+  confirming read. The hold ends with its drift: a provisioning that finds the
+  running helpers launched as they would be now, or that starts, launches or
+  recreates the builder, forgets the hold, so a later drift is held anew. A
+  follow-up queues for the organization's lock and waits there however the
+  work ahead of it ends, a failed provisioning included, and only then looks
+  at the hold: it provisions only while the hold stands. An idle stop, the
+  disk relief's removal and a teardown forget the hold, so a follow-up queued
+  behind one provisions nothing. The follow-up takes no create lease, so a
+  teardown never meets a refusal from it: one queued behind a follow-up waits
+  for it to end, then removes the helpers.
+- An aborted idle prune may leave `buildctl prune` running in the helper. This
+  is accepted: it removes only cache records no build holds, so a create that
+  starts meanwhile is at worst slower, and stopping it would add a
+  `docker exec` to the create path.
+- A queued Docker call answers its abort, and a slot that comes free with less
+  than a second left of the call's time budget, or of the budget of the
+  operation it runs in, answers `noSlot` without starting the Docker CLI, as if
+  none had come free; its message names what was left of the call's budget
+  and of its operation's.
+- When the egress proxy cannot raise its open-file limit to hold
+  `SANDBOX_EGRESS_MAX_CLIENTS` connections, it lowers `MaxClients` to what the
+  limit holds and says so in its log.
+- Disk locality is not checked for a remote `DOCKER_HOST`, and needs no check:
+  the spawner creates each workspace under `SANDBOX_HOST_SESSION_ROOT` itself
+  and binds it into the session with `--mount type=bind`, which fails when the
+  daemon's host lacks that path. A daemon that does not share the filesystem
+  runs no session, and one that shares it writes to the filesystem the probe
+  measures.
 - A host already below its disk floor refuses every create after an upgrade.
-  Keep this fail-closed behavior; EN/DE/FR upgrade notes now describe it and recovery.
-- Kubernetes quantities such as `10Gi` are not accepted for these Docker-style
-  size settings. Keep fail-fast configuration parsing; use `10g` or `10240m`.
-- The real Bun `node:fs` disk probe has a non-injected regression. This proves the
-  Bun executing that test, not an unbuilt deployment image. Image-runtime verification
-  remains required; if the probe is unavailable, the existing warning and fail-open
-  behavior remain unchanged.
+  This stays fail-closed, as the EN/DE/FR upgrade notes describe, and each
+  refusal is logged with the disk that refused it (the session disk, or
+  Docker's data disk where Docker's data root is watched apart), its free
+  space and its floor.
+- Size settings also take the Kubernetes spelling (`10Gi`, `512Mi`, from `Ki`
+  to `Ti`, with or without `B`) and `t`; any other value still stops the
+  spawner at boot.
+- A test reads a real disk through Bun's `node:fs` `statfs` without injection.
+  It runs on Bun 1.4.2, the release the image is built on
+  (`oven/bun:1.4.2-debian`); a runtime without `statfs` would turn the disk
+  guard off with one warning.
 
 ## Container
 

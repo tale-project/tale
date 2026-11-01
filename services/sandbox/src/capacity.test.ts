@@ -387,6 +387,58 @@ describe('infrastructure capacity observations', () => {
     expect([calls('ps'), calls('info'), calls('context')]).toEqual([3, 2, 2]);
   });
 
+  test('a snapshot taken before the clock stepped back is observed again, not reported for the step', async () => {
+    let now = 10_000_000;
+    const docker = dockerStub();
+    const reader = new CapacityReader(config(), () => new Map(), {
+      docker,
+      now: () => now,
+      sleep: async () => {},
+      kernelRelease: () => 'test-kernel',
+      read: async () => 'MemTotal: 1000 kB\nMemAvailable: 400 kB\n',
+    });
+    expect((await reader.forOrganization('a')).observedAt).toBe(now);
+    // The clock steps back an hour (NTP, a resumed VM).
+    now -= 60 * 60_000;
+    expect((await reader.forOrganization('a')).observedAt).toBe(now);
+    expect(docker.mock.calls.filter(([args]) => args[0] === 'ps')).toHaveLength(
+      2,
+    );
+  });
+
+  test('after the clock steps back, the host facts are asked again and the CPU usage is sampled afresh', async () => {
+    let now = 10_000_000;
+    let busy = 100;
+    let idle = 100;
+    // While the reader waits for its own second sample, the two cores run at
+    // half load.
+    const sleep = mock(async (ms: number) => {
+      now += ms;
+      busy += 100;
+      idle += 100;
+    });
+    const docker = dockerStub();
+    const reader = new CapacityReader(config(), () => new Map(), {
+      docker,
+      now: () => now,
+      sleep,
+      kernelRelease: () => 'test-kernel',
+      read: async (path) =>
+        path === '/proc/stat'
+          ? `cpu ${busy} 0 0 ${idle} 0 0 0 0 50 0\ncpu0 1 0 0 1\ncpu1 1 0 0 1\n`
+          : 'MemTotal: 1000 kB\nMemAvailable: 400 kB\n',
+    });
+    const infoCalls = () =>
+      docker.mock.calls.filter(([args]) => args[0] === 'info').length;
+    expect((await reader.hostResources()).cpu.usedCores).toBe(1);
+    expect([infoCalls(), sleep.mock.calls.length]).toEqual([1, 1]);
+    // The clock steps back an hour (NTP, a resumed VM): the facts and the
+    // CPU sample taken before it are of no known age.
+    now -= 60 * 60_000;
+    expect((await reader.hostResources()).cpu.usedCores).toBe(1);
+    expect([infoCalls(), sleep.mock.calls.length]).toEqual([2, 2]);
+  });
+
   test('a DOCKER_HOST naming the local socket needs no context lookup', async () => {
     const cfg = config();
     process.env.DOCKER_HOST = 'unix:///var/run/docker.sock';
