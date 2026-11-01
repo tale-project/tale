@@ -191,6 +191,13 @@ of replacing it.
 - **Example**: The stored connection is damaged. Ada saves a change → refused, and the stored
   connection is left for an operator to repair.
 
+### SSO-R22 · Only owners and admins can read and change the connection's settings
+
+Members, editors and developers are refused, whether they read the settings or change them, and
+so is a disabled seat. The sign-in page still discovers the connections with nobody signed in.
+
+- **Example**: Mia is a Member. She asks for her organization's SSO settings → refused.
+
 ## Discovering connections
 
 ### SSO-R18 · One organization's unreadable connection does not hide healthy connections
@@ -206,8 +213,7 @@ connection instead of using another organization's provider.
 
 ## Not yet
 
-- **Who can set up a connection**, and testing it before it is saved (`admin-routes.ts`,
-  `admin.ts`).
+- **Testing a connection before it is saved** (`admin-routes.ts`, `admin.ts`).
 - **The sign-in protocols themselves**: the checks on a SAML or OIDC answer, and that a SAML
   request is answered once (`saml-request-cache.ts`, `shim.ts`).
 - **Which organization a sign-in page offers** when several have SSO turned on (`routes.ts`).
