@@ -9,7 +9,7 @@ import { backendKey } from '@/app/lib/backend/query-keys';
 import { authClient } from '@/lib/auth-client';
 import { API_KEY_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
-import type { ApiKey, ApiKeyOwnerInput } from '../types';
+import type { ApiKey, ApiKeyOwnerInput, MemberPersonalApiKeys } from '../types';
 
 interface CreateApiKeyParams {
   name: string;
@@ -137,6 +137,62 @@ export function useRevokeApiKey(organizationId: string) {
       if (result.error) {
         throw new Error(result.error.message);
       }
+    },
+    onSuccess: () => invalidateApiKeyViews(queryClient),
+  });
+}
+
+/**
+ * A member's own keys, for an Owner or Admin on the member's row, with this
+ * organization's block on each (APIKEY-R11). Keyed under the `api_key` hint
+ * entity, so a block another admin sets here refreshes the open dialog.
+ */
+export function memberPersonalApiKeysQuery(
+  organizationId: string,
+  userId: string,
+) {
+  return queryOptions({
+    queryKey: backendKey(
+      organizationId,
+      API_KEY_HINT_ENTITY,
+      'member-personal',
+      userId,
+    ),
+    queryFn: ({ signal }) =>
+      backendFetch<MemberPersonalApiKeys>(
+        `/api-keys/members/${encodeURIComponent(userId)}/personal`,
+        { orgId: organizationId, signal },
+      ),
+  });
+}
+
+export function useMemberPersonalApiKeys(
+  organizationId: string,
+  userId: string,
+  options: { enabled: boolean },
+) {
+  return useReactQuery({
+    ...memberPersonalApiKeysQuery(organizationId, userId),
+    enabled: options.enabled,
+  });
+}
+
+/** Block a member's own key in this organization, or lift the block. */
+export function useSetApiKeyBlock(organizationId: string) {
+  const queryClient = useReactQueryClient();
+
+  return useReactMutation({
+    mutationFn: async ({
+      keyId,
+      blocked,
+    }: {
+      keyId: string;
+      blocked: boolean;
+    }) => {
+      await backendFetch(`/api-keys/${encodeURIComponent(keyId)}/block`, {
+        orgId: organizationId,
+        method: blocked ? 'PUT' : 'DELETE',
+      });
     },
     onSuccess: () => invalidateApiKeyViews(queryClient),
   });

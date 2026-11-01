@@ -68,6 +68,10 @@ usageCreditsRequested: Crédits d’utilisation demandés
 usageCreditsRequestedBody: '{name} a atteint une limite d’utilisation et demande plus de crédits.'
 apiKeyCreatedForYou: Clé API créée pour toi
 apiKeyCreatedForYouBody: '{name} a créé la clé API « {keyName} » pour toi. Elle agit en ton nom dans cette organisation ; si tu n’en as pas besoin, révoque-la sous Paramètres > API > REST.'
+apiKeyBlockedForYou: Ta clé API a été bloquée dans cette organisation
+apiKeyBlockedForYouBody: '{name} a bloqué ta clé API « {keyName} » dans cette organisation. Ses requêtes y sont refusées ; le blocage ne s’étend pas à tes autres organisations.'
+apiKeyUnblockedForYou: Le blocage de ta clé API a été levé dans cette organisation
+apiKeyUnblockedForYouBody: '{name} a levé le blocage de ta clé API « {keyName} » dans cette organisation.'
 agentConnectionEnded: Agent de code déconnecté
 agentConnectionEndedReuseBody: '{client} a été déconnecté parce qu’une ancienne connexion a été réutilisée. Reconnecte l’agent si c’était toi.'
 agentConnectionEndedAccountBody: '{client} a été déconnecté parce que ton mot de passe ou une autre méthode de connexion a changé. Reconnecte l’agent quand tu veux qu’il reprenne le travail.'
