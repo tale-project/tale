@@ -560,6 +560,100 @@ function refusal(raw: string, changes: ReleaseChanges) {
   return '';
 }
 
+/** The authored checks' refusal, or '' when the notes are accepted. */
+function shapeRefusal(raw: string) {
+  try {
+    validateReleaseNotes(raw);
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error);
+  }
+  return '';
+}
+
+const opsCommit =
+  'https://github.com/tale-project/ops/commit/1d932920e600d8ddce32054b8bc678522cc10e7e';
+const opsRefused = (address: string, repository = 'ops') =>
+  `Release notes link ${address}, but tale-project/${repository} is not a public repository: readers outside the organization cannot open it`;
+
+describe('links in release notes', () => {
+  test('refuses an address into a repository that is not public, in any form', () => {
+    const highlighting = (text: string) =>
+      authored.replace('Project reviewers can inspect attached results.', text);
+    for (const linked of [
+      `Pinned in [ops commit 1d932920](${opsCommit}).`,
+      `Pinned in <${opsCommit}>.`,
+      `Pinned in ${opsCommit}.`,
+      `Pinned in [the ops commit][pin].\n\n[pin]: ${opsCommit}`,
+      `Pinned in [ops commit 1d932920](${opsCommit.replace('//', '//www.')}).`,
+      `<!-- ${opsCommit} -->\nDeploy the platform and CLI together.`,
+    ]) {
+      const refused = opsRefused(opsCommit.replace('https://', ''));
+      expect(shapeRefusal(upgrading(linked)), linked).toBe(refused);
+      expect(shapeRefusal(highlighting(linked)), linked).toBe(refused);
+    }
+    expect(
+      shapeRefusal(
+        upgrading('Pinned in https://GitHub.com/Tale-Project/OPS.git.'),
+      ),
+    ).toBe(opsRefused('GitHub.com/Tale-Project/OPS.git', 'OPS'));
+    expect(
+      shapeRefusal(
+        upgrading(
+          `Pinned in ${opsCommit}, ${opsCommit} and https://github.com/tale-project/tale-cli/pull/7.`,
+        ),
+      ),
+    ).toBe(
+      [
+        opsRefused(opsCommit.replace('https://', '')),
+        opsRefused('github.com/tale-project/tale-cli/pull/7', 'tale-cli'),
+      ].join('\n'),
+    );
+  });
+
+  test('accepts the public repositories and addresses outside them', () => {
+    for (const linked of [
+      '[#4664](https://github.com/tale-project/tale/pull/4664)',
+      'Clone https://github.com/tale-project/tale.',
+      'Clone https://GitHub.com/Tale-Project/Tale.git',
+      '[Profile](https://github.com/tale-project/.github/blob/main/profile/README.md)',
+      '[The organization](https://github.com/tale-project)',
+      '[GHSA-r4xp-prcw-77qf](https://github.com/advisories/GHSA-r4xp-prcw-77qf)',
+      'Pull `ghcr.io/tale-project/ops/minio:RELEASE.2025-04-22T22-12-26Z`.',
+      'https://github.com/porsager/postgres/issues/1189',
+      '[Upgrading](https://docs.tale.dev/self-hosted/operate/release-notes/format)',
+    ])
+      expect(shapeRefusal(upgrading(linked)), linked).toBe('');
+  });
+
+  test('accepts the corrected v0.5.82 notes and refuses them as first published', async () => {
+    const corrected = await readFile(
+      join(root, '.github/release-notes/v0.5.82.md'),
+      'utf8',
+    );
+    expect(shapeRefusal(corrected)).toBe('');
+    // The Upgrade notes v0.5.82 was first published with (#4669, #4676).
+    const published = upgrading(
+      `- Deploy the Tale platform and CLI together before adopting these fixes. The\n  managed-deployments repository now pins its shared Tale CLI source to\n  \`13a41556bd017e4fade3165d988974e7a3bea184\` in\n  [ops commit 1d932920](${opsCommit}).`,
+    );
+    expect(shapeRefusal(published)).toBe(
+      opsRefused(opsCommit.replace('https://', '')),
+    );
+  });
+
+  test('every committed release notes file passes', async () => {
+    const directory = join(root, '.github/release-notes');
+    const files = (await readdir(directory)).filter(
+      (name) => name.startsWith('v') && name.endsWith('.md'),
+    );
+    expect(files.length).toBeGreaterThan(0);
+    for (const name of files)
+      expect(
+        shapeRefusal(await readFile(join(directory, name), 'utf8')),
+        name,
+      ).toBe('');
+  });
+});
+
 describe('Upgrade notes against the release contents', () => {
   test('a release without a migration or a contract change needs neither named', () => {
     expect(refusal(authored, quiet)).toBe('');

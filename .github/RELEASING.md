@@ -32,11 +32,13 @@ has the structure. Generated API contract notes and the PR list follow these sec
 Run `bun tools/cli/scripts/release-notes.ts --version vX.Y.Z` on the checkout you intend to select,
 in a clone that has the release tags (`git fetch --tags`). Only select a candidate containing that
 reviewed file. The existing candidate gate checks CI and source identity; it does not check the
-prose. The validator rejects a missing file, a missing, repeated or misordered section, and a
-section that contains TODO or TBD or nothing but comments and `*`, `_` or `-` markers. It also
-compares **Upgrade notes** with what the checkout brings since the previous release tag, which
-it finds with `git describe` from the checkout's parent (`--previous-tag vA.B.C` names it
-instead). It rejects them unless they name each migration file added to
+prose. The validator rejects a missing file, a missing, repeated or misordered section, a section
+that contains TODO or TBD or nothing but comments and `*`, `_` or `-` markers, and an address into
+a `tale-project` repository other than the public `tale` and `.github`, even in a comment: the
+GitHub release, the website's changelog and the in-app changelog show the notes to readers who
+cannot open it. It also compares **Upgrade notes** with what the checkout brings since the previous
+release tag, which it finds with `git describe` from the checkout's parent (`--previous-tag vA.B.C`
+names it instead). It rejects them unless they name each migration file added to
 `services/platform/backend/db/migrations`, by its file name, and the new `API_CONTRACT_VERSION`
 when it changed, and its error names what is missing. Naming more, such as an earlier release's
 migration, is allowed. It cannot recognise leftover template prose or a wrong claim; the review
