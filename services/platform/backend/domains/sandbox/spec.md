@@ -192,8 +192,18 @@ limit, because what frees is an empty workspace, not room. A workspace that ends
 while it is being deleted, for example because the start that was creating it fails, holds
 nothing back: the next turn opens a new workspace, which the Destroy leaves alone (`SBX-R11`).
 
+An automation run gets no new workspace once the one it worked in was deleted, by a Destroy
+or because the sandbox service no longer has it: a new one would hold none of the files its
+earlier steps left. Its next start is refused (`SANDBOX_WORKSPACE_DESTROYED`), and the step
+fails with the reason. A project agent's next turn opens a new workspace, and a light sandbox
+is created again on its next call.
+
 - **Example**: Ada destroys an agent's workspace. While its row reads **Destroying**, Mia
   starts the agent on a task → the start is refused with the reason `destroy_pending`.
+- **Example**: an automation run's first step has drafted notes into its workspace when Ada
+  destroys that workspace, and the Destroy finishes → the second step is refused with
+  `SANDBOX_WORKSPACE_DESTROYED`, the run fails with the reason, and nothing runs in an empty
+  workspace. Mia starts the automation again.
 
 ## Agent workers
 
