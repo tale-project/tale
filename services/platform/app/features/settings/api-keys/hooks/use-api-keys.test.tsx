@@ -79,7 +79,7 @@ describe('useCreateApiKey', () => {
         }),
     );
     const { result } = renderCreateWithList();
-    await waitFor(() => expect(result.current.keys.data).toEqual([]));
+    await waitFor(() => expect(result.current.keys.data).toEqual({ keys: [] }));
 
     let created: unknown;
     const pending = result.current.create.mutateAsync({
@@ -99,13 +99,13 @@ describe('useCreateApiKey', () => {
       key: 'tale_secret',
       id: key.id,
     });
-    expect(client.getQueryData(LIST_KEY)).toEqual([key]);
+    expect(client.getQueryData(LIST_KEY)).toEqual({ keys: [key] });
   });
 
   it('still hands back the key when the refetch fails', async () => {
     listAnswers([], () => Promise.reject(new Error('offline')));
     const { result } = renderCreateWithList();
-    await waitFor(() => expect(result.current.keys.data).toEqual([]));
+    await waitFor(() => expect(result.current.keys.data).toEqual({ keys: [] }));
 
     // The secret is shown once; a failed list read must never withhold it.
     await expect(
@@ -180,10 +180,55 @@ describe('useRevokeApiKey', () => {
  * organization and the others the cache holds — must hear of a change at
  * once, not after the stale window.
  */
+describe('useApiKeys', () => {
+  it('asks for every key that works here apart from the keys the viewer manages', async () => {
+    backendFetch.mockResolvedValueOnce({ keys: [] });
+    const { result } = renderHook(() => useApiKeys('org-1', 'all'), {
+      wrapper,
+    });
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(backendFetch).toHaveBeenCalledWith(
+      '/api-keys?scope=all',
+      expect.objectContaining({ orgId: 'org-1' }),
+    );
+    expect(client.getQueryState([...LIST_KEY, 'all'])?.status).toBe('success');
+    expect(client.getQueryState(LIST_KEY)).toBeUndefined();
+  });
+
+  it('reads every key that works here afresh each time the view opens', async () => {
+    // The router keeps a read for five minutes. A member disabled or removed
+    // meanwhile sends no `api_key` hint, so the all view must not reuse it;
+    // the keys the viewer manages send one on every change and keep theirs.
+    client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: 5 * 60 * 1000 } },
+    });
+    backendFetch.mockResolvedValue({ keys: [] });
+    const openAll = () =>
+      renderHook(() => useApiKeys('org-1', 'all'), { wrapper });
+    const first = openAll();
+    await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
+    first.unmount();
+    openAll();
+    await waitFor(() => expect(backendFetch).toHaveBeenCalledTimes(2));
+
+    backendFetch.mockClear();
+    const openManaged = () =>
+      renderHook(() => useApiKeys('org-1'), { wrapper });
+    const managed = openManaged();
+    await waitFor(() => expect(managed.result.current.isSuccess).toBe(true));
+    managed.unmount();
+    openManaged();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(backendFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('the cached key views', () => {
   const VIEWS = [
     ['backend', 'org-1', 'api_key', 'org-list'],
     ['backend', 'org-1', 'api_key', 'settings-list'],
+    ['backend', 'org-1', 'api_key', 'settings-list', 'all'],
     ['backend', 'org-2', 'api_key', 'settings-list'],
   ];
   const UNRELATED = ['backend', 'org-1', 'team', 'list'];
@@ -251,7 +296,7 @@ describe('account-wide key changes across organizations', () => {
         return { data: { success: true } };
       });
       const orgA = renderHook(() => useApiKeys('org-a'), { wrapper });
-      await waitFor(() => expect(orgA.result.current.data).toEqual(keys));
+      await waitFor(() => expect(orgA.result.current.data?.keys).toEqual(keys));
       orgA.unmount();
       const orgB = renderHook(
         () => ({
@@ -262,8 +307,12 @@ describe('account-wide key changes across organizations', () => {
         { wrapper },
       );
       const panel = renderHook(() => useApiKeys('org-c'), { wrapper });
-      await waitFor(() => expect(orgB.result.current.keys.data).toEqual(keys));
-      await waitFor(() => expect(panel.result.current.data).toEqual(keys));
+      await waitFor(() =>
+        expect(orgB.result.current.keys.data?.keys).toEqual(keys),
+      );
+      await waitFor(() =>
+        expect(panel.result.current.data?.keys).toEqual(keys),
+      );
       const derivedKeys = ['org-a', 'org-b'].flatMap((org) => [
         ['backend', org, 'api_key', 'org-list'],
         ['backend', org, 'api_key', 'my-access'],
@@ -283,8 +332,10 @@ describe('account-wide key changes across organizations', () => {
         }
       });
 
-      await waitFor(() => expect(panel.result.current.data).toEqual(keys));
-      expect(orgB.result.current.keys.data).toEqual(keys);
+      await waitFor(() =>
+        expect(panel.result.current.data?.keys).toEqual(keys),
+      );
+      expect(orgB.result.current.keys.data?.keys).toEqual(keys);
       expect(
         client.getQueryState(['backend', 'org-a', 'api_key', 'settings-list'])
           ?.isInvalidated,
@@ -297,7 +348,9 @@ describe('account-wide key changes across organizations', () => {
       expect(client.getQueryState(unrelated)?.isInvalidated).toBe(false);
 
       const returnedA = renderHook(() => useApiKeys('org-a'), { wrapper });
-      await waitFor(() => expect(returnedA.result.current.data).toEqual(keys));
+      await waitFor(() =>
+        expect(returnedA.result.current.data?.keys).toEqual(keys),
+      );
       expect(backendFetch).toHaveBeenCalledTimes(6);
     },
   );
