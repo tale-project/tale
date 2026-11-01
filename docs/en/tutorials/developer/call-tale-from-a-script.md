@@ -120,9 +120,11 @@ Keep the thread ID when extending this into an integration. Send later messages 
 | `400` with `ORG_SLUG_REQUIRED` | Supply the intended organization slug from `data.organizations`. |
 | `404` with `ORG_SLUG_INVALID` | The slug names no organization at all — check for a typo, and never paste the dashboard URL's organization ID. Pick a slug from `data.organizations`. |
 | `403` with `ORG_FORBIDDEN` | The organization exists, but the key holder is not a member of it — pick a slug from `data.organizations`. |
+| `403` with `API_KEY_PERSONAL_REFUSED` | The organization does not accept the keys members make for themselves — send a slug from `data.organizations`, where this key still works, or ask an Owner or Admin there for a key made in that organization. |
 | `403` | Check the key holder’s permissions for the operation. |
 | No model candidate | Read `/models` again and select an exact ID/provider pair. |
 | `429` | Honor `Retry-After`; see [Rate limits](/develop/rate-limits). |
+| `503` with `PERSONAL_KEYS_POLICY_UNAVAILABLE` | Tale cannot read whether the organization accepts members' own keys, so it refuses them for now — honor `Retry-After`, then retry. |
 | Message status `failed` | Inspect `errorCode`; fix the provider account or model configuration before retrying. |
 | Network timeout | Check the instance and the existing thread before submitting another message. |
 

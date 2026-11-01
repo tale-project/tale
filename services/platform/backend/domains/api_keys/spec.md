@@ -3,21 +3,22 @@
 > **Prefix** `APIKEY-` · **Docs** [`admin/api-keys`](../../../../../docs/en/platform/admin/api-keys.md)
 
 An API key lets a program call Tale's REST API, its MCP server and its model endpoints. A person
-can make their own key, which works wherever they are a member. An Owner or Admin can also make
-a key for another member, for a team, for a project or for the organization itself; such a key
-works in that one organization only. These rules cover who can make which key, what a key acts
-as and reaches, when it stops working, who sees it, and whose limits its spend counts toward.
-A project's own limit, which binds its keys too, is the governance spec's (`GOV-R14`).
+can make their own key, which works wherever they are a member, unless an Owner or Admin there
+has turned members' own keys off. An Owner or Admin can also make a key for another member, for
+a team, for a project or for the organization itself; such a key works in that one organization
+only. These rules cover who can make which key, what a key acts as and reaches, when it stops
+working, who sees it, and whose limits its spend counts toward. A project's own limit, which
+binds its keys too, is the governance spec's (`GOV-R14`).
 
 ## Who can make a key, and for whom
 
-| Key for          | Who makes it                  | Acts as                              | Works in                         |
-| ---------------- | ----------------------------- | ------------------------------------ | -------------------------------- |
-| Yourself         | anyone the create rule admits | you, with your role                  | every organization you belong to |
-| Another member   | an Owner or Admin             | that member, with their role         | this organization                |
-| A team           | an Owner or Admin             | its own identity, with a chosen role | this organization                |
-| A project        | an Owner or Admin             | its own identity, with a chosen role | this organization                |
-| The organization | an Owner or Admin             | its own identity, with a chosen role | this organization                |
+| Key for          | Who makes it                  | Acts as                              | Works in                                                       |
+| ---------------- | ----------------------------- | ------------------------------------ | -------------------------------------------------------------- |
+| Yourself         | anyone the create rule admits | you, with your role                  | every organization you belong to that admits members' own keys |
+| Another member   | an Owner or Admin             | that member, with their role         | this organization                                              |
+| A team           | an Owner or Admin             | its own identity, with a chosen role | this organization                                              |
+| A project        | an Owner or Admin             | its own identity, with a chosen role | this organization                                              |
+| The organization | an Owner or Admin             | its own identity, with a chosen role | this organization                                              |
 
 ### APIKEY-R1 · Only owners and admins make a key for someone or something else
 
@@ -82,6 +83,27 @@ sees across the organization.
 
 - **Example**: The Launch project's key calls `GET /contacts` → 403 `API_KEY_SCOPE_FORBIDDEN`.
 
+### APIKEY-R12 · An Owner or Admin can refuse every member's own key in their organization
+
+The switch Members' personal keys work here, on Settings > API > REST, is on until an Owner or
+Admin of the organization turns it off; no one else sees or changes it. While it is off, every
+member's own key, the Owner's and the Admins' included, is refused on every request that
+addresses this organization, over REST, MCP and the model endpoints (`API_KEY_PERSONAL_REFUSED`).
+Over REST and MCP the refusal lists the holder's organizations that still let their own keys in,
+and the key keeps working there. A key made here for a member, a team, a project or the
+organization, a signed-in session and a coding agent connected by sign-in keep working; a key
+whose holder is not a member is refused as before (`ORG_FORBIDDEN`) and learns nothing of the
+setting. While the setting cannot be read, members' own keys stay out
+(`PERSONAL_KEYS_POLICY_UNAVAILABLE`, a 503 that says when to retry). The audit log records each
+change with the state before and after. A member whose own keys are refused here is told so on
+the page; making one stays open as before, for use in their other organizations.
+
+- **Example**: Ada turns off Members' personal keys work here in Acme → Mia's own key, and
+  Ada's, get 403 `API_KEY_PERSONAL_REFUSED` there; Mia's lists `beta` and still works in it, and
+  "Billing sync" keeps working in Acme.
+- **Example**: Acme's setting cannot be read → Mia's own key gets 503
+  `PERSONAL_KEYS_POLICY_UNAVAILABLE` there until it can, and "Billing sync" keeps working.
+
 ## When a key stops working
 
 ### APIKEY-R7 · A key ends when it is revoked or when what it belongs to is gone
@@ -113,7 +135,8 @@ when each key expires.
 Everyone sees their own keys. An Owner or Admin also sees every key bound to the organization;
 a member sees the keys made for them here. A key bound to an organization is ended at that
 organization's door, never through a person's own key settings (`API_KEY_ORGANIZATION_MANAGED`),
-and the audit log names who made and who ended it.
+and the audit log names who made and who ended it. A member's own key is theirs alone to end; an
+Owner or Admin refuses every such key in their organization instead (`APIKEY-R12`).
 
 - **Example**: Mia opens Settings > API > REST → she sees her own keys and "Billing sync", and
   can end it; she does not see the Finance team's key.
@@ -137,8 +160,12 @@ an active user.
 
 - **Renaming a key, or changing its role or expiry** after it is made: make a new key and end the
   old one.
-- **Revoking a key stops what it would start, not what it started**: a run in flight or a REST
-  message already accepted finishes and spends as the key.
+- **Revoking a key, or turning members' own keys off, stops what it would start, not what it
+  started**: a run in flight, a REST message already accepted or an answer already streaming
+  finishes and spends as the key.
+- **Where a refused key still works, on the model endpoints**: their refusal keeps the code and
+  the message in the interface's own error shape but drops the list of organizations, which
+  only REST and MCP return.
 - **What a project's key starts in its project**: an agent run or an automation it starts there
   runs with that agent's or automation's own equipment, which may reach beyond the project.
 - **The live-schema proof**: the binding table's constraints and the cascades are proven against
