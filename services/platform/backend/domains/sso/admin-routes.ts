@@ -35,8 +35,9 @@ import { presentedTrustedHeaderKey } from './trusted-headers.ts';
 /**
  * /api/app/sso — the admin settings surface for the file-backed SSO
  * connection (the sign-in protocol endpoints live unauthenticated at
- * `/api/sso`). Reads = org member; every write = the orgSettings ability
- * (the 0.4 admin gate).
+ * `/api/sso`). The settings are the owner's and admins' alone: reading them
+ * is the `read orgSettings` ability, every write `write orgSettings`. Only
+ * the login page's discovery, mounted before the session gate, is open.
  */
 
 function handleError<E extends OrgEnv>(
@@ -92,6 +93,14 @@ export function createSsoAdminRoutes(deps: {
 
   app.use(requireSession(deps.auth), requireOrgMember(deps.sql));
 
+  const requireSettingsRead = (c: Context<OrgEnv>): Response | null => {
+    if (
+      defineAbilityFor(c.get('orgMember').role).cannot('read', 'orgSettings')
+    ) {
+      return c.json({ error: 'Only admins can view the SSO settings' }, 403);
+    }
+    return null;
+  };
   const requireSettingsWrite = (c: Context<OrgEnv>): Response | null => {
     if (
       defineAbilityFor(c.get('orgMember').role).cannot('write', 'orgSettings')
@@ -107,6 +116,8 @@ export function createSsoAdminRoutes(deps: {
   });
 
   app.get('/config', async (c) => {
+    const denied = requireSettingsRead(c);
+    if (denied) return denied;
     try {
       return c.json(await getSsoConnectionView(deps.sql, c.get('orgId')));
     } catch (error) {

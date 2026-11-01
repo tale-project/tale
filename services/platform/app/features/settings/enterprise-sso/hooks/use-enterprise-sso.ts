@@ -8,10 +8,14 @@ import { useBackendQuery } from '@/app/hooks/use-backend-query';
  * provisioning policy, and SCIM token from one place.
  */
 
-export function useEnterpriseSso(organizationId: string) {
-  return useBackendQuery('enterprise_sso/config/queries:get', {
-    organizationId,
-  });
+/** The connection's settings are the owner's and admins' to read
+ * (`read orgSettings`): any other role is refused, so the read waits for a
+ * role that may make it instead of asking to be refused. */
+export function useEnterpriseSso(organizationId: string, canRead: boolean) {
+  return useBackendQuery(
+    'enterprise_sso/config/queries:get',
+    canRead ? { organizationId } : 'skip',
+  );
 }
 
 // The form reports a failure of the writes below that opt out itself: a

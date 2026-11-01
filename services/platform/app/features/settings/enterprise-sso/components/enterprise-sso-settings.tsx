@@ -37,7 +37,12 @@ export function EnterpriseSsoSettings({
   const { t: tNav } = useT('navigation');
   const ability = useAbility();
   const abilityLoading = useAbilityLoading();
-  const connection = useEnterpriseSso(organizationId);
+  // Only a role that may read the settings asks for them: the server refuses
+  // every other (SSO-R22), and a refusal would show as a failed read.
+  const connection = useEnterpriseSso(
+    organizationId,
+    !abilityLoading && ability.can('read', 'orgSettings'),
+  );
   const { refetch } = connection;
   // `undefined` until the connection has answered; the form shows its
   // loading state meanwhile.

@@ -69,10 +69,16 @@ vi.mock(
   '@/app/features/settings/trusted-headers/components/embedding-section',
   () => ({ EmbeddingSection: () => null }),
 );
-vi.mock('@/app/hooks/use-ability', () => ({
-  useAbility: () => ({ can: () => true, cannot: () => false }),
-  useAbilityLoading: () => false,
-}));
+// The viewer's role, and whether it is still loading; an Admin by default.
+const viewer = vi.hoisted(() => ({ role: 'admin', loading: false }));
+vi.mock('@/app/hooks/use-ability', async () => {
+  const { defineAbilityFor } = await import('@/lib/permissions/ability');
+  return {
+    useAbility: () =>
+      defineAbilityFor(viewer.loading ? 'disabled' : viewer.role),
+    useAbilityLoading: () => viewer.loading,
+  };
+});
 
 const CONNECTION = /^GET \/api\/app\/sso\/config\?orgId=org-1$/;
 
@@ -95,6 +101,8 @@ let backend: SyntheticBackend;
 let client: QueryClient;
 
 beforeEach(() => {
+  viewer.role = 'admin';
+  viewer.loading = false;
   window.history.replaceState(
     {},
     '',
@@ -117,12 +125,16 @@ afterEach(async () => {
   await forgetSavedLocale();
 });
 
-async function renderPage() {
-  const view = render(
+function page() {
+  return (
     <QueryClientProvider client={client}>
       <EnterpriseSsoSettings organizationId="org-1" />
-    </QueryClientProvider>,
+    </QueryClientProvider>
   );
+}
+
+async function renderPage() {
+  const view = render(page());
   // The app shell settles its language once mounted; let that land in act.
   await act(async () => {});
   return view;
@@ -296,5 +308,40 @@ describe(
         await checkAccessibility(container);
       },
     );
+  },
+);
+
+describe(
+  'EnterpriseSsoSettings for a role that may not read the settings',
+  { timeout: 30_000 },
+  () => {
+    it('shows a Member the denial and never asks for the connection', async () => {
+      viewer.role = 'member';
+      backend.on(CONNECTION, connectionAnswer('Acme Entra'));
+      await renderPage();
+
+      expect(
+        screen.getByText(i18n.t('enterpriseSso', { ns: 'accessDenied' })),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+      expect(backend.count(CONNECTION)).toBe(0);
+    });
+
+    it('asks for the connection only once the role is known to read it', async () => {
+      viewer.loading = true;
+      backend.on(CONNECTION, connectionAnswer('Acme Entra'));
+      const { rerender } = await renderPage();
+
+      expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+      expect(backend.count(CONNECTION)).toBe(0);
+
+      viewer.loading = false;
+      rerender(page());
+
+      expect(
+        await screen.findByText('Connection: Acme Entra'),
+      ).toBeInTheDocument();
+      expect(backend.count(CONNECTION)).toBe(1);
+    });
   },
 );
