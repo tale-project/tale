@@ -27,6 +27,6 @@ Speichern erstellt eine Version, schaltet sie aber nicht live. Bevor dein Agent 
 
 ## Entscheidungen während eines Laufs unterscheiden
 
-Ein Agentenknoten arbeitet während eines Laufs einer Automatisierung. Er ist nicht der Coding-Agent, mit dem du den Workflow schreibst. Ebenso erlaubt eine [Genehmigung](/de/platform/approvals/concepts) eine ausstehende Operation während der Ausführung und keine vorgeschlagene Änderung an der Workflow-Definition. Dein Coding-Agent entscheidet nie über eine Genehmigung: Braucht ein Lauf, den er gestartet hat, eine Genehmigung, wartet er, bis eine Person in Tale entscheidet.
+Eine Agent-Node arbeitet während eines Laufs einer Automatisierung. Sie ist nicht der Coding-Agent, mit dem du den Workflow schreibst. Ebenso erlaubt eine [Genehmigung](/de/platform/approvals/concepts) eine ausstehende Operation während der Ausführung und keine vorgeschlagene Änderung an der Workflow-Definition. Dein Coding-Agent entscheidet nie über eine Genehmigung: Braucht ein Lauf, den er gestartet hat, eine Genehmigung, wartet er, bis eine Person in Tale entscheidet.
 
 Nutze [den Editor](/de/platform/automations/editor) für direkte Änderungen oder [MCP](/de/develop/mcp-endpoint) für deinen eigenen Client. Beginne mit [einer vorhandenen Automatisierung](/de/platform/automations/catalog), wenn bereits eine passende verfügbar ist.

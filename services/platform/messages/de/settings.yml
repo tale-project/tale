@@ -40,7 +40,7 @@ menu:
   sandboxes:
     description: Always-on Remote-Sandboxes verwalten.
   skills:
-    description: Wiederverwendbare Anleitungspakete für Projekt-Agenten und Agent-Knoten in Automatisierungen.
+    description: Wiederverwendbare Anleitungspakete für Projekt-Agenten und Agent-Nodes in Automatisierungen.
   enterpriseSso:
     description: Single Sign-on und Verzeichnissynchronisation für deine Belegschaft.
   dataResidency:

@@ -75,7 +75,7 @@ curl --fail-with-body --silent --show-error \
 
 Warte auf einen Endstatus und prüfe `output` und `trace`. Bei der Test-Automatisierung, die Eingaben zurückgibt, müssen Bestell-ID und Betrag mit deiner Zustellung übereinstimmen. Die `202`-Antwort allein bestätigt dieses Ergebnis nicht.
 
-Lies bei einem fehlgeschlagenen Lauf `failureCode` und `detail`, den betroffenen Knoten sowie bereits ausgeführte Aktionen. Dieselbe Zustellungs-ID liefert den ursprünglichen Lauf zurück, auch wenn er fehlgeschlagen ist; sie wiederholt seine Arbeit nicht. Eine andere ID startet neue Arbeit. Prüfe deshalb zuerst, ob bereits abgeschlossene Knoten gefahrlos erneut laufen dürfen.
+Lies bei einem fehlgeschlagenen Lauf `failureCode` und `detail`, die betroffene Node sowie bereits ausgeführte Aktionen. Dieselbe Zustellungs-ID liefert den ursprünglichen Lauf zurück, auch wenn er fehlgeschlagen ist; sie wiederholt seine Arbeit nicht. Eine andere ID startet neue Arbeit. Prüfe deshalb zuerst, ob bereits abgeschlossene Nodes gefahrlos erneut laufen dürfen.
 
 ## Zustellungen wiederaufnehmen
 

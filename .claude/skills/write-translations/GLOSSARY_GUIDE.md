@@ -26,8 +26,11 @@ the current change. Explain why and what would remove the exception in `_note`; 
 future date or promise a follow-up that has no owner. When a locale uses the English word only
 inside another name, such as Google's product `Google Workspace`, list that name under the term's
 `_allow` for that locale instead: `terminology-ui-label` then still reports the word everywhere
-else in the locale. Swiss German follows the `de` entries of `_lintExclude`, `_avoid` and `_allow`
-unless it has its own, since every German string with `ß` has a Swiss copy.
+else in the locale. A locale that keeps the English name, such as German `Node`, can still list
+its retired names under `_avoid`, and a `*` at either end of a name covers a compound or an
+ending: `*knoten*` reports `Agentenknoten` and `Knotentypen`. Swiss German follows the `de`
+entries of `_lintExclude`, `_avoid` and `_allow` unless it has its own, since every German string
+with `ß` has a Swiss copy.
 
 A glossary exception does not exempt untranslated prose, missing ICU arguments, or factual drift.
 Run the relevant terminology tests and inspect affected uses in context. Patterns for shared

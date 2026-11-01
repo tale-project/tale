@@ -73,14 +73,18 @@ export interface Term {
   /**
    * Non-shipped names a locale must not use for this term, such as a
    * lowercase loanword or a retired translation. `terminology-ui-label`
-   * reports them case-insensitively wherever it enforces the term.
+   * reports them case-insensitively in every locale that `_lintExclude`
+   * doesn't exclude, also in one that keeps the `en` form (German `Node`
+   * avoids `Knoten`). A `*` at either end of a name lets the word go on
+   * there, for a compound or an ending: `*knoten*` matches `Agentenknoten`.
    */
   readonly _avoid?: Partial<Record<string, ReadonlyArray<string>>>;
   /**
    * Names that contain the term's `en` form, or an `_avoid` name, yet name
    * something else, such as another vendor's product (`Google Workspace`).
    * `terminology-ui-label` skips a match that lies inside one of them, and
-   * still reports the same word anywhere else in that locale's text.
+   * still reports the same word anywhere else in that locale's text. A `*`
+   * at either end works as in `_avoid`.
    */
   readonly _allow?: Partial<Record<string, ReadonlyArray<string>>>;
   readonly _note?: string;

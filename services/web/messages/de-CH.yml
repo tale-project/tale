@@ -136,7 +136,7 @@ platformGovernance:
       - q: Wartet jede Agentenaktion auf Genehmigung?
         a: Nein. Der Connector-Broker stellt Agenten Leseaktionen bereit;
           genehmigungspflichtige Connector-Schreibaktionen laufen über
-          Automatisierungsknoten. Direkte GitHub-Werkzeuge und ausdrücklich
+          Automatisierungs-Nodes. Direkte GitHub-Werkzeuge und ausdrücklich
           freigegebene Secrets haben eigene Zugriffswege. Prüfe auch diese
           Freigaben.
       - q: Wie gelten Inhaltsfilter und Datenkontrollen?
