@@ -507,9 +507,13 @@ for (const [label, executable] of modes)
         );
         expect(missing.error.summary).toContain('session cookie');
         expect(f.requests).toHaveLength(before);
-        const refused = await run(executable, args, f.directory, f.cookie);
-        // The shared CLI interrupt renderer intentionally exits 4 quietly in JSON mode.
-        expect(refused).toEqual({ code: 4, stdout: '', stderr: '' });
+        // Without a terminal the prompt cannot be shown: the JSON envelope
+        // says why and names --yes, and the exit code stays 4.
+        const refused = envelope(
+          await run(executable, args, f.directory, f.cookie),
+          4,
+        );
+        expect(refused.error.summary).toContain('--yes');
         expect(
           f.requests.slice(before).every((request) => request.method === 'GET'),
         ).toBe(true);

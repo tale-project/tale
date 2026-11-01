@@ -1,9 +1,10 @@
 /**
  * The central command dispatch: wrap a Commander action with `action(body)` so
  * every command shares ONE error path — typed `CliError`s map to their exit code,
- * a user abort (Ctrl-C / a required prompt in a non-interactive shell) exits `4`
- * quietly, and anything else is a generic failure. In `--json` mode the error is
- * emitted as a JSON envelope instead of human chrome. Replaces the per-command
+ * a user interrupt (Ctrl-C) exits `4` quietly, a prompt that could not be shown
+ * (no terminal) or was declined exits `4` with its reason, and anything else is
+ * a generic failure. In `--json` mode the error is emitted as a JSON envelope
+ * instead of human chrome. Replaces the per-command
  * `try/catch + process.exit(1)` boilerplate.
  */
 
@@ -15,8 +16,7 @@ import { emitJsonError } from './json-output';
 import { getOutputMode } from './output-mode';
 import { NonInteractiveError } from './prompt';
 
-function isUserAbort(err: unknown): boolean {
-  if (err instanceof NonInteractiveError) return true;
+function isUserInterruption(err: unknown): boolean {
   if (typeof err === 'object' && err !== null && 'exitCode' in err) {
     const code = err.exitCode; // narrowed to `unknown` by the `in` guard
     return typeof code === 'number' && isUserInterrupt(code);
@@ -28,7 +28,7 @@ function isUserAbort(err: unknown): boolean {
 export function handleError(err: unknown): never {
   const mode = getOutputMode();
 
-  if (isUserAbort(err)) {
+  if (isUserInterruption(err)) {
     if (!mode.json) errorLine('Aborted.');
     process.exit(ExitCode.UserAbort);
   }
@@ -36,6 +36,14 @@ export function handleError(err: unknown): never {
   if (err instanceof CliError) {
     if (mode.json) emitJsonError(err.info);
     failWith(err.info);
+  }
+
+  // Still a user abort, but not one the operator typed: its message says why
+  // (e.g. that `--yes` is needed without a terminal), so it is shown.
+  if (err instanceof NonInteractiveError) {
+    const info = { summary: err.message, code: ExitCode.UserAbort };
+    if (mode.json) emitJsonError(info);
+    failWith(info);
   }
 
   const e = err instanceof Error ? err : new Error(String(err));

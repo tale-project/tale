@@ -28,6 +28,7 @@ import { nativeDeploymentStateDirectory } from '../../lib/deployment/provision-s
 import { withLock } from '../../lib/state/with-lock';
 import {
   CliError,
+  ExitCode,
   externalDepError,
   preconditionError,
   usageError,
@@ -36,7 +37,7 @@ import { emitJson } from '../../utils/json-output';
 import * as logger from '../../utils/logger';
 import { getOutputMode, resolveConsent } from '../../utils/output-mode';
 import { readPrivateText } from '../../utils/private-input';
-import { confirm, NonInteractiveError } from '../../utils/prompt';
+import { NonInteractiveError } from '../../utils/prompt';
 import { action } from '../../utils/run-command';
 import { assertManagedOptions } from './options';
 
@@ -189,7 +190,7 @@ export async function provisionManagedBundle(
 export function createProvisionCommand(): Command {
   return new Command('provision')
     .description(
-      'Provision one native instance from private JSON stdin inside its backend',
+      'Provision one native instance from private JSON stdin inside its backend (requires --yes)',
     )
     .option(
       '--bundle <directory>',
@@ -281,16 +282,14 @@ export function createProvisionCommand(): Command {
               throw preconditionError(
                 'Fresh native provisioning requires a verified deployment bundle.',
               );
-            if (
-              !resolveConsent(inherited?.yes) &&
-              !(await confirm({
-                message: 'Provision the selected native instance?',
-                default: false,
-              }))
-            )
-              throw new NonInteractiveError(
-                'Native instance provisioning was not confirmed.',
-              );
+            // Stdin carries the private input, so no prompt can be answered:
+            // consent comes from --yes, deploy's or the global one, alone.
+            if (!resolveConsent(inherited?.yes))
+              throw new CliError({
+                summary:
+                  'deploy provision requires --yes (-y): its private input arrives on stdin, so it cannot ask for confirmation. Nothing was changed.',
+                code: ExitCode.UserAbort,
+              });
             result = directory
               ? await provisionManagedBundle(directory, input, {
                   cliRef: inherited?.cliRef,
