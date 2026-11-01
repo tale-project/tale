@@ -301,6 +301,29 @@ agent.
   (`governance.legalHold.sections.releaseRequests.title`) → The placed hold
   appears in the Active holds table; the release request appears under Release
   requests and requires a **different** admin to approve.
+- [ ] `GOV-F82` · **Legal hold tables keep their controls in their own
+  toolbar** — With more than 20 open matters (the console loop under "More
+  than 20 legal matters" in [setup.md](../setup.md); **Create matter** by hand
+  otherwise) and a hold placed (GOV-F7), open `legal-hold` at 1280 px and at
+  390 px, in the light and in the dark theme → **Matters** shows 20 rows over
+  the footer **Showing 20 of {n} matters**
+  (`common.pagination.showingFiltered`), and the rest arrive as you scroll to
+  its end. Its search box (**Search matters**,
+  `governance.legalHold.sections.matters.searchPlaceholder`), **Filter** and
+  **Create matter** (`governance.legalHold.actions.createMatter`), and those
+  of **Active holds** (**Search holds**,
+  `…sections.activeHolds.searchPlaceholder`; **Place legal hold**,
+  `governance.legalHold.actions.placeHold`), sit in the table's own toolbar,
+  the button at its right end at 1280 px and on a full-width row of its own at
+  390 px; nothing sits between a section's description and its table's
+  toolbar. **Pending approval** and **Approved (awaiting cooldown)** each
+  carry a search box of their own
+  (`…sections.releaseRequests.pendingSearchPlaceholder`,
+  `…approvedSearchPlaceholder`), and **Release history** its status
+  **Filter**, resting on **Effected** (`governance.legalHold.filters.effected`).
+  Each table with rows closes on a count footer (**Showing all 1 hold**,
+  `common.pagination.showingAll`). No page scrolls sideways at 390 px, and
+  every label is readable in both themes and in German and French.
 - [ ] `GOV-F8` · **DSAR** — `data-subject-requests` → **File request**
   (`governance.dataSubjectRequests.actions.fileRequest`) opens **File erasure
   request** (`governance.dataSubjectRequests.dialogs.fileRequest.title`); file
