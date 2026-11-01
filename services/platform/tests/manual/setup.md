@@ -252,6 +252,27 @@ dashboard URL (`/dashboard/AbCd…/chat`).
 
   Re-running it reports the addresses that already exist; settings F15 stays
   the by-hand fallback.
+- **More than 20 legal matters** — governance F82 pages the Legal hold
+  **Matters** table past its first 20 rows. Rather than pressing **Create
+  matter** twenty-one times, sign in as an admin, open any
+  `/dashboard/{org}/…` page and run this in the DevTools console; it creates
+  21 open matters through the same door as **Create matter**, and logs any it
+  could not create:
+
+  ```js
+  const org = location.pathname.split('/')[2];
+  for (let i = 1; i <= 21; i++) {
+    const res = await fetch(`/api/app/legal-holds/matters?orgId=${org}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: `QA matter ${i}`, caseNumber: `QA-${i}` }),
+    });
+    if (!res.ok) console.warn(i, res.status, await res.text());
+  }
+  ```
+
+  A matter can be closed but never deleted, so a second run adds 21 more;
+  run it once per reset.
 - **Sample upload artifacts** — an automation pack (the inline `workflow.yml`
   probe in automations.md Prerequisites, or zip a copy of a builtin pack under
   `configs/platform/custom/automations/`) for automations F8–F11, and a skill
