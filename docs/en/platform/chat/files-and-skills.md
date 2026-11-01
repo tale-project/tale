@@ -43,6 +43,8 @@ Files belong to the conversation: whoever can open the conversation can open its
 
 [Attach the file](/platform/chat/attachments) and say what should change: “Add a chart of the totals to the attached spreadsheet,” or “Convert the attached Word document to PDF.” The assistant copies the file into the light sandbox and returns the result as a new file. The file you attached stays as it was.
 
+A document you only link to is read as its text and is not copied into the sandbox, so the assistant cannot change it from the link: download the file and attach it.
+
 A picture you attach can also be the starting point for a new image when your organization allows [image generation](/platform/admin/governance/content-models#let-agents-generate-images). Ask, for example, “Turn the attached photo into a watercolor.” The assistant hands the photo to the image model, and the new image appears below the reply.
 
 ## Use a skill

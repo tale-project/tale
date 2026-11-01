@@ -43,6 +43,8 @@ Les fichiers appartiennent à la conversation : quiconque peut ouvrir la conver
 
 [Joins le fichier](/fr/platform/chat/attachments) et indique ce qui doit changer : « Ajoute un graphique des totaux au tableur joint » ou « Convertis le document Word joint en PDF ». L’assistant copie le fichier dans la sandbox légère et renvoie le résultat sous forme de nouveau fichier. Le fichier joint reste tel quel.
 
+Un document vers lequel tu donnes seulement un lien est lu comme texte. Il n’est pas copié dans la sandbox, et l’assistant ne peut pas le modifier depuis le lien : télécharge le fichier et joins-le.
+
 Une image jointe peut aussi servir de point de départ à une nouvelle image quand ton organisation autorise la [génération d’images](/fr/platform/admin/governance/content-models#let-agents-generate-images). Demande par exemple : « Transforme la photo jointe en aquarelle ». L’assistant transmet la photo au modèle d’images, et la nouvelle image apparaît sous la réponse.
 
 ## Utiliser un skill

@@ -32,6 +32,16 @@ import { SafeFetchError } from '../../../lib/net/safe-fetch';
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import { markKnowledgeDatabaseError } from '../../db/unavailable';
+import { buildDocx, para } from '../lib/knowledge/extraction/docx.test-helpers';
+import { PDF_MAX_PAGES } from '../lib/knowledge/extraction/pdf';
+import {
+  makePagedPdf,
+  makeTextPdf,
+} from '../lib/knowledge/extraction/pdf.test-helpers';
+import {
+  buildPptx,
+  buildSlideXml,
+} from '../lib/knowledge/extraction/pptx.test-helpers';
 import { RenderCapacityError } from '../node_only/sandbox/render_fetch';
 
 const searchKnowledgeMock = vi.fn();
@@ -57,14 +67,25 @@ vi.mock('../lib/helpers/org_slug', () => ({
   orgSlugFromId: () => Promise.resolve('org-slug'),
 }));
 
-// `safeFetch` is the only network edge; `isPrivateIp` and `SafeFetchError`
-// stay real so the URL policy under test is the shipped one.
+// `safeFetchBinary` is the only network edge; `isPrivateIp` and
+// `SafeFetchError` stay real so the URL policy under test is the shipped one.
+// A case answers with a page's text, as `safeFetch` returns it, or with a
+// document's bytes as a `Blob`; web_fetch reads bytes either way.
 const safeFetchMock = vi.fn();
 vi.mock('../../../lib/net/safe-fetch', async (importOriginal) => {
   const mod = await importOriginal<Record<string, unknown>>();
   return {
     ...mod,
-    safeFetch: (...args: unknown[]) => safeFetchMock(...args),
+    safeFetchBinary: async (...args: unknown[]) => {
+      const answer: { readonly body: unknown } = await safeFetchMock(...args);
+      return {
+        ...answer,
+        body:
+          answer.body instanceof Blob
+            ? answer.body
+            : new Blob([String(answer.body)]),
+      };
+    },
   };
 });
 
@@ -1417,24 +1438,286 @@ describe('web_fetch', () => {
     });
   });
 
-  it('says plainly when the content type is unreadable', async () => {
+  it('says plainly when the content type is unreadable, and what it reads', async () => {
     safeFetchMock.mockResolvedValueOnce({
       status: 200,
       statusText: 'OK',
-      headers: new Headers({ 'content-type': 'application/pdf' }),
-      body: '%PDF-1.7',
-      finalUrl: 'https://example.com/file.pdf',
+      headers: new Headers({ 'content-type': 'image/png' }),
+      body: '\x89PNG',
+      finalUrl: 'https://example.com/logo.png',
     });
     const executor = await makeExecutor(createCtx().ctx);
     await expect(
       executor.execute({
         id: 'call_1',
         name: 'web_fetch',
-        input: { url: 'https://example.com/file.pdf' },
+        input: { url: 'https://example.com/logo.png' },
       }),
     ).resolves.toMatchObject({
       status: 'unavailable',
-      message: expect.stringContaining('application/pdf'),
+      message: expect.stringMatching(
+        /"image\/png".*only web pages, text, and PDF, DOCX, XLSX, PPTX and ODT documents/,
+      ),
+    });
+  });
+
+  /** A document the server sends, as `safeFetchBinary` returns it. */
+  const documentAnswer = (
+    bytes: Uint8Array,
+    contentType: string,
+    url: string,
+    headers: Record<string, string> = {},
+  ) => ({
+    status: 200,
+    statusText: 'OK',
+    headers: new Headers({ 'content-type': contentType, ...headers }),
+    body: new Blob([new Uint8Array(bytes)]),
+    finalUrl: url,
+  });
+  const fetchDocument = async (
+    url: string,
+    input: Record<string, unknown> = {},
+  ) =>
+    (await makeExecutor(createCtx().ctx)).execute({
+      id: 'call_1',
+      name: 'web_fetch',
+      input: { url, ...input },
+    });
+
+  it('reads a linked PDF as its text, named, typed and noted as text only', async () => {
+    safeFetchMock.mockResolvedValueOnce(
+      documentAnswer(
+        makeTextPdf('Quarterly report: revenue grew 12 percent'),
+        'application/pdf',
+        'https://example.com/files/q3-report.pdf',
+      ),
+    );
+
+    const result = await fetchDocument(
+      'https://example.com/files/q3-report.pdf',
+    );
+
+    expect(result).toMatchObject({
+      status: 'ok',
+      url: 'https://example.com/files/q3-report.pdf',
+      title: 'q3-report.pdf',
+      document: { type: 'PDF', pages: 1 },
+      offset: 0,
+      note: expect.stringMatching(/ask the user to attach the file/),
+    });
+    expect(result.content).toContain('<untrusted_source tool="web_fetch"');
+    expect(result.content).toContain(
+      'Quarterly report: revenue grew 12 percent',
+    );
+    expect(result).not.toHaveProperty('nextOffset');
+    // The documents it reads are asked for by type.
+    expect(safeFetchMock).toHaveBeenCalledWith(
+      'https://example.com/files/q3-report.pdf',
+      expect.objectContaining({
+        maxResponseBytes: 4 * 1024 * 1024,
+        headers: expect.objectContaining({
+          accept: expect.stringContaining('application/pdf;q=0.8'),
+        }),
+      }),
+    );
+  });
+
+  it('pages a document like a page: offsets index the extracted text', async () => {
+    // One line that fits the page: pdf.js drops text set past its edge.
+    const pdf = makeTextPdf('Lorem ipsum dolor sit amet.');
+    safeFetchMock
+      .mockResolvedValueOnce(
+        documentAnswer(pdf, 'application/pdf', 'https://example.com/a.pdf'),
+      )
+      .mockResolvedValueOnce(
+        documentAnswer(pdf, 'application/pdf', 'https://example.com/a.pdf'),
+      );
+
+    const first = await fetchDocument('https://example.com/a.pdf', {
+      limit: 20,
+    });
+    expect(first).toMatchObject({ status: 'ok', offset: 0, nextOffset: 20 });
+    const total = first.totalChars as number;
+    expect(total).toBeGreaterThan(20);
+
+    const rest = await fetchDocument('https://example.com/a.pdf', {
+      offset: 20,
+    });
+    expect(rest).toMatchObject({ status: 'ok', offset: 20, totalChars: total });
+    expect(rest).not.toHaveProperty('nextOffset');
+    expect(safeFetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  // An OOXML type holds `xml`, and a DOCX used to come back as its zip bytes
+  // read as text.
+  it('reads a DOCX as a document, never as XML text', async () => {
+    safeFetchMock.mockResolvedValueOnce(
+      documentAnswer(
+        await buildDocx(para('Minutes of the board meeting')),
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'https://example.com/download?id=7',
+        { 'content-disposition': 'attachment; filename="minutes.docx"' },
+      ),
+    );
+
+    const result = await fetchDocument('https://example.com/download?id=7');
+
+    expect(result).toMatchObject({
+      status: 'ok',
+      title: 'minutes.docx',
+      document: { type: 'DOCX' },
+    });
+    expect(result.content).toContain('Minutes of the board meeting');
+    expect(result.content).not.toContain('word/document.xml');
+  });
+
+  it('lets the bytes decide behind a generic download type', async () => {
+    safeFetchMock.mockResolvedValueOnce(
+      documentAnswer(
+        makeTextPdf('Sniffed as a PDF'),
+        'application/octet-stream',
+        'https://example.com/get/42',
+      ),
+    );
+
+    const result = await fetchDocument('https://example.com/get/42');
+
+    expect(result).toMatchObject({
+      status: 'ok',
+      title: '42.pdf',
+      document: { type: 'PDF' },
+    });
+    expect(result.content).toContain('Sniffed as a PDF');
+  });
+
+  it('refuses a generic download whose bytes are no document it reads', async () => {
+    safeFetchMock.mockResolvedValueOnce(
+      documentAnswer(
+        new Uint8Array([0x7f, 0x45, 0x4c, 0x46, 0x02, 0x01, 0x01, 0x00]),
+        'application/octet-stream',
+        'https://example.com/get/tool',
+      ),
+    );
+
+    await expect(
+      fetchDocument('https://example.com/get/tool'),
+    ).resolves.toMatchObject({
+      status: 'unavailable',
+      message: expect.stringContaining('"application/octet-stream"'),
+    });
+  });
+
+  it('says a document that does not parse cannot be read, with the reason', async () => {
+    safeFetchMock.mockResolvedValueOnce(
+      documentAnswer(
+        new TextEncoder().encode('%PDF-1.7 this is not really a PDF'),
+        'application/pdf',
+        'https://example.com/broken.pdf',
+      ),
+    );
+
+    await expect(
+      fetchDocument('https://example.com/broken.pdf'),
+    ).resolves.toMatchObject({
+      status: 'unavailable',
+      message: expect.stringMatching(
+        /^The PDF document could not be read: .*corrupt, encrypted/,
+      ),
+    });
+  });
+
+  it('says a document without any text holds none, instead of an empty read', async () => {
+    safeFetchMock.mockResolvedValueOnce(
+      documentAnswer(
+        makeTextPdf(''),
+        'application/pdf',
+        'https://example.com/blank.pdf',
+      ),
+    );
+
+    await expect(
+      fetchDocument('https://example.com/blank.pdf'),
+    ).resolves.toMatchObject({
+      status: 'unavailable',
+      message: 'The PDF document holds no text. Tell the user.',
+    });
+  });
+
+  it('says a deck whose slides hold no text holds none', async () => {
+    safeFetchMock.mockResolvedValueOnce(
+      documentAnswer(
+        await buildPptx([buildSlideXml([]), buildSlideXml([])]),
+        'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        'https://example.com/empty.pptx',
+      ),
+    );
+
+    await expect(
+      fetchDocument('https://example.com/empty.pptx'),
+    ).resolves.toMatchObject({
+      status: 'unavailable',
+      message: 'The PPTX document holds no text. Tell the user.',
+    });
+  });
+
+  it(
+    'says when a PDF has more pages than it reads',
+    { timeout: 30_000 },
+    async () => {
+      const pdf = makePagedPdf(PDF_MAX_PAGES + 1);
+      safeFetchMock
+        .mockResolvedValueOnce(
+          documentAnswer(
+            pdf,
+            'application/pdf',
+            'https://example.com/manual.pdf',
+          ),
+        )
+        .mockResolvedValueOnce(
+          documentAnswer(
+            pdf,
+            'application/pdf',
+            'https://example.com/manual.pdf',
+          ),
+        );
+
+      const result = await fetchDocument('https://example.com/manual.pdf');
+
+      expect(result).toMatchObject({
+        status: 'ok',
+        document: { type: 'PDF', pages: PDF_MAX_PAGES + 1 },
+        note: expect.stringMatching(
+          new RegExp(
+            `^Only its first ${PDF_MAX_PAGES} of ${PDF_MAX_PAGES + 1} pages were read\\. This is the document's text`,
+          ),
+        ),
+      });
+      const tail = await fetchDocument('https://example.com/manual.pdf', {
+        offset: (result.totalChars as number) - 100,
+      });
+      expect(tail).toMatchObject({ status: 'ok' });
+      expect(tail).not.toHaveProperty('nextOffset');
+      expect(tail.content).toContain(`Page ${PDF_MAX_PAGES}`);
+      expect(tail.content).not.toContain(`Page ${PDF_MAX_PAGES + 1}`);
+    },
+  );
+
+  it('refuses a body over the cap and says so — never reads part of it', async () => {
+    safeFetchMock.mockRejectedValueOnce(
+      new SafeFetchError(
+        'response_too_large',
+        'Response body exceeded limit 4194304',
+        200,
+      ),
+    );
+
+    await expect(
+      fetchDocument('https://example.com/huge.pdf'),
+    ).resolves.toMatchObject({
+      status: 'error',
+      message: expect.stringMatching(
+        /larger than the 4 MiB this tool reads, so none of it was read.*attach the file/,
+      ),
     });
   });
 
@@ -2148,10 +2431,10 @@ describe('web_fetch meets a bot check', () => {
   });
 });
 
-describe('web_fetch redirects, through the shipped safeFetch', () => {
-  // safeFetch decides what a redirect may reach; these cases run the real one
-  // over a stubbed network, so the options web_fetch hands it are judged by
-  // the policy that ships.
+describe('web_fetch redirects, through the shipped safeFetchBinary', () => {
+  // safeFetchBinary decides what a redirect may reach and how much is read;
+  // these cases run the real one over a stubbed network, so the options
+  // web_fetch hands it are judged by the policy that ships.
   let real: typeof import('../../../lib/net/safe-fetch');
   beforeAll(async () => {
     real = await vi.importActual('../../../lib/net/safe-fetch');
@@ -2160,7 +2443,8 @@ describe('web_fetch redirects, through the shipped safeFetch', () => {
     vi.clearAllMocks();
     safeFetchMock.mockReset();
     safeFetchMock.mockImplementation(
-      (...args: Parameters<typeof real.safeFetch>) => real.safeFetch(...args),
+      (...args: Parameters<typeof real.safeFetchBinary>) =>
+        real.safeFetchBinary(...args),
     );
     real.setSafeFetchResolverForTests((hostname) =>
       Promise.resolve([
@@ -2255,6 +2539,69 @@ describe('web_fetch redirects, through the shipped safeFetch', () => {
     // Refused before the hop: the page behind the redirect is never asked for.
     expect(network).toHaveBeenCalledTimes(1);
   });
+
+  const fetchReport = async () =>
+    (await makeExecutor(createCtx().ctx)).execute({
+      id: 'call_1',
+      name: 'web_fetch',
+      input: { url: 'https://www.example.org/files/report.pdf' },
+    });
+
+  it('reads a document a public redirect leads to', async () => {
+    stubNetwork(
+      redirectTo('https://cdn.example.net/report-2026.pdf'),
+      new Response(makeTextPdf('Annual report 2026'), {
+        status: 200,
+        headers: { 'content-type': 'application/pdf' },
+      }),
+    );
+
+    const result = await fetchReport();
+
+    expect(result).toMatchObject({
+      status: 'ok',
+      url: 'https://cdn.example.net/report-2026.pdf',
+      title: 'report-2026.pdf',
+      document: { type: 'PDF', pages: 1 },
+    });
+    expect(result.content).toContain('Annual report 2026');
+  });
+
+  it('still refuses a document link that redirects into a private network', async () => {
+    const network = stubNetwork(
+      redirectTo('https://intranet.example.com/files/report.pdf'),
+    );
+
+    await expect(fetchReport()).resolves.toMatchObject({
+      status: 'error',
+      message: expect.stringContaining('private_ip'),
+    });
+    expect(network).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['declares a length over the cap', { 'content-length': '4194305' }],
+    ['streams past the cap without a length', {}],
+  ])(
+    'refuses a document that %s, before any of it is parsed',
+    async (_label, headers: Record<string, string>) => {
+      const oversized = new Uint8Array(4 * 1024 * 1024 + 1);
+      oversized.set(makeTextPdf('never parsed'));
+      stubNetwork(
+        new Response(oversized, {
+          status: 200,
+          headers: { 'content-type': 'application/pdf', ...headers },
+        }),
+      );
+
+      await expect(fetchReport()).resolves.toMatchObject({
+        status: 'error',
+        message: expect.stringContaining(
+          'larger than the 4 MiB this tool reads, so none of it was read',
+        ),
+      });
+    },
+  );
 });
 
 describe('rag_search work legs', () => {
