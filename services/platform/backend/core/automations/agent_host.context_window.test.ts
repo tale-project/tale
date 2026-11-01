@@ -18,7 +18,11 @@ import { functionRefName } from '../../../lib/shared/handlers/function-refs';
 import { harnessResumesConversations } from '../chat/external_turn_shared';
 import type { ActionCtx } from '../lib/ctx';
 import { resolveModel } from '../lib/providers/resolve_model';
-import { SessionMemoryBusyError } from '../node_only/sandbox/helpers/session_client';
+import {
+  ROOM_PLACE_RENEW_MS,
+  SessionMemoryBusyError,
+  SpawnerBusyError,
+} from '../node_only/sandbox/helpers/session_client';
 import { resolveProviderCredential } from '../provider_credentials/resolve_credential';
 import { SANDBOX_DESTROY_PENDING_MESSAGE } from '../sandbox/session_constants';
 import { workflowAgentRetryResume } from './agent_retry';
@@ -172,6 +176,7 @@ function makeCtx(cursor: unknown) {
   const mutations: Array<{ name: string; args: Record<string, unknown> }> = [];
   const scheduled: string[] = [];
   const delays: number[] = [];
+  const scheduledArgs: unknown[] = [];
   // The run the cursor reads serve: the retarget moves its agent to the
   // resume's exec, as the shim's does, so a settle after it lands as it would.
   let served = cursor;
@@ -231,14 +236,37 @@ function makeCtx(cursor: unknown) {
       throw new Error(`unexpected action ${functionRefName(ref)}`);
     },
     scheduler: {
-      runAfter: async (delay: number, ref: unknown) => {
+      runAfter: async (delay: number, ref: unknown, args: unknown) => {
         scheduled.push(functionRefName(ref));
         delays.push(delay);
+        scheduledArgs.push(args);
         return 'job';
       },
     },
   } as unknown as ActionCtx;
-  return { ctx, queries, scheduled, mutations, delays };
+  return { ctx, queries, scheduled, mutations, delays, scheduledArgs };
+}
+
+/** The place node `book` of run `run-1` holds in its host's line. */
+const PLACE = {
+  organizationId: 'org-1',
+  runId: 'run-1',
+  nodeId: 'book',
+  sessionId: 'wf-run-1',
+};
+
+/** The renewals of a place in its host's line a host scheduled. */
+function placesKept(recorded: ReturnType<typeof makeCtx>) {
+  return recorded.scheduled.flatMap((name, index) =>
+    name === 'automations/agent_host:keepWorkflowAgentPlace'
+      ? [
+          {
+            delay: recorded.delays[index],
+            args: recorded.scheduledArgs[index],
+          },
+        ]
+      : [],
+  );
 }
 
 beforeEach(() => {
@@ -698,6 +726,87 @@ describe('an automation agent turn', () => {
     expect(prompt).toContain('The operator answered your question:');
     expect(prompt).toContain('Cost centre 4711.');
     expect(prompt).not.toContain('cut short by an infrastructure');
+  });
+
+  it.each([
+    {
+      refusal: 'a place in its host’s line',
+      error: () => new SpawnerBusyError(5_000, { position: 0, waiting: 1 }),
+      kept: [{ delay: ROOM_PLACE_RENEW_MS, args: PLACE }],
+    },
+    {
+      refusal: 'no place',
+      error: () => new SpawnerBusyError(15_000),
+      kept: [],
+    },
+  ])(
+    'keeps the place of a start refused for sandbox room with $refusal until its re-kick asks again',
+    async ({ error, kept }) => {
+      // The re-kick's start waits for a start slot, which under load takes
+      // longer than the spawner keeps a waiter it does not hear from.
+      io.sessionRefusal = error();
+      const recorded = makeCtx({
+        status: 'running',
+        cursor: {
+          node: 'book',
+          agent: { ...WAITING_CURSOR.cursor.agent, execId: 'exec-1' },
+        },
+      });
+
+      await startWorkflowAgentTurnImpl(recorded.ctx, {
+        organizationId: 'org-1',
+        runId: 'run-1',
+        nodeId: 'book',
+        execId: 'exec-1',
+        sessionId: 'wf-run-1',
+        harness: 'claude-code',
+        lane: 'gateway',
+        providerSlug: 'local-inference',
+        modelId: 'qwen3-32b',
+        gatewayModel: 'local-inference-org-1/qwen3-32b',
+        deadlineAt: Date.now() + 60_000,
+        request: { model: 'qwen3-32b', prompt: 'Book the synthetic invoice.' },
+      } as never);
+
+      expect(io.starts).toHaveLength(0);
+      expect(
+        recorded.mutations.find(
+          (m) => m.name === 'automations/mutations:recordAgentTurnSettled',
+        )?.args.result,
+      ).toMatchObject({
+        errored: true,
+        failureCode: 'sandbox_capacity',
+        ...(kept.length > 0 ? { roomQueued: true } : {}),
+      });
+      expect(placesKept(recorded)).toEqual(kept);
+    },
+  );
+
+  it('keeps the place of an answered-ask resume refused for sandbox room with a place in its host’s line', async () => {
+    io.sessionRefusal = new SpawnerBusyError(5_000, {
+      position: 0,
+      waiting: 1,
+    });
+    const recorded = makeCtx(WAITING_CURSOR);
+
+    await resumeWorkflowAgentTurnWithAnswerImpl(recorded.ctx, {
+      organizationId: 'org-1',
+      askId: 'ask-1',
+    } as never);
+
+    expect(io.starts).toHaveLength(0);
+    expect(
+      recorded.mutations.find(
+        (m) => m.name === 'automations/mutations:recordAgentTurnSettled',
+      )?.args.result,
+    ).toMatchObject({
+      failureCode: 'sandbox_capacity',
+      roomQueued: true,
+      undeliveredAskId: 'ask-1',
+    });
+    expect(placesKept(recorded)).toEqual([
+      { delay: ROOM_PLACE_RENEW_MS, args: PLACE },
+    ]);
   });
 
   it('fails a start whose workspace an administrator is destroying with the reason, waiting for no room', async () => {

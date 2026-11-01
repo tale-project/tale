@@ -45,6 +45,7 @@ interface HandlerNames {
   automations: FunctionRef & {
     agent_host: FunctionRef & {
       driveWorkflowAgentTurn: FunctionRef;
+      keepWorkflowAgentPlace: FunctionRef;
       startWorkflowAgentTurn: FunctionRef;
     };
     human_asks: FunctionRef & {

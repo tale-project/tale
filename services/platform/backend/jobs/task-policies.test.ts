@@ -142,3 +142,16 @@ describe('native task runs [TASK-R38]', () => {
     }
   });
 });
+
+describe('renewals of a place in a sandbox host line', () => {
+  // A renewal re-queues itself under its key; a host refusal that names the
+  // place again must join that chain, not start a second one beside it. And
+  // it runs off the start slots, which the start that asks again waits for.
+  it.each(['task.agent_keep_place', 'automation.agent_keep_place'] as const)(
+    '%s keeps one queued renewal per key, off the start slots',
+    (lane) => {
+      expect(TASK_QUEUE_OPTIONS[lane].policy).toBe('short');
+      expect(TASK_WORKER_SLOT_QUEUES.has(lane)).toBe(false);
+    },
+  );
+});

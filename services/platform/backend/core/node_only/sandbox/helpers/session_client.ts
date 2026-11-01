@@ -1048,19 +1048,28 @@ export async function sessionAcquire(sessionId: string): Promise<boolean> {
   });
 }
 
+/** How often a start that waits for host room renews its place in the
+ * spawner's first-come line while its next ask may still wait for a start
+ * slot: as often as the front of the line is told to ask again. The spawner
+ * drops a waiter silent for twice its hint and 15 s, 25 s at the front, so
+ * the place outlasts a renewal that failed and renewal jobs that started a
+ * few seconds late. */
+export const ROOM_PLACE_RENEW_MS = 5_000;
+
 /** Renew the place a refused create holds in the spawner's first-come line
- * while a platform start is still live. A 404 means nothing waits under the
- * id (its place was given up, or it was admitted), so there is nothing to
- * renew. */
-async function sessionWaiterLiveness(sessionId: string): Promise<void> {
+ * while a platform start is still live: true when the place was renewed,
+ * false on a 404, when nothing waits under the id (its place was given up,
+ * or it was admitted), so there is nothing to renew. */
+export async function renewSessionPlace(sessionId: string): Promise<boolean> {
   const response = await spawnerFetch(
     'POST',
     `/v1/sessions/${encodeURIComponent(sessionId)}/wait`,
     { signal: AbortSignal.timeout(2_000) },
   );
-  if (response.status === 404) return;
+  if (response.status === 404) return false;
   if (!response.ok)
     throw new Error(`Sandbox waiter liveness failed (${response.status})`);
+  return true;
 }
 
 /** Capture BEFORE releasing the database allocation. The generation binds a
@@ -1167,7 +1176,7 @@ async function createSession(
       // A refusal that names a place keeps that place alive; the renewal is
       // best effort, so its failure never hides the busy answer.
       if (busy.queue !== undefined)
-        await sessionWaiterLiveness(body.sessionId).catch((error: unknown) => {
+        await renewSessionPlace(body.sessionId).catch((error: unknown) => {
           console.warn(
             '[session_client] renewing a place in the sandbox room line failed:',
             error,

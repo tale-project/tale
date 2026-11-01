@@ -5,6 +5,7 @@ import type { Json } from '../../lib/engine/core/types.ts';
 import { parseRunStarter } from '../../lib/shared/run-starter.ts';
 import {
   driveWorkflowAgentTurnImpl,
+  keepWorkflowAgentPlaceImpl,
   resumeWorkflowAgentTurnWithAnswerImpl,
   startWorkflowAgentTurnImpl,
 } from '../core/automations/agent_host.ts';
@@ -78,6 +79,7 @@ import {
 import {
   agentRunWorkDeadline,
   claimAgentWorker,
+  keepAgentRunPlace,
 } from '../domains/tasks/agent-workers.ts';
 import {
   admitAutomatedStart,
@@ -1482,6 +1484,18 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
       await wakeParkedAgentRun(deps.sql, input);
     },
 
+    // Off the start slots, which the start that asks again waits for.
+    'task.agent_keep_place': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          runId: z.string().min(1),
+          sessionId: z.string().min(1),
+        })
+        .parse(payload);
+      await keepAgentRunPlace(deps.sql, input);
+    },
+
     'task.agent_turn': async (payload, context) => {
       const input = z
         .object({
@@ -1800,6 +1814,24 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         shim as unknown as Parameters<typeof driveWorkflowAgentTurnImpl>[0],
         input,
         { signal: driveWindowSignal(context) },
+      );
+    },
+    'automation.agent_keep_place': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          runId: z.string().min(1),
+          nodeId: z.string().min(1),
+          sessionId: z.string().min(1),
+        })
+        .parse(payload);
+      const shim = createCtxShim(automationShimHandlers(deps.sql), {
+        scheduler: automationShimScheduler(deps.sql),
+      });
+      await keepWorkflowAgentPlaceImpl(
+        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- reused 0.4 host; every ctx facility it touches is covered by automationShimHandlers
+        shim as unknown as Parameters<typeof keepWorkflowAgentPlaceImpl>[0],
+        input,
       );
     },
     'automation.ask_resume': async (payload) => {
