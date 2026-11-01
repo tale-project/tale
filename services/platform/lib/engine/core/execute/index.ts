@@ -53,8 +53,12 @@ import {
   type RunBench,
   type RunResult,
 } from '../types';
-import { MAX_SUBAUTOMATION_DEPTH } from '../typing/children';
 import { compileSchema, inputRefusalMessage } from '../validate/schema';
+import {
+  DEFAULT_MAX_NODE_EXECUTIONS,
+  MAX_SUBAUTOMATION_DEPTH,
+  maxRepeatsOf,
+} from '../walk/limits';
 import {
   type BenchPlan,
   CALL_AS_WRITTEN,
@@ -63,7 +67,7 @@ import {
   refusalIssue,
   refusalPath,
 } from './bench';
-import { maxRepeatsOf, topoSort } from './controlflow';
+import { topoSort } from './controlflow';
 import { decideNode, repeatSettled, resolveForEach } from './decide';
 import {
   failsTheRun,
@@ -161,8 +165,6 @@ export interface ExecuteOptions {
   /** Once aborted, the run stops at its next step, item or pass. */
   signal?: AbortSignal;
 }
-
-const DEFAULT_MAX_NODE_EXECUTIONS = 100;
 
 /** A run stopped between steps, items or passes: by its time limit or by
  * its caller. Not a failure of the step it was in, so `onError` never

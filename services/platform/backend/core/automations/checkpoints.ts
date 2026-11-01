@@ -1,225 +1,25 @@
 /**
- * The durable state of a run, and the pure functions that read it.
- *
- * A run's `checkpoints` field is the whole resume protocol: what each finished
- * node produced, plus a cursor into the node that is only partly done. It is
- * written by the stepper's mutations and read back on re-entry, so it has to be
- * plain JSON and it has to be enough — on resume, the stepper reconstructs the
- * execution scope from this alone and never re-runs a node that already has an
- * entry here. That is what keeps an interrupted run from repeating a send.
- *
- * The skip REASON is recorded, not just the fact of skipping, because the
- * executor's branching rules distinguish them: `elseOf: X` runs exactly when X
- * was skipped by its own `when`, and NOT when X was skipped because something
- * upstream of it was. Collapsing the two would silently flip an else-branch on
- * resume.
+ * The pure functions that read a run's durable state: its progress, whose
+ * shape is the walk's (`lib/engine/core/walk/progress.ts`).
  *
  * Kept free of Convex imports so it can be exercised directly.
  */
 
 import type { Effect, NodeTrace } from '../../../lib/engine/core/types';
+import type {
+  NodeCheckpoint,
+  NodeCursor,
+  RunCheckpoints,
+} from '../../../lib/engine/core/walk/progress';
 
-/** Why a node produced no output. */
-export type SkipReason =
-  /** Its own `when` was falsy — an `elseOf` partner therefore runs. */
-  | 'when'
-  /** A node it reads from was skipped. */
-  | 'upstream'
-  /** It is an `elseOf` branch whose partner ran. */
-  | 'else'
-  /** It failed under `onError: continue`. */
-  | 'error';
-
-export interface NodeCheckpoint {
-  status: 'ok' | 'skipped';
-  reason?: SkipReason;
-  output: unknown;
-  /** The node's trace entry, recorded when it happened — the finished run's
-   * trace is assembled from these, in execution order. */
-  trace: NodeTrace;
-  /** Effects this node performed, in order. */
-  effects: Effect[];
-  /** The step was not run by this run: a replay from a later step took its
-   * result from the run it replays. Its effects are that run's, not this
-   * one's. */
-  reused?: { runId: string };
-}
-
-/** A file an agent turn produced, as harvested into blob storage. */
-export interface AgentTurnFile {
-  name: string;
-  storageId: string;
-  size: number;
-  contentType: string;
-}
-
-/** The settled result of one workflow agent turn, written into the cursor by
- * the agent host's finalize and consumed by the stepper's next entry. */
-export interface AgentTurnResult {
-  errored: boolean;
-  reason?: string;
-  /** Producer-side classification of an errored settle (a
-   * `WorkflowAgentFailureCode`), read by the stepper's auto-retry gate.
-   * Absent on results settled before the field existed — that reads as
-   * retryable by design. */
-  failureCode?: string;
-  /** HTTP status of a turn-terminating API error the harness reported
-   * (429, 401, …), carried for display — never branched on for retry. */
-  apiErrorStatus?: number;
-  /** Typed refusal from the terminal provider envelope, never model text. */
-  providerErrorKind?: 'subscription_access_disabled';
-  /** The harness's conversation handle of an errored turn, when it had
-   * announced one — the auto-retry resumes that conversation over the
-   * preserved workspace instead of starting the node's reasoning again. */
-  agentSessionId?: string;
-  /** The answered question a delivery refused before it launched was to
-   * bring to the conversation `agentSessionId` names (no sandbox room for
-   * the answered-ask resume): the re-kick resumes that conversation with
-   * the answer. */
-  undeliveredAskId?: string;
-  /** No retry can start before this, epoch ms: the start met a
-   * subscription broker whose every account was cooling down after a rate
-   * limit, and this is when the first one is back — or found no sandbox
-   * room, and this is when the refusal's retry hint has passed. */
-  retryAtMs?: number;
-  /** The retry hint of a start refused for want of sandbox room, ms: the
-   * delay of the waiting node's next start grows from it
-   * (`sandboxRoomRetryAtMs`). */
-  retryAfterMs?: number;
-  /** The refusal named the start's place in the spawner's first-come line
-   * for host room: the next start comes back at the hint itself. */
-  roomQueued?: boolean;
-  text: string;
-  files: AgentTurnFile[];
-  /** Outputs the harvest could not bring back (over a cap, unreadable,
-   * storage rejection) — carried so the node output names every dropped
-   * deliverable instead of silently omitting it. */
-  harvestSkipped?: Array<{ path: string; reason: string }>;
-  status?: string;
-  usage?: {
-    inputTokens: number;
-    outputTokens: number;
-    costEstimateUsd?: number;
-  };
-}
-
-/**
- * The in-flight state of an `agent` node: the exec the host kicked, where it
- * runs, when it must be cut, and — once the drive chain settles it — the
- * result the next stepper entry consumes. `input` is the resolved request,
- * kept here so the settle turn records the same trace/effect the kick turn
- * computed instead of re-evaluating templates.
- */
-export interface AgentCursor {
-  execId: string;
-  sessionId: string;
-  deadlineAt: number;
-  providerSlug: string;
-  /** The exec's model string: the gateway ref on the gateway lane, the
-   * vendor-native catalog id on the subscription lane. */
-  gatewayModel: string;
-  harness: string;
-  input: Record<string, unknown>;
-  /** How many auto-retries preceded this attempt (0 = the original kick).
-   * The counter lives here — not on the run row — so it dies with the node
-   * execution and `finishRun`'s cursor drop. */
-  attempt?: number;
-  /** Stamped by `stampAgentTurnLaunch` once the start action's mint
-   * succeeds. Absent ⇒ the attempt never actually ran; the retry gate then
-   * counts ZERO executed time, never a long run. */
-  launchedAt?: number;
-  /** sha256 of the subscription-broker token this attempt was minted on
-   * (absent on the gateway lane), so a retry can rotate away from it. */
-  brokerTokenHash?: string;
-  /** Broker-token hashes burned by prior failed attempts of this node
-   * execution, carried so the re-kick's mint can exclude them (softly — an
-   * exhausted pool falls back to every account). A free credential rotation
-   * adds none: its account holds a fresh token. */
-  burnedBrokerTokenHashes?: string[];
-  /** Credential rotations in a row that preceded this attempt — the broker
-   * refreshing the account under a turn (`credential_rotated`). The first
-   * `CREDENTIAL_ROTATION_FREE_RETRIES` resume for free; absent = none. */
-  credentialRotations?: number;
-  /** The conversation this attempt resumed — the failed attempt's harness
-   * session handle — so the record says the retry continued, not restarted. */
-  resumedFrom?: string;
-  /** Why the conversation it resumed was cut, carried so a retry of a start
-   * that never launched resumes it with the same words. */
-  resumeReason?: string;
-  /** The answered question this attempt delivers to the conversation it
-   * resumed (`resumedFrom`), carried for the same retry: a delivery that
-   * never launched has not given the conversation its answer yet. */
-  resumeAskId?: string;
-  /** This attempt retries one that ended on a 429 — the rate limit that
-   * cooled its broker pool — so a start of it refused while the pool cools
-   * down spends no attempt (`planWorkflowAgentRetry`). */
-  retriedRateLimit?: boolean;
-  /** When this node began waiting for sandbox room: the first start of a
-   * streak refused for want of it (`sandbox_capacity`). Re-kicks while it
-   * waits spend no execution of the run's guard; the wait itself ends after
-   * `SANDBOX_ROOM_MAX_WAIT_MS`, or with a start that launches — a stamp
-   * older than `launchedAt` belongs to a wait that is over
-   * (`planWorkflowAgentRetry`). */
-  waitingForRoomSince?: number;
-  /** The refusals in a row of that wait: the next start's delay grows with
-   * them (`sandboxRoomRetryAtMs`). */
-  roomRefusals?: number;
-  /** When the stepper first met this attempt's failure and began holding its
-   * re-kick: the attempt's sandbox ran out of memory (`resource_exhausted`),
-   * and a re-kick at once would meet the same limit. The run waits parked on
-   * this cursor, its settled `result` in place and no op row, until the
-   * task lane's wait for the attempt (`resourceExhaustedRetryDelayMs`) has
-   * passed since; the retry is planned by this clock (`stepAgentNode`). */
-  rekickHeldSince?: number;
-  /** The exec this turn ran on before an answer to its question moved it to
-   * `execId` (`retargetAgentCursor`): a walker that loaded the cursor before
-   * the move parks with that exec, and the park keeps this cursor instead. */
-  retargetedFrom?: string;
-  result?: AgentTurnResult;
-}
-
-/**
- * Where the stepper is inside a node that is not finished yet: which `forEach`
- * item it is on, how many `repeatUntil` passes that item has had, and the
- * per-item outputs collected so far. Its presence is what lets a poll-style
- * `repeatUntil` suspend the run between passes instead of holding an action
- * open, and what lets a long `forEach` resume mid-array without re-sending the
- * items it already sent. An `agent` node parks its in-flight turn under
- * `agent` the same way.
- */
-export interface NodeCursor {
-  node: string;
-  index: number;
-  passes: number;
-  outs: unknown[];
-  agent?: AgentCursor;
-  /**
-   * The version of every automation a `subautomation` node walks, fixed the
-   * first time the node runs: keyed by the chain of node ids without items
-   * (`batch`, `batch/inner`). A resumed node walks these versions even when a
-   * newer one was deployed in between, so one run never mixes two versions of
-   * the same child. Absent on a node that walks no subautomation.
-   */
-  pins?: Record<string, number>;
-  /**
-   * The items that failed and the loop went on past (`onItemError:
-   * continue`), by index: their entries in `outs` are `null`, and the node
-   * fails only when every item is listed here. Absent while none failed —
-   * and on a cursor an earlier release wrote, which never went on past one.
-   */
-  failed?: number[];
-}
-
-export interface RunCheckpoints {
-  nodes: Record<string, NodeCheckpoint>;
-  cursor?: NodeCursor;
-  /**
-   * Node executions performed so far, `forEach` items and `repeatUntil` passes
-   * included. Durable because the executor's runaway guard has to survive
-   * re-entry: a counter that reset every turn would bound nothing.
-   */
-  executions: number;
-}
+export type {
+  AgentCursor,
+  AgentTurnFile,
+  AgentTurnResult,
+  NodeCheckpoint,
+  NodeCursor,
+  RunCheckpoints,
+} from '../../../lib/engine/core/walk/progress';
 
 const EMPTY_CHECKPOINTS: RunCheckpoints = { nodes: {}, executions: 0 };
 

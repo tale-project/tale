@@ -67,6 +67,35 @@ function importsOf(file: string): string[] {
   return [...src.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]);
 }
 
+function resolveModule(from: string, spec: string): string | null {
+  const target = path.resolve(path.dirname(from), spec);
+  for (const candidate of [`${target}.ts`, path.join(target, 'index.ts')]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return null;
+}
+
+/** The modules `entries` load, themselves included, through relative
+ * imports at any depth — `import type` among them. */
+function reachedFrom(entries: string[]): Set<string> {
+  const reached = new Set<string>();
+  const pending = [...entries];
+  while (pending.length > 0) {
+    const file = pending.pop();
+    if (file === undefined || reached.has(file)) continue;
+    reached.add(file);
+    for (const spec of importsOf(file)) {
+      if (!spec.startsWith('.')) continue;
+      const next = resolveModule(file, spec);
+      if (next !== null) pending.push(next);
+    }
+  }
+  return reached;
+}
+
+/** The parser, the schema validator and the YAML loader. */
+const HEAVY = new Set(['acorn', 'ajv', 'yaml', 'periscopic']);
+
 describe('engine purity', () => {
   // Extracting a helper must not hide it from the host-dependency guards.
   const files = [
@@ -175,26 +204,7 @@ describe('engine purity', () => {
       path.join(ENGINE_ROOT, 'api', 'expect.ts'),
     );
     expect(browserSafe.length).toBeGreaterThan(0);
-    const resolveModule = (from: string, spec: string): string | null => {
-      const target = path.resolve(path.dirname(from), spec);
-      for (const candidate of [`${target}.ts`, path.join(target, 'index.ts')]) {
-        if (existsSync(candidate)) return candidate;
-      }
-      return null;
-    };
-    const reached = new Set<string>();
-    const pending = [...browserSafe];
-    while (pending.length > 0) {
-      const file = pending.pop();
-      if (file === undefined || reached.has(file)) continue;
-      reached.add(file);
-      for (const spec of importsOf(file)) {
-        if (!spec.startsWith('.')) continue;
-        const next = resolveModule(file, spec);
-        if (next !== null) pending.push(next);
-      }
-    }
-    const offenders = [...reached].filter((f) =>
+    const offenders = [...reachedFrom(browserSafe)].filter((f) =>
       importsOf(f).some((s) => s === 'ajv' || s.startsWith('ajv/')),
     );
     expect(offenders).toEqual([]);
@@ -204,29 +214,25 @@ describe('engine purity', () => {
     // The settings page lists the MCP tools from lib/mcp/tools.ts; the
     // method names it needs are a leaf, so the page never downloads the
     // parser, the schema validator or the YAML loader to show a list.
-    const resolveModule = (from: string, spec: string): string | null => {
-      const target = path.resolve(path.dirname(from), spec);
-      for (const candidate of [`${target}.ts`, path.join(target, 'index.ts')]) {
-        if (existsSync(candidate)) return candidate;
-      }
-      return null;
-    };
-    const reached = new Set<string>();
-    const pending = [path.resolve(ENGINE_ROOT, '../mcp/tools.ts')];
-    while (pending.length > 0) {
-      const file = pending.pop();
-      if (file === undefined || reached.has(file)) continue;
-      reached.add(file);
-      for (const spec of importsOf(file)) {
-        if (!spec.startsWith('.')) continue;
-        const next = resolveModule(file, spec);
-        if (next !== null) pending.push(next);
-      }
-    }
+    const reached = reachedFrom([path.resolve(ENGINE_ROOT, '../mcp/tools.ts')]);
     expect(reached.size).toBeGreaterThan(1);
-    const heavy = new Set(['acorn', 'ajv', 'yaml', 'periscopic']);
     const offenders = [...reached].filter((f) =>
-      importsOf(f).some((s) => heavy.has(s)),
+      importsOf(f).some((s) => HEAVY.has(s)),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it('the walk both walkers share loads none of the engine behind the methods', () => {
+    // The durable stepper and the in-process executor walk a run with the
+    // same limits, progress, ledger and ports (`core/walk/`), and the typing
+    // and analysis layers read its limits in the editor; so nothing these
+    // modules import — directly, through another engine module, or as a
+    // type only — may load the parser, the schema validator or the YAML
+    // loader.
+    const walk = sourceFiles(path.join(ENGINE_ROOT, 'core', 'walk'));
+    expect(walk.length).toBeGreaterThanOrEqual(4);
+    const offenders = [...reachedFrom(walk)].filter((f) =>
+      importsOf(f).some((s) => HEAVY.has(s)),
     );
     expect(offenders).toEqual([]);
   });
