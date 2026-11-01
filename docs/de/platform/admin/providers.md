@@ -121,6 +121,7 @@ Die Liste **Erlaubte Modelle** eines Eintrags begrenzt nur diese Zugangsdaten. U
 
 - Fehlt ein Anbieterstandard, wähle die vorgesehenen aktiven Zugangsdaten und setze sie als Standard.
 - Konnte der Katalog nicht geladen werden, nutze **Kataloge aktualisieren** und prüfe das Ergebnis für den Anbieter. Live-Kataloge werden zwischengespeichert; mitgelieferte Kataloge ändern sich mit der Plattform.
+- Steht auf der Seite **Die Anbieter konnten nicht geladen werden.** oder zeigt die Zugangsdaten-Tabelle statt ihrer Zeilen einen Fehler, konnte Tale sie nicht lesen; gelöscht wurde nichts. Wähle **Erneut versuchen**. Solange die Anbieter nicht lesbar sind, zeigt **Zugangsdaten hinzufügen** denselben Hinweis statt des Katalogs.
 - Zeigt die Zeile eines eigenen Anbieters **Modellkatalog nicht verfügbar**, weil die Basis-URL mit einer Webseite geantwortet hat oder keine Modell-Liste bietet, ist die Basis-URL nicht die API-Wurzel. Korrigiere sie mit **Zugangsdaten bearbeiten**; bei den meisten Gateways endet sie auf `/v1`.
 - Fehlt ein Modell, prüfe die Allowlist und die Modellzugriffsregeln der Organisation. Ohne Katalog müssen die Modell-IDs exakt stimmen.
 - Wird eine Anfrage abgelehnt, prüfe Aktivierung, Anbieterzugriff, Endpunkt und Kontingent beim Anbieter, bevor du Modellregeln änderst.

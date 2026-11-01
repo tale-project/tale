@@ -121,6 +121,7 @@ The **Agent runtimes** section below the credentials is read-only. It shows avai
 
 - If a provider has no default, select the intended active credential and make it the default.
 - If the catalog failed to load, use **Refresh catalogs** and inspect the provider's result. Live catalogs are cached; built-in catalogs change with the platform.
+- If the page says **Couldn't load the providers.**, or the credentials table shows an error in place of its rows, Tale couldn't read them; nothing was removed. Select **Try again**. While the providers can't be read, **Add credential** shows the same notice instead of the catalog.
 - If a custom provider's row reads **Model catalog unavailable** because the base URL answered with a web page or has no model list, the base URL isn't the API root. Correct it with **Edit credential**; for most gateways it ends in `/v1`.
 - If a model is missing, check both the credential's allowlist and organization model-access rules. For a catalog-free provider, check the exact model IDs.
 - If a request is rejected, verify the credential's enable state, provider account access, endpoint, and provider-side quota before changing model rules.

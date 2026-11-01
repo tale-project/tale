@@ -95,4 +95,6 @@ If the connection cannot start, check whether the OAuth app is configured. If th
 
 An app sign-in has no **Reconnect**. If the vendor refuses the app, the action or mailbox sync fails with a message that the token endpoint refused the app's sign-in, followed by the vendor's reason, such as `invalid_client` for a wrong or expired client secret. Check the directory ID, application ID and client secret, and replace them. If the token endpoint cannot be reached or is busy, the message says so instead, and the next attempt tries again. If Microsoft Graph denies access to a shared mailbox, the error names the mailbox and the Exchange role the action needs, for example `Application Mail.Send` for sending.
 
+If the page says **Couldn't load the connectors.**, or the credentials table shows an error in place of its rows, Tale couldn't read them; nothing was removed. Select **Try again**. While the connectors can't be read, **Add credential** shows the same notice instead of the catalog.
+
 For systems without a built-in connector, see [MCP and custom integrations](/platform/connectors/mcp-servers). Registering an arbitrary outbound MCP server is not part of this credential page.

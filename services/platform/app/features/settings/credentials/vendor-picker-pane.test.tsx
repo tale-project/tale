@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { render, screen, within } from '@/tests/utils/render';
 
 import type { CredentialAdapter } from './adapter';
 import { VendorPickerPane } from './vendor-picker-pane';
@@ -59,6 +59,51 @@ describe('VendorPickerPane catalog state', () => {
     render(<VendorPickerPane {...props} catalogLoading={false} />);
 
     expect(screen.getByText(props.catalogEmpty)).toBeInTheDocument();
+  });
+
+  // #4831: a read that failed is not a deployment that ships nothing.
+  it('says a catalog that could not be read failed, with Try again, never empty', async () => {
+    const retry = vi.fn();
+    const { user } = render(
+      <VendorPickerPane
+        {...props}
+        catalogLoading={false}
+        catalogFailure={{
+          message: "Couldn't load the providers.",
+          retry,
+          retrying: false,
+          failureCount: 1,
+        }}
+      />,
+    );
+
+    const notice = screen.getByRole('alert');
+    expect(notice).toHaveTextContent("Couldn't load the providers.");
+    expect(screen.queryByText(props.catalogEmpty)).not.toBeInTheDocument();
+    await user.click(within(notice).getByRole('button', { name: 'Try again' }));
+    expect(retry).toHaveBeenCalledOnce();
+  });
+
+  it('keeps saying it failed while a retry runs, not loading', () => {
+    render(
+      <VendorPickerPane
+        {...props}
+        catalogLoading
+        catalogFailure={{
+          message: "Couldn't load the providers.",
+          retry: () => {},
+          retrying: true,
+          failureCount: 1,
+        }}
+      />,
+    );
+
+    expect(
+      within(screen.getByRole('alert')).getByRole('button', {
+        name: 'Try again',
+      }),
+    ).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByText(props.catalogEmpty)).not.toBeInTheDocument();
   });
 });
 

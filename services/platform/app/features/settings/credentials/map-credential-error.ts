@@ -1,46 +1,66 @@
 /**
- * Admin-facing message for a failed credential or catalog call, on either the
- * connectors or the AI-providers surface.
+ * What a failed credential or catalog call says to the admin, on either the
+ * connectors or the AI-providers surface, in the admin's language.
  *
- * The credential actions throw structured `AppError`s whose `data.message`
- * already names the problem and the fix (the methods a vendor accepts, a name
- * already taken, an endpoint that is not an https origin), so the UI surfaces
- * that message verbatim instead of flattening it to a per-code sentence.
+ * The credential doors answer a coded refusal with an English sentence for
+ * API clients and logs ("A credential named … already exists for this
+ * provider — pick a different name."). Shown verbatim it read as English in
+ * every locale (#4831), so each code these surfaces meet has a sentence of
+ * its own in the catalog. Anything else reads through `failureDetail`, the
+ * app's rule for a failure: the words of a refusal this list does not know,
+ * a lapsed session and a lost connection as localized sentences, and
+ * nothing for a fault — a 5xx or a runtime error is never the admin's to
+ * read, so the caller says only that it failed.
  *
- * Duck-types `AppError.data` rather than using `instanceof`: Vite chunk
- * splitting can produce multiple `AppError` class copies, and a structured
- * error that failed an identity check would silently degrade to its raw
- * `message` — losing exactly the sentence worth showing.
- *
- * Unstructured Convex action failures arrive as dumps (`[CONVEX A(…)]`,
- * `Server Error`, absolute module paths). Those are for the console, not the
- * Alert — replace them with a short reload hint so Settings stays readable.
+ * Codes are duck-typed off `AppError.data`, never `instanceof`: Vite chunk
+ * splitting can produce several `AppError` class copies.
  */
 
-/** True when a string is a Convex/runtime dump, not a product sentence. */
-export function isOpaqueServerErrorMessage(message: string): boolean {
-  return (
-    /\[Request ID:/i.test(message) ||
-    /\[CONVEX [AQCOP]\(/i.test(message) ||
-    /Server Error/i.test(message) ||
-    /Cannot find module/i.test(message) ||
-    /\/var\/folders\//i.test(message) ||
-    /Called by client/i.test(message)
-  );
+import { failureDetail } from '@/app/lib/backend/adapters';
+import { i18n } from '@/lib/i18n/i18n';
+import { backendErrorCode } from '@/lib/utils/backend-error';
+
+/**
+ * The localized reason a credential or catalog call failed, or `undefined`
+ * when there is nothing worth reading beside the caller's own sentence (a
+ * fault). For a notice that already says what failed.
+ */
+export function credentialFailureDetail(err: unknown): string | undefined {
+  switch (backendErrorCode(err)) {
+    case 'CREDENTIAL_NAME_TAKEN':
+      return i18n.t('credentials.errors.nameTaken', { ns: 'settings' });
+    case 'CREDENTIAL_NAME_INVALID':
+      return i18n.t('credentials.errors.nameInvalid', { ns: 'settings' });
+    case 'CREDENTIAL_NOT_FOUND':
+      return i18n.t('credentials.deletedInAnotherSession', { ns: 'settings' });
+    // The providers' door and the connectors' door name the same refusal
+    // differently: a disabled credential cannot become the default.
+    case 'CREDENTIAL_DISABLED_DEFAULT':
+    case 'CREDENTIAL_DISABLED':
+      return i18n.t('credentials.errors.disabledDefault', { ns: 'settings' });
+    case 'CREDENTIAL_DEFAULT_CONFLICT':
+      return i18n.t('credentials.errors.defaultConflict', { ns: 'settings' });
+    case 'CREDENTIAL_PATCH_EMPTY':
+      return i18n.t('credentials.errors.nothingChanged', { ns: 'settings' });
+    // The credentials door names the capability; the provider settings door
+    // (`/providers/*`, the catalog listing among them) answers the bare code.
+    case 'FORBIDDEN_DEVELOPER_SETTINGS':
+    case 'FORBIDDEN':
+      return i18n.t('credentials.errors.forbidden', { ns: 'settings' });
+    // An insert that wrote nothing is the server's fault, not a refusal.
+    case 'CREDENTIAL_CREATE_FAILED':
+      return undefined;
+    default:
+      return failureDetail(err);
+  }
 }
 
-const OPAQUE_FALLBACK = 'Something went wrong. Reload and try again.';
-
+/**
+ * The sentence a dialog or a toast shows for a failed credential call: the
+ * localized reason, else the app's generic one — never the server's text.
+ */
 export function mapCredentialError(err: unknown): string {
-  if (err != null && typeof err === 'object' && 'data' in err) {
-    const data = err.data;
-    if (data != null && typeof data === 'object' && 'message' in data) {
-      const message = data.message;
-      if (typeof message === 'string' && message.length > 0) {
-        return isOpaqueServerErrorMessage(message) ? OPAQUE_FALLBACK : message;
-      }
-    }
-  }
-  const fallback = err instanceof Error ? err.message : String(err);
-  return isOpaqueServerErrorMessage(fallback) ? OPAQUE_FALLBACK : fallback;
+  return (
+    credentialFailureDetail(err) ?? i18n.t('errors.generic', { ns: 'common' })
+  );
 }

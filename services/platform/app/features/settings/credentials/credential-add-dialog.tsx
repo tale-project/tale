@@ -17,7 +17,10 @@ import {
   type CredentialLike,
   type CredentialVendor,
 } from './adapter';
-import { VendorPickerPane } from './vendor-picker-pane';
+import {
+  type CatalogReadFailure,
+  VendorPickerPane,
+} from './vendor-picker-pane';
 
 /**
  * Adding a credential, in two steps inside ONE dialog: pick the vendor from the
@@ -48,6 +51,7 @@ export function CredentialAddDialog<
   searchPlaceholder,
   catalogEmpty,
   catalogLoading,
+  catalogFailure,
 }: {
   organizationId: string;
   /** The whole shipped catalog, in any order — step one sorts it. */
@@ -65,6 +69,8 @@ export function CredentialAddDialog<
   /** Operator-facing copy for a deployment that ships no vendors at all. */
   catalogEmpty: string;
   catalogLoading: boolean;
+  /** Set while the catalog read has never answered: the picker says so. */
+  catalogFailure?: CatalogReadFailure | null;
 }) {
   const { t } = useT('settings');
   const { t: tCommon } = useT('common');
@@ -282,6 +288,7 @@ export function CredentialAddDialog<
           searchPlaceholder={searchPlaceholder}
           catalogEmpty={catalogEmpty}
           catalogLoading={catalogLoading}
+          catalogFailure={catalogFailure}
         />
       )}
 

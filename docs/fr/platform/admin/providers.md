@@ -121,6 +121,7 @@ La section **Environnements d'agent**, sous le tableau, est en lecture seule. El
 
 - S’il manque un choix par défaut, sélectionne les identifiants actifs prévus et définis-les par défaut.
 - Si le catalogue n’a pas pu être chargé, utilise **Actualiser les catalogues** et examine le résultat du fournisseur. Les catalogues distants sont mis en cache ; les catalogues intégrés évoluent avec la plateforme.
+- Si la page indique **Impossible de charger les fournisseurs.**, ou si le tableau des identifiants affiche une erreur à la place de ses lignes, Tale n’a pas pu les lire ; rien n’a été supprimé. Sélectionne **Réessayer**. Tant que les fournisseurs ne peuvent pas être lus, **Ajouter des identifiants** affiche le même message au lieu du catalogue.
 - Si la ligne d’un fournisseur personnalisé indique **Catalogue de modèles indisponible** parce que l’URL de base a répondu par une page web ou ne fournit aucune liste de modèles, l’URL de base n’est pas la racine de l’API. Corrige-la avec **Modifier les identifiants** ; pour la plupart des passerelles, elle se termine par `/v1`.
 - Si un modèle manque, vérifie la liste des modèles autorisés et les règles de l’organisation. Sans catalogue, vérifie les identifiants exacts des modèles.
 - Si une requête est refusée, vérifie l’activation des identifiants, les droits du compte fournisseur, l’adresse et le quota fournisseur avant de modifier les règles des modèles.

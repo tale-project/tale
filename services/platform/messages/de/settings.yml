@@ -394,7 +394,7 @@ credentials:
   namePlaceholder: z. B. Support-Postfach
   nameHelp: Unter diesem Namen wählt ein Aufruf diesen Eintrag aus.
   searchPlaceholder: Zugangsdaten durchsuchen
-  listFailed: 'Konnte die Zugangsdaten nicht laden: {error}'
+  refreshFailed: Die neuesten Zugangsdaten konnten nicht geladen werden. Die Liste ist womöglich unvollständig oder veraltet.
   entityLabel: Zugangsdaten
   entityLabelOne: Zugangsdaten
   columns:
@@ -409,6 +409,17 @@ credentials:
       hinzuzufügen.
     configured: Konfiguriert
     noMatches: Nichts passt zu dieser Suche.
+  errors:
+    nameTaken: Diesen Namen tragen bereits andere Zugangsdaten. Wähle einen anderen.
+    nameInvalid: Gib einen Namen mit höchstens 100 Zeichen ein.
+    disabledDefault: >-
+      Deaktivierte Zugangsdaten können nicht der Standard sein. Aktiviere sie
+      zuerst.
+    defaultConflict: >-
+      Inzwischen sind andere Zugangsdaten zum Standard geworden. Prüfe die
+      Liste und wähle den Standard dann erneut.
+    nothingChanged: Es wurde nichts geändert, deshalb wurde nichts gespeichert.
+    forbidden: Deine Rolle erlaubt dir nicht, diese Einstellungen zu verwalten.
 connectors:
   searchPlaceholder: Connectors durchsuchen
   sectionDescription:
@@ -422,7 +433,7 @@ connectors:
     emptyBody: >-
       Dieses Deployment liefert keine Connector-Dateien. Prüfe, ob das
       Config-Root eingebunden und lesbar ist.
-    listFailed: 'Konnte die Connectors nicht laden: {error}'
+    listFailed: Die Connectors konnten nicht geladen werden.
   authMethod:
     apiKey: API-Schlüssel
     bearer: Token
@@ -964,7 +975,7 @@ providers:
       Alle Kataloge werden mit der Plattform ausgeliefert — hier
       gibt es nichts zu aktualisieren.
     refreshFailed: Konnte die Kataloge nicht aktualisieren.
-    listFailed: 'Konnte die Anbieter nicht laden: {error}'
+    listFailed: Die Anbieter konnten nicht geladen werden.
   harnesses:
     title: Agent-Laufzeiten
     description: Wie jede Agent-Laufzeit für diese Organisation konfiguriert ist — welche Modelle verfügbar sind und welche Anbieter-Abos daran gebunden sind. Konfiguriere dies über die Anbieter-Zugangsdaten oben.
@@ -1015,6 +1026,20 @@ providers:
       Eine Konto-ID gibt es nur für einen Abo-Schlüssel. Wähle
       Abo-Schlüssel als Authentifizierungsmethode oder speichere ohne
       Konto-ID.
+    endpointInvalid: >-
+      Tale kann diese Endpoint-URL nicht verwenden. Gib eine https-Adresse
+      ein; einfaches http funktioniert nur für einen privaten oder
+      Loopback-Host, und der braucht zusätzlich
+      TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 im Backend. Cloud-Metadaten-Hosts
+      werden immer abgelehnt.
+    envNameInvalid: >-
+      Verwende im Variablennamen nach TALE_PROVIDER_KEY_ nur Buchstaben,
+      Ziffern und Unterstriche.
+    secretRequired: Gib den Schlüssel für diese Authentifizierungsmethode ein.
+    secretInvalid: >-
+      Gib einen neuen Schlüssel ein. Zugangsdaten, die ihren Schlüssel aus
+      einer Umgebungsvariable lesen, speichern keinen; ändere stattdessen
+      ihre Variable.
   replace:
     apiKeyTitle: API-Schlüssel ersetzen
     envTitle: Umgebungsvariable ändern
@@ -1065,6 +1090,12 @@ providers:
       Ein Abo-Broker liefert wechselnde OAuth-Tokens für Claude- oder
       ChatGPT-Abonnements.
     invalid: 'Ungültige Broker-Konfiguration: {error}'
+    refused: >-
+      Die Broker-Konfiguration wurde abgelehnt. Prüfe den Broker-Endpunkt: Er
+      braucht eine https-Adresse oder einfaches http zu einem privaten oder
+      Loopback-Host, der zusätzlich TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 im
+      Backend braucht. Wenn du das Broker-Secret leer gelassen hast, gib es
+      erneut ein.
     endpoint: Broker-Endpunkt
     httpMethod: HTTP-Methode
     auth: Broker-Authentifizierung

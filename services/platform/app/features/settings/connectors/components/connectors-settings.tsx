@@ -1,16 +1,18 @@
 'use client';
 
-import { Alert } from '@tale/ui/alert';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { Plug } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { CredentialTable } from '@/app/features/settings/credentials/credential-table';
-import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
+import { credentialFailureDetail } from '@/app/features/settings/credentials/map-credential-error';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { useUrlState } from '@/app/hooks/use-url-state';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -32,6 +34,11 @@ import { OauthAppsCard } from './oauth-apps-card';
  * `?connector=<slug>` still narrows the table to one connector, which is what
  * makes a connector linkable from anywhere else in the app — and what the OAuth
  * round trip comes back to.
+ *
+ * A failed read never reads as an empty one (#4831): a catalog that never
+ * loaded is named above the table and in the Add credential picker, with Try
+ * again; a credential list that never loaded is the table's error state with
+ * its retry, and rows a failed refresh left stay under a notice.
  */
 export function ConnectorsSettings({
   organizationId,
@@ -46,6 +53,31 @@ export function ConnectorsSettings({
   const abilityLoading = useAbilityLoading();
   const connectorsQuery = useConnectors(organizationId);
   const credentialsQuery = useConnectorCredentials(organizationId);
+  const catalogRead = readStateOf(connectorsQuery);
+  const credentialsRead = readStateOf(credentialsQuery);
+  const { refetch: refetchConnectors } = connectorsQuery;
+  const { refetch: refetchCredentials } = credentialsQuery;
+  const retryCatalog = () => void refetchConnectors();
+  const retryCredentials = () => void refetchCredentials();
+  const { regionRef, retryRead, focusRegion } =
+    useListReadRecovery<HTMLElement>({
+      error: credentialsQuery.error,
+      results: credentialsQuery.data ?? [],
+      retry: retryCredentials,
+    });
+
+  // Why the catalog read failed, kept through the retry that resets the
+  // read's error: the notice keeps its words while Try again runs.
+  const catalogFailureRef = useRef<string | undefined>(undefined);
+  if (connectorsQuery.isError) {
+    catalogFailureRef.current = credentialFailureDetail(connectorsQuery.error);
+  }
+  const catalogFailureMessage = [
+    t('connectors.catalog.listFailed'),
+    catalogFailureRef.current,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const [vendorFilter, setVendorFilter] = useState<string[]>([]);
   const { state, setState } = useUrlState({
@@ -72,24 +104,32 @@ export function ConnectorsSettings({
   return (
     <SettingsPage>
       <SettingsSection
+        ref={regionRef}
+        tabIndex={-1}
+        className="outline-none"
         title={tNav('connectors')}
         description={t('connectors.sectionDescription')}
       >
-        {connectorsQuery.isError && (
-          <Alert
-            variant="destructive"
-            description={t('connectors.catalog.listFailed', {
-              error: mapCredentialError(connectorsQuery.error),
-            })}
+        {(catalogRead.unavailable || catalogRead.stale) && (
+          <CatalogLoadError
+            // Each failure is announced again; Try again keeps its node, and
+            // the focus on it, while a retry runs.
+            failureKey={catalogRead.failureCount}
+            onFocusLost={focusRegion}
+            message={catalogFailureMessage}
+            onRetry={retryCatalog}
+            isRetrying={catalogRead.retrying}
           />
         )}
-        {/* An empty table and an unreadable one look identical; say which. */}
-        {credentialsQuery.isError && (
-          <Alert
-            variant="destructive"
-            description={t('credentials.listFailed', {
-              error: mapCredentialError(credentialsQuery.error),
-            })}
+        {/* Rows a failed refresh left stay, and the failure is named above
+            them. A list that never loaded is the table's own error state. */}
+        {credentialsRead.stale && (
+          <CatalogLoadError
+            failureKey={credentialsRead.failureCount}
+            onFocusLost={focusRegion}
+            message={t('credentials.refreshFailed')}
+            onRetry={retryCredentials}
+            isRetrying={credentialsRead.retrying}
           />
         )}
 
@@ -99,7 +139,24 @@ export function ConnectorsSettings({
           credentials={credentialsQuery.data ?? []}
           adapter={connectorCredentialAdapter}
           isLoading={abilityLoading || credentialsQuery.isPending}
-          catalogLoading={connectorsQuery.isPending}
+          error={
+            credentialsQuery.data === undefined ? credentialsQuery.error : null
+          }
+          onRetry={retryRead}
+          onErrorFocusLost={focusRegion}
+          // A retry of a catalog that never loaded is not a first load: the
+          // picker keeps saying it failed until the retry answers.
+          catalogLoading={connectorsQuery.isPending && !catalogRead.unavailable}
+          catalogFailure={
+            catalogRead.unavailable
+              ? {
+                  message: catalogFailureMessage,
+                  retry: retryCatalog,
+                  retrying: catalogRead.retrying,
+                  failureCount: catalogRead.failureCount,
+                }
+              : null
+          }
           labels={{
             vendorColumn: t('connectors.vendorColumn'),
             vendorFilter: t('connectors.vendorFilterLabel'),

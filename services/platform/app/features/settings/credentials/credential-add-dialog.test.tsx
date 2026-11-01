@@ -39,6 +39,9 @@ const ORG = 'org-connectors';
 const TAKEN = 'Office mailbox';
 // What `assertNameFree` answers for a clash (connector_credentials/service.ts).
 const NAME_TAKEN = `A credential named "${TAKEN}" already exists for this connector — pick a different name.`;
+// What the dialog says for it: the app's sentence, not the server's (#4831).
+const NAME_TAKEN_SHOWN =
+  'Another credential already uses this name. Choose a different one.';
 
 const imapSmtp: ConnectorSummary = {
   slug: 'imap-smtp',
@@ -310,7 +313,7 @@ describe(
 
       await refuseAsDuplicate();
 
-      expect(await dialog.findByText(NAME_TAKEN)).toBeInTheDocument();
+      expect(await dialog.findByText(NAME_TAKEN_SHOWN)).toBeInTheDocument();
       expectDraftKept(dialog);
       // Settled: the reader can correct the name, or step back on purpose.
       expect(field.name(dialog)).toBeEnabled();
@@ -326,7 +329,7 @@ describe(
       await waitFor(() => expect(held).toHaveLength(1));
       await refuseAsDuplicate();
 
-      expect(await dialog.findByText(NAME_TAKEN)).toBeInTheDocument();
+      expect(await dialog.findByText(NAME_TAKEN_SHOWN)).toBeInTheDocument();
       expectDraftKept(dialog);
 
       // Nothing is in flight now, so Back is the deliberate reset it always was.
@@ -338,7 +341,7 @@ describe(
       expect(field.password(dialog)).toHaveValue('');
       expect(field.imapHost(dialog)).toHaveValue('');
       expect(field.smtpHost(dialog)).toHaveValue('');
-      expect(dialog.queryByText(NAME_TAKEN)).not.toBeInTheDocument();
+      expect(dialog.queryByText(NAME_TAKEN_SHOWN)).not.toBeInTheDocument();
     });
 
     it("holds the consent pane's exits to the same wait", async () => {
@@ -371,7 +374,7 @@ describe(
 
       await refuseAsDuplicate();
 
-      expect(await dialog.findByText(NAME_TAKEN)).toBeInTheDocument();
+      expect(await dialog.findByText(NAME_TAKEN_SHOWN)).toBeInTheDocument();
       expectDraftKept(dialog);
     });
   },
