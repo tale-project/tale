@@ -25,6 +25,7 @@ import {
   type LaneCtx,
   type Recorder,
 } from './delegated-start.integration.ts';
+import { checkMentionHandoffs } from './mention-handoffs.integration.ts';
 import { getProjectTaskMetrics } from './metrics.ts';
 import { checkReviewBatches } from './review-batches.integration.ts';
 import { checkReviewDelegation } from './review-delegation.integration.ts';
@@ -869,6 +870,19 @@ export async function checkAgentTaskReviews(
       sessions,
       record,
       inputFor,
+      dispatch,
+      tokenFor,
+      addRun,
+    });
+    await checkMentionHandoffs({
+      sql,
+      orgId,
+      projectId: project,
+      implementerId: author,
+      auth,
+      fx,
+      sessions,
+      record,
       dispatch,
       tokenFor,
       addRun,

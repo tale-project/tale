@@ -74,6 +74,14 @@ export interface TaskPayloads {
      * spend too, started through the key's door. */
     apiKeyId?: string;
   };
+  /** Decide one pending handoff by mention: start the agent an agent's
+   * comment named, or record why it waits no longer
+   * (`processMentionHandoff`). */
+  'task.mention_handoff': {
+    organizationId: string;
+    taskId: string;
+    handoffId: string;
+  };
   /** Re-attach the drive chain of an abandoned (but still live) turn. */
   'task.agent_drive': {
     organizationId: string;
@@ -581,6 +589,15 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
   // second run on a task that holds one — so a transient failure is safe
   // to retry.
   'task.start_workflow': { retryLimit: 3, retryDelay: 5, expireInSeconds: 300 },
+  // One waiting decision per handoff (`singletonKey` mention-handoff:<id>):
+  // a burst of run ends asks once. The decision re-reads everything under
+  // its task's comment queue and a handoff it starts is gone with the start,
+  // so a retry starts nothing twice; the task-agent watchdog is the backstop.
+  'task.mention_handoff': {
+    policy: 'short',
+    retryLimit: 1,
+    expireInSeconds: 600,
+  },
   'maintenance.rate_limit_gc': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.login_attempts_ttl': { retryLimit: 2, expireInSeconds: 300 },
   'maintenance.mcp_activity_ttl': { retryLimit: 2, expireInSeconds: 300 },
