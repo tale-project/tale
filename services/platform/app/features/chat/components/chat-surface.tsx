@@ -160,7 +160,11 @@ import { ChatTaskTray } from './chat-task-tray';
 import { ChatTranscript } from './chat-transcript';
 import { ChatSkillNamesContext } from './chosen-skill-chips';
 import { Composer, type ComposerHandle } from './composer';
-import { directServedModels, withDefaultModel } from './composer-model-picker';
+import {
+  directServedModels,
+  listsPick,
+  withDefaultModel,
+} from './composer-model-picker';
 import { ConversationSkeleton } from './conversation-skeleton';
 import type { CreateTaskFromChat as CreateTaskFromChatDialog } from './create-task-from-chat';
 import { DeferredSendTray } from './deferred-send-tray';
@@ -730,9 +734,15 @@ function ChatSurfaceInner({
   // The full option, not just the id: the same model id can be served by
   // several providers (the picker deliberately lists every copy), so a bare
   // id would make the backend re-resolve the provider — and pick one the
-  // org has no credential for.
+  // org has no credential for. A column-B pick the listing no longer serves
+  // under its own provider falls back to the default, like the composer's.
+  const arenaModelBListed =
+    arenaModelB !== undefined &&
+    listsPick(models, arenaModelB.id, arenaModelB.providerSlug)
+      ? arenaModelB
+      : undefined;
   const arenaModelBChoice: { id: string; providerSlug?: string } | undefined =
-    arenaModelB ??
+    arenaModelBListed ??
     models.find((model) => model.id !== selection.modelId) ??
     (selection.modelId !== undefined
       ? {
@@ -932,11 +942,13 @@ function ChatSurfaceInner({
     setSelection((previous) => {
       // A pick the listing no longer serves (policy tightened, credential
       // removed) falls back to the default seed instead of riding into a
-      // guaranteed refusal at send time.
+      // guaranteed refusal at send time — also when another provider still
+      // lists its id: the pick names its own provider, and the turn would
+      // start there.
       let current = previous;
       if (
         previous.modelId !== undefined &&
-        !models.some((model) => model.id === previous.modelId)
+        !listsPick(models, previous.modelId, previous.providerSlug)
       ) {
         const { modelId: _stale, providerSlug: _staleSlug, ...rest } = previous;
         current = rest;

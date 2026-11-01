@@ -248,17 +248,25 @@ vi.mock('../data/arena-actions', () => ({
   }),
 }));
 // The split view's columns subscribe to their own transcripts; this stand-in
-// keeps the surface's contract — the verdict callback and the Model B pick
-// it is handed — and nothing of the columns.
+// keeps the surface's contract — the verdict callback, the Model B pick it
+// is handed and one it hands back — and nothing of the columns.
 vi.mock('./arena/arena-split-view', () => ({
   ArenaSplitView: ({
     modelBId,
+    onModelBChange,
     onVerdict,
   }: {
     modelBId?: string;
+    onModelBChange: (modelId: string, providerSlug: string) => void;
     onVerdict: (verdict: 'a_better' | 'b_better') => void;
   }) => (
     <div data-testid="arena-split-view" data-model-b={modelBId}>
+      <button
+        type="button"
+        onClick={() => onModelBChange('deepseek-v4-pro', 'deepseek-cn')}
+      >
+        B on DeepSeek CN
+      </button>
       <button type="button" onClick={() => onVerdict('b_better')}>
         B is better
       </button>
@@ -1245,6 +1253,196 @@ describe('ChatSurface when the backend is live and a model is listed', () => {
         name: 'Choose model, reasoning effort and skills',
       }),
     ).toHaveTextContent('deepseek-v4-pro');
+  });
+
+  // #5269: a pick was dropped only when NO provider listed its id, so a pick
+  // whose own provider stopped listing it kept that provider — the trigger
+  // named the model, no row was checked, and the turn started on a provider
+  // that no longer serves it.
+  describe('when the listing no longer serves a pick under its own provider', () => {
+    const TWIN = {
+      ...SECOND_MODEL,
+      providerSlug: 'deepseek-cn',
+      providerLabel: 'DeepSeek CN',
+    };
+    const listing = (models: readonly (typeof MODEL)[]) =>
+      ({
+        status: 'ready',
+        data: {
+          models,
+          voice: { ttsAvailable: false, transcriptionAvailable: false },
+        },
+      }) as const;
+    const trigger = () =>
+      screen.getByRole('button', {
+        name: 'Choose model, reasoning effort and skills',
+      });
+
+    beforeEach(() => {
+      vi.mocked(useComposerModels).mockReturnValue(
+        listing([MODEL, SECOND_MODEL, TWIN]),
+      );
+      start.mockResolvedValue({
+        threadId: 't-stale',
+        boundVideoJobIds: [],
+        outcome: Promise.resolve({ status: 'completed' as const }),
+      });
+    });
+
+    it.each([
+      {
+        name: 'another provider still lists its id',
+        next: [MODEL, SECOND_MODEL],
+      },
+      {
+        name: 'no provider lists its id',
+        next: [MODEL, { ...MODEL, providerSlug: 'deepseek-cn' }],
+      },
+    ])(
+      'falls a session pick back to the default seed when $name',
+      async ({ next }) => {
+        vi.mocked(useChatModelPreference).mockReturnValue({
+          preference: { status: 'ready', data: undefined },
+          save: vi.fn(),
+        });
+        const { user, rerender } = render(
+          <ChatSurface organizationId="org-1" />,
+        );
+        await openSection(user, /^Model/);
+        fireEvent.click(
+          await screen.findByRole('menuitemradio', {
+            name: (name: string) =>
+              name.startsWith('deepseek-v4-pro') &&
+              name.includes('DeepSeek CN'),
+          }),
+        );
+        await waitFor(() => expect(trigger()).toHaveTextContent(TWIN.label));
+
+        vi.mocked(useComposerModels).mockReturnValue(listing(next));
+        rerender(<ChatSurface organizationId="org-1" />);
+
+        await waitFor(() => expect(trigger()).toHaveTextContent('Auto'));
+        await user.type(
+          screen.getByRole('textbox', { name: 'Message input' }),
+          'still there?',
+        );
+        await user.click(screen.getByRole('button', { name: 'Send message' }));
+        await waitFor(() => {
+          expect(start).toHaveBeenCalledWith(
+            expect.objectContaining({ modelSelection: 'auto' }),
+          );
+        });
+        const request = start.mock.calls.at(-1)?.[0] as Record<string, unknown>;
+        expect(request.modelId).toBeUndefined();
+        expect(request.providerSlug).toBeUndefined();
+      },
+    );
+
+    it('re-seeds a saved pick on the provider that still lists its id, checked and sent alike', async () => {
+      vi.mocked(useChatModelPreference).mockReturnValue({
+        preference: {
+          status: 'ready',
+          data: { modelId: TWIN.id, providerSlug: TWIN.providerSlug },
+        },
+        save: vi.fn(),
+      });
+      const { user, rerender } = render(<ChatSurface organizationId="org-1" />);
+
+      vi.mocked(useComposerModels).mockReturnValue(
+        listing([MODEL, SECOND_MODEL]),
+      );
+      rerender(<ChatSurface organizationId="org-1" />);
+
+      expect(trigger()).toHaveTextContent('deepseek-v4-pro');
+      await openSection(user, /^Model/);
+      expect(
+        await screen.findByRole('menuitemradio', {
+          name: (name: string) => name.startsWith('deepseek-v4-pro'),
+        }),
+      ).toHaveAttribute('aria-checked', 'true');
+      await user.keyboard('{Escape}');
+
+      await user.type(
+        screen.getByRole('textbox', { name: 'Message input' }),
+        'which copy now?',
+      );
+      await user.click(screen.getByRole('button', { name: 'Send message' }));
+      await waitFor(() => {
+        expect(start).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelId: 'deepseek-v4-pro',
+            providerSlug: 'deepseek',
+          }),
+        );
+      });
+    });
+
+    it("falls column B's pick back to its default, and sends the duel there", async () => {
+      vi.mocked(useChatModelPreference).mockReturnValue({
+        preference: {
+          status: 'ready',
+          data: {
+            modelId: SECOND_MODEL.id,
+            providerSlug: SECOND_MODEL.providerSlug,
+          },
+        },
+        save: vi.fn(),
+      });
+      vi.mocked(useArenaPair).mockReturnValue({
+        status: 'ready',
+        data: {
+          pairId: 'pair-1',
+          threadIdA: 't1',
+          threadIdB: 't2',
+          createdAt: 1,
+        },
+      });
+      // A thread's composer waits for its read; the duel's columns own theirs.
+      vi.mocked(useThreadView).mockImplementation(() => ({
+        status: 'ready',
+        items: [],
+        generation: null,
+        streamingMessageId: undefined,
+        pendingConsumed: false,
+      }));
+      arenaStartTurn.mockReturnValue(new Promise(() => {}));
+      const { user, rerender } = render(
+        <ChatSurface organizationId="org-1" threadId="t1" />,
+      );
+      await user.click(
+        screen.getByRole('button', { name: 'B on DeepSeek CN' }),
+      );
+      expect(screen.getByTestId('arena-split-view')).toHaveAttribute(
+        'data-model-b',
+        TWIN.id,
+      );
+
+      vi.mocked(useComposerModels).mockReturnValue(
+        listing([MODEL, SECOND_MODEL]),
+      );
+      rerender(<ChatSurface organizationId="org-1" threadId="t1" />);
+
+      // Column B's default: the first listed model other than column A's.
+      expect(screen.getByTestId('arena-split-view')).toHaveAttribute(
+        'data-model-b',
+        MODEL.id,
+      );
+      await user.type(
+        screen.getByRole('textbox', { name: 'Message input' }),
+        'duel on',
+      );
+      await user.click(screen.getByRole('button', { name: 'Send message' }));
+      await waitFor(() => {
+        expect(arenaStartTurn).toHaveBeenCalledWith(
+          expect.objectContaining({
+            modelIdA: SECOND_MODEL.id,
+            providerSlugA: 'deepseek',
+            modelIdB: MODEL.id,
+            providerSlugB: 'deepseek',
+          }),
+        );
+      });
+    });
   });
 
   it('saves an explicit model pick, and only an explicit one', async () => {
