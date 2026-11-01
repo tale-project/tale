@@ -466,7 +466,11 @@ const CHAT_TOOL_DESCRIPTIONS: Record<ChatToolName, string> = {
     'whole page — keep fetching until "nextOffset" is absent, or say ' +
     'exactly which part you read. An index of other pages (a site map, an ' +
     'llms.txt) is a lookup, not a source: stop reading it once you hold ' +
-    'the link you need, and fetch that page. When a page cannot be read, ' +
+    'the link you need, and fetch that page. A link to a PDF, DOCX, XLSX, ' +
+    'PPTX or ODT document is read as its text, and its result carries ' +
+    '"document"; that is the text, not the file, so to have a linked ' +
+    'document changed or converted, ask the user to attach the file. ' +
+    'When a page cannot be read, ' +
     'the result says why. Tell the user so in their language, plainly ' +
     "(for a site's bot protection: it keeps automated readers out), give " +
     'them the link to open in their browser, and offer to read the page ' +
