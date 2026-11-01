@@ -51,6 +51,10 @@ export type MentionOccurrence<Kind extends string = string> =
 
 export interface MentionScanOptions<Kind extends string> {
   kinds: readonly Kind[];
+  /** Node types whose text counts as no mention either, beside code, math
+   * and the rest: `blockquote` for a reader that acts on a mention, since a
+   * quote repeats what someone else wrote. */
+  skip?: readonly string[];
 }
 
 /** What a typed handle may hold. */
@@ -138,7 +142,9 @@ export function collectMentions<Kind extends string>(
 ): MentionOccurrence<Kind>[] {
   const found: MentionOccurrence<Kind>[] = [];
   const visit = (node: Nodes, ancestors: Parents[]): void => {
-    if (OPAQUE.has(node.type)) return;
+    if (OPAQUE.has(node.type) || options.skip?.includes(node.type) === true) {
+      return;
+    }
     if (node.type === 'link') {
       const ref = parseMentionUrl(node.url, options.kinds);
       const start = node.position?.start.offset;
