@@ -1,19 +1,22 @@
 'use client';
 
 import { Alert } from '@tale/ui/alert';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { Stack } from '@tale/ui/layout';
 import { Sparkles } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { useRegisterSettingsSecondaryAction } from '@/app/features/settings/components/settings-secondary-action-context';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { CredentialTable } from '@/app/features/settings/credentials/credential-table';
-import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
+import { credentialFailureDetail } from '@/app/features/settings/credentials/map-credential-error';
 import { useAbility, useAbilityLoading } from '@/app/hooks/use-ability';
+import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import { useUrlState } from '@/app/hooks/use-url-state';
 import type { ProviderCatalogFailureCode } from '@/app/lib/backend/contract/lib';
+import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
 import {
@@ -51,6 +54,13 @@ interface RefreshOutcome {
  * to the card grid's toolbar, and the table brings its own. Under a table of a
  * handful of rows the section is in plain sight, which is what moving it out of
  * the old twelve-card grid was for.
+ *
+ * A read that failed never reads as an empty one (#4831): a catalog that never
+ * loaded is named above the table and in the Add credential picker, with Try
+ * again, never as a deployment that ships no provider files; a credential list
+ * that never loaded is the table's error state with its retry, never the
+ * invitation to add a first credential, and rows a failed refresh left stay
+ * under a notice that says so.
  */
 export function ProvidersSettings({
   organizationId,
@@ -65,6 +75,31 @@ export function ProvidersSettings({
   const catalogsQuery = useProviderCatalogs(organizationId);
   const credentialsQuery = useProviderCredentials(organizationId);
   const refresh = useRefreshProviderCatalogs(organizationId);
+  const catalogRead = readStateOf(catalogsQuery);
+  const credentialsRead = readStateOf(credentialsQuery);
+  const { refetch: refetchCatalogs } = catalogsQuery;
+  const { refetch: refetchCredentials } = credentialsQuery;
+  const retryCatalogs = () => void refetchCatalogs();
+  const retryCredentials = () => void refetchCredentials();
+  const { regionRef, retryRead, focusRegion } =
+    useListReadRecovery<HTMLElement>({
+      error: credentialsQuery.error,
+      results: credentialsQuery.data ?? [],
+      retry: retryCredentials,
+    });
+
+  // Why the catalog read failed, kept through the retry that resets the
+  // read's error: the notice keeps its words while Try again runs.
+  const catalogFailureRef = useRef<string | undefined>(undefined);
+  if (catalogsQuery.isError) {
+    catalogFailureRef.current = credentialFailureDetail(catalogsQuery.error);
+  }
+  const catalogFailureMessage = [
+    t('providers.catalogs.listFailed'),
+    catalogFailureRef.current,
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const [outcomes, setOutcomes] = useState<RefreshOutcome[] | null>(null);
   const [refreshError, setRefreshError] = useState<string | null>(null);
@@ -100,11 +135,7 @@ export function ProvidersSettings({
     } catch (err) {
       console.error('providers: catalog refresh failed', err);
       setOutcomes(null);
-      setRefreshError(
-        t('providers.catalogs.refreshFailed', {
-          error: mapCredentialError(err),
-        }),
-      );
+      setRefreshError(t('providers.catalogs.refreshFailed'));
     }
   };
 
@@ -129,25 +160,33 @@ export function ProvidersSettings({
   return (
     <SettingsPage>
       <SettingsSection
+        ref={regionRef}
+        tabIndex={-1}
+        className="outline-none"
         title={t('providers.credentialsSection.title')}
         description={t('providers.credentialsSection.description')}
       >
         <Stack gap={4}>
-          {catalogsQuery.isError && (
-            <Alert
-              variant="destructive"
-              description={t('providers.catalogs.listFailed', {
-                error: mapCredentialError(catalogsQuery.error),
-              })}
+          {(catalogRead.unavailable || catalogRead.stale) && (
+            <CatalogLoadError
+              // Each failure is announced again; Try again keeps its node,
+              // and the focus on it, while a retry runs.
+              failureKey={catalogRead.failureCount}
+              onFocusLost={focusRegion}
+              message={catalogFailureMessage}
+              onRetry={retryCatalogs}
+              isRetrying={catalogRead.retrying}
             />
           )}
-          {/* An empty table and an unreadable one look identical; say which. */}
-          {credentialsQuery.isError && (
-            <Alert
-              variant="destructive"
-              description={t('credentials.listFailed', {
-                error: mapCredentialError(credentialsQuery.error),
-              })}
+          {/* Rows a failed refresh left stay, and the failure is named above
+              them. A list that never loaded is the table's own error state. */}
+          {credentialsRead.stale && (
+            <CatalogLoadError
+              failureKey={credentialsRead.failureCount}
+              onFocusLost={focusRegion}
+              message={t('credentials.refreshFailed')}
+              onRetry={retryCredentials}
+              isRetrying={credentialsRead.retrying}
             />
           )}
           {refreshError !== null && (
@@ -191,7 +230,26 @@ export function ProvidersSettings({
             credentials={credentialsQuery.data ?? []}
             adapter={providerCredentialAdapter}
             isLoading={abilityLoading || credentialsQuery.isPending}
-            catalogLoading={catalogsQuery.isPending}
+            error={
+              credentialsQuery.data === undefined
+                ? credentialsQuery.error
+                : null
+            }
+            onRetry={retryRead}
+            onErrorFocusLost={focusRegion}
+            // A retry of a catalog that never loaded is not a first load: the
+            // picker keeps saying it failed until the retry answers.
+            catalogLoading={catalogsQuery.isPending && !catalogRead.unavailable}
+            catalogFailure={
+              catalogRead.unavailable
+                ? {
+                    message: catalogFailureMessage,
+                    retry: retryCatalogs,
+                    retrying: catalogRead.retrying,
+                    failureCount: catalogRead.failureCount,
+                  }
+                : null
+            }
             labels={{
               vendorColumn: t('providers.vendorColumn'),
               vendorFilter: t('providers.vendorFilterLabel'),

@@ -1,6 +1,6 @@
 # Settings
 
-> **Prefix** `SET-` · **Reset** none · **Cost** 144 boxes
+> **Prefix** `SET-` · **Reset** none · **Cost** 148 boxes
 
 Exercise the settings surface along its real rail — **Personal** (Account,
 Preferences, Notifications, Usage), **Organization** (Organization, Teams, Members,
@@ -1445,6 +1445,23 @@ Restore any toggled setting after the run.
   `settings.providers.custom.errors.catalogNotFound`; with
   `https://openrouter.ai/api/v1` **Check models** toasts
   `settings.providers.custom.checkOk`.
+- [ ] `SET-B46` · **AI providers when its reads fail** — With the language set
+  to Deutsch, block `*/api/app/providers/catalogs*` in DevTools (Network →
+  request blocking) and reload **AI providers** → once the read's retries give
+  up (a few seconds; the offline notice may cover the page meanwhile) the
+  section says `settings.providers.catalogs.listFailed` in German with Try
+  again (`common.actions.tryAgain`) — no English and no "Failed to fetch";
+  **Add credential** shows the same notice where the providers would be, never
+  `settings.providers.catalogs.emptyBody`, and **Custom provider** stays
+  pinned under it. Unblock and choose Try again in the picker → the providers
+  are listed without a reload and the focus is on the search box. Block
+  `*/api/app/provider-credentials*` instead and reload → the table shows its
+  error state with Try again, never `emptyStates.providers.title`, and no
+  second notice above it; Unblock, Try again → the rows return. With the rows
+  shown, block it again and add a credential elsewhere (a second tab) → the
+  rows stay under `settings.credentials.refreshFailed`. Rename a credential
+  to the name of another credential of its provider → the dialog says
+  `settings.credentials.errors.nameTaken` in German.
 
 ## Accessibility (WCAG 2.1 AA)
 

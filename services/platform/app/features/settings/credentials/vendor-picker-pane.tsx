@@ -2,6 +2,7 @@
 
 import { Alert } from '@tale/ui/alert';
 import { Badge } from '@tale/ui/badge';
+import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { isFilterAffordanceDisabled } from '@tale/ui/filters/filter-panel';
 import { Stack } from '@tale/ui/layout';
 import { SearchInput } from '@tale/ui/search-input';
@@ -10,7 +11,7 @@ import { Skeletonize } from '@tale/ui/skeleton-context';
 import { Text } from '@tale/ui/text';
 import { VendorIcon } from '@tale/ui/vendor-icon';
 import { ChevronRight, Plus } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 
 import { useT } from '@/lib/i18n/client';
 
@@ -19,6 +20,20 @@ import {
   type CredentialLike,
   type CredentialVendor,
 } from './adapter';
+
+/**
+ * A catalog read that never answered: what the picker says in place of the
+ * vendors, and the read's retry.
+ */
+export interface CatalogReadFailure {
+  /** The surface's own sentence for the failure, with its reason. */
+  message: string;
+  retry: () => void;
+  /** A retry is running: the notice stays, its button busy. */
+  retrying: boolean;
+  /** How many times the read has failed; each failure is announced again. */
+  failureCount: number;
+}
 
 /**
  * Step one of adding a credential: the whole shipped catalog, as a list.
@@ -48,6 +63,7 @@ export function VendorPickerPane<
   searchPlaceholder,
   catalogEmpty,
   catalogLoading,
+  catalogFailure,
 }: {
   vendors: readonly V[];
   /** `CredentialVendor.key`s the organization already holds a credential for. */
@@ -58,10 +74,13 @@ export function VendorPickerPane<
   /** Operator-facing copy for a deployment that ships no vendors at all. */
   catalogEmpty: string;
   catalogLoading: boolean;
+  /** Set while the catalog read has never answered. */
+  catalogFailure?: CatalogReadFailure | null;
 }) {
   const { t } = useT('settings');
   const { t: tSkeleton } = useT('skeleton');
   const [query, setQuery] = useState('');
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const addable = useMemo(
     () =>
@@ -95,7 +114,23 @@ export function VendorPickerPane<
   // the search says.
   const custom = adapter.customVendor?.make(t) ?? null;
 
-  if (catalogLoading) {
+  // A read that never answered lists nothing, and that is not a deployment
+  // that ships nothing (#4831): the picker says the list could not be loaded,
+  // with Try again, where the vendors would be. Checked before the loading
+  // state, which a retry would otherwise put in its place. Once the vendors
+  // come, the focus Try again held goes to the search above them.
+  const failure =
+    catalogFailure === null || catalogFailure === undefined ? null : (
+      <CatalogLoadError
+        message={catalogFailure.message}
+        onRetry={catalogFailure.retry}
+        isRetrying={catalogFailure.retrying}
+        failureKey={catalogFailure.failureCount}
+        onFocusLost={() => searchRef.current?.focus()}
+      />
+    );
+
+  if (failure === null && catalogLoading) {
     return (
       <Skeletonize loading label={tSkeleton('loading')}>
         <Stack gap={4} className="min-h-0 flex-1">
@@ -113,27 +148,33 @@ export function VendorPickerPane<
   // Nothing to search through at all is a DEPLOYMENT fault (an unmounted or
   // unreadable config root), not a search that found nothing — so it says so,
   // and it says so instead of the search box rather than under it.
-  if (addable.length === 0 && custom === null) {
+  if (failure === null && addable.length === 0 && custom === null) {
     return <Alert variant="warning" description={catalogEmpty} />;
   }
 
   return (
     <Stack gap={4} className="min-h-0 flex-1">
-      <SearchInput
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        placeholder={searchPlaceholder}
-        className="max-w-none"
-        // Nothing to search in an empty catalog: the custom entry below stays
-        // whatever the search says. A query that found nothing keeps the box,
-        // so it can be cleared.
-        disabled={isFilterAffordanceDisabled({
-          itemCount: addable.length,
-          hasActiveFilters: query.trim() !== '',
-        })}
-      />
+      {/* No search over a list that could not be read. */}
+      {failure === null && (
+        <SearchInput
+          ref={searchRef}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder={searchPlaceholder}
+          className="max-w-none"
+          // Nothing to search in an empty catalog: the custom entry below stays
+          // whatever the search says. A query that found nothing keeps the box,
+          // so it can be cleared.
+          disabled={isFilterAffordanceDisabled({
+            itemCount: addable.length,
+            hasActiveFilters: query.trim() !== '',
+          })}
+        />
+      )}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {addable.length === 0 ? (
+        {failure !== null ? (
+          failure
+        ) : addable.length === 0 ? (
           <Alert variant="warning" description={catalogEmpty} />
         ) : sorted.length === 0 ? (
           <Text as="p" variant="muted" className="px-1 py-6 text-sm">

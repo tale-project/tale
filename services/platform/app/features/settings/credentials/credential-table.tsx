@@ -27,6 +27,7 @@ import {
 import { CredentialAddDialog } from './credential-add-dialog';
 import { CredentialEditDialog } from './credential-edit-dialog';
 import { CredentialRowActions } from './credential-row-actions';
+import { type CatalogReadFailure } from './vendor-picker-pane';
 
 /** The per-surface copy the shared table cannot name for itself. */
 export interface CredentialTableLabels {
@@ -92,6 +93,10 @@ export function CredentialTable<
   adapter,
   isLoading,
   catalogLoading,
+  catalogFailure,
+  error,
+  onRetry,
+  onErrorFocusLost,
   labels,
   vendorFilter,
   onVendorFilterChange,
@@ -103,6 +108,20 @@ export function CredentialTable<
   adapter: CredentialAdapter<V, Cred, Method, Draft, Extra>;
   isLoading: boolean;
   catalogLoading: boolean;
+  /** Set while the catalog read has never answered: the add flow's picker
+   * says so, with its retry, instead of calling the catalog empty. */
+  catalogFailure?: CatalogReadFailure | null;
+  /**
+   * Why the credential list never loaded, if it failed: the table shows its
+   * error state with `onRetry` in place of the rows and the empty state. A
+   * failed refresh of a list that did load is the page's to name above the
+   * rows it keeps, so it passes no error here.
+   */
+  error?: Error | null;
+  onRetry?: () => void;
+  /** Takes the focus the error state's Try again held when a refresh
+   * replaces it — a stable target around the table. */
+  onErrorFocusLost?: () => void;
   /**
    * The strings only the surface can name (its vendor noun, its empty state).
    *
@@ -341,7 +360,14 @@ export function CredentialTable<
   }, [adapter, labels.vendorColumn, organizationId, t]);
 
   const list = useListPage<CredentialTableRow<V, Cred>>({
-    dataSource: { type: 'query', data: isLoading ? undefined : rows },
+    // A list that never loaded is the table's error state with its retry,
+    // never "no credentials yet" (#4831).
+    dataSource: {
+      type: 'query',
+      data: isLoading ? undefined : rows,
+      error,
+      retry: onRetry,
+    },
     pageSize: DEFAULT_LIST_PAGE_SIZE,
     search: {
       fields: ['name', 'vendorName'],
@@ -373,6 +399,7 @@ export function CredentialTable<
       <DataTable
         columns={columns}
         emptyState={labels.empty}
+        onErrorFocusLost={onErrorFocusLost}
         addAction={{
           label: t('credentials.addCredential'),
           icon: Plus,
@@ -408,6 +435,7 @@ export function CredentialTable<
           searchPlaceholder={labels.catalogSearch}
           catalogEmpty={labels.catalogEmpty}
           catalogLoading={catalogLoading}
+          catalogFailure={catalogFailure}
         />
       )}
     </>

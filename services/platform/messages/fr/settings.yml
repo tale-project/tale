@@ -407,7 +407,7 @@ credentials:
   namePlaceholder: par ex. Boîte de support
   nameHelp: Le nom sous lequel un appel choisit ces identifiants.
   searchPlaceholder: Rechercher des identifiants
-  listFailed: 'Impossible de charger les identifiants : {error}'
+  refreshFailed: Impossible de charger les derniers identifiants. La liste est peut-être incomplète ou obsolète.
   entityLabel: identifiants
   entityLabelOne: identifiant
   columns:
@@ -422,6 +422,17 @@ credentials:
       ajouter une autre clé.
     configured: Configuré
     noMatches: Aucun résultat pour cette recherche.
+  errors:
+    nameTaken: D’autres identifiants portent déjà ce nom. Choisis-en un autre.
+    nameInvalid: Saisis un nom de 100 caractères au maximum.
+    disabledDefault: >-
+      Des identifiants désactivés ne peuvent pas être ceux par défaut.
+      Active-les d’abord.
+    defaultConflict: >-
+      D’autres identifiants sont devenus ceux par défaut entre-temps.
+      Vérifie la liste, puis choisis à nouveau ceux par défaut.
+    nothingChanged: Rien n’a été modifié, donc rien n’a été enregistré.
+    forbidden: Ton rôle ne te permet pas de gérer ces paramètres.
 connectors:
   searchPlaceholder: Rechercher des connectors
   sectionDescription:
@@ -435,7 +446,7 @@ connectors:
     emptyBody: >-
       Ce déploiement ne fournit aucun fichier de connector. Vérifie que la
       racine de configuration est montée et lisible.
-    listFailed: 'Impossible de charger les connectors : {error}'
+    listFailed: Impossible de charger les connectors.
   authMethod:
     apiKey: Clé API
     bearer: Jeton
@@ -990,7 +1001,7 @@ providers:
       Tous les catalogues sont livrés avec la plateforme — il n'y a
       rien à actualiser.
     refreshFailed: Impossible d’actualiser les catalogues.
-    listFailed: 'Impossible de charger les fournisseurs : {error}'
+    listFailed: Impossible de charger les fournisseurs.
   harnesses:
     title: Environnements d'agent
     description:
@@ -1046,6 +1057,19 @@ providers:
       Seule une clé d'abonnement accepte un ID de compte. Choisis Clé
       d'abonnement comme méthode d'authentification ou enregistre sans ID
       de compte.
+    endpointInvalid: >-
+      Tale ne peut pas utiliser cette URL d’endpoint. Saisis une adresse
+      https ; le http simple ne fonctionne que pour un hôte privé ou de
+      boucle locale, qui exige en plus TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1
+      côté backend. Les hôtes de métadonnées cloud sont toujours refusés.
+    envNameInvalid: >-
+      N’utilise que des lettres, des chiffres et des tirets bas dans le nom
+      de la variable après TALE_PROVIDER_KEY_.
+    secretRequired: Saisis la clé de cette méthode d’authentification.
+    secretInvalid: >-
+      Saisis une nouvelle clé. Des identifiants qui lisent leur clé dans une
+      variable d’environnement n’en stockent aucune ; modifie plutôt leur
+      variable.
   replace:
     apiKeyTitle: Remplacer la clé API
     envTitle: Changer la variable d'environnement
@@ -1097,6 +1121,12 @@ providers:
       Un courtier d'abonnement fournit des jetons OAuth renouvelés pour les
       abonnements Claude ou ChatGPT.
     invalid: 'Configuration du courtier invalide : {error}'
+    refused: >-
+      La configuration du courtier a été refusée. Vérifie l’endpoint du
+      courtier : il doit s’agir d’une adresse https, ou de http simple vers
+      un hôte privé ou de boucle locale, qui exige en plus
+      TALE_ALLOW_PRIVATE_PROVIDER_HOSTS=1 côté backend. Si tu as laissé le
+      secret du courtier vide, saisis-le à nouveau.
     endpoint: Endpoint du courtier
     httpMethod: Méthode HTTP
     auth: Authentification du courtier

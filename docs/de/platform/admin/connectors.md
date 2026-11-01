@@ -95,4 +95,6 @@ Kann die Verbindung nicht starten, prüfe die OAuth-App. Lehnt der Anbieter die 
 
 Eine App-Anmeldung hat kein **Neu verbinden**. Lehnt der Anbieter die App ab, scheitert die Aktion oder die Postfach-Synchronisierung mit der Meldung, dass der Token-Endpunkt die Anmeldung der App abgelehnt hat, gefolgt vom Grund des Anbieters, etwa `invalid_client` bei einem falschen oder abgelaufenen Client-Secret. Prüfe dann Verzeichnis-ID, Anwendungs-ID und Client-Secret und ersetze sie. Ist der Token-Endpunkt nicht erreichbar oder ausgelastet, sagt die Meldung das stattdessen, und der nächste Versuch probiert es erneut. Verweigert Microsoft Graph den Zugriff auf ein freigegebenes Postfach, nennt der Fehler das Postfach und die Exchange-Rolle, die die Aktion braucht, zum Senden etwa `Application Mail.Send`.
 
+Steht auf der Seite **Die Connectors konnten nicht geladen werden.** oder zeigt die Zugangsdaten-Tabelle statt ihrer Zeilen einen Fehler, konnte Tale sie nicht lesen; gelöscht wurde nichts. Wähle **Erneut versuchen**. Solange die Connectors nicht lesbar sind, zeigt **Zugangsdaten hinzufügen** denselben Hinweis statt des Katalogs.
+
 Für Dienste ohne mitgelieferten Connector siehe [MCP und eigene Integrationen](/de/platform/connectors/mcp-servers). Beliebige ausgehende MCP-Server werden nicht auf dieser Zugangsdaten-Seite registriert.
