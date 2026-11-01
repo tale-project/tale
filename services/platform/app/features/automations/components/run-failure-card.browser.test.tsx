@@ -23,6 +23,12 @@ vi.mock('@/lib/site-url-context', () => ({
 vi.mock('@/app/features/coding-agent/hooks/use-new-connection', () => ({
   useNewConnection: () => ({ state: 'waiting' }),
 }));
+vi.mock('@/app/features/projects/hooks/queries', async (importOriginal) => ({
+  ...(await importOriginal<
+    typeof import('@/app/features/projects/hooks/queries')
+  >()),
+  useNamedProjects: () => ({ projects: new Map(), isPending: false }),
+}));
 vi.mock(
   '@/app/features/settings/agent-connections/hooks/queries',
   async (importOriginal) => ({
