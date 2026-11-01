@@ -1032,6 +1032,17 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           `[watchdog] task agents: failed ${result.failed} overdue, released ${result.released} orphaned session(s), woke ${result.woken} parked`,
         );
       }
+      // Handoffs by mention whose moment came without a run end that asked
+      // for them (one written as its run ended, a job lost to a restart).
+      if (context?.signal?.aborted) return;
+      const { sweepMentionHandoffs } =
+        await import('../domains/tasks/mention-handoff-runner.ts');
+      const handoffs = await sweepMentionHandoffs(deps.sql);
+      if (handoffs > 0) {
+        console.log(
+          `[watchdog] task agents: asked again for ${handoffs} pending handoff(s) by mention`,
+        );
+      }
     },
     'watchdog.automation_agents': async (_payload, context) => {
       // The workflow twin of the task-agent re-attach: a drive chain that
@@ -1440,6 +1451,18 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
           ? { startedVia: 'api-key' as const, apiKeyId: input.apiKeyId }
           : {}),
       });
+    },
+    'task.mention_handoff': async (payload) => {
+      const input = z
+        .object({
+          organizationId: z.string().min(1),
+          taskId: z.string().min(1),
+          handoffId: z.string().min(1),
+        })
+        .parse(payload);
+      const { processMentionHandoff } =
+        await import('../domains/tasks/mention-handoff-runner.ts');
+      await processMentionHandoff(deps.sql, input);
     },
 
     'task.agent_drive': async (payload, context) => {

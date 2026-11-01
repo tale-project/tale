@@ -2809,6 +2809,24 @@ describe('workspaceToolStatusImpl', () => {
     }
   });
 
+  it('says when a mention in a comment hands the task to an agent [TASK-R88]', async () => {
+    const { status } = await getActions();
+    const result = status(['task_comment']);
+    const tools = result.tools as { name: string; description: string }[];
+    const comment = tools[0]?.description ?? '';
+    for (const words of [
+      'as if you had called task_start_agent',
+      'once your run has ended',
+      'neither confined to its task nor started by another agent',
+      'a mention in a quote or code',
+      'no mention steers a running agent',
+      'one of its review contexts and the review stays pending',
+      'refused or dropped',
+    ]) {
+      expect(comment).toContain(words);
+    }
+  });
+
   it('says plainly when nothing is granted', async () => {
     const { status } = await getActions();
     const result = status([]);
