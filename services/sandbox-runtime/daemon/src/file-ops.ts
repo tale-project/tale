@@ -63,8 +63,9 @@ export interface StageItem {
   /** URL the daemon GETs to fetch the bytes. Exactly one of `url` /
    * `contentBase64` must be set, except a sourceId-only cache probe. */
   url?: string;
-  /** Inline bytes, base64. For small control files the platform pushes
-   * directly (e.g. mid-turn steer messages) — no URL round-trip. */
+  /** Inline bytes, base64, up to INLINE_MAX_BYTES decoded: control files the
+   * platform pushes directly (e.g. mid-turn steer messages) and skill bundle
+   * files — no URL round-trip. */
   contentBase64?: string;
   /** Trusted immutable source identity; reuse still verifies the actual file. */
   sourceId?: string;
@@ -81,7 +82,10 @@ interface StageResult {
 }
 
 const FETCH_MAX_BYTES = 100 * 1024 * 1024;
-const INLINE_MAX_BYTES = 1 * 1024 * 1024;
+/** The largest inline file: a skill bundle's largest (the platform's
+ * MAX_SKILL_BUNDLE_FILE_BYTES), since skills stage inline. A request stays
+ * within RUNNERD_MAX_REQUEST_BODY_BYTES; this bounds one decoded buffer. */
+export const INLINE_MAX_BYTES = 4 * 1024 * 1024;
 // One deadline for the whole batch, below the spawner's 30 s RPC timeout.
 const STAGE_TIMEOUT_MS = 25_000;
 const STAGE_MAX_ACTIVE = 2;

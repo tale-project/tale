@@ -463,7 +463,7 @@ its own mint, avoiding a second lookup while each new session rechecks credentia
 and either `url` or `contentBase64`. Downloads stream to a temporary file,
 with a 100 MiB cap per file and one 25-second deadline for the whole batch,
 including cache verification and reconciliation. They atomically replace the
-destination only after success, preserving its existing executable permissions. Inline files remain capped at 1 MiB. Cancelled,
+destination only after success, preserving its existing executable permissions. Inline files are capped at 4 MiB, the most a skill bundle file holds. Cancelled,
 failed and oversized transfers leave the previous destination intact and
 remove their temporary file. Parent symlinks cannot redirect staging outside
 the workspace; Linux pins the destination directory while downloading. At

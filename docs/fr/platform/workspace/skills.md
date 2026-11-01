@@ -57,7 +57,7 @@ Créer un skill ne l’ajoute pas automatiquement à un agent. Ouvre l’agent d
 
 </Frame>
 
-## Importer un bundle existant
+## Importer un bundle existant {#import-an-existing-bundle}
 
 Utilise **Ajouter un skill > Téléverser un zip** ou **Téléverser un dossier**. Le bundle doit contenir `SKILL.md` à sa racine. Des références, ressources et scripts peuvent l’accompagner :
 
@@ -67,6 +67,8 @@ brief-summary/
 └── references/
     └── example-brief.md
 ```
+
+Un bundle contient au plus 512 fichiers, 4 Mo par fichier et 32 Mo en tout ; Tale refuse au téléversement un bundle qui dépasse ces limites. Le chat, les tâches et les automatisations qui utilisent le skill dans une sandbox y copient tous ses fichiers : n’y mets donc que ce dont la procédure a besoin.
 
 L’aperçu présente les métadonnées, la **Visibilité**, la licence et la liste des fichiers avant que **Téléverser le bundle** n’enregistre quoi que ce soit. Vérifie le contenu et choisis sous **Visibilité** à qui le skill est destiné. Elle reprend d’abord ce que déclare `SKILL.md` ; sans `visibility`, c’est **Organisation**. Tale écrit ton choix dans le `SKILL.md` enregistré : tu n’as jamais à y saisir d’identifiants d’équipes. Si ton organisation réserve le partage avec tout le monde et que tu ne peux pas publier, l’aperçu commence avec **Équipes** et toutes tes équipes ; retire celles auxquelles le skill n’est pas destiné. Quand tu crées un skill d’équipe ou modifies ses équipes, tu ne peux indiquer que des équipes de ton organisation, et seulement les tiennes si tu n’es pas administrateur. Tu peux conserver la liste existante même si une équipe a été supprimée depuis. Un `owner` indiqué dans le fichier est ignoré : un nouveau skill t’appartient. Un skill remplacé garde son propriétaire actuel ou t’appartient s’il n’en avait pas. Si le nom existe déjà, Tale demande s’il faut remplacer le skill ; ce remplacement concerne aussi les agents qui l’utilisent.
 

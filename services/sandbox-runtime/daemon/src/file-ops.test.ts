@@ -24,6 +24,7 @@ import { join } from 'node:path';
 
 import {
   deletePaths,
+  INLINE_MAX_BYTES,
   listDir,
   readWorkspaceFile,
   stageFiles,
@@ -69,7 +70,7 @@ describe('file-ops', () => {
       { path: 'no-source.txt' },
       {
         path: 'too-big.bin',
-        contentBase64: Buffer.alloc(2 * 1024 * 1024).toString('base64'),
+        contentBase64: Buffer.alloc(INLINE_MAX_BYTES + 1).toString('base64'),
       },
     ]);
     expect(result.staged).toEqual([
@@ -87,6 +88,42 @@ describe('file-ops', () => {
         )
       )?.toString(),
     ).toBe('{"text":"hi"}');
+  });
+
+  // REGRESSION (#5177): a skill bundle may hold files of up to 4 MiB, and
+  // skills stage inline, but the runtime refused every inline file over
+  // 1 MiB — a skill with a 1.2 MB template uploaded and never staged.
+  test('stageFiles takes inline files up to the 4 MiB a skill bundle file may hold', async () => {
+    const template = Buffer.alloc(1_200_000, 7);
+    const largest = Buffer.alloc(INLINE_MAX_BYTES, 9);
+    const result = await stageFiles([
+      {
+        path: 'skills/deck/assets/template.pptx',
+        contentBase64: template.toString('base64'),
+      },
+      {
+        path: 'skills/deck/assets/largest.bin',
+        contentBase64: largest.toString('base64'),
+      },
+    ]);
+    expect(result).toEqual({
+      staged: [
+        { path: 'skills/deck/assets/template.pptx', bytes: 1_200_000 },
+        { path: 'skills/deck/assets/largest.bin', bytes: INLINE_MAX_BYTES },
+      ],
+      skipped: [],
+    });
+    expect(
+      readFileSync(join(ROOT, 'skills/deck/assets/template.pptx')).equals(
+        template,
+      ),
+    ).toBe(true);
+    expect(
+      readFileSync(join(ROOT, 'skills/deck/assets/largest.bin')).equals(
+        largest,
+      ),
+    ).toBe(true);
+    expect(INLINE_MAX_BYTES).toBe(4 * 1024 * 1024);
   });
 
   // REGRESSION: a stage URL fetch had no deadline of its own — a server that

@@ -68,6 +68,8 @@ brief-summary/
     └── example-brief.md
 ```
 
+A bundle holds up to 512 files, up to 4 MB per file and 32 MB in all; Tale refuses a bundle over these limits when you upload it. Chat, tasks and automations that use the skill in a sandbox copy all of its files there, so leave out what the procedure does not need.
+
 The preview shows metadata, **Visibility**, license, and the file list before **Upload bundle** writes anything. Check the contents, and pick whom the skill is for under **Visibility**. It starts with what `SKILL.md` declares; missing `visibility` means **Organization**. Tale writes your pick into the stored `SKILL.md`, so you never edit team IDs into the file. If your organization reserves sharing with everyone and you may not publish, the preview starts with **Teams** and all of your teams; remove the ones the skill is not for. When you create a team skill or change its teams, you may name only your organization's teams, and only your own unless you are an administrator. Keeping an existing team list is allowed even if a team has since been deleted. An `owner` in the file is ignored: a new skill is yours, and a replacement keeps its current owner or becomes yours if it had none. If the name already exists, Tale asks whether to replace that skill; replacement affects the agents that use it.
 
 <Warning>

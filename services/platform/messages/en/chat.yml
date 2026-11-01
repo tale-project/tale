@@ -612,6 +612,7 @@ thinking:
     sandboxFailed: The sandbox stopped working
     programFailed: The program ended with an error
     timedOut: Ran out of time
+    filesNotStaged: A file couldn't be copied into the sandbox
     notFound: Not found
     invalidArgs: Couldn't run as asked
     unavailable: Not available here

@@ -93,7 +93,10 @@ export const MAX_SKILL_LABEL_LENGTH = 40;
  */
 export const MAX_SKILL_BUNDLE_FILES = 512;
 
-/** Cap on one bundle asset file. */
+/** Cap on one bundle asset file. Skill files stage inline, and the sandbox
+ * takes an inline file this large (STAGE_INLINE_MAX_BYTES in the platform's
+ * session client, INLINE_MAX_BYTES in the sandbox runtime); a test keeps the
+ * three equal. */
 export const MAX_SKILL_BUNDLE_FILE_BYTES = 4 * 1024 * 1024;
 
 /** Cap on a bundle's total bytes across all files. */

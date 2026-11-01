@@ -14,6 +14,7 @@
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 
+import { MAX_SKILL_BUNDLE_FILE_BYTES } from '@tale/shared/schemas/skills';
 import { createParser } from 'eventsource-parser';
 import { z } from 'zod';
 
@@ -1677,8 +1678,16 @@ interface StageOptions {
 }
 
 class StageRequestError extends Error {
-  constructor(readonly status: number) {
-    super(`sandbox session files stage failed (${status})`);
+  constructor(
+    readonly status: number,
+    /** The one file a refused request carried, named on a 413. */
+    filePath?: string,
+  ) {
+    super(
+      status === 413 && filePath !== undefined
+        ? `sandbox session files stage failed (413): ${filePath} is larger than the sandbox service takes in one request`
+        : `sandbox session files stage failed (${status})`,
+    );
   }
 }
 
@@ -1688,6 +1697,16 @@ class StageRequestError extends Error {
  * build is running; the HMAC headers ride outside the body, so the envelope
  * math below is exact. */
 export const STAGE_BODY_BUDGET_BYTES = 1.5 * 1024 * 1024;
+/** The largest file staged inline: a skill bundle's largest, since skill
+ * bundles stage inline. Runnerd takes as much (INLINE_MAX_BYTES in
+ * services/sandbox-runtime/daemon/src/file-ops.ts); keep the two equal. */
+export const STAGE_INLINE_MAX_BYTES = MAX_SKILL_BUNDLE_FILE_BYTES;
+/** What a runtime from before the two were equal takes inline. */
+const LEGACY_STAGE_INLINE_MAX_BYTES = 1024 * 1024;
+/** Ceiling of a request that carries one entry too large for the budget: a
+ * file of STAGE_INLINE_MAX_BYTES is 5.6 MB as base64, and the request stays
+ * under the spawner's and runnerd's 8 MiB request cap. */
+export const STAGE_SINGLE_FILE_BODY_BYTES = 6 * 1024 * 1024;
 const STAGE_MAX_FILES = 512;
 
 // Serialized length of the request envelope around the files array:
@@ -1698,13 +1717,15 @@ const STAGE_ENVELOPE_BYTES = Buffer.byteLength('{"files":[]}', 'utf8');
  * Pack stage files into batches whose SERIALIZED request body stays under
  * `maxBodyBytes`, preserving order. Pure — exported for unit tests. Uses the
  * exact JSON length (per-entry serialized bytes + separating commas +
- * envelope), so a batch never exceeds the budget it was packed for. A single
- * entry that cannot fit on its own throws: chunking cannot help an oversize
- * file, and silently posting it would just 413 downstream.
+ * envelope), so a batch never exceeds the budget it was packed for. An entry
+ * too large for the budget (an inline file of a few MB) travels alone, in a
+ * request of up to `singleFileBodyBytes`; one larger than that throws:
+ * chunking cannot help it, and posting it would just 413 downstream.
  */
 export function chunkStageFiles(
   files: SessionStageFile[],
   maxBodyBytes: number = STAGE_BODY_BUDGET_BYTES,
+  singleFileBodyBytes: number = STAGE_SINGLE_FILE_BODY_BYTES,
 ): SessionStageFile[][] {
   const batches: SessionStageFile[][] = [];
   let batch: SessionStageFile[] = [];
@@ -1712,10 +1733,17 @@ export function chunkStageFiles(
   for (const file of files) {
     const entryBytes = Buffer.byteLength(JSON.stringify(file), 'utf8');
     if (STAGE_ENVELOPE_BYTES + entryBytes > maxBodyBytes) {
-      throw new Error(
-        `stage file "${file.path}" serializes to ${entryBytes} bytes — over the ` +
-          `${maxBodyBytes}-byte request budget; it cannot be staged inline`,
-      );
+      if (STAGE_ENVELOPE_BYTES + entryBytes > singleFileBodyBytes) {
+        throw new Error(
+          `stage file "${file.path}" serializes to ${entryBytes} bytes — over the ` +
+            `${singleFileBodyBytes}-byte request ceiling; it cannot be staged inline`,
+        );
+      }
+      if (batch.length > 0) batches.push(batch);
+      batches.push([file]);
+      batch = [];
+      batchBytes = STAGE_ENVELOPE_BYTES;
+      continue;
     }
     const commaBytes = batch.length > 0 ? 1 : 0;
     if (
@@ -1743,7 +1771,12 @@ async function postStageFiles(
 ): Promise<SessionStageResult> {
   const path = `/v1/sessions/${encodeURIComponent(sessionId)}/files/stage`;
   const bodyJson = JSON.stringify({ files, ...reconcile });
-  if (Buffer.byteLength(bodyJson) > STAGE_BODY_BUDGET_BYTES) {
+  if (
+    Buffer.byteLength(bodyJson) >
+    (files.length === 1
+      ? STAGE_SINGLE_FILE_BODY_BYTES
+      : STAGE_BODY_BUDGET_BYTES)
+  ) {
     throw new Error('Sandbox staging manifest exceeds the request budget');
   }
   const signal = AbortSignal.any([
@@ -1765,7 +1798,12 @@ async function postStageFiles(
         throw new StageRequestError(res.status);
       }
     } else {
-      if (!res.ok) throw new StageRequestError(res.status);
+      if (!res.ok) {
+        throw new StageRequestError(
+          res.status,
+          files.length === 1 ? files[0]?.path : undefined,
+        );
+      }
       // oxlint-disable-next-line typescript-eslint/no-unsafe-type-assertion
       const result = (await res.json()) as SessionStageResult;
       if (
@@ -1785,9 +1823,12 @@ async function postStageFiles(
 
 /** POST /v1/sessions/:id/files/stage — write files into the session workspace.
  * Large payloads are auto-chunked into sequential POSTs, each packed under
- * STAGE_BODY_BUDGET_BYTES, so callers can hand over whole skill bundles
- * without tripping the spawner's request-body cap. Throws on transport/HTTP
- * failure of any chunk; per-file failures come back merged in `skipped`. */
+ * STAGE_BODY_BUDGET_BYTES (a file too large for it travels alone), so callers
+ * can hand over whole skill bundles without tripping the spawner's
+ * request-body cap. Throws on transport/HTTP failure of any chunk; per-file
+ * failures come back merged in `skipped`, an inline file over
+ * STAGE_INLINE_MAX_BYTES among them (`too_large`, as runnerd says it) without
+ * being sent. {@link describeStageSkips} words them for a person. */
 export async function sessionStageFiles(
   sessionId: string,
   files: SessionStageFile[],
@@ -1818,19 +1859,26 @@ export async function sessionStageFiles(
       }
     }
     const merged: SessionStageResult = { staged: [], skipped: [] };
+    // Runnerd refuses an inline file over its cap; refusing it here keeps its
+    // request from outgrowing the request caps on the way.
+    const sendable = files.filter((file) => {
+      if ((inlineBytes(file) ?? 0) <= STAGE_INLINE_MAX_BYTES) return true;
+      merged.skipped.push({ path: file.path, reason: 'too_large' });
+      return false;
+    });
     // An inline file is identified by the digest of its bytes, and the digest
     // rides the probe too: a runtime that lost its record of what it staged
     // (every restart of a stopped session) checks the file already on disk
     // against it instead of having the bytes sent again.
     const identified = options.reuse
-      ? files.map((file) => {
+      ? sendable.map((file) => {
           if (file.contentBase64 === undefined) return file;
           const sha256 = createHash('sha256')
             .update(Buffer.from(file.contentBase64, 'base64'))
             .digest('hex');
           return { ...file, sha256, sourceId: `sha256:${sha256}` };
         })
-      : files;
+      : sendable;
     let missing = identified;
     if (
       options.reuse &&
@@ -1918,6 +1966,42 @@ export async function sessionStageFiles(
     options.signal?.throwIfAborted();
     return merged;
   });
+}
+
+/** The decoded size of an inline stage file; `undefined` for a URL. */
+function inlineBytes(file: SessionStageFile): number | undefined {
+  return file.contentBase64 === undefined
+    ? undefined
+    : Buffer.byteLength(file.contentBase64, 'base64');
+}
+
+/** Bytes as people read a file's size: `1.2 MB`. */
+export function formatMb(n: number): string {
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+/**
+ * The files a stage left behind (its `skipped`), as a person and a model
+ * read them: each path, and for an inline file too large, its size and the
+ * limit it broke — the platform's own, or the lower one of a runtime that
+ * is older than the platform. `files` are the entries handed to the stage.
+ */
+export function describeStageSkips(
+  skipped: SessionStageResult['skipped'],
+  files: readonly SessionStageFile[],
+): string {
+  return skipped
+    .map(({ path, reason }) => {
+      const file = files.find((entry) => entry.path === path);
+      const bytes = file === undefined ? undefined : inlineBytes(file);
+      if (reason !== 'too_large' || bytes === undefined) {
+        return `${path} (${reason})`;
+      }
+      return bytes > STAGE_INLINE_MAX_BYTES
+        ? `${path} (${formatMb(bytes)}, over the ${formatMb(STAGE_INLINE_MAX_BYTES)} a file copied into the sandbox may hold)`
+        : `${path} (${formatMb(bytes)}, over the ${formatMb(LEGACY_STAGE_INLINE_MAX_BYTES)} an outdated sandbox runtime takes; an updated one takes ${formatMb(STAGE_INLINE_MAX_BYTES)})`;
+    })
+    .join(', ');
 }
 
 export interface SessionDeleteResult {

@@ -30,7 +30,7 @@ Jeder Skill in der Liste nennt seinen Ersteller: ein Mitglied, **Mitgeliefert** 
 
 Die Agent-Nodes einer Automatisierung geben an, welche Skills sie brauchen. Ein an ein Projekt gebundener Lauf nutzt dessen Zugriff. Ein Lauf auf Organisationsebene kann nur organisationsweite Skills verwenden. Deine persönliche Mitgliedschaft in weiteren Teams erweitert diesen Zugriff nicht.
 
-Beim Einrichten der Sandbox stellt Tale die ausgerüsteten Bundles als Dateien bereit. Der Agent erhält zu jedem Skill einen Beschreibungsauszug von bis zu 300 Zeichen und den Pfad zu seinen `SKILL.md`-Anweisungen. Der Auszug hilft bei der Auswahl für eine frei formulierte Aufgabe; er ist ein Auswahlhinweis, keine auszuführende Anweisung. Ergänzende Dateien liegen neben den Anweisungen.
+Beim Einrichten der Sandbox stellt Tale die ausgerüsteten Bundles als Dateien bereit. Der Agent erhält zu jedem Skill einen Beschreibungsauszug von bis zu 300 Zeichen und den Pfad zu seinen `SKILL.md`-Anweisungen. Der Auszug hilft bei der Auswahl für eine frei formulierte Aufgabe; er ist ein Auswahlhinweis, keine auszuführende Anweisung. Ergänzende Dateien liegen neben den Anweisungen, jede bis zu den 4 MB, die eine [Skill-Datei](/de/platform/workspace/skills#import-an-existing-bundle) haben darf. Lässt sich eine Datei nicht in die Sandbox kopieren, schlägt die Bereitstellung fehl und nennt die Datei und die Grenze.
 
 Bei einem Skill mit `disable-model-invocation` weist die Liste den Agenten an, den Skill erst zu verwenden, wenn die Aufgabe ihn ausdrücklich nennt. Das ist eine Anweisung, keine technische Zugriffssperre. Wähle die Ausrüstung gezielt und nenne das Vorgehen, wenn es darauf ankommt. Dass ein Skill verfügbar ist, belegt noch nicht, dass das Ergebnis seinen Anweisungen folgt.
 

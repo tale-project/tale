@@ -620,6 +620,7 @@ thinking:
     sandboxFailed: Die Sandbox ist ausgefallen
     programFailed: Das Programm wurde mit einem Fehler beendet
     timedOut: Zeit abgelaufen
+    filesNotStaged: Eine Datei konnte nicht in die Sandbox kopiert werden
     notFound: Nicht gefunden
     invalidArgs: So nicht ausführbar
     unavailable: Hier nicht verfügbar
