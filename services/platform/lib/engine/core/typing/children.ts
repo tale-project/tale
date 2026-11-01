@@ -14,10 +14,7 @@ import { isValidAutomationName } from '@tale/shared/automation-name';
 
 import { isRecord } from '../../../utils/type-utils';
 import type { StoreAdapter } from '../slots';
-
-/** How deep subautomations nest: the top-level run is depth 0, and a
- * subautomation node in a document at this depth fails. */
-export const MAX_SUBAUTOMATION_DEPTH = 3;
+import { MAX_SUBAUTOMATION_DEPTH } from '../walk/limits';
 
 /** A `subautomation` reference: `"name"` or `"name@version"`; null when it
  * is neither. */
