@@ -1391,6 +1391,9 @@ legalHold:
   sections:
     activeHolds:
       title: Conservations actives
+      entityLabel: conservations
+      entityLabelOne: conservation
+      searchPlaceholder: Rechercher des conservations
       description:
         Entités actuellement protégées du nettoyage et de la suppression.
         Place des conservations au niveau utilisateur (custodian) ou
@@ -1403,6 +1406,10 @@ legalHold:
           ci-dessus.
     releaseRequests:
       title: Demandes de libération
+      entityLabel: demandes de libération
+      entityLabelOne: demande de libération
+      pendingSearchPlaceholder: Rechercher des demandes en attente
+      approvedSearchPlaceholder: Rechercher des demandes approuvées
       description:
         Les demandes en attente requièrent l'approbation d'un autre admin.
         Les demandes approuvées attendent ensuite la fin du cooldown.
@@ -1413,6 +1420,9 @@ legalHold:
         description: Les demandes déposées apparaissent ici pour double contrôle.
     matters:
       title: Dossiers
+      entityLabel: dossiers
+      entityLabelOne: dossier
+      searchPlaceholder: Rechercher des dossiers
       description:
         Grouper les conservations par dossier. La fermeture d'un dossier
         dépose des demandes de libération pour chaque conservation liée

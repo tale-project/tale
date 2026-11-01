@@ -1,15 +1,13 @@
 'use client';
 
 import { Badge } from '@tale/ui/badge';
-import { Button } from '@tale/ui/button';
 import { CatalogLoadError } from '@tale/ui/catalog/catalog-view';
 import { DataTable } from '@tale/ui/data-table/data-table';
-import { DataTableFilters } from '@tale/ui/data-table/data-table-filters';
-import { isFilterAffordanceDisabled } from '@tale/ui/filters/filter-panel';
 import { IconButton } from '@tale/ui/icon-button';
 import { Row, Stack } from '@tale/ui/layout';
 import { TableDateCell } from '@tale/ui/table-date-cell';
 import { Text } from '@tale/ui/text';
+import { DEFAULT_LIST_PAGE_SIZE, useListPage } from '@tale/ui/use-list-page';
 import type { ColumnDef } from '@tanstack/react-table';
 import { Lock, LockOpen } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -58,8 +56,6 @@ export function ActiveHoldsSection({
 
   const {
     data: rows,
-    isLoading,
-    isError,
     error,
     refetch,
     isFetching,
@@ -214,46 +210,56 @@ export function ActiveHoldsSection({
     [t],
   );
 
+  const list = useListPage<LegalHoldRow>({
+    dataSource: {
+      type: 'query',
+      data: rows,
+      error,
+      retry: recovery.retryRead,
+    },
+    pageSize: DEFAULT_LIST_PAGE_SIZE,
+    // The server filters by target type, so another type is another
+    // collection.
+    windowKey: targetTypeFilter,
+    search: {
+      fields: [
+        'targetLabel',
+        'targetId',
+        'reason',
+        'matterName',
+        'placedByName',
+      ],
+      placeholder: t('legalHold.sections.activeHolds.searchPlaceholder'),
+    },
+    filters: {
+      configs: [
+        {
+          key: 'targetType',
+          title: t('legalHold.columns.target'),
+          options: targetTypeOptions.filter((o) => o.value !== 'all'),
+          selectedValues: targetTypeFilter === 'all' ? [] : [targetTypeFilter],
+          onChange: (values) =>
+            setTargetTypeFilter(
+              // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options are constrained to FilterTargetType
+              (values[0] as FilterTargetType | undefined) ?? 'all',
+            ),
+        },
+      ],
+      onClear: () => setTargetTypeFilter('all'),
+    },
+    getRowId: (row) => row._id,
+    entityLabel: {
+      one: t('legalHold.sections.activeHolds.entityLabelOne'),
+      other: t('legalHold.sections.activeHolds.entityLabel'),
+    },
+  });
+
   return (
     <>
       <SettingsSection
         title={t('legalHold.sections.activeHolds.title')}
         description={t('legalHold.sections.activeHolds.description')}
       >
-        <DataTableFilters
-          filters={[
-            {
-              key: 'targetType',
-              title: t('legalHold.columns.target'),
-              options: targetTypeOptions.filter((o) => o.value !== 'all'),
-              selectedValues:
-                targetTypeFilter === 'all' ? [] : [targetTypeFilter],
-              onChange: (values) =>
-                setTargetTypeFilter(
-                  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- options are constrained to FilterTargetType
-                  (values[0] as FilterTargetType | undefined) ?? 'all',
-                ),
-            },
-          ]}
-          // See `matters-section`: a filter bar rendered outside its table has
-          // to be told the set is empty.
-          disabled={isFilterAffordanceDisabled({
-            isLoading,
-            isError,
-            itemCount: rows?.length ?? 0,
-            hasActiveFilters: targetTypeFilter !== 'all',
-          })}
-          actions={
-            <Button
-              type="button"
-              variant="primary"
-              onClick={() => setPlaceOpen(true)}
-            >
-              <Lock className="mr-1.5 size-4" aria-hidden />
-              {t('legalHold.actions.placeHold')}
-            </Button>
-          }
-        />
         <div
           ref={recovery.regionRef}
           role="region"
@@ -272,13 +278,12 @@ export function ActiveHoldsSection({
           )}
           <DataTable<LegalHoldRow>
             columns={columns}
-            data={rows ?? []}
-            isLoading={isLoading}
-            error={rows?.length ? null : error}
-            onRetry={recovery.retryRead}
             onErrorFocusLost={recovery.focusRegion}
-            approxRowCount={rows?.length}
-            getRowId={(row) => row._id}
+            addAction={{
+              label: t('legalHold.actions.placeHold'),
+              icon: Lock,
+              onClick: () => setPlaceOpen(true),
+            }}
             emptyState={{
               icon: Lock,
               title: t('legalHold.sections.activeHolds.empty.title'),
@@ -287,6 +292,7 @@ export function ActiveHoldsSection({
               ),
             }}
             caption={t('legalHold.sections.activeHolds.title')}
+            {...list.tableProps}
           />
         </div>
       </SettingsSection>
