@@ -118,15 +118,11 @@ services:
       retries: 3
       start_period: 120s
 
-    # Resource limits (optional, adjust based on your needs)
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: '4'
-    #       memory: 8G
-    #     reservations:
-    #       cpus: '2'
-    #       memory: 4G
+    # Memory reclaim spares while sandbox sessions press on host memory
+    # (cgroup v2 memory.low). Mirrors the CLI generator (memory-env.ts); it
+    # only holds where Docker's parent cgroup grants protection too (see the
+    # self-hosting docs).
+    mem_reservation: ${DB_MEMORY_RESERVATION:-512m}
 
     # Logging configuration
     logging:
@@ -317,15 +313,9 @@ services:
       proxy:
         condition: service_healthy
 
-    # Resource limits (optional, adjust based on your needs)
-    # deploy:
-    #   resources:
-    #     limits:
-    #       cpus: '2'
-    #       memory: 4G
-    #     reservations:
-    #       cpus: '1'
-    #       memory: 2G
+    # Memory reclaim spares while sandbox sessions press on host memory.
+    # Mirrors the CLI generator (memory-env.ts).
+    mem_reservation: ${PLATFORM_MEMORY_RESERVATION:-128m}
 
     # Logging configuration
     logging:
@@ -426,6 +416,9 @@ services:
       dockerfile: services/platform/Dockerfile
       args:
         VERSION: ${VERSION:-dev}
+    # Memory reclaim spares while sandbox sessions press on host memory.
+    # Mirrors the CLI generator (memory-env.ts).
+    mem_reservation: ${BACKEND_API_MEMORY_RESERVATION:-256m}
     environment:
       TALE_ROLE: api
       PORT: '3005'
@@ -507,6 +500,9 @@ services:
       dockerfile: services/platform/Dockerfile
       args:
         VERSION: ${VERSION:-dev}
+    # Memory reclaim spares while sandbox sessions press on host memory.
+    # Mirrors the CLI generator (memory-env.ts).
+    mem_reservation: ${BACKEND_WORKER_MEMORY_RESERVATION:-256m}
     environment:
       TALE_ROLE: worker
       DATABASE_URL: ${DATABASE_URL:-postgresql://${POSTGRES_USER:-tale}:${DB_PASSWORD:-tale_dev_password}@db:5432/${APP_DB_NAME:-tale_app}}
@@ -846,6 +842,11 @@ services:
         required: false
     environment:
       SANDBOX_RUNTIME: ${SANDBOX_RUNTIME:-runc}
+      # What db, platform, backend-api and backend-worker reserve at their
+      # defaults: the least memory admission leaves free unless
+      # SANDBOX_MIN_FREE_MEMORY is set. The CLI derives it from the
+      # reservations it generates; this file cannot add variables up.
+      SANDBOX_RESERVED_MEMORY: 1152m
       # The device hub: organizations connect their own machines here to run
       # their sandboxes (Settings → Sandboxes → Devices). 0 turns it off.
       # Mirrors the CLI generator (create-sandbox-service.ts).

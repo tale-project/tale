@@ -674,6 +674,7 @@ export function loadConfig(): SpawnerConfig {
     priorityClassEnv,
   );
   const minFreeMemoryBytes = sizeEnv('SANDBOX_MIN_FREE_MEMORY');
+  const reservedMemoryBytes = sizeEnv('SANDBOX_RESERVED_MEMORY');
   const minFreeDiskBytes = sizeEnv('SANDBOX_MIN_FREE_DISK');
   const cpuPressurePercent = numEnv(
     'SANDBOX_CPU_PRESSURE_PERCENT',
@@ -1083,6 +1084,7 @@ export function loadConfig(): SpawnerConfig {
       maxSessions,
       autoMaxSessions: (process.env.SANDBOX_MAX_SESSIONS ?? '').trim() === '',
       ...(minFreeMemoryBytes !== undefined ? { minFreeMemoryBytes } : {}),
+      ...(reservedMemoryBytes !== undefined ? { reservedMemoryBytes } : {}),
       cpuPressurePercent,
       ...(minFreeDiskBytes !== undefined ? { minFreeDiskBytes } : {}),
       ...(criticalFreeDiskBytes !== undefined ? { criticalFreeDiskBytes } : {}),

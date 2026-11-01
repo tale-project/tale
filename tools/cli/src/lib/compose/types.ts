@@ -59,6 +59,9 @@ export interface ComposeService {
   cap_drop?: string[];
   sysctls?: Record<string, string>;
   mem_limit?: string;
+  // cgroup v2 `memory.low`: the memory reclaim spares the service while host
+  // memory runs short — see memory-env.ts.
+  mem_reservation?: string;
   pids_limit?: number;
   ulimits?: Record<string, number | { soft: number; hard: number }>;
   security_opt?: string[];

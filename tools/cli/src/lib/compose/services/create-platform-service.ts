@@ -1,6 +1,7 @@
 import { EXTRA_HOSTS } from '../generators/constants';
 import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
+import { memoryReservation } from './memory-env';
 
 /**
  * The web tier, as one colour's replica template.
@@ -34,6 +35,9 @@ export function createPlatformService(
     // mechanism the sandbox tier relies on (create-sandbox-service.ts). Keep
     // this >= the SHUTDOWN_* budget; bump it if those defaults grow.
     stop_grace_period: '45s',
+    // Spared by reclaim while sandbox sessions press on host memory, per
+    // replica. Mirrored in compose.yml.
+    ...memoryReservation('platform'),
     healthcheck: {
       test: [
         'CMD-SHELL',

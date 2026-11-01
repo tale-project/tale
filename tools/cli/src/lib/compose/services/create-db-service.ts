@@ -1,6 +1,7 @@
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
+import { memoryReservation } from './memory-env';
 
 export function createDbService(config: ServiceConfig): ComposeService {
   return {
@@ -17,6 +18,10 @@ export function createDbService(config: ServiceConfig): ComposeService {
     stop_signal: 'SIGINT',
     stop_grace_period: '60s',
     shm_size: '256mb',
+    // Spared by reclaim while sandbox sessions press on host memory: a
+    // database paged out under that pressure is what turns a busy host into
+    // pool timeouts. Mirrored in compose.yml.
+    ...memoryReservation('db'),
     volumes: [
       'db-data:/var/lib/postgresql/data',
       'db-backup:/var/lib/postgresql/backup',

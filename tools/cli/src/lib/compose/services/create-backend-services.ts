@@ -5,6 +5,7 @@ import {
 } from '../generators/constants';
 import type { ComposeService, DeploymentColor, ServiceConfig } from '../types';
 import { DEFAULT_LOGGING, imageRef } from '../types';
+import { memoryReservation } from './memory-env';
 
 /** The api's container port — the proxy's `BACKEND_UPSTREAM` target. */
 const BACKEND_API_PORT = 3005;
@@ -68,6 +69,9 @@ function backendBase(
     // concurrently; the cap bounds the blast radius, pids_limit defends
     // against a fork-bomb regression, nofile covers concurrent sockets.
     mem_limit: '12g',
+    // Spared by reclaim while sandbox sessions press on host memory, per
+    // replica. Mirrored in compose.yml.
+    ...memoryReservation(service),
     pids_limit: 4096,
     ulimits: {
       nofile: { soft: 65536, hard: 65536 },

@@ -3,6 +3,7 @@ import { isAbsolute } from 'node:path';
 import { getProjectId } from '../../../utils/load-env';
 import type { ComposeService, ServiceConfig } from '../types';
 import { BUILDKITD_MIRROR_IMAGE, DEFAULT_LOGGING, imageRef } from '../types';
+import { reservedMemoryMib } from './memory-env';
 
 /**
  * Sandbox spawner — thin stateless docker-run service.
@@ -96,6 +97,10 @@ export function createSandboxService(config: ServiceConfig): ComposeService {
           }
         : {}),
       SANDBOX_RUNTIME: '${SANDBOX_RUNTIME:-runc}',
+      // What the database and the application tier reserve on this host: the
+      // least memory admission leaves free unless SANDBOX_MIN_FREE_MEMORY is
+      // set. Derived from their reservations, so `.env` cannot set it apart.
+      SANDBOX_RESERVED_MEMORY: `${reservedMemoryMib()}m`,
       // The device hub: organizations connect their own machines here to run
       // their sandboxes (Settings → Sandboxes → Devices). The proxy publishes
       // it at /sandbox/tunnel; nothing else of the spawner leaves `internal`.

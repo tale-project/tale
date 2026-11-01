@@ -29,6 +29,28 @@ describe('sizing from the host', () => {
     expect(memoryReserveBytes(64 * GIB, 2 * GIB)).toBe(2 * GIB);
   });
 
+  test('the default reserve covers what the database and application tier reserve', () => {
+    // The CLI's defaults: db 512m, platform 128m, backend-api and
+    // backend-worker 256m each (SANDBOX_RESERVED_MEMORY).
+    const reserved = 1152 * 1024 ** 2;
+    expect(memoryReserveBytes(8 * GIB, undefined, reserved)).toBe(reserved);
+    expect(memoryReserveBytes(4 * GIB, undefined, reserved)).toBe(reserved);
+    // A tenth of a larger host is more, and stays the reserve.
+    expect(memoryReserveBytes(64 * GIB, undefined, reserved)).toBe(
+      Math.floor((64 * GIB) / 10),
+    );
+    // Less than 1 GiB reserved keeps the 1 GiB floor.
+    expect(memoryReserveBytes(4 * GIB, undefined, 256 * 1024 ** 2)).toBe(GIB);
+  });
+
+  test("an explicit SANDBOX_MIN_FREE_MEMORY wins over the stack's reservations", () => {
+    const reserved = 1152 * 1024 ** 2;
+    expect(memoryReserveBytes(8 * GIB, 512 * 1024 ** 2, reserved)).toBe(
+      512 * 1024 ** 2,
+    );
+    expect(memoryReserveBytes(8 * GIB, 0, reserved)).toBe(0);
+  });
+
   test('capacity follows memory, never below the old default of 8 nor above 256', () => {
     const capacity = (gib: number) =>
       autoSessionCapacity(gib * GIB, memoryReserveBytes(gib * GIB));
@@ -164,6 +186,20 @@ describe('the session capacity against the host memory', () => {
       warning:
         '[sandbox] 8 sessions (SANDBOX_MAX_SESSIONS) of up to 4 GiB each (SANDBOX_AGENT_MEMORY) can use 32 GiB, more than the 14 GiB the host has for them: 15.6 GiB less its 1.6 GiB reserve (SANDBOX_MIN_FREE_MEMORY). With SANDBOX_MAX_SESSIONS set, memory admission is off, so sessions working at once can run the host out of memory: lower SANDBOX_MAX_SESSIONS or SANDBOX_AGENT_MEMORY, or unset SANDBOX_MAX_SESSIONS to size the capacity from the host and hold starts while its memory is short.',
     });
+  });
+
+  test("the stack's reservations raise the reserve the capacity is weighed with", () => {
+    expect(
+      hostSessionCapacity(
+        capacityConfig({
+          maxSessions: 8,
+          autoMaxSessions: false,
+          reservedMemoryBytes: 4 * GIB,
+        }),
+        HOST,
+        4,
+      ).warning,
+    ).toContain('15.6 GiB less its 4 GiB reserve (SANDBOX_MIN_FREE_MEMORY)');
   });
 
   test('a capacity sized from the host warns as well, and says what admission still does', () => {

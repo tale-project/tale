@@ -616,6 +616,7 @@ export async function router(req: Request): Promise<Response> {
               memoryReserveBytes: memoryReserveBytes(
                 memory.totalBytes,
                 cfg.session.minFreeMemoryBytes,
+                cfg.session.reservedMemoryBytes,
               ),
             }),
         ...(organizationId !== null && ORG_ID_RE.test(organizationId)

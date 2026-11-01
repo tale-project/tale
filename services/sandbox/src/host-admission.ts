@@ -377,6 +377,7 @@ export class HostAdmission {
     const reserve = memoryReserveBytes(
       memory.totalBytes,
       this.cfg.session.minFreeMemoryBytes,
+      this.cfg.session.reservedMemoryBytes,
     );
     if (
       memory.availableBytes - outstanding.memoryBytes - request.memoryBytes <
@@ -394,7 +395,8 @@ export class HostAdmission {
   ): AdmissionEvidence {
     const memory = this.readMemory();
     const disk = this.readDisk();
-    const { minFreeMemoryBytes, minFreeDiskBytes } = this.cfg.session;
+    const { minFreeMemoryBytes, reservedMemoryBytes, minFreeDiskBytes } =
+      this.cfg.session;
     return {
       pressure: {
         first: assessment.evidence.first,
@@ -412,6 +414,7 @@ export class HostAdmission {
               reserveBytes: memoryReserveBytes(
                 memory.totalBytes,
                 minFreeMemoryBytes,
+                reservedMemoryBytes,
               ),
               totalBytes: memory.totalBytes,
             },

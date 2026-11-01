@@ -63,12 +63,17 @@ export interface HostMemory {
 
 /** The memory admission always leaves free: the operator's, else a tenth of
  * the host and at least 1 GiB (the platform, its databases and the page cache
- * live on the same machine). */
+ * live on the same machine), and at least what the database and the
+ * application tier reserve, so admission never hands sessions the memory that
+ * reclaim spares for them. */
 export function memoryReserveBytes(
   totalBytes: number,
   configuredBytes?: number,
+  reservedBytes = 0,
 ): number {
-  return configuredBytes ?? Math.max(GIB, Math.floor(totalBytes / 10));
+  return (
+    configuredBytes ?? Math.max(GIB, Math.floor(totalBytes / 10), reservedBytes)
+  );
 }
 
 /** The session capacity a host of this size gets when the operator set none:
@@ -184,6 +189,7 @@ export function hostSessionCapacity(
   const reserveBytes = memoryReserveBytes(
     totalBytes,
     cfg.session.minFreeMemoryBytes,
+    cfg.session.reservedMemoryBytes,
   );
   const sized = cfg.session.autoMaxSessions === true;
   const maxSessions = sized
