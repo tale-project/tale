@@ -50,7 +50,7 @@ function worded(text: string): string | null {
  * Why the parser refused, as the clause `trigger.cronInvalidReason` frames;
  * null when the catalog has no words for the problem.
  */
-export function cronProblemReason(
+function cronProblemReason(
   problem: CronProblem,
   { t, locale }: CronProblemTextContext,
 ): string | null {
