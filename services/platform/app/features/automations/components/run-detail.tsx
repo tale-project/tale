@@ -25,7 +25,6 @@ import {
 } from 'react';
 
 import { useAbility } from '@/app/hooks/use-ability';
-import { failureDetail } from '@/app/lib/backend/adapters';
 import type { RecordedStep } from '@/app/lib/backend/contract/automations';
 import { readStateOf } from '@/app/lib/backend/read-state';
 import { analyzeFlow } from '@/lib/engine/core/analysis/flow';
@@ -48,7 +47,11 @@ import { useRunStarterLabel } from '../hooks/use-run-starter-label';
 import { useTimelineWords } from '../hooks/use-timeline-words';
 import { automationDetailPathname } from '../lib/detail-paths';
 import { readDocument } from '../lib/document';
-import { automationErrorMessage, isMissingAutomationRead } from '../lib/errors';
+import {
+  automationErrorMessage,
+  automationFailureDetail,
+  isMissingAutomationRead,
+} from '../lib/errors';
 import { flowGraphTarget } from '../lib/flow-ids';
 import { issueImportResultSchema, issueSource } from '../lib/issue-import';
 import {
@@ -242,7 +245,7 @@ function RunDetailBody({
   const settledRunErrorRef = useRef<unknown>(undefined);
   if (runQuery.isError) {
     settledRunErrorRef.current = runQuery.error;
-    readFailureRef.current = failureDetail(runQuery.error);
+    readFailureRef.current = automationFailureDetail(runQuery.error);
   }
   const run = runQuery.data ?? null;
   const pendingAskQuery = useRunPendingAsk(organizationId, runId);

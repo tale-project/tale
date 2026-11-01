@@ -1482,3 +1482,70 @@ stepTest:
   upToTitle: 'Test up to {node}'
   upToDescription: Runs the draft up to this node — what it needs, and nothing after it. Nothing is kept.
   whenWouldSkip: Its condition is false with this data; the test ran it anyway.
+refusals:
+  APPROVAL_ALLOWANCE_INVALID: "Only a write to an outside system can be allowed to run without approval."
+  AUTOMATION_DELETED: "This automation was deleted."
+  AUTOMATION_DELIVERY_SCOPE_MISMATCH: "This delivery was already recorded in another scope, so it can't run here."
+  AUTOMATION_DEPLOYMENT_STALE:
+    general: "What is live changed in the meantime. Check the versions, then deploy again."
+    gone: "No version is live any more, but this deploy expected v{expected}. Check the versions, then deploy again."
+    moved: "v{live} is live now, but this deploy expected v{expected}. Check the versions, then deploy again."
+    movedFromNone: "v{live} is live now, but this deploy expected no live version. Check the versions, then deploy again."
+  AUTOMATION_DEPLOY_REJECTED:
+    general: "The automation's own tests fail, so it can't go live."
+    failingTests: 'v{version} of "{name}" was saved with failing tests, so it can''t go live. Fix them and save a new version.'
+  AUTOMATION_HAS_ACTIVE_RUNS: "A run of this automation is still going. Stop it, or let it finish, before you delete the automation."
+  AUTOMATION_INPUT_INVALID:
+    general: 'The input doesn''t match what this automation expects.'
+    field: 'The input doesn''t match what this automation expects. Check "{field}".'
+  AUTOMATION_INVALID: "The automation doesn't pass its checks."
+  AUTOMATION_NAME_INVALID: 'That isn''t a valid automation name: a name is lowercase segments separated by "/", such as "sales/daily-digest".'
+  AUTOMATION_NAME_RESERVED:
+    general: "That name uses a word the platform keeps for its own pages. Pick a different name."
+    first: '"{name}" can''t be an automation name: "{segment}" is a word the platform keeps for its own pages. Start the name with a different segment, for example "{example}".'
+    last: '"{name}" can''t be an automation name: "{segment}" at its end is a word the platform keeps for its own pages. End the name with a different segment, for example "{example}".'
+  AUTOMATION_NAME_TAKEN:
+    general: "An automation with that name already exists. Pick a different name."
+    named: 'An automation named "{name}" already exists. Pick a different name.'
+  AUTOMATION_NOT_DEPLOYED: "No version of this automation is live. Deploy one first, or choose a version to run."
+  AUTOMATION_NOT_FOUND: "This automation doesn't exist any more."
+  AUTOMATION_NOT_INSTALLED: "This automation isn't installed in that project."
+  AUTOMATION_PROJECT_FORBIDDEN: "The automation isn't bound to that project, so it can't run there."
+  AUTOMATION_PROJECT_SCOPE_REQUIRED: "This automation is bound to projects, so a run must name the project it runs in."
+  AUTOMATION_PROJECT_UNKNOWN: "One of the projects doesn't exist in this organization."
+  AUTOMATION_TESTS_FAILING: "The automation's own tests fail, so it can't go live. Fix the automation or its tests, save a new version and deploy that one."
+  AUTOMATION_TRIGGER_INVALID:
+    general: "This trigger can't be saved. Check its settings and try again."
+    slotFreedTaken: "Another schedule already wakes this project when an agent frees its slot. Turn that off in the other schedule first."
+    slotFreedTakenNamed: '"{name}" already wakes this project when an agent frees its slot. Turn that off in "{name}" first.'
+  AUTOMATION_VERSION_NOT_DEPLOYED: "A live run must use the live version. Deploy this version, or start a test run."
+  AUTOMATION_VERSION_STALE:
+    general: "This automation changed in the meantime. Reload it and try again."
+    saved: 'v{latest} of "{name}" was saved after your draft started from v{base}. Reload to see it, or save anyway to add your version on top of it.'
+    savedGone: '"{name}" has no version any more. Your draft started from v{base}. Save it under a new name, or save anyway to create the automation again from it.'
+    deleted: 'v{latest} of "{name}" was saved after the version this delete expected (v{expected}). Reload to see it, then delete again.'
+    deletedGone: '"{name}" has no version any more.'
+  AUTOMATION_VERSION_UNKNOWN:
+    general: "This version of the automation doesn't exist."
+    withLatest: "This version of the automation doesn't exist. The latest is v{latest}."
+  EMPTY_ANSWER: "The answer is empty."
+  HUMAN_ASK_EXPIRED: "This question expired before it was answered."
+  HUMAN_ASK_NOT_FOUND: "This question doesn't exist any more."
+  HUMAN_ASK_NOT_PENDING: "This question was already answered or closed."
+  IDEMPOTENCY_KEY_REUSED: "This request was already used for a different action. Try again."
+  IN_DOUBT_ALREADY_RESOLVED: "This step was already decided, or it no longer waits for a decision."
+  INVALID_CURSOR: "This page of the list can't be found any more. Reload the list."
+  NODE_RUN_NOT_FOUND: "This run has no record of that step."
+  PROJECT_ARCHIVED: "The project is archived. Restore it first."
+  PROJECT_NOT_FOUND: "The project doesn't exist."
+  RUN_ACTIVE: "The run is still going. Stop it, or let it finish, before you delete it."
+  RUN_COMPARE_MISMATCH: "Only two runs of the same automation can be compared."
+  RUN_NOT_FOUND: "This run doesn't exist any more."
+  RUN_NOT_IN_DOUBT: "The run isn't waiting for a decision about a step that may already have run."
+  RUN_QUARANTINED: "This can't be done while a run is on hold: the outcome of its earlier work is unknown."
+  RUN_QUARANTINE_CHANGED: "The hold changed. Reload before you request a stop."
+  TEMPLATE_ANSWERS_INVALID: "Some answers can't be used. Check them and try again."
+  TEMPLATE_CONNECTION_MISSING:
+    general: "Connect the services this template needs before the automation can start. You can create it as a draft now."
+    named: "Connect {connectors} before the automation can start. You can create it as a draft now."
+  TEMPLATE_NOT_FOUND: "There is no template by that name."

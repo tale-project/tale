@@ -1493,3 +1493,70 @@ stepTest:
   upToTitle: 'Tester jusqu’à {node}'
   upToDescription: Exécute le brouillon jusqu’à ce nœud — ce dont il a besoin, et rien après. Rien n’est conservé.
   whenWouldSkip: Sa condition est fausse avec ces données ; le test l’a exécuté quand même.
+refusals:
+  APPROVAL_ALLOWANCE_INVALID: "Seule une écriture vers un système externe peut être autorisée à s’exécuter sans approbation."
+  AUTOMATION_DELETED: "Cette automatisation a été supprimée."
+  AUTOMATION_DELIVERY_SCOPE_MISMATCH: "Cette livraison a déjà été enregistrée dans un autre périmètre, elle ne peut donc pas s’exécuter ici."
+  AUTOMATION_DEPLOYMENT_STALE:
+    general: "Ce qui est en service a changé entre-temps. Vérifie les versions, puis relance la mise en service."
+    gone: "Plus aucune version n’est en service, mais cette mise en service attendait la v{expected}. Vérifie les versions, puis relance la mise en service."
+    moved: "La v{live} est maintenant en service, mais cette mise en service attendait la v{expected}. Vérifie les versions, puis relance la mise en service."
+    movedFromNone: "La v{live} est maintenant en service, mais cette mise en service n’attendait aucune version en service. Vérifie les versions, puis relance la mise en service."
+  AUTOMATION_DEPLOY_REJECTED:
+    general: "Les propres tests de l’automatisation échouent, elle ne peut donc pas être mise en service."
+    failingTests: 'La v{version} de "{name}" a été enregistrée avec des tests en échec, elle ne peut donc pas être mise en service. Corrige-les et enregistre une nouvelle version.'
+  AUTOMATION_HAS_ACTIVE_RUNS: "Une exécution de cette automatisation est encore en cours. Arrête-la, ou laisse-la se terminer, avant de supprimer l’automatisation."
+  AUTOMATION_INPUT_INVALID:
+    general: 'L’entrée ne correspond pas à ce que cette automatisation attend.'
+    field: 'L’entrée ne correspond pas à ce que cette automatisation attend. Vérifie "{field}".'
+  AUTOMATION_INVALID: "L’automatisation ne passe pas ses vérifications."
+  AUTOMATION_NAME_INVALID: 'Ce n’est pas un nom d’automatisation valide : un nom se compose de segments en minuscules séparés par "/", par exemple "sales/daily-digest".'
+  AUTOMATION_NAME_RESERVED:
+    general: "Ce nom contient un mot que la plateforme garde pour ses propres pages. Choisis un autre nom."
+    first: '"{name}" ne peut pas être un nom d’automatisation : "{segment}" est un mot que la plateforme garde pour ses propres pages. Commence le nom par un autre segment, par exemple "{example}".'
+    last: '"{name}" ne peut pas être un nom d’automatisation : "{segment}" à la fin est un mot que la plateforme garde pour ses propres pages. Termine le nom par un autre segment, par exemple "{example}".'
+  AUTOMATION_NAME_TAKEN:
+    general: "Une automatisation portant ce nom existe déjà. Choisis un autre nom."
+    named: 'Une automatisation nommée "{name}" existe déjà. Choisis un autre nom.'
+  AUTOMATION_NOT_DEPLOYED: "Aucune version de cette automatisation n’est en service. Mets-en une en service d’abord, ou choisis une version à exécuter."
+  AUTOMATION_NOT_FOUND: "Cette automatisation n’existe plus."
+  AUTOMATION_NOT_INSTALLED: "Cette automatisation n’est pas installée dans ce projet."
+  AUTOMATION_PROJECT_FORBIDDEN: "L’automatisation n’est pas liée à ce projet, elle ne peut donc pas s’y exécuter."
+  AUTOMATION_PROJECT_SCOPE_REQUIRED: "Cette automatisation est liée à des projets, une exécution doit donc nommer le projet dans lequel elle s’exécute."
+  AUTOMATION_PROJECT_UNKNOWN: "L’un des projets n’existe pas dans cette organisation."
+  AUTOMATION_TESTS_FAILING: "Les propres tests de l’automatisation échouent, elle ne peut donc pas être mise en service. Corrige l’automatisation ou ses tests, enregistre une nouvelle version et mets-la en service."
+  AUTOMATION_TRIGGER_INVALID:
+    general: "Ce déclencheur ne peut pas être enregistré. Vérifie ses réglages et réessaie."
+    slotFreedTaken: "Une autre planification réveille déjà ce projet quand un agent libère sa place. Désactive d’abord cette option dans l’autre planification."
+    slotFreedTakenNamed: '"{name}" réveille déjà ce projet quand un agent libère sa place. Désactive d’abord cette option dans "{name}".'
+  AUTOMATION_VERSION_NOT_DEPLOYED: "Une exécution réelle doit utiliser la version en service. Mets cette version en service, ou lance un essai."
+  AUTOMATION_VERSION_STALE:
+    general: "Cette automatisation a changé entre-temps. Recharge-la et réessaie."
+    saved: 'La v{latest} de "{name}" a été enregistrée après que ton brouillon est parti de la v{base}. Recharge pour la voir, ou enregistre quand même pour ajouter ta version par-dessus.'
+    savedGone: '"{name}" n’a plus aucune version. Ton brouillon partait de la v{base}. Enregistre-le sous un nouveau nom, ou enregistre quand même pour recréer l’automatisation à partir de lui.'
+    deleted: 'La v{latest} de "{name}" a été enregistrée après la version qu’attendait cette suppression (la v{expected}). Recharge pour la voir, puis supprime à nouveau.'
+    deletedGone: '"{name}" n’a plus aucune version.'
+  AUTOMATION_VERSION_UNKNOWN:
+    general: "Cette version de l’automatisation n’existe pas."
+    withLatest: "Cette version de l’automatisation n’existe pas. La plus récente est la v{latest}."
+  EMPTY_ANSWER: "La réponse est vide."
+  HUMAN_ASK_EXPIRED: "Cette question a expiré avant d’avoir reçu une réponse."
+  HUMAN_ASK_NOT_FOUND: "Cette question n’existe plus."
+  HUMAN_ASK_NOT_PENDING: "Cette question a déjà reçu une réponse ou a été fermée."
+  IDEMPOTENCY_KEY_REUSED: "Cette requête a déjà servi pour une autre action. Réessaie."
+  IN_DOUBT_ALREADY_RESOLVED: "Cette étape a déjà été tranchée, ou elle n’attend plus de décision."
+  INVALID_CURSOR: "Cette page de la liste est introuvable. Recharge la liste."
+  NODE_RUN_NOT_FOUND: "Cette exécution n’a aucune trace de cette étape."
+  PROJECT_ARCHIVED: "Le projet est archivé. Restaure-le d’abord."
+  PROJECT_NOT_FOUND: "Le projet n’existe pas."
+  RUN_ACTIVE: "L’exécution est encore en cours. Arrête-la, ou laisse-la se terminer, avant de la supprimer."
+  RUN_COMPARE_MISMATCH: "Seules deux exécutions de la même automatisation peuvent être comparées."
+  RUN_NOT_FOUND: "Cette exécution n’existe plus."
+  RUN_NOT_IN_DOUBT: "L’exécution n’attend aucune décision sur une étape qui a peut-être déjà été exécutée."
+  RUN_QUARANTINED: "C’est impossible tant qu’une exécution est suspendue : le résultat de son travail précédent est inconnu."
+  RUN_QUARANTINE_CHANGED: "La suspension a changé. Recharge avant de demander un arrêt."
+  TEMPLATE_ANSWERS_INVALID: "Certaines réponses ne peuvent pas être utilisées. Vérifie-les et réessaie."
+  TEMPLATE_CONNECTION_MISSING:
+    general: "Connecte les services dont ce modèle a besoin avant que l’automatisation puisse démarrer. Tu peux déjà la créer comme brouillon."
+    named: "Connecte {connectors} avant que l’automatisation puisse démarrer. Tu peux déjà la créer comme brouillon."
+  TEMPLATE_NOT_FOUND: "Il n’existe aucun modèle portant ce nom."

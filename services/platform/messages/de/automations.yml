@@ -1491,3 +1491,70 @@ stepTest:
   upToTitle: 'Bis {node} testen'
   upToDescription: Führt den Entwurf bis zu dieser Node aus – was sie braucht, und nichts danach. Nichts wird gespeichert.
   whenWouldSkip: Die Bedingung ist mit diesen Daten falsch; der Test hat die Node trotzdem ausgeführt.
+refusals:
+  APPROVAL_ALLOWANCE_INVALID: "Nur ein Schreibvorgang in ein externes System kann ohne Freigabe erlaubt werden."
+  AUTOMATION_DELETED: "Diese Automatisierung wurde gelöscht."
+  AUTOMATION_DELIVERY_SCOPE_MISMATCH: "Diese Zustellung wurde bereits in einem anderen Bereich erfasst und kann hier nicht laufen."
+  AUTOMATION_DEPLOYMENT_STALE:
+    general: "Was live ist, hat sich inzwischen geändert. Prüfe die Versionen und schalte dann erneut live."
+    gone: "Es ist keine Version mehr live, dieses Live-Schalten hat aber v{expected} erwartet. Prüfe die Versionen und schalte dann erneut live."
+    moved: "Jetzt ist v{live} live, dieses Live-Schalten hat aber v{expected} erwartet. Prüfe die Versionen und schalte dann erneut live."
+    movedFromNone: "Jetzt ist v{live} live, dieses Live-Schalten hat aber keine Live-Version erwartet. Prüfe die Versionen und schalte dann erneut live."
+  AUTOMATION_DEPLOY_REJECTED:
+    general: "Die eigenen Tests der Automatisierung schlagen fehl, deshalb kann sie nicht live gehen."
+    failingTests: 'v{version} von "{name}" wurde mit fehlschlagenden Tests gespeichert und kann deshalb nicht live gehen. Behebe sie und speichere eine neue Version.'
+  AUTOMATION_HAS_ACTIVE_RUNS: "Ein Lauf dieser Automatisierung läuft noch. Stoppe ihn oder lass ihn zu Ende laufen, bevor du die Automatisierung löschst."
+  AUTOMATION_INPUT_INVALID:
+    general: 'Die Eingabe passt nicht zu dem, was diese Automatisierung erwartet.'
+    field: 'Die Eingabe passt nicht zu dem, was diese Automatisierung erwartet. Prüfe "{field}".'
+  AUTOMATION_INVALID: "Die Automatisierung besteht ihre Prüfungen nicht."
+  AUTOMATION_NAME_INVALID: 'Das ist kein gültiger Name für eine Automatisierung: Ein Name besteht aus Segmenten in Kleinbuchstaben, getrennt durch "/", etwa "sales/daily-digest".'
+  AUTOMATION_NAME_RESERVED:
+    general: "Dieser Name enthält ein Wort, das die Plattform für eigene Seiten braucht. Wähle einen anderen Namen."
+    first: '"{name}" kann kein Name einer Automatisierung sein: "{segment}" ist ein Wort, das die Plattform für eigene Seiten braucht. Beginne den Namen mit einem anderen Segment, etwa "{example}".'
+    last: '"{name}" kann kein Name einer Automatisierung sein: "{segment}" am Ende ist ein Wort, das die Plattform für eigene Seiten braucht. Beende den Namen mit einem anderen Segment, etwa "{example}".'
+  AUTOMATION_NAME_TAKEN:
+    general: "Eine Automatisierung mit diesem Namen gibt es bereits. Wähle einen anderen Namen."
+    named: 'Eine Automatisierung namens "{name}" gibt es bereits. Wähle einen anderen Namen.'
+  AUTOMATION_NOT_DEPLOYED: "Keine Version dieser Automatisierung ist live. Schalte zuerst eine live oder wähle eine Version für den Lauf."
+  AUTOMATION_NOT_FOUND: "Diese Automatisierung gibt es nicht mehr."
+  AUTOMATION_NOT_INSTALLED: "Diese Automatisierung ist in diesem Projekt nicht installiert."
+  AUTOMATION_PROJECT_FORBIDDEN: "Die Automatisierung ist nicht an dieses Projekt gebunden und kann dort nicht laufen."
+  AUTOMATION_PROJECT_SCOPE_REQUIRED: "Diese Automatisierung ist an Projekte gebunden, deshalb muss ein Lauf das Projekt nennen, in dem er läuft."
+  AUTOMATION_PROJECT_UNKNOWN: "Eines der Projekte gibt es in dieser Organisation nicht."
+  AUTOMATION_TESTS_FAILING: "Die eigenen Tests der Automatisierung schlagen fehl, deshalb kann sie nicht live gehen. Behebe die Automatisierung oder ihre Tests, speichere eine neue Version und schalte diese live."
+  AUTOMATION_TRIGGER_INVALID:
+    general: "Dieser Trigger kann nicht gespeichert werden. Prüfe seine Einstellungen und versuche es erneut."
+    slotFreedTaken: "Ein anderer Zeitplan weckt dieses Projekt bereits, wenn ein Agent seinen Platz freigibt. Schalte das zuerst im anderen Zeitplan aus."
+    slotFreedTakenNamed: '"{name}" weckt dieses Projekt bereits, wenn ein Agent seinen Platz freigibt. Schalte das zuerst in "{name}" aus.'
+  AUTOMATION_VERSION_NOT_DEPLOYED: "Ein Live-Lauf muss die Live-Version verwenden. Schalte diese Version live oder starte einen Testlauf."
+  AUTOMATION_VERSION_STALE:
+    general: "Diese Automatisierung hat sich inzwischen geändert. Lade sie neu und versuche es erneut."
+    saved: 'v{latest} von "{name}" wurde gespeichert, nachdem dein Entwurf von v{base} ausging. Lade neu, um sie zu sehen, oder speichere trotzdem, um deine Version darüber anzulegen.'
+    savedGone: '"{name}" hat keine Version mehr. Dein Entwurf ging von v{base} aus. Speichere ihn unter einem neuen Namen oder speichere trotzdem, um die Automatisierung daraus neu anzulegen.'
+    deleted: 'v{latest} von "{name}" wurde nach der Version gespeichert, die dieses Löschen erwartet hat (v{expected}). Lade neu, um sie zu sehen, und lösche dann erneut.'
+    deletedGone: '"{name}" hat keine Version mehr.'
+  AUTOMATION_VERSION_UNKNOWN:
+    general: "Diese Version der Automatisierung gibt es nicht."
+    withLatest: "Diese Version der Automatisierung gibt es nicht. Die neueste ist v{latest}."
+  EMPTY_ANSWER: "Die Antwort ist leer."
+  HUMAN_ASK_EXPIRED: "Diese Frage ist abgelaufen, bevor sie beantwortet wurde."
+  HUMAN_ASK_NOT_FOUND: "Diese Frage gibt es nicht mehr."
+  HUMAN_ASK_NOT_PENDING: "Diese Frage wurde bereits beantwortet oder geschlossen."
+  IDEMPOTENCY_KEY_REUSED: "Diese Anfrage wurde schon für eine andere Aktion verwendet. Versuche es erneut."
+  IN_DOUBT_ALREADY_RESOLVED: "Über diesen Schritt wurde bereits entschieden, oder er wartet nicht mehr auf eine Entscheidung."
+  INVALID_CURSOR: "Diese Seite der Liste ist nicht mehr auffindbar. Lade die Liste neu."
+  NODE_RUN_NOT_FOUND: "Dieser Lauf hat keinen Eintrag zu diesem Schritt."
+  PROJECT_ARCHIVED: "Das Projekt ist archiviert. Stelle es zuerst wieder her."
+  PROJECT_NOT_FOUND: "Das Projekt gibt es nicht."
+  RUN_ACTIVE: "Der Lauf läuft noch. Stoppe ihn oder lass ihn zu Ende laufen, bevor du ihn löschst."
+  RUN_COMPARE_MISMATCH: "Nur zwei Läufe derselben Automatisierung lassen sich vergleichen."
+  RUN_NOT_FOUND: "Diesen Lauf gibt es nicht mehr."
+  RUN_NOT_IN_DOUBT: "Der Lauf wartet auf keine Entscheidung über einen Schritt, der vielleicht schon gelaufen ist."
+  RUN_QUARANTINED: "Das geht nicht, solange ein Lauf zurückgehalten ist: Das Ergebnis seiner bisherigen Arbeit ist unbekannt."
+  RUN_QUARANTINE_CHANGED: "Die Sperre hat sich geändert. Lade neu, bevor du einen Stopp anforderst."
+  TEMPLATE_ANSWERS_INVALID: "Einige Antworten können nicht verwendet werden. Prüfe sie und versuche es erneut."
+  TEMPLATE_CONNECTION_MISSING:
+    general: "Verbinde die Dienste, die diese Vorlage braucht, bevor die Automatisierung starten kann. Als Entwurf kannst du sie schon jetzt anlegen."
+    named: "Verbinde {connectors}, bevor die Automatisierung starten kann. Als Entwurf kannst du sie schon jetzt anlegen."
+  TEMPLATE_NOT_FOUND: "Eine Vorlage mit diesem Namen gibt es nicht."
