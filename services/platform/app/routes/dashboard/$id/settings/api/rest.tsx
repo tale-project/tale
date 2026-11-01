@@ -2,6 +2,8 @@ import { createFileRoute } from '@tanstack/react-router';
 import { Link } from '@tanstack/react-router';
 
 import { ApiKeysTable } from '@/app/features/settings/api-keys/components/api-keys-table';
+import { PersonalKeysNotice } from '@/app/features/settings/api-keys/components/personal-keys-notice';
+import { PersonalKeysPolicyEditor } from '@/app/features/settings/api-keys/components/personal-keys-policy-editor';
 import {
   apiKeysQuery,
   useApiKeys,
@@ -50,6 +52,12 @@ function ApiRestPage() {
   // floor fits it; the table stays non-sticky per #2381.
   return (
     <SettingsPage>
+      {/* Says when the keys the reader makes for themselves don't work in
+          this organization; an Owner or Admin reads it in the setting below
+          instead, so it waits until the reader is known. */}
+      {viewer !== undefined && !viewer.isAdmin && (
+        <PersonalKeysNotice organizationId={organizationId} />
+      )}
       <SettingsSection
         title={tNav('apiKeys')}
         description={
@@ -80,6 +88,11 @@ function ApiRestPage() {
           onRetry={() => void refetch()}
         />
       </SettingsSection>
+      {/* Whether the members' own keys work here is an Owner's or Admin's
+          call; the switch checks the ability itself too. */}
+      {viewer?.isAdmin === true && (
+        <PersonalKeysPolicyEditor organizationId={organizationId} />
+      )}
     </SettingsPage>
   );
 }
