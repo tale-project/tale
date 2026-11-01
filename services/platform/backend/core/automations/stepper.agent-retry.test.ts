@@ -11,6 +11,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { AppError } from '../../../lib/shared/errors/app-error';
 import { functionRefName } from '../../../lib/shared/handlers/function-refs';
+import {
+  SANDBOX_WORKSPACE_DESTROYED_CODE,
+  SANDBOX_WORKSPACE_DESTROYED_MESSAGE,
+  WORKFLOW_DESTROY_PENDING_MESSAGE,
+} from '../sandbox/run_workspace_destroy.ts';
 import { SANDBOX_DESTROY_PENDING_MESSAGE } from '../sandbox/session_constants.ts';
 import { AUTO_RETRY_MAX_ATTEMPTS } from '../tasks/task_auto_retry.ts';
 import {
@@ -735,9 +740,41 @@ describe('the stepper re-kicking a failed agent attempt', () => {
       failureCode: 'start_failed',
     });
     expect(String(finished[0]?.detail)).toContain(
-      `the agent turn could not start: ${SANDBOX_DESTROY_PENDING_MESSAGE}`,
+      `the agent turn could not start: ${WORKFLOW_DESTROY_PENDING_MESSAGE}`,
     );
     expect(String(finished[0]?.detail)).not.toContain('sandbox room');
+    expect(String(finished[0]?.detail)).not.toContain('attempts');
+  });
+
+  it('fails a step whose workspace was deleted after the run worked in it at once, never retried in a fresh, empty workspace', async () => {
+    // What the start settles when the reserve refused the run's session
+    // once its Destroy had settled (#4159).
+    const refusal = classifyWorkflowStartFailure(
+      Object.assign(new Error(SANDBOX_WORKSPACE_DESTROYED_MESSAGE), {
+        code: SANDBOX_WORKSPACE_DESTROYED_CODE,
+      }),
+      Date.now(),
+    );
+    const { ctx, kicks, suspended, finished } = harness(
+      parkedAttempt({
+        launchedAt: undefined,
+        result: { errored: true, ...refusal, text: '', files: [] },
+      }),
+    );
+
+    await stepRunImpl(ctx, RUN);
+
+    expect(kicks).toEqual([]);
+    expect(suspended).toEqual([]);
+    expect(finished[0]).toMatchObject({
+      status: 'failed',
+      failureCode: 'start_failed',
+    });
+    expect(String(finished[0]?.detail)).toContain(
+      `the agent turn could not start: ${SANDBOX_WORKSPACE_DESTROYED_MESSAGE}`,
+    );
+    expect(String(finished[0]?.detail)).not.toContain('sandbox room');
+    expect(String(finished[0]?.detail)).not.toContain('attempts');
   });
 
   it('keeps saying a step waits for room while its kicked start has not launched, and an agent works once it has', async () => {
