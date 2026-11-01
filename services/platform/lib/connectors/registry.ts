@@ -61,6 +61,7 @@ function toConnector(
           timeoutMs: MOCK_TIMEOUT_MS,
         },
       ),
+    ...(action.scenarios !== undefined && { scenarios: action.scenarios }),
   };
 }
 

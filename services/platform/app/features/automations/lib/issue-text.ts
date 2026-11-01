@@ -87,6 +87,7 @@ const LIST_PARAMS: ReadonlySet<string> = new Set([
   'nodes',
   'paths',
   'possible',
+  'scenarios',
   'unknown',
 ]);
 

@@ -132,6 +132,9 @@ const REDACTED_PLACES_LISTED = 100;
 /** The words the engine adds to a failure a test simulated. */
 const SIMULATED_SUFFIX = ' (simulated by the test)';
 const SIMULATED_EMPTY = 'a failure simulated by the test';
+/** …and to the error of a connector scenario a test picked. */
+const SCENARIO_SUFFIX =
+  / \(the "[a-z][a-z0-9_]*" scenario of [^\s,()]+, simulated by the test\)$/;
 
 /** What one step of the run did, as far as a test can stand in for it. */
 type Step =
@@ -216,7 +219,7 @@ function failureMessage(message: string): string {
   if (own === SIMULATED_EMPTY) own = '';
   else if (own.endsWith(SIMULATED_SUFFIX)) {
     own = own.slice(0, -SIMULATED_SUFFIX.length);
-  }
+  } else own = own.replace(SCENARIO_SUFFIX, '');
   return own.length > BENCH_LIMITS.failureChars
     ? reportText(own, BENCH_LIMITS.failureChars - 1)
     : storableText(own);

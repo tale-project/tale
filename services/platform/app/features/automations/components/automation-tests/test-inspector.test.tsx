@@ -154,6 +154,54 @@ const RECORD = {
   details: [],
 } as unknown as TransientRecord;
 
+/** A run's record with a step per node, in the status given: all a result
+ * reads of it to say why a stand-in went unused. */
+function recordOf(steps: Record<string, string>): TransientRecord {
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- a record built by hand, with only its steps' nodes and statuses
+  return {
+    view: {
+      nodes: Object.entries(steps).map(([nodeId, status]) => ({
+        path: nodeId,
+        nodeId,
+        type: 'transform',
+        status,
+        meta: {},
+        activeMs: 0,
+      })),
+    },
+    details: [],
+  } as unknown as TransientRecord;
+}
+
+/** The failed row with these stand-ins unused, and its run's record — or,
+ * without one, a run too large to keep its steps. */
+function withUnused(unusedMocks: string[], record?: TransientRecord): TestRow {
+  const outcome = FAILED.outcome;
+  if (outcome.kind !== 'run') throw new Error('a run outcome');
+  const { run: _run, ...result } = outcome.result;
+  return {
+    ...FAILED,
+    outcome: {
+      ...outcome,
+      result: {
+        ...result,
+        unusedMocks,
+        ...(record === undefined
+          ? { detailOmitted: true as const }
+          : { run: { status: 'success' as const, record } }),
+      },
+    },
+  };
+}
+
+/** A test that simulates the total and picks a scenario for the rates. */
+const SCENARIO_TEST = {
+  name: 'triples seven',
+  input: { n: 7 },
+  mocks: { total: { total: 21 } },
+  scenarios: { fetch_rates: 'empty' },
+};
+
 describe('the test inspector', () => {
   it('lays the test’s run over the canvas when its result keeps the steps', async () => {
     const onShowRun = vi.fn();
@@ -207,6 +255,51 @@ describe('the test inspector', () => {
       screen.getByText('Not used: Fetch rates. The run skipped them.'),
     ).toBeVisible();
     expect(screen.getByText('Simulated: Fetch rates')).toBeVisible();
+  });
+
+  it('lists a picked scenario as simulated, and says a call it never matched left it unused', () => {
+    renderFields(
+      withUnused(
+        ['fetch_rates', 'total'],
+        recordOf({ fetch_rates: 'succeeded', total: 'skipped' }),
+      ),
+      { test: SCENARIO_TEST },
+    );
+    expect(screen.getByText('Simulated: Total and Fetch rates')).toBeVisible();
+    // The simulated total's node never ran; the rates' node ran, and none
+    // of its calls matched the scenario.
+    expect(
+      screen.getByText('Not used: Total. The run skipped them.'),
+    ).toBeVisible();
+    expect(
+      screen.getByText(
+        'Not used: the scenario picked for Fetch rates. A scenario answers only the calls whose input matches it, and none did.',
+      ),
+    ).toBeVisible();
+  });
+
+  it('says a picked scenario went unused because the run skipped its node, when the steps say so', () => {
+    const { unmount } = renderFields(
+      withUnused(
+        ['fetch_rates'],
+        recordOf({ fetch_rates: 'skipped', total: 'succeeded' }),
+      ),
+      { test: SCENARIO_TEST },
+    );
+    expect(
+      screen.getByText('Not used: Fetch rates. The run skipped them.'),
+    ).toBeVisible();
+    expect(screen.queryByText(/scenario picked for/)).not.toBeInTheDocument();
+    unmount();
+    // A run too large to keep its steps cannot say which: no call matched
+    // the scenario either way.
+    renderFields(withUnused(['fetch_rates']), { test: SCENARIO_TEST });
+    expect(
+      screen.getByText(
+        /^Not used: the scenario picked for Fetch rates\. A scenario answers/,
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(/The run skipped them/)).not.toBeInTheDocument();
   });
 
   it('takes the test as YAML, as written, once it parses', async () => {
@@ -311,6 +404,38 @@ describe('the test inspector', () => {
       expect(TEST.mocks).toEqual({ fetch_rates: { chf: 1 } });
     },
   );
+
+  it('offers no other stand-in for a node the test picks a scenario for, and keeps the pick', async () => {
+    const replace = vi.fn<Replace>();
+    const picked = {
+      name: 'triples seven',
+      input: { n: 7 },
+      scenarios: { fetch_rates: 'empty' },
+    };
+    const { user } = renderFields(FAILED, {
+      tab: 'setup',
+      replace,
+      test: picked,
+    });
+    await user.click(
+      screen.getByRole('combobox', { name: 'Simulate a failure' }),
+    );
+    expect(
+      screen.queryByRole('option', { name: 'Fetch rates' }),
+    ).not.toBeInTheDocument();
+    await user.keyboard('{Escape}');
+    await user.click(
+      screen.getByRole('combobox', { name: "Simulate a node's output" }),
+    );
+    expect(
+      screen.queryByRole('option', { name: 'Fetch rates' }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole('option', { name: 'Total' }));
+    expect(replace).toHaveBeenLastCalledWith(0, {
+      ...picked,
+      mocks: { total: {} },
+    });
+  });
 
   it('keeps a saved mock until its author explicitly copies the last run output', async () => {
     const replace = vi.fn<Replace>();

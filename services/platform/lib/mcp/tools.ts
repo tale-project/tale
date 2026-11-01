@@ -338,7 +338,7 @@ const METHOD_DESCRIPTIONS: Record<Method, string> = {
   validate_automation:
     'Validate an automation document without saving it: its errors and warnings, each with a code, a location and params, plus the flow analysis and the inferred types.',
   run_automation:
-    'Run an automation document directly against the deterministic mocks. mocks and failures stand in for nodes, and upTo or only runs one step on its own: the answer says where the run stood in (focus) and which stand-ins it never used (unusedMocks).',
+    'Run an automation document directly against the deterministic mocks. mocks and failures stand in for nodes, scenarios pick a case a connector action ships (get_catalog lists them), and upTo or only runs one step on its own: the answer says where the run stood in (focus) and which stand-ins it never used (unusedMocks).',
   test_automation:
     "Run an automation's own acceptance tests — all of them, or those named in tests — of a draft (automation), or of a saved version (name, version), whose whole-suite verdict is then recorded on it. detail adds what each run returned, did and went through.",
   save_automation:

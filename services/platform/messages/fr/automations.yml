@@ -1314,6 +1314,7 @@ tests:
     failureMessage: '{node} échoue avec'
     failureDefault: échec simulé
     failuresAdd: Simuler un échec
+    scenarios: Scénarios
     expect: Attentes
     outputModeLabel: Comment la sortie est vérifiée
     outputMode:
@@ -1369,6 +1370,7 @@ tests:
     nothingHappened: Aucune action de ce type n’a eu lieu pendant l’exécution.
     simulated: 'Simulés : {nodes}'
     unused: 'Non utilisés : {nodes}. L’exécution les a ignorés.'
+    unmatched: '{count, plural, one {Non utilisé : le scénario choisi pour {nodes}. Un scénario ne répond qu’aux appels dont l’entrée lui correspond, et aucun ne correspondait.} other {Non utilisés : les scénarios choisis pour {nodes}. Un scénario ne répond qu’aux appels dont l’entrée lui correspond, et aucun ne correspondait.}}'
     showNode: 'Afficher {node}'
     technical: Détails techniques
   failure:

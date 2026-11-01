@@ -37,6 +37,7 @@ import {
   failuresSchema,
   mocksSchema,
   runBenchSchema,
+  scenariosSchema,
 } from './automation-bench';
 import { issueSchema } from './automation-issues';
 
@@ -99,6 +100,7 @@ export const automationTestSchema = z.looseObject({
   input: z.json(),
   mocks: mocksSchema.optional(),
   failures: failuresSchema.optional(),
+  scenarios: scenariosSchema.optional(),
   expect: testExpectationSchema.optional(),
 });
 

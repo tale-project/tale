@@ -86,8 +86,8 @@ codes:
   TESTS_INVALID:
     title: Test ist fehlerhaft aufgebaut
     explanation: Jeder Test hat einen Namen, eine Eingabe und optional seine Erwartung. Ein Test in einer anderen Form kann nicht laufen.
-    cause: '{test, select, none {Das Feld tests ist keine Liste von Tests.} other {{part, select, description {Die Beschreibung von Test {testNumber} ist kein Text.} mocks {In Test {testNumber} gibt mocks nicht unter der ID jeder Node ihre simulierte Ausgabe an.} failures {In Test {testNumber} gibt failures nicht unter der ID jeder Node ihre Fehlermeldung an, als Text mit höchstens 2000 Zeichen.} effects {In Test {testNumber} sind die erwarteten Aktionen keine Liste.} effect {In Test {testNumber} nennt eine erwartete Aktion ihren Connector nicht.} effectInput {In Test {testNumber} gibt eine erwartete Aktion sowohl input als auch inputIncludes an.} effectAbsent {In Test {testNumber} setzt eine erwartete Aktion absent auf etwas anderes als true.} nodes {In Test {testNumber} wird von einer Node etwas anderes als ran, skipped oder failed erwartet.} failure {In Test {testNumber} ist der erwartete Fehler nicht als node und message geschrieben.} failureWithOutput {Test {testNumber} erwartet, dass der Lauf fehlschlägt, und zugleich eine Ausgabe.} other {{keysCount, plural, =0 {Test {testNumber} ist nicht als name, input und expect geschrieben.} one {Der Teil expect von Test {testNumber} hat einen unbekannten Schlüssel: {keysList}.} other {Der Teil expect von Test {testNumber} hat unbekannte Schlüssel: {keysList}.}}}}}}'
-    fix: Schreibe jeden Test als name und input, bei Bedarf mit description, mocks, failures und expect.
+    cause: '{test, select, none {Das Feld tests ist keine Liste von Tests.} other {{part, select, description {Die Beschreibung von Test {testNumber} ist kein Text.} mocks {In Test {testNumber} gibt mocks nicht unter der ID jeder Node ihre simulierte Ausgabe an.} failures {In Test {testNumber} gibt failures nicht unter der ID jeder Node ihre Fehlermeldung an, als Text mit höchstens 2000 Zeichen.} scenarios {In Test {testNumber} gibt scenarios nicht unter der ID jeder Node den Namen ihres Szenarios an, als Text mit höchstens 50 Zeichen.} effects {In Test {testNumber} sind die erwarteten Aktionen keine Liste.} effect {In Test {testNumber} nennt eine erwartete Aktion ihren Connector nicht.} effectInput {In Test {testNumber} gibt eine erwartete Aktion sowohl input als auch inputIncludes an.} effectAbsent {In Test {testNumber} setzt eine erwartete Aktion absent auf etwas anderes als true.} nodes {In Test {testNumber} wird von einer Node etwas anderes als ran, skipped oder failed erwartet.} failure {In Test {testNumber} ist der erwartete Fehler nicht als node und message geschrieben.} failureWithOutput {Test {testNumber} erwartet, dass der Lauf fehlschlägt, und zugleich eine Ausgabe.} other {{keysCount, plural, =0 {Test {testNumber} ist nicht als name, input und expect geschrieben.} one {Der Teil expect von Test {testNumber} hat einen unbekannten Schlüssel: {keysList}.} other {Der Teil expect von Test {testNumber} hat unbekannte Schlüssel: {keysList}.}}}}}}'
+    fix: Schreibe jeden Test als name und input, bei Bedarf mit description, mocks, failures, scenarios und expect.
   NODE_NOT_OBJECT:
     title: Node ist kein Objekt
     explanation: Jeder Eintrag in nodes ist ein Objekt mit mindestens einer id und einem type.
@@ -362,7 +362,7 @@ codes:
     title: Unbekanntes Testfeld
     explanation: Ein Test hat ein Feld, das Tale nicht kennt, deshalb wird es ignoriert.
     cause: 'Der Test „{name}“ hat „{field}“{effect, select, none {} other { in einer erwarteten Aktion}}.'
-    fix: '{suggestion, select, none {{effect, select, none {Entferne es. Ein Test hat name, description, input, mocks, failures und expect.} other {Entferne es. Eine erwartete Aktion hat connector, node, input, inputIncludes und absent.}}} other {Meintest du „{suggestion}“?}}'
+    fix: '{suggestion, select, none {{effect, select, none {Entferne es. Ein Test hat name, description, input, mocks, failures, scenarios und expect.} other {Entferne es. Eine erwartete Aktion hat connector, node, input, inputIncludes und absent.}}} other {Meintest du „{suggestion}“?}}'
   TESTS_NAME_DUPLICATE:
     title: Zwei Tests mit gleichem Namen
     explanation: Ergebnisse werden nach Namen aufgelistet, deshalb lassen sich zwei Tests mit einem Namen schwer unterscheiden.
@@ -370,14 +370,24 @@ codes:
     fix: Gib jedem Test einen eigenen Namen.
   TESTS_MOCK_UNKNOWN_NODE:
     title: Simuliert eine Node, die es nicht gibt
-    explanation: Ein Test simuliert Ausgabe oder Fehler einer Node, die diese Automatisierung nicht hat, deshalb kann der Test nicht laufen.
-    cause: Der Test „{name}“ simuliert „{node}“.
+    explanation: Ein Test simuliert Ausgabe oder Fehler einer Node, die diese Automatisierung nicht hat, oder wählt ein Szenario für sie, deshalb kann der Test nicht laufen.
+    cause: '{field, select, scenarios {Der Test „{name}“ wählt ein Szenario für „{node}“.} other {Der Test „{name}“ simuliert „{node}“.}}'
     fix: '{suggestion, select, none {Verwende die ID einer der Nodes.} other {Meintest du „{suggestion}“?}}'
   TESTS_MOCK_CONFLICT:
     title: Ausgabe und Fehler für eine Node
     explanation: Eine Node kann entweder eine simulierte Ausgabe zurückgeben oder fehlschlagen, nicht beides.
     cause: Der Test „{name}“ macht beides für {nodeLabel}.
     fix: Behalte die simulierte Ausgabe oder den simulierten Fehler.
+  TESTS_SCENARIO_CONFLICT:
+    title: Szenario und Simulation für eine Node
+    explanation: Ein Test kann für eine Node entweder ein Szenario wählen oder ihre Ausgabe oder ihren Fehler simulieren, nicht beides.
+    cause: '{field, select, mocks {Der Test „{name}“ wählt ein Szenario für {nodeLabel} und simuliert zugleich ihre Ausgabe.} other {Der Test „{name}“ wählt ein Szenario für {nodeLabel} und simuliert zugleich ihren Fehler.}}'
+    fix: '{field, select, mocks {Behalte das Szenario oder die simulierte Ausgabe.} other {Behalte das Szenario oder den simulierten Fehler.}}'
+  TESTS_SCENARIO_UNKNOWN:
+    title: Wählt ein Szenario, das es nicht gibt
+    explanation: Ein Test wählt ein Szenario, das die Connector-Aktion der Node nicht mitliefert, deshalb kann der Test nicht laufen.
+    cause: 'Der Test „{name}“ wählt „{scenario}“ für {nodeLabel} ({type}).{scenariosCount, plural, =0 { Diese Node hat keine Szenarien zur Auswahl.} one { Das einzige Szenario dieser Node ist {scenariosList}.} other { Die Szenarien dieser Node sind {scenariosList}.}}'
+    fix: '{suggestion, select, none {{scenariosCount, plural, =0 {Simuliere stattdessen ihre Ausgabe mit mocks oder ihren Fehler mit failures.} one {Wähle ihr einziges Szenario.} other {Wähle eines ihrer Szenarien.}}} other {Meintest du „{suggestion}“?}}'
   TESTS_MOCK_NOT_LIST:
     title: Simulierte Ausgabe braucht eine Liste
     explanation: Diese Node läuft einmal pro Element, deshalb ist ihre simulierte Ausgabe eine Liste mit einem Eintrag pro Element.

@@ -1,9 +1,9 @@
 /**
  * Where a test run's input can start from: a test's input, with the
- * outputs and failures the test stands in for; a recent run's input; the
- * input the bound trigger hands a run; nothing; or a placeholder for each
- * field the input schema requires. The run dialog offers them in a menu,
- * and choosing one replaces the input.
+ * outputs, failures and scenarios the test stands in for; a recent run's
+ * input; the input the bound trigger hands a run; nothing; or a
+ * placeholder for each field the input schema requires. The run dialog
+ * offers them in a menu, and choosing one replaces the input.
  */
 
 import { jsonNormalize } from '@tale/ui/data/stable-stringify';
@@ -17,6 +17,9 @@ import { readTestForm } from './test-form';
 export interface SourceBench {
   mocks?: Record<string, Json>;
   failures?: Record<string, string>;
+  /** The scenario of its connector action each node answers with, by
+   * name. */
+  scenarios?: Record<string, string>;
 }
 
 /** A stand-in output as JSON: what the test's document holds. */
@@ -69,6 +72,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+/** The scenario a test picks for each node, by name: the form shows
+ * none, and a pick that is not a name is left to the test's own checks. */
+function scenariosOf(test: unknown): Record<string, string> {
+  if (!isRecord(test) || !isRecord(test.scenarios)) return {};
+  return Object.fromEntries(
+    Object.entries(test.scenarios).flatMap(([node, name]) =>
+      typeof name === 'string' ? [[node, name] as const] : [],
+    ),
+  );
+}
+
 /** What a test stands in for, as a try sends it; none without stand-ins. */
 export function benchOfTest(test: unknown): SourceBench | undefined {
   const form = readTestForm(test);
@@ -76,9 +90,11 @@ export function benchOfTest(test: unknown): SourceBench | undefined {
     form.mocks.map(([node, output]) => [node, asJson(output)]),
   );
   const failures = Object.fromEntries(form.failures);
+  const scenarios = scenariosOf(test);
   const bench: SourceBench = {
     ...(Object.keys(mocks).length > 0 && { mocks }),
     ...(Object.keys(failures).length > 0 && { failures }),
+    ...(Object.keys(scenarios).length > 0 && { scenarios }),
   };
   return Object.keys(bench).length === 0 ? undefined : bench;
 }

@@ -1,7 +1,8 @@
 /**
  * The test bench: what stands in for each node of a run — its call as
- * written, an output or a failure a test simulates, data a step test pins,
- * or nothing at all (a node a step test leaves out).
+ * written, an output or a failure a test simulates, a scenario of its
+ * connector action the test picks, data a step test pins, or nothing at all
+ * (a node a step test leaves out).
  *
  * A stand-in replaces a node's CALL, never the node. The skip rules apply
  * as written, the node's input is still resolved (and checked against its
@@ -16,14 +17,21 @@
  * pinned data — every node it reads is given as data and never evaluated —
  * and `item` picks one item of a forEach node run that way.
  *
+ * A scenario is a case the node's connector action ships (`scenarios` in
+ * its catalog entry): it answers the calls whose input matches its `when`
+ * with its output, or fails them with its error, classified as a live
+ * call's failure; any other call of the node gets the action's mock.
+ *
  * Stand-ins address the automation's own nodes; a simulated subautomation
  * node replaces the whole called automation. Pure and browser-safe: the
  * editor plans a bench exactly as the executors run one.
  */
 
+import { stableStringify } from '@tale/ui/data/stable-stringify';
 import { kindOf } from '@tale/ui/data/value-summary';
 
 import { isRecord } from '../../../utils/type-utils';
+import { type ConnectorScenario, nodeTypes } from '../slots';
 import type {
   AutomationTest,
   ExpectedNodeState,
@@ -44,6 +52,9 @@ export type BenchCall =
   | { kind: 'mock'; output: Json }
   /** The input is resolved; then the node fails with this message. */
   | { kind: 'fail'; message: string }
+  /** The input is resolved and checked; a call it matches gets this
+   * scenario's answer, any other the action's mock. */
+  | { kind: 'scenario'; scenario: ConnectorScenario }
   /** `only`: this is the node's output; nothing of it is evaluated. */
   | { kind: 'pinned'; output: Json }
   /** Outside a step test's scope: the node does not run. */
@@ -54,8 +65,8 @@ export interface BenchPlan {
   included: ReadonlySet<string> | null;
   /** The step test's scope, when it has one. */
   focus?: NonNullable<RunResult['focus']>;
-  /** The nodes a test stands in for (`mocks` and `failures`), in document
-   * order. */
+  /** The nodes a test stands in for (`mocks`, `failures` and
+   * `scenarios`), in document order. */
   standIns: readonly string[];
   call(nodeId: string): BenchCall;
   /**
@@ -75,11 +86,26 @@ export interface BenchPlan {
 export type BenchRefusal =
   | {
       code: 'BENCH_UNKNOWN_NODE';
-      field: 'mocks' | 'failures' | 'upTo' | 'only';
+      field: StandInField | 'upTo' | 'only';
       node: string;
       suggestion?: string;
     }
-  | { code: 'BENCH_CONFLICT'; node: string }
+  | {
+      code: 'BENCH_CONFLICT';
+      node: string;
+      /** The two stand-ins it has, in the order the bench lists them. */
+      fields: readonly [StandInField, StandInField];
+    }
+  | {
+      code: 'BENCH_UNKNOWN_SCENARIO';
+      node: string;
+      /** The node's type, and the scenarios it ships (none for a node
+       * that is no connector action). */
+      type: string;
+      scenario: string;
+      scenarios: string[];
+      suggestion?: string;
+    }
   | { code: 'BENCH_PINS_MISSING'; node: string; missing: string[] }
   | {
       code: 'BENCH_ITEM_OUT_OF_RANGE';
@@ -89,6 +115,9 @@ export type BenchRefusal =
     }
   | { code: 'BENCH_NOT_ITERATING'; node: string }
   | { code: 'BENCH_SCOPE_CONFLICT'; field: 'upTo' | 'item' };
+
+/** The members of a bench that stand in for a node. */
+type StandInField = 'mocks' | 'failures' | 'scenarios';
 
 export type BenchPlanned =
   | { ok: true; plan: BenchPlan }
@@ -113,17 +142,49 @@ function nodesById(nodes: readonly NodeDef[]): Map<string, NodeDef> {
 function standInsOf(bench: RunBench): {
   mocks: Record<string, Json>;
   failures: Record<string, string>;
+  scenarios: Record<string, string>;
 } {
   const mocks: Record<string, Json> = isRecord(bench.mocks)
     ? { ...bench.mocks }
     : {};
-  const failures: Record<string, string> = {};
-  if (isRecord(bench.failures)) {
-    for (const [id, message] of Object.entries(bench.failures)) {
-      if (typeof message === 'string') failures[id] = message;
+  const texts = (value: unknown): Record<string, string> => {
+    const kept: Record<string, string> = {};
+    if (!isRecord(value)) return kept;
+    for (const [id, text] of Object.entries(value)) {
+      if (typeof text === 'string') kept[id] = text;
     }
-  }
-  return { mocks, failures };
+    return kept;
+  };
+  return {
+    mocks,
+    failures: texts(bench.failures),
+    scenarios: texts(bench.scenarios),
+  };
+}
+
+/** The scenarios a node type ships: its connector action's, none for any
+ * other node. */
+function scenariosOfType(type: string): readonly ConnectorScenario[] {
+  return nodeTypes().get(type)?.connector?.scenarios ?? [];
+}
+
+/**
+ * Whether a scenario answers a call with this input: the input carries
+ * every member its `when` names, each equal as JSON. A scenario without
+ * `when` answers every call.
+ */
+export function scenarioMatches(
+  scenario: ConnectorScenario,
+  input: unknown,
+): boolean {
+  const when = scenario.when;
+  if (when === undefined) return true;
+  return Object.entries(when).every(
+    ([member, value]) =>
+      isRecord(input) &&
+      Object.hasOwn(input, member) &&
+      stableStringify(input[member]) === stableStringify(value),
+  );
 }
 
 /**
@@ -212,16 +273,44 @@ function refusalText(
             message: `the test simulates "${refusal.node}", which is not a node of this automation`,
             hint,
           }
-        : {
-            message: `${refusal.field} names "${refusal.node}", which is not a node of this automation`,
-            hint,
-          };
+        : refusal.field === 'scenarios'
+          ? {
+              message: `the test picks a scenario for "${refusal.node}", which is not a node of this automation`,
+              hint,
+            }
+          : {
+              message: `${refusal.field} names "${refusal.node}", which is not a node of this automation`,
+              hint,
+            };
     }
-    case 'BENCH_CONFLICT':
-      return {
-        message: `the test both simulates an output and a failure for "${refusal.node}"`,
-        hint: `keep one of mocks.${refusal.node} and failures.${refusal.node}`,
+    case 'BENCH_CONFLICT': {
+      const [first, second] = refusal.fields;
+      const what: Record<StandInField, string> = {
+        mocks: 'simulates an output',
+        failures: 'simulates a failure',
+        scenarios: 'picks a scenario',
       };
+      return {
+        message:
+          second === 'failures'
+            ? `the test both simulates an output and a failure for "${refusal.node}"`
+            : `the test both ${what[first]} and ${what[second]} for "${refusal.node}"`,
+        hint: `keep one of ${first}.${refusal.node} and ${second}.${refusal.node}`,
+      };
+    }
+    case 'BENCH_UNKNOWN_SCENARIO': {
+      const did =
+        refusal.suggestion === undefined
+          ? ''
+          : `did you mean "${refusal.suggestion}"? `;
+      return {
+        message: `the test picks the scenario "${refusal.scenario}" for "${refusal.node}", which ${refusal.type} does not ship`,
+        hint:
+          refusal.scenarios.length === 0
+            ? `${refusal.type} ships no scenarios — simulate its output (mocks) or its failure (failures) instead`
+            : `${did}scenarios of ${refusal.type}: ${refusal.scenarios.join(', ')}`,
+      };
+    }
     case 'BENCH_PINS_MISSING':
       return {
         message: `running "${refusal.node}" alone needs the data of every node it reads — no data for ${refusal.missing.map((id) => `"${id}"`).join(', ')}`,
@@ -285,19 +374,22 @@ export function itemOutOfRange(
 
 /**
  * Plan a bench over a document's nodes: refuse one that names nodes the
- * document does not have, simulates both an output and a failure for one
- * node, combines scopes that do not combine, or runs a node alone without
- * the data it reads; else answer what stands in for each node.
+ * document does not have, gives one node two stand-ins, picks a scenario
+ * its node's action does not ship, combines scopes that do not combine, or
+ * runs a node alone without the data it reads; else answer what stands in
+ * for each node. `scenariosOf` answers the scenarios a node type ships —
+ * by default those of the registered connector action.
  */
 export function planBench(
   nodes: readonly NodeDef[],
   bench: RunBench | undefined,
+  scenariosOf: (type: string) => readonly ConnectorScenario[] = scenariosOfType,
 ): BenchPlanned {
   const byId = nodesById(nodes);
   const ids = [...byId.keys()];
-  const { mocks, failures } = standInsOf(bench ?? {});
+  const { mocks, failures, scenarios } = standInsOf(bench ?? {});
   const unknown = (
-    field: 'mocks' | 'failures' | 'upTo' | 'only',
+    field: StandInField | 'upTo' | 'only',
     node: string,
   ): Extract<BenchPlanned, { ok: false }> => {
     const suggestion = closestName(node, ids);
@@ -317,14 +409,50 @@ export function planBench(
   for (const id of Object.keys(failures)) {
     if (!byId.has(id)) return unknown('failures', id);
   }
+  for (const id of Object.keys(scenarios)) {
+    if (!byId.has(id)) return unknown('scenarios', id);
+  }
   const upTo = typeof bench?.upTo === 'string' ? bench.upTo : undefined;
   const only = typeof bench?.only === 'string' ? bench.only : undefined;
   if (upTo !== undefined && !byId.has(upTo)) return unknown('upTo', upTo);
   if (only !== undefined && !byId.has(only)) return unknown('only', only);
   for (const id of Object.keys(mocks)) {
     if (Object.hasOwn(failures, id)) {
-      return refused({ code: 'BENCH_CONFLICT', node: id }, ids);
+      return refused(
+        { code: 'BENCH_CONFLICT', node: id, fields: ['mocks', 'failures'] },
+        ids,
+      );
     }
+  }
+  const pickedScenarios = new Map<string, ConnectorScenario>();
+  for (const [id, name] of Object.entries(scenarios)) {
+    for (const field of ['mocks', 'failures'] as const) {
+      const given = field === 'mocks' ? mocks : failures;
+      if (!Object.hasOwn(given, id)) continue;
+      return refused(
+        { code: 'BENCH_CONFLICT', node: id, fields: [field, 'scenarios'] },
+        ids,
+      );
+    }
+    const type = byId.get(id)?.type ?? '';
+    const shipped = scenariosOf(type);
+    const scenario = shipped.find((s) => s.name === name);
+    if (scenario === undefined) {
+      const names = shipped.map((s) => s.name);
+      const suggestion = closestName(name, names);
+      return refused(
+        {
+          code: 'BENCH_UNKNOWN_SCENARIO',
+          node: id,
+          type,
+          scenario: name,
+          scenarios: names,
+          ...(suggestion !== undefined && { suggestion }),
+        },
+        ids,
+      );
+    }
+    pickedScenarios.set(id, scenario);
   }
   if (upTo !== undefined && only !== undefined) {
     return refused({ code: 'BENCH_SCOPE_CONFLICT', field: 'upTo' }, ids);
@@ -370,7 +498,10 @@ export function planBench(
   }
 
   const standIns = ids.filter(
-    (id) => Object.hasOwn(mocks, id) || Object.hasOwn(failures, id),
+    (id) =>
+      Object.hasOwn(mocks, id) ||
+      Object.hasOwn(failures, id) ||
+      pickedScenarios.has(id),
   );
   const plan: BenchPlan = {
     included,
@@ -387,6 +518,8 @@ export function planBench(
       if (Object.hasOwn(failures, nodeId)) {
         return { kind: 'fail', message: failures[nodeId] ?? '' };
       }
+      const scenario = pickedScenarios.get(nodeId);
+      if (scenario !== undefined) return { kind: 'scenario', scenario };
       return CALL_AS_WRITTEN;
     },
     itemOutputs(nodeId, items, picked) {
@@ -422,6 +555,7 @@ export function benchFromTest(test: AutomationTest, index?: number): RunBench {
   return {
     ...(test.mocks !== undefined && { mocks: test.mocks }),
     ...(test.failures !== undefined && { failures: test.failures }),
+    ...(test.scenarios !== undefined && { scenarios: test.scenarios }),
     test: { name: test.name, ...(index !== undefined && { index }) },
   };
 }
@@ -431,11 +565,13 @@ export function benchFromTest(test: AutomationTest, index?: number): RunBench {
 export function refusalPath(refusal: BenchRefusal): Array<string | number> {
   switch (refusal.code) {
     case 'BENCH_UNKNOWN_NODE':
-      return refusal.field === 'mocks' || refusal.field === 'failures'
-        ? [refusal.field, refusal.node]
-        : [refusal.field];
+      return refusal.field === 'upTo' || refusal.field === 'only'
+        ? [refusal.field]
+        : [refusal.field, refusal.node];
     case 'BENCH_CONFLICT':
-      return ['failures', refusal.node];
+      return [refusal.fields[1], refusal.node];
+    case 'BENCH_UNKNOWN_SCENARIO':
+      return ['scenarios', refusal.node];
     case 'BENCH_PINS_MISSING':
       return ['only'];
     case 'BENCH_ITEM_OUT_OF_RANGE':
@@ -460,7 +596,8 @@ export function refusalIssue(
   // be there; every other refusal is about a value.
   const aboutKey =
     refusal.code === 'BENCH_UNKNOWN_NODE' &&
-    (refusal.field === 'mocks' || refusal.field === 'failures');
+    refusal.field !== 'upTo' &&
+    refusal.field !== 'only';
   return {
     level: 'error',
     code: refusal.code,
@@ -483,6 +620,17 @@ function refusalParams(refusal: BenchRefusal): Issue['params'] {
         }),
       };
     case 'BENCH_CONFLICT':
+      return { node: refusal.node, fields: [...refusal.fields] };
+    case 'BENCH_UNKNOWN_SCENARIO':
+      return {
+        node: refusal.node,
+        type: refusal.type,
+        scenario: refusal.scenario,
+        scenarios: refusal.scenarios,
+        ...(refusal.suggestion !== undefined && {
+          suggestion: refusal.suggestion,
+        }),
+      };
     case 'BENCH_NOT_ITERATING':
       return { node: refusal.node };
     case 'BENCH_PINS_MISSING':

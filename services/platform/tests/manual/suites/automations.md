@@ -1663,6 +1663,16 @@ output:
       output** → the test opens on Setup as a form with that field focused
       (and the place selected inside a JSON field); a key the form doesn't
       show opens the YAML instead, as `AUTO-F168` checks.
+- [ ] `AUTO-F247` · **In `automations.tests.inspector.editYaml`, give a test
+      whose input names channel `C0000000009` the pick
+      `scenarios: {post: channel_not_found}` for a step `post` that calls
+      Slack's `send_message` on that channel, and run it** → the run fails
+      at `post` with Slack's message for a channel that doesn't exist,
+      saying the test simulated it, and Result names `post` in
+      `automations.tests.result.simulated`; with channel `C0000000001` the
+      step gets the usual simulated answer and Result reads
+      `automations.tests.result.unmatched`; the Setup form keeps the pick as
+      written.
 - [ ] `AUTO-F172` · **On an automation with a bound trigger and a condition,
       open Add test** → a menu offers `automations.tests.addFrom.blank`,
       `automations.tests.addFrom.trigger` and

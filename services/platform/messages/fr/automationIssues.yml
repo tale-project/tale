@@ -86,8 +86,8 @@ codes:
   TESTS_INVALID:
     title: Test mal formé
     explanation: Chaque test a un nom, une entrée et, si besoin, ce qu’il attend. Un test sous une autre forme ne peut pas s’exécuter.
-    cause: '{test, select, none {Le champ tests n’est pas une liste de tests.} other {{part, select, description {La description du test {testNumber} n’est pas du texte.} mocks {Dans le test {testNumber}, mocks n’indique pas la sortie simulée de chaque nœud sous son identifiant.} failures {Dans le test {testNumber}, failures n’indique pas le message d’erreur de chaque nœud sous son identifiant, sous forme de texte d’au plus 2 000 caractères.} effects {Dans le test {testNumber}, les actions attendues ne forment pas une liste.} effect {Dans le test {testNumber}, une action attendue ne nomme pas son connector.} effectInput {Dans le test {testNumber}, une action attendue donne à la fois input et inputIncludes.} effectAbsent {Dans le test {testNumber}, une action attendue donne à absent une autre valeur que true.} nodes {Dans le test {testNumber}, un nœud est attendu dans un autre état que ran, skipped ou failed.} failure {Dans le test {testNumber}, l’échec attendu n’est pas écrit sous la forme node et message.} failureWithOutput {Le test {testNumber} attend que l’exécution échoue, et aussi une sortie.} other {{keysCount, plural, =0 {Le test {testNumber} n’est pas écrit sous la forme name, input et expect.} one {La partie expect du test {testNumber} contient une clé inconnue : {keysList}.} other {La partie expect du test {testNumber} contient des clés inconnues : {keysList}.}}}}}}'
-    fix: Écris chaque test sous la forme name et input, avec description, mocks, failures et expect si besoin.
+    cause: '{test, select, none {Le champ tests n’est pas une liste de tests.} other {{part, select, description {La description du test {testNumber} n’est pas du texte.} mocks {Dans le test {testNumber}, mocks n’indique pas la sortie simulée de chaque nœud sous son identifiant.} failures {Dans le test {testNumber}, failures n’indique pas le message d’erreur de chaque nœud sous son identifiant, sous forme de texte d’au plus 2 000 caractères.} scenarios {Dans le test {testNumber}, scenarios n’indique pas le nom du scénario de chaque nœud sous son identifiant, sous forme de texte d’au plus 50 caractères.} effects {Dans le test {testNumber}, les actions attendues ne forment pas une liste.} effect {Dans le test {testNumber}, une action attendue ne nomme pas son connector.} effectInput {Dans le test {testNumber}, une action attendue donne à la fois input et inputIncludes.} effectAbsent {Dans le test {testNumber}, une action attendue donne à absent une autre valeur que true.} nodes {Dans le test {testNumber}, un nœud est attendu dans un autre état que ran, skipped ou failed.} failure {Dans le test {testNumber}, l’échec attendu n’est pas écrit sous la forme node et message.} failureWithOutput {Le test {testNumber} attend que l’exécution échoue, et aussi une sortie.} other {{keysCount, plural, =0 {Le test {testNumber} n’est pas écrit sous la forme name, input et expect.} one {La partie expect du test {testNumber} contient une clé inconnue : {keysList}.} other {La partie expect du test {testNumber} contient des clés inconnues : {keysList}.}}}}}}'
+    fix: Écris chaque test sous la forme name et input, avec description, mocks, failures, scenarios et expect si besoin.
   NODE_NOT_OBJECT:
     title: Le nœud n’est pas un objet
     explanation: Chaque entrée de nodes est un objet avec au moins un id et un type.
@@ -362,7 +362,7 @@ codes:
     title: Champ de test inconnu
     explanation: 'Un test a un champ que Tale ne connaît pas : il est donc ignoré.'
     cause: 'Le test « {name} » a « {field} »{effect, select, none {} other { dans une action attendue}}.'
-    fix: '{suggestion, select, none {{effect, select, none {Supprime-le. Un test a name, description, input, mocks, failures et expect.} other {Supprime-le. Une action attendue a connector, node, input, inputIncludes et absent.}}} other {Voulais-tu dire « {suggestion} » ?}}'
+    fix: '{suggestion, select, none {{effect, select, none {Supprime-le. Un test a name, description, input, mocks, failures, scenarios et expect.} other {Supprime-le. Une action attendue a connector, node, input, inputIncludes et absent.}}} other {Voulais-tu dire « {suggestion} » ?}}'
   TESTS_NAME_DUPLICATE:
     title: Deux tests portent le même nom
     explanation: 'Les résultats sont listés par nom : deux tests du même nom sont difficiles à distinguer.'
@@ -370,14 +370,24 @@ codes:
     fix: Donne à chaque test son propre nom.
   TESTS_MOCK_UNKNOWN_NODE:
     title: Simule un nœud qui n’existe pas
-    explanation: 'Un test simule la sortie ou l’échec d’un nœud que cette automatisation n’a pas : le test ne peut donc pas s’exécuter.'
-    cause: Le test « {name} » simule « {node} ».
+    explanation: 'Un test simule la sortie ou l’échec d’un nœud que cette automatisation n’a pas, ou choisit un scénario pour lui : le test ne peut donc pas s’exécuter.'
+    cause: '{field, select, scenarios {Le test « {name} » choisit un scénario pour « {node} ».} other {Le test « {name} » simule « {node} ».}}'
     fix: '{suggestion, select, none {Utilise l’identifiant de l’un des nœuds.} other {Voulais-tu dire « {suggestion} » ?}}'
   TESTS_MOCK_CONFLICT:
     title: Sortie et échec pour un même nœud
     explanation: Un nœud peut soit renvoyer une sortie simulée, soit échouer, pas les deux.
     cause: Le test « {name} » fait les deux pour {nodeLabel}.
     fix: Garde la sortie simulée ou l’échec simulé.
+  TESTS_SCENARIO_CONFLICT:
+    title: Scénario et simulation pour un même nœud
+    explanation: Un test peut soit choisir un scénario pour un nœud, soit simuler sa sortie ou son échec, pas les deux.
+    cause: '{field, select, mocks {Le test « {name} » choisit un scénario pour {nodeLabel} et simule aussi sa sortie.} other {Le test « {name} » choisit un scénario pour {nodeLabel} et simule aussi son échec.}}'
+    fix: '{field, select, mocks {Garde le scénario ou la sortie simulée.} other {Garde le scénario ou l’échec simulé.}}'
+  TESTS_SCENARIO_UNKNOWN:
+    title: Choisit un scénario qui n’existe pas
+    explanation: 'Un test choisit un scénario que l’action de connector du nœud ne fournit pas : le test ne peut donc pas s’exécuter.'
+    cause: 'Le test « {name} » choisit « {scenario} » pour {nodeLabel} ({type}).{scenariosCount, plural, =0 { Ce nœud n’a aucun scénario à choisir.} one { Le seul scénario de ce nœud est {scenariosList}.} many { Les scénarios de ce nœud sont {scenariosList}.} other { Les scénarios de ce nœud sont {scenariosList}.}}'
+    fix: '{suggestion, select, none {{scenariosCount, plural, =0 {Simule plutôt sa sortie avec mocks ou son échec avec failures.} one {Choisis son seul scénario.} many {Choisis l’un de ses scénarios.} other {Choisis l’un de ses scénarios.}}} other {Voulais-tu dire « {suggestion} » ?}}'
   TESTS_MOCK_NOT_LIST:
     title: La sortie simulée doit être une liste
     explanation: 'Ce nœud s’exécute une fois par élément : sa sortie simulée est donc une liste avec une entrée par élément.'

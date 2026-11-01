@@ -12,6 +12,8 @@
  * `ValidateOptions.store`) rather than installing it process-wide.
  */
 
+import type { Json } from './types';
+
 export { setCodeRunner } from './runner';
 
 // --------------------------------------------------------------- node types
@@ -45,6 +47,28 @@ export interface ConnectorLike {
    */
   mock(input: unknown): unknown;
   live?(input: unknown, ctx: ConnectorContext): Promise<unknown>;
+  /** The cases a test can pick for a node of this type in a mock run,
+   * instead of the mock's answer. */
+  scenarios?: readonly ConnectorScenario[];
+}
+
+/**
+ * One case of a connector action, as its catalog declares it: what the
+ * action answers to a call whose input carries every member of `when`, each
+ * equal as JSON (every call when there is none) — an `output`, or the
+ * `error` the action itself raises, with the HTTP status it carries when it
+ * carries one. A test picks it for a node (`scenarios`); a mock run then
+ * answers with it, and classifies its error as it classifies a live call's
+ * failure.
+ */
+export interface ConnectorScenario {
+  name: string;
+  kind: string;
+  /** What the case is, for the person or agent who picks it. */
+  description: string;
+  when?: Readonly<Record<string, Json>>;
+  output?: Json;
+  error?: { message: string; status?: number };
 }
 
 /**

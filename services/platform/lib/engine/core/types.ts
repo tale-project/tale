@@ -160,6 +160,11 @@ export interface AutomationTest {
   /** Node id → the error that node fails with in this test instead of
    * calling; its onError applies. */
   failures?: Record<string, string>;
+  /** Node id → the scenario of its connector action that answers its
+   * calls in this test: each call whose input matches the scenario's
+   * `when` gets its output or fails with its error; any other call gets
+   * the action's mock. */
+  scenarios?: Record<string, string>;
   expect?: TestExpectation;
 }
 
@@ -209,6 +214,8 @@ export interface TestExpectation {
 export interface RunBench {
   mocks?: Record<string, Json>;
   failures?: Record<string, string>;
+  /** Node id → the scenario of its connector action it answers with. */
+  scenarios?: Record<string, string>;
   /** Run only what this node needs, then stop: the run's output is this
    * node's output. */
   upTo?: string;
@@ -221,9 +228,10 @@ export interface RunBench {
   test?: { name: string; index?: number };
 }
 
-/** How a bench stood in for a node: its call returned a simulated output,
- * it was pinned data, its call failed as the test said, or the step test
- * left it out. */
+/** How a bench stood in for a node: its call returned a simulated output
+ * (a mock, or a scenario's output), it was pinned data, its call failed as
+ * the test said (a simulated failure, or a scenario's error), or the step
+ * test left it out. */
 export type BenchMark = 'mocked' | 'pinned' | 'failed' | 'left-out';
 
 export interface Automation {
@@ -383,6 +391,6 @@ export interface RunResult {
   stoppedBy?: 'time_limit' | 'cancelled';
   /** Nodes the bench stood in for whose stand-in the run never used: it
    * skipped them, left them out or never got to them, or they ran over no
-   * items. */
+   * items — or, for a scenario, no call whose input matched it. */
   unusedMocks?: string[];
 }
