@@ -2,7 +2,8 @@
  * Contrast as the browser paints it, for real-Chromium tests: reads the
  * colours the shipped CSS resolves to, lays each over what lies behind it
  * on a 1×1 canvas, and answers the WCAG ratio. axe judges text only (and
- * gives up on short text); lines, glyphs and borders need this.
+ * gives up on short text); lines, glyphs and borders need this. The same
+ * canvas answers how opaque a colour paints ({@link alphaOf}).
  */
 
 type Rgb = readonly [number, number, number];
@@ -62,6 +63,20 @@ function backgroundsOf(element: Element): string[] {
   )
     layers.unshift(getComputedStyle(node).backgroundColor);
   return layers;
+}
+
+/**
+ * How opaque `color` (any CSS colour) paints: 1 hides what lies behind it, 0
+ * shows it unchanged. A colour the canvas cannot parse reads 0, not 1.
+ */
+export function alphaOf(color: string): number {
+  const ctx = pixel();
+  ctx.clearRect(0, 0, 1, 1);
+  ctx.fillStyle = 'transparent';
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, 1, 1);
+  const [, , , alpha = 0] = ctx.getImageData(0, 0, 1, 1).data;
+  return alpha / 255;
 }
 
 /** The ratio of `color` (any CSS colour) to the layers behind `element`. */
