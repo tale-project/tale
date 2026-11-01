@@ -9,22 +9,17 @@ import { currentUserQuery } from '@/app/lib/backend/account';
 import { clearMemberContextCache } from '@/app/lib/member-context-cache';
 import { clearTitleSuffix } from '@/app/lib/title-suffix';
 import { authClient } from '@/lib/auth-client';
+import { isProxiedSession } from '@/lib/shared/proxied-session';
 
 function useConvexAuthUser() {
   // This query IS the auth probe: the backend answers it on the session
   // cookie alone (401 → data undefined → unauthenticated), so it needs no
   // websocket and no auth gating.
   const { data: user, isLoading } = useQuery(currentUserQuery());
-  // A session an authenticating proxy asserted carries the role the proxy
-  // asserted; the proxy owns signing in and out for it, so the app offers no
-  // sign-out of its own. A single sign-on session is bound to its
-  // organization too, but asserts no role: its person signs out here. Read
-  // loosely: the field is one of the deployment's own session columns, not
-  // part of the client's inferred type.
+  // The proxy owns signing in and out for a session it asserted, so the app
+  // offers no sign-out of its own for one.
   const { data: session } = useQuery(sessionQueryOptions);
-  const sessionRecord: Record<string, unknown> | undefined =
-    session?.data?.session;
-  const proxied = typeof sessionRecord?.trustedRole === 'string';
+  const proxied = isProxiedSession(session?.data?.session);
 
   const isAuthenticated = !!user;
 

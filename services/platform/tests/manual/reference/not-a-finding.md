@@ -81,6 +81,14 @@ here the first time a round re-files it.
   header counts all of them, **Tab** walks the tasks in order from the view,
   and a keyboard drag reaches every slot (`TASK-P5`). Report a lane or
   section of fewer than 30 tasks missing one.
+- **Log out after single sign-on leaves the identity provider signed in.**
+  **Log out** ends the session in Tale alone: Tale sends the provider no
+  logout (OIDC RP-initiated logout, SAML single logout), so the next
+  **Continue with SSO** may sign the person straight back in through the
+  provider's own session, without a password prompt (`AUTH-F12`, #5137;
+  the SSO spec lists it under "Not yet"). Report it only if the Tale
+  session outlives **Log out**: afterwards the dashboard's address opens
+  the log-in form.
 
 ## Known benign console output
 

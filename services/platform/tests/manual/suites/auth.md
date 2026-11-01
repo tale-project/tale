@@ -136,7 +136,12 @@ compute codes from the enrollment secret.
   more than one organization has SSO enabled; with a single enabled
   organization the button opens that organization's IdP directly and a typed
   e-mail rides along only as `login_hint` — an unknown domain ends on the
-  IdP's own error, never on a Tale-side picker.
+  IdP's own error, never on a Tale-side picker. Signed in so, open the
+  account menu → it offers **Log out** (`auth.userButton.logOut`); confirm
+  it (`auth.userButton.logOutConfirm.confirm`) → `/log-in`, and the
+  dashboard's address opens the log-in form too: the session has ended.
+  Tale sends the IdP no logout, so a second **Continue with SSO** may sign
+  you straight back in through the IdP's own session — not a finding.
 - [ ] `AUTH-F13` · **Idle sign-out** — Open `/log-in?reason=idle` (the idle
   watchdog appends `?reason=idle`) → A `role="status"` notice reads **You were
   signed out because your session was inactive for too long.**
