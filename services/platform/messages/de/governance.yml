@@ -1762,6 +1762,10 @@ dsarPolicy:
   loosenProposedDescription: Lockernde Änderungen werden erst nach einem
     24-Stunden-Karenzfenster wirksam. Jeder Admin kann sie vorher abbrechen.
   loosenCancelledTitle: Vorgemerkte Änderung abgebrochen.
+  cancelFailedTitle: Vorgemerkte Änderung konnte nicht abgebrochen werden.
+  cancelNothingPending:
+    Es gibt nichts mehr abzubrechen. Ein anderer Admin hat die Änderung
+    schon abgebrochen, oder sie ist bereits wirksam.
   pendingFieldLocked: Während des Prüffensters gesperrt
   pendingBanner:
     title: Vorgemerkte Richtlinien-Lockerung
@@ -1769,6 +1773,9 @@ dsarPolicy:
       Vorgeschlagen von {name}. Jeder Admin kann sie vor Wirksamwerden
       abbrechen.
     cancel: Vorgemerkte Änderung abbrechen
+    on: An
+    off: Aus
+    hours: '{count, plural, one {# Stunde} other {# Stunden}}'
 errors:
   saveForbidden: Du hast keine Berechtigung, diese Einstellung zu ändern.
 conversationRouting:

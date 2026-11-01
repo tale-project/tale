@@ -18,7 +18,9 @@ import {
 } from '@/app/features/settings/components/settings-field-list';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
 import { SettingsToggleRow } from '@/app/features/settings/components/settings-toggle-row';
+import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
+import { backendErrorCode } from '@/lib/utils/backend-error';
 
 import {
   useCancelPendingDsarPolicyChange,
@@ -183,8 +185,14 @@ function DsarPolicyEditorContent({ organizationId }: DsarPolicyEditorProps) {
       });
     } catch (e) {
       console.error(e);
+      // Another admin's cancel, or the grace running out, leaves nothing to
+      // cancel: say so, since the banner the click came from is stale.
       toast({
-        title: t('toastSaveFailedTitle'),
+        title: t('dsarPolicy.cancelFailedTitle'),
+        description:
+          backendErrorCode(e) === 'NO_PENDING_CHANGE'
+            ? t('dsarPolicy.cancelNothingPending')
+            : failureDetail(e),
         variant: 'destructive',
       });
     }
@@ -359,19 +367,24 @@ function PendingChangeBanner({
   cancelDisabled: boolean;
 }) {
   const { t } = useT('governance');
+  const { t: tCommon } = useT('common');
+  const hours = (count: number) =>
+    t('dsarPolicy.pendingBanner.hours', { count });
+  const onOff = (on: boolean) =>
+    on ? t('dsarPolicy.pendingBanner.on') : t('dsarPolicy.pendingBanner.off');
   const diffs: { label: string; from: string; to: string }[] = [];
   if (pending.config.coolingOffHours !== current.coolingOffHours) {
     diffs.push({
       label: t('dsarPolicy.coolingOffHours.label'),
-      from: String(current.coolingOffHours),
-      to: String(pending.config.coolingOffHours),
+      from: hours(current.coolingOffHours),
+      to: hours(pending.config.coolingOffHours),
     });
   }
   if (pending.config.requireDualApproval !== current.requireDualApproval) {
     diffs.push({
       label: t('dsarPolicy.requireDualApproval.label'),
-      from: String(current.requireDualApproval),
-      to: String(pending.config.requireDualApproval),
+      from: onOff(current.requireDualApproval),
+      to: onOff(pending.config.requireDualApproval),
     });
   }
   if (pending.config.dailyLimitPerAdmin !== current.dailyLimitPerAdmin) {
@@ -395,9 +408,10 @@ function PendingChangeBanner({
             </Text>
             <Text as="span" variant="muted" className="text-xs">
               {t('dsarPolicy.pendingBanner.description', {
-                name: pending.proposedByEmail
-                  ? `${pending.proposedByEmail} (${pending.proposedBy})`
-                  : pending.proposedBy,
+                name:
+                  pending.proposedByName ??
+                  pending.proposedByEmail ??
+                  tCommon('formerMember'),
               })}
             </Text>
             <Text as="span" variant="muted" className="text-xs">

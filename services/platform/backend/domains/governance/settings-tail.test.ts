@@ -27,14 +27,19 @@ vi.mock('../../realtime/outbox.ts', () => ({ emitHintInTx }));
 
 import { RETENTION_POLICY_FIELD_BY_CATEGORY } from '../../core/governance/retention_floors.ts';
 import {
+  cancelPendingDsarPolicyChange,
   cancelPendingRetentionChange,
   detectRetentionShortening,
+  getDsarPolicyForUi,
+  GovernanceTailError,
   proposeDsarPolicy,
 } from './settings-tail.ts';
 
 interface Statement {
   text: string;
   values: unknown[];
+  /** Whether it ran inside `begin`. */
+  inTransaction: boolean;
 }
 
 /** A fake `sql` answering by statement shape; `begin` runs its callback on
@@ -44,14 +49,22 @@ function fakeSql(answer: (statement: Statement) => unknown[] | undefined): {
   statements: Statement[];
 } {
   const statements: Statement[] = [];
+  let inTransaction = false;
   const tag = (strings: TemplateStringsArray, ...values: unknown[]) => {
-    const statement = { text: strings.join('?'), values };
+    const statement = { text: strings.join('?'), values, inTransaction };
     statements.push(statement);
     return Promise.resolve(answer(statement) ?? []);
   };
   tag.unsafe = (text: string) => text;
   tag.json = (value: unknown) => ({ json: value });
-  tag.begin = (fn: (tx: unknown) => Promise<unknown>) => fn(tag);
+  tag.begin = async (fn: (tx: unknown) => Promise<unknown>) => {
+    inTransaction = true;
+    try {
+      return await fn(tag);
+    } finally {
+      inTransaction = false;
+    }
+  };
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- the tail functions exercise exactly the tag, unsafe, json, and begin surfaces faked here
   return { sql: tag as unknown as Sql, statements };
 }
@@ -161,6 +174,129 @@ describe('proposeDsarPolicy — a tightening', () => {
     );
     expect(writeGovernancePolicyFile).not.toHaveBeenCalled();
   });
+});
+
+describe('cancelPendingDsarPolicyChange — any admin can cancel a staged weakening [GOV-R24]', () => {
+  const ADMIN = {
+    organizationId: 'org_1',
+    userId: 'admin_1',
+    email: 'mia@example.test',
+  };
+  const isCancel = (statement: Statement) =>
+    statement.text.includes('DELETE FROM app.dsar_policy_pending_changes');
+
+  it('drops a change still inside its grace and audits the admin who cancelled it, in one transaction', async () => {
+    const { sql, statements } = fakeSql((statement) =>
+      isCancel(statement) ? [{ id: 'dsar_pending_1' }] : [],
+    );
+    const before = Date.now();
+
+    await cancelPendingDsarPolicyChange(sql, ADMIN);
+
+    // One statement, the grace-bounded DELETE, run in the transaction.
+    expect(statements).toEqual([
+      expect.objectContaining({
+        inTransaction: true,
+        values: ['org_1', expect.any(Number)],
+      }),
+    ]);
+    const [cancel] = statements;
+    expect(cancel?.text).toContain('effective_at_ms >');
+    expect(cancel?.values[1]).toBeGreaterThanOrEqual(before);
+    expect(createAuditLog).toHaveBeenCalledExactlyOnceWith(
+      sql,
+      expect.objectContaining({
+        organizationId: 'org_1',
+        actorId: 'admin_1',
+        actorEmail: 'mia@example.test',
+        action: 'policy.dsar_governance_loosening_cancelled',
+      }),
+    );
+    expect(emitHintInTx).toHaveBeenCalledOnce();
+  });
+
+  it('finds nothing to cancel once the change took effect or another admin cancelled it', async () => {
+    const { sql } = fakeSql(() => []);
+
+    const refused = cancelPendingDsarPolicyChange(sql, ADMIN);
+
+    await expect(refused).rejects.toBeInstanceOf(GovernanceTailError);
+    await expect(refused).rejects.toMatchObject({
+      code: 'NO_PENDING_CHANGE',
+      status: 404,
+    });
+    expect(createAuditLog).not.toHaveBeenCalled();
+    expect(emitHintInTx).not.toHaveBeenCalled();
+  });
+
+  it('fails as a whole when the audit row cannot be written, so the cancel does not stand', async () => {
+    const { sql, statements } = fakeSql((statement) =>
+      isCancel(statement) ? [{ id: 'dsar_pending_1' }] : [],
+    );
+    createAuditLog.mockRejectedValue(new Error('audit chain unavailable'));
+
+    await expect(cancelPendingDsarPolicyChange(sql, ADMIN)).rejects.toThrow(
+      'audit chain unavailable',
+    );
+    expect(statements.filter(isCancel)).toEqual([
+      expect.objectContaining({ inTransaction: true }),
+    ]);
+  });
+});
+
+describe('getDsarPolicyForUi — who proposed a staged weakening', () => {
+  const STAGED = {
+    id: 'dsar_pending_1',
+    pendingConfig: {
+      coolingOffHours: 1,
+      requireDualApproval: false,
+      dailyLimitPerAdmin: 5,
+    },
+    effectiveAt: Date.now() + 60 * 60 * 1000,
+    proposedBy: 'user_ada',
+    proposedByEmail: 'ada@example.test',
+    proposedAt: Date.now() - 1000,
+  };
+
+  function staged(proposer: { name: string | null }[]) {
+    return fakeSql((statement) => {
+      if (statement.text.includes('effective_at_ms <=')) return [];
+      if (statement.text.includes('FROM app.dsar_policy_pending_changes')) {
+        return [STAGED];
+      }
+      return statement.text.includes('FROM "user"') ? proposer : [];
+    });
+  }
+
+  it('names the proposer by their display name, beside the id and email', async () => {
+    const { sql } = staged([{ name: 'Ada Lovelace' }]);
+
+    const { pending } = await getDsarPolicyForUi(sql, {
+      organizationId: 'org_1',
+      role: 'admin',
+    });
+
+    expect(pending).toMatchObject({
+      proposedBy: 'user_ada',
+      proposedByEmail: 'ada@example.test',
+      proposedByName: 'Ada Lovelace',
+    });
+  });
+
+  it.each([[[]], [[{ name: null }]], [[{ name: '  ' }]]])(
+    'leaves the name out when the account is gone or has none (%j)',
+    async (proposer) => {
+      const { sql } = staged(proposer);
+
+      const { pending } = await getDsarPolicyForUi(sql, {
+        organizationId: 'org_1',
+        role: 'admin',
+      });
+
+      expect(pending).not.toHaveProperty('proposedByName');
+      expect(pending?.proposedByEmail).toBe('ada@example.test');
+    },
+  );
 });
 
 describe('detectRetentionShortening', () => {

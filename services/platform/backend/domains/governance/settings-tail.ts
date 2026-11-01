@@ -24,11 +24,12 @@ import { createAuditLog } from '../audit_logs/service.ts';
 
 /**
  * The governance settings TAIL: legal matters (grouping for holds), the
- * retention-shortening cooldown store, the DSAR owner-only grace flow
- * (loosening staged 24h; applied once its effective time passes — by the
- * erasure lane's enforcement read, by the editor's read, and by the
- * 5-minute `governance.apply_dsar_policy_changes` sweep, so the change
- * takes effect whether or not anyone opens the page), the guardrails
+ * retention-shortening cooldown store, the DSAR grace flow (the owner
+ * proposes, any admin cancels; loosening staged 24h; applied once its
+ * effective time passes — by the erasure lane's enforcement read, by the
+ * editor's read, and by the 5-minute `governance.apply_dsar_policy_changes`
+ * sweep, so the change takes effect whether or not anyone opens the
+ * page), the guardrails
  * secret store, and the chat-filter event listing the Security page reads.
  */
 
@@ -438,7 +439,7 @@ export async function cancelPendingRetentionChange(
 }
 
 // ---------------------------------------------------------------------------
-// DSAR governance (owner-only; loosening staged with a 24h grace)
+// DSAR governance (owner proposes, any admin cancels; 24h grace)
 // ---------------------------------------------------------------------------
 
 const DSAR_LOOSEN_GRACE_MS = 24 * 60 * 60 * 1000;
@@ -448,6 +449,9 @@ export interface DsarPendingView {
   effectiveAt: number;
   proposedBy: string;
   proposedByEmail?: string;
+  /** The proposer's display name, for the banner; absent once the account
+   * is gone or carries none (the banner then names the email). */
+  proposedByName?: string;
   proposedAt: number;
 }
 
@@ -609,6 +613,10 @@ export async function getDsarPolicyForUi(
       pendingRow.pendingConfig,
     );
     if (parsed.success) {
+      const proposer = await sql<{ name: string | null }[]>`
+        SELECT "name" FROM "user" WHERE "id" = ${pendingRow.proposedBy} LIMIT 1
+      `;
+      const proposedByName = proposer[0]?.name?.trim();
       pending = {
         config: parsed.data,
         effectiveAt: pendingRow.effectiveAt,
@@ -616,6 +624,7 @@ export async function getDsarPolicyForUi(
         ...(pendingRow.proposedByEmail !== null
           ? { proposedByEmail: pendingRow.proposedByEmail }
           : {}),
+        ...(proposedByName ? { proposedByName } : {}),
         proposedAt: pendingRow.proposedAt,
       };
     }
@@ -714,19 +723,32 @@ export async function proposeDsarPolicy(
   return { staged: true, effectiveAt };
 }
 
+/**
+ * Any admin's veto of a staged loosening: drop the pending row and audit who
+ * dropped it, in one transaction, so a cancel that cannot be recorded does
+ * not happen. Only a change still inside its grace can be cancelled: once
+ * its effective time has passed it is in force (every reader applies it
+ * first), so a late cancel finds nothing (`NO_PENDING_CHANGE`) instead of
+ * undoing it whenever no reader happened to apply it yet.
+ */
 export async function cancelPendingDsarPolicyChange(
   sql: Sql,
   auth: { organizationId: string; userId: string; email?: string },
 ): Promise<void> {
-  const deleted = await sql<{ id: string }[]>`
-    DELETE FROM app.dsar_policy_pending_changes
-    WHERE org_id = ${auth.organizationId}
-    RETURNING id
-  `;
-  if (!deleted[0]) {
-    throw new GovernanceTailError('NO_PENDING_CHANGE', 'Nothing pending', 404);
-  }
   await sql.begin(async (tx) => {
+    const deleted = await tx<{ id: string }[]>`
+      DELETE FROM app.dsar_policy_pending_changes
+      WHERE org_id = ${auth.organizationId}
+        AND effective_at_ms > ${Date.now()}
+      RETURNING id
+    `;
+    if (!deleted[0]) {
+      throw new GovernanceTailError(
+        'NO_PENDING_CHANGE',
+        'Nothing pending: another admin cancelled the change, or it has taken effect',
+        404,
+      );
+    }
     await createAuditLog(tx, {
       organizationId: auth.organizationId,
       actorId: auth.userId,

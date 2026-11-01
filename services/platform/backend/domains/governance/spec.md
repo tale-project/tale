@@ -163,6 +163,17 @@ the change.
 - **Example**: Ada tightens the upload rules while the audit log cannot be written → the save
   fails, and the upload rules are unchanged.
 
+### GOV-R24 · Any admin can cancel a weakening of the erasure rules before it applies
+
+Only the owner changes the rules for erasure requests, and a change that weakens them (a
+shorter cooling-off, no dual approval, a higher daily limit) applies only after 24 hours. Until
+then any admin can cancel it, and the audit log names who did. A member is refused
+(`FORBIDDEN`). Once the change has applied, or another admin has cancelled it, there is
+nothing left to cancel (`NO_PENDING_CHANGE`).
+
+- **Example**: The owner turns off dual approval, and Ada, an admin, cancels the change the
+  same day → dual approval stays on, and the audit log names Ada.
+
 ## Rights an admin grants
 
 Some rights are not tied to a role: exporting notifications, publishing a skill for everyone,
@@ -191,9 +202,9 @@ It counts only in the organization it was granted in.
   [`README.md`](README.md); the sandbox spec states them for agent turns.
 - **The trash**: what can be restored, and that restoring a chat restores its branches with
   it (`trash.ts`).
-- **Changes that loosen a policy**: shortening a retention period or relaxing the rules for
-  erasure requests takes effect only after a waiting time, and can be cancelled meanwhile
-  (`settings-tail.ts`).
+- **Changes that loosen a policy**, beyond who can cancel a weakening of the erasure rules
+  (GOV-R24): shortening a retention period or relaxing the rules for erasure requests takes
+  effect only after a waiting time, and can be cancelled meanwhile (`settings-tail.ts`).
 - **Content moderation**, guardrails and the handling of personal data in prompts
   (`moderation.ts`).
 - **API keys**: creating, listing and revoking one (`api-keys.ts`).
