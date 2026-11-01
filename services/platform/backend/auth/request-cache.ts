@@ -30,9 +30,10 @@ import type { SessionBundle } from './session.ts';
  *   old answers nothing from memory, and one that cannot see the triggers
  *   installed never does.
  * - A session is answered from memory only until Better Auth would slide
- *   its expiry (`updateAge`, a minute at most): the request after that
- *   resolves through Better Auth, which writes the refresh the idle sweep
- *   reads, and fills the cache again.
+ *   its expiry (a minute under an idle window, five minutes outside one:
+ *   `session-refresh.ts`): the request after that resolves through Better
+ *   Auth, which writes the refresh the idle sweep reads, and fills the cache
+ *   again.
  * - A read that raced a change is not kept: a fill notes how far the log
  *   was applied when it started, and drops what it read when a row for the
  *   same session or user was applied meanwhile.
