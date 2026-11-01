@@ -1,12 +1,28 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { serve } from '@hono/node-server';
+import { retentionPolicyConfigSchema } from '@tale/shared/schemas/governance';
 import { Hono } from 'hono';
 import type { Sql, TransactionSql } from 'postgres';
+import ts from 'typescript';
 import { describe, expect, it, vi } from 'vitest';
 
+import { parseYaml } from '../lib/shared/config/yaml';
+import {
+  RETENTION_CATEGORIES,
+  retentionDefaultsConfigSchema,
+} from '../lib/shared/schemas/retention';
 import type { AuthEnv } from './auth/session';
 import { closeServerGracefully } from './http-shutdown';
 import {
@@ -14,7 +30,10 @@ import {
   dropOwnedDatabase,
   everyLaneRequired,
   fullCoverageBlockers,
+  installRetentionGovernance,
   isSkippedCheck,
+  ITEST_RETENTION_BOUNDS,
+  ITEST_RETENTION_POLICY,
   itestObjectStore,
   ownedDatabaseAdmin,
   recordOpenStreams,
@@ -23,6 +42,7 @@ import {
   setOwnedDatabaseBudgetInTx,
   settleTeardown,
   videoLaneFfmpegLocation,
+  withBuiltinCatalog,
   withCleanup,
 } from './integration-lane-helpers';
 import { createEventsHandler, liveStreamCount } from './realtime/sse';
@@ -506,6 +526,218 @@ describe('withCleanup', () => {
       ),
     ).resolves.toBe('passed');
     expect(ran).toEqual(['delete']);
+  });
+});
+
+describe('withBuiltinCatalog', () => {
+  const variable = 'TALE_CONFIG_BUILTIN_DIR';
+  function restoreVariable(value: string | undefined): void {
+    if (value === undefined) delete process.env[variable];
+    else process.env[variable] = value;
+  }
+
+  it("plants its files in a catalog of its own, never the run's, and removes it (#4714)", async () => {
+    // The run's catalog stands in for the repository's `configs/platform`,
+    // where a person may point the variable.
+    const runCatalog = await mkdtemp(join(tmpdir(), 'itest-run-catalog-'));
+    const source = await mkdtemp(join(tmpdir(), 'itest-shipped-pack-'));
+    await writeFile(join(source, 'automation.yml'), 'name: Sync emails\n');
+    await writeFile(join(source, 'workflow.yml'), 'nodes: []\n');
+    const inherited = process.env[variable];
+    process.env[variable] = runCatalog;
+    try {
+      const seen = await withBuiltinCatalog(
+        {
+          'automations/imap-smtp/sync-emails/automation.yml': join(
+            source,
+            'automation.yml',
+          ),
+          'automations/imap-smtp/sync-emails/workflow.yml': join(
+            source,
+            'workflow.yml',
+          ),
+        },
+        async () => {
+          const root = process.env[variable] ?? '';
+          const pack = join(root, 'automations/imap-smtp/sync-emails');
+          return {
+            root,
+            files: await readdir(pack),
+            automation: await readFile(join(pack, 'automation.yml'), 'utf8'),
+            workflow: await readFile(join(pack, 'workflow.yml'), 'utf8'),
+          };
+        },
+      );
+
+      expect(seen.root).toContain('itest-lane-catalog-');
+      expect(seen.files.sort()).toEqual(['automation.yml', 'workflow.yml']);
+      expect(seen.automation).toBe('name: Sync emails\n');
+      expect(seen.workflow).toBe('nodes: []\n');
+      expect(process.env[variable]).toBe(runCatalog);
+      expect(await readdir(runCatalog)).toEqual([]);
+      await expect(stat(seen.root)).rejects.toThrow(/ENOENT/);
+    } finally {
+      restoreVariable(inherited);
+      await rm(runCatalog, { recursive: true, force: true });
+      await rm(source, { recursive: true, force: true });
+    }
+  });
+
+  it('gives the run its catalog back and removes its own when the body throws', async () => {
+    const inherited = process.env[variable];
+    process.env[variable] = '/srv/tale/configs/platform';
+    try {
+      const failure = new Error('org scaffold failed: automations');
+      let root = '';
+      await expect(
+        withBuiltinCatalog({}, async () => {
+          root = process.env[variable] ?? '';
+          throw failure;
+        }),
+      ).rejects.toBe(failure);
+      expect(root).toContain('itest-lane-catalog-');
+      expect(process.env[variable]).toBe('/srv/tale/configs/platform');
+      await expect(stat(root)).rejects.toThrow(/ENOENT/);
+    } finally {
+      restoreVariable(inherited);
+    }
+  });
+
+  it('leaves the variable unset when the run set none', async () => {
+    const inherited = process.env[variable];
+    delete process.env[variable];
+    try {
+      const during = await withBuiltinCatalog(
+        {},
+        async () => process.env[variable],
+      );
+      expect(during).toContain('itest-lane-catalog-');
+      expect(variable in process.env).toBe(false);
+    } finally {
+      restoreVariable(inherited);
+    }
+  });
+
+  it("fails on a file it cannot copy before the body runs, with the run's catalog as it was", async () => {
+    const inherited = process.env[variable];
+    process.env[variable] = '/srv/tale/configs/platform';
+    try {
+      const body = vi.fn(async () => 'ran');
+      await expect(
+        withBuiltinCatalog(
+          {
+            'automations/gone/automation.yml': join(
+              tmpdir(),
+              'itest-no-such-pack',
+              'automation.yml',
+            ),
+          },
+          body,
+        ),
+      ).rejects.toThrow(/ENOENT/);
+      expect(body).not.toHaveBeenCalled();
+      expect(process.env[variable]).toBe('/srv/tale/configs/platform');
+    } finally {
+      restoreVariable(inherited);
+    }
+  });
+
+  it("is how the harness plants a pack: only main() names the run's catalog (#4714)", () => {
+    // A lane that wrote into `TALE_CONFIG_BUILTIN_DIR` itself left its files
+    // in the repository's `configs/platform` when the run was pointed there.
+    // `main()` only gives a run without a catalog a throwaway one.
+    const file = 'integration-check.ts';
+    const source = ts.createSourceFile(
+      file,
+      readFileSync(new URL(`./${file}`, import.meta.url), 'utf8'),
+      ts.ScriptTarget.Latest,
+      true,
+    );
+    const namedIn = new Set<string>();
+    const visit = (node: ts.Node, owner: string): void => {
+      const within =
+        ts.isFunctionDeclaration(node) && node.name ? node.name.text : owner;
+      if (
+        (ts.isIdentifier(node) || ts.isStringLiteralLike(node)) &&
+        node.text === variable
+      ) {
+        namedIn.add(within);
+      }
+      ts.forEachChild(node, (child) => visit(child, within));
+    };
+    visit(source, '(module)');
+    expect([...namedIn]).toEqual(['main']);
+  });
+});
+
+describe("the retention lanes' governance files", () => {
+  function parsed(text: string): unknown {
+    const result = parseYaml(text);
+    if (!result.ok) throw new Error(result.error);
+    return result.data;
+  }
+
+  it('declare bounds for every retention category, in the shape the product reads', () => {
+    const bounds = retentionDefaultsConfigSchema.parse(
+      parsed(ITEST_RETENTION_BOUNDS),
+    );
+    expect(Object.keys(bounds).sort()).toEqual(
+      [...RETENTION_CATEGORIES].sort(),
+    );
+    // The compliance floors bind.
+    expect(bounds.auditLog?.min).toBe(365);
+    expect(bounds.loginAttempt?.min).toBe(90);
+    // The governance tail proposes new bounds by raising this floor in the
+    // file's text.
+    expect(ITEST_RETENTION_BOUNDS).toContain('documents:\n  min: 1\n');
+  });
+
+  it('set a policy the product reads, with the values the governance tail changes', () => {
+    const policy = retentionPolicyConfigSchema.parse(
+      parsed(ITEST_RETENTION_POLICY),
+    );
+    // The tail shortens message feedback 7 → 2, cancels a documents change
+    // back to 7, and expects no deletion grace.
+    expect(policy.messageFeedbackRetentionDays).toBe(7);
+    expect(policy.documentsRetentionDays).toBe(7);
+    expect(policy.deletionGraceDays).toBe(0);
+  });
+});
+
+describe('installRetentionGovernance', () => {
+  it("gives a governance directory without retention bounds the retention lane's files (#4714)", async () => {
+    const configRoot = await mkdtemp(join(tmpdir(), 'itest-config-'));
+    const governanceDir = join(configRoot, 'itest-org', 'governance');
+    try {
+      expect(await installRetentionGovernance(governanceDir)).toBe(true);
+      expect(await readFile(join(governanceDir, 'retention.yml'), 'utf8')).toBe(
+        ITEST_RETENTION_BOUNDS,
+      );
+      expect(
+        await readFile(join(governanceDir, 'retention-policy.yml'), 'utf8'),
+      ).toBe(ITEST_RETENTION_POLICY);
+    } finally {
+      await rm(configRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('leaves the retention bounds a lane already wrote alone', async () => {
+    const configRoot = await mkdtemp(join(tmpdir(), 'itest-config-'));
+    const governanceDir = join(configRoot, 'itest-org', 'governance');
+    try {
+      await mkdir(governanceDir, { recursive: true });
+      await writeFile(
+        join(governanceDir, 'retention.yml'),
+        'documents:\n  min: 3\n',
+      );
+      expect(await installRetentionGovernance(governanceDir)).toBe(false);
+      expect(await readFile(join(governanceDir, 'retention.yml'), 'utf8')).toBe(
+        'documents:\n  min: 3\n',
+      );
+      expect(await readdir(governanceDir)).toEqual(['retention.yml']);
+    } finally {
+      await rm(configRoot, { recursive: true, force: true });
+    }
   });
 });
 

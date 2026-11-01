@@ -227,7 +227,10 @@ import {
   cookieHeaderFrom,
   errorText,
   fullCoverageBlockers,
+  installRetentionGovernance,
   isSkippedCheck,
+  ITEST_RETENTION_BOUNDS,
+  ITEST_RETENTION_POLICY,
   ITEST_VECTOR_WIDTH,
   itestObjectStore,
   recordOpenStreams,
@@ -236,6 +239,7 @@ import {
   settleTeardown,
   signUpUser,
   videoLaneFfmpegLocation,
+  withBuiltinCatalog,
   withCleanup,
   withinDeadline,
   type SseEvent,
@@ -31058,6 +31062,48 @@ async function checkConversations(
 }
 
 /**
+ * Runs `body` with a default IMAP/SMTP mailbox in the organization: the one
+ * an earlier lane connected, or else one connected for `body` alone and
+ * deleted again on every path. Run without the lane that connects one, the
+ * mailbox sync lane ended the run on `no usable credential for imap-smtp`
+ * (#4714).
+ */
+async function withMailbox<T>(
+  sql: Sql,
+  ctx: { orgId: string; userId: string },
+  body: () => Promise<T>,
+): Promise<T> {
+  const { orgId, userId } = ctx;
+  const mailboxes = await sql<{ id: string }[]>`
+    SELECT id FROM app.connector_credentials
+    WHERE org_id = ${orgId} AND connector_slug = 'imap-smtp'
+      AND status = 'active' AND is_default = true
+  `;
+  if (mailboxes.length > 0) return body();
+  const { createCredential, deleteCredential } =
+    await import('./domains/connector_credentials/service.ts');
+  const { credentialId } = await createCredential(sql, {
+    organizationId: orgId,
+    connectorSlug: 'imap-smtp',
+    authMethod: 'basic',
+    name: 'Lane mailbox',
+    secret: { username: 'inbox@door.test', password: 'imap-pass-1' },
+    config: { imapHost: 'imap.door.test', smtpHost: 'smtp.door.test' },
+    isDefault: true,
+    createdBy: userId,
+  });
+  return withCleanup(
+    [
+      [
+        'deletes the mailbox connected for the lane',
+        () => deleteCredential(sql, orgId, credentialId),
+      ],
+    ],
+    body,
+  );
+}
+
+/**
  * The connector door + the mailbox sync/ingest lane — the REUSED 0.4
  * dispatcher, imap-smtp natives, and sync/ingest modules end to end on a
  * fake IMAP/SMTP transport: list → fetch → ingest (contact find-or-create,
@@ -34539,29 +34585,26 @@ async function checkSsoAdminSurface(
  * example tasks only while the org has no project.
  */
 async function checkProvisioning(sql: Sql): Promise<void> {
-  // The harness's builtin catalog is a hermetic EMPTY dir — plant one REAL
+  // The job runs on a builtin catalog of this lane's own holding one REAL
   // shipped pack (copied from the repo catalog), so provisioning has an
-  // automation it could add and the zero below means something.
+  // automation it could add and the zero below means something. The run's
+  // catalog stays as it was given: planted there, the pack outlived the lane,
+  // in the repository's `configs/platform` when the run was pointed at it
+  // (#4714).
   const repoPack = path.resolve(
     process.cwd(),
     '../../configs/platform/custom/automations/imap-smtp/sync-emails',
   );
-  const builtinPack = path.join(
-    process.env.TALE_CONFIG_BUILTIN_DIR ?? '',
-    'automations',
-    'imap-smtp',
-    'sync-emails',
-  );
-  await mkdir(builtinPack, { recursive: true });
-  const { copyFile } = await import('node:fs/promises');
-  await copyFile(
-    path.join(repoPack, 'automation.yml'),
-    path.join(builtinPack, 'automation.yml'),
-  );
-  await copyFile(
-    path.join(repoPack, 'workflow.yml'),
-    path.join(builtinPack, 'workflow.yml'),
-  );
+  const shippedPack = {
+    'automations/imap-smtp/sync-emails/automation.yml': path.join(
+      repoPack,
+      'automation.yml',
+    ),
+    'automations/imap-smtp/sync-emails/workflow.yml': path.join(
+      repoPack,
+      'workflow.yml',
+    ),
+  };
   const orgRows = await sql<{ id: string }[]>`
     INSERT INTO "organization" ("id", "name", "slug", "createdAt")
     VALUES (gen_random_uuid(), 'Provision Test', 'itest-provision',
@@ -34581,7 +34624,9 @@ async function checkProvisioning(sql: Sql): Promise<void> {
     const before = process.env.TALE_PROVISIONING_DISABLED;
     process.env.TALE_PROVISIONING_DISABLED = '0';
     try {
-      await scaffold?.(payload);
+      await withBuiltinCatalog(shippedPack, async () => {
+        await scaffold?.(payload);
+      });
       return null;
     } catch (error) {
       return errorText(error);
@@ -52179,76 +52224,13 @@ async function checkRetention(
   const configRoot = process.env.TALE_CONFIG_DIR ?? '';
   const governanceDir = path.join(configRoot, orgSlug, 'governance');
   await mkdir(governanceDir, { recursive: true });
-  // Every category must be declared (the env-tightening walk throws on a
-  // gap), and the compliance floors bind (auditLog ≥ 180, loginAttempt ≥ 90).
-  const bound = (min: number, unit = 'days') =>
-    [
-      `  min: ${min}`,
-      '  max: 3650',
-      `  default: ${Math.max(min, 30)}`,
-      `  unit: ${unit}`,
-    ].join('\n');
   await writeFile(
     path.join(governanceDir, 'retention.yml'),
-    [
-      'documents:',
-      bound(1),
-      'userTempHours:',
-      bound(1, 'hours'),
-      'agentTempHours:',
-      bound(1, 'hours'),
-      'chatHistory:',
-      bound(1),
-      'auditLog:',
-      bound(365),
-      'workflowLog:',
-      bound(1),
-      'usageLedger:',
-      bound(30),
-      'loginAttempt:',
-      bound(90),
-      'chatFilterEvents:',
-      bound(1),
-      'messageFeedback:',
-      bound(1),
-      'contacts:',
-      bound(1),
-      'externalConversations:',
-      bound(1),
-      'notifications:',
-      bound(1),
-      'agentRuns:',
-      bound(1),
-      'automationVersions:',
-      bound(1),
-    ].join('\n'),
+    ITEST_RETENTION_BOUNDS,
   );
   await writeFile(
     path.join(governanceDir, 'retention-policy.yml'),
-    [
-      'documentsEnabled: true',
-      'documentsRetentionDays: 7',
-      'chatHistoryEnabled: true',
-      'chatHistoryRetentionDays: 7',
-      'agentRunsEnabled: true',
-      'agentRunsRetentionDays: 7',
-      'workflowLogEnabled: true',
-      'workflowLogRetentionDays: 7',
-      'auditLogEnabled: true',
-      'auditLogRetentionDays: 365',
-      'userTempEnabled: true',
-      'userTempRetentionHours: 1',
-      'usageLedgerEnabled: true',
-      // Below the 30-day floor — the clamp must raise it.
-      'usageLedgerRetentionDays: 1',
-      'messageFeedbackEnabled: true',
-      'messageFeedbackRetentionDays: 7',
-      'notificationsEnabled: true',
-      'notificationsRetentionDays: 7',
-      'externalConversationsEnabled: true',
-      'externalConversationsRetentionDays: 7',
-      'deletionGraceDays: 0',
-    ].join('\n'),
+    ITEST_RETENTION_POLICY,
   );
   const orgConfig = await import('./lib/org-config.ts');
   orgConfig.clearOrgConfigCaches();
@@ -52690,30 +52672,7 @@ async function checkRetention(
   // product rule.
   await writeFile(
     path.join(governanceDir, 'retention-policy.yml'),
-    [
-      'documentsEnabled: true',
-      'documentsRetentionDays: 7',
-      'chatHistoryEnabled: true',
-      'chatHistoryRetentionDays: 7',
-      'agentRunsEnabled: true',
-      'agentRunsRetentionDays: 7',
-      'workflowLogEnabled: true',
-      'workflowLogRetentionDays: 7',
-      'auditLogEnabled: true',
-      'auditLogRetentionDays: 365',
-      'userTempEnabled: true',
-      'userTempRetentionHours: 1',
-      'usageLedgerEnabled: true',
-      // Below the 30-day floor — the clamp must raise it.
-      'usageLedgerRetentionDays: 1',
-      'messageFeedbackEnabled: true',
-      'messageFeedbackRetentionDays: 7',
-      'notificationsEnabled: true',
-      'notificationsRetentionDays: 7',
-      'externalConversationsEnabled: true',
-      'externalConversationsRetentionDays: 7',
-      'deletionGraceDays: 0',
-    ].join('\n'),
+    ITEST_RETENTION_POLICY,
   );
   orgConfig.clearOrgConfigCaches();
 
@@ -53556,6 +53515,28 @@ async function checkGovernanceSettingsTail(
     });
   const get = (route: string): Promise<Response> =>
     fetch(`${base}${route}`, { headers: { cookie, origin: base } });
+
+  // Section F works on the retention bounds and policy the retention lane
+  // leaves in the organization's governance directory. Run without that
+  // lane, the tail gives the organization the same files and applies their
+  // bounds as that lane does; it ended the run on `ENOENT` instead (#4714).
+  if (
+    await installRetentionGovernance(
+      path.join(process.env.TALE_CONFIG_DIR ?? '', orgSlug, 'governance'),
+    )
+  ) {
+    (await import('./lib/org-config.ts')).clearOrgConfigCaches();
+    const applied = await post(
+      `/api/app/retention/bounds/apply?orgId=${orgId}`,
+    );
+    if (!applied.ok) {
+      record(
+        'governance tail: the retention bounds it gives its organization apply',
+        false,
+        `bounds/apply=${applied.status} ${(await applied.text()).slice(0, 200)} (want 200)`,
+      );
+    }
+  }
 
   // --- A. Matters + hold item views + close fan-out + reject reason ------
   const matter = z.object({ matterId: z.string() }).safeParse(
@@ -66402,7 +66383,11 @@ async function main(): Promise<void> {
         },
       ],
       ['checkConversations', () => checkConversations(sql, baseUrl, authCtx)],
-      ['checkMailboxSyncLane', () => checkMailboxSyncLane(sql, authCtx)],
+      [
+        'checkMailboxSyncLane',
+        () =>
+          withMailbox(sql, authCtx, () => checkMailboxSyncLane(sql, authCtx)),
+      ],
       ['checkUndatedMailIngest', () => checkUndatedMailIngest(sql, authCtx)],
       ['checkIngestDedupeRace', () => checkIngestDedupeRace(sql, authCtx)],
       ['checkTtsReserveRace', () => checkTtsReserveRace(sql, authCtx)],
