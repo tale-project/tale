@@ -80,9 +80,7 @@ import type { Id } from '../lib/rows';
 import { safePathSegment } from '../lib/safe_path_segment';
 import { ensureAgentSession } from '../node_only/sandbox/agent_session';
 import {
-  isDestroyPendingRefusal,
   queuedWakeAfterMs,
-  sandboxCapacityRefusal,
   type CapacityRefusal,
 } from '../node_only/sandbox/capacity_refusal';
 import type { TurnConnectorCaller } from '../node_only/sandbox/connectors_bridge';
@@ -111,6 +109,10 @@ import {
   type HarvestSkippedOutput,
   OUTPUT_DIR,
 } from '../node_only/sandbox/session_exec';
+import {
+  isDestroyPendingRefusal,
+  sandboxCapacityRefusal,
+} from '../node_only/sandbox/start_refusal';
 import {
   readReserveTurnBudgetResult,
   TurnBudgetExceededError,

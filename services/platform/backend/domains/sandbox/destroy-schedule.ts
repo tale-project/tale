@@ -34,7 +34,11 @@ import { lockOrgAdmission } from './admission-lock.ts';
  * {@link sessionDestroyPending} holds. A turn let in between two attempts
  * would resume the very incarnation the next attempt deletes, over files a
  * failed attempt may already have removed. Once the Destroy has settled —
- * the row destroyed, or every attempt failed — admission opens again.
+ * the row destroyed, or every attempt failed — admission opens again, but
+ * not for an automation run whose workspace the Destroy deleted: its next
+ * step would start over in a fresh, empty workspace, without the files its
+ * earlier steps left there, so the reserve refuses it
+ * (`SandboxWorkspaceDestroyedError`) and the step fails with the reason.
  */
 
 export type SandboxDestroyState = 'pending' | 'failed';
