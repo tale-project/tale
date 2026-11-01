@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { spawnSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 
 import {
   findShellTool,
@@ -38,6 +39,8 @@ const WEATHER: OfferedTool = {
 const HINTS = { keywords: [], locale: 'en' };
 
 const PYTHON = spawnSync('python3', ['--version']).status === 0;
+/** Linux's count of each process's time on a CPU and queued for one. */
+const SCHEDSTAT = existsSync('/proc/self/schedstat');
 
 describe('the shell tool', () => {
   test('is the tool that takes a command, one named like a shell first', () => {
@@ -138,22 +141,48 @@ describe('the hog result', () => {
 });
 
 describe.skipIf(!PYTHON)('the hog program', () => {
-  test('holds its memory resident and spins a CPU for its time', () => {
+  test('holds its memory resident', () => {
     const usage = [
-      hogProgram({ mib: 64, seconds: 1 }),
+      hogProgram({ mib: 64, seconds: 0 }),
       'import resource',
-      'self = resource.getrusage(resource.RUSAGE_SELF)',
-      'print(self.ru_maxrss, self.ru_utime)',
+      'print(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)',
     ].join('\n');
     const run = spawnSync('python3', ['-c', usage], { encoding: 'utf8' });
     expect(run.status).toBe(0);
-    const [held, measured] = run.stdout.trim().split('\n');
-    const [peakKib, cpuSeconds] = (measured ?? '').split(' ').map(Number);
-    expect(held).toBe('held 64 MiB and spun 1 s');
+    const [held, peakKib] = run.stdout.trim().split('\n');
+    expect(held).toBe('held 64 MiB and spun 0 s');
     // Linux reports the peak resident set in KiB.
-    expect(peakKib).toBeGreaterThan(64 * 1024);
-    expect(cpuSeconds).toBeGreaterThan(0.8);
+    expect(Number(peakKib)).toBeGreaterThan(64 * 1024);
   });
+
+  // A spin waits for nothing but a CPU: Linux counts it on one or queued for
+  // one for all of its time, however small a share of a CPU a busy runner
+  // gives it, and its CPU time is only that share. A hog that slept would be
+  // blocked for its whole second; a spinning one is blocked for next to none.
+  test.skipIf(!SCHEDSTAT)(
+    'spins a CPU for its time, however much of one it gets',
+    () => {
+      const usage = [
+        'import time',
+        'def runnable():',
+        '    with open("/proc/self/schedstat") as stat:',
+        '        on_cpu, queued = stat.read().split()[:2]',
+        '    return (int(on_cpu) + int(queued)) / 1e9',
+        'start_wall, start_runnable = time.monotonic(), runnable()',
+        hogProgram({ mib: 1, seconds: 1 }),
+        'print(time.monotonic() - start_wall, runnable() - start_runnable)',
+      ].join('\n');
+      const run = spawnSync('python3', ['-c', usage], { encoding: 'utf8' });
+      expect(run.status).toBe(0);
+      const [held, measured] = run.stdout.trim().split('\n');
+      const [wallSeconds, runnableSeconds] = (measured ?? '')
+        .split(' ')
+        .map(Number);
+      expect(held).toBe('held 1 MiB and spun 1 s');
+      expect(wallSeconds).toBeGreaterThanOrEqual(1);
+      expect(wallSeconds - runnableSeconds).toBeLessThan(0.5);
+    },
+  );
 
   test('runs as the shell line Bash is given', () => {
     const args = hogArguments(
