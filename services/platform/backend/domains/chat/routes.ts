@@ -59,6 +59,7 @@ import { getOrgChatHealth } from './health.ts';
 import { listMessageViewsPage } from './message-views.ts';
 import { runChatTurn } from './service.ts';
 import { appendMessageRow } from './store.ts';
+import { runChatSandboxCheck } from './work-tools-check.ts';
 import { readChatWorkToolsStatus } from './work-tools-status.ts';
 import { listChatSkillChoices } from './work-tools.ts';
 
@@ -964,6 +965,17 @@ export function createChatRoutes(deps: { sql: Sql; auth: Auth }): Hono<OrgEnv> {
     }
     c.header('Cache-Control', 'no-store');
     return c.json(await readChatWorkToolsStatus(deps.sql, c.get('orgId')));
+  });
+
+  /** The panel's Run check: start a light sandbox the way `run_code` does,
+   * look for its document libraries and have it write a Word file — pass,
+   * or the piece that failed (owners and admins). */
+  app.post('/work-tools/check', async (c) => {
+    if (!isAdmin(c.get('orgMember').role)) {
+      return c.json({ error: 'admin role required' }, 403);
+    }
+    c.header('Cache-Control', 'no-store');
+    return c.json(await runChatSandboxCheck(deps.sql, caller(c)));
   });
 
   app.get('/composer/automation-capabilities', async (c) => {
