@@ -44,7 +44,16 @@ function handleError<E extends OrgEnv>(
   error: unknown,
 ): Response {
   if (error instanceof ConnectorCredentialError) {
-    return c.json({ error: error.code, message: error.message }, error.status);
+    // `data` names what the English sentence interpolates, so a client can
+    // word the refusal in its reader's language (#5222).
+    return c.json(
+      {
+        error: error.code,
+        message: error.message,
+        ...(error.data !== undefined && { data: error.data }),
+      },
+      error.status,
+    );
   }
   throw error;
 }
@@ -96,7 +105,10 @@ export function createConnectorCredentialRoutes(deps: {
       )
     ) {
       return c.json(
-        { error: 'The developer capability is required here.' },
+        {
+          error: 'The developer capability is required here.',
+          code: 'FORBIDDEN_DEVELOPER_SETTINGS',
+        },
         403,
       );
     }

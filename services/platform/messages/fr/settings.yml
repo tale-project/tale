@@ -447,6 +447,62 @@ connectors:
       Ce déploiement ne fournit aucun fichier de connector. Vérifie que la
       racine de configuration est montée et lisible.
     listFailed: Impossible de charger les connectors.
+  errors:
+    connectorUnknown: >-
+      Ce déploiement ne propose plus le connector « {connector} ». Recharge la
+      page pour voir les connectors disponibles.
+    authMethodNotSupported: >-
+      {connector} n’accepte pas les identifiants de type {method}. Types
+      acceptés : {accepted}.
+    endpointRequired: >-
+      {connector} se connecte à une instance propre à chaque identifiant.
+      Saisis l’URL de l’instance.
+    endpointFixed: >-
+      {connector} se connecte toujours à la même adresse : des identifiants ne
+      prennent pas d’URL d’instance.
+    endpointNotUrl: >-
+      Saisis l’URL de l’instance sous forme d’adresse web, par exemple
+      https://example.com.
+    endpointNotHttps: >-
+      L’URL de l’instance doit commencer par https://.
+    endpointCredentials: >-
+      Retire le nom d’utilisateur et le mot de passe de l’URL de l’instance,
+      et saisis-les plutôt dans les champs des identifiants.
+    endpointNotOrigin: >-
+      Saisis l’URL de l’instance sans chemin, paramètres ni fragment, par
+      exemple {origin}.
+    configNone: >-
+      {connector} n’a aucun paramètre.
+    configUnknown: >-
+      {connector} n’a pas de paramètre « {field} ».
+    configNumber: >-
+      « {field} » doit être un nombre.
+    configNumberRange: >-
+      « {field} » doit être un nombre compris entre {min} et {max}.
+    configOption: >-
+      « {field} » doit valoir {options}.
+    configEmail: >-
+      « {field} » doit être une adresse e-mail, par exemple
+      support@example.com.
+    configFixed: >-
+      « {field} » est fixé à l’ajout des identifiants et ne peut pas être
+      modifié. Pour une autre valeur, ajoute d’autres identifiants.
+    configRequired: >-
+      Saisis une valeur pour « {field} ».
+    configRequiredFor: >-
+      Saisis une valeur pour « {field} » : les identifiants de type {method}
+      en ont besoin.
+    secretLength: >-
+      « {field} » doit comporter entre 1 et {max} caractères.
+    secretLengthAny: >-
+      Un secret doit comporter entre 1 et {max} caractères.
+    secretShape: >-
+      « {field} » n’est pas valide. Vérifie ta saisie.
+    secretShapeAny: >-
+      Le secret n’est pas valide. Vérifie ta saisie.
+    tenantRequired: >-
+      Saisis une valeur pour « {field} » : {connector} connecte l’app dans son
+      annuaire.
   authMethod:
     apiKey: Clé API
     bearer: Jeton
@@ -554,6 +610,23 @@ connectors:
     reuseSsoScopesItem: Des autorisations déléguées Microsoft Graph
     reuseSsoConfirm: Copier depuis le SSO
     reuseSsoDoneToast: L'import Microsoft 365 utilise maintenant l'app SSO Entra ID
+    errors:
+      ssoReuseUnsupported: >-
+        Seule l’app de l’import Microsoft 365 peut réutiliser l’enregistrement
+        d’app du SSO.
+      ssoNotReusable: >-
+        Le SSO d’entreprise n’a plus d’enregistrement d’app Microsoft Entra ID
+        à réutiliser. Saisis plutôt l’ID client et le secret client.
+      notConfigurable: >-
+        L’app OAuth de ce connector est configurée par l’opérateur du
+        déploiement, pas dans cette organisation.
+      notFound: >-
+        Cette app OAuth n’est plus configurée. Elle a peut-être été retirée
+        dans une autre session.
+      clientIdRequired: >-
+        Saisis l’ID client.
+      clientSecretRequired: >-
+        Saisis le secret client.
   dialog:
     apiKey: Clé API
     token: Jeton

@@ -15,7 +15,6 @@ import {
   type CredentialConsentProps,
   type CredentialVendor,
 } from '@/app/features/settings/credentials/adapter';
-import { mapCredentialError } from '@/app/features/settings/credentials/map-credential-error';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useT } from '@/lib/i18n/client';
 
@@ -26,6 +25,7 @@ import {
   pruneBlank,
   type ConnectorConfigValue,
 } from './config-fields';
+import { mapConnectorError } from './connector-error';
 import { goToAuthorization } from './connector-oauth';
 import type {
   ConnectorSummary,
@@ -364,7 +364,7 @@ export const connectorCredentialAdapter: CredentialAdapter<
   ConnectorConfigValue
 > = {
   logTag: 'connectors',
-  mapError: mapCredentialError,
+  mapError: (err, _t, vendor) => mapConnectorError(err, vendor),
   methodLabel: authMethodLabel,
 
   // OAuth leaves the page for consent rather than filling in a form, so it is

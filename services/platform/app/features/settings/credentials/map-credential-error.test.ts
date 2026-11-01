@@ -113,11 +113,11 @@ describe('mapCredentialError', () => {
   // app's rule for a refusal (`failureDetail`).
   it('keeps the words of a refusal whose code it does not know', async () => {
     const refusal = await answered(400, {
-      error: 'CREDENTIAL_CONFIG_REQUIRED',
-      message: 'Connector "Outlook" needs "Mailbox".',
+      error: 'CREDENTIAL_SOMETHING_NEW',
+      message: 'A refusal this list does not know.',
     });
     expect(mapCredentialError(refusal)).toBe(
-      'Connector "Outlook" needs "Mailbox".',
+      'A refusal this list does not know.',
     );
   });
 

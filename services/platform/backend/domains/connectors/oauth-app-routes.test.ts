@@ -9,11 +9,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OrgEnv } from '../../auth/org.ts';
 
-const { upsertOauthApp } = vi.hoisted(() => ({ upsertOauthApp: vi.fn() }));
+const { upsertOauthApp, deleteOauthApp, member } = vi.hoisted(() => ({
+  upsertOauthApp: vi.fn(),
+  deleteOauthApp: vi.fn(),
+  member: { role: 'admin' },
+}));
 
 vi.mock('./oauth-apps.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./oauth-apps.ts')>()),
   upsertOauthApp,
+  deleteOauthApp,
 }));
 vi.mock('../../auth/session.ts', () => ({
   requireSession:
@@ -29,7 +34,7 @@ vi.mock('../../auth/org.ts', () => ({
   requireOrgMember:
     () => async (c: Context<OrgEnv>, next: () => Promise<void>) => {
       c.set('orgId', 'o1');
-      c.set('orgMember', { role: 'admin' } as never);
+      c.set('orgMember', { role: member.role } as never);
       await next();
     },
 }));
@@ -95,5 +100,62 @@ describe('PUT /connector-oauth-apps/:slug', () => {
         clientSecret: 's',
       }),
     );
+  });
+});
+
+// #5222: these answers carried a sentence and no code, so the Settings card
+// could only show the English sentence in every locale.
+describe('the OAuth app door codes every refusal it words', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    member.role = 'admin';
+  });
+
+  it.each([
+    ['PUT', '/onedrive'],
+    ['POST', '/onedrive/reuse-sso'],
+    ['DELETE', '/onedrive'],
+  ])('refuses %s %s to a member as FORBIDDEN', async (method, path) => {
+    member.role = 'member';
+    const res = await app.request(`${path}?orgId=o1`, {
+      method,
+      headers: { 'Content-Type': 'application/json' },
+      ...(method === 'PUT' ? { body: JSON.stringify({ clientId: 'id' }) } : {}),
+    });
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      error: 'Only admins can configure OAuth apps.',
+      code: 'FORBIDDEN',
+    });
+    expect(upsertOauthApp).not.toHaveBeenCalled();
+    expect(deleteOauthApp).not.toHaveBeenCalled();
+  });
+
+  it('codes a connector that takes no org OAuth app', async () => {
+    const res = await app.request('/slack?orgId=o1', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId: 'id', clientSecret: 's' }),
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({
+      code: 'oauth_app_not_configurable',
+    });
+    expect(upsertOauthApp).not.toHaveBeenCalled();
+  });
+
+  it('codes an SSO reuse for another app than the Microsoft 365 import', async () => {
+    const res = await app.request('/outlook/reuse-sso?orgId=o1', {
+      method: 'POST',
+    });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'sso_reuse_unsupported' });
+  });
+
+  it('codes a removal of an app that is not configured', async () => {
+    deleteOauthApp.mockResolvedValue(false);
+    const res = await app.request('/onedrive?orgId=o1', { method: 'DELETE' });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ code: 'oauth_app_not_found' });
   });
 });

@@ -102,32 +102,65 @@ type AuthMethod = ConnectorAuthMethod;
  */
 type CredentialStatus = 'active' | 'disabled' | 'needs-reauth';
 
+/**
+ * What a refusal names beside its code — the connector, the setting or
+ * secret field by its key, the sign-in method, a limit, and the `reason`
+ * that tells one refusal of a code from another — so a client can say it in
+ * the reader's language (#5222). Never a secret, and never a value the
+ * person typed.
+ */
+export type ConnectorCredentialErrorData = Readonly<
+  Record<string, string | number | readonly string[]>
+>;
+
 export class ConnectorCredentialError extends Error {
   readonly code: string;
   readonly status: 400 | 403 | 404 | 409;
+  readonly data?: ConnectorCredentialErrorData;
 
   constructor(
     code: string,
     message: string,
     status: 400 | 403 | 404 | 409 = 400,
+    data?: ConnectorCredentialErrorData,
   ) {
     super(message);
     this.name = 'ConnectorCredentialError';
     this.code = code;
     this.status = status;
+    if (data !== undefined) this.data = data;
   }
 }
 
 /** The 0.4 modules throw coded AppErrors; translate them onto the 0.5
- * domain error so the routes' structural mapping serves them. */
-function translateAppError(error: unknown): never {
+ * domain error so the routes' structural mapping serves them, with the
+ * refusal's `reason` and `origin` when it names them beside `context`. */
+function translateAppError(
+  error: unknown,
+  context?: ConnectorCredentialErrorData,
+): never {
   if (error instanceof AppError) {
     const data: unknown = error.data;
     if (data !== null && typeof data === 'object' && 'code' in data) {
-      const record = data as { code?: unknown; message?: unknown };
+      const record = data as {
+        code?: unknown;
+        message?: unknown;
+        reason?: unknown;
+        origin?: unknown;
+      };
       throw new ConnectorCredentialError(
         typeof record.code === 'string' ? record.code : 'CREDENTIAL_INVALID',
         typeof record.message === 'string' ? record.message : error.message,
+        400,
+        typeof record.reason === 'string'
+          ? {
+              ...context,
+              reason: record.reason,
+              ...(typeof record.origin === 'string' && {
+                origin: record.origin,
+              }),
+            }
+          : context,
       );
     }
   }
@@ -173,6 +206,17 @@ export const CREDENTIAL_NAME_MAX = 100;
 const NAME_MAX = CREDENTIAL_NAME_MAX;
 const SECRET_VALUE_MAX = 8192;
 
+/** The secret fields a person types, by their payload key, as the English
+ * refusal names them. */
+const SECRET_FIELD_PHRASES = {
+  token: 'The token',
+  password: 'The password',
+  smtpPassword: 'The SMTP password',
+  accessToken: 'The access token',
+  refreshToken: 'The refresh token',
+  clientSecret: 'The client secret',
+} as const;
+
 function normalizeName(raw: string): string {
   const name = raw.trim();
   if (name.length === 0 || name.length > NAME_MAX) {
@@ -184,12 +228,18 @@ function normalizeName(raw: string): string {
   return name;
 }
 
-function normalizeSecretValue(raw: string, field: string): string {
+function normalizeSecretValue(
+  raw: string,
+  field: keyof typeof SECRET_FIELD_PHRASES,
+  authMethod: AuthMethod,
+): string {
   const value = raw.trim();
   if (value.length === 0 || value.length > SECRET_VALUE_MAX) {
     throw new ConnectorCredentialError(
       'CREDENTIAL_SECRET_INVALID',
-      `${field} must be 1..${SECRET_VALUE_MAX} characters.`,
+      `${SECRET_FIELD_PHRASES[field]} must be 1..${SECRET_VALUE_MAX} characters.`,
+      400,
+      { field, authMethod, reason: 'length', max: SECRET_VALUE_MAX },
     );
   }
   return value;
@@ -212,13 +262,16 @@ function requireConnectorAuthMethod(
       'CONNECTOR_UNKNOWN',
       `Unknown connector "${connectorSlug}" — available connectors: ${known}.`,
       404,
+      { connector: connectorSlug },
     );
   }
   if (!connector.auth.some((entry) => entry.method === authMethod)) {
-    const offered = connector.auth.map((entry) => entry.method).join(', ');
+    const accepted = connector.auth.map((entry) => entry.method);
     throw new ConnectorCredentialError(
       'AUTH_METHOD_NOT_SUPPORTED',
-      `Connector "${connectorSlug}" does not accept ${authMethod} credentials — it accepts: ${offered}.`,
+      `Connector "${connectorSlug}" does not accept ${authMethod} credentials — it accepts: ${accepted.join(', ')}.`,
+      400,
+      { connector: connectorSlug, authMethod, accepted },
     );
   }
   return connector;
@@ -235,18 +288,22 @@ function normalizeEndpointUrl(
       throw new ConnectorCredentialError(
         'CREDENTIAL_ENDPOINT_REQUIRED',
         `Connector "${connector.name}" uses one endpoint per credential — enter the instance URL.`,
+        400,
+        { connector: connector.name },
       );
     }
     try {
       return normalizeEndpointOrigin(raw);
     } catch (error) {
-      translateAppError(error);
+      translateAppError(error, { connector: connector.name });
     }
   }
   if (raw !== undefined) {
     throw new ConnectorCredentialError(
       'CREDENTIAL_ENDPOINT_INVALID',
       `Connector "${connector.name}" has a fixed endpoint — a per-credential endpoint URL does not apply here.`,
+      400,
+      { connector: connector.name, reason: 'fixed' },
     );
   }
   return undefined;
@@ -267,6 +324,8 @@ function normalizeConfig(
       throw new ConnectorCredentialError(
         'CREDENTIAL_CONFIG_INVALID',
         `Connector "${connector.name}" takes no per-credential settings.`,
+        400,
+        { connector: connector.name, reason: 'none' },
       );
     }
     return undefined;
@@ -278,6 +337,8 @@ function normalizeConfig(
       throw new ConnectorCredentialError(
         'CREDENTIAL_CONFIG_INVALID',
         `Connector "${connector.name}" has no setting "${key}".`,
+        400,
+        { connector: connector.name, field: key, reason: 'unknown' },
       );
     }
   }
@@ -292,12 +353,21 @@ function normalizeConfig(
         throw new ConnectorCredentialError(
           'CREDENTIAL_CONFIG_REQUIRED',
           `Connector "${connector.name}" needs "${field.label}".`,
+          400,
+          { connector: connector.name, field: field.key, reason: 'required' },
         );
       }
       if (field.requiredFor?.includes(authMethod) === true) {
         throw new ConnectorCredentialError(
           'CREDENTIAL_CONFIG_REQUIRED',
           `Connector "${connector.name}" needs "${field.label}" for a ${authMethod} credential.`,
+          400,
+          {
+            connector: connector.name,
+            field: field.key,
+            authMethod,
+            reason: 'requiredFor',
+          },
         );
       }
       continue;
@@ -312,11 +382,18 @@ function normalizeConfig(
       ) {
         const range =
           field.min !== undefined && field.max !== undefined
-            ? ` between ${field.min} and ${field.max}`
-            : '';
+            ? { min: field.min, max: field.max }
+            : undefined;
         throw new ConnectorCredentialError(
           'CREDENTIAL_CONFIG_INVALID',
-          `"${field.label}" must be a number${range}.`,
+          `"${field.label}" must be a number${range ? ` between ${range.min} and ${range.max}` : ''}.`,
+          400,
+          {
+            connector: connector.name,
+            field: field.key,
+            reason: 'number',
+            ...range,
+          },
         );
       }
       out[field.key] = n;
@@ -332,6 +409,13 @@ function normalizeConfig(
       throw new ConnectorCredentialError(
         'CREDENTIAL_CONFIG_INVALID',
         `"${field.label}" must be one of: ${field.enum.join(', ')}.`,
+        400,
+        {
+          connector: connector.name,
+          field: field.key,
+          reason: 'option',
+          options: field.enum,
+        },
       );
     }
     // A mailbox the credential is filed under is named by its address: an
@@ -342,6 +426,8 @@ function normalizeConfig(
       throw new ConnectorCredentialError(
         'CREDENTIAL_CONFIG_INVALID',
         `"${field.label}" must be an email address, such as support@example.com.`,
+        400,
+        { connector: connector.name, field: field.key, reason: 'email' },
       );
     }
     out[field.key] = s;
@@ -374,6 +460,8 @@ function assertFixedConfigKept(
     throw new ConnectorCredentialError(
       'CREDENTIAL_CONFIG_INVALID',
       `"${field.label}" is set when a "${connector.name}" credential is added and cannot be changed — add another credential instead.`,
+      400,
+      { connector: connector.name, field: field.key, reason: 'fixed' },
     );
   }
 }
@@ -426,7 +514,7 @@ function buildPayload(
           token:
             input.token === undefined
               ? undefined
-              : normalizeSecretValue(input.token, 'The token'),
+              : normalizeSecretValue(input.token, 'token', authMethod),
         };
       case 'basic':
         return {
@@ -434,7 +522,7 @@ function buildPayload(
           password:
             input.password === undefined
               ? undefined
-              : normalizeSecretValue(input.password, 'The password'),
+              : normalizeSecretValue(input.password, 'password', authMethod),
           ...(input.smtpUsername !== undefined ||
           input.smtpPassword !== undefined
             ? {
@@ -444,7 +532,8 @@ function buildPayload(
                     ? undefined
                     : normalizeSecretValue(
                         input.smtpPassword,
-                        'The SMTP password',
+                        'smtpPassword',
+                        authMethod,
                       ),
               }
             : {}),
@@ -454,11 +543,16 @@ function buildPayload(
           accessToken:
             input.accessToken === undefined
               ? undefined
-              : normalizeSecretValue(input.accessToken, 'The access token'),
+              : normalizeSecretValue(
+                  input.accessToken,
+                  'accessToken',
+                  authMethod,
+                ),
           ...(input.refreshToken !== undefined && {
             refreshToken: normalizeSecretValue(
               input.refreshToken,
-              'The refresh token',
+              'refreshToken',
+              authMethod,
             ),
           }),
           ...(input.expiresAt !== undefined && { expiresAt: input.expiresAt }),
@@ -473,7 +567,11 @@ function buildPayload(
           clientSecret:
             input.clientSecret === undefined
               ? undefined
-              : normalizeSecretValue(input.clientSecret, 'The client secret'),
+              : normalizeSecretValue(
+                  input.clientSecret,
+                  'clientSecret',
+                  authMethod,
+                ),
         };
       default: {
         const _exhaustive: never = authMethod;
@@ -491,6 +589,12 @@ function buildPayload(
       throw new ConnectorCredentialError(
         'CREDENTIAL_SECRET_INVALID',
         err.message,
+        400,
+        {
+          authMethod,
+          reason: 'shape',
+          ...(err.field !== undefined && { field: err.field }),
+        },
       );
     }
     throw err;
@@ -517,6 +621,12 @@ function clientCredentialsTokenUrl(
     throw new ConnectorCredentialError(
       'AUTH_METHOD_NOT_SUPPORTED',
       `Connector "${connector.name}" does not accept client-credentials credentials.`,
+      400,
+      {
+        connector: connector.name,
+        authMethod: 'client-credentials',
+        accepted: connector.auth.map((method) => method.method),
+      },
     );
   }
   if (!entry.tokenUrl.includes(CLIENT_CREDENTIALS_TENANT_PLACEHOLDER)) {
@@ -526,6 +636,8 @@ function clientCredentialsTokenUrl(
     throw new ConnectorCredentialError(
       'CREDENTIAL_SECRET_INVALID',
       `Connector "${connector.name}" signs an app in within its directory — enter the directory (tenant) ID.`,
+      400,
+      { connector: connector.name, field: 'tenantId', reason: 'required' },
     );
   }
   return {
@@ -1686,6 +1798,7 @@ async function freshenClientCredentialsRow(
       'CONNECTOR_UNKNOWN',
       `Credential "${row.name}" belongs to "${row.connectorSlug}", which this deployment does not ship.`,
       404,
+      { connector: row.connectorSlug },
     );
   }
   const { tokenUrl, scopes } = clientCredentialsTokenUrl(connector, payload);

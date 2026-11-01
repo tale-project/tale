@@ -214,8 +214,11 @@ export interface CredentialAdapter<
   /** Prefix for `console.error` lines, so operator logs name the surface. */
   logTag: string;
   /** Turns a backend failure into the message the reader sees — localized
-   * where the surface knows the code, the server's own sentence otherwise. */
-  mapError: (err: unknown, t: Translator) => string;
+   * where the surface knows the code, the server's own sentence otherwise.
+   * `vendor` is the one the dialog or row works on, so a refusal can name it
+   * and its fields as the form does; null where the catalog no longer has
+   * it. */
+  mapError: (err: unknown, t: Translator, vendor?: V | null) => string;
   /** Display label for a raw auth-method string. */
   methodLabel: (t: Translator, method: string) => string;
   /**

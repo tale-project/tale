@@ -107,7 +107,7 @@ export function CredentialEditDialog<
       onOpenChange(false);
     } catch (err) {
       console.error(`${adapter.logTag}: update credential failed`, err);
-      setError(adapter.mapError(err, t));
+      setError(adapter.mapError(err, t, vendor));
     }
   };
 

@@ -53,7 +53,7 @@ function fieldsOf(summary: ConnectorSummary): ConnectorSummary['configFields'] {
  * resolve: a translation that names only some options leaves the rest to
  * the next language in the chain, then to the English label, then to the
  * stored value itself. */
-function optionText(
+export function optionText(
   field: ConnectorSummary['configFields'][number],
   option: string,
 ): { label: string; i18n: Record<string, { label: string }> } {

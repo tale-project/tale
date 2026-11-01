@@ -53,6 +53,20 @@ export function backendErrorNumber(
     : undefined;
 }
 
+/** A list of strings the refusal carried beside its code — the door's
+ *  `data`, such as the sign-in methods a connector accepts — or undefined
+ *  when the field is absent or holds anything else. */
+export function backendErrorStrings(
+  err: unknown,
+  field: string,
+): readonly string[] | undefined {
+  const value = dataField(err, field);
+  return Array.isArray(value) &&
+    value.every((item): item is string => typeof item === 'string')
+    ? value
+    : undefined;
+}
+
 /** The structured `message`, falling back for an unstructured throw. */
 export function backendErrorMessage(err: unknown, fallback: string): string {
   return stringField(err, 'message') ?? fallback;

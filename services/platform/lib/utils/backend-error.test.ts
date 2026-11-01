@@ -4,6 +4,7 @@ import { AppError } from '../shared/errors/app-error';
 import {
   backendErrorCode,
   backendErrorMessage,
+  backendErrorStrings,
   backendRefusalReason,
   backendUserMessage,
   invalidBodyReason,
@@ -169,5 +170,31 @@ describe('invalidBodyReason', () => {
       ),
     ).toBeUndefined();
     expect(invalidBodyReason(new Error('boom'))).toBeUndefined();
+  });
+});
+
+describe('backendErrorStrings', () => {
+  it('reads a list of strings the refusal carried beside its code', () => {
+    expect(
+      backendErrorStrings(
+        new AppError({
+          code: 'AUTH_METHOD_NOT_SUPPORTED',
+          accepted: ['oauth2', 'client-credentials'],
+        }),
+        'accepted',
+      ),
+    ).toEqual(['oauth2', 'client-credentials']);
+  });
+
+  it('is undefined for an absent field or one holding anything else', () => {
+    const refusal = new AppError({
+      code: 'CREDENTIAL_CONFIG_INVALID',
+      field: 'security',
+      options: ['tls', 3],
+    });
+    expect(backendErrorStrings(refusal, 'accepted')).toBeUndefined();
+    expect(backendErrorStrings(refusal, 'field')).toBeUndefined();
+    expect(backendErrorStrings(refusal, 'options')).toBeUndefined();
+    expect(backendErrorStrings(new Error('boom'), 'options')).toBeUndefined();
   });
 });

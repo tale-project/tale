@@ -1,11 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { render, screen } from '@/tests/utils/render';
+import { runAdapted } from '@/app/lib/backend/adapters';
+import { backendApiErrorFromBody } from '@/app/lib/backend/api-client';
+import { i18n } from '@/tests/utils/i18n-all-languages';
+import { render, screen, within } from '@/tests/utils/render';
 
 import type { ConnectorSummary } from '../hooks/backend';
 import { hasDeploymentApp, OauthAppsCard } from './oauth-apps-card';
 
 const reads = vi.hoisted(() => ({ loading: false }));
+const upsertOauthApp = vi.hoisted(() => vi.fn());
 
 vi.mock('../hooks/oauth-apps', () => ({
   useConnectorOauthApps: () => ({
@@ -24,7 +28,10 @@ vi.mock('../hooks/oauth-apps', () => ({
     data: { available: false, reason: 'no_sso' },
     isLoading: false,
   }),
-  useUpsertConnectorOauthApp: () => ({ mutateAsync: vi.fn() }),
+  useUpsertConnectorOauthApp: () => ({
+    mutateAsync: upsertOauthApp,
+    isPending: false,
+  }),
   useRemoveConnectorOauthApp: () => ({ mutate: vi.fn() }),
   useReuseSsoOauthApp: () => ({ mutate: vi.fn() }),
 }));
@@ -139,5 +146,70 @@ describe('OauthAppsCard while loading', () => {
     expect(
       screen.getAllByText(/a connector with neither can't be connected/),
     ).toHaveLength(1);
+  });
+});
+
+// #5222: the OAuth app door answered its refusals with an English sentence
+// and no code, so the card showed that sentence in every locale.
+describe('OauthAppsCard in German', () => {
+  const settings = (key: string, values?: Record<string, unknown>) =>
+    i18n.t(key, { ns: 'settings', ...values });
+
+  beforeEach(() => {
+    reads.loading = false;
+    vi.clearAllMocks();
+    // The dialog lists the redirect URIs to register, under this site.
+    window.__ENV__ = { SITE_URL: 'https://tale.example.com', BASE_PATH: '' };
+  });
+
+  afterEach(async () => {
+    localStorage.removeItem('user-locale');
+    await i18n.changeLanguage('en');
+  });
+
+  it('words a save refused to a member in German, never the door sentence', async () => {
+    // The shell takes the reader's language from here when it mounts.
+    localStorage.setItem('user-locale', 'de');
+    await i18n.changeLanguage('de');
+    const sentence = 'Only admins can configure OAuth apps.';
+    upsertOauthApp.mockRejectedValue(
+      await runAdapted(() =>
+        Promise.reject(
+          backendApiErrorFromBody(403, { error: sentence, code: 'FORBIDDEN' }),
+        ),
+      ).catch((error: unknown) => error),
+    );
+    const { user } = render(
+      <OauthAppsCard organizationId="org-1" connectors={[gmail]} />,
+    );
+
+    const [configure] = screen.getAllByRole('button', {
+      name: settings('connectors.oauthApps.configure'),
+    });
+    if (configure === undefined) throw new Error('no Configure button');
+    await user.click(configure);
+    const dialog = within(await screen.findByRole('dialog'));
+    await user.type(
+      dialog.getByLabelText(
+        new RegExp(`^${settings('connectors.oauthApps.clientIdLabel')}`),
+        { selector: 'input' },
+      ),
+      'client-id',
+    );
+    await user.type(
+      dialog.getByLabelText(
+        new RegExp(`^${settings('connectors.oauthApps.clientSecretLabel')}`),
+        { selector: 'input' },
+      ),
+      'client-secret{Enter}',
+    );
+
+    const alert = await dialog.findByRole('alert');
+    expect(alert).toHaveTextContent(settings('credentials.errors.forbidden'));
+    expect(alert).not.toHaveTextContent(
+      i18n.t('credentials.errors.forbidden', { ns: 'settings', lng: 'en' }),
+    );
+    expect(alert).not.toHaveTextContent(sentence);
+    expect(alert).not.toHaveTextContent(/admins|configure/i);
   });
 });

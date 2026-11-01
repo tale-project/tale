@@ -17,19 +17,27 @@ import type { SettingsFieldIssue } from '../hooks/use-settings-editor';
 
 /** Locale resolution for declared text: exact tag wins over base language
  * over the authored (English) field — same chain the task contract uses. */
+export function localizeDeclared<T extends object>(
+  entity: T & { i18n?: Record<string, Partial<T>> },
+  locale: string,
+): T {
+  const base = locale.split('-')[0] ?? locale;
+  const { i18n, ...rest } = entity;
+  // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- rest is T minus i18n; the overrides are Partial<T>
+  return { ...rest, ...i18n?.[base], ...i18n?.[locale] } as T;
+}
+
+/** {@link localizeDeclared} in the reader's locale. */
 export function useLocalized() {
   const { locale } = useLocale();
-  const base = locale.split('-')[0] ?? locale;
   return useMemo(
     () =>
       function localized<T extends object>(
         entity: T & { i18n?: Record<string, Partial<T>> },
       ): T {
-        const { i18n, ...rest } = entity;
-        // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- rest is T minus i18n; the overrides are Partial<T>
-        return { ...rest, ...i18n?.[base], ...i18n?.[locale] } as T;
+        return localizeDeclared(entity, locale);
       },
-    [base, locale],
+    [locale],
   );
 }
 
