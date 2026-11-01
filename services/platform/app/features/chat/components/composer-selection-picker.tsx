@@ -36,6 +36,13 @@ import {
   type PickerSearchOption,
 } from './picker-search-list';
 
+/** The panel of a section that lists models or skills. Its list renders
+ * only the rows in view, so a panel as wide as its content would change
+ * width while it scrolls; it keeps one width instead, narrower only where
+ * the viewport is, and a row whose label it cuts shows it whole in a tip. */
+const LIST_PANEL_CLASS_NAME =
+  'w-80 max-w-(--radix-dropdown-menu-content-available-width)';
+
 /** Explicit key map so the i18n usage check sees every catalog key. */
 const LEVEL_LABEL_KEY: Record<ReasoningEffort, string> = {
   low: 'effort.low',
@@ -114,11 +121,14 @@ export function ComposerSelectionPicker({
       label: (
         <span className="flex min-w-0 items-center gap-2">
           <span className="truncate">{model.label}</span>
-          <span className="text-muted-foreground/70 shrink-0 text-xs">
+          {/* At most half the row, so a long provider name never hides the
+              model's. */}
+          <span className="text-muted-foreground max-w-1/2 shrink-0 truncate text-xs">
             {model.providerLabel ?? model.providerSlug}
           </span>
         </span>
       ),
+      fullLabel: `${model.label} · ${model.providerLabel ?? model.providerSlug}`,
       selected:
         model.id === selection.modelId &&
         (selection.providerSlug === undefined ||
@@ -142,7 +152,7 @@ export function ComposerSelectionPicker({
         label: (
           <span className="flex min-w-0 flex-col">
             <span className="truncate">{t('modelSelector.auto')}</span>
-            <span className="text-muted-foreground/70 text-xs leading-snug text-wrap">
+            <span className="text-muted-foreground text-xs leading-snug text-wrap">
               {t('modelSelector.autoDescription')}
             </span>
           </span>
@@ -180,13 +190,17 @@ export function ComposerSelectionPicker({
           <span className="flex min-w-0 flex-col">
             <span className="truncate">{skill.slug}</span>
             {skill.description !== undefined && (
-              <span className="text-muted-foreground/70 line-clamp-2 text-xs leading-snug text-wrap">
+              <span className="text-muted-foreground line-clamp-2 text-xs leading-snug text-wrap">
                 {skill.description}
               </span>
             )}
           </span>
         ),
         ariaLabel: skill.slug,
+        fullLabel:
+          skill.description !== undefined
+            ? `${skill.slug} · ${skill.description}`
+            : skill.slug,
         selected: chosenSkills.includes(skill.slug),
         disabled: full && !chosenSkills.includes(skill.slug),
         onSelect: () => toggle(skill.slug),
@@ -209,12 +223,13 @@ export function ComposerSelectionPicker({
       icon: ComponentType<{ className?: string }>,
       trailing: string | undefined,
       content: DropdownMenuItem,
+      contentClassName = 'min-w-60',
     ): DropdownMenuItem => ({
       type: 'sub',
       label,
       icon,
       ...(trailing !== undefined ? { trailing } : {}),
-      contentClassName: 'min-w-60',
+      contentClassName,
       items: [[content]],
     });
 
@@ -234,13 +249,14 @@ export function ComposerSelectionPicker({
                   onPicked={closeMenu}
                 />
                 {subscriptionNote !== undefined && (
-                  <p className="text-muted-foreground max-w-56 px-2 pt-1.5 pb-1 text-xs leading-snug">
+                  <p className="text-muted-foreground px-2 pt-1.5 pb-1 text-xs leading-snug">
                     {subscriptionNote}
                   </p>
                 )}
               </div>
             ),
           },
+          LIST_PANEL_CLASS_NAME,
         ),
       ],
     ];
@@ -314,7 +330,7 @@ export function ComposerSelectionPicker({
             type: 'custom',
             content: (
               <div className="flex min-w-0 flex-col">
-                <p className="text-muted-foreground max-w-64 px-2 pt-1 pb-1.5 text-xs leading-snug">
+                <p className="text-muted-foreground px-2 pt-1 pb-1.5 text-xs leading-snug">
                   {t('picker.skillsDescription')}
                 </p>
                 <PickerSearchList
@@ -322,12 +338,13 @@ export function ComposerSelectionPicker({
                   emptyHint={t('skills.emptySkills')}
                   multiSelect
                 />
-                <p className="text-muted-foreground max-w-64 px-2 pt-1.5 pb-1 text-xs leading-snug">
+                <p className="text-muted-foreground px-2 pt-1.5 pb-1 text-xs leading-snug">
                   {t('picker.skillsLimit', { max: CHOSEN_SKILLS_MAX })}
                 </p>
               </div>
             ),
           },
+          LIST_PANEL_CLASS_NAME,
         ),
       ]);
     }
