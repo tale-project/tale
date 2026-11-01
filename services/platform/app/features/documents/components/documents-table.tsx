@@ -50,6 +50,13 @@ interface DocumentsTableProps {
    */
   teamFilter?: string[];
   onTeamFilterChange?: (teamIds: string[]) => void;
+  /**
+   * `me`: the viewer's own uploads from every folder, as one flat list (the
+   * files behind their storage meter). Owned by the page (the URL); the
+   * filter is offered only when `onUploadedByChange` is given.
+   */
+  uploadedBy?: 'me';
+  onUploadedByChange?: (uploadedBy: 'me' | undefined) => void;
   /** Controlled Microsoft 365 picker (set after cloud-import OAuth return). */
   oneDriveOpen?: boolean;
   onOneDriveOpenChange?: (open: boolean) => void;
@@ -65,6 +72,8 @@ export function DocumentsTable({
   docId,
   teamFilter,
   onTeamFilterChange,
+  uploadedBy,
+  onUploadedByChange,
   oneDriveOpen,
   onOneDriveOpenChange,
   googleDriveOpen,
@@ -110,9 +119,13 @@ export function DocumentsTable({
     [onTeamFilterChange],
   );
 
+  // The server narrows to the viewer's uploads across folders, so unlike the
+  // filters below it needs no eager load of every page.
+  const uploadsOnly = uploadedBy === 'me';
   const paginatedResult = useListDocumentsPaginated({
     organizationId,
     folderId: currentFolderId,
+    ...(uploadsOnly && { uploadedBy: 'me' as const }),
     initialNumItems: 20,
   });
   const { regionRef, retryRead, focusRegion } =
@@ -152,7 +165,8 @@ export function DocumentsTable({
   const foldersRead = readStateOf(foldersQuery);
 
   const folderRows = useMemo<DocumentItem[]>(() => {
-    if (!folders) return [];
+    // The flat list of the viewer's uploads stands in no folder.
+    if (!folders || uploadsOnly) return [];
     return folders.map((folder: (typeof folders)[number]) => ({
       id: folder._id,
       name: folder.name,
@@ -175,7 +189,7 @@ export function DocumentsTable({
         syncHealth: folder.sync,
       }),
     }));
-  }, [folders]);
+  }, [folders, uploadsOnly]);
 
   const ragStatusFilterMap: Record<string, RagStatus[]> = useMemo(
     () => ({
@@ -267,6 +281,19 @@ export function DocumentsTable({
       });
     }
 
+    // The viewer's own uploads from every folder: where Settings › Usage ›
+    // Storage sends a person to see and free what fills their meter.
+    if (onUploadedByChange) {
+      configs.push({
+        key: 'uploadedBy',
+        title: tTables('headers.uploadedBy'),
+        options: [{ value: 'me', label: tDocuments('filter.uploadedBy.me') }],
+        selectedValues: uploadsOnly ? ['me'] : [],
+        onChange: (values) =>
+          onUploadedByChange(values.includes('me') ? 'me' : undefined),
+      });
+    }
+
     return configs;
   }, [
     tTables,
@@ -277,13 +304,16 @@ export function DocumentsTable({
     setSelectedTeamIds,
     directoryTeams,
     myTeamIds,
+    uploadsOnly,
+    onUploadedByChange,
   ]);
 
   const handleClearFilters = useCallback(() => {
     setSelectedRagStatuses([]);
     setSelectedSources([]);
     setSelectedTeamIds([]);
-  }, [setSelectedTeamIds]);
+    if (uploadsOnly) onUploadedByChange?.(undefined);
+  }, [setSelectedTeamIds, uploadsOnly, onUploadedByChange]);
 
   const filteredResults = useMemo(
     () =>
@@ -334,7 +364,8 @@ export function DocumentsTable({
   // their way): the notice names them, the level is never "No documents
   // yet", and with every document page in, never "all". Both reads failing
   // leaves nothing to list — the table's error state, whose retry runs both.
-  const foldersFailed = foldersRead.unavailable && !paginatedResult.unavailable;
+  const foldersFailed =
+    !uploadsOnly && foldersRead.unavailable && !paginatedResult.unavailable;
   const documentsFailed =
     paginatedResult.unavailable || paginatedResult.error !== null;
   const retryLevel = useCallback(() => {
@@ -398,11 +429,12 @@ export function DocumentsTable({
         search: {
           query: query.trim() || undefined,
           folderId: currentFolderId,
+          uploadedBy,
           doc: id,
         },
       });
     },
-    [navigate, organizationId, query, currentFolderId],
+    [navigate, organizationId, query, currentFolderId, uploadedBy],
   );
 
   const handleRowClick = useCallback(
@@ -436,9 +468,10 @@ export function DocumentsTable({
       search: {
         query: query.trim() || undefined,
         folderId: currentFolderId,
+        uploadedBy,
       },
     });
-  }, [navigate, organizationId, query, currentFolderId]);
+  }, [navigate, organizationId, query, currentFolderId, uploadedBy]);
 
   const handleDocumentClick = useCallback(
     (item: DocumentItem, e: React.MouseEvent) => {
@@ -488,6 +521,7 @@ export function DocumentsTable({
           search: {
             query: value.trim() || undefined,
             folderId: currentFolderId,
+            uploadedBy,
             doc: docId,
           },
         });
@@ -508,7 +542,7 @@ export function DocumentsTable({
 
   return (
     <>
-      {currentFolderId && (
+      {currentFolderId && !uploadsOnly && (
         <BreadcrumbNavigation
           folderId={currentFolderId}
           onNavigate={navigateToFolder}

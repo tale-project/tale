@@ -185,6 +185,9 @@ export function createDocumentRoutes(deps: {
         cursor: c.req.query('cursor') ?? null,
         numItems: Number.isFinite(numItems) ? numItems : 25,
         folderId,
+        // `uploadedBy=me`: the caller's own uploads from every folder — the
+        // only uploader this page names, as the storage quota is per person.
+        uploadedByViewer: c.req.query('uploadedBy') === 'me',
         ...(c.req.query('sourceProvider') !== undefined
           ? { sourceProvider: c.req.query('sourceProvider') }
           : {}),

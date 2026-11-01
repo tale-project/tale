@@ -611,7 +611,13 @@ export const documentReadAdapters: Record<string, ReadAdapter> = {
  * is what the server answers for an absent parameter (never the whole hub). */
 export function hubDocumentsPageQuery(
   orgId: string,
-  filters: { folderId?: string; sourceProvider?: string; extension?: string },
+  filters: {
+    folderId?: string;
+    sourceProvider?: string;
+    extension?: string;
+    /** The viewer's own uploads from every folder, instead of one folder. */
+    uploadedBy?: 'me';
+  },
 ): AdaptedPaginatedOptions {
   return {
     queryKey: backendKey(
@@ -621,11 +627,14 @@ export function hubDocumentsPageQuery(
       filters.folderId ?? null,
       filters.sourceProvider ?? null,
       filters.extension ?? null,
+      filters.uploadedBy ?? null,
     ),
     fetchPage: (cursor, numItems) => {
       const query = new URLSearchParams({ numItems: String(numItems) });
       if (cursor !== null) query.set('cursor', cursor);
-      if (filters.folderId !== undefined) {
+      if (filters.uploadedBy !== undefined) {
+        query.set('uploadedBy', filters.uploadedBy);
+      } else if (filters.folderId !== undefined) {
         query.set('folderId', filters.folderId);
       }
       if (filters.sourceProvider !== undefined) {
@@ -648,7 +657,11 @@ export const documentPaginatedAdapters: Record<string, PaginatedAdapter> = {
     const orgId = orgOf(args, ctx);
     if (orgId === undefined) return null;
     return hubDocumentsPageQuery(orgId, {
-      ...(typeof args.folderId === 'string' ? { folderId: args.folderId } : {}),
+      ...(args.uploadedBy === 'me'
+        ? { uploadedBy: 'me' as const }
+        : typeof args.folderId === 'string'
+          ? { folderId: args.folderId }
+          : {}),
       ...(typeof args.sourceProvider === 'string'
         ? { sourceProvider: args.sourceProvider }
         : {}),
