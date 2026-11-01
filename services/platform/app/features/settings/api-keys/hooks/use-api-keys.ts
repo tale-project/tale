@@ -176,10 +176,7 @@ export function useRevokeApiKey(organizationId: string) {
  * organization's block on each (APIKEY-R11). Keyed under the `api_key` hint
  * entity, so a block another admin sets here refreshes the open dialog.
  */
-export function memberPersonalApiKeysQuery(
-  organizationId: string,
-  userId: string,
-) {
+function memberPersonalApiKeysQuery(organizationId: string, userId: string) {
   return queryOptions({
     queryKey: backendKey(
       organizationId,
