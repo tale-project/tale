@@ -35,6 +35,7 @@ login:
   ssoNoOrganizations:
     Keine Organisation für die Anmeldung verfügbar. Wende dich
     an deine Administration.
+  ssoOrganizationsFailed: Die Organisationen konnten nicht geladen werden.
   proxyHandoff:
     pending: Du wirst über den Anmeldedienst deiner Organisation angemeldet …
     stalled: Die automatische Anmeldung wurde nicht abgeschlossen. Melde dich
