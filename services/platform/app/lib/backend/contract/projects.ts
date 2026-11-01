@@ -190,11 +190,6 @@ export interface ProjectsContract {
       updatedAt: number;
     };
   };
-  'projects/queries:listAccessibleUserIds': {
-    kind: 'query';
-    args: { organizationId: string; projectId: string };
-    returns: { orgWide: boolean; userIds: string[] };
-  };
   /** The agents other projects' dispatches put to work on this project's
    * board now: the board names them and offers them to assign and review. */
   'projects/queries:listServingAgents': {

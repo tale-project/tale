@@ -51,9 +51,8 @@ const agents: AssignableActor[] = [
   },
   { type: 'agent', id: 'drafter', name: 'Drafting agent', tools: [] },
 ];
-let scopeReady = true;
 let agentsLoading = false;
-/** Renders that read the candidate lists (project access, roster). */
+/** Renders that read the candidate lists (the people, the roster). */
 let candidateReads = 0;
 /** The directory has not answered yet, so it names no member. */
 let directoryPending = false;
@@ -68,6 +67,42 @@ const resolveActor = (type: string, id: string) => {
     isAgent: type === 'agent',
   };
 };
+
+interface PeopleFound {
+  members: AssignableActor[];
+  more: boolean;
+  searching: boolean;
+  unavailable: boolean;
+}
+// The server's search answers with the project's editors alone
+// (`access=edit`): Cara, a member, and Dan, with no role, are never found.
+const EDITORS: PeopleFound = {
+  members: members.slice(0, 2),
+  more: false,
+  searching: false,
+  unavailable: false,
+};
+let people: PeopleFound = EDITORS;
+/** What each render searched the people for. */
+const peopleSearches: Array<{
+  projectId: string | undefined;
+  query: string;
+  access: string;
+  chosenUserId: string | undefined;
+}> = [];
+vi.mock('../hooks/use-assignable-members', () => ({
+  useAssignableMembers: (
+    _organizationId: string,
+    projectId: string | undefined,
+    query: string,
+    access: string,
+    chosenUserId?: string,
+  ) => {
+    candidateReads += 1;
+    peopleSearches.push({ projectId, query, access, chosenUserId });
+    return people;
+  },
+}));
 vi.mock('../hooks/use-actor-directory', () => ({
   useProvidedActorDirectory: () => undefined,
   ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
@@ -77,9 +112,7 @@ vi.mock('../hooks/use-actor-directory', () => ({
     candidateReads += 1;
     return {
       subjectEntries: [],
-      assignableMembers: members,
       assignableAgents: agents,
-      scopeReady,
       agentsLoading,
       currentUserId: 'user-2',
       resolveActor,
@@ -100,10 +133,11 @@ const triggerName = (label: string) => `tasks.fields.reviewer: ${label}`;
 describe('ReviewerPicker', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    scopeReady = true;
     agentsLoading = false;
     candidateReads = 0;
     directoryPending = false;
+    people = EDITORS;
+    peopleSearches.length = 0;
   });
 
   // A task's dialog carries a reviewer picker that is usually never opened:
@@ -129,11 +163,17 @@ describe('ReviewerPicker', () => {
     expect(onOpenChange).toHaveBeenCalledWith(true);
   });
 
-  it('offers scoped editors and agents, with a separate inherited choice', async () => {
+  it('offers the editors the search finds and agents, with a separate inherited choice', async () => {
     const { user } = render(<ReviewerPicker {...base} onChange={vi.fn()} />);
     await user.click(
       screen.getByRole('button', { name: triggerName('tasks.reviewer.none') }),
     );
+    expect(peopleSearches.at(-1)).toEqual({
+      projectId: 'project-1',
+      query: '',
+      access: 'edit',
+      chosenUserId: undefined,
+    });
     expect(screen.getByRole('option', { name: /Alex/ })).toBeInTheDocument();
     expect(screen.getByRole('option', { name: /Bea/ })).toBeInTheDocument();
     expect(
@@ -144,15 +184,84 @@ describe('ReviewerPicker', () => {
     expect(screen.getByText('tasks.reviewer.routingHint')).toBeInTheDocument();
   });
 
-  it('does not expose unscoped people or agents while project access is loading', async () => {
-    scopeReady = false;
+  it('searches the editors for what is typed, and says so until they answer', async () => {
     const { user } = render(<ReviewerPicker {...base} onChange={vi.fn()} />);
     await user.click(
       screen.getByRole('button', { name: triggerName('tasks.reviewer.none') }),
     );
+    people = { ...EDITORS, members: [], searching: true };
+    await user.type(screen.getByRole('combobox'), 'zed');
+    expect(peopleSearches.at(-1)).toEqual({
+      projectId: 'project-1',
+      query: 'zed',
+      access: 'edit',
+      chosenUserId: undefined,
+    });
     expect(screen.queryByText('Alex')).not.toBeInTheDocument();
-    expect(screen.queryByText('Independent reviewer')).not.toBeInTheDocument();
-    expect(screen.getByText('common.actions.loading')).toBeInTheDocument();
+    expect(screen.getAllByText('common.actions.loading')).not.toHaveLength(0);
+    expect(
+      screen.queryByText('common.search.noResults'),
+    ).not.toBeInTheDocument();
+  });
+
+  it('says when more people match than it shows, and when the search failed', async () => {
+    people = { ...EDITORS, more: true };
+    const first = render(<ReviewerPicker {...base} onChange={vi.fn()} />);
+    await first.user.click(
+      screen.getByRole('button', { name: triggerName('tasks.reviewer.none') }),
+    );
+    expect(screen.getByText('common.peopleSearch.more')).toBeInTheDocument();
+    first.unmount();
+
+    people = { ...EDITORS, members: [], unavailable: true };
+    const second = render(<ReviewerPicker {...base} onChange={vi.fn()} />);
+    await second.user.click(
+      screen.getByRole('button', { name: triggerName('tasks.reviewer.none') }),
+    );
+    expect(
+      screen.getByText('common.peopleSearch.unavailable'),
+    ).toBeInTheDocument();
+    // The agents stay offered: only the people could not be searched.
+    expect(
+      screen.getByRole('option', { name: /Independent reviewer/ }),
+    ).toBeInTheDocument();
+  });
+
+  it('keeps the reviewer set on the task offered, and marked, whatever page the search found', async () => {
+    // Erin was found on no page: the search keeps them offered because the
+    // picker names them as its choice.
+    const erin: AssignableActor = {
+      type: 'user',
+      id: 'user-5',
+      name: 'Erin',
+      email: 'erin@example.com',
+      role: 'editor',
+    };
+    people = { ...EDITORS, members: [...EDITORS.members.slice(0, 1), erin] };
+    const { user } = render(
+      <ReviewerPicker
+        {...base}
+        reviewer={{ kind: 'user', userId: 'user-5' }}
+        onChange={vi.fn()}
+      />,
+    );
+    await user.click(
+      screen.getByRole('button', { name: /^tasks\.fields\.reviewer/ }),
+    );
+    expect(peopleSearches.at(-1)).toEqual({
+      projectId: 'project-1',
+      query: '',
+      access: 'edit',
+      chosenUserId: 'user-5',
+    });
+    expect(screen.getByRole('option', { name: /Erin/ })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    );
+    expect(screen.getByRole('option', { name: /Alex/ })).toHaveAttribute(
+      'aria-selected',
+      'false',
+    );
   });
 
   it('keeps agent choices unavailable until the project roster is loaded', async () => {
