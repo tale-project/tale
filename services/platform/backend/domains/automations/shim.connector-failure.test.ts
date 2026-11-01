@@ -10,10 +10,18 @@
  * connector (2026-09-26 evaluation, D-09).
  */
 
-import type { Sql } from 'postgres';
-import { describe, expect, it, vi } from 'vitest';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
+import type { Sql } from 'postgres';
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
+
+import {
+  executeConnectorAction,
+  installConnectorCatalog,
+} from '../../../lib/connectors/dispatcher.ts';
 import { ConnectorError } from '../../../lib/connectors/errors.ts';
+import { inProcessLiveRunner } from '../../../lib/connectors/in-process-live.ts';
 import { NodeFailure } from '../../core/automations/failure.ts';
 
 const {
@@ -263,6 +271,89 @@ describe('the connector action seam', () => {
     if (!handler) throw new Error('no connector handler');
     await expect(handler({})).rejects.toThrow('connection reset');
   });
+});
+
+// Slack's shipped body through the real dispatcher, the vendor stubbed: the
+// status Slack answered decides the run's family, so a busy Slack (429, 5xx)
+// never counts toward pausing a schedule, and Slack's own refusal does
+// [AUTO-R13].
+describe('a shipped live body the vendor failed', () => {
+  const SYSTEM_ROOT = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    '../../../../../configs/platform/system',
+  );
+
+  beforeAll(async () => {
+    const actual = await vi.importActual<
+      typeof import('../../../lib/connectors/catalog.ts')
+    >('../../../lib/connectors/catalog.ts');
+    installConnectorCatalog(
+      actual.loadConnectorDefinitions({ root: SYSTEM_ROOT }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it.each([
+    [429, 'connector_unavailable', 'CONNECTOR_RATE_LIMITED', 429],
+    [503, 'connector_unavailable', 'CONNECTOR_FAILED', 503],
+    [200, 'connector_error', 'CONNECTOR_FAILED', undefined],
+  ])(
+    'fails a call Slack answered %i as %s',
+    async (status, code, reason, kept) => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(
+          async () =>
+            new Response(JSON.stringify({ ok: false, error: 'no' }), {
+              status,
+              headers: { 'content-type': 'application/json' },
+            }),
+        ),
+      );
+      runConnectorAction.mockImplementationOnce(
+        (_sql: unknown, args: { connector: string; action: string }) =>
+          executeConnectorAction({
+            connector: args.connector,
+            action: args.action,
+            input: {},
+            caller: { kind: 'user', userId: 'u1' },
+            ctx: {
+              organizationId: 'org_1',
+              mode: 'live',
+              credentials: {
+                resolve: async () => ({
+                  credentialId: 'cred_1',
+                  authMethod: 'bearer',
+                  secrets: { token: 'sekrit' },
+                  authHeader: 'Bearer resolved-token',
+                }),
+              },
+              codeRunner: inProcessLiveRunner(),
+            },
+          }),
+      );
+      const handler = handlers['connectors/execute_action:runConnectorAction'];
+      if (!handler) throw new Error('no connector handler');
+      const caught = await handler({
+        connector: 'slack',
+        action: 'list_channels',
+      }).then(
+        () => null,
+        (error: unknown) => error,
+      );
+      expect(caught).toBeInstanceOf(NodeFailure);
+      const failure = caught as NodeFailure;
+      expect(failure.code).toBe(code);
+      expect(failure.failure).toMatchObject({
+        reason,
+        params: { connector: 'slack', action: 'slack.list_channels' },
+      });
+      expect(failure.failure?.params.status).toBe(kept);
+    },
+  );
 });
 
 describe('the credential probe', () => {

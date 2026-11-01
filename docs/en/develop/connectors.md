@@ -62,6 +62,8 @@ Adding a connector is a source contribution. The runtime reads the platform cata
 
 A connector with no live backend can run in mock mode but refuses live execution. Write actions do not run if the platform cannot obtain an approval decision. See the [approval-policy reference](/self-hosted/configuration/approvals) for rule precedence and pending decisions.
 
+A live `yaml-js` body that fails on the vendor's answer throws its error with that answer's HTTP status as `status`: `throw Object.assign(new Error(message), { status: r.status })`. A run reads the status: a rate limit (429) or a failure on the vendor's side (5xx) is the service being unavailable, which never counts toward [pausing a schedule](/platform/automations/triggers#when-a-schedule-pauses-itself), and 401 or 403 names a refused credential. A body's error without a status is the connector refusing the call.
+
 When inspecting a result contract, read the live implementation too. For example, Tavily's search input describes `max_results`, but the shipped action caps the returned results at five. The output signature alone does not explain that bound.
 
 ### Resolve the right account

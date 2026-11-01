@@ -894,6 +894,86 @@ describe('live connectors', () => {
     }>;
     expect(outs[1]?.key).toMatch(/^[^:]+:call\[1:0\]\/log:0$/);
   });
+
+  // A vendor that is busy (429, 5xx) is the service unavailable, which never
+  // counts toward pausing a schedule, and a body's own refusal stays a
+  // connector error. The connector is named by its slug, as the durable
+  // runtime names it [AUTO-R13].
+  describe('a live body the vendor failed', () => {
+    beforeAll(() => {
+      registerNodeType({
+        type: 'vendor.fetch',
+        kind: 'connector',
+        outputKind: 'structured',
+        description: 'test connector: reads from a vendor',
+        allowedFields: ['input'],
+        requiredFields: ['input'],
+        connector: {
+          name: 'vendor.fetch',
+          description: 'read from a vendor',
+          inputSchema: { type: 'object' },
+          outputSignature: '{ ok: boolean }',
+          hasEffect: false,
+          mock: () => ({ ok: true }),
+          // As a shipped body fails: the vendor's status on its error.
+          live: async (_input, ctx) => {
+            const r = await ctx.http.get('https://vendor.example/items');
+            if (r.status >= 400) {
+              throw Object.assign(
+                new Error(`vendor answered ${String(r.status)}`),
+                { status: r.status },
+              );
+            }
+            const body = r.json() as { ok: boolean; error?: string };
+            if (!body.ok) throw new Error(`vendor refused: ${body.error}`);
+            return body;
+          },
+        },
+      });
+    });
+
+    function answering(status: number, body: unknown) {
+      const host = testHost();
+      const get = async () => ({
+        status,
+        headers: {},
+        json: () => body,
+        text: () => JSON.stringify(body),
+      });
+      return { ...host, http: { ...host.http, get } };
+    }
+
+    it.each([
+      [429, 'CONNECTOR_RATE_LIMITED', 'connector_unavailable', 429],
+      [503, 'CONNECTOR_FAILED', 'connector_unavailable', 503],
+      [200, 'CONNECTOR_FAILED', 'connector_error', undefined],
+    ])(
+      'fails a call answered %i as %s, family %s',
+      async (status, reason, family, kept) => {
+        const result = await execute(
+          automationDoc([{ id: 'n', type: 'vendor.fetch', input: {} }]),
+          {
+            input: {},
+            mode: 'live',
+            recorder: createRecorder({ now: () => 0 }),
+            connectorHost: () => answering(status, { ok: false, error: 'no' }),
+          },
+        );
+        expect(result.status).toBe('error');
+        expect(result.error?.failure).toMatchObject({
+          code: family,
+          reason,
+          params: { connector: 'vendor', action: 'vendor.fetch' },
+        });
+        expect(result.error?.failure?.params.status).toBe(kept);
+        const step = result.record?.find((unit) => unit.key.path === 'n');
+        expect(step?.meta).toMatchObject({
+          connector: 'vendor',
+          action: 'vendor.fetch',
+        });
+      },
+    );
+  });
 });
 
 describe('guards and contracts', () => {

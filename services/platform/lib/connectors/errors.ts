@@ -60,6 +60,11 @@ export interface ConnectorErrorExtras {
   action?: string;
   /** What the caller should do next — the catalog's teaching half. */
   hint?: string;
+  /** The HTTP status the vendor answered, when its answer failed the call:
+   * a run tells a vendor that is busy (429, 5xx) from one that refused.
+   * Never named `status`, which the doors answer a coded error with as the
+   * platform's own: a vendor's 401 is no refusal of the caller. */
+  vendorStatus?: number;
   cause?: unknown;
 }
 
@@ -73,6 +78,7 @@ export class ConnectorError extends Error {
   readonly connector?: string;
   readonly action?: string;
   readonly hint?: string;
+  readonly vendorStatus?: number;
 
   constructor(
     code: ConnectorErrorCode,
@@ -88,6 +94,7 @@ export class ConnectorError extends Error {
     this.connector = extras.connector;
     this.action = extras.action;
     this.hint = extras.hint;
+    this.vendorStatus = extras.vendorStatus;
   }
 
   /** Render as one line: what failed, where, and what to do. */

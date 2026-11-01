@@ -42,6 +42,7 @@ import {
 import { Ajv, type ValidateFunction } from 'ajv';
 
 import { stableStringify } from '../engine/api/tests';
+import { vendorStatusOf } from '../engine/core/record/failure';
 import { codeRunner, type CodeRunner } from '../engine/core/runner';
 import type { ConnectorContext } from '../engine/core/slots';
 import { closestName } from '../engine/core/validate/similar';
@@ -964,12 +965,17 @@ export async function executeConnectorAction(
       error: message,
     });
     if (cause instanceof ConnectorError) throw cause;
+    // The vendor's status a body's error carries is what tells a busy
+    // service (429, 5xx) from a refusal, so it stays on the error a run
+    // classifies.
+    const status = vendorStatusOf(cause);
     throw new ConnectorError(
       'LIVE_BODY_FAILED',
       `the live ${nodeType} call failed: ${message.slice(0, 300)}`,
       {
         ...where,
         cause,
+        ...(status !== undefined && { vendorStatus: status }),
         // A data-only runner backend cannot hand a body the host functions, so
         // this is the one failure whose cause is the deployment, not the call.
         hint: /ctx\.\w+ is not a function|Cannot read propert(?:y|ies) '\w+' of undefined/.test(

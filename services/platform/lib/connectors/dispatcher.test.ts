@@ -746,6 +746,78 @@ describe('live yaml-js backend', () => {
     ).rejects.toMatchObject({ code: 'LIVE_BODY_FAILED' });
   });
 
+  // A run counts a busy vendor (429, 5xx) apart from a refusal, so the
+  // status a body's error carries stays on the coded error [AUTO-R13].
+  it("keeps the vendor's status a live body throws with", async () => {
+    fetchStub.mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ ok: false, error: 'ratelimited' }), {
+          status: 429,
+          headers: { 'content-type': 'application/json', 'retry-after': '30' },
+        }),
+    );
+    const failed: unknown = await executeConnectorAction({
+      connector: 'slack',
+      action: 'list_channels',
+      input: {},
+      caller: { kind: 'user', userId: 'u1' },
+      ctx: { organizationId: ORG, mode: 'live', credentials: resolver() },
+    }).catch((error: unknown) => error);
+    expect(failed).toBeInstanceOf(ConnectorError);
+    expect(failed).toMatchObject({
+      code: 'LIVE_BODY_FAILED',
+      vendorStatus: 429,
+      message:
+        'the live slack.list_channels call failed: Slack list_channels failed (429): rate limited by Slack — retry later',
+    });
+    // The doors answer a coded error's `status` as the platform's own: the
+    // vendor's 429 is no rate limit of the caller.
+    expect(failed).not.toHaveProperty('status');
+  });
+
+  it.each([
+    ['no status', 'throw new Error("vendor said no");'],
+    [
+      'a status no answer has',
+      'throw Object.assign(new Error("never answered"), { status: 0 });',
+    ],
+    [
+      'a status that is no number',
+      'throw Object.assign(new Error("busy"), { status: "503" });',
+    ],
+  ])('gives a live body error with %s no status', async (_case, live) => {
+    const THROWER = connectorSchema.parse({
+      name: 'thrower',
+      displayName: 'Thrower',
+      description: 'A live body that fails its own way.',
+      endpointMode: 'fixed',
+      allowedHosts: ['api.demo.test'],
+      auth: [{ method: 'bearer' }],
+      actions: [
+        {
+          name: 'fail',
+          description: 'Fail.',
+          effects: 'read',
+          input: { type: 'object', properties: {} },
+          output: '{ never: string }',
+          mock: 'return { never: "reached" };',
+          backend: { kind: 'yaml-js', live },
+        },
+      ],
+    });
+    installConnectorCatalog([...shipped, DEMO, THROWER]);
+    const failed: unknown = await executeConnectorAction({
+      connector: 'thrower',
+      action: 'fail',
+      input: {},
+      caller: { kind: 'user', userId: 'u1' },
+      ctx: { organizationId: ORG, mode: 'live', credentials: resolver() },
+    }).catch((error: unknown) => error);
+    expect(failed).toBeInstanceOf(ConnectorError);
+    expect(failed).toMatchObject({ code: 'LIVE_BODY_FAILED' });
+    expect((failed as ConnectorError).vendorStatus).toBeUndefined();
+  });
+
   it('refuses a live call for a mock-only action instead of mocking it', async () => {
     await expect(
       executeConnectorAction({
