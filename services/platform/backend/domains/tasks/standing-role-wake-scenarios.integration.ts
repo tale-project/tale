@@ -2704,6 +2704,18 @@ export async function checkStandingRoleWakeScenarios(
       );
     });
   } finally {
+    // Runs the scenarios left queued or parked stay so after the lane: a
+    // later lane's wake claimed one as the organization's oldest parked run
+    // (#5244). Cancelled, they park nothing for the lanes after this one.
+    await sql`
+      UPDATE app.project_agent_runs
+      SET status = 'cancelled', waiting_for_capacity_at_ms = NULL,
+          settled_at_ms = ${Date.now()}
+      WHERE project_id = ANY(${[...scenarios.values(), ...ownedProjects.keys()]})
+        AND status IN ('queued', 'running')
+    `.catch((error: unknown) => {
+      console.warn('[itest] standing-role wake run cleanup failed:', error);
+    });
     await release();
     for (const step of cleanup.reverse()) {
       await step().catch((error: unknown) => {

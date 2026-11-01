@@ -257,7 +257,11 @@ it fails: every later `/api/v1` call on that user's keys would answer
 its own. No lane writes into the run's builtin catalog (`TALE_CONFIG_BUILTIN_DIR`),
 which may be the repository's own `configs/platform`: a lane that needs a pack there
 plants it with `withBuiltinCatalog`, in a throwaway catalog of its own
-(`integration-lane-helpers.test.ts` holds the harness to it).
+(`integration-lane-helpers.test.ts` holds the harness to it). A lane's result never
+rests on rows another lane leaves or removes, so it passes alone (`ITEST_LANES`) and
+in any order: it seeds what it reads (an organization of its own from
+`signUpOrgOwner`, a mailbox from `withMailbox`, retention bounds from
+`ensureRetentionGovernance`) and cancels or deletes what it parks.
 
 The harness starts pg-boss with its cron clock off (`startBoss` with
 `schedule: false`): every schedule production registers is registered and reads
