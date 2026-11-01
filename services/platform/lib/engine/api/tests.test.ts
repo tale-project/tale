@@ -34,6 +34,43 @@ beforeAll(() => {
       },
     },
   });
+  registerNodeType({
+    type: 'sheet.read',
+    kind: 'connector',
+    outputKind: 'structured',
+    description: 'test connector: reads a sheet (ships scenarios)',
+    allowedFields: ['input'],
+    requiredFields: ['input'],
+    connector: {
+      name: 'sheet.read',
+      description: 'read a sheet',
+      inputSchema: { type: 'object' },
+      outputSignature: '{ rows: Array<{ n: number }> }',
+      hasEffect: false,
+      mock: () => ({ rows: [{ n: 0 }] }),
+      scenarios: [
+        {
+          name: 'two_rows',
+          kind: 'success',
+          description: 'The sheet has two rows.',
+          output: { rows: [{ n: 1 }, { n: 2 }] },
+        },
+        {
+          name: 'q3_rows',
+          kind: 'success',
+          description: 'The Q3 sheet has three rows.',
+          when: { sheet: 'Q3' },
+          output: { rows: [{ n: 1 }, { n: 2 }, { n: 3 }] },
+        },
+        {
+          name: 'rate_limited',
+          kind: 'error',
+          description: 'The service refuses: too many requests.',
+          error: { message: 'too many requests', status: 429 },
+        },
+      ],
+    },
+  });
 });
 
 const DOUBLER: Automation = {
@@ -615,5 +652,194 @@ describe('running some tests, stopping a suite, keeping what ran', () => {
     // Without detail, a result carries no run.
     const plain = report(await runAutomationTests(THREE, { select: [0] }));
     expect(plain.results[0]?.run).toBeUndefined();
+  });
+});
+
+/** rows reads the sheet the input names; count counts its rows, which is
+ * the output. */
+const SHEET: Automation = {
+  version: 1,
+  name: 'sheet-count',
+  nodes: [
+    { id: 'rows', type: 'sheet.read', input: { sheet: '{{ input.sheet }}' } },
+    {
+      id: 'count',
+      type: 'transform',
+      input: { rows: '{{ nodes.rows.output.rows }}' },
+      code: 'return input.rows.length;',
+    },
+  ],
+  output: '{{ nodes.count.output }}',
+};
+
+describe('a test picks a scenario for a node, and is judged on what it answers [AUTO-R78]', () => {
+  it('passes on the output the scenario leads to, as on any other', async () => {
+    const answer = report(
+      await runAutomationTests({
+        ...SHEET,
+        tests: [
+          {
+            name: 'two rows',
+            input: { sheet: 'Q2' },
+            scenarios: { rows: 'two_rows' },
+            expect: { output: 2, nodes: { rows: 'ran', count: 'ran' } },
+          },
+          { name: 'the mock', input: { sheet: 'Q2' }, expect: { output: 1 } },
+        ],
+      }),
+    );
+    expect(answer).toMatchObject({ passed: 2, failed: 0 });
+    expect(answer.results[0]?.unusedMocks).toBeUndefined();
+
+    const wrong = await judge(SHEET, {
+      name: 'three rows',
+      input: { sheet: 'Q2' },
+      scenarios: { rows: 'two_rows' },
+      expect: { output: 3 },
+    });
+    expect(wrong).toMatchObject({
+      pass: false,
+      message: 'output mismatch — expected 3 but got 2',
+    });
+  });
+
+  it('a pick no call matches is reported as unused, and the mock answers', async () => {
+    const elsewhere = await judge(SHEET, {
+      name: 'not the Q3 sheet',
+      input: { sheet: 'Q2' },
+      scenarios: { rows: 'q3_rows' },
+      expect: { output: 1 },
+    });
+    expect(elsewhere).toMatchObject({ pass: true, unusedMocks: ['rows'] });
+
+    const q3 = await judge(SHEET, {
+      name: 'the Q3 sheet',
+      input: { sheet: 'Q3' },
+      scenarios: { rows: 'q3_rows' },
+      expect: { output: 3 },
+    });
+    expect(q3.pass).toBe(true);
+    expect(q3.unusedMocks).toBeUndefined();
+  });
+
+  it('a pick its node’s action does not ship refuses the test, pointing at the pick', async () => {
+    const result = await judge(SHEET, {
+      name: 'misspelt',
+      input: { sheet: 'Q2' },
+      scenarios: { rows: 'rate_limit' },
+      expect: { output: 2 },
+    });
+    expect(result).toMatchObject({
+      pass: false,
+      message:
+        'the test could not run: the test picks the scenario "rate_limit" for "rows", which sheet.read does not ship',
+      failures: [
+        {
+          kind: 'refused',
+          issues: [
+            {
+              code: 'BENCH_UNKNOWN_SCENARIO',
+              at: { pointer: '/tests/0/scenarios/rows' },
+              params: {
+                node: 'rows',
+                type: 'sheet.read',
+                scenario: 'rate_limit',
+                scenarios: ['two_rows', 'q3_rows', 'rate_limited'],
+                suggestion: 'rate_limited',
+              },
+            },
+          ],
+        },
+      ],
+    });
+  });
+});
+
+describe('a scenario’s error is judged as the live failure it simulates [AUTO-R79]', () => {
+  it('a test that expects the failure passes on its node and its words', async () => {
+    const fails = (message: string) =>
+      judge(SHEET, {
+        name: 'the service refuses',
+        input: { sheet: 'Q3' },
+        scenarios: { rows: 'rate_limited' },
+        expect: { failure: { node: 'rows', message } },
+      });
+    expect((await fails('Too many requests')).pass).toBe(true);
+    expect((await fails('simulated by the test')).pass).toBe(true);
+    expect(await fails('timeout')).toMatchObject({
+      pass: false,
+      failures: [
+        {
+          kind: 'failure_message',
+          expected: 'timeout',
+          actual:
+            'too many requests (the "rate_limited" scenario of sheet.read, simulated by the test)',
+          node: 'rows',
+        },
+      ],
+    });
+  });
+
+  it('a run it fails unexpectedly names the classified reason: a rate limit, the service unavailable', async () => {
+    const result = await judge(SHEET, {
+      name: 'unexpected',
+      input: { sheet: 'Q3' },
+      scenarios: { rows: 'rate_limited' },
+      expect: { output: 2 },
+    });
+    expect(result).toMatchObject({
+      pass: false,
+      message:
+        'run error: too many requests (the "rate_limited" scenario of sheet.read, simulated by the test)',
+    });
+    expect(result.failures).toEqual([
+      {
+        kind: 'run_failed',
+        node: 'rows',
+        message:
+          'too many requests (the "rate_limited" scenario of sheet.read, simulated by the test)',
+        failure: {
+          code: 'connector_unavailable',
+          reason: 'CONNECTOR_RATE_LIMITED',
+          params: {
+            connector: 'sheet.read',
+            action: 'sheet.read',
+            status: 429,
+          },
+        },
+      },
+    ]);
+  });
+
+  it('onError goes on past it, as past a live failure: the node failed, the run took that way', async () => {
+    const tolerant: Automation = {
+      ...SHEET,
+      nodes: [
+        {
+          id: 'rows',
+          type: 'sheet.read',
+          input: { sheet: '{{ input.sheet }}' },
+          onError: 'continue',
+        },
+        {
+          id: 'count',
+          type: 'transform',
+          input: { rows: '{{ nodes.rows.output.rows }}' },
+          code: 'return input.rows.length;',
+        },
+      ],
+    };
+    const result = await judge(tolerant, {
+      name: 'the service refuses and the run goes on',
+      input: { sheet: 'Q3' },
+      scenarios: { rows: 'rate_limited' },
+      expect: { nodes: { rows: 'failed', count: 'skipped' } },
+    });
+    expect(result).toMatchObject({ pass: true });
+    expect(result.failures).toBeUndefined();
+    expect(result.path).toEqual({
+      id: 'fail:rows=1',
+      assignment: { 'fail:rows': true },
+    });
   });
 });

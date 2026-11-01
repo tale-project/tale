@@ -49,8 +49,32 @@ expect:
 - `effects` lists actions the run must take, such as an email to send, by node type; with `absent: true`, an action that must not happen.
 - `failure` says the run must fail, optionally at a given step and with a message that contains the given text.
 - `mocks` gives a step an output to use instead of calling its service or model, and `failures` makes a step fail with the given message.
+- `scenarios` gives a step that calls a connector one of the cases its action ships, as [Pick a connector's scenario](#scenarios) describes.
 
 Without `expect`, a test passes when the run succeeds. A row's menu also copies a test with **Duplicate** or removes it with **Delete**; **Discard** brings back a deleted test until you save.
+
+### Pick a connector's scenario {#scenarios}
+
+A connector action can ship scenarios: named cases of what its service answers, such as an empty list, a refused write or a rate limit. `scenarios` maps a step's id to the name of a scenario its action ships, so the test shows what the automation does in that case. In this test, the step `post` calls `slack.send_message` with the channel from the input, and gets the answer Slack gives for a channel that doesn't exist:
+
+```yaml
+name: Slack rejects an unknown channel
+input:
+  channel: C0000000009
+scenarios:
+  post: channel_not_found
+expect:
+  failure:
+    node: post
+```
+
+The step's input is still worked out and checked. A call whose input matches the scenario gets the scenario's answer; any other call gets the connector's usual simulated answer.
+
+- When the scenario answers with an output, it becomes the step's output, and the step carries **Simulated output** as if the test gave that output. A write still records the action it would have taken.
+- When the scenario answers with an error, the step fails with the scenario's message, marked as simulated by the test, and carries **Simulated failure**. The run treats it as the same failure from the service, such as a refused access or a rate limit, so the rest of the automation handles it as it would in a live run.
+- When none of the step's calls matches the scenario, it shows under **Not used**, as an unused simulated output does.
+
+A step takes one stand-in: a scenario, a simulated output or a simulated failure. The **Setup** form has no control for `scenarios` yet: write them with **Edit as YAML**, and the form keeps them as written. [Connectors](/develop/connectors#scenarios) explains how an action declares its scenarios and how their failures are classified. Over the [MCP endpoint](/develop/mcp-endpoint#authoring), `get_catalog` lists the scenarios each action ships.
 
 ### Start from the trigger or a path
 
@@ -101,7 +125,7 @@ Select a test to open it beside the canvas. A test with a result opens on **Resu
 - **Steps**: the step that ran, was skipped or failed against the test's expectation, with a way to show it on the canvas.
 - **A failed run**: the step the run failed at and why, in the words of the [execution logs](/platform/automations/execution-logs).
 
-**Simulated** names the steps the test stands in for, and **Not used** the ones the run skipped. **Technical details** shows the engine's own message. A result from the version's last check keeps no steps; run the test to see them.
+**Simulated** names the steps the test stands in for, each with a simulated output, a simulated failure or a scenario. **Not used** names the steps whose stand-in no call took: a step the run skipped, or one whose scenario none of its calls matched, which got the connector's usual simulated answer instead. **Technical details** shows the engine's own message. A result from the version's last check keeps no steps; run the test to see them.
 
 ### Show a test's run on the canvas {#show-on-canvas}
 
@@ -109,4 +133,4 @@ Select a test to open it beside the canvas. A test with a result opens on **Resu
 
 ## Fix a problem in a test
 
-Tale checks tests as it checks the rest of the draft. A test that can never pass, for example one that simulates a step the automation doesn't have or names an unknown field, shows in **Problems** with what to fix. Select the problem to open the test at that place in its YAML.
+Tale checks tests as it checks the rest of the draft. A test that can never pass, for example one that simulates a step the automation doesn't have or names an unknown field, shows in **Problems** with what to fix. So does a test that picks a scenario for a step the automation doesn't have, picks one the step's action doesn't ship, or gives a step two stand-ins. For a scenario the action doesn't ship, the problem names the closest one and lists the scenarios the action ships. Such a test can't run until you fix it. Select the problem to open the test at that place in its YAML.

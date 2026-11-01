@@ -1,6 +1,7 @@
 /**
  * The bench a run is given on the wire: the stand-ins a test or a step test
- * gives it (simulated outputs and failures), the narrower scope of a step
+ * gives it (simulated outputs and failures, and the scenarios of connector
+ * actions it picks), the narrower scope of a step
  * test, and how much of it a door takes. The engine owns what a bench means
  * (`lib/engine/core/execute/bench.ts`, which also decides which nodes it may
  * name and how its scopes combine); these schemas read it at the boundary.
@@ -28,6 +29,10 @@ export const BENCH_LIMITS = {
 /** The longest node id the grammar allows (`^[a-z][a-z0-9_]{0,49}$`). */
 const NODE_ID_MAX = 50;
 
+/** The longest scenario name a connector action ships
+ * (`^[a-z][a-z0-9_]{0,49}$`). */
+const SCENARIO_NAME_MAX = 50;
+
 const count = z.number().int().nonnegative();
 
 /** Simulated outputs, by node id. */
@@ -39,12 +44,20 @@ export const failuresSchema = z.record(
   z.string().max(BENCH_LIMITS.failureChars),
 );
 
+/** The scenario each node's connector action answers with — its name, as
+ * the action ships it — by node id. */
+export const scenariosSchema = z.record(
+  z.string(),
+  z.string().max(SCENARIO_NAME_MAX),
+);
+
 /** The bench a run is given: a test's stand-ins, and a step test's scope.
  * Which nodes it may name, and how its scopes combine, the engine's bench
  * plan decides (`planBench`), with a refusal of its own for each. */
 export const runBenchSchema = z.strictObject({
   mocks: mocksSchema.optional(),
   failures: failuresSchema.optional(),
+  scenarios: scenariosSchema.optional(),
   upTo: z.string().max(NODE_ID_MAX).optional(),
   only: z.string().max(NODE_ID_MAX).optional(),
   item: count.optional(),

@@ -224,6 +224,7 @@ const TEST_FIELDS: ReadonlyMap<string, FieldDisplay> = new Map([
   ['input', 'json'],
   ['mocks', 'json'],
   ['failures', 'json'],
+  ['scenarios', 'json'],
   ['expect.output', 'json'],
   ['expect.outputIncludes', 'json'],
   ['expect.effects', 'json'],

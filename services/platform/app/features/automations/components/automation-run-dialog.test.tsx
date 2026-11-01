@@ -53,6 +53,7 @@ const SOURCES: RunSources = {
         input: { quantity: 120, unitPrice: 20 },
         mocks: { rates: { chf: 1 } },
         failures: { notify: 'quota exceeded' },
+        scenarios: { post: 'channel_not_found' },
       },
     ],
     runs: [{ id: 'run-1', label: 'Succeeded · Oct 11, 5:02 PM' }],
@@ -483,7 +484,9 @@ it('starts the input from a test, and tries the draft with its stand-ins', async
     name: "Use the test's simulated outputs and failures",
   });
   expect(standIns).toBeChecked();
-  expect(screen.getByText('Simulates Rates and Notify.')).toBeInTheDocument();
+  expect(
+    screen.getByText('Simulates Rates, Notify, and Post.'),
+  ).toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Test run' }));
   expect(onConfirm).toHaveBeenLastCalledWith(
     { quantity: 120, unitPrice: 20 },
@@ -491,6 +494,7 @@ it('starts the input from a test, and tries the draft with its stand-ins', async
     {
       mocks: { rates: { chf: 1 } },
       failures: { notify: 'quota exceeded' },
+      scenarios: { post: 'channel_not_found' },
     },
   );
   // Without the stand-ins, the try calls out as a plain one does.

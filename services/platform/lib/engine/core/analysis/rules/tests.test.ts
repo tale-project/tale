@@ -28,6 +28,42 @@ beforeAll(() => {
       mock: () => ({ id: 'm-1' }),
     },
   });
+  registerNodeType({
+    type: 'sheet.read',
+    kind: 'connector',
+    outputKind: 'structured',
+    description: 'test connector: read a sheet (ships scenarios)',
+    allowedFields: ['input'],
+    requiredFields: ['input'],
+    connector: {
+      name: 'sheet.read',
+      description: 'read a sheet',
+      inputSchema: { type: 'object' },
+      outputSignature: '{ rows: Array<{ n: number }> }',
+      hasEffect: false,
+      mock: () => ({ rows: [] }),
+      scenarios: [
+        {
+          name: 'two_rows',
+          kind: 'success',
+          description: 'The sheet has two rows.',
+          output: { rows: [{ n: 1 }, { n: 2 }] },
+        },
+        {
+          name: 'no_rows',
+          kind: 'empty',
+          description: 'The sheet is empty.',
+          output: { rows: [] },
+        },
+        {
+          name: 'rate_limited',
+          kind: 'error',
+          description: 'The service refuses: too many requests.',
+          error: { message: 'too many requests', status: 429 },
+        },
+      ],
+    },
+  });
 });
 
 function doc(
@@ -875,5 +911,201 @@ describe('what the existing test rules judge of the new grammar', () => {
       at: { pointer: '/tests/0/expect/outputIncludes/count' },
       params: { property: '.count', expected: 'string', actual: 'number' },
     });
+  });
+});
+
+describe('scenarios a test picks that its run would refuse [AUTO-R78]', () => {
+  const rows: NodeDef = {
+    id: 'rows',
+    type: 'sheet.read',
+    input: { sheet: 'Q3' },
+  };
+  const SHIPPED = ['two_rows', 'no_rows', 'rate_limited'];
+
+  it('a pick its action ships raises nothing', async () => {
+    expect(
+      await testCodes(
+        doc(
+          [rows, send],
+          [{ name: 'two rows', input: {}, scenarios: { rows: 'two_rows' } }],
+        ),
+      ),
+    ).toEqual([]);
+  });
+
+  it('TESTS_SCENARIO_CONFLICT — a pick beside an output or a failure for the same node', async () => {
+    const d = doc(
+      [rows, send],
+      [
+        {
+          name: 'pick and output',
+          input: {},
+          mocks: { rows: { rows: [] } },
+          scenarios: { rows: 'two_rows' },
+        },
+        {
+          name: 'pick and failure',
+          input: {},
+          failures: { rows: 'down' },
+          scenarios: { rows: 'sheet_locked' },
+        },
+      ],
+    );
+    const found = await issues(d, 'TESTS_SCENARIO_CONFLICT');
+    expect(found.map((i) => [i.level, i.message, i.at, i.params])).toEqual([
+      [
+        'warning',
+        'tests[0] "pick and output" both picks a scenario and simulates an output for "rows"',
+        { pointer: '/tests/0/scenarios/rows', subject: 'key' },
+        { test: 0, name: 'pick and output', node: 'rows', field: 'mocks' },
+      ],
+      [
+        'warning',
+        'tests[1] "pick and failure" both picks a scenario and simulates a failure for "rows"',
+        { pointer: '/tests/1/scenarios/rows', subject: 'key' },
+        { test: 1, name: 'pick and failure', node: 'rows', field: 'failures' },
+      ],
+    ]);
+    // The conflict is the finding: the name of a conflicting pick is not
+    // judged as well.
+    expect(await issues(d, 'TESTS_SCENARIO_UNKNOWN')).toEqual([]);
+  });
+
+  it('TESTS_SCENARIO_UNKNOWN — a scenario the node’s action does not ship, with the closest when one is close', async () => {
+    const found = await issues(
+      doc(
+        [rows, send],
+        [
+          { name: 'misspelt', input: {}, scenarios: { rows: 'rate_limit' } },
+          { name: 'made up', input: {}, scenarios: { rows: 'sheet_locked' } },
+        ],
+      ),
+      'TESTS_SCENARIO_UNKNOWN',
+    );
+    expect(found.map((i) => [i.level, i.at, i.params, i.hint])).toEqual([
+      [
+        'warning',
+        { pointer: '/tests/0/scenarios/rows' },
+        {
+          test: 0,
+          name: 'misspelt',
+          node: 'rows',
+          type: 'sheet.read',
+          scenario: 'rate_limit',
+          scenarios: SHIPPED,
+          suggestion: 'rate_limited',
+        },
+        'did you mean "rate_limited"? scenarios of sheet.read: two_rows, no_rows, rate_limited',
+      ],
+      [
+        'warning',
+        { pointer: '/tests/1/scenarios/rows' },
+        {
+          test: 1,
+          name: 'made up',
+          node: 'rows',
+          type: 'sheet.read',
+          scenario: 'sheet_locked',
+          scenarios: SHIPPED,
+        },
+        'scenarios of sheet.read: two_rows, no_rows, rate_limited',
+      ],
+    ]);
+    expect(found[0]?.message).toBe(
+      'tests[0] "misspelt" picks the scenario "rate_limit" for "rows", which sheet.read does not ship',
+    );
+  });
+
+  it('TESTS_SCENARIO_UNKNOWN — a node whose type ships none: an action without them, or no action', async () => {
+    const found = await issues(
+      doc(
+        [send, { id: 'shape', type: 'transform', code: 'return 1;' }],
+        [
+          {
+            name: 'nothing to pick',
+            input: {},
+            scenarios: { send: 'bounced', shape: 'two_rows' },
+          },
+        ],
+      ),
+      'TESTS_SCENARIO_UNKNOWN',
+    );
+    expect(found.map((i) => [i.params, i.hint])).toEqual([
+      [
+        {
+          test: 0,
+          name: 'nothing to pick',
+          node: 'send',
+          type: 'mail.send',
+          scenario: 'bounced',
+          scenarios: [],
+        },
+        'mail.send ships no scenarios — simulate its output (mocks) or its failure (failures) instead',
+      ],
+      [
+        {
+          test: 0,
+          name: 'nothing to pick',
+          node: 'shape',
+          type: 'transform',
+          scenario: 'two_rows',
+          scenarios: [],
+        },
+        'transform ships no scenarios — simulate its output (mocks) or its failure (failures) instead',
+      ],
+    ]);
+  });
+
+  it('TESTS_MOCK_UNKNOWN_NODE — a pick for a node the automation does not have', async () => {
+    const d = doc(
+      [rows, send],
+      [{ name: 'renamed', input: {}, scenarios: { rowz: 'two_rows' } }],
+    );
+    const found = await issues(d, 'TESTS_MOCK_UNKNOWN_NODE');
+    expect(found).toEqual([
+      expect.objectContaining({
+        level: 'warning',
+        message:
+          'tests[0] "renamed" picks a scenario for "rowz" in scenarios, which is not a node of this automation',
+        at: { pointer: '/tests/0/scenarios/rowz', subject: 'key' },
+        params: {
+          test: 0,
+          name: 'renamed',
+          field: 'scenarios',
+          node: 'rowz',
+          suggestion: 'rows',
+          nodes: ['rows', 'send'],
+        },
+      }),
+    ]);
+    // A node it does not have ships nothing to judge the name against.
+    expect(await issues(d, 'TESTS_SCENARIO_UNKNOWN')).toEqual([]);
+  });
+
+  it('a name that is no text is the grammar’s to report, not a scenario that is unknown', async () => {
+    const { errors, warnings } = await validate(
+      rawDoc(
+        [rows, send],
+        [
+          {
+            name: 'not a name',
+            input: {},
+            scenarios: { rows: 42, send: 'bounced' },
+          },
+        ],
+      ),
+    );
+    // The pick of a name that is text is still judged.
+    expect(
+      warnings
+        .filter((i) => i.code === 'TESTS_SCENARIO_UNKNOWN')
+        .map((i) => i.params?.node),
+    ).toEqual(['send']);
+    expect(errors.filter((i) => i.code === 'TESTS_INVALID')).toEqual([
+      expect.objectContaining({
+        at: { pointer: '/tests/0/scenarios/rows' },
+        params: { test: 0, part: 'scenarios' },
+      }),
+    ]);
   });
 });

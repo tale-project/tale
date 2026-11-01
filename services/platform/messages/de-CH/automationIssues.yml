@@ -114,14 +114,19 @@ codes:
     fix: '{suggestion, select, none {Wähle ein Ereignis aus der Liste.} other {Meintest du «{suggestion}»?}}'
   TESTS_UNKNOWN_FIELD:
     cause: 'Der Test «{name}» hat «{field}»{effect, select, none {} other { in einer erwarteten Aktion}}.'
-    fix: '{suggestion, select, none {{effect, select, none {Entferne es. Ein Test hat name, description, input, mocks, failures und expect.} other {Entferne es. Eine erwartete Aktion hat connector, node, input, inputIncludes und absent.}}} other {Meintest du «{suggestion}»?}}'
+    fix: '{suggestion, select, none {{effect, select, none {Entferne es. Ein Test hat name, description, input, mocks, failures, scenarios und expect.} other {Entferne es. Eine erwartete Aktion hat connector, node, input, inputIncludes und absent.}}} other {Meintest du «{suggestion}»?}}'
   TESTS_NAME_DUPLICATE:
     cause: Test {testNumber} trägt den Namen «{name}», wie Test {firstPosition}.
   TESTS_MOCK_UNKNOWN_NODE:
-    cause: Der Test «{name}» simuliert «{node}».
+    cause: '{field, select, scenarios {Der Test «{name}» wählt ein Szenario für «{node}».} other {Der Test «{name}» simuliert «{node}».}}'
     fix: '{suggestion, select, none {Verwende die ID einer der Nodes.} other {Meintest du «{suggestion}»?}}'
   TESTS_MOCK_CONFLICT:
     cause: Der Test «{name}» macht beides für {nodeLabel}.
+  TESTS_SCENARIO_CONFLICT:
+    cause: '{field, select, mocks {Der Test «{name}» wählt ein Szenario für {nodeLabel} und simuliert zugleich ihre Ausgabe.} other {Der Test «{name}» wählt ein Szenario für {nodeLabel} und simuliert zugleich ihren Fehler.}}'
+  TESTS_SCENARIO_UNKNOWN:
+    cause: 'Der Test «{name}» wählt «{scenario}» für {nodeLabel} ({type}).{scenariosCount, plural, =0 { Diese Node hat keine Szenarien zur Auswahl.} one { Das einzige Szenario dieser Node ist {scenariosList}.} other { Die Szenarien dieser Node sind {scenariosList}.}}'
+    fix: '{suggestion, select, none {{scenariosCount, plural, =0 {Simuliere stattdessen ihre Ausgabe mit mocks oder ihren Fehler mit failures.} one {Wähle ihr einziges Szenario.} other {Wähle eines ihrer Szenarien.}}} other {Meintest du «{suggestion}»?}}'
   TESTS_MOCK_NOT_LIST:
     cause: Der Test «{name}» gibt {nodeLabel} {kindLabel}.
   TESTS_MOCK_TYPE:
