@@ -1324,6 +1324,37 @@ apiKeys:
     deletedProject: Projet supprimé
     actsAs: Agit en tant que {role}
     madeBy: Créée par {name}
+    blockedHere: Bloquée dans cette organisation
+  memberKeys:
+    action: Clés API personnelles
+    title: Clés API personnelles de {name}
+    description: Ces clés appartiennent à {name}. Une clé bloquée ici est refusée dans cette organisation seulement ; le blocage ne s’étend pas aux autres organisations de {name}.
+    works: Fonctionne ici
+    blocked: Bloquée ici
+    refused: Refusée ici
+    refusedNotice: Les clés personnelles des membres sont désactivées dans cette organisation, donc aucune de ces clés ne fonctionne ici. Un blocage s’applique toujours une fois qu’elles sont réactivées.
+    unavailableNotice: Le paramètre des clés personnelles des membres ne peut pas être lu pour le moment, on ne sait donc pas si ces clés fonctionnent ici. Réessaie dans un instant.
+    created: Ajoutée le {date}
+    blockedBy: Bloquée par {name} le {date}
+    block: Bloquer
+    unblock: Lever le blocage
+    empty: '{name} n’a aucune clé API personnelle.'
+    cannotBlock: Seul un propriétaire peut bloquer les clés API d’un propriétaire.
+    loadFailed: Les clés n’ont pas pu être chargées.
+    refreshFailed: Les clés n’ont pas pu être actualisées ; la liste n’est peut-être pas à jour.
+    blockDialog:
+      title: Bloquer cette clé ici ?
+      description: 'Les requêtes avec « {keyName} » seront refusées dans cette organisation. Le blocage ne s’étend pas aux autres organisations de {name}, et {name} reçoit une notification.'
+      confirm: Bloquer la clé
+    unblockDialog:
+      title: Lever le blocage ?
+      description: 'Cette organisation ne bloque plus « {keyName} », et {name} reçoit une notification.'
+      confirm: Lever le blocage
+    toasts:
+      blocked: Clé bloquée dans cette organisation
+      unblocked: Blocage levé
+      blockFailed: La clé n’a pas pu être bloquée
+      unblockFailed: Le blocage n’a pas pu être levé
   form:
     name: Nom de la clé
     namePlaceholder: Saisis le nom de la clé...
@@ -1572,6 +1603,8 @@ logs:
       api_key.created: Clé API créée
       api_key.updated: Clé API mise à jour
       api_key.revoked: Clé API révoquée
+      api_key.blocked: Clé API bloquée
+      api_key.unblocked: Blocage de la clé API levé
       agent_connection.created: Agent de code connecté
       agent_connection.updated: Accès d’un agent de code modifié
       agent_connection.revoked: Agent de code déconnecté

@@ -180,6 +180,12 @@ entries:
   # created an API key that acts as the member in this organization.
   - 'inbox.apiKeyCreatedForYou'
   - 'inbox.apiKeyCreatedForYouBody'
+  # Blocks on a member's own key (domains/api_keys/blocks.ts): an Owner or
+  # Admin blocked it in this organization, or lifted the block.
+  - 'inbox.apiKeyBlockedForYou'
+  - 'inbox.apiKeyBlockedForYouBody'
+  - 'inbox.apiKeyUnblockedForYou'
+  - 'inbox.apiKeyUnblockedForYouBody'
   # A coding agent disconnected by something other than the member
   # (domains/agent_connections/end.ts): a refresh token used twice, a changed
   # password or sign-in method, an admin's disconnect.

@@ -1290,6 +1290,37 @@ apiKeys:
     deletedProject: Gelöschtes Projekt
     actsAs: Handelt als {role}
     madeBy: Erstellt von {name}
+    blockedHere: In dieser Organisation blockiert
+  memberKeys:
+    action: Persönliche API-Schlüssel
+    title: Persönliche API-Schlüssel von {name}
+    description: Diese Schlüssel gehören {name}. Ein hier blockierter Schlüssel wird nur in dieser Organisation abgelehnt; in den anderen Organisationen von {name} gilt die Blockierung nicht.
+    works: Funktioniert hier
+    blocked: Hier blockiert
+    refused: Hier abgewiesen
+    refusedNotice: Eigene Schlüssel der Mitglieder sind in dieser Organisation ausgeschaltet, daher funktioniert hier keiner dieser Schlüssel. Eine Blockierung gilt weiter, sobald sie wieder eingeschaltet sind.
+    unavailableNotice: Die Einstellung für eigene Schlüssel der Mitglieder kann gerade nicht gelesen werden, daher ist unklar, ob diese Schlüssel hier funktionieren. Versuche es gleich noch einmal.
+    created: Hinzugefügt am {date}
+    blockedBy: Blockiert von {name} am {date}
+    block: Blockieren
+    unblock: Blockierung aufheben
+    empty: '{name} hat keine persönlichen API-Schlüssel.'
+    cannotBlock: Nur ein Inhaber kann die API-Schlüssel eines Inhabers blockieren.
+    loadFailed: Die Schlüssel konnten nicht geladen werden.
+    refreshFailed: Die Schlüssel konnten nicht aktualisiert werden; die Liste ist womöglich veraltet.
+    blockDialog:
+      title: Diesen Schlüssel hier blockieren?
+      description: 'Anfragen mit "{keyName}" werden in dieser Organisation abgelehnt. In den anderen Organisationen von {name} gilt die Blockierung nicht, und {name} wird benachrichtigt.'
+      confirm: Schlüssel blockieren
+    unblockDialog:
+      title: Blockierung aufheben?
+      description: 'Diese Organisation blockiert "{keyName}" nicht mehr, und {name} wird benachrichtigt.'
+      confirm: Blockierung aufheben
+    toasts:
+      blocked: Schlüssel in dieser Organisation blockiert
+      unblocked: Blockierung aufgehoben
+      blockFailed: Der Schlüssel konnte nicht blockiert werden
+      unblockFailed: Die Blockierung konnte nicht aufgehoben werden
   form:
     name: Schlüsselname
     namePlaceholder: Schlüsselnamen eingeben...
@@ -1540,6 +1571,8 @@ logs:
       api_key.created: API-Schlüssel erstellt
       api_key.updated: API-Schlüssel aktualisiert
       api_key.revoked: API-Schlüssel widerrufen
+      api_key.blocked: API-Schlüssel blockiert
+      api_key.unblocked: Blockierung des API-Schlüssels aufgehoben
       agent_connection.created: Coding-Agent verbunden
       agent_connection.updated: Zugriff eines Coding-Agenten geändert
       agent_connection.revoked: Coding-Agent getrennt

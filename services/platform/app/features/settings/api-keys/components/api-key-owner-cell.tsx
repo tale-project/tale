@@ -1,5 +1,6 @@
 'use client';
 
+import { Badge } from '@tale/ui/badge';
 import { Text } from '@tale/ui/text';
 
 import { useT } from '@/lib/i18n/client';
@@ -7,14 +8,15 @@ import { useT } from '@/lib/i18n/client';
 import type { ApiKey } from '../types';
 
 interface ApiKeyOwnerCellProps {
-  apiKey: Pick<ApiKey, 'owner' | 'role' | 'createdBy'>;
+  apiKey: Pick<ApiKey, 'owner' | 'role' | 'createdBy' | 'blockedHere'>;
   /** The signed-in member: a key made for them reads as theirs. */
   viewerUserId: string | undefined;
 }
 
 /**
  * Whose a key is, and — under it — what it acts as: the role of a team's, a
- * project's or the organization's key, or who made a key for a member.
+ * project's or the organization's key, or who made a key for a member; and
+ * whether this organization has blocked the viewer's own key here.
  */
 export function ApiKeyOwnerCell({
   apiKey,
@@ -71,6 +73,11 @@ export function ApiKeyOwnerCell({
         <Text as="span" variant="muted" truncate className="text-xs">
           {detail}
         </Text>
+      )}
+      {apiKey.blockedHere === true && (
+        <Badge variant="destructive" className="mt-1 w-fit">
+          {t('apiKeys.owner.blockedHere')}
+        </Badge>
       )}
     </div>
   );
