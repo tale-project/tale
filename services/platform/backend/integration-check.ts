@@ -132,6 +132,7 @@ import {
 import { checkMessageHeldBlobs } from './domains/files/message-held-blobs.integration.ts';
 import { checkRejectedUploadReclaim } from './domains/files/reject-blob.integration.ts';
 import { checkHubFolderWriteRole } from './domains/folders/write-role.integration.ts';
+import { checkBudgetPeriodSums } from './domains/governance/budget-period-sums.integration.ts';
 import { checkImmutableBudgetProjects } from './domains/governance/immutable-projects.integration.ts';
 import { checkProjectBudgets } from './domains/governance/project-budget.integration.ts';
 import { checkIdleSessionSweep } from './domains/governance/session-idle.integration.ts';
@@ -68020,6 +68021,7 @@ async function main(): Promise<void> {
         'checkProjectBudgets',
         () => checkProjectBudgets(sql, baseUrl, authCtx, record),
       ],
+      ['checkBudgetPeriodSums', () => checkBudgetPeriodSums(sql, record)],
       [
         'checkImmutableBudgetProjects',
         () => checkImmutableBudgetProjects(sql, baseUrl, authCtx, record),

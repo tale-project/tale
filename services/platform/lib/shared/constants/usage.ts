@@ -56,10 +56,18 @@ export function usageLedgerSubject(userId: string): string {
   }
 }
 
+/** What precedes a person's id in each form the ledger books it under: none,
+ * and the legacy door forms. A read that expands ids in SQL binds these. */
+export const USAGE_LEDGER_SUBJECT_PREFIXES: readonly string[] = [
+  '',
+  'user:',
+  'api-key:',
+];
+
 /** Every `user_id` value a person's spend may be booked under — the bare id
  * and the legacy door forms — for a SQL `= ANY(...)` over the ledger. */
 export function usageLedgerSubjectForms(userId: string): string[] {
-  return [userId, `user:${userId}`, `api-key:${userId}`];
+  return USAGE_LEDGER_SUBJECT_PREFIXES.map((prefix) => `${prefix}${userId}`);
 }
 
 type UsageRowKind = 'llm' | 'connector' | 'transcription' | 'tts';

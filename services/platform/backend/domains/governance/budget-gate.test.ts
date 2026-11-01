@@ -81,6 +81,16 @@ function ledger(usage: LedgerUsage) {
   return recordingLedger(usage).sql;
 }
 
+/** Whether a recorded statement is a person's own sum: it matches `user_id`,
+ * as a team's sum (its members' forms) and a key's (its identity's) do too. */
+function isPersonalSum(text: string): boolean {
+  return (
+    text.includes('user_id =') &&
+    !text.includes('"teamMember"') &&
+    !text.includes('api_key_id =')
+  );
+}
+
 const SUBJECT = {
   organizationId: 'org-1',
   userId: 'user-1',
@@ -459,16 +469,23 @@ describe('resolveTurnAllowance', () => {
     });
     // Rows the workflow lane booked before it derived the person from the
     // run's starter carry `user:<id>` / `api-key:<id>`; the cap sees them.
-    const personal = queries.findIndex((q) => q.includes('user_id = ANY('));
+    const personal = queries.findIndex(isPersonalSum);
     expect(personal).toBeGreaterThan(-1);
     expect(bindings[personal]?.[2]).toEqual([
       'user-1',
       'user:user-1',
       'api-key:user-1',
     ]);
-    // A team's members are matched under the same forms.
-    const team = queries.find((q) => q.includes('"teamMember"'));
-    expect(team).toContain("regexp_replace(user_id, '^(user|api-key):', '')");
+    // A team's members are matched under the same forms, as values of
+    // `user_id` the ledger's bucket index serves — never by rewriting the
+    // column, which would read the organization's whole period.
+    const team = queries.findIndex((q) => q.includes('"teamMember"'));
+    expect(queries[team]).toContain('AND user_id = ANY(ARRAY(');
+    expect(queries[team]).not.toContain('regexp_replace');
+    const prefixes = bindings[team]?.at(-1) as string[];
+    expect(prefixes.map((prefix) => `${prefix}user-1`)).toEqual(
+      bindings[personal]?.[2],
+    );
   });
 
   it('binds no personal cap to an impersonal subject — the org cap alone sizes a trigger-started turn', async () => {
@@ -494,7 +511,7 @@ describe('resolveTurnAllowance', () => {
       reservations: holds(0, 0),
     });
     expect(allowance).toEqual({ allowed: true, budgetCents: 500 });
-    expect(queries.some((q) => q.includes('user_id ='))).toBe(false);
+    expect(queries.some(isPersonalSum)).toBe(false);
   });
 
   it('measures a team’s shared cap against the team’s aggregate', async () => {
@@ -1005,7 +1022,7 @@ describe('loadBudgetSubject — an API key that is its own identity [APIKEY-R9]'
     });
     // 800 − 650 = 150 left under the team's cap.
     expect(allowance).toEqual({ allowed: true, budgetCents: 150 });
-    expect(queries.some((q) => q.includes('user_id ='))).toBe(false);
+    expect(queries.some(isPersonalSum)).toBe(false);
   });
 
   it('counts the keys a team owns toward the team, by their binding', async () => {
@@ -1310,6 +1327,90 @@ describe('findBudgetViolation', () => {
     await expect(
       findBudgetViolation(sql, SUBJECT, { now: NOW }),
     ).resolves.toBeNull();
+  });
+
+  describe('each scope’s cap just above, at and just below its booked usage plus holds', () => {
+    // Every bucket books and holds amounts of its own, so a cap measured
+    // against another bucket's usage or holds would move its boundary.
+    const booked = (n: number) => ({
+      totalTokens: 1_000 * n,
+      costEstimate: 100 * n,
+      requestCount: 10 * n,
+    });
+    const held = (n: number) => ({ tokens: 10 * n, costCents: n, requests: n });
+    const LEDGER: LedgerUsage = {
+      user: booked(1),
+      teams: { 'team-1': booked(2) },
+      apiKey: booked(3),
+      org: booked(4),
+    };
+    const RESERVATIONS = {
+      user: held(1),
+      teams: { 'team-1': held(2) },
+      apiKey: held(3),
+      org: held(4),
+    };
+    const SCOPES = [
+      { scope: 'user', n: 1, rule: { scope: 'user', scopeId: 'user-1' } },
+      { scope: 'team', n: 2, rule: { scope: 'team', scopeId: 'team-1' } },
+      { scope: 'apiKey', n: 3, rule: { scope: 'apiKey', apiKeyId: 'key-1' } },
+      { scope: 'org', n: 4, rule: { scope: 'org' } },
+    ] as const;
+    const KINDS = [
+      { cap: 'maxTokens', code: 'TOKEN_LIMIT', used: (n: number) => 1_010 * n },
+      { cap: 'maxCostCents', code: 'COST_LIMIT', used: (n: number) => 101 * n },
+      {
+        cap: 'maxRequests',
+        code: 'REQUEST_LIMIT',
+        used: (n: number) => 11 * n,
+      },
+    ] as const;
+    const ROOM = [
+      { usage: 'just under', room: 1 },
+      { usage: 'at', room: 0 },
+      { usage: 'just over', room: -1 },
+    ] as const;
+    const CASES = SCOPES.flatMap((scope) =>
+      KINDS.flatMap((kind) =>
+        ROOM.map(({ usage, room }) => ({
+          scope: scope.scope,
+          n: scope.n,
+          rule: scope.rule,
+          cap: kind.cap,
+          code: kind.code,
+          used: kind.used,
+          usage,
+          room,
+        })),
+      ),
+    );
+
+    it.each(CASES)(
+      '$scope: usage $usage its $cap with holds [GOV-R4] [GOV-R5]',
+      async ({ scope, n, rule, cap, code, used, room }) => {
+        const limit = used(n) + room;
+        policy.config = {
+          enabled: true,
+          rules: [{ ...rule, period: 'monthly', [cap]: limit }],
+        };
+        const violation = await findBudgetViolation(
+          ledger(LEDGER),
+          { ...SUBJECT, apiKeyId: 'key-1' },
+          { now: NOW, reservations: RESERVATIONS },
+        );
+        if (room > 0) {
+          expect(violation).toBeNull();
+        } else {
+          expect(violation).toMatchObject({
+            scope,
+            code,
+            period: 'monthly',
+            used: used(n),
+            limit,
+          });
+        }
+      },
+    );
   });
 });
 
