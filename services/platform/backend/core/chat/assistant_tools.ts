@@ -45,7 +45,10 @@ import {
   wrapUntrusted,
 } from '../../../lib/chat/untrusted-content';
 import {
+  classifyContentType,
   classifyRenderReason,
+  DOCUMENT_MIME_TYPES,
+  documentNameForUrl,
   publicPageError,
 } from '../../../lib/knowledge/crawl-parse';
 import { htmlTitle } from '../../../lib/knowledge/html-to-text';
@@ -67,8 +70,9 @@ import {
   SafeFetchError,
   isPrivateIp,
   safeFetch,
+  safeFetchBinary,
+  type SafeFetchBinaryResponse,
   type OutboundProxyRef,
-  type SafeFetchResponse,
 } from '../../../lib/net/safe-fetch';
 import { modelTimestamp } from '../../../lib/shared/model-timestamp';
 import { knowledgeDatabaseUnavailable } from '../../db/unavailable';
@@ -91,6 +95,10 @@ import { searchKnowledge } from '../knowledge/search';
 import type { ActionCtx } from '../lib/ctx';
 import { internal } from '../lib/handler_names';
 import { orgSlugFromId } from '../lib/helpers/org_slug';
+import { ExtractionError } from '../lib/knowledge/extraction/errors';
+import { PDF_MAX_PAGES } from '../lib/knowledge/extraction/pdf';
+import { extractDocument } from '../lib/knowledge/extraction/router';
+import { sniffDocumentExtension } from '../lib/knowledge/extraction/sniff';
 import type { Doc } from '../lib/rows';
 import { detectListingIntent } from '../lib/search';
 import {
@@ -148,6 +156,15 @@ const WEB_FETCH_BOT_CHECK_ATTEMPTS = 3;
  * renders a page: never as the crawler's `TaleBot`, whose robots.txt rules a
  * chat read does not consult. */
 const WEB_FETCH_USER_AGENT = 'TaleAssistant/1.0 (+chat web_fetch)';
+/** What web_fetch asks for: a page or text first, then the documents the
+ * extraction router reads, then anything, whose type then decides. */
+const WEB_FETCH_ACCEPT = [
+  'text/html',
+  'application/xhtml+xml',
+  'text/plain;q=0.9',
+  ...DOCUMENT_MIME_TYPES.map((type) => `${type};q=0.8`),
+  '*/*;q=0.5',
+].join(',');
 /** How long the render of one page may hold its sandbox: the worker stops
  * starting pages 20 s before this, and a page gets 20 s to load and 5 s for
  * its network to go idle. */
@@ -159,7 +176,11 @@ const WEB_FETCH_MAX_URL_CHARS = 2_048;
 
 /** A page web_fetch asked for, and the bot check it still met, if any. */
 interface FetchedPage {
-  readonly response: SafeFetchResponse;
+  readonly response: SafeFetchBinaryResponse;
+  /** The body as sent, which a document is read from. */
+  readonly bytes: Uint8Array;
+  /** The body decoded as UTF-8, which a page is read from. */
+  readonly text: string;
   /** The bot check that answered the last attempt. */
   readonly botCheck: BotCheck | null;
   readonly attempts: number;
@@ -181,19 +202,23 @@ async function fetchPublicPage(url: URL): Promise<FetchedPage> {
   const walls: string[] = [];
   let walled: FetchedPage | null = null;
   for (let attempts = 1; ; attempts += 1) {
-    let response: SafeFetchResponse;
+    let response: SafeFetchBinaryResponse;
+    let bytes: Uint8Array;
     try {
-      response = await safeFetch(url.toString(), {
+      response = await safeFetchBinary(url.toString(), {
         timeoutMs: WEB_FETCH_TIMEOUT_MS,
         maxResponseBytes: WEB_FETCH_MAX_RESPONSE_BYTES,
         credentialless: true,
         httpsOnly: true,
         outboundProxy: true,
         headers: {
-          accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5',
+          accept: WEB_FETCH_ACCEPT,
           'user-agent': WEB_FETCH_USER_AGENT,
         },
       });
+      // Bytes, not text: a document is parsed from them. A page is decoded
+      // below exactly as `safeFetch` decodes one.
+      bytes = new Uint8Array(await response.body.arrayBuffer());
     } catch (error) {
       // The page was never read, and the check an earlier attempt met says
       // why better than the failure of asking again.
@@ -203,11 +228,16 @@ async function fetchPublicPage(url: URL): Promise<FetchedPage> {
       );
       return walled;
     }
-    const botCheck = botCheckOf(response);
+    const text = new TextDecoder('utf-8').decode(bytes);
+    const botCheck = botCheckOf({
+      status: response.status,
+      headers: response.headers,
+      body: text,
+    });
     const via = response.outboundProxy;
     if (botCheck !== null) {
       walls.push(`${botCheck.vendor} ${cameThrough(via)}`);
-      walled = { response, botCheck, attempts };
+      walled = { response, bytes, text, botCheck, attempts };
     }
     const again =
       botCheck?.kind === 'challenge' &&
@@ -220,7 +250,7 @@ async function fetchPublicPage(url: URL): Promise<FetchedPage> {
         `[chat] web_fetch: ${url.hostname} answered with a bot check (${walls.join('; ')})${botCheck === null ? `, then served the page ${cameThrough(via)}` : ''}`,
       );
     }
-    return { response, botCheck, attempts };
+    return { response, bytes, text, botCheck, attempts };
   }
 }
 
@@ -236,6 +266,138 @@ function cameThrough(via: OutboundProxyRef | undefined): string {
  * The message states what happened, for the model; how to tell the person
  * is the tool description's, so the step never shows an instruction to the
  * model as if it were the person's explanation. */
+/** How web_fetch reads a response: as a document the extraction router
+ * reads (`filename`: the name its Content-Disposition offers), as text
+ * (`html`: a page, read for its main content), or not at all. */
+type WebFetchKind =
+  | {
+      readonly kind: 'document';
+      readonly extension: string;
+      readonly filename: string | null;
+    }
+  | { readonly kind: 'text'; readonly html: boolean }
+  | { readonly kind: 'refused' };
+
+/**
+ * The crawler's dispatch decides first, so a document is never read as text:
+ * a declared document is one, and a generic download type, or no type at
+ * all, leaves it to the bytes. Anything else is read as text when its type
+ * is a page, text, JSON or XML (an Office Open XML type is none of them), or
+ * when it declares no type.
+ */
+async function webFetchKindOf(
+  contentType: string,
+  contentDisposition: string | null,
+  bytes: Uint8Array,
+): Promise<WebFetchKind> {
+  const dispatch = classifyContentType(contentType, contentDisposition);
+  if (dispatch.kind === 'document') return dispatch;
+  if (dispatch.kind === 'sniff' || contentType === '') {
+    const extension = await sniffDocumentExtension(bytes);
+    if (extension !== null) {
+      return {
+        kind: 'document',
+        extension,
+        filename: dispatch.kind === 'sniff' ? dispatch.filename : null,
+      };
+    }
+  }
+  const html =
+    contentType.includes('text/html') ||
+    contentType.includes('application/xhtml');
+  const textual =
+    html ||
+    contentType.startsWith('text/') ||
+    contentType.includes('json') ||
+    (contentType.includes('xml') && !contentType.includes('openxmlformats')) ||
+    contentType === '';
+  return textual ? { kind: 'text', html } : { kind: 'refused' };
+}
+
+/** A document web_fetch read: the name it was read under, its type, its
+ * text, and what the result tells the model beside it. */
+interface WebDocument {
+  readonly status: 'ok';
+  readonly name: string;
+  readonly type: string;
+  readonly pages: number | undefined;
+  readonly text: string;
+  readonly note: string;
+}
+
+/** Until a fetched document can be kept as a file of the conversation, its
+ * text is all the model holds of it. */
+const WEB_DOCUMENT_TEXT_ONLY =
+  "This is the document's text, not the file: the file is not in the " +
+  'conversation, and no other tool can take it. To have the document ' +
+  'changed or converted, ask the user to attach the file to a message.';
+
+/**
+ * Read a document web_fetch fetched with the extraction router, as the
+ * crawl lane reads one: no vision client, so no image is described and no
+ * scanned page is read (OCR cannot fit a tool call), and the result says
+ * which pages that left without text. A document whose bytes do not parse,
+ * or that holds no text at all, is a refusal that says why.
+ */
+async function readWebDocument(
+  url: string,
+  bytes: Uint8Array,
+  document: Extract<WebFetchKind, { kind: 'document' }>,
+): Promise<WebDocument | WebFetchFailure> {
+  const name = documentNameForUrl(url, document.extension, document.filename);
+  const type = document.extension.slice(1).toUpperCase();
+  let extracted: Awaited<ReturnType<typeof extractDocument>>;
+  try {
+    extracted = await extractDocument(bytes, name, {
+      visionClient: null,
+      processImages: false,
+    });
+  } catch (error) {
+    console.warn(
+      `[chat] web_fetch: reading the ${type} at ${new URL(url).hostname} failed: ${describeError(error)}`,
+    );
+    return webFetchFailure(
+      error instanceof ExtractionError ? 'unavailable' : 'error',
+      'unsupported_type',
+      `The ${type} document could not be read: ${clip(describeError(error), 200)}`,
+    );
+  }
+  const scanned = extracted.scannedPagesDetected ?? 0;
+  const pages = extracted.pageCount;
+  const unread =
+    document.extension === '.pdf' &&
+    pages !== undefined &&
+    pages > PDF_MAX_PAGES
+      ? `Only its first ${PDF_MAX_PAGES} of ${pages} pages were read.`
+      : null;
+  const scans =
+    scanned > 0
+      ? `${scanned} of its ${pages ?? scanned} pages are scanned images, ` +
+        'and this tool reads no images, so their text is missing.'
+      : null;
+  // A PDF's pages and a deck's slides are marked even when none holds text.
+  const text = extracted.text.replace(/--- (?:Page|Slide) \d+ ---/g, '').trim();
+  if (text === '') {
+    return webFetchFailure(
+      'unavailable',
+      'page_empty',
+      scans !== null
+        ? `The ${type} document holds no text: ${scans} Tell the user; a version of it with a text layer can be read.`
+        : `The ${type} document holds no text. Tell the user.`,
+    );
+  }
+  return {
+    status: 'ok',
+    name,
+    type,
+    pages,
+    text: extracted.text,
+    note: [unread, scans, WEB_DOCUMENT_TEXT_ONLY]
+      .filter((sentence) => sentence !== null)
+      .join(' '),
+  };
+}
+
 interface WebFetchFailure extends ToolFailure {
   readonly reason: WebFetchFailureReason;
 }
@@ -3239,33 +3401,61 @@ export function createChatToolExecutor(
     }
 
     const contentType = response.headers.get('content-type') ?? '';
-    const isHtml =
-      contentType.includes('text/html') ||
-      contentType.includes('application/xhtml');
-    const isTextual =
-      isHtml ||
-      contentType.startsWith('text/') ||
-      contentType.includes('json') ||
-      contentType.includes('xml') ||
-      contentType === '';
-    if (!isTextual) {
+    const kind = await webFetchKindOf(
+      contentType,
+      response.headers.get('content-disposition'),
+      fetched.bytes,
+    );
+    if (kind.kind === 'refused') {
       return refuseWebFetch(
         webFetchFailure(
           'unavailable',
           'unsupported_type',
-          `The page is "${clip(contentType, 80)}", which this tool cannot read — only HTML and text.`,
+          `The page is "${clip(contentType, 80)}", which this tool cannot read — only web pages, text, and PDF, DOCX, XLSX, PPTX and ODT documents.`,
         ),
       );
     }
+    if (kind.kind === 'document') {
+      // A document is read as the page is: every window fetches and reads
+      // it again, and its offsets index the extracted text.
+      const document = await readWebDocument(
+        response.finalUrl,
+        fetched.bytes,
+        kind,
+      );
+      if (document.status !== 'ok') return refuseWebFetch(document);
+      const paged = windowText(document.text, offset, limit);
+      await recordDispatch('web_fetch', 'ok');
+      return {
+        status: 'ok',
+        url: response.finalUrl,
+        title: sanitizeUntrustedField(document.name),
+        document: {
+          type: document.type,
+          ...(document.pages !== undefined ? { pages: document.pages } : {}),
+        },
+        totalChars: paged.totalChars,
+        offset,
+        ...(paged.nextOffset !== undefined
+          ? { nextOffset: paged.nextOffset }
+          : {}),
+        note: document.note,
+        content: wrapUntrusted(paged.content, {
+          tool: 'web_fetch',
+          url: response.finalUrl,
+        }),
+      };
+    }
 
     // An HTML page is read for its main content, without the site's chrome.
-    const title = isHtml ? htmlTitle(response.body) : null;
+    const isHtml = kind.html;
+    const title = isHtml ? htmlTitle(fetched.text) : null;
     const read: PageRead = {
       url: response.finalUrl,
       title,
       page: isHtml
-        ? readPageContent(response.body, response.finalUrl)
-        : { text: response.body, canonicalUrl: null, needsBrowser: false },
+        ? readPageContent(fetched.text, response.finalUrl)
+        : { text: fetched.text, canonicalUrl: null, needsBrowser: false },
       rendered: false,
     };
     const unreadable = unreadablePage(
