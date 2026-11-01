@@ -82,7 +82,6 @@ vi.mock('@/app/features/tasks/hooks/use-actor-directory', () => ({
     resolveActor: () => ({ name: 'Teammate' }),
   }),
   useAssignableActors: () => ({
-    assignableMembers: [],
     assignableAgents: [],
     agents: [],
   }),

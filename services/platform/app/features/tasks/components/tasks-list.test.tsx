@@ -24,6 +24,16 @@ vi.mock('@/app/hooks/use-backend-action', () => ({
   useBackendAction: () => ({ mutateAsync: vi.fn() }),
 }));
 
+// The people the pickers and the mention field search: nobody here.
+vi.mock('../hooks/use-assignable-members', () => {
+  const nobody = {
+    members: [],
+    more: false,
+    searching: false,
+    unavailable: false,
+  };
+  return { useAssignableMembers: () => nobody };
+});
 vi.mock('../hooks/use-actor-directory', () => ({
   useProvidedActorDirectory: () => undefined,
   ActorDirectoryProvider: ({ children }: { children?: unknown }) => children,
@@ -34,7 +44,6 @@ vi.mock('../hooks/use-actor-directory', () => ({
     resolveActor: () => null,
   }),
   useAssignableActors: vi.fn(() => ({
-    assignableMembers: [],
     assignableAgents: [],
     agents: [],
     currentUserId: null,

@@ -121,6 +121,38 @@ export interface MembersContract {
       email: undefined | string;
     }>;
   };
+  /** The first page of the members whose name or email holds what was
+   * typed, in the order they joined (MEMBER-R12): what a picker offers,
+   * never every member. `access` `read` leaves disabled members out and,
+   * with a project, keeps who can read it; `edit` keeps, of those, the
+   * roles from Editor up. */
+  'members/queries:searchMembers': {
+    kind: 'query';
+    args: {
+      organizationId: string;
+      query: string;
+      projectId?: string;
+      access?: 'read' | 'edit';
+    };
+    returns: {
+      members: Array<{
+        _id: string;
+        userId: string;
+        role:
+          | 'member'
+          | 'admin'
+          | 'disabled'
+          | 'owner'
+          | 'editor'
+          | 'developer';
+        createdAt: number;
+        displayName: undefined | string;
+        email: undefined | string;
+      }>;
+      /** No member past this page matches. */
+      isDone: boolean;
+    };
+  };
   'members/queries:listByOrganization': {
     kind: 'query';
     args: { organizationId: string };

@@ -23,9 +23,8 @@ const data = vi.hoisted(() => ({
   ],
   agents: [{ _id: 'agent-1', name: 'Project agent' }],
   automations: [],
-  scope: { orgWide: true, userIds: [] },
   project: { canEdit: true },
-  // Every member, read for the pickers' lists.
+  // Every member: no directory reads them, the pickers search the people.
   memberRead: vi.fn(),
   // The member lookup, which names the people a surface shows.
   lookupRead: vi.fn(),
@@ -85,7 +84,7 @@ vi.mock('@/app/hooks/use-backend-query', () => ({
     }
     data.backendRead(name, args);
     return {
-      data: name === 'projects/queries:getProject' ? data.project : data.scope,
+      data: name === 'projects/queries:getProject' ? data.project : undefined,
     };
   },
 }));
@@ -128,11 +127,10 @@ function Candidates({
   projectId?: string;
 }) {
   const directory = useSharedAssignableActors(organizationId, projectId);
-  return <span>{directory.assignableMembers.length} candidates</span>;
+  return <span>{directory.assignableAgents.length} candidates</span>;
 }
 
 beforeEach(() => {
-  data.scope.orgWide = true;
   data.memberRead.mockClear();
   data.lookupRead.mockClear();
   data.agentRead.mockClear();
@@ -191,11 +189,11 @@ describe('task actor directory boundaries', () => {
     );
     expect(screen.getByText('Same directory')).toBeInTheDocument();
     expect(screen.getByText('1 candidates')).toBeInTheDocument();
-    expect(data.memberRead).toHaveBeenCalledTimes(1);
+    expect(data.memberRead).not.toHaveBeenCalled();
     expect(data.lookupRead).toHaveBeenCalledTimes(1);
     expect(data.agentRead).toHaveBeenCalledTimes(1);
     expect(data.servingRead).toHaveBeenCalledTimes(1);
-    expect(data.backendRead).toHaveBeenCalledTimes(2);
+    expect(data.backendRead).toHaveBeenCalledTimes(1);
     expect(data.standardRead).toHaveBeenCalledTimes(1);
   });
 
@@ -220,11 +218,11 @@ describe('task actor directory boundaries', () => {
     );
     expect(screen.getAllByText('Ada')).toHaveLength(200);
     expect(screen.getAllByText('1 candidates')).toHaveLength(200);
-    expect(data.memberRead).toHaveBeenCalledTimes(1);
+    expect(data.memberRead).not.toHaveBeenCalled();
     expect(data.lookupRead).toHaveBeenCalledTimes(1);
     expect(data.agentRead).toHaveBeenCalledTimes(1);
     expect(data.servingRead).toHaveBeenCalledTimes(1);
-    expect(data.backendRead).toHaveBeenCalledTimes(2);
+    expect(data.backendRead).toHaveBeenCalledTimes(1);
     expect(data.standardRead).toHaveBeenCalledTimes(1);
   });
 
@@ -267,23 +265,6 @@ describe('task actor directory boundaries', () => {
       'project-1',
     ]);
     expect(data.lookupRead).toHaveBeenCalledTimes(2);
-  });
-
-  it('retains historical actor display when project access excludes that actor from candidates', () => {
-    data.scope.orgWide = false;
-    render(
-      <ActorDirectoryBoundary
-        organizationId="org-1"
-        projectId="project-1"
-        assignable
-      >
-        <Reader organizationId="org-1" projectId="project-1" candidates />
-      </ActorDirectoryBoundary>,
-    );
-    expect(screen.getByText('Ada')).toBeInTheDocument();
-    expect(screen.getByText('0 candidates')).toBeInTheDocument();
-    expect(data.memberRead).toHaveBeenCalledTimes(1);
-    expect(data.lookupRead).toHaveBeenCalledTimes(1);
   });
 
   it('keeps stable context consumers out of unrelated parent state updates', () => {
