@@ -18302,7 +18302,8 @@ async function checkMcpEras(
     ).json(),
   );
   const apiKey = minted.success ? minted.data.key : '';
-  // The rows of this key: the user's other lanes count their own keys.
+  // The person's other lanes count their MCP calls under keys of their own:
+  // the activity reads below take this key's rows alone.
   const keyId = minted.success ? minted.data.id : '';
   const door = {
     authorization: `Bearer ${apiKey}`,
