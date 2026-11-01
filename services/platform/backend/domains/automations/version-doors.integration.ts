@@ -27,6 +27,19 @@ type Recorder = (name: string, ok: boolean, detail: string) => void;
 
 const json = z.record(z.string(), z.unknown());
 
+/** Spends the organization's bench budget, and a minute past it: the budget
+ * gives back two runs a second, so one spent only to its last run admits a
+ * try of one run again half a second later — sooner than a busy runner may
+ * answer the call made before it. */
+async function spendBenchBudget(sql: Sql, orgId: string): Promise<void> {
+  await sql`DELETE FROM app.rate_limits WHERE name = 'automation:bench'`;
+  (await admitBenchRuns(sql, orgId, 240))();
+  await sql`
+    UPDATE app.rate_limits SET value = value - 120
+    WHERE name = 'automation:bench'
+  `;
+}
+
 export async function checkVersionDoors(
   sql: Sql,
   base: string,
@@ -679,8 +692,7 @@ export async function checkVersionDoors(
 
     // The runs are charged to the organization's bench budget: spent, the
     // next call is refused with the wait, and runs nothing.
-    await sql`DELETE FROM app.rate_limits WHERE name = 'automation:bench'`;
-    (await admitBenchRuns(sql, orgId, 240))();
+    await spendBenchBudget(sql, orgId);
     const spentTests = await tool('test_automation', { name: benchName });
     const spentRun = await tool('run_automation', {
       automation: benchDoc,
@@ -811,8 +823,7 @@ export async function checkVersionDoors(
     );
 
     // The same budget over REST: spent, the call is refused with the wait.
-    await sql`DELETE FROM app.rate_limits WHERE name = 'automation:bench'`;
-    (await admitBenchRuns(sql, orgId, 240))();
+    await spendBenchBudget(sql, orgId);
     const spentRest = await benchRest('/versions/2/tests', { method: 'POST' });
     await sql`DELETE FROM app.rate_limits WHERE name = 'automation:bench'`;
     const refilledRest = await benchRest('/versions/2/tests', {
