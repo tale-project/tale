@@ -1,3 +1,5 @@
+import type { GroupMemberOperation } from './types';
+
 // ---------------------------------------------------------------------------
 // Users
 // ---------------------------------------------------------------------------
@@ -64,17 +66,25 @@ export function classifyDeprovision(
 }
 
 /**
- * Compose a SCIM Group membership PATCH into the final desired user-id set: a
- * clear-all / replace base, then adds, then removes. Keeps an `add` paired with
- * a value-less `remove members` from being silently dropped (#2085[13]).
+ * Compose a SCIM Group membership PATCH into the final desired user-id set by
+ * folding its operations over the current members one at a time, in the order
+ * the request sent them (RFC 7644 §3.5.2). A remove also takes out a member an
+ * earlier add of the same request put in, and an add after a value-less
+ * `remove members` survives it (#2085[13]).
  */
 export function composeDesiredMembers(
-  replaceMembers: readonly string[],
-  addMembers: readonly string[],
-  removeMembers: readonly string[],
+  currentMembers: readonly string[],
+  operations: readonly GroupMemberOperation[],
 ): string[] {
-  const desired = new Set(replaceMembers);
-  for (const id of addMembers) desired.add(id);
-  for (const id of removeMembers) desired.delete(id);
+  let desired = new Set(currentMembers);
+  for (const { op, memberIds } of operations) {
+    if (op === 'replace') {
+      desired = new Set(memberIds);
+    } else if (op === 'add') {
+      for (const id of memberIds) desired.add(id);
+    } else {
+      for (const id of memberIds) desired.delete(id);
+    }
+  }
   return [...desired];
 }

@@ -115,9 +115,13 @@ export function scimShimHandlers(sql: Sql): ShimHandlers {
         .extend({
           teamId: z.string(),
           displayName: z.string().optional(),
-          addMembers: z.array(z.string()),
-          removeMembers: z.array(z.string()),
-          replaceMembers: z.array(z.string()).optional(),
+          // In the order the request sent them: they apply one at a time.
+          memberOperations: z.array(
+            z.object({
+              op: z.enum(['add', 'remove', 'replace']),
+              memberIds: z.array(z.string()),
+            }),
+          ),
           externalId: z.string().optional(),
         })
         .parse(raw);

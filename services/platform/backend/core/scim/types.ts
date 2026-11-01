@@ -80,13 +80,21 @@ export interface UserPatch {
   externalId?: string;
 }
 
+/**
+ * One membership change of a Group PATCH. `replace` sets the membership to
+ * exactly these ids; a value-less `remove members` is a `replace` with none.
+ */
+export interface GroupMemberOperation {
+  op: 'add' | 'remove' | 'replace';
+  memberIds: string[];
+}
+
 export interface GroupPatch {
   displayName?: string;
   externalId?: string;
-  addMembers: string[];
-  removeMembers: string[];
-  /** When set, replace the entire membership set with exactly these ids. */
-  replaceMembers?: string[];
+  /** The membership changes in the order the request sent them: each applies
+   * to the members the one before left (RFC 7644 §3.5.2). */
+  memberOperations: GroupMemberOperation[];
 }
 
 // Raw incoming PATCH operation, before normalization.

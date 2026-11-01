@@ -69,6 +69,19 @@ another organization is answered as not found, and nothing is changed.
 - **Example**: The provider deletes the group behind the Finance team → a project that was
   restricted to Finance and Legal is restricted to Legal alone.
 
+### SCIM-R10 · A group update applies its changes in the order they are sent
+
+One update can list several changes to a group's members: add some, remove some, replace them
+all or remove everyone. Each change applies to the team as the change before it left it, as the
+SCIM standard says, so the team ends as the last change leaves it. Adding someone who is not a
+member of the organization is refused as SCIM-R5 says, even when a later change removes them
+again, and nothing is saved.
+
+- **Example**: The provider removes Mia from a group and adds her back in the same update → she
+  is still on the team, with what the team gives her access to.
+- **Example**: The provider adds Noah to a group and then removes everyone in the same update →
+  the team has no members.
+
 ## Looking up members and teams
 
 ### SCIM-R9 · A provider can look up a user only by user name and a group only by name
@@ -101,4 +114,4 @@ The answer carries the reason as its detail.
   carry it (`routes.ts`).
 - **Creating and reactivating a member**, and the role a reactivated member gets back.
 - **Listing and paging** users and groups, and how the different providers' request shapes are
-  read (`core/scim/`).
+  read (`core/scim/`), apart from the order of a group update's changes (SCIM-R10).

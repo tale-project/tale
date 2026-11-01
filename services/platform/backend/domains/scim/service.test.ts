@@ -8,6 +8,7 @@ import {
   MEMBER_HINT_ENTITY,
   TEAM_HINT_ENTITY,
 } from '../../../lib/shared/hint-entities.ts';
+import type { GroupMemberOperation } from '../../core/scim/types.ts';
 import { setEnqueueBoss } from '../../jobs/enqueue.ts';
 import {
   deleteGroup,
@@ -311,8 +312,7 @@ describe('group writes — every member must belong to the org [SCIM-R5]', () =>
       patchGroup(sql, {
         organizationId: 'org-1',
         teamId: 't-1',
-        addMembers: ['u-foreign'],
-        removeMembers: [],
+        memberOperations: [{ op: 'add', memberIds: ['u-foreign'] }],
       }),
     ).rejects.toThrow(/scim_invalid_member/);
     expect(
@@ -330,8 +330,7 @@ describe('group writes — every member must belong to the org [SCIM-R5]', () =>
     const result = await patchGroup(sql, {
       organizationId: 'org-1',
       teamId: 't-1',
-      addMembers: ['u-in'],
-      removeMembers: [],
+      memberOperations: [{ op: 'add', memberIds: ['u-in'] }],
     });
 
     expect(result).not.toBeNull();
@@ -339,6 +338,127 @@ describe('group writes — every member must belong to the org [SCIM-R5]', () =>
       q.text.startsWith('INSERT INTO "teamMember"'),
     );
     expect(added?.values).toEqual(expect.arrayContaining(['t-1', 'u-in']));
+  });
+
+  // Each operation is judged as it applies, and an error fails the request
+  // as a whole (RFC 7644 §3.5.2): a later remove does not make a foreign id
+  // acceptable.
+  it('patchGroup refuses a foreign member id a later operation removes again', async () => {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith(TEAM_BY_ID)) return [team];
+      if (text.startsWith(ORG_MEMBERS)) return [{ userId: 'u-in' }];
+      return [];
+    });
+
+    await expect(
+      patchGroup(sql, {
+        organizationId: 'org-1',
+        teamId: 't-1',
+        memberOperations: [
+          { op: 'replace', memberIds: ['u-in', 'u-foreign'] },
+          { op: 'remove', memberIds: ['u-foreign'] },
+        ],
+      }),
+    ).rejects.toThrow(/u-foreign/);
+    expect(
+      queries.some(
+        (q) =>
+          q.text.startsWith('INSERT INTO "teamMember"') ||
+          q.text.startsWith('DELETE FROM "teamMember"'),
+      ),
+    ).toBe(false);
+  });
+});
+
+/**
+ * The DB applier folds a PATCH's member operations over the rows the team
+ * has, in the order they were sent, and writes only where they end. It used
+ * to delete the removes only among the rows it read before inserting the
+ * adds: a member removed and added back lost the team, and one added and
+ * then removed stayed in it (#4774).
+ */
+describe('patchGroup — the member operations apply in the order they were sent [SCIM-R10]', () => {
+  const team = {
+    id: 't-1',
+    name: 'Squad',
+    organizationId: 'org-1',
+    createdAt: new Date(0),
+    updatedAt: null,
+  };
+
+  /** Patches a team whose one member is `u-1` (row `tm-1`), in an org whose
+   * members are `u-1` … `u-3`; answers the roster writes and the hint. */
+  async function patchSquad(memberOperations: GroupMemberOperation[]) {
+    const { sql, queries } = fakeSql((text) => {
+      if (text.startsWith(TEAM_BY_ID)) return [team];
+      if (text.startsWith('SELECT "id", "userId" FROM "teamMember"')) {
+        return [{ id: 'tm-1', userId: 'u-1' }];
+      }
+      if (text.startsWith(ORG_MEMBERS)) {
+        return [{ userId: 'u-1' }, { userId: 'u-2' }, { userId: 'u-3' }];
+      }
+      return [];
+    });
+    await patchGroup(sql, {
+      organizationId: 'org-1',
+      teamId: 't-1',
+      memberOperations,
+    });
+    return {
+      inserted: queries
+        .filter((q) => q.text.startsWith('INSERT INTO "teamMember"'))
+        .map((q) => q.values[1]),
+      deleted: queries
+        .filter((q) => q.text.startsWith('DELETE FROM "teamMember"'))
+        .map((q) => q.values[0]),
+      hinted: hints(queries).length > 0,
+    };
+  }
+
+  it('keeps a member who is removed and added back, and writes nothing', async () => {
+    await expect(
+      patchSquad([
+        { op: 'remove', memberIds: ['u-1'] },
+        { op: 'add', memberIds: ['u-1'] },
+      ]),
+    ).resolves.toEqual({ inserted: [], deleted: [], hinted: false });
+  });
+
+  it('leaves out a new member who is added and then removed', async () => {
+    await expect(
+      patchSquad([
+        { op: 'add', memberIds: ['u-2'] },
+        { op: 'remove', memberIds: ['u-2'] },
+      ]),
+    ).resolves.toEqual({ inserted: [], deleted: [], hinted: false });
+  });
+
+  it('an add followed by a clear-all ends with no members', async () => {
+    await expect(
+      patchSquad([
+        { op: 'add', memberIds: ['u-2'] },
+        { op: 'replace', memberIds: [] },
+      ]),
+    ).resolves.toEqual({ inserted: [], deleted: ['tm-1'], hinted: true });
+  });
+
+  it('a clear-all followed by an add keeps the add (#2085[13])', async () => {
+    await expect(
+      patchSquad([
+        { op: 'replace', memberIds: [] },
+        { op: 'add', memberIds: ['u-2'] },
+      ]),
+    ).resolves.toEqual({ inserted: ['u-2'], deleted: ['tm-1'], hinted: true });
+  });
+
+  it('a replace, a remove and an add back end where the last one leaves them', async () => {
+    await expect(
+      patchSquad([
+        { op: 'replace', memberIds: ['u-1', 'u-2'] },
+        { op: 'remove', memberIds: ['u-1'] },
+        { op: 'add', memberIds: ['u-1'] },
+      ]),
+    ).resolves.toEqual({ inserted: ['u-2'], deleted: [], hinted: true });
   });
 });
 
@@ -405,8 +525,7 @@ describe('group writes — one displayName per organization [SCIM-R6]', () => {
         organizationId: 'org-1',
         teamId: 't-1',
         displayName: 'Finance',
-        addMembers: [],
-        removeMembers: [],
+        memberOperations: [],
       }),
     ).rejects.toMatchObject({ data: { code: 'scim_group_conflict' } });
     expect(writes(queries)).toEqual([]);
@@ -423,8 +542,7 @@ describe('group writes — one displayName per organization [SCIM-R6]', () => {
       organizationId: 'org-1',
       teamId: 't-1',
       displayName: 'Squad',
-      addMembers: [],
-      removeMembers: [],
+      memberOperations: [],
     });
     expect(queries.some((q) => q.text.startsWith(TEAM_NAME_COLLISION))).toBe(
       false,
@@ -812,8 +930,7 @@ describe('SCIM writes emit their invalidation hints', () => {
       organizationId: 'org-1',
       teamId: 't-1',
       displayName: 'Renamed again',
-      addMembers: [],
-      removeMembers: [],
+      memberOperations: [],
     });
     expect(hints(patched.queries)).toEqual([
       ['org-1', null, TEAM_HINT_ENTITY, 't-1'],
@@ -871,8 +988,7 @@ describe('patchGroup — the externalId a PATCH sets', () => {
     const result = await patchGroup(sql, {
       organizationId: 'org-1',
       teamId: 't-1',
-      addMembers: [],
-      removeMembers: [],
+      memberOperations: [],
       externalId: 'idp-g',
     });
 
@@ -895,8 +1011,7 @@ describe('patchGroup — the externalId a PATCH sets', () => {
       organizationId: 'org-1',
       teamId: 't-1',
       displayName: 'Renamed',
-      addMembers: [],
-      removeMembers: [],
+      memberOperations: [],
     });
 
     expect(queries.some((q) => q.text.startsWith(LINK_WRITE))).toBe(false);

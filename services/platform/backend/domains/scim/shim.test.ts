@@ -36,8 +36,7 @@ describe('scimShimHandlers — a PATCH write keeps its externalId', () => {
     await handler({
       organizationId: 'org-1',
       teamId: 't-1',
-      addMembers: [],
-      removeMembers: [],
+      memberOperations: [],
       externalId: 'idp-g',
     });
 
@@ -62,5 +61,31 @@ describe('scimShimHandlers — a PATCH write keeps its externalId', () => {
       userId: 'u-1',
       externalId: 'idp-u',
     });
+  });
+});
+
+/**
+ * A Group PATCH's member operations apply one at a time, in the order they
+ * were sent (#4774), so the shim hands them on whole and in that order.
+ */
+describe('scimShimHandlers — a Group PATCH keeps the order of its member operations [SCIM-R10]', () => {
+  const handlers = scimShimHandlers({} as never);
+
+  beforeEach(() => {
+    patchGroup.mockClear();
+  });
+
+  it('hands patchGroup the member operations in the order they were sent', async () => {
+    const handler = handlers['scim/internal_mutations:patchGroup'];
+    if (handler === undefined) throw new Error('patchGroup shim missing');
+    const memberOperations = [
+      { op: 'add', memberIds: ['u-3'] },
+      { op: 'replace', memberIds: [] },
+      { op: 'remove', memberIds: ['u-1'] },
+    ];
+
+    await handler({ organizationId: 'org-1', teamId: 't-1', memberOperations });
+
+    expect(patchGroup.mock.calls[0]?.[1]).toMatchObject({ memberOperations });
   });
 });
