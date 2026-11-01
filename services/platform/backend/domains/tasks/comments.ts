@@ -41,6 +41,7 @@ import {
   updateMessageText,
 } from '../threads/store.ts';
 import { taskOwnedByAutomation } from './automation-access.ts';
+import { recordMentionHandoffInTx } from './mention-handoffs.ts';
 import { mentionAutomationEnabled } from './run-start.ts';
 import {
   assertTaskNotArchived,
@@ -172,6 +173,10 @@ interface AddTaskCommentArgs {
   body: string;
   bodyByLocale?: Record<string, string>;
   author?: CommentAuthor;
+  /** The session and execution of the agent run whose `task_comment` call
+   * wrote this comment: its mentions of the project's other agents hand
+   * the task on (`recordMentionHandoffInTx`). */
+  handoffFrom?: { sessionId: string; execId: string };
 }
 
 /**
@@ -392,6 +397,22 @@ async function appendTaskComment(
     metadata: { taskId: args.taskId },
     status: 'success',
   });
+  // An agent's run names another agent of the project: the task waits for
+  // it once the run has ended [TASK-R88]. A person's mention dispatched
+  // above; an automation, a workflow or a review's feedback hands nothing on.
+  if (
+    dispatch &&
+    author.actorType === 'agent' &&
+    args.handoffFrom !== undefined
+  ) {
+    await recordMentionHandoffInTx(tx, {
+      task,
+      messageId,
+      text,
+      authorAgentId: author.actorId,
+      from: args.handoffFrom,
+    });
+  }
   const comment: CommentEventComment = {
     body: text,
     bodyText: taskMentionPlainText(text),

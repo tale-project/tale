@@ -7,6 +7,7 @@ import {
 } from '../../lib/project-work-lock.ts';
 import { requestRunLeaseReleaseInTx } from '../sandbox/heavy-lease-requests.ts';
 import { requestDispatchPassForRunInTx } from './dispatch-requests.ts';
+import { enqueueMentionHandoffsForRunInTx } from './mention-handoff-requests.ts';
 import { recordTaskAgentRunLedgerEntry } from './run-ledger.ts';
 
 /**
@@ -361,6 +362,12 @@ export async function recordRunTerminalInTx(
       projectIds: [...new Set([run.projectId, run.agentProjectId])],
     });
   }
+  // A handoff by mention waits for the run that wrote it and for the run
+  // that holds its task: either may have been this one [TASK-R88].
+  await enqueueMentionHandoffsForRunInTx(tx, {
+    organizationId: entry.organizationId,
+    runId: entry.runId,
+  });
 }
 
 /**
