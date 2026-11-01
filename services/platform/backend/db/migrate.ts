@@ -201,6 +201,41 @@ async function markProxySignedInSessions(
 }
 
 /**
+ * Bring every session written under an earlier setting of
+ * `SESSION_IDLE_TIMEOUT_MINUTES` under the one this image boots with, before
+ * it serves: such a row would not be refreshed for days, so the idle sweep
+ * would judge it by a stale `"updatedAt"` and Better Auth let it outlive
+ * the window (`domains/governance/session-idle.ts`). After the boot indexes,
+ * whose expiry index it walks. Not a numbered migration, since it follows the
+ * variable rather than the schema: it runs every boot and rewrites nothing
+ * while the variable is unset or unchanged. A failure is reported, never
+ * fatal: the idle sweep does the same before every run.
+ */
+async function clampSessionsAtBoot(
+  sql: postgres.Sql,
+  log: (message: string) => void,
+): Promise<void> {
+  try {
+    // Imported lazily, like Better Auth's migrator, so only an
+    // auth-configured boot loads the governance domain.
+    const { clampSessionsToIdleWindow } =
+      await import('../domains/governance/session-idle.ts');
+    const clamped = await clampSessionsToIdleWindow(sql);
+    if (clamped > 0) {
+      log(
+        `[backend] brought ${clamped} session(s) under SESSION_IDLE_TIMEOUT_MINUTES`,
+      );
+    }
+  } catch (error) {
+    if (isDatabaseUnavailable(error, { fromDatabase: true })) throw error;
+    console.warn(
+      '[backend] sessions were not brought under SESSION_IDLE_TIMEOUT_MINUTES; the idle sweep retries:',
+      error,
+    );
+  }
+}
+
+/**
  * A numbered `.ts` migration: a DATA migration whose decision is a rule the
  * application already owns — a backfill keyed on which files an extractor
  * reads calls `isSupported()`, where a SQL copy of the extension set would
@@ -359,7 +394,10 @@ async function migrateOnce(
     // lock (see `db/boot-indexes.ts`).
     await sql`SELECT pg_advisory_unlock(${MIGRATION_LOCK_KEY})`;
     locked = false;
-    if (options.authOptions) await buildBootIndexes(sql, log);
+    if (options.authOptions) {
+      await buildBootIndexes(sql, log);
+      await clampSessionsAtBoot(sql, log);
+    }
   } catch (error) {
     failure = error;
     throw error;
