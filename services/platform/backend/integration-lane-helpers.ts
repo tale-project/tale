@@ -879,3 +879,79 @@ export async function explainSentStatement<Row extends object>(
   });
   return plans;
 }
+
+/** One node of an `EXPLAIN (FORMAT JSON)` plan, as far as the lanes read it. */
+const planNode = z.object({
+  'Node Type': z.string(),
+  'Relation Name': z.string().optional(),
+  'Index Name': z.string().optional(),
+  'Index Cond': z.string().optional(),
+  Filter: z.string().optional(),
+  'Actual Rows': z.number().optional(),
+  'Actual Loops': z.number().optional(),
+  'Rows Removed by Filter': z.number().optional(),
+  'Rows Removed by Index Recheck': z.number().optional(),
+  Plans: z.array(z.unknown()).optional(),
+});
+export type PlanNode = z.infer<typeof planNode>;
+
+/** What `EXPLAIN (FORMAT JSON)` answers: one row holding one plan, with how
+ * long it ran when it ran (`ANALYZE`). */
+const explained = z.tuple([
+  z.object({
+    'QUERY PLAN': z.tuple([
+      z.object({ Plan: z.unknown(), 'Execution Time': z.number().optional() }),
+    ]),
+  }),
+]);
+
+/** A plan's nodes, top first, or null for what is not a plan. */
+function nodesOf(raw: unknown): PlanNode[] | null {
+  const node = planNode.safeParse(raw);
+  if (!node.success) return null;
+  const nodes = [node.data];
+  for (const child of node.data.Plans ?? []) {
+    const below = nodesOf(child);
+    if (below === null) return null;
+    nodes.push(...below);
+  }
+  return nodes;
+}
+
+/** The nodes of the plan an `EXPLAIN (FORMAT JSON)` answered (each of
+ * {@link explainSentStatement}'s plans), top first, or null for anything
+ * else. */
+export function planNodes(rows: unknown): PlanNode[] | null {
+  const answer = explained.safeParse(rows);
+  return answer.success ? nodesOf(answer.data[0]['QUERY PLAN'][0].Plan) : null;
+}
+
+/** How long the plan an `EXPLAIN (ANALYZE, FORMAT JSON)` answered ran, in
+ * milliseconds; null for a plan that did not run, or anything else. */
+export function planExecutionMs(rows: unknown): number | null {
+  const answer = explained.safeParse(rows);
+  return answer.success
+    ? (answer.data[0]['QUERY PLAN'][0]['Execution Time'] ?? null)
+    : null;
+}
+
+/** A plan in one line, top first: each node with its index, its condition,
+ * its filter and the rows it returned. */
+export const planLine = (nodes: readonly PlanNode[] | null): string =>
+  nodes === null
+    ? 'not a plan'
+    : nodes
+        .map((node) =>
+          [
+            node['Node Type'],
+            node['Index Name'],
+            node['Index Cond'],
+            node.Filter === undefined ? undefined : `Filter ${node.Filter}`,
+            node['Actual Rows'] === undefined
+              ? undefined
+              : `${node['Actual Rows']} rows`,
+          ]
+            .filter((part) => part !== undefined)
+            .join(' '),
+        )
+        .join(' > ');
