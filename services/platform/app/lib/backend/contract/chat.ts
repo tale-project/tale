@@ -9,6 +9,7 @@
 
 import type { ChatProposalView } from '@/lib/chat/settings-tools';
 import type { MessagePart } from '@/lib/chat/types';
+import type { ChatSandboxCheck } from '@/lib/chat/work-tools-check';
 import type { ChatWorkToolsStatus } from '@/lib/chat/work-tools-status';
 
 import type { HiddenModelsRule } from './lib';
@@ -352,5 +353,10 @@ export interface ChatContract {
     kind: 'query';
     args: { organizationId: string };
     returns: ChatWorkToolsStatus;
+  };
+  'chat/work_tools:runSandboxCheck': {
+    kind: 'action';
+    args: { organizationId: string };
+    returns: ChatSandboxCheck;
   };
 }
