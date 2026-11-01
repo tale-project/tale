@@ -10,12 +10,11 @@ import { useRetryFocus } from '@tale/ui/use-retry-focus';
 import { RefreshCw } from 'lucide-react';
 import { type ReactNode, useState } from 'react';
 
-import { failureDetail } from '@/app/lib/backend/adapters';
 import { useT } from '@/lib/i18n/client';
 
 import { useResolveRunApproval } from '../hooks/mutations';
 import { useRunApproval } from '../hooks/queries';
-import { automationErrorCode } from '../lib/errors';
+import { automationErrorCode, automationFailureDetail } from '../lib/errors';
 
 /** `approval:<id>` — the detail a run parked on a write-approval carries. */
 const APPROVAL_DETAIL_RE = /^approval:([a-z0-9]+(?:-[a-z0-9]+)*)$/i;
@@ -146,7 +145,10 @@ function ApprovalDecisionCard({
         setSubmission({ kind: 'recorded', status: decision });
       },
       (error: unknown) => {
-        setSubmission({ kind: 'failed', detail: failureDetail(error) });
+        setSubmission({
+          kind: 'failed',
+          detail: automationFailureDetail(error),
+        });
         // Whatever the answer said, the approval's own record decides what
         // the card shows next: someone else may have decided it first, or
         // an earlier press of this one went through.
@@ -184,7 +186,7 @@ function ApprovalDecisionCard({
             <Alert
               variant="destructive"
               title={t('runs.approval.loadFailed')}
-              description={failureDetail(approvalQuery.error)}
+              description={automationFailureDetail(approvalQuery.error)}
             >
               <Button
                 variant="secondary"
