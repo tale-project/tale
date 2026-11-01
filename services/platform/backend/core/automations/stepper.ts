@@ -49,6 +49,27 @@ import {
   type NodeDef,
   type NodeTrace,
 } from '../../../lib/engine/core/types';
+import {
+  passThroughLedger,
+  type RunLedger,
+} from '../../../lib/engine/core/walk/ledger';
+import {
+  DEFAULT_MAX_NODE_EXECUTIONS,
+  MAX_SUBAUTOMATION_DEPTH,
+  maxRepeatsOf,
+} from '../../../lib/engine/core/walk/limits';
+import {
+  inlineSink,
+  type AutomationApprovalGate,
+  type HandOffNote,
+  type RunSink,
+} from '../../../lib/engine/core/walk/ports';
+import type {
+  AgentCursor,
+  NodeCheckpoint,
+  NodeCursor,
+  RunCheckpoints,
+} from '../../../lib/engine/core/walk/progress';
 import { withRunnerTenant } from '../../../lib/engine/runners/tenant.ts';
 import { DEFAULT_HARNESS } from '../../../lib/shared/harness-offer';
 import { installCodeRunner } from '../../lib/code-runner.ts';
@@ -73,12 +94,6 @@ import {
   workflowAgentRetryResume,
 } from './agent_retry';
 import { boundCheckpointTrace, boundNodeTrace } from './bound_run_payload';
-import type {
-  AgentCursor,
-  NodeCheckpoint,
-  NodeCursor,
-  RunCheckpoints,
-} from './checkpoints';
 import {
   effectsFrom,
   outputsFrom,
@@ -99,9 +114,7 @@ import {
   callThroughLedger,
   durableLedger,
   InDoubtPark,
-  passThroughLedger,
   StaleClaim,
-  type RunLedger,
 } from './ledger';
 import {
   CUT_TURN_BEAT_MS,
@@ -145,50 +158,16 @@ const APPROVAL_POLL_MS = 600_000;
  * moment it lands, so this only catches a lost poke. */
 const AGENT_POLL_MS = 30_000;
 
-// These mirror the in-memory executor's guards (`core/execute/index.ts`). They
-// are duplicated rather than imported because the executor keeps them private;
-// changing one means changing both, and the stepper tests pin the behaviour.
-const MAX_SUBAUTOMATION_DEPTH = 3;
-const DEFAULT_MAX_REPEATS = 5;
-const REPEATS_HARD_CAP = 20;
-const DEFAULT_MAX_NODE_EXECUTIONS = 100;
-
 /** The four node types the engine implements itself; everything else is a
  * connector action addressed as `<connector>.<action>`. */
 const CORE_TYPES = new Set(['transform', 'llm', 'agent', 'subautomation']);
 
 // -------------------------------------------------------------- approvals
 
-/**
- * The human gate a live effectful node passes through before it touches the
- * outside world.
- *
- * A seam rather than an inline call so the approvals domain stays out of this
- * module's imports and so a test can drive suspension and resume without it.
- * Every run carries its own gate on its run context, built for the run's own
- * organization when its turn starts (see {@link automationApprovalGate}).
- */
-export interface AutomationApprovalGate {
-  check(request: {
-    organizationId: string;
-    automation: string;
-    runId: string;
-    nodeId: string;
-    nodeType: string;
-    /** Whether the caller can park on a card. False inside a subautomation:
-     * the gate then answers from the policy alone and mints nothing — and
-     * reads nothing, so a card a parent-level node of the same id once had
-     * approved never releases a sub-node. */
-    canPark: boolean;
-    /** The node's input resolved against the run's scope — what the step
-     * would call the connector with, for the approver to read before
-     * deciding. Absent when it cannot be resolved ahead of the step (a loop
-     * body reads `item`/`index`, which exist only once the loop turns). */
-    input?: unknown;
-  }): Promise<
-    { status: 'allowed' } | { status: 'required'; approvalId?: string }
-  >;
-}
+/** The gate's port is the walk's (`lib/engine/core/walk/ports.ts`); client
+ * repositories' native workflow gates import it from this module by path.
+ * @public */
+export type { AutomationApprovalGate } from '../../../lib/engine/core/walk/ports';
 
 let approvalGateOverride: AutomationApprovalGate | null = null;
 
@@ -347,70 +326,6 @@ function automationApprovalGate(
     },
   };
 }
-
-// ------------------------------------------------------------------- sinks
-
-/** What the walk does with a finished node, a wait, and a spent budget. The
- * durable sink persists and reschedules; the inline sink (a `subautomation`
- * node's own nodes) keeps everything in memory and never suspends. */
-interface RunSink {
-  /** Persist one finished node, or just the in-node cursor. Returns the run's
-   * status so cancellation stops the walk at the next node boundary. */
-  commit(args: {
-    nodeId?: string;
-    checkpoint?: NodeCheckpoint;
-    cursor?: NodeCursor;
-    executions: number;
-  }): Promise<'running' | 'cancelled'>;
-  /** Park the run. `continue` means the caller should loop in place instead —
-   * what an inline sub-run does, matching the in-memory executor. `event`
-   * records why the run parked when its park string says too little. */
-  wait(args: {
-    detail: string;
-    cursor?: NodeCursor;
-    executions: number;
-    resumeInMs: number;
-    event?: { kind: 'in_doubt'; detail: Record<string, unknown> };
-  }): Promise<'suspended' | 'continue' | 'cancelled'>;
-  /** Whether this turn should stop and let a fresh invocation continue: its
-   * budget is spent, or its server is stopping. */
-  shouldHandOff(): boolean;
-  /** Hand the run to the scheduler — with a note when its server is
-   * stopping, so the run is counted and shown as resumed after a restart. */
-  handOff(note?: HandOffNote): Promise<void>;
-  /** Whether `wait` can actually park the run. False for the inline sink: a
-   * step that would have to park (an agent turn, an approval) refuses BEFORE
-   * it spends anything, instead of discovering `continue` after the kick. */
-  canPark: boolean;
-}
-
-/** Why a walker handed its run on before it was done, when the reason is its
- * server stopping (the store's `RunHandoff`). A hand-off because the turn's
- * budget ran out carries none. */
-interface HandOffNote {
-  reason: 'shutdown';
-  /** The node the walker was in, and its forEach item. */
-  nodeId?: string;
-  itemIndex?: number;
-  /** The node's body was cut off mid-call rather than finished. */
-  interrupted?: boolean;
-}
-
-const inlineSink: RunSink = {
-  async commit() {
-    return 'running';
-  },
-  async wait() {
-    return 'continue';
-  },
-  canPark: false,
-  shouldHandOff() {
-    return false;
-  },
-  async handOff() {
-    // Nothing to hand off: a sub-run is one step of its parent.
-  },
-};
 
 // -------------------------------------------------------------- walk result
 
@@ -1524,10 +1439,7 @@ async function stepNode(args: StepArgs): Promise<StepOutcome> {
     const iterates = items !== null || typeof node.repeatUntil === 'string';
     if (long && iterates) await run.recordStarted([nodeKey]);
 
-    const maxRepeats = Math.min(
-      node.maxRepeats ?? DEFAULT_MAX_REPEATS,
-      REPEATS_HARD_CAP,
-    );
+    const maxRepeats = maxRepeatsOf(node);
     let single: unknown;
     // Where the loop's cursor was last saved: a long loop saves it every few
     // items, so a walker that dies mid-loop leaves the items it finished

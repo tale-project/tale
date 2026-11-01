@@ -40,7 +40,6 @@ import type { TFunction } from 'i18next';
 import { Ban, CircleCheck, CircleX } from 'lucide-react';
 
 import type { FlowFacts } from '@/lib/engine/core/analysis/flow';
-import { maxRepeatsOf } from '@/lib/engine/core/execute/controlflow';
 import {
   outputSources,
   refSitesOf,
@@ -53,6 +52,7 @@ import {
 import { renderPath } from '@/lib/engine/core/syntax/walk';
 import type { Automation, NodeDef } from '@/lib/engine/core/types';
 import { isUnknown, toTs, type Shape } from '@/lib/engine/core/typing/shape';
+import { maxRepeatsOf } from '@/lib/engine/core/walk/limits';
 
 import {
   describeCondition,

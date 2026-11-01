@@ -12,11 +12,8 @@ import { memoryStore } from '../../selftest/memory-store';
 import type { StoreAdapter } from '../slots';
 import { newParseCtx } from '../syntax/sources';
 import type { Automation, NodeDef } from '../types';
-import {
-  MAX_SUBAUTOMATION_DEPTH,
-  parseAutomationRef,
-  resolveChildren,
-} from './children';
+import { MAX_SUBAUTOMATION_DEPTH } from '../walk/limits';
+import { parseAutomationRef, resolveChildren } from './children';
 import { envFor, inferTypes, type AutomationTypes } from './infer';
 import { lookup, toTs } from './shape';
 
