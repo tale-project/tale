@@ -85,32 +85,26 @@ bulk:
   close: Fermer
   reopen: Rouvrir
   messagesSent: Messages envoyés
-  messagesSentDescription: '{successCount} messages envoyés{failedCount, plural, =0 {} other {, {failedCount} échoués}}'
+  messagesSentDescription: '{successCount, plural, one {# message envoyé} other {# messages envoyés}}{failedCount, plural, =0 {} one {, # échoué} other {, # échoués}}'
   sendFailed: Échec de l'envoi des messages
   resolved: Conversations résolues
-  resolvedDescription: '{successCount} conversations résolues avec
-    succès{failedCount, plural, =0 {} other {, {failedCount} échouées}}'
+  resolvedDescription: '{successCount, plural, one {# conversation résolue avec succès} other {# conversations résolues avec succès}}{failedCount, plural, =0 {} one {, # échouée} other {, # échouées}}'
   resolveFailed: Échec de la résolution des conversations
   reopened: Conversations rouvertes
-  reopenedDescription: '{successCount} conversations rouvertes avec
-    succès{failedCount, plural, =0 {} other {, {failedCount} échouées}}'
+  reopenedDescription: '{successCount, plural, one {# conversation rouverte avec succès} other {# conversations rouvertes avec succès}}{failedCount, plural, =0 {} one {, # échouée} other {, # échouées}}'
   reopenFailed: Échec de la réouverture des conversations
   selectedCount: '{count, plural, one {# sélectionné} other {# sélectionnés}}'
   archive: Archiver
   unarchive: Désarchiver
   archived: Conversations archivées
-  archivedDescription: '{successCount} conversations archivées avec
-    succès{failedCount, plural, =0 {} other {, {failedCount} échouées}}'
+  archivedDescription: '{successCount, plural, one {# conversation archivée avec succès} other {# conversations archivées avec succès}}{failedCount, plural, =0 {} one {, # échouée} other {, # échouées}}'
   archiveFailed: Échec de l'archivage des conversations
   unarchived: Conversations désarchivées
-  unarchivedDescription: '{successCount} conversations désarchivées avec
-    succès{failedCount, plural, =0 {} other {, {failedCount} échouées}}'
+  unarchivedDescription: '{successCount, plural, one {# conversation désarchivée avec succès} other {# conversations désarchivées avec succès}}{failedCount, plural, =0 {} one {, # échouée} other {, # échouées}}'
   unarchiveFailed: Échec du désarchivage des conversations
   markSpam: Marquer comme spam
   markedAsSpam: Conversations marquées comme spam
-  markedAsSpamDescription:
-    '{successCount} conversations marquées comme spam avec
-    succès{failedCount, plural, =0 {} other {, {failedCount} échouées}}'
+  markedAsSpamDescription: '{successCount, plural, one {# conversation marquée comme spam avec succès} other {# conversations marquées comme spam avec succès}}{failedCount, plural, =0 {} one {, # échouée} other {, # échouées}}'
   spamFailed: Échec du marquage des conversations comme spam
 header:
   moreActions: Plus d'actions

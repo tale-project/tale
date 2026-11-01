@@ -173,8 +173,8 @@ files:
   addFolderButton: Importer un dossier
   batchTooLarge: Un téléversement de dossier est limité à {maxFiles} fichiers / {maxSize} Mo — divise le dossier et réessaie.
   attachPartial: '{ok, plural, one {# fichier ajouté} other {# fichiers ajoutés}} sur {total}'
-  skippedList: 'Ignorés : {names}{more, plural, =0 {} other { (+#)}} — {reason}'
-  failedList: 'Non ajoutés : {names}{more, plural, =0 {} other { (+#)}} — {reason}'
+  skippedList: 'Ignorés : {names}{more, plural, =0 {} one { (+#)} other { (+#)}} — {reason}'
+  failedList: 'Non ajoutés : {names}{more, plural, =0 {} one { (+#)} other { (+#)}} — {reason}'
   folderGone: Ce dossier n'existe plus.
   folderDeleted: Dossier supprimé
   folderDeleteFailed: Impossible de supprimer le dossier

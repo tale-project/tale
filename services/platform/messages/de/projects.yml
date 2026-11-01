@@ -174,9 +174,9 @@ files:
   addToFolder: Datei zu „{folder}“ hinzufügen
   addFolderButton: Ordner hochladen
   batchTooLarge: Ein Ordner-Upload ist auf {maxFiles} Dateien / {maxSize} MB begrenzt — teile den Ordner auf und versuch es nochmal.
-  attachPartial: '{ok} von {total} Dateien hinzugefügt'
-  skippedList: 'Übersprungen: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
-  failedList: 'Nicht hinzugefügt: {names}{more, plural, =0 {} other { (+#)}} — {reason}'
+  attachPartial: '{ok} von {total, plural, one {# Datei} other {# Dateien}} hinzugefügt'
+  skippedList: 'Übersprungen: {names}{more, plural, =0 {} one { (+#)} other { (+#)}} — {reason}'
+  failedList: 'Nicht hinzugefügt: {names}{more, plural, =0 {} one { (+#)} other { (+#)}} — {reason}'
   folderGone: Dieser Ordner existiert nicht mehr.
   folderDeleted: Ordner gelöscht
   folderDeleteFailed: Ordner konnte nicht gelöscht werden

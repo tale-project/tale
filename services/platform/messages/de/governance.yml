@@ -1558,10 +1558,7 @@ dataSubjectRequests:
       title: Abgebrochen
       attribution: Abgebrochen von {name}
     fullBreakdownTitle: Vollständige Aufschlüsselung über alle Datenkategorien
-    fullBreakdownEntry:
-      '{rows, plural, =0 {0 gelöscht} one {# gelöscht} other {#
-      gelöscht}}{skippedByHold, plural, =0 {} other { · # durch Legal Hold
-      übersprungen}}'
+    fullBreakdownEntry: '{rows, plural, =0 {0 gelöscht} one {# gelöscht} other {# gelöscht}}{skippedByHold, plural, =0 {} one { · # durch Legal Hold übersprungen} other { · # durch Legal Hold übersprungen}}'
     fullBreakdownNoData:
       Keine Daten in {count, plural, one {# weiteren Kategorie}
       other {# weiteren Kategorien}}.

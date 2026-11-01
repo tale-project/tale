@@ -2,8 +2,9 @@
  * i18n tests for the platform's catalogs (`services/platform/messages/<locale>/<topic>.yml`).
  *
  * One call into the centralized framework registers every applicable check.
- * `parity` and `usage` run in `enforce` mode (they have always been clean);
- * the other checks default to `report` mode for the rollout window — the
+ * `parity` and `usage` run in `enforce` mode (they have always been clean),
+ * and so does each check `modes` below sets to `enforce` once its cleanup
+ * landed. The rest run in `report` mode for the rollout window — the
  * end-of-run summary surfaces findings without failing the build (e.g. the
  * verified 35 `Wird ...` passive-present strings in de.json). Flip a check
  * to `enforce` in this file once the corresponding cleanup PR has landed.
@@ -53,8 +54,12 @@ defineI18nTests({
     'voice-drift': 'report',
     'grammar-articles': 'report',
     'style-ss': 'report',
-    'icu-placeholder-parity': 'report',
-    'icu-plural-rules': 'report',
+    // An ICU argument a translation renames, drops or adds, and a count
+    // worded without its language's plural forms ("1 échouées", the
+    // #4435 class; `=1` gives `one`), de-CH overrides included. Enforced
+    // once the catalogs agreed.
+    'icu-placeholder-parity': 'enforce',
+    'icu-plural-rules': 'enforce',
     'status-chatter': 'report',
     'prose-exclamation': 'report',
   },

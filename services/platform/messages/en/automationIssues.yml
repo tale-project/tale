@@ -91,7 +91,7 @@ codes:
   TESTS_INVALID:
     title: Test is malformed
     explanation: Each test has a name, an input and, optionally, what it expects. A test in any other shape can't run.
-    cause: '{test, select, none {The tests field isn''t a list of tests.} other {{part, select, description {The description of test {testNumber} isn''t text.} mocks {In test {testNumber}, mocks doesn''t give each node''s simulated output under its id.} failures {In test {testNumber}, failures doesn''t give each node''s error message under its id, as text of at most 2,000 characters.} effects {In test {testNumber}, the expected actions aren''t a list.} effect {In test {testNumber}, an expected action doesn''t name its connector.} effectInput {In test {testNumber}, an expected action gives both input and inputIncludes.} effectAbsent {In test {testNumber}, an expected action sets absent to something other than true.} nodes {In test {testNumber}, a node is expected to be something other than ran, skipped or failed.} failure {In test {testNumber}, the expected failure isn''t written as node and message.} failureWithOutput {Test {testNumber} expects the run to fail, and an output as well.} other {{keysCount, plural, =0 {Test {testNumber} isn''t written as name, input and expect.} other {The expect part of test {testNumber} has unknown keys: {keysList}.}}}}}}'
+    cause: '{test, select, none {The tests field isn''t a list of tests.} other {{part, select, description {The description of test {testNumber} isn''t text.} mocks {In test {testNumber}, mocks doesn''t give each node''s simulated output under its id.} failures {In test {testNumber}, failures doesn''t give each node''s error message under its id, as text of at most 2,000 characters.} effects {In test {testNumber}, the expected actions aren''t a list.} effect {In test {testNumber}, an expected action doesn''t name its connector.} effectInput {In test {testNumber}, an expected action gives both input and inputIncludes.} effectAbsent {In test {testNumber}, an expected action sets absent to something other than true.} nodes {In test {testNumber}, a node is expected to be something other than ran, skipped or failed.} failure {In test {testNumber}, the expected failure isn''t written as node and message.} failureWithOutput {Test {testNumber} expects the run to fail, and an output as well.} other {{keysCount, plural, =0 {Test {testNumber} isn''t written as name, input and expect.} one {The expect part of test {testNumber} has an unknown key: {keysList}.} other {The expect part of test {testNumber} has unknown keys: {keysList}.}}}}}}'
     fix: Write each test as name and input, with description, mocks, failures and expect where you need them.
   NODE_NOT_OBJECT:
     title: Node isn't an object
@@ -232,7 +232,7 @@ codes:
     title: Input isn't declared
     explanation: input.<key> reads a value from the run input. The inputs schema doesn't declare this key, so a run may not have it.
     cause: '{place}, input.{key} reads "{key}", which the inputs schema doesn''t declare.'
-    fix: '{suggestion, select, none {Declare "{key}" in the inputs schema{declaredCount, plural, =0 {} other {, or use one of these inputs: {declaredList}}}.} other {Did you mean "{suggestion}"?}}'
+    fix: '{suggestion, select, none {Declare "{key}" in the inputs schema{declaredCount, plural, =0 {} one {, or use this input: {declaredList}} other {, or use one of these inputs: {declaredList}}}.} other {Did you mean "{suggestion}"?}}'
   TEMPLATE_UNTERMINATED:
     title: Template isn't closed
     explanation: A '{{' without its '}}' stays plain text instead of being filled in.
@@ -251,7 +251,7 @@ codes:
   REF_UNKNOWN_FIELD:
     title: Field doesn't exist
     explanation: A reference reads a field its data doesn't have, so it finds nothing when the automation runs.
-    cause: '{place}, {ref} reads "{key}" from {sourceLabel}, which has no such field.{listWrapped, select, true { That value is a list.} other {{knownCount, plural, =0 {} other { Its fields: {knownList}.}}}}'
+    cause: '{place}, {ref} reads "{key}" from {sourceLabel}, which has no such field.{listWrapped, select, true { That value is a list.} other {{knownCount, plural, =0 {} one { Its only field: {knownList}.} other { Its fields: {knownList}.}}}}'
     fix: '{suggestion, select, none {{listWrapped, select, true {Read one item of the list, or map over it.} other {{root, select, input {{field, select, code {Add "{key}" to the input of this node to pass it in.} other {Declare "{key}" in the inputs schema, or read a field it declares.}}} other {Use a field that exists, or change what produces this data.}}}}} other {Did you mean "{suggestion}"?}}'
   TYPE_MISMATCH:
     title: Value has the wrong type

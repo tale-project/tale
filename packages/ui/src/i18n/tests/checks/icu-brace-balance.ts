@@ -10,6 +10,7 @@
 import path from 'node:path';
 
 import { catalogPath, readCatalog } from '../internals/catalog';
+import { skipIcuQuote } from '../scanner/icu-lexer';
 import type { Finding } from './types';
 import { createCheck } from './types';
 
@@ -48,9 +49,11 @@ export const icuBraceBalance = createCheck({
 });
 
 /**
- * Net brace depth of a value, honouring ICU quoting: `''` is a literal
- * apostrophe, and `'` immediately before `{`, `}`, or `#` starts a quoted
- * literal run that ends at the next single `'`.
+ * Net brace depth of a value, honouring ICU quoting (`skipIcuQuote`): `''`
+ * is a literal apostrophe, and `'` immediately before `{`, `}`, `<`, `>` or
+ * `#` starts a quoted literal run that ends at the next single `'`. The
+ * depth walk does not know which branch it is in, so `'#` counts as a quote
+ * everywhere.
  */
 function braceDepth(value: string): number {
   let depth = 0;
@@ -58,30 +61,7 @@ function braceDepth(value: string): number {
   while (i < value.length) {
     const ch = value[i];
     if (ch === "'") {
-      if (value[i + 1] === "'") {
-        i += 2;
-        continue;
-      }
-      if (
-        value[i + 1] === '{' ||
-        value[i + 1] === '}' ||
-        value[i + 1] === '#'
-      ) {
-        i += 2;
-        while (i < value.length) {
-          if (value[i] === "'") {
-            if (value[i + 1] === "'") {
-              i += 2;
-              continue;
-            }
-            i++;
-            break;
-          }
-          i++;
-        }
-        continue;
-      }
-      i++;
+      i = skipIcuQuote(value, i, true);
       continue;
     }
     if (ch === '{') depth++;

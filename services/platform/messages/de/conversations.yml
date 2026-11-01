@@ -83,36 +83,26 @@ bulk:
   close: Schließen
   reopen: Erneut öffnen
   messagesSent: Nachrichten gesendet
-  messagesSentDescription: '{successCount} Nachrichten gesendet{failedCount,
-    plural, =0 {} other {, {failedCount} fehlgeschlagen}}'
+  messagesSentDescription: '{successCount, plural, one {# Nachricht gesendet} other {# Nachrichten gesendet}}{failedCount, plural, =0 {} one {, # fehlgeschlagen} other {, # fehlgeschlagen}}'
   sendFailed: Nachrichten konnten nicht gesendet werden
   resolved: Konversationen abgeschlossen
-  resolvedDescription:
-    '{successCount} Konversationen abgeschlossen{failedCount,
-    plural, =0 {} other {, {failedCount} fehlgeschlagen}}'
+  resolvedDescription: '{successCount, plural, one {# Konversation abgeschlossen} other {# Konversationen abgeschlossen}}{failedCount, plural, =0 {} one {, # fehlgeschlagen} other {, # fehlgeschlagen}}'
   resolveFailed: Konversationen konnten nicht abgeschlossen werden
   reopened: Konversationen erneut geöffnet
-  reopenedDescription:
-    '{successCount} Konversationen erneut geöffnet{failedCount,
-    plural, =0 {} other {, {failedCount} fehlgeschlagen}}'
+  reopenedDescription: '{successCount, plural, one {# Konversation erneut geöffnet} other {# Konversationen erneut geöffnet}}{failedCount, plural, =0 {} one {, # fehlgeschlagen} other {, # fehlgeschlagen}}'
   reopenFailed: Konversationen konnten nicht erneut geöffnet werden
   selectedCount: '{count, plural, one {# ausgewählt} other {# ausgewählt}}'
   archive: Archivieren
   unarchive: Dearchivieren
   archived: Konversationen archiviert
-  archivedDescription: '{successCount} Konversationen archiviert{failedCount,
-    plural, =0 {} other {, {failedCount} fehlgeschlagen}}'
+  archivedDescription: '{successCount, plural, one {# Konversation archiviert} other {# Konversationen archiviert}}{failedCount, plural, =0 {} one {, # fehlgeschlagen} other {, # fehlgeschlagen}}'
   archiveFailed: Konversationen konnten nicht archiviert werden
   unarchived: Konversationen dearchiviert
-  unarchivedDescription:
-    '{successCount} Konversationen dearchiviert{failedCount,
-    plural, =0 {} other {, {failedCount} fehlgeschlagen}}'
+  unarchivedDescription: '{successCount, plural, one {# Konversation dearchiviert} other {# Konversationen dearchiviert}}{failedCount, plural, =0 {} one {, # fehlgeschlagen} other {, # fehlgeschlagen}}'
   unarchiveFailed: Konversationen konnten nicht dearchiviert werden
   markSpam: Als Spam markieren
   markedAsSpam: Konversationen als Spam markiert
-  markedAsSpamDescription: '{successCount} Konversationen als Spam
-    markiert{failedCount, plural, =0 {} other {, {failedCount}
-    fehlgeschlagen}}'
+  markedAsSpamDescription: '{successCount, plural, one {# Konversation als Spam markiert} other {# Konversationen als Spam markiert}}{failedCount, plural, =0 {} one {, # fehlgeschlagen} other {, # fehlgeschlagen}}'
   spamFailed: Konversationen konnten nicht als Spam markiert werden
 header:
   moreActions: Weitere Aktionen
