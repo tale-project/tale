@@ -51,8 +51,6 @@ export const SETTINGS_PLANNED: Readonly<Partial<Record<SettingsArea, string>>> =
     'metrics/external-turns': 'No kind reads the external turn figures yet.',
     'metrics/automations': 'No kind reads the automation figures yet.',
     'metrics/projects': 'No kind reads the project figures yet.',
-    'api/rest':
-      'No kind revokes API keys yet; a key is created in Tale, where it is shown once.',
     'api/webdav':
       'No kind revokes WebDAV app passwords yet; one is created in Tale, where it is shown once.',
   };
