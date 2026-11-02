@@ -15,6 +15,7 @@ import { readMarketingContent } from './server';
 const SOURCED_GUIDES = [
   'tale-vs-agent-zero',
   'tale-vs-anythingllm',
+  'tale-vs-autensa',
   'tale-vs-autogpt',
   'tale-vs-claw-empire',
   'tale-vs-flowise',
