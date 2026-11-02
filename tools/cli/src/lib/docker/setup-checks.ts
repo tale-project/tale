@@ -162,6 +162,25 @@ export async function assertDockerEngineSupported(
     throw preconditionError(result.detail, result.fix);
 }
 
+/**
+ * The cgroup version the Docker engine runs its containers under, or null
+ * when it cannot be read (a daemon that is down, an engine that reports none).
+ * The stack's memory reservations follow it (memory-env.ts).
+ */
+export async function probeCgroupVersion(
+  probe = probeDocker,
+): Promise<1 | 2 | null> {
+  const version = await probe(['info', '--format', '{{.CgroupVersion}}']);
+  switch (version?.trim()) {
+    case '1':
+      return 1;
+    case '2':
+      return 2;
+    default:
+      return null;
+  }
+}
+
 async function checkPort(port: number, host: string): Promise<SetupCheck> {
   return new Promise((resolve) => {
     const server = createServer();
