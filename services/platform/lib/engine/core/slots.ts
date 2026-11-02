@@ -217,6 +217,17 @@ export interface NodeTypeDef {
   connector?: ConnectorLike;
 }
 
+/** The four core node kinds: the grammar the engine implements itself and
+ * the reference teaches; every other node type is a connector action,
+ * addressed as `<connector>.<action>`. */
+export const CORE_NODE_KINDS = [
+  'transform',
+  'llm',
+  'agent',
+  'subautomation',
+] as const;
+export type CoreNodeKind = (typeof CORE_NODE_KINDS)[number];
+
 // The built-in node kinds. Connectors and platform natives (knowledge
 // search, document ops, …) join the table at registration time.
 const table = new Map<string, NodeTypeDef>([
@@ -509,22 +520,33 @@ export interface AgentFileRef {
   contentType?: string;
 }
 
-/** What an `agent` node hands the service: the resolved prompt pair, the
- * explicit model, and the declared capability surface. `files` values are
- * host-interpreted references (folder/document ids); the engine only
- * resolves the templates inside them. */
+/** What an `agent` node hands the service, templates already resolved: the
+ * prompt pair, the explicit model, and the declared capability surface.
+ * `files` values are host-interpreted references (folder/document ids); the
+ * engine only resolves the templates inside them. The durable runtime kicks
+ * its turns with the same request (`AutomationAgentHost`,
+ * `backend/core/automations/agent_host.ts`). */
 export interface AgentTurnRequest {
   model: string;
-  /** Provider pin saved with the model pick; the host honors it fail-closed. */
+  /** The provider slug the node's model pick pinned — serving resolution
+   * honors it fail-closed; absent on nodes saved before the picker carried
+   * providers (those keep the unpinned walk). */
   modelProvider?: string;
   prompt: string;
   system?: string;
   harness?: string;
   skills?: string[];
   connectors?: string[];
+  /** Platform-tool grants beyond the automation baseline (canonicalized
+   * against `AGENT_TOOL_CATALOG` at mint). */
   tools?: string[];
+  /** Referenced org-secret names, injected as per-exec env. */
   secrets?: string[];
+  /** Mount name → staging source: a folder id string, or
+   * `{folderId|folderPath|content}`. */
   files?: Record<string, unknown>;
+  /** The node's resolved `input`, staged for the turn as `input.json` in
+   * its workspace; absent when the node declares none. */
   input?: unknown;
 }
 

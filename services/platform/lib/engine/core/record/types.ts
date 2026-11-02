@@ -17,6 +17,7 @@ import type { SchemaTreeSchema } from '@tale/ui/data/infer-schema';
 import type { ValueSummary } from '@tale/ui/data/value-summary';
 
 import type { Json } from '../types';
+import type { SkipReason } from '../walk/progress';
 import type { StepFailureReason } from './failure';
 
 /** Where in a run a unit sits. `item`/`pass` are -1 when the step does not
@@ -225,7 +226,7 @@ export interface NodeRunRecord {
   activeMs: number;
   attempt: number;
   attempts: AttemptRecord[];
-  skip?: { reason: 'when' | 'else' | 'upstream' | 'error'; via?: string[] };
+  skip?: { reason: SkipReason; via?: string[] };
   failure?: StepFailure;
   input?: ValueRecord;
   output?: ValueRecord;
