@@ -45,7 +45,11 @@ import { closeServerGracefully } from './http-shutdown.ts';
 import { alignQueuePolicies, startBoss } from './jobs/boss.ts';
 import { setEnqueueBoss } from './jobs/enqueue.ts';
 import { startWorker } from './jobs/runner.ts';
-import { registerSchedules, sweepRunsAtBoot } from './jobs/schedules.ts';
+import {
+  registerSchedules,
+  resumePiiScansAtBoot,
+  sweepRunsAtBoot,
+} from './jobs/schedules.ts';
 import { createTaskList } from './jobs/task-list.ts';
 import { configureCodeRunner } from './lib/code-runner.ts';
 import {
@@ -166,9 +170,12 @@ async function main(): Promise<void> {
   // at the first policy hit. Probe it once here so an image built without
   // it says so at boot. Never fails boot — until the tree is back, the
   // indexing gate refuses every document under an enabled policy
-  // (`pii_scan_failed`), and a save of the policy queues them again.
+  // (`pii_scan_failed`). A worker whose probe loads it queues them again
+  // (`resumePiiScansAtBoot`), and so does a save of the policy.
+  let piiTreeLoaded = false;
   try {
     PatternRegistry.fromDefaults();
+    piiTreeLoaded = true;
   } catch (error: unknown) {
     console.error(
       '[backend] PII data tree unavailable — pii_config policies cannot be enforced:',
@@ -201,6 +208,7 @@ async function main(): Promise<void> {
     });
     await databaseWait(() => registerSchedules(boss));
     await sweepRunsAtBoot(sql);
+    if (piiTreeLoaded) await resumePiiScansAtBoot(sql);
     auditSealer = startAuditSealer(sql);
   }
 

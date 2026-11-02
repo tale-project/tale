@@ -254,9 +254,11 @@ export interface PrepareDocumentArgs {
 
 /**
  * The refusal stored for a document the organization's PII policy could not
- * scan, one fixed sentence per cause. Fixed, because the policy save finds
- * the email bodies it refused by it: they have no file row to carry
- * `pii_scan_failed` (`requeuePiiScanFailedDocuments`).
+ * scan, one fixed sentence per cause. Fixed, because the policy save and the
+ * pass that resumes the scans the protection could not start find the email
+ * bodies it refused by it: they have no file row to carry `pii_scan_failed`
+ * (`requeuePiiScanFailedDocuments`). Files carry it as their `rag_error`
+ * too, and the pass picks its cause by it.
  */
 export const PII_SCAN_FAILED_REASONS = {
   unavailable:
