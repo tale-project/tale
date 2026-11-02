@@ -244,49 +244,63 @@ describe(
       );
     });
 
-    it('puts v1 live unless the author keeps it a draft', async () => {
+    it('creates a draft with its trigger off, and deploys nothing, by default', async () => {
       const { user } = renderDialog();
       await reachTriggerStep(user);
+      // One switch, the template lane's, where Enable now and Deploy v1 now
+      // used to be.
       expect(
-        screen.getByRole('checkbox', { name: /Deploy v1 now/i }),
-      ).toBeChecked();
+        screen.getByRole('checkbox', { name: /Start it now/i }),
+      ).not.toBeChecked();
+      expect(
+        screen.queryByRole('checkbox', { name: /Enable now|Deploy v1 now/i }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText('Start it now is off: none of these runs start yet.'),
+      ).toBeVisible();
       await user.click(
         screen.getByRole('button', { name: /Create automation/i }),
+      );
+      expect(saveAutomation).toHaveBeenCalledTimes(1);
+      expect(setTrigger).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'triage',
+          trigger: expect.objectContaining({ enabled: false }),
+        }),
+      );
+      expect(deployAutomation).not.toHaveBeenCalled();
+    });
+
+    it('with Start it now on, puts v1 live with its trigger on', async () => {
+      const { user } = renderDialog();
+      await reachTriggerStep(user);
+      await user.click(screen.getByRole('checkbox', { name: /Start it now/i }));
+      // Start it now puts v1 live as well, so the runs listed are the ones
+      // the automation will start: no line says what is missing.
+      expect(screen.getByRole('list', { name: /^Would run at/ })).toBeVisible();
+      expect(
+        screen.queryByText(
+          'Start it now is off: none of these runs start yet.',
+        ),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText('Nothing starts until a version is deployed.'),
+      ).not.toBeInTheDocument();
+      await user.click(
+        screen.getByRole('button', { name: /Create automation/i }),
+      );
+      expect(saveAutomation).toHaveBeenCalledTimes(1);
+      expect(setTrigger).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'triage',
+          trigger: expect.objectContaining({ enabled: true }),
+        }),
       );
       expect(deployAutomation).toHaveBeenCalledWith({
         organizationId: 'org-1',
         name: 'triage',
         version: 1,
       });
-    });
-
-    it('keeps v1 a draft when Deploy v1 now is unchecked', async () => {
-      const { user } = renderDialog();
-      await reachTriggerStep(user);
-      await user.click(
-        screen.getByRole('checkbox', { name: /Deploy v1 now/i }),
-      );
-      await user.click(
-        screen.getByRole('button', { name: /Create automation/i }),
-      );
-      expect(saveAutomation).toHaveBeenCalledTimes(1);
-      expect(deployAutomation).not.toHaveBeenCalled();
-    });
-
-    it('arms the trigger only when Enable now is checked', async () => {
-      const { user } = renderDialog();
-      await reachTriggerStep(user);
-      const enableNow = screen.getByRole('checkbox', { name: /Enable now/i });
-      expect(enableNow).not.toBeChecked();
-      await user.click(enableNow);
-      await user.click(
-        screen.getByRole('button', { name: /Create automation/i }),
-      );
-      expect(setTrigger).toHaveBeenCalledWith(
-        expect.objectContaining({
-          trigger: expect.objectContaining({ enabled: true }),
-        }),
-      );
     });
   },
 );
