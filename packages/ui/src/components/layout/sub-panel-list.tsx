@@ -74,9 +74,9 @@ export function SubPanelRowLink({
 /**
  * Uppercase section label with an optional right-aligned action slot. Fixed
  * height so a header with an action button doesn't sit taller than one
- * without. `sticky` pins it over the scrolling rows (opaque background so
- * scrolled rows disappear under it; z-20 clears the rows' own z-10 hover
- * overlays).
+ * without. `sticky` pins it over the scrolling rows (opaque in the panel's
+ * own sidebar surface so scrolled rows disappear under it; z-20 clears the
+ * rows' own z-10 hover overlays).
  */
 export function SubPanelSectionHeader({
   label,
@@ -93,7 +93,7 @@ export function SubPanelSectionHeader({
     <div
       className={cn(
         'flex h-7 items-center justify-between gap-1 px-2',
-        sticky && 'bg-background sticky top-0 z-20',
+        sticky && 'bg-sidebar sticky top-0 z-20',
         className,
       )}
     >

@@ -69,7 +69,7 @@ function NavTileVisual({ item }: { item: NavItemData }) {
 function RailShell() {
   return (
     <div
-      className="bg-background border-border flex h-[560px] flex-col overflow-hidden rounded-lg border px-2"
+      className="bg-sidebar border-border flex h-[560px] flex-col overflow-hidden rounded-lg border px-2"
       style={{ width: '3.25rem' }}
     >
       {/* Header: the org logo tile (links to a fresh chat in the real rail) */}
