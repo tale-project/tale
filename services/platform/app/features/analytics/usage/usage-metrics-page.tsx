@@ -22,6 +22,7 @@ import type { ReturnsOf } from '@/app/lib/backend/contract';
 import { readStateOf } from '@/app/lib/backend/read-state';
 import { useT } from '@/lib/i18n/client';
 
+import { providedModelName } from '../components/model-row-name';
 import { TopAgentsTable } from './top-agents-table';
 import { TopModelsTable } from './top-models-table';
 import { TopVoiceModelsTable } from './top-voice-models-table';
@@ -70,7 +71,11 @@ interface UsageMetricsPageViewProps {
   onGranularity: (v: string) => void;
   onMetric: (v: string) => void;
   onSelectAgent: (slug: string | undefined) => void;
-  onSelectModel: (model: string | undefined) => void;
+  /** Narrows to a model as one provider serves it; `undefined` clears both. */
+  onSelectModel: (
+    model: string | undefined,
+    provider: string | undefined,
+  ) => void;
   onSelectProvider: (provider: string | undefined) => void;
   onClearAll: () => void;
 }
@@ -135,13 +140,16 @@ function UsageMetricsPageView({
       label: t('usage.filterChips.agent', { value: agentSlug }),
       onClear: () => onSelectAgent(undefined),
     });
+  // A model filter carries its provider: one chip names both and clears both.
   if (model !== undefined)
     filterChips.push({
       key: 'model',
-      label: t('usage.filterChips.model', { value: model }),
-      onClear: () => onSelectModel(undefined),
+      label: t('usage.filterChips.model', {
+        value: providedModelName(model, provider),
+      }),
+      onClear: () => onSelectModel(undefined, undefined),
     });
-  if (provider !== undefined)
+  else if (provider !== undefined)
     filterChips.push({
       key: 'provider',
       label: t('usage.filterChips.provider', { value: provider }),
@@ -329,6 +337,13 @@ export function UsageMetricsPage({
     [onChangeMetric],
   );
 
+  const selectModel = useCallback(
+    (next: string | undefined, nextProvider: string | undefined) => {
+      setModel(next);
+      setProvider(nextProvider);
+    },
+    [],
+  );
   const clearAll = useCallback(() => {
     setAgentSlug(undefined);
     setModel(undefined);
@@ -376,7 +391,7 @@ export function UsageMetricsPage({
           onGranularity={handleGranularity}
           onMetric={handleMetric}
           onSelectAgent={setAgentSlug}
-          onSelectModel={setModel}
+          onSelectModel={selectModel}
           onSelectProvider={setProvider}
           onClearAll={clearAll}
         />

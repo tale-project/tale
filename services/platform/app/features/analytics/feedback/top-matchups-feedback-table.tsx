@@ -10,7 +10,7 @@ import { useMemo } from 'react';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 
-import { arenaSideNames } from './arena-side-name';
+import { modelRowNames } from '../components/model-row-name';
 import type { FeedbackMatchupBucket } from './types';
 
 interface TopMatchupsFeedbackTableProps {
@@ -27,7 +27,7 @@ export function TopMatchupsFeedbackTable({
   // A model the table holds through two providers is named with each.
   const nameOf = useMemo(
     () =>
-      arenaSideNames(
+      modelRowNames(
         rows.flatMap((row) => [
           { model: row.modelLeft, provider: row.providerLeft },
           { model: row.modelRight, provider: row.providerRight },
