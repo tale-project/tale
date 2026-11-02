@@ -84,7 +84,9 @@ without it and logs a warning.
 outbound proxies instead of from this host's own address: HTTP proxies written
 `http://[user:password@]host[:port]`, separated by commas or whitespace, the
 same value the backend reads for the crawler, the chat assistant's web fetch,
-email images and video ingestion. Set, the entrypoint starts a squid hop on
+email images and video ingestion (unless `VIDEO_INGEST_PROXY_URLS` or
+`VIDEO_INGEST_PROXY_URL` gives video proxies of its own, which this service
+never reads). Set, the entrypoint starts a squid hop on
 `127.0.0.1:3129` and renders tinyproxy's `Upstream http 127.0.0.1:3129`, so
 tinyproxy's filters, client ACL, `MaxClients` and the per-session cap still
 apply before a request leaves. tinyproxy then dials only the hop, so the
