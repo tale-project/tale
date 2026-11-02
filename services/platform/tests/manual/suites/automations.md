@@ -1,6 +1,6 @@
 # Automations
 
-> **Prefix** `AUTO-` · **Reset** none · **Cost** 308 boxes
+> **Prefix** `AUTO-` · **Reset** none · **Cost** 309 boxes
 
 Exercise the draft→deploy→version automation surface: each automation is one
 workflow document under a name, with an append-only version history, at most
@@ -552,6 +552,19 @@ output:
       automation-<8 hex>`, **Next** enabled, the created automation is titled
       `发票提醒`. Save a new version from the canvas (no presentation of its
       own) → the list still shows the typed name, never "Automation ‹hex›".
+- [ ] `AUTO-F249` · **Blank wizard starts on a model** — **Create
+      automation** › **Blank** in an org with a provider key → **Agent model**
+      already names a model: your saved chat pick when the wizard offers it,
+      else the one the chat's Auto picks for everyday work (the chat's model
+      picker starts on the same model); a Name and **What should it do?**
+      alone enable **Next**, and another model picked from the field stays
+      picked. Mode B: a fresh org with no provider key → the field stays
+      empty, **Next** stays disabled even with a Name and instructions, and
+      the field's description reads `automations.blank.noModelAdmin` with
+      the **Open AI providers** link (`chat.providerSetup.action`, to the AI
+      providers settings page) for an admin, or
+      `chat.providerSetup.descriptionMember` for a member — a line under
+      the field, no notice with a heading.
 - [ ] `AUTO-F43` · **Deep link to a missing version** — Open an existing
       automation's editor with `?version=99` → The breadcrumb and tab strip
       stay; the editor area reads `automations.editor.versionNotFound.title`
