@@ -409,8 +409,9 @@ by the scenario and its action, and says the test simulated it.
   test picks a scenario of its action that fails with status 429 → *Find* fails as rate limited,
   the run goes on past it as a live run would, and *Find*'s message names the scenario and says
   the test simulated it.
-- **Example**: Slack's `rate_limited` scenario names no status, as Slack's live call reports none
-  → a step that picks it fails as a failed call, as the live call does, not as rate limited.
+- **Example**: Slack answers an unknown channel with HTTP 200 and `ok: false`, so its
+  `channel_not_found` scenario names no status, as the live call reports none → a step that picks
+  it fails as a failed call, as the live call does, not as not found.
 
 ### AUTO-R50 · A version keeps what its latest test check found, and who made it
 

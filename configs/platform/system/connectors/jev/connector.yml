@@ -85,6 +85,56 @@ actions:
         }
       }
       return { answers, usage: { input_tokens: 0, output_tokens: 0 } };
+    scenarios:
+      - name: two_answers
+        kind: success
+        description: 'OpenRouter answers both questions, each with its distribution, and reports the tokens the call used.'
+        output:
+          answers:
+            handling:
+              type: choice
+              choice: escalate
+              probabilities: { auto_reply: 0.06, escalate: 0.94 }
+              confidence: 0.94
+            urgency:
+              type: score
+              score: 1
+              probabilities: { '0': 0.18, '1': 0.71, '2': 0.11 }
+              confidence: 0.71
+          usage: { input_tokens: 128, output_tokens: 0 }
+      - name: no_usage
+        kind: empty
+        description: 'OpenRouter answers both questions but reports no usage, which the output leaves optional.'
+        output:
+          answers:
+            handling:
+              type: choice
+              choice: escalate
+              probabilities: { auto_reply: 0.06, escalate: 0.94 }
+              confidence: 0.94
+            urgency:
+              type: score
+              score: 1
+              probabilities: { '0': 0.18, '1': 0.71, '2': 0.11 }
+              confidence: 0.71
+      - name: invalid_key
+        kind: error
+        description: 'OpenRouter rejects the API key with HTTP 401.'
+        error:
+          message: 'Jev decide failed (401): authentication rejected — verify the OpenRouter API key'
+          status: 401
+      - name: no_credit
+        kind: error
+        description: 'OpenRouter refuses the call with HTTP 402 because the account has no credit left.'
+        error:
+          message: 'Jev decide failed (402): the OpenRouter account has no credit'
+          status: 402
+      - name: rate_limited
+        kind: error
+        description: 'OpenRouter rate-limits the call with HTTP 429.'
+        error:
+          message: 'Jev decide failed (429): rate limited by OpenRouter — retry later'
+          status: 429
     backend:
       kind: yaml-js
       live: |
