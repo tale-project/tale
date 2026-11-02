@@ -1,6 +1,6 @@
 # Performance (cross-cutting)
 
-> **Prefix** `PERF-` · **Reset** none · **Cost** 36 boxes
+> **Prefix** `PERF-` · **Reset** none · **Cost** 37 boxes
 
 Spot-check the load and interaction budgets — cold load to first paint, chat
 time-to-first-token (TTFT), thread/route switching, warm-transition prefetch,
@@ -158,6 +158,12 @@ magnitude:
 - [ ] `PERF-P18` · **Spike of 4,000 users** — On a seeded throwaway stack with one api process, run `node tools/load/src/cli.ts run --plan <plan> --profile spike --users 4000 --target <api> --metrics <api>/metrics` (`tools/load/README.md`, "Reading and running the profiles"). → The report lists no `http_5xx` error kind and no `401` for a person who was signed in; the api log has no `UNSAFE_TRANSACTION`, no `already a transaction in progress` and no serialization-failure dump; and once the run ends `select count(*) from pg_stat_activity where state like 'idle in transaction%'` answers 0. `net_ETIMEDOUT` rows are the generating machine's listen backlog (macOS lets 128 connections queue, the kern.ipc.somaxconn setting), not an answer of the platform.
 - [ ] `PERF-P19` · **Sign-in storm** — Start the api with `UV_THREADPOOL_SIZE=2` (one hashing slot per process, so even a fast machine sheds), run `node tools/load/src/cli.ts run --plan <plan> --profile signin-storm --forwarded-for --users 3000 --ramp 60 --hold 30 --target <api> --metrics <api>/metrics`, and while it runs poll `/api/health/ready` and sign in once from the sign-in page with a seeded account. → The api hashes one password at a time per process, queues a few, and refuses the rest in milliseconds with `503` `PASSWORD_CHECK_BUSY` and a `Retry-After` of 1 to 10 seconds: the report counts them in its auth.sign_in_failed counter, never as errors, and `tale_backend_password_checks_refused_total{reason}` counts them on the api. The run ends on time with no error kind, `/api/health/ready` answers `200` in well under a second throughout (0.6 s at worst with 9,000 sign-ins refused) and the other routes keep their latency (http p95 under one second). The sign-in page reads "Signing in isn't possible right now. Try again in a moment." (German "Die Anmeldung ist gerade nicht möglich. Versuche es gleich noch einmal.", French "Impossible de te connecter pour le moment. Réessaie dans un instant."), never "Wrong email or password"; the network tab shows one request per click, not a replay; and a refused attempt counts toward no account's lockout. Once the storm is over a sign-in takes about 100 ms again.
 - [ ] `PERF-P20` · **REST chat turns on a worker** — On a stack with one api process and one worker, run `node tools/load/src/cli.ts run --plan <plan> --profile load --users 1000 --ramp 120 --hold 180 --target <api> --metrics <api>/metrics,<worker>/metrics`. → The report's rest.first_text row (a REST client's send until the first text of its polled generation) has a median within about a second of the browser's chat.ttft row (1.3 s against 0.85 s here, p95 2.7 s), not the 6.2 s median and 15.5 s p95 a REST turn took waiting for one of the worker's five slots; the `api-client` journeys finish with no error kind.
+- [ ] `PERF-P21` · **Image zoom without a GPU** — Start Chrome with
+  `--disable-gpu`, open a chat whose answer shows an image (Markdown
+  `![…](…)`), click the image, close it with Esc and open it again → each
+  open paints promptly (DevTools → Performance: the click's interaction
+  near 100 ms or under, never near 200 ms), and the image shows over the
+  dimmed page, which stays sharp behind it.
 
 ## Response-time SLAs
 

@@ -136,9 +136,10 @@ clipboard permission.
   `/docs/images/platform/…` on mode A, never a bare `/images/…` that 404s.
 - [ ] `CONT-F16` · **Image zoom** — Click a screenshot; then close via
   **Esc**, the backdrop, and the close button (three separate opens) → The
-  trigger is a `cursor-zoom-in` button; a lightbox opens over a dimmed blurred
-  overlay showing the image near full-viewport; Esc, clicking the backdrop,
-  and the **Close** button each dismiss it and the page position is unchanged.
+  trigger is a `cursor-zoom-in` button; a lightbox opens over a dimmed
+  overlay that leaves the page sharp behind it, showing the image near
+  full-viewport; Esc, clicking the backdrop, and the **Close** button each
+  dismiss it and the page position is unchanged.
 - [ ] `CONT-F17` · **Video playback** — On
   `{base}/tutorials/videos/welcome-to-tale`, play the episode → The player
   shows the poster (`.webp`) before play with native `controls`; pressing play
