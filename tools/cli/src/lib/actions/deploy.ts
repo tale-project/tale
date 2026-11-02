@@ -20,6 +20,7 @@ import {
   selectDefaultServices,
   servicesKeepingHost,
 } from '../compose/select-services';
+import { memoryReservationNotice } from '../compose/services/memory-env';
 import {
   type RotatableService,
   type ServiceName,
@@ -44,6 +45,7 @@ import {
   admitTagAutomationImage,
   tagDeploymentProtocol,
 } from '../deployment/tag-automation-protocol';
+import { probeCgroupVersion } from '../docker/setup-checks';
 import { discoverOrgs } from '../project/org-dirs';
 import { IncusRuntime } from '../runtime/incus/incus-runtime';
 import { selectRuntime } from '../runtime/select-runtime';
@@ -392,7 +394,10 @@ export async function deploy(options: DeployOptions): Promise<void> {
       const serviceConfig: ServiceConfig = {
         version,
         registry: env.GHCR_REGISTRY,
+        cgroupVersion: await probeCgroupVersion(),
       };
+      const reservationNotice = memoryReservationNotice(serviceConfig);
+      if (reservationNotice) logger.warn(reservationNotice);
       // How many replicas of each colour-rolled role to run (default 1 each).
       const replicas = getReplicaCounts();
 

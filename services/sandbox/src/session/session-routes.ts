@@ -920,10 +920,7 @@ export class SessionRoutes {
     return {
       totalBytes: memory.totalBytes,
       availableBytes: memory.availableBytes,
-      reserveBytes: memoryReserveBytes(
-        memory.totalBytes,
-        this.cfg.session.minFreeMemoryBytes,
-      ),
+      reserveBytes: memoryReserveBytes(memory.totalBytes, this.cfg.session),
     };
   }
 

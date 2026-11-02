@@ -11,6 +11,7 @@ import { runStepsInParallel } from '../../utils/progress';
 import { confirm } from '../../utils/prompt';
 import { REQUIRED_VOLUMES } from '../compose/generators/constants';
 import { generateColorCompose } from '../compose/generators/generate-color-compose';
+import { memoryReservationNotice } from '../compose/services/memory-env';
 import {
   ROTATABLE_SERVICES,
   imageRef,
@@ -28,6 +29,7 @@ import {
   tagDeploymentProtocol,
 } from '../deployment/tag-automation-protocol';
 import type { pullImage } from '../docker/pull-image';
+import { probeCgroupVersion } from '../docker/setup-checks';
 import { IncusRuntime } from '../runtime/incus/incus-runtime';
 import { selectRuntime } from '../runtime/select-runtime';
 import type { StackRuntime } from '../runtime/types';
@@ -247,7 +249,10 @@ export async function rollback(
     const serviceConfig: ServiceConfig = {
       version: rollbackVersion,
       registry: env.GHCR_REGISTRY,
+      cgroupVersion: await probeCgroupVersion(),
     };
+    const reservationNotice = memoryReservationNotice(serviceConfig);
+    if (reservationNotice) logger.warn(reservationNotice);
 
     // Pull previous-version images CONCURRENTLY, reporting each as a step so
     // progress + failure attribution stay clear. A single failure doesn't

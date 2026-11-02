@@ -106,6 +106,10 @@ export const RULES = {
   },
   sysctls: { action: 'map', rule: 'linux.sysctl.*' },
   mem_limit: { action: 'map', rule: 'limits.memory' },
+  mem_reservation: {
+    action: 'ignore',
+    rule: 'Incus has no memory.low; the stack bounds memory with limits.memory',
+  },
   pids_limit: { action: 'map', rule: 'limits.processes' },
   ulimits: { action: 'map', rule: 'limits.kernel.<name> as soft:hard' },
   security_opt: {
