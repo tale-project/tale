@@ -336,7 +336,7 @@ export function resolveSessionGitIdentityEnv(
  * and never none: a session no person owns (`system:task-agent`,
  * `system:automation`) resolves like any other.
  */
-export function resolveGitIdentity(
+function resolveGitIdentity(
   gitIdentity?: ProjectAgentGitIdentity | null,
 ): ProjectAgentGitIdentity {
   return gitIdentity ?? TALE_GIT_IDENTITY;
