@@ -5,21 +5,21 @@ import { useT } from '@/lib/i18n/client';
 
 /**
  * The embedding nudge's row: what is missing and the link to set it up.
- * `EmbeddingSetupBanner` decides whether it shows.
+ * `EmbeddingSetupBanner` decides whether it shows. Its words are a topic of
+ * their own, so the row loads them and not the settings pages' words
+ * (`scripts/check-entry-budget.ts` holds it to that).
  */
 export function EmbeddingSetupAlert({
   organizationId,
 }: {
   organizationId: string;
 }) {
-  const { t } = useT('settings');
+  const { t } = useT('embeddingSetup');
 
   return (
     <ShellAlert>
       <span className="grow">
-        <span className="font-medium">
-          {t('dataResidency.orgEmbedding.banner.title')}
-        </span>
+        <span className="font-medium">{t('title')}</span>
         {/* On a phone, and on a viewport too short to spare the lines (a
             phone held sideways, a laptop at 200 %), the explanation is read
             out but not drawn: it wrapped the banner to three or four lines
@@ -27,7 +27,7 @@ export function EmbeddingSetupAlert({
             to do. */}
         <span className="short-viewport:sr-only sr-only sm:not-sr-only">
           {' — '}
-          {t('dataResidency.orgEmbedding.banner.body')}
+          {t('body')}
         </span>
       </span>
       <Link
@@ -35,7 +35,7 @@ export function EmbeddingSetupAlert({
         params={{ id: organizationId }}
         className="underline underline-offset-2"
       >
-        {t('dataResidency.orgEmbedding.banner.link')}
+        {t('link')}
       </Link>
     </ShellAlert>
   );

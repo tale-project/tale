@@ -484,7 +484,7 @@ records and delete them after.
   search these websites yet** (`websites.searchNotice.title`) and points at
   an admin (`websites.searchNotice.askAdmin`), with no link. As an Owner of
   an organization that has an AI provider → the dashboard banner **Knowledge
-  search is off** (`settings.dataResidency.orgEmbedding.banner.title`) names
+  search is off** (`embeddingSetup.title`) names
   documents and websites, and the page shows no second notice; with no AI
   provider yet → the page notice carries **Configure embedding model**
   (`websites.searchNotice.configureCta`), which opens Settings › Data

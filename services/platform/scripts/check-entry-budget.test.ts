@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import {
+  awaitedTopicsOf,
   checkColdLoad,
   checkLazyChunk,
   COLD_LOAD_MAX_GZIP,
@@ -15,6 +16,7 @@ import {
   forbiddenPackagesIn,
   forbiddenSourcesIn,
   gzipTotal,
+  LAZY_BUDGETS,
   parsePreloadedScripts,
   staticClosure,
   staticImportsOf,
@@ -338,6 +340,20 @@ describe('dynamicImportersOf', () => {
   });
 });
 
+describe('awaitedTopicsOf', () => {
+  it("reads the topics of the plugin's wait, whatever their quotes", () => {
+    expect(
+      awaitedTopicsOf(
+        `export{t as Alert};\nawait globalThis.__taleMessageTopics?.ready([\`embeddingSetup\`,"settings",'chat']);`,
+      ),
+    ).toEqual(['embeddingSetup', 'settings', 'chat']);
+  });
+
+  it('answers none for a chunk that waits for none', () => {
+    expect(awaitedTopicsOf('export const a=1;')).toEqual([]);
+  });
+});
+
 describe('findForbiddenContent', () => {
   it('names the forbidden packages and sources the maps of the preloaded chunks show', () => {
     const dist = distWith({
@@ -533,6 +549,70 @@ describe('checkLazyChunk', () => {
     const dist = distWith({ 'assets/index-a1.js': '' });
     expect(checkLazyChunk(dist, [], budget).problems).toEqual([
       'no code-editor-view chunk was built',
+    ]);
+  });
+
+  it('reports the topics its chunks wait for, and names those beyond the ones it may', () => {
+    const dist = distWith({
+      'assets/code-editor-view-a1.js':
+        'import"./dialog-a2.js";await globalThis.__taleMessageTopics?.ready([`codeEditor`]);',
+      'assets/dialog-a2.js':
+        'await globalThis.__taleMessageTopics?.ready([`codeEditor`,`documents`]);',
+    });
+    expect(checkLazyChunk(dist, [], budget)).toMatchObject({
+      topics: ['codeEditor', 'documents'],
+      problems: [],
+    });
+    expect(
+      checkLazyChunk(dist, [], { ...budget, topics: ['codeEditor'] }).problems,
+    ).toEqual(['assets/dialog-a2.js waits for the documents topic']);
+  });
+});
+
+describe('the embedding setup alert', () => {
+  const alert = LAZY_BUDGETS.find(
+    (budget) => budget.name === 'embedding-setup-alert',
+  );
+  if (alert === undefined) throw new Error('no embedding-setup-alert budget');
+  // The dashboard shell, in the cold load, loads the alert on demand.
+  const SHELL = 'assets/_id-s1.js';
+  const ALERT = 'assets/embedding-setup-alert-a1.js';
+  function alertWith(topic: string, words: string | Uint8Array): string {
+    return distWith({
+      [SHELL]: `const a=()=>import(\`./${ALERT.slice('assets/'.length)}\`);`,
+      [ALERT]: `import"./_message-topic_${topic}-b2.js";export const A=1;\nawait globalThis.__taleMessageTopics?.ready([\`${topic}\`]);`,
+      [`${ALERT}.map`]: mapOf(
+        '../../app/features/settings/data-residency/components/embedding-setup-alert.tsx',
+      ),
+      [`assets/_message-topic_${topic}-b2.js`]: words,
+      [`assets/_message-topic_${topic}-b2.js.map`]: mapOf(
+        `../../messages/en/${topic}.yml`,
+      ),
+    });
+  }
+
+  it('passes the alert with the words of its own topic', () => {
+    const dist = alertWith(
+      'embeddingSetup',
+      'export const m={title:`Knowledge search is off`};',
+    );
+    expect(checkLazyChunk(dist, [SHELL], alert)).toMatchObject({
+      chunks: [ALERT, 'assets/_message-topic_embeddingSetup-b2.js'],
+      topics: ['embeddingSetup'],
+      problems: [],
+    });
+  });
+
+  it("fails the alert that brings the settings pages' topic and waits for it", () => {
+    // Random bytes do not compress, like the 24 KB gzip of English it was.
+    const dist = alertWith('settings', randomBytes(24 * 1024));
+    expect(checkLazyChunk(dist, [SHELL], alert).problems).toEqual([
+      expect.stringMatching(
+        new RegExp(
+          ` KB gzip, over its ${(alert.maxGzip / 1024).toFixed(0)} KB$`,
+        ),
+      ),
+      `${ALERT} waits for the settings topic`,
     ]);
   });
 });

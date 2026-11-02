@@ -1994,12 +1994,6 @@ dataResidency:
     notConfiguredWarning:
       Die Wissenssuche ist nicht verfügbar, bis ein Embedding-Modell
       eingerichtet ist.
-    banner:
-      title: Wissenssuche ist aus
-      body: Diese Organisation hat einen KI-Anbieter, aber kein
-        Embedding-Modell — Dokumente lassen sich nicht indexieren, und
-        weder Dokumente noch Websites lassen sich durchsuchen.
-      link: Embedding-Modell wählen
     recommendationBody:
       Dein {provider}-Zugang kann {model} bedienen ({dimensions}-dimensionale
       Vektoren).
