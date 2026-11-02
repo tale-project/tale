@@ -172,10 +172,13 @@ rollups**, so figures may legitimately lag same-day activity.
   empty **No model feedback yet** state while ratings exist. On
   `chat-health` the **By model** breakdown lists each model **once**, under
   its provider, even after a cancelled turn (which stores the model alone).
-  Cast one arena verdict on two copies of the same model → **Arena verdicts**
-  gains a **Same model** cell (`analytics.feedback.arena.cells.sameModel`)
-  counting it, and **Decisive + Tie + Both bad** equals the row sum of **Top
-  Model Matchups**.
+  Cast one arena verdict on the same model through the same provider →
+  **Arena verdicts** gains a **Same model** cell
+  (`analytics.feedback.arena.cells.sameModel`) counting it. Cast one on a
+  model two providers list, through each of them → it counts among the
+  verdicts, not under **Same model**, and **Top Model Matchups** names each
+  side `provider · model`. **Decisive + Tie + Both bad** equals the row sum
+  of **Top Model Matchups**.
 - [ ] `MET-F13` · **Harness turns add up and are named** — After one
   sandboxed agent run per harness you can start (a task agent on
   `claude-code`, an automation agent on `codex`), open `external-turns` → the
