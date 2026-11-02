@@ -696,6 +696,11 @@ export function createTaskList(deps: TaskDeps): BackendTaskList {
         await import('../domains/projects/service.ts');
       await repairProjectRollups(deps.sql);
     },
+    'governance.fold_usage_rollups': async () => {
+      const { foldPendingBudgetUsage } =
+        await import('../domains/governance/budget-reservations.ts');
+      await foldPendingBudgetUsage(deps.sql);
+    },
     'tasks.enforce_dates': async () => {
       const { enforceTaskDateNotifications } =
         await import('../domains/tasks/date-notifications.ts');

@@ -8,10 +8,12 @@ import {
   isSerializationFailure,
   retryQueueKeysOf,
 } from '@tale/shared/db/serializable';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   budgetAdmissionQueueKey,
+  foldBudgetUsage,
+  foldPendingBudgetUsage,
   lockBudgetAdmission,
   readInFlightReservations,
 } from './budget-reservations.ts';
@@ -29,6 +31,32 @@ function scriptedSql(rows: unknown[]) {
   };
   return { sql: sql as never, statements };
 }
+
+/** A pool whose statements, in and out of its transactions, are answered by
+ * `answer` from their text; an `Error` answer rejects. */
+function scriptedPool(
+  answer: (text: string, values: unknown[]) => unknown[] | Error,
+) {
+  const statements: Statement[] = [];
+  let transactions = 0;
+  const run = (strings: TemplateStringsArray, ...values: unknown[]) => {
+    const text = strings.join('?').replace(/\s+/g, ' ');
+    statements.push({ text, values });
+    const result = answer(text, values);
+    return result instanceof Error
+      ? Promise.reject(result)
+      : Promise.resolve(result);
+  };
+  const sql = Object.assign(run, {
+    begin: (fn: (tx: typeof run) => Promise<unknown>) => {
+      transactions += 1;
+      return fn(run);
+    },
+  });
+  return { sql: sql as never, statements, transactions: () => transactions };
+}
+
+const FOLD = 'DELETE FROM app.usage_period_deltas';
 
 const NO_HOLDS = {
   orgCostCents: 0,
@@ -241,11 +269,11 @@ describe('readInFlightReservations', () => {
 });
 
 describe('lockBudgetAdmission', () => {
-  it('takes the queue lock, then bumps the organization’s admission row', async () => {
+  it('takes the queue lock, bumps the organization’s admission row, then folds its usage journal', async () => {
     const { sql, statements } = scriptedSql([]);
     await lockBudgetAdmission(sql, 'org-1');
 
-    expect(statements).toHaveLength(2);
+    expect(statements).toHaveLength(3);
     expect(statements[0]?.text).toContain('pg_advisory_xact_lock');
     expect(statements[0]?.values).toContain(budgetAdmissionQueueKey('org-1'));
     expect(statements[1]?.text).toContain('INSERT INTO app.budget_admissions');
@@ -253,6 +281,26 @@ describe('lockBudgetAdmission', () => {
     expect(statements[1]?.text).toContain(
       'ON CONFLICT (org_id) DO UPDATE SET admitted_at_ms',
     );
+    // Under the lock, so no other fold of the organization runs beside it.
+    expect(statements[2]?.text).toContain(FOLD);
+    expect(statements[2]?.values).toContain('org-1');
+  });
+
+  it('marks a serialization failure of its fold with the queue key too', async () => {
+    const conflict = Object.assign(
+      new Error('could not serialize access due to concurrent delete'),
+      { code: '40001' },
+    );
+    const { sql } = scriptedPool((text) =>
+      text.includes(FOLD) ? conflict : [],
+    );
+
+    const error = await lockBudgetAdmission(sql, 'org-1').catch(
+      (caught: unknown) => caught,
+    );
+
+    expect(isSerializationFailure(error)).toBe(true);
+    expect(retryQueueKeysOf(error)).toEqual(['budget-admission:org-1']);
   });
 
   it('marks a serialization failure with the queue key, so the retry queues on it', async () => {
@@ -268,5 +316,92 @@ describe('lockBudgetAdmission', () => {
 
     expect(isSerializationFailure(error)).toBe(true);
     expect(retryQueueKeysOf(error)).toEqual(['budget-admission:org-1']);
+  });
+});
+
+describe('foldBudgetUsage', () => {
+  it('folds the organization’s journal in a transaction of its own, under its admission lock', async () => {
+    const { sql, statements, transactions } = scriptedPool((text) =>
+      text.includes(FOLD) ? [{ deltas: 4, emptiedPeriods: [] }] : [],
+    );
+
+    await expect(foldBudgetUsage(sql, 'org-1')).resolves.toBe(4);
+
+    expect(transactions()).toBe(1);
+    expect(statements[0]?.text).toContain('pg_advisory_xact_lock(');
+    expect(statements[0]?.values).toContain(budgetAdmissionQueueKey('org-1'));
+    expect(statements[1]?.text).toContain(FOLD);
+    expect(statements[1]?.values).toContain('org-1');
+  });
+});
+
+describe('foldPendingBudgetUsage', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('folds each organization with journal rows, skips one whose lock is held, and goes on past one that fails', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const broken = new Error('connection reset');
+    const { sql, statements, transactions } = scriptedPool((text, values) => {
+      if (text.includes('SELECT DISTINCT org_id')) {
+        return [{ orgId: 'org-1' }, { orgId: 'org-2' }, { orgId: 'org-3' }];
+      }
+      const key = values.find(
+        (value) =>
+          typeof value === 'string' && value.startsWith('budget-admission:'),
+      );
+      if (text.includes('pg_try_advisory_xact_lock')) {
+        return [{ locked: key !== budgetAdmissionQueueKey('org-2') }];
+      }
+      if (text.includes(FOLD)) {
+        return values.includes('org-3')
+          ? broken
+          : [{ deltas: 5, emptiedPeriods: [] }];
+      }
+      return [];
+    });
+
+    await expect(foldPendingBudgetUsage(sql)).resolves.toEqual({
+      folded: 5,
+      skipped: 1,
+      failed: 1,
+    });
+
+    expect(transactions()).toBe(3);
+    const folds = statements.filter((statement) =>
+      statement.text.includes(FOLD),
+    );
+    // The organization whose lock was held is folded by its holder.
+    expect(folds.map((statement) => statement.values[0])).toEqual([
+      'org-1',
+      'org-3',
+    ]);
+    // A lock taken without waiting: an admission never queues behind it.
+    expect(
+      statements.some((statement) =>
+        statement.text.includes('pg_advisory_xact_lock('),
+      ),
+    ).toBe(false);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('org-3'), broken);
+    expect(info).toHaveBeenCalledWith(
+      expect.stringContaining('5 journal row(s) folded'),
+    );
+  });
+
+  it('reads the journal and nothing else when it is empty', async () => {
+    const info = vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    const { sql, statements, transactions } = scriptedPool(() => []);
+
+    await expect(foldPendingBudgetUsage(sql)).resolves.toEqual({
+      folded: 0,
+      skipped: 0,
+      failed: 0,
+    });
+
+    expect(statements).toHaveLength(1);
+    expect(transactions()).toBe(0);
+    expect(info).not.toHaveBeenCalled();
   });
 });

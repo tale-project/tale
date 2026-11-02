@@ -82,18 +82,23 @@ export type UsageScope =
  * starter — so a cap sees the member's whole spend, whichever door it came
  * through (`governance/README.md`).
  *
- * Those forms are matched as values of `user_id` (`= ANY`), never by
- * rewriting the column: the ledger's bucket index (`org_id, user_id,
- * period_key`) then serves a person's sum and a team's, and
- * `usage_ledger_api_key_period` a key's, so each reads its own scope's rows.
- * Only the organization's sum reads the whole period.
+ * The sums are read from the ledger's rollups (`usage-rollups.ts`), not
+ * from the ledger: the organization's period is its row of
+ * `app.usage_period_totals`, and a person's, a team's and a key's are the
+ * rows of `app.usage_period_subject_totals` their subjects and key match,
+ * each with the journal rows (`app.usage_period_deltas`) no fold has moved
+ * into those rows yet. Both are read in one statement, so a booking counts
+ * once on whichever side of a concurrent fold it is. A team's members and
+ * keys are resolved when it is read, so joining or leaving a team moves no
+ * rollup.
  */
 /**
  * What a bucket used this period. Its requests are model requests: a
  * connector call is counted on `connector_call_count` and never as a
- * request, so a ledger row a connector names is skipped — rows booked before
- * connector calls stopped carrying a request included. A project's buckets
- * (`app.project_usage`) never take a connector call at all.
+ * request, so the rollups skip the requests of a ledger row a connector
+ * names — rows booked before connector calls stopped carrying a request
+ * included. A project's buckets (`app.project_usage`) never take a
+ * connector call at all.
  */
 async function periodUsage(
   sql: Sql | TransactionSql,
@@ -103,30 +108,34 @@ async function periodUsage(
 ): Promise<UsageTotals> {
   let rows: UsageTotals[];
   switch (scope.kind) {
-    case 'user':
+    case 'user': {
+      const forms = usageLedgerSubjectForms(scope.userId);
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
-                 AS "requestCount"
-        FROM app.usage_ledger
-        WHERE org_id = ${organizationId} AND period_key = ${periodKey}
-          AND user_id = ANY(${usageLedgerSubjectForms(scope.userId)})
+               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+        FROM (
+          SELECT total_tokens, cost_estimate_cents, request_count
+          FROM app.usage_period_subject_totals
+          WHERE org_id = ${organizationId} AND period_key = ${periodKey}
+            AND user_id = ANY(${forms})
+          UNION ALL
+          SELECT total_tokens, cost_estimate_cents, request_count
+          FROM app.usage_period_deltas
+          WHERE org_id = ${organizationId} AND period_key = ${periodKey}
+            AND user_id = ANY(${forms})
+        ) AS usage
       `;
       break;
+    }
     case 'team':
       // The team's current members, and every key the team owns — a
       // revoked one's spend this period still counts: it was the team's.
       // Their ids are expanded into the forms a person's sum matches, once,
-      // before the ledger is read.
+      // before the rollups are read.
       rows = await sql<UsageTotals[]>`
-        SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
-               coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
-                 AS "requestCount"
-        FROM app.usage_ledger
-        WHERE org_id = ${organizationId} AND period_key = ${periodKey}
-          AND user_id = ANY(ARRAY(
+        WITH subject AS (
+          SELECT ARRAY(
             SELECT form.prefix || member.id
             FROM (
               SELECT tm."userId" AS id FROM "teamMember" tm
@@ -140,25 +149,47 @@ async function periodUsage(
                 AND o.owner_kind = 'team'
             ) member
             CROSS JOIN unnest(${USAGE_LEDGER_SUBJECT_PREFIXES}::text[]) AS form(prefix)
-          ))
+          ) AS forms
+        )
+        SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
+               coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
+               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+        FROM (
+          SELECT total_tokens, cost_estimate_cents, request_count
+          FROM app.usage_period_subject_totals
+          WHERE org_id = ${organizationId} AND period_key = ${periodKey}
+            AND user_id = ANY((SELECT forms FROM subject))
+          UNION ALL
+          SELECT total_tokens, cost_estimate_cents, request_count
+          FROM app.usage_period_deltas
+          WHERE org_id = ${organizationId} AND period_key = ${periodKey}
+            AND user_id = ANY((SELECT forms FROM subject))
+        ) AS usage
       `;
       break;
-    case 'apiKey':
+    case 'apiKey': {
+      const forms =
+        scope.identity === undefined
+          ? []
+          : usageLedgerSubjectForms(scope.identity);
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
-                 AS "requestCount"
-        FROM app.usage_ledger
-        WHERE org_id = ${organizationId} AND period_key = ${periodKey}
-          AND (api_key_id = ${scope.apiKeyId}
-               OR user_id = ANY(${
-                 scope.identity === undefined
-                   ? []
-                   : usageLedgerSubjectForms(scope.identity)
-               }))
+               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+        FROM (
+          SELECT total_tokens, cost_estimate_cents, request_count
+          FROM app.usage_period_subject_totals
+          WHERE org_id = ${organizationId} AND period_key = ${periodKey}
+            AND (api_key_id = ${scope.apiKeyId} OR user_id = ANY(${forms}))
+          UNION ALL
+          SELECT total_tokens, cost_estimate_cents, request_count
+          FROM app.usage_period_deltas
+          WHERE org_id = ${organizationId} AND period_key = ${periodKey}
+            AND (api_key_id = ${scope.apiKeyId} OR user_id = ANY(${forms}))
+        ) AS usage
       `;
       break;
+    }
     case 'project':
       // Everything booked as the project's — its own buckets, written beside
       // the ledger (`incrementUsageLedger`).
@@ -175,10 +206,16 @@ async function periodUsage(
       rows = await sql<UsageTotals[]>`
         SELECT coalesce(sum(total_tokens), 0)::float8 AS "totalTokens",
                coalesce(sum(cost_estimate_cents), 0)::float8 AS "costEstimate",
-               coalesce(sum(request_count) FILTER (WHERE connector_name IS NULL), 0)::float8
-                 AS "requestCount"
-        FROM app.usage_ledger
-        WHERE org_id = ${organizationId} AND period_key = ${periodKey}
+               coalesce(sum(request_count), 0)::float8 AS "requestCount"
+        FROM (
+          SELECT total_tokens, cost_estimate_cents, request_count
+          FROM app.usage_period_totals
+          WHERE org_id = ${organizationId} AND period_key = ${periodKey}
+          UNION ALL
+          SELECT total_tokens, cost_estimate_cents, request_count
+          FROM app.usage_period_deltas
+          WHERE org_id = ${organizationId} AND period_key = ${periodKey}
+        ) AS usage
       `;
       break;
   }

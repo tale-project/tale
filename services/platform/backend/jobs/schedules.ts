@@ -137,6 +137,10 @@ export const SCHEDULES: CronSchedule[] = [
   // Rollup drift repair: the board's counters are incremental, so something
   // has to reconcile them with the rows they summarize.
   { name: 'projects.repair_rollups', cron: '40 5 * * *' },
+  // The budget gate's usage rollups: an admission folds its organization's
+  // journal itself, this folds the rest, so no journal grows for longer than
+  // ten minutes. Offset from the ten-minute sweeps.
+  { name: 'governance.fold_usage_rollups', cron: '6-59/10 * * * *' },
 ];
 
 /**

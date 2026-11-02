@@ -9,6 +9,7 @@ import type {
   OrgBudgetSubject,
   ReservedSpend,
 } from './budget-gate.ts';
+import { foldUsageRollups } from './usage-rollups.ts';
 
 /**
  * What the work still in flight holds against the budget caps, and the lock
@@ -49,6 +50,11 @@ export function budgetAdmissionQueueKey(organizationId: string): string {
  * key as a session lock from before its BEGIN — a task comment's pattern
  * (`queuedOnTask`). Take it before the locks of the rows the admission goes on to
  * write (a thread's claim), so every admission acquires them in one order.
+ *
+ * Holding it, the admission folds the organization's usage journal into its
+ * rollups (`usage-rollups.ts`), so the usage it reads next is a few rollup
+ * rows and the journal rows booked since. A fold that meets a concurrent
+ * one's work under SERIALIZABLE fails with the same 40001, marked the same.
  */
 export async function lockBudgetAdmission(
   tx: Sql | TransactionSql,
@@ -64,9 +70,78 @@ export async function lockBudgetAdmission(
       VALUES (${organizationId}, ${Date.now()})
       ON CONFLICT (org_id) DO UPDATE SET admitted_at_ms = EXCLUDED.admitted_at_ms
     `;
+    await foldUsageRollups(tx, organizationId);
   } catch (error) {
     throw markRetryQueueKey(error, queueKey);
   }
+}
+
+/**
+ * Fold the organization's usage journal into its rollups now, under its
+ * admission lock. Erasure does, right after it deletes a person's ledger
+ * rows, so the rollup rows under their id go with them.
+ */
+export async function foldBudgetUsage(
+  sql: Sql,
+  organizationId: string,
+): Promise<number> {
+  return sql.begin(async (tx) => {
+    await tx`
+      SELECT pg_advisory_xact_lock(
+        ${RETRY_QUEUE_LOCK_CLASS},
+        hashtext(${budgetAdmissionQueueKey(organizationId)})
+      )
+    `;
+    return foldUsageRollups(tx, organizationId);
+  });
+}
+
+/**
+ * Fold every organization's usage journal into its rollups (the job
+ * `governance.fold_usage_rollups`). An admission folds its own
+ * organization's; this keeps the journal short for an organization that
+ * admits nothing (no budget policy) or rarely, so a read that does not fold
+ * (the budget-status banner) still reads a few rows. An organization whose
+ * admission lock is held is skipped, as its holder folds; one whose fold
+ * fails is logged and left to the next run.
+ */
+export async function foldPendingBudgetUsage(
+  sql: Sql,
+): Promise<{ folded: number; skipped: number; failed: number }> {
+  const pending = await sql<{ orgId: string }[]>`
+    SELECT DISTINCT org_id AS "orgId" FROM app.usage_period_deltas
+  `;
+  let folded = 0;
+  let skipped = 0;
+  let failed = 0;
+  for (const { orgId } of pending) {
+    try {
+      const deltas = await sql.begin(async (tx) => {
+        const [lock] = await tx<{ locked: boolean }[]>`
+          SELECT pg_try_advisory_xact_lock(
+            ${RETRY_QUEUE_LOCK_CLASS},
+            hashtext(${budgetAdmissionQueueKey(orgId)})
+          ) AS locked
+        `;
+        return lock?.locked ? foldUsageRollups(tx, orgId) : null;
+      });
+      if (deltas === null) skipped += 1;
+      else folded += deltas;
+    } catch (error) {
+      failed += 1;
+      console.warn(
+        `[governance] usage rollup fold failed for org ${orgId}:`,
+        error,
+      );
+    }
+  }
+  if (folded > 0 || failed > 0) {
+    console.info(
+      `[governance] usage rollup fold: ${folded} journal row(s) folded, ` +
+        `${skipped} org(s) skipped, ${failed} failed`,
+    );
+  }
+  return { folded, skipped, failed };
 }
 
 interface HoldRow {

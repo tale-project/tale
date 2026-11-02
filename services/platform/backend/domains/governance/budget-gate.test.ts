@@ -476,13 +476,16 @@ describe('resolveTurnAllowance', () => {
       'user:user-1',
       'api-key:user-1',
     ]);
-    // A team's members are matched under the same forms, as values of
-    // `user_id` the ledger's bucket index serves — never by rewriting the
-    // column, which would read the organization's whole period.
+    // A team's members are matched under the same forms, expanded once, as
+    // values of `user_id` the rollups' key serves — never by rewriting the
+    // column, which would read every subject of the organization's period.
     const team = queries.findIndex((q) => q.includes('"teamMember"'));
-    expect(queries[team]).toContain('AND user_id = ANY(ARRAY(');
+    expect(queries[team]).toContain('SELECT ARRAY(');
+    expect(queries[team]).toContain(
+      'AND user_id = ANY((SELECT forms FROM subject))',
+    );
     expect(queries[team]).not.toContain('regexp_replace');
-    const prefixes = bindings[team]?.at(-1) as string[];
+    const prefixes = bindings[team]?.find(Array.isArray) as string[];
     expect(prefixes.map((prefix) => `${prefix}user-1`)).toEqual(
       bindings[personal]?.[2],
     );
@@ -584,16 +587,23 @@ describe('readBudgetStanding', () => {
 
     await readBudgetStanding(recorded.sql, SUBJECT, NOW);
 
-    const ledgerReads = recorded.queries.filter((text) =>
-      text.includes('FROM app.usage_ledger'),
+    // The gate sums the ledger's rollups, whose requests leave out every row
+    // a connector names, old rows included (the journal of
+    // `0235_usage_period_rollups.sql`, pinned by the ledger-tree guard) —
+    // and never the ledger, which counts them.
+    const usageReads = recorded.queries.filter((text) =>
+      text.includes('FROM app.usage_period_'),
     );
-    expect(ledgerReads.length).toBeGreaterThan(0);
-    for (const text of ledgerReads) {
-      // A row a connector names is a connector call, old rows included.
+    expect(usageReads).toHaveLength(2);
+    for (const text of usageReads) {
+      expect(text).toContain('FROM app.usage_period_deltas');
       expect(text).toContain(
-        'sum(request_count) FILTER (WHERE connector_name IS NULL)',
+        'coalesce(sum(request_count), 0)::float8 AS "requestCount"',
       );
     }
+    expect(
+      recorded.queries.filter((text) => text.includes('app.usage_ledger')),
+    ).toEqual([]);
   });
 
   it('reads the personal and organization buckets the gate checks', async () => {

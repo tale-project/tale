@@ -67,6 +67,9 @@ export interface TaskPayloads {
   };
   /** Recompute drifted project rollup counters from their source rows. */
   'projects.repair_rollups': Record<string, never>;
+  /** Fold every organization's usage journal into the budget gate's
+   * rollups (every ten minutes). */
+  'governance.fold_usage_rollups': Record<string, never>;
   /** Start a task's owning automation (the comment-@mention trigger). */
   'task.start_workflow': {
     organizationId: string;
@@ -583,6 +586,10 @@ export const TASK_QUEUE_OPTIONS: Record<TaskIdentifier, TaskQueueOptions> = {
     expireInSeconds: 600,
   },
   'projects.repair_rollups': { retryLimit: 1, expireInSeconds: 600 },
+  // Every organization folds in its own transaction under its admission
+  // lock, so a retry that overlaps the attempt it replaces skips what that
+  // one holds and folds nothing twice.
+  'governance.fold_usage_rollups': { retryLimit: 1, expireInSeconds: 600 },
   // The steer owns its OWN retry ladder (it re-enqueues itself with an
   // attempt counter, tight then coarse), so pg-boss must not add a second
   // one on top: a failed job is a lost steer, and the comment is still in

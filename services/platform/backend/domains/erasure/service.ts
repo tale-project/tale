@@ -32,6 +32,7 @@ import { emitHintInTx } from '../../realtime/outbox.ts';
 import { endAgentConnectionsInTx } from '../agent_connections/end.ts';
 import { createAuditLog } from '../audit_logs/service.ts';
 import { markAutomationWriterInTx } from '../automations/writer-protocol.ts';
+import { foldBudgetUsage } from '../governance/budget-reservations.ts';
 import { DIRECT_CALL_OP_KIND } from '../governance/direct-call-kind.ts';
 import { applyMaturedDsarPolicyChange } from '../governance/settings-tail.ts';
 import { type ActiveHolds, loadActiveHolds } from '../legal_holds/service.ts';
@@ -1266,6 +1267,9 @@ export async function processErasure(
         AND user_id = ANY(${[targetUserId, `user:${targetUserId}`, `api-key:${targetUserId}`]})
       RETURNING org_id AS "orgId"
     `;
+    // The budget gate's rollups of those rows go with them: folded now, a
+    // total left with no ledger row is deleted (`governance/usage-rollups.ts`).
+    await foldBudgetUsage(sql, organizationId);
     // The retired per-turn rows the chat lane wrote beside the ledger (no
     // reader; the table goes in a later release) still name the subject.
     const events = await sql<{ orgId: string }[]>`
