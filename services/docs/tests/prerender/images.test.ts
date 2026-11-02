@@ -2,7 +2,10 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { MOBILE_QUERY } from '@tale/ui/use-is-mobile';
 import { describe, expect, it } from 'vitest';
+
+import { phoneCaptureFile } from '../../lib/content/image-variants';
 
 const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const DIST = join(ROOT, 'dist');
@@ -31,24 +34,58 @@ function candidates(srcSet: string | undefined): string[] {
   return srcSet.split(', ').map((candidate) => candidate.split(' ')[0]);
 }
 
-const isScreenshot = (src: string | undefined) =>
+const isScreenshot = (src: string | undefined): src is string =>
   src !== undefined && /^\/images\/.*\.webp$/.test(src);
 
-/** What keeps the screenshot of one `<picture>` from being served at the
- * width its column needs, or nothing. */
-function pictureFaults(picture: string): string[] {
+const INTRINSIC = ['srcset', 'sizes', 'width', 'height'];
+
+/** What keeps the screenshot `src` of one `<picture>` from being served at
+ * the width its column needs, or nothing. */
+function pictureFaults(picture: string, src: string): string[] {
   const img = attributesOf(/<img\b[^>]*>/.exec(picture)?.[0] ?? '');
-  const avif = attributesOf(
-    /<source\b[^>]*type="image\/avif"[^>]*>/.exec(picture)?.[0] ?? '',
+  const sources = [...picture.matchAll(/<source\b[^>]*>/g)].map(([tag]) =>
+    attributesOf(tag),
   );
-  const faults = ['srcset', 'sizes', 'width', 'height']
-    .filter((name) => !img.get(name))
-    .map((name) => `no ${name}`);
-  if (!avif.get('srcset') || !avif.get('sizes')) faults.push('no AVIF source');
+  const avif = sources.find(
+    (source) => source.get('type') === 'image/avif' && !source.has('media'),
+  );
+  const faults = INTRINSIC.filter((name) => !img.get(name)).map(
+    (name) => `no ${name}`,
+  );
+  if (!avif?.get('srcset') || !avif.get('sizes')) faults.push('no AVIF source');
+  // Below the `md` breakpoint a screenshot with a phone capture serves that
+  // capture, as AVIF and WebP, at its own intrinsic size.
+  const phone = sources.filter((source) => source.has('media'));
+  if (phone.length > 0 || existsSync(join(DIST, phoneCaptureFile(src)))) {
+    const types = phone
+      .map((source) => source.get('type') ?? '')
+      .sort((a, b) => a.localeCompare(b));
+    if (types.join() !== 'image/avif,image/webp') {
+      faults.push(`phone sources ${types.join(' and ') || 'missing'}`);
+    }
+    for (const source of phone) {
+      const type = source.get('type');
+      if (source.get('media') !== MOBILE_QUERY) {
+        faults.push(`${type} phone source for ${source.get('media')}`);
+      }
+      for (const attribute of INTRINSIC.filter((name) => !source.get(name))) {
+        faults.push(`no ${attribute} on the ${type} phone source`);
+      }
+    }
+    // The browser takes the first source that fits, and a source with no
+    // media always does: a phone source after one would never be shown.
+    const fallback = sources.findIndex((source) => !source.has('media'));
+    if (
+      fallback !== -1 &&
+      sources.slice(fallback).some((source) => source.has('media'))
+    ) {
+      faults.push('a phone source after the default sources');
+    }
+  }
   const missing = [
     img.get('src') ?? '',
     ...candidates(img.get('srcset')),
-    ...candidates(avif.get('srcset')),
+    ...sources.flatMap((source) => candidates(source.get('srcset'))),
   ].filter((url) => !existsSync(join(DIST, url)));
   if (missing.length > 0) faults.push(`missing ${missing.join(', ')}`);
   return faults;
@@ -60,7 +97,8 @@ describe('built docs pages', () => {
   // does not know would ship full-size again, and shift the layout as it
   // loads, without any source check noticing. Every screenshot a built page
   // shows sits in a `<picture>` with its AVIF candidates, carries `srcset`,
-  // `sizes` and its intrinsic size, and names only files the build ships.
+  // `sizes` and its intrinsic size, and names only files the build ships;
+  // one with a phone capture offers it below the `md` breakpoint.
   it('serve every screenshot responsively', () => {
     expect(existsSync(join(DIST, 'index.html'))).toBe(true);
     let shown = 0;
@@ -73,7 +111,7 @@ describe('built docs pages', () => {
         const src = attributesOf(img).get('src');
         if (!isScreenshot(src)) continue;
         shown += 1;
-        const faults = pictureFaults(picture);
+        const faults = pictureFaults(picture, src);
         if (faults.length > 0)
           offenders.push(`${page} ${src}: ${faults.join(', ')}`);
       }
