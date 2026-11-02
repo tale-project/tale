@@ -22,6 +22,12 @@ interface MetricsScopeSelectProps {
   searchPlaceholder: string;
   /** Shown when the search matches nothing (or there are no subjects at all). */
   emptyText: string;
+  /**
+   * Notified whenever the search text changes (`SearchableSelect`'s
+   * `onSearchChange`), for subjects searched on the server: `options` then
+   * holds what the search found.
+   */
+  onSearchChange?: (query: string) => void;
 }
 
 /**
@@ -45,6 +51,7 @@ export function MetricsScopeSelect({
   placeholder,
   searchPlaceholder,
   emptyText,
+  onSearchChange,
 }: MetricsScopeSelectProps) {
   const selected = useMemo(
     () =>
@@ -58,6 +65,7 @@ export function MetricsScopeSelect({
       value={value ?? null}
       options={options}
       onValueChange={onValueChange}
+      {...(onSearchChange !== undefined && { onSearchChange })}
       searchPlaceholder={searchPlaceholder}
       emptyText={emptyText}
       aria-label={label}

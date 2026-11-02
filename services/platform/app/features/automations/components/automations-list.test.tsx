@@ -14,7 +14,13 @@ const named = vi.hoisted(() => ({
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useNamedProjects: (_organizationId: string, ids: readonly string[]) => {
     named.ids = [...ids];
-    return { projects: named.projects, isPending: false };
+    return {
+      projects: named.projects,
+      isPending: false,
+      unread: new Set(),
+      read: { unavailable: false, retrying: false, failureCount: 0 },
+      retry: () => undefined,
+    };
   },
 }));
 

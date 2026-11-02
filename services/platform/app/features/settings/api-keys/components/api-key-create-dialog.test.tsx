@@ -50,10 +50,10 @@ const MEMBERS = [
   },
 ];
 const TEAMS = [{ id: 'finance', name: 'Finance' }];
-const PROJECTS = [
-  { _id: 'launch', name: 'Launch' },
-  { _id: 'old', name: 'Old site', archivedAt: 1 },
-];
+// What Home's page answers: it holds no archived project, which takes no new
+// key. A page that does not hold every project, and the archived project the
+// server search leaves out, are api-key-owner-field.search.test.tsx's.
+const PROJECTS = [{ _id: 'launch', name: 'Launch' }];
 
 const reads = vi.hoisted(() => ({
   members: {} as Record<string, unknown>,
@@ -67,7 +67,15 @@ vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => reads.teams,
 }));
 vi.mock('@/app/features/projects/hooks/queries', () => ({
-  useProjects: () => reads.projects,
+  useProjectChoices: () => reads.projects,
+  // A new key's project starts unpicked: none is read by id.
+  useNamedProjects: () => ({
+    projects: new Map(),
+    isPending: false,
+    unread: new Set(),
+    read: { unavailable: false, retrying: false, failureCount: 0 },
+    retry: vi.fn(),
+  }),
 }));
 
 /** A list read: answered with its rows, still pending, or failed with no
@@ -110,7 +118,7 @@ function setRead(list: TargetList, read: ListRead) {
   } else {
     reads.projects = {
       projects: rows ?? [],
-      hasAnswer: rows !== undefined,
+      isDone: rows === undefined ? undefined : true,
       isLoading: read === 'pending',
       error: read === 'failed',
       isRetrying: false,
@@ -524,16 +532,6 @@ describe('ApiKeyCreateDialog', () => {
       ).toBeInTheDocument();
     });
 
-    it('offers no archived project', async () => {
-      const { user } = renderForAdmin();
-      await user.click(screen.getByRole('combobox', { name: 'Belongs to' }));
-      await user.click(screen.getByRole('option', { name: 'A project' }));
-      await user.click(screen.getByRole('button', { name: /^Project/ }));
-      expect(
-        screen.getAllByRole('option').map((option) => option.textContent),
-      ).toEqual(['Launch']);
-    });
-
     // A list that has not answered offers nobody, and that never reads as
     // nobody qualifying: a pending read masks the picker, a failed one says
     // the list couldn't load and offers Try again (#4586).
@@ -562,8 +560,8 @@ describe('ApiKeyCreateDialog', () => {
           picker: 'api-key-project',
           failed: "Couldn't load the projects.",
           empty: 'No active projects',
-          // An archived project takes no new keys.
-          nobody: PROJECTS.filter((project) => project.archivedAt),
+          // The page holds no archived project, which takes no new key.
+          nobody: [],
         },
       ] satisfies Array<{
         list: TargetList;
