@@ -9,9 +9,9 @@
  * whose mock throws would fail an author on their first test run.
  *
  * It holds the scenarios a test can pick in a mock run to the same bar: each
- * fits its action, a connector on the scenario list ships the kinds every
- * action needs, and Slack's — the reference — are proven against the live
- * body, so a scenario answers what a live call in that case does.
+ * fits its action, and a connector on the scenario list ships the kinds every
+ * action needs and has each scenario proven against its live body, so a
+ * scenario answers what a live call in that case does.
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -27,7 +27,12 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import { inProcessLiveRunner } from '../../connectors/in-process-live';
+import { toConnectorResponse } from '../../connectors/live-host';
 import { connectorFailureOf } from '../../engine/core/record/failure';
+import type {
+  ConnectorContext,
+  ConnectorHttpResponse,
+} from '../../engine/core/slots';
 import { assignable, shapeOfValue } from '../../engine/core/typing/shape';
 import { parseSignature } from '../../engine/core/typing/signature';
 import { nodeVmRunner } from '../../engine/runners/node-vm';
@@ -70,10 +75,11 @@ const EXPECTED_SLUGS = [
 ] as const;
 
 /** The connectors whose every action ships at least the scenario kinds its
- * effect needs (`MINIMUM_SCENARIO_KINDS`). A connector is added once all its
- * actions do and is never removed: tests pick its scenarios by name, so the
- * list only grows. */
-const SCENARIO_CONNECTORS = ['slack'] as const;
+ * effect needs (`MINIMUM_SCENARIO_KINDS`), each scenario with its proof in
+ * `SCENARIO_PROOFS`. A connector is added once all its actions do and is
+ * never removed: tests pick its scenarios by name, so the list only grows. */
+const SCENARIO_CONNECTORS = ['jev', 'slack'] as const;
+type ScenarioConnector = (typeof SCENARIO_CONNECTORS)[number];
 
 const runner = nodeVmRunner();
 const LIMITS = { timeoutMs: 2000 };
@@ -279,32 +285,37 @@ function missingScenarioKinds(action: ConnectorAction): string[] {
   );
 }
 
-/** One answer Slack gives a POST: the HTTP status, the headers, and the body
- * — JSON, or the plain text files.slack.com answers an upload with. */
-interface SlackAnswer {
+/** One answer a service gives a request: the HTTP status, the headers
+ * (lower-cased, as the live host hands them on), and the body — JSON, or the
+ * plain text a service answers with, as Slack's upload URL does. */
+interface ServiceAnswer {
   status: number;
   headers?: Record<string, string>;
   body: unknown;
 }
+
+/** The answers one proof gives, keyed `<METHOD> <url>` in the order the live
+ * body makes its requests. */
+type ProofAnswers = Record<string, ServiceAnswer>;
 
 const SLACK_API = 'https://slack.com/api';
 const UPLOAD_URL = 'https://files.slack.com/upload/v1/EXAMPLE0000000001';
 const SECOND_UPLOAD_URL = 'https://files.slack.com/upload/v1/EXAMPLE0000000002';
 
 /** A call Slack carried out: HTTP 200 and `ok: true`. */
-function slackOk(body: Record<string, unknown>): SlackAnswer {
+function slackOk(body: Record<string, unknown>): ServiceAnswer {
   return { status: 200, body: { ok: true, ...body } };
 }
 
 /** A call Slack refused: HTTP 200 as well, with `ok: false` and the error's
  * code — which is why every body checks `ok`, not only the status. */
-function slackError(error: string): SlackAnswer {
+function slackError(error: string): ServiceAnswer {
   return { status: 200, body: { ok: false, error } };
 }
 
 /** A rate limit is the refusal with a status of its own: 429, and the
  * seconds to wait in Retry-After. */
-const SLACK_RATE_LIMITED: SlackAnswer = {
+const SLACK_RATE_LIMITED: ServiceAnswer = {
   status: 429,
   headers: { 'retry-after': '30' },
   body: { ok: false, error: 'ratelimited' },
@@ -312,19 +323,19 @@ const SLACK_RATE_LIMITED: SlackAnswer = {
 
 /** What an upload URL answers once it holds the bytes: their count, as text
  * (the example input's content is 48 characters). */
-const SLACK_UPLOADED: SlackAnswer = { status: 200, body: 'OK - 48' };
+const SLACK_UPLOADED: ServiceAnswer = { status: 200, body: 'OK - 48' };
 
 /**
  * The proof of every Slack scenario, keyed `<action>/<scenario>`: the answer
- * Slack gives each POST the live body makes, by URL and in the order the body
- * makes them, when its input is the action's example input with the
- * scenario's `when` laid over it. An answer carries the members the action's
- * output names; the bodies hand Slack's records on as they come, so the
- * further members a real answer holds would ride along.
+ * Slack gives each POST the live body makes, in the order the body makes
+ * them, when its input is the action's example input with the scenario's
+ * `when` laid over it. An answer carries the members the action's output
+ * names; the bodies hand Slack's records on as they come, so the further
+ * members a real answer holds would ride along.
  */
-const SLACK_PROOFS: Record<string, Record<string, SlackAnswer>> = {
+const SLACK_PROOFS: Record<string, ProofAnswers> = {
   'list_channels/two_channels': {
-    [`${SLACK_API}/conversations.list`]: slackOk({
+    [`POST ${SLACK_API}/conversations.list`]: slackOk({
       channels: [
         { id: 'C0000000001', name: 'general', is_private: false },
         { id: 'C0000000002', name: 'deploys', is_private: false },
@@ -334,16 +345,16 @@ const SLACK_PROOFS: Record<string, Record<string, SlackAnswer>> = {
     }),
   },
   'list_channels/no_channels': {
-    [`${SLACK_API}/conversations.list`]: slackOk({
+    [`POST ${SLACK_API}/conversations.list`]: slackOk({
       channels: [],
       response_metadata: { next_cursor: '' },
     }),
   },
   'list_channels/invalid_auth': {
-    [`${SLACK_API}/conversations.list`]: slackError('invalid_auth'),
+    [`POST ${SLACK_API}/conversations.list`]: slackError('invalid_auth'),
   },
   'get_channel/one_channel': {
-    [`${SLACK_API}/conversations.info`]: slackOk({
+    [`POST ${SLACK_API}/conversations.info`]: slackOk({
       channel: {
         id: 'C0000000001',
         name: 'general',
@@ -353,7 +364,7 @@ const SLACK_PROOFS: Record<string, Record<string, SlackAnswer>> = {
     }),
   },
   'get_channel/no_topic': {
-    [`${SLACK_API}/conversations.info`]: slackOk({
+    [`POST ${SLACK_API}/conversations.info`]: slackOk({
       channel: {
         id: 'C0000000002',
         name: 'random',
@@ -363,13 +374,13 @@ const SLACK_PROOFS: Record<string, Record<string, SlackAnswer>> = {
     }),
   },
   'get_channel/channel_not_found': {
-    [`${SLACK_API}/conversations.info`]: slackError('channel_not_found'),
+    [`POST ${SLACK_API}/conversations.info`]: slackError('channel_not_found'),
   },
   'get_channel/invalid_auth': {
-    [`${SLACK_API}/conversations.info`]: slackError('invalid_auth'),
+    [`POST ${SLACK_API}/conversations.info`]: slackError('invalid_auth'),
   },
   'list_messages/two_messages': {
-    [`${SLACK_API}/conversations.history`]: slackOk({
+    [`POST ${SLACK_API}/conversations.history`]: slackOk({
       messages: [
         {
           ts: '1700000000.000200',
@@ -387,37 +398,37 @@ const SLACK_PROOFS: Record<string, Record<string, SlackAnswer>> = {
     }),
   },
   'list_messages/no_messages': {
-    [`${SLACK_API}/conversations.history`]: slackOk({
+    [`POST ${SLACK_API}/conversations.history`]: slackOk({
       messages: [],
       has_more: false,
     }),
   },
   'list_messages/not_in_channel': {
-    [`${SLACK_API}/conversations.history`]: slackError('not_in_channel'),
+    [`POST ${SLACK_API}/conversations.history`]: slackError('not_in_channel'),
   },
   'send_message/posted': {
-    [`${SLACK_API}/chat.postMessage`]: slackOk({
+    [`POST ${SLACK_API}/chat.postMessage`]: slackOk({
       channel: 'C0000000001',
       ts: '1700000000.000100',
     }),
   },
   'send_message/posted_again': {
-    [`${SLACK_API}/chat.postMessage`]: slackOk({
+    [`POST ${SLACK_API}/chat.postMessage`]: slackOk({
       channel: 'C0000000001',
       ts: '1700000000.000200',
     }),
   },
   'send_message/not_in_channel': {
-    [`${SLACK_API}/chat.postMessage`]: slackError('not_in_channel'),
+    [`POST ${SLACK_API}/chat.postMessage`]: slackError('not_in_channel'),
   },
   'send_message/channel_not_found': {
-    [`${SLACK_API}/chat.postMessage`]: slackError('channel_not_found'),
+    [`POST ${SLACK_API}/chat.postMessage`]: slackError('channel_not_found'),
   },
   'send_message/rate_limited': {
-    [`${SLACK_API}/chat.postMessage`]: SLACK_RATE_LIMITED,
+    [`POST ${SLACK_API}/chat.postMessage`]: SLACK_RATE_LIMITED,
   },
   'list_users/two_members': {
-    [`${SLACK_API}/users.list`]: slackOk({
+    [`POST ${SLACK_API}/users.list`]: slackOk({
       members: [
         {
           id: 'U0000000001',
@@ -436,16 +447,16 @@ const SLACK_PROOFS: Record<string, Record<string, SlackAnswer>> = {
     }),
   },
   'list_users/no_members': {
-    [`${SLACK_API}/users.list`]: slackOk({
+    [`POST ${SLACK_API}/users.list`]: slackOk({
       members: [],
       response_metadata: { next_cursor: '' },
     }),
   },
   'list_users/rate_limited': {
-    [`${SLACK_API}/users.list`]: SLACK_RATE_LIMITED,
+    [`POST ${SLACK_API}/users.list`]: SLACK_RATE_LIMITED,
   },
   'get_user/one_user': {
-    [`${SLACK_API}/users.info`]: slackOk({
+    [`POST ${SLACK_API}/users.info`]: slackOk({
       user: {
         id: 'U0000000001',
         name: 'alex.example',
@@ -455,7 +466,7 @@ const SLACK_PROOFS: Record<string, Record<string, SlackAnswer>> = {
     }),
   },
   'get_user/no_real_name': {
-    [`${SLACK_API}/users.info`]: slackOk({
+    [`POST ${SLACK_API}/users.info`]: slackOk({
       user: {
         id: 'U0000000003',
         name: 'sam.example',
@@ -465,70 +476,152 @@ const SLACK_PROOFS: Record<string, Record<string, SlackAnswer>> = {
     }),
   },
   'get_user/user_not_found': {
-    [`${SLACK_API}/users.info`]: slackError('user_not_found'),
+    [`POST ${SLACK_API}/users.info`]: slackError('user_not_found'),
   },
   'get_user/invalid_auth': {
-    [`${SLACK_API}/users.info`]: slackError('invalid_auth'),
+    [`POST ${SLACK_API}/users.info`]: slackError('invalid_auth'),
   },
   // Slack's three-step upload: reserve an upload URL and a file id, send the
   // bytes there, then complete the upload, which shares the file.
   'upload_file/uploaded': {
-    [`${SLACK_API}/files.getUploadURLExternal`]: slackOk({
+    [`POST ${SLACK_API}/files.getUploadURLExternal`]: slackOk({
       upload_url: UPLOAD_URL,
       file_id: 'F0000000001',
     }),
-    [UPLOAD_URL]: SLACK_UPLOADED,
-    [`${SLACK_API}/files.completeUploadExternal`]: slackOk({
+    [`POST ${UPLOAD_URL}`]: SLACK_UPLOADED,
+    [`POST ${SLACK_API}/files.completeUploadExternal`]: slackOk({
       files: [{ id: 'F0000000001', title: 'report.txt' }],
     }),
   },
   'upload_file/uploaded_again': {
-    [`${SLACK_API}/files.getUploadURLExternal`]: slackOk({
+    [`POST ${SLACK_API}/files.getUploadURLExternal`]: slackOk({
       upload_url: SECOND_UPLOAD_URL,
       file_id: 'F0000000002',
     }),
-    [SECOND_UPLOAD_URL]: SLACK_UPLOADED,
-    [`${SLACK_API}/files.completeUploadExternal`]: slackOk({
+    [`POST ${SECOND_UPLOAD_URL}`]: SLACK_UPLOADED,
+    [`POST ${SLACK_API}/files.completeUploadExternal`]: slackOk({
       files: [{ id: 'F0000000002', title: 'report.txt' }],
     }),
   },
   'upload_file/not_in_channel': {
-    [`${SLACK_API}/files.getUploadURLExternal`]: slackOk({
+    [`POST ${SLACK_API}/files.getUploadURLExternal`]: slackOk({
       upload_url: UPLOAD_URL,
       file_id: 'F0000000001',
     }),
-    [UPLOAD_URL]: SLACK_UPLOADED,
-    [`${SLACK_API}/files.completeUploadExternal`]: slackError('not_in_channel'),
+    [`POST ${UPLOAD_URL}`]: SLACK_UPLOADED,
+    [`POST ${SLACK_API}/files.completeUploadExternal`]:
+      slackError('not_in_channel'),
+  },
+};
+
+/** The one request jev.decide makes: a POST to OpenRouter's decisions
+ * endpoint. */
+const JEV_DECIDE = 'POST https://openrouter.ai/api/alpha/decisions';
+
+/** OpenRouter's answers to the example input's two questions: a choice and a
+ * score, each with its distribution. */
+const JEV_ANSWERS = {
+  handling: {
+    type: 'choice',
+    choice: 'escalate',
+    probabilities: { auto_reply: 0.06, escalate: 0.94 },
+    confidence: 0.94,
+  },
+  urgency: {
+    type: 'score',
+    score: 1,
+    probabilities: { '0': 0.18, '1': 0.71, '2': 0.11 },
+    confidence: 0.71,
+  },
+};
+
+/** A call OpenRouter refused: the status, and the error body it answers with,
+ * which the live body reads only for a status it does not name. */
+function openRouterError(code: number, message: string): ServiceAnswer {
+  return { status: code, body: { error: { code, message } } };
+}
+
+/**
+ * The proof of every Jev scenario, keyed as Slack's are: OpenRouter's answer
+ * to the one request `decide` makes. The body hands the answers on as they
+ * come, and throws a refusal with its status.
+ */
+const JEV_PROOFS: Record<string, ProofAnswers> = {
+  'decide/two_answers': {
+    [JEV_DECIDE]: {
+      status: 200,
+      body: {
+        answers: JEV_ANSWERS,
+        usage: { input_tokens: 128, output_tokens: 0 },
+      },
+    },
+  },
+  'decide/no_usage': {
+    [JEV_DECIDE]: { status: 200, body: { answers: JEV_ANSWERS } },
+  },
+  'decide/invalid_key': {
+    [JEV_DECIDE]: openRouterError(401, 'Invalid API key'),
+  },
+  'decide/no_credit': {
+    [JEV_DECIDE]: openRouterError(402, 'Insufficient credits'),
+  },
+  'decide/rate_limited': {
+    [JEV_DECIDE]: openRouterError(429, 'Rate limit exceeded'),
   },
 };
 
 /**
- * The host a live body calls, answering each POST from `answers` the way the
- * live host does — the status, lower-cased headers, `text()` and `json()`,
- * with a refusal as data rather than a throw — and noting each URL asked.
+ * Every listed connector's proofs, with the secrets its credential holds —
+ * synthetic, as every answer is. A connector joins `SCENARIO_CONNECTORS` with
+ * its proofs, or this does not type-check.
  */
-function slackHost(answers: Record<string, SlackAnswer>): {
-  ctx: unknown;
-  asked: string[];
-} {
+const SCENARIO_PROOFS: Record<
+  ScenarioConnector,
+  { secrets?: Record<string, string>; proofs: Record<string, ProofAnswers> }
+> = {
+  jev: {
+    secrets: { apiKey: 'example-openrouter-key' },
+    proofs: JEV_PROOFS,
+  },
+  slack: { proofs: SLACK_PROOFS },
+};
+
+/**
+ * The host a live body calls, answering each request from `answers` with the
+ * response the live host builds — the status, the headers, `text()`, and a
+ * `json()` that throws on a body that is not JSON — so a refusal comes as
+ * data rather than a throw, and noting each request made. A secret reads as
+ * the credential holds it, and one it lacks as empty, as on a live call.
+ */
+function proofHost(
+  answers: ProofAnswers,
+  secrets: Record<string, string> = {},
+): { ctx: Pick<ConnectorContext, 'http' | 'secrets'>; asked: string[] } {
   const asked: string[] = [];
+  const answer =
+    (method: string) =>
+    async (url: string): Promise<ConnectorHttpResponse> => {
+      const request = `${method} ${url}`;
+      asked.push(request);
+      if (!Object.hasOwn(answers, request)) {
+        throw new Error(`the proof gives no answer for ${request}`);
+      }
+      const { status, headers = {}, body } = answers[request];
+      return toConnectorResponse(
+        status,
+        headers,
+        typeof body === 'string' ? body : JSON.stringify(body),
+      );
+    };
   const ctx = {
     http: {
-      post: async (url: string) => {
-        asked.push(url);
-        if (!Object.hasOwn(answers, url)) {
-          throw new Error(`the proof gives no Slack answer for POST ${url}`);
-        }
-        const { status, headers = {}, body } = answers[url];
-        const text = typeof body === 'string' ? body : JSON.stringify(body);
-        return {
-          status,
-          headers,
-          text: () => text,
-          json: (): unknown => JSON.parse(text),
-        };
-      },
+      get: answer('GET'),
+      post: answer('POST'),
+      put: answer('PUT'),
+      patch: answer('PATCH'),
+      delete: answer('DELETE'),
     },
+    secrets: { get: (name: string) => secrets[name] ?? '' },
   };
   return { ctx, asked };
 }
@@ -586,7 +679,7 @@ describe('a connector scenario fits its action and answers as the live call woul
           // missing. Members the signature leaves out pass, as the live
           // bodies hand a service's records on whole, and so does a list
           // whose elements differ in shape once one of them fits; the
-          // proofs below hold every element of Slack's.
+          // proofs below hold every element of a listed connector's.
           const mismatch = assignable(
             shapeOfValue(scenario.output),
             signature.shape,
@@ -635,49 +728,60 @@ describe('a connector scenario fits its action and answers as the live call woul
     );
   });
 
-  it('slack: every scenario has a proof, and every proof names a scenario', () => {
-    const scenarios = loadConnector('slack').actions.flatMap((action) =>
-      (action.scenarios ?? []).map(
-        (scenario) => `${action.name}/${scenario.name}`,
-      ),
-    );
-    const proofs = Object.keys(SLACK_PROOFS);
-    const shipped = new Set(scenarios);
-    const proven = new Set(proofs);
-    expect({
-      unproven: scenarios.filter((key) => !proven.has(key)),
-      stale: proofs.filter((key) => !shipped.has(key)),
-    }).toEqual({ unproven: [], stale: [] });
-  });
+  it.each([...SCENARIO_CONNECTORS])(
+    '%s: every scenario has a proof, and every proof names a scenario',
+    (slug) => {
+      const scenarios = loadConnector(slug).actions.flatMap((action) =>
+        (action.scenarios ?? []).map(
+          (scenario) => `${action.name}/${scenario.name}`,
+        ),
+      );
+      const proofs = Object.keys(SCENARIO_PROOFS[slug].proofs);
+      const shipped = new Set(scenarios);
+      const proven = new Set(proofs);
+      expect({
+        unproven: scenarios.filter((key) => !proven.has(key)),
+        stale: proofs.filter((key) => !shipped.has(key)),
+      }).toEqual({ unproven: [], stale: [] });
+    },
+  );
 
-  // Slack's live bodies throw with the vendor's status when the answer's
-  // HTTP status fails the call (a rate limit's 429), and with none for an
-  // answer Slack refuses with `ok: false`, so a run classifies a live 429 as
-  // unavailable; the scenario that stands for either names the same status.
-  it.each(Object.keys(SLACK_PROOFS))(
-    'slack %s: the live body, given the answer the scenario stands for, returns its output or throws its error',
-    async (key) => {
+  // A live body throws with the vendor's status when the answer's HTTP
+  // status fails the call (OpenRouter's 401 and 402, a rate limit's 429), and
+  // with none for an answer the vendor refuses in its body (Slack's
+  // `ok: false`), so a run classifies a live 429 as unavailable; the scenario
+  // that stands for either names the same status.
+  it.each(
+    SCENARIO_CONNECTORS.flatMap((slug) =>
+      Object.keys(SCENARIO_PROOFS[slug].proofs).map(
+        (key): [ScenarioConnector, string] => [slug, key],
+      ),
+    ),
+  )(
+    '%s %s: the live body, given the answer the scenario stands for, returns its output or throws its error',
+    async (slug, key) => {
       const [actionName, scenarioName] = key.split('/');
-      const slack = loadConnector('slack');
-      const action = slack.actions.find((a) => a.name === actionName);
+      const connector = loadConnector(slug);
+      const action = connector.actions.find((a) => a.name === actionName);
       const scenario = action?.scenarios?.find((s) => s.name === scenarioName);
       if (action?.backend?.kind !== 'yaml-js' || scenario === undefined) {
         throw new Error(
-          `slack.${actionName} has no live body or no ${scenarioName} scenario`,
+          `${slug}.${actionName} has no live body or no ${scenarioName} scenario`,
         );
       }
-      const answers = SLACK_PROOFS[key];
-      const { ctx, asked } = slackHost(answers);
+      const { secrets, proofs } = SCENARIO_PROOFS[slug];
+      const answers = proofs[key];
+      const { ctx, asked } = proofHost(answers, secrets);
       const outcome = await outcomeOf(
         inProcessLiveRunner().runBody(
-          connectorLiveBody(slack, action.backend.live),
+          connectorLiveBody(connector, action.backend.live),
           { input: { ...action.exampleInput, ...scenario.when }, ctx },
           LIMITS,
           { async: true },
         ),
       );
 
-      // The body asked for every answer the proof gives, in its order.
+      // The body made every request the proof answers, in its order.
       expect(asked).toEqual(Object.keys(answers));
       if (scenario.error === undefined) {
         expect(outcome).toEqual({ output: scenario.output });
@@ -685,7 +789,7 @@ describe('a connector scenario fits its action and answers as the live call woul
       }
       if (!('thrown' in outcome)) {
         throw new Error(
-          `slack.${key} returned ${JSON.stringify(outcome.output)} where the scenario throws`,
+          `${slug}.${key} returned ${JSON.stringify(outcome.output)} where the scenario throws`,
         );
       }
       const { thrown } = outcome;
@@ -704,9 +808,9 @@ describe('a connector scenario fits its action and answers as the live call woul
         status !== undefined ? { status } : {},
       );
       expect(
-        connectorFailureOf(thrown, 'slack', `slack.${actionName}`),
+        connectorFailureOf(thrown, slug, `${slug}.${actionName}`),
       ).toStrictEqual(
-        connectorFailureOf(simulated, 'slack', `slack.${actionName}`),
+        connectorFailureOf(simulated, slug, `${slug}.${actionName}`),
       );
     },
   );
