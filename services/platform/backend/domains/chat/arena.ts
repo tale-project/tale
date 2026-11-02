@@ -19,7 +19,8 @@ import { loadOwnedThread } from './threads.ts';
  * `thread_metadata` while the pair is live. Settling CHOOSES the surviving
  * thread — no message row ever moves — and a verdict records itself as a
  * fresh `message_feedback` row in the analytics contract shape (synthetic
- * `arena:` message id + `metadata.{arenaVerdict, modelA, modelB}`).
+ * `arena:` message id + `metadata.{arenaVerdict, modelA, modelB, providerA,
+ * providerB}`).
  *
  * B ties into A's lineage (`branch_root_id`) for the trash cascade but never
  * `branch_parent_id`, so the branch navigator never surfaces the hidden
@@ -82,18 +83,23 @@ export async function hasLiveGeneration(
   return rows.length > 0;
 }
 
-/** The newest assistant reply's model in a thread, for verdict attribution. */
+/** The model of the newest assistant reply in a thread and the provider
+ * that served it (`null` when the reply does not name one), for verdict
+ * attribution. */
 async function newestAssistantModel(
   sql: Sql | TransactionSql,
   threadId: string,
-): Promise<string | null> {
-  const rows = await sql<{ model: string }[]>`
-    SELECT model FROM app.messages
+): Promise<{ model: string; provider: string | null } | null> {
+  const rows = await sql<{ model: string; provider: string | null }[]>`
+    SELECT model, provider_slug AS provider FROM app.messages
     WHERE thread_id = ${threadId} AND role = 'assistant' AND model IS NOT NULL
     ORDER BY "order" DESC, step_order DESC
     LIMIT 1
   `;
-  return rows[0]?.model ?? null;
+  const reply = rows[0];
+  return reply === undefined
+    ? null
+    : { model: reply.model, provider: reply.provider ?? null };
 }
 
 /**
@@ -576,22 +582,31 @@ export async function settleArenaPair(
     }
 
     if (args.verdict !== undefined) {
-      const modelA = await newestAssistantModel(tx, idA);
-      const modelB = await newestAssistantModel(tx, idB);
+      const sideA = await newestAssistantModel(tx, idA);
+      const sideB = await newestAssistantModel(tx, idB);
       // Attribution needs both sides to have answered; an aborted pair
-      // settles without a data point.
+      // settles without a data point. Each side records its provider with
+      // its model: one model through two providers is a comparison too.
       // The row rides the SURVIVING conversation: a loser's purge at the
       // end of its grace window takes its feedback rows with it.
-      if (modelA !== null && modelB !== null) {
+      if (sideA !== null && sideB !== null) {
         await tx`
           INSERT INTO app.message_feedback (
             org_id, thread_id, message_id, user_id, rating, metadata,
             created_at_ms
           ) VALUES (
             ${args.organizationId}, ${winnerId},
-            ${arenaFeedbackMessageId(modelA, modelB)}, ${args.userId},
+            ${arenaFeedbackMessageId(sideA.model, sideB.model)}, ${args.userId},
             ${ratingForVerdict(args.verdict)},
-            ${tx.json(toJson({ arenaVerdict: args.verdict, modelA, modelB }))},
+            ${tx.json(
+              toJson({
+                arenaVerdict: args.verdict,
+                modelA: sideA.model,
+                modelB: sideB.model,
+                providerA: sideA.provider,
+                providerB: sideB.provider,
+              }),
+            )},
             ${Date.now()}
           )
         `;

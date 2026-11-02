@@ -1,4 +1,7 @@
-import type { ArenaVerdict } from '../../../lib/shared/arena.ts';
+import {
+  type ArenaVerdict,
+  arenaSideProvider,
+} from '../../../lib/shared/arena.ts';
 import { UNATTRIBUTED_AGENT_SLUG } from '../../../lib/shared/constants/usage.ts';
 import type { Doc } from '../lib/rows';
 
@@ -33,9 +36,14 @@ export interface FeedbackStatsModelBucket {
 }
 
 export interface FeedbackStatsMatchupBucket {
-  /** Models in canonical (lexicographic) order so (X,Y) and (Y,X) merge. */
+  /** The sides in canonical order — by model (lexicographic), then by
+   * provider — so (X,Y) and (Y,X) merge. A side's provider is `null` when
+   * its verdict names none (one recorded before verdicts did): such a
+   * verdict pairs by its models alone. */
   modelLeft: string;
+  providerLeft: string | null;
   modelRight: string;
+  providerRight: string | null;
   /** Wins counted against the canonical orientation, not user-picked A/B. */
   leftWins: number;
   rightWins: number;
@@ -60,11 +68,13 @@ export interface FeedbackStats {
     total: number;
   };
   arena: {
-    /** Verdicts on a pair of DIFFERENT models — the rows the matchup table
-     * counts, so the summary tile and the table agree. */
+    /** Verdicts on two DIFFERENT sides — two models, or one model through
+     * two providers — the rows the matchup table counts, so the summary
+     * tile and the table agree. */
     byVerdict: Record<ArenaVerdict, number>;
-    /** Verdicts where both sides were the same model: a comparison with no
-     * comparative signal, counted apart from the verdict buckets. */
+    /** Verdicts where both sides were the same model through the same
+     * provider, or through a provider one side does not name: a comparison
+     * with no comparative signal, counted apart from the verdict buckets. */
     selfMatches: number;
     /** Every arena row, whatever it compared. */
     total: number;
@@ -160,30 +170,59 @@ export function computeFeedbackStats(
     if (isArenaRow(row)) {
       arenaTotal++;
       const verdict = arenaVerdictOf(row);
-      const modelA = row.metadata?.modelA;
-      const modelB = row.metadata?.modelB;
-      // A self-match (modelA === modelB) carries no comparative signal: it
-      // is counted apart, in neither the verdict buckets nor the matchups,
-      // so the summary tile adds up to the matchup table.
+      const modelA: unknown = row.metadata?.modelA;
+      const modelB: unknown = row.metadata?.modelB;
+      const providerA = arenaSideProvider(row.metadata?.providerA);
+      const providerB = arenaSideProvider(row.metadata?.providerB);
+      // A self-match — one model through one provider on both sides —
+      // carries no comparative signal: it is counted apart, in neither the
+      // verdict buckets nor the matchups, so the summary tile adds up to the
+      // matchup table. One model through two providers is a comparison. A
+      // side that names no provider (a verdict recorded before verdicts
+      // named them) compares by its model alone, as such verdicts always did.
       const selfMatch =
         typeof modelA === 'string' &&
         typeof modelB === 'string' &&
-        modelA === modelB;
+        modelA === modelB &&
+        (providerA === null || providerB === null || providerA === providerB);
       if (selfMatch) arenaSelfMatches++;
       else if (verdict) arenaByVerdict[verdict]++;
 
-      // Model-pair matchups are only meaningful when both sides are
-      // attributed and distinct.
-      if (verdict && modelA && modelB && !selfMatch) {
-        const swapped = modelA > modelB;
-        const left = swapped ? modelB : modelA;
-        const right = swapped ? modelA : modelB;
-        const matchupKey = `${left}::${right}`;
+      // Pair matchups are only meaningful when both sides are attributed
+      // and distinct.
+      if (
+        verdict &&
+        typeof modelA === 'string' &&
+        typeof modelB === 'string' &&
+        modelA &&
+        modelB &&
+        !selfMatch
+      ) {
+        // Canonical order: by model, then by provider (which only decides
+        // when both sides are one model through two providers).
+        const swapped =
+          modelA === modelB
+            ? (providerA ?? '') > (providerB ?? '')
+            : modelA > modelB;
+        const left = swapped
+          ? { model: modelB, provider: providerB }
+          : { model: modelA, provider: providerA };
+        const right = swapped
+          ? { model: modelA, provider: providerA }
+          : { model: modelB, provider: providerB };
+        const matchupKey = JSON.stringify([
+          left.model,
+          left.provider,
+          right.model,
+          right.provider,
+        ]);
         let bucket = matchupBuckets.get(matchupKey);
         if (!bucket) {
           bucket = {
-            modelLeft: left,
-            modelRight: right,
+            modelLeft: left.model,
+            providerLeft: left.provider,
+            modelRight: right.model,
+            providerRight: right.provider,
             leftWins: 0,
             rightWins: 0,
             ties: 0,
@@ -281,6 +320,9 @@ export function computeFeedbackStats(
         b.total - a.total ||
         `${a.modelLeft}::${a.modelRight}`.localeCompare(
           `${b.modelLeft}::${b.modelRight}`,
+        ) ||
+        `${a.providerLeft ?? ''}::${a.providerRight ?? ''}`.localeCompare(
+          `${b.providerLeft ?? ''}::${b.providerRight ?? ''}`,
         ),
     )
     .slice(0, TOP_N);

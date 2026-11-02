@@ -34,14 +34,39 @@ const row: RecentFeedbackItem = {
   arenaVerdict: null,
   arenaModelA: null,
   arenaModelB: null,
+  arenaProviderA: null,
+  arenaProviderB: null,
   isArena: false,
   createdAt: 1,
 };
 
+/** An arena verdict between two sides, each a model and its provider. */
+function arenaRow(
+  id: string,
+  [arenaModelA, arenaProviderA]: [string, string | null],
+  [arenaModelB, arenaProviderB]: [string, string | null],
+): RecentFeedbackItem {
+  return {
+    ...row,
+    _id: id,
+    comment: null,
+    commentTruncated: false,
+    agentSlug: null,
+    model: null,
+    provider: null,
+    isArena: true,
+    arenaVerdict: 'tie',
+    arenaModelA,
+    arenaProviderA,
+    arenaModelB,
+    arenaProviderB,
+  };
+}
+
 const clients: QueryClient[] = [];
 
 function mount(
-  item: RecentFeedbackItem | null = row,
+  item: RecentFeedbackItem | RecentFeedbackItem[] | null = row,
   options: { error?: Error; retry?: () => void } = {},
 ) {
   const client = new QueryClient({
@@ -58,7 +83,7 @@ function mount(
     ...render(
       <QueryClientProvider client={client}>
         <RecentFeedbackTable
-          rows={item ? [item] : []}
+          rows={item === null ? [] : [item].flat()}
           isLoading={false}
           hasMore={false}
           isLoadingMore={false}
@@ -211,6 +236,25 @@ describe('RecentFeedbackTable', () => {
       expect(screen.getAllByText(row.comment!)).toHaveLength(2);
     },
   );
+
+  it('names an arena side with its provider where the list holds its model through another [FDBK-R8]', async () => {
+    const { user } = mount([
+      arenaRow('one', ['luna', 'openrouter'], ['luna', 'gateway']),
+      // Recorded before verdicts named providers: named by its ids.
+      arenaRow('two', ['luna', null], ['opus', 'anthropic']),
+    ]);
+    expect(
+      screen.getByText('openrouter · luna vs gateway · luna'),
+    ).toBeVisible();
+    expect(screen.getByText('luna vs opus')).toBeVisible();
+    const [expandOne] = screen.getAllByRole('button', { name: 'Expand row' });
+    await user.click(expandOne!);
+    expect(
+      screen.getByText(
+        `openrouter · luna vs gateway · luna · ${i18n.t('arena.tie', { ns: 'chat' })}`,
+      ),
+    ).toBeVisible();
+  });
 
   it('keeps previously fetched full text visible after a refetch fails', async () => {
     vi.mocked(backendFetch).mockResolvedValueOnce({ comment: fullComment });

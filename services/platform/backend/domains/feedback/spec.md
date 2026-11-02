@@ -58,13 +58,26 @@ table of model pairs.
 - **Example**: Mia prefers the left answer in an arena round → the pairing's row changes, and
   neither model's thumb counts move.
 
-### FDBK-R7 · An arena verdict on two copies of one model is counted apart
+### FDBK-R7 · An arena verdict on one model through one provider is counted apart
 
 It is left out of the table of model pairs and out of the verdict totals, and reported as its
-own figure, so the totals equal the table.
+own figure, so the totals equal the table. A verdict on one model where a side names no
+provider, as every verdict recorded before verdicts named providers, is counted apart too.
 
-- **Example**: Mia judges an arena round where both answers come from the same model → it is
-  counted under **Same model**, not as a win for either side.
+- **Example**: Mia judges an arena round where both answers come from the same model through
+  the same provider → it is counted under **Same model**, not as a win for either side.
+
+### FDBK-R8 · An arena verdict on one model through two providers counts as a pairing
+
+A verdict records each side's model and the provider that served it, read from the side's
+reply. The table of model pairs tells sides apart by model and provider, and names a side with
+its provider where the table holds its model through another provider too. A verdict recorded
+before verdicts named providers pairs by its models alone, apart from the pairs with providers.
+
+- **Example**: Mia compares `openai/gpt-5.6-luna` through OpenRouter with the same model
+  through a gateway and prefers the OpenRouter answer → the table counts a win for
+  **openrouter · openai/gpt-5.6-luna** against **gateway · openai/gpt-5.6-luna**, and **Same
+  model** does not move.
 
 ## Not yet
 

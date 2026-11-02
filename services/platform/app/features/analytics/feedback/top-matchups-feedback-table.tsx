@@ -10,6 +10,7 @@ import { useMemo } from 'react';
 import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 
+import { arenaSideNames } from './arena-side-name';
 import type { FeedbackMatchupBucket } from './types';
 
 interface TopMatchupsFeedbackTableProps {
@@ -23,6 +24,17 @@ export function TopMatchupsFeedbackTable({
 }: TopMatchupsFeedbackTableProps) {
   const { t } = useT('analytics');
   const { formatNumber } = useFormatNumber();
+  // A model the table holds through two providers is named with each.
+  const nameOf = useMemo(
+    () =>
+      arenaSideNames(
+        rows.flatMap((row) => [
+          { model: row.modelLeft, provider: row.providerLeft },
+          { model: row.modelRight, provider: row.providerRight },
+        ]),
+      ),
+    [rows],
+  );
 
   const columns = useMemo<ColumnDef<FeedbackMatchupBucket>[]>(
     () => [
@@ -32,13 +44,19 @@ export function TopMatchupsFeedbackTable({
         cell: ({ row }) => (
           <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
             <Text as="span" variant="label" className="break-all">
-              {row.original.modelLeft}
+              {nameOf({
+                model: row.original.modelLeft,
+                provider: row.original.providerLeft,
+              })}
             </Text>
             <span className="text-muted-foreground shrink-0 text-xs">
               {t('feedback.tables.topMatchups.vs')}
             </span>
             <Text as="span" variant="label" className="break-all">
-              {row.original.modelRight}
+              {nameOf({
+                model: row.original.modelRight,
+                provider: row.original.providerRight,
+              })}
             </Text>
           </div>
         ),
@@ -103,7 +121,7 @@ export function TopMatchupsFeedbackTable({
         meta: { align: 'right' as const },
       },
     ],
-    [t, formatNumber],
+    [t, formatNumber, nameOf],
   );
 
   return (
@@ -111,7 +129,14 @@ export function TopMatchupsFeedbackTable({
       <DataTable
         columns={columns}
         data={rows}
-        getRowId={(row) => `${row.modelLeft}::${row.modelRight}`}
+        getRowId={(row) =>
+          [
+            row.providerLeft ?? '',
+            row.modelLeft,
+            row.providerRight ?? '',
+            row.modelRight,
+          ].join('::')
+        }
         isLoading={isLoading}
         approxRowCount={isLoading ? 5 : rows.length}
         emptyState={{
