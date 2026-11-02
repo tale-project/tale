@@ -71,6 +71,7 @@ import {
 } from '../../backend/core/products/field_limits.ts';
 import {
   TASK_LABEL_CHARS_MAX,
+  TASK_LABELS_MAX,
   TASK_TITLE_MAX,
 } from '../../backend/core/tasks/helpers.ts';
 import {
@@ -1409,6 +1410,22 @@ const projectAgentInputSpec: Json = (() => {
       '(`PROJECT_AGENT_CREDENTIALS_FORBIDDEN`). Omitted on a `PUT` keeps ' +
       'the stored pins; `{}` clears them',
   };
+  properties.labelGrants = {
+    type: 'array',
+    maxItems: TASK_LABELS_MAX,
+    items: { type: 'string', minLength: 1, maxLength: TASK_LABEL_CHARS_MAX },
+    description:
+      'The labels the agent’s `task_set_labels` tool may add to and remove ' +
+      'from existing tasks, by name; the tool sets no other label and ' +
+      'never creates one. Each name must be a label of the agent’s own ' +
+      'project, matched without regard to case and stored in the ' +
+      'project’s spelling, sorted; any other is refused ' +
+      '(`PROJECT_AGENT_LABEL_UNKNOWN` — `data.labels` names them). A ' +
+      'granted name whose label was renamed or deleted since stays until ' +
+      'it is removed. Granting labels does not grant the tool: list ' +
+      '`task_set_labels` in `tools` too. Omitted on a `PUT` keeps the ' +
+      'stored names; `[]` clears them',
+  };
   properties.gitIdentity = {
     type: 'object',
     nullable: true,
@@ -1442,12 +1459,15 @@ const projectAgentInputSpec: Json = (() => {
       'modelProvider/instructions reset to null; omitted tools/secrets reset ' +
       'to empty arrays; omitted connectorCredentials and gitIdentity keep ' +
       'what is stored, since dropping a pin would widen the agent to the ' +
-      'connector’s default (`{}` and `null` clear them). secrets contains ' +
+      'connector’s default (`{}` and `null` clear them), and so does an ' +
+      'omitted labelGrants (`[]` clears it). secrets contains ' +
       'organization secret NAMES, ' +
       'never values; only organization admins may change these grants or ' +
       'the credential pins, and a name the organization has not stored is ' +
       'refused (`PROJECT_AGENT_SECRET_UNKNOWN`, ' +
-      '`PROJECT_AGENT_CREDENTIAL_UNKNOWN`), never pruned.',
+      '`PROJECT_AGENT_CREDENTIAL_UNKNOWN`), never pruned, as is a label ' +
+      'grant naming a label the project does not have ' +
+      '(`PROJECT_AGENT_LABEL_UNKNOWN`).',
   };
 })();
 
@@ -3762,7 +3782,9 @@ export function buildSpec(): Json {
         '(`PROJECT_AGENT_SECRET_UNKNOWN` — `data.secrets` names them) or a ' +
         'pinned credential it does not hold for that connector ' +
         '(`PROJECT_AGENT_CREDENTIAL_UNKNOWN` — `data.connectorCredentials` ' +
-        'names them); or the 50-agent limit (`PROJECT_AGENT_LIMIT`)',
+        'names them); a label grant naming a label the project does not ' +
+        'have (`PROJECT_AGENT_LABEL_UNKNOWN` — `data.labels` names them); ' +
+        'or the 50-agent limit (`PROJECT_AGENT_LIMIT`)',
     ),
     '403': errorResponse(
       'Project is not editable or is archived, or the caller changes secret ' +
@@ -3830,7 +3852,7 @@ export function buildSpec(): Json {
       summary: 'Get a project agent',
       operationId: 'getProjectAgent',
       description:
-        'One project agent with its full configuration — the model pair, skills, connectors, tool grants, the names (never the values) of its secrets, the credential it acts as per connector and its commit identity.',
+        'One project agent with its full configuration — the model pair, skills, connectors, tool grants, the names (never the values) of its secrets, the credential it acts as per connector, the labels it may set on tasks and its commit identity.',
       security: sec,
       parameters: [
         ...projectAgentParameters,
@@ -13406,6 +13428,7 @@ curl -H "Authorization: Bearer <api-key>" \\
             'tools',
             'secrets',
             'connectorCredentials',
+            'labelGrants',
             'gitIdentity',
             'instructions',
             'managed',
@@ -13452,6 +13475,14 @@ curl -H "Authorization: Bearer <api-key>" \\
                 'The credential the agent acts as per connector, by name; a ' +
                 'connector it does not name uses the organization’s default. ' +
                 'Values are names, never secrets.',
+            },
+            labelGrants: {
+              ...strArray,
+              description:
+                'The labels its `task_set_labels` tool may add to and remove ' +
+                'from tasks, by name, in the project’s spelling and sorted ' +
+                'without regard to case; `[]` for none. A name whose label ' +
+                'was renamed or deleted since stays until it is removed.',
             },
             gitIdentity: nullable({
               type: 'object',
