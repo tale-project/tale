@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 import type { Sql } from 'postgres';
 
 import type { ToolArtifact } from '../../../lib/chat/tools.ts';
@@ -75,6 +77,69 @@ export async function storeThreadArtifact(
   };
 }
 
+/**
+ * Keep a document `web_fetch` read from a link as a file of the
+ * conversation, so a tool that takes files can change or convert it the way
+ * it does an upload. It is stored as an upload is — one blob in the
+ * organization's store, one row bound to the lineage root that names the
+ * person as its uploader, so their quota counts it, their erasure takes it
+ * and the retention window for chat attachments covers it — but its source
+ * is `web` and it names the address it was read at, so it never reads as a
+ * file the person attached. The same address read again with the same bytes
+ * finds the file already kept: a model that pages through a long document
+ * fetches it once per window. Not indexed: the model reads its text through
+ * `web_fetch`, which wraps it as untrusted, never through a search.
+ */
+export async function keepFetchedDocument(
+  sql: Sql,
+  scope: ThreadArtifactScope,
+  file: { name: string; mediaType: string; bytes: Uint8Array; url: string },
+): Promise<ToolArtifact> {
+  if (file.bytes.byteLength === 0) {
+    throw new Error(`"${file.name}" is empty`);
+  }
+  if (file.bytes.byteLength > ARTIFACT_MAX_BYTES) {
+    throw new Error(
+      `"${file.name}" is ${Math.ceil(file.bytes.byteLength / (1024 * 1024))} MB; a file of at most ${ARTIFACT_MAX_BYTES / (1024 * 1024)} MB can be kept`,
+    );
+  }
+  const sha256 = createHash('sha256').update(file.bytes).digest('hex');
+  const [kept] = await sql<ToolArtifact[]>`
+    SELECT storage_ref AS ref, file_name AS name,
+           content_type AS "mediaType", size::float8 AS "sizeBytes"
+    FROM app.file_metadata
+    WHERE org_id = ${scope.organizationId}
+      AND thread_id = ${scope.threadId}
+      AND source = 'web'
+      AND source_url = ${file.url}
+      AND sha256 = ${sha256}
+    ORDER BY created_at_ms DESC
+    LIMIT 1
+  `;
+  if (kept) return kept;
+  const ref = await putOrgBlobBytes(sql, scope.organizationId, {
+    bytes: file.bytes,
+    contentType: file.mediaType,
+  });
+  await sql`
+    INSERT INTO app.file_metadata (
+      org_id, storage_ref, file_name, content_type, size, source, source_url,
+      sha256, uploaded_by, thread_id, project_id, skip_rag_indexing,
+      created_at_ms
+    ) VALUES (
+      ${scope.organizationId}, ${ref}, ${file.name}, ${file.mediaType},
+      ${file.bytes.byteLength}, 'web', ${file.url}, ${sha256}, ${scope.userId},
+      ${scope.threadId}, ${scope.projectId ?? null}, true, ${Date.now()}
+    )
+  `;
+  return {
+    ref,
+    name: file.name,
+    mediaType: file.mediaType,
+    sizeBytes: file.bytes.byteLength,
+  };
+}
+
 /** A file of the conversation a tool may read back: an upload or a file a
  * turn produced, by its ref. */
 export interface ThreadFile {
@@ -111,4 +176,22 @@ export async function readThreadFiles(
     if (!found.has(row.ref)) found.set(row.ref, row);
   }
   return found;
+}
+
+/** Whether the conversation holds a document `web_fetch` kept: text a
+ * program prints from it came from the web, not from the person. */
+export async function holdsFetchedFiles(
+  sql: Sql,
+  scope: { organizationId: string; threadIds: readonly string[] },
+): Promise<boolean> {
+  if (scope.threadIds.length === 0) return false;
+  const [row] = await sql<{ held: boolean }[]>`
+    SELECT EXISTS (
+      SELECT 1 FROM app.file_metadata
+      WHERE org_id = ${scope.organizationId}
+        AND thread_id = ANY(${[...scope.threadIds]})
+        AND source = 'web'
+    ) AS held
+  `;
+  return row?.held ?? false;
 }

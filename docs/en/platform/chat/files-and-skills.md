@@ -16,7 +16,7 @@ The assistant uses the lightest way that does the job, and starts nothing it doe
 | An answer, a comparison table, a short code block | Answers in the reply | Nothing |
 | A Markdown, CSV, JSON, HTML or SVG file, a calendar entry (`.ics`) or a contact card (`.vcf`) | Writes the file itself | Nothing |
 | A picture: an illustration, a photo-like scene, a logo | Generates an image | Your organization’s image model, when [image generation](/platform/admin/governance/content-models#let-agents-generate-images) is on |
-| A Word, Excel, PowerPoint or PDF file, a chart, a calculation over data, a change to a file you attached | Runs code in a light sandbox | A light sandbox, in about a second |
+| A Word, Excel, PowerPoint or PDF file, a chart, a calculation over data, a change to a file you attached or linked to | Runs code in a light sandbox | A light sandbox, in about a second |
 | Work on a repository, in a browser session, or lasting hours | Suggests a [project task](/platform/projects/tasks) | Nothing in the chat; the task’s agent works in its own sandbox |
 
 A file that should be reviewed, kept with other work or made later belongs on a task: the project's [standard agent](/platform/projects/project-agents#standard-agent-runs) uses the same tools there, and the files it makes become the task's deliverables.
@@ -43,7 +43,7 @@ Files belong to the conversation: whoever can open the conversation can open its
 
 [Attach the file](/platform/chat/attachments) and say what should change: “Add a chart of the totals to the attached spreadsheet,” or “Convert the attached Word document to PDF.” The assistant copies the file into the light sandbox and returns the result as a new file. The file you attached stays as it was.
 
-A document you only link to is read as its text and is not copied into the sandbox, so the assistant cannot change it from the link: download the file and attach it.
+A PDF, `.docx`, `.xlsx`, `.pptx` or `.odt` file you link to can be changed the same way: the assistant reads the document from the link, keeps the file it read with the conversation, and copies that file into the light sandbox. It works on the file as it was read, so a later change at the link does not reach it; ask the assistant to read the link again for the newer version. The kept file counts toward your organization's storage as an attachment does, and what it says is treated as content from the web, never as your instructions. This needs **Code** under [Chat tools](/platform/admin/governance/policies-and-limits#chat-tools); without it, or when the file could not be kept, the assistant has only the document's text: download the file and attach it.
 
 A picture you attach can also be the starting point for a new image when your organization allows [image generation](/platform/admin/governance/content-models#let-agents-generate-images). Ask, for example, “Turn the attached photo into a watercolor.” The assistant hands the photo to the image model, and the new image appears below the reply.
 

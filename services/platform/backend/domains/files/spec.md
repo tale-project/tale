@@ -103,6 +103,22 @@ the content is kept.
 - **Example**: The same PDF is attached to a task and to a document. The document is deleted →
   the PDF's content stays, because the task still uses it.
 
+## Documents read from a link
+
+### FILE-R10 · A document read from a link is kept as a file of its chat
+
+When the chat assistant reads a PDF, Word, Excel, PowerPoint or OpenDocument text file from a
+link in a conversation that may run code, the bytes it read are stored as a file of that
+conversation: under the person whose message it answered, counted and removed like their
+attachments, never indexed, and marked as fetched from its address rather than uploaded. Code
+the assistant runs in that conversation can take the file, and no other conversation can. The
+same bytes from the same address are kept once per conversation. While a conversation holds
+such a file, what its code prints is marked as content from the web.
+
+- **Example**: Mia links a brochure PDF and asks for it as a Word document → the brochure is
+  kept as a file of her chat, the assistant converts that file, and the Word document comes
+  back as a new file under the reply; the brochure's file is not offered in Mia's other chats.
+
 ## Not yet
 
 - **Downloading**: partial downloads, and which address a download or upload link points at

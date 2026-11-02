@@ -486,8 +486,9 @@ retentionPolicy:
   userTemp:
     title: Nettoyage des fichiers temporaires utilisateur
     description: Supprime automatiquement les fichiers téléversés par les
-      utilisateurs mais jamais enregistrés dans un document (ex. pièces
-      jointes de chat, téléversements interrompus).
+      utilisateurs, ou lus depuis un lien dans leurs chats, mais jamais
+      enregistrés dans un document (ex. pièces jointes de chat,
+      téléversements interrompus).
     placeholder: ex. 24
     helper: Les fichiers temporaires plus anciens seront supprimés.
   agentTemp:
