@@ -10,8 +10,18 @@ import { useT } from '../../i18n/client';
 import { type ResponsiveImage, widestVariant } from '../../images/responsive';
 import { cn } from '../../lib/cn';
 
+interface ImageZoomSource {
+  /** Media condition under which this image replaces `image`, e.g.
+   * `MOBILE_QUERY` for a screenshot of the phone layout. */
+  media: string;
+  image: ResponsiveImage;
+  /** Its full-size file, which the lightbox opens while `media` matches;
+   * defaults to its widest WebP variant. */
+  src?: string;
+}
+
 interface ImageZoomProps {
-  /** The full-size file: the lightbox always opens it. */
+  /** The full-size file: the lightbox opens it unless a source matches. */
   src?: string;
   alt?: string;
   className?: string;
@@ -22,13 +32,17 @@ interface ImageZoomProps {
   /** The trigger's slot width for `image`, as in `<img sizes>`; defaults to
    * `100vw`, the browser's own default. */
   sizes?: string;
+  /** Art-directed images for `image` (`Picture`'s `sources`), first match
+   * wins, in the trigger and in the lightbox alike. */
+  sources?: readonly ImageZoomSource[];
 }
 
 /**
  * Click-to-zoom lightbox for markdown content images. The collapsed state
  * renders the regular lazy `<img>` (or, given `image`, a responsive
  * `<Picture>`) inside a button trigger; activating it opens a modal showing
- * the full-size image near full-viewport over a dimmed overlay.
+ * the full-size image near full-viewport over a dimmed overlay — the one of
+ * the source the trigger shows, given `sources`.
  * Radix supplies the focus trap, ESC close, and focus restore; the portal
  * content only mounts on interaction, so the component is safe to render
  * during SSG/SSR prerender.
@@ -42,11 +56,19 @@ export function ImageZoom({
   className,
   image,
   sizes = '100vw',
+  sources = [],
 }: ImageZoomProps) {
   const { t } = useT('markdownImage');
   const [open, setOpen] = useState(false);
   const trimmedAlt = alt?.trim() ?? '';
   const fullSize = src ?? (image && widestVariant(image.variants.webp));
+  const fullImage = (
+    <img
+      src={fullSize}
+      alt={trimmedAlt}
+      className="max-h-[90vh] max-w-[95vw] cursor-default rounded-lg object-contain"
+    />
+  );
   return (
     <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
       <DialogPrimitive.Trigger
@@ -62,6 +84,7 @@ export function ImageZoom({
           <Picture
             image={image}
             sizes={sizes}
+            sources={sources}
             src={src}
             alt={trimmedAlt}
             loading="lazy"
@@ -100,11 +123,23 @@ export function ImageZoom({
           <DialogPrimitive.Title className="sr-only">
             {trimmedAlt === '' ? t('zoom') : trimmedAlt}
           </DialogPrimitive.Title>
-          <img
-            src={fullSize}
-            alt={trimmedAlt}
-            className="max-h-[90vh] max-w-[95vw] cursor-default rounded-lg object-contain"
-          />
+          {image && sources.length > 0 ? (
+            // `contents` keeps the image the flex item it is without one.
+            <picture className="contents">
+              {sources.map((source) => (
+                <source
+                  key={source.media}
+                  media={source.media}
+                  srcSet={
+                    source.src ?? widestVariant(source.image.variants.webp)
+                  }
+                />
+              ))}
+              {fullImage}
+            </picture>
+          ) : (
+            fullImage
+          )}
           <DialogPrimitive.Close
             aria-label={t('close')}
             className="absolute top-4 right-4 rounded-md bg-white/10 p-2 text-white transition-colors hover:bg-white/20 focus:outline-none focus-visible:ring-2 focus-visible:ring-white/70"
