@@ -13,9 +13,16 @@
  *
  * Connection fields are passed as discrete postgres.js options (NOT a DSN
  * string) so a host carrying URL metacharacters can't smuggle libpq params.
+ *
+ * TLS follows the rules the knowledge pool connects with (`sslOptionsFor`,
+ * `backend/db/ssl.ts`), so the test negotiates what the pool will: `prefer`
+ * does not fall back to plaintext, and `verify-ca` checks the chain against
+ * `POSTGRES_CA_FILE` but not the hostname.
  */
 
 import postgres from 'postgres';
+
+import { sslOptionsFor } from '../../db/ssl';
 
 export type SslMode =
   | 'disable'
@@ -44,22 +51,6 @@ export interface DatastoreTestResult {
   error: string | null;
 }
 
-function sslOption(sslmode: SslMode): postgres.Options<{}>['ssl'] {
-  switch (sslmode) {
-    case 'disable':
-      return false;
-    case 'prefer':
-      return 'prefer';
-    case 'require':
-      return 'require';
-    case 'verify-ca':
-    case 'verify-full':
-      return 'verify-full';
-    default:
-      return 'require';
-  }
-}
-
 export async function testDatastoreConnection(
   req: DatastoreTestRequest,
 ): Promise<DatastoreTestResult> {
@@ -70,7 +61,7 @@ export async function testDatastoreConnection(
     user: req.user,
     password: req.password ?? '',
     database: req.database,
-    ssl: sslOption(req.sslmode),
+    ssl: sslOptionsFor(req.sslmode),
     max: 1,
     idle_timeout: 1,
     connect_timeout: 8,
