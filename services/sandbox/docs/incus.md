@@ -722,7 +722,7 @@ Unit tests stand in for none of these: they run against an in-memory imitation
 of the API, which is only as right as the Incus source and documentation it was
 written from. Each item names what to do and what it must show, and ends with
 what the CI lab ([e2e/incus](../e2e/incus/README.md)) already shows on a real
-Incus 7.5.1 (Zabbly's stable build, on a hosted Ubuntu 24.04 runner with a ZFS
+Incus 7.6 (Zabbly's stable build, on a hosted Ubuntu 24.04 runner with a ZFS
 pool on a file): **Lab** names the suite that proves it, **Not in the lab**
 what is left to your first real node. Run the check yourself where the lab does
 not, and wherever your node differs from the lab's: a different kernel or
