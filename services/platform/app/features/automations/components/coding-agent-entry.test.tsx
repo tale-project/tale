@@ -47,7 +47,13 @@ vi.mock('@/app/features/coding-agent/hooks/use-new-connection', () => ({
 vi.mock('@/app/features/projects/hooks/queries', () => ({
   useNamedProjects: (_organizationId: string, ids: readonly string[]) => {
     h.projectIds = [...ids];
-    return { projects: h.projects, isPending: false };
+    return {
+      projects: h.projects,
+      isPending: false,
+      unread: new Set(),
+      read: { unavailable: false, retrying: false, failureCount: 0 },
+      retry: () => undefined,
+    };
   },
 }));
 vi.mock(
