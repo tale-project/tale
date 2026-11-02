@@ -20,7 +20,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { AccessDenied } from '@/app/components/layout/access-denied';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { SettingsSection } from '@/app/features/settings/components/settings-section';
-import { useMembers } from '@/app/features/settings/organization/hooks/queries';
+import { useMemberLookup } from '@/app/features/settings/organization/hooks/member-lookup';
 import { useAbility } from '@/app/hooks/use-ability';
 import { useListReadRecovery } from '@/app/hooks/use-list-read-recovery';
 import type { CompetenceRecordWire } from '@/app/lib/backend/contract/governance';
@@ -95,7 +95,20 @@ export function CompetencesPage({ organizationId }: Props) {
   const { toast } = useToast();
 
   const competences = useCompetences(organizationId);
-  const { members, isLoading: membersLoading } = useMembers(organizationId);
+  // The people the grants name — holders, grantors and revokers — looked
+  // up, not every member read.
+  const named = useMemo(() => {
+    const userIds = new Set<string>();
+    for (const record of competences.data ?? []) {
+      if (record.userId !== null) userIds.add(record.userId);
+      userIds.add(record.grantedBy);
+      if (record.revokedBy !== null && record.revokedBy !== 'system') {
+        userIds.add(record.revokedBy);
+      }
+    }
+    return [...userIds].map((userId) => ({ userId }));
+  }, [competences.data]);
+  const lookup = useMemberLookup(organizationId, named);
   const revokeMutation = useRevokeCompetence();
 
   // Active grants are what an admin comes to check; history is one filter away.
@@ -109,22 +122,22 @@ export function CompetencesPage({ organizationId }: Props) {
 
   const people = useMemo(() => {
     const map = new Map<string, Person>();
-    for (const member of members ?? []) {
+    for (const member of lookup.members) {
       map.set(member.userId, {
         name: member.displayName ?? member.email ?? member.userId,
         email: member.email ?? null,
       });
     }
     return map;
-  }, [members]);
+  }, [lookup.members]);
 
   const rows = useMemo<CompetenceRow[]>(() => {
     const now = Date.now();
-    // Someone missing from a loaded directory has left the organization;
-    // without a directory (it failed to load) the id is all there is.
+    // Someone the lookup answered without has left the organization; when
+    // their lookup failed the id is all there is.
     const personOf = (userId: string): Person =>
       people.get(userId) ?? {
-        name: members === undefined ? userId : tCommon('formerMember'),
+        name: lookup.failed({ userId }) ? userId : tCommon('formerMember'),
         email: null,
       };
     // A team grant names the team; once the team is deleted its revoked
@@ -173,7 +186,7 @@ export function CompetencesPage({ organizationId }: Props) {
                 name: personOf(record.revokedBy).name,
               }),
     }));
-  }, [competences.data, members, people, t, tCommon]);
+  }, [competences.data, lookup, people, t, tCommon]);
 
   // An empty register shows its empty state, not "no results" for the
   // default Active filter; the filter applies once there is anything to sift.
@@ -226,9 +239,11 @@ export function CompetencesPage({ organizationId }: Props) {
       retry,
     });
 
-  // Names come from the member directory: wait for it too, so no row flashes
+  // Names come from the member lookup: wait for it too, so no row flashes
   // "Former member" before the names arrive.
-  const loaded = competences.data !== undefined && !membersLoading;
+  const loaded =
+    competences.data !== undefined &&
+    named.every((person) => lookup.answered(person) || lookup.failed(person));
   const list = useListPage<CompetenceRow>({
     dataSource: {
       type: 'query',
