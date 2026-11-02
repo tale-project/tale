@@ -11,6 +11,7 @@ import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 
 import { DrilldownButton } from '../components/drilldown-button';
+import { modelRowNames } from '../components/model-row-name';
 import type { FeedbackModelBucket } from './types';
 
 interface TopModelsFeedbackTableProps {
@@ -33,6 +34,9 @@ export function TopModelsFeedbackTable({
     },
     [onSelectModel],
   );
+  // A model the table holds through two providers is named with each, so
+  // the two rows' filters do not share one name.
+  const nameOf = useMemo(() => modelRowNames(rows), [rows]);
 
   const columns = useMemo<ColumnDef<FeedbackModelBucket>[]>(
     () => [
@@ -43,7 +47,7 @@ export function TopModelsFeedbackTable({
         cell: ({ row }) => (
           <div className="flex items-baseline gap-2">
             <DrilldownButton
-              name={row.original.model}
+              name={nameOf(row.original)}
               onSelect={() =>
                 onSelectModel(row.original.model, row.original.provider)
               }
@@ -99,7 +103,7 @@ export function TopModelsFeedbackTable({
         meta: { align: 'right' as const },
       },
     ],
-    [t, formatNumber, formatPercentShare, onSelectModel],
+    [t, formatNumber, formatPercentShare, nameOf, onSelectModel],
   );
 
   return (

@@ -11,6 +11,7 @@ import { useFormatNumber } from '@/app/hooks/use-format-number';
 import { useT } from '@/lib/i18n/client';
 
 import { DrilldownButton } from '../components/drilldown-button';
+import { modelRowNames } from '../components/model-row-name';
 
 export interface TopVoiceModelRow {
   provider: string;
@@ -23,7 +24,8 @@ export interface TopVoiceModelRow {
 interface TopVoiceModelsTableProps {
   rows: TopVoiceModelRow[];
   isLoading: boolean;
-  onSelectModel: (model: string) => void;
+  /** Narrows the page to the row's model as its provider serves it. */
+  onSelectModel: (model: string, provider: string) => void;
 }
 
 export function TopVoiceModelsTable({
@@ -36,10 +38,13 @@ export function TopVoiceModelsTable({
 
   const handleRowClick = useCallback(
     (row: Row<TopVoiceModelRow>) => {
-      onSelectModel(row.original.model);
+      onSelectModel(row.original.model, row.original.provider);
     },
     [onSelectModel],
   );
+  // A model the table holds through two providers is named with each, so
+  // the two rows' filters do not share one name.
+  const nameOf = useMemo(() => modelRowNames(rows), [rows]);
 
   const columns = useMemo<ColumnDef<TopVoiceModelRow>[]>(
     () => [
@@ -50,8 +55,10 @@ export function TopVoiceModelsTable({
         cell: ({ row }) => (
           <div className="flex max-w-[260px] items-center gap-2">
             <DrilldownButton
-              name={row.original.model}
-              onSelect={() => onSelectModel(row.original.model)}
+              name={nameOf(row.original)}
+              onSelect={() =>
+                onSelectModel(row.original.model, row.original.provider)
+              }
               className="flex-1"
             />
             <Badge variant="outline">{row.original.provider}</Badge>
@@ -102,7 +109,7 @@ export function TopVoiceModelsTable({
         meta: { align: 'right' as const },
       },
     ],
-    [t, formatNumber, formatCostCents, onSelectModel],
+    [t, formatNumber, formatCostCents, nameOf, onSelectModel],
   );
 
   return (
