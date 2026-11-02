@@ -5,8 +5,10 @@
  * user is never dropped straight onto the dense canvas editor. Step 1 defines
  * the agent — name, model, what it does, and what it is equipped with (skills,
  * connectors, platform tools, and secrets); step 2 sets when it runs (the
- * trigger). On finish it scaffolds a one-agent automation with that equipment,
- * sets the trigger, and lands on the detail page for any further refinement.
+ * trigger) and whether it starts now. On finish it scaffolds a one-agent
+ * automation with that equipment, sets the trigger, puts v1 live when the
+ * author starts it now, and lands on the detail page for any further
+ * refinement.
  * Guided decisions come before the full canvas editor.
  */
 
@@ -147,7 +149,10 @@ export function BlankAutomationDialog({
 
   // Step 2 — the trigger, in the form the General tab edits it with: a
   // daily 09:00 schedule in the author's zone, created off (the way the
-  // panel does it) so nothing starts before the author has looked.
+  // panel does it) so nothing starts before the author has looked. Its
+  // `enabled` is Start it now, the template lane's switch: on, the create
+  // puts v1 live with its trigger on; off, it makes a draft with its trigger
+  // off, which is what Upload creates.
   const [viewerZone] = useState(localTimeZone);
   const [trigger, setTriggerDraft] = useState<TriggerDraft>(() =>
     defaultTriggerDraft(viewerZone),
@@ -155,9 +160,6 @@ export function BlankAutomationDialog({
   // The webhook token the create minted — the server shows it exactly once,
   // and this dialog is the only place that sees the mint, so it stays open
   // on a copy screen until the author has taken the URL.
-  // A saved version that never goes live never runs, whatever its trigger
-  // says: the wizard puts v1 live unless the author keeps it a draft.
-  const [deployNow, setDeployNow] = useState(true);
   const [minted, setMinted] = useState<{
     token: string;
     automationSlug: string;
@@ -175,7 +177,6 @@ export function BlankAutomationDialog({
     setNameError(undefined);
     setGeneratedSlug(generatedAutomationSlug());
     setTriggerDraft(defaultTriggerDraft(viewerZone));
-    setDeployNow(true);
     setMinted(null);
   }, [open, viewerZone]);
 
@@ -317,7 +318,9 @@ export function BlankAutomationDialog({
           variant: 'destructive',
         });
       }
-      if (deployNow) {
+      // A trigger that is on starts nothing until a version is live, so
+      // Start it now puts v1 live as well.
+      if (trigger.enabled) {
         try {
           await deployAutomation({
             organizationId,
@@ -567,9 +570,9 @@ export function BlankAutomationDialog({
             }
           />
           <Checkbox
-            id="blank-automation-enable-now"
-            label={t('blank.enableNow')}
-            description={t('blank.enableNowHint')}
+            id="blank-automation-start-now"
+            label={t('templates.startNow')}
+            description={t('templates.startNowHint')}
             checked={trigger.enabled}
             onCheckedChange={(checked) =>
               setTriggerDraft((current) => ({
@@ -577,13 +580,6 @@ export function BlankAutomationDialog({
                 enabled: checked === true,
               }))
             }
-          />
-          <Checkbox
-            id="blank-automation-deploy-now"
-            label={t('blank.deployNow')}
-            description={t('blank.deployNowHint')}
-            checked={deployNow}
-            onCheckedChange={(checked) => setDeployNow(checked === true)}
           />
         </Stack>
       )}

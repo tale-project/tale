@@ -229,7 +229,7 @@ Quand la version en service exige des champs que le déclencheur n’envoie pas,
 
 ## Activer le déclencheur après la mise en service
 
-Un nouveau déclencheur démarre désactivé, tout comme celui d’une automatisation que tu crées à partir d’un modèle sans **Démarrer maintenant**. Quand tu mets une version en service, dans l’éditeur ou en téléversant un paquet, et que son déclencheur est désactivé, un avis indique **Son déclencheur est désactivé**. **Activer le déclencheur** active le déclencheur enregistré tel quel, et l’avis indique alors **Le déclencheur est activé.**
+Un nouveau déclencheur démarre désactivé, tout comme celui d’une automatisation que tu crées sans **Démarrer maintenant**, à partir d’un modèle ou vierge. Quand tu mets une version en service, dans l’éditeur ou en téléversant un paquet, et que son déclencheur est désactivé, un avis indique **Son déclencheur est désactivé**. **Activer le déclencheur** active le déclencheur enregistré tel quel, et l’avis indique alors **Le déclencheur est activé.**
 
 Quand la version en service refuserait ce qu’envoie le déclencheur, ou qu’un webhook n’a pas encore d’URL, l’avis propose plutôt **Vérifier le déclencheur**. Cela ouvre la section **Déclencheur** de l’onglet **Général**, où tu ajoutes d’abord l’entrée fixe ou crées l’URL. Un modèle demande ces valeurs quand tu l’utilises, comme l’explique [Modèles d’automatisation](/fr/platform/automations/templates).
 
