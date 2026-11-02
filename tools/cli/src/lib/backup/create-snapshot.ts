@@ -149,11 +149,10 @@ async function snapshotVolumes(
 }
 
 /**
- * Split the volumes, in order, into runs used by exactly the same containers
- * — in practice the proxy's `caddy-data` and `caddy-config`. Every pause costs
- * its containers a fresh health probe before they report healthy again, so
- * pausing the proxy once for both saves a whole probe interval, and the two
- * archives capture the same instant.
+ * Split the volumes, in order, into runs used by exactly the same containers.
+ * Every pause costs its containers a fresh health probe before they report
+ * healthy again, so pausing them once for the whole run saves a probe
+ * interval per volume, and the run's archives capture the same instant.
  */
 async function pauseGroups(
   prefix: string,
