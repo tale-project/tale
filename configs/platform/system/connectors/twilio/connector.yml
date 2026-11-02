@@ -252,7 +252,9 @@ actions:
         if (!accountSid) throw new Error('Twilio get_account failed: the credential is missing the Account SID (the basic-auth username).');
         const r = await ctx.http.get(`https://api.twilio.com/2010-04-01/Accounts/${encodeURIComponent(accountSid)}.json`, { headers: { Accept: 'application/json' } });
         if (!r.status || r.status >= 400) throw Object.assign(new Error(`Twilio get_account failed (${r.status}): ${r.status === 401 ? 'authentication rejected — verify the Account SID and Auth Token' : r.status === 404 ? 'account not found' : r.status === 429 ? 'rate limited by Twilio — retry later' : r.text()}`), { status: r.status });
-        return { account: r.json() };
+        // Twilio's Account carries the Auth Token this call is signed with: hand on only the declared members.
+        const j = r.json();
+        return { account: { sid: j.sid, friendly_name: j.friendly_name, status: j.status, type: j.type } };
     exampleInput: {}
   - name: list_phone_numbers
     title: List phone numbers

@@ -924,6 +924,119 @@ describe('live yaml-js backend', () => {
     },
   );
 
+  // Twilio's Account carries the Auth Token the call is signed with: the
+  // body builds the declared members and never hands the answer on.
+  it("hands on only the declared members of Twilio's account", async () => {
+    const declared = {
+      sid: 'AC0123',
+      friendly_name: 'Acme Support',
+      status: 'active',
+      type: 'Full',
+    };
+    const authToken = 'synthetic-twilio-auth-token';
+    const result = await callShipped('twilio', 'get_account', 200, {
+      ...declared,
+      auth_token: authToken,
+      owner_account_sid: 'AC0123',
+      date_created: 'Wed, 07 Oct 2026 09:00:00 +0000',
+      date_updated: 'Mon, 02 Nov 2026 09:00:00 +0000',
+      uri: '/2010-04-01/Accounts/AC0123.json',
+      subresource_uris: {
+        messages: '/2010-04-01/Accounts/AC0123/Messages.json',
+        calls: '/2010-04-01/Accounts/AC0123/Calls.json',
+      },
+    });
+    expect(fetchStub).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: 'ok', backend: 'yaml-js' });
+    expect((result as { output: unknown }).output).toStrictEqual({
+      account: declared,
+    });
+    const handedOn = JSON.stringify(result);
+    expect(handedOn).not.toContain('auth_token');
+    expect(handedOn).not.toContain(authToken);
+  });
+
+  // A GitHub repository can carry temp_clone_token, a five-minute Git
+  // credential, at every place GitHub's schema nests one: the bodies hand the
+  // rest of the answer on and that member nowhere.
+  describe("GitHub's temporary clone token", () => {
+    const cloneToken = 'synthetic-temp-clone-token';
+    const repo = {
+      id: 1,
+      name: 'web',
+      full_name: 'acme/web',
+      private: true,
+      default_branch: 'main',
+    };
+    const withToken = { ...repo, temp_clone_token: cloneToken };
+    const issue = (repository: object) => ({
+      number: 7,
+      title: 'Broken',
+      state: 'open',
+      html_url: 'https://github.com/acme/web/issues/7',
+      repository,
+    });
+    const pull = (repository: object) => ({
+      number: 8,
+      title: 'Fix',
+      state: 'open',
+      merged: false,
+      html_url: 'https://github.com/acme/web/pull/8',
+      head: { ref: 'fix', sha: 'a1', repo: repository },
+      base: { ref: 'main', sha: 'b2', repo: repository },
+    });
+    const hit = (repository: object) => ({
+      name: 'index.ts',
+      path: 'src/index.ts',
+      repository,
+    });
+
+    it.each([
+      ['list_repos', [withToken], { repos: [repo] }],
+      [
+        'get_repo',
+        {
+          ...withToken,
+          parent: withToken,
+          source: withToken,
+          template_repository: withToken,
+        },
+        {
+          repo: {
+            ...repo,
+            parent: repo,
+            source: repo,
+            template_repository: repo,
+          },
+        },
+      ],
+      ['list_issues', [issue(withToken)], { issues: [issue(repo)] }],
+      ['get_issue', issue(withToken), { issue: issue(repo) }],
+      [
+        'list_pull_requests',
+        [pull(withToken)],
+        { pull_requests: [pull(repo)] },
+      ],
+      ['get_pull_request', pull(withToken), { pull_request: pull(repo) }],
+      [
+        'search_code',
+        { total_count: 1, incomplete_results: false, items: [hit(withToken)] },
+        { total_count: 1, items: [hit(repo)] },
+      ],
+    ])(
+      'github.%s hands the answer on without it',
+      async (action, answer, output) => {
+        const result = await callShipped('github', action, 200, answer);
+        expect(fetchStub).toHaveBeenCalledTimes(1);
+        expect(result).toMatchObject({ status: 'ok', backend: 'yaml-js' });
+        expect((result as { output: unknown }).output).toStrictEqual(output);
+        const handedOn = JSON.stringify(result);
+        expect(handedOn).not.toContain('temp_clone_token');
+        expect(handedOn).not.toContain(cloneToken);
+      },
+    );
+  });
+
   it.each([
     ['no status', 'throw new Error("vendor said no");'],
     [
