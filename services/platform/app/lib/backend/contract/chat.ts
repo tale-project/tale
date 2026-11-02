@@ -166,6 +166,9 @@ export interface ChatContract {
         at: number;
         type: string;
         model?: string;
+        /** The slug of the provider that served `model`, when the turn
+         * stored one. */
+        provider?: string;
         agentSlug?: string;
       }>;
     };

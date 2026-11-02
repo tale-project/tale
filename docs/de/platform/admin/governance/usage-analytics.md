@@ -16,7 +16,7 @@ description: Untersuche Tokenverbrauch, Anfragevolumen und erfasste Kosten nach 
 1. Öffne **Filter** und wähle unter **Zeitraum** 7, 30 oder 90 Tage. Die erste Ansicht zeigt 30 Tage.
 2. Vergleiche Anfragen, Tokens, Kosten und aktive Benutzer. Mehr Anfragen haben andere Ursachen als längere Antworten.
 3. Wähle im Filtermenü die Messgröße und zeitliche Auflösung des Diagramms, um den Beginn der Veränderung zu erkennen.
-4. Prüfe die Tabellen für Assistenten, Modelle und Nutzung pro Person. Wähle eine Assistenten- oder Modellaufschlüsselung, um die Ansicht einzugrenzen. Entferne den Filterchip, um wieder mehr zu sehen.
+4. Prüfe die Tabellen für Assistenten, Modelle und Nutzung pro Person. Wähle eine Assistenten- oder Modellaufschlüsselung, um die Ansicht einzugrenzen. Entferne den Filterchip, um wieder mehr zu sehen. Wählst du ein Modell, grenzt das die Ansicht auf dieses Modell beim Anbieter seiner Zeile ein, und der Filterchip nennt beide, etwa **openrouter · openai/gpt-5.6-luna**. Bieten zwei Anbieter dasselbe Modell an, nennt **Top-Modelle** jede Zeile ebenso mit ihrem Anbieter.
 
 Unter den Assistentennamen können auch Hilfsaufgaben wie die Erzeugung von Chattiteln stehen. Die Zahl der Anfragen entspricht daher nicht immer der Zahl gesendeter Nachrichten. Für die Sprachausgabe gibt es eine eigene Tabelle der Sprachmodelle.
 
