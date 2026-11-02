@@ -667,6 +667,30 @@ describe('BlankAutomationDialog starting model', () => {
     });
   });
 
+  it('never starts on a model the default harness cannot run', () => {
+    // Auto's everyday pick would be the Responses-only model. The host's
+    // default harness cannot call tools through it, so the canvas leaves it
+    // out for that harness, and so does the wizard.
+    roster.models = [
+      {
+        id: 'gpt-5.6-luna-pro',
+        label: 'gpt-5.6-luna-pro',
+        providerSlug: 'openai',
+        providerLabel: 'OpenAI',
+        credential: { authMethod: 'api-key' },
+        tags: ['chat'],
+        tools: true,
+        toolCallingApi: 'responses',
+        pricing: { inputCentsPerMillion: 100, outputCentsPerMillion: 1500 },
+      },
+      AUTO_ROWS[2],
+    ];
+    renderDialog();
+
+    expect(
+      screen.getByRole('button', { name: /Agent model/i }),
+    ).toHaveTextContent('claude-haiku-4-5');
+  });
   it('starts on the saved chat pick when the wizard offers it', () => {
     roster.models = AUTO_ROWS;
     chatPick.current = {

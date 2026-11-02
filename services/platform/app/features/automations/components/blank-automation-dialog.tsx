@@ -53,6 +53,7 @@ import { useT } from '@/lib/i18n/client';
 import {
   DEFAULT_HARNESS,
   findSelectedModel,
+  offeredToHarness,
   toModelOptions,
 } from '@/lib/shared/harness-offer';
 import { localTimeZone } from '@/lib/shared/zoned-time';
@@ -191,17 +192,21 @@ export function BlankAutomationDialog({
   // One option per (provider, model) pair — the shared picker vocabulary:
   // collapsing two providers serving the same id was how a pick silently
   // landed on the wrong provider's bill. The scaffolded node names no
-  // harness, so the host default drives it: subscription-served entries are
-  // offered only when bound to that harness. Each option keeps its listing
-  // row, whose catalog facts pick the model the field starts on.
+  // harness, so the host default drives it, by the canvas picker's rule: a
+  // subscription-served entry only when bound to that harness, a
+  // Responses-only model only when that harness speaks that API. Each option
+  // keeps its listing row, whose catalog facts pick the model the field
+  // starts on.
+  const harnessWire = roster.data?.harnesses.find(
+    (entry) => entry.harness === DEFAULT_HARNESS,
+  )?.toolCallingWire;
   const offered = useMemo(() => {
     const rows = roster.data?.models ?? [];
     const options = toModelOptions(rows);
     const kept = rows.flatMap((row, index) => {
       const option = options[index];
       return option !== undefined &&
-        (option.subscription === undefined ||
-          option.subscription.harness === DEFAULT_HARNESS)
+        offeredToHarness(option, DEFAULT_HARNESS, harnessWire)
         ? [{ row, option }]
         : [];
     });
@@ -209,7 +214,7 @@ export function BlankAutomationDialog({
       rows: kept.map(({ row }) => row),
       models: kept.map(({ option }) => option),
     };
-  }, [roster.data]);
+  }, [roster.data, harnessWire]);
   const offeredModels = offered.models;
   const selectedModel = findSelectedModel(offeredModels, model, modelProvider);
 
