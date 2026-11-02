@@ -55,7 +55,9 @@ actions:
         const qs = q.length ? '?' + q.join('&') : '';
         const r = await ctx.http.get(`https://api.github.com/user/repos${qs}`, { headers: h });
         if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub list_repos failed (${r.status}): ${r.text()}`), { status: r.status });
-        return { repos: r.json() };
+        // A repository can carry temp_clone_token, a five-minute Git credential: hand the answer on without it.
+        const scrub = (v) => { if (Array.isArray(v)) v.forEach(scrub); else if (v && typeof v === 'object') { delete v.temp_clone_token; Object.values(v).forEach(scrub); } return v; };
+        return { repos: scrub(r.json()) };
     exampleInput: { visibility: 'all', per_page: 20 }
   - name: get_repo
     title: Get repository
@@ -85,7 +87,9 @@ actions:
         const h = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'Tale' };
         const r = await ctx.http.get(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}`, { headers: h });
         if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub get_repo failed (${r.status}): ${r.text()}`), { status: r.status });
-        return { repo: r.json() };
+        // A repository can carry temp_clone_token, a five-minute Git credential: hand the answer on without it.
+        const scrub = (v) => { if (Array.isArray(v)) v.forEach(scrub); else if (v && typeof v === 'object') { delete v.temp_clone_token; Object.values(v).forEach(scrub); } return v; };
+        return { repo: scrub(r.json()) };
     exampleInput: { owner: 'octocat', repo: 'hello-world' }
   - name: list_issues
     title: List issues
@@ -141,7 +145,9 @@ actions:
         const qs = q.length ? '?' + q.join('&') : '';
         const r = await ctx.http.get(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/issues${qs}`, { headers: h });
         if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub list_issues failed (${r.status}): ${r.text()}`), { status: r.status });
-        return { issues: r.json() };
+        // A repository can carry temp_clone_token, a five-minute Git credential: hand the answer on without it.
+        const scrub = (v) => { if (Array.isArray(v)) v.forEach(scrub); else if (v && typeof v === 'object') { delete v.temp_clone_token; Object.values(v).forEach(scrub); } return v; };
+        return { issues: scrub(r.json()) };
     exampleInput: { owner: 'octocat', repo: 'hello-world', state: 'open' }
   - name: get_issue
     title: Get issue
@@ -172,7 +178,9 @@ actions:
         const h = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'Tale' };
         const r = await ctx.http.get(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/issues/${encodeURIComponent(input.issue_number)}`, { headers: h });
         if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub get_issue failed (${r.status}): ${r.text()}`), { status: r.status });
-        return { issue: r.json() };
+        // A repository can carry temp_clone_token, a five-minute Git credential: hand the answer on without it.
+        const scrub = (v) => { if (Array.isArray(v)) v.forEach(scrub); else if (v && typeof v === 'object') { delete v.temp_clone_token; Object.values(v).forEach(scrub); } return v; };
+        return { issue: scrub(r.json()) };
     exampleInput: { owner: 'octocat', repo: 'hello-world', issue_number: 1 }
   - name: create_issue
     title: Create issue
@@ -273,7 +281,9 @@ actions:
         const qs = q.length ? '?' + q.join('&') : '';
         const r = await ctx.http.get(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/pulls${qs}`, { headers: h });
         if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub list_pull_requests failed (${r.status}): ${r.text()}`), { status: r.status });
-        return { pull_requests: r.json() };
+        // A repository can carry temp_clone_token, a five-minute Git credential: hand the answer on without it.
+        const scrub = (v) => { if (Array.isArray(v)) v.forEach(scrub); else if (v && typeof v === 'object') { delete v.temp_clone_token; Object.values(v).forEach(scrub); } return v; };
+        return { pull_requests: scrub(r.json()) };
     exampleInput: { owner: 'octocat', repo: 'hello-world', state: 'open' }
   - name: get_pull_request
     title: Get pull request
@@ -304,7 +314,9 @@ actions:
         const h = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', 'User-Agent': 'Tale' };
         const r = await ctx.http.get(`https://api.github.com/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/pulls/${encodeURIComponent(input.pull_number)}`, { headers: h });
         if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub get_pull_request failed (${r.status}): ${r.text()}`), { status: r.status });
-        return { pull_request: r.json() };
+        // A repository can carry temp_clone_token, a five-minute Git credential: hand the answer on without it.
+        const scrub = (v) => { if (Array.isArray(v)) v.forEach(scrub); else if (v && typeof v === 'object') { delete v.temp_clone_token; Object.values(v).forEach(scrub); } return v; };
+        return { pull_request: scrub(r.json()) };
     exampleInput: { owner: 'octocat', repo: 'hello-world', pull_number: 1 }
   - name: create_pull_request
     title: Create pull request
@@ -917,7 +929,9 @@ actions:
         const r = await ctx.http.get(`https://api.github.com/search/code?${q.join('&')}`, { headers: h });
         if (!r.status || r.status >= 400) throw Object.assign(new Error(`GitHub search_code failed (${r.status}): ${r.text()}`), { status: r.status });
         const j = r.json();
-        return { total_count: j.total_count, items: j.items };
+        // A repository can carry temp_clone_token, a five-minute Git credential: hand the answer on without it.
+        const scrub = (v) => { if (Array.isArray(v)) v.forEach(scrub); else if (v && typeof v === 'object') { delete v.temp_clone_token; Object.values(v).forEach(scrub); } return v; };
+        return { total_count: j.total_count, items: scrub(j.items) };
     exampleInput: { q: 'addEventListener repo:octocat/hello-world' }
   - name: list_import_issues
     title: List issues to import
