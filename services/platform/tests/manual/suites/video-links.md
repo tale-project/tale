@@ -64,8 +64,8 @@ provider/configuration refusals from browser failures.
   downloaded.
 - [ ] `VID-F6` · **Anti-bot configuration** — On a local test deployment where
   VID-F2 fails with `botDetection`, configure authorized
-  `OUTBOUND_PROXY_URLS` or `VIDEO_INGEST_PROXY_URL`, a
-  `VIDEO_INGEST_POT_PROVIDER_URL`, or
+  `OUTBOUND_PROXY_URLS`, `VIDEO_INGEST_PROXY_URLS` or `VIDEO_INGEST_PROXY_URL`,
+  a `VIDEO_INGEST_POT_PROVIDER_URL`, or
   `VIDEO_INGEST_COOKIES_FILE`, restart the backend, then retry → Record whether
   the job completes. A remaining bot wall stays an environment limitation;
   configuration alone is not proof of success.
@@ -82,11 +82,16 @@ provider/configuration refusals from browser failures.
   the first paste in chat A. Reload chat A → still one chip.
 
 - [ ] `VID-F9` · **Video ingestion follows the outbound proxies** — With
-  KNOW-F40's proxies in `OUTBOUND_PROXY_URLS` and `VIDEO_INGEST_PROXY_URL`
-  unset, paste the captioned URL into two new chats → the proxies' logs show
-  yt-dlp's requests, the two jobs through different proxies. Set
-  `VIDEO_INGEST_PROXY_URL` to a third proxy, recreate `backend-worker` and
-  paste it into a third chat → only that proxy sees the job's requests.
+  KNOW-F40's proxies in `OUTBOUND_PROXY_URLS` and `VIDEO_INGEST_PROXY_URL` and
+  `VIDEO_INGEST_PROXY_URLS` unset, paste the captioned URL into a new chat, and
+  once its job is done into a second one → the proxies' logs show yt-dlp's
+  requests, each job's through one proxy, the second job's through the proxy
+  that served the first. Set `VIDEO_INGEST_PROXY_URL` to a third proxy,
+  recreate `backend-worker` and paste it into a third chat → only that proxy
+  sees the job's requests. Unset it, list two proxies other than KNOW-F40's in
+  `VIDEO_INGEST_PROXY_URLS`, recreate `backend-worker`, paste the URL into a
+  fourth chat and scan KNOW-F40's website again → the job's requests all go
+  through one of those two proxies, and the scan's still through KNOW-F40's.
   Restore the prior environment.
 
 ## Boundary & error tests
@@ -98,7 +103,12 @@ provider/configuration refusals from browser failures.
 - [ ] `VID-B2` · **Invalid proxy value** — On the local test deployment, set
   `VIDEO_INGEST_PROXY_URL=not-a-url`, restart, and repeat VID-F2 → Logs contain
   a redacted invalid-URL warning; ingestion behaves as if the invalid value
-  were absent, without crashing the worker. Restore the prior environment.
+  were absent, without crashing the worker. Also list a valid proxy in
+  `VIDEO_INGEST_PROXY_URLS` and restart → the backend refuses to start, saying
+  both are set. Unset `VIDEO_INGEST_PROXY_URL`, set
+  `VIDEO_INGEST_PROXY_URLS=not-a-url` and restart → the backend refuses to
+  start, naming entry 1 of `VIDEO_INGEST_PROXY_URLS` as not a URL. Restore the
+  prior environment.
 - [ ] `VID-B3` · **Secret hygiene in logs** — On the local test deployment,
   use a synthetic proxy credential and trigger a failure → Worker logs and
   visible technical details reveal neither the raw credential nor cookie
