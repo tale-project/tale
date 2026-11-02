@@ -185,6 +185,55 @@ bun run --filter @tale/docs test
 bun run --filter @tale/docs dev
 ```
 
+## Capture in CI
+
+The `Docs screenshots` workflow
+([`docs-screenshots.yml`](../../../../.github/workflows/docs-screenshots.yml)) takes the same shots
+on a GitHub runner, so a retake needs no local stack. It builds the repository's database image,
+starts it and an object store, then the mock gateway and the platform as described above, seeds the
+synthetic workspace, and runs `docs:screenshots` for the shots and locales you ask for. It first
+checks them against `bun run docs:screenshots -- --list`. The runner has no sandbox spawner, so the
+shots that need one (see Troubleshooting) cannot be taken there.
+
+Anyone who can push to the repository can start it for a branch that contains the workflow:
+
+```bash
+gh workflow run docs-screenshots.yml --repo tale-project/tale --ref <branch> \
+  -f shots=governance-guardrails,governance-audit-logs -f locales=en,de,fr
+gh run list --repo tale-project/tale --workflow docs-screenshots.yml --branch <branch> --limit 3
+gh run watch <run-id> --repo tale-project/tale
+```
+
+GitHub only dispatches a workflow that the default branch holds. A push to a branch under
+`docs-screenshots/` runs it too, capturing `agent-consent` in English: use one to prove a change to
+the workflow itself, and delete it afterwards.
+
+The run uploads the artifact `docs-screenshots-<run-id>-<attempt>`, kept for 7 days: the WebP files
+it wrote, under their repository paths, and the regenerated `images/manifest.json`. A failed run
+uploads what it took before it failed. The runner's state directory, which holds a session, and the
+stack's logs never leave the runner; a failed run prints the end of each log to the job log.
+Download the artifact outside the checkout:
+
+```bash
+dir="$(mktemp -d)"
+gh run download <run-id> --repo tale-project/tale -n docs-screenshots-<run-id>-<attempt> -D "$dir"
+find "$dir" -type f
+```
+
+Open each image at full size and judge it as above before it enters the checkout: a capture that
+succeeded can still show a loading screen or the wrong state. Then copy the files over the
+checkout's, from the repository root, and read the manifest's diff, which must touch only the shots
+you took:
+
+```bash
+cp -R "$dir/services" .
+git diff -- services/docs/public/images/manifest.json
+```
+
+A marketing poster derived from a docs shot needs no stack either: once the new sources are
+committed, `bun run --filter @tale/web optimize-images --product-screens` rebuilds the posters
+under `services/web/public/marketing/optimized/` from them.
+
 ## Refresh the README gallery
 
 The English, German, and French READMEs share six thumbnails. Each links to its full-resolution

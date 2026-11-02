@@ -67,7 +67,8 @@ Set it to `tale-hetzner` to use the organization's self-hosted runners of that l
 go back to GitHub-hosted runners without a code change. The suites that hold time budgets — the platform's
 and the workspaces' unit lanes, the UI shards, `Performance`, `Browser`, the Playwright jobs of
 `e2e` and the `Opengrep` scan — take their runner from `LINUX_TEST_RUNNER` instead, so they keep the dedicated CPUs of
-`ubuntu-latest` while self-hosted machines are shared by many jobs at once. A pull request from a
+`ubuntu-latest` while self-hosted machines are shared by many jobs at once. The `docs-screenshots`
+capture runs the platform and a browser as those Playwright jobs do and takes the same runner. A pull request from a
 fork always runs on `ubuntu-latest`, so code from outside never reaches a self-hosted machine. Each self-hosted runner
 has a Docker daemon of its own that is emptied after every job, so jobs keep the fixed ports,
 container names and prune steps they use on hosted runners. The release and its tag, the Incus end-to-end
