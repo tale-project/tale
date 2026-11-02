@@ -1822,8 +1822,9 @@ export async function updateTask(
   await updateTaskFields(tx, auth, args);
 }
 
-/** Only the trusted metadata door may supply an agent actor, and that door
- * passes priority alone. Human edits keep their existing authority and trail. */
+/** Only the trusted agent doors may supply an agent actor: the metadata door
+ * passes priority alone, the label door labels alone. Human edits keep their
+ * existing authority and trail. */
 async function updateTaskFields(
   tx: TransactionSql,
   auth: ProjectAuthContext,
@@ -3080,6 +3081,33 @@ export async function agentUpdateTaskPriorityTrusted(
       teamIds: [],
     },
     { taskId: args.taskId, priority: args.priority },
+    args.actorId,
+  );
+}
+
+/** Label-only reuse of the normal edit writer, for `task_set_labels`
+ * (`agent-metadata.ts`), which has checked the agent's live label grant and
+ * found every name in the task's catalog: the writer resolves them without
+ * creating one, and records the agent, never the synthetic context, as the
+ * actor. */
+export async function agentUpdateTaskLabelsTrusted(
+  tx: TransactionSql,
+  args: {
+    organizationId: string;
+    actorId: string;
+    taskId: string;
+    labels: string[];
+  },
+): Promise<void> {
+  await updateTaskFields(
+    tx,
+    {
+      organizationId: args.organizationId,
+      userId: args.actorId,
+      role: 'admin',
+      teamIds: [],
+    },
+    { taskId: args.taskId, labels: args.labels },
     args.actorId,
   );
 }

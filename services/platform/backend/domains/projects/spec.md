@@ -190,6 +190,18 @@ other settings while its pins stay as they are, and may set its commit identity.
 - **Example**: Mia, an editor, removes the Client A Coder's Forgejo pin → refused. She renames
   the agent and sets its commit name to "Client A Coder" → saved, the pin unchanged.
 
+### PROJ-R25 · An agent's label grant names only labels its project has
+
+The labels an agent's `task_set_labels` grant names (`labelGrants`) are its project's, matched
+whatever their case and stored in the project's spelling; a save naming any other is refused,
+naming it (`PROJECT_AGENT_LABEL_UNKNOWN`), and nothing is saved: a grant never creates a label.
+A save that leaves the grant out keeps it, and so does a declaration, which has no such field;
+only an explicit empty list clears it. A name granted before its label was renamed or deleted
+stays until it is removed, so the dialog can show it.
+
+- **Example**: Ada grants the Manager `Optional-CI` → stored as `optional-ci`, the label's name.
+  She grants `nightly`, which the project has no label for → refused, naming `nightly`.
+
 ## Deleting a project
 
 ### PROJ-R14 · A project an automation is installed in cannot be deleted with its content
