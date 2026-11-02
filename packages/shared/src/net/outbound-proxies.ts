@@ -6,8 +6,9 @@
  * the platform hands its requests to them in turn: the website crawler, the
  * chat assistant's web fetch, the remote images an email draws and video
  * ingestion from the backend, and every connection a sandbox session opens
- * to the internet from the egress service. `VIDEO_INGEST_PROXY_URL`, when
- * set, takes video ingestion out of the rotation.
+ * to the internet from the egress service. Video ingestion's own proxies,
+ * `VIDEO_INGEST_PROXY_URLS` or `VIDEO_INGEST_PROXY_URL`, when set, take it
+ * out of the rotation.
  *
  * Two readers parse the list: this module for the backend, and the egress
  * service's `outbound-proxies.awk` for its squid hop. So the grammar is

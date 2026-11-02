@@ -47,13 +47,21 @@ OUTBOUND_PROXY_URLS=http://user-1:password@gateway.example:80,http://user-2:pass
 
 Les requêtes vers les sites web prennent toujours ces proxys à tour de rôle. Les plateformes refusent beaucoup d’adresses de centres de données. Si le journal montre des changements pour la plupart des vidéos, des proxys sur des réseaux résidentiels ou de fournisseurs d’accès sont moins souvent refusés.
 
-Définis `VIDEO_INGEST_PROXY_URL` lorsque tes récupérations vidéo doivent plutôt passer par un proxy approuvé qui leur est propre. Il remplace les proxys sortants pour la vidéo seulement ; la liste sortante peut alors garder un point d’accès rotatif. Comme proxy unique, il ne répète pas une tentative refusée. Les schémas acceptés sont `http`, `https`, `socks4`, `socks4a`, `socks5` et `socks5h` ; ce dernier résout le DNS côté proxy.
+Pour réserver des proxys à la vidéo, par exemple des proxys sur des réseaux résidentiels ou de fournisseurs d’accès facturés par adresse ou par gigaoctet, indique-les plutôt dans `VIDEO_INGEST_PROXY_URLS`. Les récupérations vidéo passent alors par ces seuls proxys, tandis que les requêtes vers les sites web et les sessions sandbox gardent les proxys sortants, qui peuvent alors inclure un point d’accès rotatif. Une vidéo avance dans cette liste comme décrit plus haut, et chaque entrée doit garder une adresse publique fixe. Quand la vidéo a échoué par chaque proxy de la liste, l’étape se termine avec le motif donné par la plateforme ; elle ne se rabat jamais sur les proxys sortants ni sur une connexion directe. Dans le journal du worker, un changement dans cette liste s’écrit `video proxy entry`, là où un changement dans la liste sortante s’écrit `outbound proxy entry`.
+
+Sépare les entrées par des virgules ou des espaces. Chacune prend la forme `scheme://[user:password@]host[:port]`, avec l’un des schémas `http`, `https`, `socks4`, `socks4a`, `socks5` et `socks5h` ; ce dernier résout le DNS côté proxy. Une entrée mal formée empêche le backend de démarrer, et le message désigne l’entrée par sa position.
+
+```bash
+VIDEO_INGEST_PROXY_URLS=socks5h://user-1:password@residential.example:1080,socks5h://user-2:password@residential.example:1080
+```
+
+Pour un seul proxy approuvé réservé à la vidéo, définis plutôt `VIDEO_INGEST_PROXY_URL`. Il remplace les proxys sortants pour la vidéo seulement et accepte les mêmes schémas, mais comme proxy unique, il ne répète pas une tentative refusée. Définis soit `VIDEO_INGEST_PROXY_URL`, soit `VIDEO_INGEST_PROXY_URLS` : si les deux sont définis, le backend ne démarre pas.
 
 ```bash
 VIDEO_INGEST_PROXY_URL=socks5h://proxy.example.com:1080
 ```
 
-Ajoute les identifiants requis via ton gestionnaire de secrets. Une URL invalide ou un schéma non pris en charge est ignoré avec un avertissement, et la récupération passe alors par les proxys sortants s’il y en a, comme sans la variable : confirme donc la configuration appliquée et une véritable récupération. Recrée le worker après avoir modifié son environnement. Redémarrer le conteneur existant ne recharge pas un `.env` modifié.
+Ajoute les identifiants requis via ton gestionnaire de secrets. Une URL invalide ou un schéma non pris en charge dans `VIDEO_INGEST_PROXY_URL` est ignoré avec un avertissement, et la récupération passe alors par les proxys sortants s’il y en a, comme sans la variable : confirme donc la configuration appliquée et une véritable récupération. Recrée le worker après avoir modifié son environnement. Redémarrer le conteneur existant ne recharge pas un `.env` modifié.
 
 Changer de route ne garantit pas l’accès. Vérifie que l’usage du proxy et du compte source est autorisé pour le contenu nécessaire. Si la source reste indisponible, importe une transcription que tu possèdes déjà comme [document de connaissances](/fr/platform/knowledge/documents).
 

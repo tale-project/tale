@@ -4,6 +4,10 @@ import { parseAdditionalSiteUrls } from '@tale/shared/utils/site-urls';
 import { z } from 'zod';
 
 import {
+  checkVideoIngestProxySettings,
+  parseVideoIngestProxyUrls,
+} from '../lib/net/video-ingest-proxies.ts';
+import {
   totpClientNameSchema,
   totpEnvironmentSchema,
 } from '../lib/shared/authenticator-name.ts';
@@ -34,7 +38,7 @@ function hostListSchema(name: string) {
  * one `api` and one `worker` container from the same image (compose profile
  * `backend`), each horizontally scalable.
  */
-const envSchema = z.object({
+const envFields = z.object({
   DATABASE_URL: z.string().min(1),
   PORT: z.coerce.number().int().min(1).max(65535).default(3005),
   /**
@@ -164,10 +168,11 @@ const envSchema = z.object({
   /**
    * The HTTP proxies requests to other websites go out through, in turn —
    * the crawler, the chat assistant's web fetch, email images and video
-   * ingestion here; every session connection in the sandbox egress service,
-   * which reads the same value. Validated here so a malformed entry fails
-   * boot instead of sending that traffic out unproxied — see
-   * `@tale/shared/net/outbound-proxies`; read per request by
+   * ingestion (unless VIDEO_INGEST_PROXY_URLS or VIDEO_INGEST_PROXY_URL gives
+   * it proxies of its own) here; every session connection in the sandbox
+   * egress service, which reads the same value. Validated here so a
+   * malformed entry fails boot instead of sending that traffic out unproxied
+   * — see `@tale/shared/net/outbound-proxies`; read per request by
    * `lib/net/outbound-proxy.ts`.
    */
   OUTBOUND_PROXY_URLS: z
@@ -176,6 +181,32 @@ const envSchema = z.object({
     .superRefine((value, ctx) => {
       try {
         parseOutboundProxyUrls(value);
+      } catch (error) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }),
+  /**
+   * The one proxy video ingestion goes out through instead of the outbound
+   * proxies, in any scheme yt-dlp speaks. Read per video by
+   * `core/video_links/ytdlp.ts`, which ignores an invalid value with a
+   * warning; declared here so the check below sees it.
+   */
+  VIDEO_INGEST_PROXY_URL: z.string().optional(),
+  /**
+   * Video ingestion's own proxies, in turn, in place of the outbound ones
+   * and for video alone; any scheme yt-dlp speaks. Validated here so a
+   * malformed entry fails boot instead of sending video out through the
+   * outbound proxies — see `lib/net/video-ingest-proxies.ts`.
+   */
+  VIDEO_INGEST_PROXY_URLS: z
+    .string()
+    .optional()
+    .superRefine((value, ctx) => {
+      try {
+        parseVideoIngestProxyUrls(value);
       } catch (error) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -232,6 +263,20 @@ const envSchema = z.object({
   SENTRY_DSN: z.string().optional(),
   /** Manual backend spans only; independent of browser sampling. */
   BACKEND_SENTRY_TRACES_SAMPLE_RATE: z.coerce.number().min(0).max(1).default(0),
+});
+
+const envSchema = envFields.superRefine((env, ctx) => {
+  // Which of two settings video ingestion would take is not for an
+  // operator to guess: both set fails boot.
+  try {
+    checkVideoIngestProxySettings(env);
+  } catch (error) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: error instanceof Error ? error.message : String(error),
+      path: ['VIDEO_INGEST_PROXY_URLS'],
+    });
+  }
 });
 
 export type BackendEnv = z.infer<typeof envSchema>;
