@@ -1,0 +1,303 @@
+name: Docs screenshots
+
+# Retakes documentation screenshots without a person's machine (#5263): the
+# disposable stack of services/platform/tests/docs-screenshots/README.md on the
+# runner — tale-db and the object store as containers, the mock model gateway
+# and the platform from this checkout with the synthetic fixture config — then
+# `bun run docs:screenshots` for the requested shots and locales. The WebP
+# files and the regenerated manifest come back as an artifact, kept 7 days,
+# which whoever asked commits on their branch after looking at each image.
+#
+# Dispatched by hand for a branch that holds this file, which needs write
+# access to the repository. A push to a `docs-screenshots/` branch captures
+# `agent-consent` in English, so a change to this workflow can be proven
+# before the default branch holds it. No trigger a fork can start, no secret,
+# no model provider: the session the runner signs in with and the stack's logs
+# stay on the runner.
+
+on:
+  workflow_dispatch:
+    inputs:
+      shots:
+        description: Shot names, comma-separated (bun run docs:screenshots -- --list)
+        type: string
+        required: true
+      locales:
+        description: Locales, comma-separated (en, de, fr)
+        type: string
+        default: en
+  push:
+    branches:
+      - 'docs-screenshots/**'
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    name: Capture
+    # The platform E2E job's runner: Vite, the backend, the mock and the
+    # browser share it.
+    runs-on: ${{ vars.LINUX_TEST_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      DOCS_DB_PASSWORD: tale_docs_ci
+      DOCS_S3_ACCESS_KEY: tale-docs
+      DOCS_S3_SECRET_KEY: tale_docs_object_store
+      REQUESTED_SHOTS: ${{ github.event_name == 'push' && 'agent-consent' || inputs.shots }}
+      REQUESTED_LOCALES: ${{ github.event_name == 'push' && 'en' || inputs.locales }}
+
+    steps:
+      # The shape first, before anything of the checkout runs; the names are
+      # checked against the runner's own list once it is installed.
+      - name: Validate inputs
+        run: |
+          set -euo pipefail
+          if [[ ! "$REQUESTED_SHOTS" =~ ^[a-z0-9]+(-[a-z0-9]+)*(,[a-z0-9]+(-[a-z0-9]+)*)*$ ]]; then
+            echo '::error::shots must be shot names separated by commas, as bun run docs:screenshots -- --list prints them'; exit 1
+          fi
+          if [[ ! "$REQUESTED_LOCALES" =~ ^[a-z]{2}(,[a-z]{2})*$ ]]; then
+            echo '::error::locales must be locale codes separated by commas, such as en,de,fr'; exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          persist-credentials: false
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup-turbo
+        with:
+          turbo-cache: 'false'
+
+      # `--list` resolves the names and the locales the runner knows and fails
+      # on any other, without touching a stack.
+      - name: Check the shots and locales
+        run: bun run docs:screenshots -- --list --only "$REQUESTED_SHOTS" --locales "$REQUESTED_LOCALES"
+
+      # The platform E2E job's browser steps.
+      - name: Resolve Playwright version
+        id: playwright-version
+        working-directory: services/platform
+        run: |
+          set -euo pipefail
+          version="$(bun -e 'console.log(require("@playwright/test/package.json").version)')"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo '::error::Cannot resolve the installed Playwright version'; exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache/restore@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: '2'
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-shell-${{ runner.os }}-${{ runner.arch }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright Chromium
+        working-directory: services/platform
+        timeout-minutes: 12
+        run: |
+          sudo tee /etc/apt/apt.conf.d/99-tale-playwright >/dev/null <<'APT'
+          Acquire::ForceIPv4 "true";
+          Acquire::http::Timeout "30";
+          Acquire::https::Timeout "30";
+          Acquire::Retries "1";
+          APT
+          sudo apt-config shell IPv4 Acquire::ForceIPv4 HTTPTimeout Acquire::http::Timeout HTTPSTimeout Acquire::https::Timeout Retries Acquire::Retries
+          bunx playwright install --with-deps --only-shell chromium
+
+      - name: Save Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ steps.playwright-cache.outputs.cache-primary-key }}
+
+      - name: Setup Docker builder
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4.0.0
+        with:
+          cleanup: false
+
+      # Build's own layer cache (scope `db`) is read, never written. The action
+      # would also upload a build record as a second artifact, kept for the
+      # repository's default retention: the captures are the run's only one.
+      - name: Build tale-db from services/db
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7.1.0
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: 'false'
+          DOCKER_BUILD_SUMMARY: 'false'
+        with:
+          context: .
+          file: services/db/Dockerfile
+          platforms: linux/amd64
+          push: false
+          load: true
+          tags: tale-db:docs
+          cache-from: type=gha,scope=db
+          provenance: false
+
+      - name: Resolve the object-store pin
+        id: object-store
+        run: |
+          set -euo pipefail
+          image=$(bun -e "import { THIRD_PARTY_IMAGES } from './tools/cli/src/lib/compose/types.ts'; console.log(THIRD_PARTY_IMAGES['object-store'])")
+          if [ -z "$image" ]; then
+            echo '::error::THIRD_PARTY_IMAGES names no object-store image'; exit 1
+          fi
+          echo "image=${image}" >> "$GITHUB_OUTPUT"
+
+      # One tale-db in its default role holds both databases the platform
+      # reads, tale_app and tale_knowledge.
+      - name: Start tale-db and the object store
+        env:
+          OBJECT_STORE_IMAGE: ${{ steps.object-store.outputs.image }}
+        run: |
+          set -euo pipefail
+          docker run -d --name tale-docs-db --shm-size 256m \
+            -p 127.0.0.1:5432:5432 -e DB_PASSWORD="$DOCS_DB_PASSWORD" tale-db:docs
+          docker run -d --name tale-docs-object-store -p 127.0.0.1:9000:9000 \
+            -e MINIO_ROOT_USER="$DOCS_S3_ACCESS_KEY" -e MINIO_ROOT_PASSWORD="$DOCS_S3_SECRET_KEY" \
+            -e MINIO_BROWSER=off "$OBJECT_STORE_IMAGE" server /data --address ':9000'
+          # The image's readiness marker, not pg_isready alone: the bootstrap
+          # server answers before the init scripts and migrations have run.
+          for _ in $(seq 1 90); do
+            if docker exec tale-docs-db test -f /tmp/.db_ready; then break; fi
+            sleep 2
+          done
+          docker exec tale-docs-db test -f /tmp/.db_ready || { echo '::error::tale-db never became ready'; exit 1; }
+          for _ in $(seq 1 60); do
+            if curl --connect-timeout 2 --max-time 5 -sf -o /dev/null http://127.0.0.1:9000/minio/health/ready; then break; fi
+            sleep 1
+          done
+          curl --connect-timeout 2 --max-time 5 -sf -o /dev/null http://127.0.0.1:9000/minio/health/ready || { echo '::error::the object store never became ready'; exit 1; }
+
+      # The runbook's two terminals. TALE_DEV_SKIP_DOCKER leaves the stores
+      # above to the platform instead of starting compose's.
+      - name: Start the mock gateway and the platform
+        working-directory: services/platform
+        env:
+          TALE_DEV_SKIP_DOCKER: '1'
+          TALE_DEV_OPEN: '0'
+          TALE_E2E: '1'
+          TALE_CONFIG_DIR: ${{ github.workspace }}/services/platform/tests/e2e/fixtures/config
+          TALE_CONFIG_BUILTIN_DIR: ${{ github.workspace }}/services/platform/tests/e2e/fixtures/config/docs-demo
+          TALE_PROVIDER_KEY_E2E_MOCK: tale-e2e-mock-key
+          TALE_ALLOW_PRIVATE_PROVIDER_HOSTS: '1'
+          TALE_MOCK_CONNECTORS_BASE: http://127.0.0.1:4141
+          DATABASE_URL: postgresql://tale:${{ env.DOCS_DB_PASSWORD }}@127.0.0.1:5432/tale_app
+          KNOWLEDGE_DATABASE_URL: postgresql://tale:${{ env.DOCS_DB_PASSWORD }}@127.0.0.1:5432/tale_knowledge
+          OBJECT_STORE_ENDPOINT: http://127.0.0.1:9000
+          OBJECT_STORE_BUCKET: tale-blobs
+          OBJECT_STORE_ACCESS_KEY: ${{ env.DOCS_S3_ACCESS_KEY }}
+          OBJECT_STORE_SECRET_KEY: ${{ env.DOCS_S3_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          nohup bun lib/mocks/start.ts > "$RUNNER_TEMP/docs-screenshots-gateway.log" 2>&1 < /dev/null &
+          echo "GATEWAY_PID=$!" >> "$GITHUB_ENV"
+          nohup bun scripts/dev.ts > "$RUNNER_TEMP/docs-screenshots-platform.log" 2>&1 < /dev/null &
+          echo "PLATFORM_PID=$!" >> "$GITHUB_ENV"
+
+      # The platform starts Vite only once its backend and auth routes answer.
+      - name: Wait for the stack
+        timeout-minutes: 15
+        run: |
+          set -euo pipefail
+          wait_for() {
+            local name="$1" url="$2" tries="$3"
+            for _ in $(seq 1 "$tries"); do
+              if ! kill -0 "$PLATFORM_PID" 2>/dev/null || ! kill -0 "$GATEWAY_PID" 2>/dev/null; then
+                echo "::error::the stack exited before the ${name} answered"; exit 1
+              fi
+              if curl --connect-timeout 2 --max-time 10 -sf -o /dev/null "$url"; then
+                echo "The ${name} answers at ${url}"; return 0
+              fi
+              sleep 5
+            done
+            echo "::error::the ${name} did not answer at ${url}"; exit 1
+          }
+          wait_for 'mock gateway' http://127.0.0.1:4141/health 24
+          wait_for 'backend' http://127.0.0.1:3005/api/auth/ok 120
+          wait_for 'platform app' http://127.0.0.1:3000/ 60
+
+      - name: Capture
+        id: capture
+        timeout-minutes: 40
+        run: |
+          set -euo pipefail
+          touch "$RUNNER_TEMP/docs-screenshots-started"
+          bun run docs:screenshots -- --only "$REQUESTED_SHOTS" --locales "$REQUESTED_LOCALES" \
+            --state-dir "$RUNNER_TEMP/docs-screenshots-state"
+
+      # Only what this run wrote: the images newer than the capture's start and
+      # the manifest the runner rewrote. The state directory holds a session
+      # and never leaves the runner. A failed capture keeps what it took.
+      - name: Stage the captures
+        id: stage
+        if: >-
+          !cancelled() &&
+          (steps.capture.outcome == 'success' || steps.capture.outcome == 'failure')
+        env:
+          CAPTURE_OUTCOME: ${{ steps.capture.outcome }}
+        run: |
+          set -euo pipefail
+          images=services/docs/public/images
+          mapfile -t files < <(find "$images" -type f -name '*.webp' -newer "$RUNNER_TEMP/docs-screenshots-started" | sort)
+          echo "count=${#files[@]}" >> "$GITHUB_OUTPUT"
+          if [ "${#files[@]}" -eq 0 ]; then
+            if [ "$CAPTURE_OUTCOME" = success ]; then
+              echo '::error::the capture succeeded without writing an image'; exit 1
+            fi
+            echo '::notice::the capture failed before it wrote an image'; exit 0
+          fi
+          staged="$RUNNER_TEMP/docs-screenshots-artifact"
+          mkdir -p "$staged"
+          cp --parents "${files[@]}" "$images/manifest.json" "$staged/"
+          {
+            echo "### Captured (${CAPTURE_OUTCOME})"
+            echo
+            printf -- '- `%s`\n' "${files[@]}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the captures
+        if: >-
+          !cancelled() && steps.stage.outputs.count != '' && steps.stage.outputs.count != '0'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          # One artifact per attempt: a rerun would otherwise collide with the
+          # earlier attempt's name.
+          name: docs-screenshots-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/docs-screenshots-artifact/
+          retention-days: 7
+          if-no-files-found: error
+          # WebP is compressed already.
+          compression-level: 0
+
+      # To the job log only, never to the artifact.
+      - name: Print the stack's logs
+        if: failure()
+        run: |
+          docker ps -a || true
+          docker logs --tail 100 tale-docs-db || true
+          docker logs --tail 100 tale-docs-object-store || true
+          for log in gateway platform; do
+            file="$RUNNER_TEMP/docs-screenshots-$log.log"
+            if [ -f "$file" ]; then
+              echo "::group::${log} log, last 200 lines"
+              tail -n 200 "$file"
+              echo '::endgroup::'
+            fi
+          done
+
+      - name: Stop the stack
+        if: always()
+        run: |
+          for pid in "${PLATFORM_PID:-}" "${GATEWAY_PID:-}"; do
+            if [ -n "$pid" ]; then kill -TERM "$pid" 2>/dev/null || true; fi
+          done
+          sleep 5
+          docker rm -f tale-docs-db tale-docs-object-store >/dev/null 2>&1 || true

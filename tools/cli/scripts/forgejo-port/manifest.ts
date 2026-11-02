@@ -120,6 +120,15 @@ export const MANIFEST: Manifest = {
         },
       ],
     },
+    'docs-screenshots.yml': {
+      kind: 'port',
+      dropEvents: [
+        {
+          name: 'push',
+          why: 'a push to a `docs-screenshots/` branch proves a change to the workflow on GitHub, which dispatches only a workflow its default branch holds; here a push is one to main and the workflow is dispatched',
+        },
+      ],
+    },
     'release.yml': { kind: 'github', why: RELEASE_LANE },
     'release-candidate-source.yml': {
       kind: 'github',
