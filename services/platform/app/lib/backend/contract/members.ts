@@ -114,8 +114,9 @@ export interface MembersContract {
       createdAt: number;
       displayName: undefined | string;
       email: undefined | string;
-      twoFactorEnabled: boolean;
-      passkeyCount: number;
+      /** Owners and admins only [MEMBER-R6]. */
+      twoFactorEnabled?: boolean;
+      passkeyCount?: number;
     }>;
   };
   'members/queries:listOrgTeams': {

@@ -56,6 +56,26 @@ function handleError<E extends AuthEnv>(
 }
 
 /**
+ * A member-list row as every member may read it: who the member is, never
+ * how they sign in. Whether they use two-factor authentication and how many
+ * passkeys they hold is for owners and admins alone [MEMBER-R6]. The row
+ * names what it keeps, so a field the list gains later stays with them too.
+ */
+function withoutSignInFactors(
+  member: Awaited<ReturnType<typeof listByOrganization>>[number],
+) {
+  return {
+    id: member.id,
+    organizationId: member.organizationId,
+    userId: member.userId,
+    role: member.role,
+    createdAt: member.createdAt,
+    displayName: member.displayName,
+    email: member.email,
+  };
+}
+
+/**
  * /api/app/members — membership management with the 0.4 guard semantics.
  * List/context are org-scoped (`?orgId=`); the by-member mutations resolve
  * the org from the member row inside the service.
@@ -70,8 +90,14 @@ export function createMemberRoutes(deps: {
   const orgScoped = new Hono<OrgEnv>();
   orgScoped.use(requireOrgMember(deps.sql));
   orgScoped.get('/', async (c) => {
+    // Every member reads the list (the pickers name people from it); how each
+    // one signs in goes only to the role the org gate enforces on this
+    // request when it is an owner or admin, a trusted-headers role included.
+    const members = await listByOrganization(deps.sql, c.get('orgId'));
     return c.json({
-      members: await listByOrganization(deps.sql, c.get('orgId')),
+      members: isAdminRole(c.get('orgMember').role)
+        ? members
+        : members.map(withoutSignInFactors),
     });
   });
   orgScoped.get('/me', async (c) => {
