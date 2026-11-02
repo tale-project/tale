@@ -22,6 +22,9 @@ vi.mock('@/app/features/projects/hooks/queries', () => ({
         ids.includes('p1') ? [['p1', { _id: 'p1', name: 'Engineering' }]] : [],
       ),
       isPending: false,
+      unread: new Set(),
+      read: { unavailable: false, retrying: false, failureCount: 0 },
+      retry: () => undefined,
     };
   },
 }));
