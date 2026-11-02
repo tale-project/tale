@@ -756,7 +756,7 @@ describe('sweepOrgPhase2 — destruction rows', () => {
       'SELECT id, storage_ref AS "storageRef" FROM app.file_metadata': (
         values,
       ) =>
-        values.includes('user')
+        values.some((value) => Array.isArray(value) && value.includes('user'))
           ? [
               { id: 'u1', storageRef: 's3:acme/u1' },
               { id: 'u2', storageRef: 's3:acme/u2' },
@@ -790,6 +790,39 @@ describe('sweepOrgPhase2 — destruction rows', () => {
       deleted: 3,
       counts: { userTemp: 2, agentTemp: 1 },
     });
+  });
+
+  it('sweeps a document web_fetch kept within the window of the person’s uploads [FILE-R10]', async () => {
+    const fake = fakeSql({});
+
+    await sweepOrgPhase2(
+      fake.sql,
+      {
+        organizationId: 'org_1',
+        config: {
+          userTempEnabled: true,
+          userTempRetentionHours: 24,
+          agentTempEnabled: true,
+          agentTempRetentionHours: 1,
+        },
+      },
+      { orgHeld: false, userMembershipIds: new Set() },
+    );
+
+    const sweeps = fake.statements.filter((s) =>
+      s.text.startsWith(
+        'SELECT id, storage_ref AS "storageRef" FROM app.file_metadata',
+      ),
+    );
+    expect(sweeps.map((s) => s.values[1])).toEqual([
+      ['user', 'web'],
+      ['agent'],
+    ]);
+    // Each source keeps its own window: the person's 24 hours, the agent's one.
+    const [userCutoff, agentCutoff] = sweeps.map((s) => Number(s.values[2]));
+    expect((agentCutoff ?? 0) - (userCutoff ?? 0)).toBeGreaterThanOrEqual(
+      23 * 60 * 60 * 1000,
+    );
   });
 
   it('writes the conversations’ row with the conversation delete, attachments counted', async () => {
