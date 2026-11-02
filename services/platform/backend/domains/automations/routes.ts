@@ -671,12 +671,10 @@ export function createAutomationRoutes(deps: {
         ...(display?.i18n !== undefined && { i18n: display.i18n }),
         ...(def.connector?.scenarios?.length && {
           scenarios: def.connector.scenarios.map(
-            ({ name, kind, description, when }) => ({
-              name,
-              kind,
-              description,
-              ...(when !== undefined && { when: { ...when } }),
-            }),
+            ({ name, kind, description, when }) =>
+              when === undefined
+                ? { name, kind, description }
+                : { name, kind, description, when: { ...when } },
           ),
         }),
       });
