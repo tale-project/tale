@@ -46,8 +46,8 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # not fail on the index alone; another Incus version still fails, listing what
 # the index has now.
 readonly ZABBLY_KEY_FINGERPRINT=4EFC590696CB15B87C73A3AD82CC8797C838DCFD
-readonly INCUS_VERSION_NOBLE="${INCUS_VERSION_NOBLE:-1:7.5.1-ubuntu24.04-202610270033}"
-readonly INCUS_VERSION_RESOLUTE="${INCUS_VERSION_RESOLUTE:-1:7.5.1-ubuntu26.04-202610262256}"
+readonly INCUS_VERSION_NOBLE="${INCUS_VERSION_NOBLE:-1:7.6-ubuntu24.04-202611011745}"
+readonly INCUS_VERSION_RESOLUTE="${INCUS_VERSION_RESOLUTE:-1:7.6-ubuntu26.04-202611011751}"
 # The CNCF distribution registry, by digest.
 readonly REGISTRY_IMAGE='ghcr.io/distribution/distribution:3.0.0@sha256:4ba3adf47f5c866e9a29288c758c5328ef03396cb8f5f6454463655fa8bc83e2'
 
@@ -158,7 +158,7 @@ install_incus() {
   # Read whole, then searched: `grep -q` leaving early would fail the pipe.
   builds="$(apt-cache madison incus)"
   if ! grep -qF "| $version |" <<<"$builds"; then
-    # The pin without its build stamp: `1:7.5.1-ubuntu26.04`.
+    # The pin without its build stamp: `1:7.6-ubuntu26.04`.
     upstream="${version%-*}"
     newest="$(awk -F'|' -v prefix="$upstream-" '{ gsub(/ /, "", $2) } index($2, prefix) == 1 { print $2 }' <<<"$builds" | sort -V | tail -n 1)"
     if [ -z "$newest" ]; then
