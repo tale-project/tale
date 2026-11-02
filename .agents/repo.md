@@ -772,6 +772,12 @@ xlsx,odt}.ts`) still reach the catch-all as `failed` + `indexer_error` and are r
   their only writers (four project-settings routes no screen called) and every reader, the
   mention directory's legacy agent allow-list included (2026-09-27). Paying it down means a
   `DROP COLUMN` migration one release after every image has stopped selecting them.
+- **`user_preferences.onboarding_completed` is retired, not dropped** — the setup wizard set it
+  when a person left its last step, and nothing ever read it; the wizard's write, the
+  `/api/app/user-preferences/onboarding-completed` route and the `onboardingCompleted`
+  preference field are gone (2026-11, #5213). Rows written before keep a value nothing selects,
+  and the previous image still selects and writes the column while a deployment rolls. Paying
+  it down means a `DROP COLUMN` migration one release after every image has stopped selecting it.
 - **Nothing in the schema forbids a door string in `usage_ledger.user_id`** — rule 2 of the
   governance contract is enforced by the resolver and its tests only, because rows booked before
   2026-09 carry `user:` / `api-key:` forms and the previous image writes them mid-roll. Paying it

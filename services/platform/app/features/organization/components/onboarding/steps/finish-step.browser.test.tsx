@@ -51,11 +51,7 @@ function tree() {
         `Step ${current} of ${total}: ${label}`
       }
     >
-      <FinishStep
-        onFinishTo={() => {}}
-        providerConnected={false}
-        organizationId="org-1"
-      />
+      <FinishStep onFinishTo={() => {}} organizationId="org-1" />
     </Wizard>
   );
 }
