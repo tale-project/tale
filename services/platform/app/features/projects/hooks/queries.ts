@@ -21,7 +21,7 @@ import {
   backendKey,
   projectCapabilityCatalogKey,
 } from '@/app/lib/backend/query-keys';
-import { readStateOf } from '@/app/lib/backend/read-state';
+import { readStateOf, type ReadState } from '@/app/lib/backend/read-state';
 import { PROVIDER_CREDENTIAL_HINT_ENTITY } from '@/lib/shared/hint-entities';
 
 /**
@@ -161,8 +161,9 @@ export function projectsOverviewArgs(
 
 /**
  * The projects LIST page's data, one page of projects at a time, newest
- * first, each with its at-a-glance rollups. Separate from `useProjects` — the
- * plain list is on the chat hot path and must not pay for these walks.
+ * first, each with its at-a-glance rollups. Separate from the pickers' reads
+ * ({@link useProjectChoices}) — they are on the chat hot path and must not pay
+ * for these walks.
  *
  * `loadMore` asks for the next page; a failed read is the list's to show
  * (`error`, with `retry`), never "no projects yet" (2026-09-26 evaluation,
@@ -185,36 +186,6 @@ export function useProjectsOverview(
   };
 }
 
-/**
- * The organization's projects, with how the read stands (`readStateOf`): a
- * read that failed is no empty list, and never makes a project seem deleted
- * (#4605).
- */
-export function useProjects(
-  organizationId: string,
-  options?: { includeArchived?: boolean },
-) {
-  const query = useBackendQuery('projects/queries:listProjects', {
-    organizationId,
-    includeArchived: options?.includeArchived,
-  });
-  const { refetch } = query;
-  const retry = useCallback(() => {
-    void refetch();
-  }, [refetch]);
-  return {
-    projects: query.data ?? [],
-    isLoading: query.isLoading,
-    error: query.isError,
-    isRetrying: query.isFetching,
-    ...readStateOf(query),
-    retry,
-    // Whether the list has answered: a first read held back while the
-    // browser is offline is not `isLoading`, and no empty list either.
-    hasAnswer: query.data !== undefined,
-  };
-}
-
 /** A project as a picker offers it and a screen names it. */
 export type ProjectChoice = ItemOf<'projects/queries:searchProjects'>;
 
@@ -224,8 +195,8 @@ const NO_PROJECT_CHOICES: readonly ProjectChoice[] = [];
  * What a project picker offers for what was typed — the project breadcrumb
  * switcher: Home's navigator page (the pinned first) and, while that page
  * does not hold every project, the server's name search for the typed text,
- * debounced — never the whole list {@link useProjects} reads, however many
- * projects the organization has (#5194). No archived project is offered.
+ * debounced — never every project the caller can read, however many the
+ * organization has (#5194, #5205). No archived project is offered.
  * The read stands as the page's does (`readStateOf`): a failed search offers
  * the page alone. `isDone` says whether the page holds every project.
  */
@@ -276,17 +247,28 @@ export interface NamedProjects {
   projects: ReadonlyMap<string, ProjectChoice>;
   /** A named project is still being read. */
   isPending: boolean;
+  /** The named projects whose read failed: nothing is known of them, and a
+   * read that failed proves none of them gone (#4605). */
+  unread: ReadonlySet<string>;
+  /** How the reads of the `unread` projects stand (`readStateOf`):
+   * `unavailable` while there is one, `retrying` while one is read again. */
+  read: Pick<ReadState, 'unavailable' | 'retrying' | 'failureCount'>;
+  /** Reads each `unread` project again. */
+  retry: () => void;
 }
 
 interface ProjectsById {
   rows: ProjectChoice[];
   isPending: boolean;
+  /** How each read stands, in the order its id was asked. */
+  states: ReadState[];
+  refetches: (() => unknown)[];
 }
 
 /**
  * The projects a screen names by id (the projects an automation is bound
- * to, the one a dialog targets), never the whole list {@link useProjects}
- * reads (#5204). Home's navigator page answers the ones it holds: the read
+ * to, the one a dialog targets, the ones budget rules cap), never every
+ * project the caller can read (#5204, #5205). Home's navigator page answers the ones it holds: the read
  * {@link useProjectChoices} makes, so a screen with both makes it once.
  * Each id the page lacks is read on its own, under the key the project's
  * own pages read it by. No ids, no read.
@@ -321,6 +303,8 @@ export function useNamedProjects(
     ): ProjectsById => ({
       rows: results.flatMap((result) => (result.data ? [result.data] : [])),
       isPending: results.some((result) => result.isPending),
+      states: results.map((result) => readStateOf(result)),
+      refetches: results.map((result) => result.refetch),
     }),
     [],
   );
@@ -336,11 +320,29 @@ export function useNamedProjects(
       if (named.has(project._id)) projects.set(project._id, project);
     }
     for (const project of byId.rows) projects.set(project._id, project);
+    const unread = new Set<string>();
+    const failed: (() => unknown)[] = [];
+    let retrying = false;
+    let failureCount = 0;
+    byId.states.forEach((state, index) => {
+      failureCount += state.failureCount;
+      const projectId = pastPage[index];
+      if (!state.unavailable || projectId === undefined) return;
+      unread.add(projectId);
+      retrying ||= state.retrying;
+      const refetch = byId.refetches[index];
+      if (refetch !== undefined) failed.push(refetch);
+    });
     return {
       projects,
       isPending: signature !== '' && (!pageSettled || byId.isPending),
+      unread,
+      read: { unavailable: unread.size > 0, retrying, failureCount },
+      retry: () => {
+        for (const refetch of failed) void refetch();
+      },
     };
-  }, [signature, onPage, pageSettled, byId]);
+  }, [signature, onPage, pageSettled, pastPage, byId]);
 }
 
 /**

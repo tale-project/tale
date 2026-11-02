@@ -15,8 +15,8 @@ import { BarChart3 } from 'lucide-react';
 import { useCallback, useEffect } from 'react';
 import { z } from 'zod';
 
-import { useProjects } from '@/app/features/projects/hooks/queries';
 import { asProjectId } from '@/app/features/projects/hooks/use-project-id-param';
+import { useProjectSelect } from '@/app/features/projects/hooks/use-project-select';
 import { SettingsPage } from '@/app/features/settings/components/settings-page';
 import { ProjectMetricsPage } from '@/app/features/tasks/components/project-metrics-page';
 import { useT } from '@/lib/i18n/client';
@@ -48,13 +48,7 @@ function ProjectsMetricsRoute() {
   const { t } = useT('metrics');
   const { t: tTasks } = useT('tasks');
 
-  const { projects, isLoading: projectsLoading } = useProjects(organizationId);
   const periodDays: MetricsPeriodDays = parseMetricsPeriodDays(period);
-
-  const projectOptions = projects.map((p) => ({
-    value: p._id,
-    label: p.name,
-  }));
 
   const selectedProjectId = projectParam
     ? asProjectId(projectParam)
@@ -75,6 +69,17 @@ function ProjectsMetricsRoute() {
     [navigate, organizationId],
   );
 
+  // Home's page of projects and, for what is typed, the server's search past
+  // it — never every project (#5205); a scoped project past the page is read
+  // by id, so the picker names it.
+  const select = useProjectSelect({
+    organizationId,
+    value: selectedProjectId ?? null,
+    onValueChange: handleSelectProject,
+  });
+  const projectsLoading =
+    select.choices.isLoading || select.valueStatus === 'reading';
+
   const handleChangePeriod = useCallback(
     (next: MetricsPeriodDays) => {
       void navigate({
@@ -92,11 +97,12 @@ function ProjectsMetricsRoute() {
 
   // The one project in a single-project org is the scope — an empty pane behind
   // a picker teaches nothing. Runs as an effect (not a redirect in the loader)
-  // because the project list is a live client query.
+  // because the project list is a live client query. Only a page that holds
+  // every project can tell that there is one.
   const autoScopeId = soleScopeValue(
-    projectOptions,
+    select.options,
     selectedProjectId,
-    projectsLoading,
+    select.choices.isDone !== true,
   );
   useEffect(() => {
     if (autoScopeId) handleSelectProject(autoScopeId);
@@ -105,9 +111,10 @@ function ProjectsMetricsRoute() {
   const scopeSelect = (
     <MetricsScopeSelect
       label={t('projects.selectLabel')}
-      options={projectOptions}
+      options={select.options}
       value={selectedProjectId}
-      onValueChange={handleSelectProject}
+      onValueChange={select.onValueChange}
+      onSearchChange={select.onSearchChange}
       placeholder={t('projects.selectPlaceholder')}
       searchPlaceholder={t('projects.searchPlaceholder')}
       emptyText={t('projects.searchEmpty')}

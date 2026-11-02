@@ -35,7 +35,7 @@ import {
 // Wire rows (what the pg backend answers) + 0.4-shape projections
 // ---------------------------------------------------------------------------
 
-export type ProjectListItem = ItemOf<'projects/queries:listProjects'>;
+export type ProjectListItem = ItemOf<'projects/queries:searchProjects'>;
 type ProjectDetail = NonNullable<ReturnsOf<'projects/queries:getProject'>>;
 type ProjectOverviewItem =
   ReturnsOf<'projects/queries:listProjectsOverview'>['page'][number];
@@ -416,21 +416,6 @@ export function searchProjectsQuery(args: {
 }
 
 export const projectReadAdapters: Record<string, ReadAdapter> = {
-  'projects/queries:listProjects': (args, ctx) => {
-    const orgId = orgOf(args, ctx);
-    if (orgId === undefined) return null;
-    const includeArchived = args.includeArchived === true;
-    return {
-      queryKey: backendKey(orgId, 'project', 'list', includeArchived),
-      queryFn: () =>
-        backendFetch<{ projects: ProjectWire[] }>(
-          `/projects?includeArchived=${includeArchived}&summary=true`,
-          { orgId },
-        ).then((body): ProjectListItem[] =>
-          body.projects.map(projectSummaryView),
-        ),
-    };
-  },
   'projects/queries:getProject': (args, ctx) => {
     const orgId = orgOf(args, ctx);
     const projectId = args.projectId;

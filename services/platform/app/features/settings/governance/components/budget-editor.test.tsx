@@ -38,7 +38,10 @@ const failing = vi.hoisted(() => ({
   apiKeys: false,
 }));
 const refetch = vi.hoisted(() => ({
+  /** Home's page of projects. */
   projects: vi.fn(),
+  /** A project read by id. */
+  project: vi.fn(),
   teams: vi.fn(),
   apiKeys: vi.fn(),
 }));
@@ -135,15 +138,29 @@ const STABLE_API_KEYS = {
     },
   ] as unknown[],
 };
-// The projects a project rule can cap, archived ones included: the table
-// still names the project a saved rule caps after it was archived.
-const STABLE_PROJECTS = {
-  data: [
-    { _id: 'project-1', name: 'Website relaunch' },
-    { _id: 'project-2', name: 'Annual report' },
-    { _id: 'project-old', name: 'Old campaign', archivedAt: 1 },
-  ] as unknown[],
+// The projects a project rule can cap. Home's page holds every active one
+// (no server search is needed); an archived project is read by id, so the
+// table still names the project a saved rule caps after it was archived, and
+// a project read by id that answers nothing is gone.
+const PROJECTS_BY_ID: Record<string, unknown> = {
+  'project-1': { _id: 'project-1', name: 'Website relaunch' },
+  'project-2': { _id: 'project-2', name: 'Annual report' },
+  'project-old': { _id: 'project-old', name: 'Old campaign', archivedAt: 1 },
+};
+const ANSWERED = {
   isLoading: false,
+  isPending: false,
+  isError: false,
+  isFetching: false,
+  errorUpdateCount: 0,
+};
+const STABLE_PROJECTS = {
+  ...ANSWERED,
+  data: {
+    projects: [PROJECTS_BY_ID['project-1'], PROJECTS_BY_ID['project-2']],
+    isDone: true,
+  },
+  refetch: refetch.projects,
 };
 // A read that settled in error without ever answering, as react-query hands
 // it back: no data, and a failure counted.
@@ -155,18 +172,56 @@ const FAILED_READ = {
   errorUpdateCount: 1,
 };
 const FAILED_PROJECTS = { ...FAILED_READ, refetch: refetch.projects };
+const FAILED_PROJECT = { ...FAILED_READ, refetch: refetch.project };
 const FAILED_API_KEYS = { ...FAILED_READ, refetch: refetch.apiKeys };
 const backendQueryRefs = vi.hoisted(() => [] as unknown[]);
+/** Each project read by id, as react-query hands it back: one object per
+ *  project and outcome, as the hook's results hold until the data changes. */
+const projectReads = new Map<string, unknown>();
+function projectRead(projectId: string): unknown {
+  const key = `${failing.projects}:${projectId}`;
+  if (!projectReads.has(key)) {
+    projectReads.set(
+      key,
+      failing.projects
+        ? FAILED_PROJECT
+        : {
+            ...ANSWERED,
+            data: PROJECTS_BY_ID[projectId] ?? null,
+            refetch: refetch.project,
+          },
+    );
+  }
+  return projectReads.get(key);
+}
+/** What `combine` made of the same reads, kept as react-query keeps it. */
+const combinedReads = new Map<string, unknown>();
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: (ref: unknown) => {
     backendQueryRefs.push(ref);
-    if (ref === 'projects/queries:listProjects') {
+    if (ref === 'projects/queries:listSidebarProjects') {
       return failing.projects ? FAILED_PROJECTS : STABLE_PROJECTS;
     }
     if (ref === 'governance/api_keys:listOrgApiKeys') {
       return failing.apiKeys ? FAILED_API_KEYS : STABLE_API_KEYS;
     }
     return { data: undefined, isLoading: false };
+  },
+  useBackendQueries: (
+    ref: unknown,
+    argsList: readonly { projectId: string }[],
+    combine: (results: unknown[]) => unknown,
+  ) => {
+    backendQueryRefs.push(ref);
+    if (ref !== 'projects/queries:getProject') {
+      throw new Error(`No reads by id of ${String(ref)}`);
+    }
+    const ids = argsList.map((args) => args.projectId);
+    const key = `${failing.projects}:${ids.join(',')}`;
+    if (!combinedReads.has(key)) {
+      combinedReads.set(key, combine(ids.map(projectRead)));
+    }
+    return combinedReads.get(key);
   },
 }));
 
@@ -245,6 +300,7 @@ function readAllTargets() {
   failing.teams = false;
   failing.apiKeys = false;
   refetch.projects.mockClear();
+  refetch.project.mockClear();
   refetch.teams.mockClear();
   refetch.apiKeys.mockClear();
 }
@@ -916,7 +972,8 @@ describe('BudgetEditor', () => {
 
     // A project list that failed to load is not an empty one: it proves
     // nothing about the project a rule caps, which may well exist — and the
-    // server still enforces the rule (#4605).
+    // server still enforces the rule (#4605). Here Home's page and every
+    // project read by id fail.
     describe('when the project list fails to load (#4605)', () => {
       afterEach(readAllTargets);
 
@@ -933,8 +990,9 @@ describe('BudgetEditor', () => {
         ).toBeInTheDocument();
         expect(screen.getByText("Couldn't load projects.")).toBeInTheDocument();
 
+        // The table names the rule's project by id once that read answers.
         await user.click(screen.getByRole('button', { name: 'Try again' }));
-        expect(refetch.projects).toHaveBeenCalledTimes(1);
+        expect(refetch.project).toHaveBeenCalledTimes(1);
       });
 
       it('hands the focus to the table once the list answers', async () => {
@@ -977,8 +1035,10 @@ describe('BudgetEditor', () => {
         const picker = dialog.getByRole('button', { name: /Project/ });
         expect(picker).toHaveTextContent('Project not loaded');
 
+        // The field reads the page it offers again, and its project by id.
         await user.click(dialog.getByRole('button', { name: 'Try again' }));
         expect(refetch.projects).toHaveBeenCalledTimes(1);
+        expect(refetch.project).toHaveBeenCalledTimes(1);
 
         await user.click(picker);
         const list = within(await screen.findByRole('listbox'));

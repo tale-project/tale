@@ -6,7 +6,7 @@ import { Select } from '@tale/ui/select';
 import { Skeletonize } from '@tale/ui/skeleton-context';
 import { useMemo, type ReactNode } from 'react';
 
-import { useProjects } from '@/app/features/projects/hooks/queries';
+import { useProjectSelect } from '@/app/features/projects/hooks/use-project-select';
 import { useOrgMembersForPicker } from '@/app/features/settings/governance/hooks/queries';
 import { useOrgTeams } from '@/app/features/settings/teams/hooks/queries';
 import { readStateOf, type ReadState } from '@/app/lib/backend/read-state';
@@ -382,22 +382,18 @@ function ProjectPicker({
   onChange: (projectId: string) => void;
 } & TargetPickerState) {
   const { t } = useT('settings');
-  const { projects, hasAnswer, unavailable, retrying, failureCount, retry } =
-    useProjects(organizationId);
-  const options = useMemo(
-    () =>
-      projects
-        // An archived project takes no new keys.
-        .filter((project) => !project.archivedAt)
-        .map((project) => ({ value: project._id, label: project.name })),
-    [projects],
-  );
+  // Home's page and, for what is typed, the server's search past it — never
+  // every project (#5205). Neither offers an archived project: an archived
+  // project takes no new keys.
+  const select = useProjectSelect({
+    organizationId,
+    value: value || null,
+    onValueChange: onChange,
+  });
+  // The field is ready once Home's page answered.
   const read: TargetListRead = {
-    answered: hasAnswer,
-    unavailable,
-    retrying,
-    failureCount,
-    retry,
+    answered: select.choices.isDone !== undefined,
+    ...select.read,
   };
   return (
     <TargetListField
@@ -411,7 +407,7 @@ function ProjectPicker({
         placeholder={t('apiKeys.form.projectPlaceholder')}
         searchPlaceholder={t('apiKeys.form.projectSearch')}
         emptyText={
-          options.length === 0
+          select.options.length === 0
             ? t('apiKeys.form.projectEmpty')
             : t('apiKeys.form.projectNoMatch')
         }
@@ -419,8 +415,9 @@ function ProjectPicker({
         required
         disabled={!read.answered}
         value={value || null}
-        onValueChange={onChange}
-        options={options}
+        onValueChange={select.onValueChange}
+        onSearchChange={select.onSearchChange}
+        options={select.options}
       />
     </TargetListField>
   );

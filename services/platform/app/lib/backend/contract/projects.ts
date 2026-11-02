@@ -304,11 +304,6 @@ export interface ProjectsContract {
     args: { organizationId: string; projectId: string };
     returns: Array<{ _id: string; name: string; parentId: undefined | string }>;
   };
-  'projects/queries:listProjects': {
-    kind: 'query';
-    args: { includeArchived?: boolean; organizationId: string };
-    returns: ProjectSummary[];
-  };
   /** The projects list, one page at a time: newest first. */
   'projects/queries:listProjectsOverview': {
     kind: 'query';

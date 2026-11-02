@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { renderHook, waitFor } from '@/tests/utils/render';
+import { act, renderHook, waitFor } from '@/tests/utils/render';
 
 import { PROJECT_SEARCH_DEBOUNCE_MS } from '../lib/project-choices';
 import { useNamedProjects, useProjectChoices } from './queries';
@@ -36,6 +36,8 @@ let gets: string[] = [];
 let pageIsDone = false;
 /** Whether the navigator's page is refused. */
 let pageFails = false;
+/** The projects whose read by id is refused. */
+let refusedIds = new Set<string>();
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -46,6 +48,7 @@ function json(body: unknown, status = 200): Response {
 
 /** `GET /projects/:id`: the project, or 404 for one gone or out of reach. */
 function projectById(id: string): Response {
+  if (refusedIds.has(id)) return json({ error: 'BAD_REQUEST' }, 400);
   const project = [...PAGE, ...PAST_PAGE].find((row) => row.id === id);
   if (project === undefined) return json({ error: 'NOT_FOUND' }, 404);
   return json({
@@ -108,6 +111,7 @@ beforeEach(() => {
   gets = [];
   pageIsDone = false;
   pageFails = false;
+  refusedIds = new Set();
   window.__ENV__ = { BASE_PATH: '' };
   vi.spyOn(window, 'fetch').mockImplementation((input) => {
     const url = new URL(
@@ -205,7 +209,42 @@ describe('useNamedProjects', () => {
     });
     await waitFor(() => expect(result.current.isPending).toBe(false));
     expect(result.current.projects.size).toBe(0);
+    // The read answered: the project is gone, not unread.
+    expect(result.current.unread.size).toBe(0);
+    expect(result.current.read.unavailable).toBe(false);
     expect(gets).toEqual([PAGE_READ, '/api/app/projects/p-404?orgId=org-1']);
+  });
+
+  it('tells a read that failed from a project that is gone, and reads it again', async () => {
+    refusedIds.add('p-150');
+    const { result } = renderHook(
+      () => useNamedProjects('org-1', ['p-150', 'p-404']),
+      { wrapper },
+    );
+    await waitFor(() => expect(result.current.isPending).toBe(false));
+    // A read that failed proves nothing: the project is unread, never gone
+    // (#4605).
+    expect(result.current.projects.size).toBe(0);
+    expect([...result.current.unread]).toEqual(['p-150']);
+    expect(result.current.read).toMatchObject({
+      unavailable: true,
+      failureCount: 1,
+    });
+
+    refusedIds.clear();
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.read.unavailable).toBe(false));
+    expect(names(result.current.projects)).toEqual({
+      'p-150': 'Project 150',
+    });
+    expect(result.current.unread.size).toBe(0);
+    // Only the read that failed is read again.
+    expect(gets).toEqual([
+      PAGE_READ,
+      '/api/app/projects/p-150?orgId=org-1',
+      '/api/app/projects/p-404?orgId=org-1',
+      '/api/app/projects/p-150?orgId=org-1',
+    ]);
   });
 
   it('reads each id on its own when the page cannot be read', async () => {

@@ -27,7 +27,13 @@ vi.mock('@/app/features/projects/hooks/queries', async (importOriginal) => ({
   ...(await importOriginal<
     typeof import('@/app/features/projects/hooks/queries')
   >()),
-  useNamedProjects: () => ({ projects: new Map(), isPending: false }),
+  useNamedProjects: () => ({
+    projects: new Map(),
+    isPending: false,
+    unread: new Set(),
+    read: { unavailable: false, retrying: false, failureCount: 0 },
+    retry: () => undefined,
+  }),
 }));
 vi.mock(
   '@/app/features/settings/agent-connections/hooks/queries',
