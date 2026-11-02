@@ -3398,7 +3398,10 @@ describe('ChatSurface — the skills a conversation uses [CHAT-R29]', () => {
     vi.mocked(useComposerModels).mockReturnValue(READY_MODELS);
     vi.mocked(useComposerSkills).mockReturnValue({
       enabled: true,
-      skills: [{ slug: 'docx' }, { slug: 'pdf' }],
+      skills: [
+        { slug: 'docx', origin: 'builtin' },
+        { slug: 'pdf', origin: 'builtin' },
+      ],
     });
     const save = vi.fn();
     vi.mocked(useConversationSkills).mockReturnValue({ save });
@@ -3455,7 +3458,10 @@ describe('ChatSurface — the skills a conversation uses [CHAT-R29]', () => {
     vi.mocked(useComposerModels).mockReturnValue(READY_MODELS);
     vi.mocked(useComposerSkills).mockReturnValue({
       enabled: true,
-      skills: [{ slug: 'docx' }, { slug: 'pdf' }],
+      skills: [
+        { slug: 'docx', origin: 'builtin' },
+        { slug: 'pdf', origin: 'builtin' },
+      ],
     });
     vi.mocked(useChatSend).mockReturnValue({
       available: true,
@@ -3503,7 +3509,7 @@ describe('ChatSurface — the skills a conversation uses [CHAT-R29]', () => {
     vi.mocked(useComposerModels).mockReturnValue(READY_MODELS);
     vi.mocked(useComposerSkills).mockReturnValue({
       enabled: true,
-      skills: [{ slug: 'docx' }],
+      skills: [{ slug: 'docx', origin: 'builtin' }],
     });
     vi.mocked(useChatThreads).mockReturnValue({
       ...LAST_THREAD_PAGE,
@@ -3573,7 +3579,7 @@ describe('ChatSurface — the skills a conversation uses [CHAT-R29]', () => {
     });
     vi.mocked(useComposerSkills).mockReturnValue({
       enabled: true,
-      skills: [{ slug: 'xlsx' }],
+      skills: [{ slug: 'xlsx', origin: 'builtin' }],
     });
     vi.mocked(useChatSend).mockReturnValue({
       available: true,
@@ -3619,7 +3625,7 @@ describe('ChatSurface — the skills a conversation uses [CHAT-R29]', () => {
     });
     vi.mocked(useComposerSkills).mockReturnValue({
       enabled: true,
-      skills: [{ slug: 'xlsx' }],
+      skills: [{ slug: 'xlsx', origin: 'builtin' }],
     });
     const save = vi.fn();
     vi.mocked(useConversationSkills).mockReturnValue({ save });
