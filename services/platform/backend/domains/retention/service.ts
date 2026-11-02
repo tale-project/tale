@@ -1799,9 +1799,12 @@ async function sweepTempFileSource(
   }
   const cutoff = Date.now() - hours * 60 * 60 * 1000;
   const protectedIds = [...holds.userMembershipIds];
+  // A document web_fetch kept for a conversation is held as an attachment
+  // is, so the window of the person's uploads takes it too (FILE-R10).
+  const sources = source === 'user' ? ['user', 'web'] : [source];
   const rows = await sql<{ id: string; storageRef: string }[]>`
     SELECT id, storage_ref AS "storageRef" FROM app.file_metadata
-    WHERE org_id = ${org.organizationId} AND source = ${source}
+    WHERE org_id = ${org.organizationId} AND source = ANY(${sources})
       AND document_id IS NULL AND created_at_ms < ${cutoff}
       AND (${protectedIds.length === 0}
            OR uploaded_by IS NULL OR uploaded_by <> ALL(${protectedIds}))

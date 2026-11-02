@@ -94,6 +94,17 @@ describe('chatToolContextForTurn — the executor’s scope boundary', () => {
     expect(context.projectId).toBeNull();
     expect(Object.keys(context)).toContain('projectId');
   });
+
+  it('hands web_fetch the keeper of fetched documents, and none when the turn has none [FILE-R10]', () => {
+    const keepFetchedDocument = vi.fn();
+    expect(
+      chatToolContextForTurn({ ...who, projectId: null, keepFetchedDocument })
+        .keepFetchedDocument,
+    ).toBe(keepFetchedDocument);
+    expect(
+      chatToolContextForTurn({ ...who, projectId: null }),
+    ).not.toHaveProperty('keepFetchedDocument');
+  });
 });
 
 /**

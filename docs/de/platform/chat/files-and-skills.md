@@ -16,7 +16,7 @@ Der Assistent wählt den leichtesten Weg, der zum Ziel führt, und startet nicht
 | Eine Antwort, eine Vergleichstabelle, einen kurzen Codeblock | Antwortet direkt | Nichts |
 | Eine Markdown-, CSV-, JSON-, HTML- oder SVG-Datei, einen Kalendereintrag (`.ics`) oder eine Kontaktkarte (`.vcf`) | Schreibt die Datei selbst | Nichts |
 | Ein Bild: eine Illustration, eine fotoähnliche Szene, ein Logo | Erzeugt ein Bild | Das Bildmodell deiner Organisation, wenn die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) eingeschaltet ist |
-| Eine Word-, Excel-, PowerPoint- oder PDF-Datei, ein Diagramm, eine Berechnung mit Daten, eine Änderung an einer angehängten Datei | Führt Code in einer leichten Sandbox aus | Eine leichte Sandbox, in etwa einer Sekunde |
+| Eine Word-, Excel-, PowerPoint- oder PDF-Datei, ein Diagramm, eine Berechnung mit Daten, eine Änderung an einer angehängten oder verlinkten Datei | Führt Code in einer leichten Sandbox aus | Eine leichte Sandbox, in etwa einer Sekunde |
 | Arbeit an einem Repository, in einer Browsersitzung oder über Stunden | Schlägt eine [Projektaufgabe](/de/platform/projects/tasks) vor | Im Chat nichts; der Agent der Aufgabe arbeitet in seiner eigenen Sandbox |
 
 Eine Datei, die geprüft, mit anderer Arbeit aufbewahrt oder erst später erstellt werden soll, gehört in eine Aufgabe: Der [Standard-Agent](/de/platform/projects/project-agents#standard-agent-runs) des Projekts nutzt dort dieselben Tools, und die Dateien, die er erstellt, werden zu den Ergebnisdateien der Aufgabe.
@@ -43,7 +43,7 @@ Die Dateien gehören zum Gespräch: Wer das Gespräch öffnen kann, kann auch se
 
 [Hänge die Datei an](/de/platform/chat/attachments) und sag, was sich ändern soll: „Füge der angehängten Tabelle ein Diagramm der Summen hinzu“ oder „Wandle das angehängte Word-Dokument in ein PDF um.“ Der Assistent kopiert die Datei in die leichte Sandbox und liefert das Ergebnis als neue Datei. Die angehängte Datei bleibt unverändert.
 
-Ein Dokument, auf das du nur verlinkst, liest der Assistent als Text. Er kopiert es nicht in die Sandbox und kann es über den Link nicht ändern: Lade die Datei herunter und hänge sie an.
+Eine PDF-, `.docx`-, `.xlsx`-, `.pptx`- oder `.odt`-Datei, auf die du verlinkst, lässt sich genauso ändern: Der Assistent liest das Dokument über den Link, behält die gelesene Datei in der Konversation und kopiert sie in die leichte Sandbox. Er arbeitet mit der Datei, wie er sie gelesen hat; eine spätere Änderung hinter dem Link erreicht sie nicht. Bitte ihn, den Link erneut zu lesen, um die neuere Version zu bekommen. Die behaltene Datei zählt wie ein Anhang zum Speicher deiner Organisation, und ihr Inhalt gilt als Inhalt aus dem Web, nie als deine Anweisung. Dafür muss unter [Chat-Tools](/de/platform/admin/governance/policies-and-limits#chat-tools) **Code** eingeschaltet sein; ohne Code, oder wenn sich die Datei nicht behalten ließ, hat der Assistent nur den Text des Dokuments: Lade die Datei herunter und hänge sie an.
 
 Ein angehängtes Bild kann auch der Ausgangspunkt für ein neues Bild sein, wenn deine Organisation die [Bildgenerierung](/de/platform/admin/governance/content-models#let-agents-generate-images) erlaubt. Schreib zum Beispiel: „Mach aus dem angehängten Foto ein Aquarell.“ Der Assistent gibt das Foto an das Bildmodell weiter, und das neue Bild erscheint unter der Antwort.
 
