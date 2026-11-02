@@ -145,7 +145,7 @@ with a verdict or an exit.
 A verdict compares this round's two replies. When a column holds a failed reply, an
 unanswered prompt, or no reply of this round at all, the verdict is refused and nothing is
 written. **Exit without verdict** works in every case and records no rating. What a verdict
-counts as is feedback's (`FDBK-R6`, `FDBK-R7`).
+counts as is feedback's (`FDBK-R6`, `FDBK-R7`, `FDBK-R8`).
 
 - **Example**: Model B's column shows a provider error. Mia picks A as the better reply →
   refused; she can only exit without a verdict.
