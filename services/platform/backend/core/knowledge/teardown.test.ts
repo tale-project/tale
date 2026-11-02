@@ -5,20 +5,22 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import type { Sql } from 'postgres';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { logger } from '../../../lib/knowledge/logger';
 import { closeKnowledgePools, setPoolFactory } from './pool';
 import { purgeCorpusForOrg } from './teardown';
 
 /**
  * The corpus is keyed by `org_slug`, so this purge is what makes a deleted
  * organization's slug safe to hand to a new tenant. Proven against a
- * recording pool: every statement runs inside ONE transaction and is bound
- * to the slug (or to the domains that slug held), the website rows are
- * locked before the "nobody else holds it" test, and a domain another
- * organization still holds is left alone. The SQL itself is exercised
- * against real Postgres in `backend/integration-check.ts`
- * (`checkOrganizationLifecycle`).
+ * recording pool: every statement that deletes runs inside ONE transaction
+ * and is bound to the slug (or to the domains that slug held), the website
+ * rows are locked before the "nobody else holds it" test, and a domain
+ * another organization still holds is left alone. The org's own vector
+ * indexes are dropped after that transaction, and a drop that fails leaves
+ * the purge standing. The SQL itself is exercised against real Postgres in
+ * `backend/integration-check.ts` (`checkOrganizationLifecycle`).
  */
 
 const DEFAULT_URL = 'postgresql://tale:pw@knowledge-db:5432/tale_knowledge';
@@ -29,7 +31,7 @@ interface Recorded {
   inTx: boolean;
 }
 
-type Answer = { rows?: unknown[]; count?: number };
+type Answer = { rows?: unknown[]; count?: number; fails?: Error };
 
 function recorder(answers: (text: string) => Answer = () => ({})): {
   sql: Sql;
@@ -43,7 +45,8 @@ function recorder(answers: (text: string) => Answer = () => ({})): {
     (text: string, params: unknown[] = []) => {
       const normalized = text.replace(/\s+/g, ' ').trim();
       sent.push({ text: normalized, params, inTx });
-      const { rows = [], count = 0 } = answers(normalized);
+      const { rows = [], count = 0, fails } = answers(normalized);
+      if (fails !== undefined) return Promise.reject(fails);
       return Promise.resolve(Object.assign([...rows], { count }));
     };
   const sql = {
@@ -103,18 +106,26 @@ describe('purgeCorpusForOrg', () => {
       websites: 0,
     });
     expect(begins()).toBe(1);
-    expect(sent.every((s) => s.inTx)).toBe(true);
-    expect(sent.map((s) => s.text.split(' WHERE')[0])).toEqual([
+    const purged = sent.filter((s) => s.inTx);
+    expect(purged.map((s) => s.text.split(' WHERE')[0])).toEqual([
       'DELETE FROM private_knowledge.chunks',
       'DELETE FROM private_knowledge.documents',
       'DELETE FROM private_knowledge.semantic_cache',
       'SELECT domain FROM public_web.website_org_memberships',
     ]);
     // Tenant binding: every statement names the slug and nothing else.
-    for (const statement of sent) {
+    for (const statement of purged) {
       expect(statement.text).toContain('org_slug = $1');
       expect(statement.params).toEqual(['acme']);
     }
+    // Then, outside the transaction, the org's own vector indexes — last.
+    expect(sent.slice(purged.length)).toEqual([
+      {
+        text: 'SELECT private_knowledge.drop_chunk_vectors_org_indexes($1)',
+        params: ['acme'],
+        inTx: false,
+      },
+    ]);
     // No website was held, so the domain-keyed tables were never touched.
     expect(sent.some((s) => /public_web\.websites/.test(s.text))).toBe(false);
   });
@@ -159,5 +170,29 @@ describe('purgeCorpusForOrg', () => {
     expect(sent[websites]?.text).toMatch(
       /NOT EXISTS \( SELECT 1 FROM public_web\.website_org_memberships m WHERE m\.domain = w\.domain \)/,
     );
+  });
+
+  it('keeps the purge when the org vector indexes cannot be dropped, and says so', async () => {
+    const { sql } = recorder((text) => {
+      if (text.startsWith('DELETE FROM private_knowledge.chunks'))
+        return { count: 5 };
+      if (text.includes('drop_chunk_vectors_org_indexes'))
+        return { fails: new Error('canceling statement due to lock timeout') };
+      return {};
+    });
+    setPoolFactory(() => sql);
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => undefined);
+    try {
+      const purge = await purgeCorpusForOrg('acme');
+
+      expect(purge.chunks).toBe(5);
+      expect(warn).toHaveBeenCalledWith(
+        expect.stringContaining(
+          'could not drop the approximate indexes of organization "acme" after its purge: canceling statement due to lock timeout',
+        ),
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

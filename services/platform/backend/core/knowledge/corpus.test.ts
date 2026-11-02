@@ -142,10 +142,10 @@ function partitionedCorpus(rows: {
 
 /**
  * The dense leg's plan follows the scope's size: an exact scan for a small
- * scope, so the shared approximate index can neither starve a small scope
- * with other organizations' rows nor let a cluster of identical vectors crowd
- * out nearer passages (2026-09-14 evaluation, h4); and both legs skip the
- * repeated passages the indexer marks.
+ * scope, so the approximate index can neither starve a small scope with rows
+ * outside it nor let a cluster of identical vectors crowd out nearer
+ * passages (2026-09-14 evaluation, h4); and both legs skip the repeated
+ * passages the indexer marks.
  */
 describe('the dense leg runs exactly for a small scope', () => {
   it('counts the scoped rows, then disables the index scan for the vector statement', async () => {
@@ -436,6 +436,22 @@ describe('the documents corpus is scoped to one organization', () => {
     expect(corpusStatements(sent)[0].text).toContain(
       'd.id = c.document_id AND d.org_slug = c.org_slug',
     );
+  });
+
+  it('names the organization on the vectors as well, for its own index [KNOW-R1]', async () => {
+    // Past the exact-scan bound the leg ranks on an approximate index, and an
+    // organization's is its own, over the vectors whose `org_slug` is its
+    // (knowledge-db migration 18). The organization on the vectors is what
+    // lets Postgres take that index, so the scan never walks another
+    // tenant's vectors.
+    const { sql, sent } = recorder([], 5_001);
+    await new DocumentCorpusReader(sql, 'acme', MODEL).dense({
+      ...LEG,
+      embedding: EMBEDDING,
+    });
+    const statement = corpusStatements(sent)[0];
+    expect(statement.text).toContain('v.org_slug = $2');
+    expect(statement.params[1]).toBe('acme');
   });
 
   it('takes the organization from its constructor, never from the query [KNOW-R1]', async () => {
@@ -880,6 +896,18 @@ describe('the web corpus is scoped by membership [KNOW-R1]', () => {
     expect(corpusStatements(acme.sent)[0].params).toContain('acme');
     expect(corpusStatements(globex.sent)[0].params).toContain('globex');
     expect(corpusStatements(acme.sent)[0].params).not.toContain('globex');
+  });
+
+  it('names no organization on the vectors, which every member shares', async () => {
+    // Only a document's vector carries its organization (knowledge-db
+    // migration 18): a page's has none to name, and a statement that named
+    // one would fail on the column and leave the leg without hits.
+    const { sql, sent } = recorder([], 5_001);
+    await new WebCorpusReader(sql, 'acme').dense({
+      ...LEG,
+      embedding: EMBEDDING,
+    });
+    expect(corpusStatements(sent)[0].text).not.toContain('v.org_slug');
   });
 });
 
