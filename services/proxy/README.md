@@ -96,6 +96,15 @@ since they carry meaning, and a backend that is routed but not answering gets Tr
 `502`. Edge-generated errors have no `X-Tale-Api-Version`, because the application did not produce
 them.
 
+A request body the client framed wrongly is the client's fault on every route: a malformed
+HTTP/1.1 chunked body gets `400` with `BODY_CHUNK_MALFORMED`, and an HTTP/2 body that ends before
+its `Content-Length` gets `400` with `BODY_LENGTH_MISMATCH`, both in the API's JSON envelope with
+an `X-Request-Id` of the edge's own. Traefik alone answers them as a failing service: `500`, or a
+`502` that reads as an outage. Both entrypoints therefore run a local Traefik plugin,
+`bodyfaults/`, after `tale-edge` and before every route's own middlewares. The image ships it and
+Traefik loads it at startup without downloading anything. A plugin that does not load stops the
+proxy, since every route runs it.
+
 On either public host, `/health` is the edge's own `OK` response. It stays green while the
 platform restarts. On the platform origin, use `/api/health` for platform liveness or
 `/status.json` for its public dependency report; check the response body, since an unknown
