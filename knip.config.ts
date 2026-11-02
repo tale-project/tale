@@ -190,6 +190,11 @@ export default {
         'src/lazy-docker-health.node-fixture.ts',
       ],
     },
+    'services/proxy': {
+      // tale-proxy runs the edge's renderer with the image's njs
+      // (`njs -n QuickJS -m render/main.js`), a path knip cannot follow.
+      entry: ['render/main.js'],
+    },
     'configs/platform/custom/skills/visual-aspect-analyzer': {
       // Self-contained Bun/TS skill bundle: a library with a public embed API
       // (src/bundle.ts + src/driver.ts), CLI entrypoints (src/analyze-cli.ts,
