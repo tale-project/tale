@@ -1,8 +1,10 @@
 import { DEFAULT_LIST_PAGE_SIZE } from '@tale/ui/use-list-page';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { MemberLookupTarget } from '@/app/features/settings/organization/hooks/member-lookup';
 import type { CompetenceRecordWire } from '@/app/lib/backend/contract/governance';
 import { checkAccessibility } from '@/tests/utils/a11y';
+import type { StandInMember } from '@/tests/utils/member-lookup-stand-in';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { CompetencesPage } from './competences-page';
@@ -27,6 +29,25 @@ function record(
     ...overrides,
   };
 }
+
+const MEMBERS: StandInMember[] = [
+  {
+    userId: 'user-worker',
+    displayName: 'Integration Worker',
+    email: 'worker@example.com',
+  },
+  { userId: 'user-admin', displayName: 'Office Admin' },
+];
+
+/** Whom the member lookup answered with — undefined while it runs, or once
+ * it has failed — whom the page asked it for, and every read the page made
+ * itself. */
+const lookup = vi.hoisted(() => ({
+  members: undefined as StandInMember[] | undefined,
+  fails: false,
+  asked: [] as MemberLookupTarget[],
+  reads: [] as string[],
+}));
 
 const state = vi.hoisted(() => ({
   /** `undefined` until the register has answered. */
@@ -58,18 +79,19 @@ vi.mock('../hooks/mutations', () => ({
   useGrantCompetence: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useUpdateCompetence: () => ({ mutateAsync: state.update, isPending: false }),
 }));
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({
-    members: [
-      {
-        userId: 'user-worker',
-        displayName: 'Integration Worker',
-        email: 'worker@example.com',
-      },
-      { userId: 'user-admin', displayName: 'Office Admin', email: undefined },
-    ],
-    isLoading: false,
-  }),
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => lookup.members,
+    lookup.asked,
+    { failed: () => lookup.fails },
+  ),
+);
+vi.mock('@/app/hooks/use-backend-query', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/app/hooks/use-backend-query')>()),
+  useBackendQuery: (name: string) => {
+    lookup.reads.push(name);
+    return { data: undefined, isLoading: false };
+  },
 }));
 vi.mock('@/app/features/settings/teams/hooks/queries', () => ({
   useOrgTeams: () => ({ teams: [], unavailable: false, failureCount: 0 }),
@@ -90,7 +112,20 @@ beforeEach(() => {
   state.error = null;
   state.canWrite = true;
   state.refetch.mockResolvedValue({});
+  lookup.members = MEMBERS;
+  lookup.fails = false;
+  lookup.asked.length = 0;
+  lookup.reads.length = 0;
 });
+
+/** The user ids the page asked the lookup for. */
+function askedFor() {
+  return new Set(
+    lookup.asked.map((target) =>
+      'userId' in target ? target.userId : target.handle,
+    ),
+  );
+}
 
 describe('CompetencesPage', () => {
   it('changes an active grant in place from its row [GOV-R18]', async () => {
@@ -543,5 +578,73 @@ describe('CompetencesPage', () => {
     state.records = [record({ id: 'live', evidence: 'Relays answers' })];
     render(<CompetencesPage organizationId="org-a" />);
     await checkAccessibility(document.body);
+  });
+});
+
+describe('CompetencesPage names from the member lookup [MEMBER-R11]', () => {
+  it('looks up the holders, grantors and revokers the grants name, and reads no member list', () => {
+    state.records = [
+      record({ id: 'live' }),
+      record({
+        id: 'ended',
+        userId: 'user-gone',
+        revokedAt: NOW - 1000,
+        revokedBy: 'user-revoker',
+      }),
+      record({ id: 'lapsed', revokedAt: NOW - 1000, revokedBy: 'system' }),
+      record({
+        id: 'team-grant',
+        userId: null,
+        teamId: 'team-billing',
+        teamName: 'Billing',
+        competence: 'tale:models.api',
+        grantedBy: 'user-lead',
+      }),
+    ];
+    render(<CompetencesPage organizationId="org-a" />);
+
+    expect(askedFor()).toEqual(
+      new Set([
+        'user-worker',
+        'user-admin',
+        'user-gone',
+        'user-revoker',
+        'user-lead',
+      ]),
+    );
+    expect(lookup.reads).not.toContain('members/queries:listByOrganization');
+  });
+
+  it('waits for the names before it lists the grants', () => {
+    lookup.members = undefined;
+    state.records = [record({ id: 'live' })];
+    const { rerender } = render(<CompetencesPage organizationId="org-a" />);
+
+    // No row flashes an id or "Former member" while the names are out.
+    expect(screen.queryByText('user-worker')).not.toBeInTheDocument();
+    expect(screen.queryByText('Former member')).not.toBeInTheDocument();
+    expect(screen.queryByText('Integration Worker')).not.toBeInTheDocument();
+
+    lookup.members = MEMBERS;
+    rerender(<CompetencesPage organizationId="org-a" />);
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(rows).toHaveLength(1);
+    expect(
+      within(rows[0]!).getByText('Integration Worker'),
+    ).toBeInTheDocument();
+    expect(within(rows[0]!).getByText('by Office Admin')).toBeInTheDocument();
+  });
+
+  it('lists the grants by id once the lookup has failed, never as former members', () => {
+    lookup.members = undefined;
+    lookup.fails = true;
+    state.records = [record({ id: 'live' })];
+    render(<CompetencesPage organizationId="org-a" />);
+
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(rows).toHaveLength(1);
+    expect(within(rows[0]!).getByText('user-worker')).toBeInTheDocument();
+    expect(within(rows[0]!).getByText('by user-admin')).toBeInTheDocument();
+    expect(screen.queryByText('Former member')).not.toBeInTheDocument();
   });
 });

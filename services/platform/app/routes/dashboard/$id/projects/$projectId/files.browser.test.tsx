@@ -133,16 +133,6 @@ vi.mock('@/app/features/documents/hooks/queries', async (importOriginal) => ({
 }));
 
 vi.mock(
-  '@/app/features/settings/organization/hooks/queries',
-  async (importOriginal) => ({
-    ...(await importOriginal<
-      typeof import('@/app/features/settings/organization/hooks/queries')
-    >()),
-    useMembers: () => ({ members: [] }),
-  }),
-);
-
-vi.mock(
   '@/app/features/settings/governance/hooks/queries',
   async (importOriginal) => ({
     ...(await importOriginal<

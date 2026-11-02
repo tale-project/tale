@@ -3,17 +3,18 @@ import '@testing-library/jest-dom/vitest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { BackendApiError } from '@/app/lib/backend/api-client';
+import type { StandInMember } from '@/tests/utils/member-lookup-stand-in';
 import { render, screen, waitFor, within } from '@/tests/utils/render';
 
 import { AutomationVersionsTab } from './automation-versions-tab';
 
 const ensure = vi.hoisted(() => vi.fn());
 const download = vi.hoisted(() => vi.fn());
-/** The automation's read, and the member directory's — what the real
- * `useMembers` reads — each answered or failed by a test. */
+/** The automation's read, answered or failed by a test, and whom the
+ * member lookup answered with — `undefined` once it has failed. */
 const reads = vi.hoisted(() => ({
   automation: {} as Record<string, unknown>,
-  members: {} as Record<string, unknown>,
+  members: undefined as StandInMember[] | undefined,
 }));
 const refetch = vi.hoisted(() => ({ automation: vi.fn(), members: vi.fn() }));
 
@@ -107,7 +108,7 @@ vi.mock('../hooks/queries', () => ({
     paginated([
       version(3),
       version(2),
-      // Saved by another member, whom only the directory can name.
+      // Saved by another member, whom only the lookup can name.
       version(1, { createdBy: 'user-ada' }),
     ]),
   useAutomationDeployments: () =>
@@ -151,12 +152,19 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await import('@/tests/utils/router-link-stub')).routerLinkStub,
   useNavigate: () => vi.fn(),
 }));
-// The member directory's own hook runs; only its read is answered here.
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => reads.members,
+    [],
+    {
+      failed: () => reads.members === undefined,
+      retry: () => refetch.members(),
+    },
+  ),
+);
+// Any other read the tab makes answers nothing.
 vi.mock('@/app/hooks/use-backend-query', () => ({
-  useBackendQuery: (name: string) =>
-    name === 'members/queries:listByOrganization'
-      ? reads.members
-      : answered(undefined, vi.fn()),
+  useBackendQuery: () => answered(undefined, vi.fn()),
 }));
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { userId: 'user-me' } }),
@@ -185,10 +193,9 @@ beforeEach(() => {
     { name: 'ops/digest', version: 3, latestVersion: 3, deployedVersion: 2 },
     refetch.automation,
   );
-  reads.members = answered(
-    [{ userId: 'user-ada', displayName: 'Ada Lovelace', email: 'ada@x.test' }],
-    refetch.members,
-  );
+  reads.members = [
+    { userId: 'user-ada', displayName: 'Ada Lovelace', email: 'ada@x.test' },
+  ];
 });
 
 describe('AutomationVersionsTab', () => {
@@ -246,7 +253,7 @@ describe('AutomationVersionsTab', () => {
     ).toBeVisible();
   });
 
-  it('names who saved each version from the member directory', () => {
+  it('names who saved each version, as the member lookup finds them', () => {
     renderTab();
     expect(
       within(screen.getByRole('row', { name: /^v1/ })).getByText(
@@ -274,8 +281,8 @@ describe('AutomationVersionsTab', () => {
     expect(refetch.automation).toHaveBeenCalledOnce();
   });
 
-  it('names an author as Someone, never a placeholder that waits forever, while the member directory read has failed', async () => {
-    reads.members = failed(refetch.members);
+  it('names an author as Someone, never a placeholder that waits forever, while the lookup of their name has failed', async () => {
+    reads.members = undefined;
     const { container, user } = renderTab();
     const saved = within(screen.getByRole('row', { name: /^v1/ }));
     expect(saved.getByText('Someone')).toBeVisible();

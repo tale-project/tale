@@ -1,4 +1,10 @@
-import type { UseQueryResult } from '@tanstack/react-query';
+import {
+  notifyManager,
+  type Query,
+  type QueryClient,
+  useQueryClient,
+  type UseQueryResult,
+} from '@tanstack/react-query';
 import { useCallback, useMemo, useState, useSyncExternalStore } from 'react';
 
 import { useBackendQueries } from '@/app/hooks/use-backend-query';
@@ -8,6 +14,8 @@ import {
   memberLookupKey,
   type MemberLookupTarget,
 } from '@/app/lib/backend/member-lookup-batch';
+import { readStateOf } from '@/app/lib/backend/read-state';
+import { memberLookupScope } from '@/app/lib/backend/settings';
 
 export type { MemberLookupTarget };
 
@@ -20,12 +28,18 @@ export interface MemberLookup {
   /** Whether the lookup has answered for this person yet, found or not. A
    * value no member could be answers at once: nobody. */
   answered: (target: MemberLookupTarget) => boolean;
+  /** Whether this person's lookup failed and has not answered since: no
+   * verdict on them, and nothing to wait for until a retry brings one
+   * ({@link useFailedMemberLookups}). */
+  failed: (target: MemberLookupTarget) => boolean;
 }
 
 interface LookupAnswer {
   members: LookedUpMember[];
   /** The keys (`memberLookupKey`) of the asks answered. */
   answered: string[];
+  /** The keys of the asks whose read failed without an answer. */
+  failed: string[];
 }
 
 function askOfKey(key: string): MemberLookupTarget {
@@ -43,19 +57,25 @@ function foldAnswers(
 ): LookupAnswer {
   const members = new Map<string, LookedUpMember>();
   const answered: string[] = [];
+  const failed: string[] = [];
   // Without an organization to read, no ask was sent.
-  if (results.length !== asks.length) return { members: [], answered };
+  if (results.length !== asks.length) return { members: [], answered, failed };
   asks.forEach((ask, index) => {
-    const data = results[index]?.data;
-    if (data === undefined) return;
+    const result = results[index];
+    if (result === undefined) return;
+    if (result.data === undefined) {
+      if (readStateOf(result).unavailable) failed.push(memberLookupKey(ask));
+      return;
+    }
     answered.push(memberLookupKey(ask));
-    for (const member of data) members.set(member.userId, member);
+    for (const member of result.data) members.set(member.userId, member);
   });
   return {
     members: [...members.values()].sort(
       (a, b) => a.createdAt - b.createdAt || a._id.localeCompare(b._id),
     ),
     answered,
+    failed,
   };
 }
 
@@ -101,11 +121,16 @@ export function useMemberLookup(
   );
   return useMemo(() => {
     const answered = new Set(answer.answered);
+    const failed = new Set(answer.failed);
     return {
       members: answer.members,
       answered: (target) => {
         const ask = memberLookupAsk(target);
         return ask === null || answered.has(memberLookupKey(ask));
+      },
+      failed: (target) => {
+        const ask = memberLookupAsk(target);
+        return ask !== null && failed.has(memberLookupKey(ask));
       },
     };
   }, [answer]);
@@ -196,4 +221,87 @@ export function useAskedMemberLookup(
     }),
     [lookup, store, organizationId],
   );
+}
+
+/** How the member lookups on screen that failed stand. */
+export interface FailedMemberLookups {
+  /** A person named on screen could not be looked up: their lookup settled
+   * in error and has not answered since. */
+  unavailable: boolean;
+  /** One of those lookups is running again. */
+  retrying: boolean;
+  /** The most times one of them has settled in error: a notice keyed on it
+   * is announced again for each retry that fails. */
+  failureCount: number;
+  /** Looks up again everyone whose lookup failed. */
+  retry: () => void;
+}
+
+function isFailedLookup(query: Query): boolean {
+  return query.state.data === undefined && query.state.errorUpdateCount > 0;
+}
+
+/** The lookups of an organization a mounted screen reads that never
+ * answered, and whose last attempt failed. */
+function failedLookups(client: QueryClient, organizationId: string): Query[] {
+  return client.getQueryCache().findAll({
+    queryKey: memberLookupScope(organizationId),
+    type: 'active',
+    predicate: isFailedLookup,
+  });
+}
+
+/**
+ * Whether a person named on screen could not be looked up, for the one
+ * notice that says so with **Try again**: each part of a screen looks up
+ * only the people it names, so no single read stands for them all. It
+ * reads the organization's lookups from the query cache and reads again on
+ * their events alone; every cache event still calls its listener, so it
+ * suits a notice a page renders once, never one per row.
+ */
+export function useFailedMemberLookups(
+  organizationId: string,
+): FailedMemberLookups {
+  const client = useQueryClient();
+  const subscribe = useCallback(
+    (onChange: () => void) => {
+      const scope = memberLookupScope(organizationId);
+      return client.getQueryCache().subscribe(
+        notifyManager.batchCalls((event) => {
+          const key = event.query.queryKey;
+          if (scope.every((part, index) => key[index] === part)) onChange();
+        }),
+      );
+    },
+    [client, organizationId],
+  );
+  const readFailureCount = useCallback(
+    () =>
+      failedLookups(client, organizationId).reduce(
+        (most, query) => Math.max(most, query.state.errorUpdateCount),
+        0,
+      ),
+    [client, organizationId],
+  );
+  const readRetrying = useCallback(
+    () =>
+      failedLookups(client, organizationId).some(
+        (query) => query.state.fetchStatus === 'fetching',
+      ),
+    [client, organizationId],
+  );
+  const failureCount = useSyncExternalStore(
+    subscribe,
+    readFailureCount,
+    readFailureCount,
+  );
+  const retrying = useSyncExternalStore(subscribe, readRetrying, readRetrying);
+  const retry = useCallback(() => {
+    void client.refetchQueries({
+      queryKey: memberLookupScope(organizationId),
+      type: 'active',
+      predicate: isFailedLookup,
+    });
+  }, [client, organizationId]);
+  return { unavailable: failureCount > 0, retrying, failureCount, retry };
 }

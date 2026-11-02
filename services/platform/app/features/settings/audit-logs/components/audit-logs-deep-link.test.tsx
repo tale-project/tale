@@ -24,7 +24,9 @@ const revealRow = {
   status: 'success',
 };
 
+const noEmails = vi.hoisted(() => new Map<string, string>());
 vi.mock('@/app/features/settings/audit-logs/hooks/queries', () => ({
+  useActorEmails: () => noEmails,
   useListAuditLogsPaginated: () => ({
     results: [],
     status: 'Exhausted' as const,
@@ -50,8 +52,8 @@ vi.mock('@/app/features/settings/audit-logs/hooks/integrity', () => ({
   }),
 }));
 
-// Members list carries no `logId`; the by-id reveal read does — branch on it so
-// one mock serves both call sites.
+// Only the by-id reveal read carries a `logId` — branch on it so one mock
+// serves it and the page's other reads.
 vi.mock('@/app/hooks/use-backend-query', () => ({
   useBackendQuery: (_func: unknown, args: unknown) =>
     args !== null && typeof args === 'object' && 'logId' in args

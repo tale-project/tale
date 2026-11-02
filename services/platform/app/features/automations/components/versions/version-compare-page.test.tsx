@@ -17,7 +17,7 @@ const store = vi.hoisted(() => ({
   failing: new Set<number>(),
   /** The automation's own read fails the same way. */
   latestFails: false,
-  /** The member directory's read fails the same way. */
+  /** The member lookup fails the same way. */
   membersFail: false,
 }));
 const navigate = vi.hoisted(() => vi.fn());
@@ -133,18 +133,14 @@ vi.mock('@tanstack/react-router', async (importOriginal) => ({
   ...(await import('@/tests/utils/router-link-stub')).routerLinkStub,
   useNavigate: () => navigate,
 }));
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () =>
-    store.membersFail
-      ? {
-          members: undefined,
-          unavailable: true,
-          retrying: false,
-          failureCount: 1,
-          retry: retryMembers,
-        }
-      : { members: [] },
-}));
+const noMembers = vi.hoisted(() => []);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => (store.membersFail ? undefined : noMembers),
+    [],
+    { failed: () => store.membersFail, retry: () => retryMembers() },
+  ),
+);
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { userId: 'user-me' } }),
 }));
@@ -362,7 +358,7 @@ describe('VersionComparePage', () => {
     expect(refetch).toHaveBeenCalledOnce();
   });
 
-  it('names who saved the version as Someone, and says why with Try again, while the member directory read has failed', async () => {
+  it('names who saved the version as Someone, and says why with Try again, while the lookup of their name has failed', async () => {
     store.membersFail = true;
     store.versions[3] = detail(3, ['collect', 'summarize', 'post'], {
       createdBy: 'user-ada',

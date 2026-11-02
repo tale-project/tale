@@ -11,6 +11,7 @@ import { act, renderHook, waitFor } from '@/tests/utils/render';
 import {
   type MemberLookupTarget,
   useAskedMemberLookup,
+  useFailedMemberLookups,
   useMemberLookup,
 } from './member-lookup';
 
@@ -174,15 +175,22 @@ describe('useMemberLookup [MEMBER-R11]', () => {
     ]);
   });
 
-  it('keeps a person pending while their lookup fails', async () => {
+  it('keeps a person unanswered while their lookup fails, and says it failed once it has', async () => {
     fetchMock.mockRejectedValue(new Error('backend unreachable'));
     const { result } = renderHook(
       () => useMemberLookup('org-acme', [{ userId: 'user-ada' }]),
       { wrapper },
     );
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    // While it still retries, nothing has failed yet.
+    expect(result.current.failed({ userId: 'user-ada' })).toBe(false);
+    await waitFor(() =>
+      expect(result.current.failed({ userId: 'user-ada' })).toBe(true),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(result.current.answered({ userId: 'user-ada' })).toBe(false);
+    // A value no member could be has nothing to fail.
+    expect(result.current.failed({ handle: 'not a handle' })).toBe(false);
   });
 });
 
@@ -228,5 +236,85 @@ describe('useAskedMemberLookup [MEMBER-R11]', () => {
       'org-acme',
       'org-globex',
     ]);
+  });
+});
+
+describe('useFailedMemberLookups [MEMBER-R11]', () => {
+  /** A screen that names Ada, then Noah, and the page's one notice. */
+  function renderScreen() {
+    return renderHook(
+      ({ named }: { named: MemberLookupTarget[] }) => ({
+        lookup: useMemberLookup('org-acme', named),
+        notice: useFailedMemberLookups('org-acme'),
+      }),
+      { wrapper, initialProps: { named: [{ userId: 'user-ada' }] } },
+    );
+  }
+
+  it('says a name on screen could not be looked up, and looks up again only the people whose lookup failed', async () => {
+    const { result, rerender } = renderScreen();
+    await waitFor(() =>
+      expect(result.current.lookup.answered({ userId: 'user-ada' })).toBe(true),
+    );
+    expect(result.current.notice.unavailable).toBe(false);
+
+    fetchMock.mockRejectedValue(new Error('backend unreachable'));
+    rerender({ named: [{ userId: 'user-ada' }, { userId: 'user-noah' }] });
+    await waitFor(() => expect(result.current.notice.unavailable).toBe(true));
+    expect(result.current.notice).toMatchObject({
+      retrying: false,
+      failureCount: 1,
+    });
+
+    // Each retry that fails again is announced again.
+    act(() => result.current.notice.retry());
+    await waitFor(() => expect(result.current.notice.failureCount).toBe(2));
+    expect(result.current.notice.unavailable).toBe(true);
+
+    let answer = () => {};
+    fetchMock.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          answer = () => resolve({ members: [noah] });
+        }),
+    );
+    act(() => result.current.notice.retry());
+    await waitFor(() => expect(result.current.notice.retrying).toBe(true));
+    // Until it answers, the notice stays: Try again shows it runs.
+    expect(result.current.notice.unavailable).toBe(true);
+    act(() => answer());
+    await waitFor(() => expect(result.current.notice.unavailable).toBe(false));
+    expect(result.current.notice.retrying).toBe(false);
+    expect(result.current.lookup.members.map((m) => m.userId)).toEqual([
+      'user-noah',
+      'user-ada',
+    ]);
+    // Ada answered before: only Noah was looked up again.
+    expect(lookupsSent()).toEqual([
+      ['user-ada'],
+      ...Array.from({ length: 8 }, () => ['user-noah']),
+      ['user-noah'],
+    ]);
+  });
+
+  it('forgets a failure no screen shows any longer', async () => {
+    fetchMock.mockRejectedValue(new Error('backend unreachable'));
+    const reader = renderHook(
+      () => useMemberLookup('org-acme', [{ userId: 'user-ada' }]),
+      { wrapper },
+    );
+    const notice = renderHook(() => useFailedMemberLookups('org-acme'), {
+      wrapper,
+    });
+    await waitFor(() => expect(notice.result.current.unavailable).toBe(true));
+    // Another organization's notice says nothing of it.
+    const elsewhere = renderHook(() => useFailedMemberLookups('org-globex'), {
+      wrapper,
+    });
+    expect(elsewhere.result.current.unavailable).toBe(false);
+
+    reader.unmount();
+
+    await waitFor(() => expect(notice.result.current.unavailable).toBe(false));
   });
 });

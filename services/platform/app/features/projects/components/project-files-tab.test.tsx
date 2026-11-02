@@ -123,19 +123,22 @@ vi.mock('@/app/features/documents/hooks/queries', () => ({
   useLastDocumentRecordReview: () => ({ data: undefined }),
 }));
 
-// The record menu consults legal holds per row; the submit dialog lists org
-// members. Neither backend surface is under test here.
+// The record menu consults legal holds per row; the submit dialog looks up
+// the reviewers the server offers. Neither backend surface is under test here.
 let policyFixture: Record<string, unknown> = {};
 vi.mock('@/app/features/settings/governance/hooks/queries', () => ({
   useLegalHoldByTarget: () => ({ data: null }),
   useUploadPolicy: () => policyFixture,
 }));
 
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({
-    members: [{ userId: 'u-reviewer', displayName: 'Riley', role: 'member' }],
-  }),
-}));
+const reviewers = vi.hoisted(() => [
+  { userId: 'u-reviewer', displayName: 'Riley' },
+]);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => reviewers,
+  ),
+);
 
 // FormDialog (inside ProjectCreateFolderDialog) reads the org id off the
 // router params; the component tree here renders without a router.

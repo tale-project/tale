@@ -10,11 +10,14 @@ vi.mock('@tanstack/react-router', async () => ({
   ...(await import('@/tests/utils/router-link-stub')).routerLinkStub,
   useNavigate: () => navigate,
 }));
-vi.mock('@/app/features/settings/organization/hooks/queries', () => ({
-  useMembers: () => ({
-    members: [{ userId: 'a', displayName: 'Ada Lovelace' }],
-  }),
-}));
+const knownMembers = vi.hoisted(() => [
+  { userId: 'a', displayName: 'Ada Lovelace' },
+]);
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => knownMembers,
+  ),
+);
 vi.mock('@/app/hooks/use-current-member-context', () => ({
   useCurrentMemberContext: () => ({ data: { userId: 'user-me' } }),
 }));

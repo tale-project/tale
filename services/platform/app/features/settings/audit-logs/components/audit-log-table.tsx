@@ -28,6 +28,7 @@ import { useT } from '@/lib/i18n/client';
 import { redactSensitiveFields } from '@/lib/shared/audit-redaction';
 import { displayClientName } from '@/lib/shared/client-name';
 
+import { useActorEmails } from '../hooks/queries';
 import {
   useAuditLogTableConfig,
   type AuditLogTableVariant,
@@ -37,10 +38,10 @@ type AuditLog = AuditLogDoc;
 
 interface AuditLogTableProps {
   paginatedResult: UsePaginatedQueryReturnType<AuditLog>;
-  userEmailMap?: Map<string, string>;
   /** `errors` renders the error-message column set and errors copy. */
   variant?: AuditLogTableVariant;
-  /** Org id — required to resolve a `revealLogId` that isn't on the loaded page. */
+  /** Org id — required to look up the people the rows name without an
+   * e-mail, and to resolve a `revealLogId` that isn't on the loaded page. */
   organizationId?: string;
   /**
    * When set, reveal this row's detail dialog (notification deep link or the
@@ -57,7 +58,6 @@ interface AuditLogTableProps {
 
 export function AuditLogTable({
   paginatedResult,
-  userEmailMap,
   variant = 'audit',
   organizationId,
   revealLogId,
@@ -121,10 +121,20 @@ export function AuditLogTable({
     t,
   ]);
 
+  // The people the loaded rows name, and the one an open entry names: a
+  // revealed entry need not be on the loaded page.
+  const shownLogs = useMemo(
+    () =>
+      selectedLog === null
+        ? paginatedResult.results
+        : [...paginatedResult.results, selectedLog],
+    [paginatedResult.results, selectedLog],
+  );
+  const actorEmails = useActorEmails(organizationId, shownLogs);
   const resolveEmail = useCallback(
     (log: AuditLog) =>
-      log.actorEmail || userEmailMap?.get(log.actorId) || undefined,
-    [userEmailMap],
+      log.actorEmail || actorEmails.get(log.actorId) || undefined,
+    [actorEmails],
   );
 
   const selectedChannel = useMemo(
