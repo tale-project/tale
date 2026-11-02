@@ -37,6 +37,11 @@ the mount prefix before matching the spec's operation. [`gateway.ts`](gateway.ts
 handlers; [`specs/`](specs/) owns request and response examples. The specs cover the operations they
 list, not every operation an upstream service offers.
 
+These specs are fixtures written for the gateway to answer with, not the documents vendors publish.
+Those, which the catalog test holds the connector scenarios' answers against (`CONN-R34`), are
+pinned as their vendors published them in
+[`tests/fixtures/vendor-openapi`](../../tests/fixtures/vendor-openapi/README.md).
+
 ## Connect a test organization
 
 Configure an AI provider whose base URL points to `http://127.0.0.1:4141/v1`, connect a synthetic

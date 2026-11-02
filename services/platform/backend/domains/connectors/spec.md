@@ -141,6 +141,30 @@ workspace or customer.
 - **Example**: Ben changes what Slack's `send_message` returns → the catalog check fails for
   `posted` and `posted_again` until their outputs are what the live call now returns.
 
+### CONN-R34 · A scenario's answer is one its vendor's published document gives
+
+Where the vendor of a connector on the scenario list publishes an OpenAPI document for its
+service, the repository pins that document as the vendor published it, but for an example string
+shaped like a credential, which a placeholder replaces. Each answer a scenario stands for is
+held against it: the status is one the operation answers with, or an error the vendor files
+under its default answer, and each member the answer carries has the type, the values and the
+bounds the document gives, and is one the operation answers wherever the document lists every
+member of a record. A value of a union whose alternatives the document tells apart by a member
+is held to the alternative that member names. An answer carries the members its action reads, so
+a member the document requires may be left out. Where the vendor's reference has moved past its
+document, the departure is listed with its reason and the page that confirms it, and a call the
+document does not describe is listed with why. The check reads only the repository, so it runs
+offline and calls no vendor's service. The document moves only in a reviewed change, and the
+check then names each scenario, call and place in its answer that no longer fits, and each
+listed departure that no longer occurs. Slack's document and OpenRouter's, for Jev, are pinned
+so far.
+
+- **Example**: Ben adds a member Slack does not answer to a channel in the answer behind
+  `list_channels/two_channels` → the catalog check fails, naming the scenario,
+  `conversations.list` and the member's place in the answer.
+- **Example**: Lena moves the pin to a newer Slack document that lists `not_in_channel` for
+  `conversations.history` → the catalog check fails until the departure listed for it is struck.
+
 ## Importing tasks
 
 ### CONN-R11 · An import of tasks writes only into the project of the run that does it

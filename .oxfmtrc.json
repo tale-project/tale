@@ -27,6 +27,7 @@
     "tools/plop/templates/**",
     "tools/opengrep/rules/**",
     "**/public/canvas-libs/**",
-    "**/mock_data/**"
+    "**/mock_data/**",
+    "**/tests/fixtures/vendor-openapi/**"
   ]
 }

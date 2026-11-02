@@ -11,9 +11,14 @@
  * It holds the scenarios a test can pick in a mock run to the same bar: each
  * fits its action, and a connector on the scenario list ships the kinds every
  * action needs and has each scenario proven against its live body, so a
- * scenario answers what a live call in that case does.
+ * scenario answers what a live call in that case does. The answers the
+ * proofs stand for are held in turn to the OpenAPI document their vendor
+ * publishes (Slack's, and OpenRouter's for Jev), pinned in the repository:
+ * each is one the vendor gives, or a departure listed with the page of the
+ * vendor's reference that confirms it.
  */
 
+import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 
@@ -24,8 +29,13 @@ import {
   type Connector,
   type ConnectorAction,
 } from '@tale/shared/schemas/connectors';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
+import {
+  readVendorDocument,
+  type VendorDocument,
+  type VendorReading,
+} from '../../../tests/utils/vendor-openapi';
 import { inProcessLiveRunner } from '../../connectors/in-process-live';
 import { toConnectorResponse } from '../../connectors/live-host';
 import { connectorFailureOf } from '../../engine/core/record/failure';
@@ -814,4 +824,482 @@ describe('a connector scenario fits its action and answers as the live call woul
       );
     },
   );
+});
+
+/** A vendor's published OpenAPI document, pinned as the vendor published it
+ * at the source it names but for what it redacts, and how its vendor's
+ * answers are read beyond what it says. */
+interface VendorPin {
+  file: string;
+  source: string;
+  /** The SHA-256 of the file as pinned. */
+  sha256: string;
+  /**
+   * The strings shaped like a credential that the vendor's file carries in
+   * its examples, each replaced by `placeholder` in the pinned file:
+   * GitHub refuses a push that carries one, and examples play no part in
+   * the check. `publishedSha256` is the SHA-256 of the file as fetched.
+   */
+  redacted?: { pattern: RegExp; placeholder: string; publishedSha256: string };
+  reading: VendorReading;
+}
+
+const VENDOR_DOCUMENTS_DIR = path.join(
+  path.dirname(new URL(import.meta.url).pathname),
+  '../../../tests/fixtures/vendor-openapi',
+);
+
+/**
+ * The documents the listed connectors' vendors publish for the services they
+ * call. The check reads them from the repository, so it runs offline, and a
+ * pin moves only with its file, in a reviewed change (see the directory's
+ * README).
+ */
+const VENDOR_DOCUMENTS = {
+  slack: {
+    file: 'slack/slack_web_openapi_v2_without_examples.json',
+    source:
+      'https://github.com/slackapi/slack-api-specs/blob/bc08db49625630e3585bf2f1322128ea04f2a7f3/web-api/slack_web_openapi_v2_without_examples.json',
+    sha256: '8b92da26a3c5b11d20042a9f36d81f1fa6fc9382c5ddc471babb68b91936bc3a',
+    // Slack refuses a call with HTTP 200 and `ok: false`, an answer the
+    // document files under `default`, and takes every method by GET or POST.
+    reading: {
+      isError: (answer) => isRecord(answer.body) && answer.body.ok === false,
+      anyVerb: true,
+    },
+  },
+  openrouter: {
+    file: 'openrouter/openapi.json',
+    source: 'https://openrouter.ai/openapi.json, as fetched on 2026-11-02',
+    sha256: '3c3332453c0d13eaafee1c2def7f92e26ee7cbd61d75e452f3adda2770dfd49f',
+    // Its examples carry strings shaped like an OpenRouter API key.
+    redacted: {
+      pattern: /sk-or-v1-[0-9a-f]{64}/g,
+      placeholder: 'sk-or-v1-REDACTED',
+      publishedSha256:
+        '3032013dfb6b1ffe7582e56de70a4539c68d203dd344b0a01af2aa8357ce34bf',
+    },
+    reading: {},
+  },
+} satisfies Record<string, VendorPin>;
+
+type Vendor = keyof typeof VENDOR_DOCUMENTS;
+
+/**
+ * Where a proof departs from its vendor's document, keyed as the check names
+ * it (`<proof> <request> #<path in the answer> <keyword>`), and why the proof
+ * is right: the vendor's reference, at `source`, says the vendor answers so.
+ */
+interface Departure {
+  misfit: string;
+  reason: string;
+  source: string;
+}
+
+/**
+ * Slack's departures. Slack's document was last changed in 2020 and its
+ * methods have grown since, so such a proof is not bent to the document; a
+ * departure that no longer occurs fails the check until it is struck from
+ * here.
+ */
+const SLACK_DEPARTURES: readonly Departure[] = [
+  {
+    misfit: `list_messages/two_messages POST ${SLACK_API}/conversations.history #/response_metadata additionalProperties`,
+    reason:
+      'Slack pages the history by cursor now: the reference names the next page in response_metadata.next_cursor, and its example answer carries it.',
+    source: 'https://docs.slack.dev/reference/methods/conversations.history',
+  },
+  {
+    misfit: `list_messages/no_messages POST ${SLACK_API}/conversations.history #/messages minItems`,
+    reason:
+      'oldest and latest bound the messages answered, so a time range with nothing posted in it answers an empty list, where the document says one message at least.',
+    source: 'https://docs.slack.dev/reference/methods/conversations.history',
+  },
+  {
+    misfit: `list_messages/not_in_channel POST ${SLACK_API}/conversations.history #/error enum`,
+    reason:
+      'The reference lists not_in_channel among the errors of conversations.history; the document does not.',
+    source: 'https://docs.slack.dev/reference/methods/conversations.history',
+  },
+  {
+    misfit: `send_message/rate_limited POST ${SLACK_API}/chat.postMessage #/error enum`,
+    reason:
+      'A call Slack rate-limits answers HTTP 429 with the error ratelimited, which the reference lists for chat.postMessage; the document knows only rate_limited, the error for too many messages posted.',
+    source: 'https://docs.slack.dev/reference/methods/chat.postMessage',
+  },
+  {
+    misfit: `list_users/no_members POST ${SLACK_API}/users.list #/members minItems`,
+    reason:
+      'Kept as the empty answer every read action ships (CONN-R33). The document says a page holds one member at least, true of a first page, which lists Slackbot; the reference says only that a page may hold fewer members than asked for before the end of the list.',
+    source: 'https://docs.slack.dev/reference/methods/users.list',
+  },
+  {
+    misfit: `list_users/rate_limited POST ${SLACK_API}/users.list #/error enum`,
+    reason:
+      'A call Slack rate-limits answers HTTP 429 with the error ratelimited, which the reference lists for users.list; the document does not.',
+    source: 'https://docs.slack.dev/reference/methods/users.list',
+  },
+];
+
+/** The requests the Slack proofs make that Slack's document does not
+ * describe, each with why. */
+const SLACK_UNDESCRIBED: Readonly<Record<string, string>> = {
+  [`POST ${SLACK_API}/files.getUploadURLExternal`]:
+    "A method Slack added after the document's last change.",
+  [`POST ${SLACK_API}/files.completeUploadExternal`]:
+    "A method Slack added after the document's last change.",
+  [`POST ${UPLOAD_URL}`]:
+    'The URL Slack hands out for the bytes of one upload, which no document describes.',
+  [`POST ${SECOND_UPLOAD_URL}`]:
+    'The URL Slack hands out for the bytes of one upload, which no document describes.',
+};
+
+/** The document a connector's proofs are held to, the departures from it
+ * they make, and the requests they make that it does not describe. */
+interface VendorCheck {
+  vendor: Vendor;
+  departures: readonly Departure[];
+  undescribed: Readonly<Record<string, string>>;
+}
+
+/** Why a connector's proofs are held to no vendor's document: its vendor
+ * publishes no OpenAPI document for what it calls, as for a connector that
+ * speaks IMAP and SMTP or WebDAV. */
+interface NoVendorDocument {
+  unpublished: string;
+}
+
+/**
+ * Each listed connector's vendor check, or why it has none. A connector
+ * joins `SCENARIO_CONNECTORS` with its entry here, or this does not
+ * type-check.
+ */
+const VENDOR_CHECKS: Record<ScenarioConnector, VendorCheck | NoVendorDocument> =
+  {
+    jev: { vendor: 'openrouter', departures: [], undescribed: {} },
+    slack: {
+      vendor: 'slack',
+      departures: SLACK_DEPARTURES,
+      undescribed: SLACK_UNDESCRIBED,
+    },
+  };
+
+/** The listed connectors whose proofs are held to a vendor's document. */
+const CHECKED_CONNECTORS = SCENARIO_CONNECTORS.filter(
+  (slug) => 'vendor' in VENDOR_CHECKS[slug],
+);
+
+/** `slug`'s vendor check; throws for a connector that has none. */
+function vendorCheckOf(slug: ScenarioConnector): VendorCheck {
+  const check = VENDOR_CHECKS[slug];
+  if (!('vendor' in check)) {
+    throw new Error(`${slug} has no vendor document: ${check.unpublished}`);
+  }
+  return check;
+}
+
+const readDocuments = new Map<Vendor, VendorDocument>();
+
+/** `vendor`'s document, read once. */
+function documentOf(vendor: Vendor): VendorDocument {
+  let document = readDocuments.get(vendor);
+  if (document === undefined) {
+    const { file, reading } = VENDOR_DOCUMENTS[vendor];
+    const published: unknown = JSON.parse(
+      readFileSync(path.join(VENDOR_DOCUMENTS_DIR, file), 'utf8'),
+    );
+    document = readVendorDocument(published, reading);
+    readDocuments.set(vendor, document);
+  }
+  return document;
+}
+
+/** A proof's request, `<METHOD> <url>`, as its method and its URL. */
+function requestOf(request: string): [method: string, url: string] {
+  const space = request.indexOf(' ');
+  return [request.slice(0, space), request.slice(space + 1)];
+}
+
+/** Every way an answer in `proofs` departs from `vendor`'s document, keyed
+ * as a departure lists one. */
+function vendorMisfitsOf(
+  vendor: Vendor,
+  proofs: Record<string, ProofAnswers>,
+): { misfit: string; detail: string }[] {
+  const document = documentOf(vendor);
+  return Object.entries(proofs).flatMap(([proof, answers]) =>
+    Object.entries(answers).flatMap(([request, answer]) => {
+      const [method, url] = requestOf(request);
+      if (!document.describes(method, url)) return [];
+      return document
+        .misfitsOf(method, url, answer)
+        .map(({ path: at, keyword, detail }) => ({
+          misfit: `${proof} ${request} #${at} ${keyword}`,
+          detail,
+        }));
+    }),
+  );
+}
+
+/** The misfits in `slug`'s proofs that no departure lists, and the
+ * departures listed that no longer occur. */
+function departuresIn(
+  slug: ScenarioConnector,
+  proofs = SCENARIO_PROOFS[slug].proofs,
+): { unlisted: string[]; stale: string[] } {
+  const { vendor, departures } = vendorCheckOf(slug);
+  const found = vendorMisfitsOf(vendor, proofs);
+  const listed = new Set(departures.map(({ misfit }) => misfit));
+  const occurring = new Set(found.map(({ misfit }) => misfit));
+  return {
+    unlisted: found
+      .filter(({ misfit }) => !listed.has(misfit))
+      .map(({ misfit, detail }) => `${misfit}: ${detail}`),
+    stale: [...listed].filter((misfit) => !occurring.has(misfit)),
+  };
+}
+
+/** The requests `slug`'s proofs make that its vendor's document does not
+ * describe and the list does not name, and those it names that no proof makes
+ * or that the document has come to describe. */
+function undescribedIn(
+  slug: ScenarioConnector,
+  proofs = SCENARIO_PROOFS[slug].proofs,
+): { unlisted: string[]; stale: string[] } {
+  const { vendor, undescribed: listed } = vendorCheckOf(slug);
+  const document = documentOf(vendor);
+  const made = new Set(
+    Object.values(proofs).flatMap((answers) => Object.keys(answers)),
+  );
+  const undescribed = [...made].filter(
+    (request) => !document.describes(...requestOf(request)),
+  );
+  return {
+    unlisted: undescribed.filter((request) => !Object.hasOwn(listed, request)),
+    stale: Object.keys(listed).filter(
+      (request) => !undescribed.includes(request),
+    ),
+  };
+}
+
+/** Answers that depart from their vendor's document, each with the misfit the
+ * check names it by (after the proof and the request). */
+const NAMED_MISFITS: {
+  slug: ScenarioConnector;
+  change: string;
+  proof: string;
+  request: string;
+  answer: ServiceAnswer;
+  misfit: string;
+}[] = [
+  {
+    slug: 'slack',
+    change: 'a channel carries a member Slack does not answer',
+    proof: 'list_channels/two_channels',
+    request: `POST ${SLACK_API}/conversations.list`,
+    answer: slackOk({
+      channels: [{ id: 'C0000000001', name: 'general', is_privat: false }],
+    }),
+    misfit: '#/channels/0/is_privat additionalProperties',
+  },
+  {
+    slug: 'slack',
+    change: 'a member has another type',
+    proof: 'list_messages/two_messages',
+    request: `POST ${SLACK_API}/conversations.history`,
+    answer: slackOk({
+      messages: [{ ts: '1700000000.000100', text: 'Deploy finished.' }],
+      has_more: 'no',
+    }),
+    misfit: '#/has_more type',
+  },
+  {
+    slug: 'slack',
+    change: 'a call succeeds with a status Slack does not answer it with',
+    proof: 'send_message/posted',
+    request: `POST ${SLACK_API}/chat.postMessage`,
+    answer: {
+      status: 201,
+      body: { ok: true, channel: 'C0000000001', ts: '1700000000.000100' },
+    },
+    misfit: '# status',
+  },
+  {
+    slug: 'slack',
+    change: 'Slack refuses with an error the method does not answer',
+    proof: 'get_user/user_not_found',
+    request: `POST ${SLACK_API}/users.info`,
+    answer: slackError('no_such_user'),
+    misfit: '#/error enum',
+  },
+  {
+    slug: 'jev',
+    change: 'a member has another type',
+    proof: 'decide/two_answers',
+    request: JEV_DECIDE,
+    answer: {
+      status: 200,
+      body: {
+        answers: JEV_ANSWERS,
+        usage: { input_tokens: '128', output_tokens: 0 },
+      },
+    },
+    misfit: '#/usage/input_tokens type',
+  },
+  {
+    slug: 'jev',
+    change: 'an answer is of a kind OpenRouter does not answer',
+    proof: 'decide/two_answers',
+    request: JEV_DECIDE,
+    answer: {
+      status: 200,
+      body: {
+        answers: { handling: { ...JEV_ANSWERS.handling, type: 'pick' } },
+      },
+    },
+    misfit: '#/answers/handling/type enum',
+  },
+  {
+    slug: 'jev',
+    change: 'an answer carries a member of another type than its kind answers',
+    proof: 'decide/two_answers',
+    request: JEV_DECIDE,
+    answer: {
+      status: 200,
+      body: { answers: { handling: { ...JEV_ANSWERS.handling, choice: 5 } } },
+    },
+    misfit: '#/answers/handling/choice type',
+  },
+  {
+    slug: 'jev',
+    change: 'an answer names no kind',
+    proof: 'decide/two_answers',
+    request: JEV_DECIDE,
+    answer: {
+      status: 200,
+      body: {
+        answers: {
+          handling: {
+            choice: 'escalate',
+            probabilities: { auto_reply: 0.06, escalate: 0.94 },
+            confidence: 0.94,
+          },
+        },
+      },
+    },
+    misfit: '#/answers/handling/type required',
+  },
+];
+
+describe("a connector scenario's answer is one its vendor's published document gives [CONN-R34]", () => {
+  // The check reads the pinned documents and nothing else, so a call for the
+  // network fails it.
+  beforeAll(() => {
+    vi.stubGlobal('fetch', () => {
+      throw new Error('the check against a vendor document reads no network');
+    });
+  });
+  afterAll(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it.each(Object.entries(VENDOR_DOCUMENTS))(
+    '%s: the pinned file is the one its pin names',
+    (_vendor, pin: VendorPin) => {
+      const { file, source, sha256, redacted } = pin;
+      const bytes = readFileSync(path.join(VENDOR_DOCUMENTS_DIR, file));
+      const digest = createHash('sha256').update(bytes).digest('hex');
+      expect(digest, `the file and its pin move together (${source})`).toBe(
+        sha256,
+      );
+      if (redacted !== undefined) {
+        expect(
+          bytes.toString('utf8').match(redacted.pattern)?.length ?? 0,
+          `no string shaped like a credential is left (${redacted.placeholder} replaces each)`,
+        ).toBe(0);
+      }
+    },
+  );
+
+  it.each(CHECKED_CONNECTORS)(
+    "%s: every answer a proof stands for fits its vendor's document, but for the departures listed",
+    (slug) => {
+      expect(departuresIn(slug)).toEqual({ unlisted: [], stale: [] });
+    },
+  );
+
+  it.each(CHECKED_CONNECTORS)(
+    '%s: the document describes every request a proof makes, but for those listed',
+    (slug) => {
+      expect(undescribedIn(slug)).toEqual({ unlisted: [], stale: [] });
+    },
+  );
+
+  it.each(NAMED_MISFITS)(
+    '$slug: the check names the scenario when $change',
+    ({ slug, proof, request, answer, misfit }) => {
+      expect(
+        vendorMisfitsOf(vendorCheckOf(slug).vendor, {
+          [proof]: { [request]: answer },
+        }).map((found) => found.misfit),
+      ).toEqual([`${proof} ${request} ${misfit}`]);
+    },
+  );
+
+  it.each([
+    ['POST', 'https://openrouter.ai/api/v1/batches', 202],
+    ['GET', 'https://openrouter.ai/api/v1/batches/batch_1', 200],
+    ['POST', 'https://openrouter.ai/api/v1/responses', 200],
+  ])(
+    'openrouter: the answer to %s %s with status %i is read, though its schema holds a $ref beside nullable',
+    (method, url, status) => {
+      expect(
+        documentOf('openrouter').misfitsOf(method, url, { status, body: {} }),
+      ).toEqual([]);
+    },
+  );
+
+  it('openrouter: a $ref beside nullable takes null, and holds any other value to the schema it refers to', () => {
+    const responses = 'https://openrouter.ai/api/v1/responses';
+    const misfits = (body: unknown) =>
+      documentOf('openrouter')
+        .misfitsOf('POST', responses, { status: 200, body })
+        .map(({ path: at, keyword }) => `${at} ${keyword}`);
+    expect(misfits({ error: null, incomplete_details: null })).toEqual([]);
+    expect(misfits({ error: 5 })).toEqual(['/error type']);
+  });
+
+  it('slack: the check names a listed departure that no longer occurs', () => {
+    const proofs = {
+      ...SLACK_PROOFS,
+      'list_messages/two_messages': {
+        [`POST ${SLACK_API}/conversations.history`]: slackOk({
+          messages: [{ ts: '1700000000.000100', text: 'Deploy finished.' }],
+          has_more: false,
+        }),
+      },
+    };
+    expect(departuresIn('slack', proofs)).toEqual({
+      unlisted: [],
+      stale: [
+        `list_messages/two_messages POST ${SLACK_API}/conversations.history #/response_metadata additionalProperties`,
+      ],
+    });
+  });
+
+  it('slack: the check names a request the document does not describe, and a listed request no proof makes', () => {
+    const nothing = `POST ${SLACK_API}/conversations.nothing`;
+    const proofs = {
+      ...Object.fromEntries(
+        Object.entries(SLACK_PROOFS).filter(
+          ([key]) => !key.startsWith('upload_file/'),
+        ),
+      ),
+      'list_channels/two_channels': { [nothing]: slackOk({}) },
+    };
+    expect(undescribedIn('slack', proofs)).toEqual({
+      unlisted: [nothing],
+      stale: Object.keys(SLACK_UNDESCRIBED),
+    });
+  });
 });

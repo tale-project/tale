@@ -22,3 +22,7 @@ tools/cli/scripts/ci-ready.ts text eol=lf
 # The Loop fixture's README hashes its bytes, and its cross-reference table
 # points at byte offsets: keep git from ever converting its line endings.
 services/platform/tests/integration/fixtures/loop/*.pdf binary
+
+# The catalog test pins each vendor OpenAPI document by the SHA-256 of its
+# bytes (CONN-R34): keep git from ever converting their line endings.
+services/platform/tests/fixtures/vendor-openapi/**/*.json -text linguist-vendored
