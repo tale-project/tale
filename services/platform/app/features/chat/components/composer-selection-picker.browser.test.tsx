@@ -47,6 +47,7 @@ const SKILLS: ComposerSkillChoice[] = Array.from(
     slug: `skill-${index + 1}`,
     description:
       index < 75 ? 'Short.' : `${LONG_SKILL_DESCRIPTION} (${index + 1})`,
+    origin: 'builtin',
   }),
 );
 
@@ -160,8 +161,8 @@ describe('a cut row', () => {
   it('shows a clamped skill description whole', async () => {
     await page.viewport(1280, 800);
     renderPicker(MODELS.slice(0, 2), [
-      { slug: 'docx', description: 'Short.' },
-      { slug: 'xlsx', description: LONG_SKILL_DESCRIPTION },
+      { slug: 'docx', description: 'Short.', origin: 'builtin' },
+      { slug: 'xlsx', description: LONG_SKILL_DESCRIPTION, origin: 'builtin' },
     ]);
     await openSection(/^Skills/);
     await expect.poll(() => row('xlsx')).not.toBeNull();
@@ -170,7 +171,7 @@ describe('a cut row', () => {
     await new Promise((resolve) => setTimeout(resolve, 600));
     expect(tip()).toBeUndefined();
     await userEvent.hover(row('xlsx') as HTMLElement);
-    await expect.poll(tip).toBe(`xlsx · ${LONG_SKILL_DESCRIPTION}`);
+    await expect.poll(tip).toBe(`xlsx · Built-in · ${LONG_SKILL_DESCRIPTION}`);
   });
 });
 
@@ -215,7 +216,8 @@ describe.each(['light', 'dark'] as const)('in %s mode', (theme) => {
     const first = row('skill-1') as HTMLButtonElement;
     assertTheme(first.closest('[role="menu"]') as Element);
 
-    const description = within(first).getByText('Short.');
+    // The creator leads the line, at the same AA as the description.
+    const description = within(first).getByText('Built-in · Short.');
     expect(inkContrast(description)).toBeGreaterThanOrEqual(4.5);
     first.focus();
     expect(inkContrast(description)).toBeGreaterThanOrEqual(4.5);
