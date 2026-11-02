@@ -23,6 +23,7 @@ import {
   RUNTIME_SERVICES,
   runtimeBundleSchema,
   TALE_REGISTRY,
+  TRAEFIK_EDGE_MARKER,
   type PrepareRuntimeOptions,
   type RuntimeBundle,
   type RuntimeDependencies,
@@ -227,6 +228,9 @@ function servesAdditionalOrigins(caddy: string): boolean {
     .some((line) => line.trim() === '# TRUSTED_PROXIES_PLACEHOLDER');
 }
 
+const SOURCE_UNAVAILABLE =
+  'The exact runtime source commit and required files must be available locally.';
+
 function sourceFiles(
   repoRoot: string,
   revision: string,
@@ -235,12 +239,24 @@ function sourceFiles(
   caddy: Buffer;
   tags: string[];
 } {
+  let traefikEdge: boolean;
   try {
     requireRuntime(
       git(repoRoot, 'rev-parse', `${revision}^{commit}`).toString().trim() ===
         revision,
       'Runtime revision must identify an exact committed source tree.',
     );
+    traefikEdge = /^100644 blob [a-f0-9]{40}\t/.test(
+      git(repoRoot, 'ls-tree', revision, '--', TRAEFIK_EDGE_MARKER).toString(),
+    );
+  } catch {
+    throw preconditionError(SOURCE_UNAVAILABLE);
+  }
+  requireRuntime(
+    !traefikEdge,
+    'This revision runs its edge on Traefik, which the managed runtime cannot prepare yet (tale-project/tale#5282); select a v0.5 Tale revision.',
+  );
+  try {
     for (const file of ['compose.yml', 'services/proxy/Caddyfile']) {
       requireRuntime(
         /^100644 blob [a-f0-9]{40}\t/.test(
@@ -262,9 +278,7 @@ function sourceFiles(
         .sort(),
     };
   } catch {
-    throw preconditionError(
-      'The exact runtime source commit and required files must be available locally.',
-    );
+    throw preconditionError(SOURCE_UNAVAILABLE);
   }
 }
 
