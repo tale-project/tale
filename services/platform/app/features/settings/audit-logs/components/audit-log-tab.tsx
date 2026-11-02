@@ -7,7 +7,6 @@ interface AuditLogTabProps {
   organizationId: string;
   /** Category filter the page-level filter UI drives for the audit tab. */
   category?: string;
-  userEmailMap?: Map<string, string>;
   /**
    * When set, reveal this row's detail dialog (notification deep link or the
    * integrity panel's "open broken row").
@@ -35,7 +34,6 @@ interface AuditLogTabProps {
 export function AuditLogTab({
   organizationId,
   category,
-  userEmailMap,
   revealLogId,
   revealNonce,
 }: AuditLogTabProps) {
@@ -47,7 +45,6 @@ export function AuditLogTab({
   return (
     <AuditLogTable
       paginatedResult={paginatedResult}
-      userEmailMap={userEmailMap}
       organizationId={organizationId}
       revealLogId={revealLogId}
       revealNonce={revealNonce}

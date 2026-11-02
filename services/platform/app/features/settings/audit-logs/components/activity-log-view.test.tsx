@@ -3,6 +3,8 @@ import '@testing-library/jest-dom/vitest';
 import { useLocale } from '@tale/ui/i18n/locale-provider';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+import type { MemberLookupTarget } from '@/app/features/settings/organization/hooks/member-lookup';
+import type { StandInMember } from '@/tests/utils/member-lookup-stand-in';
 import { render, screen, within } from '@/tests/utils/render';
 
 import { ActivityLogView } from './activity-log-view';
@@ -34,10 +36,24 @@ const read = vi.hoisted(() => ({
     refetch: vi.fn(),
   },
 }));
-vi.mock('../hooks/queries', () => ({
+vi.mock('../hooks/queries', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../hooks/queries')>()),
   useActivitySummary: () => read.current,
 }));
+/** The members the lookup knows, and whom the view asked it for. */
+const lookup = vi.hoisted(() => ({
+  members: [] as StandInMember[],
+  asked: [] as MemberLookupTarget[],
+}));
+vi.mock('@/app/features/settings/organization/hooks/member-lookup', async () =>
+  (await import('@/tests/utils/member-lookup-stand-in')).memberLookupStandIn(
+    () => lookup.members,
+    lookup.asked,
+  ),
+);
 beforeEach(() => {
+  lookup.members = [];
+  lookup.asked.length = 0;
   read.current = {
     data: SUMMARY,
     isLoading: false,
@@ -219,4 +235,34 @@ it('shows a retry state instead of fabricated zero totals when the summary fails
   expect(screen.queryByText('0')).not.toBeInTheDocument();
   await user.click(screen.getByRole('button', { name: 'Retry' }));
   expect(refetch).toHaveBeenCalledOnce();
+});
+
+// The roll-up names an actor by e-mail only when one of their rows recorded
+// it; the view looks up the rest instead of reading every member (MEMBER-R11).
+it('names a top actor without an e-mail by the one the lookup finds, else by id', () => {
+  lookup.members = [{ userId: 'user-2', email: 'noah@example.com' }];
+  read.current = {
+    data: {
+      ...SUMMARY,
+      topActors: [
+        { actorId: 'user-1', actorEmail: 'ada@example.com', count: 700 },
+        { actorId: 'user-2', count: 400 },
+        { actorId: 'user-3', count: 200 },
+      ],
+    },
+    isLoading: false,
+    isError: false,
+    refetch: vi.fn(),
+  };
+  render(<ActivityLogView organizationId="org-1" />);
+  expect(screen.getByText('ada@example.com')).toBeInTheDocument();
+  expect(screen.getByText('noah@example.com')).toBeInTheDocument();
+  expect(screen.getByText('user-3')).toBeInTheDocument();
+  expect(
+    new Set(
+      lookup.asked.map((target) =>
+        'userId' in target ? target.userId : target.handle,
+      ),
+    ),
+  ).toEqual(new Set(['user-2', 'user-3']));
 });
