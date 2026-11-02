@@ -30,11 +30,14 @@ export interface SubPanelProps {
  * The second-level side panel that sections mount inside their route layout,
  * to the left of their content — the settings rail and the chat sub-panel are
  * the two instances. One shared container so every section's sub-panel agrees
- * on chrome: fixed width, right border, `bg-background`, column flow, and
- * hidden below `md` (small viewports reach the same content through the
- * section's own mobile affordance — the settings overview page, the chat
- * drawer). Content and scroll behaviour stay with the caller: pass a
- * scrollable child, not an overflowing panel.
+ * on chrome: fixed width, right border, the sidebar surface (`bg-sidebar`,
+ * shared with the rail, so the two read as one column apart from the page),
+ * column flow, and hidden below `md` (small viewports reach the same content
+ * through the section's own mobile affordance — the settings overview page,
+ * the chat drawer). `data-slot="sub-panel"` marks it, so content shared with
+ * the page can match the surface inside it and the shell can drop its line
+ * to the rail while a panel stands. Content and scroll behaviour stay with
+ * the caller: pass a scrollable child, not an overflowing panel.
  */
 export function SubPanel({
   as: Component = 'div',
@@ -50,8 +53,9 @@ export function SubPanel({
       aria-label={ariaLabel}
       id={id}
       style={style}
+      data-slot="sub-panel"
       className={cn(
-        'bg-background border-border hidden shrink-0 flex-col overflow-hidden border-r md:flex',
+        'bg-sidebar border-border hidden shrink-0 flex-col overflow-hidden border-r md:flex',
         WIDTH_CLASSES[width],
         className,
       )}

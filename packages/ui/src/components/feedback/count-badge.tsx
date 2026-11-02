@@ -23,9 +23,10 @@ export const COUNT_BADGE_CLASS =
  * The chip is decoration: it is `aria-hidden`, and the control it sits on must
  * carry the count's meaning in its own accessible name ("Home, 3 unread
  * conversations"), because a bare "3" says nothing to a screen reader. The
- * ring in the page colour cuts the chip out of the glyph beneath it, and a new
- * count pops the chip again (it is keyed on the number); reduced motion keeps
- * it still.
+ * ring in the colour of the surface beneath cuts the chip out of the glyph —
+ * the page's by default; a chip on the sidebar passes `ring-sidebar` — and a
+ * new count pops the chip again (it is keyed on the number); reduced motion
+ * keeps it still.
  */
 export function CountBadge({ count, className }: CountBadgeProps) {
   if (count <= 0) return null;
