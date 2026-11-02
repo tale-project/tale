@@ -402,10 +402,13 @@ const TaskListRow = memo(function TaskListRow({
         task.archivedAt != null && 'opacity-70',
         // Indent so row content lines up just past the section header's chevron.
         nested ? 'pl-12' : 'pl-9',
-        nested ? 'hover:bg-muted/30' : 'hover:bg-muted/40',
+        // The drag clone stays under the pointer for the whole drag, and a
+        // hover tint would turn its card see-through.
+        nested ? 'hover:bg-muted/30' : !dragging && 'hover:bg-muted/40',
         !nested && sortable.isDragging && 'opacity-40',
-        dragging &&
-          'bg-card ring-border rounded-lg shadow-lg ring-1 backdrop-blur',
+        // An opaque card, without a backdrop blur that nothing would show and
+        // every frame of the drag would redraw (#5228).
+        dragging && 'bg-card ring-border rounded-lg shadow-lg ring-1',
       )}
     >
       {hasSubtasks && onToggleExpanded ? (
