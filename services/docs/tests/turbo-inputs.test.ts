@@ -101,13 +101,22 @@ function rootReadmes(): string[] {
   return fs.readdirSync(REPO_ROOT).filter((name) => README_PATTERN.test(name));
 }
 
+/** The README gallery tiles `readme-assets.test.ts` holds to the image policy. */
+function readmeTiles(): string[] {
+  return fs
+    .readdirSync(path.join(REPO_ROOT, '.github/assets'))
+    .filter((name) => /^readme-.*\.webp$/.test(name))
+    .map((name) => `.github/assets/${name}`);
+}
+
 const READERS: { task: string; why: string; reads: () => string[] }[] = [
   {
     task: 'test',
-    why: 'the structural, link and published suites, i18n, README parity, screenshot source references and variants',
+    why: 'the structural, link and published suites, i18n, README parity and gallery tiles, screenshot source references and variants',
     reads: () => [
       ...contentFiles(),
       ...rootReadmes(),
+      ...readmeTiles(),
       ...uiI18nFiles(),
       ...UI_DOCS_RULES,
       MARKETING_SCREENSHOTS,
