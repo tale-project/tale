@@ -11,7 +11,7 @@ const NO_LEADING_OPTIONS: readonly SearchableSelectOption[] = [];
 const NO_PROJECT_IDS: readonly string[] = [];
 
 /** A project as a field offers it: by its name. */
-export function projectOption(project: ProjectChoice): SearchableSelectOption {
+function projectOption(project: ProjectChoice): SearchableSelectOption {
   return { value: project._id, label: project.name };
 }
 
